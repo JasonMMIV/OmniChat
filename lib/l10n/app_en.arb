@@ -163,25 +163,6 @@
   "assistantEditPageMcpTab": "MCP",
   "assistantEditPageQuickPhraseTab": "Quick Phrase",
   "assistantEditPageCustomTab": "Custom",
-  "assistantEditPageRegexTab": "Regex Replace",
-  "assistantEditRegexDescription": "Create regex rules to rewrite or visually adjust user/assistant messages.",
-  "assistantEditAddRegexButton": "Add Regex Rule",
-  "assistantRegexAddTitle": "Add Regex Rule",
-  "assistantRegexEditTitle": "Edit Regex Rule",
-  "assistantRegexNameLabel": "Rule Name",
-  "assistantRegexPatternLabel": "Regular Expression",
-  "assistantRegexReplacementLabel": "Replacement String",
-  "assistantRegexScopeLabel": "Affecting Scope",
-  "assistantRegexScopeUser": "User",
-  "assistantRegexScopeAssistant": "Assistant",
-  "assistantRegexScopeVisualOnly": "Visual Only",
-  "assistantRegexAddAction": "Add",
-  "assistantRegexSaveAction": "Save",
-  "assistantRegexDeleteButton": "Delete",
-  "assistantRegexValidationError": "Please fill in the name, regex, and select at least one scope.",
-  "assistantRegexInvalidPattern": "Invalid regular expression",
-  "assistantRegexCancelButton": "Cancel",
-  "assistantRegexUntitled": "Untitled Rule",
   "assistantEditCustomHeadersTitle": "Custom Headers",
   "assistantEditCustomHeadersAdd": "Add Header",
   "assistantEditCustomHeadersEmpty": "No headers added",
@@ -300,10 +281,6 @@
   "multiKeyPageDelete": "Delete",
   "assistantEditSystemPromptTitle": "System Prompt",
   "assistantEditSystemPromptHint": "Enter system prompt…",
-  "assistantEditSystemPromptImportButton": "Import file",
-  "assistantEditSystemPromptImportSuccess": "System prompt updated from file",
-  "assistantEditSystemPromptImportFailed": "Failed to import file",
-  "assistantEditSystemPromptImportEmpty": "File is empty",
   "assistantEditAvailableVariables": "Available variables:",
   "assistantEditVariableDate": "Date",
   "assistantEditVariableTime": "Time",
@@ -418,12 +395,12 @@
   "backupPageImportFromCherryStudio": "Import from Cherry Studio",
   "chatHistoryPageTitle": "Chat History",
   "chatHistoryPageSearchTooltip": "Search",
-  "chatHistoryPageDeleteAllTooltip": "Delete Unpinned",
-  "chatHistoryPageDeleteAllDialogTitle": "Delete Unpinned Conversations",
-  "chatHistoryPageDeleteAllDialogContent": "Delete every non-pinned conversation for this assistant? Pinned chats stay in place.",
+  "chatHistoryPageDeleteAllTooltip": "Delete All",
+  "chatHistoryPageDeleteAllDialogTitle": "Delete All Conversations",
+  "chatHistoryPageDeleteAllDialogContent": "Are you sure you want to delete all conversations? This cannot be undone.",
   "chatHistoryPageCancel": "Cancel",
   "chatHistoryPageDelete": "Delete",
-  "chatHistoryPageDeletedAllSnackbar": "Unpinned conversations deleted",
+  "chatHistoryPageDeletedAllSnackbar": "All conversations deleted",
   "chatHistoryPageSearchHint": "Search conversations",
   "chatHistoryPageNoConversations": "No conversations",
   "chatHistoryPagePinnedSection": "Pinned",
@@ -431,7 +408,6 @@
   "chatHistoryPagePinned": "Pinned",
   "messageEditPageTitle": "Edit Message",
   "messageEditPageSave": "Save",
-  "messageEditPageSaveAndSend": "Save & Send",
   "messageEditPageHint": "Enter message…",
   "selectCopyPageTitle": "Select & Copy",
   "selectCopyPageCopyAll": "Copy All",
@@ -695,8 +671,6 @@
   "chatInputBarMcpServersTooltip": "MCP Servers",
   "chatInputBarMoreTooltip": "Add",
   "chatInputBarInsertNewline": "Newline",
-  "chatInputBarExpand": "Expand",
-  "chatInputBarCollapse": "Collapse",
   "mcpPageBackTooltip": "Back",
   "mcpPageAddMcpTooltip": "Add MCP",
   "mcpPageNoServers": "No MCP servers",
@@ -1220,21 +1194,12 @@
   "instructionInjectionTitle": "Instruction Injection",
   "instructionInjectionBackTooltip": "Back",
   "instructionInjectionAddTooltip": "Add Instruction",
-  "instructionInjectionImportTooltip": "Import from files",
   "instructionInjectionEmptyMessage": "No instruction injection cards yet",
   "instructionInjectionDefaultTitle": "Learning Mode",
   "instructionInjectionAddTitle": "Add Instruction Injection",
   "instructionInjectionEditTitle": "Edit Instruction Injection",
   "instructionInjectionNameLabel": "Name",
   "instructionInjectionPromptLabel": "Prompt",
-  "instructionInjectionImportSuccess": "Imported {count} instruction(s)",
-  "@instructionInjectionImportSuccess": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "instructionInjectionSheetSubtitle": "Choose a prompt to apply before chatting",
   "mcpJsonEditButtonTooltip": "Edit JSON",
   "mcpJsonEditTitle": "Edit JSON",
@@ -1334,10 +1299,57 @@
   "messageWebViewRefreshTooltip": "Refresh",
   "messageWebViewForwardTooltip": "Forward",
   "chatInputBarOcrTooltip": "Image OCR",
-  "providerDetailPageBatchDetectButton": "Detect",
-  "providerDetailPageBatchDetecting": "Detecting...",
-  "providerDetailPageBatchDetectStart": "Start Detection",
-  "providerDetailPageDetectSuccess": "Detection successful",
-  "providerDetailPageDetectFailed": "Detection failed",
-  "providerDetailPageDeleteAllModelsWarning": "This action cannot be undone."
+  "voiceChatTitle": "Voice Chat",
+  "voiceChatListening": "Listening",
+  "voiceChatThinking": "Thinking",
+  "voiceChatTalking": "Talking",
+  "voiceChatButtonTooltip": "Voice Chat",
+  "voiceChatPermissionRequired": "Microphone Permission Required",
+  "voiceChatPermissionSubtitle": "This app needs microphone access to perform voice chat. Please grant permission in settings.",
+  "voiceChatPermissionButton": "Grant Permission",
+  "voiceChatError": "Error: {error}",
+  "@voiceChatError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceChatErrorInitFailed": "Failed to initialize speech recognition",
+  "voiceChatProcessing": "Processing...",
+  "voiceChatErrorApi": "API Error: {error}",
+  "@voiceChatErrorApi": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceChatErrorProcessingResponse": "Error processing response: {error}",
+  "@voiceChatErrorProcessingResponse": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceChatErrorTts": "TTS Error: {error}",
+  "@voiceChatErrorTts": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceChatErrorNoModel": "Please select a model first",
+  "voiceChatErrorNoConversation": "Conversation not found",
+  "voiceChatErrorNoActiveConversation": "No active conversation",
+  "voiceChatSystemPrompt": "You are in a voice conversation. Use informal, conversational language, and keep the conversation simple and clear. {text}",
+  "@voiceChatSystemPrompt": {
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  }
 }

@@ -7,6 +7,8 @@ import '../../../shared/widgets/interactive_drawer.dart';
 import '../../../shared/responsive/breakpoints.dart';
 
 import '../widgets/chat_input_bar.dart';
+import '../../chat/voice_chat_provider.dart';
+import '../../../features/voice_chat/pages/voice_chat_screen.dart' hide VoiceChatState;
 import '../../../core/models/chat_input_data.dart';
 import '../../chat/widgets/bottom_tools_sheet.dart';
 import '../widgets/side_drawer.dart';
@@ -33,7 +35,6 @@ import '../../../core/models/conversation.dart';
 import '../../model/widgets/model_select_sheet.dart';
 import '../../settings/widgets/language_select_sheet.dart';
 import '../../chat/widgets/message_more_sheet.dart';
-import '../../chat/models/message_edit_result.dart';
 // import '../../chat/pages/message_edit_page.dart';
 import '../../chat/widgets/message_edit_sheet.dart';
 import '../../../desktop/message_edit_dialog.dart';
@@ -61,7 +62,6 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import '../../../core/services/search/search_tool_service.dart';
-import '../../../utils/assistant_regex.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
 import '../../../core/services/instruction_injection_store.dart';
 import '../../../utils/sandbox_path_resolver.dart';
@@ -73,7 +73,6 @@ import '../../../core/services/notification_service.dart';
 import '../../../desktop/hotkeys/chat_action_bus.dart';
 import '../../../desktop/hotkeys/sidebar_tab_bus.dart';
 import '../../../core/models/quick_phrase.dart';
-import '../../../core/models/assistant_regex.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
@@ -127,9 +126,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   final Map<String, _TranslationData> _translations = <String, _TranslationData>{};
   final Map<String, List<ToolUIPart>> _toolParts = <String, List<ToolUIPart>>{}; // assistantMessageId -> parts
   final Map<String, List<_ReasoningSegmentData>> _reasoningSegments = <String, List<_ReasoningSegmentData>>{}; // assistantMessageId -> reasoning segments
-  static const int _maxOcrCacheEntries = 48;
-  final Map<String, _OcrCacheEntry> _ocrCache = <String, _OcrCacheEntry>{}; // path -> cached OCR
-  final List<String> _ocrCacheOrder = <String>[]; // LRU order of paths
   final Map<String, String> _geminiThoughtSigs = <String, String>{}; // assistantMessageId -> signature comment
   static final RegExp _geminiThoughtSigRe = RegExp(r'<!--\s*gemini_thought_signatures:.*?-->', dotAll: true);
   bool _appInForeground = true; // used to gate notifications only when app is background
@@ -221,6 +217,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   double _rightSidebarWidth = 300;
   bool _desktopUiInited = false;
   StreamSubscription<ChatAction>? _chatActionSub;
+  VoiceChatProvider? _voiceChatProvider;
+  
+  void _onVoiceChatStateChanged() {
+    if (!mounted) return;
+    if (_voiceChatProvider!.state == VoiceChatState.idle && _voiceChatProvider!.lastWords.isNotEmpty) {
+      final lastWords = _voiceChatProvider!.lastWords;
+      _voiceChatProvider!.clearLastWords();
+      _sendMessage(ChatInputData(text: lastWords));
+    }
+  }
   
   void _openSearchSettings() {
     // On desktop platforms show the floating popover; mobile keeps bottom sheet
@@ -681,74 +687,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     return out.isEmpty ? null : out;
   }
 
-  void _cacheOcrText(String path, String text) {
-    final p = path.trim();
-    if (p.isEmpty) return;
-    _ocrCache[p] = _OcrCacheEntry(text: text);
-    _ocrCacheOrder.remove(p);
-    _ocrCacheOrder.add(p);
-    while (_ocrCacheOrder.length > _maxOcrCacheEntries) {
-      final oldest = _ocrCacheOrder.removeAt(0);
-      _ocrCache.remove(oldest);
-    }
-  }
-
-  String? _cachedOcrText(String path) {
-    final p = path.trim();
-    if (p.isEmpty) return null;
-    final entry = _ocrCache[p];
-    if (entry != null) {
-      // bump to most-recent
-      _ocrCacheOrder.remove(p);
-      _ocrCacheOrder.add(p);
-      return entry.text;
-    }
-    return null;
-  }
-
-  String _wrapOcrBlock(String ocrText) {
-    final buf = StringBuffer();
-    buf.writeln("The image_file_ocr tag contains a description of an image that the user uploaded to you, not the user's prompt.");
-    buf.writeln('<image_file_ocr>');
-    buf.writeln(ocrText.trim());
-    buf.writeln('</image_file_ocr>');
-    buf.writeln();
-    return buf.toString();
-  }
-
-  Future<String?> _getOcrTextForImages(List<String> imagePaths) async {
-    if (imagePaths.isEmpty) return null;
-    final settings = context.read<SettingsProvider>();
-    if (!(settings.ocrEnabled &&
-        settings.ocrModelProvider != null &&
-        settings.ocrModelId != null)) {
-      return null;
-    }
-    final combined = StringBuffer();
-    final List<String> uncached = <String>[];
-    for (final raw in imagePaths) {
-      final path = raw.trim();
-      if (path.isEmpty) continue;
-      final cached = _cachedOcrText(path);
-      if (cached != null && cached.trim().isNotEmpty) {
-        combined.writeln(cached.trim());
-      } else {
-        uncached.add(path);
-      }
-    }
-    // Fetch OCR for uncached images one-by-one to populate cache and avoid huge combined prompts.
-    for (final path in uncached) {
-      final text = await _runOcrForImages([path]);
-      if (text != null && text.trim().isNotEmpty) {
-        final t = text.trim();
-        _cacheOcrText(path, t);
-        combined.writeln(t);
-      }
-    }
-    final out = combined.toString().trim();
-    return out.isEmpty ? null : out;
-  }
-
   // Whether current conversation is generating
   bool get _isCurrentConversationLoading {
     final cid = _currentConversation?.id;
@@ -1099,6 +1037,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     FocusManager.instance.primaryFocus?.unfocus();
     FocusScope.of(context).unfocus();
     try { SystemChannels.textInput.invokeMethod('TextInput.hide'); } catch (_) {}
+  }
+
+  void _startVoiceChat() async {
+    if (_currentConversation == null) {
+      await _createNewConversation();
+    }
+    // Navigate to the voice chat screen
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => VoiceChatScreen()),
+    );
   }
 
   @override
@@ -1818,20 +1766,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       return;
     }
 
-    // Add user message (apply regex rules before persisting)
+    // Add user message
     // Persist user message; append image and document markers for display
     final imageMarkers = input.imagePaths.map((p) => '\n[image:$p]').join();
     final docMarkers = input.documents.map((d) => '\n[file:${d.path}|${d.fileName}|${d.mime}]').join();
-    final processedUserText = applyAssistantRegexes(
-      content,
-      assistant: assistant,
-      scope: AssistantRegexScope.user,
-      visual: false,
-    );
     final userMessage = await _chatService.addMessage(
       conversationId: _currentConversation!.id,
       role: 'user',
-      content: processedUserText + imageMarkers + docMarkers,
+      content: content + imageMarkers + docMarkers,
     );
 
     setState(() {
@@ -1906,80 +1848,100 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         })
         .toList();
 
-    final bool ocrActive = settings.ocrEnabled &&
-        settings.ocrModelProvider != null &&
-        settings.ocrModelId != null;
-
-    // Build document prompts per user message (inline) to avoid re-sending attachments every turn
+    // Build document prompts (from current input + earlier attachments)
+    // and clean markers in last user message; optionally inject OCR text
     if (apiMessages.isNotEmpty) {
       // Find last user message index in apiMessages
       int lastUserIdx = -1;
       for (int i = apiMessages.length - 1; i >= 0; i--) {
         if (apiMessages[i]['role'] == 'user') { lastUserIdx = i; break; }
       }
-
-      final Map<String, String?> docTextCache = <String, String?>{};
-      Future<String?> _readDocument(DocumentAttachment d) async {
-        if (docTextCache.containsKey(d.path)) return docTextCache[d.path];
-        try {
-          final text = await DocumentTextExtractor.extract(path: d.path, mime: d.mime);
-          docTextCache[d.path] = text;
-          return text;
-        } catch (_) {
-          docTextCache[d.path] = null;
-          return null;
-        }
-      }
-
-      for (int i = 0; i < apiMessages.length; i++) {
-        if (apiMessages[i]['role'] != 'user') continue;
-        final rawUser = (apiMessages[i]['content'] ?? '').toString();
-        final parsedUser = _parseInputFromRaw(rawUser);
-        final videoPaths = <String>{
-          for (final d in parsedUser.documents)
-            if (d.mime.toLowerCase().startsWith('video/')) d.path.trim(),
-        }..removeWhere((p) => p.isEmpty);
-
-        String cleanedUser = rawUser.replaceAll(RegExp(r"\[file:.*?\]"), '').trim();
-        if (ocrActive) {
-          cleanedUser = cleanedUser.replaceAll(RegExp(r"\[image:.*?\]"), '');
-        }
-
-        final filePrompts = StringBuffer();
-        for (final d in parsedUser.documents) {
-          if (d.mime.toLowerCase().startsWith('video/')) continue;
-          final text = await _readDocument(d);
-          if (text == null || text.trim().isEmpty) continue;
-          filePrompts.writeln('## user sent a file: ${d.fileName}');
-          filePrompts.writeln('<content>');
-          filePrompts.writeln('```');
-          filePrompts.writeln(text);
-          filePrompts.writeln('```');
-          filePrompts.writeln('</content>');
-          filePrompts.writeln();
-        }
-
-        String merged = (filePrompts.toString() + cleanedUser).trim();
-
-        if (ocrActive) {
-          final ocrTargets = parsedUser.imagePaths
-              .map((p) => p.trim())
-              .where((p) => p.isNotEmpty && !videoPaths.contains(p))
-              .toSet()
-              .toList();
-          if (ocrTargets.isNotEmpty) {
-            final ocrText = await _getOcrTextForImages(ocrTargets);
-            if (ocrText != null && ocrText.trim().isNotEmpty) {
-              merged = (_wrapOcrBlock(ocrText) + merged).trim();
+      if (lastUserIdx != -1) {
+        final raw = (apiMessages[lastUserIdx]['content'] ?? '').toString();
+        final cleaned = raw
+            .replaceAll(RegExp(r"\[image:.*?\]"), '')
+            .replaceAll(RegExp(r"\[file:.*?\]"), '')
+            .trim();
+        // Collect unique document attachments and image attachments from the entire (effective) conversation
+        // so previously uploaded files/images remain part of the context in subsequent turns.
+        final Map<String, DocumentAttachment> allDocs = <String, DocumentAttachment>{};
+        final Set<String> ocrImagePaths = <String>{};
+        final Set<String> videoPaths = <String>{};
+        for (final m in source) {
+          if (m.role != 'user') continue;
+          final parsed = _parseInputFromRaw(m.content);
+          for (final d in parsed.documents) {
+            final path = d.path.trim();
+            if (path.isEmpty) continue;
+            if (d.mime.toLowerCase().startsWith('video/')) {
+              videoPaths.add(path);
+              continue;
             }
+            allDocs[path] = d;
+          }
+          for (final imgPath in parsed.imagePaths) {
+            final p = imgPath.trim();
+            if (p.isEmpty) continue;
+            if (videoPaths.contains(p)) continue;
+            ocrImagePaths.add(p);
           }
         }
+        // Also include current input attachments (they may not yet be reflected in storage)
+        for (final d in input.documents) {
+          final path = d.path.trim();
+          if (path.isEmpty) continue;
+          if (d.mime.toLowerCase().startsWith('video/')) {
+            videoPaths.add(path);
+            continue;
+          }
+          allDocs[path] = d;
+        }
+        for (final imgPath in input.imagePaths) {
+          final p = imgPath.trim();
+          if (p.isEmpty) continue;
+          if (videoPaths.contains(p)) continue;
+          ocrImagePaths.add(p);
+        }
 
-        apiMessages[i]['content'] = merged.isEmpty ? cleanedUser : merged;
-      }
+        // Build document prompts
+        final filePrompts = StringBuffer();
+        for (final d in allDocs.values) {
+          try {
+            final text = await DocumentTextExtractor.extract(path: d.path, mime: d.mime);
+            filePrompts.writeln('## user sent a file: ${d.fileName}');
+            filePrompts.writeln('<content>');
+            filePrompts.writeln('```');
+            filePrompts.writeln(text);
+            filePrompts.writeln('```');
+            filePrompts.writeln('</content>');
+            filePrompts.writeln();
+          } catch (_) {}
+        }
+        String merged = (filePrompts.toString() + cleaned).trim();
 
-      if (lastUserIdx != -1) {
-        final userText = (apiMessages[lastUserIdx]['content'] ?? '').toString();
+        // When OCR is enabled and the chat model does NOT support image input,
+        // run OCR on all image attachments in the current effective context (including historical images)
+        // and prepend the recognized text.
+        if (settings.ocrEnabled &&
+            settings.ocrModelProvider != null &&
+            settings.ocrModelId != null &&
+            !_isImageInputModel(providerKey, modelId) &&
+            ocrImagePaths.isNotEmpty) {
+          try {
+            final ocrText = await _runOcrForImages(ocrImagePaths.toList());
+            if (ocrText != null && ocrText.trim().isNotEmpty) {
+              final buf = StringBuffer();
+              buf.writeln("The image_file_ocr tag contains a description of an image that the user uploaded to you, not the user's prompt.");
+              buf.writeln('<image_file_ocr>');
+              buf.writeln(ocrText.trim());
+              buf.writeln('</image_file_ocr>');
+              buf.writeln();
+              merged = (buf.toString() + merged).trim();
+            }
+          } catch (_) {}
+        }
+
+        final userText = merged.isEmpty ? cleaned : merged;
         // Apply message template if set
         final templ = (assistant?.messageTemplate ?? '{{ message }}').trim().isEmpty
             ? '{{ message }}'
@@ -2086,8 +2048,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     bool _hasBuiltInGeminiSearch() {
       try {
         final cfg = settings.getProviderConfig(providerKey);
-        // Gemini (official or Vertex) supports built-in search when configured
-        if (cfg.providerType != ProviderKind.google) return false;
+        // Only official Gemini API supports built-in search
+        if (cfg.providerType != ProviderKind.google || (cfg.vertexAI == true)) return false;
         final ov = cfg.modelOverrides[modelId] as Map?;
         final list = (ov?['builtInTools'] as List?) ?? const <dynamic>[];
         return list.map((e) => e.toString().toLowerCase()).contains('search');
@@ -2161,17 +2123,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     final config = settings.getProviderConfig(providerKey);
 
     // Stream response
-    String fullContentRaw = '';
+    String fullContent = '';
     int totalTokens = 0;
     TokenUsage? usage;
-    String _transformAssistantContent([String? raw]) {
-      return applyAssistantRegexes(
-        raw ?? fullContentRaw,
-        assistant: assistant,
-        scope: AssistantRegexScope.assistant,
-        visual: false,
-      );
-    }
     // Respect assistant streaming toggle: if off, buffer updates until done
     final bool streamOutput = assistant?.streamOutput ?? true;
     String _bufferedReasoning = '';
@@ -2333,6 +2287,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         if (d.mime.toLowerCase().startsWith('video/')) d.path,
     ];
 
+    // When OCR is enabled, we only send pure text (including OCR text) to the chat model
+    // and do not attach images/videos as binary inputs.
+    final bool ocrActive = settings.ocrEnabled &&
+        settings.ocrModelProvider != null &&
+        settings.ocrModelId != null;
+
     final stream = ChatApiService.sendMessageStream(
       config: config,
       modelId: modelId,
@@ -2368,11 +2328,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           _titleQueued = true;
         }
         // Replace extremely long inline base64 images with local files to avoid jank
-        final processedContent = _transformAssistantContent();
-        final sanitizedContent = await MarkdownMediaSanitizer.replaceInlineBase64Images(processedContent);
+        final processedContent = await MarkdownMediaSanitizer.replaceInlineBase64Images(fullContent);
         await _chatService.updateMessage(
           assistantMessage.id,
-          content: sanitizedContent,
+          content: processedContent,
           totalTokens: totalTokens,
           isStreaming: false,
         );
@@ -2381,7 +2340,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           final index = _messages.indexWhere((m) => m.id == assistantMessage.id);
           if (index != -1) {
             _messages[index] = _messages[index].copyWith(
-              content: sanitizedContent,
+              content: processedContent,
               totalTokens: totalTokens,
               isStreaming: false,
             );
@@ -2423,6 +2382,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         if (shouldGenerateTitle) {
           _maybeGenerateTitleFor(assistantMessage.conversationId);
         }
+        _voiceChatProvider?.speak(fullContent);
       }
 
       // Track stream per conversation to allow concurrent sessions
@@ -2600,7 +2560,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           if (chunk.isDone) {
             // Ensure final content from non-streaming path is captured before finish()
             if (chunkContent.isNotEmpty) {
-              fullContentRaw += chunkContent;
+              fullContent += chunkContent;
             }
             // Guard: if we have any loading tool-call placeholders, a follow-up round is coming.
             final hasLoadingTool = (_toolParts[assistantMessage.id]?.any((p) => p.loading) ?? false);
@@ -2656,7 +2616,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               );
             }
           } else {
-            fullContentRaw += chunkContent;
+            fullContent += chunkContent;
             if (chunk.totalTokens > 0) {
               totalTokens = chunk.totalTokens;
             }
@@ -2666,10 +2626,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             }
 
             // Always persist partial content so switching away doesn’t lose it
-            final streamingProcessed = _transformAssistantContent();
             await _chatService.updateMessage(
               assistantMessage.id,
-              content: streamingProcessed,
+              content: fullContent,
               totalTokens: totalTokens,
             );
 
@@ -2718,7 +2677,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   final index = _messages.indexWhere((m) => m.id == assistantMessage.id);
                   if (index != -1) {
                     _messages[index] = _messages[index].copyWith(
-                      content: streamingProcessed,
+                      content: fullContent,
                       totalTokens: totalTokens,
                     );
                   }
@@ -2736,8 +2695,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         onError: (e) async {
           // Preserve partial content; if empty, write error message into bubble
           final errText = '${AppLocalizations.of(context)!.generationInterrupted}: $e';
-          final processed = _transformAssistantContent();
-          final displayContent = processed.isNotEmpty ? processed : errText;
+          final displayContent = fullContent.isNotEmpty ? fullContent : errText;
           await _chatService.updateMessage(
             assistantMessage.id,
             content: displayContent,
@@ -2824,8 +2782,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     } catch (e) {
       // Preserve partial content on outer error as well; if empty, show error text in bubble
       final errText = '${AppLocalizations.of(context)!.generationInterrupted}: $e';
-      final processed = _transformAssistantContent();
-      final displayContent = processed.isNotEmpty ? processed : errText;
+      final displayContent = fullContent.isNotEmpty ? fullContent : errText;
       await _chatService.updateMessage(
         assistantMessage.id,
         content: displayContent,
@@ -2888,7 +2845,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     }
   }
 
-  Future<void> _regenerateAtMessage(ChatMessage message, {bool assistantAsNewReply = false}) async {
+  Future<void> _regenerateAtMessage(ChatMessage message) async {
     if (_currentConversation == null) return;
     // Cancel any ongoing stream
     await _cancelStreaming();
@@ -2901,22 +2858,17 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     int nextVersion = 0;
     int lastKeep;
     if (message.role == 'assistant') {
-      // Keep the existing assistant message; optionally open a new group for the new reply
+      // Keep the existing assistant message as old version
       lastKeep = idx; // remove after this
-      if (assistantAsNewReply) {
-        targetGroupId = null; // start a new group for the upcoming assistant reply
-        nextVersion = 0;
-      } else {
-        targetGroupId = message.groupId ?? message.id;
-        int maxVer = -1;
-        for (final m in _messages) {
-          final gid = (m.groupId ?? m.id);
-          if (gid == targetGroupId) {
-            if (m.version > maxVer) maxVer = m.version;
-          }
+      targetGroupId = message.groupId ?? message.id;
+      int maxVer = -1;
+      for (final m in _messages) {
+        final gid = (m.groupId ?? m.id);
+        if (gid == targetGroupId) {
+          if (m.version > maxVer) maxVer = m.version;
         }
-        nextVersion = maxVer + 1;
       }
+      nextVersion = maxVer + 1;
     } else {
       // User message: find the first assistant reply after the FIRST occurrence of this user group,
       // not after the current version's position (which may be appended at tail after edits).
@@ -3064,83 +3016,88 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     // Capture image attachments from the last user message (for resend)
     List<String>? lastUserImagePaths;
 
-    final bool ocrActive = settings.ocrEnabled &&
-        settings.ocrModelProvider != null &&
-        settings.ocrModelId != null;
-
-    // Inline document prompts per user message (avoid duplicating past uploads on every regenerate)
+    // Build document prompts from all user messages in the current effective context
     if (apiMessages.isNotEmpty) {
       // Find last user message index in apiMessages
       int lastUserIdx = -1;
       for (int i = apiMessages.length - 1; i >= 0; i--) {
         if (apiMessages[i]['role'] == 'user') { lastUserIdx = i; break; }
       }
-      final Map<String, String?> docTextCache = <String, String?>{};
-      Future<String?> _readDocument(DocumentAttachment d) async {
-        if (docTextCache.containsKey(d.path)) return docTextCache[d.path];
-        try {
-          final text = await DocumentTextExtractor.extract(path: d.path, mime: d.mime);
-          docTextCache[d.path] = text;
-          return text;
-        } catch (_) {
-          docTextCache[d.path] = null;
-          return null;
-        }
-      }
-
-      for (int i = 0; i < apiMessages.length; i++) {
-        if (apiMessages[i]['role'] != 'user') continue;
-        final rawUser = (apiMessages[i]['content'] ?? '').toString();
-        final parsedUser = _parseInputFromRaw(rawUser);
-        if (i == lastUserIdx && lastUserImagePaths == null && parsedUser.imagePaths.isNotEmpty) {
-          lastUserImagePaths = List<String>.of(parsedUser.imagePaths);
+      if (lastUserIdx != -1) {
+        final raw = (apiMessages[lastUserIdx]['content'] ?? '').toString();
+        // Parse the last user message once to capture its image attachments for the API call
+        final parsedLast = _parseInputFromRaw(raw);
+        if (parsedLast.imagePaths.isNotEmpty) {
+          lastUserImagePaths = List<String>.of(parsedLast.imagePaths);
         }
 
-        final videoPaths = <String>{
-          for (final d in parsedUser.documents)
-            if (d.mime.toLowerCase().startsWith('video/')) d.path.trim(),
-        }..removeWhere((p) => p.isEmpty);
+        final cleaned = raw
+            .replaceAll(RegExp(r"\[image:.*?\]"), '')
+            .replaceAll(RegExp(r"\[file:.*?\]"), '')
+            .trim();
 
-        String cleanedUser = rawUser.replaceAll(RegExp(r"\[file:.*?\]"), '').trim();
-        if (ocrActive) {
-          cleanedUser = cleanedUser.replaceAll(RegExp(r"\[image:.*?\]"), '');
-        }
-
-        final filePrompts = StringBuffer();
-        for (final d in parsedUser.documents) {
-          if (d.mime.toLowerCase().startsWith('video/')) continue;
-          final text = await _readDocument(d);
-          if (text == null || text.trim().isEmpty) continue;
-          filePrompts.writeln('## user sent a file: ${d.fileName}');
-          filePrompts.writeln('<content>');
-          filePrompts.writeln('```');
-          filePrompts.writeln(text);
-          filePrompts.writeln('```');
-          filePrompts.writeln('</content>');
-          filePrompts.writeln();
-        }
-
-        String merged = (filePrompts.toString() + cleanedUser).trim();
-
-        if (ocrActive) {
-          final ocrTargets = parsedUser.imagePaths
-              .map((p) => p.trim())
-              .where((p) => p.isNotEmpty && !videoPaths.contains(p))
-              .toSet()
-              .toList();
-          if (ocrTargets.isNotEmpty) {
-            final ocrText = await _getOcrTextForImages(ocrTargets);
-            if (ocrText != null && ocrText.trim().isNotEmpty) {
-              merged = (_wrapOcrBlock(ocrText) + merged).trim();
+        // Collect unique document and image attachments from the entire (effective) conversation
+        final Map<String, DocumentAttachment> allDocs = <String, DocumentAttachment>{};
+        final Set<String> ocrImagePaths = <String>{};
+        final Set<String> videoPaths = <String>{};
+        for (final m in source) {
+          if (m.role != 'user') continue;
+          final parsed = _parseInputFromRaw(m.content);
+          for (final d in parsed.documents) {
+            final path = d.path.trim();
+            if (path.isEmpty) continue;
+            if (d.mime.toLowerCase().startsWith('video/')) {
+              videoPaths.add(path);
+              continue;
             }
+            allDocs[path] = d;
+          }
+          for (final imgPath in parsed.imagePaths) {
+            final p = imgPath.trim();
+            if (p.isEmpty) continue;
+            if (videoPaths.contains(p)) continue;
+            ocrImagePaths.add(p);
           }
         }
 
-        apiMessages[i]['content'] = merged.isEmpty ? cleanedUser : merged;
-      }
+        // Build document prompts
+        final filePrompts = StringBuffer();
+        for (final d in allDocs.values) {
+          try {
+            final text = await DocumentTextExtractor.extract(path: d.path, mime: d.mime);
+            filePrompts.writeln('## user sent a file: ${d.fileName}');
+            filePrompts.writeln('<content>');
+            filePrompts.writeln('```');
+            filePrompts.writeln(text);
+            filePrompts.writeln('```');
+            filePrompts.writeln('</content>');
+            filePrompts.writeln();
+          } catch (_) {}
+        }
 
-      if (lastUserIdx != -1) {
-        final userText = (apiMessages[lastUserIdx]['content'] ?? '').toString();
+        String merged = (filePrompts.toString() + cleaned).trim();
+
+        // OCR for historical + current images when chat model does not support direct image input.
+        if (settings.ocrEnabled &&
+            settings.ocrModelProvider != null &&
+            settings.ocrModelId != null &&
+            !_isImageInputModel(providerKey, modelId) &&
+            ocrImagePaths.isNotEmpty) {
+          try {
+            final ocrText = await _runOcrForImages(ocrImagePaths.toList());
+            if (ocrText != null && ocrText.trim().isNotEmpty) {
+              final buf = StringBuffer();
+              buf.writeln("The image_file_ocr tag contains a description of an image that the user uploaded to you, not the user's prompt.");
+              buf.writeln('<image_file_ocr>');
+              buf.writeln(ocrText.trim());
+              buf.writeln('</image_file_ocr>');
+              buf.writeln();
+              merged = (buf.toString() + merged).trim();
+            }
+          } catch (_) {}
+        }
+
+        final userText = merged.isEmpty ? cleaned : merged;
         // Apply message template if set (reusing assistant's template to keep parity with normal send)
         final templ = (assistant?.messageTemplate ?? '{{ message }}').trim().isEmpty
             ? '{{ message }}'
@@ -3440,11 +3397,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     // Respect assistant streaming toggle: if off, buffer updates until done
     final bool streamOutput = assistant?.streamOutput ?? true;
 
+    // When OCR is enabled, resend/regenerate also uses pure text only for the chat model.
+    final bool ocrActive = settings.ocrEnabled &&
+        settings.ocrModelProvider != null &&
+        settings.ocrModelId != null;
+
     final stream = ChatApiService.sendMessageStream(
       config: settings.getProviderConfig(providerKey),
       modelId: modelId,
       messages: apiMessages,
-      userImagePaths: ocrActive ? const <String>[] : lastUserImagePaths,
+      userImagePaths: ocrActive ? null : lastUserImagePaths,
       thinkingBudget: assistant?.thinkingBudget ?? settings.thinkingBudget,
       temperature: assistant?.temperature,
       topP: assistant?.topP,
@@ -3456,31 +3418,23 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       stream: streamOutput,
     );
 
-    String fullContentRaw = '';
+    String fullContent = '';
     int totalTokens = 0;
     TokenUsage? usage;
-    String _transformAssistantContent2([String? raw]) {
-      return applyAssistantRegexes(
-        raw ?? fullContentRaw,
-        assistant: assistant,
-        scope: AssistantRegexScope.assistant,
-        visual: false,
-      );
-    }
 
     // Respect assistant streaming toggle: if off, buffer updates until done
     String _bufferedReasoning2 = '';
     DateTime? _reasoningStartAt2;
 
     Future<void> finish({bool generateTitle = false}) async {
-      final processedContent = _transformAssistantContent2();
-      final sanitizedContent = await MarkdownMediaSanitizer.replaceInlineBase64Images(processedContent);
-      await _chatService.updateMessage(assistantMessage.id, content: sanitizedContent, totalTokens: totalTokens, isStreaming: false);
+      final processedContent = await MarkdownMediaSanitizer.replaceInlineBase64Images(fullContent);
+      await _chatService.updateMessage(assistantMessage.id, content: processedContent, totalTokens: totalTokens, isStreaming: false);
       if (!mounted) return;
+      _voiceChatProvider?.speak(fullContent);
       setState(() {
         final index = _messages.indexWhere((m) => m.id == assistantMessage.id);
         if (index != -1) {
-          _messages[index] = _messages[index].copyWith(content: sanitizedContent, totalTokens: totalTokens, isStreaming: false);
+          _messages[index] = _messages[index].copyWith(content: processedContent, totalTokens: totalTokens, isStreaming: false);
         }
       });
       _setConversationLoading(assistantMessage.conversationId, false);
@@ -3613,7 +3567,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       }
 
       if (chunkContent.isNotEmpty) {
-        fullContentRaw += chunkContent;
+        fullContent += chunkContent;
 
         // Respect auto-collapse setting when main content starts: always stop timer, collapse only if enabled
         final rd = _reasoning[assistantMessage.id];
@@ -3647,11 +3601,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         }
 
         // Always persist partial content, even if streaming UI is off
-        final streamingProcessed = _transformAssistantContent2();
         try {
           await _chatService.updateMessage(
             assistantMessage.id,
-            content: streamingProcessed,
+            content: fullContent,
             totalTokens: totalTokens,
           );
         } catch (_) {}
@@ -3659,7 +3612,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         if (streamOutput) {
           setState(() {
             final i = _messages.indexWhere((m) => m.id == assistantMessage.id);
-            if (i != -1) _messages[i] = _messages[i].copyWith(content: streamingProcessed);
+            if (i != -1) _messages[i] = _messages[i].copyWith(content: fullContent);
           });
         }
       }
@@ -3706,8 +3659,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     onError: (e) async {
       // When regenerate fails, persist error text into this assistant bubble
       final errText = '${AppLocalizations.of(context)!.generationInterrupted}: $e';
-      final processed = _transformAssistantContent2();
-      final displayContent = processed.isNotEmpty ? processed : errText;
+      final displayContent = fullContent.isNotEmpty ? fullContent : errText;
       await _chatService.updateMessage(
         assistantMessage.id,
         content: displayContent,
@@ -4167,37 +4119,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     } catch (_) {}
   }
 
-  // Edit message and optionally resend immediately
-  Future<void> _onEditMessage(ChatMessage message) async {
-    final isDesktop = _isDesktopPlatform;
-    final MessageEditResult? result = isDesktop
-        ? await showMessageEditDesktopDialog(context, message: message)
-        : await showMessageEditSheet(context, message: message);
-    if (result == null) return;
-
-    final newMsg = await _chatService.appendMessageVersion(messageId: message.id, content: result.content);
-    if (!mounted || newMsg == null) return;
-
-    setState(() {
-      _messages.add(newMsg);
-      final gid = (newMsg.groupId ?? newMsg.id);
-      _versionSelections[gid] = newMsg.version;
-    });
-    if (_currentConversation != null) {
-      try {
-        final gid = (newMsg.groupId ?? newMsg.id);
-        await _chatService.setSelectedVersion(_currentConversation!.id, gid, newMsg.version);
-      } catch (_) {}
-    }
-
-    if (!mounted || !result.shouldSend) return;
-    if (message.role == 'assistant') {
-      await _regenerateAtMessage(newMsg, assistantAsNewReply: true);
-    } else {
-      await _regenerateAtMessage(newMsg);
-    }
-  }
-
   // Translate message functionality
   Future<void> _translateMessage(ChatMessage message) async {
     final l10n = AppLocalizations.of(context)!;
@@ -4503,7 +4424,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           ],
         ),
         actions: [
-          // Mini map button (to the left of new conversation)
+          // Voice Chat button (to the left of mini map)
+          IosIconButton(
+            size: 20,
+            minSize: 44,
+            onTap: _startVoiceChat,
+            semanticLabel: AppLocalizations.of(context)!.voiceChatButtonTooltip,
+            icon: Lucide.Phone,
+          ),
+          const SizedBox(width: 4),
+          // Mini map button (to the right of voice chat)
           IosIconButton(
             size: 20,
             minSize: 44,
@@ -4777,9 +4707,31 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                           }
                                         }
                                       : null,
-                                  onEdit: (message.role == 'user' || message.role == 'assistant')
-                                      ? () { _onEditMessage(message); }
-                                      : null,
+                                  onEdit: message.role == 'user' ? () async {
+                                    final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+                                        defaultTargetPlatform == TargetPlatform.windows ||
+                                        defaultTargetPlatform == TargetPlatform.linux;
+                                    final edited = isDesktop
+                                        ? await showMessageEditDesktopDialog(context, message: message)
+                                        : await showMessageEditSheet(context, message: message);
+                                    if (edited != null) {
+                                      final newMsg = await _chatService.appendMessageVersion(messageId: message.id, content: edited);
+                                      if (!mounted) return;
+                                      setState(() {
+                                        if (newMsg != null) {
+                                          _messages.add(newMsg);
+                                          final gid2 = (newMsg.groupId ?? newMsg.id);
+                                          _versionSelections[gid2] = newMsg.version;
+                                        }
+                                      });
+                                      try {
+                                        if (newMsg != null && _currentConversation != null) {
+                                          final gid2 = (newMsg.groupId ?? newMsg.id);
+                                          await _chatService.setSelectedVersion(_currentConversation!.id, gid2, newMsg.version);
+                                        }
+                                      } catch (_) {}
+                                    }
+                                  } : null,
                                   onDelete: message.role == 'user' ? () async {
                                     final l10n = AppLocalizations.of(context)!;
                                     final confirm = await showDialog<bool>(
@@ -4898,7 +4850,30 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                     });
                                   }
                                 } else if (action == MessageMoreAction.edit) {
-                                  await _onEditMessage(message);
+                                  final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+                                      defaultTargetPlatform == TargetPlatform.windows ||
+                                      defaultTargetPlatform == TargetPlatform.linux;
+                                  final screenWidth = MediaQuery.sizeOf(context).width;
+                                  final edited = isDesktop
+                                      ? await showMessageEditDesktopDialog(context, message: message)
+                                      : await showMessageEditSheet(context, message: message);
+                                  if (edited != null) {
+                                    final newMsg = await _chatService.appendMessageVersion(messageId: message.id, content: edited);
+                                    if (!mounted) return;
+                                    setState(() {
+                                      if (newMsg != null) {
+                                        _messages.add(newMsg);
+                                        final gid = (newMsg.groupId ?? newMsg.id);
+                                        _versionSelections[gid] = newMsg.version;
+                                      }
+                                    });
+                                    try {
+                                      if (newMsg != null && _currentConversation != null) {
+                                        final gid = (newMsg.groupId ?? newMsg.id);
+                                        await _chatService.setSelectedVersion(_currentConversation!.id, gid, newMsg.version);
+                                      }
+                                    } catch (_) {}
+                                  }
                                 } else if (action == MessageMoreAction.fork) {
                                   // Determine included groups up to the message's group (inclusive)
                                   final Map<String, int> groupFirstIndex = <String, int>{};
@@ -5054,7 +5029,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           }
                         }
                       }
-                      // Compute whether built-in search (Gemini incl. Vertex or Claude) is active to highlight the search button
+                      // Compute whether built-in built-in search (Gemini official or Claude) is active to highlight the search button
                       final currentProvider = a?.chatModelProvider ?? settings.currentModelProvider;
                       final currentModelId = a?.chatModelId ?? settings.currentModelId;
                       final cfg = (currentProvider != null)
@@ -5063,15 +5038,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       bool builtinSearchActive = false;
                       if (cfg != null && currentModelId != null) {
                         final mid2 = currentModelId;
-                        final isGemini = cfg.providerType == ProviderKind.google;
+                        final isGeminiOfficial = cfg.providerType == ProviderKind.google && (cfg.vertexAI != true);
                         final isClaude = cfg.providerType == ProviderKind.claude;
-                        final isOpenAIResponses =
-                            cfg.providerType == ProviderKind.openai && (cfg.useResponseApi == true);
-                        if (isGemini || isClaude || isOpenAIResponses) {
+                        final isOpenAIResponses = cfg.providerType == ProviderKind.openai && (cfg.useResponseApi == true);
+                        if (isGeminiOfficial || isClaude || isOpenAIResponses) {
                           final ov = cfg.modelOverrides[mid2] as Map?;
                           final list = (ov?['builtInTools'] as List?) ?? const <dynamic>[];
-                          builtinSearchActive = list.map((e) => e.toString().toLowerCase()).contains('search');
-                        }
+                                      builtinSearchActive = list.map((e) => e.toString().toLowerCase()).contains('search');
+                                    }
                       }
                       return ChatInputBar(
                         key: _inputBarKey,
@@ -5837,8 +5811,32 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                                             }
                                                           }
                                                         : null,
-                                                    onEdit: (message.role == 'user' || message.role == 'assistant')
-                                                        ? () { _onEditMessage(message); }
+                                                    onEdit: message.role == 'user'
+                                                        ? () async {
+                                                            final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+                                                                defaultTargetPlatform == TargetPlatform.windows ||
+                                                                defaultTargetPlatform == TargetPlatform.linux;
+                                                            final edited = isDesktop
+                                                                ? await showMessageEditDesktopDialog(context, message: message)
+                                                                : await showMessageEditSheet(context, message: message);
+                                                            if (edited != null) {
+                                                              final newMsg = await _chatService.appendMessageVersion(messageId: message.id, content: edited);
+                                                              if (!mounted) return;
+                                                              setState(() {
+                                                                if (newMsg != null) {
+                                                                  _messages.add(newMsg);
+                                                                  final gid2 = (newMsg.groupId ?? newMsg.id);
+                                                                  _versionSelections[gid2] = newMsg.version;
+                                                                }
+                                                              });
+                                                              try {
+                                                                if (newMsg != null && _currentConversation != null) {
+                                                                  final gid2 = (newMsg.groupId ?? newMsg.id);
+                                                                  await _chatService.setSelectedVersion(_currentConversation!.id, gid2, newMsg.version);
+                                                                }
+                                                              } catch (_) {}
+                                                            }
+                                                          }
                                                         : null,
                                                     onDelete: message.role == 'user'
                                                         ? () async {
@@ -5908,45 +5906,67 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                                             ],
                                                           ),
                                                         );
-                                                      if (confirm == true) {
-                                                        final id = message.id;
-                                                        final gid = (message.groupId ?? message.id);
-                                                        final versBefore = (byGroup[gid] ?? const <ChatMessage>[])..sort((a, b) => a.version.compareTo(b.version));
-                                                        final oldSel = _versionSelections[gid] ?? (versBefore.isNotEmpty ? versBefore.length - 1 : 0);
-                                                        final delIndex = versBefore.indexWhere((m) => m.id == id);
-                                                        setState(() {
-                                                          _reasoning.remove(id);
-                                                          _translations.remove(id);
-                                                          _toolParts.remove(id);
-                                                          _reasoningSegments.remove(id);
-                                                          final newTotal = versBefore.length - 1;
-                                                          if (newTotal <= 0) {
-                                                            _versionSelections.remove(gid);
-                                                          } else {
-                                                            int newSel = oldSel;
-                                                            if (delIndex >= 0) {
-                                                              if (delIndex < oldSel) newSel = oldSel - 1;
-                                                              else if (delIndex == oldSel) newSel = (oldSel > 0) ? oldSel - 1 : 0;
-                                                            }
-                                                            if (newSel < 0) newSel = 0;
-                                                            if (newSel > newTotal - 1) newSel = newTotal - 1;
-                                                            _versionSelections[gid] = newSel;
+                                                    if (confirm == true) {
+                                                      final id = message.id;
+                                                      final gid = (message.groupId ?? message.id);
+                                                      final versBefore = (byGroup[gid] ?? const <ChatMessage>[])..sort((a, b) => a.version.compareTo(b.version));
+                                                      final oldSel = _versionSelections[gid] ?? (versBefore.isNotEmpty ? versBefore.length - 1 : 0);
+                                                      final delIndex = versBefore.indexWhere((m) => m.id == id);
+                                                      setState(() {
+                                                        _reasoning.remove(id);
+                                                        _translations.remove(id);
+                                                        _toolParts.remove(id);
+                                                        _reasoningSegments.remove(id);
+                                                        final newTotal = versBefore.length - 1;
+                                                        if (newTotal <= 0) {
+                                                          _versionSelections.remove(gid);
+                                                        } else {
+                                                          int newSel = oldSel;
+                                                          if (delIndex >= 0) {
+                                                            if (delIndex < oldSel) newSel = oldSel - 1;
+                                                            else if (delIndex == oldSel) newSel = (oldSel > 0) ? oldSel - 1 : 0;
                                                           }
-                                                        });
-                                                        final sel = _versionSelections[gid];
-                                                        if (sel != null && _currentConversation != null) {
-                                                          try { await _chatService.setSelectedVersion(_currentConversation!.id, gid, sel); } catch (_) {}
+                                                          if (newSel < 0) newSel = 0;
+                                                          if (newSel > newTotal - 1) newSel = newTotal - 1;
+                                                          _versionSelections[gid] = newSel;
                                                         }
-                                                        await _chatService.deleteMessage(id);
-                                                        if (!mounted || _currentConversation == null) return;
-                                                        final msgs = _chatService.getMessages(_currentConversation!.id);
-                                                        setState(() {
-                                                          _messages = List.of(msgs);
-                                                        });
+                                                      });
+                                                      final sel = _versionSelections[gid];
+                                                      if (sel != null && _currentConversation != null) {
+                                                        try { await _chatService.setSelectedVersion(_currentConversation!.id, gid, sel); } catch (_) {}
                                                       }
-                                                    } else if (action == MessageMoreAction.edit) {
-                                                      await _onEditMessage(message);
-                                                    } else if (action == MessageMoreAction.fork) {
+                                                      await _chatService.deleteMessage(id);
+                                                      if (!mounted || _currentConversation == null) return;
+                                                      final msgs = _chatService.getMessages(_currentConversation!.id);
+                                                      setState(() {
+                                                        _messages = List.of(msgs);
+                                                      });
+                                                    }
+                                                  } else if (action == MessageMoreAction.edit) {
+                                                        final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+                                                            defaultTargetPlatform == TargetPlatform.windows ||
+                                                            defaultTargetPlatform == TargetPlatform.linux;
+                                                        final edited = isDesktop
+                                                            ? await showMessageEditDesktopDialog(context, message: message)
+                                                            : await showMessageEditSheet(context, message: message);
+                                                        if (edited != null) {
+                                                          final newMsg = await _chatService.appendMessageVersion(messageId: message.id, content: edited);
+                                                          if (!mounted) return;
+                                                          setState(() {
+                                                            if (newMsg != null) {
+                                                              _messages.add(newMsg);
+                                                              final gid = (newMsg.groupId ?? newMsg.id);
+                                                              _versionSelections[gid] = newMsg.version;
+                                                            }
+                                                          });
+                                                          try {
+                                                            if (newMsg != null && _currentConversation != null) {
+                                                              final gid = (newMsg.groupId ?? newMsg.id);
+                                                              await _chatService.setSelectedVersion(_currentConversation!.id, gid, newMsg.version);
+                                                            }
+                                                          } catch (_) {}
+                                                        }
+                                                      } else if (action == MessageMoreAction.fork) {
                                                         // Determine included groups up to the message's group (inclusive)
                                                         final Map<String, int> groupFirstIndex = <String, int>{};
                                                         final List<String> groupOrder = <String>[];
@@ -6103,10 +6123,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                   bool builtinSearchActive = false;
                                   if (cfg != null && currentModelId != null) {
                                     final mid2 = currentModelId;
-                                    final isGemini = cfg.providerType == ProviderKind.google;
+                                    final isGeminiOfficial = cfg.providerType == ProviderKind.google && (cfg.vertexAI != true);
                                     final isClaude = cfg.providerType == ProviderKind.claude;
                                     final isOpenAIResponses = cfg.providerType == ProviderKind.openai && (cfg.useResponseApi == true);
-                                    if (isGemini || isClaude || isOpenAIResponses) {
+                                    if (isGeminiOfficial || isClaude || isOpenAIResponses) {
                                       final ov = cfg.modelOverrides[mid2] as Map?;
                                       final list = (ov?['builtInTools'] as List?) ?? const <dynamic>[];
                                       builtinSearchActive = list.map((e) => e.toString().toLowerCase()).contains('search');
@@ -6251,6 +6271,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                       if (selected.isEmpty || connected.isEmpty) return false;
                                       return connected.any((s) => selected.contains(s.id));
                                     })(),
+                                    onVoiceChat: _startVoiceChat,
                                   );
 
                                   input = Center(
@@ -6529,6 +6550,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     if (route != null) {
       routeObserver.subscribe(this, route);
     }
+    final voiceChatProvider = context.watch<VoiceChatProvider>();
+    if (_voiceChatProvider != voiceChatProvider) {
+      _voiceChatProvider?.removeListener(_onVoiceChatStateChanged);
+      _voiceChatProvider = voiceChatProvider;
+      _voiceChatProvider?.addListener(_onVoiceChatStateChanged);
+    }
   }
 
   @override
@@ -6536,6 +6563,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     try { WidgetsBinding.instance.removeObserver(this); } catch (_) {}
     _convoFadeController.dispose();
     _mcpProvider?.removeListener(_onMcpChanged);
+    _voiceChatProvider?.removeListener(_onVoiceChatStateChanged);
     // Remove drawer value listener
     _drawerController.removeListener(_onDrawerValueChanged);
     _inputFocus.dispose();
@@ -6641,11 +6669,6 @@ class _ReasoningSegmentData {
 
 class _TranslationData {
   bool expanded = true; // default to expanded when translation is added
-}
-
-class _OcrCacheEntry {
-  _OcrCacheEntry({required this.text});
-  final String text;
 }
 
 class _CurrentModelIcon extends StatelessWidget {
