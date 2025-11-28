@@ -1,10 +1,6 @@
 **OmniChat - 支援即時語音聊天的Android版kelivo**
 
-
-
 [English](README.md) | 繁體中文
-
-
 
 **特色:**
 
@@ -24,6 +20,6 @@
 
 - 搭配Gemini API並啟用模型內建網路搜尋可較快速獲取即時資訊
 
-[](Screenshot.jpg)
+![](https://github.com/JasonMMIV/OmniChat/blob/master/Screenshot.jpg?raw=true)
 
 *修改說明請見CHANGES_LOG.md
