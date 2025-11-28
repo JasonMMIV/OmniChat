@@ -24,4 +24,6 @@
 
 - 搭配Gemini API並啟用模型內建網路搜尋可較快速獲取即時資訊
 
-![](C:\Users\w2bn1\AppData\Roaming\marktext\images\2025-11-28-12-39-25-Screenshot_20251128_123300.jpg)
+[](Screenshot.jpg)
+
+*修改說明請見CHANGES_LOG.md

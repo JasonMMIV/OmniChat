@@ -1,8 +1,8 @@
-**OmniChat – Kelivo Android APP with live voic chat**
+**OmniChat – Kelivo Android APP with live voice chat**
 
 
 
-English | [繁體中文](README_ZH_TW.md)
+English | [繁體中文](README_ZH_TW.MD)
 
 
 
@@ -25,4 +25,6 @@ English | [繁體中文](README_ZH_TW.md)
 
 - Pair with the Gemini API and enable the model’s built-in web search to get real-time information quickly.
 
-![](C:\Users\w2bn1\AppData\Roaming\marktext\images\2025-11-28-12-39-25-Screenshot_20251128_123300.jpg)
+[](Screenshot.jpg)
+
+*see CHANGES_LOG.md for modification details
