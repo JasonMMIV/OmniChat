@@ -2,7 +2,7 @@
 
 
 
-English | [繁體中文](README_ZH_TW.md)
+English | [繁體中文](README_ZH_TW.MD)
 
 
 
