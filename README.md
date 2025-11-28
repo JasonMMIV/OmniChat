@@ -1,4 +1,4 @@
-**OmniChat – Kelivo Android APP with live voic chat**
+**OmniChat – Kelivo Android APP with live voice chat**
 
 
 
