@@ -110,16 +110,24 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        // Request audio focus first - use AUDIOFOCUS_GAIN for long-running voice chat
+        // Request audio focus first - use appropriate stream based on connection
         var focusGranted = true
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // For Bluetooth, use voice communication; for speaker, use media
+            val audioAttributes = if (isBluetoothHeadsetConnected()) {
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)  // For Bluetooth
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            } else {
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)  // For speaker output
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            }
+
             focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                .setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                        .build()
-                )
+                .setAudioAttributes(audioAttributes)
                 .setOnAudioFocusChangeListener { focusChange ->
                     Log.d(TAG, "Audio focus changed: $focusChange")
                 }
@@ -127,16 +135,33 @@ class MainActivity : FlutterActivity() {
             focusGranted = am.requestAudioFocus(focusRequest!!) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         } else {
             @Suppress("DEPRECATION")
-            focusGranted = am.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            // For older Android versions, use appropriate stream based on connection
+            val streamType = if (isBluetoothHeadsetConnected()) {
+                AudioManager.STREAM_VOICE_CALL  // For Bluetooth
+            } else {
+                AudioManager.STREAM_MUSIC  // For speaker output
+            }
+            focusGranted = am.requestAudioFocus(null, streamType, AudioManager.AUDIOFOCUS_GAIN) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         }
         Log.d(TAG, "Audio focus granted: $focusGranted")
 
-        // Set communication mode
-        am.mode = AudioManager.MODE_IN_COMMUNICATION
-        Log.d(TAG, "Audio mode set to MODE_IN_COMMUNICATION")
+        // Set communication mode (only for Bluetooth scenarios)
+        if (isBluetoothHeadsetConnected()) {
+            am.mode = AudioManager.MODE_IN_COMMUNICATION
+            Log.d(TAG, "Audio mode set to MODE_IN_COMMUNICATION for Bluetooth")
+        } else {
+            am.mode = AudioManager.MODE_NORMAL  // Use normal mode to allow speaker output
+            Log.d(TAG, "Audio mode set to MODE_NORMAL for speaker output")
+        }
 
-        // Disable speakerphone
-        am.isSpeakerphoneOn = false
+        // For Bluetooth, disable speakerphone; for speaker, ensure it's available
+        if (isBluetoothHeadsetConnected()) {
+            am.isSpeakerphoneOn = false
+            Log.d(TAG, "Speakerphone disabled for Bluetooth")
+        } else {
+            am.isSpeakerphoneOn = true  // Ensure speaker is available for non-Bluetooth
+            Log.d(TAG, "Speakerphone enabled for speaker output")
+        }
 
         // Unmute microphone
         am.isMicrophoneMute = false
@@ -216,10 +241,17 @@ class MainActivity : FlutterActivity() {
                     AudioFormat.ENCODING_PCM_16BIT
                 )
 
-                val audioAttributes = AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build()
+                val audioAttributes = if (isBluetoothHeadsetConnected()) {
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION) // For Bluetooth
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                } else {
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA) // For speaker
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                }
 
                 val audioFormat = AudioFormat.Builder()
                     .setSampleRate(sampleRate)

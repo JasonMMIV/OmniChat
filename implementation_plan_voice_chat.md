@@ -91,7 +91,7 @@
 ### Updates on 2025-11-27
 
 - **App Name Change**: Changed application name from "kelivo" to "OmniChat" by updating:
-  
+
   - Android namespace and applicationId in `android/app/build.gradle.kts`
   - Android source package structure and MainActivity location
   - Linux and macOS configuration files
@@ -102,7 +102,7 @@
 - **Localization**: Fixed Traditional Chinese voice chat strings to ensure proper language following by adding missing translations to `app_zh_Hant.arb`
 
 - **Visual Design**:
-  
+
   - Changed voice chat background to gray-black gradient theme
   - Updated status and subtitle displays to blend with main background
   - Changed control button styling to remove white backgrounds
@@ -110,22 +110,22 @@
   - Changed end button from Square to CircleStop icon with increased size
 
 - **Button Interactions**:
-  
+
   - Replaced `IosCardPress` with `GestureDetector` to remove white box appearance
   - Maintained all functionality while improving visual integration
 
 - **Context Handling**:
-  
+
   - Removed voice chat specific prompt to allow natural conversation flow
   - Maintained system prompts and conversation context from assistant settings
 
 - **Build Configuration**:
-  
+
   - Updated to generate signed ARM64 APK
   - Optimized build for production release
 
 - **Voice Chat Logic (Verified)**:
-  
+
   - **Tool & Search Detection**: Correctly implemented `_isToolModel` and `_hasBuiltInGeminiSearch` in `voice_chat_screen.dart` to accurately check for model capabilities, replacing previous placeholders.
   - **Context Handling**: Confirmed that the implementation correctly preserves and utilizes assistant system prompts and the full conversation history, ensuring contextual awareness in voice chats.
 
@@ -136,7 +136,7 @@
 1. **Close Button Behavior (Fixed)**: Simplified `_endVoiceChat()` method to properly capture Navigator before async operations. Now correctly returns to previous screen instead of closing the entire app.
 
 2. **Continuous Listening Mechanism (Improved)**: Refactored the listening logic with:
-   
+
    - New `_doStartListening()` method for actual speech recognition start
    - New `_forceRestartListening()` method for proactive restart
    - Watchdog timer now restarts every 4 seconds (before Android's 6-second timeout)
@@ -144,7 +144,7 @@
    - Better state management with `_isPaused` checks throughout
 
 3. **Code Quality Improvements**:
-   
+
    - Removed unused imports (`design_tokens.dart`, `chat_provider.dart`, `ios_tactile.dart`, `chat_input_data.dart`, `http.dart`)
    - Removed unused `_simulateTTS()` method
    - Fixed `dead_null_aware_expression` warning
@@ -180,13 +180,36 @@
 ### Status
 
 - **Status**: ✅ All issues resolved
-- **Last Updated**: 2025-11-28
+- **Last Updated**: 2025-11-29
 
 ### Resolved Issues
 
 1. ✅ **End Button Navigation**: Now correctly returns to home page (same behavior as X button)
 2. ✅ **Bluetooth SCO Stability**: Silent audio stream keeps connection alive indefinitely
 3. ✅ **Audio Quality**: No more interruption every 5 seconds
+4. ✅ **Continuous Recognition Logic**: Improved by removing forced 4-second restart mechanism, using event-based restart instead
+5. ✅ **State Display Issue**: Fixed issue where status incorrectly shows "listening" during "thinking" and "talking" states by implementing proper processing state tracking
+
+### Further Updates (2025-11-29)
+
+- **Fixed voice recognition starting during thinking/talking states**: Modified multiple functions to ensure voice recognition only restarts during the `listening` state:
+  - Updated `_scheduleRestart()` to check `_currentState == VoiceChatState.listening`
+  - Updated `_startVoiceRecognitionAfterProcessing()` to verify current state before restarting
+  - Modified all locations in `_sendToLLM()` that restart voice recognition to respect state
+  - Updated `_togglePause()` to ensure voice recognition only starts in `listening` state
+  - Modified `_doStartListening()` to check state before starting recognition
+
+### Audio Output Routing Fix (2025-11-30)
+
+- **Fixed audio output routing to speaker instead of earpiece**: Resolved issue where voice chat output was being routed to the earpiece instead of speaker, making it appear as if the app was in call mode:
+  - Removed `_enterCallMode()` call from `initState()` to prevent app from being treated as a call
+  - Removed `_exitCallMode()` call from `dispose()` method
+  - Changed audio session mode from `AVAudioSessionMode.voiceChat` to `AVAudioSessionMode.spokenAudio`
+  - Updated Android audio attributes from `USAGE_VOICE_COMMUNICATION` to `USAGE_MEDIA` for non-Bluetooth scenarios
+  - Modified Android audio focus requests to use `STREAM_MUSIC` instead of `STREAM_VOICE_CALL` for non-Bluetooth scenarios
+  - Updated silent audio keep-alive mechanism to use appropriate audio attributes based on Bluetooth connection status
+  - Created `_updateCallModeForBluetooth()` method to handle Bluetooth-specific audio routing when needed
+- **Result**: Audio now correctly routes to speaker by default, only using earpiece when the system specifically routes it (such as when a Bluetooth device is connected)
 
 ### Next Steps
 

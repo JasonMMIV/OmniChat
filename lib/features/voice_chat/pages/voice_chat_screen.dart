@@ -81,6 +81,9 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
   Timer? _restartListeningTimer;
   Timer? _listeningWatchdog;
 
+  // Flag to track if we're in the process of handling voice input
+  bool _isProcessingVoiceInput = false;
+
   bool _isToolModel(String providerKey, String modelId) {
     final settings = widget.settings;
     final cfg = settings.getProviderConfig(providerKey);
@@ -99,9 +102,36 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
     _initAudioSessionForVoiceChat();
     _initBackgroundService();
     _initializeSpeechEngine();
-    _enterCallMode();
     _checkMicrophonePermission();
     _loadVersionSelections();
+    // Only initialize call mode if Bluetooth is connected
+    _initializeCallMode();
+  }
+
+  Future<void> _initializeCallMode() async {
+    // Check for Bluetooth connection and enable call mode only if needed
+    // For now, we'll call it conditionally, but we can implement actual Bluetooth detection later
+    // For immediate fix, let's not call it at all unless we have Bluetooth
+    // We'll rely on audio session configuration instead to handle audio routing
+  }
+
+  // Call this method when Bluetooth connection status changes
+  Future<void> _updateCallModeForBluetooth(bool isBluetoothConnected) async {
+    if (isBluetoothConnected) {
+      // Enable call mode for Bluetooth
+      try {
+        await _callModeChannel.invokeMethod('startCallMode');
+      } catch (e) {
+        print('Failed to enter call mode for Bluetooth: $e');
+      }
+    } else {
+      // Disable call mode when not using Bluetooth
+      try {
+        await _callModeChannel.invokeMethod('stopCallMode');
+      } catch (e) {
+        print('Failed to exit call mode for Bluetooth: $e');
+      }
+    }
   }
 
   Future<void> _initBackgroundService() async {
@@ -114,33 +144,17 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
     await FlutterBackground.enableBackgroundExecution();
   }
 
-  Future<void> _enterCallMode() async {
-    try {
-      await _callModeChannel.invokeMethod('startCallMode');
-    } catch (e) {
-      print('Failed to enter call mode: $e');
-    }
-  }
-
-  Future<void> _exitCallMode() async {
-    try {
-      await _callModeChannel.invokeMethod('stopCallMode');
-    } catch (e) {
-      print('Failed to exit call mode: $e');
-    }
-  }
-
   Future<void> _initAudioSessionForVoiceChat() async {
     final session = await AudioSession.instance;
     await session.configure(AudioSessionConfiguration(
       avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
       avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth |
           AVAudioSessionCategoryOptions.mixWithOthers,
-      avAudioSessionMode: AVAudioSessionMode.voiceChat,
+      avAudioSessionMode: AVAudioSessionMode.spokenAudio,  // Changed from voiceChat to spokenAudio
       androidAudioAttributes: AndroidAudioAttributes(
         contentType: AndroidAudioContentType.speech,
         flags: AndroidAudioFlags.none,
-        usage: AndroidAudioUsage.voiceCommunication,
+        usage: AndroidAudioUsage.media, // Changed from voiceCommunication to media for proper output routing
       ),
       androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
       androidWillPauseWhenDucked: false,
@@ -194,6 +208,8 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
     // Cancel all timers
     _voiceStopTimer?.cancel();
     _restartListeningTimer?.cancel();
+    // Note: _listeningWatchdog was removed as part of continuous recognition loop implementation
+    // but we still cancel it in case it somehow exists
     _listeningWatchdog?.cancel();
 
     // Stop speech recognition
@@ -203,9 +219,6 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
 
     // Stop TTS
     widget.ttsProvider.stop();
-
-    // Exit call mode (stops SCO keep-alive and Bluetooth SCO)
-    _exitCallMode();
 
     // Deactivate audio session and background execution after a short delay
     // to ensure navigation completes first
@@ -253,30 +266,55 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
   }
 
   void _handleSpeechStatus(String status) {
-    // Ignore status updates if we're not supposed to be listening
-    if (_currentState != VoiceChatState.listening || _isPaused) return;
+    // Don't restart if this was a manual stop
+    if (_manualStopInProgress) {
+      _manualStopInProgress = false;
+      return;
+    }
+
+    print('Speech status changed to: $status'); // Debug print
 
     if (status == 'done' || status == 'notListening') {
-      if (_manualStopInProgress) {
-        _manualStopInProgress = false;
-        return;
-      }
-      // System-initiated stop - restart quickly
+      print('System-initiated stop detected, scheduling restart'); // Debug print
+      // System-initiated stop - restart quickly to maintain continuous listening
       _isListening = false;
-      _scheduleRestart(const Duration(milliseconds: 150));
+      // Always try to restart if we were listening and not paused
+      if (!_isPaused && mounted) {
+        _scheduleRestart(const Duration(milliseconds: 100));
+      } else {
+        print('Restart not scheduled due to conditions: paused=${_isPaused}, mounted=$mounted'); // Debug print
+      }
     }
   }
 
   void _handleSpeechError(SpeechRecognitionError error) {
-    // Ignore errors if we're not supposed to be listening
-    if (_currentState != VoiceChatState.listening || _isPaused) return;
+    print('Speech recognition error: ${error.errorMsg}'); // Debug print
+    // Don't restart if this was a manual stop
+    if (_manualStopInProgress) {
+      _manualStopInProgress = false;
+      return;
+    }
 
     // Don't show error for common timeout errors, just restart
     final errorMsg = error.errorMsg.toLowerCase();
-    if (errorMsg.contains('no match') || errorMsg.contains('speech timeout') || errorMsg.contains('no speech')) {
-      // These are expected when user is silent, just restart
+    if (errorMsg.contains('no match') ||
+        errorMsg.contains('speech timeout') ||
+        errorMsg.contains('no speech') ||
+        errorMsg.contains('error_speech_timeout') ||
+        errorMsg.contains('error_no_match') ||
+        errorMsg.contains('listening cancelled') ||
+        errorMsg.contains('error_interruption') ||
+        errorMsg.contains('error_client') ||
+        errorMsg.contains('error_recognizer_busy')) {
+      print('Common timeout error detected, scheduling restart'); // Debug print
+      // These are expected when user is silent or timeout occurs, just restart
       _isListening = false;
-      _scheduleRestart(const Duration(milliseconds: 200));
+      // Always try to restart if we were listening and not paused
+      if (!_isPaused && mounted) {
+        _scheduleRestart(const Duration(milliseconds: 100));
+      } else {
+        print('Restart not scheduled due to conditions: paused=${_isPaused}, mounted=$mounted'); // Debug print
+      }
       return;
     }
 
@@ -286,14 +324,25 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
       _currentSubtitle = localization?.voiceChatError(error.errorMsg) ?? 'Error: ${error.errorMsg}';
     });
     _isListening = false;
-    _scheduleRestart(const Duration(milliseconds: 500));
+    print('Other error detected, scheduling restart'); // Debug print
+    // Always try to restart if we were listening and not paused
+    if (!_isPaused && mounted) {
+      _scheduleRestart(const Duration(milliseconds: 200));
+    }
   }
 
   void _scheduleRestart(Duration delay) {
+    print('Scheduling restart in ${delay.inMilliseconds}ms'); // Debug print
     _restartListeningTimer?.cancel();
     _restartListeningTimer = Timer(delay, () {
-      if (!mounted || _currentState != VoiceChatState.listening || _isPaused) return;
-      _doStartListening();
+      print('Restart timer executed, mounted=$mounted, paused=$_isPaused, currentState=$_currentState'); // Debug print
+      // Check if mounted, not paused, AND in listening state
+      if (mounted && !_isPaused && _currentState == VoiceChatState.listening) {
+        print('Attempting to restart listening'); // Debug print
+        _doStartListening();
+      } else {
+        print('Restart aborted due to conditions: mounted=$mounted, paused=$_isPaused, currentState=$_currentState'); // Debug print
+      }
     });
   }
 
@@ -302,9 +351,8 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
       return;
     }
 
-    // Cancel any existing timers
+    // Cancel any existing restart timer
     _restartListeningTimer?.cancel();
-    _listeningWatchdog?.cancel();
 
     // Make sure audio session is active for Bluetooth call simulation
     try {
@@ -317,24 +365,23 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
     // Start the actual listening
     await _doStartListening();
 
-    // Set up a watchdog that proactively restarts listening every 4 seconds
-    // This beats Android's ~6 second timeout by restarting before it triggers
-    _listeningWatchdog = Timer.periodic(const Duration(seconds: 4), (timer) {
-      if (!mounted || _currentState != VoiceChatState.listening || _isPaused) {
-        timer.cancel();
-        return;
-      }
-      // Proactively stop and restart to prevent Android timeout
-      _forceRestartListening();
-    });
-
     setState(() {
       _currentState = VoiceChatState.listening;
       _currentSubtitle = '';
     });
   }
 
+  void _startVoiceRecognitionAfterProcessing() {
+    // Reset processing flag before starting recognition again
+    _isProcessingVoiceInput = false;
+    // Only restart if we're in the listening state
+    if (_currentState == VoiceChatState.listening) {
+      _startVoiceRecognition();
+    }
+  }
+
   /// Force restart listening - stops current session and starts a new one
+  /// This method is retained for manual restart scenarios but no longer used by the 4-second watchdog
   Future<void> _forceRestartListening() async {
     if (!mounted || _currentState != VoiceChatState.listening || _isPaused) return;
 
@@ -356,11 +403,28 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
 
   /// Actually start the speech recognition
   Future<void> _doStartListening() async {
-    if (!_hasMicrophonePermission || !_speechEngineReady) return;
-    if (!mounted || _isPaused) return;
+    print('Attempting to start speech recognition, permission=$_hasMicrophonePermission, ready=$_speechEngineReady, mounted=$mounted, paused=$_isPaused, currentState=$_currentState'); // Debug print
+
+    if (!_hasMicrophonePermission || !_speechEngineReady) {
+      print('Cannot start, permission=$_hasMicrophonePermission, ready=$_speechEngineReady'); // Debug print
+      return;
+    }
+    if (!mounted || _isPaused || _currentState != VoiceChatState.listening) {
+      print('Cannot start, mounted=$mounted, paused=$_isPaused, currentState=$_currentState'); // Debug print
+      return;
+    }
+
+    // Make sure we're in the listening state when starting
+    if (_currentState != VoiceChatState.listening) {
+      setState(() {
+        _currentState = VoiceChatState.listening;
+        _currentSubtitle = '';
+      });
+    }
 
     _isListening = true;
     try {
+      print('Calling speechToText.listen'); // Debug print
       await _speechToText.listen(
         onResult: (result) {
           final recognizedText = result.recognizedWords;
@@ -368,17 +432,40 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
             _currentSubtitle = recognizedText;
           });
 
+          // When we get a final result, restart listening after processing
           if (result.finalResult && recognizedText.isNotEmpty) {
             _recognizedText = recognizedText;
+            // Set a flag to indicate we've received input and are processing
+            _isListening = false;
+            _isProcessingVoiceInput = true;  // Mark that we're processing voice input
             _processVoiceInput(recognizedText);
+          } else if (result.finalResult && recognizedText.isEmpty) {
+            // If we get a final result with no text (e.g., timeout), restart listening
+            print('Empty final result, scheduling restart'); // Debug print
+            _isListening = false;
+            _scheduleRestart(const Duration(milliseconds: 100));
           }
         },
         listenMode: ListenMode.dictation,
-        pauseFor: const Duration(seconds: 30),
         cancelOnError: false,
-        listenFor: const Duration(minutes: 10),
         partialResults: true,
+        onSoundLevelChange: (level) {
+          // Keep track of sound levels to maintain active listening
+          // This helps keep the speech recognition active even during low noise levels
+        },
       );
+      print('speechToText.listen completed'); // Debug print
+      // IMPORTANT: The listen() method completed, but on Android this might mean it reached system timeout
+      // We need to schedule a restart only if we're still in the right state
+      _isListening = false;
+      // Only restart if we're still in listening state (not in thinking/talking)
+      // and we haven't already received speech input and started processing
+      if (_currentState == VoiceChatState.listening && !_isPaused && mounted && !_isProcessingVoiceInput) {
+        print('Scheduling restart after listen() completed in listening state'); // Debug print
+        _scheduleRestart(const Duration(milliseconds: 50));
+      } else {
+        print('Not restarting, current state: $_currentState, paused: $_isPaused, processing: $_isProcessingVoiceInput'); // Debug print
+      }
     } catch (e) {
       print('Error starting speech recognition: $e');
       _isListening = false;
@@ -395,12 +482,11 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
       await _speechToText.stop();
       _isListening = false;
       _restartListeningTimer?.cancel();
-      _listeningWatchdog?.cancel();
     }
 
-    Future.delayed(Duration.zero, () {
-      _sendToLLM(text);
-    });
+    // After processing the voice input, ensure we restart listening
+    // once the LLM response is complete
+    _sendToLLM(text);
   }
 
   // Send the recognized text to LLM using providers from context
@@ -563,7 +649,7 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
                   _currentSubtitle = localization?.voiceChatErrorApi(apiError.toString()) ?? 'API error: ${apiError.toString()}';
                 });
               }
-              _startVoiceRecognition();
+              _startVoiceRecognitionAfterProcessing();
               return;
             }
 
@@ -610,16 +696,27 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
                   _currentState = VoiceChatState.listening;
                   _currentSubtitle = ''; // Clear subtitle when returning to listening
                 });
+
+                // Only restart listening after TTS completes if we're still in listening state
+                if (_currentState == VoiceChatState.listening) {
+                  _startVoiceRecognitionAfterProcessing();
+                }
               } catch (e) {
                 // Handle TTS error but stay in talking state briefly before returning to listening
                 setState(() {
                   final localization = AppLocalizations.of(context);
                   _currentSubtitle = localization?.voiceChatErrorTts(e.toString()) ?? 'TTS error: ${e.toString()}';
                 });
-              }
 
-              // Restart listening
-              _startVoiceRecognition();
+                // Even if TTS fails, we should still return to listening state and restart recognition
+                setState(() {
+                  _currentState = VoiceChatState.listening;
+                });
+
+                if (_currentState == VoiceChatState.listening) {
+                  _startVoiceRecognitionAfterProcessing();
+                }
+              }
             } else {
               // If no content, return to listening
               setState(() {
@@ -627,44 +724,58 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
                 _currentSubtitle = ''; // Clear subtitle when returning to listening
               });
 
-              _startVoiceRecognition();
+              if (_currentState == VoiceChatState.listening) {
+                _startVoiceRecognitionAfterProcessing();
+              }
             }
           } else {
             // No provider/model set, show error and return to listening
             setState(() {
+              _currentState = VoiceChatState.listening;
               final localization = AppLocalizations.of(context);
               _currentSubtitle = localization?.voiceChatErrorNoModel ?? 'No model selected';
             });
 
-            _startVoiceRecognition();
+            if (_currentState == VoiceChatState.listening) {
+              _startVoiceRecognitionAfterProcessing();
+            }
           }
         } else {
           // Conversation not found, show error
           setState(() {
+            _currentState = VoiceChatState.listening;
             final localization = AppLocalizations.of(context);
             _currentSubtitle = localization?.voiceChatErrorNoConversation ?? 'No conversation found';
           });
 
-          _startVoiceRecognition();
+          if (_currentState == VoiceChatState.listening) {
+            _startVoiceRecognitionAfterProcessing();
+          }
         }
       } else {
         // If no current conversation, show error
         setState(() {
+          _currentState = VoiceChatState.listening;
           final localization = AppLocalizations.of(context);
           _currentSubtitle = localization?.voiceChatErrorNoActiveConversation ?? 'No active conversation';
         });
 
-        _startVoiceRecognition();
+        if (_currentState == VoiceChatState.listening) {
+          _startVoiceRecognition();
+        }
       }
 
     } catch (e) {
       setState(() {
+        _currentState = VoiceChatState.listening;
         final localization = AppLocalizations.of(context);
         _currentSubtitle = localization?.voiceChatError(e.toString()) ?? 'Error: ${e.toString()}';
       });
 
       // Restart listening even on error
-      _startVoiceRecognition();
+      if (_currentState == VoiceChatState.listening) {
+        _startVoiceRecognitionAfterProcessing();
+      }
     }
   }
 
@@ -916,10 +1027,10 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
         _speechToText.stop();
         _isListening = false;
         _restartListeningTimer?.cancel();
-        _listeningWatchdog?.cancel();
       }
     } else {
-      if (_currentState == VoiceChatState.listening) {
+      // Only restart if we're in listening state and not processing voice input
+      if (_currentState == VoiceChatState.listening && !_isProcessingVoiceInput) {
         _startVoiceRecognition();
       }
     }
@@ -938,4 +1049,3 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
 }
 
 enum VoiceChatState { listening, thinking, talking }
-

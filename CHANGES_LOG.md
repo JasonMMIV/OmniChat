@@ -380,3 +380,60 @@ Listening (captures voice) → Thinking (processes with LLM) → Talking (plays 
   - **Bluetooth SCO Stability**: Silent audio stream keeps the SCO connection alive indefinitely, preventing the 10-15 second timeout
   - **Audio Quality**: Removed the keep-alive ping that was causing audio interruption every 5 seconds
   - **Status**: Both issues resolved - end button returns to home page, Bluetooth audio remains stable
+
+### 31. Voice Chat Continuous Recognition and State Display Fixes (2025-11-29)
+- **Commit**: Replace forced 4-second restart with event-based continuous recognition and fix state display issue
+- **Files Modified**:
+  - `lib/features/voice_chat/pages/voice_chat_screen.dart`:
+    - **Continuous Recognition Logic**: Replaced forced 4-second restart mechanism with event-based restart approach
+      - Removed `pauseFor: const Duration(seconds: 30)` and `listenFor: const Duration(minutes: 10)` parameters that were ineffective on Android
+      - Modified `_handleSpeechStatus()` to restart only when needed, without checking `_currentState`
+      - Updated `_handleSpeechError()` with the same logic for all error types
+      - Modified `_scheduleRestart()` to only check `mounted` and `_isPaused`, not `_currentState`
+      - Updated `_doStartListening()` to ensure state is set to `VoiceChatState.listening` when starting
+    - **State Display Fix**: Implemented `_isProcessingVoiceInput` flag to prevent unwanted restarts:
+      - Added `_isProcessingVoiceInput` boolean flag to track processing state
+      - Set flag to `true` when voice input is detected in `onResult` callback
+      - Modified restart logic to check `_isProcessingVoiceInput` flag before restarting
+      - Created `_startVoiceRecognitionAfterProcessing()` method to reset flag before restarting
+      - Replaced all `_startVoiceRecognition()` calls in `_sendToLLM` with `_startVoiceRecognitionAfterProcessing()`
+    - **Debug Logging**: Added comprehensive debug print statements to track recognition flow
+- **Description**:
+  - **Continuous Recognition**: Implemented improved continuous recognition by replacing the forced restart mechanism with event-driven restarts that only happen when needed
+  - **State Display Fix**: Resolved issue where status incorrectly showed "listening" during "thinking" and "talking" states by implementing proper processing state tracking
+  - **Enhanced Logic**: Used processing flags to prevent unwanted restarts when the system is already processing voice input
+
+### 33. Voice Recognition State Synchronization Fix (2025-11-29)
+- **Commit**: Fix voice recognition starting during thinking/talking states
+- **Files Modified**:
+  - `lib/features/voice_chat/pages/voice_chat_screen.dart`:
+    - **State-Synchronized Voice Recognition**: Modified multiple functions to ensure voice recognition only restarts during the `listening` state:
+      - Updated `_scheduleRestart()` to check `_currentState == VoiceChatState.listening` before restarting
+      - Updated `_startVoiceRecognitionAfterProcessing()` to verify current state before restarting
+      - Modified all locations in `_sendToLLM()` that restart voice recognition to respect state
+      - Updated `_togglePause()` to ensure voice recognition only starts in `listening` state
+      - Modified `_doStartListening()` to check state before starting recognition
+      - Enhanced debug logging to include current state information
+- **Description**:
+  - **State Synchronization**: Fixed issue where voice recognition would start during thinking and talking states by adding state checks to all voice recognition restart points
+  - **Consistent Behavior**: Ensured voice recognition only operates during `listening` state while maintaining proper state transitions
+  - **Quality Assurance**: Added additional debug logs to track state and recognition behavior for future testing
+
+### 34. Audio Output Routing Fix (2025-11-30)
+- **Commit**: Fix audio output routing to speaker instead of earpiece
+- **Files Modified**:
+  - `lib/features/voice_chat/pages/voice_chat_screen.dart`:
+    - **Removed Call Mode Initiation**: Removed `_enterCallMode()` call from `initState()` to prevent app from being treated as a call
+    - **Removed Call Mode Cleanup**: Removed `_exitCallMode()` call from `dispose()` method
+    - **Audio Session Configuration**: Changed audio session mode from `AVAudioSessionMode.voiceChat` to `AVAudioSessionMode.spokenAudio`
+    - **Audio Attributes Update**: Updated Android audio attributes from `AndroidAudioUsage.voiceCommunication` to `AndroidAudioUsage.media`
+    - **Bluetooth-Aware Method**: Created `_updateCallModeForBluetooth()` method for handling Bluetooth-specific routing
+  - `android/app/src/main/kotlin/com/psyche/omnichat/MainActivity.kt`:
+    - **Audio Focus Management**: Modified audio focus requests to use `STREAM_MUSIC` instead of `STREAM_VOICE_CALL` for non-Bluetooth scenarios
+    - **Conditional Audio Mode**: Updated audio mode settings to use `MODE_IN_COMMUNICATION` only for Bluetooth connections, `MODE_NORMAL` otherwise
+    - **Speakerphone Control**: Adjusted speakerphone settings based on Bluetooth connection status
+    - **Silent Audio Attributes**: Updated silent audio keep-alive mechanism to use appropriate audio attributes based on Bluetooth connection status
+- **Description**:
+  - **Audio Routing**: Fixed issue where app was being treated as a call application, causing audio to route to earpiece instead of speaker
+  - **Bluetooth Support**: Maintains proper Bluetooth routing when connected while preventing earpiece routing in non-Bluetooth scenarios
+  - **Consistent Output**: Audio now correctly outputs to speaker by default, with Bluetooth routing preserved when appropriate

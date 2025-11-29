@@ -394,20 +394,38 @@ class TtsProvider extends ChangeNotifier {
   Future<bool> _trySpeak(String text) async {
     await _ensureBound();
     dynamic res;
-    try { res = await _tts.speak(text, focus: true); } catch (_) {}
+    try {
+      // Configure TTS to use appropriate audio attributes for speaker output
+      await _tts.setSpeechRate(_speechRate);
+      await _tts.setPitch(_pitch);
+      await _tts.setVolume(1.0);
+      res = await _tts.speak(text, focus: true);
+    } catch (_) {}
     if (_speakOk(res)) return true;
     // Try picking engine and retry a few times to accommodate late binding
     await _selectEngine();
     for (int i = 0; i < 5; i++) {
       await Future.delayed(const Duration(milliseconds: 180));
-      try { res = await _tts.speak(text, focus: true); } catch (_) {}
+      try {
+        // Reconfigure audio settings on each retry
+        await _tts.setSpeechRate(_speechRate);
+        await _tts.setPitch(_pitch);
+        await _tts.setVolume(1.0);
+        res = await _tts.speak(text, focus: true);
+      } catch (_) {}
       if (_speakOk(res)) return true;
     }
     // Recreate engine once and re-try
     await _recreateEngine();
     for (int i = 0; i < 5; i++) {
       await Future.delayed(const Duration(milliseconds: 200));
-      try { res = await _tts.speak(text, focus: true); } catch (_) {}
+      try {
+        // Ensure audio settings are applied after engine recreation
+        await _tts.setSpeechRate(_speechRate);
+        await _tts.setPitch(_pitch);
+        await _tts.setVolume(1.0);
+        res = await _tts.speak(text, focus: true);
+      } catch (_) {}
       if (_speakOk(res)) return true;
     }
     return false;
