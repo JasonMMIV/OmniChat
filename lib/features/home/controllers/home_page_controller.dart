@@ -566,12 +566,15 @@ class HomePageController extends ChangeNotifier {
 
   Future<void> editMessage(ChatMessage message) async {
     final isDesktop = isDesktopPlatform;
-    final MessageEditResult? result = isDesktop
+    final result = isDesktop
         ? await showMessageEditDesktopDialog(_context, message: message)
         : await showMessageEditSheet(_context, message: message);
     if (result == null) return;
 
-    final newMsg = await _chatService.appendMessageVersion(messageId: message.id, content: result.content);
+    final String nextContent = (result is String) ? result : (result as MessageEditResult).content;
+    final bool shouldSend = (result is String) ? false : (result as MessageEditResult).shouldSend;
+
+    final newMsg = await _chatService.appendMessageVersion(messageId: message.id, content: nextContent);
     if (newMsg == null) return;
 
     messages.add(newMsg);
@@ -585,7 +588,7 @@ class HomePageController extends ChangeNotifier {
       } catch (_) {}
     }
 
-    if (!result.shouldSend) return;
+    if (!shouldSend) return;
     if (message.role == 'assistant') {
       await regenerateAtMessage(newMsg, assistantAsNewReply: true);
     } else {

@@ -807,20 +807,35 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       final RenderBox? box = _inputBarKey.currentContext?.findRenderObject() as RenderBox?;
       final Offset position = box?.localToGlobal(Offset.zero) ?? Offset.zero;
 
-      showQuickPhraseMenu(
+      final selected = await showQuickPhraseMenu(
         context: context,
         phrases: phrases,
         position: position,
-        onSelected: (p) => _controller.handleQuickPhraseSelection(p),
       );
+      if (selected != null) {
+        _controller.handleQuickPhraseSelection(selected);
+      }
     }
   }
 
-  void _openInstructionInjectionPopover() {
+  void _openInstructionInjectionPopover() async {
+    final ap = context.read<AssistantProvider>();
+    final assistantId = ap.currentAssistant?.id;
+    final provider = context.read<InstructionInjectionProvider>();
+    if (provider.items.isEmpty) {
+        await provider.initialize();
+    }
+    final items = provider.items;
+
     if (PlatformUtils.isDesktop) {
-      showDesktopInstructionInjectionPopover(context, anchorKey: _inputBarKey);
+      showDesktopInstructionInjectionPopover(
+        context,
+        anchorKey: _inputBarKey,
+        items: items,
+        assistantId: assistantId,
+      );
     } else {
-      showInstructionInjectionSheet(context);
+      showInstructionInjectionSheet(context, assistantId: assistantId);
     }
   }
 

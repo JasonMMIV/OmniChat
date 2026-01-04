@@ -69,6 +69,19 @@ class AssistantRegex {
       enabled: json['enabled'] as bool? ?? true,
     );
   }
+
+  static List<Map<String, dynamic>> encodeList(List<AssistantRegex> list) =>
+      list.map((e) => e.toJson()).toList();
+
+  static List<AssistantRegex> decodeList(dynamic raw) {
+    if (raw is List) {
+      return raw
+          .whereType<Map>()
+          .map((e) => AssistantRegex.fromJson(e.map((k, v) => MapEntry(k.toString(), v))))
+          .toList();
+    }
+    return const <AssistantRegex>[];
+  }
 }
 
 enum AssistantRegexScope { user, assistant }
