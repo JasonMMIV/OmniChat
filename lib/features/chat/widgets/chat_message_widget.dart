@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'dart:ui' as ui;
+import 'dart:math' as math;
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import '../../../core/services/haptics.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -22,6 +22,8 @@ import '../../../core/providers/assistant_provider.dart';
 import 'package:intl/intl.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/avatar_cache.dart';
+import '../../../utils/assistant_regex.dart';
+import '../../../core/models/assistant.dart';
 import '../../../core/providers/tts_provider.dart';
 import '../../../shared/widgets/markdown_with_highlight.dart';
 import '../../../shared/widgets/snackbar.dart';
@@ -29,6 +31,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
+import '../../../core/models/assistant_regex.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../desktop/desktop_context_menu.dart';
 import '../../../desktop/menu_anchor.dart';
@@ -71,6 +74,8 @@ class ChatMessageWidget extends StatefulWidget {
   final VoidCallback? onToggleTranslation;
   // MCP tool calls/results mixed-in cards
   final List<ToolUIPart>? toolParts;
+  // Hide streaming dots when pinned globally
+  final bool hideStreamingIndicator;
 
   const ChatMessageWidget({
     super.key,
@@ -104,6 +109,7 @@ class ChatMessageWidget extends StatefulWidget {
     this.translationExpanded = true,
     this.onToggleTranslation,
     this.toolParts,
+    this.hideStreamingIndicator = false,
   });
 
   @override
@@ -129,8 +135,12 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   final GlobalKey _translateBtnKey1 = GlobalKey();
   final GlobalKey _moreBtnKey2 = GlobalKey();
   final GlobalKey _translateBtnKey2 = GlobalKey();
+  // ValueNotifier for reasoning animation tick - avoids full widget rebuild
+  final ValueNotifier<int> _reasoningTick = ValueNotifier<int>(0);
   late final Ticker _ticker = Ticker((_) {
-    if (mounted && _tickActive) setState(() {});
+    if (mounted && _tickActive) {
+      _reasoningTick.value++; // Only notify reasoning section, not full rebuild
+    }
   });
 
   @override
@@ -245,6 +255,19 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     return 'AI Assistant';
   }
 
+  Assistant? _assistantForMessage() {
+    try {
+      final chat = context.read<ChatService>();
+      final convo = chat.getConversation(widget.message.conversationId);
+      final aId = convo?.assistantId;
+      if (aId == null || aId.isEmpty) return null;
+      final ap = context.watch<AssistantProvider>();
+      return ap.getById(aId);
+    } catch (_) {
+      return null;
+    }
+  }
+
   String _resolveModelDisplayName(SettingsProvider settings) {
     final modelId = widget.message.modelId;
     if (modelId == null || modelId.trim().isEmpty) {
@@ -283,6 +306,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     try { _userMenuOverlay?.remove(); } catch (_) {}
     _userMenuOverlay = null;
     _ticker.dispose();
+    _reasoningTick.dispose();
     _reasoningScroll.dispose();
     super.dispose();
   }
@@ -305,7 +329,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     final bubbleTopLeft = box.localToGlobal(Offset.zero, ancestor: overlayBox);
     final bubbleSize = box.size;
     final screenSize = overlayBox.size;
-    final insets = MediaQuery.of(context).padding; // status bar / gesture insets
+    final insets = MediaQuery.paddingOf(context); // status bar / gesture insets
     final safeLeft = insets.left + 12;
     final safeRight = insets.right + 12;
     final safeTop = insets.top + 12;
@@ -566,6 +590,13 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     final l10n = AppLocalizations.of(context)!;
     final settings = context.watch<SettingsProvider>();
     final parsed = _parseUserContent(widget.message.content);
+    final assistant = _assistantForMessage();
+    final visualText = applyAssistantRegexes(
+      parsed.text,
+      assistant: assistant,
+      scope: AssistantRegexScope.user,
+      visual: true,
+    );
     final showUserActions = settings.showUserMessageActions;
     final showVersionSwitcher = (widget.versionCount ?? 1) > 1;
 
@@ -628,7 +659,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             child: Container(
               key: _userBubbleKey,
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.75,
+                maxWidth: MediaQuery.sizeOf(context).width * 0.75,
               ),
               child: _buildBubbleContainer(
                 context: context,
@@ -636,7 +667,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                if (parsed.text.isNotEmpty)
+                if (visualText.isNotEmpty)
                   Builder(builder: (context) {
                     final bool isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
                         defaultTargetPlatform == TargetPlatform.windows ||
@@ -648,13 +679,13 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       content = DefaultTextStyle.merge(
                         style: TextStyle(fontSize: baseUser, height: 1.45),
                         child: MarkdownWithCodeHighlight(
-                          text: parsed.text,
+                          text: visualText,
                           baseStyle: TextStyle(fontSize: baseUser, height: 1.45),
                         ),
                       );
                     } else {
                       content = Text(
-                        parsed.text,
+                        visualText,
                         style: TextStyle(
                           fontSize: baseUser, // slightly smaller on desktop for readability
                           height: 1.4,
@@ -664,7 +695,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                     }
 
                     // Enable desktop selection/copy for user messages
-                    return isDesktop ? SelectionArea(child: content) : content;
+                    return isDesktop ? SelectionArea(key: ValueKey('user_${widget.message.id}'), child: content) : content;
                   }),
                 if (parsed.images.isNotEmpty) ...[
                   const SizedBox(height: 8),
@@ -804,7 +835,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             Align(
               alignment: Alignment.centerRight,
               child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+                constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.75),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -844,6 +875,22 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 ),
               ),
               const SizedBox(width: 6),
+              if (widget.onEdit != null) ...[
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: Center(
+                    child: IosIconButton(
+                      size: 16,
+                      padding: EdgeInsets.all(4),
+                      icon: Lucide.Pencil,
+                      color: cs.onSurface.withOpacity(0.9),
+                      onTap: widget.onEdit,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
               SizedBox(
                 width: 28,
                 height: 28,
@@ -1039,6 +1086,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final settings = context.watch<SettingsProvider>();
+    final assistant = _assistantForMessage();
 
     // Extract vendor inline <think>...</think> content (if present)
     final extractedThinking = THINKING_REGEX
@@ -1050,6 +1098,23 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     final contentWithoutThink = extractedThinking.isNotEmpty
         ? widget.message.content.replaceAll(THINKING_REGEX, '').trim()
         : widget.message.content;
+    final visualContent = applyAssistantRegexes(
+      contentWithoutThink,
+      assistant: assistant,
+      scope: AssistantRegexScope.assistant,
+      visual: true,
+    );
+    final visualTranslation = widget.message.translation != null
+        ? applyAssistantRegexes(
+            widget.message.translation!,
+            assistant: assistant,
+            scope: AssistantRegexScope.assistant,
+            visual: true,
+          )
+        : null;
+    final translationText = visualTranslation ?? widget.message.translation;
+    final bool hasTranslation = (translationText != null && translationText.isNotEmpty);
+    final bool isTranslating = translationText == l10n.chatMessageWidgetTranslating;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1225,36 +1290,32 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             width: double.infinity,
             child: _buildAssistantBubbleContainer(
               context: context,
-              child: (widget.message.isStreaming && contentWithoutThink.isEmpty)
-                ? Row(
-              children: [
-                _LoadingIndicator(),
-                const SizedBox(width: 8),
-                Text(
-                  l10n.chatMessageWidgetThinking,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: cs.onSurface.withOpacity(0.5),
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ],
-            )
-                : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+              child: (widget.message.isStreaming && visualContent.isEmpty)
+                  ? Align(
+                      alignment: Alignment.centerLeft,
+                      child: Semantics(
+                        label: l10n.chatMessageWidgetThinking,
+                        child: widget.hideStreamingIndicator ? const SizedBox(height: 16) : const LoadingIndicator(),
+                      ),
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                 Builder(builder: (context) {
                   final bool isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
                       defaultTargetPlatform == TargetPlatform.windows ||
                       defaultTargetPlatform == TargetPlatform.linux;
                   final double baseAssistant = isDesktop ? 14.0 : 15.7;
-                  return SelectionArea(
-                    child: DefaultTextStyle.merge(
-                      style: TextStyle(fontSize: baseAssistant, height: 1.5),
-                      child: MarkdownWithCodeHighlight(
-                        text: contentWithoutThink,
-                        onCitationTap: (id) => _handleCitationTap(id),
-                        baseStyle: TextStyle(fontSize: baseAssistant, height: 1.5),
+                  return RepaintBoundary(
+                    child: SelectionArea(
+                      key: ValueKey('assistant_${widget.message.id}'),
+                      child: DefaultTextStyle.merge(
+                        style: TextStyle(fontSize: baseAssistant, height: 1.5),
+                        child: MarkdownWithCodeHighlight(
+                          text: visualContent,
+                          onCitationTap: (id) => _handleCitationTap(id),
+                          baseStyle: TextStyle(fontSize: baseAssistant, height: 1.5),
+                        ),
                       ),
                     ),
                   );
@@ -1263,10 +1324,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 if (widget.message.isStreaming)
                   Padding(
                     padding: const EdgeInsets.only(left: 4),
-                    child: _LoadingIndicator(),
+                    child: widget.hideStreamingIndicator ? const SizedBox(height: 16) : const LoadingIndicator(),
                   ),
                 // Translation section (collapsible)
-                if (widget.message.translation != null && widget.message.translation!.isNotEmpty) ...[
+                if (hasTranslation) ...[
                   const SizedBox(height: 12),
                   Container(
                     width: double.infinity,
@@ -1319,12 +1380,12 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                           ),
                           if (widget.translationExpanded) ...[
                             const SizedBox(height: 8),
-                            if (widget.message.translation == l10n.chatMessageWidgetTranslating)
+                            if (isTranslating)
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
                                 child: Row(
                                   children: [
-                                    _LoadingIndicator(),
+                                    const LoadingIndicator(),
                                     const SizedBox(width: 8),
                                     Builder(builder: (context) {
                                       final bool isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
@@ -1345,21 +1406,24 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                             else
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
-                                child: SelectionArea(
-                                  child: Builder(builder: (context) {
-                                    final bool isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                                        defaultTargetPlatform == TargetPlatform.windows ||
-                                        defaultTargetPlatform == TargetPlatform.linux;
-                                    final double baseTranslation = isDesktop ? 14.0 : 15.5;
-                                    return DefaultTextStyle.merge(
-                                      style: TextStyle(fontSize: baseTranslation, height: 1.4),
-                                      child: MarkdownWithCodeHighlight(
-                                        text: widget.message.translation!,
-                                        onCitationTap: (id) => _handleCitationTap(id),
-                                        baseStyle: TextStyle(fontSize: baseTranslation, height: 1.4),
-                                      ),
-                                    );
-                                  }),
+                                child: RepaintBoundary(
+                                  child: SelectionArea(
+                                    key: ValueKey('translation_${widget.message.id}'),
+                                    child: Builder(builder: (context) {
+                                      final bool isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+                                          defaultTargetPlatform == TargetPlatform.windows ||
+                                          defaultTargetPlatform == TargetPlatform.linux;
+                                      final double baseTranslation = isDesktop ? 14.0 : 15.5;
+                                      return DefaultTextStyle.merge(
+                                        style: TextStyle(fontSize: baseTranslation, height: 1.4),
+                                        child: MarkdownWithCodeHighlight(
+                                          text: translationText!,
+                                          onCitationTap: (id) => _handleCitationTap(id),
+                                          baseStyle: TextStyle(fontSize: baseTranslation, height: 1.4),
+                                        ),
+                                      );
+                                    }),
+                                  ),
                                 ),
                               ),
                           ],
@@ -1380,147 +1444,162 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               onTap: () => _showCitationsSheet(_latestSearchItems()),
             ),
           ],
-          // Action buttons
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              SizedBox(
-                width: 28,
-                height: 28,
-                child: Center(
-                  child: IosIconButton(
-                    size: 16,
-                    padding: EdgeInsets.all(4),
-                    icon: Lucide.Copy,
-                    color: cs.onSurface.withOpacity(0.9),
-                    onTap: widget.onCopy ?? () {
-                      Clipboard.setData(ClipboardData(text: widget.message.content));
-                      showAppSnackBar(
-                        context,
-                        message: l10n.chatMessageWidgetCopiedToClipboard,
-                        type: NotificationType.success,
-                      );
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              SizedBox(
-                width: 28,
-                height: 28,
-                child: Center(
-                  child: IosIconButton(
-                    size: 16,
-                    padding: EdgeInsets.all(4),
-                    icon: Lucide.RefreshCw,
-                    color: cs.onSurface.withOpacity(0.9),
-                    onTap: widget.onRegenerate,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Consumer<TtsProvider>(
-                builder: (context, tts, _) => SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: Center(
-                    child: IosIconButton(
-                      size: 16,
-                      padding: EdgeInsets.all(4),
-                      onTap: widget.onSpeak,
-                      color: cs.onSurface.withOpacity(0.9),
-                      builder: (color) => AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: FadeTransition(opacity: anim, child: child)),
-                        child: Icon(
-                          tts.isSpeaking ? Lucide.CircleStop : Lucide.Volume2,
-                          key: ValueKey(tts.isSpeaking ? 'stop' : 'speak'),
-                          size: 16,
-                          color: color,
+          // Action buttons (hidden while generating)
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, anim) => SizeTransition(
+              sizeFactor: anim,
+              axisAlignment: -1,
+              child: FadeTransition(opacity: anim, child: child),
+            ),
+            child: widget.message.isStreaming
+                ? const SizedBox.shrink()
+                : Padding(
+                    key: const ValueKey('assistant-actions'),
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: Center(
+                            child: IosIconButton(
+                              size: 16,
+                              padding: EdgeInsets.all(4),
+                              icon: Lucide.Copy,
+                              color: cs.onSurface.withOpacity(0.9),
+                              onTap: widget.onCopy ?? () {
+                                Clipboard.setData(ClipboardData(text: widget.message.content));
+                                showAppSnackBar(
+                                  context,
+                                  message: l10n.chatMessageWidgetCopiedToClipboard,
+                                  type: NotificationType.success,
+                                );
+                              },
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 6),
+                        SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: Center(
+                            child: IosIconButton(
+                              size: 16,
+                              padding: EdgeInsets.all(4),
+                              icon: Lucide.RefreshCw,
+                              color: cs.onSurface.withOpacity(0.9),
+                              onTap: widget.onRegenerate,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Consumer<TtsProvider>(
+                          builder: (context, tts, _) => SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: Center(
+                              child: IosIconButton(
+                                size: 16,
+                                padding: EdgeInsets.all(4),
+                                onTap: widget.onSpeak,
+                                color: cs.onSurface.withOpacity(0.9),
+                                builder: (color) => AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 200),
+                                  transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: FadeTransition(opacity: anim, child: child)),
+                                  child: Icon(
+                                    tts.isSpeaking ? Lucide.CircleStop : Lucide.Volume2,
+                                    key: ValueKey(tts.isSpeaking ? 'stop' : 'speak'),
+                                    size: 16,
+                                    color: color,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: Center(
+                            child: GestureDetector(
+                              key: _translateBtnKey2,
+                              onTapDown: (d) {
+                                final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+                                    defaultTargetPlatform == TargetPlatform.windows ||
+                                    defaultTargetPlatform == TargetPlatform.linux;
+                                if (isDesktop) {
+                                  try { DesktopMenuAnchor.setPosition(d.globalPosition); } catch (_) {}
+                                }
+                              },
+                              onTap: () {
+                                final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+                                    defaultTargetPlatform == TargetPlatform.windows ||
+                                    defaultTargetPlatform == TargetPlatform.linux;
+                                if (isDesktop) {
+                                  _setAnchorFromKey(_translateBtnKey2);
+                                }
+                                widget.onTranslate?.call();
+                              },
+                              child: IosIconButton(
+                                size: 16,
+                                padding: EdgeInsets.all(4),
+                                icon: Lucide.Languages,
+                                color: cs.onSurface.withOpacity(0.9),
+                                onTap: null,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: Center(
+                            child: GestureDetector(
+                              key: _moreBtnKey2,
+                              onTapDown: (d) {
+                                final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+                                    defaultTargetPlatform == TargetPlatform.windows ||
+                                    defaultTargetPlatform == TargetPlatform.linux;
+                                if (isDesktop) {
+                                  try { DesktopMenuAnchor.setPosition(d.globalPosition); } catch (_) {}
+                                }
+                              },
+                              onTap: () {
+                                final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+                                    defaultTargetPlatform == TargetPlatform.windows ||
+                                    defaultTargetPlatform == TargetPlatform.linux;
+                                if (isDesktop) {
+                                  _setAnchorFromKey(_moreBtnKey2);
+                                }
+                                widget.onMore?.call();
+                              },
+                              child: IosIconButton(
+                                size: 16,
+                                padding: EdgeInsets.all(4),
+                                icon: Lucide.Ellipsis,
+                                color: cs.onSurface.withOpacity(0.9),
+                                onTap: null,
+                              ),
+                            ),
+                          ),
+                        ),
+                        if ((widget.versionCount ?? 1) > 1) ...[
+                          const SizedBox(width: 6),
+                          _BranchSelector(
+                            index: widget.versionIndex ?? 0,
+                            total: widget.versionCount ?? 1,
+                            onPrev: widget.onPrevVersion,
+                            onNext: widget.onNextVersion,
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              SizedBox(
-                width: 28,
-                height: 28,
-                child: Center(
-                  child: GestureDetector(
-                    key: _translateBtnKey2,
-                    onTapDown: (d) {
-                      final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                          defaultTargetPlatform == TargetPlatform.windows ||
-                          defaultTargetPlatform == TargetPlatform.linux;
-                      if (isDesktop) {
-                        try { DesktopMenuAnchor.setPosition(d.globalPosition); } catch (_) {}
-                      }
-                    },
-                    onTap: () {
-                      final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                          defaultTargetPlatform == TargetPlatform.windows ||
-                          defaultTargetPlatform == TargetPlatform.linux;
-                      if (isDesktop) {
-                        _setAnchorFromKey(_translateBtnKey2);
-                      }
-                      widget.onTranslate?.call();
-                    },
-                    child: IosIconButton(
-                      size: 16,
-                      padding: EdgeInsets.all(4),
-                      icon: Lucide.Languages,
-                      color: cs.onSurface.withOpacity(0.9),
-                      onTap: null,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              SizedBox(
-                width: 28,
-                height: 28,
-                child: Center(
-                  child: GestureDetector(
-                    key: _moreBtnKey2,
-                    onTapDown: (d) {
-                      final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                          defaultTargetPlatform == TargetPlatform.windows ||
-                          defaultTargetPlatform == TargetPlatform.linux;
-                      if (isDesktop) {
-                        try { DesktopMenuAnchor.setPosition(d.globalPosition); } catch (_) {}
-                      }
-                    },
-                    onTap: () {
-                      final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                          defaultTargetPlatform == TargetPlatform.windows ||
-                          defaultTargetPlatform == TargetPlatform.linux;
-                      if (isDesktop) {
-                        _setAnchorFromKey(_moreBtnKey2);
-                      }
-                      widget.onMore?.call();
-                    },
-                    child: IosIconButton(
-                      size: 16,
-                      padding: EdgeInsets.all(4),
-                      icon: Lucide.Ellipsis,
-                      color: cs.onSurface.withOpacity(0.9),
-                      onTap: null,
-                    ),
-                  ),
-                ),
-              ),
-              if ((widget.versionCount ?? 1) > 1) ...[
-                const SizedBox(width: 6),
-                _BranchSelector(
-                  index: widget.versionIndex ?? 0,
-                  total: widget.versionCount ?? 1,
-                  onPrev: widget.onPrevVersion,
-                  onNext: widget.onNextVersion,
-                ),
-              ],
-            ],
           ),
         ],
       ),
@@ -1679,7 +1758,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) {
-        final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+        final bottomInset = MediaQuery.viewInsetsOf(ctx).bottom;
         return SafeArea(
           child: FractionallySizedBox(
             heightFactor: 0.5,
@@ -1938,30 +2017,24 @@ class _BranchSelector extends StatelessWidget {
   }
 }
 
-// Loading indicator similar to OpenAI's breathing circle
-class _LoadingIndicator extends StatefulWidget {
+// Pulsing 3-dot loading indicator for chat thinking states (shared)
+class LoadingIndicator extends StatefulWidget {
+  const LoadingIndicator({super.key});
   @override
-  State<_LoadingIndicator> createState() => _LoadingIndicatorState();
+  State<LoadingIndicator> createState() => _LoadingIndicatorState();
 }
 
-class _LoadingIndicatorState extends State<_LoadingIndicator>
+class _LoadingIndicatorState extends State<LoadingIndicator>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _curve;
+  late final AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    // Smoother, symmetric breathing with reverse to avoid jump cuts
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 1100),
       vsync: this,
-    )..repeat(reverse: true);
-
-    _curve = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOutSine,
-    );
+    )..repeat();
   }
 
   @override
@@ -1970,36 +2043,45 @@ class _LoadingIndicatorState extends State<_LoadingIndicator>
     super.dispose();
   }
 
+  double _dotValue(int index) {
+    final phase = (_controller.value - index * 0.22) * 2 * math.pi;
+    return (math.sin(phase) + 1) / 2; // 0 -> 1 wave
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final base = cs.primary;
 
-    return AnimatedBuilder(
-      animation: _curve,
-      builder: (context, child) {
-        // Scale and opacity gently breathe in sync
-        final scale = 0.9 + 0.2 * _curve.value; // 0.9 -> 1.1
-        final opacity = 0.6 + 0.4 * _curve.value; // 0.6 -> 1.0
-        final base = cs.primary;
-        return Transform.scale(
-          scale: scale,
-          child: Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: base.withOpacity(opacity),
-              boxShadow: [
-                BoxShadow(
-                  color: base.withOpacity(0.35 * opacity),
-                  blurRadius: 14,
-                  spreadRadius: 1,
+    return SizedBox(
+      height: 16,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(3, (i) {
+              final wave = _dotValue(i);
+              final double scale = 0.85 + 0.15 * wave; // subtle breathing
+              final double opacity = 0.45 + 0.45 * wave;
+              return Padding(
+                padding: EdgeInsets.only(right: i == 2 ? 0 : 6),
+                child: Transform.scale(
+                  scale: scale,
+                  child: Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: base.withOpacity(opacity),
+                    ),
+                  ),
                 ),
-              ],
-            ),
-          ),
-        );
-      },
+              );
+            }),
+          );
+        },
+      ),
     );
   }
 }
@@ -2259,7 +2341,7 @@ class _ToolCallItem extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) {
-        final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+        final bottomInset = MediaQuery.viewInsetsOf(ctx).bottom;
         return SafeArea(
           child: FractionallySizedBox(
             heightFactor: 0.6,
@@ -2453,7 +2535,11 @@ class _ReasoningSection extends StatefulWidget {
 }
 
 class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerProviderStateMixin {
-  late final Ticker _ticker = Ticker((_) => setState(() {}));
+  // Use ValueNotifier to only update elapsed time display, not rebuild entire widget
+  final ValueNotifier<int> _elapsedTick = ValueNotifier<int>(0);
+  late final Ticker _ticker = Ticker((_) {
+    if (mounted) _elapsedTick.value++;
+  });
   final ScrollController _scroll = ScrollController();
   bool _hasOverflow = false;
 
@@ -2502,6 +2588,7 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
   @override
   void dispose() {
     _ticker.dispose();
+    _elapsedTick.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -2570,9 +2657,12 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
             ),
             const SizedBox(width: 8),
             if (widget.startAt != null)
-              _Shimmer(
-                enabled: loading,
-                child: Text(_elapsed(), style: TextStyle(fontSize: 13, color: cs.secondary.withOpacity(0.9))),
+              ValueListenableBuilder<int>(
+                valueListenable: _elapsedTick,
+                builder: (context, _, __) => _Shimmer(
+                  enabled: loading,
+                  child: Text(_elapsed(), style: TextStyle(fontSize: 13, color: cs.secondary.withOpacity(0.9))),
+                ),
               ),
             // No header marquee; content area handles scrolling when loading
             const Spacer(),
@@ -2611,12 +2701,14 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
     final bool isLoading = loading;
     final display = _sanitize(widget.text);
 
-// 未加载：不要再指定 color: fg，让它继承和“加载中”相同的颜色
+// 未加载：不要再指定 color: fg，让它继承和"加载中"相同的颜色
     Widget _reasoningContent(String text) {
       if (settings.enableReasoningMarkdown) {
-        return MarkdownWithCodeHighlight(
-          text: text.isNotEmpty ? text : '…',
-          baseStyle: baseStyle,
+        return RepaintBoundary(
+          child: MarkdownWithCodeHighlight(
+            text: text.isNotEmpty ? text : '…',
+            baseStyle: baseStyle,
+          ),
         );
       }
       return Text(
@@ -2805,7 +2897,7 @@ class _MarqueeState extends State<_Marquee> with SingleTickerProviderStateMixin 
       text: TextSpan(text: text, style: style),
       maxLines: 1,
       textDirection: ui.TextDirection.ltr,
-      textScaleFactor: MediaQuery.of(context).textScaleFactor,
+      textScaleFactor: MediaQuery.textScaleFactorOf(context),
     )..layout();
     return tp.width;
   }

@@ -4,6 +4,8 @@ import 'package:uuid/uuid.dart';
 import 'dart:io';
 import '../../utils/sandbox_path_resolver.dart';
 import '../models/assistant.dart';
+import '../models/assistant_regex.dart';
+import '../models/preset_message.dart';
 import '../../l10n/app_localizations.dart';
 import '../../utils/avatar_cache.dart';
 import '../../utils/app_directories.dart';
@@ -80,7 +82,7 @@ class AssistantProvider extends ChangeNotifier {
         deletable: false,
         thinkingBudget: null,
         temperature: 0.6,
-        topP: 1.0,
+        topP: null,
       );
 
   // Ensure localized default assistants exist; call this after localization is ready.
@@ -103,7 +105,7 @@ class AssistantProvider extends ChangeNotifier {
       ),
       deletable: false,
       temperature: 0.6,
-      topP: 1.0,
+      topP: null,
     ));
     await _persist();
     // Set current assistant if not set
@@ -113,6 +115,53 @@ class AssistantProvider extends ChangeNotifier {
       await prefs.setString(_currentAssistantKey, _currentAssistantId!);
     }
     notifyListeners();
+  }
+
+  String _buildCopyName(Assistant source, AppLocalizations? l10n) {
+    final suffix = (l10n?.assistantSettingsCopySuffix ?? 'Copy').trim();
+    final baseName = source.name.trim().isEmpty
+        ? (l10n?.assistantProviderNewAssistantName ?? 'Assistant')
+        : source.name.trim();
+    final existingNames = _assistants.map((a) => a.name).toSet();
+
+    String candidate = suffix.isEmpty ? baseName : '$baseName $suffix';
+    int counter = 2;
+    while (existingNames.contains(candidate)) {
+      final counterSuffix = suffix.isEmpty ? '$counter' : '$suffix $counter';
+      candidate = '$baseName $counterSuffix';
+      counter++;
+    }
+    return candidate;
+  }
+
+  Future<String?> _duplicateLocalFile(String? rawPath, {required bool isAvatar, required String newId}) async {
+    final raw = (rawPath ?? '').trim();
+    if (raw.isEmpty) return rawPath;
+    if (raw.startsWith('http') || raw.startsWith('data:')) return rawPath;
+    final fixed = SandboxPathResolver.fix(raw);
+    final src = File(fixed);
+    if (!await src.exists()) return rawPath;
+
+    try {
+      final dir = isAvatar ? await AppDirectories.getAvatarsDirectory() : await AppDirectories.getImagesDirectory();
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      String ext = '';
+      final dot = fixed.lastIndexOf('.');
+      if (dot != -1 && dot < fixed.length - 1) {
+        ext = fixed.substring(dot + 1).toLowerCase();
+        if (ext.length > 6) ext = 'jpg';
+      } else {
+        ext = 'jpg';
+      }
+      final prefix = isAvatar ? 'assistant' : 'background';
+      final dest = File('${dir.path}/${prefix}_${newId}_${DateTime.now().millisecondsSinceEpoch}.$ext');
+      await src.copy(dest.path);
+      return dest.path;
+    } catch (_) {
+      return rawPath;
+    }
   }
 
   Future<void> _persist() async {
@@ -159,12 +208,54 @@ class AssistantProvider extends ChangeNotifier {
           ? AppLocalizations.of(context)!.assistantProviderNewAssistantName
           : 'New Assistant')),
       temperature: 0.6,
-      topP: 1.0,
+      topP: null,
     );
     _assistants.add(a);
     await _persist();
     notifyListeners();
     return a.id;
+  }
+
+  Future<String?> duplicateAssistant(String id, {AppLocalizations? l10n}) async {
+    final idx = _assistants.indexWhere((a) => a.id == id);
+    if (idx == -1) return null;
+    final source = _assistants[idx];
+    final newId = const Uuid().v4();
+
+    final avatarCopy = await _duplicateLocalFile(source.avatar, isAvatar: true, newId: newId);
+    final backgroundCopy = await _duplicateLocalFile(source.background, isAvatar: false, newId: newId);
+
+    final copy = source.copyWith(
+      id: newId,
+      name: _buildCopyName(source, l10n),
+      avatar: avatarCopy,
+      background: backgroundCopy,
+      deletable: true,
+      mcpServerIds: List<String>.of(source.mcpServerIds),
+      customHeaders: source.customHeaders.map((e) => Map<String, String>.from(e)).toList(),
+      customBody: source.customBody.map((e) => Map<String, String>.from(e)).toList(),
+      presetMessages: source.presetMessages
+          .map((m) => PresetMessage(role: m.role, content: m.content))
+          .toList(),
+      regexRules: source.regexRules
+          .map(
+            (r) => AssistantRegex(
+              id: const Uuid().v4(),
+              name: r.name,
+              pattern: r.pattern,
+              replacement: r.replacement,
+              scopes: List<AssistantRegexScope>.of(r.scopes),
+              visualOnly: r.visualOnly,
+              enabled: r.enabled,
+            ),
+          )
+          .toList(),
+    );
+
+    _assistants.insert(idx + 1, copy);
+    await _persist();
+    notifyListeners();
+    return copy.id;
   }
 
   Future<void> updateAssistant(Assistant updated) async {
@@ -274,6 +365,23 @@ class AssistantProvider extends ChangeNotifier {
     _assistants[idx] = next;
     await _persist();
     notifyListeners();
+  }
+
+  Future<void> reorderAssistantRegex({
+    required String assistantId,
+    required int oldIndex,
+    required int newIndex,
+  }) async {
+    final idx = _assistants.indexWhere((a) => a.id == assistantId);
+    if (idx == -1) return;
+    final list = List<AssistantRegex>.of(_assistants[idx].regexRules);
+    if (oldIndex < 0 || oldIndex >= list.length) return;
+    if (newIndex < 0 || newIndex >= list.length) return;
+    final item = list.removeAt(oldIndex);
+    list.insert(newIndex, item);
+    _assistants[idx] = _assistants[idx].copyWith(regexRules: list);
+    notifyListeners();
+    await _persist();
   }
 
   Future<bool> deleteAssistant(String id) async {

@@ -62,8 +62,8 @@ class SideDrawer extends StatefulWidget {
 
   final String userName;
   final String assistantName;
-  final void Function(String id)? onSelectConversation;
-  final VoidCallback? onNewConversation;
+  final FutureOr<void> Function(String id, {bool closeDrawer})? onSelectConversation;
+  final FutureOr<void> Function({bool closeDrawer})? onNewConversation;
   final ValueNotifier<int>? closePickerTicker;
   final Set<String> loadingConversationIds;
   final bool embedded; // when true, render as a fixed side panel instead of a Drawer
@@ -290,10 +290,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
               if (targetId != null) {
                 await chatService.moveConversationToAssistant(conversationId: chat.id, assistantId: targetId);
                 if (movingCurrent || chatService.currentConversationId == null) {
+                  final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
                   if (nextId != null) {
-                    widget.onSelectConversation?.call(nextId!);
+                    widget.onSelectConversation?.call(nextId!, closeDrawer: closeDrawer);
                   } else {
-                    widget.onNewConversation?.call();
+                    widget.onNewConversation?.call(closeDrawer: closeDrawer);
                   }
                 }
               }
@@ -305,20 +306,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             danger: true,
             onTap: () async {
               final deletingCurrent = chatService.currentConversationId == chat.id;
-              // Pre-compute next recent conversation for current assistant
-              String? nextId;
-              try {
-                final ap = context.read<AssistantProvider>();
-                final currentAid = ap.currentAssistantId;
-                if (currentAid != null) {
-                  final all = chatService.getAllConversations();
-                  final candidates = all
-                      .where((c) => c.assistantId == currentAid && c.id != chat.id)
-                      .toList()
-                    ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-                  if (candidates.isNotEmpty) nextId = candidates.first.id;
-                }
-              } catch (_) {}
+              final nextId = _nextRecentConversation(chatService, chat.id);
               await chatService.deleteConversation(chat.id);
               showAppSnackBar(
                 context,
@@ -326,13 +314,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                 type: NotificationType.success,
                 duration: const Duration(seconds: 3),
               );
-              if (deletingCurrent || chatService.currentConversationId == null) {
-                if (nextId != null) {
-                  widget.onSelectConversation?.call(nextId!);
-                } else {
-                  widget.onNewConversation?.call();
-                }
-              }
+              _handlePostDeleteNavigation(chatService: chatService, deletingCurrent: deletingCurrent, nextConversationId: nextId);
               Navigator.of(context).maybePop();
             },
           ),
@@ -350,7 +332,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       ),
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
-        final maxH = MediaQuery.of(ctx).size.height * 0.8;
+        final maxH = MediaQuery.sizeOf(ctx).height * 0.8;
         Widget row({required IconData icon, required String label, Color? color, required Future<void> Function() action}) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
@@ -446,10 +428,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                         if (targetId != null) {
                           await chatService.moveConversationToAssistant(conversationId: chat.id, assistantId: targetId);
                           if (movingCurrent || chatService.currentConversationId == null) {
+                            final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
                             if (nextId != null) {
-                              widget.onSelectConversation?.call(nextId!);
+                              widget.onSelectConversation?.call(nextId!, closeDrawer: closeDrawer);
                             } else {
-                              widget.onNewConversation?.call();
+                              widget.onNewConversation?.call(closeDrawer: closeDrawer);
                             }
                           }
                         }
@@ -461,19 +444,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                       color: Colors.redAccent,
                       action: () async {
                         final deletingCurrent = chatService.currentConversationId == chat.id;
-                        String? nextId;
-                        try {
-                          final ap = context.read<AssistantProvider>();
-                          final currentAid = ap.currentAssistantId;
-                          if (currentAid != null) {
-                            final all = chatService.getAllConversations();
-                            final candidates = all
-                                .where((c) => c.assistantId == currentAid && c.id != chat.id)
-                                .toList()
-                              ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-                            if (candidates.isNotEmpty) nextId = candidates.first.id;
-                          }
-                        } catch (_) {}
+                        final nextId = _nextRecentConversation(chatService, chat.id);
                         await chatService.deleteConversation(chat.id);
                         showAppSnackBar(
                           context,
@@ -481,13 +452,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                           type: NotificationType.success,
                           duration: const Duration(seconds: 3),
                         );
-                        if (deletingCurrent || chatService.currentConversationId == null) {
-                          if (nextId != null) {
-                            widget.onSelectConversation?.call(nextId!);
-                          } else {
-                            widget.onNewConversation?.call();
-                          }
-                        }
+                        _handlePostDeleteNavigation(chatService: chatService, deletingCurrent: deletingCurrent, nextConversationId: nextId);
                         Navigator.of(context).maybePop();
                       },
                     ),
@@ -500,6 +465,48 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         );
       },
     );
+  }
+
+  String? _nextRecentConversation(ChatService chatService, String excludeId) {
+    try {
+      final ap = context.read<AssistantProvider>();
+      final currentAid = ap.currentAssistantId;
+      if (currentAid == null) return null;
+      final candidates = chatService
+          .getAllConversations()
+          .where((c) => c.assistantId == currentAid && c.id != excludeId)
+          .toList()
+        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      if (candidates.isEmpty) return null;
+      return candidates.first.id;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _handlePostDeleteNavigation({
+    required ChatService chatService,
+    required bool deletingCurrent,
+    required String? nextConversationId,
+  }) {
+    if (!(deletingCurrent || chatService.currentConversationId == null)) return;
+    final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
+    final preferNewChat = context.read<SettingsProvider>().newChatAfterDelete;
+    if (preferNewChat && widget.onNewConversation != null) {
+      widget.onNewConversation!.call(closeDrawer: closeDrawer);
+      return;
+    }
+    if (!preferNewChat && nextConversationId != null) {
+      widget.onSelectConversation?.call(nextConversationId, closeDrawer: closeDrawer);
+      return;
+    }
+    if (widget.onNewConversation != null) {
+      widget.onNewConversation!.call(closeDrawer: closeDrawer);
+      return;
+    }
+    if (nextConversationId != null) {
+      widget.onSelectConversation?.call(nextConversationId, closeDrawer: closeDrawer);
+    }
   }
 
   Future<void> _renameChat(BuildContext context, ChatItem chat) async {
@@ -845,7 +852,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                                     onTap: () async {
                                       final selectedId = await showChatHistoryDesktopDialog(context, assistantId: currentAssistantId);
                                       if (selectedId != null && selectedId.isNotEmpty) {
-                                        widget.onSelectConversation?.call(selectedId);
+                                        final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
+                                        widget.onSelectConversation?.call(selectedId, closeDrawer: closeDrawer);
                                       }
                                     },
                                   ),
@@ -934,7 +942,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                                   MaterialPageRoute(builder: (_) => ChatHistoryPage(assistantId: currentAssistantId)),
                                 );
                                 if (selectedId != null && selectedId.isNotEmpty) {
-                                  widget.onSelectConversation?.call(selectedId);
+                                  final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
+                                  widget.onSelectConversation?.call(selectedId, closeDrawer: closeDrawer);
                                 }
                               },
                             ),
@@ -1197,7 +1206,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
 
     return Drawer(
       backgroundColor: cs.surface,
-      width: MediaQuery.of(context).size.width,
+      width: MediaQuery.sizeOf(context).width,
       child: inner,
     );
   }
@@ -1231,37 +1240,47 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   }
 
   Future<void> _handleSelectAssistant(Assistant assistant) async {
-    _closeAssistantPicker();
+    final sp = context.read<SettingsProvider>();
+    final closeDrawer = !sp.keepSidebarOpenOnAssistantTap;
+    if (closeDrawer) {
+      _closeAssistantPicker();
+    }
     final ap = context.read<AssistantProvider>();
     await ap.setCurrentAssistant(assistant.id);
     // Desktop: optionally switch to Topics tab per user preference
     try {
-      final sp = context.read<SettingsProvider>();
       if (_isDesktop && widget.embedded && widget.useDesktopTabs && sp.desktopAutoSwitchTopics) {
         _tabController?.animateTo(1, duration: const Duration(milliseconds: 140), curve: Curves.easeOutCubic);
       }
     } catch (_) {}
     if (!mounted) return;
-    // Jump to the most recent conversation for this assistant if any,
-    // otherwise create a new conversation.
-    try {
-      final chatService = context.read<ChatService>();
-      final all = chatService.getAllConversations();
-      // Filter conversations owned by this assistant and pick the newest
-      final recent = all
-          .where((c) => c.assistantId == assistant.id)
-          .toList();
-      if (recent.isNotEmpty) {
-        // getAllConversations is already sorted by updatedAt desc
-        widget.onSelectConversation?.call(recent.first.id);
-      } else {
-        widget.onNewConversation?.call();
+    final forceNewChat = sp.newChatOnAssistantSwitch && widget.onNewConversation != null;
+    if (forceNewChat) {
+      widget.onNewConversation?.call(closeDrawer: closeDrawer);
+    } else {
+      // Jump to the most recent conversation for this assistant if any,
+      // otherwise create a new conversation.
+      try {
+        final chatService = context.read<ChatService>();
+        final all = chatService.getAllConversations();
+        // Filter conversations owned by this assistant and pick the newest
+        final recent = all
+            .where((c) => c.assistantId == assistant.id)
+            .toList();
+        if (recent.isNotEmpty) {
+          // getAllConversations is already sorted by updatedAt desc
+          widget.onSelectConversation?.call(recent.first.id, closeDrawer: closeDrawer);
+        } else {
+          widget.onNewConversation?.call(closeDrawer: closeDrawer);
+        }
+      } catch (_) {
+        // Fallback: new conversation on any error
+        widget.onNewConversation?.call(closeDrawer: closeDrawer);
       }
-    } catch (_) {
-      // Fallback: new conversation on any error
-      widget.onNewConversation?.call();
     }
-    Navigator.of(context).maybePop();
+    if (closeDrawer) {
+      Navigator.of(context).maybePop();
+    }
   }
 
   void _openAssistantSettings(String id) {
@@ -1434,7 +1453,7 @@ extension on _SideDrawerState {
       ),
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
-        final maxH = MediaQuery.of(ctx).size.height * 0.8;
+        final maxH = MediaQuery.sizeOf(ctx).height * 0.8;
         Widget row(String text, VoidCallback onTap) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1522,8 +1541,9 @@ extension on _SideDrawerState {
         return StatefulBuilder(builder: (ctx, setLocal) {
           // Revert to non-scrollable dialog but cap grid height
           // based on available height when keyboard is visible.
-          final media = MediaQuery.of(ctx);
-          final avail = media.size.height - media.viewInsets.bottom;
+          final size = MediaQuery.sizeOf(ctx);
+          final viewInsets = MediaQuery.viewInsetsOf(ctx);
+          final avail = size.height - viewInsets.bottom;
           final double gridHeight = (avail * 0.28).clamp(120.0, 220.0);
           return AlertDialog(
             scrollable: true,
@@ -2217,7 +2237,10 @@ extension on _SideDrawerState {
                       textColor: textBase,
                       selected: pinnedList[i].id == chatService.currentConversationId,
                       loading: widget.loadingConversationIds.contains(pinnedList[i].id),
-                      onTap: () => widget.onSelectConversation?.call(pinnedList[i].id),
+                      onTap: () {
+                        final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
+                        widget.onSelectConversation?.call(pinnedList[i].id, closeDrawer: closeDrawer);
+                      },
                       onLongPress: () => _showChatMenu(context, pinnedList[i]),
                       onSecondaryTap: (pos) => _showChatMenu(context, pinnedList[i], anchor: pos),
                     ).animate(key: ValueKey('pin-${pinnedList[i].id}'))
@@ -2245,7 +2268,10 @@ extension on _SideDrawerState {
                       textColor: textBase,
                       selected: group.items[j].id == chatService.currentConversationId,
                       loading: widget.loadingConversationIds.contains(group.items[j].id),
-                      onTap: () => widget.onSelectConversation?.call(group.items[j].id),
+                      onTap: () {
+                        final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
+                        widget.onSelectConversation?.call(group.items[j].id, closeDrawer: closeDrawer);
+                      },
                       onLongPress: () => _showChatMenu(context, group.items[j]),
                       onSecondaryTap: (pos) => _showChatMenu(context, group.items[j], anchor: pos),
                     ).animate(key: ValueKey('grp-${group.label}-${group.items[j].id}'))

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'dart:math' as math;
 import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import '../icons/lucide_adapter.dart' as lucide;
 import '../l10n/app_localizations.dart';
@@ -12,13 +15,15 @@ import '../core/providers/settings_provider.dart';
 import '../core/providers/model_provider.dart';
 import 'model_fetch_dialog.dart' show showModelFetchDialog;
 import '../shared/widgets/ios_switch.dart';
+import '../shared/widgets/ios_checkbox.dart';
 // Desktop assistants panel dependencies
 import '../features/assistant/pages/assistant_settings_edit_page.dart' show showAssistantDesktopDialog; // dialog opener only
 import '../core/providers/assistant_provider.dart';
 import '../core/models/assistant.dart';
 import '../utils/avatar_cache.dart';
 import '../utils/sandbox_path_resolver.dart';
-import 'dart:io' show File;
+import 'dart:io' show Directory, File;
+import '../utils/app_directories.dart';
 import 'package:characters/characters.dart';
 import '../features/provider/pages/multi_key_manager_page.dart';
 import '../features/model/widgets/model_detail_sheet.dart';
@@ -31,6 +36,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:async';
 import '../core/models/api_keys.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as p;
 import 'desktop_context_menu.dart';
 import '../shared/widgets/snackbar.dart';
 import 'setting/default_model_pane.dart';
@@ -46,7 +52,11 @@ import 'setting/about_pane.dart';
 import 'package:system_fonts/system_fonts.dart';
 import 'package:flutter/gestures.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:pretty_qr_code/pretty_qr_code.dart';
+import 'package:super_clipboard/super_clipboard.dart';
 import '../features/provider/widgets/provider_avatar.dart';
+import '../features/provider/widgets/share_provider_sheet.dart' show encodeProviderConfig;
+import '../utils/clipboard_images.dart';
 
 /// Desktop settings layout: left menu + vertical divider + right content.
 /// For now, only the left menu and the Display Settings content are implemented.
@@ -609,6 +619,39 @@ class _DeleteAssistantIconState extends State<_DeleteAssistantIcon> {
   }
 }
 
+class _CopyAssistantIcon extends StatefulWidget {
+  const _CopyAssistantIcon({required this.onCopy});
+  final Future<void> Function() onCopy;
+  @override
+  State<_CopyAssistantIcon> createState() => _CopyAssistantIconState();
+}
+
+class _CopyAssistantIconState extends State<_CopyAssistantIcon> {
+  bool _hover = false;
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = _hover ? (isDark ? cs.primary.withOpacity(0.16) : cs.primary.withOpacity(0.12)) : Colors.transparent;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => widget.onCopy(),
+        child: Container(
+          margin: const EdgeInsets.only(left: 8),
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+          alignment: Alignment.center,
+          child: Icon(lucide.Lucide.Copy, size: 15, color: cs.primary),
+        ),
+      ),
+    );
+  }
+}
+
 Future<bool?> _confirmDeleteDesktop(BuildContext context) async {
   final l10n = AppLocalizations.of(context)!;
   final cs = Theme.of(context).colorScheme;
@@ -838,6 +881,20 @@ class _DesktopAssistantCardState extends State<_DesktopAssistantCard> {
                                 style: TextStyle(fontSize: 11, color: cs.primary, fontWeight: FontWeight.w700),
                               ),
                             ),
+                          _CopyAssistantIcon(
+                            onCopy: () async {
+                              final l10n = AppLocalizations.of(context)!;
+                              final newId = await context.read<AssistantProvider>().duplicateAssistant(widget.item.id, l10n: l10n);
+                              if (!mounted) return;
+                              if (newId != null) {
+                                showAppSnackBar(
+                                  context,
+                                  message: l10n.assistantSettingsCopySuccess,
+                                  type: NotificationType.success,
+                                );
+                              }
+                            },
+                          ),
                           _DeleteAssistantIcon(
                             onConfirm: () async {
                               final l10n = AppLocalizations.of(context)!;
@@ -960,6 +1017,18 @@ class _DesktopProvidersBody extends StatefulWidget {
 class _DesktopProvidersBodyState extends State<_DesktopProvidersBody> {
   String? _selectedKey;
   final GlobalKey<_DesktopProviderDetailPaneState> _detailKey = GlobalKey<_DesktopProviderDetailPaneState>();
+
+  Future<void> _showShareDialog(String providerKey, String displayName) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => _DesktopProviderShareDialog(
+        providerKey: providerKey,
+        displayName: displayName,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -976,6 +1045,7 @@ class _DesktopProvidersBodyState extends State<_DesktopProvidersBody> {
           (name: 'KelivoIN', key: 'KelivoIN'),
           (name: 'Tensdaq', key: 'Tensdaq'),
           (name: 'DeepSeek', key: 'DeepSeek'),
+          (name: 'AIhubmix', key: 'AIhubmix'),
           (name: l10n.providersPageAliyunName, key: 'Aliyun'),
           (name: l10n.providersPageZhipuName, key: 'Zhipu AI'),
           (name: 'Claude', key: 'Claude'),
@@ -1066,6 +1136,12 @@ class _DesktopProvidersBodyState extends State<_DesktopProvidersBody> {
                                 _detailKey.currentState?._showProviderSettingsDialog(context);
                               });
                             },
+                            onShare: () {
+                              setState(() => _selectedKey = item.key);
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                _showShareDialog(item.key, cfg.name.isNotEmpty ? cfg.name : item.name);
+                              });
+                            },
                             onDelete: baseKeys.contains(item.key)
                                 ? null
                                 : () async {
@@ -1082,6 +1158,15 @@ class _DesktopProvidersBodyState extends State<_DesktopProvidersBody> {
                                       ),
                                     );
                                     if (ok == true) {
+                                      // Clear assistant-level model selections referencing this provider
+                                      try {
+                                        final ap = context.read<AssistantProvider>();
+                                        for (final a in ap.assistants) {
+                                          if (a.chatModelProvider == item.key) {
+                                            await ap.updateAssistant(a.copyWith(clearChatModel: true));
+                                          }
+                                        }
+                                      } catch (_) {}
                                       await settings.removeProviderConfig(item.key);
                                       if (mounted) setState(() {
                                         if (_selectedKey == item.key) {
@@ -1139,6 +1224,16 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
   final FocusNode _searchFocus = FocusNode();
   bool _showApiKey = false;
   bool _eyeHover = false;
+  
+  // 批量选择模式相关
+  bool _isSelectionMode = false;
+  final Set<String> _selectedModels = {};
+  bool _isDetecting = false;
+  bool _detectUseStream = false;
+  final Map<String, bool> _detectionResults = {};
+  final Map<String, String> _detectionErrorMessages = {};
+  String? _currentDetectingModel;
+  final Set<String> _pendingModels = {};
   
   // Connection test state for inline dialog
   // Keep local to this file to avoid cross-file coupling
@@ -1243,6 +1338,7 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
     final kind = ProviderConfig.classify(widget.providerKey, explicitType: cfg.providerType);
 
     final models = List<String>.from(cfg.models);
+    final allSelected = _selectedModels.length == models.length && models.isNotEmpty;
     final filtered = _applyFilter(models, _filterCtrl.text.trim());
     final groups = _groupModels(filtered);
 
@@ -1281,6 +1377,18 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
                   onChanged: (v) async {
                     final old = sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
                     await sp.setProviderConfig(widget.providerKey, old.copyWith(enabled: v));
+                    // If provider is now disabled, clear model selections referencing it
+                    if (!v && old.enabled) {
+                      await sp.clearSelectionsForProvider(widget.providerKey);
+                      try {
+                        final ap = context.read<AssistantProvider>();
+                        for (final a in ap.assistants) {
+                          if (a.chatModelProvider == widget.providerKey) {
+                            await ap.updateAssistant(a.copyWith(clearChatModel: true));
+                          }
+                        }
+                      } catch (_) {}
+                    }
                   },
                 ),
               ],
@@ -1386,7 +1494,20 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
 
               // API Key (hidden when Google Vertex)
               if (!(kind == ProviderKind.google && (cfg.vertexAI == true))) ...[
-              _sectionLabel(context, AppLocalizations.of(context)!.multiKeyPageKey, bold: true),
+              Row(
+                children: [
+                  Expanded(child: _sectionLabel(context, AppLocalizations.of(context)!.multiKeyPageKey, bold: true)),
+                  const SizedBox(width: 8),
+                  Tooltip(
+                    message: l10n.providerDetailPageTestButton,
+                    child: _IconTextBtn(
+                      icon: lucide.Lucide.HeartPulse,
+                      label: l10n.providerDetailPageTestButton,
+                      onTap: () => _showTestConnectionDialog(context),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 6),
               if (cfg.multiKeyEnabled == true)
                 Row(
@@ -1597,21 +1718,40 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
                     filled: false,
                     dense: true,
                     onTap: () async {
-                      final res = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['json']);
-                      if (res != null && res.files.isNotEmpty) {
-                        final file = res.files.first;
-                        final content = String.fromCharCodes(file.bytes ?? []);
-                        String projectId = cfg.projectId ?? '';
+                      final res = await FilePicker.platform.pickFiles(
+                        type: FileType.custom,
+                        allowedExtensions: ['json'],
+                        withData: true,
+                      );
+                      if (res == null || res.files.isEmpty) return;
+
+                      final file = res.files.first;
+                      // Desktop FilePicker may not include bytes unless withData is true; fall back to disk read.
+                      String? content;
+                      if (file.bytes != null && file.bytes!.isNotEmpty) {
+                        content = utf8.decode(file.bytes!);
+                      } else if (file.path != null && file.path!.isNotEmpty) {
                         try {
-                          final obj = jsonDecode(content);
-                          projectId = (obj['project_id'] as String?)?.trim() ?? projectId;
+                          content = await File(file.path!).readAsString();
                         } catch (_) {}
-                        final old = sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
-                        await sp.setProviderConfig(widget.providerKey, old.copyWith(
-                          serviceAccountJson: content,
-                          projectId: projectId,
-                        ));
                       }
+                      if (content == null || content.trim().isEmpty) {
+                        showAppSnackBar(context, message: 'Failed to read file', type: NotificationType.error);
+                        return;
+                      }
+
+                      String projectId = cfg.projectId ?? '';
+                      try {
+                        final obj = jsonDecode(content);
+                        projectId = (obj['project_id'] as String?)?.trim() ?? projectId;
+                      } catch (_) {}
+                      final old = sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
+                      final updated = old.copyWith(
+                        serviceAccountJson: content,
+                        projectId: projectId,
+                      );
+                      _syncControllersFromConfig(updated);
+                      await sp.setProviderConfig(widget.providerKey, updated);
                     },
                   ),
                 ),
@@ -1710,31 +1850,119 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
                     ),
                   ),
                   const SizedBox(width: 6),
-                  Tooltip(
-                    message: l10n.searchServicesPageTestConnectionTooltip,
-                    child: _IconBtn(icon: lucide.Lucide.HeartPulse, onTap: () => _showTestConnectionDialog(context)),
-                  ),
-                  const SizedBox(width: 6),
-                  Tooltip(
-                    message: l10n.providerDetailPageAddNewModelButton,
-                    child: _IconBtn(icon: lucide.Lucide.Plus, onTap: () => _createModel(context)),
-                  ),
-                  const SizedBox(width: 6),
-                  Tooltip(
-                    message: l10n.providerDetailPageFetchModelsButton,
-                    child: _IconTextBtn(
-                      icon: lucide.Lucide.RefreshCcwDot,
-                      label: l10n.providerDetailPageFetchModelsButton,
-                      onTap: () async {
-                        final providerName = widget.displayName;
-                        await showModelFetchDialog(
-                          context,
-                          providerKey: widget.providerKey,
-                          providerDisplayName: providerName,
-                        );
-                      },
+                  if (_isSelectionMode) ...[
+                    Tooltip(
+                      message: l10n.homePageCancel,
+                      child: _IconBtn(icon: lucide.Lucide.X, onTap: _exitSelectionMode),
                     ),
-                  ),
+                    const SizedBox(width: 6),
+                    Tooltip(
+                      message: allSelected ? l10n.mcpAssistantSheetClearAll : l10n.mcpAssistantSheetSelectAll,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 160),
+                        transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                        child: _IconBtn(
+                          key: ValueKey(allSelected),
+                          icon: allSelected ? lucide.Lucide.Square : lucide.Lucide.CheckSquare,
+                          color: cs.onSurface.withOpacity(0.85),
+                          onTap: () {
+                            setState(() {
+                              if (allSelected) {
+                                _selectedModels.clear();
+                              } else {
+                                _selectedModels.clear();
+                                _selectedModels.addAll(models);
+                              }
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Tooltip(
+                      message: l10n.providerDetailPageUseStreamingLabel,
+                      child: GestureDetector(
+                        onTap: () => setState(() => _detectUseStream = !_detectUseStream),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOutCubic,
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            color: _detectUseStream
+                                ? cs.onSurface.withOpacity(0.08)
+                                : Colors.transparent,
+                          ),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 160),
+                            transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                            child: Icon(
+                              _detectUseStream ? lucide.Lucide.AudioWaveform : lucide.Lucide.SquareEqual,
+                              key: ValueKey(_detectUseStream),
+                              size: 18,
+                              color: cs.onSurface.withOpacity(0.85),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Tooltip(
+                      message: _isDetecting ? l10n.providerDetailPageBatchDetecting : l10n.providerDetailPageBatchDetectStart,
+                      child: _IconTextBtn(
+                        icon: _isDetecting ? lucide.Lucide.Loader : lucide.Lucide.HeartPulse,
+                        label: _isDetecting ? l10n.providerDetailPageBatchDetecting : l10n.providerDetailPageBatchDetectButton,
+                        color: _selectedModels.isEmpty ? cs.onSurface.withOpacity(0.4) : null,
+                        onTap: () {
+                          if (_selectedModels.isEmpty) return;
+                          _startDetection();
+                        },
+                      ),
+                    ),
+                  ] else ...[
+                    if (!_isDetecting)
+                      Tooltip(
+                        message: l10n.searchServicesPageTestConnectionTooltip,
+                        child: _IconBtn(icon: lucide.Lucide.HeartPulse, onTap: _enterSelectionMode),
+                      )
+                    else
+                      Tooltip(
+                        message: l10n.providerDetailPageBatchDetecting,
+                        child: _IconBtn(icon: lucide.Lucide.Loader, onTap: () {}),
+                      ),
+                    const SizedBox(width: 6),
+                    Tooltip(
+                      message: l10n.providerDetailPageAddNewModelButton,
+                      child: _IconBtn(icon: lucide.Lucide.Plus, onTap: () => _createModel(context)),
+                    ),
+                    if (models.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Tooltip(
+                        message: '删除全部模型',
+                        child: _IconBtn(
+                          icon: lucide.Lucide.Trash2,
+                          color: cs.onSurface.withOpacity(0.85),
+                          onTap: _confirmDeleteAllModels,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(width: 6),
+                    Tooltip(
+                      message: l10n.providerDetailPageFetchModelsButton,
+                      child: _IconTextBtn(
+                        icon: lucide.Lucide.RefreshCcwDot,
+                        label: l10n.providerDetailPageFetchModelsButton,
+                        onTap: () async {
+                          final providerName = widget.displayName;
+                          await showModelFetchDialog(
+                            context,
+                            providerKey: widget.providerKey,
+                            providerDisplayName: providerName,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ],
               ),
 
@@ -1747,6 +1975,18 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
                     group: entry.key,
                     modelIds: entry.value,
                     providerKey: widget.providerKey,
+                    isSelectionMode: _isSelectionMode,
+                    selectedModels: _selectedModels,
+                    onSelectionChanged: (newSelection) {
+                      setState(() {
+                        _selectedModels.clear();
+                        _selectedModels.addAll(newSelection);
+                      });
+                    },
+                    detectionResults: _detectionResults,
+                    detectionErrorMessages: _detectionErrorMessages,
+                    currentDetectingModel: _currentDetectingModel,
+                    pendingModels: _pendingModels,
                   ),
                 ),
 
@@ -1844,6 +2084,7 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
               final respNow = cfgNow.useResponseApi ?? false;
               final vertexNow = cfgNow.vertexAI ?? false;
               final proxyEnabledNow = cfgNow.proxyEnabled ?? false;
+              final aihubmixAppCodeEnabled = cfgNow.aihubmixAppCodeEnabled ?? false;
               Widget row(String label, Widget trailing) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(children: [
@@ -2002,10 +2243,32 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
                                 await spWatch.setProviderConfig(widget.providerKey, old.copyWith(vertexAI: v));
                               }))),
                             );
-                          }
+                        }
                           return const SizedBox.shrink(key: ValueKey('none'));
                         }(),
                       ),
+                      const SizedBox(height: 4),
+                      if (_isAihubmix(cfgNow))
+                        row(
+                          l10n.providerDetailPageAihubmixAppCodeLabel,
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Tooltip(
+                                message: l10n.providerDetailPageAihubmixAppCodeHelp,
+                                child: Icon(Icons.help_outline, size: 16, color: cs.onSurface.withOpacity(0.6)),
+                              ),
+                              const SizedBox(width: 8),
+                              IosSwitch(
+                                value: aihubmixAppCodeEnabled,
+                                onChanged: (v) async {
+                                  final old = spWatch.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
+                                  await spWatch.setProviderConfig(widget.providerKey, old.copyWith(aihubmixAppCodeEnabled: v));
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
                       const SizedBox(height: 4),
                       // 5) Network proxy inline
                       row(l10n.providerDetailPageNetworkTab, Align(alignment: Alignment.centerRight, child: IosSwitch(value: proxyEnabledNow, onChanged: (v) async {
@@ -2149,6 +2412,12 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
         await context.read<SettingsProvider>().setProviderAvatarUrl(providerKey, url);
       }
     }
+  }
+
+  bool _isAihubmix(ProviderConfig cfg) {
+    final base = cfg.baseUrl.toLowerCase();
+    final key = cfg.id.toLowerCase();
+    return key.contains('aihubmix') || base.contains('aihubmix.com');
   }
 
   Future<void> _showNetworkDialog(BuildContext context) async {
@@ -2299,6 +2568,7 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
         // Persisted state across inner StatefulBuilder rebuilds
         String? detectModelId;
         bool detecting = false;
+        String? testingKeyId;
         StateSetter? _setDRef;
 
         Future<void> _pickDetectModel(BuildContext dctx) async {
@@ -2376,6 +2646,30 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
           final list = List<ApiKeyConfig>.from(cfgX.apiKeys ?? const <ApiKeyConfig>[]);
           final toTest = list.where((e) => keys.contains(e.key)).toList();
           await _testKeysAndSave(dctx, list, toTest, detectModelId!);
+        }
+
+        Future<void> _detectOne(BuildContext dctx, ApiKeyConfig key) async {
+          if (detecting || testingKeyId != null) return;
+          final settings = dctx.read<SettingsProvider>();
+          final cfgX = settings.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
+          final models = cfgX.models;
+          if (detectModelId == null) {
+            if (models.isEmpty) {
+              showAppSnackBar(dctx, message: AppLocalizations.of(dctx)!.multiKeyPagePleaseAddModel, type: NotificationType.warning);
+              return;
+            }
+            detectModelId = models.first;
+          }
+          testingKeyId = key.id;
+          _setDRef?.call(() {});
+          try {
+            final list = List<ApiKeyConfig>.from(cfgX.apiKeys ?? const <ApiKeyConfig>[]);
+            final toTest = list.where((e) => e.id == key.id).toList();
+            await _testKeysAndSave(dctx, list, toTest, detectModelId!);
+          } finally {
+            testingKeyId = null;
+            _setDRef?.call(() {});
+          }
         }
 
         Future<void> _deleteAllErrorKeys(BuildContext dctx) async {
@@ -2610,6 +2904,8 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
                                       await sp.setProviderConfig(widget.providerKey, latest.copyWith(apiKeys: list));
                                       setD(() {});
                                     },
+                                    onTest: () => _detectOne(dctx, keyList[i]),
+                                    testing: testingKeyId == keyList[i].id,
                                     onDelete: () async {
                                       final old = sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
                                       final list = List<ApiKeyConfig>.from(old.apiKeys ?? const <ApiKeyConfig>[]);
@@ -2793,6 +3089,144 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
         );
       },
     );
+  }
+
+  void _enterSelectionMode() {
+    setState(() {
+      _isSelectionMode = true;
+      _selectedModels.clear();
+      _detectionResults.clear();
+      _detectionErrorMessages.clear();
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _isSelectionMode = false;
+      _selectedModels.clear();
+      _detectionResults.clear();
+      _detectionErrorMessages.clear();
+    });
+  }
+
+  Future<void> _confirmDeleteAllModels() async {
+    final sp = context.read<SettingsProvider>();
+    final cfg = sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
+    if (cfg.models.isEmpty) return;
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        backgroundColor: cs.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(l10n.providerDetailPageConfirmDeleteTitle, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))),
+                    _IconBtn(icon: lucide.Lucide.X, onTap: () => Navigator.of(ctx).maybePop(false)),
+                  ],
+                ),
+              ),
+              Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withOpacity(0.12)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(l10n.providerDetailPageDeleteAllModelsWarning, style: TextStyle(color: cs.onSurface.withOpacity(0.85))),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    _DeskIosButton(label: l10n.providerDetailPageCancelButton, filled: false, dense: true, onTap: () => Navigator.of(ctx).maybePop(false)),
+                    const SizedBox(width: 8),
+                    _DeskIosButton(label: l10n.providerDetailPageDeleteButton, filled: true, dense: true, onTap: () => Navigator.of(ctx).maybePop(true)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (ok != true) return;
+    final cleared = cfg.copyWith(models: const [], modelOverrides: const {});
+    await sp.setProviderConfig(widget.providerKey, cleared);
+    if (!mounted) return;
+    setState(() {
+      _selectedModels.clear();
+      _detectionResults.clear();
+      _detectionErrorMessages.clear();
+      _pendingModels.clear();
+      _currentDetectingModel = null;
+      _isSelectionMode = false;
+    });
+  }
+
+  Future<void> _startDetection() async {
+    if (_selectedModels.isEmpty || _isDetecting) return;
+    
+    final modelsToTest = Set<String>.from(_selectedModels);
+    
+    setState(() {
+      _isDetecting = true;
+      _detectionResults.clear();
+      _detectionErrorMessages.clear();
+      _isSelectionMode = false;
+      _selectedModels.clear();
+      _pendingModels.clear();
+      _pendingModels.addAll(modelsToTest);
+      _currentDetectingModel = null;
+    });
+
+    final sp = context.read<SettingsProvider>();
+    final cfg = sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
+    
+    for (final modelId in modelsToTest) {
+      if (mounted) {
+        setState(() {
+          _currentDetectingModel = modelId;
+          _pendingModels.remove(modelId);
+        });
+      }
+      
+      try {
+        await ProviderManager.testConnection(cfg, modelId, useStream: _detectUseStream);
+        if (mounted) {
+          setState(() {
+            _detectionResults[modelId] = true;
+            _detectionErrorMessages.remove(modelId);
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _detectionResults[modelId] = false;
+            _detectionErrorMessages[modelId] = e.toString();
+          });
+        }
+      }
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+
+    if (mounted) {
+      setState(() {
+        _isDetecting = false;
+        _currentDetectingModel = null;
+        _pendingModels.clear();
+      });
+    }
   }
 }
 
@@ -3134,6 +3568,286 @@ class _IconTextBtnState extends State<_IconTextBtn> {
   }
 }
 
+class _DesktopProviderShareDialog extends StatefulWidget {
+  const _DesktopProviderShareDialog({required this.providerKey, required this.displayName});
+  final String providerKey;
+  final String displayName;
+
+  @override
+  State<_DesktopProviderShareDialog> createState() => _DesktopProviderShareDialogState();
+}
+
+class _DesktopProviderShareDialogState extends State<_DesktopProviderShareDialog> {
+  late final String _code;
+  final GlobalKey _qrKey = GlobalKey();
+  bool _copyingQr = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final settings = context.read<SettingsProvider>();
+    final cfg = settings.providerConfigs[widget.providerKey] ??
+        settings.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
+    _code = encodeProviderConfig(cfg);
+  }
+
+  Future<void> _copyText() async {
+    await Clipboard.setData(ClipboardData(text: _code));
+    if (!mounted) return;
+    showAppSnackBar(
+      context,
+      message: AppLocalizations.of(context)!.shareProviderSheetCopiedMessage,
+      type: NotificationType.success,
+    );
+  }
+
+  Future<Uint8List?> _captureQrBytes() async {
+    try {
+      final boundary = _qrKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return null;
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      return byteData?.buffer.asUint8List();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> _writeQrToClipboard(Uint8List bytes) async {
+    try {
+      final clipboard = SystemClipboard.instance;
+      if (clipboard != null) {
+        final item = DataWriterItem(suggestedName: 'provider-qr.png');
+        item.add(Formats.png(bytes));
+        await clipboard.write([item]);
+        return true;
+      }
+    } catch (_) {}
+
+    try {
+      final file = File(p.join(Directory.systemTemp.path, 'kelivo-provider-qr.png'));
+      await file.writeAsBytes(bytes, flush: true);
+      return await ClipboardImages.setImagePath(file.path);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _copyQr() async {
+    if (_copyingQr) return;
+    setState(() => _copyingQr = true);
+    bool ok = false;
+    try {
+      final bytes = await _captureQrBytes();
+      if (bytes != null && bytes.isNotEmpty) {
+        ok = await _writeQrToClipboard(bytes);
+      }
+    } catch (_) {
+      ok = false;
+    }
+    if (!mounted) return;
+    setState(() => _copyingQr = false);
+    final l10n = AppLocalizations.of(context)!;
+    showAppSnackBar(
+      context,
+      message: ok ? l10n.shareProviderSheetCopiedMessage : l10n.messageExportSheetExportFailed('copy-failed'),
+      type: ok ? NotificationType.success : NotificationType.error,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context)!;
+    return Dialog(
+      backgroundColor: cs.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      l10n.shareProviderSheetTitle,
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  _IconBtn(icon: lucide.Lucide.X, onTap: () => Navigator.of(context).maybePop()),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                l10n.shareProviderSheetDescription,
+                style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.85)),
+              ),
+              const SizedBox(height: 12),
+              Center(
+                child: RepaintBoundary(
+                  key: _qrKey,
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+                    ),
+                    child: PrettyQr(
+                      data: _code,
+                      size: 180,
+                      roundEdges: true,
+                      errorCorrectLevel: QrErrorCorrectLevel.M,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: cs.outlineVariant.withOpacity(0.25)),
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 160),
+                  child: SingleChildScrollView(
+                    child: SelectableText(
+                      _code,
+                      style: const TextStyle(fontSize: 13.5, height: 1.35, fontFamily: 'monospace'),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _DialogActionButton(
+                    icon: const Icon(Icons.copy_outlined, size: 18),
+                    label: l10n.desktopProviderShareCopyText,
+                    filled: false,
+                    onTap: _copyText,
+                  ),
+                  const SizedBox(width: 10),
+                  _DialogActionButton(
+                    icon: _copyingQr
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CupertinoActivityIndicator(radius: 8),
+                          )
+                        : const Icon(Icons.qr_code_2, size: 18),
+                    label: l10n.desktopProviderShareCopyQr,
+                    filled: true,
+                    onTap: _copyingQr ? null : _copyQr,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DialogActionButton extends StatefulWidget {
+  const _DialogActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.filled = false,
+  });
+  final Widget icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool filled;
+
+  @override
+  State<_DialogActionButton> createState() => _DialogActionButtonState();
+}
+
+class _DialogActionButtonState extends State<_DialogActionButton> {
+  bool _hover = false;
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final enabled = widget.onTap != null;
+    final baseBg = widget.filled ? cs.primary : Colors.transparent;
+    final hoverOverlay = widget.filled
+        ? Colors.white.withOpacity(isDark ? 0.08 : 0.10)
+        : cs.primary.withOpacity(isDark ? 0.12 : 0.10);
+    final bg = Color.alphaBlend(
+      (_hover ? hoverOverlay : Colors.transparent),
+      baseBg,
+    );
+    final borderColor = widget.filled
+        ? cs.primary.withOpacity(isDark ? 0.30 : 0.25)
+        : cs.primary.withOpacity(0.35);
+    final fg = widget.filled ? cs.onPrimary : cs.primary;
+
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() {
+        _hover = false;
+        _pressed = false;
+      }),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
+        onTapUp: enabled ? (_) => setState(() => _pressed = false) : null,
+        onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: _pressed ? 0.97 : 1.0,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOutCubic,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 130),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: enabled ? bg : baseBg.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: borderColor),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconTheme.merge(
+                  data: IconThemeData(color: fg, size: 18),
+                  child: widget.icon,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  widget.label,
+                  style: TextStyle(
+                    color: enabled ? fg : fg.withOpacity(0.5),
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _BrandCircle extends StatelessWidget {
   const _BrandCircle({required this.name, this.size = 22});
   final String name;
@@ -3170,6 +3884,7 @@ class _ProviderListRow extends StatefulWidget {
     required this.background,
     required this.onTap,
     required this.onEdit,
+    required this.onShare,
     this.onDelete,
   });
   final String name;
@@ -3179,6 +3894,7 @@ class _ProviderListRow extends StatefulWidget {
   final Color background;
   final VoidCallback onTap;
   final VoidCallback onEdit;
+  final VoidCallback onShare;
   final Future<void> Function()? onDelete;
   @override
   State<_ProviderListRow> createState() => _ProviderListRowState();
@@ -3198,6 +3914,7 @@ class _ProviderListRowState extends State<_ProviderListRow> {
         onTap: widget.onTap,
         onSecondaryTapDown: (details) async {
           final items = <DesktopContextMenuItem>[
+            DesktopContextMenuItem(icon: lucide.Lucide.Share2, label: AppLocalizations.of(context)!.desktopProviderContextMenuShare, onTap: widget.onShare),
             DesktopContextMenuItem(icon: lucide.Lucide.Pencil, label: AppLocalizations.of(context)!.providerDetailPageEditTooltip, onTap: widget.onEdit),
             if (widget.onDelete != null)
               DesktopContextMenuItem(icon: lucide.Lucide.Trash2, label: AppLocalizations.of(context)!.providerDetailPageDeleteProviderTooltip, danger: true, onTap: () => widget.onDelete?.call()),
@@ -3320,12 +4037,16 @@ class _DesktopKeyRow extends StatelessWidget {
     required this.onToggle,
     required this.onDelete,
     required this.onEdit,
+    required this.onTest,
+    this.testing = false,
     this.showDivider = false,
   });
   final ApiKeyConfig keyConfig;
   final ValueChanged<bool> onToggle;
   final VoidCallback onDelete;
   final VoidCallback onEdit;
+  final VoidCallback onTest;
+  final bool testing;
   final bool showDivider;
   @override
   Widget build(BuildContext context) {
@@ -3385,6 +4106,14 @@ class _DesktopKeyRow extends StatelessWidget {
               const SizedBox(width: 8),
               IosSwitch(value: keyConfig.isEnabled, onChanged: onToggle, width: 46, height: 28),
               const SizedBox(width: 6),
+              if (testing)
+                SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary))
+              else
+                Tooltip(
+                  message: l10n.multiKeyPageDetect,
+                  child: _IconBtn(icon: lucide.Lucide.HeartPulse, onTap: onTest, color: cs.primary),
+                ),
+              const SizedBox(width: 4),
               _IconBtn(icon: lucide.Lucide.Pencil, onTap: onEdit, color: cs.primary),
               const SizedBox(width: 4),
               _IconBtn(icon: lucide.Lucide.Trash2, onTap: onDelete, color: cs.error),
@@ -3399,10 +4128,28 @@ class _DesktopKeyRow extends StatelessWidget {
 }
 
 class _ModelGroupAccordion extends StatefulWidget {
-  const _ModelGroupAccordion({required this.group, required this.modelIds, required this.providerKey});
+  const _ModelGroupAccordion({
+    required this.group,
+    required this.modelIds,
+    required this.providerKey,
+    this.isSelectionMode = false,
+    this.selectedModels = const {},
+    this.onSelectionChanged,
+    this.detectionResults = const {},
+    this.detectionErrorMessages = const {},
+    this.currentDetectingModel,
+    this.pendingModels = const {},
+  });
   final String group;
   final List<String> modelIds;
   final String providerKey;
+  final bool isSelectionMode;
+  final Set<String> selectedModels;
+  final Map<String, String> detectionErrorMessages;
+  final ValueChanged<Set<String>>? onSelectionChanged;
+  final Map<String, bool> detectionResults;
+  final String? currentDetectingModel;
+  final Set<String> pendingModels;
   @override
   State<_ModelGroupAccordion> createState() => _ModelGroupAccordionState();
 }
@@ -3456,7 +4203,28 @@ class _ModelGroupAccordionState extends State<_ModelGroupAccordion> {
             ),
             AnimatedCrossFade(
               firstChild: const SizedBox.shrink(),
-              secondChild: Column(children: [for (final id in widget.modelIds) _ModelRow(modelId: id, providerKey: widget.providerKey)]),
+              secondChild: Column(children: [
+                for (final id in widget.modelIds)
+                  _ModelRow(
+                    modelId: id,
+                    providerKey: widget.providerKey,
+                    isSelectionMode: widget.isSelectionMode,
+                    isSelected: widget.selectedModels.contains(id),
+                    onSelectionChanged: (selected) {
+                      final newSelection = Set<String>.from(widget.selectedModels);
+                      if (selected) {
+                        newSelection.add(id);
+                      } else {
+                        newSelection.remove(id);
+                      }
+                      widget.onSelectionChanged?.call(newSelection);
+                    },
+                    detectionErrorMessage: widget.detectionErrorMessages[id],
+                    detectionResult: widget.detectionResults[id],
+                    isDetecting: widget.currentDetectingModel == id,
+                    isPending: widget.pendingModels.contains(id),
+                  ),
+              ]),
               crossFadeState: _open ? CrossFadeState.showSecond : CrossFadeState.showFirst,
               duration: const Duration(milliseconds: 180),
               sizeCurve: Curves.easeOutCubic,
@@ -3469,12 +4237,30 @@ class _ModelGroupAccordionState extends State<_ModelGroupAccordion> {
 }
 
 class _ModelRow extends StatelessWidget {
-  const _ModelRow({required this.modelId, required this.providerKey});
+  const _ModelRow({
+    required this.modelId,
+    required this.providerKey,
+    this.isSelectionMode = false,
+    this.isSelected = false,
+    this.detectionErrorMessage,
+    this.onSelectionChanged,
+    this.detectionResult,
+    this.isDetecting = false,
+    this.isPending = false,
+  });
   final String modelId;
   final String providerKey;
+  final bool isSelectionMode;
+  final bool isSelected;
+  final String? detectionErrorMessage;
+  final ValueChanged<bool>? onSelectionChanged;
+  final bool? detectionResult;
+  final bool isDetecting;
+  final bool isPending;
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final sp = context.watch<SettingsProvider>();
     final cfg = sp.getProviderConfig(providerKey);
     ModelInfo _infer(String id) => ModelRegistry.infer(ModelInfo(id: id, displayName: id));
@@ -3575,26 +4361,80 @@ class _ModelRow extends StatelessWidget {
       }
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          _BrandCircle(name: displayName, size: 22),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(displayName, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13.5)),
-          ),
-          const SizedBox(width: 8),
-          Row(children: caps.map((w) => Padding(padding: const EdgeInsets.only(left: 4), child: w)).toList()),
-          const SizedBox(width: 8),
-          _IconBtn(icon: lucide.Lucide.Settings2, onTap: () async { await showDesktopModelEditDialog(context, providerKey: providerKey, modelId: modelId); }),
-          const SizedBox(width: 4),
-          _IconBtn(icon: lucide.Lucide.Minus, onTap: () async {
-            final old = context.read<SettingsProvider>().getProviderConfig(providerKey);
-            final list = List<String>.from(old.models)..removeWhere((e) => e == modelId);
-            await context.read<SettingsProvider>().setProviderConfig(providerKey, old.copyWith(models: list));
-          }),
-        ],
+    return GestureDetector(
+      onTap: isSelectionMode ? () => onSelectionChanged?.call(!isSelected) : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            if (isSelectionMode) ...[
+              IosCheckbox(
+                value: isSelected,
+                onChanged: (value) => onSelectionChanged?.call(value),
+              ),
+              const SizedBox(width: 10),
+            ],
+            _BrandCircle(name: displayName, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(displayName, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13.5)),
+            ),
+            const SizedBox(width: 8),
+            if (isDetecting) ...[
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
+              ),
+              const SizedBox(width: 8),
+            ] else if (isPending) ...[
+              Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: cs.onSurface.withOpacity(0.3), width: 2),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ] else if (detectionResult != null) ...[
+              MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Tooltip(
+                  message: detectionResult! ? l10n.providerDetailPageDetectSuccess : (detectionErrorMessage ?? l10n.providerDetailPageDetectFailed),
+                  child: Icon(
+                    detectionResult! ? lucide.Lucide.CheckCircle : lucide.Lucide.XCircle,
+                    size: 16,
+                    color: detectionResult! ? Colors.green : cs.error,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            if (!isSelectionMode) ...[
+              Row(children: caps.map((w) => Padding(padding: const EdgeInsets.only(left: 4), child: w)).toList()),
+              const SizedBox(width: 8),
+              _IconBtn(icon: lucide.Lucide.Settings2, onTap: () async { await showDesktopModelEditDialog(context, providerKey: providerKey, modelId: modelId); }),
+              const SizedBox(width: 4),
+              _IconBtn(icon: lucide.Lucide.Minus, onTap: () async {
+                final sp = context.read<SettingsProvider>();
+                final old = sp.getProviderConfig(providerKey);
+                final list = List<String>.from(old.models)..removeWhere((e) => e == modelId);
+                await sp.setProviderConfig(providerKey, old.copyWith(models: list));
+                // Clear global and assistant-level model selections that reference the deleted model
+                await sp.clearSelectionsForModel(providerKey, modelId);
+                try {
+                  final ap = context.read<AssistantProvider>();
+                  for (final a in ap.assistants) {
+                    if (a.chatModelProvider == providerKey && a.chatModelId == modelId) {
+                      await ap.updateAssistant(a.copyWith(clearChatModel: true));
+                    }
+                  }
+                } catch (_) {}
+              }),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -3726,6 +4566,8 @@ class _DisplaySettingsBody extends StatelessWidget {
                   _ToggleRowUserMarkdown(),
                   _RowDivider(),
                   _ToggleRowReasoningMarkdown(),
+                  _RowDivider(),
+                  _AutoCollapseCodeBlocksSection(),
                 ],
               ),
               const SizedBox(height: 16),
@@ -3742,6 +4584,10 @@ class _DisplaySettingsBody extends StatelessWidget {
                   _RowDivider(),
                   _ToggleRowShowChatListDate(),
                   _RowDivider(),
+                  _ToggleRowNewChatOnAssistantSwitch(),
+                  _RowDivider(),
+                  _ToggleRowNewChatAfterDelete(),
+                  _RowDivider(),
                   _ToggleRowNewChatOnLaunch(),
                 ],
               ),
@@ -3749,9 +4595,15 @@ class _DisplaySettingsBody extends StatelessWidget {
               _SettingsCard(
                 title: l10n.displaySettingsPageOtherSettingsTitle,
                 children: const [
+                  _ToggleRowAutoScrollEnabled(),
+                  _RowDivider(),
                   _AutoScrollDelayRow(),
                   _RowDivider(),
                   _BackgroundMaskRow(),
+                  _RowDivider(),
+                  _ToggleRowRequestLogging(),
+                  _RowDivider(),
+                  _ToggleRowFlutterLogging(),
                 ],
               ),
             ],
@@ -5152,7 +6004,7 @@ class _ChatFontSizeRowState extends State<_ChatFontSizeRow> {
     final v = text.trim();
     final n = double.tryParse(v);
     if (n == null) return;
-    final clamped = (n / 100.0).clamp(0.8, 1.5);
+    final clamped = (n / 100.0).clamp(0.5, 1.5);
     context.read<SettingsProvider>().setChatFontScale(clamped);
     _controller.text = '${(clamped * 100).round()}';
   }
@@ -5784,6 +6636,20 @@ class _ToggleRowReasoningMarkdown extends StatelessWidget {
   }
 }
 
+class _ToggleRowAutoCollapseCodeBlocks extends StatelessWidget {
+  const _ToggleRowAutoCollapseCodeBlocks();
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final sp = context.watch<SettingsProvider>();
+    return _ToggleRow(
+      label: l10n.displaySettingsPageAutoCollapseCodeBlockTitle,
+      value: sp.autoCollapseCodeBlock,
+      onChanged: (v) => context.read<SettingsProvider>().setAutoCollapseCodeBlock(v),
+    );
+  }
+}
+
 class _ToggleRowAutoCollapseThinking extends StatelessWidget {
   const _ToggleRowAutoCollapseThinking();
   @override
@@ -5794,6 +6660,108 @@ class _ToggleRowAutoCollapseThinking extends StatelessWidget {
       label: l10n.displaySettingsPageAutoCollapseThinkingTitle,
       value: sp.autoCollapseThinking,
       onChanged: (v) => context.read<SettingsProvider>().setAutoCollapseThinking(v),
+    );
+  }
+}
+
+class _ToggleRowAutoScrollEnabled extends StatelessWidget {
+  const _ToggleRowAutoScrollEnabled();
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final sp = context.watch<SettingsProvider>();
+    return _ToggleRow(
+      label: l10n.displaySettingsPageAutoScrollEnableTitle,
+      value: sp.autoScrollEnabled,
+      onChanged: (v) => context.read<SettingsProvider>().setAutoScrollEnabled(v),
+    );
+  }
+}
+
+class _ToggleRowRequestLogging extends StatelessWidget {
+  const _ToggleRowRequestLogging();
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final sp = context.watch<SettingsProvider>();
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              l10n.requestLogSettingTitle,
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: cs.onSurface.withOpacity(0.9), decoration: TextDecoration.none),
+            ),
+          ),
+          Tooltip(
+            message: l10n.logViewerOpenFolder,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: () async {
+                final dir = await AppDirectories.getAppDataDirectory();
+                final logsDir = Directory('${dir.path}/logs');
+                if (!await logsDir.exists()) {
+                  await logsDir.create(recursive: true);
+                }
+                final uri = Uri.file(logsDir.path);
+                await launchUrl(uri);
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(lucide.Lucide.FolderOpen, size: 18, color: cs.primary),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IosSwitch(value: sp.requestLogEnabled, onChanged: (v) => context.read<SettingsProvider>().setRequestLogEnabled(v)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ToggleRowFlutterLogging extends StatelessWidget {
+  const _ToggleRowFlutterLogging();
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final sp = context.watch<SettingsProvider>();
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              l10n.flutterLogSettingTitle,
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: cs.onSurface.withOpacity(0.9), decoration: TextDecoration.none),
+            ),
+          ),
+          Tooltip(
+            message: l10n.logViewerOpenFolder,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: () async {
+                final dir = await AppDirectories.getAppDataDirectory();
+                final logsDir = Directory('${dir.path}/logs');
+                if (!await logsDir.exists()) {
+                  await logsDir.create(recursive: true);
+                }
+                final uri = Uri.file(logsDir.path);
+                await launchUrl(uri);
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(lucide.Lucide.FolderOpen, size: 18, color: cs.primary),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IosSwitch(value: sp.flutterLogEnabled, onChanged: (v) => context.read<SettingsProvider>().setFlutterLogEnabled(v)),
+        ],
+      ),
     );
   }
 }
@@ -5850,6 +6818,34 @@ class _ToggleRowShowChatListDate extends StatelessWidget {
       label: l10n.displaySettingsPageShowChatListDateTitle,
       value: sp.showChatListDate,
       onChanged: (v) => context.read<SettingsProvider>().setShowChatListDate(v),
+    );
+  }
+}
+
+class _ToggleRowNewChatOnAssistantSwitch extends StatelessWidget {
+  const _ToggleRowNewChatOnAssistantSwitch();
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final sp = context.watch<SettingsProvider>();
+    return _ToggleRow(
+      label: l10n.displaySettingsPageNewChatOnAssistantSwitchTitle,
+      value: sp.newChatOnAssistantSwitch,
+      onChanged: (v) => context.read<SettingsProvider>().setNewChatOnAssistantSwitch(v),
+    );
+  }
+}
+
+class _ToggleRowNewChatAfterDelete extends StatelessWidget {
+  const _ToggleRowNewChatAfterDelete();
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final sp = context.watch<SettingsProvider>();
+    return _ToggleRow(
+      label: l10n.displaySettingsPageNewChatAfterDeleteTitle,
+      value: sp.newChatAfterDelete,
+      onChanged: (v) => context.read<SettingsProvider>().setNewChatAfterDelete(v),
     );
   }
 }
@@ -5978,6 +6974,24 @@ class _ToggleRow extends StatelessWidget {
   }
 }
 
+class _AutoCollapseCodeBlocksSection extends StatelessWidget {
+  const _AutoCollapseCodeBlocksSection();
+  @override
+  Widget build(BuildContext context) {
+    final sp = context.watch<SettingsProvider>();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const _ToggleRowAutoCollapseCodeBlocks(),
+        if (sp.autoCollapseCodeBlock) ...[
+          const _RowDivider(),
+          const _AutoCollapseCodeBlockLinesRow(),
+        ],
+      ],
+    );
+  }
+}
+
 // --- Others: inputs ---
 class _AutoScrollDelayRow extends StatefulWidget {
   const _AutoScrollDelayRow();
@@ -6008,8 +7022,71 @@ class _AutoScrollDelayRowState extends State<_AutoScrollDelayRow> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final sp = context.watch<SettingsProvider>();
+    final enabled = sp.autoScrollEnabled;
     return _LabeledRow(
       label: l10n.displaySettingsPageAutoScrollIdleTitle,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IntrinsicWidth(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 36, maxWidth: 72),
+              child: IgnorePointer(
+                ignoring: !enabled,
+                child: Opacity(
+                  opacity: enabled ? 1.0 : 0.5,
+                  child: _BorderInput(controller: _controller, onSubmitted: _commit, onFocusLost: _commit),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            's',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(enabled ? 0.7 : 0.35),
+              fontSize: 14,
+              decoration: TextDecoration.none,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AutoCollapseCodeBlockLinesRow extends StatefulWidget {
+  const _AutoCollapseCodeBlockLinesRow();
+  @override
+  State<_AutoCollapseCodeBlockLinesRow> createState() => _AutoCollapseCodeBlockLinesRowState();
+}
+
+class _AutoCollapseCodeBlockLinesRowState extends State<_AutoCollapseCodeBlockLinesRow> {
+  late final TextEditingController _controller;
+  @override
+  void initState() {
+    super.initState();
+    final v = context.read<SettingsProvider>().autoCollapseCodeBlockLines;
+    _controller = TextEditingController(text: '${v.round()}');
+  }
+  @override
+  void dispose() { _controller.dispose(); super.dispose(); }
+
+  void _commit(String text) {
+    final v = text.trim();
+    final n = int.tryParse(v);
+    if (n == null) return;
+    final clamped = n.clamp(1, 999);
+    context.read<SettingsProvider>().setAutoCollapseCodeBlockLines(clamped);
+    _controller.text = '$clamped';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return _LabeledRow(
+      label: l10n.displaySettingsPageAutoCollapseCodeBlockLinesTitle,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -6020,7 +7097,14 @@ class _AutoScrollDelayRowState extends State<_AutoScrollDelayRow> {
             ),
           ),
           const SizedBox(width: 8),
-          Text('s', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7), fontSize: 14, decoration: TextDecoration.none)),
+          Text(
+            l10n.displaySettingsPageAutoCollapseCodeBlockLinesUnit,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              fontSize: 14,
+              decoration: TextDecoration.none,
+            ),
+          ),
         ],
       ),
     );

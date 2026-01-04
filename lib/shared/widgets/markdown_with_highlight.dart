@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
-import 'package:gpt_markdown/custom_widgets/markdown_config.dart' show GptMarkdownConfig;
+import 'package:gpt_markdown/custom_widgets/markdown_config.dart'
+    show GptMarkdownConfig;
 import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_highlight/themes/github.dart';
 import 'package:flutter_highlight/themes/atom-one-dark-reasonable.dart';
@@ -21,12 +22,12 @@ import 'mermaid_bridge.dart';
 import 'export_capture_scope.dart';
 import 'mermaid_image_cache.dart';
 import 'plantuml_block.dart';
-import 'package:OmniChat/l10n/app_localizations.dart';
-import 'package:OmniChat/theme/theme_factory.dart' show getPlatformFontFallback;
+import '../../l10n/app_localizations.dart';
+import '../../theme/theme_factory.dart' show getPlatformFontFallback;
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/providers/settings_provider.dart';
-import 'package:OmniChat/desktop/html_preview_dialog.dart';
+import '../../desktop/html_preview_dialog.dart';
 
 /// gpt_markdown with custom code block highlight and inline code styling.
 class MarkdownWithCodeHighlight extends StatelessWidget {
@@ -54,17 +55,25 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final sanitizedText = _sanitizeImageLinks(text);
     final imageUrls = _extractImageUrls(sanitizedText);
-    final normalized = _preprocessFences(sanitizedText);
-    // Base text style (can be overridden by caller)
-    final baseTextStyle = (baseStyle ?? Theme.of(context).textTheme.bodyMedium)?.copyWith(
-      fontSize: baseStyle?.fontSize ?? 15.5,
-      height: baseStyle?.height ?? 1.55,
-      letterSpacing: baseStyle?.letterSpacing ?? (_isZh(context) ? 0.0 : 0.05),
-      color: null,
+    final normalized = _preprocessFences(
+      sanitizedText,
+      enableMath: settings.enableMathRendering,
+      enableDollarLatex: settings.enableDollarLatex,
     );
+    // Base text style (can be overridden by caller)
+    final baseTextStyle = (baseStyle ?? Theme.of(context).textTheme.bodyMedium)
+        ?.copyWith(
+          fontSize: baseStyle?.fontSize ?? 15.5,
+          height: baseStyle?.height ?? 1.55,
+          letterSpacing:
+              baseStyle?.letterSpacing ?? (_isZh(context) ? 0.0 : 0.05),
+          color: null,
+        );
 
     // Replace default components and add our own where needed
-    final components = List<MarkdownComponent>.from(MarkdownComponent.globalComponents);
+    final components = List<MarkdownComponent>.from(
+      MarkdownComponent.globalComponents,
+    );
     final hrIdx = components.indexWhere((c) => c is HrLine);
     if (hrIdx != -1) components[hrIdx] = SoftHrLine();
     final bqIdx = components.indexWhere((c) => c is BlockQuote);
@@ -97,6 +106,14 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     // Ensure fenced code blocks take precedence over headings and other blocks
     // so lines like "# comment" inside code fences are not parsed as headings.
     components.insert(0, FencedCodeBlockMd());
+    // Inline components: keep defaults but make link parsing line-scoped
+    final inlineComponents = List<MarkdownComponent>.from(
+      MarkdownComponent.inlineComponents,
+    );
+    final linkIdxInline = inlineComponents.indexWhere((c) => c is ATagMd);
+    if (linkIdxInline != -1) {
+      inlineComponents[linkIdxInline] = LineSafeLinkMd();
+    }
     // codeBuilder handles rendering. A custom BlockMd for fences can
     // interfere with block segmentation in some cases.
     // Resolve user preferred code font family (default to monospace)
@@ -113,6 +130,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       }
       return fam;
     }
+
     final codeFontFamily = resolveCodeFont();
 
     // Resolve app font for all markdown text (headings, lists, etc.)
@@ -129,6 +147,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       }
       return fam;
     }
+
     final appFontFamily = resolveAppFont();
 
     // Force rebuild of the markdown when key theme colors change to avoid stale styles
@@ -143,35 +162,43 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       useDollarSignsForLatex: false,
       onLinkTap: (url, title) => _handleLinkTap(context, url),
       components: components,
+      inlineComponents: inlineComponents,
       imageBuilder: (ctx, url) {
-        final imgs = imageUrls.isNotEmpty ? imageUrls : [url];
+        final imgs = (imageUrls ?? const <String>[]).isNotEmpty
+            ? imageUrls!
+            : <String>[url];
         final idx = imgs.indexOf(url);
         final initial = idx >= 0 ? idx : 0;
         final provider = _imageProviderFor(url);
         return GestureDetector(
           onTap: () {
-            Navigator.of(ctx).push(PageRouteBuilder(
-              pageBuilder: (_, __, ___) => ImageViewerPage(images: imgs, initialIndex: initial),
-              transitionDuration: const Duration(milliseconds: 360),
-              reverseTransitionDuration: const Duration(milliseconds: 280),
-              transitionsBuilder: (context, anim, sec, child) {
-                final curved = CurvedAnimation(
-                  parent: anim,
-                  curve: Curves.easeOutCubic,
-                  reverseCurve: Curves.easeInCubic,
-                );
-                return FadeTransition(
-                  opacity: curved,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, 0.02),
-                      end: Offset.zero,
-                    ).animate(curved),
-                    child: child,
-                  ),
-                );
-              },
-            ));
+            Navigator.of(ctx).push(
+              PageRouteBuilder(
+                pageBuilder: (_, __, ___) => ImageViewerPage(
+                  images: imgs ?? <String>[url],
+                  initialIndex: initial,
+                ),
+                transitionDuration: const Duration(milliseconds: 360),
+                reverseTransitionDuration: const Duration(milliseconds: 280),
+                transitionsBuilder: (context, anim, sec, child) {
+                  final curved = CurvedAnimation(
+                    parent: anim,
+                    curve: Curves.easeOutCubic,
+                    reverseCurve: Curves.easeInCubic,
+                  );
+                  return FadeTransition(
+                    opacity: curved,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, 0.02),
+                        end: Offset.zero,
+                      ).animate(curved),
+                      child: child,
+                    ),
+                  );
+                },
+              ),
+            );
           },
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -186,7 +213,8 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
                     image: provider,
                     width: constraints.maxWidth,
                     fit: BoxFit.contain,
-                    errorBuilder: (context, error, stack) => const Icon(Icons.broken_image),
+                    errorBuilder: (context, error, stack) =>
+                        const Icon(Icons.broken_image),
                   );
                 }(),
               );
@@ -244,7 +272,8 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
         );
         // Apply a soft compensation so when chat scale != 100%,
         // list items don't visually feel larger/smaller than body text.
-        final double kListComp = MarkdownWithCodeHighlight.kMarkdownListScaleCompensation;
+        final double kListComp =
+            MarkdownWithCodeHighlight.kMarkdownListScaleCompensation;
         final double s = MediaQuery.of(ctx).textScaleFactor;
         final double comp = math.pow(s == 0 ? 1.0 : s, -kListComp).toDouble();
         final double newScale = (s * comp).clamp(0.5, 3.0);
@@ -259,10 +288,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
               children: [
                 Padding(
                   padding: const EdgeInsetsDirectional.only(start: 6, end: 6),
-                  child: Text(
-                    "$no.",
-                    style: style,
-                  ),
+                  child: Text("$no.", style: style),
                 ),
                 // Keep child as-is so it inherits context MediaQuery scaling once
                 Flexible(child: child),
@@ -278,7 +304,8 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
         final style = (cfg.style ?? const TextStyle()).copyWith(
           fontWeight: FontWeight.w400,
         );
-        final double kListComp = MarkdownWithCodeHighlight.kMarkdownListScaleCompensation;
+        final double kListComp =
+            MarkdownWithCodeHighlight.kMarkdownListScaleCompensation;
         final double s = MediaQuery.of(ctx).textScaleFactor;
         final double comp = math.pow(s == 0 ? 1.0 : s, -kListComp).toDouble();
         final double newScale = (s * comp).clamp(0.5, 3.0);
@@ -328,13 +355,27 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
         }
 
         // Desktop platform detection (for selection + layout)
-        final bool isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+        final bool isDesktop =
+            Platform.isMacOS || Platform.isWindows || Platform.isLinux;
 
         // Common cell builder
-        Widget cell(String text, TextAlign align, {bool header = false, bool lastCol = false, bool lastRow = false}) {
+        Widget cell(
+          String text,
+          TextAlign align, {
+          bool header = false,
+          bool lastCol = false,
+          bool lastRow = false,
+        }) {
           // Render inline markdown (bold, code, links) inside table cells
-          final innerCfg = cfg.copyWith(style: header ? headerStyle : cellStyle);
-          final children = MarkdownComponent.generate(ctx, text, innerCfg, true);
+          final innerCfg = cfg.copyWith(
+            style: header ? headerStyle : cellStyle,
+          );
+          final children = MarkdownComponent.generate(
+            ctx,
+            text,
+            innerCfg,
+            true,
+          );
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Align(
@@ -350,12 +391,18 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
               }(),
               child: isDesktop
                   ? SelectableText.rich(
-                      TextSpan(style: header ? headerStyle : cellStyle, children: children),
+                      TextSpan(
+                        style: header ? headerStyle : cellStyle,
+                        children: children,
+                      ),
                       textAlign: align,
                       maxLines: null,
                     )
                   : RichText(
-                      text: TextSpan(style: header ? headerStyle : cellStyle, children: children),
+                      text: TextSpan(
+                        style: header ? headerStyle : cellStyle,
+                        children: children,
+                      ),
                       textAlign: align,
                       softWrap: true,
                       maxLines: null,
@@ -381,19 +428,34 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
                 TableRow(
                   decoration: BoxDecoration(color: headerBg),
                   children: List.generate(maxCol, (i) {
-                    final f = i < rows.first.fields.length ? rows.first.fields[i] : null;
+                    final f = i < rows.first.fields.length
+                        ? rows.first.fields[i]
+                        : null;
                     final txt = f?.data ?? '';
                     final align = f?.alignment ?? TextAlign.left;
-                    return cell(txt, align, header: true, lastCol: i == maxCol - 1, lastRow: false);
+                    return cell(
+                      txt,
+                      align,
+                      header: true,
+                      lastCol: i == maxCol - 1,
+                      lastRow: false,
+                    );
                   }),
                 ),
               for (int r = 1; r < rows.length; r++)
                 TableRow(
                   children: List.generate(maxCol, (c) {
-                    final f = c < rows[r].fields.length ? rows[r].fields[c] : null;
+                    final f = c < rows[r].fields.length
+                        ? rows[r].fields[c]
+                        : null;
                     final txt = f?.data ?? '';
                     final align = f?.alignment ?? TextAlign.left;
-                    return cell(txt, align, lastCol: c == maxCol - 1, lastRow: r == rows.length - 1);
+                    return cell(
+                      txt,
+                      align,
+                      lastCol: c == maxCol - 1,
+                      lastRow: r == rows.length - 1,
+                    );
                   }),
                 ),
             ],
@@ -430,64 +492,79 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
         // Do NOT add an inner SelectionArea here to allow selection to span
         // across the entire message-level SelectionArea wrapper.
         return LayoutBuilder(
-            builder: (context, constraints) {
-              // Use equal flex for all columns so table width == available width.
-              final Map<int, TableColumnWidth> columnWidths = {
-                for (int i = 0; i < maxCol; i++) i: const FlexColumnWidth(),
-              };
+          builder: (context, constraints) {
+            // Use equal flex for all columns so table width == available width.
+            final Map<int, TableColumnWidth> columnWidths = {
+              for (int i = 0; i < maxCol; i++) i: const FlexColumnWidth(),
+            };
 
-              final table = Table(
-                defaultColumnWidth: const FlexColumnWidth(),
-                border: TableBorder(
-                  horizontalInside: BorderSide(color: borderColor, width: 0.5),
-                  verticalInside: BorderSide(color: borderColor, width: 0.5),
-                ),
-                columnWidths: columnWidths,
-                defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                children: [
-                  if (rows.isNotEmpty)
-                    TableRow(
-                      decoration: BoxDecoration(color: headerBg),
-                      children: List.generate(maxCol, (i) {
-                        final f = i < rows.first.fields.length ? rows.first.fields[i] : null;
-                        final txt = f?.data ?? '';
-                        final align = f?.alignment ?? TextAlign.left;
-                        return cell(txt, align, header: true, lastCol: i == maxCol - 1, lastRow: false);
-                      }),
-                    ),
-                  for (int r = 1; r < rows.length; r++)
-                    TableRow(
-                      children: List.generate(maxCol, (c) {
-                        final f = c < rows[r].fields.length ? rows[r].fields[c] : null;
-                        final txt = f?.data ?? '';
-                        final align = f?.alignment ?? TextAlign.left;
-                        return cell(txt, align, lastCol: c == maxCol - 1, lastRow: r == rows.length - 1);
-                      }),
-                    ),
-                ],
-              );
+            final table = Table(
+              defaultColumnWidth: const FlexColumnWidth(),
+              border: TableBorder(
+                horizontalInside: BorderSide(color: borderColor, width: 0.5),
+                verticalInside: BorderSide(color: borderColor, width: 0.5),
+              ),
+              columnWidths: columnWidths,
+              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+              children: [
+                if (rows.isNotEmpty)
+                  TableRow(
+                    decoration: BoxDecoration(color: headerBg),
+                    children: List.generate(maxCol, (i) {
+                      final f = i < rows.first.fields.length
+                          ? rows.first.fields[i]
+                          : null;
+                      final txt = f?.data ?? '';
+                      final align = f?.alignment ?? TextAlign.left;
+                      return cell(
+                        txt,
+                        align,
+                        header: true,
+                        lastCol: i == maxCol - 1,
+                        lastRow: false,
+                      );
+                    }),
+                  ),
+                for (int r = 1; r < rows.length; r++)
+                  TableRow(
+                    children: List.generate(maxCol, (c) {
+                      final f = c < rows[r].fields.length
+                          ? rows[r].fields[c]
+                          : null;
+                      final txt = f?.data ?? '';
+                      final align = f?.alignment ?? TextAlign.left;
+                      return cell(
+                        txt,
+                        align,
+                        lastCol: c == maxCol - 1,
+                        lastRow: r == rows.length - 1,
+                      );
+                    }),
+                  ),
+              ],
+            );
 
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: double.infinity,
-                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                  decoration: BoxDecoration(
-                    color: Theme.of(ctx).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  foregroundDecoration: BoxDecoration(
-                    border: Border.all(color: borderColor, width: 0.8),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: DefaultTextStyle.merge(
-                    style: TextStyle(color: cs.onSurface),
-                    child: table,
-                  ),
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: double.infinity,
+                constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                decoration: BoxDecoration(
+                  color: Theme.of(ctx).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              );
-            },
-          );
+                foregroundDecoration: BoxDecoration(
+                  border: Border.all(color: borderColor, width: 0.8),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: DefaultTextStyle.merge(
+                  style: TextStyle(color: cs.onSurface),
+                  child: table,
+                ),
+              ),
+            );
+          },
+        );
       },
       // Inline `code` styling via highlightBuilder in gpt_markdown
       highlightBuilder: (ctx, inline, style) {
@@ -540,9 +617,12 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     return zh ? '代码' : 'Code';
   }
 
-  static bool _isZh(BuildContext context) => Localizations.localeOf(context).languageCode == 'zh';
+  static bool _isZh(BuildContext context) =>
+      Localizations.localeOf(context).languageCode == 'zh';
 
-  static Map<String, TextStyle> _transparentBgTheme(Map<String, TextStyle> base) {
+  static Map<String, TextStyle> _transparentBgTheme(
+    Map<String, TextStyle> base,
+  ) {
     final m = Map<String, TextStyle>.from(base);
     final root = base['root'];
     if (root != null) {
@@ -611,7 +691,11 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     }
   }
 
-  static String _preprocessFences(String input) {
+  static String _preprocessFences(
+    String input, {
+    required bool enableMath,
+    required bool enableDollarLatex,
+  }) {
     // Normalize newlines to simplify regex handling
     var out = input.replaceAll('\r\n', '\n');
 
@@ -619,26 +703,58 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     // link regex limitation. The package's regex `[^\s]*` stops at spaces, so
     // [text](url "title") breaks. Strip titles while preserving the URL.
     // Matches: [text](url "title") or [text](url 'title') or [text](url title)
-    final linkWithTitle = RegExp(
-      r'\[([^\]]+)\]\(([^\s)]+)\s+[^)]*\)',
-    );
+    final linkWithTitle = RegExp(r'\[([^\]]+)\]\(([^\s)]+)\s+[^)]*\)');
     out = out.replaceAllMapped(linkWithTitle, (match) {
       final text = match.group(1);
       final url = match.group(2);
       return '[$text]($url)';
     });
 
+    // Normalize inline $...$ math into \( ... \) so it always matches the LaTeX
+    // renderer (even when vendors emit single-dollar math mixed with prose).
+    // Skips $$...$$ blocks, which are handled separately.
+    if (enableMath && enableDollarLatex) {
+      final inlineDollar = RegExp(r"(?<!\$)\$([^\$\n]+?)\$(?!\$)");
+      out = out.replaceAllMapped(inlineDollar, (m) => "\\(${m[1]}\\)");
+    }
+
+    // Ensure display-math blocks stay as standalone blocks even when generated inline.
+    // Some providers emit "$$...$$" inside list items or paragraphs; without extra
+    // newlines gpt_markdown may treat them as plain text. We normalize multi-line
+    // display math into its own block to guarantee rendering.
+    final inlineDisplayMath = RegExp(r"\$\$([\s\S]*?)\$\$");
+    out = out.replaceAllMapped(inlineDisplayMath, (m) {
+      final body = (m.group(1) ?? '').trim();
+      // Only normalize true display math (multi-line or clearly not inline literals)
+      if (body.isEmpty) return m[0]!;
+      final hasNewline = body.contains('\n');
+      if (!hasNewline && body.length < 12)
+        return m[0]!; // looks like inline literal, leave intact
+      // Surround with blank lines to force a block; keep existing body trimmed
+      final prefix = m.start == 0 || out.substring(0, m.start).endsWith('\n\n')
+          ? ''
+          : '\n';
+      final suffix =
+          m.end == out.length || out.substring(m.end).startsWith('\n\n')
+          ? ''
+          : '\n';
+      return '${prefix}\$\$\n$body\n\$\$${suffix}';
+    });
+
     // 1) Move fenced code from list lines to the next line: "* ```lang" -> "*\n```lang"
-    final bulletFence = RegExp(r"^(\s*(?:[*+-]|\d+\.)\s+)```([^\s`]*)\s*$", multiLine: true);
-    out = out.replaceAllMapped(bulletFence, (m) => "${m[1]}\n```${m[2]}" );
+    final bulletFence = RegExp(
+      r"^(\s*(?:[*+-]|\d+\.)\s+)```([^\s`]*)\s*$",
+      multiLine: true,
+    );
+    out = out.replaceAllMapped(bulletFence, (m) => "${m[1]}\n```${m[2]}");
 
     // 2) Dedent opening fences: leading spaces before ```lang
     final dedentOpen = RegExp(r"^[ \t]+```([^\n`]*)\s*$", multiLine: true);
-    out = out.replaceAllMapped(dedentOpen, (m) => "```${m[1]}" );
+    out = out.replaceAllMapped(dedentOpen, (m) => "```${m[1]}");
 
     // 3) Dedent closing fences: leading spaces before ```
     final dedentClose = RegExp(r"^[ \t]+```\s*$", multiLine: true);
-    out = out.replaceAllMapped(dedentClose, (m) => "```" );
+    out = out.replaceAllMapped(dedentClose, (m) => "```");
 
     // 4) Ensure closing fences are on their own line: transform "} ```" or "}```" into "}\n```"
     final inlineClosing = RegExp(r"([^\r\n`])```(?=\s*(?:\r?\n|$))");
@@ -647,12 +763,18 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     // 5) Disambiguate Setext vs HR after label-value lines:
     // If a line of only dashes follows a bold label line (e.g., "**作者:** 张三"),
     // insert a blank line so it's treated as an HR, not a Setext heading underline.
-    final labelThenDash = RegExp(r"^(\*\*[^\n*]+\*\*.*)\n(\s*-{3,}\s*$)", multiLine: true);
+    final labelThenDash = RegExp(
+      r"^(\*\*[^\n*]+\*\*.*)\n(\s*-{3,}\s*$)",
+      multiLine: true,
+    );
     out = out.replaceAllMapped(labelThenDash, (m) => "${m[1]}\n\n${m[2]}");
 
     // 6) Allow ATX headings starting with enumerations like "## 1.引言" or "## 1. 引言"
     // Insert a zero-width non-joiner after the dot to prevent list parsing without changing visual text.
-    final atxEnum = RegExp(r"^(\s{0,3}#{1,6}\s+\d+)\.(\s*)(\S)", multiLine: true);
+    final atxEnum = RegExp(
+      r"^(\s{0,3}#{1,6}\s+\d+)\.(\s*)(\S)",
+      multiLine: true,
+    );
     out = out.replaceAllMapped(atxEnum, (m) => "${m[1]}.\u200C${m[2]}${m[3]}");
 
     // 7) Auto-close an unmatched opening code fence at EOF
@@ -688,6 +810,25 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     }
 
     return out;
+  }
+
+  // Safe math renderer that falls back to plain text when parsing fails.
+  static Widget _renderMath(
+    String tex, {
+    TextStyle? style,
+    MathStyle mathStyle = MathStyle.text,
+  }) {
+    final resolved = style ?? const TextStyle();
+    try {
+      return Math.tex(
+        tex,
+        mathStyle: mathStyle,
+        textStyle: resolved,
+        onErrorFallback: (err) => Text(tex, style: resolved),
+      );
+    } catch (_) {
+      return Text(tex, style: resolved);
+    }
   }
 
   static String _softBreakInline(String input) {
@@ -726,7 +867,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
   Uri _normalizeUrl(String url) {
     var u = url.trim();
     if (!RegExp(r'^[a-zA-Z][a-zA-Z0-9+.-]*:').hasMatch(u)) {
-      u = 'https://'+u;
+      u = 'https://' + u;
     }
     return Uri.parse(u);
   }
@@ -759,7 +900,8 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       final isRemote = url.startsWith('http://') || url.startsWith('https://');
       final isData = url.startsWith('data:');
       final isWindowsAbs = RegExp(r'^[a-zA-Z]:[\\/]').hasMatch(url);
-      final isLikelyLocalPath = (!isRemote && !isData) &&
+      final isLikelyLocalPath =
+          (!isRemote && !isData) &&
           (isFileUri || url.startsWith('/') || isWindowsAbs);
 
       if (!isLikelyLocalPath || !url.contains(' ')) {
@@ -821,6 +963,40 @@ class _CollapsibleCodeBlock extends StatefulWidget {
 
 class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
   bool _expanded = true;
+  bool _manuallyToggled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _applyInitialAutoCollapse();
+  }
+
+  @override
+  void didUpdateWidget(covariant _CollapsibleCodeBlock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _applyAutoCollapseIfNeeded();
+  }
+
+  void _applyInitialAutoCollapse() {
+    final sp = context.read<SettingsProvider>();
+    if (!sp.autoCollapseCodeBlock) return;
+    final threshold = sp.autoCollapseCodeBlockLines;
+    if (_exceedsLineThreshold(widget.code, threshold)) {
+      _expanded = false;
+    }
+  }
+
+  void _applyAutoCollapseIfNeeded() {
+    if (_manuallyToggled) return;
+    if (!_expanded) return;
+    final sp = context.read<SettingsProvider>();
+    if (!sp.autoCollapseCodeBlock) return;
+    final threshold = sp.autoCollapseCodeBlockLines;
+
+    if (_exceedsLineThreshold(widget.code, threshold)) {
+      setState(() => _expanded = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -840,6 +1016,7 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
       }
       return fam;
     }
+
     final codeFontFamily = resolveCodeFont();
 
     // Use theme-tinted surfaces so headers follow the current theme color.
@@ -855,9 +1032,7 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
       // Clip children to the same radius so they don't overpaint corners
       clipBehavior: Clip.antiAlias,
       // Draw the border on top so it remains visible at corners
@@ -866,9 +1041,9 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
         border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
       ),
       child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
           // Header layout: language (left) + copy action (icon + label) + expand/collapse icon
           Material(
             color: headerBg,
@@ -876,26 +1051,37 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
             shadowColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
             child: InkWell(
-              onTap: () => setState(() => _expanded = !_expanded),
+              onTap: () => setState(() {
+                _manuallyToggled = true;
+                _expanded = !_expanded;
+              }),
               splashColor: Platform.isIOS ? Colors.transparent : null,
               highlightColor: Platform.isIOS ? Colors.transparent : null,
               hoverColor: Platform.isIOS ? Colors.transparent : null,
-              overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+              overlayColor: Platform.isIOS
+                  ? const MaterialStatePropertyAll(Colors.transparent)
+                  : null,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   border: Border(
-                    // Show divider only when expanded
-                    bottom: _expanded
-                        ? BorderSide(color: cs.outlineVariant.withOpacity(0.28), width: 1.0)
-                        : BorderSide.none,
+                    bottom: BorderSide(
+                      color: cs.outlineVariant.withOpacity(0.28),
+                      width: 1.0,
+                    ),
                   ),
                 ),
                 child: Row(
                   children: [
                     const SizedBox(width: 2),
                     Text(
-                      MarkdownWithCodeHighlight._displayLanguage(context, widget.language),
+                      MarkdownWithCodeHighlight._displayLanguage(
+                        context,
+                        widget.language,
+                      ),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -910,34 +1096,63 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                           final l10n = AppLocalizations.of(context)!;
                           if (Platform.isAndroid || Platform.isIOS) {
                             // Mobile: navigate to preview page
-                            Navigator.of(context).push(PageRouteBuilder(
-                              pageBuilder: (_, __, ___) => HtmlPreviewPage(html: widget.code),
-                              transitionDuration: const Duration(milliseconds: 300),
-                              reverseTransitionDuration: const Duration(milliseconds: 240),
-                              transitionsBuilder: (context, anim, sec, child) {
-                                final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
-                                return FadeTransition(opacity: curved, child: child);
-                              },
-                            ));
+                            Navigator.of(context).push(
+                              PageRouteBuilder(
+                                pageBuilder: (_, __, ___) =>
+                                    HtmlPreviewPage(html: widget.code),
+                                transitionDuration: const Duration(
+                                  milliseconds: 300,
+                                ),
+                                reverseTransitionDuration: const Duration(
+                                  milliseconds: 240,
+                                ),
+                                transitionsBuilder:
+                                    (context, anim, sec, child) {
+                                      final curved = CurvedAnimation(
+                                        parent: anim,
+                                        curve: Curves.easeOutCubic,
+                                        reverseCurve: Curves.easeInCubic,
+                                      );
+                                      return FadeTransition(
+                                        opacity: curved,
+                                        child: child,
+                                      );
+                                    },
+                              ),
+                            );
                           } else if (Platform.isLinux) {
                             // Linux: show not supported
-                            showAppSnackBar(context, message: l10n.htmlPreviewNotSupportedOnLinux, type: NotificationType.warning);
+                            showAppSnackBar(
+                              context,
+                              message: l10n.htmlPreviewNotSupportedOnLinux,
+                              type: NotificationType.warning,
+                            );
                           } else {
                             // Desktop (macOS/Windows): open dialog
                             try {
                               // Defer import to avoid cycle
                               // ignore: use_build_context_synchronously
-                              await showHtmlPreviewDesktopDialog(context, html: widget.code);
+                              await showHtmlPreviewDesktopDialog(
+                                context,
+                                html: widget.code,
+                              );
                             } catch (_) {}
                           }
                         },
                         splashColor: Platform.isIOS ? Colors.transparent : null,
-                        highlightColor: Platform.isIOS ? Colors.transparent : null,
+                        highlightColor: Platform.isIOS
+                            ? Colors.transparent
+                            : null,
                         hoverColor: Platform.isIOS ? Colors.transparent : null,
-                        overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+                        overlayColor: Platform.isIOS
+                            ? const MaterialStatePropertyAll(Colors.transparent)
+                            : null,
                         borderRadius: BorderRadius.circular(6),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 6,
+                          ),
                           child: Row(
                             children: [
                               Icon(
@@ -947,7 +1162,9 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                AppLocalizations.of(context)!.codeBlockPreviewButton,
+                                AppLocalizations.of(
+                                  context,
+                                )!.codeBlockPreviewButton,
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: cs.onSurface.withOpacity(0.6),
@@ -961,22 +1178,33 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                     // Copy action: icon + label ("复制"/localized)
                     InkWell(
                       onTap: () async {
-                        await Clipboard.setData(ClipboardData(text: widget.code));
+                        await Clipboard.setData(
+                          ClipboardData(text: widget.code),
+                        );
                         if (mounted) {
                           showAppSnackBar(
                             context,
-                            message: AppLocalizations.of(context)!.chatMessageWidgetCopiedToClipboard,
+                            message: AppLocalizations.of(
+                              context,
+                            )!.chatMessageWidgetCopiedToClipboard,
                             type: NotificationType.success,
                           );
                         }
                       },
                       splashColor: Platform.isIOS ? Colors.transparent : null,
-                      highlightColor: Platform.isIOS ? Colors.transparent : null,
+                      highlightColor: Platform.isIOS
+                          ? Colors.transparent
+                          : null,
                       hoverColor: Platform.isIOS ? Colors.transparent : null,
-                      overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+                      overlayColor: Platform.isIOS
+                          ? const MaterialStatePropertyAll(Colors.transparent)
+                          : null,
                       borderRadius: BorderRadius.circular(6),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 6,
+                        ),
                         child: Row(
                           children: [
                             Icon(
@@ -986,7 +1214,9 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              AppLocalizations.of(context)!.shareProviderSheetCopyButton,
+                              AppLocalizations.of(
+                                context,
+                              )!.shareProviderSheetCopyButton,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: cs.onSurface.withOpacity(0.6),
@@ -1034,13 +1264,20 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                     child: () {
                       // Desktop: enable word wrap, allow selection, no height limit, no scroll
                       // Mobile: horizontal scroll by default, or word wrap if setting enabled
-                      final bool isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+                      final bool isDesktop =
+                          Platform.isMacOS ||
+                          Platform.isWindows ||
+                          Platform.isLinux;
 
                       if (isDesktop) {
                         // Desktop: auto wrap, selectable, no height limit, no scroll
                         return SelectableHighlightView(
                           _trimTrailingNewlines(widget.code),
-                          language: MarkdownWithCodeHighlight._normalizeLanguage(widget.language) ?? 'plaintext',
+                          language:
+                              MarkdownWithCodeHighlight._normalizeLanguage(
+                                widget.language,
+                              ) ??
+                              'plaintext',
                           theme: MarkdownWithCodeHighlight._transparentBgTheme(
                             isDark ? atomOneDarkReasonableTheme : githubTheme,
                           ),
@@ -1060,7 +1297,11 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                         // Mobile with wrap enabled: selectable, auto wrap
                         return SelectableHighlightView(
                           _trimTrailingNewlines(widget.code),
-                          language: MarkdownWithCodeHighlight._normalizeLanguage(widget.language) ?? 'plaintext',
+                          language:
+                              MarkdownWithCodeHighlight._normalizeLanguage(
+                                widget.language,
+                              ) ??
+                              'plaintext',
                           theme: MarkdownWithCodeHighlight._transparentBgTheme(
                             isDark ? atomOneDarkReasonableTheme : githubTheme,
                           ),
@@ -1079,7 +1320,11 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                         primary: false,
                         child: SelectableHighlightView(
                           _trimTrailingNewlines(widget.code),
-                          language: MarkdownWithCodeHighlight._normalizeLanguage(widget.language) ?? 'plaintext',
+                          language:
+                              MarkdownWithCodeHighlight._normalizeLanguage(
+                                widget.language,
+                              ) ??
+                              'plaintext',
                           theme: MarkdownWithCodeHighlight._transparentBgTheme(
                             isDark ? atomOneDarkReasonableTheme : githubTheme,
                           ),
@@ -1093,16 +1338,106 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                       );
                     }(),
                   )
-                : const SizedBox.shrink(key: ValueKey('code-collapsed')),
+                : Container(
+                    key: const ValueKey('code-collapsed'),
+                    width: double.infinity,
+                    color: bodyBg,
+                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                    child: () {
+                      final l10n = AppLocalizations.of(context)!;
+                      final code = widget.code;
+                      final end = _trimTrailingNewlinesEndIndex(code);
+
+                      final preview = <String>[];
+                      int totalLines = 0;
+                      if (end > 0) {
+                        totalLines = 1;
+                        int lineStart = 0;
+                        for (int i = 0; i < end; i++) {
+                          final cu = code.codeUnitAt(i);
+                          if (cu == 0x0A /* \n */ || cu == 0x0D /* \r */) {
+                            if (preview.length < 2) {
+                              preview.add(code.substring(lineStart, i));
+                            }
+                            totalLines++;
+                            if (cu == 0x0D /* \r */ &&
+                                i + 1 < end &&
+                                code.codeUnitAt(i + 1) == 0x0A /* \n */) {
+                              i++;
+                            }
+                            lineStart = i + 1;
+                          }
+                        }
+                        if (preview.length < 2) {
+                          preview.add(code.substring(lineStart, end));
+                        }
+                      }
+
+                      final hiddenLines =
+                          (totalLines - preview.length).clamp(0, 999999);
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (final line in preview)
+                            Text(
+                              line,
+                              style: TextStyle(
+                                fontFamily: codeFontFamily,
+                                fontSize: 13,
+                                height: 1.5,
+                                color: cs.onSurface,
+                              ),
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          if (hiddenLines > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                l10n.codeBlockCollapsedLines(hiddenLines),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  height: 1.4,
+                                  color: cs.onSurface.withOpacity(0.55),
+                                ),
+                                softWrap: false,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                      );
+                    }(),
+                  ),
           ),
-          ],
+        ],
       ),
     );
   }
 
-  // Remove trailing newlines to avoid rendering an extra empty line at the bottom
-  String _trimTrailingNewlines(String s) {
-    if (s.isEmpty) return s;
+  bool _exceedsLineThreshold(String code, int threshold) {
+    if (threshold < 1) return true;
+    final end = _trimTrailingNewlinesEndIndex(code);
+    if (end <= 0) return false;
+
+    int lines = 1;
+    for (int i = 0; i < end; i++) {
+      final cu = code.codeUnitAt(i);
+      if (cu == 0x0A /* \n */) {
+        lines++;
+        if (lines > threshold) return true;
+        continue;
+      }
+      if (cu == 0x0D /* \r */) {
+        lines++;
+        if (lines > threshold) return true;
+        if (i + 1 < end && code.codeUnitAt(i + 1) == 0x0A) i++;
+      }
+    }
+    return false;
+  }
+
+  int _trimTrailingNewlinesEndIndex(String s) {
     int end = s.length;
     while (end > 0) {
       final ch = s.codeUnitAt(end - 1);
@@ -1112,6 +1447,13 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
       }
       break;
     }
+    return end;
+  }
+
+  // Remove trailing newlines to avoid rendering an extra empty line at the bottom
+  String _trimTrailingNewlines(String s) {
+    if (s.isEmpty) return s;
+    final end = _trimTrailingNewlinesEndIndex(s);
     return end == s.length ? s : s.substring(0, end);
   }
 }
@@ -1157,9 +1499,9 @@ class _MermaidBlockState extends State<_MermaidBlock> {
       final g = (v >> 8) & 0xFF;
       final b = v & 0xFF;
       return '#'
-          '${r.toRadixString(16).padLeft(2, '0')}'
-          '${g.toRadixString(16).padLeft(2, '0')}'
-          '${b.toRadixString(16).padLeft(2, '0')}'
+              '${r.toRadixString(16).padLeft(2, '0')}'
+              '${g.toRadixString(16).padLeft(2, '0')}'
+              '${b.toRadixString(16).padLeft(2, '0')}'
           .toUpperCase();
     }
 
@@ -1196,7 +1538,14 @@ class _MermaidBlockState extends State<_MermaidBlock> {
     };
 
     final exporting = ExportCaptureScope.of(context);
-    final handle = exporting ? null : createMermaidView(widget.code, isDark, themeVars: themeVars, viewKey: _mermaidViewKey);
+    final handle = exporting
+        ? null
+        : createMermaidView(
+            widget.code,
+            isDark,
+            themeVars: themeVars,
+            viewKey: _mermaidViewKey,
+          );
     final Widget? mermaidView = () {
       if (exporting) {
         final bytes = MermaidImageCache.get(widget.code);
@@ -1212,18 +1561,16 @@ class _MermaidBlockState extends State<_MermaidBlock> {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
       clipBehavior: Clip.antiAlias,
       foregroundDecoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
       ),
       child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
           // Header: left label (mermaid), right actions (copy label + export + chevron)
           Material(
             color: headerBg,
@@ -1235,14 +1582,22 @@ class _MermaidBlockState extends State<_MermaidBlock> {
               splashColor: Platform.isIOS ? Colors.transparent : null,
               highlightColor: Platform.isIOS ? Colors.transparent : null,
               hoverColor: Platform.isIOS ? Colors.transparent : null,
-              overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+              overlayColor: Platform.isIOS
+                  ? const MaterialStatePropertyAll(Colors.transparent)
+                  : null,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   border: Border(
                     // Show divider only when expanded
                     bottom: _expanded
-                        ? BorderSide(color: cs.outlineVariant.withOpacity(0.28), width: 1.0)
+                        ? BorderSide(
+                            color: cs.outlineVariant.withOpacity(0.28),
+                            width: 1.0,
+                          )
                         : BorderSide.none,
                   ),
                 ),
@@ -1263,22 +1618,33 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                       // Copy action
                       InkWell(
                         onTap: () async {
-                          await Clipboard.setData(ClipboardData(text: widget.code));
+                          await Clipboard.setData(
+                            ClipboardData(text: widget.code),
+                          );
                           if (mounted) {
                             showAppSnackBar(
                               context,
-                              message: AppLocalizations.of(context)!.chatMessageWidgetCopiedToClipboard,
+                              message: AppLocalizations.of(
+                                context,
+                              )!.chatMessageWidgetCopiedToClipboard,
                               type: NotificationType.success,
                             );
                           }
                         },
                         splashColor: Platform.isIOS ? Colors.transparent : null,
-                        highlightColor: Platform.isIOS ? Colors.transparent : null,
+                        highlightColor: Platform.isIOS
+                            ? Colors.transparent
+                            : null,
                         hoverColor: Platform.isIOS ? Colors.transparent : null,
-                        overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+                        overlayColor: Platform.isIOS
+                            ? const MaterialStatePropertyAll(Colors.transparent)
+                            : null,
                         borderRadius: BorderRadius.circular(6),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 6,
+                          ),
                           child: Row(
                             children: [
                               Icon(
@@ -1288,7 +1654,9 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                AppLocalizations.of(context)!.shareProviderSheetCopyButton,
+                                AppLocalizations.of(
+                                  context,
+                                )!.shareProviderSheetCopyButton,
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: cs.onSurface.withOpacity(0.6),
@@ -1312,12 +1680,30 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                                 message: l10n.mermaidExportFailed,
                                 type: NotificationType.error,
                               );
+                            } else if (Platform.isAndroid || Platform.isIOS) {
+                              showAppSnackBar(
+                                context,
+                                message: AppLocalizations.of(
+                                  context,
+                                )!.imageViewerPageSaveSuccess,
+                                type: NotificationType.success,
+                              );
                             }
                           },
-                          splashColor: Platform.isIOS ? Colors.transparent : null,
-                          highlightColor: Platform.isIOS ? Colors.transparent : null,
-                          hoverColor: Platform.isIOS ? Colors.transparent : null,
-                          overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+                          splashColor: Platform.isIOS
+                              ? Colors.transparent
+                              : null,
+                          highlightColor: Platform.isIOS
+                              ? Colors.transparent
+                              : null,
+                          hoverColor: Platform.isIOS
+                              ? Colors.transparent
+                              : null,
+                          overlayColor: Platform.isIOS
+                              ? const MaterialStatePropertyAll(
+                                  Colors.transparent,
+                                )
+                              : null,
                           borderRadius: BorderRadius.circular(6),
                           child: Padding(
                             padding: const EdgeInsets.all(6),
@@ -1368,25 +1754,27 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         if (mermaidView != null) ...[
-                          SizedBox(
-                            width: double.infinity,
-                            child: mermaidView,
-                          ),
+                          SizedBox(width: double.infinity, child: mermaidView),
                         ] else ...[
                           // Fallback: show raw code and a preview button (opens browser)
                           () {
-                            final bool isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+                            final bool isDesktop =
+                                Platform.isMacOS ||
+                                Platform.isWindows ||
+                                Platform.isLinux;
                             if (!isDesktop) {
                               return SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,
                                 child: SelectableHighlightView(
                                   widget.code,
                                   language: 'plaintext',
-                                  theme: MarkdownWithCodeHighlight._transparentBgTheme(
-                                    Theme.of(context).brightness == Brightness.dark
-                                        ? atomOneDarkReasonableTheme
-                                        : githubTheme,
-                                  ),
+                                  theme:
+                                      MarkdownWithCodeHighlight._transparentBgTheme(
+                                        Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? atomOneDarkReasonableTheme
+                                            : githubTheme,
+                                      ),
                                   padding: EdgeInsets.zero,
                                   textStyle: const TextStyle(
                                     fontFamily: 'monospace',
@@ -1401,19 +1789,21 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                             return ConstrainedBox(
                               constraints: BoxConstraints(maxHeight: maxH),
                               child: ScrollConfiguration(
-                                behavior: ScrollConfiguration.of(context).copyWith(
-                                  dragDevices: {
-                                    ui.PointerDeviceKind.touch,
-                                    ui.PointerDeviceKind.mouse,
-                                    ui.PointerDeviceKind.stylus,
-                                    ui.PointerDeviceKind.unknown,
-                                  },
-                                ),
+                                behavior: ScrollConfiguration.of(context)
+                                    .copyWith(
+                                      dragDevices: {
+                                        ui.PointerDeviceKind.touch,
+                                        ui.PointerDeviceKind.mouse,
+                                        ui.PointerDeviceKind.stylus,
+                                        ui.PointerDeviceKind.unknown,
+                                      },
+                                    ),
                                 child: Scrollbar(
                                   controller: _vMermaidScrollController,
                                   thumbVisibility: true,
                                   interactive: true,
-                                  notificationPredicate: (notif) => notif.metrics.axis == Axis.vertical,
+                                  notificationPredicate: (notif) =>
+                                      notif.metrics.axis == Axis.vertical,
                                   child: SingleChildScrollView(
                                     controller: _vMermaidScrollController,
                                     child: SingleChildScrollView(
@@ -1421,11 +1811,13 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                                       child: SelectableHighlightView(
                                         widget.code,
                                         language: 'plaintext',
-                                        theme: MarkdownWithCodeHighlight._transparentBgTheme(
-                                          Theme.of(context).brightness == Brightness.dark
-                                              ? atomOneDarkReasonableTheme
-                                              : githubTheme,
-                                        ),
+                                        theme:
+                                            MarkdownWithCodeHighlight._transparentBgTheme(
+                                              Theme.of(context).brightness ==
+                                                      Brightness.dark
+                                                  ? atomOneDarkReasonableTheme
+                                                  : githubTheme,
+                                            ),
                                         padding: EdgeInsets.zero,
                                         textStyle: const TextStyle(
                                           fontFamily: 'monospace',
@@ -1445,11 +1837,17 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                               alignment: Alignment.centerRight,
                               child: TextButton.icon(
                                 onPressed: () => _openMermaidPreviewInBrowser(
-                                    context, widget.code,
-                                    Theme.of(context).brightness == Brightness.dark),
+                                  context,
+                                  widget.code,
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark,
+                                ),
                                 icon: Icon(Lucide.Eye, size: 16),
-                                label:
-                                    Text(AppLocalizations.of(context)!.mermaidPreviewOpen),
+                                label: Text(
+                                  AppLocalizations.of(
+                                    context,
+                                  )!.mermaidPreviewOpen,
+                                ),
                               ),
                             ),
                           ],
@@ -1476,9 +1874,17 @@ class _MermaidBlockState extends State<_MermaidBlock> {
     super.dispose();
   }
 
-  Future<void> _openMermaidPreviewInBrowser(BuildContext context, String code, bool dark) async {
+  Future<void> _openMermaidPreviewInBrowser(
+    BuildContext context,
+    String code,
+    bool dark,
+  ) async {
     final htmlStr = _buildMermaidHtml(code, dark);
-    final uri = Uri.dataFromString(htmlStr, mimeType: 'text/html', encoding: utf8);
+    final uri = Uri.dataFromString(
+      htmlStr,
+      mimeType: 'text/html',
+      encoding: utf8,
+    );
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {
@@ -1527,7 +1933,7 @@ class _MermaidBlockState extends State<_MermaidBlock> {
   }
 }
 
-// Softer horizontal rule: shorter width and subtle color
+// Full-width horizontal rule with softer color
 class SoftHrLine extends BlockMd {
   @override
   String get expString => (r"^\s*(?:-{3,}|⸻)\s*$");
@@ -1535,19 +1941,15 @@ class SoftHrLine extends BlockMd {
   @override
   Widget build(BuildContext context, String text, GptMarkdownConfig config) {
     final cs = Theme.of(context).colorScheme;
-    final width = MediaQuery.of(context).size.width;
-    final lineWidth = (width * 0.42).clamp(120.0, 420.0);
-    final color = cs.outlineVariant.withOpacity(0.9);
+    final color = cs.outlineVariant.withOpacity(0.4);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Center(
-        child: Container(
-          width: lineWidth,
-          height: 1,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(1),
-          ),
+      child: Container(
+        width: double.infinity,
+        height: 1,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(1),
         ),
       ),
     );
@@ -1566,9 +1968,10 @@ class FencedCodeBlockMd extends BlockMd {
     if (m == null) return const SizedBox.shrink();
     final lang = (m.group(1) ?? '').trim();
     final code = (m.group(2) ?? '');
-    if (lang.toLowerCase() == 'mermaid') {
+    final langLower = lang.toLowerCase();
+    if (langLower == 'mermaid') {
       return _MermaidBlock(code: code);
-    } else if (lang.toLowerCase() == 'plantuml') {
+    } else if (langLower == 'plantuml') {
       return PlantUMLBlock(code: code);
     }
     return _CollapsibleCodeBlock(language: lang, code: code);
@@ -1579,7 +1982,8 @@ class FencedCodeBlockMd extends BlockMd {
 class LatexBlockScrollableMd extends BlockMd {
   @override
   // Match either $$...$$ or \[...\] as standalone block
-  String get expString => (r"^(?:\s*\$\$([\s\S]*?)\$\$\s*|\s*\\\[([\s\S]*?)\\\]\s*)$");
+  String get expString =>
+      (r"^(?:\s*\$\$([\s\S]*?)\$\$\s*|\s*\\\[([\s\S]*?)\\\]\s*)$");
 
   @override
   Widget build(BuildContext context, String text, GptMarkdownConfig config) {
@@ -1588,11 +1992,12 @@ class LatexBlockScrollableMd extends BlockMd {
     final body = ((m.group(1) ?? m.group(2) ?? '')).trim();
     if (body.isEmpty) return const SizedBox.shrink();
 
-    final math = Math.tex(
+    final math = MarkdownWithCodeHighlight._renderMath(
       body,
-      textStyle: (config.style ?? const TextStyle()),
+      style: config.style,
+      mathStyle: MathStyle.display,
     );
-    // Wrap in horizontal scroll to avoid overflow; no extra background
+    // Wrap in horizontal scroll to avoid overflow and center within available width
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: LayoutBuilder(
@@ -1601,7 +2006,10 @@ class LatexBlockScrollableMd extends BlockMd {
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               primary: false,
-              child: math,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                child: Center(child: math),
+              ),
             ),
           );
         },
@@ -1614,7 +2022,8 @@ class LatexBlockScrollableMd extends BlockMd {
 class InlineLatexScrollableMd extends InlineMd {
   @override
   // Match single-dollar $...$ or \(...\) inline math (avoid $$ block)
-  RegExp get exp => RegExp(r"(?:(?<!\$)\$([^\$\n]+?)\$(?!\$)|\\\(([^\n]+?)\\\))");
+  RegExp get exp =>
+      RegExp(r"(?:(?<!\$)\$([^\$\n]+?)\$(?!\$)|\\\(([^\n]+?)\\\))");
 
   @override
   InlineSpan span(BuildContext context, String text, GptMarkdownConfig config) {
@@ -1622,10 +2031,10 @@ class InlineLatexScrollableMd extends InlineMd {
     if (m == null) return TextSpan(text: text, style: config.style);
     final body = ((m.group(1) ?? m.group(2) ?? '')).trim();
     if (body.isEmpty) return TextSpan(text: text, style: config.style);
-    final math = Math.tex(
+    final math = MarkdownWithCodeHighlight._renderMath(
       body,
       mathStyle: MathStyle.text,
-      textStyle: () {
+      style: () {
         final base = (config.style ?? const TextStyle());
         final baseSize = base.fontSize ?? 15.5;
         // Slightly enlarge inline math for readability
@@ -1664,10 +2073,10 @@ class InlineLatexDollarScrollableMd extends InlineMd {
     if (m == null) return TextSpan(text: text, style: config.style);
     final body = (m.group(1) ?? '').trim();
     if (body.isEmpty) return TextSpan(text: text, style: config.style);
-    final math = Math.tex(
+    final math = MarkdownWithCodeHighlight._renderMath(
       body,
       mathStyle: MathStyle.text,
-      textStyle: () {
+      style: () {
         final base = (config.style ?? const TextStyle());
         final baseSize = base.fontSize ?? 15.5;
         return base.copyWith(fontSize: baseSize * 1.2);
@@ -1703,10 +2112,10 @@ class InlineLatexParenScrollableMd extends InlineMd {
     if (m == null) return TextSpan(text: text, style: config.style);
     final body = (m.group(1) ?? '').trim();
     if (body.isEmpty) return TextSpan(text: text, style: config.style);
-    final math = Math.tex(
+    final math = MarkdownWithCodeHighlight._renderMath(
       body,
       mathStyle: MathStyle.text,
-      textStyle: () {
+      style: () {
         final base = (config.style ?? const TextStyle());
         final baseSize = base.fontSize ?? 15.5;
         return base.copyWith(fontSize: baseSize * 1.2);
@@ -1749,11 +2158,22 @@ class AtxHeadingMd extends BlockMd {
     final level = lvl < 1 ? 1 : (lvl > 6 ? 6 : lvl);
 
     final innerCfg = config.copyWith(style: const TextStyle());
-    final inner = TextSpan(children: MarkdownComponent.generate(context, raw, innerCfg, true));
+    final inner = TextSpan(
+      children: MarkdownComponent.generate(context, raw, innerCfg, true),
+    );
     final style = _headingTextStyle(context, config, level);
     // Slightly tighter spacing between headings and body
-    final top = switch (level) { 1 => 2.0, 2 => 2.0, _ => 2.0 };
-    final bottom = switch (level) { 1 => 2.0, 2 => 2.0, 3 => 2.0, _ => 2.0 };
+    final top = switch (level) {
+      1 => 2.0,
+      2 => 2.0,
+      _ => 2.0,
+    };
+    final bottom = switch (level) {
+      1 => 2.0,
+      2 => 2.0,
+      3 => 2.0,
+      _ => 2.0,
+    };
 
     return Padding(
       padding: EdgeInsets.only(top: top, bottom: bottom),
@@ -1765,7 +2185,11 @@ class AtxHeadingMd extends BlockMd {
     );
   }
 
-  TextStyle _headingTextStyle(BuildContext ctx, GptMarkdownConfig cfg, int level) {
+  TextStyle _headingTextStyle(
+    BuildContext ctx,
+    GptMarkdownConfig cfg,
+    int level,
+  ) {
     final t = Theme.of(ctx).textTheme;
     final cs = Theme.of(ctx).colorScheme;
     final isZh = MarkdownWithCodeHighlight._isZh(ctx);
@@ -1802,9 +2226,22 @@ class AtxHeadingMd extends BlockMd {
       default:
         base = const TextStyle(fontSize: 14);
     }
-    final weight = switch (level) { 1 => FontWeight.w700, 2 => FontWeight.w600, 3 => FontWeight.w600, _ => FontWeight.w500 };
-    final ls = switch (level) { 1 => isZh ? 0.0 : 0.1, 2 => isZh ? 0.0 : 0.08, _ => isZh ? 0.0 : 0.05 };
-    final h = switch (level) { 1 => 1.25, 2 => 1.3, _ => 1.35 };
+    final weight = switch (level) {
+      1 => FontWeight.w700,
+      2 => FontWeight.w600,
+      3 => FontWeight.w600,
+      _ => FontWeight.w500,
+    };
+    final ls = switch (level) {
+      1 => isZh ? 0.0 : 0.1,
+      2 => isZh ? 0.0 : 0.08,
+      _ => isZh ? 0.0 : 0.05,
+    };
+    final h = switch (level) {
+      1 => 1.25,
+      2 => 1.3,
+      _ => 1.35,
+    };
     return base.copyWith(
       fontWeight: weight,
       height: h,
@@ -1830,7 +2267,9 @@ class SetextHeadingMd extends BlockMd {
     final level = underline.startsWith('=') ? 1 : 2;
 
     final innerCfg = config.copyWith(style: const TextStyle());
-    final inner = TextSpan(children: MarkdownComponent.generate(context, title, innerCfg, true));
+    final inner = TextSpan(
+      children: MarkdownComponent.generate(context, title, innerCfg, true),
+    );
     final style = AtxHeadingMd()._headingTextStyle(context, config, level);
     // Match the tighter spacing used in ATX headings
     final top = level == 1 ? 10.0 : 9.0;
@@ -1859,10 +2298,8 @@ class LabelValueLineMd extends InlineMd {
   // 1) **标签:** 值   （冒号在加粗内）
   // 2) **标签**: 值   （冒号在加粗外）
   // 支持半角/全角冒号
-  RegExp get exp => RegExp(
-        r"(?:(?:^|\n)\*\*([^*]+?)\*\*\s*[：:]?\s+(.+)$)",
-        multiLine: true,
-      );
+  RegExp get exp =>
+      RegExp(r"(?:(?:^|\n)\*\*([^*]+?)\*\*\s*[：:]?\s+(.+)$)", multiLine: true);
 
   @override
   InlineSpan span(BuildContext context, String text, GptMarkdownConfig config) {
@@ -1878,7 +2315,8 @@ class LabelValueLineMd extends InlineMd {
     final t = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
     // 继承基础样式，确保字间距/行高一致
-    final base = (config.style ?? t.bodyMedium ?? const TextStyle(fontSize: 14));
+    final base =
+        (config.style ?? t.bodyMedium ?? const TextStyle(fontSize: 14));
     final labelStyle = base.copyWith(
       fontWeight: FontWeight.w700, // 与 ** 加粗视觉一致
       color: cs.onSurface,
@@ -1897,13 +2335,14 @@ class LabelValueLineMd extends InlineMd {
     );
 
     // 返回 TextSpan（而非 WidgetSpan）以保证在外层 RichText/SelectionArea 中可选择复制
-    return TextSpan(children: [
-      TextSpan(text: rawLabel, style: labelStyle),
-      const TextSpan(text: '： '),
-      ...valueChildren,
-    ]);
+    return TextSpan(
+      children: [
+        TextSpan(text: rawLabel, style: labelStyle),
+        const TextSpan(text: '： '),
+        ...valueChildren,
+      ],
+    );
   }
-
 }
 
 // Modern, app-styled block quote with soft background and accent border
@@ -1913,8 +2352,7 @@ class ModernBlockQuote extends InlineMd {
 
   @override
   RegExp get exp => RegExp(
-    r"(?:(?:^)\ *>[^\n]+)(?:(?:\n)\ *>[^\n]+)*",
-    dotAll: true,
+    r"^[ \t]*>[^\n]*(?:\n[ \t]*>[^\n]*)*",
     multiLine: true,
   );
 
@@ -1939,7 +2377,9 @@ class ModernBlockQuote extends InlineMd {
     final bg = cs.primaryContainer.withOpacity(isDark ? 0.18 : 0.12);
     final accent = cs.primary.withOpacity(isDark ? 0.90 : 0.80);
 
-    final inner = TextSpan(children: MarkdownComponent.generate(context, data, config, true));
+    final inner = TextSpan(
+      children: MarkdownComponent.generate(context, data, config, true),
+    );
     final child = Directionality(
       textDirection: config.textDirection,
       child: Container(
@@ -1978,7 +2418,9 @@ class ModernCheckBoxMd extends BlockMd {
 
     final contentStyle = (config.style ?? const TextStyle()).copyWith(
       decoration: checked ? TextDecoration.lineThrough : null,
-      color: (config.style?.color ?? cs.onSurface).withOpacity(checked ? 0.75 : 1.0),
+      color: (config.style?.color ?? cs.onSurface).withOpacity(
+        checked ? 0.75 : 1.0,
+      ),
     );
 
     final child = MdWidget(
@@ -2002,8 +2444,13 @@ class ModernCheckBoxMd extends BlockMd {
               height: 18,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(5),
-                border: Border.all(color: cs.outlineVariant.withOpacity(0.8), width: 1),
-                color: checked ? cs.primary.withOpacity(0.12) : Colors.transparent,
+                border: Border.all(
+                  color: cs.outlineVariant.withOpacity(0.8),
+                  width: 1,
+                ),
+                color: checked
+                    ? cs.primary.withOpacity(0.12)
+                    : Colors.transparent,
               ),
               child: checked
                   ? Icon(Icons.check, size: 14, color: cs.primary)
@@ -2030,7 +2477,9 @@ class ModernRadioMd extends BlockMd {
     final cs = Theme.of(context).colorScheme;
 
     final contentStyle = (config.style ?? const TextStyle()).copyWith(
-      color: (config.style?.color ?? cs.onSurface).withOpacity(selected ? 0.95 : 1.0),
+      color: (config.style?.color ?? cs.onSurface).withOpacity(
+        selected ? 0.95 : 1.0,
+      ),
     );
 
     final child = MdWidget(
@@ -2054,19 +2503,22 @@ class ModernRadioMd extends BlockMd {
               height: 18,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: cs.outlineVariant.withOpacity(0.8), width: 1),
+                border: Border.all(
+                  color: cs.outlineVariant.withOpacity(0.8),
+                  width: 1,
+                ),
               ),
               child: selected
                   ? Center(
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: cs.primary,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              )
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: cs.primary,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    )
                   : null,
             ),
           ),
@@ -2075,6 +2527,12 @@ class ModernRadioMd extends BlockMd {
       ),
     );
   }
+}
+
+// Prevent link regex from spanning across lines (dotAll=true in engine).
+class LineSafeLinkMd extends ATagMd {
+  @override
+  RegExp get exp => RegExp(r"(?<!\!)\[[^\]\n]+\]\([^\s]*\)");
 }
 
 /// Treat backslash-escaped punctuation as a literal character, so that
@@ -2124,16 +2582,15 @@ class SelectableHighlightView extends StatelessWidget {
     for (final node in nodes) {
       if (node.value != null) {
         // Leaf node with text content
-        spans.add(TextSpan(
-          text: node.value,
-          style: theme[node.className],
-        ));
+        spans.add(TextSpan(text: node.value, style: theme[node.className]));
       } else if (node.children != null) {
         // Node with children - recurse
-        spans.add(TextSpan(
-          children: _convertNodes(node.children!),
-          style: theme[node.className],
-        ));
+        spans.add(
+          TextSpan(
+            children: _convertNodes(node.children!),
+            style: theme[node.className],
+          ),
+        );
       }
     }
 

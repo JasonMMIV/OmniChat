@@ -75,11 +75,12 @@ Future<MessageMoreAction?> showMessageMoreSheet(BuildContext context, ChatMessag
           }
         },
       ),
-      DesktopContextMenuItem(
-        icon: Lucide.Pencil,
-        label: l10n.messageMoreSheetEdit,
-        onTap: () { selected = MessageMoreAction.edit; },
-      ),
+      if (message.role != 'user')
+        DesktopContextMenuItem(
+          icon: Lucide.Pencil,
+          label: l10n.messageMoreSheetEdit,
+          onTap: () { selected = MessageMoreAction.edit; },
+        ),
       DesktopContextMenuItem(
         icon: Lucide.Share,
         label: l10n.messageMoreSheetShare,
@@ -201,7 +202,7 @@ class _MessageMoreSheetState extends State<_MessageMoreSheet> {
 
     // Footer metadata (time/model) removed per iOS-style spec
 
-    final maxHeight = MediaQuery.of(context).size.height * 0.8;
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.8;
     return SafeArea(
       top: false,
       child: ConstrainedBox(
@@ -260,13 +261,14 @@ class _MessageMoreSheetState extends State<_MessageMoreSheet> {
                         }
                       },
                     ),
-                    _actionItem(
-                      icon: Lucide.Pencil,
-                      label: l10n.messageMoreSheetEdit,
-                      onTap: () {
-                        Navigator.of(context).pop(MessageMoreAction.edit);
-                      },
-                    ),
+                    if (widget.message.role != 'user')
+                      _actionItem(
+                        icon: Lucide.Pencil,
+                        label: l10n.messageMoreSheetEdit,
+                        onTap: () {
+                          Navigator.of(context).pop(MessageMoreAction.edit);
+                        },
+                      ),
                     _actionItem(
                       icon: Lucide.Share,
                       label: l10n.messageMoreSheetShare,

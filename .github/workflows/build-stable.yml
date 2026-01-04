@@ -503,6 +503,7 @@ jobs:
           # 创建 AppDir 结构
           mkdir -p AppDir/usr/bin
           mkdir -p AppDir/usr/lib
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
           cp -r build/linux/x64/release/bundle/* AppDir/usr/bin/
           
           # 创建 AppRun 脚本
@@ -526,13 +527,16 @@ jobs:
           Categories=Utility;
           EOF
           
-          # 复制图标（如果存在）
-          if [ -f "linux/kelivo.png" ]; then
-            cp linux/kelivo.png AppDir/kelivo.png
-          else
-            # 创建一个简单的占位图标
-            touch AppDir/kelivo.png
+          ICON_SOURCE="linux/kelivo.png"
+          if [ ! -f "$ICON_SOURCE" ]; then
+            ICON_SOURCE="assets/app_icon.png"
           fi
+          if [ ! -f "$ICON_SOURCE" ]; then
+            echo "❌ Icon source not found"
+            exit 1
+          fi
+          install -Dm644 "$ICON_SOURCE" AppDir/kelivo.png
+          install -Dm644 "$ICON_SOURCE" "AppDir/usr/share/icons/hicolor/256x256/apps/kelivo.png"
           
           # 构建 AppImage
           ARCH=x86_64 ./appimagetool AppDir Kelivo_linux_${VERSION}.AppImage
@@ -546,6 +550,10 @@ jobs:
           
           # 复制文件
           cp -r build/linux/x64/release/bundle/* deb/opt/kelivo/
+          
+          # 创建 /usr/bin 软链接
+          mkdir -p deb/usr/bin
+          ln -s /opt/kelivo/kelivo deb/usr/bin/kelivo
           
           # 创建 control 文件
           cat > deb/DEBIAN/control << EOF
@@ -569,6 +577,16 @@ jobs:
           Type=Application
           Categories=Utility;
           EOF
+
+          ICON_SOURCE="linux/kelivo.png"
+          if [ ! -f "$ICON_SOURCE" ]; then
+            ICON_SOURCE="assets/app_icon.png"
+          fi
+          if [ ! -f "$ICON_SOURCE" ]; then
+            echo "❌ Icon source not found"
+            exit 1
+          fi
+          install -Dm644 "$ICON_SOURCE" deb/usr/share/icons/hicolor/256x256/apps/kelivo.png
           
           # 创建启动脚本
           cat > deb/opt/kelivo/kelivo.sh << 'EOF'
@@ -588,6 +606,15 @@ jobs:
           # 创建源码目录
           mkdir -p kelivo-${VERSION_NUMBER}
           cp -r build/linux/x64/release/bundle/* kelivo-${VERSION_NUMBER}/
+          ICON_SOURCE="linux/kelivo.png"
+          if [ ! -f "$ICON_SOURCE" ]; then
+            ICON_SOURCE="assets/app_icon.png"
+          fi
+          if [ ! -f "$ICON_SOURCE" ]; then
+            echo "❌ Icon source not found"
+            exit 1
+          fi
+          cp "$ICON_SOURCE" kelivo-${VERSION_NUMBER}/kelivo.png
           tar -czf ~/rpmbuild/SOURCES/kelivo-${VERSION_NUMBER}.tar.gz kelivo-${VERSION_NUMBER}
           
           # 创建 spec 文件
@@ -599,7 +626,7 @@ jobs:
           License:        MIT
           Source0:        %{name}-%{version}.tar.gz
           BuildArch:      x86_64
-          Requires:       gtk3, libstdc++(>=6), mesa-libGLU, gstreamer1, gstreamer1-plugins-base, glib2, glibc
+          Requires:       gtk3, libstdc++ >= 6, mesa-libGLU, gstreamer1, gstreamer1-plugins-base, glib2, glibc
           
           %description
           A Flutter application for Linux
@@ -611,6 +638,9 @@ jobs:
           mkdir -p %{buildroot}/opt/kelivo
           cp -r * %{buildroot}/opt/kelivo/
           
+          mkdir -p %{buildroot}/usr/bin
+          ln -s /opt/kelivo/kelivo %{buildroot}/usr/bin/kelivo
+          
           mkdir -p %{buildroot}/usr/share/applications
           cat > %{buildroot}/usr/share/applications/kelivo.desktop << 'DESKTOPEOF'
           [Desktop Entry]
@@ -620,10 +650,15 @@ jobs:
           Type=Application
           Categories=Utility;
           DESKTOPEOF
+
+          mkdir -p %{buildroot}/usr/share/icons/hicolor/256x256/apps
+          cp kelivo.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/kelivo.png
           
           %files
           /opt/kelivo/*
+          /usr/bin/kelivo
           /usr/share/applications/kelivo.desktop
+          /usr/share/icons/hicolor/256x256/apps/kelivo.png
           
           %changelog
           * $(date "+%a %b %d %Y") Psyche <your@email.com> - ${VERSION_NUMBER}-1
@@ -633,6 +668,31 @@ jobs:
           # 构建 RPM
           rpmbuild -bb ~/rpmbuild/SPECS/kelivo.spec
           cp ~/rpmbuild/RPMS/x86_64/kelivo-${VERSION_NUMBER}-1.*.rpm Kelivo_linux_${VERSION}.rpm
+      - name: 🔍 RPM 元数据（调试）
+        shell: bash
+        run: |
+          set -euxo pipefail
+          RPM_FILE="Kelivo_linux_${VERSION}.rpm"
+          echo "RPM file: ${RPM_FILE}"
+          cp -f ~/rpmbuild/SPECS/kelivo.spec rpm-spec.spec
+          rpm -qp --info "${RPM_FILE}" | tee rpm-info.txt
+          rpm -qp --requires "${RPM_FILE}" | tee rpm-requires.txt
+          rpm -qp --provides "${RPM_FILE}" | tee rpm-provides.txt
+      - name: 📤 上传 RPM 元数据（调试）
+        uses: actions/upload-artifact@v4
+        with:
+          name: Linux-RPM-Metadata
+          path: |
+            rpm-spec.spec
+            rpm-info.txt
+            rpm-requires.txt
+            rpm-provides.txt
+      - name: 🧪 Fedora 43 安装测试
+        shell: bash
+        run: |
+          set -euxo pipefail
+          RPM_FILE="Kelivo_linux_${VERSION}.rpm"
+          docker run --rm -v "${PWD}:/work" -w /work fedora:43 bash -lc "dnf -y install ./${RPM_FILE}"
       - name: 🚀 发布到 Release
         if: ${{ github.event.inputs.publish_release == 'true' && github.event.inputs.release_tag != '' }}
         uses: softprops/action-gh-release@v2

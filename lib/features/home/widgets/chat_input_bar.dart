@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
+import 'dart:math' as math;
 import '../../../theme/design_tokens.dart';
 import '../../../icons/lucide_adapter.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -18,6 +19,7 @@ import '../../../utils/clipboard_images.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/services/search/search_service.dart';
+import '../../../core/services/api/builtin_tools.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../utils/app_directories.dart';
@@ -78,7 +80,6 @@ class ChatInputBar extends StatefulWidget {
     this.showOcrButton = false,
     this.ocrActive = false,
     this.onToggleOcr,
-    this.onVoiceChat,
   });
 
   final ValueChanged<ChatInputData>? onSend;
@@ -118,14 +119,15 @@ class ChatInputBar extends StatefulWidget {
   final bool showOcrButton;
   final bool ocrActive;
   final VoidCallback? onToggleOcr;
-  final VoidCallback? onVoiceChat;
 
   @override
   State<ChatInputBar> createState() => _ChatInputBarState();
 }
 
-class _ChatInputBarState extends State<ChatInputBar> {
+class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver {
   late TextEditingController _controller;
+  bool _isExpanded = false;
+  bool get _showExpandButton => _controller.text.split('\n').length > 2 || _controller.text.length > 100;
   bool _searchEnabled = false;
   final List<String> _images = <String>[]; // local file paths
   final List<DocumentAttachment> _docs = <DocumentAttachment>[]; // files to upload
@@ -134,6 +136,11 @@ class _ChatInputBarState extends State<ChatInputBar> {
   static const Duration _repeatPeriod = Duration(milliseconds: 35);
   // Anchor for the responsive overflow menu on the left action bar
   final GlobalKey _leftOverflowAnchorKey = GlobalKey(debugLabel: 'left-overflow-anchor');
+  // Suppress context menu briefly after app resume to avoid flickering
+  bool _suppressContextMenu = false;
+
+  // Instance method for onChanged to avoid recreating the callback on every build
+  void _onTextChanged(String _) => setState(() {});
 
   void _addImages(List<String> paths) {
     if (paths.isEmpty) return;
@@ -166,10 +173,33 @@ class _ChatInputBarState extends State<ChatInputBar> {
     _controller = widget.controller ?? TextEditingController();
     widget.mediaController?._bind(this);
     _searchEnabled = widget.searchEnabled;
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // When app resumes from background, suppress context menu briefly to avoid flickering
+    if (state == AppLifecycleState.resumed) {
+      _suppressContextMenu = true;
+      // Also unfocus to reset any stuck toolbar state
+      widget.focusNode?.unfocus();
+      // Re-enable context menu after a short delay
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          setState(() => _suppressContextMenu = false);
+        }
+      });
+    } else if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      // When going to background, hide any open toolbar
+      _suppressContextMenu = true;
+      widget.focusNode?.unfocus();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _repeatTimers.values.forEach((t) { try { t?.cancel(); } catch (_) {} });
     _repeatTimers.clear();
     widget.mediaController?._unbind(this);
@@ -246,6 +276,120 @@ class _ChatInputBarState extends State<ChatInputBar> {
         } catch (_) {}
       });
     } catch (_) {}
+  }
+
+  // Instance method for contextMenuBuilder to avoid flickering caused by recreating
+  // the callback on every build. See: https://github.com/flutter/flutter/issues/150551
+  Widget _buildContextMenu(BuildContext context, EditableTextState state) {
+    // Suppress context menu during app lifecycle transitions to avoid flickering
+    if (_suppressContextMenu) {
+      return const SizedBox.shrink();
+    }
+    if (Platform.isIOS) {
+      final items = <ContextMenuButtonItem>[];
+      try {
+        final appL10n = AppLocalizations.of(context)!;
+        final materialL10n = MaterialLocalizations.of(context);
+        final value = _controller.value;
+        final selection = value.selection;
+        final hasSelection = selection.isValid && !selection.isCollapsed;
+        final hasText = value.text.isNotEmpty;
+
+        // Cut
+        if (hasSelection) {
+          items.add(
+            ContextMenuButtonItem(
+              onPressed: () async {
+                try {
+                  final start = selection.start;
+                  final end = selection.end;
+                  final text = value.text.substring(start, end);
+                  await Clipboard.setData(ClipboardData(text: text));
+                  final newText = value.text.replaceRange(start, end, '');
+                  _controller.value = value.copyWith(
+                    text: newText,
+                    selection: TextSelection.collapsed(offset: start),
+                  );
+                } catch (_) {}
+                state.hideToolbar();
+              },
+              label: materialL10n.cutButtonLabel,
+            ),
+          );
+        }
+
+        // Copy
+        if (hasSelection) {
+          items.add(
+            ContextMenuButtonItem(
+              onPressed: () async {
+                try {
+                  final start = selection.start;
+                  final end = selection.end;
+                  final text = value.text.substring(start, end);
+                  await Clipboard.setData(ClipboardData(text: text));
+                } catch (_) {}
+                state.hideToolbar();
+              },
+              label: materialL10n.copyButtonLabel,
+            ),
+          );
+        }
+
+        // Paste (text or image via _handlePasteFromClipboard)
+        items.add(
+          ContextMenuButtonItem(
+            onPressed: () {
+              _handlePasteFromClipboard();
+              state.hideToolbar();
+            },
+            label: materialL10n.pasteButtonLabel,
+          ),
+        );
+
+        // Insert newline
+        items.add(
+          ContextMenuButtonItem(
+            onPressed: () {
+              _insertNewlineAtCursor();
+              state.hideToolbar();
+            },
+            label: appL10n.chatInputBarInsertNewline,
+          ),
+        );
+
+        // Select all
+        if (hasText) {
+          items.add(
+            ContextMenuButtonItem(
+              onPressed: () {
+                try {
+                  _controller.selection = TextSelection(
+                    baseOffset: 0,
+                    extentOffset: value.text.length,
+                  );
+                } catch (_) {}
+                state.hideToolbar();
+              },
+              label: materialL10n.selectAllButtonLabel,
+            ),
+          );
+        }
+      } catch (_) {}
+      return AdaptiveTextSelectionToolbar.buttonItems(
+        anchors: state.contextMenuAnchors,
+        buttonItems: items,
+      );
+    }
+
+    // Other platforms: keep default behavior.
+    final items = <ContextMenuButtonItem>[
+      ...state.contextMenuButtonItems,
+    ];
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: state.contextMenuAnchors,
+      buttonItems: items,
+    );
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, RawKeyEvent event) {
@@ -586,18 +730,14 @@ class _ChatInputBarState extends State<ChatInputBar> {
         final cfg = (currentProviderKey != null)
             ? settings.getProviderConfig(currentProviderKey)
             : null;
-        bool builtinSearchActive = false;
-        if (cfg != null && currentModelId != null) {
-          final isGeminiOfficial = cfg.providerType == ProviderKind.google && (cfg.vertexAI != true);
-          final isClaude = cfg.providerType == ProviderKind.claude;
-          final isOpenAIResponses = cfg.providerType == ProviderKind.openai && (cfg.useResponseApi == true);
-          final isGrok = cfg.providerType == ProviderKind.openai && (currentModelId.toLowerCase().contains('grok'));
-          if (isGeminiOfficial || isClaude || isOpenAIResponses || isGrok) {
-            final ov = cfg.modelOverrides[currentModelId] as Map?;
-            final list = (ov?['builtInTools'] as List?) ?? const <dynamic>[];
-            builtinSearchActive = list.map((e) => e.toString().toLowerCase()).contains('search');
-          }
-        }
+        // Check built-in tools state using helper
+        final toolsState = BuiltInToolsHelper.getActiveTools(cfg: cfg, modelId: currentModelId);
+        final builtinSearchActive = toolsState.searchActive;
+        final codeExecutionActive = toolsState.codeExecutionActive;
+        // Only Gemini built-in tools conflict with MCP in the input bar UX.
+        // OpenAI/Claude built-in search should not hide MCP tools.
+        final kind = (cfg != null) ? ProviderConfig.classify(cfg.id, explicitType: cfg.providerType) : null;
+        final anyBuiltInConflictsWithMcp = (kind == ProviderKind.google) && toolsState.anyMcpConflictingToolActive;
         final appSearchEnabled = settings.searchEnabled;
         final brandAsset = (() {
           if (!appSearchEnabled || builtinSearchActive) return null;
@@ -608,7 +748,9 @@ class _ChatInputBarState extends State<ChatInputBar> {
           return BrandAssets.assetForName(svc.name);
         })();
 
-        actions.add(_OverflowAction(
+        // Search button (hidden when code_execution is active)
+        if (!codeExecutionActive) {
+          actions.add(_OverflowAction(
           width: normalButtonW,
           builder: () {
             // Not enabled at all -> default globe
@@ -663,6 +805,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
             return DesktopContextMenuItem(icon: Lucide.Globe, label: l10n.chatInputBarOnlineSearchTooltip, onTap: widget.onOpenSearch);
           }(),
         ));
+        }
 
         if (widget.supportsReasoning) {
           actions.add(_OverflowAction(
@@ -687,7 +830,8 @@ class _ChatInputBarState extends State<ChatInputBar> {
           ));
         }
 
-        if (widget.showMcpButton) {
+        // MCP button (hidden only when conflicting Gemini built-in tools are active)
+        if (widget.showMcpButton && !anyBuiltInConflictsWithMcp) {
           actions.add(_OverflowAction(
             width: normalButtonW,
             builder: () => _CompactIconButton(
@@ -1000,6 +1144,28 @@ class _ChatInputBarState extends State<ChatInputBar> {
     final hasText = _controller.text.trim().isNotEmpty;
     final hasImages = _images.isNotEmpty;
     final hasDocs = _docs.isNotEmpty;
+    final size = MediaQuery.sizeOf(context);
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    final bool isMobileLayout = size.width < AppBreakpoints.tablet;
+    final double visibleHeight = size.height - viewInsets.bottom;
+    final double attachmentsHeight =
+        (hasDocs ? 48 + AppSpacing.xs : 0) + (hasImages ? 64 + AppSpacing.xs : 0);
+    const double baseChromeHeight = 120; // padding + action row + chrome buffer
+    double maxInputHeight = double.infinity;
+    if (isMobileLayout) {
+      final double available = visibleHeight - attachmentsHeight - baseChromeHeight;
+      final double softCap = visibleHeight * 0.45;
+      if (available > 0) {
+        maxInputHeight = math.min(softCap, available);
+        maxInputHeight = math.min(available, math.max(80.0, maxInputHeight));
+      } else {
+        maxInputHeight = math.max(80.0, softCap);
+      }
+    }
+    // Cap text field height on mobile so expanded input stays above the keyboard.
+    final BoxConstraints textFieldConstraints = (isMobileLayout && maxInputHeight.isFinite && maxInputHeight > 0)
+        ? BoxConstraints(maxHeight: maxInputHeight)
+        : const BoxConstraints();
 
     return SafeArea(
       top: false,
@@ -1129,13 +1295,17 @@ class _ChatInputBarState extends State<ChatInputBar> {
                   ),
                   child: Column(
                     children: [
-                  // Input field
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.xxs, AppSpacing.md, AppSpacing.xs),
-                    child: Focus(
-                      onKey: (node, event) => _handleKeyEvent(node, event),
-                      child: Builder(
-                        builder: (ctx) {
+                  // Input field with expand/collapse button
+                  Stack(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.xxs, AppSpacing.md, AppSpacing.xs),
+                        child: ConstrainedBox(
+                          constraints: textFieldConstraints,
+                          child: Focus(
+                            onKey: (node, event) => _handleKeyEvent(node, event),
+                            child: Builder(
+                              builder: (ctx) {
                           // Desktop: show a right-click context menu with paste/cut/copy/select all
                           // Future<void> _showDesktopContextMenu(Offset globalPos) async {
                           //   bool isDesktop = false;
@@ -1202,149 +1372,63 @@ class _ChatInputBarState extends State<ChatInputBar> {
                           //   );
                           // }
 
-                          return GestureDetector(
-                            behavior: HitTestBehavior.deferToChild,
-                            // onSecondaryTapDown: (details) {
-                            //   // _showDesktopContextMenu(details.globalPosition);
-                            // },
-                            child: TextField(
-                              controller: _controller,
-                              focusNode: widget.focusNode,
-                              onChanged: (_) => setState(() {}),
-                              minLines: 1,
-                              maxLines: 5,
-                              // On iOS, show "Send" on the return key and submit on tap.
-                              // Still keep multiline so pasted text preserves line breaks.
-                              keyboardType: TextInputType.multiline,
-                              textInputAction: Platform.isIOS ? TextInputAction.send : TextInputAction.newline,
-                              onSubmitted: Platform.isIOS ? (_) => _handleSend() : null,
-                              // Custom context menu: on iOS we build our own toolbar
-                              // so there is exactly one "Paste" entry that also supports images.
-                              contextMenuBuilder: (BuildContext context, EditableTextState state) {
-                                if (Platform.isIOS) {
-                                  final items = <ContextMenuButtonItem>[];
-                                  try {
-                                    final appL10n = AppLocalizations.of(context)!;
-                                    final materialL10n = MaterialLocalizations.of(context);
-                                    final value = _controller.value;
-                                    final selection = value.selection;
-                                    final hasSelection = selection.isValid && !selection.isCollapsed;
-                                    final hasText = value.text.isNotEmpty;
-
-                                    // Cut
-                                    if (hasSelection) {
-                                      items.add(
-                                        ContextMenuButtonItem(
-                                          onPressed: () async {
-                                            try {
-                                              final start = selection.start;
-                                              final end = selection.end;
-                                              final text = value.text.substring(start, end);
-                                              await Clipboard.setData(ClipboardData(text: text));
-                                              final newText = value.text.replaceRange(start, end, '');
-                                              _controller.value = value.copyWith(
-                                                text: newText,
-                                                selection: TextSelection.collapsed(offset: start),
-                                              );
-                                            } catch (_) {}
-                                            state.hideToolbar();
-                                          },
-                                          label: materialL10n.cutButtonLabel,
-                                        ),
-                                      );
-                                    }
-
-                                    // Copy
-                                    if (hasSelection) {
-                                      items.add(
-                                        ContextMenuButtonItem(
-                                          onPressed: () async {
-                                            try {
-                                              final start = selection.start;
-                                              final end = selection.end;
-                                              final text = value.text.substring(start, end);
-                                              await Clipboard.setData(ClipboardData(text: text));
-                                            } catch (_) {}
-                                            state.hideToolbar();
-                                          },
-                                          label: materialL10n.copyButtonLabel,
-                                        ),
-                                      );
-                                    }
-
-                                    // Paste (text or image via _handlePasteFromClipboard)
-                                    items.add(
-                                      ContextMenuButtonItem(
-                                        onPressed: () {
-                                          _handlePasteFromClipboard();
-                                          state.hideToolbar();
-                                        },
-                                        label: materialL10n.pasteButtonLabel,
-                                      ),
-                                    );
-
-                                    // Insert newline
-                                    items.add(
-                                      ContextMenuButtonItem(
-                                        onPressed: () {
-                                          _insertNewlineAtCursor();
-                                          state.hideToolbar();
-                                        },
-                                        label: appL10n.chatInputBarInsertNewline,
-                                      ),
-                                    );
-
-                                    // Select all
-                                    if (hasText) {
-                                      items.add(
-                                        ContextMenuButtonItem(
-                                          onPressed: () {
-                                            try {
-                                              _controller.selection = TextSelection(
-                                                baseOffset: 0,
-                                                extentOffset: value.text.length,
-                                              );
-                                            } catch (_) {}
-                                            state.hideToolbar();
-                                          },
-                                          label: materialL10n.selectAllButtonLabel,
-                                        ),
-                                      );
-                                    }
-                                  } catch (_) {}
-                                  return AdaptiveTextSelectionToolbar.buttonItems(
-                                    anchors: state.contextMenuAnchors,
-                                    buttonItems: items,
-                                  );
-                                }
-
-                                // Other platforms: keep default behavior.
-                                final items = <ContextMenuButtonItem>[
-                                  ...state.contextMenuButtonItems,
-                                ];
-                                return AdaptiveTextSelectionToolbar.buttonItems(
-                                  anchors: state.contextMenuAnchors,
-                                  buttonItems: items,
-                                );
+                            return GestureDetector(
+                              behavior: HitTestBehavior.deferToChild,
+                              // onSecondaryTapDown: (details) {
+                              //   // _showDesktopContextMenu(details.globalPosition);
+                              // },
+                              child: TextField(
+                                controller: _controller,
+                                focusNode: widget.focusNode,
+                                onChanged: _onTextChanged,
+                                minLines: 1,
+                                maxLines: _isExpanded ? 25 : 5,
+                                // On iOS, show "Send" on the return key and submit on tap.
+                                // Still keep multiline so pasted text preserves line breaks.
+                                keyboardType: TextInputType.multiline,
+                                textInputAction: Platform.isIOS ? TextInputAction.send : TextInputAction.newline,
+                                onSubmitted: Platform.isIOS ? (_) => _handleSend() : null,
+                                // Custom context menu: use instance method to avoid flickering
+                                // caused by recreating the callback on every build.
+                                // See: https://github.com/flutter/flutter/issues/150551
+                                contextMenuBuilder: _buildContextMenu,
+                                autofocus: false,
+                                decoration: InputDecoration(
+                                  hintText: _hint(context),
+                                  hintStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.45)),
+                                  border: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(vertical: 2),
+                                ),
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface,
+                                  fontSize: (Platform.isWindows || Platform.isLinux || Platform.isMacOS) ? 14 : 15,
+                                ),
+                                cursorColor: theme.colorScheme.primary,
+                              ),
+                            );
                               },
-                              autofocus: false,
-                              decoration: InputDecoration(
-                                hintText: _hint(context),
-                                hintStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.45)),
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.symmetric(vertical: 2),
-                              ),
-                              style: TextStyle(
-                                color: theme.colorScheme.onSurface,
-                                fontSize: (Platform.isWindows || Platform.isLinux || Platform.isMacOS) ? 14 : 15,
-                              ),
-                              cursorColor: theme.colorScheme.primary,
                             ),
-                          );
-                        },
+                          ),
+                        ),
                       ),
-                    ),
-                  
+                      // Expand/Collapse icon button (only shown when 3+ lines)
+                      if (_showExpandButton)
+                        Positioned(
+                          top: 10,
+                          right: 12,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() => _isExpanded = !_isExpanded);
+                              _ensureCaretVisible();
+                            },
+                            child: Icon(
+                              _isExpanded ? Lucide.ChevronsDownUp : Lucide.ChevronsUpDown,
+                              size: 16,
+                              color: theme.colorScheme.onSurface.withOpacity(0.45),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   // Bottom buttons row (no divider)
                   Padding(
@@ -1375,14 +1459,6 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                     color: c,
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                            ],
-                            if (widget.onVoiceChat != null) ...[
-                              _CompactIconButton(
-                                tooltip: AppLocalizations.of(context)!.voiceChatButtonTooltip,
-                                icon: Lucide.Mic,
-                                onTap: widget.onVoiceChat,
                               ),
                               const SizedBox(width: 8),
                             ],

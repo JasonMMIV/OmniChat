@@ -129,10 +129,14 @@ class _HotkeyRowState extends State<_HotkeyRow> {
       switch (item.l10nLabelKey) {
         case 'hotkeyToggleAppVisibility':
           return loc.hotkeyToggleAppVisibility;
+        case 'hotkeyCloseWindow':
+          return loc.hotkeyCloseWindow;
         case 'hotkeyOpenSettings':
           return loc.hotkeyOpenSettings;
         case 'hotkeyNewTopic':
           return loc.hotkeyNewTopic;
+        case 'hotkeySwitchModel':
+          return loc.hotkeySwitchModel;
         case 'hotkeyToggleAssistantPanel':
           return loc.hotkeyToggleAssistantPanel;
         case 'hotkeyToggleTopicPanel':

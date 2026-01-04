@@ -21,6 +21,9 @@ class ModelSelection {
   ModelSelection(this.providerKey, this.modelId);
 }
 
+// Prevent re-entrant model selector dialogs
+bool _modelSelectorOpen = false;
+
 // Data class for compute function
 class _ModelProcessingData {
   final Map<String, dynamic> providerConfigs;
@@ -179,13 +182,16 @@ _ModelProcessingResult _processModelsInBackground(_ModelProcessingData data) {
 }
 
 Future<ModelSelection?> showModelSelector(BuildContext context, {String? limitProviderKey}) async {
+  if (_modelSelectorOpen) return null;
+  _modelSelectorOpen = true;
+  try {
   // Desktop platforms use a custom dialog, mobile keeps the bottom sheet UX.
   final platform = defaultTargetPlatform;
   if (platform == TargetPlatform.macOS || platform == TargetPlatform.windows || platform == TargetPlatform.linux) {
-    return _showDesktopModelSelector(context, limitProviderKey: limitProviderKey);
+    return await _showDesktopModelSelector(context, limitProviderKey: limitProviderKey);
   }
   final cs = Theme.of(context).colorScheme;
-  return showModalBottomSheet<ModelSelection>(
+  return await showModalBottomSheet<ModelSelection>(
     context: context,
     isScrollControlled: true,
     backgroundColor: cs.surface,
@@ -194,6 +200,9 @@ Future<ModelSelection?> showModelSelector(BuildContext context, {String? limitPr
     ),
     builder: (ctx) => _ModelSelectSheet(limitProviderKey: limitProviderKey),
   );
+  } finally {
+    _modelSelectorOpen = false;
+  }
 }
 
 Future<void> showModelSelectSheet(BuildContext context, {bool updateAssistant = true}) async {
@@ -556,11 +565,10 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
                             prefixIcon: Icon(Lucide.Search, size: 18, color: cs.onSurface.withOpacity(_isLoading ? 0.35 : 0.6)),
                             // Use IconButton for reliable alignment at the far right
                             suffixIcon: (widget.limitProviderKey == null && context.watch<SettingsProvider>().pinnedModels.isNotEmpty)
-                                ? Tooltip(
-                                    message: l10n.modelSelectSheetFavoritesSection,
+                                ? ExcludeSemantics(
                                     child: IconButton(
                                       icon: Icon(Lucide.Bookmark, size: 18, color: cs.onSurface.withOpacity(_isLoading ? 0.35 : 0.7)),
-                                      onPressed: _jumpToFavorites,
+                                      onPressed: _isLoading ? null : _jumpToFavorites,
                                       splashColor: Colors.transparent,
                                       highlightColor: Colors.transparent,
                                       hoverColor: Colors.transparent,
@@ -1143,6 +1151,7 @@ class _DesktopModelSelectDialogBody extends StatefulWidget {
 
 class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialogBody> {
   final TextEditingController _searchCtrl = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   bool _loading = true;
   Map<String, _ProviderGroup> _groups = const {};
   List<_ModelItem> _favItems = const [];
@@ -1159,12 +1168,14 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focusSearchField());
     Future.microtask(_loadModels);
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -1198,6 +1209,7 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
       _orderedKeys = result.orderedKeys;
       _loading = false;
     });
+    _focusSearchField(defer: true);
     // Defer auto-scroll until list is built and attached
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !_autoScrolled) {
@@ -1216,6 +1228,20 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
     if (query.isEmpty) return true;
     final lowerQuery = query.toLowerCase();
     return providerName.toLowerCase().contains(lowerQuery);
+  }
+
+  void _focusSearchField({bool defer = false}) {
+    if (!mounted) return;
+    void request() {
+      if (!mounted) return;
+      if (_searchFocusNode.hasFocus) return;
+      FocusScope.of(context).requestFocus(_searchFocusNode);
+    }
+    if (defer) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => request());
+    } else {
+      request();
+    }
   }
 
   void _rebuildRows() {
@@ -1327,7 +1353,8 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
                           padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
                           child: TextField(
                             controller: _searchCtrl,
-                            enabled: !_loading,
+                            focusNode: _searchFocusNode,
+                            autofocus: true,
                             onChanged: (_) => setState(() {}),
                             decoration: InputDecoration(
                               hintText: l10n.modelSelectSheetSearchHint,
@@ -1602,7 +1629,7 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
                   Future.microtask(() {
                     nav.push(
                       PageRouteBuilder(
-                        pageBuilder: (_, __, ___) => DesktopHomePage(initialTabIndex: 2, initialProviderKey: providerKey),
+                        pageBuilder: (_, __, ___) => DesktopHomePage(initialTabIndex: 3, initialProviderKey: providerKey),
                         transitionDuration: const Duration(milliseconds: 220),
                         reverseTransitionDuration: const Duration(milliseconds: 200),
                         transitionsBuilder: (ctx, anim, sec, child) {

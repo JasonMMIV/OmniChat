@@ -36,6 +36,120 @@
       }
     }
   },
+  "storageSpacePageTitle": "Storage Space",
+  "storageSpaceRefreshTooltip": "Refresh",
+  "storageSpaceLoadFailed": "Failed to load storage usage",
+  "storageSpaceTotalLabel": "Used",
+  "storageSpaceClearableLabel": "Clearable: {size}",
+  "@storageSpaceClearableLabel": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "storageSpaceClearableHint": "Safe to clear: {size}",
+  "@storageSpaceClearableHint": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "storageSpaceCategoryImages": "Images",
+  "storageSpaceCategoryFiles": "Files",
+  "storageSpaceCategoryChatData": "Chat Records",
+  "storageSpaceCategoryAssistantData": "Assistants",
+  "storageSpaceCategoryCache": "Cache",
+  "storageSpaceCategoryLogs": "Logs",
+  "storageSpaceCategoryOther": "App",
+  "storageSpaceFilesCount": "{count} files",
+  "@storageSpaceFilesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "storageSpaceSafeToClearHint": "Safe to clear. This will not affect your chat history.",
+  "storageSpaceNotSafeToClearHint": "May affect your chat history. Delete with care.",
+  "storageSpaceBreakdownTitle": "Breakdown",
+  "storageSpaceSubChatMessages": "Messages",
+  "storageSpaceSubChatConversations": "Conversations",
+  "storageSpaceSubChatToolEvents": "Tool events",
+  "storageSpaceSubAssistantAvatars": "Avatars",
+  "storageSpaceSubAssistantImages": "Images",
+  "storageSpaceSubCacheAvatars": "Avatar cache",
+  "storageSpaceSubCacheOther": "Other cache",
+  "storageSpaceSubCacheSystem": "System cache",
+  "storageSpaceSubLogsFlutter": "Flutter logs",
+  "storageSpaceSubLogsRequests": "Network logs",
+  "storageSpaceSubLogsOther": "Other logs",
+  "storageSpaceClearConfirmTitle": "Confirm clear",
+  "storageSpaceClearConfirmMessage": "Clear {targetName}?",
+  "@storageSpaceClearConfirmMessage": {
+    "placeholders": {
+      "targetName": {
+        "type": "String"
+      }
+    }
+  },
+  "storageSpaceClearButton": "Clear",
+  "storageSpaceClearDone": "{targetName} cleared",
+  "@storageSpaceClearDone": {
+    "placeholders": {
+      "targetName": {
+        "type": "String"
+      }
+    }
+  },
+  "storageSpaceClearFailed": "Clear failed: {error}",
+  "@storageSpaceClearFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "storageSpaceClearAvatarCacheButton": "Clear Avatar Cache",
+  "storageSpaceClearCacheButton": "Clear Cache",
+  "storageSpaceClearLogsButton": "Clear Logs",
+  "storageSpaceDeleteConfirmTitle": "Confirm deletion",
+  "storageSpaceDeleteUploadsConfirmMessage": "Delete {count} items? Attachments in chat history may become unavailable.",
+  "@storageSpaceDeleteUploadsConfirmMessage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "storageSpaceDeletedUploadsDone": "Deleted {count} items",
+  "@storageSpaceDeletedUploadsDone": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "storageSpaceNoUploads": "No items",
+  "storageSpaceSelectAll": "Select all",
+  "storageSpaceClearSelection": "Clear selection",
+  "storageSpaceSelectedCount": "{count} selected",
+  "@storageSpaceSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "storageSpaceUploadsCount": "{count} items",
+  "@storageSpaceUploadsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "settingsPageAboutSection": "About",
   "settingsPageAbout": "About",
   "settingsPageDocs": "Docs",
@@ -198,6 +312,7 @@
   "assistantEditClearButton": "Clear",
   "desktopNavChatTooltip": "Chat",
   "desktopNavTranslateTooltip": "Translate",
+  "desktopNavStorageTooltip": "Storage",
   "desktopNavThemeToggleTooltip": "Theme",
   "desktopNavSettingsTooltip": "Settings",
   "desktopAvatarMenuUseEmoji": "Use emoji",
@@ -299,6 +414,14 @@
   "assistantEditVariableMessage": "Message",
   "assistantEditPreviewTitle": "Preview",
   "codeBlockPreviewButton": "Preview",
+  "codeBlockCollapsedLines": "… {n} lines folded",
+  "@codeBlockCollapsedLines": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "htmlPreviewNotSupportedOnLinux": "HTML preview is not supported on Linux",
   "assistantEditSampleUser": "User",
   "assistantEditSampleMessage": "Hello there",
@@ -319,6 +442,9 @@
   "assistantEditModelUseGlobalDefault": "Use global default",
   "assistantSettingsPageTitle": "Assistant Settings",
   "assistantSettingsDefaultTag": "Default",
+  "assistantSettingsCopyButton": "Copy",
+  "assistantSettingsCopySuccess": "Assistant copied",
+  "assistantSettingsCopySuffix": "Copy",
   "assistantSettingsDeleteButton": "Delete",
   "assistantSettingsEditButton": "Edit",
   "assistantSettingsAddSheetTitle": "Assistant Name",
@@ -331,8 +457,10 @@
   "desktopTrayMenuShowWindow": "Show Window",
   "desktopTrayMenuExit": "Exit",
   "hotkeyToggleAppVisibility": "Show/Hide App",
+  "hotkeyCloseWindow": "Close Window",
   "hotkeyOpenSettings": "Open Settings",
   "hotkeyNewTopic": "New Topic",
+  "hotkeySwitchModel": "Switch Model",
   "hotkeyToggleAssistantPanel": "Toggle Assistants",
   "hotkeyToggleTopicPanel": "Toggle Topics",
   "hotkeysPressShortcut": "Press a shortcut",
@@ -393,6 +521,7 @@
   "backupPageBackupNow": "Backup Now",
   "backupPageLocalBackup": "Local Backup",
   "backupPageImportFromCherryStudio": "Import from Cherry Studio",
+  "backupPageImportFromChatbox": "Import from Chatbox",
   "chatHistoryPageTitle": "Chat History",
   "chatHistoryPageSearchTooltip": "Search",
   "chatHistoryPageDeleteAllTooltip": "Delete All",
@@ -572,10 +701,16 @@
   "displaySettingsPageEnableUserMarkdownTitle": "Render user messages with Markdown",
   "displaySettingsPageEnableReasoningMarkdownTitle": "Render reasoning (thinking) with Markdown",
   "displaySettingsPageMobileCodeBlockWrapTitle": "Mobile Code Block Word Wrap",
+  "displaySettingsPageAutoCollapseCodeBlockTitle": "Auto-collapse Code Blocks",
+  "displaySettingsPageAutoCollapseCodeBlockLinesTitle": "Auto-collapse threshold",
+  "displaySettingsPageAutoCollapseCodeBlockLinesUnit": "lines",
   "messageExportSheetFormatTitle": "Export Format",
   "messageExportSheetMarkdown": "Markdown",
   "messageExportSheetSingleMarkdownSubtitle": "Export this message as a Markdown file",
   "messageExportSheetBatchMarkdownSubtitle": "Export selected messages as a Markdown file",
+  "messageExportSheetPlainText": "Plain Text",
+  "messageExportSheetSingleTxtSubtitle": "Export this message as a TXT file",
+  "messageExportSheetBatchTxtSubtitle": "Export selected messages as a TXT file",
   "messageExportSheetExportImage": "Export as Image",
   "messageExportSheetSingleExportImageSubtitle": "Render this message to a PNG image",
   "messageExportSheetBatchExportImageSubtitle": "Render selected messages to a PNG image",
@@ -745,12 +880,15 @@
   "defaultModelPageChatModelSubtitle": "Global default chat model",
   "defaultModelPageTitleModelTitle": "Title Summary Model",
   "defaultModelPageTitleModelSubtitle": "Used for summarizing conversation titles; prefer fast & cheap models",
+  "defaultModelPageSummaryModelTitle": "Summary Model",
+  "defaultModelPageSummaryModelSubtitle": "Used for generating conversation summaries; prefer fast and cheap models",
   "defaultModelPageTranslateModelTitle": "Translation Model",
   "defaultModelPageTranslateModelSubtitle": "Used for translating message content; prefer fast & accurate models",
   "defaultModelPageOcrModelTitle": "OCR Model",
   "defaultModelPageOcrModelSubtitle": "Used for extracting text and descriptions from images",
   "defaultModelPagePromptLabel": "Prompt",
   "defaultModelPageTitlePromptHint": "Enter prompt template for title summarization",
+  "defaultModelPageSummaryPromptHint": "Enter prompt template for summary generation",
   "defaultModelPageTranslatePromptHint": "Enter prompt template for translation",
   "defaultModelPageOcrPromptHint": "Enter prompt template for OCR image understanding",
   "defaultModelPageResetDefault": "Reset to default",
@@ -762,6 +900,17 @@
         "type": "String"
       },
       "localeVar": {
+        "type": "String"
+      }
+    }
+  },
+  "defaultModelPageSummaryVars": "Variables: previous summary: {previousSummaryVar}, new messages: {userMessagesVar}",
+  "@defaultModelPageSummaryVars": {
+    "placeholders": {
+      "previousSummaryVar": {
+        "type": "String"
+      },
+      "userMessagesVar": {
         "type": "String"
       }
     }
@@ -787,6 +936,7 @@
   "modelDetailSheetEditModel": "Edit Model",
   "modelDetailSheetBasicTab": "Basic",
   "modelDetailSheetAdvancedTab": "Advanced",
+  "modelDetailSheetBuiltinToolsTab": "Built-in Tools",
   "modelDetailSheetModelIdLabel": "Model ID",
   "modelDetailSheetModelIdHint": "Required, suggest lowercase/digits/hyphens",
   "modelDetailSheetModelIdDisabledHint": "{modelId}",
@@ -815,15 +965,26 @@
   "modelDetailSheetCustomBodyTitle": "Custom Body",
   "modelFetchInvertTooltip": "Invert",
   "modelDetailSheetAddBody": "Add Body",
-  "modelDetailSheetBuiltinToolsDescription": "Built-in tools currently support limited APIs (e.g., Gemini).",
+  "modelDetailSheetBuiltinToolsDescription": "Built-in tools only support official APIs.",
+  "modelDetailSheetGeminiCodeExecutionMutuallyExclusiveHint": "Code execution cannot coexist with Search/URL Context/MCP tools.",
+  "modelDetailSheetBuiltinToolsUnsupportedHint": "Current provider does not support these built-in tools.",
   "modelDetailSheetSearchTool": "Search",
   "modelDetailSheetSearchToolDescription": "Enable Google Search integration",
   "modelDetailSheetUrlContextTool": "URL Context",
   "modelDetailSheetUrlContextToolDescription": "Enable URL content ingestion",
+  "modelDetailSheetCodeExecutionTool": "Code Execution",
+  "modelDetailSheetCodeExecutionToolDescription": "Enable code execution tool",
+  "modelDetailSheetYoutubeTool": "YouTube",
+  "modelDetailSheetYoutubeToolDescription": "Enable YouTube URL ingestion (auto-detect links in prompts)",
+  "modelDetailSheetOpenaiBuiltinToolsResponsesOnlyHint": "Requires OpenAI Responses API.",
+  "modelDetailSheetOpenaiCodeInterpreterTool": "Code Interpreter",
+  "modelDetailSheetOpenaiCodeInterpreterToolDescription": "Enable code interpreter tool (container auto, memory limit 4g)",
+  "modelDetailSheetOpenaiImageGenerationTool": "Image Generation",
+  "modelDetailSheetOpenaiImageGenerationToolDescription": "Enable image generation tool",
   "modelDetailSheetCancelButton": "Cancel",
   "modelDetailSheetAddButton": "Add",
   "modelDetailSheetConfirmButton": "Confirm",
-  "modelDetailSheetInvalidIdError": "Please enter a valid model ID (>=2 chars, no spaces)",
+  "modelDetailSheetInvalidIdError": "Please enter a valid model ID (>=2 chars)",
   "modelDetailSheetModelIdExistsError": "Model ID already exists",
   "modelDetailSheetHeaderKeyHint": "Header Key",
   "modelDetailSheetHeaderValueHint": "Header Value",
@@ -852,6 +1013,8 @@
   "providerDetailPageShowTooltip": "Show",
   "providerDetailPageApiPathLabel": "API Path",
   "providerDetailPageResponseApiTitle": "Response API (/responses)",
+  "providerDetailPageAihubmixAppCodeLabel": "APP-Code (10% off)",
+  "providerDetailPageAihubmixAppCodeHelp": "Adds header APP-Code requests to get a 10% discount. Only affects AIhubmix.",
   "providerDetailPageVertexAiTitle": "Vertex AI",
   "providerDetailPageLocationLabel": "Location",
   "providerDetailPageProjectIdLabel": "Project ID",
@@ -938,6 +1101,9 @@
   "shareProviderSheetCopiedMessage": "Copied",
   "shareProviderSheetCopyButton": "Copy",
   "shareProviderSheetShareButton": "Share",
+  "desktopProviderContextMenuShare": "Share",
+  "desktopProviderShareCopyText": "Copy code",
+  "desktopProviderShareCopyQr": "Copy QR",
   "providerDetailPageApiBaseUrlLabel": "API Base URL",
   "providerDetailPageModelsTitle": "Models",
   "providerModelsGetButton": "Get",
@@ -954,6 +1120,7 @@
   "searchServicesPageAddProvider": "Add Provider",
   "searchServicesPageSearchProviders": "Search Providers",
   "searchServicesPageGeneralOptions": "General Options",
+  "searchServicesPageAutoTestTitle": "Auto-test connections on launch",
   "searchServicesPageMaxResults": "Max Results",
   "searchServicesPageTimeoutSeconds": "Timeout (seconds)",
   "searchServicesPageAtLeastOneServiceRequired": "At least one search service is required",
@@ -1001,7 +1168,6 @@
   "searchSettingsSheetWebSearchDescription": "Enable web search in chat",
   "searchSettingsSheetOpenSearchServicesTooltip": "Open search services",
   "searchSettingsSheetNoServicesMessage": "No services. Add from Search Services.",
-  "aboutPageEasterEggTitle": "Easter Egg Unlocked!",
   "aboutPageEasterEggMessage": "Thanks for exploring! \n (No egg yet)",
   "aboutPageEasterEggButton": "Nice!",
   "aboutPageAppDescription": "Open-source AI Assistant",
@@ -1028,6 +1194,9 @@
   "displaySettingsPageAutoCollapseThinkingSubtitle": "Collapse reasoning after finish",
   "displaySettingsPageShowChatListDateTitle": "Show Chat List Dates",
   "displaySettingsPageShowChatListDateSubtitle": "Display date group labels in the conversation list",
+  "displaySettingsPageKeepSidebarOpenOnAssistantTapTitle": "Keep sidebar open when selecting assistant",
+  "displaySettingsPageKeepSidebarOpenOnTopicTapTitle": "Keep sidebar open when selecting topic",
+  "displaySettingsPageKeepAssistantListExpandedOnSidebarCloseTitle": "Don't collapse assistant list when closing sidebar",
   "displaySettingsPageShowUpdatesTitle": "Show Updates",
   "displaySettingsPageShowUpdatesSubtitle": "Show app update notifications",
   "displaySettingsPageMessageNavButtonsTitle": "Message Navigation Buttons",
@@ -1040,6 +1209,8 @@
   "displaySettingsPageHapticsOnCardTapTitle": "Haptics on Cards",
   "displaySettingsPageHapticsOnGenerateTitle": "Haptics on Generate",
   "displaySettingsPageHapticsOnGenerateSubtitle": "Enable haptic feedback during generation",
+  "displaySettingsPageNewChatAfterDeleteTitle": "New chat after deleting topic",
+  "displaySettingsPageNewChatOnAssistantSwitchTitle": "New chat when switching assistants",
   "displaySettingsPageNewChatOnLaunchTitle": "New Chat on Launch",
   "displaySettingsPageAutoSwitchTopicsTitle": "Auto switch to Topics",
   "desktopDisplaySettingsTopicPositionTitle": "Topic position",
@@ -1047,8 +1218,10 @@
   "desktopDisplaySettingsTopicPositionRight": "Right",
   "displaySettingsPageNewChatOnLaunchSubtitle": "Automatically create a new chat on launch",
   "displaySettingsPageChatFontSizeTitle": "Chat Font Size",
+  "displaySettingsPageAutoScrollEnableTitle": "Auto-scroll to bottom",
   "displaySettingsPageAutoScrollIdleTitle": "Auto-Scroll Back Delay",
   "displaySettingsPageAutoScrollIdleSubtitle": "Wait time after user scroll before jumping to bottom",
+  "displaySettingsPageAutoScrollDisabledLabel": "Off",
   "displaySettingsPageChatFontSampleText": "This is a sample chat text",
   "displaySettingsPageChatBackgroundMaskTitle": "Chat Background Overlay Opacity",
   "displaySettingsPageThemeSettingsTitle": "Theme Settings",
@@ -1205,6 +1378,10 @@
   "mcpJsonEditTitle": "Edit JSON",
   "mcpJsonEditParseFailed": "JSON parse failed",
   "mcpJsonEditSavedApplied": "Saved and applied",
+  "mcpTimeoutSettingsTooltip": "Set tool call timeout",
+  "mcpTimeoutDialogTitle": "Tool call timeout",
+  "mcpTimeoutSecondsLabel": "Tool call timeout (seconds)",
+  "mcpTimeoutInvalid": "Enter a positive number of seconds",
   "quickPhraseEditButton": "Edit",
   "quickPhraseDeleteButton": "Delete",
   "quickPhraseMenuTitle": "Quick Phrase",
@@ -1287,7 +1464,7 @@
   "networkProxyTestFailed": "Test failed: {error}",
   "@networkProxyTestFailed": {
     "placeholders": {
-      "error": { "type": "String" }
+      "error": {"type": "String"}
     }
   },
   "networkProxyNoUrl": "Please enter a URL",
@@ -1351,5 +1528,67 @@
         "type": "String"
       }
     }
-  }
+  },
+  "providerDetailPageBatchDetectButton": "Detect",
+  "providerDetailPageBatchDetecting": "Detecting...",
+  "providerDetailPageBatchDetectStart": "Start Detection",
+  "providerDetailPageDetectSuccess": "Detection successful",
+  "providerDetailPageDetectFailed": "Detection failed",
+  "providerDetailPageDeleteAllModelsWarning": "This action cannot be undone.",
+  "displaySettingsPageOtherSettingsTitle": "Other Settings",
+  "requestLogSettingTitle": "Request Logging",
+  "requestLogSettingSubtitle": "When enabled, request/response details are written to logs/logs.txt (rotated daily).",
+  "flutterLogSettingTitle": "Flutter Logging",
+  "flutterLogSettingSubtitle": "When enabled, Flutter errors and print output are written to logs/flutter_logs.txt (rotated daily).",
+  "logViewerTitle": "Request Logs",
+  "logViewerEmpty": "No logs yet",
+  "logViewerCurrentLog": "Current Log",
+  "logViewerExport": "Export",
+  "logViewerOpenFolder": "Open Logs Folder",
+  "assistantEditManageSummariesTitle": "Manage Summaries",
+  "assistantEditSummaryEmpty": "No summaries yet",
+  "assistantEditSummaryDialogTitle": "Edit Summary",
+  "assistantEditSummaryDialogHint": "Enter summary content",
+  "assistantEditDeleteSummaryTitle": "Clear Summary",
+  "assistantEditDeleteSummaryContent": "Are you sure you want to clear this summary?",
+  "assistantEditPageRegexTab": "Regex",
+  "assistantEditRegexDescription": "Customize text replacement rules using regular expressions.",
+  "assistantEditAddRegexButton": "Add Regex Rule",
+  "assistantRegexUntitled": "Untitled Rule",
+  "assistantRegexDeleteButton": "Delete Rule",
+  "assistantRegexScopeUser": "User Message",
+  "assistantRegexScopeAssistant": "AI Response",
+  "assistantRegexScopeVisualOnly": "Visual Only",
+  "assistantRegexValidationError": "Please fill in all required fields.",
+  "assistantRegexInvalidPattern": "Invalid regular expression pattern.",
+  "assistantRegexAddTitle": "Add Regex Rule",
+  "assistantRegexEditTitle": "Edit Regex Rule",
+  "assistantRegexAddAction": "Add",
+  "assistantRegexSaveAction": "Save",
+  "assistantRegexNameLabel": "Rule Name",
+  "assistantRegexPatternLabel": "Regex Pattern",
+  "assistantRegexReplacementLabel": "Replacement Text",
+  "assistantRegexScopeLabel": "Scope",
+  "assistantRegexCancelButton": "Cancel",
+  "instructionInjectionImportTooltip": "Import",
+  "instructionInjectionImportSuccess": "Successfully imported {count} items.",
+  "@instructionInjectionImportSuccess": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "instructionInjectionImportFailed": "Import failed: {error}",
+  "@instructionInjectionImportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "assistantEditSystemPromptImportButton": "Import Prompt",
+  "assistantEditSystemPromptImportEmpty": "No prompts found in file.",
+  "assistantEditSystemPromptImportSuccess": "Prompt imported successfully.",
+  "assistantEditSystemPromptImportFailed": "Failed to import prompt: {error}"
 }

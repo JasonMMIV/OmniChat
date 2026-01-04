@@ -61,6 +61,17 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   final _proxyPortCtrl = TextEditingController(text: '8080');
   final _proxyUserCtrl = TextEditingController();
   final _proxyPassCtrl = TextEditingController();
+  
+  // 模型选择模式相关
+  bool _isSelectionMode = false;
+  final Set<String> _selectedModels = {};
+  bool _isDetecting = false;
+  bool _detectUseStream = false;
+  final Map<String, bool> _detectionResults = {};
+  final Map<String, String> _detectionErrorMessages = {};
+  String? _currentDetectingModel;
+  final Set<String> _pendingModels = {};
+  bool _aihubmixAppCodeEnabled = false;
 
   @override
   void initState() {
@@ -85,6 +96,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     _proxyUserCtrl.text = _cfg.proxyUsername ?? '';
     _proxyPassCtrl.text = _cfg.proxyPassword ?? '';
     _multiKeyEnabled = _cfg.multiKeyEnabled ?? false;
+    _aihubmixAppCodeEnabled = _cfg.aihubmixAppCodeEnabled ?? false;
   }
 
   @override
@@ -111,7 +123,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     bool _isUserAdded(String key) {
       const fixed = {
         'KelivoIN', 'OpenAI', 'Gemini', 'SiliconFlow', 'OpenRouter',
-        'DeepSeek', 'Tensdaq', 'Aliyun', 'Zhipu AI', 'Claude', 'Grok', 'ByteDance',
+        'DeepSeek', 'Tensdaq', 'AIhubmix', 'Aliyun', 'Zhipu AI', 'Claude', 'Grok', 'ByteDance',
       };
       return !fixed.contains(key);
     }
@@ -151,16 +163,42 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           ],
         ),
         actions: [
-          Tooltip(
-            message: l10n.providerDetailPageTestButton,
-            child: _TactileIconButton(
-              icon: Lucide.HeartPulse,
-              color: cs.onSurface,
-              semanticLabel: l10n.providerDetailPageTestButton,
-              size: 22,
-              onTap: _openTestDialog,
+          if (_index == 0)
+            Tooltip(
+              message: l10n.providerDetailPageTestButton,
+              child: _TactileIconButton(
+                icon: Lucide.HeartPulse,
+                color: cs.onSurface,
+                semanticLabel: l10n.providerDetailPageTestButton,
+                size: 22,
+                onTap: () {
+                  if (_isDetecting) return;
+                  _openTestDialog();
+                },
+              ),
+            )
+          else if (_isSelectionMode)
+            Tooltip(
+              message: l10n.providerDetailPageCancelButton,
+              child: _TactileIconButton(
+                icon: Lucide.X,
+                color: cs.onSurface,
+                semanticLabel: l10n.providerDetailPageCancelButton,
+                size: 22,
+                onTap: _exitSelectionMode,
+              ),
+            )
+          else
+            Tooltip(
+              message: _isDetecting ? l10n.providerDetailPageBatchDetecting : l10n.providerDetailPageTestButton,
+              child: _TactileIconButton(
+                icon: _isDetecting ? Lucide.Loader : Lucide.HeartPulse,
+                color: cs.onSurface,
+                semanticLabel: _isDetecting ? l10n.providerDetailPageBatchDetecting : l10n.providerDetailPageTestButton,
+                size: 22,
+                onTap: _isDetecting ? () {} : _enterSelectionMode,
+              ),
             ),
-          ),
           Tooltip(
             message: l10n.providerDetailPageShareTooltip,
             child: _TactileIconButton(
@@ -573,6 +611,13 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
               label: l10n.providerDetailPageVertexAiTitle,
               trailing: IosSwitch(value: _vertexAI, onChanged: (v) { setState(() => _vertexAI = v); _save(); }),
             ),
+          if (_isAihubmix)
+            _iosRowWithHelp(
+              context,
+              label: l10n.providerDetailPageAihubmixAppCodeLabel,
+              helpText: l10n.providerDetailPageAihubmixAppCodeHelp,
+              trailing: IosSwitch(value: _aihubmixAppCodeEnabled, onChanged: (v) { setState(() => _aihubmixAppCodeEnabled = v); _save(); }),
+            ),
           _TactileRow(
             onTap: () async {
               await Navigator.of(context).push(
@@ -713,6 +758,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       );
     }
     final models = cfg.models;
+    final allSelected = _selectedModels.length == models.length && models.isNotEmpty;
     return Stack(
       children: [
         if (models.isEmpty)
@@ -732,19 +778,23 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           )
         else
           ReorderableListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, _isSelectionMode ? 160 : 100),
             itemCount: models.length,
-            onReorder: (oldIndex, newIndex) async {
+            onReorder: (oldIndex, newIndex) {
+              if (_isSelectionMode) return;
               if (newIndex > oldIndex) newIndex -= 1;
               final id = models[oldIndex];
               final list = List<String>.from(models);
               final item = list.removeAt(oldIndex);
               list.insert(newIndex, item);
               setState(() {});
-              await context.read<SettingsProvider>().setProviderConfig(
-                widget.keyName,
-                cfg.copyWith(models: list),
-              );
+              // 使用 Future.microtask 来异步执行，避免阻塞回调
+              Future.microtask(() async {
+                await context.read<SettingsProvider>().setProviderConfig(
+                  widget.keyName,
+                  cfg.copyWith(models: list),
+                );
+              });
             },
             proxyDecorator: (child, index, animation) {
               return AnimatedBuilder(
@@ -766,8 +816,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                 key: ValueKey('reorder-model-$id'),
                 child: ReorderableDelayedDragStartListener(
                   index: i,
+                  enabled: !_isSelectionMode,
                   child: Slidable(
                     key: ValueKey('model-$id'),
+                    enabled: !_isSelectionMode,
                     endActionPane: ActionPane(
                       motion: const StretchMotion(),
                       extentRatio: 0.42,
@@ -819,6 +871,18 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                             final newList = prevList.where((e) => e != id).toList();
                             final newOverrides = Map<String, dynamic>.from(prevOverrides)..remove(id);
                             await settings.setProviderConfig(widget.keyName, old.copyWith(models: newList, modelOverrides: newOverrides));
+
+                            // Clear global and assistant-level model selections that reference the deleted model
+                            await settings.clearSelectionsForModel(widget.keyName, id);
+                            try {
+                              final ap = context.read<AssistantProvider>();
+                              for (final a in ap.assistants) {
+                                if (a.chatModelProvider == widget.keyName && a.chatModelId == id) {
+                                  await ap.updateAssistant(a.copyWith(clearChatModel: true));
+                                }
+                              }
+                            } catch (_) {}
+
                             if (!mounted) return;
                             showAppSnackBar(
                               context,
@@ -848,52 +912,183 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                         ),
                       ],
                     ),
-                    child: _ModelCard(providerKey: widget.keyName, modelId: id),
+                    child: _ModelCard(
+                      providerKey: widget.keyName,
+                      modelId: id,
+                      isSelectionMode: _isSelectionMode,
+                      isSelected: _selectedModels.contains(id),
+                      onSelectionChanged: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedModels.add(id);
+                          } else {
+                            _selectedModels.remove(id);
+                          }
+                        });
+                      },
+                      detectionResult: _detectionResults[id],
+                      detectionErrorMessage: _detectionErrorMessages[id],
+                      isDetecting: _currentDetectingModel == id,
+                      isPending: _pendingModels.contains(id),
+                    ),
                   ),
                 ),
               );
             },
           ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 12 + MediaQuery.of(context).padding.bottom,
-          child: Center(
-            child: Container(
-              decoration: BoxDecoration(
-                // Solid color: dark theme uses an opaque lightened surface; light uses input-like gray
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Color.alphaBlend(Colors.white.withOpacity(0.12), cs.surface)
-                    : const Color(0xFFF2F3F5),
-                borderRadius: BorderRadius.circular(999),
+        if (_isSelectionMode)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 12 + MediaQuery.of(context).padding.bottom,
+            child: Center(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Color.alphaBlend(Colors.white.withOpacity(0.12), cs.surface)
+                      : const Color(0xFFF2F3F5),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _TactileRow(
+                      pressedScale: 0.97,
+                      haptics: false,
+                      onTap: () {
+                        if (allSelected) {
+                          setState(() {
+                            _selectedModels.clear();
+                          });
+                        } else {
+                          _selectAll();
+                        }
+                      },
+                      builder: (pressed) {
+                        final icon = allSelected ? Lucide.Square : Lucide.CheckSquare;
+                        final label = allSelected ? l10n.mcpAssistantSheetClearAll : l10n.mcpAssistantSheetSelectAll;
+                        return Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: cs.onSurface.withOpacity(0.2)),
+                            color: pressed ? cs.onSurface.withOpacity(0.06) : null,
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 160),
+                                transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                                child: Icon(icon, key: ValueKey(allSelected), size: 20, color: cs.onSurface),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(label, style: TextStyle(color: cs.onSurface, fontSize: 14, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    _TactileRow(
+                      pressedScale: 0.97,
+                      haptics: false,
+                      onTap: () => setState(() => _detectUseStream = !_detectUseStream),
+                      builder: (pressed) {
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOutCubic,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: cs.onSurface.withOpacity(0.2)),
+                            color: pressed ? cs.onSurface.withOpacity(0.06) : (_detectUseStream ? cs.onSurface.withOpacity(0.08) : Colors.transparent),
+                          ),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 160),
+                            transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                            child: Icon(
+                              _detectUseStream ? Lucide.AudioWaveform : Lucide.SquareEqual,
+                              key: ValueKey(_detectUseStream),
+                              size: 18,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    _TactileRow(
+                      pressedScale: 0.97,
+                      haptics: false,
+                      onTap: _selectedModels.isEmpty ? null : _startDetection,
+                      builder: (pressed) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: _selectedModels.isEmpty 
+                                ? cs.onSurface.withOpacity(0.1)
+                                : cs.primary.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(_isDetecting ? Lucide.Loader : Lucide.HeartPulse, size: 20, color: _selectedModels.isEmpty ? cs.onSurface.withOpacity(0.5) : cs.primary),
+                              const SizedBox(width: 8),
+                              Text(_isDetecting ? l10n.providerDetailPageBatchDetecting : l10n.providerDetailPageBatchDetectButton, style: TextStyle(color: _selectedModels.isEmpty ? cs.onSurface.withOpacity(0.5) : cs.primary, fontSize: 14, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _TactileRow(
-                    pressedScale: 0.97,
-                    haptics: false,
-                    onTap: () => _showModelPicker(context),
-                    builder: (pressed) {
-                      return Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: cs.primary.withOpacity(0.35)),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Lucide.Boxes, size: 20, color: cs.primary),
-                            const SizedBox(width: 8),
-                            Text(l10n.providerDetailPageFetchModelsButton, style: TextStyle(color: cs.primary, fontSize: 14, fontWeight: FontWeight.w600)),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 10),
+            ),
+          )
+        else
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 12 + MediaQuery.of(context).padding.bottom,
+            child: Center(
+              child: Container(
+                decoration: BoxDecoration(
+                  // Solid color: dark theme uses an opaque lightened surface; light uses input-like gray
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Color.alphaBlend(Colors.white.withOpacity(0.12), cs.surface)
+                      : const Color(0xFFF2F3F5),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _TactileRow(
+                      pressedScale: 0.97,
+                      haptics: false,
+                      onTap: () => _showModelPicker(context),
+                      builder: (pressed) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: cs.primary.withOpacity(0.35)),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Lucide.Boxes, size: 20, color: cs.primary),
+                              const SizedBox(width: 8),
+                              Text(l10n.providerDetailPageFetchModelsButton, style: TextStyle(color: cs.primary, fontSize: 14, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 10),
                   _TactileRow(
                     pressedScale: 0.97,
                     haptics: false,
@@ -918,6 +1113,29 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                       );
                     },
                   ),
+                    if (models.isNotEmpty) ...[
+                      const SizedBox(width: 10),
+                      _TactileRow(
+                        pressedScale: 0.97,
+                        haptics: false,
+                        onTap: _deleteAllModels,
+                        builder: (pressed) {
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: cs.error.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Lucide.Trash2, size: 18, color: cs.error),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                 ],
               ),
             ),
@@ -1057,7 +1275,58 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     );
   }
 
-  
+  Widget _iosRowWithHelp(
+    BuildContext context, {
+    required String label,
+    required String helpText,
+    Widget? trailing,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return _TactileRow(
+      onTap: null,
+      builder: (pressed) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final base = cs.onSurface;
+        final target = pressed ? (Color.lerp(base, isDark ? Colors.black : Colors.white, 0.55) ?? base) : base;
+        return TweenAnimationBuilder<Color?>(
+          tween: ColorTween(end: target),
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          builder: (context, color, _) {
+            final c = color ?? base;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(label, style: TextStyle(fontSize: 15, color: c))),
+                        Tooltip(
+                          message: helpText,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Icon(Icons.help_outline, size: 18, color: cs.onSurface.withOpacity(0.6)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (trailing != null) trailing,
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  bool get _isAihubmix {
+    final keyLower = widget.keyName.toLowerCase();
+    final baseLower = _baseCtrl.text.toLowerCase();
+    return keyLower.contains('aihubmix') || baseLower.contains('aihubmix.com');
+  }
 
   Widget _providerKindRow(BuildContext context) {
     String labelFor(ProviderKind k) {
@@ -1192,9 +1461,25 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       projectId: _kind == ProviderKind.google ? projectId : old.projectId,
       serviceAccountJson: _kind == ProviderKind.google ? _saJsonCtrl.text.trim() : old.serviceAccountJson,
       multiKeyEnabled: _multiKeyEnabled,
+      aihubmixAppCodeEnabled: _aihubmixAppCodeEnabled,
       // preserve models and modelOverrides and proxy fields implicitly via copyWith
     );
     await settings.setProviderConfig(widget.keyName, updated);
+
+    // If provider is now disabled but was previously enabled, clear model selections
+    if (!_enabled && old.enabled) {
+      await settings.clearSelectionsForProvider(widget.keyName);
+      // Also clear assistant-level model selections referencing this provider
+      try {
+        final ap = context.read<AssistantProvider>();
+        for (final a in ap.assistants) {
+          if (a.chatModelProvider == widget.keyName) {
+            await ap.updateAssistant(a.copyWith(clearChatModel: true));
+          }
+        }
+      } catch (_) {}
+    }
+
     if (!mounted) return;
     // Silent auto-save (no snackbar) for immediate-save UX
   }
@@ -1301,6 +1586,132 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     } catch (e) {
       return null;
     }
+  }
+
+  void _enterSelectionMode() {
+    setState(() {
+      _isSelectionMode = true;
+      _selectedModels.clear();
+      _detectionResults.clear();
+      _detectionErrorMessages.clear();
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _isSelectionMode = false;
+      _selectedModels.clear();
+      _detectionResults.clear();
+      _detectionErrorMessages.clear();
+    });
+  }
+
+  void _selectAll() {
+    final cfg = context.read<SettingsProvider>().getProviderConfig(widget.keyName, defaultName: widget.displayName);
+    setState(() {
+      _selectedModels.clear();
+      _selectedModels.addAll(cfg.models);
+    });
+  }
+
+  void _invertSelection() {
+    final cfg = context.read<SettingsProvider>().getProviderConfig(widget.keyName, defaultName: widget.displayName);
+    setState(() {
+      final newSelection = <String>{};
+      for (final model in cfg.models) {
+        if (!_selectedModels.contains(model)) {
+          newSelection.add(model);
+        }
+      }
+      _selectedModels.clear();
+      _selectedModels.addAll(newSelection);
+    });
+  }
+
+  Future<void> _startDetection() async {
+    if (_selectedModels.isEmpty || _isDetecting) return;
+    
+    final modelsToTest = Set<String>.from(_selectedModels);
+    
+    setState(() {
+      _isDetecting = true;
+      _detectionResults.clear();
+      _detectionErrorMessages.clear();
+      _isSelectionMode = false;
+      _selectedModels.clear();
+      _pendingModels.clear();
+      _pendingModels.addAll(modelsToTest);
+      _currentDetectingModel = null;
+    });
+
+    final cfg = context.read<SettingsProvider>().getProviderConfig(widget.keyName, defaultName: widget.displayName);
+    
+    // 顺序检测,防止并发导致API被封锁
+    for (final modelId in modelsToTest) {
+      if (mounted) {
+        setState(() {
+          _currentDetectingModel = modelId;
+          _pendingModels.remove(modelId);
+        });
+      }
+      
+      try {
+        await ProviderManager.testConnection(cfg, modelId, useStream: _detectUseStream);
+        if (mounted) {
+          setState(() {
+            _detectionResults[modelId] = true;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _detectionResults[modelId] = false;
+            _detectionErrorMessages[modelId] = e.toString();
+          });
+        }
+      }
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+
+    if (mounted) {
+      setState(() {
+        _isDetecting = false;
+        _currentDetectingModel = null;
+        _pendingModels.clear();
+      });
+    }
+  }
+
+  Future<void> _deleteAllModels() async {
+    final settings = context.read<SettingsProvider>();
+    final cfg = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
+    if (cfg.models.isEmpty) return;
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cs.surface,
+        title: Text(l10n.providerDetailPageConfirmDeleteTitle),
+        content: Text(l10n.providerDetailPageDeleteAllModelsWarning),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(l10n.providerDetailPageCancelButton)),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(l10n.providerDetailPageDeleteButton, style: TextStyle(color: cs.error))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final cleared = cfg.copyWith(models: const [], modelOverrides: const {});
+    await settings.setProviderConfig(widget.keyName, cleared);
+    if (!mounted) return;
+    setState(() {
+      _selectedModels.clear();
+      _detectionResults.clear();
+      _detectionErrorMessages.clear();
+      _pendingModels.clear();
+      _currentDetectingModel = null;
+      _isSelectionMode = false;
+    });
   }
 
   Future<void> _openTestDialog() async {
@@ -1542,59 +1953,43 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                             filled: true,
                             fillColor: Theme.of(ctx).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF2F3F5),
                             prefixIcon: Icon(Lucide.Search, size: 20, color: cs.onSurface.withOpacity(0.7)),
-                            suffixIcon: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Animated toggle: Select All / Deselect All (based on current filtered state)
-                                Tooltip(
-                                  message: () {
-                                    // Determine if all filtered are currently selected
-                                    final allSelected = filtered.isNotEmpty && filtered.every((m) => selected.contains(m.id));
-                                    return allSelected ? l10n.mcpAssistantSheetClearAll : l10n.mcpAssistantSheetSelectAll;
-                                  }(),
-                                  child: AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 180),
-                                    switchInCurve: Curves.easeOutCubic,
-                                    switchOutCurve: Curves.easeInCubic,
-                                    transitionBuilder: (child, anim) => FadeTransition(
-                                      opacity: anim,
-                                      child: ScaleTransition(scale: Tween<double>(begin: 0.92, end: 1).animate(anim), child: child),
-                                    ),
-                                    child: Builder(
-                                      builder: (_) {
-                                        final allSelected = filtered.isNotEmpty && filtered.every((m) => selected.contains(m.id));
-                                        return IconButton(
-                                          key: ValueKey(allSelected ? 'deselect-all-mobile' : 'select-all-mobile'),
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(minWidth: 44, minHeight: 40),
-                                          icon: Icon(allSelected ? Lucide.Square : Lucide.CheckSquare, size: 22, color: cs.onSurface.withOpacity(0.7)),
-                                          onPressed: () async {
-                                            final old = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
-                                            if (filtered.isEmpty) return;
-                                            if (allSelected) {
-                                              // Deselect all filtered
-                                              final toRemove = filtered.map((m) => m.id).toSet();
-                                              final next = old.models.where((id) => !toRemove.contains(id)).toList();
-                                              await settings.setProviderConfig(widget.keyName, old.copyWith(models: next));
-                                            } else {
-                                              // Select all filtered
-                                              final setIds = old.models.toSet();
-                                              setIds.addAll(filtered.map((m) => m.id));
-                                              await settings.setProviderConfig(widget.keyName, old.copyWith(models: setIds.toList()));
-                                            }
-                                            setLocal(() {});
-                                          },
-                                        );
-                                      },
-                                    ),
+                            suffixIcon: ExcludeSemantics(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Animated toggle: Select All / Deselect All (based on current filtered state)
+                                  Builder(
+                                    builder: (_) {
+                                      final allSelected = filtered.isNotEmpty && filtered.every((m) => selected.contains(m.id));
+                                      return IconButton(
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(minWidth: 44, minHeight: 40),
+                                        icon: Icon(allSelected ? Lucide.Square : Lucide.CheckSquare, size: 22, color: cs.onSurface.withOpacity(0.7)),
+                                        tooltip: allSelected ? l10n.mcpAssistantSheetClearAll : l10n.mcpAssistantSheetSelectAll,
+                                        onPressed: () async {
+                                          final old = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
+                                          if (filtered.isEmpty) return;
+                                          if (allSelected) {
+                                            // Deselect all filtered
+                                            final toRemove = filtered.map((m) => m.id).toSet();
+                                            final next = old.models.where((id) => !toRemove.contains(id)).toList();
+                                            await settings.setProviderConfig(widget.keyName, old.copyWith(models: next));
+                                          } else {
+                                            // Select all filtered
+                                            final setIds = old.models.toSet();
+                                            setIds.addAll(filtered.map((m) => m.id));
+                                            await settings.setProviderConfig(widget.keyName, old.copyWith(models: setIds.toList()));
+                                          }
+                                          setLocal(() {});
+                                        },
+                                      );
+                                    },
                                   ),
-                                ),
-                                Tooltip(
-                                  message: l10n.modelFetchInvertTooltip,
-                                  child: IconButton(
+                                  IconButton(
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(minWidth: 44, minHeight: 40),
                                     icon: Icon(Lucide.Repeat, size: 22, color: cs.onSurface.withOpacity(0.7)),
+                                    tooltip: l10n.modelFetchInvertTooltip,
                                     onPressed: () async {
                                       final old = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
                                       final q = controller.text.trim().toLowerCase();
@@ -1615,8 +2010,8 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                                       setLocal(() {});
                                     },
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.transparent)),
                             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.transparent)),
@@ -1833,9 +2228,26 @@ Widget _buildDismissBg(BuildContext context, {required bool alignStart}) {
 }
 
 class _ModelCard extends StatelessWidget {
-  const _ModelCard({required this.providerKey, required this.modelId});
+  const _ModelCard({
+    required this.providerKey,
+    required this.modelId,
+    this.isSelectionMode = false,
+    this.isSelected = false,
+    this.onSelectionChanged,
+    this.detectionResult,
+    this.detectionErrorMessage,
+    this.isDetecting = false,
+    this.isPending = false,
+  });
   final String providerKey;
   final String modelId;
+  final bool isSelectionMode;
+  final bool isSelected;
+  final ValueChanged<bool>? onSelectionChanged;
+  final bool? detectionResult;
+  final String? detectionErrorMessage;
+  final bool isDetecting;
+  final bool isPending;
 
   @override
   Widget build(BuildContext context) {
@@ -1844,7 +2256,7 @@ class _ModelCard extends StatelessWidget {
     return _TactileRow(
       pressedScale: 0.98,
       haptics: false,
-      onTap: () {},
+      onTap: isSelectionMode ? () => onSelectionChanged?.call(!isSelected) : () {},
       builder: (pressed) {
         return Container(
           decoration: BoxDecoration(
@@ -1855,28 +2267,75 @@ class _ModelCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
+                if (isSelectionMode) ...[
+                  IosCheckbox(
+                    value: isSelected,
+                    onChanged: (value) => onSelectionChanged?.call(value),
+                  ),
+                  const SizedBox(width: 12),
+                ],
                 _BrandAvatar(name: modelId, size: 28),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(_displayName(context), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(_displayName(context), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                          ),
+                          if (isDetecting) ...[
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
+                            ),
+                          ] else if (isPending) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              width: 16,
+                              height: 16,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: cs.onSurface.withOpacity(0.3), width: 2),
+                              ),
+                            ),
+                          ] else if (detectionResult != null) ...[
+                            const SizedBox(width: 8),
+                            MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: Tooltip(
+                                message: detectionResult! ? l10n.providerDetailPageDetectSuccess : (detectionErrorMessage ?? l10n.providerDetailPageDetectFailed),
+                                child: Icon(
+                                  detectionResult! ? Lucide.CheckCircle : Lucide.XCircle,
+                                  size: 16,
+                                  color: detectionResult! ? Colors.green : cs.error,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                       const SizedBox(height: 4),
                       _modelTagWrap(context, _effective(context)),
                     ],
                   ),
                 ),
-                _TactileIconButton(
-                  icon: Lucide.Settings2,
-                  color: cs.onSurface.withOpacity(0.7),
-                  size: 18,
-                  semanticLabel: l10n.providerDetailPageEditTooltip,
-                  haptics: false,
-                  onTap: () async {
-                    await showModelDetailSheet(context, providerKey: providerKey, modelId: modelId);
-                  },
-                ),
+                if (!isSelectionMode) ...[
+                  const SizedBox(width: 8),
+                  _TactileIconButton(
+                    icon: Lucide.Settings2,
+                    color: cs.onSurface.withOpacity(0.7),
+                    size: 18,
+                    semanticLabel: l10n.providerDetailPageEditTooltip,
+                    haptics: false,
+                    onTap: () async {
+                      await showModelDetailSheet(context, providerKey: providerKey, modelId: modelId);
+                    },
+                  ),
+                ],
               ],
             ),
           ),

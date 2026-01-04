@@ -262,6 +262,270 @@ abstract class AppLocalizations {
   /// **'{count} files · {size}'**
   String settingsPageFilesCount(int count, String size);
 
+  /// No description provided for @storageSpacePageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage Space'**
+  String get storageSpacePageTitle;
+
+  /// No description provided for @storageSpaceRefreshTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get storageSpaceRefreshTooltip;
+
+  /// No description provided for @storageSpaceLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load storage usage'**
+  String get storageSpaceLoadFailed;
+
+  /// No description provided for @storageSpaceTotalLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Used'**
+  String get storageSpaceTotalLabel;
+
+  /// No description provided for @storageSpaceClearableLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Clearable: {size}'**
+  String storageSpaceClearableLabel(String size);
+
+  /// No description provided for @storageSpaceClearableHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Safe to clear: {size}'**
+  String storageSpaceClearableHint(String size);
+
+  /// No description provided for @storageSpaceCategoryImages.
+  ///
+  /// In en, this message translates to:
+  /// **'Images'**
+  String get storageSpaceCategoryImages;
+
+  /// No description provided for @storageSpaceCategoryFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get storageSpaceCategoryFiles;
+
+  /// No description provided for @storageSpaceCategoryChatData.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat Records'**
+  String get storageSpaceCategoryChatData;
+
+  /// No description provided for @storageSpaceCategoryAssistantData.
+  ///
+  /// In en, this message translates to:
+  /// **'Assistants'**
+  String get storageSpaceCategoryAssistantData;
+
+  /// No description provided for @storageSpaceCategoryCache.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache'**
+  String get storageSpaceCategoryCache;
+
+  /// No description provided for @storageSpaceCategoryLogs.
+  ///
+  /// In en, this message translates to:
+  /// **'Logs'**
+  String get storageSpaceCategoryLogs;
+
+  /// No description provided for @storageSpaceCategoryOther.
+  ///
+  /// In en, this message translates to:
+  /// **'App'**
+  String get storageSpaceCategoryOther;
+
+  /// No description provided for @storageSpaceFilesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} files'**
+  String storageSpaceFilesCount(int count);
+
+  /// No description provided for @storageSpaceSafeToClearHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Safe to clear. This will not affect your chat history.'**
+  String get storageSpaceSafeToClearHint;
+
+  /// No description provided for @storageSpaceNotSafeToClearHint.
+  ///
+  /// In en, this message translates to:
+  /// **'May affect your chat history. Delete with care.'**
+  String get storageSpaceNotSafeToClearHint;
+
+  /// No description provided for @storageSpaceBreakdownTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Breakdown'**
+  String get storageSpaceBreakdownTitle;
+
+  /// No description provided for @storageSpaceSubChatMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'Messages'**
+  String get storageSpaceSubChatMessages;
+
+  /// No description provided for @storageSpaceSubChatConversations.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversations'**
+  String get storageSpaceSubChatConversations;
+
+  /// No description provided for @storageSpaceSubChatToolEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'Tool events'**
+  String get storageSpaceSubChatToolEvents;
+
+  /// No description provided for @storageSpaceSubAssistantAvatars.
+  ///
+  /// In en, this message translates to:
+  /// **'Avatars'**
+  String get storageSpaceSubAssistantAvatars;
+
+  /// No description provided for @storageSpaceSubAssistantImages.
+  ///
+  /// In en, this message translates to:
+  /// **'Images'**
+  String get storageSpaceSubAssistantImages;
+
+  /// No description provided for @storageSpaceSubCacheAvatars.
+  ///
+  /// In en, this message translates to:
+  /// **'Avatar cache'**
+  String get storageSpaceSubCacheAvatars;
+
+  /// No description provided for @storageSpaceSubCacheOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other cache'**
+  String get storageSpaceSubCacheOther;
+
+  /// No description provided for @storageSpaceSubCacheSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System cache'**
+  String get storageSpaceSubCacheSystem;
+
+  /// No description provided for @storageSpaceSubLogsFlutter.
+  ///
+  /// In en, this message translates to:
+  /// **'Flutter logs'**
+  String get storageSpaceSubLogsFlutter;
+
+  /// No description provided for @storageSpaceSubLogsRequests.
+  ///
+  /// In en, this message translates to:
+  /// **'Network logs'**
+  String get storageSpaceSubLogsRequests;
+
+  /// No description provided for @storageSpaceSubLogsOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other logs'**
+  String get storageSpaceSubLogsOther;
+
+  /// No description provided for @storageSpaceClearConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm clear'**
+  String get storageSpaceClearConfirmTitle;
+
+  /// No description provided for @storageSpaceClearConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear {targetName}?'**
+  String storageSpaceClearConfirmMessage(String targetName);
+
+  /// No description provided for @storageSpaceClearButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get storageSpaceClearButton;
+
+  /// No description provided for @storageSpaceClearDone.
+  ///
+  /// In en, this message translates to:
+  /// **'{targetName} cleared'**
+  String storageSpaceClearDone(String targetName);
+
+  /// No description provided for @storageSpaceClearFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear failed: {error}'**
+  String storageSpaceClearFailed(String error);
+
+  /// No description provided for @storageSpaceClearAvatarCacheButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Avatar Cache'**
+  String get storageSpaceClearAvatarCacheButton;
+
+  /// No description provided for @storageSpaceClearCacheButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Cache'**
+  String get storageSpaceClearCacheButton;
+
+  /// No description provided for @storageSpaceClearLogsButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Logs'**
+  String get storageSpaceClearLogsButton;
+
+  /// No description provided for @storageSpaceDeleteConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm deletion'**
+  String get storageSpaceDeleteConfirmTitle;
+
+  /// No description provided for @storageSpaceDeleteUploadsConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {count} items? Attachments in chat history may become unavailable.'**
+  String storageSpaceDeleteUploadsConfirmMessage(int count);
+
+  /// No description provided for @storageSpaceDeletedUploadsDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted {count} items'**
+  String storageSpaceDeletedUploadsDone(int count);
+
+  /// No description provided for @storageSpaceNoUploads.
+  ///
+  /// In en, this message translates to:
+  /// **'No items'**
+  String get storageSpaceNoUploads;
+
+  /// No description provided for @storageSpaceSelectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get storageSpaceSelectAll;
+
+  /// No description provided for @storageSpaceClearSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear selection'**
+  String get storageSpaceClearSelection;
+
+  /// No description provided for @storageSpaceSelectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} selected'**
+  String storageSpaceSelectedCount(int count);
+
+  /// No description provided for @storageSpaceUploadsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} items'**
+  String storageSpaceUploadsCount(int count);
+
   /// No description provided for @settingsPageAboutSection.
   ///
   /// In en, this message translates to:
@@ -1007,6 +1271,12 @@ abstract class AppLocalizations {
   /// **'Translate'**
   String get desktopNavTranslateTooltip;
 
+  /// No description provided for @desktopNavStorageTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage'**
+  String get desktopNavStorageTooltip;
+
   /// No description provided for @desktopNavThemeToggleTooltip.
   ///
   /// In en, this message translates to:
@@ -1571,6 +1841,12 @@ abstract class AppLocalizations {
   /// **'Preview'**
   String get codeBlockPreviewButton;
 
+  /// No description provided for @codeBlockCollapsedLines.
+  ///
+  /// In en, this message translates to:
+  /// **'… {n} lines folded'**
+  String codeBlockCollapsedLines(int n);
+
   /// No description provided for @htmlPreviewNotSupportedOnLinux.
   ///
   /// In en, this message translates to:
@@ -1630,6 +1906,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Default'**
   String get assistantSettingsDefaultTag;
+
+  /// No description provided for @assistantSettingsCopyButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get assistantSettingsCopyButton;
+
+  /// No description provided for @assistantSettingsCopySuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Assistant copied'**
+  String get assistantSettingsCopySuccess;
+
+  /// No description provided for @assistantSettingsCopySuffix.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get assistantSettingsCopySuffix;
 
   /// No description provided for @assistantSettingsDeleteButton.
   ///
@@ -1703,6 +1997,12 @@ abstract class AppLocalizations {
   /// **'Show/Hide App'**
   String get hotkeyToggleAppVisibility;
 
+  /// No description provided for @hotkeyCloseWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'Close Window'**
+  String get hotkeyCloseWindow;
+
   /// No description provided for @hotkeyOpenSettings.
   ///
   /// In en, this message translates to:
@@ -1714,6 +2014,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'New Topic'**
   String get hotkeyNewTopic;
+
+  /// No description provided for @hotkeySwitchModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch Model'**
+  String get hotkeySwitchModel;
 
   /// No description provided for @hotkeyToggleAssistantPanel.
   ///
@@ -2074,6 +2380,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Import from Cherry Studio'**
   String get backupPageImportFromCherryStudio;
+
+  /// No description provided for @backupPageImportFromChatbox.
+  ///
+  /// In en, this message translates to:
+  /// **'Import from Chatbox'**
+  String get backupPageImportFromChatbox;
 
   /// No description provided for @chatHistoryPageTitle.
   ///
@@ -2645,6 +2957,24 @@ abstract class AppLocalizations {
   /// **'Mobile Code Block Word Wrap'**
   String get displaySettingsPageMobileCodeBlockWrapTitle;
 
+  /// No description provided for @displaySettingsPageAutoCollapseCodeBlockTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-collapse Code Blocks'**
+  String get displaySettingsPageAutoCollapseCodeBlockTitle;
+
+  /// No description provided for @displaySettingsPageAutoCollapseCodeBlockLinesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-collapse threshold'**
+  String get displaySettingsPageAutoCollapseCodeBlockLinesTitle;
+
+  /// No description provided for @displaySettingsPageAutoCollapseCodeBlockLinesUnit.
+  ///
+  /// In en, this message translates to:
+  /// **'lines'**
+  String get displaySettingsPageAutoCollapseCodeBlockLinesUnit;
+
   /// No description provided for @messageExportSheetFormatTitle.
   ///
   /// In en, this message translates to:
@@ -2668,6 +2998,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Export selected messages as a Markdown file'**
   String get messageExportSheetBatchMarkdownSubtitle;
+
+  /// No description provided for @messageExportSheetPlainText.
+  ///
+  /// In en, this message translates to:
+  /// **'Plain Text'**
+  String get messageExportSheetPlainText;
+
+  /// No description provided for @messageExportSheetSingleTxtSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export this message as a TXT file'**
+  String get messageExportSheetSingleTxtSubtitle;
+
+  /// No description provided for @messageExportSheetBatchTxtSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export selected messages as a TXT file'**
+  String get messageExportSheetBatchTxtSubtitle;
 
   /// No description provided for @messageExportSheetExportImage.
   ///
@@ -3377,6 +3725,18 @@ abstract class AppLocalizations {
   /// **'Used for summarizing conversation titles; prefer fast & cheap models'**
   String get defaultModelPageTitleModelSubtitle;
 
+  /// No description provided for @defaultModelPageSummaryModelTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Summary Model'**
+  String get defaultModelPageSummaryModelTitle;
+
+  /// No description provided for @defaultModelPageSummaryModelSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Used for generating conversation summaries; prefer fast and cheap models'**
+  String get defaultModelPageSummaryModelSubtitle;
+
   /// No description provided for @defaultModelPageTranslateModelTitle.
   ///
   /// In en, this message translates to:
@@ -3413,6 +3773,12 @@ abstract class AppLocalizations {
   /// **'Enter prompt template for title summarization'**
   String get defaultModelPageTitlePromptHint;
 
+  /// No description provided for @defaultModelPageSummaryPromptHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter prompt template for summary generation'**
+  String get defaultModelPageSummaryPromptHint;
+
   /// No description provided for @defaultModelPageTranslatePromptHint.
   ///
   /// In en, this message translates to:
@@ -3442,6 +3808,15 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Vars: content: {contentVar}, locale: {localeVar}'**
   String defaultModelPageTitleVars(String contentVar, String localeVar);
+
+  /// No description provided for @defaultModelPageSummaryVars.
+  ///
+  /// In en, this message translates to:
+  /// **'Variables: previous summary: {previousSummaryVar}, new messages: {userMessagesVar}'**
+  String defaultModelPageSummaryVars(
+    String previousSummaryVar,
+    String userMessagesVar,
+  );
 
   /// No description provided for @defaultModelPageTranslateVars.
   ///
@@ -3508,6 +3883,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Advanced'**
   String get modelDetailSheetAdvancedTab;
+
+  /// No description provided for @modelDetailSheetBuiltinToolsTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in Tools'**
+  String get modelDetailSheetBuiltinToolsTab;
 
   /// No description provided for @modelDetailSheetModelIdLabel.
   ///
@@ -3638,8 +4019,20 @@ abstract class AppLocalizations {
   /// No description provided for @modelDetailSheetBuiltinToolsDescription.
   ///
   /// In en, this message translates to:
-  /// **'Built-in tools currently support limited APIs (e.g., Gemini).'**
+  /// **'Built-in tools only support official APIs.'**
   String get modelDetailSheetBuiltinToolsDescription;
+
+  /// No description provided for @modelDetailSheetGeminiCodeExecutionMutuallyExclusiveHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Code execution cannot coexist with Search/URL Context/MCP tools.'**
+  String get modelDetailSheetGeminiCodeExecutionMutuallyExclusiveHint;
+
+  /// No description provided for @modelDetailSheetBuiltinToolsUnsupportedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Current provider does not support these built-in tools.'**
+  String get modelDetailSheetBuiltinToolsUnsupportedHint;
 
   /// No description provided for @modelDetailSheetSearchTool.
   ///
@@ -3665,6 +4058,60 @@ abstract class AppLocalizations {
   /// **'Enable URL content ingestion'**
   String get modelDetailSheetUrlContextToolDescription;
 
+  /// No description provided for @modelDetailSheetCodeExecutionTool.
+  ///
+  /// In en, this message translates to:
+  /// **'Code Execution'**
+  String get modelDetailSheetCodeExecutionTool;
+
+  /// No description provided for @modelDetailSheetCodeExecutionToolDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable code execution tool'**
+  String get modelDetailSheetCodeExecutionToolDescription;
+
+  /// No description provided for @modelDetailSheetYoutubeTool.
+  ///
+  /// In en, this message translates to:
+  /// **'YouTube'**
+  String get modelDetailSheetYoutubeTool;
+
+  /// No description provided for @modelDetailSheetYoutubeToolDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable YouTube URL ingestion (auto-detect links in prompts)'**
+  String get modelDetailSheetYoutubeToolDescription;
+
+  /// No description provided for @modelDetailSheetOpenaiBuiltinToolsResponsesOnlyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Requires OpenAI Responses API.'**
+  String get modelDetailSheetOpenaiBuiltinToolsResponsesOnlyHint;
+
+  /// No description provided for @modelDetailSheetOpenaiCodeInterpreterTool.
+  ///
+  /// In en, this message translates to:
+  /// **'Code Interpreter'**
+  String get modelDetailSheetOpenaiCodeInterpreterTool;
+
+  /// No description provided for @modelDetailSheetOpenaiCodeInterpreterToolDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable code interpreter tool (container auto, memory limit 4g)'**
+  String get modelDetailSheetOpenaiCodeInterpreterToolDescription;
+
+  /// No description provided for @modelDetailSheetOpenaiImageGenerationTool.
+  ///
+  /// In en, this message translates to:
+  /// **'Image Generation'**
+  String get modelDetailSheetOpenaiImageGenerationTool;
+
+  /// No description provided for @modelDetailSheetOpenaiImageGenerationToolDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable image generation tool'**
+  String get modelDetailSheetOpenaiImageGenerationToolDescription;
+
   /// No description provided for @modelDetailSheetCancelButton.
   ///
   /// In en, this message translates to:
@@ -3686,7 +4133,7 @@ abstract class AppLocalizations {
   /// No description provided for @modelDetailSheetInvalidIdError.
   ///
   /// In en, this message translates to:
-  /// **'Please enter a valid model ID (>=2 chars, no spaces)'**
+  /// **'Please enter a valid model ID (>=2 chars)'**
   String get modelDetailSheetInvalidIdError;
 
   /// No description provided for @modelDetailSheetModelIdExistsError.
@@ -3856,6 +4303,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Response API (/responses)'**
   String get providerDetailPageResponseApiTitle;
+
+  /// No description provided for @providerDetailPageAihubmixAppCodeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'APP-Code (10% off)'**
+  String get providerDetailPageAihubmixAppCodeLabel;
+
+  /// No description provided for @providerDetailPageAihubmixAppCodeHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Adds header APP-Code requests to get a 10% discount. Only affects AIhubmix.'**
+  String get providerDetailPageAihubmixAppCodeHelp;
 
   /// No description provided for @providerDetailPageVertexAiTitle.
   ///
@@ -4289,6 +4748,24 @@ abstract class AppLocalizations {
   /// **'Share'**
   String get shareProviderSheetShareButton;
 
+  /// No description provided for @desktopProviderContextMenuShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get desktopProviderContextMenuShare;
+
+  /// No description provided for @desktopProviderShareCopyText.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy code'**
+  String get desktopProviderShareCopyText;
+
+  /// No description provided for @desktopProviderShareCopyQr.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy QR'**
+  String get desktopProviderShareCopyQr;
+
   /// No description provided for @providerDetailPageApiBaseUrlLabel.
   ///
   /// In en, this message translates to:
@@ -4384,6 +4861,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'General Options'**
   String get searchServicesPageGeneralOptions;
+
+  /// No description provided for @searchServicesPageAutoTestTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-test connections on launch'**
+  String get searchServicesPageAutoTestTitle;
 
   /// No description provided for @searchServicesPageMaxResults.
   ///
@@ -4667,12 +5150,6 @@ abstract class AppLocalizations {
   /// **'No services. Add from Search Services.'**
   String get searchSettingsSheetNoServicesMessage;
 
-  /// No description provided for @aboutPageEasterEggTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Easter Egg Unlocked!'**
-  String get aboutPageEasterEggTitle;
-
   /// No description provided for @aboutPageEasterEggMessage.
   ///
   /// In en, this message translates to:
@@ -4829,6 +5306,24 @@ abstract class AppLocalizations {
   /// **'Display date group labels in the conversation list'**
   String get displaySettingsPageShowChatListDateSubtitle;
 
+  /// No description provided for @displaySettingsPageKeepSidebarOpenOnAssistantTapTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep sidebar open when selecting assistant'**
+  String get displaySettingsPageKeepSidebarOpenOnAssistantTapTitle;
+
+  /// No description provided for @displaySettingsPageKeepSidebarOpenOnTopicTapTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep sidebar open when selecting topic'**
+  String get displaySettingsPageKeepSidebarOpenOnTopicTapTitle;
+
+  /// No description provided for @displaySettingsPageKeepAssistantListExpandedOnSidebarCloseTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Don\'t collapse assistant list when closing sidebar'**
+  String get displaySettingsPageKeepAssistantListExpandedOnSidebarCloseTitle;
+
   /// No description provided for @displaySettingsPageShowUpdatesTitle.
   ///
   /// In en, this message translates to:
@@ -4901,6 +5396,18 @@ abstract class AppLocalizations {
   /// **'Enable haptic feedback during generation'**
   String get displaySettingsPageHapticsOnGenerateSubtitle;
 
+  /// No description provided for @displaySettingsPageNewChatAfterDeleteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'New chat after deleting topic'**
+  String get displaySettingsPageNewChatAfterDeleteTitle;
+
+  /// No description provided for @displaySettingsPageNewChatOnAssistantSwitchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'New chat when switching assistants'**
+  String get displaySettingsPageNewChatOnAssistantSwitchTitle;
+
   /// No description provided for @displaySettingsPageNewChatOnLaunchTitle.
   ///
   /// In en, this message translates to:
@@ -4943,6 +5450,12 @@ abstract class AppLocalizations {
   /// **'Chat Font Size'**
   String get displaySettingsPageChatFontSizeTitle;
 
+  /// No description provided for @displaySettingsPageAutoScrollEnableTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-scroll to bottom'**
+  String get displaySettingsPageAutoScrollEnableTitle;
+
   /// No description provided for @displaySettingsPageAutoScrollIdleTitle.
   ///
   /// In en, this message translates to:
@@ -4954,6 +5467,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Wait time after user scroll before jumping to bottom'**
   String get displaySettingsPageAutoScrollIdleSubtitle;
+
+  /// No description provided for @displaySettingsPageAutoScrollDisabledLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get displaySettingsPageAutoScrollDisabledLabel;
 
   /// No description provided for @displaySettingsPageChatFontSampleText.
   ///
@@ -5084,7 +5603,7 @@ abstract class AppLocalizations {
   /// No description provided for @displaySettingsPageOtherSettingsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Other'**
+  /// **'Other Settings'**
   String get displaySettingsPageOtherSettingsTitle;
 
   /// No description provided for @themeSettingsPageDynamicColorSection.
@@ -5723,6 +6242,30 @@ abstract class AppLocalizations {
   /// **'Saved and applied'**
   String get mcpJsonEditSavedApplied;
 
+  /// No description provided for @mcpTimeoutSettingsTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Set tool call timeout'**
+  String get mcpTimeoutSettingsTooltip;
+
+  /// No description provided for @mcpTimeoutDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tool call timeout'**
+  String get mcpTimeoutDialogTitle;
+
+  /// No description provided for @mcpTimeoutSecondsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Tool call timeout (seconds)'**
+  String get mcpTimeoutSecondsLabel;
+
+  /// No description provided for @mcpTimeoutInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a positive number of seconds'**
+  String get mcpTimeoutInvalid;
+
   /// No description provided for @quickPhraseEditButton.
   ///
   /// In en, this message translates to:
@@ -6286,6 +6829,288 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You are in a voice conversation. Use informal, conversational language, and keep the conversation simple and clear. {text}'**
   String voiceChatSystemPrompt(String text);
+
+  /// No description provided for @providerDetailPageBatchDetectButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Detect'**
+  String get providerDetailPageBatchDetectButton;
+
+  /// No description provided for @providerDetailPageBatchDetecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Detecting...'**
+  String get providerDetailPageBatchDetecting;
+
+  /// No description provided for @providerDetailPageBatchDetectStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start Detection'**
+  String get providerDetailPageBatchDetectStart;
+
+  /// No description provided for @providerDetailPageDetectSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Detection successful'**
+  String get providerDetailPageDetectSuccess;
+
+  /// No description provided for @providerDetailPageDetectFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Detection failed'**
+  String get providerDetailPageDetectFailed;
+
+  /// No description provided for @providerDetailPageDeleteAllModelsWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This action cannot be undone.'**
+  String get providerDetailPageDeleteAllModelsWarning;
+
+  /// No description provided for @requestLogSettingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Request Logging'**
+  String get requestLogSettingTitle;
+
+  /// No description provided for @requestLogSettingSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'When enabled, request/response details are written to logs/logs.txt (rotated daily).'**
+  String get requestLogSettingSubtitle;
+
+  /// No description provided for @flutterLogSettingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Flutter Logging'**
+  String get flutterLogSettingTitle;
+
+  /// No description provided for @flutterLogSettingSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'When enabled, Flutter errors and print output are written to logs/flutter_logs.txt (rotated daily).'**
+  String get flutterLogSettingSubtitle;
+
+  /// No description provided for @logViewerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Request Logs'**
+  String get logViewerTitle;
+
+  /// No description provided for @logViewerEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No logs yet'**
+  String get logViewerEmpty;
+
+  /// No description provided for @logViewerCurrentLog.
+  ///
+  /// In en, this message translates to:
+  /// **'Current Log'**
+  String get logViewerCurrentLog;
+
+  /// No description provided for @logViewerExport.
+  ///
+  /// In en, this message translates to:
+  /// **'Export'**
+  String get logViewerExport;
+
+  /// No description provided for @logViewerOpenFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Logs Folder'**
+  String get logViewerOpenFolder;
+
+  /// No description provided for @assistantEditManageSummariesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage Summaries'**
+  String get assistantEditManageSummariesTitle;
+
+  /// No description provided for @assistantEditSummaryEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No summaries yet'**
+  String get assistantEditSummaryEmpty;
+
+  /// No description provided for @assistantEditSummaryDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Summary'**
+  String get assistantEditSummaryDialogTitle;
+
+  /// No description provided for @assistantEditSummaryDialogHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter summary content'**
+  String get assistantEditSummaryDialogHint;
+
+  /// No description provided for @assistantEditDeleteSummaryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Summary'**
+  String get assistantEditDeleteSummaryTitle;
+
+  /// No description provided for @assistantEditDeleteSummaryContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to clear this summary?'**
+  String get assistantEditDeleteSummaryContent;
+
+  /// No description provided for @assistantEditPageRegexTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Regex'**
+  String get assistantEditPageRegexTab;
+
+  /// No description provided for @assistantEditRegexDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Customize text replacement rules using regular expressions.'**
+  String get assistantEditRegexDescription;
+
+  /// No description provided for @assistantEditAddRegexButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Regex Rule'**
+  String get assistantEditAddRegexButton;
+
+  /// No description provided for @assistantRegexUntitled.
+  ///
+  /// In en, this message translates to:
+  /// **'Untitled Rule'**
+  String get assistantRegexUntitled;
+
+  /// No description provided for @assistantRegexDeleteButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Rule'**
+  String get assistantRegexDeleteButton;
+
+  /// No description provided for @assistantRegexScopeUser.
+  ///
+  /// In en, this message translates to:
+  /// **'User Message'**
+  String get assistantRegexScopeUser;
+
+  /// No description provided for @assistantRegexScopeAssistant.
+  ///
+  /// In en, this message translates to:
+  /// **'AI Response'**
+  String get assistantRegexScopeAssistant;
+
+  /// No description provided for @assistantRegexScopeVisualOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Visual Only'**
+  String get assistantRegexScopeVisualOnly;
+
+  /// No description provided for @assistantRegexValidationError.
+  ///
+  /// In en, this message translates to:
+  /// **'Please fill in all required fields.'**
+  String get assistantRegexValidationError;
+
+  /// No description provided for @assistantRegexInvalidPattern.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid regular expression pattern.'**
+  String get assistantRegexInvalidPattern;
+
+  /// No description provided for @assistantRegexAddTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Regex Rule'**
+  String get assistantRegexAddTitle;
+
+  /// No description provided for @assistantRegexEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Regex Rule'**
+  String get assistantRegexEditTitle;
+
+  /// No description provided for @assistantRegexAddAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get assistantRegexAddAction;
+
+  /// No description provided for @assistantRegexSaveAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get assistantRegexSaveAction;
+
+  /// No description provided for @assistantRegexNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Rule Name'**
+  String get assistantRegexNameLabel;
+
+  /// No description provided for @assistantRegexPatternLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Regex Pattern'**
+  String get assistantRegexPatternLabel;
+
+  /// No description provided for @assistantRegexReplacementLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Replacement Text'**
+  String get assistantRegexReplacementLabel;
+
+  /// No description provided for @assistantRegexScopeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Scope'**
+  String get assistantRegexScopeLabel;
+
+  /// No description provided for @assistantRegexCancelButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get assistantRegexCancelButton;
+
+  /// No description provided for @instructionInjectionImportTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Import'**
+  String get instructionInjectionImportTooltip;
+
+  /// No description provided for @instructionInjectionImportSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Successfully imported {count} items.'**
+  String instructionInjectionImportSuccess(int count);
+
+  /// No description provided for @instructionInjectionImportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Import failed: {error}'**
+  String instructionInjectionImportFailed(String error);
+
+  /// No description provided for @assistantEditSystemPromptImportButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Import Prompt'**
+  String get assistantEditSystemPromptImportButton;
+
+  /// No description provided for @assistantEditSystemPromptImportEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No prompts found in file.'**
+  String get assistantEditSystemPromptImportEmpty;
+
+  /// No description provided for @assistantEditSystemPromptImportSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Prompt imported successfully.'**
+  String get assistantEditSystemPromptImportSuccess;
+
+  /// No description provided for @assistantEditSystemPromptImportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to import prompt: {error}'**
+  String assistantEditSystemPromptImportFailed(Object error);
 }
 
 class _AppLocalizationsDelegate

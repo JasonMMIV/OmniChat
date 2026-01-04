@@ -1,49 +1,138 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../core/providers/settings_provider.dart';
-import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/snackbar.dart';
 import 'package:syncfusion_flutter_sliders/sliders.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
 import 'dart:ui';
 import 'dart:async';
 import 'dart:math' as math;
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'package:characters/characters.dart';
-import '../../../shared/widgets/emoji_text.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
-import '../../../desktop/desktop_context_menu.dart';
 import 'package:file_picker/file_picker.dart';
-import '../../../shared/widgets/emoji_picker_dialog.dart';
-import '../../../icons/lucide_adapter.dart';
-import '../../../theme/design_tokens.dart';
-import '../../../core/models/assistant.dart';
-import '../../../core/providers/assistant_provider.dart';
-import '../../../core/providers/settings_provider.dart';
-import '../../../core/providers/mcp_provider.dart';
-import '../../model/widgets/model_select_sheet.dart';
-import '../../chat/widgets/reasoning_budget_sheet.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/services.dart';
-import '../../chat/widgets/chat_message_widget.dart';
-import '../../../core/models/chat_message.dart';
-import '../../../core/models/preset_message.dart';
-import '../../../utils/sandbox_path_resolver.dart';
-import 'dart:io' show File, Platform;
-import '../../../utils/avatar_cache.dart';
-import '../../../utils/brand_assets.dart';
-import '../../../core/models/quick_phrase.dart';
-import '../../../core/providers/quick_phrase_provider.dart';
-import '../../../core/providers/memory_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import '../../../shared/widgets/ios_switch.dart';
+
+import '../../../core/models/assistant.dart';
+import '../../../core/models/chat_message.dart';
+import '../../../core/models/preset_message.dart';
+import '../../../core/models/quick_phrase.dart';
+import '../../../core/models/conversation.dart';
+import '../../../core/providers/assistant_provider.dart';
+import '../../../core/providers/settings_provider.dart';
+import '../../../core/providers/mcp_provider.dart';
+import '../../../core/providers/quick_phrase_provider.dart';
+import '../../../core/providers/memory_provider.dart';
+import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/haptics.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/snackbar.dart';
+import '../../../shared/widgets/emoji_text.dart';
+import '../../../shared/widgets/emoji_picker_dialog.dart';
+import '../../../shared/widgets/ios_switch.dart';
 import '../../../shared/widgets/ios_tactile.dart';
+import '../../../icons/lucide_adapter.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../utils/sandbox_path_resolver.dart';
+import '../../../utils/avatar_cache.dart';
+import '../../../utils/brand_assets.dart';
+import '../../model/widgets/model_select_sheet.dart';
+import '../../chat/widgets/reasoning_budget_sheet.dart';
+import '../../chat/widgets/chat_message_widget.dart';
+import '../../quick_phrase/widgets/quick_phrase_menu.dart';
+import 'assistant_regex_tab.dart';
+import '../../../core/models/assistant_regex.dart';
+import '../../../desktop/desktop_context_menu.dart';
+import 'dart:io' show File, Platform;
+
+const int _contextMessageMin = 1;
+const int _contextMessageMax = 256;
+
+int _clampContextMessages(num value) =>
+    value.clamp(_contextMessageMin, _contextMessageMax).toInt();
+
+Future<int?> _showContextMessageInputDialog(
+  BuildContext context, {
+  required int initialValue,
+}) async {
+  final cs = Theme.of(context).colorScheme;
+  final l10n = AppLocalizations.of(context)!;
+  final controller = TextEditingController(
+    text: _clampContextMessages(initialValue).toString(),
+  );
+
+  int? parseValue() => int.tryParse(controller.text);
+
+  try {
+    return await showDialog<int>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            final parsed = parseValue();
+            void submit() {
+              if (parsed == null) return;
+              Navigator.of(ctx).pop(_clampContextMessages(parsed));
+            }
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Text(l10n.assistantEditContextMessagesTitle),
+              content: SizedBox(
+                width: 360,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: controller,
+                      autofocus: true,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: InputDecoration(
+                        labelText:
+                            '${l10n.assistantEditContextMessagesTitle} ($_contextMessageMin-$_contextMessageMax)',
+                        helperText: '$_contextMessageMin-$_contextMessageMax',
+                      ),
+                      onChanged: (_) => setLocal(() {}),
+                      onSubmitted: (_) => submit(),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${l10n.assistantEditContextMessagesDescription} ($_contextMessageMin-$_contextMessageMax)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurface.withOpacity(0.65),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(l10n.assistantEditEmojiDialogCancel),
+                ),
+                TextButton(
+                  onPressed: parsed == null ? null : submit,
+                  child: Text(l10n.assistantEditEmojiDialogSave),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  } finally {
+    WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
+  }
+}
 
 class AssistantSettingsEditPage extends StatefulWidget {
   const AssistantSettingsEditPage({super.key, required this.assistantId});
@@ -61,7 +150,7 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this); //mcp
+    _tabController = TabController(length: 6, vsync: this); //mcp
     _tabController.addListener(() {
       // Close IME when switching tabs and refresh state
       FocusManager.instance.primaryFocus?.unfocus();
@@ -134,6 +223,7 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
                       // l10n.assistantEditPageMcpTab,
                       l10n.assistantEditPageQuickPhraseTab,
                       l10n.assistantEditPageCustomTab,
+                      l10n.assistantEditPageRegexTab,
                     ],
                   ),
                 ),
@@ -154,6 +244,7 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
             // _McpTab(assistantId: assistant.id),
             _QuickPhraseTab(assistantId: assistant.id),
             _CustomRequestTab(assistantId: assistant.id),
+            AssistantRegexTab(assistantId: assistant.id),
           ],
         ),
       ),
@@ -507,9 +598,379 @@ class _MemoryTab extends StatelessWidget {
             ),
           );
         }),
+
+        // Summaries section
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.assistantEditManageSummariesTitle,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        Builder(
+          builder: (context) {
+            final chatService = context.watch<ChatService>();
+            final summaries = chatService.getConversationsWithSummaryForAssistant(assistantId);
+
+            if (summaries.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Text(
+                  l10n.assistantEditSummaryEmpty,
+                  style: TextStyle(color: cs.onSurface.withOpacity(0.6), fontSize: 12),
+                ),
+              );
+            }
+
+            return Column(
+              children: summaries.map((conv) {
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white10 : Colors.white.withOpacity(0.96),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: cs.outlineVariant.withOpacity(isDark ? 0.08 : 0.06), width: 0.6),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Lucide.MessageSquare, size: 14, color: cs.onSurface.withOpacity(0.5)),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  conv.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: cs.onSurface.withOpacity(0.6),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  conv.summary ?? '',
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              _TactileIconButton(
+                                icon: Lucide.Pencil,
+                                size: 18,
+                                color: cs.primary,
+                                onTap: () => _showEditSummarySheet(context, conv, chatService),
+                              ),
+                              const SizedBox(width: 6),
+                              _TactileIconButton(
+                                icon: Lucide.Trash2,
+                                size: 18,
+                                color: cs.error,
+                                onTap: () => _confirmDeleteSummary(context, conv.id, chatService),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+
         const SizedBox(height: 32),
       ],
     );
+  }
+
+  Future<void> _showEditSummarySheet(
+    BuildContext context,
+    Conversation conversation,
+    ChatService chatService,
+  ) async {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final controller = TextEditingController(text: conversation.summary ?? '');
+    final platform = Theme.of(context).platform;
+    final isDesktop = platform == TargetPlatform.macOS ||
+        platform == TargetPlatform.linux ||
+        platform == TargetPlatform.windows;
+
+    if (isDesktop) {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (ctx) {
+          return Dialog(
+            backgroundColor: cs.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    height: 44,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              l10n.assistantEditSummaryDialogTitle,
+                              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: MaterialLocalizations.of(ctx).closeButtonTooltip,
+                            icon: const Icon(Lucide.X, size: 18),
+                            color: cs.onSurface,
+                            onPressed: () => Navigator.of(ctx).maybePop(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Text(
+                      conversation.title,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurface.withOpacity(0.6),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextField(
+                          controller: controller,
+                          minLines: 3,
+                          maxLines: 8,
+                          decoration: InputDecoration(
+                            hintText: l10n.assistantEditSummaryDialogHint,
+                            filled: true,
+                            fillColor: Theme.of(ctx).brightness == Brightness.dark
+                                ? Colors.white10
+                                : const Color(0xFFF7F7F9),
+                            border: OutlineInputBorder(
+                              borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.2)),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: cs.primary.withOpacity(0.5)),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          autofocus: true,
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            _IosButton(
+                              label: l10n.assistantEditEmojiDialogCancel,
+                              onTap: () => Navigator.of(ctx).pop(),
+                              filled: false,
+                              neutral: true,
+                              dense: true,
+                            ),
+                            const SizedBox(width: 8),
+                            _IosButton(
+                              label: l10n.assistantEditEmojiDialogSave,
+                              onTap: () async {
+                                final text = controller.text.trim();
+                                if (text.isEmpty) {
+                                  await chatService.clearConversationSummary(conversation.id);
+                                } else {
+                                  await chatService.updateConversationSummary(
+                                    conversation.id,
+                                    text,
+                                    conversation.lastSummarizedMessageCount,
+                                  );
+                                }
+                                if (context.mounted) Navigator.of(ctx).pop();
+                              },
+                              filled: true,
+                              neutral: false,
+                              dense: true,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+      return;
+    }
+
+    // Mobile: BottomSheet
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Lucide.FileText, size: 18, color: cs.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        l10n.assistantEditSummaryDialogTitle,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  conversation.title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: cs.onSurface.withOpacity(0.6),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  minLines: 1,
+                  maxLines: 16,
+                  decoration: InputDecoration(
+                    hintText: l10n.assistantEditSummaryDialogHint,
+                    filled: true,
+                    fillColor: Theme.of(ctx).brightness == Brightness.dark
+                        ? Colors.white10
+                        : const Color(0xFFF7F7F9),
+                    border: OutlineInputBorder(
+                      borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.2)),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: cs.primary.withOpacity(0.5)),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _IosButton(
+                        label: l10n.assistantEditEmojiDialogCancel,
+                        icon: Lucide.X,
+                        onTap: () => Navigator.of(ctx).pop(),
+                        filled: false,
+                        neutral: true,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _IosButton(
+                        label: l10n.assistantEditEmojiDialogSave,
+                        icon: Lucide.Check,
+                        onTap: () async {
+                          final text = controller.text.trim();
+                          if (text.isEmpty) {
+                            await chatService.clearConversationSummary(conversation.id);
+                          } else {
+                            await chatService.updateConversationSummary(
+                              conversation.id,
+                              text,
+                              conversation.lastSummarizedMessageCount,
+                            );
+                          }
+                          if (context.mounted) Navigator.of(ctx).pop();
+                        },
+                        filled: true,
+                        neutral: false,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmDeleteSummary(
+    BuildContext context,
+    String conversationId,
+    ChatService chatService,
+  ) async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.assistantEditDeleteSummaryTitle),
+        content: Text(l10n.assistantEditDeleteSummaryContent),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.homePageCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Theme.of(ctx).colorScheme.error),
+            child: Text(l10n.assistantEditClearButton),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      await chatService.clearConversationSummary(conversationId);
+    }
   }
 }
 
@@ -1257,6 +1718,20 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                         style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                       ),
                     ),
+                    if (a.chatModelProvider != null && a.chatModelId != null)
+                      Tooltip(
+                        message: l10n.defaultModelPageResetDefault,
+                        child: _TactileIconButton(
+                          icon: Lucide.RotateCcw,
+                          color: cs.onSurface,
+                          size: 20,
+                          onTap: () async {
+                            await context.read<AssistantProvider>().updateAssistant(
+                              a.copyWith(clearChatModel: true),
+                            );
+                          },
+                        ),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -1748,10 +2223,10 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
             child: Builder(builder: (context) {
-              final theme = Theme.of(context);
-              final cs = theme.colorScheme;
-              final isDark = theme.brightness == Brightness.dark;
-              final value = context.watch<AssistantProvider>().getById(widget.assistantId)?.contextMessageSize ?? 20;
+              final cs = Theme.of(context).colorScheme;
+              final value = _clampContextMessages(
+                context.watch<AssistantProvider>().getById(widget.assistantId)?.contextMessageSize ?? 20,
+              );
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1779,9 +2254,10 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                       IosSwitch(
                         value: a.limitContextMessages,
                         onChanged: (v) async {
-                          await context.read<AssistantProvider>().updateAssistant(
-                            a.copyWith(limitContextMessages: v),
-                          );
+                          final next = v && a.contextMessageSize < _contextMessageMin
+                              ? a.copyWith(limitContextMessages: v, contextMessageSize: _contextMessageMin)
+                              : a.copyWith(limitContextMessages: v);
+                          await context.read<AssistantProvider>().updateAssistant(next);
                           // Close the bottom sheet after toggle
                           Navigator.of(ctx).pop();
                         },
@@ -1791,13 +2267,25 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                   const SizedBox(height: 8),
                   if (a.limitContextMessages) ...[
                     _SliderTileNew(
-                      value: value.toDouble().clamp(0, 256),
-                      min: 0,
-                      max: 256,
-                      divisions: 64,
+                      value: value.toDouble(),
+                      min: _contextMessageMin.toDouble(),
+                      max: _contextMessageMax.toDouble(),
+                      divisions: _contextMessageMax - _contextMessageMin,
                       label: value.toString(),
+                      customLabelStops: const <double>[1.0, 32.0, 64.0, 128.0, 256.0],
+                      onLabelTap: () async {
+                        final chosen = await _showContextMessageInputDialog(
+                          context,
+                          initialValue: value,
+                        );
+                        if (chosen != null) {
+                          await context.read<AssistantProvider>().updateAssistant(
+                                a.copyWith(contextMessageSize: chosen),
+                              );
+                        }
+                      },
                       onChanged: (v) => context.read<AssistantProvider>().updateAssistant(
-                        a.copyWith(contextMessageSize: v.round()),
+                        a.copyWith(contextMessageSize: _clampContextMessages(v)),
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -2015,6 +2503,8 @@ class _SliderTileNew extends StatelessWidget {
     this.divisions,
     required this.label,
     required this.onChanged,
+    this.customLabelStops,
+    this.onLabelTap,
   });
 
   final double value;
@@ -2023,13 +2513,23 @@ class _SliderTileNew extends StatelessWidget {
   final int? divisions;
   final String label;
   final ValueChanged<double> onChanged;
+  final List<double>? customLabelStops;
+  final VoidCallback? onLabelTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    
+    final useCustomLabels = customLabelStops != null && customLabelStops!.isNotEmpty;
+    final stops = useCustomLabels
+        ? (customLabelStops!
+            .where((v) => v >= min && v <= max)
+            .toSet()
+            .toList()
+          ..sort())
+        : const <double>[];
+
     final active = cs.primary;
     final inactive = cs.onSurface.withOpacity(isDark ? 0.25 : 0.20);
     final double clamped = value.clamp(min, max);
@@ -2049,7 +2549,6 @@ class _SliderTileNew extends StatelessWidget {
       interval = total / 8;
     }
     if (interval <= 0) interval = 1;
-    final int majorCount = (total / interval).round().clamp(1, 10);
     int minor = 0;
     if (step != null && step > 0) {
       // Ensure minor ticks align with the chosen step size
@@ -2064,81 +2563,115 @@ class _SliderTileNew extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: SfSliderTheme(
-                data: SfSliderThemeData(
-                  activeTrackHeight: 8,
-                  inactiveTrackHeight: 8,
-                  overlayRadius: 14,
-                  activeTrackColor: active,
-                  inactiveTrackColor: inactive,
-                  // Waterdrop tooltip uses theme primary background with onPrimary text
-                  tooltipBackgroundColor: cs.primary,
-                  tooltipTextStyle: TextStyle(
-                    color: cs.onPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  thumbStrokeColor: Colors.transparent,
-                  thumbStrokeWidth: 0,
-                  activeTickColor: cs.onSurface.withOpacity(
-                    isDark ? 0.45 : 0.35,
-                  ),
-                  inactiveTickColor: cs.onSurface.withOpacity(
-                    isDark ? 0.30 : 0.25,
-                  ),
-                  activeMinorTickColor: cs.onSurface.withOpacity(
-                    isDark ? 0.34 : 0.28,
-                  ),
-                  inactiveMinorTickColor: cs.onSurface.withOpacity(
-                    isDark ? 0.24 : 0.20,
-                  ),
-                ),
-                child: SfSlider(
-                  value: clamped,
-                  min: min,
-                  max: max,
-                  stepSize: step,
-                  enableTooltip: true,
-                  // Show the paddle tooltip only while interacting
-                  shouldAlwaysShowTooltip: false,
-                  showTicks: true,
-                  showLabels: true,
-                  interval: interval,
-                  minorTicksPerInterval: minor,
-                  activeColor: active,
-                  inactiveColor: inactive,
-                  tooltipTextFormatterCallback: (actual, text) => label,
-                  tooltipShape: const SfPaddleTooltipShape(),
-                  labelFormatterCallback: (actual, formattedText) {
-                    // Prefer integers for wide ranges, keep 2 decimals for 0..1
-                    if (total <= 2.0) return actual.toStringAsFixed(2);
-                    if (actual == actual.roundToDouble())
-                      return actual.toStringAsFixed(0);
-                    return actual.toStringAsFixed(1);
-                  },
-                  thumbIcon: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: cs.primary,
-                      shape: BoxShape.circle,
-                      boxShadow: isDark
-                          ? []
-                          : [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.08),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SfSliderTheme(
+                    data: SfSliderThemeData(
+                      activeTrackHeight: 8,
+                      inactiveTrackHeight: 8,
+                      overlayRadius: 14,
+                      activeTrackColor: active,
+                      inactiveTrackColor: inactive,
+                      // Waterdrop tooltip uses theme primary background with onPrimary text
+                      tooltipBackgroundColor: cs.primary,
+                      tooltipTextStyle: TextStyle(
+                        color: cs.onPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      thumbStrokeColor: Colors.transparent,
+                      thumbStrokeWidth: 0,
+                      activeTickColor: cs.onSurface.withOpacity(
+                        isDark ? 0.45 : 0.35,
+                      ),
+                      inactiveTickColor: cs.onSurface.withOpacity(
+                        isDark ? 0.30 : 0.25,
+                      ),
+                      activeMinorTickColor: cs.onSurface.withOpacity(
+                        isDark ? 0.34 : 0.28,
+                      ),
+                      inactiveMinorTickColor: cs.onSurface.withOpacity(
+                        isDark ? 0.24 : 0.20,
+                      ),
+                    ),
+                    child: SfSlider(
+                      value: clamped,
+                      min: min,
+                      max: max,
+                      stepSize: step,
+                      enableTooltip: true,
+                      // Show the paddle tooltip only while interacting
+                      shouldAlwaysShowTooltip: false,
+                      showTicks: true,
+                      showLabels: !useCustomLabels,
+                      interval: interval,
+                      minorTicksPerInterval: minor,
+                      activeColor: active,
+                      inactiveColor: inactive,
+                      tooltipTextFormatterCallback: (actual, text) => label,
+                      tooltipShape: const SfPaddleTooltipShape(),
+                      labelFormatterCallback: (actual, formattedText) {
+                        // Prefer integers for wide ranges, keep 2 decimals for 0..1
+                        if (total <= 2.0) return actual.toStringAsFixed(2);
+                        if (actual == actual.roundToDouble())
+                          return actual.toStringAsFixed(0);
+                        return actual.toStringAsFixed(1);
+                      },
+                      thumbIcon: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: cs.primary,
+                          shape: BoxShape.circle,
+                          boxShadow: isDark
+                              ? []
+                              : [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.08),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                        ),
+                      ),
+                      onChanged: (v) =>
+                          onChanged(v is num ? v.toDouble() : (v as double)),
                     ),
                   ),
-                  onChanged: (v) =>
-                      onChanged(v is num ? v.toDouble() : (v as double)),
-                ),
+                  if (useCustomLabels && stops.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    LayoutBuilder(
+                      builder: (_, __) {
+                        final range = (max - min).abs();
+                        return SizedBox(
+                          height: 18,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: stops.map((v) {
+                              final t = range == 0 ? 0.0 : ((v - min) / range).clamp(0.0, 1.0);
+                              return Align(
+                                alignment: Alignment(-1 + t * 2, 0),
+                                child: Text(
+                                  v == v.roundToDouble()
+                                      ? v.toInt().toString()
+                                      : v.toStringAsFixed(1),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: cs.onSurface.withOpacity(0.65),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ],
               ),
             ),
             const SizedBox(width: 8),
-            _ValuePill(text: label),
+            _ValuePill(text: label, onTap: onLabelTap),
           ],
         ),
         // Remove explicit min/max captions since ticks already indicate range
@@ -2148,27 +2681,32 @@ class _SliderTileNew extends StatelessWidget {
 }
 
 class _ValuePill extends StatelessWidget {
-  const _ValuePill({required this.text});
+  const _ValuePill({required this.text, this.onTap});
   final String text;
+  final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white10 : cs.primary.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: cs.primary.withOpacity(isDark ? 0.28 : 0.22)),
-        boxShadow: isDark ? [] : AppShadows.soft,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        child: Text(
-          text,
-          style: TextStyle(
-            color: cs.primary,
-            fontWeight: FontWeight.w700,
-            fontSize: 12,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: onTap != null ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white10 : cs.primary.withOpacity(0.10),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: cs.primary.withOpacity(isDark ? 0.28 : 0.22)),
+          boxShadow: isDark ? [] : AppShadows.soft,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          child: Text(
+            text,
+            style: TextStyle(
+              color: cs.primary,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
           ),
         ),
       ),
@@ -2805,6 +3343,119 @@ class _PromptTabState extends State<_PromptTab> {
     setState(() {});
   }
 
+  Future<void> _importSystemPrompt() async {
+    final l10n = AppLocalizations.of(context)!;
+    try {
+      final res = await FilePicker.platform.pickFiles(
+        allowMultiple: false,
+        withData: true,
+        type: FileType.custom,
+        allowedExtensions: const ['txt','md','json','js','html','xml','py','java','kt','dart','ts','tsx','markdown','mdx','yml','yaml'],
+      );
+      if (res == null || res.files.isEmpty) return;
+      final picked = res.files.first;
+      String? content;
+      if (picked.bytes != null && picked.bytes!.isNotEmpty) {
+        content = utf8.decode(picked.bytes!, allowMalformed: true);
+      } else if (!kIsWeb && picked.path != null && picked.path!.isNotEmpty) {
+        content = await File(picked.path!).readAsString();
+      }
+      if (!mounted) return;
+      if (content == null || content.trim().isEmpty) {
+        showAppSnackBar(
+          context,
+          message: l10n.assistantEditSystemPromptImportEmpty,
+          type: NotificationType.error,
+        );
+        return;
+      }
+      _sysCtrl.text = content;
+      _sysCtrl.selection =
+          TextSelection.collapsed(offset: _sysCtrl.text.length);
+      final ap = context.read<AssistantProvider>();
+      final a = ap.getById(widget.assistantId);
+      if (a != null) {
+        await ap.updateAssistant(a.copyWith(systemPrompt: _sysCtrl.text));
+      }
+      showAppSnackBar(
+        context,
+        message: l10n.assistantEditSystemPromptImportSuccess,
+        type: NotificationType.success,
+      );
+      Future.microtask(() => _sysFocus.requestFocus());
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        message: l10n.assistantEditSystemPromptImportFailed,
+        type: NotificationType.error,
+      );
+    }
+  }
+
+  Future<void> _applySystemPromptChange(String value) async {
+    final ap = context.read<AssistantProvider>();
+    final a = ap.getById(widget.assistantId);
+    if (a == null) return;
+    _sysCtrl.text = value;
+    _sysCtrl.selection = TextSelection.collapsed(offset: _sysCtrl.text.length);
+    await ap.updateAssistant(a.copyWith(systemPrompt: value));
+    if (mounted) setState(() {});
+  }
+
+  Future<String?> _showSystemPromptMobileSheet(String initial) {
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (_) => _SystemPromptMobileSheet(initial: initial),
+    );
+  }
+
+  Future<String?> _showSystemPromptDesktopDialog(String initial) {
+    return showGeneralDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'system-prompt-editor',
+      barrierColor: Colors.black.withOpacity(0.12),
+      pageBuilder: (ctx, _, __) {
+        return _SystemPromptDesktopDialog(initial: initial);
+      },
+      transitionBuilder: (ctx, anim, _, child) {
+        final curved = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.98, end: 1.0).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openSystemPromptEditor() async {
+    final platform = Theme.of(context).platform;
+    final bool isDesktop = kIsWeb ||
+        platform == TargetPlatform.macOS ||
+        platform == TargetPlatform.linux ||
+        platform == TargetPlatform.windows;
+    final initial = _sysCtrl.text;
+    final String? next = isDesktop
+        ? await _showSystemPromptDesktopDialog(initial)
+        : await _showSystemPromptMobileSheet(initial);
+    if (!mounted || next == null || next == _sysCtrl.text) return;
+    await _applySystemPromptChange(next);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -2913,9 +3564,32 @@ class _PromptTabState extends State<_PromptTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              l10n.assistantEditSystemPromptTitle,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.assistantEditSystemPromptTitle,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                IosIconButton(
+                  icon: Lucide.Maximize2,
+                  size: 20,
+                  padding: const EdgeInsets.all(8),
+                  minSize: 38,
+                  color: cs.primary,
+                  onTap: _openSystemPromptEditor,
+                  semanticLabel: l10n.assistantEditSystemPromptTitle,
+                ),
+                const SizedBox(width: 4),
+                _IosButton(
+                  label: l10n.assistantEditSystemPromptImportButton,
+                  icon: Icons.file_open,
+                  dense: true,
+                  neutral: false,
+                  onTap: _importSystemPrompt,
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             TextField(
@@ -3392,6 +4066,286 @@ class _HoverIconButtonState extends State<_HoverIconButton> {
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(widget.icon, size: 16, color: _hover ? cs.primary : cs.onSurface.withOpacity(0.9)),
+        ),
+      ),
+    );
+  }
+}
+
+class _HoverTextButton extends StatefulWidget {
+  const _HoverTextButton({
+    required this.label,
+    required this.onTap,
+    this.color,
+    this.dense = false,
+    this.enableHover = true,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final Color? color;
+  final bool dense;
+  final bool enableHover;
+
+  @override
+  State<_HoverTextButton> createState() => _HoverTextButtonState();
+}
+
+class _HoverTextButtonState extends State<_HoverTextButton> {
+  bool _hover = false;
+  bool _press = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color textColor =
+        _press ? (widget.color ?? cs.primary).withOpacity(0.8) : (widget.color ?? cs.primary);
+    final EdgeInsets padding =
+        widget.dense ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8) : const EdgeInsets.symmetric(horizontal: 12, vertical: 10);
+    final Color bg = (_hover || _press)
+        ? (isDark ? Colors.white.withOpacity(_press ? 0.12 : 0.08) : Colors.black.withOpacity(_press ? 0.08 : 0.06))
+        : Colors.transparent;
+
+    return MouseRegion(
+      onEnter: widget.enableHover ? (_) => setState(() => _hover = true) : null,
+      onExit: widget.enableHover ? (_) => setState(() => _hover = false) : null,
+      cursor: widget.enableHover ? SystemMouseCursors.click : MouseCursor.defer,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _press = true),
+        onTapUp: (_) => setState(() => _press = false),
+        onTapCancel: () => setState(() => _press = false),
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOutCubic,
+          padding: padding,
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              color: textColor,
+              fontWeight: FontWeight.w700,
+              fontSize: 13.5,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SystemPromptMobileSheet extends StatefulWidget {
+  const _SystemPromptMobileSheet({required this.initial});
+  final String initial;
+
+  @override
+  State<_SystemPromptMobileSheet> createState() =>
+      _SystemPromptMobileSheetState();
+}
+
+class _SystemPromptMobileSheetState extends State<_SystemPromptMobileSheet> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.96,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 10, 16, bottom + 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                _HoverTextButton(
+                  label: MaterialLocalizations.of(context).closeButtonLabel,
+                  color: cs.onSurface,
+                  onTap: () => Navigator.of(context).maybePop(),
+                  dense: true,
+                  enableHover: false,
+                ),
+                const Spacer(),
+                _HoverTextButton(
+                  label: l10n.assistantEditEmojiDialogSave,
+                  color: cs.primary,
+                  onTap: () => Navigator.of(context).pop(_controller.text),
+                  dense: true,
+                  enableHover: false,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white10 : const Color(0xFFF7F7F9),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: cs.outlineVariant.withOpacity(0.2),
+                  ),
+                ),
+                child: TextField(
+                  controller: _controller,
+                  autofocus: true,
+                  expands: true,
+                  maxLines: null,
+                  minLines: null,
+                  keyboardType: TextInputType.multiline,
+                  textAlignVertical: TextAlignVertical.top,
+                  decoration: InputDecoration(
+                    hintText: l10n.assistantEditSystemPromptHint,
+                    border: InputBorder.none,
+                    contentPadding:
+                        const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SystemPromptDesktopDialog extends StatefulWidget {
+  const _SystemPromptDesktopDialog({required this.initial});
+  final String initial;
+
+  @override
+  State<_SystemPromptDesktopDialog> createState() =>
+      _SystemPromptDesktopDialogState();
+}
+
+class _SystemPromptDesktopDialogState
+    extends State<_SystemPromptDesktopDialog> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Center(
+      child: Material(
+        type: MaterialType.transparency,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 860, maxHeight: 660),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: cs.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: cs.outlineVariant.withOpacity(isDark ? 0.22 : 0.18),
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 12, 6),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            l10n.assistantEditSystemPromptTitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        _HoverTextButton(
+                          label: MaterialLocalizations.of(context)
+                              .closeButtonLabel,
+                          color: cs.onSurface,
+                          onTap: () => Navigator.of(context).maybePop(),
+                          dense: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Divider(
+                    height: 1,
+                    thickness: 0.6,
+                    color: cs.outlineVariant.withOpacity(0.14),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.white10
+                              : const Color(0xFFF7F7F9),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: cs.outlineVariant.withOpacity(0.2),
+                          ),
+                        ),
+                        child: TextField(
+                          controller: _controller,
+                          autofocus: true,
+                          expands: true,
+                          maxLines: null,
+                          minLines: null,
+                          keyboardType: TextInputType.multiline,
+                          textAlignVertical: TextAlignVertical.top,
+                          decoration: InputDecoration(
+                            hintText: l10n.assistantEditSystemPromptHint,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.fromLTRB(
+                                14, 14, 14, 14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: _HoverTextButton(
+                        label: l10n.assistantEditEmojiDialogSave,
+                        color: cs.primary,
+                        onTap: () =>
+                            Navigator.of(context).pop(_controller.text),
+                        dense: true,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -5180,7 +6134,7 @@ class _IosButtonState extends State<_IosButton> {
 
 // ===== Desktop Assistant Dialog (reuses mobile tabs) =====
 
-enum _AssistantDesktopMenu { basic, prompts, memory, quick, custom }
+enum _AssistantDesktopMenu { basic, prompts, memory, quick, custom, regex }
 
 Future<void> showAssistantDesktopDialog(BuildContext context, {required String assistantId}) async {
   final cs = Theme.of(context).colorScheme;
@@ -5269,6 +6223,8 @@ class _DesktopAssistantDialogShellState extends State<_DesktopAssistantDialogShe
                         return _QuickPhraseTab(assistantId: widget.assistantId);
                       case _AssistantDesktopMenu.custom:
                         return _CustomRequestTab(assistantId: widget.assistantId);
+                      case _AssistantDesktopMenu.regex:
+                        return AssistantRegexDesktopPane(assistantId: widget.assistantId);
                     }
                   }(),
                 ),
@@ -5302,6 +6258,7 @@ class _DesktopAssistantMenuState extends State<_DesktopAssistantMenu> {
       (_AssistantDesktopMenu.memory, l10n.assistantEditPageMemoryTab),
       (_AssistantDesktopMenu.quick, l10n.assistantEditPageQuickPhraseTab),
       (_AssistantDesktopMenu.custom, l10n.assistantEditPageCustomTab),
+      (_AssistantDesktopMenu.regex, l10n.assistantEditPageRegexTab),
     ];
     return SizedBox(
       width: 220,
@@ -5641,7 +6598,12 @@ class _DesktopAssistantBasicPaneState extends State<_DesktopAssistantBasicPane> 
                   headerWithSwitch(
                     title: labelWithHelp(l10n.assistantEditContextMessagesTitle, l10n.assistantEditContextMessagesDescription),
                     value: a.limitContextMessages,
-                    onChanged: (v) => context.read<AssistantProvider>().updateAssistant(a.copyWith(limitContextMessages: v)),
+                    onChanged: (v) {
+                      final next = v && a.contextMessageSize < _contextMessageMin
+                          ? a.copyWith(limitContextMessages: v, contextMessageSize: _contextMessageMin)
+                          : a.copyWith(limitContextMessages: v);
+                      context.read<AssistantProvider>().updateAssistant(next);
+                    },
                   ),
                   const SizedBox(height: 8),
                   IgnorePointer(
@@ -5649,13 +6611,27 @@ class _DesktopAssistantBasicPaneState extends State<_DesktopAssistantBasicPane> 
                     child: Opacity(
                       opacity: a.limitContextMessages ? 1.0 : 0.5,
                       child: _SliderTileNew(
-                        value: a.contextMessageSize.toDouble().clamp(0, 256),
-                        min: 0,
-                        max: 256,
-                        divisions: 64,
-                        label: a.contextMessageSize.toString(),
+                        value: _clampContextMessages(a.contextMessageSize).toDouble(),
+                        min: _contextMessageMin.toDouble(),
+                        max: _contextMessageMax.toDouble(),
+                        divisions: _contextMessageMax - _contextMessageMin,
+                        label: _clampContextMessages(a.contextMessageSize).toString(),
+                        customLabelStops: const <double>[1.0, 32.0, 64.0, 128.0, 256.0],
+                        onLabelTap: a.limitContextMessages
+                            ? () async {
+                                final chosen = await _showContextMessageInputDialog(
+                                  context,
+                                  initialValue: _clampContextMessages(a.contextMessageSize),
+                                );
+                                if (chosen != null) {
+                                  await context.read<AssistantProvider>().updateAssistant(
+                                        a.copyWith(contextMessageSize: chosen),
+                                      );
+                                }
+                              }
+                            : null,
                         onChanged: (v) => context.read<AssistantProvider>().updateAssistant(
-                          a.copyWith(contextMessageSize: v.round()),
+                          a.copyWith(contextMessageSize: _clampContextMessages(v)),
                         ),
                       ),
                     ),
@@ -5737,7 +6713,30 @@ class _DesktopAssistantBasicPaneState extends State<_DesktopAssistantBasicPane> 
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.assistantEditChatModelTitle, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          l10n.assistantEditChatModelTitle,
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      if (a.chatModelProvider != null && a.chatModelId != null)
+                        Tooltip(
+                          message: l10n.defaultModelPageResetDefault,
+                          child: _TactileIconButton(
+                            icon: Lucide.RotateCcw,
+                            color: cs.onSurface,
+                            size: 20,
+                            onTap: () async {
+                              await context.read<AssistantProvider>().updateAssistant(
+                                    a.copyWith(clearChatModel: true),
+                                  );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
                   const SizedBox(height: 8),
                   MouseRegion(
                     onEnter: (_) => setState(() => _hoverChatModel = true),

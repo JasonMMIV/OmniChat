@@ -1,8 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' show HttpException;
 import 'package:http/http.dart' as http;
-import 'package:http/io_client.dart';
 import 'settings_provider.dart';
+import '../services/network/dio_http_client.dart';
 import '../services/api_key_manager.dart';
 import 'package:OmniChat/secrets/fallback.dart';
 import '../services/api/google_service_account_auth.dart';
@@ -58,7 +58,9 @@ class ModelRegistry {
               r'gemini|claude|'
               r'qwen-?3|doubao.+1([-.])6|grok-4|kimi-k2|'
               r'step-3|intern-s1|glm-4\.5|glm-4\.6|minimax-m2|'
-              r'deepseek-(?:r1|v3|chat|v3\.1|v3\.2)'
+              r'deepseek-(?:r1|v3|chat|v3\.1|v3\.2)|'
+              r'deepseek-reasoner|'
+              r'mimo-v2-flash'
               r')'
           )
           .replaceAll(' ', ''),
@@ -71,7 +73,9 @@ class ModelRegistry {
               r'claude|'
               r'qwen-?3|doubao.+1([-.])6|grok-4|kimi-k2|'
               r'step-3|intern-s1|glm-4\.5|glm-4\.6|minimax-m2|'
-              r'deepseek-(?:r1|v3\.1|v3\.2)'
+              r'deepseek-(?:r1|v3\.1|v3\.2)|'
+              r'deepseek-reasoner|'
+              r'mimo-v2-flash'
               r')'
           )
           .replaceAll(' ', ''),
@@ -113,14 +117,17 @@ class _Http {
     final pass = (cfg.proxyPassword ?? '').trim();
     if (enabled && host.isNotEmpty && portStr.isNotEmpty) {
       final port = int.tryParse(portStr) ?? 8080;
-      final io = HttpClient();
-      io.findProxy = (uri) => 'PROXY $host:$port';
-      if (user.isNotEmpty) {
-        io.addProxyCredentials(host, port, '', HttpClientBasicCredentials(user, pass));
-      }
-      return IOClient(io);
+      return DioHttpClient(
+        proxy: NetworkProxyConfig(
+          enabled: true,
+          host: host,
+          port: port,
+          username: user.isEmpty ? null : user,
+          password: pass.isEmpty ? null : pass,
+        ),
+      );
     }
-    return http.Client();
+    return DioHttpClient();
   }
 }
 
@@ -128,13 +135,12 @@ class OpenAIProvider extends BaseProvider {
   @override
   Future<List<ModelInfo>> listModels(ProviderConfig cfg) async {
     final key = ProviderManager._effectiveApiKey(cfg);
-    if (key.isEmpty) return [];
     final client = _Http.clientFor(cfg);
     try {
       final uri = Uri.parse('${cfg.baseUrl}/models');
-      final res = await client.get(uri, headers: {
-        'Authorization': 'Bearer $key',
-      });
+      final headers = <String, String>{};
+      if (key.isNotEmpty) headers['Authorization'] = 'Bearer $key';
+      final res = await client.get(uri, headers: headers);
       if (res.statusCode >= 200 && res.statusCode < 300) {
         final data = (jsonDecode(res.body)['data'] as List?) ?? [];
         return [
@@ -155,14 +161,14 @@ class ClaudeProvider extends BaseProvider {
   @override
   Future<List<ModelInfo>> listModels(ProviderConfig cfg) async {
     final key = ProviderManager._effectiveApiKey(cfg);
-    if (key.isEmpty) return [];
     final client = _Http.clientFor(cfg);
     try {
       final uri = Uri.parse('${cfg.baseUrl}/models');
-      final res = await client.get(uri, headers: {
-        'x-api-key': key,
+      final headers = <String, String>{
         'anthropic-version': anthropicVersion,
-      });
+      };
+      if (key.isNotEmpty) headers['x-api-key'] = key;
+      final res = await client.get(uri, headers: headers);
       if (res.statusCode >= 200 && res.statusCode < 300) {
         final obj = jsonDecode(res.body) as Map<String, dynamic>;
         final data = (obj['data'] as List?) ?? [];
@@ -190,10 +196,6 @@ class GoogleProvider extends BaseProvider {
       return 'https://aiplatform.googleapis.com/v1/projects/$proj/locations/$loc/publishers/google/models';
     }
     final base = cfg.baseUrl.endsWith('/') ? cfg.baseUrl.substring(0, cfg.baseUrl.length - 1) : cfg.baseUrl;
-    final key = ProviderManager._effectiveApiKey(cfg);
-    if (key.isNotEmpty) {
-      return '$base/models?key=${Uri.encodeQueryComponent(key)}';
-    }
     return '$base/models';
   }
 
@@ -219,6 +221,11 @@ class GoogleProvider extends BaseProvider {
             headers['Authorization'] = 'Bearer $key';
           }
         }
+      } else {
+        final key = ProviderManager._effectiveApiKey(cfg);
+        if (key.isNotEmpty) {
+          headers['x-goog-api-key'] = key;
+        }
       }
       final res = await client.get(Uri.parse(url), headers: headers);
       if (res.statusCode >= 200 && res.statusCode < 300) {
@@ -228,7 +235,7 @@ class GoogleProvider extends BaseProvider {
         for (final e in arr) {
           if (e is Map) {
             final name = (e['name'] as String?) ?? '';
-            final id = name.contains('/') ? name.split('/').last : name;
+            final id = name.startsWith('models/') ? name.substring('models/'.length) : name;
             final displayName = (e['displayName'] as String?) ?? id;
             final methods = (e['supportedGenerationMethods'] as List?)?.map((m) => m.toString()).toSet() ?? {};
             if (!(methods.contains('generateContent') || methods.contains('embedContent'))) continue;
@@ -435,9 +442,6 @@ class ProviderManager {
         } else {
           final base = cfg.baseUrl.endsWith('/') ? cfg.baseUrl.substring(0, cfg.baseUrl.length - 1) : cfg.baseUrl;
           url = '$base/models/$upstreamId:$endpoint';
-          if (cfg.apiKey.isNotEmpty) {
-            url = '$url?key=${Uri.encodeQueryComponent(cfg.apiKey)}';
-          }
         }
         // Determine if model outputs images (override wins; otherwise inference)
         bool wantsImageOutput = false;
@@ -471,6 +475,10 @@ class ProviderManager {
             } catch (_) {}
           } else if (cfg.apiKey.isNotEmpty) {
             headers['Authorization'] = 'Bearer ${cfg.apiKey}';
+          }
+        } else {
+          if (cfg.apiKey.isNotEmpty) {
+            headers['x-goog-api-key'] = cfg.apiKey;
           }
         }
         headers.addAll(_customHeaders(cfg, modelId));

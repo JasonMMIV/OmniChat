@@ -93,6 +93,160 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get storageSpacePageTitle => 'Storage Space';
+
+  @override
+  String get storageSpaceRefreshTooltip => 'Refresh';
+
+  @override
+  String get storageSpaceLoadFailed => 'Failed to load storage usage';
+
+  @override
+  String get storageSpaceTotalLabel => 'Used';
+
+  @override
+  String storageSpaceClearableLabel(String size) {
+    return 'Clearable: $size';
+  }
+
+  @override
+  String storageSpaceClearableHint(String size) {
+    return 'Safe to clear: $size';
+  }
+
+  @override
+  String get storageSpaceCategoryImages => 'Images';
+
+  @override
+  String get storageSpaceCategoryFiles => 'Files';
+
+  @override
+  String get storageSpaceCategoryChatData => 'Chat Records';
+
+  @override
+  String get storageSpaceCategoryAssistantData => 'Assistants';
+
+  @override
+  String get storageSpaceCategoryCache => 'Cache';
+
+  @override
+  String get storageSpaceCategoryLogs => 'Logs';
+
+  @override
+  String get storageSpaceCategoryOther => 'App';
+
+  @override
+  String storageSpaceFilesCount(int count) {
+    return '$count files';
+  }
+
+  @override
+  String get storageSpaceSafeToClearHint =>
+      'Safe to clear. This will not affect your chat history.';
+
+  @override
+  String get storageSpaceNotSafeToClearHint =>
+      'May affect your chat history. Delete with care.';
+
+  @override
+  String get storageSpaceBreakdownTitle => 'Breakdown';
+
+  @override
+  String get storageSpaceSubChatMessages => 'Messages';
+
+  @override
+  String get storageSpaceSubChatConversations => 'Conversations';
+
+  @override
+  String get storageSpaceSubChatToolEvents => 'Tool events';
+
+  @override
+  String get storageSpaceSubAssistantAvatars => 'Avatars';
+
+  @override
+  String get storageSpaceSubAssistantImages => 'Images';
+
+  @override
+  String get storageSpaceSubCacheAvatars => 'Avatar cache';
+
+  @override
+  String get storageSpaceSubCacheOther => 'Other cache';
+
+  @override
+  String get storageSpaceSubCacheSystem => 'System cache';
+
+  @override
+  String get storageSpaceSubLogsFlutter => 'Flutter logs';
+
+  @override
+  String get storageSpaceSubLogsRequests => 'Network logs';
+
+  @override
+  String get storageSpaceSubLogsOther => 'Other logs';
+
+  @override
+  String get storageSpaceClearConfirmTitle => 'Confirm clear';
+
+  @override
+  String storageSpaceClearConfirmMessage(String targetName) {
+    return 'Clear $targetName?';
+  }
+
+  @override
+  String get storageSpaceClearButton => 'Clear';
+
+  @override
+  String storageSpaceClearDone(String targetName) {
+    return '$targetName cleared';
+  }
+
+  @override
+  String storageSpaceClearFailed(String error) {
+    return 'Clear failed: $error';
+  }
+
+  @override
+  String get storageSpaceClearAvatarCacheButton => 'Clear Avatar Cache';
+
+  @override
+  String get storageSpaceClearCacheButton => 'Clear Cache';
+
+  @override
+  String get storageSpaceClearLogsButton => 'Clear Logs';
+
+  @override
+  String get storageSpaceDeleteConfirmTitle => 'Confirm deletion';
+
+  @override
+  String storageSpaceDeleteUploadsConfirmMessage(int count) {
+    return 'Delete $count items? Attachments in chat history may become unavailable.';
+  }
+
+  @override
+  String storageSpaceDeletedUploadsDone(int count) {
+    return 'Deleted $count items';
+  }
+
+  @override
+  String get storageSpaceNoUploads => 'No items';
+
+  @override
+  String get storageSpaceSelectAll => 'Select all';
+
+  @override
+  String get storageSpaceClearSelection => 'Clear selection';
+
+  @override
+  String storageSpaceSelectedCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String storageSpaceUploadsCount(int count) {
+    return '$count items';
+  }
+
+  @override
   String get settingsPageAboutSection => 'About';
 
   @override
@@ -489,6 +643,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopNavTranslateTooltip => 'Translate';
 
   @override
+  String get desktopNavStorageTooltip => 'Storage';
+
+  @override
   String get desktopNavThemeToggleTooltip => 'Theme';
 
   @override
@@ -783,6 +940,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get codeBlockPreviewButton => 'Preview';
 
   @override
+  String codeBlockCollapsedLines(int n) {
+    return '… $n lines folded';
+  }
+
+  @override
   String get htmlPreviewNotSupportedOnLinux =>
       'HTML preview is not supported on Linux';
 
@@ -814,6 +976,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get assistantSettingsDefaultTag => 'Default';
+
+  @override
+  String get assistantSettingsCopyButton => 'Copy';
+
+  @override
+  String get assistantSettingsCopySuccess => 'Assistant copied';
+
+  @override
+  String get assistantSettingsCopySuffix => 'Copy';
 
   @override
   String get assistantSettingsDeleteButton => 'Delete';
@@ -852,10 +1023,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hotkeyToggleAppVisibility => 'Show/Hide App';
 
   @override
+  String get hotkeyCloseWindow => 'Close Window';
+
+  @override
   String get hotkeyOpenSettings => 'Open Settings';
 
   @override
   String get hotkeyNewTopic => 'New Topic';
+
+  @override
+  String get hotkeySwitchModel => 'Switch Model';
 
   @override
   String get hotkeyToggleAssistantPanel => 'Toggle Assistants';
@@ -1042,6 +1219,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get backupPageImportFromCherryStudio => 'Import from Cherry Studio';
+
+  @override
+  String get backupPageImportFromChatbox => 'Import from Chatbox';
 
   @override
   String get chatHistoryPageTitle => 'Chat History';
@@ -1368,6 +1548,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Mobile Code Block Word Wrap';
 
   @override
+  String get displaySettingsPageAutoCollapseCodeBlockTitle =>
+      'Auto-collapse Code Blocks';
+
+  @override
+  String get displaySettingsPageAutoCollapseCodeBlockLinesTitle =>
+      'Auto-collapse threshold';
+
+  @override
+  String get displaySettingsPageAutoCollapseCodeBlockLinesUnit => 'lines';
+
+  @override
   String get messageExportSheetFormatTitle => 'Export Format';
 
   @override
@@ -1380,6 +1571,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get messageExportSheetBatchMarkdownSubtitle =>
       'Export selected messages as a Markdown file';
+
+  @override
+  String get messageExportSheetPlainText => 'Plain Text';
+
+  @override
+  String get messageExportSheetSingleTxtSubtitle =>
+      'Export this message as a TXT file';
+
+  @override
+  String get messageExportSheetBatchTxtSubtitle =>
+      'Export selected messages as a TXT file';
 
   @override
   String get messageExportSheetExportImage => 'Export as Image';
@@ -1760,6 +1962,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Used for summarizing conversation titles; prefer fast & cheap models';
 
   @override
+  String get defaultModelPageSummaryModelTitle => 'Summary Model';
+
+  @override
+  String get defaultModelPageSummaryModelSubtitle =>
+      'Used for generating conversation summaries; prefer fast and cheap models';
+
+  @override
   String get defaultModelPageTranslateModelTitle => 'Translation Model';
 
   @override
@@ -1781,6 +1990,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Enter prompt template for title summarization';
 
   @override
+  String get defaultModelPageSummaryPromptHint =>
+      'Enter prompt template for summary generation';
+
+  @override
   String get defaultModelPageTranslatePromptHint =>
       'Enter prompt template for translation';
 
@@ -1797,6 +2010,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String defaultModelPageTitleVars(String contentVar, String localeVar) {
     return 'Vars: content: $contentVar, locale: $localeVar';
+  }
+
+  @override
+  String defaultModelPageSummaryVars(
+    String previousSummaryVar,
+    String userMessagesVar,
+  ) {
+    return 'Variables: previous summary: $previousSummaryVar, new messages: $userMessagesVar';
   }
 
   @override
@@ -1833,6 +2054,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get modelDetailSheetAdvancedTab => 'Advanced';
+
+  @override
+  String get modelDetailSheetBuiltinToolsTab => 'Built-in Tools';
 
   @override
   String get modelDetailSheetModelIdLabel => 'Model ID';
@@ -1903,7 +2127,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get modelDetailSheetBuiltinToolsDescription =>
-      'Built-in tools currently support limited APIs (e.g., Gemini).';
+      'Built-in tools only support official APIs.';
+
+  @override
+  String get modelDetailSheetGeminiCodeExecutionMutuallyExclusiveHint =>
+      'Code execution cannot coexist with Search/URL Context/MCP tools.';
+
+  @override
+  String get modelDetailSheetBuiltinToolsUnsupportedHint =>
+      'Current provider does not support these built-in tools.';
 
   @override
   String get modelDetailSheetSearchTool => 'Search';
@@ -1920,6 +2152,38 @@ class AppLocalizationsEn extends AppLocalizations {
       'Enable URL content ingestion';
 
   @override
+  String get modelDetailSheetCodeExecutionTool => 'Code Execution';
+
+  @override
+  String get modelDetailSheetCodeExecutionToolDescription =>
+      'Enable code execution tool';
+
+  @override
+  String get modelDetailSheetYoutubeTool => 'YouTube';
+
+  @override
+  String get modelDetailSheetYoutubeToolDescription =>
+      'Enable YouTube URL ingestion (auto-detect links in prompts)';
+
+  @override
+  String get modelDetailSheetOpenaiBuiltinToolsResponsesOnlyHint =>
+      'Requires OpenAI Responses API.';
+
+  @override
+  String get modelDetailSheetOpenaiCodeInterpreterTool => 'Code Interpreter';
+
+  @override
+  String get modelDetailSheetOpenaiCodeInterpreterToolDescription =>
+      'Enable code interpreter tool (container auto, memory limit 4g)';
+
+  @override
+  String get modelDetailSheetOpenaiImageGenerationTool => 'Image Generation';
+
+  @override
+  String get modelDetailSheetOpenaiImageGenerationToolDescription =>
+      'Enable image generation tool';
+
+  @override
   String get modelDetailSheetCancelButton => 'Cancel';
 
   @override
@@ -1930,7 +2194,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get modelDetailSheetInvalidIdError =>
-      'Please enter a valid model ID (>=2 chars, no spaces)';
+      'Please enter a valid model ID (>=2 chars)';
 
   @override
   String get modelDetailSheetModelIdExistsError => 'Model ID already exists';
@@ -2016,6 +2280,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get providerDetailPageResponseApiTitle => 'Response API (/responses)';
+
+  @override
+  String get providerDetailPageAihubmixAppCodeLabel => 'APP-Code (10% off)';
+
+  @override
+  String get providerDetailPageAihubmixAppCodeHelp =>
+      'Adds header APP-Code requests to get a 10% discount. Only affects AIhubmix.';
 
   @override
   String get providerDetailPageVertexAiTitle => 'Vertex AI';
@@ -2243,6 +2514,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shareProviderSheetShareButton => 'Share';
 
   @override
+  String get desktopProviderContextMenuShare => 'Share';
+
+  @override
+  String get desktopProviderShareCopyText => 'Copy code';
+
+  @override
+  String get desktopProviderShareCopyQr => 'Copy QR';
+
+  @override
   String get providerDetailPageApiBaseUrlLabel => 'API Base URL';
 
   @override
@@ -2289,6 +2569,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchServicesPageGeneralOptions => 'General Options';
+
+  @override
+  String get searchServicesPageAutoTestTitle =>
+      'Auto-test connections on launch';
 
   @override
   String get searchServicesPageMaxResults => 'Max Results';
@@ -2440,9 +2724,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'No services. Add from Search Services.';
 
   @override
-  String get aboutPageEasterEggTitle => 'Easter Egg Unlocked!';
-
-  @override
   String get aboutPageEasterEggMessage =>
       'Thanks for exploring! \n (No egg yet)';
 
@@ -2535,6 +2816,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Display date group labels in the conversation list';
 
   @override
+  String get displaySettingsPageKeepSidebarOpenOnAssistantTapTitle =>
+      'Keep sidebar open when selecting assistant';
+
+  @override
+  String get displaySettingsPageKeepSidebarOpenOnTopicTapTitle =>
+      'Keep sidebar open when selecting topic';
+
+  @override
+  String get displaySettingsPageKeepAssistantListExpandedOnSidebarCloseTitle =>
+      'Don\'t collapse assistant list when closing sidebar';
+
+  @override
   String get displaySettingsPageShowUpdatesTitle => 'Show Updates';
 
   @override
@@ -2577,6 +2870,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Enable haptic feedback during generation';
 
   @override
+  String get displaySettingsPageNewChatAfterDeleteTitle =>
+      'New chat after deleting topic';
+
+  @override
+  String get displaySettingsPageNewChatOnAssistantSwitchTitle =>
+      'New chat when switching assistants';
+
+  @override
   String get displaySettingsPageNewChatOnLaunchTitle => 'New Chat on Launch';
 
   @override
@@ -2600,11 +2901,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get displaySettingsPageChatFontSizeTitle => 'Chat Font Size';
 
   @override
+  String get displaySettingsPageAutoScrollEnableTitle =>
+      'Auto-scroll to bottom';
+
+  @override
   String get displaySettingsPageAutoScrollIdleTitle => 'Auto-Scroll Back Delay';
 
   @override
   String get displaySettingsPageAutoScrollIdleSubtitle =>
       'Wait time after user scroll before jumping to bottom';
+
+  @override
+  String get displaySettingsPageAutoScrollDisabledLabel => 'Off';
 
   @override
   String get displaySettingsPageChatFontSampleText =>
@@ -2673,7 +2981,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get displaySettingsPageFontResetLabel => 'Reset font settings';
 
   @override
-  String get displaySettingsPageOtherSettingsTitle => 'Other';
+  String get displaySettingsPageOtherSettingsTitle => 'Other Settings';
 
   @override
   String get themeSettingsPageDynamicColorSection => 'Dynamic Color';
@@ -3022,6 +3330,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mcpJsonEditSavedApplied => 'Saved and applied';
 
   @override
+  String get mcpTimeoutSettingsTooltip => 'Set tool call timeout';
+
+  @override
+  String get mcpTimeoutDialogTitle => 'Tool call timeout';
+
+  @override
+  String get mcpTimeoutSecondsLabel => 'Tool call timeout (seconds)';
+
+  @override
+  String get mcpTimeoutInvalid => 'Enter a positive number of seconds';
+
+  @override
   String get quickPhraseEditButton => 'Edit';
 
   @override
@@ -3328,5 +3648,161 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String voiceChatSystemPrompt(String text) {
     return 'You are in a voice conversation. Use informal, conversational language, and keep the conversation simple and clear. $text';
+  }
+
+  @override
+  String get providerDetailPageBatchDetectButton => 'Detect';
+
+  @override
+  String get providerDetailPageBatchDetecting => 'Detecting...';
+
+  @override
+  String get providerDetailPageBatchDetectStart => 'Start Detection';
+
+  @override
+  String get providerDetailPageDetectSuccess => 'Detection successful';
+
+  @override
+  String get providerDetailPageDetectFailed => 'Detection failed';
+
+  @override
+  String get providerDetailPageDeleteAllModelsWarning =>
+      'This action cannot be undone.';
+
+  @override
+  String get requestLogSettingTitle => 'Request Logging';
+
+  @override
+  String get requestLogSettingSubtitle =>
+      'When enabled, request/response details are written to logs/logs.txt (rotated daily).';
+
+  @override
+  String get flutterLogSettingTitle => 'Flutter Logging';
+
+  @override
+  String get flutterLogSettingSubtitle =>
+      'When enabled, Flutter errors and print output are written to logs/flutter_logs.txt (rotated daily).';
+
+  @override
+  String get logViewerTitle => 'Request Logs';
+
+  @override
+  String get logViewerEmpty => 'No logs yet';
+
+  @override
+  String get logViewerCurrentLog => 'Current Log';
+
+  @override
+  String get logViewerExport => 'Export';
+
+  @override
+  String get logViewerOpenFolder => 'Open Logs Folder';
+
+  @override
+  String get assistantEditManageSummariesTitle => 'Manage Summaries';
+
+  @override
+  String get assistantEditSummaryEmpty => 'No summaries yet';
+
+  @override
+  String get assistantEditSummaryDialogTitle => 'Edit Summary';
+
+  @override
+  String get assistantEditSummaryDialogHint => 'Enter summary content';
+
+  @override
+  String get assistantEditDeleteSummaryTitle => 'Clear Summary';
+
+  @override
+  String get assistantEditDeleteSummaryContent =>
+      'Are you sure you want to clear this summary?';
+
+  @override
+  String get assistantEditPageRegexTab => 'Regex';
+
+  @override
+  String get assistantEditRegexDescription =>
+      'Customize text replacement rules using regular expressions.';
+
+  @override
+  String get assistantEditAddRegexButton => 'Add Regex Rule';
+
+  @override
+  String get assistantRegexUntitled => 'Untitled Rule';
+
+  @override
+  String get assistantRegexDeleteButton => 'Delete Rule';
+
+  @override
+  String get assistantRegexScopeUser => 'User Message';
+
+  @override
+  String get assistantRegexScopeAssistant => 'AI Response';
+
+  @override
+  String get assistantRegexScopeVisualOnly => 'Visual Only';
+
+  @override
+  String get assistantRegexValidationError =>
+      'Please fill in all required fields.';
+
+  @override
+  String get assistantRegexInvalidPattern =>
+      'Invalid regular expression pattern.';
+
+  @override
+  String get assistantRegexAddTitle => 'Add Regex Rule';
+
+  @override
+  String get assistantRegexEditTitle => 'Edit Regex Rule';
+
+  @override
+  String get assistantRegexAddAction => 'Add';
+
+  @override
+  String get assistantRegexSaveAction => 'Save';
+
+  @override
+  String get assistantRegexNameLabel => 'Rule Name';
+
+  @override
+  String get assistantRegexPatternLabel => 'Regex Pattern';
+
+  @override
+  String get assistantRegexReplacementLabel => 'Replacement Text';
+
+  @override
+  String get assistantRegexScopeLabel => 'Scope';
+
+  @override
+  String get assistantRegexCancelButton => 'Cancel';
+
+  @override
+  String get instructionInjectionImportTooltip => 'Import';
+
+  @override
+  String instructionInjectionImportSuccess(int count) {
+    return 'Successfully imported $count items.';
+  }
+
+  @override
+  String instructionInjectionImportFailed(String error) {
+    return 'Import failed: $error';
+  }
+
+  @override
+  String get assistantEditSystemPromptImportButton => 'Import Prompt';
+
+  @override
+  String get assistantEditSystemPromptImportEmpty =>
+      'No prompts found in file.';
+
+  @override
+  String get assistantEditSystemPromptImportSuccess =>
+      'Prompt imported successfully.';
+
+  @override
+  String assistantEditSystemPromptImportFailed(Object error) {
+    return 'Failed to import prompt: $error';
   }
 }
