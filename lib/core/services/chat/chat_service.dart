@@ -755,44 +755,37 @@ class ChatService extends ChangeNotifier {
 
     final conversation = _conversationsBox.get(message.conversationId);
     if (conversation != null) {
+      // Preserve stable ordering for message groups when deleting a single
+      // version of a message. Without this, deleting the first version of a
+      // user message after editing (which appends new versions at the tail)
+      // would cause the remaining version to "move" after the assistant
+      // reply when collapsing versions in the UI.
+
       final gid = message.groupId ?? message.id;
       final ids = conversation.messageIds;
+      final removedIndex = ids.indexOf(messageId);
 
-      // Find the earliest position of this message group before removal so we
-      // can keep the group anchored when deleting one of its versions.
-      int anchorIndex = -1;
-      for (int i = 0; i < ids.length; i++) {
-        final mid = ids[i];
-        final m = _messagesBox.get(mid);
-        if (m == null) continue;
-        final mgid = m.groupId ?? m.id;
-        if (mgid == gid) {
-          anchorIndex = i;
-          break;
-        }
-      }
-
+      // Remove the message id from the conversation first.
       ids.remove(messageId);
 
-      // If we removed the earliest version but other versions remain, move the
-      // earliest remaining one back to the original anchor index to preserve
-      // the group's relative order in the conversation.
-      if (anchorIndex >= 0) {
-        int? earliestRemaining;
-        for (int i = 0; i < ids.length; i++) {
-          final mid = ids[i];
+      // If there are other versions in the same group, move one of them
+      // into the original slot so that the group keeps its relative order.
+      if (removedIndex >= 0) {
+        String? replacementId;
+        for (final mid in ids) {
+          if (mid == messageId) continue;
           final m = _messagesBox.get(mid);
           if (m == null) continue;
           final mgid = m.groupId ?? m.id;
           if (mgid == gid) {
-            earliestRemaining = i;
+            replacementId = mid;
             break;
           }
         }
 
-        if (earliestRemaining != null && earliestRemaining > anchorIndex) {
-          final replacementId = ids.removeAt(earliestRemaining);
-          final insertAt = anchorIndex <= ids.length ? anchorIndex : ids.length;
+        if (replacementId != null) {
+          ids.remove(replacementId);
+          final insertAt = removedIndex <= ids.length ? removedIndex : ids.length;
           ids.insert(insertAt, replacementId);
         }
       }

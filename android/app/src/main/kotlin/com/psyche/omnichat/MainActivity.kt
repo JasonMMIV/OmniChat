@@ -71,6 +71,7 @@ class MainActivity : FlutterActivity() {
                     return true
                 }
             }
+            return false
         }
         return am.isBluetoothScoAvailableOffCall
     }

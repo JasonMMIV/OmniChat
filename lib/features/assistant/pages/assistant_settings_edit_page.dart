@@ -8,7 +8,6 @@ import 'package:syncfusion_flutter_core/theme.dart';
 import 'dart:ui';
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -27,7 +26,6 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../model/widgets/model_select_sheet.dart';
 import '../../chat/widgets/reasoning_budget_sheet.dart';
-import 'assistant_regex_tab.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/services.dart';
@@ -47,91 +45,6 @@ import '../../../shared/widgets/ios_switch.dart';
 import '../../../core/services/haptics.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 
-const int _contextMessageMin = 1;
-const int _contextMessageMax = 256;
-
-int _clampContextMessages(num value) =>
-    value.clamp(_contextMessageMin, _contextMessageMax).toInt();
-
-Future<int?> _showContextMessageInputDialog(
-  BuildContext context, {
-  required int initialValue,
-}) async {
-  final cs = Theme.of(context).colorScheme;
-  final l10n = AppLocalizations.of(context)!;
-  final controller = TextEditingController(
-    text: _clampContextMessages(initialValue).toString(),
-  );
-
-  int? parseValue() => int.tryParse(controller.text);
-
-  try {
-    return await showDialog<int>(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setLocal) {
-            final parsed = parseValue();
-            void submit() {
-              if (parsed == null) return;
-              Navigator.of(ctx).pop(_clampContextMessages(parsed));
-            }
-
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: Text(l10n.assistantEditContextMessagesTitle),
-              content: SizedBox(
-                width: 360,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: controller,
-                      autofocus: true,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: InputDecoration(
-                        labelText:
-                            '${l10n.assistantEditContextMessagesTitle} ($_contextMessageMin-$_contextMessageMax)',
-                        helperText: '$_contextMessageMin-$_contextMessageMax',
-                      ),
-                      onChanged: (_) => setLocal(() {}),
-                      onSubmitted: (_) => submit(),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${l10n.assistantEditContextMessagesDescription} ($_contextMessageMin-$_contextMessageMax)',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: cs.onSurface.withOpacity(0.65),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: Text(l10n.assistantEditEmojiDialogCancel),
-                ),
-                TextButton(
-                  onPressed: parsed == null ? null : submit,
-                  child: Text(l10n.assistantEditEmojiDialogSave),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  } finally {
-    WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
-  }
-}
-
 class AssistantSettingsEditPage extends StatefulWidget {
   const AssistantSettingsEditPage({super.key, required this.assistantId});
   final String assistantId;
@@ -148,7 +61,7 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this); //mcp
+    _tabController = TabController(length: 5, vsync: this); //mcp
     _tabController.addListener(() {
       // Close IME when switching tabs and refresh state
       FocusManager.instance.primaryFocus?.unfocus();
@@ -221,7 +134,6 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
                       // l10n.assistantEditPageMcpTab,
                       l10n.assistantEditPageQuickPhraseTab,
                       l10n.assistantEditPageCustomTab,
-                      l10n.assistantEditPageRegexTab,
                     ],
                   ),
                 ),
@@ -242,7 +154,6 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
             // _McpTab(assistantId: assistant.id),
             _QuickPhraseTab(assistantId: assistant.id),
             _CustomRequestTab(assistantId: assistant.id),
-            AssistantRegexTab(assistantId: assistant.id),
           ],
         ),
       ),
@@ -1837,10 +1748,10 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
             child: Builder(builder: (context) {
-              final cs = Theme.of(context).colorScheme;
-              final value = _clampContextMessages(
-                context.watch<AssistantProvider>().getById(widget.assistantId)?.contextMessageSize ?? 20,
-              );
+              final theme = Theme.of(context);
+              final cs = theme.colorScheme;
+              final isDark = theme.brightness == Brightness.dark;
+              final value = context.watch<AssistantProvider>().getById(widget.assistantId)?.contextMessageSize ?? 20;
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1868,10 +1779,9 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                       IosSwitch(
                         value: a.limitContextMessages,
                         onChanged: (v) async {
-                          final next = v && a.contextMessageSize < _contextMessageMin
-                              ? a.copyWith(limitContextMessages: v, contextMessageSize: _contextMessageMin)
-                              : a.copyWith(limitContextMessages: v);
-                          await context.read<AssistantProvider>().updateAssistant(next);
+                          await context.read<AssistantProvider>().updateAssistant(
+                            a.copyWith(limitContextMessages: v),
+                          );
                           // Close the bottom sheet after toggle
                           Navigator.of(ctx).pop();
                         },
@@ -1881,25 +1791,13 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                   const SizedBox(height: 8),
                   if (a.limitContextMessages) ...[
                     _SliderTileNew(
-                      value: value.toDouble(),
-                      min: _contextMessageMin.toDouble(),
-                      max: _contextMessageMax.toDouble(),
-                      divisions: _contextMessageMax - _contextMessageMin,
+                      value: value.toDouble().clamp(0, 256),
+                      min: 0,
+                      max: 256,
+                      divisions: 64,
                       label: value.toString(),
-                      customLabelStops: const <double>[1.0, 32.0, 64.0, 128.0, 256.0],
-                      onLabelTap: () async {
-                        final chosen = await _showContextMessageInputDialog(
-                          context,
-                          initialValue: value,
-                        );
-                        if (chosen != null) {
-                          await context.read<AssistantProvider>().updateAssistant(
-                                a.copyWith(contextMessageSize: chosen),
-                              );
-                        }
-                      },
                       onChanged: (v) => context.read<AssistantProvider>().updateAssistant(
-                        a.copyWith(contextMessageSize: _clampContextMessages(v)),
+                        a.copyWith(contextMessageSize: v.round()),
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -2117,8 +2015,6 @@ class _SliderTileNew extends StatelessWidget {
     this.divisions,
     required this.label,
     required this.onChanged,
-    this.customLabelStops,
-    this.onLabelTap,
   });
 
   final double value;
@@ -2127,23 +2023,13 @@ class _SliderTileNew extends StatelessWidget {
   final int? divisions;
   final String label;
   final ValueChanged<double> onChanged;
-  final List<double>? customLabelStops;
-  final VoidCallback? onLabelTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final useCustomLabels = customLabelStops != null && customLabelStops!.isNotEmpty;
-    final stops = useCustomLabels
-        ? (customLabelStops!
-            .where((v) => v >= min && v <= max)
-            .toSet()
-            .toList()
-          ..sort())
-        : const <double>[];
-
+    
     final active = cs.primary;
     final inactive = cs.onSurface.withOpacity(isDark ? 0.25 : 0.20);
     final double clamped = value.clamp(min, max);
@@ -2163,6 +2049,7 @@ class _SliderTileNew extends StatelessWidget {
       interval = total / 8;
     }
     if (interval <= 0) interval = 1;
+    final int majorCount = (total / interval).round().clamp(1, 10);
     int minor = 0;
     if (step != null && step > 0) {
       // Ensure minor ticks align with the chosen step size
@@ -2177,115 +2064,81 @@ class _SliderTileNew extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SfSliderTheme(
-                    data: SfSliderThemeData(
-                      activeTrackHeight: 8,
-                      inactiveTrackHeight: 8,
-                      overlayRadius: 14,
-                      activeTrackColor: active,
-                      inactiveTrackColor: inactive,
-                      // Waterdrop tooltip uses theme primary background with onPrimary text
-                      tooltipBackgroundColor: cs.primary,
-                      tooltipTextStyle: TextStyle(
-                        color: cs.onPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      thumbStrokeColor: Colors.transparent,
-                      thumbStrokeWidth: 0,
-                      activeTickColor: cs.onSurface.withOpacity(
-                        isDark ? 0.45 : 0.35,
-                      ),
-                      inactiveTickColor: cs.onSurface.withOpacity(
-                        isDark ? 0.30 : 0.25,
-                      ),
-                      activeMinorTickColor: cs.onSurface.withOpacity(
-                        isDark ? 0.34 : 0.28,
-                      ),
-                      inactiveMinorTickColor: cs.onSurface.withOpacity(
-                        isDark ? 0.24 : 0.20,
-                      ),
-                    ),
-                    child: SfSlider(
-                      value: clamped,
-                      min: min,
-                      max: max,
-                      stepSize: step,
-                      enableTooltip: true,
-                      // Show the paddle tooltip only while interacting
-                      shouldAlwaysShowTooltip: false,
-                      showTicks: true,
-                      showLabels: !useCustomLabels,
-                      interval: interval,
-                      minorTicksPerInterval: minor,
-                      activeColor: active,
-                      inactiveColor: inactive,
-                      tooltipTextFormatterCallback: (actual, text) => label,
-                      tooltipShape: const SfPaddleTooltipShape(),
-                      labelFormatterCallback: (actual, formattedText) {
-                        // Prefer integers for wide ranges, keep 2 decimals for 0..1
-                        if (total <= 2.0) return actual.toStringAsFixed(2);
-                        if (actual == actual.roundToDouble())
-                          return actual.toStringAsFixed(0);
-                        return actual.toStringAsFixed(1);
-                      },
-                      thumbIcon: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: cs.primary,
-                          shape: BoxShape.circle,
-                          boxShadow: isDark
-                              ? []
-                              : [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.08),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                        ),
-                      ),
-                      onChanged: (v) =>
-                          onChanged(v is num ? v.toDouble() : (v as double)),
+              child: SfSliderTheme(
+                data: SfSliderThemeData(
+                  activeTrackHeight: 8,
+                  inactiveTrackHeight: 8,
+                  overlayRadius: 14,
+                  activeTrackColor: active,
+                  inactiveTrackColor: inactive,
+                  // Waterdrop tooltip uses theme primary background with onPrimary text
+                  tooltipBackgroundColor: cs.primary,
+                  tooltipTextStyle: TextStyle(
+                    color: cs.onPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  thumbStrokeColor: Colors.transparent,
+                  thumbStrokeWidth: 0,
+                  activeTickColor: cs.onSurface.withOpacity(
+                    isDark ? 0.45 : 0.35,
+                  ),
+                  inactiveTickColor: cs.onSurface.withOpacity(
+                    isDark ? 0.30 : 0.25,
+                  ),
+                  activeMinorTickColor: cs.onSurface.withOpacity(
+                    isDark ? 0.34 : 0.28,
+                  ),
+                  inactiveMinorTickColor: cs.onSurface.withOpacity(
+                    isDark ? 0.24 : 0.20,
+                  ),
+                ),
+                child: SfSlider(
+                  value: clamped,
+                  min: min,
+                  max: max,
+                  stepSize: step,
+                  enableTooltip: true,
+                  // Show the paddle tooltip only while interacting
+                  shouldAlwaysShowTooltip: false,
+                  showTicks: true,
+                  showLabels: true,
+                  interval: interval,
+                  minorTicksPerInterval: minor,
+                  activeColor: active,
+                  inactiveColor: inactive,
+                  tooltipTextFormatterCallback: (actual, text) => label,
+                  tooltipShape: const SfPaddleTooltipShape(),
+                  labelFormatterCallback: (actual, formattedText) {
+                    // Prefer integers for wide ranges, keep 2 decimals for 0..1
+                    if (total <= 2.0) return actual.toStringAsFixed(2);
+                    if (actual == actual.roundToDouble())
+                      return actual.toStringAsFixed(0);
+                    return actual.toStringAsFixed(1);
+                  },
+                  thumbIcon: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: cs.primary,
+                      shape: BoxShape.circle,
+                      boxShadow: isDark
+                          ? []
+                          : [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.08),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                     ),
                   ),
-                  if (useCustomLabels && stops.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    LayoutBuilder(
-                      builder: (_, __) {
-                        final range = (max - min).abs();
-                        return SizedBox(
-                          height: 18,
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: stops.map((v) {
-                              final t = range == 0 ? 0.0 : ((v - min) / range).clamp(0.0, 1.0);
-                              return Align(
-                                alignment: Alignment(-1 + t * 2, 0),
-                                child: Text(
-                                  v == v.roundToDouble()
-                                      ? v.toInt().toString()
-                                      : v.toStringAsFixed(1),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: cs.onSurface.withOpacity(0.65),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ],
+                  onChanged: (v) =>
+                      onChanged(v is num ? v.toDouble() : (v as double)),
+                ),
               ),
             ),
             const SizedBox(width: 8),
-            _ValuePill(text: label, onTap: onLabelTap),
+            _ValuePill(text: label),
           ],
         ),
         // Remove explicit min/max captions since ticks already indicate range
@@ -2295,32 +2148,27 @@ class _SliderTileNew extends StatelessWidget {
 }
 
 class _ValuePill extends StatelessWidget {
-  const _ValuePill({required this.text, this.onTap});
+  const _ValuePill({required this.text});
   final String text;
-  final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: onTap != null ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white10 : cs.primary.withOpacity(0.10),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: cs.primary.withOpacity(isDark ? 0.28 : 0.22)),
-          boxShadow: isDark ? [] : AppShadows.soft,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          child: Text(
-            text,
-            style: TextStyle(
-              color: cs.primary,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-            ),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white10 : cs.primary.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cs.primary.withOpacity(isDark ? 0.28 : 0.22)),
+        boxShadow: isDark ? [] : AppShadows.soft,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: cs.primary,
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
           ),
         ),
       ),
@@ -2957,56 +2805,6 @@ class _PromptTabState extends State<_PromptTab> {
     setState(() {});
   }
 
-  Future<void> _importSystemPrompt() async {
-    final l10n = AppLocalizations.of(context)!;
-    try {
-      final res = await FilePicker.platform.pickFiles(
-        allowMultiple: false,
-        withData: true,
-        type: FileType.custom,
-        allowedExtensions: const ['txt','md','json','js','pdf','docx','html','xml','py','java','kt','dart','ts','tsx','markdown','mdx','yml','yaml'],
-      );
-      if (res == null || res.files.isEmpty) return;
-      final picked = res.files.first;
-      String? content;
-      if (picked.bytes != null && picked.bytes!.isNotEmpty) {
-        content = utf8.decode(picked.bytes!, allowMalformed: true);
-      } else if (!kIsWeb && picked.path != null && picked.path!.isNotEmpty) {
-        content = await File(picked.path!).readAsString();
-      }
-      if (!mounted) return;
-      if (content == null || content.trim().isEmpty) {
-        showAppSnackBar(
-          context,
-          message: l10n.assistantEditSystemPromptImportEmpty,
-          type: NotificationType.error,
-        );
-        return;
-      }
-      _sysCtrl.text = content;
-      _sysCtrl.selection =
-          TextSelection.collapsed(offset: _sysCtrl.text.length);
-      final ap = context.read<AssistantProvider>();
-      final a = ap.getById(widget.assistantId);
-      if (a != null) {
-        await ap.updateAssistant(a.copyWith(systemPrompt: _sysCtrl.text));
-      }
-      showAppSnackBar(
-        context,
-        message: l10n.assistantEditSystemPromptImportSuccess,
-        type: NotificationType.success,
-      );
-      Future.microtask(() => _sysFocus.requestFocus());
-    } catch (_) {
-      if (!mounted) return;
-      showAppSnackBar(
-        context,
-        message: l10n.assistantEditSystemPromptImportFailed,
-        type: NotificationType.error,
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -3115,22 +2913,9 @@ class _PromptTabState extends State<_PromptTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    l10n.assistantEditSystemPromptTitle,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                  ),
-                ),
-                _IosButton(
-                  label: l10n.assistantEditSystemPromptImportButton,
-                  icon: Icons.file_open,
-                  dense: true,
-                  neutral: false,
-                  onTap: _importSystemPrompt,
-                ),
-              ],
+            Text(
+              l10n.assistantEditSystemPromptTitle,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -5395,7 +5180,7 @@ class _IosButtonState extends State<_IosButton> {
 
 // ===== Desktop Assistant Dialog (reuses mobile tabs) =====
 
-enum _AssistantDesktopMenu { basic, prompts, memory, quick, custom, regex }
+enum _AssistantDesktopMenu { basic, prompts, memory, quick, custom }
 
 Future<void> showAssistantDesktopDialog(BuildContext context, {required String assistantId}) async {
   final cs = Theme.of(context).colorScheme;
@@ -5484,8 +5269,6 @@ class _DesktopAssistantDialogShellState extends State<_DesktopAssistantDialogShe
                         return _QuickPhraseTab(assistantId: widget.assistantId);
                       case _AssistantDesktopMenu.custom:
                         return _CustomRequestTab(assistantId: widget.assistantId);
-                      case _AssistantDesktopMenu.regex:
-                        return AssistantRegexDesktopPane(assistantId: widget.assistantId);
                     }
                   }(),
                 ),
@@ -5519,7 +5302,6 @@ class _DesktopAssistantMenuState extends State<_DesktopAssistantMenu> {
       (_AssistantDesktopMenu.memory, l10n.assistantEditPageMemoryTab),
       (_AssistantDesktopMenu.quick, l10n.assistantEditPageQuickPhraseTab),
       (_AssistantDesktopMenu.custom, l10n.assistantEditPageCustomTab),
-      (_AssistantDesktopMenu.regex, l10n.assistantEditPageRegexTab),
     ];
     return SizedBox(
       width: 220,
@@ -5859,12 +5641,7 @@ class _DesktopAssistantBasicPaneState extends State<_DesktopAssistantBasicPane> 
                   headerWithSwitch(
                     title: labelWithHelp(l10n.assistantEditContextMessagesTitle, l10n.assistantEditContextMessagesDescription),
                     value: a.limitContextMessages,
-                    onChanged: (v) {
-                      final next = v && a.contextMessageSize < _contextMessageMin
-                          ? a.copyWith(limitContextMessages: v, contextMessageSize: _contextMessageMin)
-                          : a.copyWith(limitContextMessages: v);
-                      context.read<AssistantProvider>().updateAssistant(next);
-                    },
+                    onChanged: (v) => context.read<AssistantProvider>().updateAssistant(a.copyWith(limitContextMessages: v)),
                   ),
                   const SizedBox(height: 8),
                   IgnorePointer(
@@ -5872,27 +5649,13 @@ class _DesktopAssistantBasicPaneState extends State<_DesktopAssistantBasicPane> 
                     child: Opacity(
                       opacity: a.limitContextMessages ? 1.0 : 0.5,
                       child: _SliderTileNew(
-                        value: _clampContextMessages(a.contextMessageSize).toDouble(),
-                        min: _contextMessageMin.toDouble(),
-                        max: _contextMessageMax.toDouble(),
-                        divisions: _contextMessageMax - _contextMessageMin,
-                        label: _clampContextMessages(a.contextMessageSize).toString(),
-                        customLabelStops: const <double>[1.0, 32.0, 64.0, 128.0, 256.0],
-                        onLabelTap: a.limitContextMessages
-                            ? () async {
-                                final chosen = await _showContextMessageInputDialog(
-                                  context,
-                                  initialValue: _clampContextMessages(a.contextMessageSize),
-                                );
-                                if (chosen != null) {
-                                  await context.read<AssistantProvider>().updateAssistant(
-                                        a.copyWith(contextMessageSize: chosen),
-                                      );
-                                }
-                              }
-                            : null,
+                        value: a.contextMessageSize.toDouble().clamp(0, 256),
+                        min: 0,
+                        max: 256,
+                        divisions: 64,
+                        label: a.contextMessageSize.toString(),
                         onChanged: (v) => context.read<AssistantProvider>().updateAssistant(
-                          a.copyWith(contextMessageSize: _clampContextMessages(v)),
+                          a.copyWith(contextMessageSize: v.round()),
                         ),
                       ),
                     ),

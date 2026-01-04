@@ -242,7 +242,7 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody> with SingleT
       const SizedBox(height: 6),
       TextField(
         controller: _idCtrl,
-        enabled: widget.isNew,
+        enabled: true,
         onChanged: widget.isNew ? (v) { if (!_nameEdited) { _nameCtrl.text = v; setState(() {}); } } : null,
         decoration: _deskInputDecoration(context).copyWith(hintText: l10n.modelDetailSheetModelIdHint),
       ),

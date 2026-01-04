@@ -797,120 +797,6 @@ abstract class AppLocalizations {
   /// **'Custom'**
   String get assistantEditPageCustomTab;
 
-  /// No description provided for @assistantEditPageRegexTab.
-  ///
-  /// In en, this message translates to:
-  /// **'Regex Replace'**
-  String get assistantEditPageRegexTab;
-
-  /// No description provided for @assistantEditRegexDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Create regex rules to rewrite or visually adjust user/assistant messages.'**
-  String get assistantEditRegexDescription;
-
-  /// No description provided for @assistantEditAddRegexButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Add Regex Rule'**
-  String get assistantEditAddRegexButton;
-
-  /// No description provided for @assistantRegexAddTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Add Regex Rule'**
-  String get assistantRegexAddTitle;
-
-  /// No description provided for @assistantRegexEditTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Edit Regex Rule'**
-  String get assistantRegexEditTitle;
-
-  /// No description provided for @assistantRegexNameLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Rule Name'**
-  String get assistantRegexNameLabel;
-
-  /// No description provided for @assistantRegexPatternLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Regular Expression'**
-  String get assistantRegexPatternLabel;
-
-  /// No description provided for @assistantRegexReplacementLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Replacement String'**
-  String get assistantRegexReplacementLabel;
-
-  /// No description provided for @assistantRegexScopeLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Affecting Scope'**
-  String get assistantRegexScopeLabel;
-
-  /// No description provided for @assistantRegexScopeUser.
-  ///
-  /// In en, this message translates to:
-  /// **'User'**
-  String get assistantRegexScopeUser;
-
-  /// No description provided for @assistantRegexScopeAssistant.
-  ///
-  /// In en, this message translates to:
-  /// **'Assistant'**
-  String get assistantRegexScopeAssistant;
-
-  /// No description provided for @assistantRegexScopeVisualOnly.
-  ///
-  /// In en, this message translates to:
-  /// **'Visual Only'**
-  String get assistantRegexScopeVisualOnly;
-
-  /// No description provided for @assistantRegexAddAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Add'**
-  String get assistantRegexAddAction;
-
-  /// No description provided for @assistantRegexSaveAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Save'**
-  String get assistantRegexSaveAction;
-
-  /// No description provided for @assistantRegexDeleteButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete'**
-  String get assistantRegexDeleteButton;
-
-  /// No description provided for @assistantRegexValidationError.
-  ///
-  /// In en, this message translates to:
-  /// **'Please fill in the name, regex, and select at least one scope.'**
-  String get assistantRegexValidationError;
-
-  /// No description provided for @assistantRegexInvalidPattern.
-  ///
-  /// In en, this message translates to:
-  /// **'Invalid regular expression'**
-  String get assistantRegexInvalidPattern;
-
-  /// No description provided for @assistantRegexCancelButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Cancel'**
-  String get assistantRegexCancelButton;
-
-  /// No description provided for @assistantRegexUntitled.
-  ///
-  /// In en, this message translates to:
-  /// **'Untitled Rule'**
-  String get assistantRegexUntitled;
-
   /// No description provided for @assistantEditCustomHeadersTitle.
   ///
   /// In en, this message translates to:
@@ -1577,30 +1463,6 @@ abstract class AppLocalizations {
   /// **'Enter system prompt…'**
   String get assistantEditSystemPromptHint;
 
-  /// No description provided for @assistantEditSystemPromptImportButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Import file'**
-  String get assistantEditSystemPromptImportButton;
-
-  /// No description provided for @assistantEditSystemPromptImportSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'System prompt updated from file'**
-  String get assistantEditSystemPromptImportSuccess;
-
-  /// No description provided for @assistantEditSystemPromptImportFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed to import file'**
-  String get assistantEditSystemPromptImportFailed;
-
-  /// No description provided for @assistantEditSystemPromptImportEmpty.
-  ///
-  /// In en, this message translates to:
-  /// **'File is empty'**
-  String get assistantEditSystemPromptImportEmpty;
-
   /// No description provided for @assistantEditAvailableVariables.
   ///
   /// In en, this message translates to:
@@ -2228,19 +2090,19 @@ abstract class AppLocalizations {
   /// No description provided for @chatHistoryPageDeleteAllTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Delete Unpinned'**
+  /// **'Delete All'**
   String get chatHistoryPageDeleteAllTooltip;
 
   /// No description provided for @chatHistoryPageDeleteAllDialogTitle.
   ///
   /// In en, this message translates to:
-  /// **'Delete Unpinned Conversations'**
+  /// **'Delete All Conversations'**
   String get chatHistoryPageDeleteAllDialogTitle;
 
   /// No description provided for @chatHistoryPageDeleteAllDialogContent.
   ///
   /// In en, this message translates to:
-  /// **'Delete every non-pinned conversation for this assistant? Pinned chats stay in place.'**
+  /// **'Are you sure you want to delete all conversations? This cannot be undone.'**
   String get chatHistoryPageDeleteAllDialogContent;
 
   /// No description provided for @chatHistoryPageCancel.
@@ -2258,7 +2120,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatHistoryPageDeletedAllSnackbar.
   ///
   /// In en, this message translates to:
-  /// **'Unpinned conversations deleted'**
+  /// **'All conversations deleted'**
   String get chatHistoryPageDeletedAllSnackbar;
 
   /// No description provided for @chatHistoryPageSearchHint.
@@ -2302,12 +2164,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save'**
   String get messageEditPageSave;
-
-  /// No description provided for @messageEditPageSaveAndSend.
-  ///
-  /// In en, this message translates to:
-  /// **'Save & Send'**
-  String get messageEditPageSaveAndSend;
 
   /// No description provided for @messageEditPageHint.
   ///
@@ -3196,18 +3052,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Newline'**
   String get chatInputBarInsertNewline;
-
-  /// No description provided for @chatInputBarExpand.
-  ///
-  /// In en, this message translates to:
-  /// **'Expand'**
-  String get chatInputBarExpand;
-
-  /// No description provided for @chatInputBarCollapse.
-  ///
-  /// In en, this message translates to:
-  /// **'Collapse'**
-  String get chatInputBarCollapse;
 
   /// No description provided for @mcpPageBackTooltip.
   ///
@@ -5813,12 +5657,6 @@ abstract class AppLocalizations {
   /// **'Add Instruction'**
   String get instructionInjectionAddTooltip;
 
-  /// No description provided for @instructionInjectionImportTooltip.
-  ///
-  /// In en, this message translates to:
-  /// **'Import from files'**
-  String get instructionInjectionImportTooltip;
-
   /// No description provided for @instructionInjectionEmptyMessage.
   ///
   /// In en, this message translates to:
@@ -5854,12 +5692,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Prompt'**
   String get instructionInjectionPromptLabel;
-
-  /// No description provided for @instructionInjectionImportSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Imported {count} instruction(s)'**
-  String instructionInjectionImportSuccess(int count);
 
   /// No description provided for @instructionInjectionSheetSubtitle.
   ///
@@ -6347,41 +6179,113 @@ abstract class AppLocalizations {
   /// **'Image OCR'**
   String get chatInputBarOcrTooltip;
 
-  /// No description provided for @providerDetailPageBatchDetectButton.
+  /// No description provided for @voiceChatTitle.
   ///
   /// In en, this message translates to:
-  /// **'Detect'**
-  String get providerDetailPageBatchDetectButton;
+  /// **'Voice Chat'**
+  String get voiceChatTitle;
 
-  /// No description provided for @providerDetailPageBatchDetecting.
+  /// No description provided for @voiceChatListening.
   ///
   /// In en, this message translates to:
-  /// **'Detecting...'**
-  String get providerDetailPageBatchDetecting;
+  /// **'Listening'**
+  String get voiceChatListening;
 
-  /// No description provided for @providerDetailPageBatchDetectStart.
+  /// No description provided for @voiceChatThinking.
   ///
   /// In en, this message translates to:
-  /// **'Start Detection'**
-  String get providerDetailPageBatchDetectStart;
+  /// **'Thinking'**
+  String get voiceChatThinking;
 
-  /// No description provided for @providerDetailPageDetectSuccess.
+  /// No description provided for @voiceChatTalking.
   ///
   /// In en, this message translates to:
-  /// **'Detection successful'**
-  String get providerDetailPageDetectSuccess;
+  /// **'Talking'**
+  String get voiceChatTalking;
 
-  /// No description provided for @providerDetailPageDetectFailed.
+  /// No description provided for @voiceChatButtonTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Detection failed'**
-  String get providerDetailPageDetectFailed;
+  /// **'Voice Chat'**
+  String get voiceChatButtonTooltip;
 
-  /// No description provided for @providerDetailPageDeleteAllModelsWarning.
+  /// No description provided for @voiceChatPermissionRequired.
   ///
   /// In en, this message translates to:
-  /// **'This action cannot be undone.'**
-  String get providerDetailPageDeleteAllModelsWarning;
+  /// **'Microphone Permission Required'**
+  String get voiceChatPermissionRequired;
+
+  /// No description provided for @voiceChatPermissionSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This app needs microphone access to perform voice chat. Please grant permission in settings.'**
+  String get voiceChatPermissionSubtitle;
+
+  /// No description provided for @voiceChatPermissionButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Grant Permission'**
+  String get voiceChatPermissionButton;
+
+  /// No description provided for @voiceChatError.
+  ///
+  /// In en, this message translates to:
+  /// **'Error: {error}'**
+  String voiceChatError(String error);
+
+  /// No description provided for @voiceChatErrorInitFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to initialize speech recognition'**
+  String get voiceChatErrorInitFailed;
+
+  /// No description provided for @voiceChatProcessing.
+  ///
+  /// In en, this message translates to:
+  /// **'Processing...'**
+  String get voiceChatProcessing;
+
+  /// No description provided for @voiceChatErrorApi.
+  ///
+  /// In en, this message translates to:
+  /// **'API Error: {error}'**
+  String voiceChatErrorApi(String error);
+
+  /// No description provided for @voiceChatErrorProcessingResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'Error processing response: {error}'**
+  String voiceChatErrorProcessingResponse(String error);
+
+  /// No description provided for @voiceChatErrorTts.
+  ///
+  /// In en, this message translates to:
+  /// **'TTS Error: {error}'**
+  String voiceChatErrorTts(String error);
+
+  /// No description provided for @voiceChatErrorNoModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Please select a model first'**
+  String get voiceChatErrorNoModel;
+
+  /// No description provided for @voiceChatErrorNoConversation.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation not found'**
+  String get voiceChatErrorNoConversation;
+
+  /// No description provided for @voiceChatErrorNoActiveConversation.
+  ///
+  /// In en, this message translates to:
+  /// **'No active conversation'**
+  String get voiceChatErrorNoActiveConversation;
+
+  /// No description provided for @voiceChatSystemPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'You are in a voice conversation. Use informal, conversational language, and keep the conversation simple and clear. {text}'**
+  String voiceChatSystemPrompt(String text);
 }
 
 class _AppLocalizationsDelegate

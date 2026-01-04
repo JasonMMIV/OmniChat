@@ -2382,7 +2382,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         if (shouldGenerateTitle) {
           _maybeGenerateTitleFor(assistantMessage.conversationId);
         }
-        _voiceChatProvider?.speak(fullContent);
       }
 
       // Track stream per conversation to allow concurrent sessions
@@ -3430,7 +3429,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       final processedContent = await MarkdownMediaSanitizer.replaceInlineBase64Images(fullContent);
       await _chatService.updateMessage(assistantMessage.id, content: processedContent, totalTokens: totalTokens, isStreaming: false);
       if (!mounted) return;
-      _voiceChatProvider?.speak(fullContent);
       setState(() {
         final index = _messages.indexWhere((m) => m.id == assistantMessage.id);
         if (index != -1) {

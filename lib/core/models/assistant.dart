@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'assistant_regex.dart';
 import 'preset_message.dart';
 
 class Assistant {
@@ -29,8 +28,6 @@ class Assistant {
   final bool enableRecentChatsReference; // include recent chat titles in prompt
   // Preset conversation messages (ordered)
   final List<PresetMessage> presetMessages;
-  // Regex replacement rules
-  final List<AssistantRegex> regexRules;
 
   const Assistant({
     required this.id,
@@ -56,7 +53,6 @@ class Assistant {
     this.enableMemory = false,
     this.enableRecentChatsReference = false,
     this.presetMessages = const <PresetMessage>[],
-    this.regexRules = const <AssistantRegex>[],
   });
 
   Assistant copyWith({
@@ -83,7 +79,6 @@ class Assistant {
     bool? enableMemory,
     bool? enableRecentChatsReference,
     List<PresetMessage>? presetMessages,
-    List<AssistantRegex>? regexRules,
     bool clearChatModel = false,
     bool clearAvatar = false,
     bool clearTemperature = false,
@@ -117,7 +112,6 @@ class Assistant {
       enableRecentChatsReference:
           enableRecentChatsReference ?? this.enableRecentChatsReference,
       presetMessages: presetMessages ?? this.presetMessages,
-      regexRules: regexRules ?? this.regexRules,
     );
   }
 
@@ -145,7 +139,6 @@ class Assistant {
         'enableMemory': enableMemory,
         'enableRecentChatsReference': enableRecentChatsReference,
         'presetMessages': PresetMessage.encodeList(presetMessages),
-        'regexRules': regexRules.map((e) => e.toJson()).toList(),
     };
 
   static Assistant fromJson(Map<String, dynamic> json) => Assistant(
@@ -202,16 +195,6 @@ class Assistant {
           } catch (_) {
             return const <PresetMessage>[];
           }
-        })(),
-        regexRules: (() {
-          final raw = json['regexRules'];
-          if (raw is List) {
-            return raw
-                .whereType<Map>()
-                .map((e) => AssistantRegex.fromJson(e.cast<String, dynamic>()))
-                .toList();
-          }
-          return const <AssistantRegex>[];
         })(),
       );
 

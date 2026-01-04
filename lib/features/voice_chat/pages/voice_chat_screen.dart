@@ -99,38 +99,28 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
   @override
   void initState() {
     super.initState();
-    _initAudioSessionForVoiceChat();
-    _initBackgroundService();
+    _startUp();
+  }
+
+  Future<void> _startUp() async {
+    await _initAudioSessionForVoiceChat();
+    await _initBackgroundService();
     _initializeSpeechEngine();
     _checkMicrophonePermission();
     _loadVersionSelections();
-    // Only initialize call mode if Bluetooth is connected
-    _initializeCallMode();
+    // Initialize call mode (Bluetooth/Speaker handling)
+    await _initializeCallMode();
   }
 
   Future<void> _initializeCallMode() async {
-    // Check for Bluetooth connection and enable call mode only if needed
-    // For now, we'll call it conditionally, but we can implement actual Bluetooth detection later
-    // For immediate fix, let's not call it at all unless we have Bluetooth
-    // We'll rely on audio session configuration instead to handle audio routing
-  }
-
-  // Call this method when Bluetooth connection status changes
-  Future<void> _updateCallModeForBluetooth(bool isBluetoothConnected) async {
-    if (isBluetoothConnected) {
-      // Enable call mode for Bluetooth
-      try {
-        await _callModeChannel.invokeMethod('startCallMode');
-      } catch (e) {
-        print('Failed to enter call mode for Bluetooth: $e');
-      }
-    } else {
-      // Disable call mode when not using Bluetooth
-      try {
-        await _callModeChannel.invokeMethod('stopCallMode');
-      } catch (e) {
-        print('Failed to exit call mode for Bluetooth: $e');
-      }
+    // Invoke startCallMode on native side.
+    // The native implementation checks for Bluetooth connectivity and:
+    // - If Bluetooth connected: Sets MODE_IN_COMMUNICATION, starts SCO, enables silent audio keep-alive.
+    // - If Speaker: Sets MODE_NORMAL, ensures speakerphone is on.
+    try {
+      await _callModeChannel.invokeMethod('startCallMode');
+    } catch (e) {
+      print('Failed to initialize call mode: $e');
     }
   }
 
@@ -219,6 +209,13 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
 
     // Stop TTS
     widget.ttsProvider.stop();
+
+    // Stop Call Mode (Native cleanup)
+    try {
+      _callModeChannel.invokeMethod('stopCallMode');
+    } catch (e) {
+      print('Error stopping call mode: $e');
+    }
 
     // Deactivate audio session and background execution after a short delay
     // to ensure navigation completes first

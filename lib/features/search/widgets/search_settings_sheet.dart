@@ -104,8 +104,10 @@ class _SearchSettingsSheet extends StatelessWidget {
     final cfg = (providerKey != null)
         ? settings.getProviderConfig(providerKey)
         : null;
-    final isGeminiProvider =
-        cfg != null && cfg.providerType == ProviderKind.google;
+    final isOfficialGemini =
+        cfg != null &&
+        cfg.providerType == ProviderKind.google &&
+        (cfg.vertexAI != true);
     final isClaude = cfg != null && cfg.providerType == ProviderKind.claude;
     final isOpenAIResponses =
         cfg != null &&
@@ -118,7 +120,7 @@ class _SearchSettingsSheet extends StatelessWidget {
 
     // Read current built-in search toggle from modelOverrides
     bool hasBuiltInSearch = false;
-    if ((isGeminiProvider || isClaude || isOpenAIResponses || isGrok) &&
+    if ((isOfficialGemini || isClaude || isOpenAIResponses || isGrok) &&
         providerKey != null &&
         (modelId ?? '').isNotEmpty) {
       final mid = modelId!;
@@ -130,13 +132,12 @@ class _SearchSettingsSheet extends StatelessWidget {
     }
     // Claude supported models per Anthropic docs
     final claudeSupportedModels = <String>{
-      'claude-sonnet-4-5-20250929',
-      'claude-sonnet-4-20250514',
-      'claude-3-7-sonnet-20250219',
-      'claude-haiku-4-5-20251001',
-      'claude-3-5-haiku-latest',
       'claude-opus-4-1-20250805',
       'claude-opus-4-20250514',
+      'claude-sonnet-4-20250514',
+      'claude-3-7-sonnet-20250219',
+      'claude-3-5-sonnet-latest',
+      'claude-3-5-haiku-latest',
     };
     final isClaudeSupportedModel =
         isClaude &&
@@ -193,8 +194,8 @@ class _SearchSettingsSheet extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Built-in search toggle (Gemini, Claude supported, or OpenAI Responses supported)
-                if ((isGeminiProvider ||
+                // Built-in search toggle (Gemini official, Claude supported, or OpenAI Responses supported)
+                if ((isOfficialGemini ||
                         isClaudeSupportedModel ||
                         isOpenAIResponsesSupportedModel ||
                         isGrok) &&

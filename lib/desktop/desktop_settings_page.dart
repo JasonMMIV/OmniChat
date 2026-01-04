@@ -12,7 +12,6 @@ import '../core/providers/settings_provider.dart';
 import '../core/providers/model_provider.dart';
 import 'model_fetch_dialog.dart' show showModelFetchDialog;
 import '../shared/widgets/ios_switch.dart';
-import '../shared/widgets/ios_checkbox.dart';
 // Desktop assistants panel dependencies
 import '../features/assistant/pages/assistant_settings_edit_page.dart' show showAssistantDesktopDialog; // dialog opener only
 import '../core/providers/assistant_provider.dart';
@@ -1141,16 +1140,6 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
   bool _showApiKey = false;
   bool _eyeHover = false;
   
-  // 批量选择模式相关
-  bool _isSelectionMode = false;
-  final Set<String> _selectedModels = {};
-  bool _isDetecting = false;
-  bool _detectUseStream = false;
-  final Map<String, bool> _detectionResults = {};
-  final Map<String, String> _detectionErrorMessages = {};
-  String? _currentDetectingModel;
-  final Set<String> _pendingModels = {};
-  
   // Connection test state for inline dialog
   // Keep local to this file to avoid cross-file coupling
   
@@ -1254,7 +1243,6 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
     final kind = ProviderConfig.classify(widget.providerKey, explicitType: cfg.providerType);
 
     final models = List<String>.from(cfg.models);
-    final allSelected = _selectedModels.length == models.length && models.isNotEmpty;
     final filtered = _applyFilter(models, _filterCtrl.text.trim());
     final groups = _groupModels(filtered);
 
@@ -1398,20 +1386,7 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
 
               // API Key (hidden when Google Vertex)
               if (!(kind == ProviderKind.google && (cfg.vertexAI == true))) ...[
-              Row(
-                children: [
-                  Expanded(child: _sectionLabel(context, AppLocalizations.of(context)!.multiKeyPageKey, bold: true)),
-                  const SizedBox(width: 8),
-                  Tooltip(
-                    message: l10n.providerDetailPageTestButton,
-                    child: _IconTextBtn(
-                      icon: lucide.Lucide.HeartPulse,
-                      label: l10n.providerDetailPageTestButton,
-                      onTap: () => _showTestConnectionDialog(context),
-                    ),
-                  ),
-                ],
-              ),
+              _sectionLabel(context, AppLocalizations.of(context)!.multiKeyPageKey, bold: true),
               const SizedBox(height: 6),
               if (cfg.multiKeyEnabled == true)
                 Row(
@@ -1622,40 +1597,21 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
                     filled: false,
                     dense: true,
                     onTap: () async {
-                      final res = await FilePicker.platform.pickFiles(
-                        type: FileType.custom,
-                        allowedExtensions: ['json'],
-                        withData: true,
-                      );
-                      if (res == null || res.files.isEmpty) return;
-
-                      final file = res.files.first;
-                      // Desktop FilePicker may not include bytes unless withData is true; fall back to disk read.
-                      String? content;
-                      if (file.bytes != null && file.bytes!.isNotEmpty) {
-                        content = utf8.decode(file.bytes!);
-                      } else if (file.path != null && file.path!.isNotEmpty) {
+                      final res = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['json']);
+                      if (res != null && res.files.isNotEmpty) {
+                        final file = res.files.first;
+                        final content = String.fromCharCodes(file.bytes ?? []);
+                        String projectId = cfg.projectId ?? '';
                         try {
-                          content = await File(file.path!).readAsString();
+                          final obj = jsonDecode(content);
+                          projectId = (obj['project_id'] as String?)?.trim() ?? projectId;
                         } catch (_) {}
+                        final old = sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
+                        await sp.setProviderConfig(widget.providerKey, old.copyWith(
+                          serviceAccountJson: content,
+                          projectId: projectId,
+                        ));
                       }
-                      if (content == null || content.trim().isEmpty) {
-                        showAppSnackBar(context, message: 'Failed to read file', type: NotificationType.error);
-                        return;
-                      }
-
-                      String projectId = cfg.projectId ?? '';
-                      try {
-                        final obj = jsonDecode(content);
-                        projectId = (obj['project_id'] as String?)?.trim() ?? projectId;
-                      } catch (_) {}
-                      final old = sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
-                      final updated = old.copyWith(
-                        serviceAccountJson: content,
-                        projectId: projectId,
-                      );
-                      _syncControllersFromConfig(updated);
-                      await sp.setProviderConfig(widget.providerKey, updated);
                     },
                   ),
                 ),
@@ -1754,119 +1710,31 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
                     ),
                   ),
                   const SizedBox(width: 6),
-                  if (_isSelectionMode) ...[
-                    Tooltip(
-                      message: l10n.homePageCancel,
-                      child: _IconBtn(icon: lucide.Lucide.X, onTap: _exitSelectionMode),
+                  Tooltip(
+                    message: l10n.searchServicesPageTestConnectionTooltip,
+                    child: _IconBtn(icon: lucide.Lucide.HeartPulse, onTap: () => _showTestConnectionDialog(context)),
+                  ),
+                  const SizedBox(width: 6),
+                  Tooltip(
+                    message: l10n.providerDetailPageAddNewModelButton,
+                    child: _IconBtn(icon: lucide.Lucide.Plus, onTap: () => _createModel(context)),
+                  ),
+                  const SizedBox(width: 6),
+                  Tooltip(
+                    message: l10n.providerDetailPageFetchModelsButton,
+                    child: _IconTextBtn(
+                      icon: lucide.Lucide.RefreshCcwDot,
+                      label: l10n.providerDetailPageFetchModelsButton,
+                      onTap: () async {
+                        final providerName = widget.displayName;
+                        await showModelFetchDialog(
+                          context,
+                          providerKey: widget.providerKey,
+                          providerDisplayName: providerName,
+                        );
+                      },
                     ),
-                    const SizedBox(width: 6),
-                    Tooltip(
-                      message: allSelected ? l10n.mcpAssistantSheetClearAll : l10n.mcpAssistantSheetSelectAll,
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 160),
-                        transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
-                        child: _IconBtn(
-                          key: ValueKey(allSelected),
-                          icon: allSelected ? lucide.Lucide.Square : lucide.Lucide.CheckSquare,
-                          color: cs.onSurface.withOpacity(0.85),
-                          onTap: () {
-                            setState(() {
-                              if (allSelected) {
-                                _selectedModels.clear();
-                              } else {
-                                _selectedModels.clear();
-                                _selectedModels.addAll(models);
-                              }
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Tooltip(
-                      message: l10n.providerDetailPageUseStreamingLabel,
-                      child: GestureDetector(
-                        onTap: () => setState(() => _detectUseStream = !_detectUseStream),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          curve: Curves.easeOutCubic,
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            color: _detectUseStream
-                                ? cs.onSurface.withOpacity(0.08)
-                                : Colors.transparent,
-                          ),
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 160),
-                            transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
-                            child: Icon(
-                              _detectUseStream ? lucide.Lucide.AudioWaveform : lucide.Lucide.SquareEqual,
-                              key: ValueKey(_detectUseStream),
-                              size: 18,
-                              color: cs.onSurface.withOpacity(0.85),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Tooltip(
-                      message: _isDetecting ? l10n.providerDetailPageBatchDetecting : l10n.providerDetailPageBatchDetectStart,
-                      child: _IconTextBtn(
-                        icon: _isDetecting ? lucide.Lucide.Loader : lucide.Lucide.HeartPulse,
-                        label: _isDetecting ? l10n.providerDetailPageBatchDetecting : l10n.providerDetailPageBatchDetectButton,
-                        color: _selectedModels.isEmpty ? cs.onSurface.withOpacity(0.4) : null,
-                        onTap: () {
-                          if (_selectedModels.isEmpty) return;
-                          _startDetection();
-                        },
-                      ),
-                    ),
-                  ] else ...[
-                    if (!_isDetecting)
-                      Tooltip(
-                        message: l10n.searchServicesPageTestConnectionTooltip,
-                        child: _IconBtn(icon: lucide.Lucide.HeartPulse, onTap: _enterSelectionMode),
-                      )
-                    else
-                      Tooltip(
-                        message: l10n.providerDetailPageBatchDetecting,
-                        child: _IconBtn(icon: lucide.Lucide.Loader, onTap: () {}),
-                      ),
-                    const SizedBox(width: 6),
-                    Tooltip(
-                      message: l10n.providerDetailPageAddNewModelButton,
-                      child: _IconBtn(icon: lucide.Lucide.Plus, onTap: () => _createModel(context)),
-                    ),
-                    if (models.isNotEmpty) ...[
-                      const SizedBox(width: 6),
-                      Tooltip(
-                        message: '删除全部模型',
-                        child: _IconBtn(
-                          icon: lucide.Lucide.Trash2,
-                          color: cs.onSurface.withOpacity(0.85),
-                          onTap: _confirmDeleteAllModels,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(width: 6),
-                    Tooltip(
-                      message: l10n.providerDetailPageFetchModelsButton,
-                      child: _IconTextBtn(
-                        icon: lucide.Lucide.RefreshCcwDot,
-                        label: l10n.providerDetailPageFetchModelsButton,
-                        onTap: () async {
-                          final providerName = widget.displayName;
-                          await showModelFetchDialog(
-                            context,
-                            providerKey: widget.providerKey,
-                            providerDisplayName: providerName,
-                          );
-                        },
-                      ),
-                    ),
-                  ],
+                  ),
                 ],
               ),
 
@@ -1879,18 +1747,6 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
                     group: entry.key,
                     modelIds: entry.value,
                     providerKey: widget.providerKey,
-                    isSelectionMode: _isSelectionMode,
-                    selectedModels: _selectedModels,
-                    onSelectionChanged: (newSelection) {
-                      setState(() {
-                        _selectedModels.clear();
-                        _selectedModels.addAll(newSelection);
-                      });
-                    },
-                    detectionResults: _detectionResults,
-                    detectionErrorMessages: _detectionErrorMessages,
-                    currentDetectingModel: _currentDetectingModel,
-                    pendingModels: _pendingModels,
                   ),
                 ),
 
@@ -2443,7 +2299,6 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
         // Persisted state across inner StatefulBuilder rebuilds
         String? detectModelId;
         bool detecting = false;
-        String? testingKeyId;
         StateSetter? _setDRef;
 
         Future<void> _pickDetectModel(BuildContext dctx) async {
@@ -2521,30 +2376,6 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
           final list = List<ApiKeyConfig>.from(cfgX.apiKeys ?? const <ApiKeyConfig>[]);
           final toTest = list.where((e) => keys.contains(e.key)).toList();
           await _testKeysAndSave(dctx, list, toTest, detectModelId!);
-        }
-
-        Future<void> _detectOne(BuildContext dctx, ApiKeyConfig key) async {
-          if (detecting || testingKeyId != null) return;
-          final settings = dctx.read<SettingsProvider>();
-          final cfgX = settings.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
-          final models = cfgX.models;
-          if (detectModelId == null) {
-            if (models.isEmpty) {
-              showAppSnackBar(dctx, message: AppLocalizations.of(dctx)!.multiKeyPagePleaseAddModel, type: NotificationType.warning);
-              return;
-            }
-            detectModelId = models.first;
-          }
-          testingKeyId = key.id;
-          _setDRef?.call(() {});
-          try {
-            final list = List<ApiKeyConfig>.from(cfgX.apiKeys ?? const <ApiKeyConfig>[]);
-            final toTest = list.where((e) => e.id == key.id).toList();
-            await _testKeysAndSave(dctx, list, toTest, detectModelId!);
-          } finally {
-            testingKeyId = null;
-            _setDRef?.call(() {});
-          }
         }
 
         Future<void> _deleteAllErrorKeys(BuildContext dctx) async {
@@ -2779,8 +2610,6 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
                                       await sp.setProviderConfig(widget.providerKey, latest.copyWith(apiKeys: list));
                                       setD(() {});
                                     },
-                                    onTest: () => _detectOne(dctx, keyList[i]),
-                                    testing: testingKeyId == keyList[i].id,
                                     onDelete: () async {
                                       final old = sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
                                       final list = List<ApiKeyConfig>.from(old.apiKeys ?? const <ApiKeyConfig>[]);
@@ -2964,144 +2793,6 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
         );
       },
     );
-  }
-
-  void _enterSelectionMode() {
-    setState(() {
-      _isSelectionMode = true;
-      _selectedModels.clear();
-      _detectionResults.clear();
-      _detectionErrorMessages.clear();
-    });
-  }
-
-  void _exitSelectionMode() {
-    setState(() {
-      _isSelectionMode = false;
-      _selectedModels.clear();
-      _detectionResults.clear();
-      _detectionErrorMessages.clear();
-    });
-  }
-
-  Future<void> _confirmDeleteAllModels() async {
-    final sp = context.read<SettingsProvider>();
-    final cfg = sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
-    if (cfg.models.isEmpty) return;
-    final cs = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
-    final ok = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => Dialog(
-        backgroundColor: cs.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-                child: Row(
-                  children: [
-                    Expanded(child: Text(l10n.providerDetailPageConfirmDeleteTitle, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))),
-                    _IconBtn(icon: lucide.Lucide.X, onTap: () => Navigator.of(ctx).maybePop(false)),
-                  ],
-                ),
-              ),
-              Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withOpacity(0.12)),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(l10n.providerDetailPageDeleteAllModelsWarning, style: TextStyle(color: cs.onSurface.withOpacity(0.85))),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    _DeskIosButton(label: l10n.providerDetailPageCancelButton, filled: false, dense: true, onTap: () => Navigator.of(ctx).maybePop(false)),
-                    const SizedBox(width: 8),
-                    _DeskIosButton(label: l10n.providerDetailPageDeleteButton, filled: true, dense: true, onTap: () => Navigator.of(ctx).maybePop(true)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (ok != true) return;
-    final cleared = cfg.copyWith(models: const [], modelOverrides: const {});
-    await sp.setProviderConfig(widget.providerKey, cleared);
-    if (!mounted) return;
-    setState(() {
-      _selectedModels.clear();
-      _detectionResults.clear();
-      _detectionErrorMessages.clear();
-      _pendingModels.clear();
-      _currentDetectingModel = null;
-      _isSelectionMode = false;
-    });
-  }
-
-  Future<void> _startDetection() async {
-    if (_selectedModels.isEmpty || _isDetecting) return;
-    
-    final modelsToTest = Set<String>.from(_selectedModels);
-    
-    setState(() {
-      _isDetecting = true;
-      _detectionResults.clear();
-      _detectionErrorMessages.clear();
-      _isSelectionMode = false;
-      _selectedModels.clear();
-      _pendingModels.clear();
-      _pendingModels.addAll(modelsToTest);
-      _currentDetectingModel = null;
-    });
-
-    final sp = context.read<SettingsProvider>();
-    final cfg = sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
-    
-    for (final modelId in modelsToTest) {
-      if (mounted) {
-        setState(() {
-          _currentDetectingModel = modelId;
-          _pendingModels.remove(modelId);
-        });
-      }
-      
-      try {
-        await ProviderManager.testConnection(cfg, modelId, useStream: _detectUseStream);
-        if (mounted) {
-          setState(() {
-            _detectionResults[modelId] = true;
-            _detectionErrorMessages.remove(modelId);
-          });
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() {
-            _detectionResults[modelId] = false;
-            _detectionErrorMessages[modelId] = e.toString();
-          });
-        }
-      }
-      await Future.delayed(const Duration(milliseconds: 500));
-    }
-
-    if (mounted) {
-      setState(() {
-        _isDetecting = false;
-        _currentDetectingModel = null;
-        _pendingModels.clear();
-      });
-    }
   }
 }
 
@@ -3629,16 +3320,12 @@ class _DesktopKeyRow extends StatelessWidget {
     required this.onToggle,
     required this.onDelete,
     required this.onEdit,
-    required this.onTest,
-    this.testing = false,
     this.showDivider = false,
   });
   final ApiKeyConfig keyConfig;
   final ValueChanged<bool> onToggle;
   final VoidCallback onDelete;
   final VoidCallback onEdit;
-  final VoidCallback onTest;
-  final bool testing;
   final bool showDivider;
   @override
   Widget build(BuildContext context) {
@@ -3698,14 +3385,6 @@ class _DesktopKeyRow extends StatelessWidget {
               const SizedBox(width: 8),
               IosSwitch(value: keyConfig.isEnabled, onChanged: onToggle, width: 46, height: 28),
               const SizedBox(width: 6),
-              if (testing)
-                SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary))
-              else
-                Tooltip(
-                  message: l10n.multiKeyPageDetect,
-                  child: _IconBtn(icon: lucide.Lucide.HeartPulse, onTap: onTest, color: cs.primary),
-                ),
-              const SizedBox(width: 4),
               _IconBtn(icon: lucide.Lucide.Pencil, onTap: onEdit, color: cs.primary),
               const SizedBox(width: 4),
               _IconBtn(icon: lucide.Lucide.Trash2, onTap: onDelete, color: cs.error),
@@ -3720,28 +3399,10 @@ class _DesktopKeyRow extends StatelessWidget {
 }
 
 class _ModelGroupAccordion extends StatefulWidget {
-  const _ModelGroupAccordion({
-    required this.group,
-    required this.modelIds,
-    required this.providerKey,
-    this.isSelectionMode = false,
-    this.selectedModels = const {},
-    this.onSelectionChanged,
-    this.detectionResults = const {},
-    this.detectionErrorMessages = const {},
-    this.currentDetectingModel,
-    this.pendingModels = const {},
-  });
+  const _ModelGroupAccordion({required this.group, required this.modelIds, required this.providerKey});
   final String group;
   final List<String> modelIds;
   final String providerKey;
-  final bool isSelectionMode;
-  final Set<String> selectedModels;
-  final Map<String, String> detectionErrorMessages;
-  final ValueChanged<Set<String>>? onSelectionChanged;
-  final Map<String, bool> detectionResults;
-  final String? currentDetectingModel;
-  final Set<String> pendingModels;
   @override
   State<_ModelGroupAccordion> createState() => _ModelGroupAccordionState();
 }
@@ -3795,28 +3456,7 @@ class _ModelGroupAccordionState extends State<_ModelGroupAccordion> {
             ),
             AnimatedCrossFade(
               firstChild: const SizedBox.shrink(),
-              secondChild: Column(children: [
-                for (final id in widget.modelIds)
-                  _ModelRow(
-                    modelId: id,
-                    providerKey: widget.providerKey,
-                    isSelectionMode: widget.isSelectionMode,
-                    isSelected: widget.selectedModels.contains(id),
-                    onSelectionChanged: (selected) {
-                      final newSelection = Set<String>.from(widget.selectedModels);
-                      if (selected) {
-                        newSelection.add(id);
-                      } else {
-                        newSelection.remove(id);
-                      }
-                      widget.onSelectionChanged?.call(newSelection);
-                    },
-                    detectionErrorMessage: widget.detectionErrorMessages[id],
-                    detectionResult: widget.detectionResults[id],
-                    isDetecting: widget.currentDetectingModel == id,
-                    isPending: widget.pendingModels.contains(id),
-                  ),
-              ]),
+              secondChild: Column(children: [for (final id in widget.modelIds) _ModelRow(modelId: id, providerKey: widget.providerKey)]),
               crossFadeState: _open ? CrossFadeState.showSecond : CrossFadeState.showFirst,
               duration: const Duration(milliseconds: 180),
               sizeCurve: Curves.easeOutCubic,
@@ -3829,30 +3469,12 @@ class _ModelGroupAccordionState extends State<_ModelGroupAccordion> {
 }
 
 class _ModelRow extends StatelessWidget {
-  const _ModelRow({
-    required this.modelId,
-    required this.providerKey,
-    this.isSelectionMode = false,
-    this.isSelected = false,
-    this.detectionErrorMessage,
-    this.onSelectionChanged,
-    this.detectionResult,
-    this.isDetecting = false,
-    this.isPending = false,
-  });
+  const _ModelRow({required this.modelId, required this.providerKey});
   final String modelId;
   final String providerKey;
-  final bool isSelectionMode;
-  final bool isSelected;
-  final String? detectionErrorMessage;
-  final ValueChanged<bool>? onSelectionChanged;
-  final bool? detectionResult;
-  final bool isDetecting;
-  final bool isPending;
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
     final sp = context.watch<SettingsProvider>();
     final cfg = sp.getProviderConfig(providerKey);
     ModelInfo _infer(String id) => ModelRegistry.infer(ModelInfo(id: id, displayName: id));
@@ -3953,69 +3575,26 @@ class _ModelRow extends StatelessWidget {
       }
     }
 
-    return GestureDetector(
-      onTap: isSelectionMode ? () => onSelectionChanged?.call(!isSelected) : null,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          children: [
-            if (isSelectionMode) ...[
-              IosCheckbox(
-                value: isSelected,
-                onChanged: (value) => onSelectionChanged?.call(value),
-              ),
-              const SizedBox(width: 10),
-            ],
-            _BrandCircle(name: displayName, size: 22),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(displayName, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13.5)),
-            ),
-            const SizedBox(width: 8),
-            if (isDetecting) ...[
-              SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
-              ),
-              const SizedBox(width: 8),
-            ] else if (isPending) ...[
-              Container(
-                width: 16,
-                height: 16,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: cs.onSurface.withOpacity(0.3), width: 2),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ] else if (detectionResult != null) ...[
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: Tooltip(
-                  message: detectionResult! ? l10n.providerDetailPageDetectSuccess : (detectionErrorMessage ?? l10n.providerDetailPageDetectFailed),
-                  child: Icon(
-                    detectionResult! ? lucide.Lucide.CheckCircle : lucide.Lucide.XCircle,
-                    size: 16,
-                    color: detectionResult! ? Colors.green : cs.error,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
-            if (!isSelectionMode) ...[
-              Row(children: caps.map((w) => Padding(padding: const EdgeInsets.only(left: 4), child: w)).toList()),
-              const SizedBox(width: 8),
-              _IconBtn(icon: lucide.Lucide.Settings2, onTap: () async { await showDesktopModelEditDialog(context, providerKey: providerKey, modelId: modelId); }),
-              const SizedBox(width: 4),
-              _IconBtn(icon: lucide.Lucide.Minus, onTap: () async {
-                final old = context.read<SettingsProvider>().getProviderConfig(providerKey);
-                final list = List<String>.from(old.models)..removeWhere((e) => e == modelId);
-                await context.read<SettingsProvider>().setProviderConfig(providerKey, old.copyWith(models: list));
-              }),
-            ],
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          _BrandCircle(name: displayName, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(displayName, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13.5)),
+          ),
+          const SizedBox(width: 8),
+          Row(children: caps.map((w) => Padding(padding: const EdgeInsets.only(left: 4), child: w)).toList()),
+          const SizedBox(width: 8),
+          _IconBtn(icon: lucide.Lucide.Settings2, onTap: () async { await showDesktopModelEditDialog(context, providerKey: providerKey, modelId: modelId); }),
+          const SizedBox(width: 4),
+          _IconBtn(icon: lucide.Lucide.Minus, onTap: () async {
+            final old = context.read<SettingsProvider>().getProviderConfig(providerKey);
+            final list = List<String>.from(old.models)..removeWhere((e) => e == modelId);
+            await context.read<SettingsProvider>().setProviderConfig(providerKey, old.copyWith(models: list));
+          }),
+        ],
       ),
     );
   }

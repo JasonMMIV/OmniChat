@@ -188,22 +188,21 @@ class _SearchContent extends StatelessWidget {
     final modelId = a?.chatModelId ?? settings.currentModelId;
     if (providerKey == null || (modelId ?? '').isEmpty) return false;
     final cfg = settings.getProviderConfig(providerKey);
-    final isGemini = cfg.providerType == ProviderKind.google;
+    final isOfficialGemini = cfg.providerType == ProviderKind.google && (cfg.vertexAI != true);
     final isClaude = cfg.providerType == ProviderKind.claude;
     final isOpenAIResponses = cfg.providerType == ProviderKind.openai && (cfg.useResponseApi == true);
     final isGrok = cfg.providerType == ProviderKind.openai && (modelId ?? '').toLowerCase().contains('grok');
-    if (!(isGemini || isClaude || isOpenAIResponses || isGrok)) return false;
+    if (!(isOfficialGemini || isClaude || isOpenAIResponses || isGrok)) return false;
     final mid = modelId!.toLowerCase();
     if (isGrok) return true; // All Grok models assumed to support search
     if (isClaude) {
       const supported = <String>{
-        'claude-sonnet-4-5-20250929',
-        'claude-sonnet-4-20250514',
-        'claude-3-7-sonnet-20250219',
-        'claude-haiku-4-5-20251001',
-        'claude-3-5-haiku-latest',
         'claude-opus-4-1-20250805',
         'claude-opus-4-20250514',
+        'claude-sonnet-4-20250514',
+        'claude-3-7-sonnet-20250219',
+        'claude-3-5-sonnet-latest',
+        'claude-3-5-haiku-latest',
       };
       if (!supported.contains(mid)) return false;
     }

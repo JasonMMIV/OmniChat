@@ -66,12 +66,6 @@ class InstructionInjectionProvider with ChangeNotifier {
     await loadAll();
   }
 
-  Future<void> addMany(List<InstructionInjection> items) async {
-    if (items.isEmpty) return;
-    await InstructionInjectionStore.addMany(items);
-    await loadAll();
-  }
-
   Future<void> update(InstructionInjection item) async {
     await InstructionInjectionStore.update(item);
     await loadAll();

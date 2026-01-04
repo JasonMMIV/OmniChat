@@ -9,7 +9,7 @@ import '../../models/token_usage.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import 'google_service_account_auth.dart';
 import '../../services/api_key_manager.dart';
-import 'package:Kelivo/secrets/fallback.dart';
+import 'package:OmniChat/secrets/fallback.dart';
 
 class ChatApiService {
   /// Resolve the upstream/vendor model id for a given logical model key.
@@ -747,9 +747,10 @@ class ChatApiService {
           'generationConfig': {'temperature': 0.3},
         };
 
-        // Inject Gemini built-in tools (now supported for both official API and Vertex)
+        // Inject Gemini built-in tools (only for official Gemini API; Vertex may not support these)
         final builtIns = _builtInTools(config, modelId);
-        if (builtIns.isNotEmpty) {
+        final isOfficialGemini = config.vertexAI != true; // heuristic per requirement
+        if (isOfficialGemini && builtIns.isNotEmpty) {
           final toolsArr = <Map<String, dynamic>>[];
           if (builtIns.contains('search')) {
             toolsArr.add({'google_search': {}});
@@ -919,11 +920,6 @@ class ChatApiService {
 
     final effort = _effortForBudget(thinkingBudget);
     final host = Uri.tryParse(config.baseUrl)?.host.toLowerCase() ?? '';
-    final bool isAzureOpenAI = host.contains('openai.azure.com');
-    final String completionTokensKey = isAzureOpenAI ? 'max_completion_tokens' : 'max_tokens';
-    void _setMaxTokens(Map<String, dynamic> map) {
-      if (maxTokens != null) map[completionTokensKey] = maxTokens;
-    }
     Map<String, dynamic> body;
     // Keep initial Responses request context so we can perform follow-up requests when tools are called
     List<Map<String, dynamic>> responsesInitialInput = const <Map<String, dynamic>>[];
@@ -1156,11 +1152,11 @@ class ChatApiService {
         'stream': stream,
         if (temperature != null) 'temperature': temperature,
         if (topP != null) 'top_p': topP,
+        if (maxTokens != null) 'max_tokens': maxTokens,
         if (isReasoning && effort != 'off' && effort != 'auto') 'reasoning_effort': effort,
         if (tools != null && tools.isNotEmpty) 'tools': _cleanToolsForCompatibility(tools),
         if (tools != null && tools.isNotEmpty) 'tool_choice': 'auto',
       };
-      _setMaxTokens(body);
     }
 
     // Vendor-specific reasoning knobs for chat-completions compatible hosts
@@ -1560,17 +1556,17 @@ class ChatApiService {
             // Follow-up request(s) with multi-round tool calls
             var currentMessages = mm2;
             while (true) {
-              final Map<String, dynamic> body2 = {
+              final body2 = {
                 'model': upstreamModelId,
                 'messages': currentMessages,
                 'stream': true,
                 if (temperature != null) 'temperature': temperature,
                 if (topP != null) 'top_p': topP,
+                if (maxTokens != null) 'max_tokens': maxTokens,
                 if (isReasoning && effort != 'off' && effort != 'auto') 'reasoning_effort': effort,
                 if (tools != null && tools.isNotEmpty) 'tools': _cleanToolsForCompatibility(tools),
                 if (tools != null && tools.isNotEmpty) 'tool_choice': 'auto',
               };
-              _setMaxTokens(body2);
 
               // Apply the same vendor-specific reasoning settings as the original request
               final off = _isOff(thinkingBudget);
@@ -1658,9 +1654,6 @@ class ChatApiService {
               }
 
               // Apply custom body overrides
-              if (extraBodyCfg.isNotEmpty) {
-                body2.addAll(extraBodyCfg);
-              }
               if (extraBody != null && extraBody.isNotEmpty) {
                 extraBody.forEach((k, v) {
                   body2[k] = (v is String) ? _parseOverrideValue(v) : v;
@@ -2497,17 +2490,17 @@ class ChatApiService {
             // Continue streaming with follow-up request
             var currentMessages = mm2;
             while (true) {
-              final Map<String, dynamic> body2 = {
+              final body2 = {
                 'model': upstreamModelId,
                 'messages': currentMessages,
                 'stream': true,
                 if (temperature != null) 'temperature': temperature,
                 if (topP != null) 'top_p': topP,
+                if (maxTokens != null) 'max_tokens': maxTokens,
                 if (isReasoning && effort != 'off' && effort != 'auto') 'reasoning_effort': effort,
                 if (tools != null && tools.isNotEmpty) 'tools': _cleanToolsForCompatibility(tools),
                 if (tools != null && tools.isNotEmpty) 'tool_choice': 'auto',
               };
-              _setMaxTokens(body2);
               final off = _isOff(thinkingBudget);
               if (host.contains('openrouter.ai')) {
                 if (isReasoning) {
@@ -2588,9 +2581,6 @@ class ChatApiService {
               }
               if (!host.contains('mistral.ai')) {
                 body2['stream_options'] = {'include_usage': true};
-              }
-              if (extraBodyCfg.isNotEmpty) {
-                body2.addAll(extraBodyCfg);
               }
               if (extraBody != null && extraBody.isNotEmpty) {
                 extraBody.forEach((k, v) {
@@ -2868,17 +2858,17 @@ class ChatApiService {
                 // Continue streaming with follow-up request - reuse existing multi-round logic from [DONE] handler
                 var currentMessages = mm2;
                 while (true) {
-                  final Map<String, dynamic> body2 = {
+                  final body2 = {
                     'model': upstreamModelId,
                     'messages': currentMessages,
                     'stream': true,
                     if (temperature != null) 'temperature': temperature,
                     if (topP != null) 'top_p': topP,
+                    if (maxTokens != null) 'max_tokens': maxTokens,
                     if (isReasoning && effort != 'off' && effort != 'auto') 'reasoning_effort': effort,
                     if (tools != null && tools.isNotEmpty) 'tools': _cleanToolsForCompatibility(tools),
                     if (tools != null && tools.isNotEmpty) 'tool_choice': 'auto',
                   };
-                  _setMaxTokens(body2);
                   final off = _isOff(thinkingBudget);
                   if (host.contains('openrouter.ai')) {
                     if (isReasoning) {
@@ -2952,9 +2942,6 @@ class ChatApiService {
                   }
                   if (!host.contains('mistral.ai')) {
                     body2['stream_options'] = {'include_usage': true};
-                  }
-                  if (extraBodyCfg.isNotEmpty) {
-                    body2.addAll(extraBodyCfg);
                   }
                   if (extraBody != null && extraBody.isNotEmpty) {
                     extraBody.forEach((k, v) {
@@ -3228,7 +3215,7 @@ class ChatApiService {
               mm2.add({'role': 'tool', 'tool_call_id': id, 'name': name, 'content': r['content']});
             }
 
-            final Map<String, dynamic> body2 = {
+            final body2 = {
               'model': upstreamModelId,
               'messages': mm2,
               'stream': true,
@@ -3872,8 +3859,9 @@ class ChatApiService {
       final effective = _effectiveModelInfo(config, modelId);
       final isReasoning = effective.abilities.contains(ModelAbility.reasoning);
       final builtIns = _builtInTools(config, modelId);
+      final isOfficialGemini = config.vertexAI != true;
       final builtInToolEntries = <Map<String, dynamic>>[];
-      if (builtIns.isNotEmpty) {
+      if (isOfficialGemini && builtIns.isNotEmpty) {
         if (builtIns.contains('search')) builtInToolEntries.add({'google_search': {}});
         if (builtIns.contains('url_context')) builtInToolEntries.add({'url_context': {}});
       }
@@ -4077,10 +4065,11 @@ class ChatApiService {
     bool _expectImage = wantsImageOutput;
     bool _receivedImage = false;
     final off = _isOff(thinkingBudget);
-    // Built-in Gemini tools (supported for both official Gemini API and Vertex)
+    // Built-in Gemini tools (only for official Gemini API)
     final builtIns = _builtInTools(config, modelId);
+    final isOfficialGemini = config.vertexAI != true; // requirement: only Gemini official API
     final builtInToolEntries = <Map<String, dynamic>>[];
-    if (builtIns.isNotEmpty) {
+    if (isOfficialGemini && builtIns.isNotEmpty) {
       if (builtIns.contains('search')) {
         builtInToolEntries.add({'google_search': {}});
       }

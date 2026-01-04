@@ -4,7 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../utils/plantuml_encoder.dart';
 import '../../icons/lucide_adapter.dart';
-import 'package:Kelivo/l10n/app_localizations.dart';
+import 'package:OmniChat/l10n/app_localizations.dart';
 import 'snackbar.dart';
 import 'export_capture_scope.dart';
 import 'dart:io';

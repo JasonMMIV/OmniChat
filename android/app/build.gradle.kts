@@ -58,7 +58,8 @@ android {
         }
     }
 
-    // Removed splits configuration to avoid conflicts with Flutter's build process
+    // Note: Splits configuration removed temporarily to avoid conflicts with Flutter's build process
+    // To build ARM64 only, use flutter build apk --target-platform android-arm64
 
 }
 

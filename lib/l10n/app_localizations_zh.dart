@@ -369,63 +369,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditPageCustomTab => '自定义请求';
 
   @override
-  String get assistantEditPageRegexTab => '正则替换';
-
-  @override
-  String get assistantEditRegexDescription => '为用户/助手消息配置正则规则，可修改或仅调整显示效果。';
-
-  @override
-  String get assistantEditAddRegexButton => '添加正则规则';
-
-  @override
-  String get assistantRegexAddTitle => '添加正则规则';
-
-  @override
-  String get assistantRegexEditTitle => '编辑正则规则';
-
-  @override
-  String get assistantRegexNameLabel => '规则名称';
-
-  @override
-  String get assistantRegexPatternLabel => '正则表达式';
-
-  @override
-  String get assistantRegexReplacementLabel => '替换字符串';
-
-  @override
-  String get assistantRegexScopeLabel => '影响范围';
-
-  @override
-  String get assistantRegexScopeUser => '用户';
-
-  @override
-  String get assistantRegexScopeAssistant => '助手';
-
-  @override
-  String get assistantRegexScopeVisualOnly => '仅视觉';
-
-  @override
-  String get assistantRegexAddAction => '添加';
-
-  @override
-  String get assistantRegexSaveAction => '保存';
-
-  @override
-  String get assistantRegexDeleteButton => '删除';
-
-  @override
-  String get assistantRegexValidationError => '请填写名称、正则表达式，并至少选择一个范围。';
-
-  @override
-  String get assistantRegexInvalidPattern => '正则表达式无效';
-
-  @override
-  String get assistantRegexCancelButton => '取消';
-
-  @override
-  String get assistantRegexUntitled => '未命名规则';
-
-  @override
   String get assistantEditCustomHeadersTitle => '自定义 Header';
 
   @override
@@ -764,18 +707,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditSystemPromptHint => '输入系统提示词…';
 
   @override
-  String get assistantEditSystemPromptImportButton => '从文件导入';
-
-  @override
-  String get assistantEditSystemPromptImportSuccess => '已从文件更新系统提示词';
-
-  @override
-  String get assistantEditSystemPromptImportFailed => '导入失败';
-
-  @override
-  String get assistantEditSystemPromptImportEmpty => '文件内容为空';
-
-  @override
   String get assistantEditAvailableVariables => '可用变量：';
 
   @override
@@ -1090,14 +1021,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatHistoryPageSearchTooltip => '搜索';
 
   @override
-  String get chatHistoryPageDeleteAllTooltip => '删除未置顶';
+  String get chatHistoryPageDeleteAllTooltip => '删除全部';
 
   @override
-  String get chatHistoryPageDeleteAllDialogTitle => '删除未置顶对话';
+  String get chatHistoryPageDeleteAllDialogTitle => '删除全部对话';
 
   @override
-  String get chatHistoryPageDeleteAllDialogContent =>
-      '确定要删除所有未置顶的对话吗？已置顶的将会保留。';
+  String get chatHistoryPageDeleteAllDialogContent => '确定要删除全部对话吗？此操作不可撤销。';
 
   @override
   String get chatHistoryPageCancel => '取消';
@@ -1106,7 +1036,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatHistoryPageDelete => '删除';
 
   @override
-  String get chatHistoryPageDeletedAllSnackbar => '已删除未置顶的对话';
+  String get chatHistoryPageDeletedAllSnackbar => '已删除全部对话';
 
   @override
   String get chatHistoryPageSearchHint => '搜索对话';
@@ -1128,9 +1058,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get messageEditPageSave => '保存';
-
-  @override
-  String get messageEditPageSaveAndSend => '保存并发送';
 
   @override
   String get messageEditPageHint => '输入消息内容…';
@@ -1611,12 +1538,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatInputBarInsertNewline => '换行';
-
-  @override
-  String get chatInputBarExpand => '展开';
-
-  @override
-  String get chatInputBarCollapse => '收起';
 
   @override
   String get mcpPageBackTooltip => '返回';
@@ -2960,9 +2881,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get instructionInjectionAddTooltip => '添加指令注入';
 
   @override
-  String get instructionInjectionImportTooltip => '从文件导入';
-
-  @override
   String get instructionInjectionEmptyMessage => '暂无指令注入卡片';
 
   @override
@@ -2979,11 +2897,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get instructionInjectionPromptLabel => '提示词';
-
-  @override
-  String instructionInjectionImportSuccess(int count) {
-    return '已导入 $count 个指令注入';
-  }
 
   @override
   String get instructionInjectionSheetSubtitle => '为当前对话选择并应用一条指令提示词';
@@ -3237,22 +3150,69 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatInputBarOcrTooltip => 'OCR 文字识别';
 
   @override
-  String get providerDetailPageBatchDetectButton => '检测';
+  String get voiceChatTitle => '语音聊天';
 
   @override
-  String get providerDetailPageBatchDetecting => '检测中...';
+  String get voiceChatListening => '正在聆听';
 
   @override
-  String get providerDetailPageBatchDetectStart => '开始检测';
+  String get voiceChatThinking => '正在思考';
 
   @override
-  String get providerDetailPageDetectSuccess => '检测成功';
+  String get voiceChatTalking => '正在说话';
 
   @override
-  String get providerDetailPageDetectFailed => '检测失败';
+  String get voiceChatButtonTooltip => '语音聊天';
 
   @override
-  String get providerDetailPageDeleteAllModelsWarning => '此操作不可撤回';
+  String get voiceChatPermissionRequired => '需要麦克风权限';
+
+  @override
+  String get voiceChatPermissionSubtitle => '此应用需要麦克风权限才能进行语音聊天。请在设置中授予权限。';
+
+  @override
+  String get voiceChatPermissionButton => '授予权限';
+
+  @override
+  String voiceChatError(String error) {
+    return 'Error: $error';
+  }
+
+  @override
+  String get voiceChatErrorInitFailed =>
+      'Failed to initialize speech recognition';
+
+  @override
+  String get voiceChatProcessing => 'Processing...';
+
+  @override
+  String voiceChatErrorApi(String error) {
+    return 'API Error: $error';
+  }
+
+  @override
+  String voiceChatErrorProcessingResponse(String error) {
+    return 'Error processing response: $error';
+  }
+
+  @override
+  String voiceChatErrorTts(String error) {
+    return 'TTS Error: $error';
+  }
+
+  @override
+  String get voiceChatErrorNoModel => 'Please select a model first';
+
+  @override
+  String get voiceChatErrorNoConversation => 'Conversation not found';
+
+  @override
+  String get voiceChatErrorNoActiveConversation => 'No active conversation';
+
+  @override
+  String voiceChatSystemPrompt(String text) {
+    return 'You are in a voice conversation. Use informal, conversational language, and keep the conversation simple and clear. $text';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -3620,63 +3580,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditPageCustomTab => '自定义请求';
 
   @override
-  String get assistantEditPageRegexTab => '正则替换';
-
-  @override
-  String get assistantEditRegexDescription => '为用户/助手消息配置正则规则，可修改或仅调整显示效果。';
-
-  @override
-  String get assistantEditAddRegexButton => '添加正则规则';
-
-  @override
-  String get assistantRegexAddTitle => '添加正则规则';
-
-  @override
-  String get assistantRegexEditTitle => '编辑正则规则';
-
-  @override
-  String get assistantRegexNameLabel => '规则名称';
-
-  @override
-  String get assistantRegexPatternLabel => '正则表达式';
-
-  @override
-  String get assistantRegexReplacementLabel => '替换字符串';
-
-  @override
-  String get assistantRegexScopeLabel => '影响范围';
-
-  @override
-  String get assistantRegexScopeUser => '用户';
-
-  @override
-  String get assistantRegexScopeAssistant => '助手';
-
-  @override
-  String get assistantRegexScopeVisualOnly => '仅视觉';
-
-  @override
-  String get assistantRegexAddAction => '添加';
-
-  @override
-  String get assistantRegexSaveAction => '保存';
-
-  @override
-  String get assistantRegexDeleteButton => '删除';
-
-  @override
-  String get assistantRegexValidationError => '请填写名称、正则表达式，并至少选择一个范围。';
-
-  @override
-  String get assistantRegexInvalidPattern => '正则表达式无效';
-
-  @override
-  String get assistantRegexCancelButton => '取消';
-
-  @override
-  String get assistantRegexUntitled => '未命名规则';
-
-  @override
   String get assistantEditCustomHeadersTitle => '自定义 Header';
 
   @override
@@ -4015,18 +3918,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditSystemPromptHint => '输入系统提示词…';
 
   @override
-  String get assistantEditSystemPromptImportButton => '从文件导入';
-
-  @override
-  String get assistantEditSystemPromptImportSuccess => '已从文件更新系统提示词';
-
-  @override
-  String get assistantEditSystemPromptImportFailed => '导入失败';
-
-  @override
-  String get assistantEditSystemPromptImportEmpty => '文件内容为空';
-
-  @override
   String get assistantEditAvailableVariables => '可用变量：';
 
   @override
@@ -4341,14 +4232,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatHistoryPageSearchTooltip => '搜索';
 
   @override
-  String get chatHistoryPageDeleteAllTooltip => '删除未置顶';
+  String get chatHistoryPageDeleteAllTooltip => '删除全部';
 
   @override
-  String get chatHistoryPageDeleteAllDialogTitle => '删除未置顶对话';
+  String get chatHistoryPageDeleteAllDialogTitle => '删除全部对话';
 
   @override
-  String get chatHistoryPageDeleteAllDialogContent =>
-      '确定要删除所有未置顶的对话吗？已置顶的将会保留。';
+  String get chatHistoryPageDeleteAllDialogContent => '确定要删除全部对话吗？此操作不可撤销。';
 
   @override
   String get chatHistoryPageCancel => '取消';
@@ -4357,7 +4247,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatHistoryPageDelete => '删除';
 
   @override
-  String get chatHistoryPageDeletedAllSnackbar => '已删除未置顶的对话';
+  String get chatHistoryPageDeletedAllSnackbar => '已删除全部对话';
 
   @override
   String get chatHistoryPageSearchHint => '搜索对话';
@@ -4379,9 +4269,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get messageEditPageSave => '保存';
-
-  @override
-  String get messageEditPageSaveAndSend => '保存并发送';
 
   @override
   String get messageEditPageHint => '输入消息内容…';
@@ -4862,12 +4749,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get chatInputBarInsertNewline => '换行';
-
-  @override
-  String get chatInputBarExpand => '展开';
-
-  @override
-  String get chatInputBarCollapse => '收起';
 
   @override
   String get mcpPageBackTooltip => '返回';
@@ -6211,9 +6092,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get instructionInjectionAddTooltip => '添加指令注入';
 
   @override
-  String get instructionInjectionImportTooltip => '从文件导入';
-
-  @override
   String get instructionInjectionEmptyMessage => '暂无指令注入卡片';
 
   @override
@@ -6230,11 +6108,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get instructionInjectionPromptLabel => '提示词';
-
-  @override
-  String instructionInjectionImportSuccess(int count) {
-    return '已导入 $count 个指令注入';
-  }
 
   @override
   String get instructionInjectionSheetSubtitle => '为当前对话选择并应用一条指令提示词';
@@ -6488,22 +6361,68 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatInputBarOcrTooltip => 'OCR 文字识别';
 
   @override
-  String get providerDetailPageBatchDetectButton => '检测';
+  String get voiceChatTitle => '语音聊天';
 
   @override
-  String get providerDetailPageBatchDetecting => '检测中...';
+  String get voiceChatListening => '正在聆听';
 
   @override
-  String get providerDetailPageBatchDetectStart => '开始检测';
+  String get voiceChatThinking => '正在思考';
 
   @override
-  String get providerDetailPageDetectSuccess => '检测成功';
+  String get voiceChatTalking => '正在说话';
 
   @override
-  String get providerDetailPageDetectFailed => '检测失败';
+  String get voiceChatButtonTooltip => '语音聊天';
 
   @override
-  String get providerDetailPageDeleteAllModelsWarning => '此操作不可撤回';
+  String get voiceChatPermissionRequired => '需要麦克风权限';
+
+  @override
+  String get voiceChatPermissionSubtitle => '此应用需要麦克风权限才能进行语音聊天。请在设置中授予权限。';
+
+  @override
+  String get voiceChatPermissionButton => '授予权限';
+
+  @override
+  String voiceChatError(String error) {
+    return '错误：$error';
+  }
+
+  @override
+  String get voiceChatErrorInitFailed => '语音识别初始化失败';
+
+  @override
+  String get voiceChatProcessing => '处理中...';
+
+  @override
+  String voiceChatErrorApi(String error) {
+    return 'API错误：$error';
+  }
+
+  @override
+  String voiceChatErrorProcessingResponse(String error) {
+    return '处理响应时出错：$error';
+  }
+
+  @override
+  String voiceChatErrorTts(String error) {
+    return 'TTS错误：$error';
+  }
+
+  @override
+  String get voiceChatErrorNoModel => '请先选择一个模型';
+
+  @override
+  String get voiceChatErrorNoConversation => '未找到对话';
+
+  @override
+  String get voiceChatErrorNoActiveConversation => '没有活动的对话';
+
+  @override
+  String voiceChatSystemPrompt(String text) {
+    return '你正在进行语音对话，请使用口语化的文字，并保持对话简单、清楚。$text';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -6871,63 +6790,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditPageCustomTab => '自訂請求';
 
   @override
-  String get assistantEditPageRegexTab => '正則替換';
-
-  @override
-  String get assistantEditRegexDescription => '為使用者/助理訊息配置正則規則，可修改或僅調整顯示效果。';
-
-  @override
-  String get assistantEditAddRegexButton => '新增正則規則';
-
-  @override
-  String get assistantRegexAddTitle => '新增正則規則';
-
-  @override
-  String get assistantRegexEditTitle => '編輯正則規則';
-
-  @override
-  String get assistantRegexNameLabel => '規則名稱';
-
-  @override
-  String get assistantRegexPatternLabel => '正則表達式';
-
-  @override
-  String get assistantRegexReplacementLabel => '替換字串';
-
-  @override
-  String get assistantRegexScopeLabel => '影響範圍';
-
-  @override
-  String get assistantRegexScopeUser => '使用者';
-
-  @override
-  String get assistantRegexScopeAssistant => '助理';
-
-  @override
-  String get assistantRegexScopeVisualOnly => '僅視覺';
-
-  @override
-  String get assistantRegexAddAction => '新增';
-
-  @override
-  String get assistantRegexSaveAction => '儲存';
-
-  @override
-  String get assistantRegexDeleteButton => '刪除';
-
-  @override
-  String get assistantRegexValidationError => '請填寫名稱、正則表達式，並至少選擇一個範圍。';
-
-  @override
-  String get assistantRegexInvalidPattern => '正則表達式無效';
-
-  @override
-  String get assistantRegexCancelButton => '取消';
-
-  @override
-  String get assistantRegexUntitled => '未命名規則';
-
-  @override
   String get assistantEditCustomHeadersTitle => '自訂 Header';
 
   @override
@@ -7266,18 +7128,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditSystemPromptHint => '輸入系統提示詞…';
 
   @override
-  String get assistantEditSystemPromptImportButton => '從檔案匯入';
-
-  @override
-  String get assistantEditSystemPromptImportSuccess => '已從檔案更新系統提示詞';
-
-  @override
-  String get assistantEditSystemPromptImportFailed => '匯入失敗';
-
-  @override
-  String get assistantEditSystemPromptImportEmpty => '檔案內容為空';
-
-  @override
   String get assistantEditAvailableVariables => '可用變數：';
 
   @override
@@ -7592,13 +7442,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatHistoryPageSearchTooltip => '搜尋';
 
   @override
-  String get chatHistoryPageDeleteAllTooltip => '刪除未置頂';
+  String get chatHistoryPageDeleteAllTooltip => '刪除全部';
 
   @override
-  String get chatHistoryPageDeleteAllDialogTitle => '刪除未置頂對話';
+  String get chatHistoryPageDeleteAllDialogTitle => '刪除全部對話';
 
   @override
-  String get chatHistoryPageDeleteAllDialogContent => '確認要刪除所有未置頂的對話嗎？已置頂的會保留。';
+  String get chatHistoryPageDeleteAllDialogContent => '確定要刪除全部對話嗎？此操作不可撤銷。';
 
   @override
   String get chatHistoryPageCancel => '取消';
@@ -7607,7 +7457,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatHistoryPageDelete => '刪除';
 
   @override
-  String get chatHistoryPageDeletedAllSnackbar => '已刪除未置頂的對話';
+  String get chatHistoryPageDeletedAllSnackbar => '已刪除全部對話';
 
   @override
   String get chatHistoryPageSearchHint => '搜尋對話';
@@ -7629,9 +7479,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get messageEditPageSave => '儲存';
-
-  @override
-  String get messageEditPageSaveAndSend => '儲存並發送';
 
   @override
   String get messageEditPageHint => '輸入訊息內容…';
@@ -8112,12 +7959,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatInputBarInsertNewline => '換行';
-
-  @override
-  String get chatInputBarExpand => '展開';
-
-  @override
-  String get chatInputBarCollapse => '收起';
 
   @override
   String get mcpPageBackTooltip => '返回';
@@ -9461,9 +9302,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get instructionInjectionAddTooltip => '新增指令注入';
 
   @override
-  String get instructionInjectionImportTooltip => '從檔案匯入';
-
-  @override
   String get instructionInjectionEmptyMessage => '暫無指令注入卡片';
 
   @override
@@ -9480,11 +9318,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get instructionInjectionPromptLabel => '提示詞';
-
-  @override
-  String instructionInjectionImportSuccess(int count) {
-    return '已匯入 $count 個指令注入';
-  }
 
   @override
   String get instructionInjectionSheetSubtitle => '為目前對話選擇並套用一條指令提示詞';
@@ -9739,20 +9572,66 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatInputBarOcrTooltip => 'OCR 文字辨識';
 
   @override
-  String get providerDetailPageBatchDetectButton => '檢測';
+  String get voiceChatTitle => '語音聊天';
 
   @override
-  String get providerDetailPageBatchDetecting => '檢測中...';
+  String get voiceChatListening => '正在聆聽';
 
   @override
-  String get providerDetailPageBatchDetectStart => '開始檢測';
+  String get voiceChatThinking => '正在思考';
 
   @override
-  String get providerDetailPageDetectSuccess => '檢測成功';
+  String get voiceChatTalking => '正在說話';
 
   @override
-  String get providerDetailPageDetectFailed => '檢測失敗';
+  String get voiceChatButtonTooltip => '語音聊天';
 
   @override
-  String get providerDetailPageDeleteAllModelsWarning => '此操作不可撤回';
+  String get voiceChatPermissionRequired => '需要麥克風權限';
+
+  @override
+  String get voiceChatPermissionSubtitle => '此應用需要麥克風權限才能進行語音聊天。請在設定中授予权限。';
+
+  @override
+  String get voiceChatPermissionButton => '授予权限';
+
+  @override
+  String voiceChatError(String error) {
+    return '錯誤：$error';
+  }
+
+  @override
+  String get voiceChatErrorInitFailed => '語音識別初始化失敗';
+
+  @override
+  String get voiceChatProcessing => '處理中...';
+
+  @override
+  String voiceChatErrorApi(String error) {
+    return 'API錯誤：$error';
+  }
+
+  @override
+  String voiceChatErrorProcessingResponse(String error) {
+    return '處理響應時出錯：$error';
+  }
+
+  @override
+  String voiceChatErrorTts(String error) {
+    return 'TTS錯誤：$error';
+  }
+
+  @override
+  String get voiceChatErrorNoModel => '請先選擇一個模型';
+
+  @override
+  String get voiceChatErrorNoConversation => '未找到對話';
+
+  @override
+  String get voiceChatErrorNoActiveConversation => '沒有活動的對話';
+
+  @override
+  String voiceChatSystemPrompt(String text) {
+    return '你正在進行語音對話，請使用口語化的文字，並保持對話簡單、清楚。$text';
+  }
 }

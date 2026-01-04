@@ -376,65 +376,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantEditPageCustomTab => 'Custom';
 
   @override
-  String get assistantEditPageRegexTab => 'Regex Replace';
-
-  @override
-  String get assistantEditRegexDescription =>
-      'Create regex rules to rewrite or visually adjust user/assistant messages.';
-
-  @override
-  String get assistantEditAddRegexButton => 'Add Regex Rule';
-
-  @override
-  String get assistantRegexAddTitle => 'Add Regex Rule';
-
-  @override
-  String get assistantRegexEditTitle => 'Edit Regex Rule';
-
-  @override
-  String get assistantRegexNameLabel => 'Rule Name';
-
-  @override
-  String get assistantRegexPatternLabel => 'Regular Expression';
-
-  @override
-  String get assistantRegexReplacementLabel => 'Replacement String';
-
-  @override
-  String get assistantRegexScopeLabel => 'Affecting Scope';
-
-  @override
-  String get assistantRegexScopeUser => 'User';
-
-  @override
-  String get assistantRegexScopeAssistant => 'Assistant';
-
-  @override
-  String get assistantRegexScopeVisualOnly => 'Visual Only';
-
-  @override
-  String get assistantRegexAddAction => 'Add';
-
-  @override
-  String get assistantRegexSaveAction => 'Save';
-
-  @override
-  String get assistantRegexDeleteButton => 'Delete';
-
-  @override
-  String get assistantRegexValidationError =>
-      'Please fill in the name, regex, and select at least one scope.';
-
-  @override
-  String get assistantRegexInvalidPattern => 'Invalid regular expression';
-
-  @override
-  String get assistantRegexCancelButton => 'Cancel';
-
-  @override
-  String get assistantRegexUntitled => 'Untitled Rule';
-
-  @override
   String get assistantEditCustomHeadersTitle => 'Custom Headers';
 
   @override
@@ -788,19 +729,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantEditSystemPromptHint => 'Enter system prompt…';
 
   @override
-  String get assistantEditSystemPromptImportButton => 'Import file';
-
-  @override
-  String get assistantEditSystemPromptImportSuccess =>
-      'System prompt updated from file';
-
-  @override
-  String get assistantEditSystemPromptImportFailed => 'Failed to import file';
-
-  @override
-  String get assistantEditSystemPromptImportEmpty => 'File is empty';
-
-  @override
   String get assistantEditAvailableVariables => 'Available variables:';
 
   @override
@@ -1122,15 +1050,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatHistoryPageSearchTooltip => 'Search';
 
   @override
-  String get chatHistoryPageDeleteAllTooltip => 'Delete Unpinned';
+  String get chatHistoryPageDeleteAllTooltip => 'Delete All';
 
   @override
-  String get chatHistoryPageDeleteAllDialogTitle =>
-      'Delete Unpinned Conversations';
+  String get chatHistoryPageDeleteAllDialogTitle => 'Delete All Conversations';
 
   @override
   String get chatHistoryPageDeleteAllDialogContent =>
-      'Delete every non-pinned conversation for this assistant? Pinned chats stay in place.';
+      'Are you sure you want to delete all conversations? This cannot be undone.';
 
   @override
   String get chatHistoryPageCancel => 'Cancel';
@@ -1139,8 +1066,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatHistoryPageDelete => 'Delete';
 
   @override
-  String get chatHistoryPageDeletedAllSnackbar =>
-      'Unpinned conversations deleted';
+  String get chatHistoryPageDeletedAllSnackbar => 'All conversations deleted';
 
   @override
   String get chatHistoryPageSearchHint => 'Search conversations';
@@ -1162,9 +1088,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get messageEditPageSave => 'Save';
-
-  @override
-  String get messageEditPageSaveAndSend => 'Save & Send';
 
   @override
   String get messageEditPageHint => 'Enter message…';
@@ -1666,12 +1589,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatInputBarInsertNewline => 'Newline';
-
-  @override
-  String get chatInputBarExpand => 'Expand';
-
-  @override
-  String get chatInputBarCollapse => 'Collapse';
 
   @override
   String get mcpPageBackTooltip => 'Back';
@@ -3070,9 +2987,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instructionInjectionAddTooltip => 'Add Instruction';
 
   @override
-  String get instructionInjectionImportTooltip => 'Import from files';
-
-  @override
   String get instructionInjectionEmptyMessage =>
       'No instruction injection cards yet';
 
@@ -3090,11 +3004,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get instructionInjectionPromptLabel => 'Prompt';
-
-  @override
-  String instructionInjectionImportSuccess(int count) {
-    return 'Imported $count instruction(s)';
-  }
 
   @override
   String get instructionInjectionSheetSubtitle =>
@@ -3356,21 +3265,68 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatInputBarOcrTooltip => 'Image OCR';
 
   @override
-  String get providerDetailPageBatchDetectButton => 'Detect';
+  String get voiceChatTitle => 'Voice Chat';
 
   @override
-  String get providerDetailPageBatchDetecting => 'Detecting...';
+  String get voiceChatListening => 'Listening';
 
   @override
-  String get providerDetailPageBatchDetectStart => 'Start Detection';
+  String get voiceChatThinking => 'Thinking';
 
   @override
-  String get providerDetailPageDetectSuccess => 'Detection successful';
+  String get voiceChatTalking => 'Talking';
 
   @override
-  String get providerDetailPageDetectFailed => 'Detection failed';
+  String get voiceChatButtonTooltip => 'Voice Chat';
 
   @override
-  String get providerDetailPageDeleteAllModelsWarning =>
-      'This action cannot be undone.';
+  String get voiceChatPermissionRequired => 'Microphone Permission Required';
+
+  @override
+  String get voiceChatPermissionSubtitle =>
+      'This app needs microphone access to perform voice chat. Please grant permission in settings.';
+
+  @override
+  String get voiceChatPermissionButton => 'Grant Permission';
+
+  @override
+  String voiceChatError(String error) {
+    return 'Error: $error';
+  }
+
+  @override
+  String get voiceChatErrorInitFailed =>
+      'Failed to initialize speech recognition';
+
+  @override
+  String get voiceChatProcessing => 'Processing...';
+
+  @override
+  String voiceChatErrorApi(String error) {
+    return 'API Error: $error';
+  }
+
+  @override
+  String voiceChatErrorProcessingResponse(String error) {
+    return 'Error processing response: $error';
+  }
+
+  @override
+  String voiceChatErrorTts(String error) {
+    return 'TTS Error: $error';
+  }
+
+  @override
+  String get voiceChatErrorNoModel => 'Please select a model first';
+
+  @override
+  String get voiceChatErrorNoConversation => 'Conversation not found';
+
+  @override
+  String get voiceChatErrorNoActiveConversation => 'No active conversation';
+
+  @override
+  String voiceChatSystemPrompt(String text) {
+    return 'You are in a voice conversation. Use informal, conversational language, and keep the conversation simple and clear. $text';
+  }
 }
