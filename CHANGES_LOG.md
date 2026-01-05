@@ -35,6 +35,33 @@
 
 ## Commit History: Changes Made to Original Project
 
+### 37. Upstream Merge and Voice Chat Preservation (2026-01-05)
+- **Commit**: Merge upstream 'kelivo' changes and resolve conflicts
+- **Files Modified**:
+  - `lib/features/home/pages/home_page.dart`: Merged upstream UI changes while keeping `_startVoiceChat` integration.
+  - `lib/core/models/assistant_regex.dart`: Added `encodeList`/`decodeList` to match new upstream usage.
+  - `lib/core/providers/assistant_provider.dart`: Resolved conflicts in state management.
+  - `lib/features/chat/widgets/chat_message_widget.dart`: Preserved Voice Chat rendering logic alongside upstream message styling updates.
+  - Multiple other files (`desktop_settings_page.dart`, `model_edit_dialog.dart`, etc.) updated to match upstream.
+- **Description**:
+  - Synced `OmniChat` with the latest upstream `kelivo` changes.
+  - Resolved all merge conflicts, specifically ensuring the **Voice Chat** feature remains functional and integrated.
+  - Fixed compilation errors resulting from API changes (e.g., missing arguments in `HomePage` widget instantiation).
+  - Validated that no blocking errors exist (`flutter analyze` passed with 0 errors).
+
+### 36. Bluetooth Detection Logic Fix (2026-01-04)
+- **Commit**: Fix false positive in Bluetooth headset detection
+- **Files Modified**:
+  - `android/app/src/main/kotlin/com/psyche/omnichat/MainActivity.kt`: Corrected `isBluetoothHeadsetConnected()` to return `false` if the device iteration finishes without finding a Bluetooth device, preventing the code from falling through to a generic capability check that was causing incorrect Call Mode activation (and earpiece routing) when no Bluetooth was present.
+- **Description**: Fixed a bug where the app would incorrectly simulate a call and route audio to the earpiece even when no Bluetooth device was connected. The app now correctly defaults to the Media Speaker in non-Bluetooth scenarios.
+
+### 35. Bluetooth Call Mode Integration and Auto-Play Fix (2026-01-04)
+- **Commit**: Enable native Bluetooth call mode and fix auto-playing responses in main chat
+- **Files Modified**:
+  - `lib/features/voice_chat/pages/voice_chat_screen.dart`: Re-enabled `startCallMode` native call, added `stopCallMode` to `dispose`, and implemented sequential `_startUp` initialization. Removed unused `_updateCallModeForBluetooth`.
+  - `lib/features/home/pages/home_page.dart`: Removed `_voiceChatProvider?.speak()` calls from `_sendMessage` and `_regenerateMessage` logic to stop unwanted auto-play of LLM responses.
+- **Description**: Resolved issues where Bluetooth integration was partially disabled and responses were being read aloud automatically in text mode. The app now correctly handles Bluetooth headsets in voice chat and respects the user's preference for silent text interactions.
+
 ### 24. Voice Chat Enhancements: Background Mode, Bluetooth Integration, and Listening Fix (2025-11-28)
 - **Commit**: Enhance voice chat with background execution and Bluetooth integration
 - **Files Modified**:

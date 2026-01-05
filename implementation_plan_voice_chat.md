@@ -4,8 +4,8 @@
 
 - **Project Name**: OmniChat
 - **Feature**: Voice Chat functionality
-- **Status**: Core fixes completed; remaining analyzer warnings are legacy items
-- **Last Updated**: 2025-11-28
+- **Status**: ✅ All issues resolved
+- **Last Updated**: 2026-01-05
 
 ## Feature Requirements
 
@@ -80,6 +80,25 @@
 2. Audit analyzer warning backlog (nice-to-have once voice chat is signed off).
 
 ## Recent Updates
+
+### Updates on 2026-01-05
+
+- **Merged Upstream 'kelivo' Changes**:
+  - Successfully merged upstream changes from the `kelivo` repository into `OmniChat`.
+  - Resolved extensive merge conflicts across 14+ files (including `home_page.dart`, `voice_chat_screen.dart`, `desktop_settings_page.dart`, `assistant_provider.dart`, etc.).
+  - **Voice Chat Feature Preserved**: Ensured that the custom Voice Chat functionality (continuous listening, Bluetooth call mode, background service) remains intact despite significant upstream UI and architectural changes.
+- **Verification & Cleanup**:
+  - **Compilation**: Fixed all blocking compilation errors (`missing_required_argument` in `HomePage`, `AssistantRegex` serialization methods).
+  - **Code Analysis**: Ran `flutter analyze`, confirming 0 blocking errors (retained ~3.5k upstream lint warnings to maintain compatibility for future merges).
+  - **Dependencies**: Updated dependencies and regenerated localization files (`flutter gen-l10n`).
+
+### Updates on 2026-01-04
+
+- **Bluetooth Detection Logic Fix**: Resolved a critical bug in `MainActivity.kt` where `isBluetoothHeadsetConnected()` would incorrectly return `true` on devices supporting SCO even when no headset was connected. This was caused by a fall-through logic error. The fix ensures that if no Bluetooth device is found in the device list, the function explicitly returns `false`.
+- **Bluetooth Call Mode Re-enabled**: Corrected the initialization sequence in `voice_chat_screen.dart` to properly invoke `startCallMode` on the native side. This ensures Bluetooth SCO and silent audio keep-alive are correctly activated when entering voice chat mode.
+- **Initialization Sequence Optimization**: Introduced a `_startUp` async method in `VoiceChatScreen` to serialize initialization steps, ensuring the audio session is fully configured before native call mode is initiated.
+- **Teardown Logic Enhancement**: Added `stopCallMode` invocation to the `dispose` method of `VoiceChatScreen` to guarantee native audio state is reset when the user leaves the voice chat.
+- **Fixed Auto-play Response Issue**: Removed redundant calls to `_voiceChatProvider?.speak()` in `home_page.dart`. This prevents the application from automatically reading LLM responses aloud during normal text-based conversations, while preserving manual TTS playback and voice chat screen functionality.
 
 ### Updates on 2025-11-28
 
