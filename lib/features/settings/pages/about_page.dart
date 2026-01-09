@@ -494,7 +494,7 @@ class _AboutPageState extends State<AboutPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Kelivo',
+                          'OmniChat',
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -537,42 +537,16 @@ class _AboutPageState extends State<AboutPage> {
             _iosDivider(context),
             _iosNavRow(
               context,
-              icon: Lucide.Earth,
-              label: l10n.aboutPageWebsite,
-              onTap: () async {
-                final uri = Uri.parse('https://kelivo.psycheas.top/');
-                if (!await launchUrl(uri, mode: LaunchMode.platformDefault)) {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                }
-              },
-            ),
-            _iosDivider(context),
-            _iosNavRow(
-              context,
               icon: Lucide.Github,
               label: 'GitHub',
-              onTap: () => _openUrl('https://github.com/Chevey339/kelivo'),
+              onTap: () => _openUrl('https://github.com/JasonMMIV/OmniChat'),
             ),
             _iosDivider(context),
           _iosNavRow(
             context,
             icon: Lucide.FileText,
             label: l10n.aboutPageLicense,
-            onTap: () => _openUrl('https://github.com/Chevey339/kelivo/blob/master/LICENSE'),
-          ),
-          _iosDivider(context),
-          _iosNavRowSvgLeading(
-            context,
-            svgAsset: 'assets/icons/tencent-qq.svg',
-            label: l10n.aboutPageJoinQQGroup,
-            onTap: () => _openUrl('https://qm.qq.com/q/OQaXetKssC'),
-          ),
-          _iosDivider(context),
-          _iosNavRowSvgLeading(
-            context,
-            svgAsset: 'assets/icons/discord.svg',
-            label: l10n.aboutPageJoinDiscord,
-            onTap: () => _openUrl('https://discord.gg/Tb8DyvvV5T'),
+            onTap: () => _openUrl('https://github.com/JasonMMIV/OmniChat/blob/master/LICENSE'),
           ),
           ]),
 
