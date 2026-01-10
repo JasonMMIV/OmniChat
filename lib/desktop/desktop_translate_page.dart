@@ -51,11 +51,11 @@ class _DesktopTranslatePageState extends State<DesktopTranslatePage> {
     final settings = context.read<SettingsProvider>();
     final assistant = context.read<AssistantProvider>().currentAssistant;
 
-    // Default language: if app locale is Chinese, default to English; else Simplified Chinese
+    // Default language: if app locale is Chinese, default to Traditional Chinese; else English
     final locale = Localizations.localeOf(context).languageCode.toLowerCase();
     setState(() {
       if (locale.startsWith('zh')) {
-        _targetLang = supportedLanguages.firstWhere((e) => e.code == 'zh-CN', orElse: () => supportedLanguages.first);
+        _targetLang = supportedLanguages.firstWhere((e) => e.code == 'zh-TW', orElse: () => supportedLanguages.first);
       } else {
         _targetLang = supportedLanguages.firstWhere((e) => e.code == 'en', orElse: () => supportedLanguages.first);
       }

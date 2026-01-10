@@ -9,13 +9,16 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get helloWorld => 'Hello World!';
-
-  @override
-  String get settingsPageBackButton => 'Back';
+  String get appName => 'OmniChat';
 
   @override
   String get settingsPageTitle => 'Settings';
+
+  @override
+  String get settingsPageGeneralSection => 'General';
+
+  @override
+  String get settingsPageColorMode => 'Theme Mode';
 
   @override
   String get settingsPageDarkMode => 'Dark';
@@ -27,26 +30,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPageSystemMode => 'System';
 
   @override
-  String get settingsPageWarningMessage =>
-      'Some services are not configured; features may be limited.';
+  String get settingsPageDisplay => 'Display Settings';
 
   @override
-  String get settingsPageGeneralSection => 'General';
+  String get settingsPageDisplayDescription => 'Customize UI and font';
 
   @override
-  String get settingsPageColorMode => 'Color Mode';
+  String get settingsPageAssistant => 'Assistant Settings';
 
   @override
-  String get settingsPageDisplay => 'Display';
-
-  @override
-  String get settingsPageDisplaySubtitle => 'Appearance and text size';
-
-  @override
-  String get settingsPageAssistant => 'Assistant';
-
-  @override
-  String get settingsPageAssistantSubtitle => 'Default assistant and style';
+  String get settingsPageAssistantDescription => 'Configure default parameters';
 
   @override
   String get settingsPageModelsServicesSection => 'Models & Services';
@@ -55,196 +48,64 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPageDefaultModel => 'Default Model';
 
   @override
-  String get settingsPageProviders => 'Providers';
+  String get settingsPageDefaultModelDescription => 'Select global chat model';
 
   @override
-  String get settingsPageHotkeys => 'Hotkeys';
+  String get settingsPageProviders => 'Model Providers';
 
   @override
-  String get settingsPageSearch => 'Search';
+  String get settingsPageProvidersDescription => 'Manage API keys and models';
 
   @override
-  String get settingsPageTts => 'TTS';
+  String get settingsPageSearch => 'Search Services';
 
   @override
-  String get settingsPageMcp => 'MCP';
+  String get settingsPageSearchDescription => 'Configure search engines';
 
   @override
-  String get settingsPageQuickPhrase => 'Quick Phrase';
+  String get settingsPageTts => 'TTS Services';
+
+  @override
+  String get settingsPageTtsDescription => 'Text-to-Speech configuration';
+
+  @override
+  String get settingsPageMcp => 'MCP Server';
+
+  @override
+  String get settingsPageMcpDescription => 'Model Context Protocol';
+
+  @override
+  String get settingsPageQuickPhrase => 'Quick Phrases';
+
+  @override
+  String get settingsPageQuickPhraseDescription => 'Manage shortcuts';
 
   @override
   String get settingsPageInstructionInjection => 'Instruction Injection';
 
   @override
+  String get settingsPageInstructionInjectionDescription => 'System prompts';
+
+  @override
+  String get settingsPageNetworkProxy => 'Network Proxy';
+
+  @override
+  String get settingsPageNetworkProxyDescription => 'Proxy configuration';
+
+  @override
   String get settingsPageDataSection => 'Data';
 
   @override
-  String get settingsPageBackup => 'Backup';
+  String get settingsPageBackup => 'Backup & Sync';
+
+  @override
+  String get settingsPageBackupDescription => 'Import/Export data';
 
   @override
   String get settingsPageChatStorage => 'Chat Storage';
 
   @override
-  String get settingsPageCalculating => 'Calculating…';
-
-  @override
-  String settingsPageFilesCount(int count, String size) {
-    return '$count files · $size';
-  }
-
-  @override
-  String get storageSpacePageTitle => 'Storage Space';
-
-  @override
-  String get storageSpaceRefreshTooltip => 'Refresh';
-
-  @override
-  String get storageSpaceLoadFailed => 'Failed to load storage usage';
-
-  @override
-  String get storageSpaceTotalLabel => 'Used';
-
-  @override
-  String storageSpaceClearableLabel(String size) {
-    return 'Clearable: $size';
-  }
-
-  @override
-  String storageSpaceClearableHint(String size) {
-    return 'Safe to clear: $size';
-  }
-
-  @override
-  String get storageSpaceCategoryImages => 'Images';
-
-  @override
-  String get storageSpaceCategoryFiles => 'Files';
-
-  @override
-  String get storageSpaceCategoryChatData => 'Chat Records';
-
-  @override
-  String get storageSpaceCategoryAssistantData => 'Assistants';
-
-  @override
-  String get storageSpaceCategoryCache => 'Cache';
-
-  @override
-  String get storageSpaceCategoryLogs => 'Logs';
-
-  @override
-  String get storageSpaceCategoryOther => 'App';
-
-  @override
-  String storageSpaceFilesCount(int count) {
-    return '$count files';
-  }
-
-  @override
-  String get storageSpaceSafeToClearHint =>
-      'Safe to clear. This will not affect your chat history.';
-
-  @override
-  String get storageSpaceNotSafeToClearHint =>
-      'May affect your chat history. Delete with care.';
-
-  @override
-  String get storageSpaceBreakdownTitle => 'Breakdown';
-
-  @override
-  String get storageSpaceSubChatMessages => 'Messages';
-
-  @override
-  String get storageSpaceSubChatConversations => 'Conversations';
-
-  @override
-  String get storageSpaceSubChatToolEvents => 'Tool events';
-
-  @override
-  String get storageSpaceSubAssistantAvatars => 'Avatars';
-
-  @override
-  String get storageSpaceSubAssistantImages => 'Images';
-
-  @override
-  String get storageSpaceSubCacheAvatars => 'Avatar cache';
-
-  @override
-  String get storageSpaceSubCacheOther => 'Other cache';
-
-  @override
-  String get storageSpaceSubCacheSystem => 'System cache';
-
-  @override
-  String get storageSpaceSubLogsFlutter => 'Flutter logs';
-
-  @override
-  String get storageSpaceSubLogsRequests => 'Network logs';
-
-  @override
-  String get storageSpaceSubLogsOther => 'Other logs';
-
-  @override
-  String get storageSpaceClearConfirmTitle => 'Confirm clear';
-
-  @override
-  String storageSpaceClearConfirmMessage(String targetName) {
-    return 'Clear $targetName?';
-  }
-
-  @override
-  String get storageSpaceClearButton => 'Clear';
-
-  @override
-  String storageSpaceClearDone(String targetName) {
-    return '$targetName cleared';
-  }
-
-  @override
-  String storageSpaceClearFailed(String error) {
-    return 'Clear failed: $error';
-  }
-
-  @override
-  String get storageSpaceClearAvatarCacheButton => 'Clear Avatar Cache';
-
-  @override
-  String get storageSpaceClearCacheButton => 'Clear Cache';
-
-  @override
-  String get storageSpaceClearLogsButton => 'Clear Logs';
-
-  @override
-  String get storageSpaceDeleteConfirmTitle => 'Confirm deletion';
-
-  @override
-  String storageSpaceDeleteUploadsConfirmMessage(int count) {
-    return 'Delete $count items? Attachments in chat history may become unavailable.';
-  }
-
-  @override
-  String storageSpaceDeletedUploadsDone(int count) {
-    return 'Deleted $count items';
-  }
-
-  @override
-  String get storageSpaceNoUploads => 'No items';
-
-  @override
-  String get storageSpaceSelectAll => 'Select all';
-
-  @override
-  String get storageSpaceClearSelection => 'Clear selection';
-
-  @override
-  String storageSpaceSelectedCount(int count) {
-    return '$count selected';
-  }
-
-  @override
-  String storageSpaceUploadsCount(int count) {
-    return '$count items';
-  }
+  String get settingsPageChatStorageDescription => 'Manage space usage';
 
   @override
   String get settingsPageAboutSection => 'About';
@@ -253,759 +114,181 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPageAbout => 'About';
 
   @override
-  String get settingsPageDocs => 'Docs';
+  String get settingsPageAboutDescription => 'Version info and more';
 
   @override
-  String get settingsPageSponsor => 'Sponsor';
+  String get settingsPageBackButton => 'Back';
 
   @override
-  String get settingsPageShare => 'Share';
+  String get settingsPageWarningMessage =>
+      'Please configure at least one model provider to start chatting.';
 
   @override
-  String get sponsorPageMethodsSectionTitle => 'Sponsorship Methods';
+  String get settingsPageCalculating => 'Calculating...';
 
   @override
-  String get sponsorPageSponsorsSectionTitle => 'Sponsors';
-
-  @override
-  String get sponsorPageEmpty => 'No sponsors yet';
-
-  @override
-  String get sponsorPageAfdianTitle => 'Afdian';
-
-  @override
-  String get sponsorPageAfdianSubtitle => 'afdian.com/a/kelivo';
-
-  @override
-  String get sponsorPageWeChatTitle => 'WeChat Sponsor';
-
-  @override
-  String get sponsorPageWeChatSubtitle => 'WeChat sponsor code';
-
-  @override
-  String get languageDisplaySimplifiedChinese => 'Simplified Chinese';
-
-  @override
-  String get languageDisplayEnglish => 'English';
-
-  @override
-  String get languageDisplayTraditionalChinese => 'Traditional Chinese';
-
-  @override
-  String get languageDisplayJapanese => 'Japanese';
-
-  @override
-  String get languageDisplayKorean => 'Korean';
-
-  @override
-  String get languageDisplayFrench => 'French';
-
-  @override
-  String get languageDisplayGerman => 'German';
-
-  @override
-  String get languageDisplayItalian => 'Italian';
-
-  @override
-  String get languageDisplaySpanish => 'Spanish';
-
-  @override
-  String get languageSelectSheetTitle => 'Select Translation Language';
-
-  @override
-  String get languageSelectSheetClearButton => 'Clear Translation';
-
-  @override
-  String get homePageClearContext => 'Clear Context';
-
-  @override
-  String homePageClearContextWithCount(String actual, String configured) {
-    return 'Clear Context ($actual/$configured)';
+  String settingsPageFilesCount(int count, String size) {
+    return '$count files, $size';
   }
 
   @override
-  String get homePageDefaultAssistant => 'Default Assistant';
+  String get homePageNewChat => 'New Chat';
 
   @override
-  String get mermaidExportPng => 'Export PNG';
-
-  @override
-  String get mermaidExportFailed => 'Export failed';
-
-  @override
-  String get mermaidPreviewOpen => 'Open Preview';
-
-  @override
-  String get mermaidPreviewOpenFailed => 'Cannot open preview';
-
-  @override
-  String get assistantProviderDefaultAssistantName => 'Default Assistant';
-
-  @override
-  String get assistantProviderSampleAssistantName => 'Sample Assistant';
-
-  @override
-  String get assistantProviderNewAssistantName => 'New Assistant';
-
-  @override
-  String assistantProviderSampleAssistantSystemPrompt(
-    String model_name,
-    String cur_datetime,
-    String locale,
-    String timezone,
-    String device_info,
-    String system_version,
-  ) {
-    return 'You are $model_name, an AI assistant who gladly provides accurate and helpful assistance. The current time is $cur_datetime, the device language is $locale, timezone is $timezone, the user is using $device_info, version $system_version. If the user does not explicitly specify otherwise, please use the user\'s device language when replying.';
-  }
-
-  @override
-  String get displaySettingsPageLanguageTitle => 'App Language';
-
-  @override
-  String get displaySettingsPageLanguageSubtitle => 'Choose interface language';
-
-  @override
-  String get assistantTagsManageTitle => 'Manage Tags';
-
-  @override
-  String get assistantTagsCreateButton => 'Create';
-
-  @override
-  String get assistantTagsCreateDialogTitle => 'Create Tag';
-
-  @override
-  String get assistantTagsCreateDialogOk => 'Create';
-
-  @override
-  String get assistantTagsCreateDialogCancel => 'Cancel';
-
-  @override
-  String get assistantTagsNameHint => 'Tag name';
-
-  @override
-  String get assistantTagsRenameButton => 'Rename';
-
-  @override
-  String get assistantTagsRenameDialogTitle => 'Rename Tag';
-
-  @override
-  String get assistantTagsRenameDialogOk => 'Rename';
-
-  @override
-  String get assistantTagsDeleteButton => 'Delete';
-
-  @override
-  String get assistantTagsDeleteConfirmTitle => 'Delete Tag';
-
-  @override
-  String get assistantTagsDeleteConfirmContent =>
-      'Are you sure you want to delete this tag?';
-
-  @override
-  String get assistantTagsDeleteConfirmOk => 'Delete';
-
-  @override
-  String get assistantTagsDeleteConfirmCancel => 'Cancel';
-
-  @override
-  String get assistantTagsContextMenuEditAssistant => 'Edit Assistant';
-
-  @override
-  String get assistantTagsContextMenuManageTags => 'Manage Tags';
-
-  @override
-  String get mcpTransportOptionStdio => 'STDIO';
-
-  @override
-  String get mcpTransportTagStdio => 'STDIO';
-
-  @override
-  String get mcpTransportTagInmemory => 'Built-in';
-
-  @override
-  String get mcpServerEditSheetStdioOnlyDesktop =>
-      'STDIO is only available on desktop';
-
-  @override
-  String get mcpServerEditSheetStdioCommandLabel => 'Command';
-
-  @override
-  String get mcpServerEditSheetStdioArgumentsLabel => 'Arguments';
-
-  @override
-  String get mcpServerEditSheetStdioWorkingDirectoryLabel =>
-      'Working Directory (optional)';
-
-  @override
-  String get mcpServerEditSheetStdioEnvironmentTitle => 'Environment';
-
-  @override
-  String get mcpServerEditSheetStdioEnvNameLabel => 'Name';
-
-  @override
-  String get mcpServerEditSheetStdioEnvValueLabel => 'Value';
-
-  @override
-  String get mcpServerEditSheetStdioAddEnv => 'Add Env';
-
-  @override
-  String get mcpServerEditSheetStdioCommandRequired =>
-      'Command is required for STDIO';
-
-  @override
-  String get assistantTagsContextMenuDeleteAssistant => 'Delete Assistant';
-
-  @override
-  String get assistantTagsClearTag => 'Clear Tag';
-
-  @override
-  String get displaySettingsPageLanguageChineseLabel => 'Simplified Chinese';
-
-  @override
-  String get displaySettingsPageLanguageEnglishLabel => 'English';
-
-  @override
-  String get homePagePleaseSelectModel => 'Please select a model first';
-
-  @override
-  String get homePagePleaseSetupTranslateModel =>
-      'Please set a translation model first';
-
-  @override
-  String get homePageTranslating => 'Translating...';
-
-  @override
-  String homePageTranslateFailed(String error) {
-    return 'Translation failed: $error';
-  }
-
-  @override
-  String get chatServiceDefaultConversationTitle => 'New Chat';
-
-  @override
-  String get userProviderDefaultUserName => 'User';
-
-  @override
-  String get homePageDeleteMessage => 'Delete Message';
-
-  @override
-  String get homePageDeleteMessageConfirm =>
-      'Are you sure you want to delete this message? This cannot be undone.';
+  String get homePageSettings => 'Settings';
 
   @override
   String get homePageCancel => 'Cancel';
 
   @override
+  String get homePageConfirm => 'Confirm';
+
+  @override
   String get homePageDelete => 'Delete';
 
   @override
-  String get homePageSelectMessagesToShare => 'Please select messages to share';
+  String get homePageEdit => 'Edit';
 
   @override
-  String get homePageDone => 'Done';
+  String get homePageRetry => 'Retry';
 
   @override
-  String get homePageDropToUpload => 'Drop files to upload';
+  String get homePageCopy => 'Copy';
 
   @override
-  String get assistantEditPageTitle => 'Assistant';
+  String get homePageShare => 'Share';
 
   @override
-  String get assistantEditPageNotFound => 'Assistant not found';
+  String get sidebarHistory => 'History';
 
   @override
-  String get assistantEditPageBasicTab => 'Basic';
+  String get sidebarAssistants => 'Assistants';
 
   @override
-  String get assistantEditPagePromptsTab => 'Prompts';
+  String get sidebarTopics => 'Topics';
 
   @override
-  String get assistantEditPageMcpTab => 'MCP';
+  String get aboutPageVersion => 'Version';
 
   @override
-  String get assistantEditPageQuickPhraseTab => 'Quick Phrase';
+  String get aboutPageSystem => 'System';
 
   @override
-  String get assistantEditPageCustomTab => 'Custom';
+  String get aboutPageAppDescription =>
+      'A cross-platform, multi-provider AI chat client.';
 
   @override
-  String get assistantEditCustomHeadersTitle => 'Custom Headers';
+  String get aboutPageLicense => 'License';
 
   @override
-  String get assistantEditCustomHeadersAdd => 'Add Header';
+  String get aboutPagePrivacyPolicy => 'Privacy Policy';
 
   @override
-  String get assistantEditCustomHeadersEmpty => 'No headers added';
+  String get aboutPageTermsOfService => 'Terms of Service';
 
   @override
-  String get assistantEditCustomBodyTitle => 'Custom Body';
+  String get aboutPageEasterEggButton => 'Close';
 
   @override
-  String get assistantEditCustomBodyAdd => 'Add Body';
+  String get requestLogSettingTitle => 'Request Logs';
 
   @override
-  String get assistantEditCustomBodyEmpty => 'No body items added';
+  String get requestLogSettingSubtitle => 'Log API requests for debugging';
 
   @override
-  String get assistantEditHeaderNameLabel => 'Header Name';
+  String get flutterLogSettingTitle => 'App Logs';
 
   @override
-  String get assistantEditHeaderValueLabel => 'Header Value';
+  String get flutterLogSettingSubtitle => 'Log application events';
 
   @override
-  String get assistantEditBodyKeyLabel => 'Body Key';
+  String get providersPageSiliconFlowName => 'SiliconFlow';
 
   @override
-  String get assistantEditBodyValueLabel => 'Body Value (JSON)';
+  String get providersPageAliyunName => 'Aliyun (DashScope)';
 
   @override
-  String get assistantEditDeleteTooltip => 'Delete';
+  String get providersPageZhipuName => 'Zhipu AI';
 
   @override
-  String get assistantEditAssistantNameLabel => 'Assistant Name';
+  String get providersPageByteDanceName => 'Doubao (ByteDance)';
 
   @override
-  String get assistantEditUseAssistantAvatarTitle => 'Use Assistant Avatar';
+  String get providerDetailPageApiBaseUrlLabel => 'API Base URL';
 
   @override
-  String get assistantEditUseAssistantAvatarSubtitle =>
-      'Use assistant avatar/name instead of model';
+  String get providerDetailPageLocationLabel => 'Location';
 
   @override
-  String get assistantEditChatModelTitle => 'Chat Model';
+  String get providerDetailPageProjectIdLabel => 'Project ID';
 
   @override
-  String get assistantEditChatModelSubtitle =>
-      'Default chat model for this assistant (fallback to global)';
+  String get providerDetailPageServiceAccountJsonLabel =>
+      'Service Account JSON';
 
   @override
-  String get assistantEditTemperatureDescription =>
-      'Controls randomness, range 0–2';
+  String get providerDetailPageImportJsonButton => 'Import JSON File';
 
   @override
-  String get assistantEditTopPDescription =>
-      'Do not change unless you know what you are doing';
+  String get providerDetailPageApiPathLabel => 'API Path';
 
   @override
-  String get assistantEditParameterDisabled =>
-      'Disabled (uses provider default)';
+  String get providerDetailPageBalanceEnabled => 'Enable Balance Check';
 
   @override
-  String get assistantEditParameterDisabled2 => 'Disabled (no restrictions)';
+  String get providerDetailPageBalanceApiPath => 'Balance API Path';
 
   @override
-  String get assistantEditContextMessagesTitle => 'Context Messages';
+  String get providerDetailPageBalanceResultKey => 'Balance Result Key';
 
   @override
-  String get assistantEditContextMessagesDescription =>
-      'How many recent messages to keep in context';
+  String get providerDetailPageModelsTitle => 'Models';
 
   @override
-  String get assistantEditStreamOutputTitle => 'Stream Output';
+  String get providerDetailPageFilterHint => 'Filter models...';
 
   @override
-  String get assistantEditStreamOutputDescription =>
-      'Enable streaming responses';
+  String get providerDetailPageUseStreamingLabel => 'Use Streaming';
 
   @override
-  String get assistantEditThinkingBudgetTitle => 'Thinking Budget';
+  String get providerDetailPageBatchDetecting => 'Detecting...';
 
   @override
-  String get assistantEditConfigureButton => 'Configure';
+  String get providerDetailPageBatchDetectStart => 'Check Connectivity';
 
   @override
-  String get assistantEditMaxTokensTitle => 'Max Tokens';
+  String get providerDetailPageBatchDetectButton => 'Check';
 
   @override
-  String get assistantEditMaxTokensDescription => 'Leave empty for unlimited';
+  String get providerDetailPageTestButton => 'Test Connection';
 
   @override
-  String get assistantEditMaxTokensHint => 'Unlimited';
+  String get providerDetailPageAddNewModelButton => 'Add';
 
   @override
-  String get assistantEditChatBackgroundTitle => 'Chat Background';
-
-  @override
-  String get assistantEditChatBackgroundDescription =>
-      'Set a background image for this assistant';
-
-  @override
-  String get assistantEditChooseImageButton => 'Choose Image';
-
-  @override
-  String get assistantEditClearButton => 'Clear';
-
-  @override
-  String get desktopNavChatTooltip => 'Chat';
-
-  @override
-  String get desktopNavTranslateTooltip => 'Translate';
-
-  @override
-  String get desktopNavStorageTooltip => 'Storage';
-
-  @override
-  String get desktopNavThemeToggleTooltip => 'Theme';
-
-  @override
-  String get desktopNavSettingsTooltip => 'Settings';
-
-  @override
-  String get desktopAvatarMenuUseEmoji => 'Use emoji';
-
-  @override
-  String get cameraPermissionDeniedMessage =>
-      'Camera unavailable: permission not granted.';
-
-  @override
-  String get openSystemSettings => 'Open Settings';
-
-  @override
-  String get desktopAvatarMenuChangeFromImage => 'Change from image…';
-
-  @override
-  String get desktopAvatarMenuReset => 'Reset avatar';
-
-  @override
-  String get assistantEditAvatarChooseImage => 'Choose Image';
-
-  @override
-  String get assistantEditAvatarChooseEmoji => 'Choose Emoji';
-
-  @override
-  String get assistantEditAvatarEnterLink => 'Enter Link';
-
-  @override
-  String get assistantEditAvatarImportQQ => 'Import from QQ';
-
-  @override
-  String get assistantEditAvatarReset => 'Reset';
-
-  @override
-  String get displaySettingsPageChatMessageBackgroundTitle =>
-      'Chat Message Background';
-
-  @override
-  String get displaySettingsPageChatMessageBackgroundDefault => 'Default';
-
-  @override
-  String get displaySettingsPageChatMessageBackgroundFrosted => 'Frosted Glass';
-
-  @override
-  String get displaySettingsPageChatMessageBackgroundSolid => 'Solid Color';
-
-  @override
-  String get displaySettingsPageAndroidBackgroundChatTitle =>
-      'Background Generation (Android)';
-
-  @override
-  String get androidBackgroundStatusOn => 'On';
-
-  @override
-  String get androidBackgroundStatusOff => 'Off';
-
-  @override
-  String get androidBackgroundStatusOther => 'On and notify';
-
-  @override
-  String get androidBackgroundOptionOn => 'On';
-
-  @override
-  String get androidBackgroundOptionOnNotify => 'On and notify when done';
-
-  @override
-  String get androidBackgroundOptionOff => 'Off';
-
-  @override
-  String get notificationChatCompletedTitle => 'Generation complete';
-
-  @override
-  String get notificationChatCompletedBody =>
-      'Assistant reply has been generated';
-
-  @override
-  String get androidBackgroundNotificationTitle => 'Kelivo is running';
-
-  @override
-  String get androidBackgroundNotificationText =>
-      'Keeping chat generation alive in background';
-
-  @override
-  String get assistantEditEmojiDialogTitle => 'Choose Emoji';
-
-  @override
-  String get assistantEditEmojiDialogHint => 'Type or paste any emoji';
-
-  @override
-  String get assistantEditEmojiDialogCancel => 'Cancel';
-
-  @override
-  String get assistantEditEmojiDialogSave => 'Save';
-
-  @override
-  String get assistantEditImageUrlDialogTitle => 'Enter Image URL';
-
-  @override
-  String get assistantEditImageUrlDialogHint =>
-      'e.g. https://example.com/avatar.png';
-
-  @override
-  String get assistantEditImageUrlDialogCancel => 'Cancel';
-
-  @override
-  String get assistantEditImageUrlDialogSave => 'Save';
-
-  @override
-  String get assistantEditQQAvatarDialogTitle => 'Import from QQ';
-
-  @override
-  String get assistantEditQQAvatarDialogHint => 'Enter QQ number (5-12 digits)';
-
-  @override
-  String get assistantEditQQAvatarRandomButton => 'Random One';
-
-  @override
-  String get assistantEditQQAvatarFailedMessage =>
-      'Failed to fetch random QQ avatar. Please try again.';
-
-  @override
-  String get assistantEditQQAvatarDialogCancel => 'Cancel';
-
-  @override
-  String get assistantEditQQAvatarDialogSave => 'Save';
-
-  @override
-  String get assistantEditGalleryErrorMessage =>
-      'Unable to open gallery. Try entering an image URL.';
-
-  @override
-  String get assistantEditGeneralErrorMessage =>
-      'Something went wrong. Try entering an image URL.';
-
-  @override
-  String get providerDetailPageMultiKeyModeTitle => 'Multi-Key Mode';
+  String get providerDetailPageApiKeyHint => 'Enter API Key';
 
   @override
   String get providerDetailPageManageKeysButton => 'Manage Keys';
 
   @override
-  String get multiKeyPageTitle => 'Multi-Key Manager';
+  String get providerDetailPageDeleteProviderTitle => 'Delete Provider';
 
   @override
-  String get multiKeyPageDetect => 'Detect';
+  String get providerDetailPageDeleteProviderContent =>
+      'Are you sure you want to delete this provider configuration?';
 
   @override
-  String get multiKeyPageAdd => 'Add';
+  String get providerDetailPageCancelButton => 'Cancel';
 
   @override
-  String get multiKeyPageAddHint =>
-      'Enter API keys, separated by comma or space';
-
-  @override
-  String multiKeyPageImportedSnackbar(int n) {
-    return 'Imported $n keys';
-  }
-
-  @override
-  String get multiKeyPagePleaseAddModel => 'Please add a model first';
-
-  @override
-  String get multiKeyPageTotal => 'Total';
-
-  @override
-  String get multiKeyPageNormal => 'Normal';
-
-  @override
-  String get multiKeyPageError => 'Error';
-
-  @override
-  String get multiKeyPageAccuracy => 'Accuracy';
-
-  @override
-  String get multiKeyPageStrategyTitle => 'Load Balancing Strategy';
-
-  @override
-  String get multiKeyPageStrategyRoundRobin => 'Round Robin';
-
-  @override
-  String get multiKeyPageStrategyPriority => 'Priority';
-
-  @override
-  String get multiKeyPageStrategyLeastUsed => 'Least Used';
-
-  @override
-  String get multiKeyPageStrategyRandom => 'Random';
-
-  @override
-  String get multiKeyPageNoKeys => 'No API keys';
-
-  @override
-  String get multiKeyPageStatusActive => 'Active';
-
-  @override
-  String get multiKeyPageStatusDisabled => 'Disabled';
-
-  @override
-  String get multiKeyPageStatusError => 'Error';
-
-  @override
-  String get multiKeyPageStatusRateLimited => 'Rate Limited';
-
-  @override
-  String get multiKeyPageEditAlias => 'Edit Alias';
-
-  @override
-  String get multiKeyPageEdit => 'Edit';
+  String get providerDetailPageDeleteButton => 'Delete';
 
   @override
   String get multiKeyPageKey => 'API Key';
 
   @override
-  String get multiKeyPagePriority => 'Priority (1–10)';
-
-  @override
-  String get multiKeyPageDuplicateKeyWarning => 'This key already exists';
-
-  @override
-  String get multiKeyPageAlias => 'Alias';
-
-  @override
-  String get multiKeyPageCancel => 'Cancel';
-
-  @override
-  String get multiKeyPageSave => 'Save';
-
-  @override
-  String get multiKeyPageDelete => 'Delete';
-
-  @override
-  String get assistantEditSystemPromptTitle => 'System Prompt';
-
-  @override
-  String get assistantEditSystemPromptHint => 'Enter system prompt…';
-
-  @override
-  String get assistantEditAvailableVariables => 'Available variables:';
-
-  @override
-  String get assistantEditVariableDate => 'Date';
-
-  @override
-  String get assistantEditVariableTime => 'Time';
-
-  @override
-  String get assistantEditVariableDatetime => 'Datetime';
-
-  @override
-  String get assistantEditVariableModelId => 'Model ID';
-
-  @override
-  String get assistantEditVariableModelName => 'Model Name';
-
-  @override
-  String get assistantEditVariableLocale => 'Locale';
-
-  @override
-  String get assistantEditVariableTimezone => 'Timezone';
-
-  @override
-  String get assistantEditVariableSystemVersion => 'System Version';
-
-  @override
-  String get assistantEditVariableDeviceInfo => 'Device Info';
-
-  @override
-  String get assistantEditVariableBatteryLevel => 'Battery Level';
-
-  @override
-  String get assistantEditVariableNickname => 'Nickname';
-
-  @override
-  String get assistantEditVariableAssistantName => 'Assistant Name';
-
-  @override
-  String get assistantEditMessageTemplateTitle => 'Message Template';
-
-  @override
-  String get assistantEditVariableRole => 'Role';
-
-  @override
-  String get assistantEditVariableMessage => 'Message';
-
-  @override
-  String get assistantEditPreviewTitle => 'Preview';
-
-  @override
-  String get codeBlockPreviewButton => 'Preview';
-
-  @override
-  String codeBlockCollapsedLines(int n) {
-    return '… $n lines folded';
-  }
-
-  @override
-  String get htmlPreviewNotSupportedOnLinux =>
-      'HTML preview is not supported on Linux';
-
-  @override
-  String get assistantEditSampleUser => 'User';
-
-  @override
-  String get assistantEditSampleMessage => 'Hello there';
-
-  @override
-  String get assistantEditSampleReply => 'Hello, how can I help you?';
-
-  @override
-  String get assistantEditMcpNoServersMessage => 'No running MCP servers';
-
-  @override
-  String get assistantEditMcpConnectedTag => 'Connected';
-
-  @override
-  String assistantEditMcpToolsCountTag(String enabled, String total) {
-    return 'Tools: $enabled/$total';
-  }
-
-  @override
-  String get assistantEditModelUseGlobalDefault => 'Use global default';
-
-  @override
-  String get assistantSettingsPageTitle => 'Assistant Settings';
-
-  @override
-  String get assistantSettingsDefaultTag => 'Default';
-
-  @override
-  String get assistantSettingsCopyButton => 'Copy';
-
-  @override
-  String get assistantSettingsCopySuccess => 'Assistant copied';
-
-  @override
-  String get assistantSettingsCopySuffix => 'Copy';
-
-  @override
-  String get assistantSettingsDeleteButton => 'Delete';
-
-  @override
-  String get assistantSettingsEditButton => 'Edit';
-
-  @override
-  String get assistantSettingsAddSheetTitle => 'Assistant Name';
-
-  @override
-  String get assistantSettingsAddSheetHint => 'Enter a name';
-
-  @override
-  String get assistantSettingsAddSheetCancel => 'Cancel';
-
-  @override
-  String get assistantSettingsAddSheetSave => 'Save';
-
-  @override
-  String get desktopAssistantsListTitle => 'Assistants';
+  String get addProviderSheetAddButton => 'Add Provider';
 
   @override
   String get desktopSidebarTabAssistants => 'Assistants';
@@ -1014,634 +297,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopSidebarTabTopics => 'Topics';
 
   @override
-  String get desktopTrayMenuShowWindow => 'Show Window';
+  String get desktopAssistantsListTitle => 'Assistants';
 
   @override
-  String get desktopTrayMenuExit => 'Exit';
+  String get desktopAvatarMenuUseEmoji => 'Use Emoji';
 
   @override
-  String get hotkeyToggleAppVisibility => 'Show/Hide App';
+  String get desktopAvatarMenuChangeFromImage => 'Pick Image';
 
   @override
-  String get hotkeyCloseWindow => 'Close Window';
+  String get desktopAvatarMenuReset => 'Reset Default';
 
   @override
-  String get hotkeyOpenSettings => 'Open Settings';
+  String get sideDrawerSearchHint => 'Search chats...';
 
   @override
-  String get hotkeyNewTopic => 'New Topic';
-
-  @override
-  String get hotkeySwitchModel => 'Switch Model';
-
-  @override
-  String get hotkeyToggleAssistantPanel => 'Toggle Assistants';
-
-  @override
-  String get hotkeyToggleTopicPanel => 'Toggle Topics';
-
-  @override
-  String get hotkeysPressShortcut => 'Press a shortcut';
-
-  @override
-  String get hotkeysResetDefault => 'Reset to default';
-
-  @override
-  String get hotkeysClearShortcut => 'Clear shortcut';
-
-  @override
-  String get hotkeysResetAll => 'Reset all to defaults';
-
-  @override
-  String get assistantEditTemperatureTitle => 'Temperature';
-
-  @override
-  String get assistantEditTopPTitle => 'Top-p';
-
-  @override
-  String get assistantSettingsDeleteDialogTitle => 'Delete Assistant';
-
-  @override
-  String get assistantSettingsDeleteDialogContent =>
-      'Are you sure you want to delete this assistant? This action cannot be undone.';
-
-  @override
-  String get assistantSettingsDeleteDialogCancel => 'Cancel';
-
-  @override
-  String get assistantSettingsDeleteDialogConfirm => 'Delete';
-
-  @override
-  String get assistantSettingsAtLeastOneAssistantRequired =>
-      'At least one assistant is required';
-
-  @override
-  String get mcpAssistantSheetTitle => 'MCP Servers';
-
-  @override
-  String get mcpAssistantSheetSubtitle => 'Servers enabled for this assistant';
-
-  @override
-  String get mcpAssistantSheetSelectAll => 'Select All';
-
-  @override
-  String get mcpAssistantSheetClearAll => 'Clear';
-
-  @override
-  String get backupPageTitle => 'Backup & Restore';
-
-  @override
-  String get backupPageWebDavTab => 'WebDAV';
-
-  @override
-  String get backupPageImportExportTab => 'Import/Export';
-
-  @override
-  String get backupPageWebDavServerUrl => 'WebDAV Server URL';
-
-  @override
-  String get backupPageUsername => 'Username';
-
-  @override
-  String get backupPagePassword => 'Password';
-
-  @override
-  String get backupPagePath => 'Path';
-
-  @override
-  String get backupPageChatsLabel => 'Chats';
-
-  @override
-  String get backupPageFilesLabel => 'Files';
-
-  @override
-  String get backupPageTestDone => 'Test done';
-
-  @override
-  String get backupPageTestConnection => 'Test';
-
-  @override
-  String get backupPageRestartRequired => 'Restart Required';
-
-  @override
-  String get backupPageRestartContent =>
-      'Restore completed. Please restart the app.';
-
-  @override
-  String get backupPageOK => 'OK';
-
-  @override
-  String get backupPageCancel => 'Cancel';
-
-  @override
-  String get backupPageSelectImportMode => 'Select Import Mode';
-
-  @override
-  String get backupPageSelectImportModeDescription =>
-      'Choose how to import the backup data:';
-
-  @override
-  String get backupPageOverwriteMode => 'Complete Overwrite';
-
-  @override
-  String get backupPageOverwriteModeDescription =>
-      'Clear all local data and restore from backup';
-
-  @override
-  String get backupPageMergeMode => 'Smart Merge';
-
-  @override
-  String get backupPageMergeModeDescription =>
-      'Add only non-existing data (intelligent deduplication)';
-
-  @override
-  String get backupPageRestore => 'Restore';
-
-  @override
-  String get backupPageBackupUploaded => 'Backup uploaded';
-
-  @override
-  String get backupPageBackup => 'Backup';
-
-  @override
-  String get backupPageExporting => 'Exporting...';
-
-  @override
-  String get backupPageExportToFile => 'Export to File';
-
-  @override
-  String get backupPageExportToFileSubtitle => 'Export app data to a file';
-
-  @override
-  String get backupPageImportBackupFile => 'Import Backup File';
-
-  @override
-  String get backupPageImportBackupFileSubtitle => 'Import a local backup file';
-
-  @override
-  String get backupPageImportFromOtherApps => 'Import from Other Apps';
-
-  @override
-  String get backupPageImportFromRikkaHub => 'Import from RikkaHub';
-
-  @override
-  String get backupPageNotSupportedYet => 'Not supported yet';
-
-  @override
-  String get backupPageRemoteBackups => 'Remote Backups';
-
-  @override
-  String get backupPageNoBackups => 'No backups';
-
-  @override
-  String get backupPageRestoreTooltip => 'Restore';
-
-  @override
-  String get backupPageDeleteTooltip => 'Delete';
-
-  @override
-  String get backupPageBackupManagement => 'Backup Management';
-
-  @override
-  String get backupPageWebDavBackup => 'WebDAV Backup';
-
-  @override
-  String get backupPageWebDavServerSettings => 'WebDAV Server Settings';
-
-  @override
-  String get backupPageSave => 'Save';
-
-  @override
-  String get backupPageBackupNow => 'Backup Now';
-
-  @override
-  String get backupPageLocalBackup => 'Local Backup';
-
-  @override
-  String get backupPageImportFromCherryStudio => 'Import from Cherry Studio';
-
-  @override
-  String get backupPageImportFromChatbox => 'Import from Chatbox';
-
-  @override
-  String get chatHistoryPageTitle => 'Chat History';
-
-  @override
-  String get chatHistoryPageSearchTooltip => 'Search';
-
-  @override
-  String get chatHistoryPageDeleteAllTooltip => 'Delete All';
-
-  @override
-  String get chatHistoryPageDeleteAllDialogTitle => 'Delete All Conversations';
-
-  @override
-  String get chatHistoryPageDeleteAllDialogContent =>
-      'Are you sure you want to delete all conversations? This cannot be undone.';
-
-  @override
-  String get chatHistoryPageCancel => 'Cancel';
-
-  @override
-  String get chatHistoryPageDelete => 'Delete';
-
-  @override
-  String get chatHistoryPageDeletedAllSnackbar => 'All conversations deleted';
-
-  @override
-  String get chatHistoryPageSearchHint => 'Search conversations';
-
-  @override
-  String get chatHistoryPageNoConversations => 'No conversations';
-
-  @override
-  String get chatHistoryPagePinnedSection => 'Pinned';
-
-  @override
-  String get chatHistoryPagePin => 'Pin';
-
-  @override
-  String get chatHistoryPagePinned => 'Pinned';
-
-  @override
-  String get messageEditPageTitle => 'Edit Message';
-
-  @override
-  String get messageEditPageSave => 'Save';
-
-  @override
-  String get messageEditPageHint => 'Enter message…';
-
-  @override
-  String get selectCopyPageTitle => 'Select & Copy';
-
-  @override
-  String get selectCopyPageCopyAll => 'Copy All';
-
-  @override
-  String get selectCopyPageCopiedAll => 'Copied all';
-
-  @override
-  String get bottomToolsSheetCamera => 'Camera';
-
-  @override
-  String get bottomToolsSheetPhotos => 'Photos';
-
-  @override
-  String get bottomToolsSheetUpload => 'Upload';
-
-  @override
-  String get bottomToolsSheetClearContext => 'Clear Context';
-
-  @override
-  String get bottomToolsSheetLearningMode => 'Learning Mode';
-
-  @override
-  String get bottomToolsSheetLearningModeDescription =>
-      'Help you learn step by step';
-
-  @override
-  String get bottomToolsSheetConfigurePrompt => 'Configure prompt';
-
-  @override
-  String get bottomToolsSheetPrompt => 'Prompt';
-
-  @override
-  String get bottomToolsSheetPromptHint => 'Enter prompt text to inject';
-
-  @override
-  String get bottomToolsSheetResetDefault => 'Reset to default';
-
-  @override
-  String get bottomToolsSheetSave => 'Save';
-
-  @override
-  String get bottomToolsSheetOcr => 'Image OCR';
-
-  @override
-  String get messageMoreSheetTitle => 'More Actions';
-
-  @override
-  String get messageMoreSheetSelectCopy => 'Select & Copy';
-
-  @override
-  String get messageMoreSheetRenderWebView => 'Render Web View';
-
-  @override
-  String get messageMoreSheetNotImplemented => 'Not yet implemented';
-
-  @override
-  String get messageMoreSheetEdit => 'Edit';
-
-  @override
-  String get messageMoreSheetShare => 'Share';
-
-  @override
-  String get messageMoreSheetCreateBranch => 'Create Branch';
-
-  @override
-  String get messageMoreSheetDelete => 'Delete';
-
-  @override
-  String get reasoningBudgetSheetOff => 'Off';
-
-  @override
-  String get reasoningBudgetSheetAuto => 'Auto';
-
-  @override
-  String get reasoningBudgetSheetLight => 'Light Reasoning';
-
-  @override
-  String get reasoningBudgetSheetMedium => 'Medium Reasoning';
-
-  @override
-  String get reasoningBudgetSheetHeavy => 'Heavy Reasoning';
-
-  @override
-  String get reasoningBudgetSheetTitle => 'Reasoning Chain Strength';
-
-  @override
-  String reasoningBudgetSheetCurrentLevel(String level) {
-    return 'Current Level: $level';
-  }
-
-  @override
-  String get reasoningBudgetSheetOffSubtitle =>
-      'Turn off reasoning, answer directly';
-
-  @override
-  String get reasoningBudgetSheetAutoSubtitle =>
-      'Let the model decide reasoning level automatically';
-
-  @override
-  String get reasoningBudgetSheetLightSubtitle =>
-      'Use light reasoning to answer questions';
-
-  @override
-  String get reasoningBudgetSheetMediumSubtitle =>
-      'Use moderate reasoning to answer questions';
-
-  @override
-  String get reasoningBudgetSheetHeavySubtitle =>
-      'Use heavy reasoning for complex questions';
-
-  @override
-  String get reasoningBudgetSheetCustomLabel =>
-      'Custom Reasoning Budget (tokens)';
-
-  @override
-  String get reasoningBudgetSheetCustomHint => 'e.g. 2048 (-1 auto, 0 off)';
-
-  @override
-  String chatMessageWidgetFileNotFound(String fileName) {
-    return 'File not found: $fileName';
-  }
-
-  @override
-  String chatMessageWidgetCannotOpenFile(String message) {
-    return 'Cannot open file: $message';
-  }
-
-  @override
-  String chatMessageWidgetOpenFileError(String error) {
-    return 'Failed to open file: $error';
-  }
-
-  @override
-  String get chatMessageWidgetCopiedToClipboard => 'Copied to clipboard';
-
-  @override
-  String get chatMessageWidgetResendTooltip => 'Resend';
-
-  @override
-  String get chatMessageWidgetMoreTooltip => 'More';
-
-  @override
-  String get chatMessageWidgetThinking => 'Thinking...';
-
-  @override
-  String get chatMessageWidgetTranslation => 'Translation';
-
-  @override
-  String get chatMessageWidgetTranslating => 'Translating...';
-
-  @override
-  String get chatMessageWidgetCitationNotFound => 'Citation source not found';
-
-  @override
-  String chatMessageWidgetCannotOpenUrl(String url) {
-    return 'Cannot open link: $url';
-  }
-
-  @override
-  String get chatMessageWidgetOpenLinkError => 'Failed to open link';
-
-  @override
-  String chatMessageWidgetCitationsTitle(int count) {
-    return 'Citations ($count)';
-  }
-
-  @override
-  String get chatMessageWidgetRegenerateTooltip => 'Regenerate';
-
-  @override
-  String get chatMessageWidgetStopTooltip => 'Stop';
-
-  @override
-  String get chatMessageWidgetSpeakTooltip => 'Speak';
-
-  @override
-  String get chatMessageWidgetTranslateTooltip => 'Translate';
-
-  @override
-  String get chatMessageWidgetBuiltinSearchHideNote =>
-      'Hide builtin search tool cards';
-
-  @override
-  String get chatMessageWidgetDeepThinking => 'Deep Thinking';
-
-  @override
-  String get chatMessageWidgetCreateMemory => 'Create Memory';
-
-  @override
-  String get chatMessageWidgetEditMemory => 'Edit Memory';
-
-  @override
-  String get chatMessageWidgetDeleteMemory => 'Delete Memory';
-
-  @override
-  String chatMessageWidgetWebSearch(String query) {
-    return 'Web Search: $query';
-  }
-
-  @override
-  String get chatMessageWidgetBuiltinSearch => 'Built-in Search';
-
-  @override
-  String chatMessageWidgetToolCall(String name) {
-    return 'Tool Call: $name';
-  }
-
-  @override
-  String chatMessageWidgetToolResult(String name) {
-    return 'Tool Result: $name';
-  }
-
-  @override
-  String get chatMessageWidgetNoResultYet => '(No result yet)';
-
-  @override
-  String get chatMessageWidgetArguments => 'Arguments';
-
-  @override
-  String get chatMessageWidgetResult => 'Result';
-
-  @override
-  String chatMessageWidgetCitationsCount(int count) {
-    return 'Citations ($count)';
-  }
-
-  @override
-  String get messageExportSheetAssistant => 'Assistant';
-
-  @override
-  String get messageExportSheetDefaultTitle => 'New Chat';
-
-  @override
-  String get messageExportSheetExporting => 'Exporting…';
-
-  @override
-  String messageExportSheetExportFailed(String error) {
-    return 'Export failed: $error';
-  }
-
-  @override
-  String messageExportSheetExportedAs(String filename) {
-    return 'Exported as $filename';
-  }
-
-  @override
-  String get displaySettingsPageEnableDollarLatexTitle =>
-      'Inline \$...\$ Rendering';
-
-  @override
-  String get displaySettingsPageEnableDollarLatexSubtitle =>
-      'Render inline math inside \$...\$';
-
-  @override
-  String get displaySettingsPageEnableMathTitle => 'Math Formula Rendering';
-
-  @override
-  String get displaySettingsPageEnableMathSubtitle =>
-      'Render LaTeX math (inline and block)';
-
-  @override
-  String get displaySettingsPageEnableUserMarkdownTitle =>
-      'Render user messages with Markdown';
-
-  @override
-  String get displaySettingsPageEnableReasoningMarkdownTitle =>
-      'Render reasoning (thinking) with Markdown';
-
-  @override
-  String get displaySettingsPageMobileCodeBlockWrapTitle =>
-      'Mobile Code Block Word Wrap';
-
-  @override
-  String get displaySettingsPageAutoCollapseCodeBlockTitle =>
-      'Auto-collapse Code Blocks';
-
-  @override
-  String get displaySettingsPageAutoCollapseCodeBlockLinesTitle =>
-      'Auto-collapse threshold';
-
-  @override
-  String get displaySettingsPageAutoCollapseCodeBlockLinesUnit => 'lines';
-
-  @override
-  String get messageExportSheetFormatTitle => 'Export Format';
-
-  @override
-  String get messageExportSheetMarkdown => 'Markdown';
-
-  @override
-  String get messageExportSheetSingleMarkdownSubtitle =>
-      'Export this message as a Markdown file';
-
-  @override
-  String get messageExportSheetBatchMarkdownSubtitle =>
-      'Export selected messages as a Markdown file';
-
-  @override
-  String get messageExportSheetPlainText => 'Plain Text';
-
-  @override
-  String get messageExportSheetSingleTxtSubtitle =>
-      'Export this message as a TXT file';
-
-  @override
-  String get messageExportSheetBatchTxtSubtitle =>
-      'Export selected messages as a TXT file';
-
-  @override
-  String get messageExportSheetExportImage => 'Export as Image';
-
-  @override
-  String get messageExportSheetSingleExportImageSubtitle =>
-      'Render this message to a PNG image';
-
-  @override
-  String get messageExportSheetBatchExportImageSubtitle =>
-      'Render selected messages to a PNG image';
-
-  @override
-  String get messageExportSheetShowThinkingAndToolCards =>
-      'Show Deep Thinking and tool cards';
-
-  @override
-  String get messageExportSheetShowThinkingContent => 'Show thinking content';
-
-  @override
-  String get messageExportSheetDateTimeWithSecondsPattern =>
-      'yyyy-MM-dd HH:mm:ss';
-
-  @override
-  String get exportDisclaimerAiGenerated =>
-      'Content generated by AI. Please verify carefully.';
-
-  @override
-  String get imagePreviewSheetSaveImage => 'Save Image';
-
-  @override
-  String get imagePreviewSheetSaveSuccess => 'Saved to gallery';
-
-  @override
-  String imagePreviewSheetSaveFailed(String error) {
-    return 'Save failed: $error';
-  }
-
-  @override
-  String get sideDrawerMenuRename => 'Rename';
-
-  @override
-  String get sideDrawerMenuPin => 'Pin';
-
-  @override
-  String get sideDrawerMenuUnpin => 'Unpin';
-
-  @override
-  String get sideDrawerMenuRegenerateTitle => 'Regenerate Title';
-
-  @override
-  String get sideDrawerMenuMoveTo => 'Move to';
-
-  @override
-  String get sideDrawerMenuDelete => 'Delete';
-
-  @override
-  String sideDrawerDeleteSnackbar(String title) {
-    return 'Deleted \"$title\"';
-  }
+  String get sideDrawerSearchAssistantsHint => 'Search assistants...';
 
   @override
   String get sideDrawerRenameHint => 'Enter new name';
@@ -1656,16 +327,39 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sideDrawerSave => 'Save';
 
   @override
-  String get sideDrawerGreetingMorning => 'Good morning 👋';
+  String get sideDrawerMenuRename => 'Rename';
 
   @override
-  String get sideDrawerGreetingNoon => 'Good afternoon 👋';
+  String get sideDrawerMenuPin => 'Pin';
 
   @override
-  String get sideDrawerGreetingAfternoon => 'Good afternoon 👋';
+  String get sideDrawerMenuUnpin => 'Unpin';
 
   @override
-  String get sideDrawerGreetingEvening => 'Good evening 👋';
+  String get sideDrawerMenuRegenerateTitle => 'Regenerate Title';
+
+  @override
+  String get sideDrawerMenuMoveTo => 'Move to...';
+
+  @override
+  String get sideDrawerMenuDelete => 'Delete';
+
+  @override
+  String sideDrawerDeleteSnackbar(String title) {
+    return 'Deleted \"$title\"';
+  }
+
+  @override
+  String get sideDrawerGreetingMorning => 'Good morning';
+
+  @override
+  String get sideDrawerGreetingNoon => 'Good afternoon';
+
+  @override
+  String get sideDrawerGreetingAfternoon => 'Good afternoon';
+
+  @override
+  String get sideDrawerGreetingEvening => 'Good evening';
 
   @override
   String get sideDrawerDateToday => 'Today';
@@ -1674,41 +368,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sideDrawerDateYesterday => 'Yesterday';
 
   @override
-  String get sideDrawerDateShortPattern => 'MMM d';
+  String get sideDrawerDateShortPattern => 'MM-dd';
 
   @override
-  String get sideDrawerDateFullPattern => 'MMM d, yyyy';
-
-  @override
-  String get sideDrawerSearchHint => 'Search chat history';
-
-  @override
-  String get sideDrawerSearchAssistantsHint => 'Search assistants';
-
-  @override
-  String sideDrawerUpdateTitle(String version) {
-    return 'New version: $version';
-  }
-
-  @override
-  String sideDrawerUpdateTitleWithBuild(String version, int build) {
-    return 'New version: $version ($build)';
-  }
-
-  @override
-  String get sideDrawerLinkCopied => 'Link copied';
+  String get sideDrawerDateFullPattern => 'yyyy-MM-dd';
 
   @override
   String get sideDrawerPinnedLabel => 'Pinned';
-
-  @override
-  String get sideDrawerHistory => 'History';
-
-  @override
-  String get sideDrawerSettings => 'Settings';
-
-  @override
-  String get sideDrawerChooseAssistantTitle => 'Choose Assistant';
 
   @override
   String get sideDrawerChooseImage => 'Choose Image';
@@ -1720,44 +386,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sideDrawerEnterLink => 'Enter Link';
 
   @override
-  String get sideDrawerImportFromQQ => 'Import from QQ';
+  String get sideDrawerReset => 'Reset Default';
 
   @override
-  String get sideDrawerReset => 'Reset';
+  String get sideDrawerEmojiDialogTitle => 'Pick an Emoji';
 
   @override
-  String get sideDrawerEmojiDialogTitle => 'Choose Emoji';
-
-  @override
-  String get sideDrawerEmojiDialogHint => 'Type or paste any emoji';
+  String get sideDrawerEmojiDialogHint => 'Type an emoji...';
 
   @override
   String get sideDrawerImageUrlDialogTitle => 'Enter Image URL';
 
   @override
-  String get sideDrawerImageUrlDialogHint =>
-      'e.g. https://example.com/avatar.png';
-
-  @override
-  String get sideDrawerQQAvatarDialogTitle => 'Import from QQ';
-
-  @override
-  String get sideDrawerQQAvatarInputHint => 'Enter QQ number (5-12 digits)';
-
-  @override
-  String get sideDrawerQQAvatarFetchFailed =>
-      'Failed to fetch random QQ avatar. Please try again.';
-
-  @override
-  String get sideDrawerRandomQQ => 'Random QQ';
-
-  @override
-  String get sideDrawerGalleryOpenError =>
-      'Unable to open gallery. Try entering an image URL.';
-
-  @override
-  String get sideDrawerGeneralImageError =>
-      'Something went wrong. Try entering an image URL.';
+  String get sideDrawerImageUrlDialogHint => 'https://example.com/avatar.png';
 
   @override
   String get sideDrawerSetNicknameTitle => 'Set Nickname';
@@ -1766,453 +407,383 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sideDrawerNicknameLabel => 'Nickname';
 
   @override
-  String get sideDrawerNicknameHint => 'Enter new nickname';
+  String get sideDrawerNicknameHint => 'Your display name';
 
   @override
-  String get sideDrawerRename => 'Rename';
+  String get sideDrawerGalleryOpenError => 'Could not open gallery.';
 
   @override
-  String get chatInputBarHint => 'Type a message for AI';
+  String get sideDrawerGeneralImageError => 'Failed to pick image.';
 
   @override
-  String get chatInputBarSelectModelTooltip => 'Select Model';
+  String get sideDrawerLinkCopied => 'Link copied to clipboard';
 
   @override
-  String get chatInputBarOnlineSearchTooltip => 'Online Search';
-
-  @override
-  String get chatInputBarReasoningStrengthTooltip => 'Reasoning Strength';
-
-  @override
-  String get chatInputBarMcpServersTooltip => 'MCP Servers';
-
-  @override
-  String get chatInputBarMoreTooltip => 'Add';
-
-  @override
-  String get chatInputBarInsertNewline => 'Newline';
-
-  @override
-  String get mcpPageBackTooltip => 'Back';
-
-  @override
-  String get mcpPageAddMcpTooltip => 'Add MCP';
-
-  @override
-  String get mcpPageNoServers => 'No MCP servers';
-
-  @override
-  String get mcpPageErrorDialogTitle => 'Connection Error';
-
-  @override
-  String get mcpPageErrorNoDetails => 'No details';
-
-  @override
-  String get mcpPageClose => 'Close';
-
-  @override
-  String get mcpPageReconnect => 'Reconnect';
-
-  @override
-  String get mcpPageStatusConnected => 'Connected';
-
-  @override
-  String get mcpPageStatusConnecting => 'Connecting…';
-
-  @override
-  String get mcpPageStatusDisconnected => 'Disconnected';
-
-  @override
-  String get mcpPageStatusDisabled => 'Disabled';
-
-  @override
-  String mcpPageToolsCount(int enabled, int total) {
-    return 'Tools: $enabled/$total';
+  String sideDrawerUpdateTitle(String version) {
+    return 'Update Available: $version';
   }
 
   @override
-  String get mcpPageConnectionFailed => 'Connection failed';
-
-  @override
-  String get mcpPageDetails => 'Details';
-
-  @override
-  String get mcpPageDelete => 'Delete';
-
-  @override
-  String get mcpPageConfirmDeleteTitle => 'Confirm Delete';
-
-  @override
-  String get mcpPageConfirmDeleteContent =>
-      'This can be undone via Undo. Delete?';
-
-  @override
-  String get mcpPageServerDeleted => 'Server deleted';
-
-  @override
-  String get mcpPageUndo => 'Undo';
-
-  @override
-  String get mcpPageCancel => 'Cancel';
-
-  @override
-  String get mcpConversationSheetTitle => 'MCP Servers';
-
-  @override
-  String get mcpConversationSheetSubtitle =>
-      'Select servers enabled for this conversation';
-
-  @override
-  String get mcpConversationSheetSelectAll => 'Select All';
-
-  @override
-  String get mcpConversationSheetClearAll => 'Clear';
-
-  @override
-  String get mcpConversationSheetNoRunning => 'No running MCP servers';
-
-  @override
-  String get mcpConversationSheetConnected => 'Connected';
-
-  @override
-  String mcpConversationSheetToolsCount(int enabled, int total) {
-    return 'Tools: $enabled/$total';
+  String sideDrawerUpdateTitleWithBuild(String version, int build) {
+    return 'Update Available: $version ($build)';
   }
 
   @override
-  String get mcpServerEditSheetEnabledLabel => 'Enabled';
+  String get assistantEditPageTitle => 'Edit Assistant';
 
   @override
-  String get mcpServerEditSheetNameLabel => 'Name';
+  String get assistantEditPageNotFound => 'Assistant not found';
 
   @override
-  String get mcpServerEditSheetTransportLabel => 'Transport';
+  String get assistantEditPageBasicTab => 'Basic';
 
   @override
-  String get mcpServerEditSheetSseRetryHint => 'If SSE fails, try a few times';
+  String get assistantEditPagePromptsTab => 'Prompts';
 
   @override
-  String get mcpServerEditSheetUrlLabel => 'Server URL';
+  String get assistantEditPageMemoryTab => 'Memory';
 
   @override
-  String get mcpServerEditSheetCustomHeadersTitle => 'Custom Headers';
+  String get assistantEditPageMcpTab => 'MCP';
 
   @override
-  String get mcpServerEditSheetHeaderNameLabel => 'Header Name';
+  String get assistantEditPageQuickPhraseTab => 'Phrases';
 
   @override
-  String get mcpServerEditSheetHeaderNameHint => 'e.g. Authorization';
+  String get assistantEditPageCustomTab => 'Custom';
 
   @override
-  String get mcpServerEditSheetHeaderValueLabel => 'Header Value';
+  String get assistantEditPageRegexTab => 'Regex';
 
   @override
-  String get mcpServerEditSheetHeaderValueHint => 'e.g. Bearer xxxxxx';
+  String get assistantEditMemoryDialogTitle => 'Edit Memory';
 
   @override
-  String get mcpServerEditSheetRemoveHeaderTooltip => 'Remove';
+  String get assistantEditMemoryDialogHint => 'Enter memory content...';
 
   @override
-  String get mcpServerEditSheetAddHeader => 'Add Header';
+  String get assistantEditEmojiDialogCancel => 'Cancel';
 
   @override
-  String get mcpServerEditSheetTitleEdit => 'Edit MCP';
+  String get assistantEditEmojiDialogSave => 'Save';
 
   @override
-  String get mcpServerEditSheetTitleAdd => 'Add MCP';
+  String get assistantEditMemorySwitchTitle => 'Enable Memory';
 
   @override
-  String get mcpServerEditSheetSyncToolsTooltip => 'Sync Tools';
+  String get assistantEditRecentChatsSwitchTitle => 'Include Recent Chats';
 
   @override
-  String get mcpServerEditSheetTabBasic => 'Basic';
+  String get assistantEditManageMemoryTitle => 'Manage Memories';
 
   @override
-  String get mcpServerEditSheetTabTools => 'Tools';
+  String get assistantEditAddMemoryButton => 'Add';
 
   @override
-  String get mcpServerEditSheetNoToolsHint => 'No tools, tap refresh to sync';
+  String get assistantEditMemoryEmpty => 'No memories yet.';
 
   @override
-  String get mcpServerEditSheetCancel => 'Cancel';
+  String get assistantEditManageSummariesTitle => 'Conversation Summaries';
 
   @override
-  String get mcpServerEditSheetSave => 'Save';
+  String get assistantEditSummaryEmpty => 'No summaries available.';
 
   @override
-  String get mcpServerEditSheetUrlRequired => 'Please enter server URL';
+  String get assistantEditDeleteSummaryTitle => 'Delete Summary';
 
   @override
-  String get defaultModelPageBackTooltip => 'Back';
+  String get assistantEditDeleteSummaryContent =>
+      'Are you sure you want to delete this summary?';
 
   @override
-  String get defaultModelPageTitle => 'Default Model';
+  String get assistantEditClearButton => 'Clear';
 
   @override
-  String get defaultModelPageChatModelTitle => 'Chat Model';
+  String get assistantEditSummaryDialogTitle => 'Edit Summary';
 
   @override
-  String get defaultModelPageChatModelSubtitle => 'Global default chat model';
+  String get assistantEditSummaryDialogHint => 'Enter summary...';
 
   @override
-  String get defaultModelPageTitleModelTitle => 'Title Summary Model';
+  String get assistantEditCustomHeadersTitle => 'Custom Headers';
 
   @override
-  String get defaultModelPageTitleModelSubtitle =>
-      'Used for summarizing conversation titles; prefer fast & cheap models';
+  String get assistantEditCustomHeadersAdd => 'Add';
 
   @override
-  String get defaultModelPageSummaryModelTitle => 'Summary Model';
+  String get assistantEditCustomHeadersEmpty => 'No custom headers.';
 
   @override
-  String get defaultModelPageSummaryModelSubtitle =>
-      'Used for generating conversation summaries; prefer fast and cheap models';
+  String get assistantEditCustomBodyTitle => 'Custom Body';
 
   @override
-  String get defaultModelPageTranslateModelTitle => 'Translation Model';
+  String get assistantEditCustomBodyAdd => 'Add';
 
   @override
-  String get defaultModelPageTranslateModelSubtitle =>
-      'Used for translating message content; prefer fast & accurate models';
+  String get assistantEditCustomBodyEmpty => 'No custom body fields.';
 
   @override
-  String get defaultModelPageOcrModelTitle => 'OCR Model';
+  String get assistantEditHeaderNameLabel => 'Header Name';
 
   @override
-  String get defaultModelPageOcrModelSubtitle =>
-      'Used for extracting text and descriptions from images';
+  String get assistantEditHeaderValueLabel => 'Value';
 
   @override
-  String get defaultModelPagePromptLabel => 'Prompt';
+  String get assistantEditBodyKeyLabel => 'Key';
 
   @override
-  String get defaultModelPageTitlePromptHint =>
-      'Enter prompt template for title summarization';
+  String get assistantEditBodyValueLabel => 'Value';
 
   @override
-  String get defaultModelPageSummaryPromptHint =>
-      'Enter prompt template for summary generation';
+  String get assistantEditAssistantNameLabel => 'Assistant Name';
 
   @override
-  String get defaultModelPageTranslatePromptHint =>
-      'Enter prompt template for translation';
+  String get assistantEditContextMessagesTitle => 'Context Messages';
 
   @override
-  String get defaultModelPageOcrPromptHint =>
-      'Enter prompt template for OCR image understanding';
+  String get assistantEditContextMessagesDescription =>
+      'Number of previous messages to include';
 
   @override
-  String get defaultModelPageResetDefault => 'Reset to default';
+  String get assistantEditThinkingBudgetTitle => 'Thinking Budget';
 
   @override
-  String get defaultModelPageSave => 'Save';
+  String get assistantEditMaxTokensTitle => 'Max Tokens';
 
   @override
-  String defaultModelPageTitleVars(String contentVar, String localeVar) {
-    return 'Vars: content: $contentVar, locale: $localeVar';
-  }
+  String get assistantEditMaxTokensHint => 'Unlimited';
 
   @override
-  String defaultModelPageSummaryVars(
-    String previousSummaryVar,
-    String userMessagesVar,
+  String get assistantEditUseAssistantAvatarTitle => 'Use Assistant Avatar';
+
+  @override
+  String get assistantEditStreamOutputTitle => 'Stream Output';
+
+  @override
+  String get assistantEditChatModelTitle => 'Chat Model';
+
+  @override
+  String get assistantEditChatModelSubtitle => 'Override default model';
+
+  @override
+  String get assistantEditModelUseGlobalDefault => 'Use Global Default';
+
+  @override
+  String get assistantEditChatBackgroundTitle => 'Chat Background';
+
+  @override
+  String get assistantEditChatBackgroundDescription =>
+      'Set a custom background for this assistant';
+
+  @override
+  String get assistantEditChooseImageButton => 'Choose Image';
+
+  @override
+  String get assistantEditAvatarChooseImage => 'Local Image';
+
+  @override
+  String get assistantEditAvatarChooseEmoji => 'Emoji';
+
+  @override
+  String get assistantEditAvatarEnterLink => 'Image URL';
+
+  @override
+  String get assistantEditAvatarReset => 'Reset to Default';
+
+  @override
+  String get assistantEditImageUrlDialogTitle => 'Image URL';
+
+  @override
+  String get assistantEditImageUrlDialogHint => 'Enter image link';
+
+  @override
+  String get assistantEditParameterDisabled => 'Not set';
+
+  @override
+  String get assistantEditParameterDisabled2 => 'Default';
+
+  @override
+  String get assistantTagsContextMenuEditAssistant => 'Edit Assistant';
+
+  @override
+  String get assistantTagsClearTag => 'Clear Tag';
+
+  @override
+  String get assistantTagsContextMenuManageTags => 'Manage Tags';
+
+  @override
+  String get assistantTagsContextMenuDeleteAssistant => 'Delete Assistant';
+
+  @override
+  String get assistantSettingsDeleteDialogTitle => 'Delete Assistant';
+
+  @override
+  String get assistantSettingsDeleteDialogContent =>
+      'Are you sure? This will delete the assistant and its settings.';
+
+  @override
+  String get assistantSettingsDeleteDialogCancel => 'Cancel';
+
+  @override
+  String get assistantSettingsDeleteDialogConfirm => 'Delete';
+
+  @override
+  String get assistantSettingsAtLeastOneAssistantRequired =>
+      'Cannot delete the last assistant.';
+
+  @override
+  String get assistantSettingsCopySuccess => 'Assistant copied successfully';
+
+  @override
+  String get assistantSettingsNoPromptPlaceholder => 'No system prompt set';
+
+  @override
+  String get assistantSettingsAddSheetTitle => 'New Assistant';
+
+  @override
+  String get assistantSettingsAddSheetHint => 'Name';
+
+  @override
+  String get assistantSettingsAddSheetCancel => 'Cancel';
+
+  @override
+  String get assistantSettingsAddSheetSave => 'Create';
+
+  @override
+  String get assistantSettingsDefaultTag => 'Default';
+
+  @override
+  String get backupPageUsername => 'Username';
+
+  @override
+  String get androidBackgroundNotificationTitle => 'OmniChat is running';
+
+  @override
+  String get androidBackgroundNotificationText =>
+      'Keeping chat alive in background';
+
+  @override
+  String get chatServiceDefaultConversationTitle => 'New Chat';
+
+  @override
+  String get userProviderDefaultUserName => 'User';
+
+  @override
+  String get homePageDropToUpload => 'Drop files to upload';
+
+  @override
+  String get homePageDeleteMessage => 'Delete Message';
+
+  @override
+  String get homePageDeleteMessageConfirm => 'Delete this message?';
+
+  @override
+  String get desktopTrayMenuShowWindow => 'Show Window';
+
+  @override
+  String get desktopTrayMenuExit => 'Exit';
+
+  @override
+  String get assistantProviderDefaultAssistantName => 'Default Assistant';
+
+  @override
+  String get assistantProviderSampleAssistantName => 'Sample Assistant';
+
+  @override
+  String assistantProviderSampleAssistantSystemPrompt(
+    String model_name,
+    String cur_datetime,
+    String locale,
+    String timezone,
+    String device_info,
+    String system_version,
   ) {
-    return 'Variables: previous summary: $previousSummaryVar, new messages: $userMessagesVar';
+    return 'You are $model_name, a helpful AI. Time: $cur_datetime';
   }
 
   @override
-  String defaultModelPageTranslateVars(String sourceVar, String targetVar) {
-    return 'Variables: source text: $sourceVar, target language: $targetVar';
-  }
+  String get assistantSettingsCopySuffix => 'Copy';
 
   @override
-  String get defaultModelPageUseCurrentModel => 'Use current chat model';
+  String get assistantProviderNewAssistantName => 'New Assistant';
 
   @override
-  String get translatePagePasteButton => 'Paste';
+  String get searchSettingsSheetBuiltinSearchTitle => 'Built-in Search';
 
   @override
-  String get translatePageCopyResult => 'Copy result';
+  String get reasoningBudgetSheetOff => 'Off';
 
   @override
-  String get translatePageClearAll => 'Clear All';
+  String get reasoningBudgetSheetAuto => 'Auto';
 
   @override
-  String get translatePageInputHint => 'Enter text to translate…';
+  String get reasoningBudgetSheetLight => 'Light';
 
   @override
-  String get translatePageOutputHint => 'Translated result appears here…';
+  String get reasoningBudgetSheetMedium => 'Medium';
 
   @override
-  String get modelDetailSheetAddModel => 'Add Model';
+  String get reasoningBudgetSheetHeavy => 'Heavy';
 
   @override
-  String get modelDetailSheetEditModel => 'Edit Model';
+  String get instructionInjectionDefaultTitle => 'Default';
 
   @override
-  String get modelDetailSheetBasicTab => 'Basic';
+  String get bottomToolsSheetCamera => 'Camera';
 
   @override
-  String get modelDetailSheetAdvancedTab => 'Advanced';
+  String get bottomToolsSheetPhotos => 'Photos';
 
   @override
-  String get modelDetailSheetBuiltinToolsTab => 'Built-in Tools';
+  String get bottomToolsSheetUpload => 'Upload';
 
   @override
-  String get modelDetailSheetModelIdLabel => 'Model ID';
+  String get instructionInjectionTitle => 'Instruction Injection';
 
   @override
-  String get modelDetailSheetModelIdHint =>
-      'Required, suggest lowercase/digits/hyphens';
+  String get bottomToolsSheetOcr => 'OCR';
 
   @override
-  String modelDetailSheetModelIdDisabledHint(String modelId) {
-    return '$modelId';
-  }
+  String get bottomToolsSheetClearContext => 'Clear Context';
 
   @override
-  String get modelDetailSheetModelNameLabel => 'Model Name';
+  String get instructionInjectionEditTitle => 'Edit';
 
   @override
-  String get modelDetailSheetModelTypeLabel => 'Model Type';
+  String get instructionInjectionNameLabel => 'Name';
 
   @override
-  String get modelDetailSheetChatType => 'Chat';
+  String get instructionInjectionPromptLabel => 'Prompt';
 
   @override
-  String get modelDetailSheetEmbeddingType => 'Embedding';
+  String get quickPhraseCancelButton => 'Cancel';
 
   @override
-  String get modelDetailSheetInputModesLabel => 'Input Modes';
+  String get quickPhraseSaveButton => 'Save';
 
   @override
-  String get modelDetailSheetOutputModesLabel => 'Output Modes';
+  String get searchServicesPageConfiguredStatus => 'Configured';
 
   @override
-  String get modelDetailSheetAbilitiesLabel => 'Abilities';
+  String get searchServicesPageApiKeyRequiredStatus => 'API Key Required';
 
   @override
-  String get modelDetailSheetTextMode => 'Text';
+  String get searchServicesPageUrlRequiredStatus => 'URL Required';
 
   @override
-  String get modelDetailSheetImageMode => 'Image';
+  String get searchSettingsSheetTitle => 'Search Settings';
 
   @override
-  String get modelDetailSheetToolsAbility => 'Tools';
+  String get searchSettingsSheetWebSearchTitle => 'Web Search';
 
   @override
-  String get modelDetailSheetReasoningAbility => 'Reasoning';
+  String get searchSettingsSheetOpenSearchServicesTooltip => 'Open Services';
 
   @override
-  String get modelDetailSheetProviderOverrideDescription =>
-      'Provider overrides: customize provider for a specific model.';
+  String get searchSettingsSheetNoServicesMessage => 'No services added';
 
   @override
-  String get modelDetailSheetAddProviderOverride => 'Add Provider Override';
-
-  @override
-  String get modelDetailSheetCustomHeadersTitle => 'Custom Headers';
-
-  @override
-  String get modelDetailSheetAddHeader => 'Add Header';
-
-  @override
-  String get modelDetailSheetCustomBodyTitle => 'Custom Body';
-
-  @override
-  String get modelFetchInvertTooltip => 'Invert';
-
-  @override
-  String get modelDetailSheetAddBody => 'Add Body';
-
-  @override
-  String get modelDetailSheetBuiltinToolsDescription =>
-      'Built-in tools only support official APIs.';
-
-  @override
-  String get modelDetailSheetGeminiCodeExecutionMutuallyExclusiveHint =>
-      'Code execution cannot coexist with Search/URL Context/MCP tools.';
-
-  @override
-  String get modelDetailSheetBuiltinToolsUnsupportedHint =>
-      'Current provider does not support these built-in tools.';
-
-  @override
-  String get modelDetailSheetSearchTool => 'Search';
-
-  @override
-  String get modelDetailSheetSearchToolDescription =>
-      'Enable Google Search integration';
-
-  @override
-  String get modelDetailSheetUrlContextTool => 'URL Context';
-
-  @override
-  String get modelDetailSheetUrlContextToolDescription =>
-      'Enable URL content ingestion';
-
-  @override
-  String get modelDetailSheetCodeExecutionTool => 'Code Execution';
-
-  @override
-  String get modelDetailSheetCodeExecutionToolDescription =>
-      'Enable code execution tool';
-
-  @override
-  String get modelDetailSheetYoutubeTool => 'YouTube';
-
-  @override
-  String get modelDetailSheetYoutubeToolDescription =>
-      'Enable YouTube URL ingestion (auto-detect links in prompts)';
-
-  @override
-  String get modelDetailSheetOpenaiBuiltinToolsResponsesOnlyHint =>
-      'Requires OpenAI Responses API.';
-
-  @override
-  String get modelDetailSheetOpenaiCodeInterpreterTool => 'Code Interpreter';
-
-  @override
-  String get modelDetailSheetOpenaiCodeInterpreterToolDescription =>
-      'Enable code interpreter tool (container auto, memory limit 4g)';
-
-  @override
-  String get modelDetailSheetOpenaiImageGenerationTool => 'Image Generation';
-
-  @override
-  String get modelDetailSheetOpenaiImageGenerationToolDescription =>
-      'Enable image generation tool';
-
-  @override
-  String get modelDetailSheetCancelButton => 'Cancel';
-
-  @override
-  String get modelDetailSheetAddButton => 'Add';
-
-  @override
-  String get modelDetailSheetConfirmButton => 'Confirm';
-
-  @override
-  String get modelDetailSheetInvalidIdError =>
-      'Please enter a valid model ID (>=2 chars)';
-
-  @override
-  String get modelDetailSheetModelIdExistsError => 'Model ID already exists';
-
-  @override
-  String get modelDetailSheetHeaderKeyHint => 'Header Key';
-
-  @override
-  String get modelDetailSheetHeaderValueHint => 'Header Value';
-
-  @override
-  String get modelDetailSheetBodyKeyHint => 'Body Key';
-
-  @override
-  String get modelDetailSheetBodyJsonHint => 'Body JSON';
-
-  @override
-  String get modelSelectSheetSearchHint => 'Search models or providers';
+  String get modelSelectSheetSearchHint => 'Search models';
 
   @override
   String get modelSelectSheetFavoritesSection => 'Favorites';
@@ -2227,26 +798,613 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelSelectSheetEmbeddingType => 'Embedding';
 
   @override
+  String get mcpPageErrorDialogTitle => 'MCP Error';
+
+  @override
+  String get mcpPageErrorNoDetails => 'No details';
+
+  @override
+  String get mcpPageClose => 'Close';
+
+  @override
+  String get mcpPageReconnect => 'Reconnect';
+
+  @override
+  String get mcpPageBackTooltip => 'Back';
+
+  @override
+  String get mcpTimeoutSettingsTooltip => 'Timeout';
+
+  @override
+  String get mcpJsonEditButtonTooltip => 'Edit JSON';
+
+  @override
+  String get mcpPageAddMcpTooltip => 'Add MCP';
+
+  @override
+  String get mcpPageNoServers => 'No servers';
+
+  @override
+  String get mcpPageStatusConnected => 'Connected';
+
+  @override
+  String get mcpPageStatusConnecting => 'Connecting';
+
+  @override
+  String get mcpPageStatusDisconnected => 'Disconnected';
+
+  @override
+  String get mcpTransportTagInmemory => 'Built-in';
+
+  @override
+  String mcpPageToolsCount(int enabled, int total) {
+    return '$enabled/$total tools';
+  }
+
+  @override
+  String get mcpPageStatusDisabled => 'Disabled';
+
+  @override
+  String get mcpPageConnectionFailed => 'Failed';
+
+  @override
+  String get mcpPageDetails => 'Details';
+
+  @override
+  String get mcpPageDelete => 'Delete';
+
+  @override
+  String get mcpPageConfirmDeleteTitle => 'Delete Server';
+
+  @override
+  String get mcpPageConfirmDeleteContent => 'Are you sure?';
+
+  @override
+  String get mcpPageCancel => 'Cancel';
+
+  @override
+  String get mcpPageServerDeleted => 'Deleted';
+
+  @override
+  String get mcpPageUndo => 'Undo';
+
+  @override
+  String get providersPageTitle => 'Providers';
+
+  @override
+  String get searchServicesPageDone => 'Done';
+
+  @override
+  String get providersPageMultiSelectTooltip => 'Select';
+
+  @override
+  String get providersPageImportTooltip => 'Import';
+
+  @override
+  String get providersPageAddTooltip => 'Add';
+
+  @override
+  String get providersPageProviderAddedSnackbar => 'Provider added';
+
+  @override
+  String get providersPageDeleteSelectedConfirmContent => 'Delete selected?';
+
+  @override
+  String get providersPageDeleteSelectedSnackbar => 'Deleted';
+
+  @override
+  String get providersPageEnabledStatus => 'Enabled';
+
+  @override
+  String get providersPageDisabledStatus => 'Disabled';
+
+  @override
+  String get providersPageDeleteAction => 'Delete';
+
+  @override
+  String get providersPageExportAction => 'Export';
+
+  @override
+  String providersPageExportSelectedTitle(int count) {
+    return 'Export $count items';
+  }
+
+  @override
+  String get providersPageExportCopyButton => 'Copy';
+
+  @override
+  String get providersPageExportCopiedSnackbar => 'Copied';
+
+  @override
+  String get providersPageExportShareButton => 'Share';
+
+  @override
+  String get mcpAssistantSheetTitle => 'MCP Assistant';
+
+  @override
+  String get assistantEditMcpNoServersMessage => 'No servers';
+
+  @override
+  String assistantEditMcpToolsCountTag(String enabled, String total) {
+    return '$enabled/$total';
+  }
+
+  @override
+  String get quickPhraseBackTooltip => 'Back';
+
+  @override
+  String get quickPhraseGlobalTitle => 'Phrases';
+
+  @override
+  String get quickPhraseAssistantTitle => 'Assistant Phrases';
+
+  @override
+  String get quickPhraseAddTooltip => 'Add';
+
+  @override
+  String get quickPhraseEmptyMessage => 'No phrases';
+
+  @override
+  String get quickPhraseDeleteButton => 'Delete';
+
+  @override
+  String get quickPhraseAddTitle => 'Add Phrase';
+
+  @override
+  String get quickPhraseEditTitle => 'Edit Phrase';
+
+  @override
+  String get quickPhraseTitleLabel => 'Title';
+
+  @override
+  String get quickPhraseContentLabel => 'Content';
+
+  @override
+  String get chatInputBarHint => 'Type a message';
+
+  @override
+  String get chatInputBarInsertNewline => 'Newline';
+
+  @override
+  String get chatInputBarSelectModelTooltip => 'Select Model';
+
+  @override
+  String get chatInputBarOnlineSearchTooltip => 'Online Search';
+
+  @override
+  String get chatInputBarReasoningStrengthTooltip => 'Reasoning';
+
+  @override
+  String get chatInputBarMcpServersTooltip => 'MCP';
+
+  @override
+  String get chatInputBarQuickPhraseTooltip => 'Phrases';
+
+  @override
+  String get miniMapTooltip => 'Minimap';
+
+  @override
+  String get chatInputBarOcrTooltip => 'OCR';
+
+  @override
+  String get chatInputBarMoreTooltip => 'More';
+
+  @override
+  String get miniMapTitle => 'Minimap';
+
+  @override
+  String get instructionInjectionSheetSubtitle => 'Select prompt';
+
+  @override
+  String get instructionInjectionEmptyMessage => 'Empty';
+
+  @override
+  String get bottomToolsSheetPrompt => 'Prompt';
+
+  @override
+  String get bottomToolsSheetPromptHint => 'Enter prompt';
+
+  @override
+  String get bottomToolsSheetSave => 'Save';
+
+  @override
+  String get homePageDone => 'Done';
+
+  @override
+  String get homePageClearContext => 'Clear Context';
+
+  @override
+  String get generationInterrupted => 'Interrupted';
+
+  @override
+  String get homePagePleaseSelectModel => 'Select model';
+
+  @override
+  String get homePageTranslating => 'Translating';
+
+  @override
+  String get homePagePleaseSetupTranslateModel => 'Set translation model';
+
+  @override
+  String homePageTranslateFailed(String error) {
+    return 'Failed: $error';
+  }
+
+  @override
+  String get desktopTtsPleaseAddProvider => 'Add TTS provider';
+
+  @override
+  String get homePageSelectMessagesToShare => 'Select messages';
+
+  @override
+  String homePageClearContextWithCount(String actual, String configured) {
+    return 'Clear ($actual/$configured)';
+  }
+
+  @override
+  String get titleForLocale => 'New Chat';
+
+  @override
+  String get homePageDefaultAssistant => 'Assistant';
+
+  @override
+  String get voiceChatButtonTooltip => 'Voice';
+
+  @override
+  String get voiceChatErrorInitFailed => 'Init failed';
+
+  @override
+  String voiceChatError(String error) {
+    return 'Error: $error';
+  }
+
+  @override
+  String get voiceChatProcessing => 'Thinking';
+
+  @override
+  String voiceChatErrorApi(String error) {
+    return 'API: $error';
+  }
+
+  @override
+  String voiceChatErrorProcessingResponse(String error) {
+    return 'Parse error: $error';
+  }
+
+  @override
+  String voiceChatErrorTts(String error) {
+    return 'TTS: $error';
+  }
+
+  @override
+  String get voiceChatErrorNoModel => 'No model';
+
+  @override
+  String get voiceChatErrorNoConversation => 'No chat';
+
+  @override
+  String get voiceChatErrorNoActiveConversation => 'Inactive';
+
+  @override
+  String get voiceChatTitle => 'Voice';
+
+  @override
+  String get voiceChatPermissionRequired => 'Permission Required';
+
+  @override
+  String get voiceChatPermissionSubtitle => 'Microphone access needed';
+
+  @override
+  String get voiceChatPermissionButton => 'Grant';
+
+  @override
+  String get voiceChatListening => 'Listening';
+
+  @override
+  String get voiceChatThinking => 'Thinking';
+
+  @override
+  String get voiceChatTalking => 'Talking';
+
+  @override
+  String get defaultModelPagePromptLabel => 'Prompt';
+
+  @override
+  String get defaultModelPageOcrPromptHint => 'OCR Prompt';
+
+  @override
+  String get defaultModelPageResetDefault => 'Reset';
+
+  @override
+  String get defaultModelPageSave => 'Save';
+
+  @override
+  String get searchServicesPageBackTooltip => 'Back';
+
+  @override
+  String get searchServicesPageTitle => 'Search';
+
+  @override
+  String get searchServicesPageAddProvider => 'Add';
+
+  @override
+  String get searchServicesPageSearchProviders => 'Providers';
+
+  @override
+  String get searchServicesPageGeneralOptions => 'General';
+
+  @override
+  String get searchServicesPageAutoTestTitle => 'Auto test';
+
+  @override
+  String get searchServicesPageMaxResults => 'Max results';
+
+  @override
+  String get searchServicesPageTimeoutSeconds => 'Timeout';
+
+  @override
+  String get searchServicesPageTestingStatus => 'Testing';
+
+  @override
+  String get searchServicesPageConnectedStatus => 'Connected';
+
+  @override
+  String get searchServicesPageFailedStatus => 'Failed';
+
+  @override
+  String get searchServicesPageNotTestedStatus => 'Not tested';
+
+  @override
+  String get searchServicesPageTestConnectionTooltip => 'Test';
+
+  @override
+  String get searchServicesAddDialogTitle => 'Add';
+
+  @override
+  String get searchServiceNameBingLocal => 'Bing';
+
+  @override
+  String get searchServiceNameDuckDuckGo => 'DuckDuckGo';
+
+  @override
+  String get searchServiceNameTavily => 'Tavily';
+
+  @override
+  String get searchServiceNameExa => 'Exa';
+
+  @override
+  String get searchServiceNameZhipu => 'Zhipu';
+
+  @override
+  String get searchServiceNameSearXNG => 'SearXNG';
+
+  @override
+  String get searchServiceNameLinkUp => 'LinkUp';
+
+  @override
+  String get searchServiceNameBrave => 'Brave';
+
+  @override
+  String get searchServiceNameMetaso => 'Metaso';
+
+  @override
+  String get searchServiceNameJina => 'Jina';
+
+  @override
+  String get searchServiceNameOllama => 'Ollama';
+
+  @override
+  String get searchServiceNamePerplexity => 'Perplexity';
+
+  @override
+  String get searchServiceNameBocha => 'Bocha';
+
+  @override
+  String get searchServicesAddDialogAdd => 'Add';
+
+  @override
+  String get searchServicesAddDialogRegionOptional => 'Region';
+
+  @override
+  String get searchServicesAddDialogApiKeyRequired => 'Key required';
+
+  @override
+  String get searchServicesAddDialogInstanceUrl => 'URL';
+
+  @override
+  String get searchServicesAddDialogUrlRequired => 'URL required';
+
+  @override
+  String get searchServicesAddDialogEnginesOptional => 'Engines';
+
+  @override
+  String get searchServicesAddDialogLanguageOptional => 'Language';
+
+  @override
+  String get searchServicesAddDialogUsernameOptional => 'Username';
+
+  @override
+  String get searchServicesAddDialogPasswordOptional => 'Password';
+
+  @override
+  String get searchServicesEditDialogSave => 'Save';
+
+  @override
+  String get searchServicesEditDialogBingLocalNoConfig => 'No config needed';
+
+  @override
+  String get searchServicesEditDialogRegionOptional => 'Region';
+
+  @override
+  String get searchServicesEditDialogApiKeyRequired => 'Key required';
+
+  @override
+  String get searchServicesEditDialogInstanceUrl => 'URL';
+
+  @override
+  String get searchServicesEditDialogUrlRequired => 'URL required';
+
+  @override
+  String get searchServicesEditDialogEnginesOptional => 'Engines';
+
+  @override
+  String get searchServicesEditDialogLanguageOptional => 'Language';
+
+  @override
+  String get searchServicesEditDialogUsernameOptional => 'Username';
+
+  @override
+  String get searchServicesEditDialogPasswordOptional => 'Password';
+
+  @override
+  String get modelDetailSheetCancelButton => 'Cancel';
+
+  @override
+  String get modelDetailSheetAddModel => 'Add';
+
+  @override
+  String get modelDetailSheetEditModel => 'Edit';
+
+  @override
+  String get modelDetailSheetBasicTab => 'Basic';
+
+  @override
+  String get modelDetailSheetAdvancedTab => 'Advanced';
+
+  @override
+  String get modelDetailSheetBuiltinToolsTab => 'Tools';
+
+  @override
+  String get modelDetailSheetModelIdLabel => 'ID';
+
+  @override
+  String get modelDetailSheetModelIdHint => 'Model ID';
+
+  @override
+  String get shareProviderSheetCopyButton => 'Copy';
+
+  @override
+  String get shareProviderSheetCopiedMessage => 'Copied';
+
+  @override
+  String get modelDetailSheetModelNameLabel => 'Name';
+
+  @override
+  String get modelDetailSheetModelTypeLabel => 'Type';
+
+  @override
+  String get modelDetailSheetInputModesLabel => 'Input';
+
+  @override
+  String get modelDetailSheetTextMode => 'Text';
+
+  @override
+  String get modelDetailSheetImageMode => 'Image';
+
+  @override
+  String get modelDetailSheetOutputModesLabel => 'Output';
+
+  @override
+  String get modelDetailSheetAbilitiesLabel => 'Abilities';
+
+  @override
+  String get modelDetailSheetToolsAbility => 'Tools';
+
+  @override
+  String get modelDetailSheetReasoningAbility => 'Reasoning';
+
+  @override
+  String get modelDetailSheetProviderOverrideDescription => 'Overrides';
+
+  @override
+  String get modelDetailSheetAddProviderOverride => 'Add Override';
+
+  @override
+  String get modelDetailSheetCustomHeadersTitle => 'Headers';
+
+  @override
+  String get modelDetailSheetAddHeader => 'Add';
+
+  @override
+  String get modelDetailSheetCustomBodyTitle => 'Body';
+
+  @override
+  String get modelDetailSheetAddBody => 'Add';
+
+  @override
+  String get modelDetailSheetBuiltinToolsDescription => 'Built-in';
+
+  @override
+  String get modelDetailSheetGeminiCodeExecutionMutuallyExclusiveHint =>
+      'Exclusive';
+
+  @override
+  String get modelDetailSheetUrlContextTool => 'URL';
+
+  @override
+  String get modelDetailSheetUrlContextToolDescription => 'URL Context';
+
+  @override
+  String get modelDetailSheetCodeExecutionTool => 'Code';
+
+  @override
+  String get modelDetailSheetCodeExecutionToolDescription => 'Execute code';
+
+  @override
+  String get modelDetailSheetYoutubeTool => 'YouTube';
+
+  @override
+  String get modelDetailSheetYoutubeToolDescription => 'Video context';
+
+  @override
+  String get modelDetailSheetOpenaiBuiltinToolsResponsesOnlyHint =>
+      'OpenAI only';
+
+  @override
+  String get modelDetailSheetOpenaiCodeInterpreterTool => 'Interpreter';
+
+  @override
+  String get modelDetailSheetOpenaiCodeInterpreterToolDescription =>
+      'Code interpreter';
+
+  @override
+  String get modelDetailSheetOpenaiImageGenerationTool => 'Image';
+
+  @override
+  String get modelDetailSheetOpenaiImageGenerationToolDescription => 'DALL-E';
+
+  @override
+  String get modelDetailSheetBuiltinToolsUnsupportedHint => 'Unsupported';
+
+  @override
+  String get modelDetailSheetAddButton => 'Add';
+
+  @override
+  String get modelDetailSheetConfirmButton => 'Save';
+
+  @override
+  String get modelDetailSheetInvalidIdError => 'Invalid ID';
+
+  @override
+  String get modelDetailSheetHeaderKeyHint => 'Key';
+
+  @override
+  String get modelDetailSheetHeaderValueHint => 'Value';
+
+  @override
+  String get modelDetailSheetBodyKeyHint => 'Key';
+
+  @override
+  String get modelDetailSheetBodyJsonHint => 'JSON';
+
+  @override
   String get providerDetailPageShareTooltip => 'Share';
 
   @override
-  String get providerDetailPageDeleteProviderTooltip => 'Delete Provider';
+  String get providerDetailPageDeleteProviderTooltip => 'Delete';
 
   @override
-  String get providerDetailPageDeleteProviderTitle => 'Delete Provider';
-
-  @override
-  String get providerDetailPageDeleteProviderContent =>
-      'Are you sure you want to delete this provider? This cannot be undone.';
-
-  @override
-  String get providerDetailPageCancelButton => 'Cancel';
-
-  @override
-  String get providerDetailPageDeleteButton => 'Delete';
-
-  @override
-  String get providerDetailPageProviderDeletedSnackbar => 'Provider deleted';
+  String get providerDetailPageProviderDeletedSnackbar => 'Deleted';
 
   @override
   String get providerDetailPageConfigTab => 'Config';
@@ -2267,83 +1425,40 @@ class AppLocalizationsEn extends AppLocalizations {
   String get providerDetailPageNameLabel => 'Name';
 
   @override
-  String get providerDetailPageApiKeyHint => 'Leave empty to use default';
-
-  @override
   String get providerDetailPageHideTooltip => 'Hide';
 
   @override
   String get providerDetailPageShowTooltip => 'Show';
 
   @override
-  String get providerDetailPageApiPathLabel => 'API Path';
+  String get providerDetailPageProviderRemovedMessage => 'Removed';
 
   @override
-  String get providerDetailPageResponseApiTitle => 'Response API (/responses)';
+  String get providerDetailPageNoModelsTitle => 'No models';
 
   @override
-  String get providerDetailPageAihubmixAppCodeLabel => 'APP-Code (10% off)';
-
-  @override
-  String get providerDetailPageAihubmixAppCodeHelp =>
-      'Adds header APP-Code requests to get a 10% discount. Only affects AIhubmix.';
-
-  @override
-  String get providerDetailPageVertexAiTitle => 'Vertex AI';
-
-  @override
-  String get providerDetailPageLocationLabel => 'Location';
-
-  @override
-  String get providerDetailPageProjectIdLabel => 'Project ID';
-
-  @override
-  String get providerDetailPageServiceAccountJsonLabel =>
-      'Service Account JSON (paste or import)';
-
-  @override
-  String get providerDetailPageImportJsonButton => 'Import JSON';
-
-  @override
-  String get providerDetailPageTestButton => 'Test';
-
-  @override
-  String get providerDetailPageSaveButton => 'Save';
-
-  @override
-  String get providerDetailPageProviderRemovedMessage => 'Provider removed';
-
-  @override
-  String get providerDetailPageNoModelsTitle => 'No Models';
-
-  @override
-  String get providerDetailPageNoModelsSubtitle =>
-      'Tap the buttons below to add models';
+  String get providerDetailPageNoModelsSubtitle => 'Add models below';
 
   @override
   String get providerDetailPageDeleteModelButton => 'Delete';
 
   @override
-  String get providerDetailPageConfirmDeleteTitle => 'Confirm Delete';
+  String get providerDetailPageConfirmDeleteTitle => 'Confirm';
 
   @override
-  String get providerDetailPageConfirmDeleteContent =>
-      'This can be undone via Undo. Delete?';
+  String get providerDetailPageConfirmDeleteContent => 'Delete?';
 
   @override
-  String get providerDetailPageModelDeletedSnackbar => 'Model deleted';
+  String get providerDetailPageModelDeletedSnackbar => 'Deleted';
 
   @override
   String get providerDetailPageUndoButton => 'Undo';
 
   @override
-  String get providerDetailPageAddNewModelButton => 'Add Model';
-
-  @override
   String get providerDetailPageFetchModelsButton => 'Fetch';
 
   @override
-  String get providerDetailPageEnableProxyTitle => 'Enable Proxy';
+  String get providerDetailPageEnableProxyTitle => 'Proxy';
 
   @override
   String get providerDetailPageHostLabel => 'Host';
@@ -2352,13 +1467,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get providerDetailPagePortLabel => 'Port';
 
   @override
-  String get providerDetailPageUsernameOptionalLabel => 'Username (optional)';
+  String get providerDetailPageUsernameOptionalLabel => 'User';
 
   @override
-  String get providerDetailPagePasswordOptionalLabel => 'Password (optional)';
-
-  @override
-  String get providerDetailPageSavedSnackbar => 'Saved';
+  String get providerDetailPagePasswordOptionalLabel => 'Pass';
 
   @override
   String get providerDetailPageEmbeddingsGroupTitle => 'Embeddings';
@@ -2367,76 +1479,149 @@ class AppLocalizationsEn extends AppLocalizations {
   String get providerDetailPageOtherModelsGroupTitle => 'Other';
 
   @override
-  String get providerDetailPageRemoveGroupTooltip => 'Remove group';
+  String get mcpAssistantSheetClearAll => 'Clear';
 
   @override
-  String get providerDetailPageAddGroupTooltip => 'Add group';
+  String get mcpAssistantSheetSelectAll => 'All';
 
   @override
-  String get providerDetailPageFilterHint => 'Type model name to filter';
+  String get modelFetchInvertTooltip => 'Invert';
+
+  @override
+  String get providerDetailPageRemoveGroupTooltip => 'Remove';
+
+  @override
+  String get providerDetailPageAddGroupTooltip => 'Add';
 
   @override
   String get providerDetailPageDeleteText => 'Delete';
 
   @override
+  String get providerDetailPageDetectSuccess => 'Success';
+
+  @override
+  String get providerDetailPageDetectFailed => 'Failed';
+
+  @override
   String get providerDetailPageEditTooltip => 'Edit';
 
   @override
-  String get providerDetailPageTestConnectionTitle => 'Test Connection';
+  String get providerDetailPageTestConnectionTitle => 'Test';
 
   @override
-  String get providerDetailPageSelectModelButton => 'Select Model';
+  String get providerDetailPageTestSuccessMessage => 'OK';
+
+  @override
+  String get providerDetailPageSelectModelButton => 'Select';
 
   @override
   String get providerDetailPageChangeButton => 'Change';
 
   @override
-  String get providerDetailPageUseStreamingLabel => 'Use Streaming';
+  String get providerDetailPageTestingMessage => 'Testing';
 
   @override
-  String get providerDetailPageTestingMessage => 'Testing…';
+  String get mcpServerEditSheetEnabledLabel => 'Enabled';
 
   @override
-  String get providerDetailPageTestSuccessMessage => 'Success';
+  String get mcpServerEditSheetNameLabel => 'Name';
 
   @override
-  String get providersPageTitle => 'Providers';
+  String get mcpServerEditSheetTransportLabel => 'Transport';
 
   @override
-  String get providersPageImportTooltip => 'Import';
+  String get mcpServerEditSheetSseRetryHint => 'Retry SSE';
 
   @override
-  String get providersPageAddTooltip => 'Add';
+  String get mcpServerEditSheetUrlLabel => 'URL';
 
   @override
-  String get providersPageProviderAddedSnackbar => 'Provider added';
+  String get mcpServerEditSheetCustomHeadersTitle => 'Headers';
 
   @override
-  String get providersPageSiliconFlowName => 'SiliconFlow';
+  String get mcpServerEditSheetHeaderNameLabel => 'Key';
 
   @override
-  String get providersPageAliyunName => 'Aliyun';
+  String get mcpServerEditSheetHeaderNameHint => 'Name';
 
   @override
-  String get providersPageZhipuName => 'Zhipu AI';
+  String get mcpServerEditSheetHeaderValueLabel => 'Value';
 
   @override
-  String get providersPageByteDanceName => 'ByteDance';
+  String get mcpServerEditSheetHeaderValueHint => 'Value';
 
   @override
-  String get providersPageEnabledStatus => 'ON';
+  String get mcpServerEditSheetRemoveHeaderTooltip => 'Remove';
 
   @override
-  String get providersPageDisabledStatus => 'OFF';
+  String get mcpServerEditSheetAddHeader => 'Add';
 
   @override
-  String get providersPageModelsCountSuffix => ' models';
+  String get mcpServerEditSheetUrlRequired => 'URL required';
 
   @override
-  String get providersPageModelsCountSingleSuffix => ' models';
+  String get mcpServerEditSheetTitleEdit => 'Edit';
 
   @override
-  String get addProviderSheetTitle => 'Add Provider';
+  String get mcpServerEditSheetTitleAdd => 'Add';
+
+  @override
+  String get mcpServerEditSheetSyncToolsTooltip => 'Sync';
+
+  @override
+  String get mcpServerEditSheetTabBasic => 'Basic';
+
+  @override
+  String get mcpServerEditSheetTabTools => 'Tools';
+
+  @override
+  String get mcpServerEditSheetNoToolsHint => 'No tools';
+
+  @override
+  String get mcpServerEditSheetSave => 'Save';
+
+  @override
+  String get mcpJsonEditParseFailed => 'Invalid JSON';
+
+  @override
+  String get mcpJsonEditSavedApplied => 'Applied';
+
+  @override
+  String get mcpJsonEditTitle => 'Edit JSON';
+
+  @override
+  String get mcpTimeoutInvalid => 'Invalid';
+
+  @override
+  String get mcpTimeoutDialogTitle => 'Timeout';
+
+  @override
+  String get mcpTimeoutSecondsLabel => 'Seconds';
+
+  @override
+  String get importProviderSheetTitle => 'Import';
+
+  @override
+  String get importProviderSheetScanQrTooltip => 'Scan';
+
+  @override
+  String importProviderSheetImportSuccessMessage(int count) {
+    return 'Imported $count';
+  }
+
+  @override
+  String importProviderSheetImportFailedMessage(String error) {
+    return 'Failed: $error';
+  }
+
+  @override
+  String get importProviderSheetFromGalleryTooltip => 'Gallery';
+
+  @override
+  String get importProviderSheetDescription => 'Paste code';
+
+  @override
+  String get importProviderSheetImportButton => 'Import';
 
   @override
   String get addProviderSheetEnabledLabel => 'Enabled';
@@ -2445,1135 +1630,239 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addProviderSheetNameLabel => 'Name';
 
   @override
-  String get addProviderSheetApiPathLabel => 'API Path';
+  String get addProviderSheetApiPathLabel => 'Path';
 
   @override
   String get addProviderSheetVertexAiLocationLabel => 'Location';
 
   @override
-  String get addProviderSheetVertexAiProjectIdLabel => 'Project ID';
+  String get addProviderSheetVertexAiProjectIdLabel => 'Project';
 
   @override
-  String get addProviderSheetVertexAiServiceAccountJsonLabel =>
-      'Service Account JSON (paste or import)';
+  String get addProviderSheetVertexAiServiceAccountJsonLabel => 'JSON';
 
   @override
-  String get addProviderSheetImportJsonButton => 'Import JSON';
+  String get addProviderSheetImportJsonButton => 'Import';
 
   @override
-  String get addProviderSheetCancelButton => 'Cancel';
+  String get addProviderSheetTitle => 'Add';
 
   @override
-  String get addProviderSheetAddButton => 'Add';
+  String get shareProviderSheetTitle => 'Share';
 
   @override
-  String get importProviderSheetTitle => 'Import Provider';
+  String get shareProviderSheetDescription => 'Provider info';
 
   @override
-  String get importProviderSheetScanQrTooltip => 'Scan QR';
+  String get chatMessageWidgetCopiedToClipboard => 'Copied';
 
   @override
-  String get importProviderSheetFromGalleryTooltip => 'From Gallery';
+  String get messageMoreSheetEdit => 'Edit';
 
   @override
-  String importProviderSheetImportSuccessMessage(int count) {
-    return 'Imported $count provider(s)';
+  String get messageMoreSheetDelete => 'Delete';
+
+  @override
+  String chatMessageWidgetFileNotFound(String fileName) {
+    return 'Not found: $fileName';
   }
 
   @override
-  String importProviderSheetImportFailedMessage(String error) {
-    return 'Import failed: $error';
+  String chatMessageWidgetCannotOpenFile(String message) {
+    return 'Error: $message';
   }
 
   @override
-  String get importProviderSheetDescription =>
-      'Paste share strings (multi-line supported) or ChatBox JSON';
-
-  @override
-  String get importProviderSheetInputHint => 'ai-provider:v1:... or JSON';
-
-  @override
-  String get importProviderSheetCancelButton => 'Cancel';
-
-  @override
-  String get importProviderSheetImportButton => 'Import';
-
-  @override
-  String get shareProviderSheetTitle => 'Share Provider';
-
-  @override
-  String get shareProviderSheetDescription => 'Copy or share via QR code.';
-
-  @override
-  String get shareProviderSheetCopiedMessage => 'Copied';
-
-  @override
-  String get shareProviderSheetCopyButton => 'Copy';
-
-  @override
-  String get shareProviderSheetShareButton => 'Share';
-
-  @override
-  String get desktopProviderContextMenuShare => 'Share';
-
-  @override
-  String get desktopProviderShareCopyText => 'Copy code';
-
-  @override
-  String get desktopProviderShareCopyQr => 'Copy QR';
-
-  @override
-  String get providerDetailPageApiBaseUrlLabel => 'API Base URL';
-
-  @override
-  String get providerDetailPageModelsTitle => 'Models';
-
-  @override
-  String get providerModelsGetButton => 'Get';
-
-  @override
-  String get providerDetailPageCapsVision => 'Vision';
-
-  @override
-  String get providerDetailPageCapsImage => 'Image';
-
-  @override
-  String get providerDetailPageCapsTool => 'Tool';
-
-  @override
-  String get providerDetailPageCapsReasoning => 'Reasoning';
-
-  @override
-  String get qrScanPageTitle => 'Scan QR';
-
-  @override
-  String get qrScanPageInstruction => 'Align the QR code within the frame';
-
-  @override
-  String get searchServicesPageBackTooltip => 'Back';
-
-  @override
-  String get searchServicesPageTitle => 'Search Services';
-
-  @override
-  String get searchServicesPageDone => 'Done';
-
-  @override
-  String get searchServicesPageEdit => 'Edit';
-
-  @override
-  String get searchServicesPageAddProvider => 'Add Provider';
-
-  @override
-  String get searchServicesPageSearchProviders => 'Search Providers';
-
-  @override
-  String get searchServicesPageGeneralOptions => 'General Options';
-
-  @override
-  String get searchServicesPageAutoTestTitle =>
-      'Auto-test connections on launch';
-
-  @override
-  String get searchServicesPageMaxResults => 'Max Results';
-
-  @override
-  String get searchServicesPageTimeoutSeconds => 'Timeout (seconds)';
-
-  @override
-  String get searchServicesPageAtLeastOneServiceRequired =>
-      'At least one search service is required';
-
-  @override
-  String get searchServicesPageTestingStatus => 'Testing…';
-
-  @override
-  String get searchServicesPageConnectedStatus => 'Connected';
-
-  @override
-  String get searchServicesPageFailedStatus => 'Failed';
-
-  @override
-  String get searchServicesPageNotTestedStatus => 'Not tested';
-
-  @override
-  String get searchServicesPageEditServiceTooltip => 'Edit Service';
-
-  @override
-  String get searchServicesPageTestConnectionTooltip => 'Test Connection';
-
-  @override
-  String get searchServicesPageDeleteServiceTooltip => 'Delete Service';
-
-  @override
-  String get searchServicesPageConfiguredStatus => 'Configured';
-
-  @override
-  String get miniMapTitle => 'Minimap';
-
-  @override
-  String get miniMapTooltip => 'Minimap';
-
-  @override
-  String get searchServicesPageApiKeyRequiredStatus => 'API Key Required';
-
-  @override
-  String get searchServicesPageUrlRequiredStatus => 'URL Required';
-
-  @override
-  String get searchServicesAddDialogTitle => 'Add Search Service';
-
-  @override
-  String get searchServicesAddDialogServiceType => 'Service Type';
-
-  @override
-  String get searchServicesAddDialogBingLocal => 'Local';
-
-  @override
-  String get searchServicesAddDialogCancel => 'Cancel';
-
-  @override
-  String get searchServicesAddDialogAdd => 'Add';
-
-  @override
-  String get searchServicesAddDialogApiKeyRequired => 'API Key is required';
-
-  @override
-  String get searchServicesAddDialogInstanceUrl => 'Instance URL';
-
-  @override
-  String get searchServicesAddDialogUrlRequired => 'URL is required';
-
-  @override
-  String get searchServicesAddDialogEnginesOptional => 'Engines (optional)';
-
-  @override
-  String get searchServicesAddDialogLanguageOptional => 'Language (optional)';
-
-  @override
-  String get searchServicesAddDialogUsernameOptional => 'Username (optional)';
-
-  @override
-  String get searchServicesAddDialogPasswordOptional => 'Password (optional)';
-
-  @override
-  String get searchServicesAddDialogRegionOptional =>
-      'Region (optional, default: us-en)';
-
-  @override
-  String get searchServicesEditDialogEdit => 'Edit';
-
-  @override
-  String get searchServicesEditDialogCancel => 'Cancel';
-
-  @override
-  String get searchServicesEditDialogSave => 'Save';
-
-  @override
-  String get searchServicesEditDialogBingLocalNoConfig =>
-      'No configuration required for Bing Local search.';
-
-  @override
-  String get searchServicesEditDialogApiKeyRequired => 'API Key is required';
-
-  @override
-  String get searchServicesEditDialogInstanceUrl => 'Instance URL';
-
-  @override
-  String get searchServicesEditDialogUrlRequired => 'URL is required';
-
-  @override
-  String get searchServicesEditDialogEnginesOptional => 'Engines (optional)';
-
-  @override
-  String get searchServicesEditDialogLanguageOptional => 'Language (optional)';
-
-  @override
-  String get searchServicesEditDialogUsernameOptional => 'Username (optional)';
-
-  @override
-  String get searchServicesEditDialogPasswordOptional => 'Password (optional)';
-
-  @override
-  String get searchServicesEditDialogRegionOptional =>
-      'Region (optional, default: us-en)';
-
-  @override
-  String get searchSettingsSheetTitle => 'Search Settings';
-
-  @override
-  String get searchSettingsSheetBuiltinSearchTitle => 'Built-in Search';
-
-  @override
-  String get searchSettingsSheetBuiltinSearchDescription =>
-      'Enable model\'s built-in search';
-
-  @override
-  String get searchSettingsSheetWebSearchTitle => 'Web Search';
-
-  @override
-  String get searchSettingsSheetWebSearchDescription =>
-      'Enable web search in chat';
-
-  @override
-  String get searchSettingsSheetOpenSearchServicesTooltip =>
-      'Open search services';
-
-  @override
-  String get searchSettingsSheetNoServicesMessage =>
-      'No services. Add from Search Services.';
-
-  @override
-  String get aboutPageEasterEggMessage =>
-      'Thanks for exploring! \n (No egg yet)';
-
-  @override
-  String get aboutPageEasterEggButton => 'Nice!';
-
-  @override
-  String get aboutPageAppDescription => 'Open-source AI Assistant';
-
-  @override
-  String get aboutPageNoQQGroup => 'No QQ group yet';
-
-  @override
-  String get aboutPageVersion => 'Version';
-
-  @override
-  String get aboutPageSystem => 'System';
-
-  @override
-  String get aboutPageWebsite => 'Website';
-
-  @override
-  String get aboutPageLicense => 'License';
-
-  @override
-  String get aboutPageJoinQQGroup => 'Join our QQ Group';
-
-  @override
-  String get aboutPageJoinDiscord => 'Join us on Discord';
-
-  @override
-  String get displaySettingsPageShowUserAvatarTitle => 'Show User Avatar';
-
-  @override
-  String get displaySettingsPageShowUserAvatarSubtitle =>
-      'Display user avatar in chat messages';
-
-  @override
-  String get displaySettingsPageShowUserNameTimestampTitle =>
-      'Show User Name & Timestamp';
-
-  @override
-  String get displaySettingsPageShowUserNameTimestampSubtitle =>
-      'Show user name and the timestamp below it in chat messages';
-
-  @override
-  String get displaySettingsPageShowUserMessageActionsTitle =>
-      'Show User Message Actions';
-
-  @override
-  String get displaySettingsPageShowUserMessageActionsSubtitle =>
-      'Display copy, resend, and more buttons below your messages';
-
-  @override
-  String get displaySettingsPageShowModelNameTimestampTitle =>
-      'Show Model Name & Timestamp';
-
-  @override
-  String get displaySettingsPageShowModelNameTimestampSubtitle =>
-      'Show model name and the timestamp below it in chat messages';
-
-  @override
-  String get displaySettingsPageChatModelIconTitle => 'Chat Model Icon';
-
-  @override
-  String get displaySettingsPageChatModelIconSubtitle =>
-      'Show model icon in chat messages';
-
-  @override
-  String get displaySettingsPageShowTokenStatsTitle =>
-      'Show Token & Context Stats';
-
-  @override
-  String get displaySettingsPageShowTokenStatsSubtitle =>
-      'Show token usage and message count';
-
-  @override
-  String get displaySettingsPageAutoCollapseThinkingTitle =>
-      'Auto-collapse Thinking';
-
-  @override
-  String get displaySettingsPageAutoCollapseThinkingSubtitle =>
-      'Collapse reasoning after finish';
-
-  @override
-  String get displaySettingsPageShowChatListDateTitle => 'Show Chat List Dates';
-
-  @override
-  String get displaySettingsPageShowChatListDateSubtitle =>
-      'Display date group labels in the conversation list';
-
-  @override
-  String get displaySettingsPageKeepSidebarOpenOnAssistantTapTitle =>
-      'Keep sidebar open when selecting assistant';
-
-  @override
-  String get displaySettingsPageKeepSidebarOpenOnTopicTapTitle =>
-      'Keep sidebar open when selecting topic';
-
-  @override
-  String get displaySettingsPageKeepAssistantListExpandedOnSidebarCloseTitle =>
-      'Don\'t collapse assistant list when closing sidebar';
-
-  @override
-  String get displaySettingsPageShowUpdatesTitle => 'Show Updates';
-
-  @override
-  String get displaySettingsPageShowUpdatesSubtitle =>
-      'Show app update notifications';
-
-  @override
-  String get displaySettingsPageMessageNavButtonsTitle =>
-      'Message Navigation Buttons';
-
-  @override
-  String get displaySettingsPageMessageNavButtonsSubtitle =>
-      'Show quick jump buttons when scrolling';
-
-  @override
-  String get displaySettingsPageHapticsOnSidebarTitle => 'Haptics on Sidebar';
-
-  @override
-  String get displaySettingsPageHapticsOnSidebarSubtitle =>
-      'Enable haptic feedback when opening/closing sidebar';
-
-  @override
-  String get displaySettingsPageHapticsGlobalTitle => 'Global Haptics';
-
-  @override
-  String get displaySettingsPageHapticsIosSwitchTitle => 'Haptics on Switch';
-
-  @override
-  String get displaySettingsPageHapticsOnListItemTapTitle =>
-      'Haptics on List Items';
-
-  @override
-  String get displaySettingsPageHapticsOnCardTapTitle => 'Haptics on Cards';
-
-  @override
-  String get displaySettingsPageHapticsOnGenerateTitle => 'Haptics on Generate';
-
-  @override
-  String get displaySettingsPageHapticsOnGenerateSubtitle =>
-      'Enable haptic feedback during generation';
-
-  @override
-  String get displaySettingsPageNewChatAfterDeleteTitle =>
-      'New chat after deleting topic';
-
-  @override
-  String get displaySettingsPageNewChatOnAssistantSwitchTitle =>
-      'New chat when switching assistants';
-
-  @override
-  String get displaySettingsPageNewChatOnLaunchTitle => 'New Chat on Launch';
-
-  @override
-  String get displaySettingsPageAutoSwitchTopicsTitle =>
-      'Auto switch to Topics';
-
-  @override
-  String get desktopDisplaySettingsTopicPositionTitle => 'Topic position';
-
-  @override
-  String get desktopDisplaySettingsTopicPositionLeft => 'Left';
-
-  @override
-  String get desktopDisplaySettingsTopicPositionRight => 'Right';
-
-  @override
-  String get displaySettingsPageNewChatOnLaunchSubtitle =>
-      'Automatically create a new chat on launch';
-
-  @override
-  String get displaySettingsPageChatFontSizeTitle => 'Chat Font Size';
-
-  @override
-  String get displaySettingsPageAutoScrollEnableTitle =>
-      'Auto-scroll to bottom';
-
-  @override
-  String get displaySettingsPageAutoScrollIdleTitle => 'Auto-Scroll Back Delay';
-
-  @override
-  String get displaySettingsPageAutoScrollIdleSubtitle =>
-      'Wait time after user scroll before jumping to bottom';
-
-  @override
-  String get displaySettingsPageAutoScrollDisabledLabel => 'Off';
-
-  @override
-  String get displaySettingsPageChatFontSampleText =>
-      'This is a sample chat text';
-
-  @override
-  String get displaySettingsPageChatBackgroundMaskTitle =>
-      'Chat Background Overlay Opacity';
-
-  @override
-  String get displaySettingsPageThemeSettingsTitle => 'Theme Settings';
-
-  @override
-  String get displaySettingsPageThemeColorTitle => 'Theme Color';
-
-  @override
-  String get desktopSettingsFontsTitle => 'Fonts';
-
-  @override
-  String get displaySettingsPageTrayTitle => 'System Tray';
-
-  @override
-  String get displaySettingsPageTrayShowTrayTitle => 'Show tray icon';
-
-  @override
-  String get displaySettingsPageTrayMinimizeOnCloseTitle =>
-      'Minimize to tray on close';
-
-  @override
-  String get desktopFontAppLabel => 'App Font';
-
-  @override
-  String get desktopFontCodeLabel => 'Code Font';
-
-  @override
-  String get desktopFontFamilySystemDefault => 'System Default';
-
-  @override
-  String get desktopFontFamilyMonospaceDefault => 'Monospace';
-
-  @override
-  String get desktopFontFilterHint => 'Filter fonts...';
-
-  @override
-  String get displaySettingsPageAppFontTitle => 'App Font';
-
-  @override
-  String get displaySettingsPageCodeFontTitle => 'Code Font';
-
-  @override
-  String get fontPickerChooseLocalFile => 'Choose Local File';
-
-  @override
-  String get fontPickerGetFromGoogleFonts => 'Browse Google Fonts';
-
-  @override
-  String get fontPickerFilterHint => 'Filter fonts...';
-
-  @override
-  String get desktopFontLoading => 'Loading fonts…';
-
-  @override
-  String get displaySettingsPageFontLocalFileLabel => 'Local file';
-
-  @override
-  String get displaySettingsPageFontResetLabel => 'Reset font settings';
-
-  @override
-  String get displaySettingsPageOtherSettingsTitle => 'Other Settings';
-
-  @override
-  String get themeSettingsPageDynamicColorSection => 'Dynamic Color';
-
-  @override
-  String get themeSettingsPageUseDynamicColorTitle => 'System Dynamic Colors';
-
-  @override
-  String get themeSettingsPageUseDynamicColorSubtitle =>
-      'Match system palette (Android 12+)';
-
-  @override
-  String get themeSettingsPageUsePureBackgroundTitle => 'Pure Background';
-
-  @override
-  String get themeSettingsPageUsePureBackgroundSubtitle =>
-      'Bubbles and accents follow theme.';
-
-  @override
-  String get themeSettingsPageColorPalettesSection => 'Color Palettes';
-
-  @override
-  String get ttsServicesPageBackButton => 'Back';
-
-  @override
-  String get ttsServicesPageTitle => 'Text-to-Speech';
-
-  @override
-  String get ttsServicesPageAddTooltip => 'Add';
-
-  @override
-  String get ttsServicesPageAddNotImplemented =>
-      'Add TTS service not implemented';
-
-  @override
-  String get ttsServicesPageSystemTtsTitle => 'System TTS';
-
-  @override
-  String get ttsServicesPageSystemTtsAvailableSubtitle =>
-      'Use system built-in TTS';
-
-  @override
-  String ttsServicesPageSystemTtsUnavailableSubtitle(String error) {
-    return 'Unavailable: $error';
+  String chatMessageWidgetOpenFileError(String error) {
+    return 'Error: $error';
   }
 
   @override
-  String get ttsServicesPageSystemTtsUnavailableNotInitialized =>
-      'not initialized';
+  String get chatMessageWidgetThinking => 'Thinking';
 
   @override
-  String get ttsServicesPageTestSpeechText => 'Hello, this is a test speech.';
+  String get chatMessageWidgetTranslation => 'Translation';
 
   @override
-  String get ttsServicesPageConfigureTooltip => 'Configure';
+  String get chatMessageWidgetCitationNotFound => 'Not found';
 
   @override
-  String get ttsServicesPageTestVoiceTooltip => 'Test voice';
-
-  @override
-  String get ttsServicesPageStopTooltip => 'Stop';
-
-  @override
-  String get ttsServicesPageDeleteTooltip => 'Delete';
-
-  @override
-  String get ttsServicesPageSystemTtsSettingsTitle => 'System TTS Settings';
-
-  @override
-  String get ttsServicesPageEngineLabel => 'Engine';
-
-  @override
-  String get ttsServicesPageAutoLabel => 'Auto';
-
-  @override
-  String get ttsServicesPageLanguageLabel => 'Language';
-
-  @override
-  String get ttsServicesPageSpeechRateLabel => 'Speech rate';
-
-  @override
-  String get ttsServicesPagePitchLabel => 'Pitch';
-
-  @override
-  String get ttsServicesPageSettingsSavedMessage => 'Settings saved.';
-
-  @override
-  String get ttsServicesPageDoneButton => 'Done';
-
-  @override
-  String get ttsServicesPageNetworkSectionTitle => 'Network TTS';
-
-  @override
-  String get ttsServicesPageNoNetworkServices => 'No TTS services.';
-
-  @override
-  String get ttsServicesDialogAddTitle => 'Add TTS Service';
-
-  @override
-  String get ttsServicesDialogEditTitle => 'Edit TTS Service';
-
-  @override
-  String get ttsServicesDialogProviderType => 'Provider';
-
-  @override
-  String get ttsServicesDialogCancelButton => 'Cancel';
-
-  @override
-  String get ttsServicesDialogAddButton => 'Add';
-
-  @override
-  String get ttsServicesDialogSaveButton => 'Save';
-
-  @override
-  String get ttsServicesFieldNameLabel => 'Name';
-
-  @override
-  String get ttsServicesFieldApiKeyLabel => 'API Key';
-
-  @override
-  String get ttsServicesFieldBaseUrlLabel => 'API Base URL';
-
-  @override
-  String get ttsServicesFieldModelLabel => 'Model';
-
-  @override
-  String get ttsServicesFieldVoiceLabel => 'Voice';
-
-  @override
-  String get ttsServicesFieldVoiceIdLabel => 'Voice ID';
-
-  @override
-  String get ttsServicesFieldEmotionLabel => 'Emotion';
-
-  @override
-  String get ttsServicesFieldSpeedLabel => 'Speed';
-
-  @override
-  String get ttsServicesViewDetailsButton => 'View details';
-
-  @override
-  String get ttsServicesDialogErrorTitle => 'Error Details';
-
-  @override
-  String get ttsServicesCloseButton => 'Close';
-
-  @override
-  String imageViewerPageShareFailedOpenFile(String message) {
-    return 'Unable to share, tried to open file: $message';
+  String chatMessageWidgetCannotOpenUrl(String url) {
+    return 'Error: $url';
   }
 
   @override
-  String imageViewerPageShareFailed(String error) {
-    return 'Share failed: $error';
+  String get chatMessageWidgetOpenLinkError => 'Error';
+
+  @override
+  String chatMessageWidgetCitationsTitle(int count) {
+    return '$count Citations';
   }
 
   @override
-  String get imageViewerPageShareButton => 'Share Image';
+  String get chatMessageWidgetCreateMemory => 'Remember';
 
   @override
-  String get imageViewerPageSaveButton => 'Save Image';
+  String get chatMessageWidgetEditMemory => 'Edit';
 
   @override
-  String get imageViewerPageSaveSuccess => 'Saved to gallery';
+  String get chatMessageWidgetDeleteMemory => 'Forget';
 
   @override
-  String imageViewerPageSaveFailed(String error) {
-    return 'Save failed: $error';
+  String chatMessageWidgetWebSearch(String query) {
+    return 'Search: $query';
   }
 
   @override
-  String get settingsShare => 'Kelivo - Open Source AI Assistant';
+  String get chatMessageWidgetBuiltinSearch => 'Search';
 
   @override
-  String get searchProviderBingLocalDescription =>
-      'Uses web scraping to fetch Bing results. No API key required; may be unstable.';
-
-  @override
-  String get searchProviderDuckDuckGoDescription =>
-      'Privacy-focused DuckDuckGo search via DDGS. No API key required; supports region selection.';
-
-  @override
-  String get searchProviderBraveDescription =>
-      'Independent search engine by Brave. Privacy-focused with no tracking or profiling.';
-
-  @override
-  String get searchProviderExaDescription =>
-      'Neural search with semantic understanding. Great for research and finding specific content.';
-
-  @override
-  String get searchProviderLinkUpDescription =>
-      'Search API with sourced answers. Provides both results and AI-generated summaries.';
-
-  @override
-  String get searchProviderMetasoDescription =>
-      'Chinese search by Metaso. Optimized for Chinese content with AI capabilities.';
-
-  @override
-  String get searchProviderSearXNGDescription =>
-      'Privacy-respecting metasearch engine. Self-hosted instance required; no tracking.';
-
-  @override
-  String get searchProviderTavilyDescription =>
-      'AI search API optimized for LLMs. Provides high-quality, relevant results.';
-
-  @override
-  String get searchProviderZhipuDescription =>
-      'Chinese AI search by Zhipu AI. Optimized for Chinese content and queries.';
-
-  @override
-  String get searchProviderOllamaDescription =>
-      'Ollama web search API. Augments models with up-to-date information.';
-
-  @override
-  String get searchProviderJinaDescription =>
-      'AI search foundation with embeddings, rerankers, web reader, deepsearch, and small language models. Multilingual and multimodal.';
-
-  @override
-  String get searchServiceNameBingLocal => 'Bing (Local)';
-
-  @override
-  String get searchServiceNameDuckDuckGo => 'DuckDuckGo';
-
-  @override
-  String get searchServiceNameTavily => 'Tavily';
-
-  @override
-  String get searchServiceNameExa => 'Exa';
-
-  @override
-  String get searchServiceNameZhipu => 'Zhipu AI';
-
-  @override
-  String get searchServiceNameSearXNG => 'SearXNG';
-
-  @override
-  String get searchServiceNameLinkUp => 'LinkUp';
-
-  @override
-  String get searchServiceNameBrave => 'Brave Search';
-
-  @override
-  String get searchServiceNameMetaso => 'Metaso';
-
-  @override
-  String get searchServiceNameOllama => 'Ollama';
-
-  @override
-  String get searchServiceNameJina => 'Jina';
-
-  @override
-  String get searchServiceNamePerplexity => 'Perplexity';
-
-  @override
-  String get searchProviderPerplexityDescription =>
-      'Perplexity Search API. Ranked web results with region and domain filters.';
-
-  @override
-  String get searchServiceNameBocha => 'Bocha';
-
-  @override
-  String get searchProviderBochaDescription =>
-      'Bocha web search API. Accurate web results with optional summaries.';
-
-  @override
-  String get generationInterrupted => 'Generation interrupted';
-
-  @override
-  String get titleForLocale => 'New Chat';
-
-  @override
-  String get quickPhraseBackTooltip => 'Back';
-
-  @override
-  String get quickPhraseGlobalTitle => 'Quick Phrase';
-
-  @override
-  String get quickPhraseAssistantTitle => 'Assistant Quick Phrase';
-
-  @override
-  String get quickPhraseAddTooltip => 'Add Quick Phrase';
-
-  @override
-  String get quickPhraseEmptyMessage => 'No quick phrases yet';
-
-  @override
-  String get quickPhraseAddTitle => 'Add Quick Phrase';
-
-  @override
-  String get quickPhraseEditTitle => 'Edit Quick Phrase';
-
-  @override
-  String get quickPhraseTitleLabel => 'Title';
-
-  @override
-  String get quickPhraseContentLabel => 'Content';
-
-  @override
-  String get quickPhraseCancelButton => 'Cancel';
-
-  @override
-  String get quickPhraseSaveButton => 'Save';
-
-  @override
-  String get instructionInjectionTitle => 'Instruction Injection';
-
-  @override
-  String get instructionInjectionBackTooltip => 'Back';
-
-  @override
-  String get instructionInjectionAddTooltip => 'Add Instruction';
-
-  @override
-  String get instructionInjectionEmptyMessage =>
-      'No instruction injection cards yet';
-
-  @override
-  String get instructionInjectionDefaultTitle => 'Learning Mode';
-
-  @override
-  String get instructionInjectionAddTitle => 'Add Instruction Injection';
-
-  @override
-  String get instructionInjectionEditTitle => 'Edit Instruction Injection';
-
-  @override
-  String get instructionInjectionNameLabel => 'Name';
-
-  @override
-  String get instructionInjectionPromptLabel => 'Prompt';
-
-  @override
-  String get instructionInjectionSheetSubtitle =>
-      'Choose a prompt to apply before chatting';
-
-  @override
-  String get mcpJsonEditButtonTooltip => 'Edit JSON';
-
-  @override
-  String get mcpJsonEditTitle => 'Edit JSON';
-
-  @override
-  String get mcpJsonEditParseFailed => 'JSON parse failed';
-
-  @override
-  String get mcpJsonEditSavedApplied => 'Saved and applied';
-
-  @override
-  String get mcpTimeoutSettingsTooltip => 'Set tool call timeout';
-
-  @override
-  String get mcpTimeoutDialogTitle => 'Tool call timeout';
-
-  @override
-  String get mcpTimeoutSecondsLabel => 'Tool call timeout (seconds)';
-
-  @override
-  String get mcpTimeoutInvalid => 'Enter a positive number of seconds';
-
-  @override
-  String get quickPhraseEditButton => 'Edit';
-
-  @override
-  String get quickPhraseDeleteButton => 'Delete';
-
-  @override
-  String get quickPhraseMenuTitle => 'Quick Phrase';
-
-  @override
-  String get chatInputBarQuickPhraseTooltip => 'Quick Phrase';
-
-  @override
-  String get assistantEditQuickPhraseDescription =>
-      'Manage quick phrases for this assistant. Click the button below to add phrases.';
-
-  @override
-  String get assistantEditManageQuickPhraseButton => 'Manage Quick Phrases';
-
-  @override
-  String get assistantEditPageMemoryTab => 'Memory';
-
-  @override
-  String get assistantEditMemorySwitchTitle => 'Memory';
-
-  @override
-  String get assistantEditMemorySwitchDescription =>
-      'Allow the assistant to create and use memories across chats.';
-
-  @override
-  String get assistantEditRecentChatsSwitchTitle => 'Recent Chats Reference';
-
-  @override
-  String get assistantEditRecentChatsSwitchDescription =>
-      'Include recent conversation titles to help with context.';
-
-  @override
-  String get assistantEditManageMemoryTitle => 'Manage Memories';
-
-  @override
-  String get assistantEditAddMemoryButton => 'Add Memory';
-
-  @override
-  String get assistantEditMemoryEmpty => 'No memories yet';
-
-  @override
-  String get assistantEditMemoryDialogTitle => 'Memory';
-
-  @override
-  String get assistantEditMemoryDialogHint => 'Enter memory content';
-
-  @override
-  String get assistantEditAddQuickPhraseButton => 'Add Quick Phrase';
-
-  @override
-  String get multiKeyPageDeleteSnackbarDeletedOne => 'Deleted 1 key';
-
-  @override
-  String get multiKeyPageUndo => 'Undo';
-
-  @override
-  String get multiKeyPageUndoRestored => 'Restored';
-
-  @override
-  String get multiKeyPageDeleteErrorsTooltip => 'Delete errors';
-
-  @override
-  String get multiKeyPageDeleteErrorsConfirmTitle => 'Delete all error keys?';
-
-  @override
-  String get multiKeyPageDeleteErrorsConfirmContent =>
-      'This will remove all keys marked as error.';
-
-  @override
-  String multiKeyPageDeletedErrorsSnackbar(int n) {
-    return 'Deleted $n error keys';
+  String chatMessageWidgetToolResult(String name) {
+    return 'Result: $name';
   }
 
   @override
-  String get providerDetailPageProviderTypeTitle => 'Provider Type';
-
-  @override
-  String get displaySettingsPageChatItemDisplayTitle => 'Chat item display';
-
-  @override
-  String get displaySettingsPageRenderingSettingsTitle => 'Rendering settings';
-
-  @override
-  String get displaySettingsPageBehaviorStartupTitle => 'Behavior & startup';
-
-  @override
-  String get displaySettingsPageHapticsSettingsTitle => 'Haptics';
-
-  @override
-  String get assistantSettingsNoPromptPlaceholder => 'No prompt yet';
-
-  @override
-  String get providersPageMultiSelectTooltip => 'Multi-select';
-
-  @override
-  String get providersPageDeleteSelectedConfirmContent =>
-      'Delete selected providers? This cannot be undone.';
-
-  @override
-  String get providersPageDeleteSelectedSnackbar =>
-      'Deleted selected providers';
-
-  @override
-  String providersPageExportSelectedTitle(int count) {
-    return 'Export $count providers';
+  String chatMessageWidgetToolCall(String name) {
+    return 'Call: $name';
   }
 
   @override
-  String get providersPageExportCopyButton => 'Copy';
+  String get chatMessageWidgetNoResultYet => 'Waiting';
 
   @override
-  String get providersPageExportShareButton => 'Share';
+  String get chatMessageWidgetArguments => 'Args';
 
   @override
-  String get providersPageExportCopiedSnackbar => 'Copied export code';
+  String get chatMessageWidgetResult => 'Result';
 
   @override
-  String get providersPageDeleteAction => 'Delete';
-
-  @override
-  String get providersPageExportAction => 'Export';
-
-  @override
-  String get assistantEditPresetTitle => 'Preset conversation';
-
-  @override
-  String get assistantEditPresetAddUser => 'Add user preset';
-
-  @override
-  String get assistantEditPresetAddAssistant => 'Add assistant preset';
-
-  @override
-  String get assistantEditPresetInputHintUser => 'Enter user message…';
-
-  @override
-  String get assistantEditPresetInputHintAssistant =>
-      'Enter assistant message…';
-
-  @override
-  String get assistantEditPresetEmpty => 'No preset messages yet';
-
-  @override
-  String get assistantEditPresetEditDialogTitle => 'Edit preset message';
-
-  @override
-  String get assistantEditPresetRoleUser => 'User';
-
-  @override
-  String get assistantEditPresetRoleAssistant => 'Assistant';
-
-  @override
-  String get desktopTtsPleaseAddProvider => 'Please add a TTS provider first';
-
-  @override
-  String get settingsPageNetworkProxy => 'Network Proxy';
-
-  @override
-  String get networkProxyEnableLabel => 'Enable Proxy';
-
-  @override
-  String get networkProxySettingsHeader => 'Proxy Settings';
-
-  @override
-  String get networkProxyType => 'Proxy Type';
-
-  @override
-  String get networkProxyTypeHttp => 'HTTP';
-
-  @override
-  String get networkProxyTypeHttps => 'HTTPS';
-
-  @override
-  String get networkProxyTypeSocks5 => 'SOCKS5';
-
-  @override
-  String get networkProxyServerHost => 'Server';
-
-  @override
-  String get networkProxyPort => 'Port';
-
-  @override
-  String get networkProxyUsername => 'Username';
-
-  @override
-  String get networkProxyPassword => 'Password';
-
-  @override
-  String get networkProxyOptionalHint => 'Optional';
-
-  @override
-  String get networkProxyTestHeader => 'Connection Test';
-
-  @override
-  String get networkProxyTestUrlHint => 'Test URL';
-
-  @override
-  String get networkProxyTestButton => 'Test';
-
-  @override
-  String get networkProxyTesting => 'Testing…';
-
-  @override
-  String get networkProxyTestSuccess => 'Connection successful';
-
-  @override
-  String networkProxyTestFailed(String error) {
-    return 'Test failed: $error';
+  String chatMessageWidgetCitationsCount(int count) {
+    return '$count citations';
   }
 
   @override
-  String get networkProxyNoUrl => 'Please enter a URL';
+  String get chatMessageWidgetDeepThinking => 'Deep thinking';
 
   @override
-  String get networkProxyPriorityNote =>
-      'When both global and provider proxies are enabled, provider-level proxy takes priority.';
+  String get messageMoreSheetSelectCopy => 'Select';
 
   @override
-  String get desktopShowProviderInModelCapsule =>
-      'Show provider in model capsule';
+  String get messageMoreSheetRenderWebView => 'Web';
 
   @override
-  String get messageWebViewOpenInBrowser => 'Open in Browser';
+  String get messageMoreSheetShare => 'Share';
 
   @override
-  String get messageWebViewConsoleLogs => 'Console Logs';
+  String get messageMoreSheetCreateBranch => 'Branch';
 
   @override
-  String get messageWebViewNoConsoleMessages => 'No console messages';
+  String get messageEditPageTitle => 'Edit';
+
+  @override
+  String get messageEditPageHint => 'Message';
+
+  @override
+  String get messageExportSheetDateTimeWithSecondsPattern =>
+      'yyyy-MM-dd HH:mm:ss';
+
+  @override
+  String get backupPageExportToFile => 'Export';
+
+  @override
+  String get messageExportSheetMarkdown => 'Markdown';
+
+  @override
+  String get messageExportSheetSingleMarkdownSubtitle => 'Export Markdown';
+
+  @override
+  String get messageExportSheetPlainText => 'Text';
+
+  @override
+  String get messageExportSheetSingleTxtSubtitle => 'Export TXT';
+
+  @override
+  String get messageExportSheetExportImage => 'Image';
+
+  @override
+  String get messageExportSheetSingleExportImageSubtitle => 'Export Image';
+
+  @override
+  String get messageExportSheetShowThinkingAndToolCards => 'Show tools';
+
+  @override
+  String get messageExportSheetShowThinkingContent => 'Show thinking';
+
+  @override
+  String get messageExportSheetBatchMarkdownSubtitle => 'Batch Markdown';
+
+  @override
+  String get messageExportSheetBatchTxtSubtitle => 'Batch TXT';
+
+  @override
+  String get messageExportSheetBatchExportImageSubtitle => 'Batch Image';
+
+  @override
+  String get exportDisclaimerAiGenerated => 'AI Generated';
+
+  @override
+  String get messageExportSheetExporting => 'Exporting';
+
+  @override
+  String get messageEditDialogTitle => 'Edit Message';
+
+  @override
+  String get cameraPermissionDeniedMessage => 'No camera access';
+
+  @override
+  String get openSystemSettings => 'Settings';
+
+  @override
+  String get searchProviderBingLocalDescription => 'Bing search';
+
+  @override
+  String get searchProviderTavilyDescription => 'Tavily search';
+
+  @override
+  String get searchProviderExaDescription => 'Exa search';
+
+  @override
+  String get searchProviderZhipuDescription => 'Zhipu search';
+
+  @override
+  String get searchProviderSearXNGDescription => 'SearXNG search';
+
+  @override
+  String get searchProviderLinkUpDescription => 'LinkUp search';
+
+  @override
+  String get searchProviderBraveDescription => 'Brave search';
+
+  @override
+  String get searchProviderMetasoDescription => 'Metaso search';
+
+  @override
+  String get searchProviderOllamaDescription => 'Ollama search';
+
+  @override
+  String get searchProviderJinaDescription => 'Jina search';
+
+  @override
+  String get searchProviderBochaDescription => 'Bocha search';
+
+  @override
+  String get searchProviderPerplexityDescription => 'Perplexity search';
+
+  @override
+  String get searchProviderDuckDuckGoDescription => 'DuckDuckGo search';
+
+  @override
+  String get selectCopyPageCopiedAll => 'Copied';
+
+  @override
+  String get selectCopyPageCopyAll => 'All';
+
+  @override
+  String get selectCopyPageTitle => 'Select';
 
   @override
   String get messageWebViewRefreshTooltip => 'Refresh';
@@ -3582,179 +1871,708 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messageWebViewForwardTooltip => 'Forward';
 
   @override
-  String get chatInputBarOcrTooltip => 'Image OCR';
+  String get messageWebViewOpenInBrowser => 'Open';
 
   @override
-  String get voiceChatTitle => 'Voice Chat';
+  String get messageWebViewConsoleLogs => 'Console';
 
   @override
-  String get voiceChatListening => 'Listening';
+  String get messageWebViewNoConsoleMessages => 'Empty';
 
   @override
-  String get voiceChatThinking => 'Thinking';
+  String get assistantEditPreviewTitle => 'Preview';
 
   @override
-  String get voiceChatTalking => 'Talking';
+  String get imagePreviewSheetSaveSuccess => 'Saved';
 
   @override
-  String get voiceChatButtonTooltip => 'Voice Chat';
+  String imagePreviewSheetSaveFailed(String error) {
+    return 'Failed: $error';
+  }
 
   @override
-  String get voiceChatPermissionRequired => 'Microphone Permission Required';
+  String get settingsPageShare => 'Share';
 
   @override
-  String get voiceChatPermissionSubtitle =>
-      'This app needs microphone access to perform voice chat. Please grant permission in settings.';
+  String get imagePreviewSheetSaveImage => 'Save';
 
   @override
-  String get voiceChatPermissionButton => 'Grant Permission';
+  String get languageDisplayTraditionalChinese => 'Traditional Chinese';
 
   @override
-  String voiceChatError(String error) {
+  String get languageDisplaySimplifiedChinese => 'Simplified Chinese';
+
+  @override
+  String get languageDisplayEnglish => 'English';
+
+  @override
+  String get languageDisplayJapanese => 'Japanese';
+
+  @override
+  String get languageDisplayKorean => 'Korean';
+
+  @override
+  String get languageDisplayFrench => 'French';
+
+  @override
+  String get languageDisplayGerman => 'German';
+
+  @override
+  String get languageDisplayItalian => 'Italian';
+
+  @override
+  String get languageDisplaySpanish => 'Spanish';
+
+  @override
+  String get languageSelectSheetClearButton => 'Clear';
+
+  @override
+  String get storageSpaceCategoryImages => 'Images';
+
+  @override
+  String get storageSpaceCategoryFiles => 'Files';
+
+  @override
+  String get storageSpaceCategoryChatData => 'Chat Data';
+
+  @override
+  String get storageSpaceCategoryAssistantData => 'Assistants';
+
+  @override
+  String get storageSpaceCategoryCache => 'Cache';
+
+  @override
+  String get storageSpaceCategoryLogs => 'Logs';
+
+  @override
+  String get storageSpaceCategoryOther => 'Other';
+
+  @override
+  String get storageSpaceSubChatMessages => 'Messages';
+
+  @override
+  String get storageSpaceSubChatConversations => 'Conversations';
+
+  @override
+  String get storageSpaceSubChatToolEvents => 'Tools';
+
+  @override
+  String get storageSpaceSubAssistantAvatars => 'Avatars';
+
+  @override
+  String get storageSpaceSubAssistantImages => 'Images';
+
+  @override
+  String get storageSpaceSubCacheAvatars => 'Avatar cache';
+
+  @override
+  String get storageSpaceSubCacheOther => 'Other cache';
+
+  @override
+  String get storageSpaceSubCacheSystem => 'System cache';
+
+  @override
+  String get storageSpaceSubLogsFlutter => 'Flutter logs';
+
+  @override
+  String get storageSpaceSubLogsRequests => 'API logs';
+
+  @override
+  String get storageSpaceSubLogsOther => 'Other logs';
+
+  @override
+  String get storageSpaceClearConfirmTitle => 'Confirm';
+
+  @override
+  String storageSpaceClearConfirmMessage(String targetName) {
+    return 'Clear $targetName?';
+  }
+
+  @override
+  String get storageSpaceClearButton => 'Clear';
+
+  @override
+  String storageSpaceClearDone(String targetName) {
+    return 'Cleared $targetName';
+  }
+
+  @override
+  String storageSpaceClearFailed(String error) {
+    return 'Failed: $error';
+  }
+
+  @override
+  String get storageSpaceLoadFailed => 'Failed to load';
+
+  @override
+  String get storageSpacePageTitle => 'Storage';
+
+  @override
+  String get storageSpaceRefreshTooltip => 'Refresh';
+
+  @override
+  String get storageSpaceTotalLabel => 'Total';
+
+  @override
+  String storageSpaceClearableLabel(String size) {
+    return 'Clearable: $size';
+  }
+
+  @override
+  String storageSpaceClearableHint(String size) {
+    return 'Clearable: $size';
+  }
+
+  @override
+  String storageSpaceFilesCount(int count) {
+    return '$count files';
+  }
+
+  @override
+  String get storageSpaceSafeToClearHint => 'Safe';
+
+  @override
+  String get storageSpaceNotSafeToClearHint => 'Caution';
+
+  @override
+  String get storageSpaceClearAvatarCacheButton => 'Clear avatars';
+
+  @override
+  String get storageSpaceClearCacheButton => 'Clear cache';
+
+  @override
+  String get storageSpaceClearLogsButton => 'Clear logs';
+
+  @override
+  String get storageSpaceBreakdownTitle => 'Breakdown';
+
+  @override
+  String get storageSpaceDeleteConfirmTitle => 'Delete';
+
+  @override
+  String storageSpaceDeleteUploadsConfirmMessage(int count) {
+    return 'Delete $count items?';
+  }
+
+  @override
+  String storageSpaceDeletedUploadsDone(int count) {
+    return 'Deleted $count items';
+  }
+
+  @override
+  String get storageSpaceNoUploads => 'No uploads';
+
+  @override
+  String get storageSpaceClearSelection => 'Clear';
+
+  @override
+  String get storageSpaceSelectAll => 'All';
+
+  @override
+  String storageSpaceSelectedCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String storageSpaceUploadsCount(int count) {
+    return '$count items';
+  }
+
+  @override
+  String get displaySettingsPageThemeSettingsTitle => 'Theme';
+
+  @override
+  String get displaySettingsPageLanguageTitle => 'Language';
+
+  @override
+  String get displaySettingsPageLanguageChineseLabel => 'Chinese';
+
+  @override
+  String get displaySettingsPageLanguageEnglishLabel => 'English';
+
+  @override
+  String get displaySettingsPageChatItemDisplayTitle => 'Chat View';
+
+  @override
+  String get displaySettingsPageRenderingSettingsTitle => 'Rendering';
+
+  @override
+  String get displaySettingsPageBehaviorStartupTitle => 'Behavior';
+
+  @override
+  String get displaySettingsPageHapticsSettingsTitle => 'Haptics';
+
+  @override
+  String get displaySettingsPageAndroidBackgroundChatTitle => 'Background';
+
+  @override
+  String get androidBackgroundStatusOff => 'Off';
+
+  @override
+  String get androidBackgroundStatusOn => 'On';
+
+  @override
+  String get androidBackgroundStatusOther => 'Notify';
+
+  @override
+  String get displaySettingsPageChatMessageBackgroundTitle => 'Background';
+
+  @override
+  String get displaySettingsPageChatMessageBackgroundFrosted => 'Frosted';
+
+  @override
+  String get displaySettingsPageChatMessageBackgroundSolid => 'Solid';
+
+  @override
+  String get displaySettingsPageChatMessageBackgroundDefault => 'Default';
+
+  @override
+  String get displaySettingsPageAppFontTitle => 'App Font';
+
+  @override
+  String get displaySettingsPageFontLocalFileLabel => 'Local';
+
+  @override
+  String get desktopFontFamilySystemDefault => 'Default';
+
+  @override
+  String get displaySettingsPageCodeFontTitle => 'Code Font';
+
+  @override
+  String get desktopFontFamilyMonospaceDefault => 'Mono';
+
+  @override
+  String get displaySettingsPageChatFontSizeTitle => 'Font Size';
+
+  @override
+  String get displaySettingsPageAutoScrollIdleTitle => 'Auto Scroll';
+
+  @override
+  String get displaySettingsPageAutoScrollDisabledLabel => 'Off';
+
+  @override
+  String get displaySettingsPageChatBackgroundMaskTitle => 'Mask';
+
+  @override
+  String get fontPickerChooseLocalFile => 'Local';
+
+  @override
+  String get fontPickerGetFromGoogleFonts => 'Google';
+
+  @override
+  String get displaySettingsPageFontResetLabel => 'Reset';
+
+  @override
+  String get androidBackgroundOptionOn => 'On';
+
+  @override
+  String get androidBackgroundOptionOnNotify => 'Notify';
+
+  @override
+  String get androidBackgroundOptionOff => 'Off';
+
+  @override
+  String get displaySettingsPageChatFontSampleText => 'Sample';
+
+  @override
+  String get displaySettingsPageAutoScrollEnableTitle => 'Auto Scroll';
+
+  @override
+  String get displaySettingsPageAutoScrollIdleSubtitle => 'Delay';
+
+  @override
+  String get displaySettingsPageShowUserAvatarTitle => 'User Avatar';
+
+  @override
+  String get displaySettingsPageShowUserNameTimestampTitle => 'User Name';
+
+  @override
+  String get displaySettingsPageShowUserMessageActionsTitle => 'Actions';
+
+  @override
+  String get displaySettingsPageChatModelIconTitle => 'Model Icon';
+
+  @override
+  String get displaySettingsPageShowModelNameTimestampTitle => 'Model Name';
+
+  @override
+  String get displaySettingsPageShowTokenStatsTitle => 'Stats';
+
+  @override
+  String get displaySettingsPageEnableDollarLatexTitle => 'Latex';
+
+  @override
+  String get displaySettingsPageEnableMathTitle => 'Math';
+
+  @override
+  String get displaySettingsPageEnableUserMarkdownTitle => 'Markdown';
+
+  @override
+  String get displaySettingsPageEnableReasoningMarkdownTitle => 'Reasoning';
+
+  @override
+  String get displaySettingsPageAutoCollapseCodeBlockTitle => 'Collapse Code';
+
+  @override
+  String get displaySettingsPageMobileCodeBlockWrapTitle => 'Wrap';
+
+  @override
+  String get displaySettingsPageAutoCollapseCodeBlockLinesTitle => 'Lines';
+
+  @override
+  String get displaySettingsPageAutoCollapseCodeBlockLinesUnit => 'lines';
+
+  @override
+  String get displaySettingsPageAutoCollapseThinkingTitle =>
+      'Collapse Thinking';
+
+  @override
+  String get displaySettingsPageShowUpdatesTitle => 'Updates';
+
+  @override
+  String get displaySettingsPageMessageNavButtonsTitle => 'Nav';
+
+  @override
+  String get displaySettingsPageShowChatListDateTitle => 'Dates';
+
+  @override
+  String get displaySettingsPageKeepSidebarOpenOnAssistantTapTitle =>
+      'Pin Sidebar';
+
+  @override
+  String get displaySettingsPageKeepSidebarOpenOnTopicTapTitle => 'Pin Topics';
+
+  @override
+  String get displaySettingsPageKeepAssistantListExpandedOnSidebarCloseTitle =>
+      'Expand';
+
+  @override
+  String get displaySettingsPageNewChatOnAssistantSwitchTitle =>
+      'Auto New Chat';
+
+  @override
+  String get displaySettingsPageNewChatAfterDeleteTitle => 'Auto New Chat';
+
+  @override
+  String get displaySettingsPageNewChatOnLaunchTitle => 'New Chat on Launch';
+
+  @override
+  String get displaySettingsPageHapticsGlobalTitle => 'Haptics';
+
+  @override
+  String get displaySettingsPageHapticsIosSwitchTitle => 'Haptics';
+
+  @override
+  String get displaySettingsPageHapticsOnSidebarTitle => 'Sidebar';
+
+  @override
+  String get displaySettingsPageHapticsOnListItemTapTitle => 'List';
+
+  @override
+  String get displaySettingsPageHapticsOnCardTapTitle => 'Card';
+
+  @override
+  String get displaySettingsPageHapticsOnGenerateTitle => 'Generate';
+
+  @override
+  String get assistantSettingsPageTitle => 'Assistants';
+
+  @override
+  String get assistantSettingsCopyButton => 'Copy';
+
+  @override
+  String get assistantSettingsDeleteButton => 'Delete';
+
+  @override
+  String get ttsServicesPageBackButton => 'Back';
+
+  @override
+  String get ttsServicesPageTitle => 'TTS';
+
+  @override
+  String get ttsServicesPageAddTooltip => 'Add';
+
+  @override
+  String get ttsServicesPageSystemTtsTitle => 'System';
+
+  @override
+  String get ttsServicesPageSystemTtsAvailableSubtitle => 'Available';
+
+  @override
+  String ttsServicesPageSystemTtsUnavailableSubtitle(String error) {
     return 'Error: $error';
   }
 
   @override
-  String get voiceChatErrorInitFailed =>
-      'Failed to initialize speech recognition';
+  String get ttsServicesPageSystemTtsUnavailableNotInitialized => 'Not init';
 
   @override
-  String get voiceChatProcessing => 'Processing...';
+  String get ttsServicesPageTestSpeechText => 'Test';
 
   @override
-  String voiceChatErrorApi(String error) {
-    return 'API Error: $error';
+  String get ttsServicesPageSystemTtsSettingsTitle => 'Settings';
+
+  @override
+  String get ttsServicesPageEngineLabel => 'Engine';
+
+  @override
+  String get ttsServicesPageAutoLabel => 'Auto';
+
+  @override
+  String get ttsServicesPageLanguageLabel => 'Lang';
+
+  @override
+  String get ttsServicesPageSpeechRateLabel => 'Rate';
+
+  @override
+  String get ttsServicesPagePitchLabel => 'Pitch';
+
+  @override
+  String get ttsServicesPageDoneButton => 'Done';
+
+  @override
+  String get ttsServicesPageSettingsSavedMessage => 'Saved';
+
+  @override
+  String get ttsServicesViewDetailsButton => 'Details';
+
+  @override
+  String get ttsServicesDialogErrorTitle => 'Error';
+
+  @override
+  String get ttsServicesCloseButton => 'Close';
+
+  @override
+  String get ttsServicesDialogAddTitle => 'Add';
+
+  @override
+  String get ttsServicesDialogEditTitle => 'Edit';
+
+  @override
+  String get ttsServicesDialogProviderType => 'Type';
+
+  @override
+  String get ttsServicesFieldNameLabel => 'Name';
+
+  @override
+  String get ttsServicesFieldApiKeyLabel => 'Key';
+
+  @override
+  String get ttsServicesFieldBaseUrlLabel => 'URL';
+
+  @override
+  String get ttsServicesFieldModelLabel => 'Model';
+
+  @override
+  String get ttsServicesFieldEmotionLabel => 'Emotion';
+
+  @override
+  String get ttsServicesFieldSpeedLabel => 'Speed';
+
+  @override
+  String get ttsServicesFieldVoiceLabel => 'Voice';
+
+  @override
+  String get ttsServicesFieldVoiceIdLabel => 'ID';
+
+  @override
+  String get backupPageImportFromCherryStudio => 'Cherry';
+
+  @override
+  String get backupPageCancel => 'Cancel';
+
+  @override
+  String get backupPageOK => 'OK';
+
+  @override
+  String get backupPageSelectImportMode => 'Mode';
+
+  @override
+  String get backupPageOverwriteMode => 'Overwrite';
+
+  @override
+  String get backupPageOverwriteModeDescription => 'Clear local';
+
+  @override
+  String get backupPageMergeMode => 'Merge';
+
+  @override
+  String get backupPageMergeModeDescription => 'Smart merge';
+
+  @override
+  String get backupPageExporting => 'Exporting';
+
+  @override
+  String get backupPageTitle => 'Backup';
+
+  @override
+  String get backupPageBackupManagement => 'Manage';
+
+  @override
+  String get backupPageChatsLabel => 'Chats';
+
+  @override
+  String get backupPageFilesLabel => 'Files';
+
+  @override
+  String get backupPageWebDavBackup => 'WebDAV';
+
+  @override
+  String get backupPageWebDavServerSettings => 'Settings';
+
+  @override
+  String get backupPageTestConnection => 'Test';
+
+  @override
+  String get backupPageTestDone => 'Done';
+
+  @override
+  String get backupPageRestore => 'Restore';
+
+  @override
+  String get backupPageRestartRequired => 'Restart';
+
+  @override
+  String get backupPageRestartContent => 'Restart app';
+
+  @override
+  String get backupPageBackupNow => 'Backup';
+
+  @override
+  String get backupPageBackupUploaded => 'Done';
+
+  @override
+  String get backupPageLocalBackup => 'Local';
+
+  @override
+  String get backupPageImportBackupFile => 'File';
+
+  @override
+  String get backupPageImportFromChatbox => 'Chatbox';
+
+  @override
+  String get backupPageRemoteBackups => 'Remote';
+
+  @override
+  String get backupPageNoBackups => 'Empty';
+
+  @override
+  String get backupPageSave => 'Save';
+
+  @override
+  String get backupPageWebDavServerUrl => 'URL';
+
+  @override
+  String get backupPagePassword => 'Pass';
+
+  @override
+  String get backupPagePath => 'Path';
+
+  @override
+  String instructionInjectionImportSuccess(int count) {
+    return 'Imported $count';
   }
 
   @override
-  String voiceChatErrorProcessingResponse(String error) {
-    return 'Error processing response: $error';
+  String get instructionInjectionBackTooltip => 'Back';
+
+  @override
+  String get instructionInjectionImportTooltip => 'Import';
+
+  @override
+  String get instructionInjectionAddTooltip => 'Add';
+
+  @override
+  String get instructionInjectionAddTitle => 'Add';
+
+  @override
+  String get networkProxyEnableLabel => 'Enabled';
+
+  @override
+  String get networkProxyType => 'Type';
+
+  @override
+  String get networkProxyServerHost => 'Host';
+
+  @override
+  String get networkProxyPort => 'Port';
+
+  @override
+  String get networkProxyUsername => 'User';
+
+  @override
+  String get networkProxyOptionalHint => 'Optional';
+
+  @override
+  String get networkProxyPassword => 'Pass';
+
+  @override
+  String get networkProxyPriorityNote => 'Priority note';
+
+  @override
+  String get networkProxyTestHeader => 'Test';
+
+  @override
+  String get networkProxyTestUrlHint => 'URL';
+
+  @override
+  String get networkProxyTesting => 'Testing';
+
+  @override
+  String get networkProxyTestButton => 'Test';
+
+  @override
+  String get networkProxyTestSuccess => 'OK';
+
+  @override
+  String networkProxyTestFailed(String error) {
+    return 'Failed: $error';
   }
 
   @override
-  String voiceChatErrorTts(String error) {
-    return 'TTS Error: $error';
-  }
+  String get networkProxyNoUrl => 'No URL';
 
   @override
-  String get voiceChatErrorNoModel => 'Please select a model first';
+  String get networkProxyTypeHttps => 'HTTPS';
 
   @override
-  String get voiceChatErrorNoConversation => 'Conversation not found';
+  String get networkProxyTypeSocks5 => 'SOCKS5';
 
   @override
-  String get voiceChatErrorNoActiveConversation => 'No active conversation';
+  String get networkProxyTypeHttp => 'HTTP';
 
   @override
-  String voiceChatSystemPrompt(String text) {
-    return 'You are in a voice conversation. Use informal, conversational language, and keep the conversation simple and clear. $text';
-  }
+  String get assistantEditRegexDescription => 'Regex rules';
 
   @override
-  String get providerDetailPageBatchDetectButton => 'Detect';
+  String get assistantEditAddRegexButton => 'Add Regex';
 
   @override
-  String get providerDetailPageBatchDetecting => 'Detecting...';
+  String get assistantRegexUntitled => 'Untitled';
 
   @override
-  String get providerDetailPageBatchDetectStart => 'Start Detection';
+  String get assistantRegexDeleteButton => 'Delete';
 
   @override
-  String get providerDetailPageDetectSuccess => 'Detection successful';
+  String get assistantRegexScopeUser => 'User';
 
   @override
-  String get providerDetailPageDetectFailed => 'Detection failed';
+  String get assistantRegexScopeAssistant => 'AI';
 
   @override
-  String get providerDetailPageDeleteAllModelsWarning =>
-      'This action cannot be undone.';
+  String get assistantRegexScopeVisualOnly => 'Visual';
 
   @override
-  String get requestLogSettingTitle => 'Request Logging';
+  String get assistantRegexValidationError => 'Error';
 
   @override
-  String get requestLogSettingSubtitle =>
-      'When enabled, request/response details are written to logs/logs.txt (rotated daily).';
+  String get assistantRegexInvalidPattern => 'Invalid';
 
   @override
-  String get flutterLogSettingTitle => 'Flutter Logging';
+  String get assistantRegexAddTitle => 'Add';
 
   @override
-  String get flutterLogSettingSubtitle =>
-      'When enabled, Flutter errors and print output are written to logs/flutter_logs.txt (rotated daily).';
-
-  @override
-  String get logViewerTitle => 'Request Logs';
-
-  @override
-  String get logViewerEmpty => 'No logs yet';
-
-  @override
-  String get logViewerCurrentLog => 'Current Log';
-
-  @override
-  String get logViewerExport => 'Export';
-
-  @override
-  String get logViewerOpenFolder => 'Open Logs Folder';
-
-  @override
-  String get assistantEditManageSummariesTitle => 'Manage Summaries';
-
-  @override
-  String get assistantEditSummaryEmpty => 'No summaries yet';
-
-  @override
-  String get assistantEditSummaryDialogTitle => 'Edit Summary';
-
-  @override
-  String get assistantEditSummaryDialogHint => 'Enter summary content';
-
-  @override
-  String get assistantEditDeleteSummaryTitle => 'Clear Summary';
-
-  @override
-  String get assistantEditDeleteSummaryContent =>
-      'Are you sure you want to clear this summary?';
-
-  @override
-  String get assistantEditPageRegexTab => 'Regex';
-
-  @override
-  String get assistantEditRegexDescription =>
-      'Customize text replacement rules using regular expressions.';
-
-  @override
-  String get assistantEditAddRegexButton => 'Add Regex Rule';
-
-  @override
-  String get assistantRegexUntitled => 'Untitled Rule';
-
-  @override
-  String get assistantRegexDeleteButton => 'Delete Rule';
-
-  @override
-  String get assistantRegexScopeUser => 'User Message';
-
-  @override
-  String get assistantRegexScopeAssistant => 'AI Response';
-
-  @override
-  String get assistantRegexScopeVisualOnly => 'Visual Only';
-
-  @override
-  String get assistantRegexValidationError =>
-      'Please fill in all required fields.';
-
-  @override
-  String get assistantRegexInvalidPattern =>
-      'Invalid regular expression pattern.';
-
-  @override
-  String get assistantRegexAddTitle => 'Add Regex Rule';
-
-  @override
-  String get assistantRegexEditTitle => 'Edit Regex Rule';
+  String get assistantRegexEditTitle => 'Edit';
 
   @override
   String get assistantRegexAddAction => 'Add';
@@ -3763,13 +2581,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantRegexSaveAction => 'Save';
 
   @override
-  String get assistantRegexNameLabel => 'Rule Name';
+  String get assistantRegexNameLabel => 'Name';
 
   @override
-  String get assistantRegexPatternLabel => 'Regex Pattern';
+  String get assistantRegexPatternLabel => 'Regex';
 
   @override
-  String get assistantRegexReplacementLabel => 'Replacement Text';
+  String get assistantRegexReplacementLabel => 'Replacement';
 
   @override
   String get assistantRegexScopeLabel => 'Scope';
@@ -3778,31 +2596,566 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantRegexCancelButton => 'Cancel';
 
   @override
-  String get instructionInjectionImportTooltip => 'Import';
+  String get themeSettingsPageDynamicColorSection => 'Dynamic';
 
   @override
-  String instructionInjectionImportSuccess(int count) {
-    return 'Successfully imported $count items.';
+  String get themeSettingsPageUseDynamicColorTitle => 'Enabled';
+
+  @override
+  String get themeSettingsPageUseDynamicColorSubtitle => 'System color';
+
+  @override
+  String get themeSettingsPageUsePureBackgroundTitle => 'Pure';
+
+  @override
+  String get themeSettingsPageUsePureBackgroundSubtitle => 'Solid';
+
+  @override
+  String get fontPickerFilterHint => 'Filter';
+
+  @override
+  String get logViewerTitle => 'Logs';
+
+  @override
+  String get logViewerEmpty => 'Empty';
+
+  @override
+  String get logViewerCurrentLog => 'Current';
+
+  @override
+  String get logViewerExport => 'Export';
+
+  @override
+  String get chatHistoryPageTitle => 'History';
+
+  @override
+  String get chatHistoryPageSearchTooltip => 'Search';
+
+  @override
+  String get chatHistoryPageDeleteAllTooltip => 'Delete All';
+
+  @override
+  String get chatHistoryPageDeleteAllDialogTitle => 'Clear';
+
+  @override
+  String get chatHistoryPageDeleteAllDialogContent => 'Delete all?';
+
+  @override
+  String get chatHistoryPageCancel => 'Cancel';
+
+  @override
+  String get chatHistoryPageDelete => 'Delete';
+
+  @override
+  String get chatHistoryPageDeletedAllSnackbar => 'Cleared';
+
+  @override
+  String get chatHistoryPageSearchHint => 'Search';
+
+  @override
+  String get chatHistoryPageNoConversations => 'Empty';
+
+  @override
+  String get chatHistoryPagePinnedSection => 'Pinned';
+
+  @override
+  String get chatHistoryPagePinned => 'Pinned';
+
+  @override
+  String get chatHistoryPagePin => 'Pin';
+
+  @override
+  String get assistantTagsCreateDialogTitle => 'Create';
+
+  @override
+  String get assistantTagsNameHint => 'Name';
+
+  @override
+  String get assistantTagsCreateDialogCancel => 'Cancel';
+
+  @override
+  String get assistantTagsCreateDialogOk => 'OK';
+
+  @override
+  String get assistantTagsRenameDialogTitle => 'Rename';
+
+  @override
+  String get assistantTagsRenameDialogOk => 'OK';
+
+  @override
+  String get assistantTagsDeleteConfirmTitle => 'Delete';
+
+  @override
+  String get assistantTagsDeleteConfirmContent => 'Delete?';
+
+  @override
+  String get assistantTagsDeleteConfirmCancel => 'Cancel';
+
+  @override
+  String get assistantTagsDeleteConfirmOk => 'OK';
+
+  @override
+  String get assistantTagsManageTitle => 'Tags';
+
+  @override
+  String get sideDrawerChooseAssistantTitle => 'Choose';
+
+  @override
+  String get searchServicesPageAtLeastOneServiceRequired => 'Service required';
+
+  @override
+  String get modelDetailSheetChatType => 'Chat';
+
+  @override
+  String get modelDetailSheetEmbeddingType => 'Embedding';
+
+  @override
+  String get providerDetailPageMultiKeyModeTitle => 'Multi-Key';
+
+  @override
+  String get providerDetailPageResponseApiTitle => 'Response API';
+
+  @override
+  String get providerDetailPageVertexAiTitle => 'Vertex AI';
+
+  @override
+  String get providerDetailPageAihubmixAppCodeLabel => 'APP-Code';
+
+  @override
+  String get providerDetailPageAihubmixAppCodeHelp => 'Discount code';
+
+  @override
+  String get providerDetailPageProviderTypeTitle => 'Type';
+
+  @override
+  String get providerDetailPageDeleteAllModelsWarning => 'Delete all?';
+
+  @override
+  String get shareProviderSheetShareButton => 'Share';
+
+  @override
+  String get assistantEditImageUrlDialogCancel => 'Cancel';
+
+  @override
+  String get assistantEditImageUrlDialogSave => 'Save';
+
+  @override
+  String get assistantEditQQAvatarDialogTitle => 'QQ Avatar';
+
+  @override
+  String get assistantEditQQAvatarDialogHint => 'QQ Number';
+
+  @override
+  String get assistantEditQQAvatarRandomButton => 'Random';
+
+  @override
+  String get assistantEditQQAvatarFailedMessage => 'Failed';
+
+  @override
+  String get assistantEditQQAvatarDialogCancel => 'Cancel';
+
+  @override
+  String get assistantEditQQAvatarDialogSave => 'Save';
+
+  @override
+  String get assistantEditGalleryErrorMessage => 'Error';
+
+  @override
+  String get assistantEditGeneralErrorMessage => 'Error';
+
+  @override
+  String get assistantEditSystemPromptImportEmpty => 'Empty';
+
+  @override
+  String get assistantEditSystemPromptImportSuccess => 'Success';
+
+  @override
+  String assistantEditSystemPromptImportFailed(String error) {
+    return 'Failed: $error';
   }
 
   @override
-  String instructionInjectionImportFailed(String error) {
-    return 'Import failed: $error';
+  String get assistantEditSampleUser => 'User';
+
+  @override
+  String get assistantEditSampleMessage => 'Hello';
+
+  @override
+  String get assistantEditSampleReply => 'Hi';
+
+  @override
+  String get assistantEditSystemPromptTitle => 'System Prompt';
+
+  @override
+  String get assistantEditSystemPromptImportButton => 'Import';
+
+  @override
+  String get assistantEditSystemPromptHint => 'Prompt';
+
+  @override
+  String get assistantEditAvailableVariables => 'Variables';
+
+  @override
+  String get assistantEditVariableDate => 'Date';
+
+  @override
+  String get assistantEditVariableTime => 'Time';
+
+  @override
+  String get assistantEditVariableDatetime => 'DateTime';
+
+  @override
+  String get assistantEditVariableModelId => 'Model ID';
+
+  @override
+  String get assistantEditVariableModelName => 'Model Name';
+
+  @override
+  String get assistantEditVariableLocale => 'Locale';
+
+  @override
+  String get assistantEditVariableTimezone => 'Timezone';
+
+  @override
+  String get assistantEditVariableSystemVersion => 'OS Version';
+
+  @override
+  String get assistantEditVariableDeviceInfo => 'Device';
+
+  @override
+  String get assistantEditVariableBatteryLevel => 'Battery';
+
+  @override
+  String get assistantEditVariableNickname => 'Nickname';
+
+  @override
+  String get assistantEditVariableAssistantName => 'Name';
+
+  @override
+  String get assistantEditMessageTemplateTitle => 'Template';
+
+  @override
+  String get assistantEditVariableRole => 'Role';
+
+  @override
+  String get assistantEditVariableMessage => 'Message';
+
+  @override
+  String get assistantEditPresetAddUser => 'Add User';
+
+  @override
+  String get assistantEditPresetAddAssistant => 'Add AI';
+
+  @override
+  String get assistantEditPresetTitle => 'Preset';
+
+  @override
+  String get assistantEditPresetEmpty => 'Empty';
+
+  @override
+  String get assistantEditPresetInputHintAssistant => 'AI';
+
+  @override
+  String get assistantEditPresetInputHintUser => 'User';
+
+  @override
+  String get assistantEditPresetEditDialogTitle => 'Edit';
+
+  @override
+  String get assistantEditMcpConnectedTag => 'Connected';
+
+  @override
+  String get assistantEditQuickPhraseDescription => 'Quick phrases';
+
+  @override
+  String get assistantEditAddQuickPhraseButton => 'Add';
+
+  @override
+  String get assistantEditTemperatureTitle => 'Temp';
+
+  @override
+  String get assistantEditTopPTitle => 'Top P';
+
+  @override
+  String get mermaidPreviewOpenFailed => 'Open failed';
+
+  @override
+  String get qrScanPageTitle => 'Scan QR';
+
+  @override
+  String get qrScanPageInstruction => 'Align QR code';
+
+  @override
+  String get defaultModelPageBackTooltip => 'Back';
+
+  @override
+  String get defaultModelPageTitle => 'Default Model';
+
+  @override
+  String defaultModelPageTitleVars(String contentVar, String localeVar) {
+    return '$contentVar $localeVar';
   }
 
   @override
-  String get assistantEditSystemPromptImportButton => 'Import Prompt';
-
-  @override
-  String get assistantEditSystemPromptImportEmpty =>
-      'No prompts found in file.';
-
-  @override
-  String get assistantEditSystemPromptImportSuccess =>
-      'Prompt imported successfully.';
-
-  @override
-  String assistantEditSystemPromptImportFailed(Object error) {
-    return 'Failed to import prompt: $error';
+  String defaultModelPageTranslateVars(String sourceVar, String targetVar) {
+    return '$sourceVar $targetVar';
   }
+
+  @override
+  String defaultModelPageSummaryVars(
+    String previousSummaryVar,
+    String userMessagesVar,
+  ) {
+    return '$previousSummaryVar $userMessagesVar';
+  }
+
+  @override
+  String get messageEditPageSave => 'Save';
+
+  @override
+  String get chatMessageWidgetTranslating => 'Translating...';
+
+  @override
+  String get messageExportSheetAssistant => 'Assistant';
+
+  @override
+  String get messageExportSheetDefaultTitle => 'New Chat';
+
+  @override
+  String messageExportSheetExportedAs(String filename) {
+    return 'Exported as $filename';
+  }
+
+  @override
+  String messageExportSheetExportFailed(String error) {
+    return 'Failed: $error';
+  }
+
+  @override
+  String get messageExportSheetFormatTitle => 'Format';
+
+  @override
+  String get multiKeyPageTitle => 'Keys';
+
+  @override
+  String get multiKeyPageDeleteErrorsTooltip => 'Delete errors';
+
+  @override
+  String get multiKeyPageDetect => 'Detect';
+
+  @override
+  String get multiKeyPageAdd => 'Add';
+
+  @override
+  String get multiKeyPageTotal => 'Total';
+
+  @override
+  String get multiKeyPageNormal => 'Normal';
+
+  @override
+  String get multiKeyPageError => 'Error';
+
+  @override
+  String get multiKeyPageStrategyPriority => 'Priority';
+
+  @override
+  String get multiKeyPageStrategyLeastUsed => 'Least Used';
+
+  @override
+  String get multiKeyPageStrategyRandom => 'Random';
+
+  @override
+  String get multiKeyPageStrategyRoundRobin => 'Round Robin';
+
+  @override
+  String get multiKeyPageStrategyTitle => 'Strategy';
+
+  @override
+  String get multiKeyPageNoKeys => 'No keys';
+
+  @override
+  String get multiKeyPageStatusActive => 'Active';
+
+  @override
+  String get multiKeyPageStatusDisabled => 'Disabled';
+
+  @override
+  String get multiKeyPageStatusError => 'Error';
+
+  @override
+  String get multiKeyPageStatusRateLimited => 'Limited';
+
+  @override
+  String get multiKeyPageEdit => 'Edit';
+
+  @override
+  String get multiKeyPageDelete => 'Delete';
+
+  @override
+  String get multiKeyPageDeleteSnackbarDeletedOne => 'Deleted';
+
+  @override
+  String get multiKeyPageUndo => 'Undo';
+
+  @override
+  String get multiKeyPageUndoRestored => 'Restored';
+
+  @override
+  String get multiKeyPageDuplicateKeyWarning => 'Duplicate';
+
+  @override
+  String multiKeyPageImportedSnackbar(int n) {
+    return 'Imported $n';
+  }
+
+  @override
+  String get multiKeyPagePleaseAddModel => 'Add model';
+
+  @override
+  String get multiKeyPageDeleteErrorsConfirmTitle => 'Delete errors';
+
+  @override
+  String get multiKeyPageDeleteErrorsConfirmContent => 'Delete all error keys?';
+
+  @override
+  String multiKeyPageDeletedErrorsSnackbar(int n) {
+    return 'Deleted $n';
+  }
+
+  @override
+  String get multiKeyPageAlias => 'Alias';
+
+  @override
+  String get multiKeyPagePriority => 'Priority';
+
+  @override
+  String get multiKeyPageSave => 'Save';
+
+  @override
+  String get multiKeyPageCancel => 'Cancel';
+
+  @override
+  String get multiKeyPageAddHint => 'Keys';
+
+  @override
+  String get codeBlockPreviewButton => 'Preview';
+
+  @override
+  String get htmlPreviewNotSupportedOnLinux => 'Not on Linux';
+
+  @override
+  String codeBlockCollapsedLines(int n) {
+    return '$n lines';
+  }
+
+  @override
+  String get mermaidExportFailed => 'Failed';
+
+  @override
+  String get mermaidPreviewOpen => 'Open';
+
+  @override
+  String imageViewerPageSaveFailed(String error) {
+    return 'Failed: $error';
+  }
+
+  @override
+  String get imageViewerPageSaveSuccess => 'Saved';
+
+  @override
+  String get imageViewerPageSaveButton => 'Save';
+
+  @override
+  String imageViewerPageShareFailed(String error) {
+    return 'Failed: $error';
+  }
+
+  @override
+  String imageViewerPageShareFailedOpenFile(String message) {
+    return 'Failed: $message';
+  }
+
+  @override
+  String get desktopNavTranslateTooltip => 'Translate';
+
+  @override
+  String get translatePagePasteButton => 'Paste';
+
+  @override
+  String get translatePageCopyResult => 'Copy';
+
+  @override
+  String get translatePageClearAll => 'Clear';
+
+  @override
+  String get translatePageInputHint => 'Input';
+
+  @override
+  String get translatePageOutputHint => 'Output';
+
+  @override
+  String get chatMessageWidgetStopTooltip => 'Stop';
+
+  @override
+  String get chatMessageWidgetTranslateTooltip => 'Translate';
+
+  @override
+  String get assistantEditTemperatureDescription => 'Temp desc';
+
+  @override
+  String get assistantEditTopPDescription => 'Top P desc';
+
+  @override
+  String get assistantEditMaxTokensDescription => 'Max tokens desc';
+
+  @override
+  String get defaultModelPageUseCurrentModel => 'Use current';
+
+  @override
+  String get defaultModelPageChatModelTitle => 'Chat Model';
+
+  @override
+  String get defaultModelPageChatModelSubtitle => 'Default chat model';
+
+  @override
+  String get defaultModelPageTitleModelTitle => 'Title Model';
+
+  @override
+  String get defaultModelPageTitleModelSubtitle => 'Summarize titles';
+
+  @override
+  String get defaultModelPageSummaryModelTitle => 'Summary Model';
+
+  @override
+  String get defaultModelPageSummaryModelSubtitle => 'Summarize conversations';
+
+  @override
+  String get defaultModelPageTranslateModelTitle => 'Translate Model';
+
+  @override
+  String get defaultModelPageTranslateModelSubtitle => 'Translation model';
+
+  @override
+  String get defaultModelPageOcrModelTitle => 'OCR Model';
+
+  @override
+  String get defaultModelPageOcrModelSubtitle => 'OCR model';
+
+  @override
+  String get defaultModelPageTitlePromptHint => 'Title prompt hint';
+
+  @override
+  String get defaultModelPageTranslatePromptHint => 'Translate prompt hint';
+
+  @override
+  String get defaultModelPageSummaryPromptHint => 'Summary prompt hint';
+
+  @override
+  String get assistantEditEmojiDialogTitle => 'Emoji';
+
+  @override
+  String get assistantEditEmojiDialogHint => 'Pick an emoji';
+
+  @override
+  String get importProviderSheetCancelButton => 'Cancel';
 }

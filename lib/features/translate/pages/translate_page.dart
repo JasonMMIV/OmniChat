@@ -53,7 +53,7 @@ class _TranslatePageState extends State<TranslatePage> {
     final lc = Localizations.localeOf(context).languageCode.toLowerCase();
     setState(() {
       if (lc.startsWith('zh')) {
-        _lang = supportedLanguages.firstWhere((e) => e.code == 'zh-CN', orElse: () => supportedLanguages.first);
+        _lang = supportedLanguages.firstWhere((e) => e.code == 'zh-TW', orElse: () => supportedLanguages.first);
       } else {
         _lang = supportedLanguages.firstWhere((e) => e.code == 'en', orElse: () => supportedLanguages.first);
       }

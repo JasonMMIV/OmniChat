@@ -21,6 +21,7 @@ import 'dart:ui' as ui show ImageFilter;
 import '../../../shared/widgets/ios_tile_button.dart';
 import '../../../shared/widgets/ios_checkbox.dart';
 import '../widgets/provider_avatar.dart';
+import '../widgets/provider_balance_text.dart';
 
 class ProvidersPage extends StatefulWidget {
   const ProvidersPage({super.key});
@@ -491,23 +492,39 @@ class _ProviderRow extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      (cfg.name.isNotEmpty ? cfg.name : provider.name),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 15, color: color, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: statusBg,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      enabled ? l10n.providersPageEnabledStatus : l10n.providersPageDisabledStatus,
-                      style: TextStyle(fontSize: 11, color: statusFg),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                (cfg.name.isNotEmpty ? cfg.name : provider.name),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 15, color: color, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: statusBg,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                enabled ? l10n.providersPageEnabledStatus : l10n.providersPageDisabledStatus,
+                                style: TextStyle(fontSize: 11, color: statusFg),
+                              ),
+                            ),
+                          ],
+                        ),
+                        ProviderBalanceText(
+                          providerKey: provider.keyName,
+                          style: TextStyle(fontSize: 11, color: color.withOpacity(0.55)),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 8),

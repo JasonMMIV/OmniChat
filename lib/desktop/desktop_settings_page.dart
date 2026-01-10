@@ -55,6 +55,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import '../features/provider/widgets/provider_avatar.dart';
+import '../features/provider/widgets/provider_balance_text.dart';
 import '../features/provider/widgets/share_provider_sheet.dart' show encodeProviderConfig;
 import '../utils/clipboard_images.dart';
 
@@ -1247,6 +1248,8 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
   final TextEditingController _projectIdCtrl = TextEditingController();
   final TextEditingController _saJsonCtrl = TextEditingController();
   final TextEditingController _apiPathCtrl = TextEditingController();
+  final TextEditingController _balanceApiPathCtrl = TextEditingController();
+  final TextEditingController _balanceResultKeyCtrl = TextEditingController();
 
   void _syncCtrl(TextEditingController c, String newText) {
     final v = c.value;
@@ -1267,6 +1270,8 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
     _syncCtrl(_locationCtrl, cfg.location ?? '');
     _syncCtrl(_projectIdCtrl, cfg.projectId ?? '');
     _syncCtrl(_saJsonCtrl, cfg.serviceAccountJson ?? '');
+    _syncCtrl(_balanceApiPathCtrl, cfg.balanceApiPath ?? '');
+    _syncCtrl(_balanceResultKeyCtrl, cfg.balanceResultKey ?? '');
   }
 
   @override
@@ -1279,6 +1284,8 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
     _projectIdCtrl.dispose();
     _saJsonCtrl.dispose();
     _apiPathCtrl.dispose();
+    _balanceApiPathCtrl.dispose();
+    _balanceResultKeyCtrl.dispose();
     super.dispose();
   }
 
@@ -1794,6 +1801,64 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
                 ),
               ],
 
+              // Balance settings
+              const SizedBox(height: 14),
+              _rowSwitch(
+                context,
+                label: l10n.providerDetailPageBalanceEnabled,
+                value: cfg.balanceEnabled ?? false,
+                onChanged: (v) async {
+                  final old = sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
+                  await sp.setProviderConfig(widget.providerKey, old.copyWith(balanceEnabled: v));
+                },
+              ),
+              if (cfg.balanceEnabled == true) ...[
+                const SizedBox(height: 14),
+                _sectionLabel(context, l10n.providerDetailPageBalanceApiPath, bold: true),
+                const SizedBox(height: 6),
+                Focus(
+                  onFocusChange: (has) async {
+                    if (!has) {
+                      final v = _balanceApiPathCtrl.text.trim();
+                      final old = sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
+                      await sp.setProviderConfig(widget.providerKey, old.copyWith(balanceApiPath: v));
+                    }
+                  },
+                  child: TextField(
+                    controller: _balanceApiPathCtrl,
+                    onChanged: (v) async {
+                      if (_balanceApiPathCtrl.value.composing.isValid) return;
+                      final old = sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
+                      await sp.setProviderConfig(widget.providerKey, old.copyWith(balanceApiPath: v.trim()));
+                    },
+                    style: const TextStyle(fontSize: 14),
+                    decoration: _inputDecoration(context).copyWith(hintText: '/user/balance'),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _sectionLabel(context, l10n.providerDetailPageBalanceResultKey, bold: true),
+                const SizedBox(height: 6),
+                Focus(
+                  onFocusChange: (has) async {
+                    if (!has) {
+                      final v = _balanceResultKeyCtrl.text.trim();
+                      final old = sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
+                      await sp.setProviderConfig(widget.providerKey, old.copyWith(balanceResultKey: v));
+                    }
+                  },
+                  child: TextField(
+                    controller: _balanceResultKeyCtrl,
+                    onChanged: (v) async {
+                      if (_balanceResultKeyCtrl.value.composing.isValid) return;
+                      final old = sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
+                      await sp.setProviderConfig(widget.providerKey, old.copyWith(balanceResultKey: v.trim()));
+                    },
+                    style: const TextStyle(fontSize: 14),
+                    decoration: _inputDecoration(context).copyWith(hintText: 'data.totalBalance'),
+                  ),
+                ),
+              ],
+
               const SizedBox(height: 18),
               // Models header with count + search + actions (test / add / fetch)
               Row(
@@ -2051,6 +2116,8 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
         final proxyPortCtrl = TextEditingController(text: cfg.proxyPort ?? '8080');
         final proxyUserCtrl = TextEditingController(text: cfg.proxyUsername ?? '');
         final proxyPassCtrl = TextEditingController(text: cfg.proxyPassword ?? '');
+        final balanceApiPathCtrl = TextEditingController(text: cfg.balanceApiPath ?? '');
+        final balanceResultKeyCtrl = TextEditingController(text: cfg.balanceResultKey ?? '');
         ProviderKind tmpKind = kind;
         bool tmpMulti = multi;
         bool tmpResp = openaiResp;
@@ -2079,12 +2146,15 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
               syncCtrl(proxyPortCtrl, cfgNow.proxyPort ?? '8080');
               syncCtrl(proxyUserCtrl, cfgNow.proxyUsername ?? '');
               syncCtrl(proxyPassCtrl, cfgNow.proxyPassword ?? '');
+              syncCtrl(balanceApiPathCtrl, cfgNow.balanceApiPath ?? '');
+              syncCtrl(balanceResultKeyCtrl, cfgNow.balanceResultKey ?? '');
               final kindNow = cfgNow.providerType ?? ProviderConfig.classify(cfgNow.id, explicitType: cfgNow.providerType);
               final multiNow = cfgNow.multiKeyEnabled ?? false;
               final respNow = cfgNow.useResponseApi ?? false;
               final vertexNow = cfgNow.vertexAI ?? false;
               final proxyEnabledNow = cfgNow.proxyEnabled ?? false;
               final aihubmixAppCodeEnabled = cfgNow.aihubmixAppCodeEnabled ?? false;
+              final balanceEnabledNow = cfgNow.balanceEnabled ?? false;
               Widget row(String label, Widget trailing) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(children: [
@@ -2342,6 +2412,65 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
                           ]),
                         ),
                         crossFadeState: proxyEnabledNow ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                        duration: const Duration(milliseconds: 180),
+                        sizeCurve: Curves.easeOutCubic,
+                      ),
+                      const SizedBox(height: 4),
+                      row(l10n.providerDetailPageBalanceEnabled, Align(alignment: Alignment.centerRight, child: IosSwitch(value: balanceEnabledNow, onChanged: (v) async {
+                        final old = spWatch.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
+                        await spWatch.setProviderConfig(widget.providerKey, old.copyWith(balanceEnabled: v));
+                      }))),
+                      if (balanceEnabledNow)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: SizedBox(
+                              width: 260,
+                              child: ProviderBalanceText(
+                                providerKey: widget.providerKey,
+                                style: TextStyle(fontSize: 13, color: cs.primary),
+                              ),
+                            ),
+                          ),
+                        ),
+                      AnimatedCrossFade(
+                        firstChild: const SizedBox.shrink(),
+                        secondChild: Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                            row(l10n.providerDetailPageBalanceApiPath, Focus(
+                              onFocusChange: (has) async {
+                                if (!has) {
+                                  final v = balanceApiPathCtrl.text.trim();
+                                  final old = spWatch.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
+                                  await spWatch.setProviderConfig(widget.providerKey, old.copyWith(balanceApiPath: v));
+                                }
+                              },
+                              child: TextField(controller: balanceApiPathCtrl, style: const TextStyle(fontSize: 13), decoration: _inputDecoration(ctx).copyWith(hintText: '/user/balance'), onChanged: (_) async {
+                                if (balanceApiPathCtrl.value.composing.isValid) return;
+                                final old = spWatch.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
+                                await spWatch.setProviderConfig(widget.providerKey, old.copyWith(balanceApiPath: balanceApiPathCtrl.text.trim()));
+                              }),
+                            )),
+                            const SizedBox(height: 4),
+                            row(l10n.providerDetailPageBalanceResultKey, Focus(
+                              onFocusChange: (has) async {
+                                if (!has) {
+                                  final v = balanceResultKeyCtrl.text.trim();
+                                  final old = spWatch.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
+                                  await spWatch.setProviderConfig(widget.providerKey, old.copyWith(balanceResultKey: v));
+                                }
+                              },
+                              child: TextField(controller: balanceResultKeyCtrl, style: const TextStyle(fontSize: 13), decoration: _inputDecoration(ctx).copyWith(hintText: 'data.totalBalance'), onChanged: (_) async {
+                                if (balanceResultKeyCtrl.value.composing.isValid) return;
+                                final old = spWatch.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
+                                await spWatch.setProviderConfig(widget.providerKey, old.copyWith(balanceResultKey: balanceResultKeyCtrl.text.trim()));
+                              }),
+                            )),
+                          ]),
+                        ),
+                        crossFadeState: balanceEnabledNow ? CrossFadeState.showSecond : CrossFadeState.showFirst,
                         duration: const Duration(milliseconds: 180),
                         sizeCurve: Curves.easeOutCubic,
                       ),
@@ -3931,7 +4060,17 @@ class _ProviderListRowState extends State<_ProviderListRow> {
               ProviderAvatar(providerKey: widget.keyName, displayName: widget.name, size: 22),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(widget.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(widget.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    ProviderBalanceText(
+                      providerKey: widget.keyName,
+                      style: TextStyle(fontSize: 10, color: cs.onSurface.withOpacity(0.4)),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(width: 8),
               Container(
@@ -6129,7 +6268,7 @@ class _DesktopAppFontRow extends StatelessWidget {
                 context,
                 title: l10n.desktopFontAppLabel,
                 initial: sp.appFontFamily,
-                showSystemDefault: false,
+                showSystemDefault: true,
               );
               if (fam == null) return;
               if (fam == '__SYSTEM__') {
@@ -6177,7 +6316,7 @@ class _DesktopCodeFontRow extends StatelessWidget {
                 context,
                 title: l10n.desktopFontCodeLabel,
                 initial: sp.codeFontFamily,
-                showMonospaceDefault: false,
+                showMonospaceDefault: true,
               );
               if (fam == null) return;
               if (fam == '__MONO__') {
@@ -6370,6 +6509,15 @@ Future<String?> _showDesktopFontChooserDialog(
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 10),
+                  if (ctrl.text.trim().isEmpty && (showSystemDefault || showMonospaceDefault)) ...[
+                    _FontRowItem(
+                      family: showSystemDefault ? l10n.desktopFontFamilySystemDefault : l10n.desktopFontFamilyMonospaceDefault,
+                      selected: initial == null || initial.isEmpty,
+                      onTap: () => Navigator.of(ctx).pop(showSystemDefault ? '__SYSTEM__' : '__MONO__'),
+                      isSpecial: true,
+                    ),
+                    const Divider(height: 1),
+                  ],
                   Expanded(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
@@ -6402,10 +6550,11 @@ Future<String?> _showDesktopFontChooserDialog(
 }
 
 class _FontRowItem extends StatefulWidget {
-  const _FontRowItem({required this.family, required this.onTap, this.selected = false});
+  const _FontRowItem({required this.family, required this.onTap, this.selected = false, this.isSpecial = false});
   final String family;
   final VoidCallback onTap;
   final bool selected;
+  final bool isSpecial;
   @override
   State<_FontRowItem> createState() => _FontRowItemState();
 }
@@ -6421,6 +6570,7 @@ class _FontRowItemState extends State<_FontRowItem> {
     super.initState();
     // Lazy-load this row's font family for preview (only for visible items)
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (widget.isSpecial) return;
       final fam = widget.family;
       if (_loadedSystemFontFamilies.contains(fam) || _loadingSystemFontFamilies.contains(fam)) return;
       _loadingSystemFontFamilies.add(fam);
@@ -6465,7 +6615,7 @@ class _FontRowItemState extends State<_FontRowItem> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Text(sample, style: TextStyle(fontFamily: widget.family, fontSize: 16, color: cs.onSurface, decoration: TextDecoration.none)),
+                    Text(sample, style: TextStyle(fontFamily: widget.isSpecial ? null : widget.family, fontSize: 16, color: cs.onSurface, decoration: TextDecoration.none)),
                   ],
                 ),
               ),

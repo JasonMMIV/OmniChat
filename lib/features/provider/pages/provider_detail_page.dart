@@ -26,6 +26,7 @@ import 'multi_key_manager_page.dart';
 import 'provider_network_page.dart';
 import '../../../core/services/haptics.dart';
 import '../../provider/widgets/provider_avatar.dart';
+import '../../provider/widgets/provider_balance_text.dart';
 import '../../../utils/model_grouping.dart';
 
 class ProviderDetailPage extends StatefulWidget {
@@ -72,6 +73,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   String? _currentDetectingModel;
   final Set<String> _pendingModels = {};
   bool _aihubmixAppCodeEnabled = false;
+  bool _balanceEnabled = false;
+  final _balanceApiPathCtrl = TextEditingController();
+  final _balanceResultKeyCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -97,6 +101,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     _proxyPassCtrl.text = _cfg.proxyPassword ?? '';
     _multiKeyEnabled = _cfg.multiKeyEnabled ?? false;
     _aihubmixAppCodeEnabled = _cfg.aihubmixAppCodeEnabled ?? false;
+    _balanceEnabled = _cfg.balanceEnabled ?? false;
+    _balanceApiPathCtrl.text = _cfg.balanceApiPath ?? '';
+    _balanceResultKeyCtrl.text = _cfg.balanceResultKey ?? '';
   }
 
   @override
@@ -113,6 +120,8 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     _proxyPortCtrl.dispose();
     _proxyUserCtrl.dispose();
     _proxyPassCtrl.dispose();
+    _balanceApiPathCtrl.dispose();
+    _balanceResultKeyCtrl.dispose();
     super.dispose();
   }
 
@@ -618,6 +627,19 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
               helpText: l10n.providerDetailPageAihubmixAppCodeHelp,
               trailing: IosSwitch(value: _aihubmixAppCodeEnabled, onChanged: (v) { setState(() => _aihubmixAppCodeEnabled = v); _save(); }),
             ),
+          _iosRow(
+            context,
+            label: l10n.providerDetailPageBalanceEnabled,
+            trailing: IosSwitch(value: _balanceEnabled, onChanged: (v) { setState(() => _balanceEnabled = v); _save(); }),
+          ),
+          if (_balanceEnabled)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: ProviderBalanceText(
+                providerKey: widget.keyName,
+                style: TextStyle(fontSize: 13, color: cs.primary),
+              ),
+            ),
           _TactileRow(
             onTap: () async {
               await Navigator.of(context).push(
@@ -661,6 +683,24 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
             },
           ),
         ]),
+        if (_balanceEnabled) ...[
+          const SizedBox(height: 12),
+          _inputRow(
+            context,
+            label: l10n.providerDetailPageBalanceApiPath,
+            controller: _balanceApiPathCtrl,
+            hint: '/user/balance',
+            onChanged: (_) => _save(),
+          ),
+          const SizedBox(height: 12),
+          _inputRow(
+            context,
+            label: l10n.providerDetailPageBalanceResultKey,
+            controller: _balanceResultKeyCtrl,
+            hint: 'data.totalBalance',
+            onChanged: (_) => _save(),
+          ),
+        ],
         const SizedBox(height: 12),
         _inputRow(
           context,
@@ -1462,6 +1502,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       serviceAccountJson: _kind == ProviderKind.google ? _saJsonCtrl.text.trim() : old.serviceAccountJson,
       multiKeyEnabled: _multiKeyEnabled,
       aihubmixAppCodeEnabled: _aihubmixAppCodeEnabled,
+      balanceEnabled: _balanceEnabled,
+      balanceApiPath: _balanceApiPathCtrl.text.trim(),
+      balanceResultKey: _balanceResultKeyCtrl.text.trim(),
       // preserve models and modelOverrides and proxy fields implicitly via copyWith
     );
     await settings.setProviderConfig(widget.keyName, updated);

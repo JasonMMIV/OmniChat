@@ -2,17 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'dart:io' show Platform;
+
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../icons/lucide_adapter.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import '../../../utils/brand_assets.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/ios_tactile.dart';
+import '../../../desktop/desktop_home_page.dart';
 import 'model_detail_sheet.dart';
 import '../../provider/pages/provider_detail_page.dart';
-import '../../../l10n/app_localizations.dart';
-import '../../../utils/brand_assets.dart';
-import '../../../shared/widgets/ios_tactile.dart';
-import '../../../desktop/desktop_home_page.dart' show DesktopHomePage;
+import '../../provider/widgets/provider_balance_text.dart';
 import '../../provider/widgets/provider_avatar.dart';
 
 class ModelSelection {
@@ -690,7 +693,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
       }
       if (items.isEmpty) continue;
       _headerIndexMap[pk] = _rows.length;
-      _rows.add(_HeaderRow(g.name));
+      _rows.add(_HeaderRow(g.name, providerKey: pk));
       for (final m in items) {
         _modelIndexMap['${m.providerKey}::${m.id}'] = _rows.length;
         _rows.add(_ModelRow(m));
@@ -707,7 +710,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
       itemBuilder: (context, index) {
         final row = _rows[index];
         if (row is _HeaderRow) {
-          return _sectionHeader(context, row.title);
+          return _sectionHeader(context, row);
         } else if (row is _ModelRow) {
           return _modelTile(context, row.item, showProviderLabel: row.showProviderLabel);
         }
@@ -747,12 +750,29 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     );
   }
 
-  Widget _sectionHeader(BuildContext context, String title) {
+  Widget _sectionHeader(BuildContext context, _HeaderRow row) {
     final cs = Theme.of(context).colorScheme;
     return Container(
       alignment: Alignment.centerLeft,
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      child: Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.6))),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Flexible(
+            child: Text(
+              row.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.6)),
+            ),
+          ),
+          if (row.providerKey != null)
+            ProviderBalanceText(
+              providerKey: row.providerKey!,
+              style: TextStyle(fontSize: 11, color: cs.primary.withOpacity(0.8)),
+            ),
+        ],
+      ),
     );
   }
 
@@ -850,6 +870,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         avatar: ProviderAvatar(providerKey: key, displayName: name, size: 18),
         label: name,
         selected: selected,
+        providerKey: key,
         borderColor: cs.outlineVariant.withOpacity(0.25),
         onTap: () async { await _jumpToProvider(key); },
         onLongPress: () async {
@@ -923,13 +944,14 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
 }
 
 class _ProviderChip extends StatefulWidget {
-  const _ProviderChip({required this.avatar, required this.label, required this.onTap, this.onLongPress, this.borderColor, this.selected = false});
+  const _ProviderChip({required this.avatar, required this.label, required this.onTap, this.onLongPress, this.borderColor, this.selected = false, this.providerKey});
   final Widget avatar;
   final String label;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
   final Color? borderColor;
   final bool selected;
+  final String? providerKey;
 
   @override
   State<_ProviderChip> createState() => _ProviderChipState();
@@ -967,12 +989,24 @@ class _ProviderChipState extends State<_ProviderChip> {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: borderColor),
         ),
-        child: Row(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            widget.avatar,
-            const SizedBox(width: 6),
-            Text(widget.label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: labelColor)),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                widget.avatar,
+                const SizedBox(width: 6),
+                Text(widget.label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: labelColor)),
+              ],
+            ),
+            if (widget.providerKey != null) ...[
+              const SizedBox(height: 2),
+              ProviderBalanceText(
+                providerKey: widget.providerKey!,
+                style: TextStyle(fontSize: 10, color: labelColor.withOpacity(0.55)),
+              ),
+            ],
           ],
         ),
       ),
@@ -1003,7 +1037,8 @@ class _ModelItem {
 abstract class _ListRow {}
 class _HeaderRow extends _ListRow {
   final String title;
-  _HeaderRow(this.title);
+  final String? providerKey;
+  _HeaderRow(this.title, {this.providerKey});
 }
 class _ModelRow extends _ListRow {
   final _ModelItem item;
@@ -1310,7 +1345,7 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
       // When limiting to a single provider, hide the provider header (and its settings button)
       if (widget.limitProviderKey == null) {
         _headerIndexMap[pk] = _rows.length;
-        _rows.add(_HeaderRow(g.name));
+        _rows.add(_HeaderRow(g.name, providerKey: pk));
       }
       for (final m in items) {
         _modelIndexMap['${m.providerKey}::${m.id}'] = _rows.length;
@@ -1603,45 +1638,40 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
 
   Widget _providerHeader(BuildContext context, String? providerKey, String displayName) {
     final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 8),
       child: Row(
         children: [
-          Text(
-            displayName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.6)),
-          ),
-          const Spacer(),
-          if (providerKey != null)
-            Tooltip(
-              message: AppLocalizations.of(context)!.settingsPageTitle,
-              child: IosIconButton(
-                icon: Lucide.Settings2,
-                size: 16,
-                color: cs.onSurface.withOpacity(0.8),
-                onTap: () async {
-                  final nav = Navigator.of(context);
-                  // Close model dialog first
-                  nav.pop();
-                  // Then navigate to DesktopHomePage with Settings tab open and provider preselected
-                  Future.microtask(() {
-                    nav.push(
-                      PageRouteBuilder(
-                        pageBuilder: (_, __, ___) => DesktopHomePage(initialTabIndex: 3, initialProviderKey: providerKey),
-                        transitionDuration: const Duration(milliseconds: 220),
-                        reverseTransitionDuration: const Duration(milliseconds: 200),
-                        transitionsBuilder: (ctx, anim, sec, child) {
-                          final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
-                          return FadeTransition(opacity: curved, child: child);
-                        },
-                      ),
-                    );
-                  });
-                },
-              ),
+          Expanded(
+            child: Text(
+              displayName,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurface.withOpacity(0.55), letterSpacing: 0.2),
             ),
+          ),
+          if (providerKey != null) ...[
+            ProviderBalanceText(
+              providerKey: providerKey,
+              style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.45)),
+            ),
+            const SizedBox(width: 8),
+            _IconBtn(
+              icon: Lucide.Settings,
+              size: 14,
+              color: cs.onSurface.withOpacity(0.4),
+              onTap: () async {
+                // Navigate to settings page with provider preselected
+                Navigator.of(context).pop(); // close selector
+                await showGeneralDialog(
+                  context: context,
+                  barrierDismissible: true,
+                  barrierLabel: 'settings-dialog',
+                  transitionDuration: const Duration(milliseconds: 200),
+                  pageBuilder: (_, __, ___) => DesktopHomePage(initialTabIndex: 3, initialProviderKey: providerKey),
+                );
+              },
+            ),
+          ],
         ],
       ),
     );
@@ -1659,6 +1689,40 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
     try {
       await _itemScrollController.scrollTo(index: idx, duration: const Duration(milliseconds: 400), curve: Curves.easeOutCubic);
     } catch (_) {}
+  }
+}
+
+class _IconBtn extends StatefulWidget {
+  const _IconBtn({super.key, required this.icon, required this.onTap, this.size = 18, this.color});
+  final IconData icon;
+  final VoidCallback onTap;
+  final double size;
+  final Color? color;
+  @override
+  State<_IconBtn> createState() => _IconBtnState();
+}
+
+class _IconBtnState extends State<_IconBtn> {
+  bool _hover = false;
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: _hover ? cs.onSurface.withOpacity(0.08) : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(widget.icon, size: widget.size, color: widget.color ?? cs.onSurface.withOpacity(0.7)),
+        ),
+      ),
+    );
   }
 }
 

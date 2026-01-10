@@ -161,4 +161,5 @@ class Lucide {
   static const IconData Captions = lucide.LucideIcons.captions;
   static const IconData CaptionsOff = lucide.LucideIcons.captionsOff;
   static const IconData MicOff = lucide.LucideIcons.micOff;
+  static const IconData Banknote = lucide.LucideIcons.banknote;
 }

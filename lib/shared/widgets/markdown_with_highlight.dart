@@ -240,16 +240,16 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
                 }
               },
               child: Container(
-                width: 20,
-                height: 20,
+                width: 16,
+                height: 16,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: cs.primary.withOpacity(0.20),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   indexText,
-                  style: const TextStyle(fontSize: 12, height: 1.0),
+                  style: const TextStyle(fontSize: 10, height: 1.0),
                 ),
               ),
             );

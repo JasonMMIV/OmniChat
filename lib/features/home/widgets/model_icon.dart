@@ -41,17 +41,17 @@ class CurrentModelIcon extends StatelessWidget {
             : null;
         inner = SvgPicture.asset(
           asset,
-          width: size * 0.5,
-          height: size * 0.5,
+          width: size * 0.65,
+          height: size * 0.65,
           colorFilter: tint,
         );
       } else {
-        inner = Image.asset(asset, width: size * 0.5, height: size * 0.5, fit: BoxFit.contain);
+        inner = Image.asset(asset, width: size * 0.65, height: size * 0.65, fit: BoxFit.contain);
       }
     } else {
       inner = Text(
         modelId!.isNotEmpty ? modelId!.characters.first.toUpperCase() : '?',
-        style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, fontSize: size * 0.43),
+        style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, fontSize: size * 0.45),
       );
     }
 
@@ -66,8 +66,8 @@ class CurrentModelIcon extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: SizedBox(
-        width: size * 0.64,
-        height: size * 0.64,
+        width: size * 0.8,
+        height: size * 0.8,
         child: Center(child: inner is SvgPicture || inner is Image ? inner : FittedBox(child: inner)),
       ),
     );

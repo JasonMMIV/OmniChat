@@ -66,6 +66,13 @@ class InstructionInjectionProvider with ChangeNotifier {
     await loadAll();
   }
 
+  Future<void> addMany(List<InstructionInjection> list) async {
+    for (final item in list) {
+      await InstructionInjectionStore.add(item);
+    }
+    await loadAll();
+  }
+
   Future<void> update(InstructionInjection item) async {
     await InstructionInjectionStore.update(item);
     await loadAll();

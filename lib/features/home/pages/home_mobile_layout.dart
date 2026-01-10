@@ -39,6 +39,7 @@ class HomeMobileScaffold extends StatelessWidget {
     required this.onOpenMiniMap,
     required this.onCreateNewConversation,
     required this.onSelectModel,
+    this.onVoiceChat,
     required this.body,
   });
 
@@ -56,6 +57,7 @@ class HomeMobileScaffold extends StatelessWidget {
   final VoidCallback onOpenMiniMap;
   final Future<void> Function() onCreateNewConversation;
   final VoidCallback onSelectModel;
+  final VoidCallback? onVoiceChat;
   final Widget body;
 
   @override
@@ -123,13 +125,13 @@ class HomeMobileScaffold extends StatelessWidget {
       scrolledUnderElevation: 0,
       leading: Builder(builder: (context) {
         return IosIconButton(
-          size: 20,
-          padding: const EdgeInsets.all(8),
+          size: 24,
+          padding: const EdgeInsets.all(6),
           minSize: 40,
           builder: (color) => SvgPicture.asset(
             'assets/icons/list.svg',
-            width: 14,
-            height: 14,
+            width: 18,
+            height: 18,
             colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
           ),
           onTap: () {
@@ -174,15 +176,23 @@ class HomeMobileScaffold extends StatelessWidget {
         ],
       ),
       actions: [
+        if (onVoiceChat != null)
+          IosIconButton(
+            size: 24,
+            minSize: 44,
+            onTap: onVoiceChat,
+            semanticLabel: AppLocalizations.of(context)!.voiceChatButtonTooltip,
+            icon: Lucide.Phone,
+          ),
         IosIconButton(
-          size: 20,
+          size: 24,
           minSize: 44,
           onTap: onOpenMiniMap,
           semanticLabel: AppLocalizations.of(context)!.miniMapTooltip,
           icon: Lucide.Map,
         ),
         IosIconButton(
-          size: 22,
+          size: 24,
           minSize: 44,
           onTap: () async {
             await onCreateNewConversation();
@@ -377,10 +387,10 @@ class _ScrollButton extends StatelessWidget {
               customBorder: const CircleBorder(),
               onTap: onTap,
               child: Padding(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(4),
                 child: Icon(
                   icon,
-                  size: 16,
+                  size: 20,
                   color: isDark ? Colors.white : Colors.black87,
                 ),
               ),

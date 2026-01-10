@@ -689,15 +689,12 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
     return (images: images, docs: docs);
   }
 
-  // Build a responsive left action bar that hides overflowing actions
-  // into an anchored "+" menu using DesktopContextMenu style.
   Widget _buildResponsiveLeftActions(BuildContext context) {
-    const double spacing = 8;
-    const double normalButtonW = 32; // 20 + padding(6*2)
-    const double modelButtonW = 30;  // 28 + padding(1*2)
-    const double plusButtonW = 32;
-
     final l10n = AppLocalizations.of(context)!;
+    const double spacing = 8;
+    const double normalButtonW = 32; // 24 + padding(4*2)
+    const double modelButtonW = 38;  // 36 + padding(1*2)
+    const double plusButtonW = 32;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -781,12 +778,12 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
                 final asset = brandAsset;
                 if (asset != null) {
                   if (asset.endsWith('.svg')) {
-                    return SvgPicture.asset(asset, width: 20, height: 20, colorFilter: ColorFilter.mode(c, BlendMode.srcIn));
+                    return SvgPicture.asset(asset, width: 24, height: 24, colorFilter: ColorFilter.mode(c, BlendMode.srcIn));
                   } else {
-                    return Image.asset(asset, width: 20, height: 20, color: c, colorBlendMode: BlendMode.srcIn);
+                    return Image.asset(asset, width: 24, height: 24, color: c, colorBlendMode: BlendMode.srcIn);
                   }
                 } else {
-                  return Icon(Lucide.Globe, size: 20, color: c);
+                  return Icon(Lucide.Globe, size: 24, color: c);
                 }
               },
             );
@@ -817,8 +814,8 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
               onTap: widget.onConfigureReasoning,
               childBuilder: (c) => SvgPicture.asset(
                 'assets/icons/deepthink.svg',
-                width: 20,
-                height: 20,
+                width: 24,
+                height: 24,
                 colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
               ),
             ),
@@ -1455,7 +1452,7 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
                                   child: Icon(
                                     widget.moreOpen ? Lucide.X : Lucide.Plus,
                                     key: ValueKey(widget.moreOpen ? 'close' : 'add'),
-                                    size: 20,
+                                    size: 24,
                                     color: c,
                                   ),
                                 ),
@@ -1529,12 +1526,12 @@ class _CompactIconButton extends StatelessWidget {
     // Keep overall button size constant. For model icon with child, enlarge child slightly
     // and reduce padding so (2*padding + childSize) stays unchanged.
     final bool isModelChild = modelIcon && child != null;
-    final double iconSize = 20.0; // default glyph size
-    final double childSize = isModelChild ? 28.0 : iconSize; // enlarge circle a bit more
-    final double padding = isModelChild ? 1.0 : 6.0; // keep total ~30px (2*1 + 28)
+    final double iconSize = 24.0; // default glyph size
+    final double childSize = isModelChild ? 36.0 : iconSize; // enlarge circle a bit more
+    final double padding = isModelChild ? 1.0 : 4.0; // keep total ~38px for model (2*1 + 36)
 
     final button = IosIconButton(
-      size: isModelChild ? childSize : 20,
+      size: isModelChild ? childSize : iconSize,
       padding: EdgeInsets.all(padding),
       onTap: onTap,
       // Disable long press on desktop platforms
@@ -1638,7 +1635,7 @@ class _CompactSendButton extends StatelessWidget {
         customBorder: const CircleBorder(),
         onTap: loading ? onStop : (enabled ? onSend : null),
         child: Padding(
-          padding: const EdgeInsets.all(7),
+          padding: const EdgeInsets.all(5),
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 200),
             transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: FadeTransition(opacity: anim, child: child)),
@@ -1646,11 +1643,11 @@ class _CompactSendButton extends StatelessWidget {
                 ? SvgPicture.asset(
                     key: const ValueKey('stop'),
                     'assets/icons/stop.svg',
-                    width: 18,
-                    height: 18,
+                    width: 22,
+                    height: 22,
                     colorFilter: ColorFilter.mode(fg, BlendMode.srcIn),
                   )
-                : Icon(icon, key: const ValueKey('send'), size: 18, color: fg),
+                : Icon(icon, key: const ValueKey('send'), size: 22, color: fg),
           ),
         ),
       ),

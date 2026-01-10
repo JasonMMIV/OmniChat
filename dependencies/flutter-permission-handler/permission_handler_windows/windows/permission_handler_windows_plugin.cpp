@@ -142,7 +142,7 @@ void PermissionHandlerWindowsPlugin::HandleMethodCall(
 
 void PermissionHandlerWindowsPlugin::IsLocationServiceEnabled(std::unique_ptr<MethodResult<>> result) {
   // Create a local Geolocator instance only when checking the
-  // service status. This avoids registering a long‑lived
+  // service status. This avoids registering a long-lived
   // PositionChanged listener, which would cause Windows to
   // treat the app as continuously accessing location.
   Geolocator geolocator;

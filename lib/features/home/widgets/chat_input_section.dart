@@ -128,7 +128,7 @@ class ChatInputSection extends StatelessWidget {
           ? CurrentModelIcon(
               providerKey: pk,
               modelId: mid,
-              size: 40,
+              size: 38,
               withBackground: true,
               backgroundColor: Colors.transparent,
             )

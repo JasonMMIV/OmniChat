@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
@@ -68,9 +69,11 @@ class _DesktopTtsServicesPaneState extends State<DesktopTtsServicesPane> {
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-              // On desktop we do not provide System TTS (flutter_tts disabled)
-              // so we skip the System TTS card entirely.
-              const SliverToBoxAdapter(child: SizedBox(height: 8)),
+              // System TTS card
+              SliverToBoxAdapter(
+                child: _SystemTtsCard(),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
               // Network TTS services list
               SliverToBoxAdapter(
@@ -467,46 +470,49 @@ class _SystemTtsCardState extends State<_SystemTtsCard> {
                   const SizedBox(height: 10),
                   _deskDivider(context),
                   const SizedBox(height: 10),
-                  // Engine selection
-                  FutureBuilder<List<String>>(
-                    future: tts.listEngines(),
-                    builder: (context, snap) {
-                      final engines = snap.data ?? const <String>[];
-                      final cur = tts.engineId ?? (engines.isNotEmpty ? engines.first : '');
-                      return _SelectRow(
-                        label: l10n.ttsServicesPageEngineLabel,
-                        value: cur.isEmpty ? l10n.ttsServicesPageAutoLabel : cur,
-                        options: engines,
-                        onSelected: (picked) async {
-                          await tts.setEngineId(picked);
-                          if (ctx.mounted) (ctx as Element).markNeedsBuild();
-                        },
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 6),
-                  // Language selection
-                  FutureBuilder<List<String>>(
-                    future: tts.listLanguages(),
-                    builder: (context, snap) {
-                      final langs = snap.data ?? const <String>[];
-                      final cur = tts.languageTag ?? (langs.contains('zh-CN')
-                          ? 'zh-CN'
-                          : (langs.contains('en-US')
-                              ? 'en-US'
-                              : (langs.isNotEmpty ? langs.first : '')));
-                      return _SelectRow(
-                        label: l10n.ttsServicesPageLanguageLabel,
-                        value: cur.isEmpty ? l10n.ttsServicesPageAutoLabel : cur,
-                        options: langs,
-                        onSelected: (picked) async {
-                          await tts.setLanguageTag(picked);
-                          if (ctx.mounted) (ctx as Element).markNeedsBuild();
-                        },
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 10),
+                  // Engine/Language selection - Android only as Windows/iOS don't support listing nicely
+                  if (Platform.isAndroid) ...[
+                    // Engine selection
+                    FutureBuilder<List<String>>(
+                      future: tts.listEngines(),
+                      builder: (context, snap) {
+                        final engines = snap.data ?? const <String>[];
+                        final cur = tts.engineId ?? (engines.isNotEmpty ? engines.first : '');
+                        return _SelectRow(
+                          label: l10n.ttsServicesPageEngineLabel,
+                          value: cur.isEmpty ? l10n.ttsServicesPageAutoLabel : cur,
+                          options: engines,
+                          onSelected: (picked) async {
+                            await tts.setEngineId(picked);
+                            if (ctx.mounted) (ctx as Element).markNeedsBuild();
+                          },
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 6),
+                    // Language selection
+                    FutureBuilder<List<String>>(
+                      future: tts.listLanguages(),
+                      builder: (context, snap) {
+                        final langs = snap.data ?? const <String>[];
+                        final cur = tts.languageTag ?? (langs.contains('zh-CN')
+                            ? 'zh-CN'
+                            : (langs.contains('en-US')
+                                ? 'en-US'
+                                : (langs.isNotEmpty ? langs.first : '')));
+                        return _SelectRow(
+                          label: l10n.ttsServicesPageLanguageLabel,
+                          value: cur.isEmpty ? l10n.ttsServicesPageAutoLabel : cur,
+                          options: langs,
+                          onSelected: (picked) async {
+                            await tts.setLanguageTag(picked);
+                            if (ctx.mounted) (ctx as Element).markNeedsBuild();
+                          },
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   Text(l10n.ttsServicesPageSpeechRateLabel, style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7))),
                   Slider(
                     value: rate,

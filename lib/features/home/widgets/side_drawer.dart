@@ -11,6 +11,7 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/models/chat_item.dart';
 import '../../../core/providers/user_provider.dart';
 import '../../settings/pages/settings_page.dart';
+import '../../settings/pages/storage_space_page.dart';
 import '../../translate/pages/translate_page.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/update_provider.dart';
@@ -845,7 +846,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                                 suffixIcon: _topicsOnly ? null : Padding(
                                   padding: const EdgeInsets.only(right: 6),
                                   child: IosIconButton(
-                                    size: 16,
+                                    size: 20,
                                     color: textBase,
                                     icon: Lucide.History,
                                     padding: const EdgeInsets.all(4),
@@ -933,10 +934,10 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                           height: 44,
                           child: Center(
                             child: IosIconButton(
-                              size: 20,
+                              size: 24,
                               color: textBase,
                               icon: Lucide.History,
-                              padding: const EdgeInsets.all(8),
+                              padding: const EdgeInsets.all(6),
                               onTap: () async {
                                 final selectedId = await Navigator.of(context).push<String>(
                                   MaterialPageRoute(builder: (_) => ChatHistoryPage(assistantId: currentAssistantId)),
@@ -1068,7 +1069,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
               }(),
             ),
 
-            if (widget.showBottomBar && (!widget.embedded || !_isDesktop)) Container(
+            if (widget.showBottomBar) Container(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
               decoration: BoxDecoration(
                 color: widget.embedded ? Colors.transparent : cs.surface,
@@ -1122,13 +1123,32 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                         height: 45,
                         child: Center(
                           child: IosIconButton(
-                            size: 22,
+                            size: 26,
                             color: textBase,
                             icon: Lucide.Languages,
-                            padding: const EdgeInsets.all(10),
+                            padding: const EdgeInsets.all(8),
                             onTap: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(builder: (_) => const TranslatePage()),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      // 存储空间按钮（圆形，无水波纹）
+                      SizedBox(
+                        width: 45,
+                        height: 45,
+                        child: Center(
+                          child: IosIconButton(
+                            size: 26,
+                            color: textBase,
+                            icon: Lucide.Folder,
+                            padding: const EdgeInsets.all(8),
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => const StorageSpacePage()),
                               );
                             },
                           ),
@@ -1141,10 +1161,10 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                         height: 45,
                         child: Center(
                           child: IosIconButton(
-                            size: 22,
+                            size: 26,
                             color: textBase,
                             icon: Lucide.Settings,
-                            padding: const EdgeInsets.all(10),
+                            padding: const EdgeInsets.all(8),
                             onTap: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(builder: (_) => const SettingsPage()),
@@ -1508,7 +1528,6 @@ extension on _SideDrawerState {
                       }
                     }),
                     row(l10n.sideDrawerEnterLink, () async { await _inputAvatarUrl(context); }),
-                    row(l10n.sideDrawerImportFromQQ, () async { await _inputQQAvatar(context); }),
                     row(l10n.sideDrawerReset, () async { await context.read<UserProvider>().resetAvatar(); }),
                     const SizedBox(height: 4),
                   ],
@@ -1718,149 +1737,6 @@ extension on _SideDrawerState {
     if (ok == true) {
       final url = controller.text.trim();
       if (url.isNotEmpty) {
-        await context.read<UserProvider>().setAvatarUrl(url);
-      }
-    }
-  }
-
-  Future<void> _inputQQAvatar(BuildContext context) async {
-    final l10n = AppLocalizations.of(context)!;
-    final controller = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        String value = '';
-        bool valid(String s) => RegExp(r'^[0-9]{5,12}$').hasMatch(s.trim());
-        String randomQQ() {
-          final lengths = <int>[5, 6, 7, 8, 9, 10, 11];
-          final weights = <int>[1, 20, 80, 100, 500, 5000, 80];
-          final total = weights.fold<int>(0, (a, b) => a + b);
-          final rnd = math.Random();
-          int roll = rnd.nextInt(total) + 1;
-          int chosenLen = lengths.last;
-          int acc = 0;
-          for (int i = 0; i < lengths.length; i++) {
-            acc += weights[i];
-            if (roll <= acc) {
-              chosenLen = lengths[i];
-              break;
-            }
-          }
-          final sb = StringBuffer();
-          final firstGroups = <List<int>>[
-            [1, 2],
-            [3, 4],
-            [5, 6, 7, 8],
-            [9],
-          ];
-          final firstWeights = <int>[128, 4, 2, 1]; // ratio only; ensures 1-2 > 3-4 > 5-8 > 9
-          final firstTotal = firstWeights.fold<int>(0, (a, b) => a + b);
-          int r2 = rnd.nextInt(firstTotal) + 1;
-          int idx = 0;
-          int a2 = 0;
-          for (int i = 0; i < firstGroups.length; i++) {
-            a2 += firstWeights[i];
-            if (r2 <= a2) { idx = i; break; }
-          }
-          final group = firstGroups[idx];
-          sb.write(group[rnd.nextInt(group.length)]);
-          for (int i = 1; i < chosenLen; i++) {
-            sb.write(rnd.nextInt(10));
-          }
-          return sb.toString();
-        }
-        return StatefulBuilder(builder: (ctx, setLocal) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            backgroundColor: cs.surface,
-            title: Text(l10n.sideDrawerQQAvatarDialogTitle),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                hintText: l10n.sideDrawerQQAvatarInputHint,
-                filled: true,
-                fillColor: Theme.of(ctx).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF2F3F5),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.transparent),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.transparent),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: cs.primary.withOpacity(0.4)),
-                ),
-              ),
-              onChanged: (v) => setLocal(() => value = v),
-              onSubmitted: (_) {
-                if (valid(value)) Navigator.of(ctx).pop(true);
-              },
-            ),
-            actionsAlignment: MainAxisAlignment.spaceBetween,
-            actions: [
-              TextButton(
-                onPressed: () async {
-                  // Try multiple times until a valid avatar is fetched
-                  const int maxTries = 20;
-                  bool applied = false;
-                  for (int i = 0; i < maxTries; i++) {
-                    final qq = randomQQ();
-                    // debugPrint(qq);
-                    final url = 'https://q2.qlogo.cn/headimg_dl?dst_uin=' + qq + '&spec=100';
-                    try {
-                      final resp = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
-                      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
-                        await context.read<UserProvider>().setAvatarUrl(url);
-                        applied = true;
-                        break;
-                      }
-                    } catch (_) {}
-                  }
-                  if (applied) {
-                    if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop(false);
-                  } else {
-                    showAppSnackBar(
-                      context,
-                      message: l10n.sideDrawerQQAvatarFetchFailed,
-                      type: NotificationType.error,
-                    );
-                  }
-                },
-                child: Text(l10n.sideDrawerRandomQQ),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(false),
-                    child: Text(l10n.sideDrawerCancel),
-                  ),
-                  TextButton(
-                    onPressed: valid(value) ? () => Navigator.of(ctx).pop(true) : null,
-                    child: Text(
-                      l10n.sideDrawerSave,
-                      style: TextStyle(
-                        color: valid(value) ? cs.primary : cs.onSurface.withOpacity(0.38),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          );
-        });
-      },
-    );
-    if (ok == true) {
-      final qq = controller.text.trim();
-      if (qq.isNotEmpty) {
-        final url = 'https://q2.qlogo.cn/headimg_dl?dst_uin=' + qq + '&spec=100';
         await context.read<UserProvider>().setAvatarUrl(url);
       }
     }

@@ -513,7 +513,61 @@ class SettingsProvider extends ChangeNotifier {
     // Attempt to reload any user-installed local fonts (mobile platforms)
     await _reloadLocalFontsIfAny();
 
+    // Migrate balance settings for existing providers if they are missing
+    await _migrateBalanceSettings();
+
     notifyListeners();
+  }
+
+  Future<void> _migrateBalanceSettings() async {
+    bool changed = false;
+    final Map<String, ProviderConfig> migrated = Map.from(_providerConfigs);
+    
+    migrated.forEach((key, cfg) {
+      final lowerKey = key.toLowerCase();
+      final isSupported = lowerKey.contains('silicon') || 
+            lowerKey.contains('aihubmix') || 
+            lowerKey.contains('deepseek') || 
+            lowerKey.contains('openrouter') || 
+            lowerKey.contains('moonshot');
+
+      if (isSupported) {
+        final def = ProviderConfig.defaultsFor(key, displayName: cfg.name);
+        bool needsUpdate = false;
+        
+        if (cfg.balanceEnabled == null) {
+          needsUpdate = true;
+        } else if (cfg.balanceEnabled == true) {
+          // Fix empty paths or known outdated paths (e.g. OpenRouter using default /user/info)
+          if ((cfg.balanceApiPath ?? '').isEmpty || 
+              (cfg.balanceResultKey ?? '').isEmpty ||
+              (lowerKey.contains('openrouter') && (cfg.balanceApiPath == '/user/info' || cfg.balanceApiPath == '/user/balance' || cfg.balanceResultKey == 'data.total_credits'))) {
+            needsUpdate = true;
+          }
+        }
+        
+        if (needsUpdate) {
+          migrated[key] = cfg.copyWith(
+            balanceEnabled: true,
+            balanceApiPath: def.balanceApiPath,
+            balanceResultKey: def.balanceResultKey,
+          );
+          changed = true;
+        }
+      } else {
+        if (cfg.balanceEnabled == null) {
+          migrated[key] = cfg.copyWith(balanceEnabled: false);
+          changed = true;
+        }
+      }
+    });
+
+    if (changed) {
+      _providerConfigs = migrated;
+      final prefs = await SharedPreferences.getInstance();
+      final map = _providerConfigs.map((k, v) => MapEntry(k, v.toJson()));
+      await prefs.setString(_providerConfigsKey, jsonEncode(map));
+    }
   }
 
   Future<void> setGlobalProxyEnabled(bool v) async {
@@ -2232,6 +2286,10 @@ class ProviderConfig {
   final KeyManagementConfig? keyManagement;
   // AIhubmix promo header opt-in
   final bool? aihubmixAppCodeEnabled;
+  // Account balance settings
+  final bool? balanceEnabled;
+  final String? balanceApiPath;
+  final String? balanceResultKey;
 
   ProviderConfig({
     required this.id,
@@ -2259,6 +2317,9 @@ class ProviderConfig {
     this.apiKeys,
     this.keyManagement,
     this.aihubmixAppCodeEnabled,
+    this.balanceEnabled,
+    this.balanceApiPath,
+    this.balanceResultKey,
   });
 
   // Sentinel for copyWith nullability control (allow explicit null set)
@@ -2290,6 +2351,9 @@ class ProviderConfig {
     List<ApiKeyConfig>? apiKeys,
     KeyManagementConfig? keyManagement,
     bool? aihubmixAppCodeEnabled,
+    bool? balanceEnabled,
+    String? balanceApiPath,
+    String? balanceResultKey,
   }) => ProviderConfig(
         id: id ?? this.id,
         enabled: enabled ?? this.enabled,
@@ -2316,6 +2380,9 @@ class ProviderConfig {
         apiKeys: apiKeys ?? this.apiKeys,
         keyManagement: keyManagement ?? this.keyManagement,
         aihubmixAppCodeEnabled: aihubmixAppCodeEnabled ?? this.aihubmixAppCodeEnabled,
+        balanceEnabled: balanceEnabled ?? this.balanceEnabled,
+        balanceApiPath: balanceApiPath ?? this.balanceApiPath,
+        balanceResultKey: balanceResultKey ?? this.balanceResultKey,
       );
 
   Map<String, dynamic> toJson() => {
@@ -2344,6 +2411,9 @@ class ProviderConfig {
         'apiKeys': apiKeys?.map((e) => e.toJson()).toList(),
         'keyManagement': keyManagement?.toJson(),
         'aihubmixAppCodeEnabled': aihubmixAppCodeEnabled,
+        'balanceEnabled': balanceEnabled,
+        'balanceApiPath': balanceApiPath,
+        'balanceResultKey': balanceResultKey,
       };
 
   factory ProviderConfig.fromJson(Map<String, dynamic> json) => ProviderConfig(
@@ -2382,6 +2452,9 @@ class ProviderConfig {
           (json['keyManagement'] as Map?)?.cast<String, dynamic>(),
         ),
         aihubmixAppCodeEnabled: json['aihubmixAppCodeEnabled'] as bool?,
+        balanceEnabled: json['balanceEnabled'] as bool?,
+        balanceApiPath: json['balanceApiPath'] as String?,
+        balanceResultKey: json['balanceResultKey'] as String?,
       );
 
   static ProviderKind classify(String key, {ProviderKind? explicitType}) {
@@ -2449,6 +2522,9 @@ class ProviderConfig {
           apiKeys: const [],
           keyManagement: const KeyManagementConfig(),
           aihubmixAppCodeEnabled: false,
+          balanceEnabled: false,
+          balanceApiPath: '/user/info',
+          balanceResultKey: 'data.totalBalance',
         );
       case ProviderKind.claude:
         return ProviderConfig(
@@ -2469,6 +2545,9 @@ class ProviderConfig {
           apiKeys: const [],
           keyManagement: const KeyManagementConfig(),
           aihubmixAppCodeEnabled: false,
+          balanceEnabled: false,
+          balanceApiPath: '',
+          balanceResultKey: '',
         );
       case ProviderKind.openai:
       default:
@@ -2517,6 +2596,9 @@ class ProviderConfig {
             apiKeys: const [],
             keyManagement: const KeyManagementConfig(),
             aihubmixAppCodeEnabled: false,
+            balanceEnabled: false,
+            balanceApiPath: '',
+            balanceResultKey: '',
           );
         }
         // Special-case SiliconFlow: prefill two partnered models
@@ -2557,6 +2639,9 @@ class ProviderConfig {
             apiKeys: const [],
             keyManagement: const KeyManagementConfig(),
             aihubmixAppCodeEnabled: false,
+            balanceEnabled: true,
+            balanceApiPath: '/user/info',
+            balanceResultKey: 'data.totalBalance',
           );
         }
         return ProviderConfig(
@@ -2579,6 +2664,13 @@ class ProviderConfig {
           apiKeys: const [],
           keyManagement: const KeyManagementConfig(),
           aihubmixAppCodeEnabled: lowerKey.contains('aihubmix'),
+          balanceEnabled: lowerKey.contains('aihubmix') || lowerKey.contains('deepseek') || lowerKey.contains('openrouter') || lowerKey.contains('moonshot'),
+          balanceApiPath: lowerKey.contains('openrouter') 
+              ? '/credits' 
+              : (lowerKey.contains('moonshot') ? '/users/me/balance' : (lowerKey.contains('deepseek') ? '/user/balance' : '/user/info')),
+          balanceResultKey: lowerKey.contains('openrouter')
+              ? 'data.total_credits - data.total_usage'
+              : (lowerKey.contains('aihubmix') || lowerKey.contains('deepseek') ? 'balance_infos[0].total_balance' : 'data.available_balance'),
         );
     }
   }

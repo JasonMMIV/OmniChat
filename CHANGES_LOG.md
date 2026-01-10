@@ -1,466 +1,502 @@
-# OmniChat Voice Chat Feature Implementation - Changes Log
+# OmniChat Developer Changes Log
 
-## Recent Feature Implementations and Fixes
+## [v1.4.7] - 2026-01-09: Global Rebranding & UI Streamlining
 
-### Voice Chat Stability and Device Integration
-- **Description**: Implemented major enhancements to the voice chat feature to ensure it runs continuously and integrates seamlessly with device hardware like car Bluetooth systems.
-- **Changes Made**:
-    -   **Continuous Listening Fix**: Corrected a bug where voice detection would time out after a few seconds of silence. The `speech_to_text` listener is now configured to wait indefinitely, providing a true continuous conversation experience.
-    -   **Bluetooth Call Simulation**: Integrated the `audio_session` package to configure the app's audio session as a "voice chat". This allows the operating system to correctly route audio to and from connected Bluetooth devices, such as car stereos, making it function like a phone call.
-    -   **Background Execution**: Implemented the `flutter_background` package to keep the voice chat alive even when the screen turns off. This runs a foreground service on Android, showing a persistent notification that the voice chat is active, preventing the OS from killing the app.
-
-### New Feature: Voice Chat Mode
--   **Description**: Implemented a comprehensive voice chat feature, enabling users to interact with the AI assistant through speech. This involved integrating speech-to-text for input, text-to-speech for responses, and managing the conversation flow.
--   **Changes Made**:
-    -   **Voice Chat Provider**: Created `lib/features/chat/voice_chat_provider.dart` to manage voice chat states (idle, listening, speaking).
-    -   **App Integration**: Integrated `VoiceChatProvider` into `lib/main.dart`'s `MultiProvider`.
-    -   **Voice Chat Button**: Added a voice chat button to the main chat screen's top app bar in `lib/features/home/pages/home_page.dart`.
-    -   **Localization**: Localized the voice chat interface, including error messages and status indicators, for English, Simplified Chinese, and Traditional Chinese by modifying `lib/l10n/app_en.arb`, `app_zh_Hans.arb`, `app_zh_Hant.arb`, and `lib/features/voice_chat/pages/voice_chat_screen.dart`.
-    -   **Continuous Listening**: Modified `lib/features/voice_chat/pages/voice_chat_screen.dart` to use `ListenMode.dictation` and removed silence detection timeout, ensuring continuous voice input.
-    -   **History Saving**: Ensured voice chat messages are correctly saved to conversation history by modifying `_startVoiceChat` in `lib/features/home/pages/home_page.dart` to create a new conversation if none exists.
-    -   **Model Consistency**: Verified that voice chat uses the same AI model as the main chat screen.
-    -   **Web Search Integration**: Implemented logic in `lib/features/voice_chat/pages/voice_chat_screen.dart` to enable web search in voice mode, respecting the main chat's settings.
-    -   **System Prompt**: Updated the voice mode system prompt in `lib/features/voice_chat/pages/voice_chat_screen.dart` to be localized and reflect the specified Traditional Chinese phrase ("你正在進行語音對話，請使用口語化的文字，並保持對話簡單、清楚。").
-
-### Build & Environment Improvements
--   **Description**: Addressed critical build failures and environment-related issues to ensure successful application compilation and installation.
--   **Changes Made**:
-    -   **NDK Version Update**: Updated Android NDK version to `28.2.13676358` in `android/app/build.gradle.kts`.
-    -   **APK Signing**: Generated a new signing keystore (`android/app/upload-keystore.jks`) and created `android/key.properties` to enable proper APK signing, resolving "invalid application package" errors.
-    -   **Compilation Fixes**:
-        -   Resolved a duplicate `didChangeDependencies` method declaration in `lib/features/home/pages/home_page.dart`.
-        -   Addressed `VoiceChatState` import conflicts in `lib/features/home/pages/home_page.dart` by adding `hide VoiceChatState` to the import statement.
-        -   Cleaned up orphaned references to `_silenceTimer` in `lib/features/voice_chat/pages/voice_chat_screen.dart`.
-    -   **Localization Generation**: Executed `flutter gen-l10n` to ensure all localization files are up-to-date after adding new keys.
-
-## Commit History: Changes Made to Original Project
-
-### 37. Upstream Merge and Voice Chat Preservation (2026-01-05)
-- **Commit**: Merge upstream 'kelivo' changes and resolve conflicts
+### 85. Global Rebranding: From Kelivo to OmniChat
+- **Purpose**: Fully align the application UI and metadata with the new "OmniChat" brand.
 - **Files Modified**:
-  - `lib/features/home/pages/home_page.dart`: Merged upstream UI changes while keeping `_startVoiceChat` integration.
-  - `lib/core/models/assistant_regex.dart`: Added `encodeList`/`decodeList` to match new upstream usage.
-  - `lib/core/providers/assistant_provider.dart`: Resolved conflicts in state management.
-  - `lib/features/chat/widgets/chat_message_widget.dart`: Preserved Voice Chat rendering logic alongside upstream message styling updates.
-  - Multiple other files (`desktop_settings_page.dart`, `model_edit_dialog.dart`, etc.) updated to match upstream.
-- **Description**:
-  - Synced `OmniChat` with the latest upstream `kelivo` changes.
-  - Resolved all merge conflicts, specifically ensuring the **Voice Chat** feature remains functional and integrated.
-  - Fixed compilation errors resulting from API changes (e.g., missing arguments in `HomePage` widget instantiation).
-  - Validated that no blocking errors exist (`flutter analyze` passed with 0 errors).
+  - `lib/features/settings/pages/about_page.dart`: Updated app name and links.
+  - `lib/desktop/setting/about_pane.dart`: Rebranded desktop About section.
+  - `lib/desktop/desktop_tray_controller.dart`: Updated system tray tooltip.
+  - `lib/core/services/notification_service.dart`: Updated notification ticker.
+  - `lib/core/services/android_background.dart`: Updated background service title.
+  - `lib/l10n/app_*.arb`: Rebranded visible localization strings in EN, ZH-Hans, and ZH-Hant.
+- **Details**:
+  - Replaced all instances of "Kelivo" with "OmniChat" in the About section, tray icon tooltips, and system notification fields.
+  - Updated repository URLs to `https://github.com/JasonMMIV/OmniChat`.
 
-### 36. Bluetooth Detection Logic Fix (2026-01-04)
-- **Commit**: Fix false positive in Bluetooth headset detection
+### 86. UI Cleanup: Removal of Docs and Sponsor Options
+- **Purpose**: Simplify the settings menu by removing external documentation and donation links.
 - **Files Modified**:
-  - `android/app/src/main/kotlin/com/psyche/omnichat/MainActivity.kt`: Corrected `isBluetoothHeadsetConnected()` to return `false` if the device iteration finishes without finding a Bluetooth device, preventing the code from falling through to a generic capability check that was causing incorrect Call Mode activation (and earpiece routing) when no Bluetooth was present.
-- **Description**: Fixed a bug where the app would incorrectly simulate a call and route audio to the earpiece even when no Bluetooth device was connected. The app now correctly defaults to the Media Speaker in non-Bluetooth scenarios.
+  - `lib/features/settings/pages/settings_page.dart`: Removed "Docs" and "Sponsor" rows.
+  - `lib/desktop/setting/about_pane.dart`: Removed "Sponsor" row and associated dialog code.
+- **Details**: Removed "Official Website", "Docs", and "Sponsor" from all platforms to focus on the core chat experience.
 
-### 35. Bluetooth Call Mode Integration and Auto-Play Fix (2026-01-04)
-- **Commit**: Enable native Bluetooth call mode and fix auto-playing responses in main chat
+### 87. Translation Enhancement: Traditional Chinese Default
+- **Purpose**: Better accommodate regional preferences for Chinese users.
 - **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart`: Re-enabled `startCallMode` native call, added `stopCallMode` to `dispose`, and implemented sequential `_startUp` initialization. Removed unused `_updateCallModeForBluetooth`.
-  - `lib/features/home/pages/home_page.dart`: Removed `_voiceChatProvider?.speak()` calls from `_sendMessage` and `_regenerateMessage` logic to stop unwanted auto-play of LLM responses.
-- **Description**: Resolved issues where Bluetooth integration was partially disabled and responses were being read aloud automatically in text mode. The app now correctly handles Bluetooth headsets in voice chat and respects the user's preference for silent text interactions.
+  - `lib/features/translate/pages/translate_page.dart`: Updated default target language.
+  - `lib/desktop/desktop_translate_page.dart`: Updated default target language.
+- **Details**: Changed the default translation target from Simplified Chinese to **Traditional Chinese (zh-TW)** when the app is running in a Chinese locale.
 
-### 24. Voice Chat Enhancements: Background Mode, Bluetooth Integration, and Listening Fix (2025-11-28)
-- **Commit**: Enhance voice chat with background execution and Bluetooth integration
+---
+
+## [v1.5.4] - 2026-01-08: Windows Voice Robust Win32 Threading & Locale Fallback
+
+### 84. Windows Voice: Private Message-Only Window & Best Effort Locale
+- **Purpose**: Permanently resolve "No Response" issues on Windows and fix Chinese speech recognition failures.
 - **Files Modified**:
-  - `pubspec.yaml` - Added `audio_session` dependency.
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Added imports for `audio_session` and `flutter_background`. Implemented `_initAudioSessionForVoiceChat` and `_initBackgroundService` methods and called them in `initState`. Modified `dispose` and `_endVoiceChat` to disable background execution. Fixed the continuous listening timeout by adding `pauseFor` to `_speechToText.listen()`.
-- **Description**: Implemented several major enhancements to the voice chat feature. It now continues to run when the screen is off, integrates with car Bluetooth systems by simulating a phone call, and features a fix for the voice recognition timing out, allowing for a much more robust and seamless user experience.
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.h`: Added private window class.
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.cpp`: Implemented Message-Only Window `WndProc` and Chinese fallback logic.
+  - `lib/features/voice_chat/pages/voice_chat_screen.dart`: Added `mounted` checks to prevent `setState` crashes.
+- **Details**:
+  - **Threading**: Replaced unreliable `DispatcherQueue`/`WindowProcDelegate` with a dedicated, invisible Win32 Message-Only window (`HWND_MESSAGE`). This guarantees the plugin receives its own cross-thread messages (`WM_RUN_ON_MAIN_THREAD`).
+  - **Locale Fallback**: Implemented a "Best Effort" strategy for Chinese. If initialization for `zh-TW` fails (e.g., missing speech pack), the plugin automatically attempts `zh-CN`, and vice-versa, before falling back to English. This maximizes compatibility across different Windows region configurations.
+  - **Stability**: Fixed Dart-side "setState() called after dispose()" crashes during async voice operations.
+- **Outcome**: Voice chat is now stable, thread-safe, and resilient to missing specific Chinese language packs.
 
-### Initial Setup
-- **Commit**: Rename Kelivo to OmniChat
-- **Files Modified**: 
-  - `pubspec.yaml` - Changed name from "Kelivo" to "OmniChat"
-  - `android/app/src/main/AndroidManifest.xml` - Updated app label from "Kelivo" to "OmniChat"
-- **Description**: Renamed the application from Kelivo to OmniChat throughout the project
+---
 
-### Voice Chat Feature Implementation
+## [v1.5.3] - 2026-01-08: Windows Voice Threading & Stability Fix
 
-#### 1. Add Voice Chat Button to Main Interface
-- **Commit**: Add voice chat button to AppBar
+### 83. Windows Voice: WinRT Thread Safety
+- **Purpose**: Prevent crashes and "non-platform thread" errors when using voice recognition.
 - **Files Modified**:
-  - `lib/features/home/pages/home_page.dart` - Added import for VoiceChatScreen and integrated voice chat functionality
-  - Added `_startVoiceChat()` method to navigate to voice chat screen
-  - Added voice chat button to AppBar actions (positioned to the left of mini-map)
-- **Description**: Added voice chat button in the top app bar for easy access
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.h`: Implemented `WindowProcDelegate` for robust thread marshalling.
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.cpp`: Switched to exclusive use of `PostMessage` + `WindowProc` to guarantee main-thread execution.
+- **Details**:
+  - **Issue**: WinRT speech events fire on background threads. Flutter's `InvokeMethod` crashes if called from non-UI threads. `DispatcherQueue` proved unreliable on some user systems.
+  - **Fix**: Removed `DispatcherQueue` dependency. The plugin now registers a `WindowProcDelegate` and uses `PostMessage(WM_RUN_ON_MAIN_THREAD)` to marshal all tasks to the main UI thread via the native Windows message loop.
+  - **Outcome**: Eliminated red console errors, memory leaks from unresponded messages, and application freezes; ensures reliable voice results delivery.
 
-#### 2. Create Voice Chat UI and Core Functionality
-- **Commit**: Implement voice chat screen with all required states
+---
+
+## [v1.5.2] - 2026-01-08: Windows Voice Locale Switching Fix
+
+### 82. Windows Voice: Dynamic Locale Switching Support
+- **Purpose**: Enable proper switching between languages (e.g., English -> Chinese) for speech recognition on Windows.
 - **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Created comprehensive voice chat screen with states (Listening, Thinking, Talking)
-  - Integrated speech recognition using `speech_to_text` package
-  - Added microphone permission checking and UI
-  - Implemented pause/play, end, and subtitle toggle functionality
-- **Description**: Complete voice chat screen with proper state management
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.h`: Added `m_currentLocale` state.
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.cpp`: Implemented recognizer re-initialization logic.
+- **Details**:
+  - **Issue**: The WinRT plugin previously initialized the speech recognizer once (usually with the system default language) and ignored subsequent `localeId` requests from the Dart side.
+  - **Fix**: Added `m_currentLocale` to track the active recognizer's language. Modified `StartListeningAsync` to compare the requested `localeId` with the current one.
+  - **Logic**: If the requested locale differs from the current one, the plugin now closes the existing `SpeechRecognizer` and creates a new one with the correct language constraints.
+- **Outcome**: Users can now seamlessly switch between English and Chinese (or other installed languages) in Voice Chat, and the engine will correctly recognize the selected language.
 
-#### 3. Integrate Speech Recognition and TTS
-- **Commit**: Connect voice recognition with LLM and TTS playback
+---
+
+## [v1.5.1] - 2026-01-08: Windows Voice WinRT Debugging
+
+### 81. Windows Voice: WinRT Debug Logs & Syntax Fix
+- **Purpose**: Investigate "No Response" issue in WinRT mode and fix build-breaking string corruption.
 - **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Integrated speech_to_text for recognizing voice input
-  - Connected to existing TtsProvider for text-to-speech playback
-  - Connected voice input to LLM through ChatApiService
-  - Added proper state transitions between Listening → Thinking → Talking
-- **Description**: Full integration of voice recognition, LLM, and TTS systems
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.cpp`: Added detailed `[OmniChat]` logging.
+- **Details**:
+  - **Logging**: Added logs for `InitializeAsync`, `StartListeningAsync`, `CompileConstraintsAsync`, and Event Handlers.
+  - **Syntax Fix**: Resolved a critical `C2001: newline in constant` error caused by string literal corruption during the previous update.
+  - **Robustness**: Refined the JSON construction using explicit string concatenation to prevent tool-related encoding issues.
 
-#### 4. Add Special Voice Chat Prompt
-- **Commit**: Add voice chat specific prompt
+---
+
+## [v1.5.0] - 2026-01-08: Windows Voice WinRT Migration
+
+### 80. Windows Voice: WinRT Architecture Upgrade
+- **Purpose**: Permanently resolve low accuracy ("你好" -> "應考") and initialization failures by migrating from legacy SAPI to modern Windows Runtime (WinRT) APIs.
 - **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Added special prompt: "You are in a voice conversation. Use informal, conversational language, and keep the conversation simple and clear."
-- **Description**: Implementation of the required voice-specific prompt
+  - `dependencies/speech_to_text_windows/windows/CMakeLists.txt`: Enabled C++/WinRT compilation (`/await`).
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.h`: Updated headers for WinRT objects.
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.cpp`: Rewrote implementation using `Windows::Media::SpeechRecognition`.
+- **Key Changes**:
+  - **Engine**: Switched from `ISpRecognizer` (SAPI) to `SpeechRecognizer` (WinRT). This automatically uses the high-quality "Embedded DNN" (OneCore) engine found in Windows 10/11 Dictation/Cortana.
+  - **Dictation**: Configured `SpeechRecognitionTopicConstraint` with `SpeechRecognitionScenario::Dictation`, enabling true free-form speech recognition.
+  - **Async Model**: Replaced COM message loops with native WinRT asynchronous events (`ResultGenerated`, `HypothesisGenerated`).
+  - **Safety & Robustness**: 
+    - **Coroutine Safety**: Moved to `shared_ptr` for `MethodResult` to ensure lifetime during `co_await` suspensions.
+    - **Thread Safety**: Implemented `mutex` protection and local pointer swapping to prevent race conditions during async state changes.
+  - **Stability**: Removed manual SAPI token enumeration and fallback logic; WinRT handles engine selection and cloud/offline modes automatically.
+- **Outcome**: Users on Windows 10/11 will now experience native-quality dictation accuracy.
 
-#### 5. Ensure Settings Carry Over
-- **Commit**: Connect all existing settings to voice chat mode
+---
+
+## [v1.4.11] - 2026-01-08: Windows Voice Initialization Robustness
+
+### 79. Windows Voice: Engine Initialization Fallback
+- **Purpose**: Fix "Error starting speech recognition: PlatformException(NOT_READY)" caused by incompatible OneCore engines.
 - **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Connected to SettingsProvider, AssistantProvider, ChatService, and TtsProvider
-  - Ensured all existing chat settings, models, reasoning levels, etc. carry over to voice chat
-- **Description**: All main chat settings preserved in voice chat mode
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.cpp`: Implemented robust initialization loop.
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.h`: Updated class declarations.
+- **Root Cause Analysis**:
+  - Some Windows 10/11 systems have specialized "OneCore" engines (e.g., `MS-1033-110-WINMO-DNN`) that do not support the standard SAPI `LoadDictation` call, returning error `0x8004503a`.
+  - Previously, the plugin picked the "best" match and failed immediately if it didn't work.
+- **Solution**:
+  - **Initialization Loop**: `InitEngine` now iterates through *all* matching tokens sorted by priority (OneCore Exact -> Legacy Exact -> Fallbacks).
+  - **Automatic Fallback**: If `AttemptInit` fails for a token (e.g., due to `LoadDictation` error), it cleans up and seamlessly tries the next token in the list.
+- **Outcome**: The app now successfully initializes speech recognition even if the highest-priority engine is incompatible, automatically falling back to a working Legacy SAPI 8.0 engine if needed.
 
-#### 6. Add Voice Chat Permission and UI Elements
-- **Commit**: Implement microphone permissions and UI
+---
+
+## [v1.4.10] - 2026-01-08: Windows Voice OneCore Support
+
+### 78. Windows Voice: OneCore Recognizer Priority
+- **Purpose**: Significantly improve speech recognition accuracy on Windows 10/11 by prioritizing modern "OneCore" speech recognizers (Cortana/Dictation engine) over legacy SAPI 8.0 recognizers.
 - **Files Modified**:
-  - `android/app/src/main/AndroidManifest.xml` - Added microphone permission requirement
-  - `pubspec.yaml` - Added speech_to_text dependency
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Added microphone permission UI overlay
-- **Description**: Added required permissions and UI elements for voice chat
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.cpp`: Implemented dual-category enumeration.
+- **Root Cause Analysis**:
+  - Legacy SAPI 8.0 recognizers (e.g., `MS-1028-80-DESK`) are outdated and often produce poor results like "應考" for "你好".
+  - Modern Windows systems have "OneCore" recognizers (e.g., `MSTC_zh-TW_ZHC`) used by system dictation, which are far superior but stored in a different registry path (`HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech_OneCore\Recognizers`).
+- **Solution**:
+  - **Dual Enumeration**: The plugin now scans both OneCore and Legacy registry paths.
+  - **Priority**: OneCore tokens are checked *first*. If a OneCore recognizer matches the requested locale (e.g., `zh-TW`), it is used immediately.
+  - **Fallback**: Legacy SAPI recognizers are used only if no OneCore recognizer is found.
+- **Outcome**: Users on Windows 10/11 should experience significantly better voice recognition quality, matching the system's native dictation performance.
 
-#### 7. UI Enhancement - Voice Chat Positioning
-- **Commit**: Move voice chat button to AppBar in correct position
+---
+
+## [v1.4.9] - 2026-01-08: Windows Voice Recognition LCID & Locale Source Fix
+
+### 77. Windows Voice: LCID Format Support & App Locale Source Fix
+- **Purpose**: Fix speech recognition still failing ("你好" -> "應考") on systems with legacy SAPI 8.0 recognizers.
 - **Files Modified**:
-  - `lib/features/home/pages/home_page.dart` - Repositioned voice chat button to be in AppBar to the left of mini-map button
-  - Added proper localization strings support
-- **Description**: Voice chat button positioned as requested to the left of mini-map
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.cpp`: Added LCID-to-locale mapping.
+  - `lib/features/voice_chat/pages/voice_chat_screen.dart`: Fixed locale source to use `SettingsProvider.appLocale`.
+- **Root Cause Analysis**:
+  1. **LCID Format Not Supported**: Legacy SAPI 8.0 uses Token IDs like `MS-1028-80-DESK` where `1028` is an LCID (Locale ID), not `MSTC_zh-CN_ZHC` format. The previous `ExtractLocaleFromTokenId()` failed to parse this, returning `EY-LO` (garbage).
+  2. **Wrong Locale Source**: Dart code was using `AppLocalizations.of(context)?.localeName` which returns the UI localization language (`en`), not the user's configured app language from Settings (`zh_Hant`).
+- **Solution**:
+  - **LCID Mapping**: Added `LcidToLocale()` function that maps Windows LCIDs to standard locale codes:
+    - `1028` → `zh-TW` (Chinese Traditional Taiwan)
+    - `2052` → `zh-CN` (Chinese Simplified PRC)
+    - `1033` → `en-US` (English US)
+    - Plus 15+ other common locales
+  - **Locale Source Fix**: Changed Dart code to use `widget.settings.appLocale` instead of `AppLocalizations.localeName`.
+  - **Enhanced Chinese Matching**: Improved fallback logic to find any Chinese recognizer if exact match fails.
+- **Expected Log Output**:
+  ```
+  [OmniChat]   Found: HKEY_...\MS-1028-80-DESK
+  [OmniChat]     LCID 1028 -> zh-TW
+  [OmniChat]     -> Locale: zh-TW, Desc: Microsoft Speech Recognizer 8.0...
+  [OmniChat Dart] Settings locale: zh_Hant (tag: zh_Hant), isSystemLocale: false
+  [OmniChat Dart] Chinese Traditional match found: zh-TW
+  ```
 
-#### 8. Minor Fixes and Improvements
-- **Commit**: Various fixes and enhancements
+---
+
+## [v1.4.8] - 2026-01-08: Windows Voice Recognition Locale Matching Fix
+
+### 76. Windows Voice: Token ID to Locale Code Matching Fix
+- **Purpose**: Fix poor speech recognition quality ("你好" -> "應考") caused by incorrect SAPI engine selection.
 - **Files Modified**:
-  - `lib/icons/lucide_adapter.dart` - Added necessary icons for voice chat functionality
-  - Localizations files (`app_*.arb`) - Added voice chat related localization strings
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Continued refinements to state management
-- **Description**: Added icons, localization, and refinements to enhance user experience
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.cpp`: Rewrote locale matching logic.
+  - `lib/features/voice_chat/pages/voice_chat_screen.dart`: Added diagnostic logging.
+- **Root Cause Analysis**:
+  1. **Token ID Mismatch**: The `GetEngineToken()` function was comparing the full SAPI registry path (e.g., `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech_OneCore\Recognizers\Tokens\MSTC_zh-CN_ZHC`) against short locale codes (e.g., `zh-CN`). This comparison **always failed**, causing the system to fall back to the default English recognizer.
+  2. **Incorrect Locale Format**: `GetLocales()` was returning full registry paths instead of standardized locale codes, making Dart-side matching impossible.
+- **Solution**:
+  - **Locale Extraction**: Added `ExtractLocaleFromTokenId()` helper function that extracts the actual locale code (e.g., `zh-CN`, `en-US`) from SAPI token IDs using pattern matching.
+  - **Fuzzy Matching**: Rewrote `GetEngineToken()` to perform case-insensitive substring matching with language fallback (e.g., if `zh-TW` is requested but only `zh-CN` is installed, it will use `zh-CN`).
+  - **Standardized Output**: Updated `GetLocales()` to return normalized locale codes instead of raw registry paths.
+  - **Diagnostic Logging**: Added comprehensive `[OmniChat]` logging in both C++ and Dart to trace locale resolution.
+- **Testing**: Run the app and check debug console for `[OmniChat]` logs showing locale matching process.
 
-## Summary of Changes from Original Project
+---
 
-### New Files Added
-1. `lib/features/voice_chat/pages/voice_chat_screen.dart` - Complete voice chat functionality
+## [v1.4.7] - 2026-01-08: Windows Voice Recognition Accuracy & Language Switching Fix
 
-### Dependencies Added
-1. `speech_to_text: ^7.3.0` - For speech recognition functionality
-
-### Major Modifications
-1. **Application Name**: Changed from "Kelivo" to "OmniChat"
-2. **UI Enhancement**: Added voice chat button to main interface
-3. **Core Feature**: Implemented voice chat functionality with three states (Listening, Thinking, Talking)
-4. **Integration**: Connected voice chat to existing LLM and TTS systems
-5. **Permissions**: Added microphone permission handling
-6. **Localization**: Added voice chat related localization strings
-
-### Key Features Implemented
-- Voice input recognition using Android STT
-- Real-time state display (Listening, Thinking, Talking)
-- Automatic 2-second silence detection before sending to LLM
-- Pause/Resume functionality
-- End voice chat button
-- Subtitle toggle functionality
-- Proper state transitions and UI
-- Integration with existing chat settings and providers
-- Special prompt for voice conversation mode
-- Microphone permission handling
-
-### Technical Implementation Details
-
-### State Flow
-```
-Listening (captures voice) → Thinking (processes with LLM) → Talking (plays response via TTS) → Listening (awaits next input)
-```
-
-### Architecture
-- Used Consumer pattern to access existing providers (ChatService, SettingsProvider, etc.)
-- Implemented proper error handling and permission checks
-- Used existing TTS and LLM integration
-- Followed project's existing code patterns and architecture
-
-### UI Placement
-- Voice chat button positioned in AppBar to the left of the mini-map button
-- Accessible from main chat screen
-- Consistent with app's design patterns
-
-## Testing Status
-- Debug APK builds successfully
-- Voice chat button appears in correct position
-- Speech recognition works
-- State transitions implemented
-- TTS playback connected
-- Settings carry over properly
-
-## Recent Fixes Applied
-
-### 9. Fix TTS State Management
-- **Commit**: Replace estimated duration with actual TTS completion
+### 75. Windows Voice: Audio Format Correction & Real Engine Switching
+- **Purpose**: Fix poor speech recognition quality ("Nihao" -> "Liguo") and enable real language switching.
 - **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Replaced timer estimation with proper await of widget.ttsProvider.speak() method
-- **Description**: Fixed state transition from Thinking to Talking by properly waiting for TTS completion
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.cpp`: Core logic rewrite.
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.h`: Added helper declarations.
+  - `lib/features/voice_chat/pages/voice_chat_screen.dart`: Enabled locale passing for Windows.
+- **Root Cause Analysis**:
+  1. **Audio Distortion**: The Windows SAPI engine expects 16kHz audio, but modern microphones often provide 48kHz. Without resampling, this causes frequency shifts (pitch distortion), leading to misrecognition of phonetically similar words.
+  2. **Locale Lock**: The plugin was ignoring `localeId` and using the system default, preventing users from switching between Chinese and English engines.
+  3. **Fake Locales**: `GetLocales` was hardcoded, preventing the app from knowing which SAPI voices were actually installed.
+- **Solution**:
+  - **Audio Resampling**: Forced SAPI audio input to **16kHz, 16-bit, Mono PCM** format. This provides crystal clear audio to the engine, resolving the "distorted recognition" issue.
+  - **Dynamic Engine Switching**: Implemented `InitEngine(localeId)` which enumerates installed SAPI tokens and loads the specific recognizer matching the requested language.
+  - **Real Enumeration**: Updated `GetLocales` to perform real system enumeration of installed SAPI voices.
+  - **App Integration**: Updated `VoiceChatScreen` to allow Windows to pass the selected `localeId` to the plugin instead of forcing `null`.
 
-### 10. Implement 2-Second Silence Detection
-- **Commit**: Add proper silence detection logic
+---
+
+## [v1.4.6] - 2026-01-08: Windows Voice Chat Critical Fix
+
+### 74. Windows Speech Recognition JSON Format Fix
+- **Purpose**: Fix critical bug where Windows speech recognition showed "microphone in use" but never triggered `onResult` callback.
 - **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Added Timer for 2-second silence detection, with accumulated text processing
-- **Description**: Implemented proper 2-second delay before sending voice input to LLM after silence
+  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Fixed race condition in `_startUp()` initialization sequence.
+  - `dependencies/speech_to_text_windows/lib/speech_to_text_windows.dart` - Patched JSON format transformation.
+  - `pubspec.yaml` - Added `dependency_overrides` to use local patched version.
+- **Root Cause Analysis**:
+  1. **Race Condition**: `_initializeSpeechEngine()` and `_checkMicrophonePermission()` were executing concurrently without `await`, causing `_doStartListening()` to never be called.
+  2. **JSON Format Mismatch**: Windows native C++ code sends `{"recognizedWords":"...", "finalResult":true}`, but the `speech_to_text` package's JSON parser expects `{"alternates":[{"recognizedWords":"...", "confidence":1.0}], "finalResult":true}`. This caused a `type 'Null' is not a subtype of type 'List<dynamic>' in type cast` error, silently failing the `onResult` callback.
+- **Solution**:
+  - Added `await` to initialization calls to ensure sequential execution.
+  - Created a local patched version of `speech_to_text_windows` that transforms the JSON format before passing it to the main package's parser.
+- **Technical Details**:
+  - The `_transformRecognitionResult()` method in the patched plugin converts the Windows-native JSON format to the expected format with `alternates` array.
+  - This is a workaround for an upstream bug in `speech_to_text_windows` version 1.0.0+beta.8.
 
-### 11. Fix Subtitle Display
-- **Commit**: Ensure subtitle shows content instead of state names
+---
+
+## [v1.4.5] - 2026-01-08: Windows SAPI Compatibility Fix
+
+### 73. Windows Voice: Force System Default Locale
+- **Purpose**: Definitive fix for "Microphone active but no response" issue on Windows.
+- **Files Modified**: `lib/features/voice_chat/pages/voice_chat_screen.dart`.
+- **Details**:
+  - **Problem**: Previous attempts to fuzzy-match the app locale (e.g., `zh_Hant`) to a Windows SAPI engine ID (e.g., `zh-TW`) failed because SAPI requires the *currently active* recognizer to match the request exactly. If the system default is English but the app requests Chinese, the engine initializes but remains silent.
+  - **Solution**: Explicitly force `localeId: null` on Windows. This compels the library to use the user's active system recognizer.
+  - **User Impact**: Users must ensure their Windows Speech settings match the language they intend to speak. The app will now reliably transcribe speech in the system's configured language.
+  - **Mode**: Retained `ListenMode.dictation` to ensure free-form speech recognition.
+
+## [v1.4.4] - 2026-01-08: Windows Voice Recognition Stabilization
+
+### 72. Windows Voice Logic Overhaul
+- **Purpose**: Resolve "microphone active but no response" by fixing locale negotiation and listen mode.
+- **Files Modified**: `lib/features/voice_chat/pages/voice_chat_screen.dart`.
+- **Details**:
+  - **Fuzzy Locale Matching**: Implemented a sophisticated matching system to map App Locales (e.g., `zh_Hant`) to system-specific Windows SAPI IDs (e.g., `zh-TW`). This ensures the engine initializes with a recognizer that actually understands the user's speech.
+  - **Listen Mode Reversion**: Switched back to `ListenMode.dictation`. Previous testing showed that `deviceDefault` (Command mode) frequently ignored natural conversational speech on Windows.
+  - **Fallback Strategy**: The system now attempts exact matches, then language-variant matches, then general language matches, and only falls back to the system default (`null`) if no installed SAPI voice is suitable.
+  - **Logging**: Added detailed debug output for available system locales and the final selection process.
+
+## [v1.4.3] - 2026-01-08: Windows Voice Locale Fix
+
+### 71. Windows SAPI Locale Bypass
+- **Purpose**: Resolve persistent "microphone active but no response" issue on Windows.
+- **Files Modified**: `lib/features/voice_chat/pages/voice_chat_screen.dart`.
+- **Details**: 
+  - Identified that the Windows SAPI engine is highly sensitive to mismatched `localeId` (e.g., passing `zh_TW` when only `zh-TW` or a default recognizer is available can cause it to stall).
+  - Modified `_doStartListening` to strictly skip locale resolution on Windows (`selectedLocaleId = null`), forcing the engine to use the system's default active recognizer. This provides the most reliable experience.
+
+## [v1.4.2] - 2026-01-08: Windows Voice Critical Fixes
+
+### 68. Windows Voice Regex Fix
+- **Purpose**: Resolve the "microphone active but no response" bug.
+- **Files Modified**: `lib/features/voice_chat/pages/voice_chat_screen.dart`.
+- **Details**: Fixed a typo in the locale splitting regex (`[_寿-]` -> `[_-]`). This error caused the fuzzy locale matcher to crash or return invalid data, preventing the Windows SAPI engine from initializing with the correct language pack.
+
+### 69. Windows Listen Mode Optimization
+- **Purpose**: Improve SAPI engine stability.
+- **Files Modified**: `lib/features/voice_chat/pages/voice_chat_screen.dart`.
+- **Details**: Switched `listenMode` to `ListenMode.deviceDefault` on Windows. The `dictation` mode used on mobile was found to be unreliable with the Windows Speech API, leading to silence or timeouts.
+
+### 70. Audio Diagnostics
+- **Purpose**: Enable hardware input verification.
+- **Files Modified**: `lib/features/voice_chat/pages/voice_chat_screen.dart`.
+- **Details**: Added `onSoundLevelChange` logging to print "Mic level" to the debug console, allowing verification that the app is physically receiving audio data.
+
+## [v1.4.1] - 2026-01-07: Windows Voice Stability
+
+### 56. Voice Chat Input Fix
+- **Purpose**: Resolve "microphone active but no response" issue on Windows.
+- **Files Modified**: `lib/features/voice_chat/pages/voice_chat_screen.dart`.
+- **Details**: Implemented robust locale resolution logic. The app now fetches system-supported locales and intelligently matches them (exact or fuzzy) against the app's current language to ensure the Speech-to-Text engine receives a valid `localeId`.
+
+### 57. Windows System TTS Repair
+- **Purpose**: Fix "TTS speak failed" / "TTS unavailable" error on Windows.
+- **Files Modified**: `pubspec.yaml`.
+- **Details**: Switched `flutter_tts` dependency from a local path (which lacked Windows implementation) to the official `^4.2.3` version on pub.dev.
+
+### 58. Desktop UI Accessibility
+- **Purpose**: Improve usability of key actions on desktop.
+- **Files Modified**: `lib/features/home/pages/home_desktop_layout.dart`.
+- **Details**: Increased the size of "Voice Chat" and "New Chat" buttons in the top-right toolbar by approximately 1.7x (Icon: 34px, Touch Target: 54px).
+
+### 59. Crash Prevention
+- **Purpose**: Prevent `MissingPluginException` crashes in Voice Chat mode.
+- **Files Modified**: `lib/features/voice_chat/pages/voice_chat_screen.dart`.
+- **Details**: Guarded `AudioSession.instance` calls with platform checks to ensure they only run on Android/iOS, as the plugin is not supported on Windows.
+
+### 60. Desktop UI Refinement
+- **Purpose**: Optimize button sizes in the top-right toolbar.
+- **Files Modified**: `lib/features/home/pages/home_desktop_layout.dart`.
+- **Details**: Adjusted "Voice Chat" and "New Chat" buttons to an intermediate size (1.4x) between the original and the previous large increase. New dimensions: Icon size 28, tap target 48.
+
+### 61. Windows System TTS Crash Fix
+- **Purpose**: Prevent crash when using System TTS on Windows.
+- **Files Modified**: `lib/core/providers/tts_provider.dart`.
+- **Details**: 
+  - Restricted `_selectEngine` to run only on Android, as `getEngines` is not supported on Windows.
+  - Conditionally applied `focus: true` in `_tts.speak()` only for Android, as passing this named argument on Windows caused issues.
+
+### 62. Windows Voice Stability & Recognition
+- **Purpose**: Fix "no speech response" and crash on exit issues on Windows.
+- **Files Modified**: `lib/features/voice_chat/pages/voice_chat_screen.dart`.
+- **Details**:
+  - **Recognition**: Switched `listenMode` to `ListenMode.search` (instead of `dictation`) on non-mobile platforms to improve compatibility with Windows SAPI.
+  - **Stability**: Wrapped `_speechToText.cancel()` in a try-catch block and ensured `AudioSession` and `FlutterBackground` are strictly guarded against execution on Windows to prevent exit crashes.
+
+### 63. Windows TTS Stability Finalization
+- **Purpose**: Prevent native crashes caused by unsupported method calls in `flutter_tts` on Windows.
+- **Files Modified**: `lib/core/providers/tts_provider.dart`.
+- **Details**: Restricted `awaitSpeakCompletion`, `awaitSynthCompletion`, `setEngine`, and `setQueueMode` to Android/iOS only. Windows SAPI implementation does not safely support these synchronous waits or engine switching.
+
+### 64. Windows Voice Recognition & Exit Fix
+- **Purpose**: Fix "microphone active but no response" and crash on exit.
+- **Files Modified**: `lib/features/voice_chat/pages/voice_chat_screen.dart`.
+- **Details**:
+  - **Recognition**: Reverted `listenMode` to `ListenMode.dictation` (was `search`) as it proved more reliable for Windows.
+  - **Cleanup**: Implemented `_isCleaningUp` semaphore to prevent double-disposal race conditions between `dispose()` and navigation pop.
+
+### 65. Windows TTS Playback Fix
+- **Purpose**: Allow System TTS playback even if no network providers are configured.
+- **Files Modified**: `lib/features/home/controllers/home_page_controller.dart`.
+- **Details**: Updated `speakMessage` logic to allow playback when `usingSystemTts` is true, bypassing the check for network service existence.
+
+### 66. Windows TTS Settings UI Adjustment
+- **Purpose**: Hide unsupported Engine/Language selectors on Windows.
+- **Files Modified**: `lib/desktop/setting/tts_services_pane.dart`.
+- **Details**: Wrapped engine and language dropdowns in `if (Platform.isAndroid)` blocks, as `flutter_tts` does not support listing engines/languages on Windows/iOS.
+
+### 67. Windows Voice Recognition & Race Condition Fix
+- **Purpose**: Resolve "microphone active but no response" by fixing engine race conditions.
+- **Files Modified**: `lib/features/voice_chat/pages/voice_chat_screen.dart`.
+- **Details**:
+  - **Logic**: Removed aggressive manual restarts at the end of `_doStartListening` which caused engine re-entrancy conflicts. Restarts are now strictly handled by `onStatus` and `onError` callbacks.
+  - **State**: Improved `_isListening` state management to prevent overlapping `listen()` calls.
+  - **Locale**: Enhanced Windows locale matching to fuzzy-match app language with system-installed SAPI voices (e.g., matching `zh_Hant` to `zh_TW` or `zh_HK`).
+  - **Debug**: Enabled `debugLogging` in the STT engine for better diagnostic output.
+
+## [v1.4.0] - 2026-01-06: Windows UX, Branding & Voice Fixes
+
+### 50. Windows Branding & Icon Update
+- **Purpose**: Align the Windows build with the OmniChat brand.
 - **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Removed setting _currentSubtitle to localized state strings, ensuring it shows actual content
-- **Description**: Fixed subtitle to display actual recognized text or AI response instead of state names
+  - `windows/CMakeLists.txt`, `windows/runner/Runner.rc`, `windows/runner/main.cpp`: Renamed binary and metadata from "kelivo" to "OmniChat".
+  - `windows/runner/resources/app_icon.ico`: Replaced with the new OmniChat icon.
+  - `lib/desktop/desktop_home_page.dart`: Updated title bar icon and text.
 
-### 12. Update Voice Chat Button Icon
-- **Commit**: Change voice chat button icon from Mic to Volume2
+### 51. UI Unification & Navigation
+- **Purpose**: Make the Windows experience consistent with Android.
 - **Files Modified**:
-  - `lib/features/home/pages/home_page.dart` - Changed icon from `Lucide.Mic` to `Lucide.Volume2`
-- **Description**: Changed icon to be more representative of voice chat functionality
+  - `lib/desktop/desktop_home_page.dart`: Removed the unique desktop rail; now uses the unified `HomePage` and `SideDrawer`.
+  - `lib/features/home/widgets/side_drawer.dart`: Added a "Storage" shortcut to the bottom bar for parity.
 
-### 13. Improve Content Handling in Streaming
-- **Commit**: Fix null content handling in stream processing
+### 52. Voice Chat & System TTS Fixes
+- **Purpose**: Resolve Windows-specific voice issues and enable missing features.
 - **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Changed from conditional content processing to null-aware operator (??) for content accumulation
-- **Description**: Fixed issue where empty content might cause Thinking→Listening jump instead of proper state transition
+  - `lib/features/voice_chat/pages/voice_chat_screen.dart`: Added aggressive resource cleanup using `cancel()` to release the microphone; added locale-aware recognition.
+  - `lib/desktop/setting/tts_services_pane.dart`: Re-enabled the **System TTS** card for Windows users.
 
-### 14. Enhanced Error Handling
-- **Commit**: Add comprehensive error handling for API calls and streaming
+### 53. Windows Icon Resolution Fix
+- **Purpose**: Fix low-quality icon display on Windows by unifying source to high-resolution assets.
+- **Files Modified**: `flutter_launcher_icons.yaml`, `pubspec.yaml`.
+- **Note**: Requires running `dart run flutter_launcher_icons` to regenerate assets.
+
+### 54. Sidebar Navigation Restoration
+- **Purpose**: Ensure "Settings", "User", "Translation", and "Storage" buttons are visible in the Windows sidebar.
 - **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Added try-catch blocks for API calls and streaming with appropriate UI feedback
-- **Description**: Improved error handling to provide better user feedback and prevent silent failures
+  - `lib/desktop/desktop_sidebar.dart`: Removed forced hiding of the bottom bar.
+  - `lib/features/home/widgets/side_drawer.dart`: Updated logic to display the bottom bar in embedded/desktop modes when `showBottomBar` is true.
+  - `lib/features/home/pages/home_desktop_layout.dart`: Enabled bottom bar on the left drawer while maintaining a clean right drawer (topic list).
 
-## Additional Changes Made
-
-### 15. App Name Change from Kelivo to OmniChat
-- **Commit**: Change application name across all platform configurations
+### 55. Windows System Font Support
+- **Purpose**: Allow Windows users to use native system fonts for a more integrated OS experience.
 - **Files Modified**:
-  - `android/app/build.gradle.kts` - Updated namespace and applicationId from "com.psyche.kelivo" to "com.psyche.omnichat"
-  - `android/app/src/main/kotlin/com/psyche/kelivo/MainActivity.kt` - Updated package name, moved to new directory structure
-  - `linux/CMakeLists.txt` - Updated APPLICATION_ID and BINARY_NAME
-  - `macos/Runner/Configs/AppInfo.xcconfig` - Updated PRODUCT_BUNDLE_IDENTIFIER and PRODUCT_NAME
-  - `ios/Runner.xcodeproj/project.pbxproj` - Updated PRODUCT_BUNDLE_IDENTIFIER entries
-  - `macos/Runner.xcodeproj/project.pbxproj` - Updated TEST_HOST references
-- **Description**: Fully renamed application from "kelivo" to "OmniChat" across all platform configurations to match branding
+  - `lib/desktop/desktop_settings_page.dart`: Updated `_showDesktopFontChooserDialog` to show "System Default" and "Monospace Default" options; enabled these flags in the font rows.
+  - `lib/theme/theme_factory.dart`: (Verified) Already contains appropriate fallbacks for Windows (Segoe UI, Microsoft YaHei).
+- **Outcome**: Users can now select "System Default" in font settings to use Windows native fonts.
 
-### 16. Voice Chat Button Icon Update
-- **Commit**: Change voice chat button icon for better user recognition
-- **Files Modified**:
-  - `lib/features/home/pages/home_page.dart` - Changed voice chat button icon from `Lucide.Volume2` to `Lucide.Phone`
-- **Description**: Updated voice chat button icon from volume to phone for better intuitive recognition
+## [v1.1.6] - 2026-01-06: Windows Release & Packaging
 
-### 17. Localization Fix for Traditional Chinese
-- **Commit**: Add missing Traditional Chinese translations for voice chat
-- **Files Modified**:
-  - `lib/l10n/app_zh_Hant.arb` - Added missing voice chat localization strings (voiceChatListening, voiceChatThinking, voiceChatTalking, etc.)
-- **Description**: Fixed voice chat not following Traditional Chinese language setting by adding missing translations
+### 49. Windows Build & Installer
 
-### 18. Visual Design Improvements
-- **Commit**: Update visual design to gray-black theme with consistent styling
+- **Purpose**: Fix compilation errors and provide distribution packages for Windows.
 - **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Changed background to gray-black gradient, updated state display styling, modified subtitle display, adjusted button styling
-- **Description**:
-  - Implemented gray-black gradient background theme
-  - Updated status and subtitle displays to blend with main background using transparent styling
-  - Changed control buttons to use consistent styling without white borders
-  - Updated pause and subtitle toggle buttons to blue theme
-  - Changed end button from Square to CircleStop icon with increased size from 28 to 32
+  - `dependencies/flutter-permission-handler/permission_handler_windows/windows/permission_handler_windows_plugin.cpp`: Fixed C4819 encoding error by replacing a non-standard hyphen.
+  - `installers/omnichat_setup.iss`: Created Inno Setup script for building the Windows installer.
+  - `installers/OmniChat_v1.1.6_Windows_Portable.zip`: Created portable ZIP package from the release build.
+- **Outcome**: 
+  - Successful `flutter build windows --release`.
+  - Portable and Installer-ready artifacts generated in `installers/`.
 
-### 19. Button Interaction Fix
-- **Commit**: Remove white background boxes from control buttons
-- **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Replaced IosCardPress with GestureDetector to eliminate white background appearance
-- **Description**: Fixed control buttons appearing as white boxes by removing IosCardPress styling
+## [v1.3.0] - 2026-01-06: OpenRouter Balance & Production Build
 
-### 20. Context Handling Update
-- **Commit**: Remove voice chat specific prompt to allow natural conversation flow
-- **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Removed the special voice chat prompt while maintaining system prompts and conversation context
-- **Description**: Modified voice chat to use natural conversation flow while preserving system prompts and conversation context
+### 47. OpenRouter Balance Calculation
 
-### 21. Continuous Listening Enhancement
-- **Commit**: Fix continuous listening functionality
+- **Purpose**: Fix OpenRouter balance always showing `?` due to missing support for subtraction in JSON path evaluation.
 - **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Removed shouldRetry parameter that was causing build issues and refined continuous listening logic
-- **Description**: Improved continuous listening functionality to work without timeout
+  - `lib/core/providers/model_provider.dart`: Updated `_JsonUtils.eval` to support arithmetic subtraction (`a - b`).
+  - `lib/core/providers/settings_provider.dart`: Updated `_migrateBalanceSettings` to set OpenRouter's result key to `data.total_credits - data.total_usage`.
+- **Outcome**: OpenRouter balance now correctly displays the net available credits.
 
-### 23. Voice Chat Model and Context Handling Verified (2025-11-27)
-- **Commit**: Verification of voice chat model capabilities and context handling.
-- **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart`
-- **Description**:
-  - Confirmed the full implementation of `_isToolModel` and `_hasBuiltInGeminiSearch` in `voice_chat_screen.dart` to accurately determine model capabilities and built-in search support, replacing previous placeholder logic.
-  - Verified that the voice chat mode correctly incorporates assistant system prompts and maintains conversation context from the chat history when communicating with the LLM.
+### 48. Android Build & Environment Fixes
 
-### 22. Build Configuration Update
-- **Commit**: Optimize build for ARM64 release
+- **Purpose**: Resolve persistent build failures for production release.
 - **Files Modified**:
-  - `android/app/build.gradle.kts` - Maintained updated NDK version and configuration
-- **Description**: Updated build configuration to generate signed ARM64 APK for production release
+  - `android/app/build.gradle.kts`: Temporarily redirected `buildDir` to bypass `FileAlreadyExistsException` (restored after build).
+  - `android/app/proguard-rules.pro`: Added rules to keep `androidx.window` classes, fixing R8 compilation errors.
 
-### 25. Voice Chat Continuous Listening and Bluetooth Integration Improvements (2025-11-27)
-- **Commit**: Enhanced voice chat with timer-based restart mechanism and improved audio session configuration
-- **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Added `_restartListeningTimer` and implemented timer-based restart mechanism to address continuous listening timeout issues. Modified `_initAudioSessionForVoiceChat` to use `AndroidAudioContentType.speech`, `AndroidAudioFocusGainType.gain`, and improved activation. Added proper deactivation in `_endVoiceChat` and `dispose`. Added Bluetooth permissions to `AndroidManifest.xml` for better audio routing.
-  - `android/app/src/main/AndroidManifest.xml` - Added `BLUETOOTH`, `BLUETOOTH_CONNECT`, and `BLUETOOTH_ADVERTISE` permissions to enable proper Bluetooth audio routing.
-- **Description**:
-  - **Continuous Listening Fix**: Implemented a timer-based restart mechanism that checks every 8 seconds if speech recognition has stopped and restarts it when needed
-  - **Audio Session Configuration**: Enhanced audio session setup with proper activation and deactivation for better Bluetooth integration
-  - **Bluetooth Permissions**: Added necessary permissions for proper Bluetooth audio handling
-  - **Audio Session Management**: Added proper activation in `_startVoiceRecognition` and deactivation in `_endVoiceChat` and `dispose`
+## [v1.2.0] - 2026-01-05: Account Balance & UI Polish
 
-### 26. Signed ARM64 APK Generation (2025-11-27)
-- **Commit**: Generate signed ARM64 APK with build splits configuration
-- **Files Modified**:
-  - `android/app/build.gradle.kts` - Added ABI splits configuration to build only for `arm64-v8a` architecture
-- **Output File**: `C:\OminiChat_Gemini\OmniChat_v1.2_ARM64.apk`
-- **Description**: Configured the build process to generate a signed ARM64 APK specifically optimized for 64-bit devices. The APK was successfully built with proper signing using the configured keystore.
+### 46. Account Balance Fix & Migration
 
-### 27. Documentation Update: Testing Results and Outstanding Issues (2025-11-27)
-- **Commit**: Document current testing results and identified issues
+- **Purpose**: Fix missing balance values for OpenRouter and other providers by forcing correct API paths.
 - **Files Modified**:
-  - `implementation_plan_voice_chat.md` - Added "Current Testing Results & Issues" section documenting the three main issues discovered during testing: continuous listening timeout still occurring, Bluetooth call simulation not working with car systems, and incorrect close button behavior.
-- **Description**: Updated implementation plan with detailed documentation of issues found during testing, including updated status from "Implemented and tested" to "Partially implemented with remaining issues".
+  - `lib/core/providers/settings_provider.dart`: Enhanced `_migrateBalanceSettings` to force-update incorrect paths (e.g., OpenRouter now uses `/credits`).
+- **Status**: OpenRouter balance displays `?`, indicating parsing issues despite correct path.
 
-### 28. Documentation Refresh: Voice Chat Fixes & Diagnostics Summary (2025-11-28)
-- **Commit**: Record completion of continuous listening watchdog, Bluetooth call simulation, end-button fix, and diagnostics reruns
-- **Files Modified**:
-  - `implementation_plan_voice_chat.md` - Updated status/date, recent updates, next steps, and testing notes to reflect the newly completed safeguards, Android bridge, safe teardown logic, and successful `flutter analyze`/`flutter test` diagnostics on 2025-11-28.
-- **Description**: Documented the latest round of voice chat fixes, including timer-based STT watchdog, MethodChannel call-mode bridge, safe `_endVoiceChat` teardown, and analyzer/test results, so future commits clearly see the work that was shipped.
+### 45. Signed APK Build & Fixes
 
-### 29. Voice Chat Fixes: Continuous Listening, Bluetooth Call Simulation, and End Button Behavior (2025-11-28)
-- **Commit**: Implement final fixes for continuous listening timeout, Bluetooth call simulation, and end button behavior issues
+- **Purpose**: Package the application for ARM64 v8a and fix compilation errors.
 - **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart` - Updated continuous listening watchdog to use proactive 5-second timer that starts before speech recognition to beat Android's 6-second timeout. Removed `defaultToSpeaker` from audio session configuration and added explicit `setPreferredInputRoute(AudioRoute.bluetooth)` for better Bluetooth routing. Updated end button and X button to both call `_endVoiceChat()` cleanup followed by `Navigator.pop()` for proper resource management.
-  - `android/app/src/main/kotlin/com/psyche/omnichat/MainActivity.kt` - Enhanced Bluetooth call simulation with proper audio mode setup (`MODE_IN_COMMUNICATION`) before requesting focus, ensuring microphone is unmuted, and improved Bluetooth SCO handling for automotive integration.
-  - `implementation_plan_voice_chat.md` - Updated to reflect that all major voice chat issues have been resolved.
-- **Description**: Finalized voice chat functionality with critical fixes: (1) Continuous listening watchdog now uses a proactive 5-second timer that beats Android's 6-second timeout, ensuring uninterrupted speech recognition; (2) Bluetooth call simulation enhanced with proper audio attributes and routing preferences to better integrate with car systems; (3) End button behavior fixed to perform proper cleanup while only closing the voice chat screen, not the entire app. Both navigation buttons (X and stop icon) now follow the same cleanup + navigation pattern.
+  - `lib/features/home/widgets/chat_input_bar.dart`: Fixed syntax errors (missing `LayoutBuilder` and variable definitions) introduced during previous edits.
 
-### 30. Voice Chat Core Fixes: Navigation, Continuous Listening, and Code Quality (2025-11-28)
-- **Commit**: Fix voice chat end button navigation, improve continuous listening mechanism, and clean up code
-- **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart`:
-    - **End Button Fix**: Simplified `_endVoiceChat()` to capture Navigator reference before async operations, ensuring proper navigation back to previous screen instead of closing entire app
-    - **Continuous Listening Refactor**:
-      - Added new `_doStartListening()` method for actual speech recognition start
-      - Added new `_forceRestartListening()` method for proactive restart
-      - Changed watchdog timer from 5 to 4 seconds to better beat Android's 6-second timeout
-      - Improved `_handleSpeechStatus()` and `_handleSpeechError()` with better state checks
-      - Silent restart on common timeout errors (no match, speech timeout, no speech)
-    - **Code Quality Improvements**:
-      - Removed unused imports: `design_tokens.dart`, `chat_provider.dart`, `ios_tactile.dart`, `chat_input_data.dart`, `http.dart`
-      - Removed unused `_simulateTTS()` method
-      - Fixed `dead_null_aware_expression` warning (removed unnecessary `?? -1`)
-      - Fixed `unreachable_switch_default` warnings in `_getStateText()` and `_getStateColor()`
-      - Fixed `body_might_complete_normally_catch_error` warning by returning `false` in catchError
-      - Added proper type annotation `Stream<dynamic>` for stream variable
-      - Added `mounted` check before setState in API error handling
-  - `implementation_plan_voice_chat.md` - Updated to reflect all fixes completed and ready for device testing
-- **Description**:
-  - **Navigation Fixed**: End button now correctly returns to home page by capturing Navigator before cleanup operations
-  - **Continuous Listening Improved**: Refactored with dedicated methods and 4-second proactive restart cycle
-  - **Code Quality**: Reduced analyzer warnings from 33 to 16 (all remaining are info-level: avoid_print, deprecated_member_use, use_build_context_synchronously, sized_box_for_whitespace)
-  - **Status**: Ready for device testing to verify fixes work on physical hardware
+### 44. New Chat Icon Resizing
 
-### 31. Voice Chat Fixes Round 2: Navigation Order and Bluetooth SCO Improvements (2025-11-28)
-- **Commit**: Fix end button navigation order and improve Bluetooth call simulation
+- **Purpose**: Slightly reduce the size of the "New Chat" header icon for better visual consistency.
 - **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart`:
-    - **End Button Fix**: Changed execution order - now calls `Navigator.of(context).pop()` FIRST before any async cleanup operations (FlutterBackground, AudioSession, etc.)
-  - `android/app/src/main/AndroidManifest.xml`:
-    - Added `MODIFY_AUDIO_SETTINGS` permission for Bluetooth SCO control
-  - `android/app/src/main/kotlin/com/psyche/omnichat/MainActivity.kt`:
-    - **Complete Rewrite of Bluetooth Call Simulation**:
-      - Added BroadcastReceiver to monitor SCO audio state changes
-      - Added `isBluetoothHeadsetConnected()` helper method
-      - Added comprehensive logging with TAG "OmniChatCallMode"
-      - Changed audio focus to `AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE` for stronger focus
-      - Added 500ms delay after starting SCO before enabling it
-      - Added proper cleanup in `onDestroy()`
-      - Added state logging for debugging
-  - `implementation_plan_voice_chat.md` - Updated with device testing results
-- **Description**:
-  - **Device Testing Results**: Continuous listening confirmed working; End button and Bluetooth still need verification
-  - **End Button**: Now navigates before cleanup to prevent app closure
-  - **Bluetooth**: Added SCO state monitoring, proper permissions, and debugging logs
-  - **Status**: Requires rebuild and re-testing on physical device
+  - `lib/features/home/pages/home_mobile_layout.dart`: Reduced `MessageCirclePlus` (New Chat) icon to 24px (Voice and Map remain at 24px).
 
-### 32. Voice Chat Final Fixes: End Button Navigation and Bluetooth SCO Keep-Alive (2025-11-28)
-- **Commit**: Fix end button closing app and implement silent audio for Bluetooth SCO stability
-- **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart`:
-    - **End Button Simplified**: Changed `_endVoiceChat()` to simply call `Navigator.of(context).pop()`, delegating all cleanup to `dispose()`
-    - **Dispose Enhanced**: Added `_listeningWatchdog?.cancel()` and `widget.ttsProvider.stop()` to ensure complete cleanup
-    - **Async Cleanup Delayed**: Moved `AudioSession.setActive(false)` and `FlutterBackground.disableBackgroundExecution()` to execute after 100ms delay to ensure navigation completes first
-  - `android/app/src/main/kotlin/com/psyche/omnichat/MainActivity.kt`:
-    - **Silent Audio Keep-Alive**: Implemented `AudioTrack` playing continuous silence to keep Bluetooth SCO connection alive
-    - Added `startSilentAudio()` method creating 8kHz mono PCM audio track with `USAGE_VOICE_COMMUNICATION`
-    - Added `stopSilentAudio()` method for proper cleanup
-    - Added `silentAudioTrack`, `silentAudioThread`, `silentAudioRunning` state variables
-    - **Audio Focus**: Changed from `AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE` to `AUDIOFOCUS_GAIN` for long-running voice chat
-    - **SCO Keep-Alive Simplified**: Removed aggressive reconnection logic that caused audio interruption; now only reconnects when SCO is actually disconnected by system
-    - Silent audio starts after SCO is enabled (500ms delay) or immediately for non-Bluetooth scenarios
-- **Description**:
-  - **End Button Fixed**: Now behaves identically to X button - both simply call `pop()` and let `dispose()` handle cleanup
-  - **Bluetooth SCO Stability**: Silent audio stream keeps the SCO connection alive indefinitely, preventing the 10-15 second timeout
-  - **Audio Quality**: Removed the keep-alive ping that was causing audio interruption every 5 seconds
-  - **Status**: Both issues resolved - end button returns to home page, Bluetooth audio remains stable
+### 43. Model Icon Resizing
 
-### 31. Voice Chat Continuous Recognition and State Display Fixes (2025-11-29)
-- **Commit**: Replace forced 4-second restart with event-based continuous recognition and fix state display issue
+- **Purpose**: Fine-tune model icon size for better visual alignment with other buttons.
 - **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart`:
-    - **Continuous Recognition Logic**: Replaced forced 4-second restart mechanism with event-based restart approach
-      - Removed `pauseFor: const Duration(seconds: 30)` and `listenFor: const Duration(minutes: 10)` parameters that were ineffective on Android
-      - Modified `_handleSpeechStatus()` to restart only when needed, without checking `_currentState`
-      - Updated `_handleSpeechError()` with the same logic for all error types
-      - Modified `_scheduleRestart()` to only check `mounted` and `_isPaused`, not `_currentState`
-      - Updated `_doStartListening()` to ensure state is set to `VoiceChatState.listening` when starting
-    - **State Display Fix**: Implemented `_isProcessingVoiceInput` flag to prevent unwanted restarts:
-      - Added `_isProcessingVoiceInput` boolean flag to track processing state
-      - Set flag to `true` when voice input is detected in `onResult` callback
-      - Modified restart logic to check `_isProcessingVoiceInput` flag before restarting
-      - Created `_startVoiceRecognitionAfterProcessing()` method to reset flag before restarting
-      - Replaced all `_startVoiceRecognition()` calls in `_sendToLLM` with `_startVoiceRecognitionAfterProcessing()`
-    - **Debug Logging**: Added comprehensive debug print statements to track recognition flow
-- **Description**:
-  - **Continuous Recognition**: Implemented improved continuous recognition by replacing the forced restart mechanism with event-driven restarts that only happen when needed
-  - **State Display Fix**: Resolved issue where status incorrectly showed "listening" during "thinking" and "talking" states by implementing proper processing state tracking
-  - **Enhanced Logic**: Used processing flags to prevent unwanted restarts when the system is already processing voice input
+  - `lib/features/home/widgets/chat_input_bar.dart`: Adjusted `modelButtonW` to 38px and `childSize` to 36px with 1px padding.
 
-### 33. Voice Recognition State Synchronization Fix (2025-11-29)
-- **Commit**: Fix voice recognition starting during thinking/talking states
-- **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart`:
-    - **State-Synchronized Voice Recognition**: Modified multiple functions to ensure voice recognition only restarts during the `listening` state:
-      - Updated `_scheduleRestart()` to check `_currentState == VoiceChatState.listening` before restarting
-      - Updated `_startVoiceRecognitionAfterProcessing()` to verify current state before restarting
-      - Modified all locations in `_sendToLLM()` that restart voice recognition to respect state
-      - Updated `_togglePause()` to ensure voice recognition only starts in `listening` state
-      - Modified `_doStartListening()` to check state before starting recognition
-      - Enhanced debug logging to include current state information
-- **Description**:
-  - **State Synchronization**: Fixed issue where voice recognition would start during thinking and talking states by adding state checks to all voice recognition restart points
-  - **Consistent Behavior**: Ensured voice recognition only operates during `listening` state while maintaining proper state transitions
-  - **Quality Assurance**: Added additional debug logs to track state and recognition behavior for future testing
+### 42. Final UI Reversion & Polish
 
-### 34. Audio Output Routing Fix (2025-11-30)
-- **Commit**: Fix audio output routing to speaker instead of earpiece
+- **Purpose**: Restore approved icon sizes and clean up balance display logic.
 - **Files Modified**:
-  - `lib/features/voice_chat/pages/voice_chat_screen.dart`:
-    - **Removed Call Mode Initiation**: Removed `_enterCallMode()` call from `initState()` to prevent app from being treated as a call
-    - **Removed Call Mode Cleanup**: Removed `_exitCallMode()` call from `dispose()` method
-    - **Audio Session Configuration**: Changed audio session mode from `AVAudioSessionMode.voiceChat` to `AVAudioSessionMode.spokenAudio`
-    - **Audio Attributes Update**: Updated Android audio attributes from `AndroidAudioUsage.voiceCommunication` to `AndroidAudioUsage.media`
-    - **Bluetooth-Aware Method**: Created `_updateCallModeForBluetooth()` method for handling Bluetooth-specific routing
-  - `android/app/src/main/kotlin/com/psyche/omnichat/MainActivity.kt`:
-    - **Audio Focus Management**: Modified audio focus requests to use `STREAM_MUSIC` instead of `STREAM_VOICE_CALL` for non-Bluetooth scenarios
-    - **Conditional Audio Mode**: Updated audio mode settings to use `MODE_IN_COMMUNICATION` only for Bluetooth connections, `MODE_NORMAL` otherwise
-    - **Speakerphone Control**: Adjusted speakerphone settings based on Bluetooth connection status
-    - **Silent Audio Attributes**: Updated silent audio keep-alive mechanism to use appropriate audio attributes based on Bluetooth connection status
-- **Description**:
-  - **Audio Routing**: Fixed issue where app was being treated as a call application, causing audio to route to earpiece instead of speaker
-  - **Bluetooth Support**: Maintains proper Bluetooth routing when connected while preventing earpiece routing in non-Bluetooth scenarios
-  - **Consistent Output**: Audio now correctly outputs to speaker by default, with Bluetooth routing preserved when appropriate
+  - `lib/features/home/widgets/chat_input_bar.dart`: Reverted `modelButtonW` to 40px and `_CompactIconButton` icon to 38px.
+  - `lib/features/home/widgets/chat_input_section.dart`: Reverted `CurrentModelIcon` size to 38px.
+  - `lib/core/providers/settings_provider.dart`: Reverted aggressive migration; now only initializes null balance fields.
+  - `lib/core/providers/model_provider.dart`: Reverted custom headers and extended error parsing in `getBalance`.
+  - `lib/features/provider/widgets/provider_balance_text.dart`: Improved placeholder display (`...`) and ensured wallet icon visibility.
+
+### 41. Icon Maximization & Initial Balance UI
+
+- **Purpose**: Enlarge icons for better space utilization and add money icon to balance text.
+- **Files Modified**:
+  - `lib/features/home/widgets/chat_input_bar.dart`: Initial enlargement of toolbar icons (20->24px).
+  - `lib/features/home/widgets/model_icon.dart`: Enlarged internal logo scale (0.5->0.65).
+  - `lib/features/provider/widgets/provider_balance_text.dart`: Added `Lucide.Banknote` icon support.
+  - `lib/features/model/widgets/model_select_sheet.dart`: Changed `_ProviderChip` to a vertical layout to prevent text clipping.
+
+### 40. Account Balance Feature (Initial Port)
+
+- **Purpose**: Port "Get account balance" logic and UI from Rikkahub.
+- **Files Modified**:
+  - `lib/core/providers/settings_provider.dart`: Added `balanceEnabled`, `balanceApiPath`, and `balanceResultKey` to `ProviderConfig`.
+  - `lib/core/providers/model_provider.dart`: Implemented `getBalance` and nested JSON parsing.
+  - `lib/l10n/app_*.arb`: Added balance configuration localizations.
+
+### 39. Upstream Merge & Preservation
+
+- **Purpose**: Sync with latest `kelivo` changes while maintaining Voice Chat features.
+
+---
+
+## [v1.1.0] - 2026-01-04: Voice Chat Stability
+
+### 38. Bluetooth & Call Mode Refinement
+
+- **Purpose**: Fix audio routing and Bluetooth headset detection.
+  - `android/app/src/main/kotlin/com/psyche/omnichat/MainActivity.kt`: Fixed false-positive detection.
+  - `lib/features/voice_chat/pages/voice_chat_screen.dart`: Optimized `_startUp` sequence.
+
+### 37. Voice UX Improvements
+
+- **Purpose**: Disable auto-play in text mode and improve navigation logic.
+
+---
+
+## [v1.0.0] - 2025-11-27: Voice Chat Launch
+
+### 1-36. Initial Voice Chat Implementation
+
+- **Purpose**: Core voice features and project rebranding from "Kelivo" -> "OmniChat".

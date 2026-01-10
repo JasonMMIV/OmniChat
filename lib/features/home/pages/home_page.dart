@@ -785,25 +785,33 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     }
   }
 
-  void _openReasoningSettings() {
+  Future<void> _openReasoningSettings() async {
     if (PlatformUtils.isDesktop) {
-      showDesktopReasoningBudgetPopover(context, anchorKey: _inputBarKey);
+      await showDesktopReasoningBudgetPopover(context, anchorKey: _inputBarKey);
     } else {
-      showReasoningBudgetSheet(context);
+      await showReasoningBudgetSheet(context);
     }
   }
 
-  void _showQuickPhraseMenu() {
+  Future<void> _showQuickPhraseMenu() async {
+    final ap = context.read<AssistantProvider>();
+    final provider = context.read<QuickPhraseProvider>();
+    final assistant = ap.currentAssistant;
+    final phrases = [
+      ...provider.globalPhrases,
+      if (assistant != null) ...provider.getForAssistant(assistant.id),
+    ];
+
     if (PlatformUtils.isDesktop) {
-      showDesktopQuickPhrasePopover(context, anchorKey: _inputBarKey);
+      final selected = await showDesktopQuickPhrasePopover(
+        context,
+        anchorKey: _inputBarKey,
+        phrases: phrases,
+      );
+      if (selected != null) {
+        _controller.handleQuickPhraseSelection(selected);
+      }
     } else {
-      final a = context.read<AssistantProvider>().currentAssistant;
-      final provider = context.read<QuickPhraseProvider>();
-      final phrases = [
-        ...provider.globalPhrases,
-        if (a != null) ...provider.getForAssistant(a.id),
-      ];
-      
       final RenderBox? box = _inputBarKey.currentContext?.findRenderObject() as RenderBox?;
       final Offset position = box?.localToGlobal(Offset.zero) ?? Offset.zero;
 
@@ -896,7 +904,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       ),
     );
     if (confirm == true) {
-      await _controller.deleteMessage(message, byGroup: byGroup);
+      await _controller.deleteMessage(message: message, byGroup: byGroup);
     }
   }
 }

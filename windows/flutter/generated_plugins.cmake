@@ -7,11 +7,13 @@ list(APPEND FLUTTER_PLUGIN_LIST
   desktop_drop
   dynamic_color
   file_selector_windows
+  flutter_tts
   hotkey_manager_windows
   irondash_engine_context
   permission_handler_windows
   screen_retriever_windows
   share_plus
+  speech_to_text_windows
   super_native_extensions
   tray_manager
   url_launcher_windows

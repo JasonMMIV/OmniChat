@@ -48,6 +48,7 @@ class HomeDesktopScaffold extends StatelessWidget {
     required this.onRightSidebarWidthChanged,
     required this.onRightSidebarWidthChangeEnd,
     required this.buildAssistantBackground,
+    this.onVoiceChat,
     required this.body,
   });
 
@@ -78,6 +79,7 @@ class HomeDesktopScaffold extends StatelessWidget {
   final void Function(double dx) onRightSidebarWidthChanged;
   final VoidCallback onRightSidebarWidthChangeEnd;
   final Widget Function(BuildContext context) buildAssistantBackground;
+  final VoidCallback? onVoiceChat;
   final Widget body;
 
   static const Duration _sidebarAnimDuration = Duration(milliseconds: 260);
@@ -203,6 +205,7 @@ class HomeDesktopScaffold extends StatelessWidget {
                   loadingConversationIds: loadingConversationIds,
                   useDesktopTabs: false,
                   desktopTopicsOnly: true,
+                  showBottomBar: false,
                   onSelectConversation: (id, {closeDrawer = true}) => onSelectConversation(id),
                   onNewConversation: ({closeDrawer = true}) => onNewConversation(),
                 ),
@@ -385,6 +388,15 @@ class HomeDesktopScaffold extends StatelessWidget {
 
   List<Widget> _buildActions(BuildContext context, bool topicsOnRight) {
     return [
+      if (onVoiceChat != null)
+        IosIconButton(
+          size: 28,
+          padding: const EdgeInsets.all(8),
+          minSize: 48,
+          icon: Lucide.Phone,
+          onTap: onVoiceChat,
+          semanticLabel: AppLocalizations.of(context)!.voiceChatButtonTooltip,
+        ),
       // Right sidebar toggle (desktop + topics on right)
       if (_isDesktop && topicsOnRight)
         IosIconButton(
@@ -396,9 +408,9 @@ class HomeDesktopScaffold extends StatelessWidget {
         ),
       const SizedBox(width: 2),
       IosIconButton(
-        size: 20,
+        size: 28,
         padding: const EdgeInsets.all(8),
-        minSize: 40,
+        minSize: 48,
         icon: Lucide.MessageCirclePlus,
         onTap: () async {
           await onCreateNewConversation();

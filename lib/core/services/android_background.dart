@@ -13,7 +13,7 @@ class AndroidBackgroundManager {
     if (_initialized) return true;
     try {
       final androidConfig = FlutterBackgroundAndroidConfig(
-        notificationTitle: notificationTitle ?? 'Kelivo is running',
+        notificationTitle: notificationTitle ?? 'OmniChat is running',
         notificationText: notificationText ?? 'Keeping chat generation alive in background',
         notificationImportance: AndroidNotificationImportance.normal,
         // Explicitly use app launcher icon from mipmap to avoid resource resolution issues

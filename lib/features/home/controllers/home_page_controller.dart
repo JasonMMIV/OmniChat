@@ -652,8 +652,11 @@ class HomePageController extends ChangeNotifier {
   Future<void> speakMessage(ChatMessage message) async {
     if (PlatformUtils.isDesktopTarget) {
       final sp = _context.read<SettingsProvider>();
+      // Allow if System TTS is selected (index < 0) OR if a valid network service is selected
+      final isSystem = sp.usingSystemTts;
       final hasNetworkTts = sp.ttsServiceSelected >= 0 && sp.ttsServices.isNotEmpty;
-      if (!hasNetworkTts) {
+      
+      if (!isSystem && !hasNetworkTts) {
         showAppSnackBar(
           _context,
           message: AppLocalizations.of(_context)!.desktopTtsPleaseAddProvider,

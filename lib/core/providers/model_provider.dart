@@ -106,6 +106,53 @@ class ModelRegistry {
 
 abstract class BaseProvider {
   Future<List<ModelInfo>> listModels(ProviderConfig cfg);
+  Future<String> getBalance(ProviderConfig cfg);
+}
+
+class _JsonUtils {
+  static dynamic getByPath(dynamic json, String path) {
+    if (path.isEmpty) return json;
+    final parts = path.split('.');
+    dynamic current = json;
+    for (var part in parts) {
+      if (current == null) return null;
+      // Handle array access like balance_infos[0]
+      if (part.contains('[') && part.endsWith(']')) {
+        final openBracket = part.indexOf('[');
+        final key = part.substring(0, openBracket);
+        final index = int.tryParse(part.substring(openBracket + 1, part.length - 1));
+        if (key.isNotEmpty) {
+          current = current[key];
+        }
+        if (current is List && index != null && index < current.length) {
+          current = current[index];
+        } else {
+          return null;
+        }
+      } else {
+        if (current is Map) {
+          current = current[part];
+        } else {
+          return null;
+        }
+      }
+    }
+    return current;
+  }
+
+  static dynamic eval(dynamic json, String expr) {
+    if (expr.contains(' - ')) {
+      final parts = expr.split(' - ');
+      if (parts.length == 2) {
+        final v1 = getByPath(json, parts[0].trim());
+        final v2 = getByPath(json, parts[1].trim());
+        final n1 = v1 is num ? v1 : num.tryParse(v1?.toString() ?? '0') ?? 0;
+        final n2 = v2 is num ? v2 : num.tryParse(v2?.toString() ?? '0') ?? 0;
+        return n1 - n2;
+      }
+    }
+    return getByPath(json, expr);
+  }
 }
 
 class _Http {
@@ -154,6 +201,56 @@ class OpenAIProvider extends BaseProvider {
       client.close();
     }
   }
+
+  @override
+  Future<String> getBalance(ProviderConfig cfg) async {
+    if (cfg.balanceEnabled != true || (cfg.balanceApiPath ?? '').isEmpty) return '';
+    final key = ProviderManager._effectiveApiKey(cfg);
+    final client = _Http.clientFor(cfg);
+    try {
+      final base = cfg.baseUrl.endsWith('/') ? cfg.baseUrl.substring(0, cfg.baseUrl.length - 1) : cfg.baseUrl;
+      final path = cfg.balanceApiPath!.startsWith('/') ? cfg.balanceApiPath! : '/${cfg.balanceApiPath!}';
+      final uri = cfg.balanceApiPath!.startsWith('http') ? Uri.parse(cfg.balanceApiPath!) : Uri.parse('$base$path');
+      
+      final headers = <String, String>{};
+      if (key.isNotEmpty) headers['Authorization'] = 'Bearer $key';
+      
+      // OpenRouter specific headers to avoid blocking and comply with docs
+      if (uri.host.contains('openrouter')) {
+        headers['HTTP-Referer'] = 'https://github.com/MixinNetwork/OmniChat';
+        headers['X-Title'] = 'OmniChat';
+        headers['User-Agent'] = 'OmniChat/1.0';
+      }
+
+      print('[Balance Debug] Request: $uri');
+      print('[Balance Debug] Headers: $headers');
+      
+      final res = await client.get(uri, headers: headers);
+      
+      print('[Balance Debug] Status: ${res.statusCode}');
+      print('[Balance Debug] Body: ${res.body}');
+
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final data = jsonDecode(res.body);
+        final value = _JsonUtils.eval(data, cfg.balanceResultKey ?? '');
+        print('[Balance Debug] Extracted value: $value using key: ${cfg.balanceResultKey}');
+        if (value != null) {
+          if (value is num) {
+            // If it's a small number, assume it's USD and format it.
+            // If it's a large number, might be points/tokens.
+            if (value < 1000) return '\$${value.toStringAsFixed(2)}';
+            return value.toString();
+          }
+          return value.toString();
+        }
+      }
+      return '';
+    } catch (_) {
+      return '';
+    } finally {
+      client.close();
+    }
+  }
 }
 
 class ClaudeProvider extends BaseProvider {
@@ -185,6 +282,16 @@ class ClaudeProvider extends BaseProvider {
     } finally {
       client.close();
     }
+  }
+
+  @override
+  Future<String> getBalance(ProviderConfig cfg) async {
+    // Anthropic official API doesn't have a simple balance endpoint for keys.
+    // If user provided a custom one via ProviderConfig, we could try OpenAI logic.
+    if (cfg.balanceEnabled == true && (cfg.balanceApiPath ?? '').isNotEmpty) {
+      return await OpenAIProvider().getBalance(cfg);
+    }
+    return '';
   }
 }
 
@@ -252,6 +359,14 @@ class GoogleProvider extends BaseProvider {
     } finally {
       client.close();
     }
+  }
+
+  @override
+  Future<String> getBalance(ProviderConfig cfg) async {
+    if (cfg.balanceEnabled == true && (cfg.balanceApiPath ?? '').isNotEmpty) {
+      return await OpenAIProvider().getBalance(cfg);
+    }
+    return '';
   }
 }
 
@@ -330,6 +445,10 @@ class ProviderManager {
 
   static Future<List<ModelInfo>> listModels(ProviderConfig cfg) {
     return forConfig(cfg).listModels(cfg);
+  }
+
+  static Future<String> getBalance(ProviderConfig cfg) {
+    return forConfig(cfg).getBalance(cfg);
   }
 
   static Future<void> testConnection(ProviderConfig cfg, String modelId, {bool useStream = false}) async {

@@ -90,13 +90,13 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.psyche" "\0"
-            VALUE "FileDescription", "kelivo" "\0"
-            VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "kelivo" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2025 com.psyche. All rights reserved." "\0"
-            VALUE "OriginalFilename", "kelivo.exe" "\0"
-            VALUE "ProductName", "kelivo" "\0"
-            VALUE "ProductVersion", VERSION_AS_STRING "\0"
+            VALUE "FileDescription", "OmniChat" "\0"
+            VALUE "FileVersion", "1.0.0.1" "\0"
+            VALUE "InternalName", "OmniChat" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2024 com.psyche.kelivo. All rights reserved." "\0"
+            VALUE "OriginalFilename", "OmniChat.exe" "\0"
+            VALUE "ProductName", "OmniChat" "\0"
+            VALUE "ProductVersion", "1.0.0.1" "\0"
         END
     END
     BLOCK "VarFileInfo"

@@ -11,7 +11,6 @@ import '../../mcp/pages/mcp_page.dart';
 import '../../assistant/pages/assistant_settings_page.dart';
 import 'about_page.dart';
 import 'tts_services_page.dart';
-import 'sponsor_page.dart';
 import '../../search/pages/search_services_page.dart';
 import '../../backup/pages/backup_page.dart';
 import '../../quick_phrase/pages/quick_phrases_page.dart';
@@ -295,55 +294,6 @@ class SettingsPage extends StatelessWidget {
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutPage()));
               },
             ),
-            _iosDivider(context),
-            _iosNavRow(
-              context,
-              icon: Lucide.Library,
-              label: l10n.settingsPageDocs,
-              onTap: () async {
-                final uri = Uri.parse('https://kelivo.psycheas.top/');
-                if (!await launchUrl(uri, mode: LaunchMode.platformDefault)) {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                }
-              },
-            ),
-            _iosDivider(context),
-            _iosNavRow(
-              context,
-              icon: Lucide.Heart,
-              label: l10n.settingsPageSponsor,
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SponsorPage()),
-                );
-              },
-            ),
-            // _iosDivider(context),
-            // _iosNavRow(
-            //   context,
-            //   icon: Lucide.Share2,
-            //   label: l10n.settingsPageShare,
-            //   onTap: () async {
-            //     // Provide anchor rect from overlay for iPad share sheet
-            //     Rect anchor;
-            //     try {
-            //       final overlay = Overlay.of(context);
-            //       final ro = overlay?.context.findRenderObject();
-            //       if (ro is RenderBox && ro.hasSize) {
-            //         final center = ro.size.center(Offset.zero);
-            //         final global = ro.localToGlobal(center);
-            //         anchor = Rect.fromCenter(center: global, width: 1, height: 1);
-            //       } else {
-            //         final size = MediaQuery.of(context).size;
-            //         anchor = Rect.fromCenter(center: Offset(size.width / 2, size.height / 2), width: 1, height: 1);
-            //       }
-            //     } catch (_) {
-            //       final size = MediaQuery.of(context).size;
-            //       anchor = Rect.fromCenter(center: Offset(size.width / 2, size.height / 2), width: 1, height: 1);
-            //     }
-            //     await Share.share(l10n.settingsShare, sharePositionOrigin: anchor);
-            //   },
-            // ),
           ]),
 
           const SizedBox(height: 24),

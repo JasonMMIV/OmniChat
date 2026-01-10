@@ -34,7 +34,6 @@ class DesktopSidebar extends StatelessWidget {
       onSelectConversation: onSelectConversation,
       onNewConversation: onNewConversation,
       loadingConversationIds: loadingConversationIds,
-      showBottomBar: false,
     );
   }
 }

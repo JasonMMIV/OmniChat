@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'preset_message.dart';
+import 'assistant_regex.dart';
 
 class Assistant {
   final String id;
@@ -28,6 +29,8 @@ class Assistant {
   final bool enableRecentChatsReference; // include recent chat titles in prompt
   // Preset conversation messages (ordered)
   final List<PresetMessage> presetMessages;
+  // Regex replacement rules (per assistant)
+  final List<AssistantRegex> regexRules;
 
   const Assistant({
     required this.id,
@@ -53,6 +56,7 @@ class Assistant {
     this.enableMemory = false,
     this.enableRecentChatsReference = false,
     this.presetMessages = const <PresetMessage>[],
+    this.regexRules = const <AssistantRegex>[],
   });
 
   Assistant copyWith({
@@ -79,6 +83,7 @@ class Assistant {
     bool? enableMemory,
     bool? enableRecentChatsReference,
     List<PresetMessage>? presetMessages,
+    List<AssistantRegex>? regexRules,
     bool clearChatModel = false,
     bool clearAvatar = false,
     bool clearTemperature = false,
@@ -112,6 +117,7 @@ class Assistant {
       enableRecentChatsReference:
           enableRecentChatsReference ?? this.enableRecentChatsReference,
       presetMessages: presetMessages ?? this.presetMessages,
+      regexRules: regexRules ?? this.regexRules,
     );
   }
 
@@ -139,6 +145,7 @@ class Assistant {
         'enableMemory': enableMemory,
         'enableRecentChatsReference': enableRecentChatsReference,
         'presetMessages': PresetMessage.encodeList(presetMessages),
+        'regexRules': AssistantRegex.encodeList(regexRules),
     };
 
   static Assistant fromJson(Map<String, dynamic> json) => Assistant(
@@ -194,6 +201,13 @@ class Assistant {
             return PresetMessage.decodeList(json['presetMessages']);
           } catch (_) {
             return const <PresetMessage>[];
+          }
+        })(),
+        regexRules: (() {
+          try {
+            return AssistantRegex.decodeList(json['regexRules']);
+          } catch (_) {
+            return const <AssistantRegex>[];
           }
         })(),
       );

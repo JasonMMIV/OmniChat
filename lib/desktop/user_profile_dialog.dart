@@ -265,13 +265,6 @@ class _UserProfileDialogBodyState extends State<_UserProfileDialogBody> {
           },
         ),
         DesktopContextMenuItem(
-          svgAsset: 'assets/icons/tencent-qq.svg',
-          label: l10n.sideDrawerImportFromQQ,
-          onTap: () async {
-            await _inputQQAvatar(context);
-          },
-        ),
-        DesktopContextMenuItem(
           icon: lucide.Lucide.RotateCw,
           label: l10n.desktopAvatarMenuReset,
           onTap: () async {

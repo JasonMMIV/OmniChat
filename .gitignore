@@ -37,6 +37,11 @@ migrate_working_dir/
 # Symbolication related
 app.*.symbols
 
+# Secrets and Keystores
+upload-keystore.jks
+*.jks
+/lib/secrets/
+
 # Obfuscation related
 app.*.map.json
 

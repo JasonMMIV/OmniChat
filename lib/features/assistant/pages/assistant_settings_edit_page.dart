@@ -1989,7 +1989,6 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                       }
                     }),
                     row(l10n.assistantEditAvatarEnterLink, () async => _inputAvatarUrl(context, a)),
-                    row(l10n.assistantEditAvatarImportQQ, () async => _inputQQAvatar(context, a)),
                     row(l10n.assistantEditAvatarReset, () async {
                       await context.read<AssistantProvider>().updateAssistant(
                         a.copyWith(clearAvatar: true),
@@ -3383,11 +3382,11 @@ class _PromptTabState extends State<_PromptTab> {
         type: NotificationType.success,
       );
       Future.microtask(() => _sysFocus.requestFocus());
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       showAppSnackBar(
         context,
-        message: l10n.assistantEditSystemPromptImportFailed,
+        message: l10n.assistantEditSystemPromptImportFailed(e.toString()),
         type: NotificationType.error,
       );
     }
@@ -6909,11 +6908,6 @@ class _DesktopAssistantBasicPaneState extends State<_DesktopAssistantBasicPane> 
           icon: Lucide.Link,
           label: l10n.assistantEditAvatarEnterLink,
           onTap: () async { await _inputAvatarUrl(context, a); },
-        ),
-        DesktopContextMenuItem(
-          svgAsset: 'assets/icons/tencent-qq.svg',
-          label: l10n.assistantEditAvatarImportQQ,
-          onTap: () async { await _inputQQAvatar(context, a); },
         ),
         DesktopContextMenuItem(
           icon: Lucide.RotateCw,

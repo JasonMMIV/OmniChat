@@ -1,2 +1,6 @@
 -dontwarn com.gemalto.jp2.**
 -dontwarn com.tom_roush.pdfbox.filter.JPXFilter
+-keep class androidx.window.extensions.** { *; }
+-keep class androidx.window.sidecar.** { *; }
+-dontwarn androidx.window.extensions.**
+-dontwarn androidx.window.sidecar.**

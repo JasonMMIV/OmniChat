@@ -123,7 +123,8 @@ class TtsProvider extends ChangeNotifier {
     final loc = ui.PlatformDispatcher.instance.locale;
     final defaultTag = _localeToTag(loc);
     try {
-      if (_engineId != null && _engineId!.isNotEmpty) {
+      // Only set engine on Android, as engine IDs are platform-specific
+      if (io.Platform.isAndroid && _engineId != null && _engineId!.isNotEmpty) {
         try { await _tts.setEngine(_engineId!); } catch (_) {}
       }
       final tag = (_languageTag == null || _languageTag!.isEmpty) ? defaultTag : _languageTag!;
@@ -142,10 +143,17 @@ class TtsProvider extends ChangeNotifier {
     } catch (_) {
       // Ignore language config failures; engine may still speak
     }
+    
     // Better UX: await completion callbacks to sequence chunks
-    try { await _tts.awaitSpeakCompletion(true); } catch (_) {}
-    try { await _tts.awaitSynthCompletion(true); } catch (_) {}
-    try { await _tts.setQueueMode(1); } catch (_) {}
+    // Windows implementation of flutter_tts can be unstable with awaitSpeakCompletion
+    if (io.Platform.isAndroid || io.Platform.isIOS) {
+      try { await _tts.awaitSpeakCompletion(true); } catch (_) {}
+      try { await _tts.awaitSynthCompletion(true); } catch (_) {}
+    }
+    
+    if (io.Platform.isAndroid) {
+      try { await _tts.setQueueMode(1); } catch (_) {}
+    }
   }
 
   Future<void> _recreateEngine() async {
@@ -185,7 +193,9 @@ class TtsProvider extends ChangeNotifier {
   Future<void> _kickEngine() async {
     // Querying languages/engines tends to trigger binding on Android.
     try { await _tts.getLanguages; } catch (_) {}
-    try { await _tts.getEngines; } catch (_) {}
+    if (io.Platform.isAndroid) {
+      try { await _tts.getEngines; } catch (_) {}
+    }
   }
 
   Future<void> _ensureBound({Duration timeout = const Duration(seconds: 3)}) async {
@@ -208,6 +218,7 @@ class TtsProvider extends ChangeNotifier {
 
   Future<void> _selectEngine() async {
     // Android only: choose Google engine if present, otherwise first available
+    if (!io.Platform.isAndroid) return;
     try {
       final engines = await _tts.getEngines;
       if (engines is List && engines.isNotEmpty) {
@@ -399,7 +410,11 @@ class TtsProvider extends ChangeNotifier {
       await _tts.setSpeechRate(_speechRate);
       await _tts.setPitch(_pitch);
       await _tts.setVolume(1.0);
-      res = await _tts.speak(text, focus: true);
+      if (io.Platform.isAndroid) {
+        res = await _tts.speak(text, focus: true);
+      } else {
+        res = await _tts.speak(text);
+      }
     } catch (_) {}
     if (_speakOk(res)) return true;
     // Try picking engine and retry a few times to accommodate late binding
@@ -411,7 +426,11 @@ class TtsProvider extends ChangeNotifier {
         await _tts.setSpeechRate(_speechRate);
         await _tts.setPitch(_pitch);
         await _tts.setVolume(1.0);
-        res = await _tts.speak(text, focus: true);
+        if (io.Platform.isAndroid) {
+          res = await _tts.speak(text, focus: true);
+        } else {
+          res = await _tts.speak(text);
+        }
       } catch (_) {}
       if (_speakOk(res)) return true;
     }
@@ -424,7 +443,11 @@ class TtsProvider extends ChangeNotifier {
         await _tts.setSpeechRate(_speechRate);
         await _tts.setPitch(_pitch);
         await _tts.setVolume(1.0);
-        res = await _tts.speak(text, focus: true);
+        if (io.Platform.isAndroid) {
+          res = await _tts.speak(text, focus: true);
+        } else {
+          res = await _tts.speak(text);
+        }
       } catch (_) {}
       if (_speakOk(res)) return true;
     }

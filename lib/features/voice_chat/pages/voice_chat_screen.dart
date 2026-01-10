@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_background/flutter_background.dart';
@@ -70,12 +71,14 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
   String _recognizedText = '';
   Timer? _voiceStopTimer;
   bool _hasMicrophonePermission = false;
+  bool _isCleaningUp = false;
 
   // Speech recognition
   final SpeechToText _speechToText = SpeechToText();
   bool _isListening = false;
   bool _speechEngineReady = false;
   bool _manualStopInProgress = false;
+  Map<String, int> _versionSelections = {};
 
   // Timer to restart listening if it stops unexpectedly
   Timer? _restartListeningTimer;
@@ -103,189 +106,115 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
   }
 
   Future<void> _startUp() async {
-    await _initAudioSessionForVoiceChat();
-    await _initBackgroundService();
-    _initializeSpeechEngine();
-    _checkMicrophonePermission();
+    print('[OmniChat Dart] _startUp: Starting...');
+    if (Platform.isAndroid || Platform.isIOS) {
+      await _initAudioSessionForVoiceChat();
+    }
+    if (Platform.isAndroid) {
+      await _initBackgroundService();
+    }
+
+    // Must initialize speech engine first, then check permission
+    // Previously these were running concurrently, causing race condition
+    print('[OmniChat Dart] _startUp: Initializing speech engine...');
+    await _initializeSpeechEngine();
+    print('[OmniChat Dart] _startUp: Speech engine initialized. Ready: $_speechEngineReady');
+    
+    print('[OmniChat Dart] _startUp: Checking microphone permission...');
+    await _checkMicrophonePermission();
+    print('[OmniChat Dart] _startUp: Permission checked. Granted: $_hasMicrophonePermission');
+
     _loadVersionSelections();
+
     // Initialize call mode (Bluetooth/Speaker handling)
-    await _initializeCallMode();
-  }
-
-  Future<void> _initializeCallMode() async {
-    // Invoke startCallMode on native side.
-    // The native implementation checks for Bluetooth connectivity and:
-    // - If Bluetooth connected: Sets MODE_IN_COMMUNICATION, starts SCO, enables silent audio keep-alive.
-    // - If Speaker: Sets MODE_NORMAL, ensures speakerphone is on.
-    try {
-      await _callModeChannel.invokeMethod('startCallMode');
-    } catch (e) {
-      print('Failed to initialize call mode: $e');
+    if (Platform.isAndroid) {
+      await _initializeCallMode();
     }
-  }
-
-  Future<void> _initBackgroundService() async {
-    const androidConfig = FlutterBackgroundAndroidConfig(
-      notificationTitle: "OmniChat Voice Chat",
-      notificationText: "Voice chat is active.",
-      notificationIcon: AndroidResource(name: 'ic_launcher', defType: 'mipmap'),
-    );
-    await FlutterBackground.initialize(androidConfig: androidConfig);
-    await FlutterBackground.enableBackgroundExecution();
-  }
-
-  Future<void> _initAudioSessionForVoiceChat() async {
-    final session = await AudioSession.instance;
-    await session.configure(AudioSessionConfiguration(
-      avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
-      avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth |
-          AVAudioSessionCategoryOptions.mixWithOthers,
-      avAudioSessionMode: AVAudioSessionMode.spokenAudio,  // Changed from voiceChat to spokenAudio
-      androidAudioAttributes: AndroidAudioAttributes(
-        contentType: AndroidAudioContentType.speech,
-        flags: AndroidAudioFlags.none,
-        usage: AndroidAudioUsage.media, // Changed from voiceCommunication to media for proper output routing
-      ),
-      androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-      androidWillPauseWhenDucked: false,
-    ));
-
-    // Activate the session to ensure proper audio routing
-    await session.setActive(true);
-  }
-
-  Map<String, int> _versionSelections = <String, int>{};
-
-  void _loadVersionSelections() {
-    final cid = widget.chatService.currentConversationId;
-    if (cid == null) {
-      _versionSelections = <String, int>{};
-      return;
-    }
-    try {
-      _versionSelections = widget.chatService.getVersionSelections(cid);
-    } catch (_) {
-      _versionSelections = <String, int>{};
-    }
-  }
-
-  List<ChatMessage> _collapseVersions(List<ChatMessage> items) {
-    final Map<String, List<ChatMessage>> byGroup = <String, List<ChatMessage>>{};
-    final List<String> order = <String>[];
-    for (final m in items) {
-      final gid = (m.groupId ?? m.id);
-      final list = byGroup.putIfAbsent(gid, () {
-        order.add(gid);
-        return <ChatMessage>[];
-      });
-      list.add(m);
-    }
-    for (final e in byGroup.entries) {
-      e.value.sort((a, b) => a.version.compareTo(b.version));
-    }
-    final out = <ChatMessage>[];
-    for (final gid in order) {
-      final vers = byGroup[gid]!;
-      final sel = _versionSelections[gid];
-      final idx = (sel != null && sel >= 0 && sel < vers.length) ? sel : (vers.length - 1);
-      out.add(vers[idx]);
-    }
-    return out;
-  }
-
-  @override
-  void dispose() {
-    // Cancel all timers
-    _voiceStopTimer?.cancel();
-    _restartListeningTimer?.cancel();
-    // Note: _listeningWatchdog was removed as part of continuous recognition loop implementation
-    // but we still cancel it in case it somehow exists
-    _listeningWatchdog?.cancel();
-
-    // Stop speech recognition
-    if (_isListening) {
-      _speechToText.stop();
-    }
-
-    // Stop TTS
-    widget.ttsProvider.stop();
-
-    // Stop Call Mode (Native cleanup)
-    try {
-      _callModeChannel.invokeMethod('stopCallMode');
-    } catch (e) {
-      print('Error stopping call mode: $e');
-    }
-
-    // Deactivate audio session and background execution after a short delay
-    // to ensure navigation completes first
-    Future.delayed(const Duration(milliseconds: 100), () {
-      AudioSession.instance.then((session) {
-        session.setActive(false);
-      });
-      FlutterBackground.disableBackgroundExecution();
-    });
-
-    super.dispose();
+    print('[OmniChat Dart] _startUp: Completed.');
   }
 
   Future<void> _checkMicrophonePermission() async {
+    print('[OmniChat Dart] _checkMicrophonePermission: Requesting permission...');
     final status = await Permission.microphone.request();
-    setState(() {
-      _hasMicrophonePermission = status == PermissionStatus.granted;
-    });
+    print('[OmniChat Dart] _checkMicrophonePermission: Status: $status');
+    if (mounted) {
+      setState(() {
+        _hasMicrophonePermission = status == PermissionStatus.granted;
+      });
+    }
 
     if (_hasMicrophonePermission) {
+      print('[OmniChat Dart] _checkMicrophonePermission: Permission granted, starting recognition...');
       _startVoiceRecognition();
     } else {
-      // Show permission request overlay
+      print('[OmniChat Dart] _checkMicrophonePermission: Permission denied.');
     }
   }
 
   Future<void> _initializeSpeechEngine() async {
-    if (_speechEngineReady) return;
+    if (_speechEngineReady) {
+        print('[OmniChat Dart] _initializeSpeechEngine: Already ready.');
+        return;
+    }
     try {
+      print('[OmniChat Dart] _initializeSpeechEngine: Calling speechToText.initialize()...');
       final ok = await _speechToText.initialize(
         onStatus: _handleSpeechStatus,
         onError: _handleSpeechError,
+        debugLogging: true, // Enable debug logging in package
       );
+      print('[OmniChat Dart] _initializeSpeechEngine: initialize returned: $ok');
       if (ok) {
-        setState(() {
-          _speechEngineReady = true;
-        });
+        if (mounted) {
+          setState(() {
+            _speechEngineReady = true;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            final localization = AppLocalizations.of(context);
+            _currentSubtitle = localization?.voiceChatErrorInitFailed ?? 'Failed to initialize voice recognition';
+          });
+        }
       }
     } catch (e) {
-      setState(() {
-        final localization = AppLocalizations.of(context);
-        _currentSubtitle = localization?.voiceChatErrorInitFailed ?? 'Failed to initialize voice recognition';
-      });
+      print('[OmniChat Dart] _initializeSpeechEngine: Exception: $e');
+      if (mounted) {
+        setState(() {
+          final localization = AppLocalizations.of(context);
+          _currentSubtitle = localization?.voiceChatErrorInitFailed ?? 'Failed to initialize voice recognition';
+        });
+      }
     }
   }
 
   void _handleSpeechStatus(String status) {
+    if (_isCleaningUp) return;
+
     // Don't restart if this was a manual stop
     if (_manualStopInProgress) {
-      _manualStopInProgress = false;
+      if (status == 'done' || status == 'notListening') {
+        _manualStopInProgress = false;
+        _isListening = false;
+      }
       return;
     }
 
-    print('Speech status changed to: $status'); // Debug print
-
     if (status == 'done' || status == 'notListening') {
-      print('System-initiated stop detected, scheduling restart'); // Debug print
-      // System-initiated stop - restart quickly to maintain continuous listening
       _isListening = false;
       // Always try to restart if we were listening and not paused
-      if (!_isPaused && mounted) {
+      if (!_isPaused && mounted && _currentState == VoiceChatState.listening && !_isProcessingVoiceInput) {
         _scheduleRestart(const Duration(milliseconds: 100));
-      } else {
-        print('Restart not scheduled due to conditions: paused=${_isPaused}, mounted=$mounted'); // Debug print
       }
     }
   }
 
   void _handleSpeechError(SpeechRecognitionError error) {
-    print('Speech recognition error: ${error.errorMsg}'); // Debug print
+    if (_isCleaningUp) return;
+
+    _isListening = false;
+
     // Don't restart if this was a manual stop
     if (_manualStopInProgress) {
       _manualStopInProgress = false;
@@ -303,127 +232,210 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
         errorMsg.contains('error_interruption') ||
         errorMsg.contains('error_client') ||
         errorMsg.contains('error_recognizer_busy')) {
-      print('Common timeout error detected, scheduling restart'); // Debug print
-      // These are expected when user is silent or timeout occurs, just restart
-      _isListening = false;
-      // Always try to restart if we were listening and not paused
-      if (!_isPaused && mounted) {
+      if (!_isPaused && mounted && _currentState == VoiceChatState.listening && !_isProcessingVoiceInput) {
         _scheduleRestart(const Duration(milliseconds: 100));
-      } else {
-        print('Restart not scheduled due to conditions: paused=${_isPaused}, mounted=$mounted'); // Debug print
       }
       return;
     }
 
-    // For other errors, show briefly then restart
     setState(() {
       final localization = AppLocalizations.of(context);
       _currentSubtitle = localization?.voiceChatError(error.errorMsg) ?? 'Error: ${error.errorMsg}';
     });
-    _isListening = false;
-    print('Other error detected, scheduling restart'); // Debug print
-    // Always try to restart if we were listening and not paused
-    if (!_isPaused && mounted) {
-      _scheduleRestart(const Duration(milliseconds: 200));
+
+    if (!_isPaused && mounted && _currentState == VoiceChatState.listening && !_isProcessingVoiceInput) {
+      _scheduleRestart(const Duration(milliseconds: 500));
     }
   }
 
   void _scheduleRestart(Duration delay) {
+    if (_isCleaningUp) return;
+    
     print('Scheduling restart in ${delay.inMilliseconds}ms'); // Debug print
     _restartListeningTimer?.cancel();
     _restartListeningTimer = Timer(delay, () {
+      if (_isCleaningUp) return;
+      
       print('Restart timer executed, mounted=$mounted, paused=$_isPaused, currentState=$_currentState'); // Debug print
       // Check if mounted, not paused, AND in listening state
-      if (mounted && !_isPaused && _currentState == VoiceChatState.listening) {
+      if (mounted && !_isPaused && _currentState == VoiceChatState.listening && !_isProcessingVoiceInput) {
         print('Attempting to restart listening'); // Debug print
         _doStartListening();
-      } else {
-        print('Restart aborted due to conditions: mounted=$mounted, paused=$_isPaused, currentState=$_currentState'); // Debug print
       }
     });
   }
 
   Future<void> _startVoiceRecognition() async {
-    if (!_hasMicrophonePermission || !_speechEngineReady) {
+    print('[OmniChat Dart] _startVoiceRecognition: checking preconditions...');
+    if (!_hasMicrophonePermission || !_speechEngineReady || _isCleaningUp) {
+      print('[OmniChat Dart] _startVoiceRecognition: Aborted. perm=$_hasMicrophonePermission, ready=$_speechEngineReady, cleanup=$_isCleaningUp');
       return;
     }
 
     // Cancel any existing restart timer
     _restartListeningTimer?.cancel();
 
-    // Make sure audio session is active for Bluetooth call simulation
-    try {
-      final session = await AudioSession.instance;
-      await session.setActive(true);
-    } catch (e) {
-      print('Could not activate audio session: $e');
+    // Make sure audio session is active for Bluetooth call simulation (Mobile only)
+    if (Platform.isAndroid || Platform.isIOS) {
+      try {
+        final session = await AudioSession.instance;
+        await session.setActive(true);
+      } catch (_) {}
     }
-
-    // Start the actual listening
-    await _doStartListening();
 
     setState(() {
       _currentState = VoiceChatState.listening;
       _currentSubtitle = '';
     });
+
+    // Start the actual listening
+    print('[OmniChat Dart] _startVoiceRecognition: calling _doStartListening...');
+    await _doStartListening();
   }
 
   void _startVoiceRecognitionAfterProcessing() {
+    print('[OmniChat Dart] _startVoiceRecognitionAfterProcessing called');
     // Reset processing flag before starting recognition again
     _isProcessingVoiceInput = false;
     // Only restart if we're in the listening state
-    if (_currentState == VoiceChatState.listening) {
+    if (_currentState == VoiceChatState.listening && !_isPaused && mounted) {
       _startVoiceRecognition();
-    }
-  }
-
-  /// Force restart listening - stops current session and starts a new one
-  /// This method is retained for manual restart scenarios but no longer used by the 4-second watchdog
-  Future<void> _forceRestartListening() async {
-    if (!mounted || _currentState != VoiceChatState.listening || _isPaused) return;
-
-    // Stop current listening session without triggering manual stop flag
-    try {
-      await _speechToText.stop();
-    } catch (e) {
-      print('Error stopping speech: $e');
-    }
-
-    // Small delay to allow the engine to reset
-    await Future.delayed(const Duration(milliseconds: 100));
-
-    // Start listening again
-    if (mounted && _currentState == VoiceChatState.listening && !_isPaused) {
-      await _doStartListening();
     }
   }
 
   /// Actually start the speech recognition
   Future<void> _doStartListening() async {
-    print('Attempting to start speech recognition, permission=$_hasMicrophonePermission, ready=$_speechEngineReady, mounted=$mounted, paused=$_isPaused, currentState=$_currentState'); // Debug print
-
-    if (!_hasMicrophonePermission || !_speechEngineReady) {
-      print('Cannot start, permission=$_hasMicrophonePermission, ready=$_speechEngineReady'); // Debug print
-      return;
-    }
-    if (!mounted || _isPaused || _currentState != VoiceChatState.listening) {
-      print('Cannot start, mounted=$mounted, paused=$_isPaused, currentState=$_currentState'); // Debug print
-      return;
-    }
-
-    // Make sure we're in the listening state when starting
-    if (_currentState != VoiceChatState.listening) {
-      setState(() {
-        _currentState = VoiceChatState.listening;
-        _currentSubtitle = '';
-      });
+    print('[OmniChat Dart] _doStartListening: Begin');
+    if (_isCleaningUp) { print('[OmniChat Dart] _doStartListening: Cleaning up, abort'); return; }
+    if (!_hasMicrophonePermission || !_speechEngineReady) { print('[OmniChat Dart] _doStartListening: Not ready/perm, abort'); return; }
+    if (!mounted || _isPaused || _currentState != VoiceChatState.listening || _isProcessingVoiceInput) {
+       print('[OmniChat Dart] _doStartListening: State check failed. mounted=$mounted, paused=$_isPaused, state=$_currentState, proc=$_isProcessingVoiceInput');
+       return;
     }
 
     _isListening = true;
     try {
-      print('Calling speechToText.listen'); // Debug print
+      // Attempt to resolve the best matching locale for the system
+      String? selectedLocaleId;
+
+      try {
+        print('[OmniChat Dart] _doStartListening: Fetching locales...');
+        final systemLocales = await _speechToText.locales();
+        print('[OmniChat Dart] _doStartListening: Locales fetched: ${systemLocales.length}');
+
+        if (systemLocales.isNotEmpty) {
+           // Use the app's configured locale from SettingsProvider, not the localization locale
+           final settingsLocale = widget.settings.appLocale;
+           final localeTag = '${settingsLocale.languageCode}${settingsLocale.scriptCode != null ? '_${settingsLocale.scriptCode}' : ''}${settingsLocale.countryCode != null ? '_${settingsLocale.countryCode}' : ''}';
+
+           // Also check if following system locale
+           final isSystemLocale = widget.settings.isFollowingSystemLocale;
+
+           // Normalize app locale to lower case with hyphens for comparison
+           // e.g., zh_Hant -> zh-hant, zh_CN -> zh-cn
+           final normalizedAppLocale = localeTag.toLowerCase().replaceAll('_', '-');
+
+           print('[OmniChat Dart] Settings locale: $settingsLocale (tag: $localeTag), isSystemLocale: $isSystemLocale');
+           print('[OmniChat Dart] Normalized app locale: $normalizedAppLocale');
+           print('[OmniChat Dart] Available system locales: ${systemLocales.map((l) => l.localeId).toList()}');
+
+           // 1. Try exact match (insensitive)
+           try {
+             selectedLocaleId = systemLocales.firstWhere(
+               (l) => l.localeId.toLowerCase().replaceAll('_', '-') == normalizedAppLocale
+             ).localeId;
+             print('[OmniChat Dart] Exact match found: $selectedLocaleId');
+           } catch (_) {
+             // 2. Special mapping for Chinese variants (common issue on Windows)
+             if (normalizedAppLocale.startsWith('zh')) {
+               if (normalizedAppLocale.contains('hant') || normalizedAppLocale.contains('tw') || normalizedAppLocale.contains('hk')) {
+                 // Traditional: try TW, HK
+                 try {
+                   selectedLocaleId = systemLocales.firstWhere(
+                     (l) {
+                       final lid = l.localeId.toLowerCase();
+                       return lid.contains('zh-tw') || lid.contains('zh-hk') || lid.contains('tw') || lid.contains('hk');
+                     }
+                   ).localeId;
+                   print('[OmniChat Dart] Chinese Traditional match found: $selectedLocaleId');
+                 } catch (_) {
+                   // If no Traditional, try any Chinese
+                   try {
+                     selectedLocaleId = systemLocales.firstWhere(
+                       (l) => l.localeId.toLowerCase().startsWith('zh')
+                     ).localeId;
+                     print('[OmniChat Dart] Chinese fallback match found: $selectedLocaleId');
+                   } catch (_) {}
+                 }
+               } else {
+                 // Simplified: try CN first, then any Chinese
+                 try {
+                   selectedLocaleId = systemLocales.firstWhere(
+                     (l) => l.localeId.toLowerCase().contains('zh-cn') || l.localeId.toLowerCase().contains('cn')
+                   ).localeId;
+                   print('[OmniChat Dart] Chinese Simplified match found: $selectedLocaleId');
+                 } catch (_) {
+                   // If no Simplified, try any Chinese
+                   try {
+                     selectedLocaleId = systemLocales.firstWhere(
+                       (l) => l.localeId.toLowerCase().startsWith('zh')
+                     ).localeId;
+                     print('[OmniChat Dart] Chinese fallback match found: $selectedLocaleId');
+                   } catch (_) {}
+                 }
+               }
+             }
+
+             // 3. General language match (e.g. en_US -> en_GB if US not found)
+             if (selectedLocaleId == null) {
+               final appLang = normalizedAppLocale.split('-')[0];
+               try {
+                 selectedLocaleId = systemLocales.firstWhere(
+                   (l) => l.localeId.toLowerCase().startsWith(appLang)
+                 ).localeId;
+                 print('[OmniChat Dart] Language fallback match found: $selectedLocaleId');
+               } catch (_) {}
+             }
+           }
+        }
+        
+        // 4. Force fallback if still null (Best Effort)
+        // This handles cases where systemLocales list is incomplete (e.g. Windows WinRT restriction)
+        // but the language pack is actually installed.
+        if (selectedLocaleId == null) {
+           final settingsLocale = widget.settings.appLocale;
+           final localeTag = '${settingsLocale.languageCode}${settingsLocale.scriptCode != null ? '_${settingsLocale.scriptCode}' : ''}${settingsLocale.countryCode != null ? '_${settingsLocale.countryCode}' : ''}';
+           final normalizedAppLocale = localeTag.toLowerCase().replaceAll('_', '-');
+           
+           if (normalizedAppLocale.contains('zh')) {
+             if (normalizedAppLocale.contains('hant') || normalizedAppLocale.contains('tw') || normalizedAppLocale.contains('hk')) {
+               selectedLocaleId = 'zh-TW';
+             } else {
+               selectedLocaleId = 'zh-CN';
+             }
+           } else {
+             // For other languages, use the standard tag (e.g. ja-JP, ko-KR)
+             // Best effort: construct a valid BCP-47 tag
+             if (settingsLocale.countryCode != null) {
+               selectedLocaleId = '${settingsLocale.languageCode}-${settingsLocale.countryCode}';
+             } else {
+               selectedLocaleId = settingsLocale.languageCode;
+             }
+           }
+           print('[OmniChat Dart] Forced fallback locale: $selectedLocaleId');
+        }
+
+      } catch (e) {
+        print('[OmniChat Dart] Error getting locales: $e');
+      }
+
+      print('[OmniChat Dart] Final selected locale: $selectedLocaleId');
+      print('[OmniChat Dart] Calling _speechToText.listen()...');
+
       await _speechToText.listen(
         onResult: (result) {
+          if (_isCleaningUp) return;
+
           final recognizedText = result.recognizedWords;
           setState(() {
             _currentSubtitle = recognizedText;
@@ -432,46 +444,30 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
           // When we get a final result, restart listening after processing
           if (result.finalResult && recognizedText.isNotEmpty) {
             _recognizedText = recognizedText;
-            // Set a flag to indicate we've received input and are processing
             _isListening = false;
-            _isProcessingVoiceInput = true;  // Mark that we're processing voice input
+            _isProcessingVoiceInput = true;
             _processVoiceInput(recognizedText);
           } else if (result.finalResult && recognizedText.isEmpty) {
-            // If we get a final result with no text (e.g., timeout), restart listening
-            print('Empty final result, scheduling restart'); // Debug print
             _isListening = false;
-            _scheduleRestart(const Duration(milliseconds: 100));
           }
         },
         listenMode: ListenMode.dictation,
+        localeId: selectedLocaleId,
         cancelOnError: false,
         partialResults: true,
-        onSoundLevelChange: (level) {
-          // Keep track of sound levels to maintain active listening
-          // This helps keep the speech recognition active even during low noise levels
-        },
       );
-      print('speechToText.listen completed'); // Debug print
-      // IMPORTANT: The listen() method completed, but on Android this might mean it reached system timeout
-      // We need to schedule a restart only if we're still in the right state
-      _isListening = false;
-      // Only restart if we're still in listening state (not in thinking/talking)
-      // and we haven't already received speech input and started processing
-      if (_currentState == VoiceChatState.listening && !_isPaused && mounted && !_isProcessingVoiceInput) {
-        print('Scheduling restart after listen() completed in listening state'); // Debug print
-        _scheduleRestart(const Duration(milliseconds: 50));
-      } else {
-        print('Not restarting, current state: $_currentState, paused: $_isPaused, processing: $_isProcessingVoiceInput'); // Debug print
-      }
+      print('[OmniChat Dart] _speechToText.listen() returned.');
     } catch (e) {
-      print('Error starting speech recognition: $e');
+      print('[OmniChat Dart] _doStartListening Exception: $e');
       _isListening = false;
-      // Try to restart after a short delay
-      _scheduleRestart(const Duration(milliseconds: 500));
+      if (!_isPaused && mounted) {
+        _scheduleRestart(const Duration(milliseconds: 500));
+      }
     }
   }
 
   Future<void> _processVoiceInput(String text) async {
+    print('[OmniChat Dart] _processVoiceInput: $text');
     if (text.isEmpty) return;
 
     if (_isListening) {
@@ -656,18 +652,22 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
                 // Add the chunk content to full content
                 fullContent += chunk.content ?? '';
                 // Update subtitle with partial content
-                setState(() {
-                  _currentSubtitle = fullContent;
-                });
+                if (mounted) {
+                  setState(() {
+                    _currentSubtitle = fullContent;
+                  });
+                }
 
                 // Update the assistant message with the streamed content
                 await chatService.updateMessage(assistantMessage.id, content: fullContent);
               }
             } catch (chunkError) {
-              setState(() {
-                final localization = AppLocalizations.of(context);
-                _currentSubtitle = localization?.voiceChatErrorProcessingResponse(chunkError.toString()) ?? 'Error processing response: ${chunkError.toString()}';
-              });
+              if (mounted) {
+                setState(() {
+                  final localization = AppLocalizations.of(context);
+                  _currentSubtitle = localization?.voiceChatErrorProcessingResponse(chunkError.toString()) ?? 'Error processing response: ${chunkError.toString()}';
+                });
+              }
             }
 
             // Finish the assistant message
@@ -679,20 +679,24 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
 
             if (fullContent.isNotEmpty) {
               // Switch to talking state before playing TTS
-              setState(() {
-                _currentState = VoiceChatState.talking;
-                _currentSubtitle = fullContent; // Show the response during talking state
-              });
+              if (mounted) {
+                setState(() {
+                  _currentState = VoiceChatState.talking;
+                  _currentSubtitle = fullContent; // Show the response during talking state
+                });
+              }
 
               try {
                 // Play the response using TTS and wait for completion
                 await widget.ttsProvider.speak(fullContent);
 
                 // After TTS completes, return to listening
-                setState(() {
-                  _currentState = VoiceChatState.listening;
-                  _currentSubtitle = ''; // Clear subtitle when returning to listening
-                });
+                if (mounted) {
+                  setState(() {
+                    _currentState = VoiceChatState.listening;
+                    _currentSubtitle = ''; // Clear subtitle when returning to listening
+                  });
+                }
 
                 // Only restart listening after TTS completes if we're still in listening state
                 if (_currentState == VoiceChatState.listening) {
@@ -700,15 +704,19 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
                 }
               } catch (e) {
                 // Handle TTS error but stay in talking state briefly before returning to listening
-                setState(() {
-                  final localization = AppLocalizations.of(context);
-                  _currentSubtitle = localization?.voiceChatErrorTts(e.toString()) ?? 'TTS error: ${e.toString()}';
-                });
+                if (mounted) {
+                  setState(() {
+                    final localization = AppLocalizations.of(context);
+                    _currentSubtitle = localization?.voiceChatErrorTts(e.toString()) ?? 'TTS error: ${e.toString()}';
+                  });
+                }
 
                 // Even if TTS fails, we should still return to listening state and restart recognition
-                setState(() {
-                  _currentState = VoiceChatState.listening;
-                });
+                if (mounted) {
+                  setState(() {
+                    _currentState = VoiceChatState.listening;
+                  });
+                }
 
                 if (_currentState == VoiceChatState.listening) {
                   _startVoiceRecognitionAfterProcessing();
@@ -716,10 +724,12 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
               }
             } else {
               // If no content, return to listening
-              setState(() {
-                _currentState = VoiceChatState.listening;
-                _currentSubtitle = ''; // Clear subtitle when returning to listening
-              });
+              if (mounted) {
+                setState(() {
+                  _currentState = VoiceChatState.listening;
+                  _currentSubtitle = ''; // Clear subtitle when returning to listening
+                });
+              }
 
               if (_currentState == VoiceChatState.listening) {
                 _startVoiceRecognitionAfterProcessing();
@@ -727,11 +737,13 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
             }
           } else {
             // No provider/model set, show error and return to listening
-            setState(() {
-              _currentState = VoiceChatState.listening;
-              final localization = AppLocalizations.of(context);
-              _currentSubtitle = localization?.voiceChatErrorNoModel ?? 'No model selected';
-            });
+            if (mounted) {
+              setState(() {
+                _currentState = VoiceChatState.listening;
+                final localization = AppLocalizations.of(context);
+                _currentSubtitle = localization?.voiceChatErrorNoModel ?? 'No model selected';
+              });
+            }
 
             if (_currentState == VoiceChatState.listening) {
               _startVoiceRecognitionAfterProcessing();
@@ -739,11 +751,13 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
           }
         } else {
           // Conversation not found, show error
-          setState(() {
-            _currentState = VoiceChatState.listening;
-            final localization = AppLocalizations.of(context);
-            _currentSubtitle = localization?.voiceChatErrorNoConversation ?? 'No conversation found';
-          });
+          if (mounted) {
+            setState(() {
+              _currentState = VoiceChatState.listening;
+              final localization = AppLocalizations.of(context);
+              _currentSubtitle = localization?.voiceChatErrorNoConversation ?? 'No conversation found';
+            });
+          }
 
           if (_currentState == VoiceChatState.listening) {
             _startVoiceRecognitionAfterProcessing();
@@ -751,11 +765,13 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
         }
       } else {
         // If no current conversation, show error
-        setState(() {
-          _currentState = VoiceChatState.listening;
-          final localization = AppLocalizations.of(context);
-          _currentSubtitle = localization?.voiceChatErrorNoActiveConversation ?? 'No active conversation';
-        });
+        if (mounted) {
+          setState(() {
+            _currentState = VoiceChatState.listening;
+            final localization = AppLocalizations.of(context);
+            _currentSubtitle = localization?.voiceChatErrorNoActiveConversation ?? 'No active conversation';
+          });
+        }
 
         if (_currentState == VoiceChatState.listening) {
           _startVoiceRecognition();
@@ -763,11 +779,13 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
       }
 
     } catch (e) {
-      setState(() {
-        _currentState = VoiceChatState.listening;
-        final localization = AppLocalizations.of(context);
-        _currentSubtitle = localization?.voiceChatError(e.toString()) ?? 'Error: ${e.toString()}';
-      });
+      if (mounted) {
+        setState(() {
+          _currentState = VoiceChatState.listening;
+          final localization = AppLocalizations.of(context);
+          _currentSubtitle = localization?.voiceChatError(e.toString()) ?? 'Error: ${e.toString()}';
+        });
+      }
 
       // Restart listening even on error
       if (_currentState == VoiceChatState.listening) {
@@ -778,7 +796,10 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
+    if (l10n == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -1033,15 +1054,151 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
     }
   }
 
-  void _endVoiceChat() {
-    // Simply navigate back - all cleanup will be handled by dispose()
-    Navigator.of(context).pop();
+  void _endVoiceChat() async {
+    // Perform cleanup before navigating back to ensure resources (mic) are released
+    await _cleanup();
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   void _toggleSubtitle() {
     setState(() {
       _showSubtitles = !_showSubtitles;
     });
+  }
+
+  Future<void> _initAudioSessionForVoiceChat() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth | AVAudioSessionCategoryOptions.defaultToSpeaker,
+        avAudioSessionMode: AVAudioSessionMode.voiceChat,
+        avAudioSessionRouteSharingPolicy: AVAudioSessionRouteSharingPolicy.defaultPolicy,
+        androidAudioAttributes: const AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.speech,
+          flags: AndroidAudioFlags.none,
+          usage: AndroidAudioUsage.voiceCommunication,
+        ),
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+        androidWillPauseWhenDucked: true,
+      ));
+    } catch (e) {
+      print('Error initializing audio session: $e');
+    }
+  }
+
+  Future<void> _initBackgroundService() async {
+    try {
+      if (Platform.isAndroid) {
+        final androidConfig = FlutterBackgroundAndroidConfig(
+          notificationTitle: "OmniChat Voice Chat",
+          notificationText: "Voice chat is active",
+          notificationImportance: AndroidNotificationImportance.normal,
+          notificationIcon: const AndroidResource(name: 'ic_launcher', defType: 'mipmap'),
+        );
+        await FlutterBackground.initialize(androidConfig: androidConfig);
+        await FlutterBackground.enableBackgroundExecution();
+      }
+    } catch (e) {
+      print('Error initializing background service: $e');
+    }
+  }
+
+  void _loadVersionSelections() {
+    final cid = widget.chatService.currentConversationId;
+    if (cid == null) {
+      _versionSelections = {};
+      return;
+    }
+    try {
+      _versionSelections = widget.chatService.getVersionSelections(cid);
+    } catch (_) {
+      _versionSelections = {};
+    }
+  }
+
+  Future<void> _initializeCallMode() async {
+    try {
+      await _callModeChannel.invokeMethod('startCallMode');
+    } catch (e) {
+      print('Error initializing call mode: $e');
+    }
+  }
+
+  List<ChatMessage> _collapseVersions(List<ChatMessage> items) {
+    final Map<String, List<ChatMessage>> byGroup = <String, List<ChatMessage>>{};
+    final List<String> order = <String>[];
+    for (final m in items) {
+      final gid = (m.groupId ?? m.id);
+      final list = byGroup.putIfAbsent(gid, () {
+        order.add(gid);
+        return <ChatMessage>[];
+      });
+      list.add(m);
+    }
+    for (final e in byGroup.entries) {
+      e.value.sort((a, b) => a.version.compareTo(b.version));
+    }
+    final out = <ChatMessage>[];
+    for (final gid in order) {
+      final vers = byGroup[gid]!;
+      final sel = _versionSelections[gid];
+      final idx = (sel != null && sel >= 0 && sel < vers.length) ? sel : (vers.length - 1);
+      out.add(vers[idx]);
+    }
+    return out;
+  }
+
+  Future<void> _cleanup() async {
+    if (_isCleaningUp) return;
+    _isCleaningUp = true;
+    
+    print('[OmniChat Dart] _cleanup: Starting cleanup...');
+    
+    try {
+      _restartListeningTimer?.cancel();
+      _listeningWatchdog?.cancel();
+      _voiceStopTimer?.cancel();
+      
+      if (_isListening) {
+        await _speechToText.stop();
+        _isListening = false;
+      }
+      
+      try {
+        await _speechToText.cancel();
+      } catch (e) {
+        print('[OmniChat Dart] _cleanup speechToText.cancel error: $e');
+      }
+      
+      if (Platform.isAndroid || Platform.isIOS) {
+        try {
+          final session = await AudioSession.instance;
+          await session.setActive(false);
+        } catch (_) {}
+      }
+      
+      if (Platform.isAndroid) {
+        try {
+          await _callModeChannel.invokeMethod('stopCallMode');
+        } catch (_) {}
+        try {
+          await FlutterBackground.disableBackgroundExecution();
+        } catch (_) {}
+      }
+    } catch (e) {
+      print('[OmniChat Dart] _cleanup error: $e');
+    } finally {
+      print('[OmniChat Dart] _cleanup: Done.');
+    }
+  }
+
+  @override
+  void dispose() {
+    _cleanup();
+    super.dispose();
   }
 }
 
