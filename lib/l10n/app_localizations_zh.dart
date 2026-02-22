@@ -651,7 +651,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get backupPageUsername => '用户名';
 
   @override
-  String get androidBackgroundNotificationTitle => 'Kelivo 正在运行';
+  String get androidBackgroundNotificationTitle => 'OmniChat 正在运行';
 
   @override
   String get androidBackgroundNotificationText => '后台保持聊天生成';
@@ -3723,7 +3723,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get backupPageUsername => '用户名';
 
   @override
-  String get androidBackgroundNotificationTitle => 'Kelivo 正在运行';
+  String get androidBackgroundNotificationTitle => 'OmniChat 正在运行';
 
   @override
   String get androidBackgroundNotificationText => '后台保持聊天生成';
@@ -6780,7 +6780,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get backupPageUsername => '使用者名稱';
 
   @override
-  String get androidBackgroundNotificationTitle => 'Kelivo 正在運行';
+  String get androidBackgroundNotificationTitle => 'OmniChat 正在運行';
 
   @override
   String get androidBackgroundNotificationText => '後台保持聊天生成';

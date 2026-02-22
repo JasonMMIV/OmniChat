@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -598,24 +599,54 @@ class _BackupPageState extends State<BackupPage> {
     final file = await _runWithExportingOverlay(context, () => vm.exportToFile());
     if (!mounted) return;
     
-    // iPad: anchor popover to the overlay's center
-    Rect rect;
-    final overlay = Overlay.of(context);
-    final ro = overlay?.context.findRenderObject();
-    if (ro is RenderBox && ro.hasSize) {
-      final center = ro.size.center(Offset.zero);
-      final global = ro.localToGlobal(center);
-      rect = Rect.fromCenter(center: global, width: 1, height: 1);
+    final isDesktop = Platform.isWindows || Platform.isMacOS || Platform.isLinux;
+
+    if (isDesktop) {
+      final String? savePath = await FilePicker.platform.saveFile(
+        dialogTitle: l10n.backupPageExportToFile,
+        fileName: file.uri.pathSegments.last,
+      );
+
+      if (savePath != null) {
+        try {
+          await file.copy(savePath);
+          if (mounted) {
+            showAppSnackBar(
+              context,
+              message: l10n.backupPageBackupUploaded, 
+              type: NotificationType.success,
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            showAppSnackBar(
+              context,
+              message: "Failed to save file: $e",
+              type: NotificationType.error,
+            );
+          }
+        }
+      }
     } else {
-      final size = MediaQuery.of(context).size;
-      rect = Rect.fromCenter(center: Offset(size.width / 2, size.height / 2), width: 1, height: 1);
+      // iPad: anchor popover to the overlay's center
+      Rect rect;
+      final overlay = Overlay.of(context);
+      final ro = overlay?.context.findRenderObject();
+      if (ro is RenderBox && ro.hasSize) {
+        final center = ro.size.center(Offset.zero);
+        final global = ro.localToGlobal(center);
+        rect = Rect.fromCenter(center: global, width: 1, height: 1);
+      } else {
+        final size = MediaQuery.of(context).size;
+        rect = Rect.fromCenter(center: Offset(size.width / 2, size.height / 2), width: 1, height: 1);
+      }
+      
+      await Future.delayed(const Duration(milliseconds: 50));
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        sharePositionOrigin: rect,
+      );
     }
-    
-    await Future.delayed(const Duration(milliseconds: 50));
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      sharePositionOrigin: rect,
-    );
   }
 
   Future<void> _doImportLocal(BuildContext context, BackupProvider vm) async {

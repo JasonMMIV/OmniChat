@@ -4,6 +4,8 @@ import '../l10n/app_localizations.dart';
 import '../icons/lucide_adapter.dart';
 import '../shared/widgets/snackbar.dart';
 import 'package:flutter/services.dart';
+import 'package:markdown/markdown.dart' as md;
+import 'package:super_clipboard/super_clipboard.dart';
 
 Future<void> showSelectCopyDesktopDialog(BuildContext context, {required ChatMessage message}) async {
   await showDialog<void>(
@@ -19,7 +21,15 @@ class _SelectCopyDesktopDialog extends StatelessWidget {
 
   Future<void> _copyAll(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
-    await Clipboard.setData(ClipboardData(text: message.content));
+    try {
+      final html = md.markdownToHtml(message.content, extensionSet: md.ExtensionSet.gitHubFlavored);
+      final item = DataWriterItem();
+      item.add(Formats.htmlText(html));
+      item.add(Formats.plainText(message.content));
+      await SystemClipboard.instance?.write([item]);
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: message.content));
+    }
     if (!context.mounted) return;
     showAppSnackBar(context, message: l10n.selectCopyPageCopiedAll, type: NotificationType.success);
   }

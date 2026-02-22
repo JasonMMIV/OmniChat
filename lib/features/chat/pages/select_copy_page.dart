@@ -4,6 +4,8 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
+import 'package:markdown/markdown.dart' as md;
+import 'package:super_clipboard/super_clipboard.dart';
 
 class SelectCopyPage extends StatelessWidget {
   const SelectCopyPage({super.key, required this.message});
@@ -11,9 +13,17 @@ class SelectCopyPage extends StatelessWidget {
 
   void _copyAll(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
-    // Ensure there is a text input connection on iOS before showing system copy UI
-    // Here we bypass system menu by writing directly to clipboard and showing a snackbar
-    await Clipboard.setData(ClipboardData(text: message.content));
+    // Provide both HTML and PlainText variants via super_clipboard
+    try {
+      final html = md.markdownToHtml(message.content, extensionSet: md.ExtensionSet.gitHubFlavored);
+      final item = DataWriterItem();
+      item.add(Formats.htmlText(html));
+      item.add(Formats.plainText(message.content));
+      await SystemClipboard.instance?.write([item]);
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: message.content));
+    }
+    
     if (!context.mounted) return;
     showAppSnackBar(
       context,

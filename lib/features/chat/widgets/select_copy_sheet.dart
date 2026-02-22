@@ -5,6 +5,8 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../core/services/haptics.dart';
+import 'package:markdown/markdown.dart' as md;
+import 'package:super_clipboard/super_clipboard.dart';
 
 Future<void> showSelectCopySheet(BuildContext context, {required ChatMessage message}) async {
   final cs = Theme.of(context).colorScheme;
@@ -23,7 +25,15 @@ class _SelectCopySheet extends StatelessWidget {
 
   Future<void> _copyAll(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
-    await Clipboard.setData(ClipboardData(text: message.content));
+    try {
+      final html = md.markdownToHtml(message.content, extensionSet: md.ExtensionSet.gitHubFlavored);
+      final item = DataWriterItem();
+      item.add(Formats.htmlText(html));
+      item.add(Formats.plainText(message.content));
+      await SystemClipboard.instance?.write([item]);
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: message.content));
+    }
     if (!context.mounted) return;
     showAppSnackBar(context, message: l10n.selectCopyPageCopiedAll, type: NotificationType.success);
   }

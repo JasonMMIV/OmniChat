@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "OmniChat"
-#define MyAppVersion "1.4.7"
+#define MyAppVersion "1.4.9"
 #define MyAppPublisher "OmniChat Team"
 #define MyAppExeName "OmniChat.exe"
 
