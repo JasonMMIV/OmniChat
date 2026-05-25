@@ -576,6 +576,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     if (service is SearXNGOptions) return Lucide.Shield;
     if (service is LinkUpOptions) return Lucide.Link2;
     if (service is BraveOptions) return Lucide.Shield;
+    if (service is GoogleOptions) return Lucide.Search;
     if (service is MetasoOptions) return Lucide.Compass;
     if (service is JinaOptions) return Lucide.Sparkles;
     if (service is PerplexityOptions) return Lucide.Search;
@@ -610,6 +611,10 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
           : l10n.searchServicesPageApiKeyRequiredStatus;
     if (service is BraveOptions)
       return service.apiKey.isNotEmpty
+          ? l10n.searchServicesPageConfiguredStatus
+          : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (service is GoogleOptions)
+      return service.apiKey.isNotEmpty && service.searchEngineId.isNotEmpty
           ? l10n.searchServicesPageConfiguredStatus
           : l10n.searchServicesPageApiKeyRequiredStatus;
     if (service is MetasoOptions)
@@ -656,6 +661,7 @@ class _BrandBadge extends StatelessWidget {
     if (s is SearXNGOptions) return 'searxng';
     if (s is LinkUpOptions) return 'linkup';
     if (s is BraveOptions) return 'brave';
+    if (s is GoogleOptions) return 'google';
     if (s is MetasoOptions) return 'metaso';
     if (s is OllamaOptions) return 'ollama';
     if (s is JinaOptions) return 'jina';
@@ -828,6 +834,7 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
       {'type': 'searxng', 'name': l10n.searchServiceNameSearXNG},
       {'type': 'linkup', 'name': l10n.searchServiceNameLinkUp},
       {'type': 'brave', 'name': l10n.searchServiceNameBrave},
+      {'type': 'google', 'name': 'Google'},
       {'type': 'metaso', 'name': l10n.searchServiceNameMetaso},
       {'type': 'jina', 'name': l10n.searchServiceNameJina},
       {'type': 'ollama', 'name': l10n.searchServiceNameOllama},
@@ -883,6 +890,8 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
         return l10n.searchServiceNameLinkUp;
       case 'brave':
         return l10n.searchServiceNameBrave;
+      case 'google':
+        return 'Google';
       case 'metaso':
         return l10n.searchServiceNameMetaso;
       case 'jina':
@@ -1022,6 +1031,7 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
       case 'zhipu':
       case 'linkup':
       case 'brave':
+      case 'google':
       case 'metaso':
       case 'jina':
       case 'ollama':
@@ -1038,6 +1048,19 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
               return null;
             },
           ),
+          if (type == 'google') ...[
+            const SizedBox(height: 12),
+            _buildTextField(
+              key: 'searchEngineId',
+              label: 'Search Engine ID (cx)',
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Search Engine ID required';
+                }
+                return null;
+              },
+            ),
+          ],
         ];
       case 'searxng':
         return [
@@ -1112,6 +1135,12 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
         return LinkUpOptions(id: id, apiKey: _controllers['apiKey']!.text);
       case 'brave':
         return BraveOptions(id: id, apiKey: _controllers['apiKey']!.text);
+      case 'google':
+        return GoogleOptions(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+          searchEngineId: _controllers['searchEngineId']!.text,
+        );
       case 'metaso':
         return MetasoOptions(id: id, apiKey: _controllers['apiKey']!.text);
       case 'jina':
@@ -1169,6 +1198,11 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
     } else if (service is BraveOptions) {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+    } else if (service is GoogleOptions) {
+      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['searchEngineId'] = TextEditingController(
+        text: service.searchEngineId,
+      );
     } else if (service is MetasoOptions) {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
     } else if (service is OllamaOptions) {
@@ -1325,6 +1359,7 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
         service is ZhipuOptions ||
         service is LinkUpOptions ||
         service is BraveOptions ||
+        service is GoogleOptions ||
         service is MetasoOptions ||
         service is OllamaOptions ||
         service is JinaOptions ||
@@ -1340,6 +1375,19 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
             return null;
           },
         ),
+        if (service is GoogleOptions) ...[
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'searchEngineId',
+            label: 'Search Engine ID (cx)',
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Search Engine ID required';
+              }
+              return null;
+            },
+          ),
+        ],
       ];
     } else if (service is SearXNGOptions) {
       return [
@@ -1416,6 +1464,12 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
       );
     } else if (service is BraveOptions) {
       return BraveOptions(id: service.id, apiKey: _controllers['apiKey']!.text);
+    } else if (service is GoogleOptions) {
+      return GoogleOptions(
+        id: service.id,
+        apiKey: _controllers['apiKey']!.text,
+        searchEngineId: _controllers['searchEngineId']!.text,
+      );
     } else if (service is MetasoOptions) {
       return MetasoOptions(
         id: service.id,

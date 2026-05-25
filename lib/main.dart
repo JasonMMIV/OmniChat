@@ -49,7 +49,7 @@ bool _didEnsureSystemFonts = false; // one-time system fonts load when needed
 
 
 Future<void> main() async {
-  await runZoned(
+  await runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
       FlutterLogger.installGlobalHandlers();
@@ -78,6 +78,11 @@ Future<void> main() async {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       // Start app (Flutter log capture is toggleable and off by default)
       runApp(const MyApp());
+    },
+    (error, stack) {
+      try {
+        FlutterLogger.log('$error\n$stack', tag: 'ZoneError');
+      } catch (_) {}
     },
     zoneSpecification: ZoneSpecification(
       print: (self, parent, zone, line) {

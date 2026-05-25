@@ -62,8 +62,12 @@ class FlutterLogger {
       } catch (_) {}
 
       final original = _originalPlatformOnError;
-      if (original != null) return original(error, stack);
-      return false;
+      if (original != null) {
+        try {
+          original(error, stack);
+        } catch (_) {}
+      }
+      return true;
     };
   }
 

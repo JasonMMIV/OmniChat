@@ -4,7 +4,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: 🛠️ Active Development / Feature Integration
-- **Last Updated**: 2026-02-22
+- **Last Updated**: 2026-05-25
 - **Platforms**: Android (ARM64 v8a), iOS, Windows, macOS, Linux
 
 ---
@@ -41,6 +41,15 @@ Refined visual identity and improved accessibility.
 - **Icon Maximization**: Enlarged action icons across the app (AppBar, Sidebar, and Input Toolbar).
 - **Desktop Optimization**: 1.4x scale for Voice Chat and New Chat buttons for better target acquisition.
 
+### 4. Search Services (Integrated)
+
+Provides configurable external web search providers for tool-enabled text chat.
+
+- **Provider Registry**: Search providers are represented by typed `SearchServiceOptions` and resolved through `SearchService.getService`.
+- **Supported Providers**: Bing Local, DuckDuckGo, Tavily, Exa, Zhipu, SearXNG, LinkUp, Brave, Google, Metaso, Jina, Ollama, Perplexity, and Bocha.
+- **Google Search API**: Uses Google Custom Search JSON API with `apiKey` and Programmable Search Engine ID (`cx`). Per-request result count is capped to Google's `num <= 10` API limit.
+- **UI Coverage**: Both mobile search service sheets and desktop settings panes support provider creation, editing, selection, status display, and brand icons.
+
 ---
 
 ## Technical Implementation Details
@@ -49,6 +58,7 @@ Refined visual identity and improved accessibility.
 
 - **Providers**: Centralized logic using `SettingsProvider`, `AssistantProvider`, `ChatService`, and `VoiceChatProvider`.
 - **Windows Plugin**: Locally forked and patched `speech_to_text_windows` to support modern WinRT APIs and custom JSON transformation.
+- **Text Chat Streaming**: Chat stream handling now serializes async chunk processing with subscription pause/resume guards. Unhandled async errors are routed into stream error handling and global guarded logging to reduce Windows text chat crashes.
 
 ### Windows WinRT Migration Roadmap
 
@@ -67,6 +77,16 @@ Refined visual identity and improved accessibility.
 ---
 
 ## Chronological Development Summary
+
+### 2026-05-25 Updates (Search Provider & Windows Stability - v1.5.5)
+- **Google Search API Provider (v1.5.5)**:
+  - **Feature**: Added `Google` to Search Services -> Search Providers.
+  - **Configuration**: Requires an API Key and Search Engine ID (`cx`) for Google Custom Search JSON API.
+  - **Outcome**: Users can select Google as the external web search provider in both mobile and desktop settings.
+- **Windows Text Chat Crash Mitigation (v1.5.5)**:
+  - **Fix**: Serialized async stream chunk handling with `pause()` / `resume()` and guarded all stream callbacks.
+  - **Stability**: Added `runZonedGuarded` startup protection and handled `PlatformDispatcher` errors after logging.
+  - **Outcome**: Reduces intermittent Windows crashes caused by unhandled async errors during normal text chat streaming.
 
 ### 2026-02-22 Updates (Feature Enhancements & Fixes - v1.4.9)
 - **Formatted Text Copy (v1.4.9)**:

@@ -595,6 +595,7 @@ class _BrandBadge extends StatelessWidget {
     if (s is SearXNGOptions) return 'searxng';
     if (s is LinkUpOptions) return 'linkup';
     if (s is BraveOptions) return 'brave';
+    if (s is GoogleOptions) return 'google';
     if (s is MetasoOptions) return 'metaso';
     if (s is OllamaOptions) return 'ollama';
     if (s is JinaOptions) return 'jina';
@@ -769,6 +770,7 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
     'username': TextEditingController(),
     'password': TextEditingController(),
     'region': TextEditingController(text: 'us-en'),
+    'searchEngineId': TextEditingController(),
   };
 
   @override
@@ -860,6 +862,7 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
       case 'zhipu':
       case 'linkup':
       case 'brave':
+      case 'google':
       case 'metaso':
       case 'jina':
       case 'ollama':
@@ -870,6 +873,13 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
             controller: _controllers['apiKey'],
             decoration: deco('API Key'),
           ),
+          if (_selectedType == 'google') ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _controllers['searchEngineId'],
+              decoration: deco('Search Engine ID (cx)'),
+            ),
+          ],
         ];
       case 'searxng':
         return [
@@ -933,6 +943,12 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
         return LinkUpOptions(id: id, apiKey: _controllers['apiKey']!.text);
       case 'brave':
         return BraveOptions(id: id, apiKey: _controllers['apiKey']!.text);
+      case 'google':
+        return GoogleOptions(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+          searchEngineId: _controllers['searchEngineId']!.text,
+        );
       case 'metaso':
         return MetasoOptions(id: id, apiKey: _controllers['apiKey']!.text);
       case 'jina':
@@ -985,6 +1001,11 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
       _controllers['apiKey'] = TextEditingController(text: s.apiKey);
     } else if (s is BraveOptions) {
       _controllers['apiKey'] = TextEditingController(text: s.apiKey);
+    } else if (s is GoogleOptions) {
+      _controllers['apiKey'] = TextEditingController(text: s.apiKey);
+      _controllers['searchEngineId'] = TextEditingController(
+        text: s.searchEngineId,
+      );
     } else if (s is MetasoOptions) {
       _controllers['apiKey'] = TextEditingController(text: s.apiKey);
     } else if (s is OllamaOptions) {
@@ -1074,6 +1095,7 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
         s is ZhipuOptions ||
         s is LinkUpOptions ||
         s is BraveOptions ||
+        s is GoogleOptions ||
         s is MetasoOptions ||
         s is JinaOptions ||
         s is OllamaOptions ||
@@ -1084,6 +1106,13 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
           controller: _controllers['apiKey'],
           decoration: deco('API Key'),
         ),
+        if (s is GoogleOptions) ...[
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controllers['searchEngineId'],
+            decoration: deco('Search Engine ID (cx)'),
+          ),
+        ],
       ];
     } else if (s is DuckDuckGoOptions) {
       return [
@@ -1152,6 +1181,12 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
       return LinkUpOptions(id: s.id, apiKey: _controllers['apiKey']!.text);
     if (s is BraveOptions)
       return BraveOptions(id: s.id, apiKey: _controllers['apiKey']!.text);
+    if (s is GoogleOptions)
+      return GoogleOptions(
+        id: s.id,
+        apiKey: _controllers['apiKey']!.text,
+        searchEngineId: _controllers['searchEngineId']!.text,
+      );
     if (s is MetasoOptions)
       return MetasoOptions(id: s.id, apiKey: _controllers['apiKey']!.text);
     if (s is JinaOptions)
@@ -1187,6 +1222,7 @@ class _ServiceTypeChipsState extends State<_ServiceTypeChips> {
     (type: 'searxng', name: 'SearXNG', brand: 'searxng'),
     (type: 'linkup', name: 'LinkUp', brand: 'linkup'),
     (type: 'brave', name: 'Brave', brand: 'brave'),
+    (type: 'google', name: 'Google', brand: 'google'),
     (type: 'metaso', name: 'Metaso', brand: 'metaso'),
     (type: 'jina', name: 'Jina', brand: 'jina'),
     (type: 'ollama', name: 'Ollama', brand: 'ollama'),

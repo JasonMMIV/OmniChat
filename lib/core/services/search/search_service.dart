@@ -13,6 +13,7 @@ import 'providers/jina_search_service.dart';
 import 'providers/bocha_search_service.dart';
 import 'providers/perplexity_search_service.dart';
 import 'providers/duckduckgo_search_service.dart';
+import 'providers/google_search_service.dart';
 
 // Base interface for all search services
 abstract class SearchService<T extends SearchServiceOptions> {
@@ -55,6 +56,8 @@ abstract class SearchService<T extends SearchServiceOptions> {
         return PerplexitySearchService() as SearchService;
       case DuckDuckGoOptions:
         return DuckDuckGoSearchService() as SearchService;
+      case GoogleOptions:
+        return GoogleSearchService() as SearchService;
       default:
         return BingSearchService() as SearchService;
     }
@@ -170,6 +173,8 @@ abstract class SearchServiceOptions {
         return DuckDuckGoOptions.fromJson(json);
       case 'perplexity':
         return PerplexityOptions.fromJson(json);
+      case 'google':
+        return GoogleOptions.fromJson(json);
       default:
         return BingLocalOptions(id: json['id']);
     }
@@ -312,6 +317,31 @@ class BraveOptions extends SearchServiceOptions {
 
   factory BraveOptions.fromJson(Map<String, dynamic> json) =>
       BraveOptions(id: json['id'], apiKey: json['apiKey']);
+}
+
+class GoogleOptions extends SearchServiceOptions {
+  final String apiKey;
+  final String searchEngineId;
+
+  GoogleOptions({
+    required String id,
+    required this.apiKey,
+    required this.searchEngineId,
+  }) : super(id: id);
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'google',
+    'id': id,
+    'apiKey': apiKey,
+    'searchEngineId': searchEngineId,
+  };
+
+  factory GoogleOptions.fromJson(Map<String, dynamic> json) => GoogleOptions(
+    id: json['id'],
+    apiKey: json['apiKey'] ?? '',
+    searchEngineId: json['searchEngineId'] ?? json['cx'] ?? '',
+  );
 }
 
 class MetasoOptions extends SearchServiceOptions {

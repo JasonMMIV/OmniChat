@@ -468,15 +468,66 @@ class ChatActions {
       );
 
       await _conversationStreams[conversationId]?.cancel();
-      final sub = stream.listen(
-        (chunk) => _handleStreamChunk(chunk, state),
-        onError: (e) => _handleStreamError(e, state),
-        onDone: () => _handleStreamDone(state),
+      late final StreamSubscription<ChatStreamChunk> sub;
+      sub = stream.listen(
+        null,
+        onError: (e) {
+          unawaited(_guardStreamTask(
+            () => _handleStreamError(e, state),
+            state,
+            routeToStreamError: false,
+          ));
+        },
+        onDone: () {
+          unawaited(_guardStreamTask(
+            () => _handleStreamDone(state),
+            state,
+          ));
+        },
         cancelOnError: true,
       );
+      sub.onData((chunk) {
+        sub.pause();
+        unawaited(_handleStreamData(chunk, state, sub));
+      });
       _conversationStreams[conversationId] = sub;
     } catch (e) {
       await _handleStreamError(e, state);
+    }
+  }
+
+  Future<void> _handleStreamData(
+    ChatStreamChunk chunk,
+    stream_ctrl.StreamingState state,
+    StreamSubscription<ChatStreamChunk> sub,
+  ) async {
+    try {
+      await _handleStreamChunk(chunk, state);
+    } catch (e) {
+      await _guardStreamTask(
+        () => _handleStreamError(e, state),
+        state,
+        routeToStreamError: false,
+      );
+    } finally {
+      try {
+        sub.resume();
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _guardStreamTask(
+    Future<void> Function() task,
+    stream_ctrl.StreamingState state, {
+    bool routeToStreamError = true,
+  }) async {
+    try {
+      await task();
+    } catch (e) {
+      if (!routeToStreamError) return;
+      try {
+        await _handleStreamError(e, state);
+      } catch (_) {}
     }
   }
 

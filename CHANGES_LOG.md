@@ -1,5 +1,33 @@
 # OmniChat Developer Changes Log
 
+## [v1.5.5] - 2026-05-25: Google Search API Provider & Windows Text Chat Stability
+
+### 91. Google Search API Provider
+- **Purpose**: Add Google as an external web search provider under Search Services -> Search Providers.
+- **Files Modified**:
+  - `lib/core/services/search/search_service.dart`
+  - `lib/core/services/search/providers/google_search_service.dart`
+  - `lib/features/search/pages/search_services_page.dart`
+  - `lib/features/search/widgets/search_settings_sheet.dart`
+  - `lib/desktop/setting/search_services_pane.dart`
+- **Details**:
+  - Added `GoogleOptions` with `apiKey` and `searchEngineId` (`cx`) persistence.
+  - Implemented Google Custom Search JSON API requests via `https://customsearch.googleapis.com/customsearch/v1`.
+  - Added Google to both mobile and desktop search service add/edit flows.
+  - Clamps per-request `num` to Google's API limit of 10 results.
+
+### 92. Windows Text Chat Stability
+- **Purpose**: Reduce intermittent Windows crashes during normal text chat streaming.
+- **Files Modified**:
+  - `lib/features/home/controllers/chat_actions.dart`
+  - `lib/main.dart`
+  - `lib/core/services/logging/flutter_logger.dart`
+- **Details**:
+  - Reworked chat stream subscription handling so async chunk handlers are serialized with `pause()` / `resume()`.
+  - Wrapped stream data, completion, and error handlers so async exceptions route through `_handleStreamError` instead of escaping as unhandled errors.
+  - Switched app startup to `runZonedGuarded` and made `PlatformDispatcher.onError` mark captured errors as handled after logging.
+  - This targets crashes caused by async errors during streaming updates, DB writes, markdown media sanitization, and tool result rendering.
+
 ## [v1.4.9] - 2026-02-22: Formatted Text Copy & Windows Export Fix
 
 ### 88. Formatted Text Copy

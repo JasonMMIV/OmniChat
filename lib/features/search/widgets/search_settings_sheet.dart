@@ -61,6 +61,10 @@ class _SearchSettingsSheet extends StatelessWidget {
       return s.apiKey.isNotEmpty
           ? l10n.searchServicesPageConfiguredStatus
           : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (s is GoogleOptions)
+      return s.apiKey.isNotEmpty && s.searchEngineId.isNotEmpty
+          ? l10n.searchServicesPageConfiguredStatus
+          : l10n.searchServicesPageApiKeyRequiredStatus;
     if (s is MetasoOptions)
       return s.apiKey.isNotEmpty
           ? l10n.searchServicesPageConfiguredStatus
@@ -574,6 +578,7 @@ class _BrandBadge extends StatelessWidget {
     if (s is SearXNGOptions) return 'searxng';
     if (s is LinkUpOptions) return 'linkup';
     if (s is BraveOptions) return 'brave';
+    if (s is GoogleOptions) return 'google';
     if (s is MetasoOptions) return 'metaso';
     if (s is OllamaOptions) return 'ollama';
     if (s is JinaOptions) return 'jina';
