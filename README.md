@@ -8,12 +8,17 @@ OmniChat is a modern AI chat application designed for seamless voice interaction
 
 ## Key Features
 
+### Advanced Interaction & Tools
+
+- **Inline Voice Dictation**: Dictate text directly into the chat input bar with localized support for English and Chinese.
+- **Advanced Web Search**: Integrated Google Search API and multiple search providers for high-quality real-time information.
+- **Local JavaScript MCP**: Secure, sandboxed environment (QuickJS/JavaScriptCore) allowing AI to execute code locally for calculations and data processing.
+
 ### Real-Time Voice Chat
 
 Experience AI interaction as natural as a phone call:
 
 - **Universal Model Support**: Connect with your preferred LLM backends.
-- **Web Search Capable**: AI equipped with real-time internet access.
 - **Bluetooth Optimization**: Enhanced headset detection and audio routing in Call Mode.
 - **Native Performance**: Utilizes system-level Speech-to-Text (STT) for low latency.
 
@@ -32,14 +37,7 @@ Enjoy a consistent experience across your devices:
 - **Windows** (New!)
 - **Android**
 
-## Tips
-
-- For the best voice-chat experience, set the **System Prompt** to:  
-  *"You are in a voice conversation—please use colloquial language and keep responses short and clear."*
-
-- Pair with Groq API to get fast response.
-
-- Pair with the Gemini API and enable the model’s built-in web search to get real-time information quickly.
+# 
 
 ## Screenshots
 
