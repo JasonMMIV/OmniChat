@@ -80,6 +80,9 @@ class ChatInputBar extends StatefulWidget {
     this.showOcrButton = false,
     this.ocrActive = false,
     this.onToggleOcr,
+    this.isDictating = false,
+    this.onStartDictation,
+    this.onStopDictation,
   });
 
   final ValueChanged<ChatInputData>? onSend;
@@ -90,7 +93,7 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback? onLongPressMcp;
   final ValueChanged<bool>? onToggleSearch;
   final VoidCallback? onOpenSearch;
-  final VoidCallback? onMore;
+  final void Function(List<DesktopContextMenuItem>)? onMore;
   final VoidCallback? onConfigureReasoning;
   final bool moreOpen;
   final FocusNode? focusNode;
@@ -119,6 +122,9 @@ class ChatInputBar extends StatefulWidget {
   final bool showOcrButton;
   final bool ocrActive;
   final VoidCallback? onToggleOcr;
+  final bool isDictating;
+  final VoidCallback? onStartDictation;
+  final VoidCallback? onStopDictation;
 
   @override
   State<ChatInputBar> createState() => _ChatInputBarState();
@@ -689,7 +695,7 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
     return (images: images, docs: docs);
   }
 
-  Widget _buildResponsiveLeftActions(BuildContext context) {
+  Widget _buildResponsiveBottomRow(BuildContext context, bool hasText, bool hasImages, bool hasDocs, ThemeData theme) {
     final l10n = AppLocalizations.of(context)!;
     const double spacing = 8;
     const double normalButtonW = 32; // 24 + padding(4*2)
@@ -698,7 +704,19 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        // Calculate right side width to determine available left space
+        double rightSideWidth = 0;
+        if (widget.isDictating) {
+          rightSideWidth = normalButtonW + spacing + normalButtonW; // stop + spacing + send
+        } else {
+          if (widget.showMoreButton) rightSideWidth += normalButtonW + spacing; // plus + spacing
+          rightSideWidth += normalButtonW; // send
+        }
+        
+        final maxLeftW = constraints.maxWidth - rightSideWidth;
         final List<_OverflowAction> actions = [];
+
+        if (!widget.isDictating) {
 
         // Model select (always present; can be hidden if overflow)
         actions.add(_OverflowAction(
@@ -804,29 +822,6 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
         ));
         }
 
-        if (widget.supportsReasoning) {
-          actions.add(_OverflowAction(
-            width: normalButtonW,
-            builder: () => _CompactIconButton(
-              tooltip: l10n.chatInputBarReasoningStrengthTooltip,
-              icon: Lucide.Brain,
-              active: widget.reasoningActive,
-              onTap: widget.onConfigureReasoning,
-              childBuilder: (c) => SvgPicture.asset(
-                'assets/icons/deepthink.svg',
-                width: 24,
-                height: 24,
-                colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
-              ),
-            ),
-            menu: DesktopContextMenuItem(
-              svgAsset: 'assets/icons/deepthink.svg',
-              label: l10n.chatInputBarReasoningStrengthTooltip,
-              onTap: widget.onConfigureReasoning,
-            ),
-          ));
-        }
-
         // MCP button (hidden only when conflicting Gemini built-in tools are active)
         if (widget.showMcpButton && !anyBuiltInConflictsWithMcp) {
           actions.add(_OverflowAction(
@@ -863,6 +858,24 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
           ));
         }
 
+        if (widget.onStartDictation != null) {
+          actions.add(_OverflowAction(
+            width: normalButtonW,
+            builder: () => _CompactIconButton(
+              tooltip: l10n.chatInputBarDictationTooltip,
+              icon: Lucide.Mic,
+              onTap: widget.onStartDictation,
+            ),
+            menu: DesktopContextMenuItem(
+              icon: Lucide.Mic,
+              label: l10n.chatInputBarDictationTooltip,
+              onTap: widget.onStartDictation,
+            ),
+          ));
+        }
+
+
+
         if (widget.onPickCamera != null) {
           actions.add(_OverflowAction(
             width: normalButtonW,
@@ -896,6 +909,29 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
               onTap: widget.onUploadFiles,
             ),
             menu: DesktopContextMenuItem(icon: Lucide.Paperclip, label: l10n.bottomToolsSheetUpload, onTap: widget.onUploadFiles),
+          ));
+        }
+
+        if (widget.supportsReasoning) {
+          actions.add(_OverflowAction(
+            width: normalButtonW,
+            builder: () => _CompactIconButton(
+              tooltip: l10n.chatInputBarReasoningStrengthTooltip,
+              icon: Lucide.Brain,
+              active: widget.reasoningActive,
+              onTap: widget.onConfigureReasoning,
+              childBuilder: (c) => SvgPicture.asset(
+                'assets/icons/deepthink.svg',
+                width: 24,
+                height: 24,
+                colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
+              ),
+            ),
+            menu: DesktopContextMenuItem(
+              svgAsset: 'assets/icons/deepthink.svg',
+              label: l10n.chatInputBarReasoningStrengthTooltip,
+              onTap: widget.onConfigureReasoning,
+            ),
           ));
         }
 
@@ -954,6 +990,8 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
           ));
         }
 
+        } // end of if (!widget.isDictating)
+
         // Compute total width with spacing to see if overflow is needed
         double full = 0;
         for (var i = 0; i < actions.length; i++) {
@@ -961,42 +999,51 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
           full += actions[i].width;
         }
 
-        final maxW = constraints.maxWidth;
         int visibleCount = actions.length;
-        if (full > maxW) {
-          // First pass: include as many as possible ignoring the +
+        bool useLeftOverflow = !widget.showMoreButton; // On desktop, use left overflow
+
+        if (full > maxLeftW) {
           double used = 0;
           visibleCount = 0;
           for (var i = 0; i < actions.length; i++) {
             final add = (visibleCount > 0 ? spacing : 0) + actions[i].width;
-            if (used + add <= maxW) {
+            if (used + add <= maxLeftW) {
               used += add;
               visibleCount++;
             } else {
               break;
             }
           }
-          // Ensure + button fits; remove items until it does
-          while (visibleCount > 0 && used + spacing + plusButtonW > maxW) {
-            // remove last
-            used -= actions[visibleCount - 1].width;
-            if (visibleCount - 1 > 0) used -= spacing;
-            visibleCount--;
+          
+          if (useLeftOverflow) {
+            // Ensure + button fits on the left side
+            while (visibleCount > 0 && used + spacing + plusButtonW > maxLeftW) {
+              used -= actions[visibleCount - 1].width;
+              if (visibleCount - 1 > 0) used -= spacing;
+              visibleCount--;
+            }
+          } else {
+            // Ensure items fit on left side (no need to reserve space for left plus)
+            while (visibleCount > 0 && used > maxLeftW) {
+              used -= actions[visibleCount - 1].width;
+              if (visibleCount - 1 > 0) used -= spacing;
+              visibleCount--;
+            }
           }
         }
 
         final overflowItems = actions.sublist(visibleCount);
+        final menuItems = overflowItems.map((e) => e.menu).toList(growable: false);
 
-        final children = <Widget>[];
+        final leftChildren = <Widget>[];
         for (var i = 0; i < visibleCount; i++) {
-          if (i > 0) children.add(const SizedBox(width: spacing));
-          children.add(actions[i].builder());
+          if (i > 0) leftChildren.add(const SizedBox(width: spacing));
+          leftChildren.add(actions[i].builder());
         }
 
-        if (overflowItems.isNotEmpty) {
-          if (children.isNotEmpty) children.add(const SizedBox(width: spacing));
-          final menuItems = overflowItems.map((e) => e.menu).toList(growable: false);
-          children.add(
+        if (useLeftOverflow && overflowItems.isNotEmpty) {
+          if (leftChildren.isNotEmpty) leftChildren.add(const SizedBox(width: spacing));
+          leftChildren.add(
             Container(
               key: _leftOverflowAnchorKey,
               child: _CompactIconButton(
@@ -1014,7 +1061,70 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
           );
         }
 
-        return Row(children: children);
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const NeverScrollableScrollPhysics(),
+                child: Row(children: leftChildren),
+              ),
+            ),
+            Row(
+              children: widget.isDictating ? [
+                _CompactIconButton(
+                  tooltip: l10n.chatInputBarStopDictationTooltip,
+                  icon: Lucide.Square,
+                  onTap: widget.onStopDictation,
+                ),
+                const SizedBox(width: 8),
+                _CompactSendButton(
+                  enabled: true,
+                  onSend: () {
+                    widget.onStopDictation?.call();
+                    _handleSend();
+                  },
+                  color: theme.colorScheme.primary,
+                  icon: Lucide.Check,
+                ),
+              ] : [
+                if (widget.showMoreButton) ...[
+                  _CompactIconButton(
+                    tooltip: AppLocalizations.of(context)!.chatInputBarMoreTooltip,
+                    icon: Lucide.Plus,
+                    active: widget.moreOpen,
+                    onTap: () {
+                      widget.onMore?.call(menuItems);
+                    },
+                    childBuilder: (c) => AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      transitionBuilder: (child, anim) => RotationTransition(
+                        turns: Tween<double>(begin: 0.85, end: 1).animate(anim),
+                        child: FadeTransition(opacity: anim, child: child),
+                      ),
+                      child: Icon(
+                        widget.moreOpen ? Lucide.X : Lucide.Plus,
+                        key: ValueKey(widget.moreOpen ? 'close' : 'add'),
+                        size: 24,
+                        color: c,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                _CompactSendButton(
+                  enabled: (hasText || hasImages || hasDocs) && !widget.loading,
+                  loading: widget.loading,
+                  onSend: _handleSend,
+                  onStop: widget.loading ? widget.onStop : null,
+                  color: theme.colorScheme.primary,
+                  icon: Lucide.ArrowUp,
+                ),
+              ],
+            ),
+          ],
+        );
       },
     );
   }
@@ -1430,47 +1540,7 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
                   // Bottom buttons row (no divider)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(AppSpacing.xs, 0, AppSpacing.xs, AppSpacing.xs),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // Responsive left action bar that overflows into a + menu on desktop
-                        Expanded(child: _buildResponsiveLeftActions(context)),
-                        Row(
-                          children: [
-                            if (widget.showMoreButton) ...[
-                              _CompactIconButton(
-                                tooltip: AppLocalizations.of(context)!.chatInputBarMoreTooltip,
-                                icon: Lucide.Plus,
-                                active: widget.moreOpen,
-                                onTap: widget.onMore,
-                                childBuilder: (c) => AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 200),
-                                  transitionBuilder: (child, anim) => RotationTransition(
-                                    turns: Tween<double>(begin: 0.85, end: 1).animate(anim),
-                                    child: FadeTransition(opacity: anim, child: child),
-                                  ),
-                                  child: Icon(
-                                    widget.moreOpen ? Lucide.X : Lucide.Plus,
-                                    key: ValueKey(widget.moreOpen ? 'close' : 'add'),
-                                    size: 24,
-                                    color: c,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                            ],
-                            _CompactSendButton(
-                              enabled: (hasText || hasImages || hasDocs) && !widget.loading,
-                              loading: widget.loading,
-                              onSend: _handleSend,
-                              onStop: widget.loading ? widget.onStop : null,
-                              color: theme.colorScheme.primary,
-                              icon: Lucide.ArrowUp,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                    child: _buildResponsiveBottomRow(context, hasText, hasImages, hasDocs, theme),
                   ),
                 ],
               ),

@@ -1,13 +1,13 @@
-flutter_icons:
+flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/app_icon.png"
-  adaptive_icon_background: "user_icon_bg.png"
-  adaptive_icon_foreground: "user_icon_fg.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/app_icon_fg.png"
   web:
     generate: true
     image_path: "assets/app_icon.png"
   windows:
     generate: true
-    image_path: "assets/app_icon.png"
+    image_path: "assets/app_icon_win.png"
     icon_size: 256

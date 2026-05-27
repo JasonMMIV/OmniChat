@@ -365,6 +365,8 @@
   "miniMapTooltip": "Minimap",
   "chatInputBarOcrTooltip": "OCR",
   "chatInputBarMoreTooltip": "More",
+  "chatInputBarDictationTooltip": "Dictation",
+  "chatInputBarStopDictationTooltip": "Stop Dictation",
   "miniMapTitle": "Minimap",
   "instructionInjectionSheetSubtitle": "Select prompt",
   "instructionInjectionEmptyMessage": "Empty",

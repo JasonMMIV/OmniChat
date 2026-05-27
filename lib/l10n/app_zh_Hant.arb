@@ -572,6 +572,8 @@
   "chatInputBarReasoningStrengthTooltip": "思維鏈強度",
   "chatInputBarMcpServersTooltip": "MCP伺服器",
   "chatInputBarMoreTooltip": "更多",
+  "chatInputBarDictationTooltip": "語音聽寫",
+  "chatInputBarStopDictationTooltip": "停止聽寫",
   "chatInputBarInsertNewline": "換行",
   "chatInputBarExpand": "展開",
   "chatInputBarCollapse": "收起",

@@ -985,6 +985,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatInputBarMoreTooltip => '更多';
 
   @override
+  String get chatInputBarDictationTooltip => '语音听写';
+
+  @override
+  String get chatInputBarStopDictationTooltip => '停止听写';
+
+  @override
   String get miniMapTitle => '迷你地图';
 
   @override
@@ -4051,6 +4057,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatInputBarMoreTooltip => '更多';
 
   @override
+  String get chatInputBarDictationTooltip => '语音听写';
+
+  @override
+  String get chatInputBarStopDictationTooltip => '停止听写';
+
+  @override
   String get miniMapTitle => '迷你地图';
 
   @override
@@ -7112,6 +7124,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatInputBarMoreTooltip => '更多';
+
+  @override
+  String get chatInputBarDictationTooltip => '語音聽寫';
+
+  @override
+  String get chatInputBarStopDictationTooltip => '停止聽寫';
 
   @override
   String get miniMapTitle => '迷你地圖';

@@ -9,6 +9,7 @@ import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/services/api/builtin_tools.dart';
+import '../../../desktop/desktop_context_menu.dart';
 import '../utils/model_display_helper.dart';
 import 'chat_input_bar.dart';
 import 'model_icon.dart';
@@ -57,6 +58,10 @@ class ChatInputSection extends StatelessWidget {
     this.onToggleLearningMode,
     this.onLongPressLearning,
     this.onClearContext,
+    this.isDictating = false,
+    this.onStartDictation,
+    this.onStopDictation,
+    this.onConfirmDictation,
   });
 
   final GlobalKey inputBarKey;
@@ -72,7 +77,7 @@ class ChatInputSection extends StatelessWidget {
   final IsReasoningEnabledCallback isReasoningEnabled;
 
   // Callbacks
-  final VoidCallback? onMore;
+  final void Function(List<DesktopContextMenuItem> overflowItems)? onMore;
   final VoidCallback? onSelectModel;
   final VoidCallback? onLongPressSelectModel;
   final VoidCallback? onOpenMcp;
@@ -91,6 +96,10 @@ class ChatInputSection extends StatelessWidget {
   final VoidCallback? onToggleLearningMode;
   final VoidCallback? onLongPressLearning;
   final VoidCallback? onClearContext;
+  final bool isDictating;
+  final VoidCallback? onStartDictation;
+  final VoidCallback? onStopDictation;
+  final VoidCallback? onConfirmDictation;
 
   @override
   Widget build(BuildContext context) {
@@ -155,6 +164,9 @@ class ChatInputSection extends StatelessWidget {
           : (isDesktop && settings.ocrModelProvider != null && settings.ocrModelId != null),
       ocrActive: settings.ocrEnabled,
       onToggleOcr: onToggleOcr,
+      isDictating: isDictating,
+      onStartDictation: onStartDictation,
+      onStopDictation: onStopDictation,
       // Tablet-specific parameters
       showMiniMapButton: isTablet,
       onOpenMiniMap: isTablet ? onOpenMiniMap : null,

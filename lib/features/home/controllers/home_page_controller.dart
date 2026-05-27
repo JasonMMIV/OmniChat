@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:permission_handler/permission_handler.dart';
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/conversation.dart';
@@ -148,6 +150,12 @@ class HomePageController extends ChangeNotifier {
   // Drawer state
   double _lastDrawerValue = 0.0;
 
+  // Inline Dictation State
+  bool _isDictating = false;
+  bool get isDictating => _isDictating;
+  stt.SpeechToText? _speechToText;
+  String _preDictationText = '';
+
   // Input bar measurement
   double _inputBarHeight = 72;
 
@@ -157,8 +165,65 @@ class HomePageController extends ChangeNotifier {
   static const double _sidebarMaxWidth = 360;
 
   // ============================================================================
-  // Getters - State Access
+  // Public API (Getters)
   // ============================================================================
+
+  Future<void> startDictation() async {
+    if (_isDictating) return;
+
+    var status = await Permission.microphone.status;
+    if (!status.isGranted) {
+      status = await Permission.microphone.request();
+      if (!status.isGranted) {
+        if (_context.mounted) {
+          ScaffoldMessenger.of(_context).showSnackBar(const SnackBar(content: Text('Microphone permission denied.')));
+        }
+        return;
+      }
+    }
+
+    _speechToText = stt.SpeechToText();
+    final available = await _speechToText!.initialize(
+      onError: (val) {
+        debugPrint('[OmniChat Dictation] Speech recognition error: ${val.errorMsg}');
+      },
+      onStatus: (val) {
+        debugPrint('[OmniChat Dictation] Speech recognition status: $val');
+      },
+    );
+
+    if (available) {
+      _isDictating = true;
+      _preDictationText = _inputController.text;
+      notifyListeners();
+      _speechToText!.listen(
+        onResult: (val) {
+          if (val.recognizedWords.isNotEmpty) {
+            final separator = (_preDictationText.isNotEmpty && !_preDictationText.endsWith(' ') && !_preDictationText.endsWith('\n')) ? ' ' : '';
+            final newText = _preDictationText + separator + val.recognizedWords;
+            _inputController.value = TextEditingValue(
+              text: newText,
+              selection: TextSelection.collapsed(offset: newText.length),
+            );
+          }
+        },
+        cancelOnError: true,
+        pauseFor: const Duration(seconds: 7),
+        listenFor: const Duration(seconds: 60),
+      );
+    } else {
+      if (_context.mounted) {
+        ScaffoldMessenger.of(_context).showSnackBar(const SnackBar(content: Text('Speech recognition not available on this device.')));
+      }
+    }
+  }
+
+  void stopDictation() {
+    if (!_isDictating) return;
+    _speechToText?.stop();
+    _isDictating = false;
+    notifyListeners();
+  }
 
   GlobalKey<ScaffoldState> get scaffoldKey => _scaffoldKey;
   GlobalKey get inputBarKey => _inputBarKey;

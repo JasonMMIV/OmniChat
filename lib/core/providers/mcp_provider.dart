@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:mcp_client/mcp_client.dart' as mcp;
 import '../services/mcp/kelivo_fetch/kelivo_fetch_server.dart';
+import '../services/mcp/kelivo_js/kelivo_js_server.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
@@ -247,8 +248,24 @@ class McpProvider extends ChangeNotifier {
         _servers = list;
       } catch (_) {}
     }
+
+    // --- Migration: rename old 'kelivo_run_js' ID to 'run_js' ---
+    bool migrated = false;
+    _servers = _servers.map((s) {
+      if (s.id == 'kelivo_run_js' || s.name == '@kelivo/run-javascript') {
+        migrated = true;
+        return s.copyWith(id: 'run_js', name: 'run-javascript');
+      }
+      return s;
+    }).toList();
+    if (migrated) {
+      _persist(); // flush renamed entry so old cached names never return
+    }
+
     // Ensure built-in @kelivo/fetch is present by default
     _ensureBuiltinFetchServerPresent();
+    // Ensure built-in run-javascript is present by default
+    _ensureBuiltinJsServerPresent();
     // initialize statuses
     for (final s in _servers) {
       _status[s.id] = McpStatus.idle;
@@ -264,12 +281,25 @@ class McpProvider extends ChangeNotifier {
   }
 
   void _ensureBuiltinFetchServerPresent() {
-    final exists = _servers.any((s) => s.transport == McpTransportType.inmemory || s.name == '@kelivo/fetch' || s.id == 'kelivo_fetch');
+    final exists = _servers.any((s) => s.id == 'kelivo_fetch' || s.name == '@kelivo/fetch');
     if (exists) return;
     final cfg = McpServerConfig(
       id: 'kelivo_fetch',
       enabled: true,
       name: '@kelivo/fetch',
+      transport: McpTransportType.inmemory,
+      tools: const <McpToolConfig>[], // will refresh on connect
+    );
+    _servers = [..._servers, cfg];
+  }
+
+  void _ensureBuiltinJsServerPresent() {
+    final exists = _servers.any((s) => s.id == 'run_js' || s.name == 'run-javascript');
+    if (exists) return;
+    final cfg = McpServerConfig(
+      id: 'run_js',
+      enabled: true,
+      name: 'run-javascript',
       transport: McpTransportType.inmemory,
       tools: const <McpToolConfig>[], // will refresh on connect
     );
@@ -439,6 +469,12 @@ class McpProvider extends ChangeNotifier {
             id: 'kelivo_fetch',
             enabled: builtinEnabled,
             name: '@kelivo/fetch',
+            transport: McpTransportType.inmemory,
+          ));
+          next.add(McpServerConfig(
+            id: 'run_js',
+            enabled: builtinEnabled, // Assuming same enabled state for simplicity or could be split
+            name: 'run-javascript',
             transport: McpTransportType.inmemory,
           ));
         }
@@ -636,8 +672,17 @@ class McpProvider extends ChangeNotifier {
 
       // In-memory builtin server path
       if (server.transport == McpTransportType.inmemory) {
-        final engine = KelivoFetchMcpServerEngine();
-        final transport = KelivoInMemoryClientTransport(engine);
+        mcp.ClientTransport transport;
+        if (server.id == 'kelivo_fetch' || server.name == '@kelivo/fetch') {
+          final engine = KelivoFetchMcpServerEngine();
+          transport = KelivoInMemoryClientTransport(engine);
+        } else if (server.id == 'run_js' || server.name == 'run-javascript') {
+          final engine = JsMcpServerEngine();
+          transport = JsInMemoryClientTransport(engine);
+        } else {
+          throw StateError('Unknown in-memory server id: ${server.id}');
+        }
+
         final client = mcp.McpClient.createClient(clientConfig);
         await client.connect(transport);
         _clients[id] = client;

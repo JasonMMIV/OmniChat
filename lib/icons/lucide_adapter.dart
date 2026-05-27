@@ -81,6 +81,7 @@ class Lucide {
   static const IconData Eraser = lucide.LucideIcons.eraser;
   static const IconData ChevronLeft = lucide.LucideIcons.chevronLeft;
   static const IconData MessageSquare = lucide.LucideIcons.messageSquare;
+  static const IconData Circle = lucide.LucideIcons.circle;
   static const IconData CircleStop = lucide.LucideIcons.circleStop;
   static const IconData CircleX = lucide.LucideIcons.circleX;
   static const IconData Link2 = lucide.LucideIcons.link2;
@@ -160,6 +161,7 @@ class Lucide {
   static const IconData Pause = lucide.LucideIcons.pause;
   static const IconData Captions = lucide.LucideIcons.captions;
   static const IconData CaptionsOff = lucide.LucideIcons.captionsOff;
+  static const IconData Mic = lucide.LucideIcons.mic;
   static const IconData MicOff = lucide.LucideIcons.micOff;
   static const IconData Banknote = lucide.LucideIcons.banknote;
 }

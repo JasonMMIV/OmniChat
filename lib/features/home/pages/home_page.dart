@@ -25,6 +25,7 @@ import '../../../desktop/mcp_servers_popover.dart';
 import '../../../desktop/mini_map_popover.dart';
 import '../../../desktop/quick_phrase_popover.dart';
 import '../../../desktop/instruction_injection_popover.dart';
+import '../../../desktop/desktop_context_menu.dart';
 import '../../chat/widgets/bottom_tools_sheet.dart';
 import '../../chat/widgets/reasoning_budget_sheet.dart';
 import '../../search/widgets/search_settings_sheet.dart';
@@ -691,6 +692,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       onToggleLearningMode: _openInstructionInjectionPopover,
       onLongPressLearning: _showLearningPromptSheet,
       onClearContext: _controller.clearContext,
+      isDictating: _controller.isDictating,
+      onStartDictation: _controller.startDictation,
+      onStopDictation: _controller.stopDictation,
     );
   }
 
@@ -851,7 +855,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     showLearningPromptSheet(context);
   }
 
-  void _toggleTools() {
+  void _toggleTools(List<DesktopContextMenuItem>? overflowItems) {
     if (PlatformUtils.isDesktop) {
       // Desktop usually doesn't have this 'More' sheet the same way
     } else {
@@ -861,6 +865,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (ctx) => BottomToolsSheet(
+          overflowItems: overflowItems,
           onCamera: _controller.onPickCamera,
           onPhotos: _controller.onPickPhotos,
           onUpload: _controller.onPickFiles,

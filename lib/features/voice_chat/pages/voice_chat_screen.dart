@@ -80,9 +80,7 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
   bool _manualStopInProgress = false;
   Map<String, int> _versionSelections = {};
 
-  // Timer to restart listening if it stops unexpectedly
-  Timer? _restartListeningTimer;
-  Timer? _listeningWatchdog;
+  // Removed restart timers for pause-on-timeout behavior
 
   // Flag to track if we're in the process of handling voice input
   bool _isProcessingVoiceInput = false;
@@ -192,7 +190,7 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
   void _handleSpeechStatus(String status) {
     if (_isCleaningUp) return;
 
-    // Don't restart if this was a manual stop
+    // Don't pause if this was a manual stop
     if (_manualStopInProgress) {
       if (status == 'done' || status == 'notListening') {
         _manualStopInProgress = false;
@@ -201,12 +199,13 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
       return;
     }
 
-    if (status == 'done' || status == 'notListening') {
+    if (status == 'notListening') {
       _isListening = false;
-      // Always try to restart if we were listening and not paused
-      if (!_isPaused && mounted && _currentState == VoiceChatState.listening && !_isProcessingVoiceInput) {
-        _scheduleRestart(const Duration(milliseconds: 100));
-      }
+      return;
+    }
+
+    if (status == 'done') {
+      _isListening = false;
     }
   }
 
@@ -215,13 +214,14 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
 
     _isListening = false;
 
-    // Don't restart if this was a manual stop
+    // Don't auto-pause if this was a manual stop
     if (_manualStopInProgress) {
       _manualStopInProgress = false;
       return;
     }
 
-    // Don't show error for common timeout errors, just restart
+    // Android timeout/no-match callbacks are not reliable enough to drive UI state.
+    // Keep voice chat under explicit user control instead of auto-pausing.
     final errorMsg = error.errorMsg.toLowerCase();
     if (errorMsg.contains('no match') ||
         errorMsg.contains('speech timeout') ||
@@ -232,8 +232,10 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
         errorMsg.contains('error_interruption') ||
         errorMsg.contains('error_client') ||
         errorMsg.contains('error_recognizer_busy')) {
-      if (!_isPaused && mounted && _currentState == VoiceChatState.listening && !_isProcessingVoiceInput) {
-        _scheduleRestart(const Duration(milliseconds: 100));
+      if (mounted && _currentState == VoiceChatState.listening) {
+        setState(() {
+          _currentSubtitle = '';
+        });
       }
       return;
     }
@@ -244,25 +246,10 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
     });
 
     if (!_isPaused && mounted && _currentState == VoiceChatState.listening && !_isProcessingVoiceInput) {
-      _scheduleRestart(const Duration(milliseconds: 500));
+      setState(() {
+        _isPaused = true;
+      });
     }
-  }
-
-  void _scheduleRestart(Duration delay) {
-    if (_isCleaningUp) return;
-    
-    print('Scheduling restart in ${delay.inMilliseconds}ms'); // Debug print
-    _restartListeningTimer?.cancel();
-    _restartListeningTimer = Timer(delay, () {
-      if (_isCleaningUp) return;
-      
-      print('Restart timer executed, mounted=$mounted, paused=$_isPaused, currentState=$_currentState'); // Debug print
-      // Check if mounted, not paused, AND in listening state
-      if (mounted && !_isPaused && _currentState == VoiceChatState.listening && !_isProcessingVoiceInput) {
-        print('Attempting to restart listening'); // Debug print
-        _doStartListening();
-      }
-    });
   }
 
   Future<void> _startVoiceRecognition() async {
@@ -271,9 +258,6 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
       print('[OmniChat Dart] _startVoiceRecognition: Aborted. perm=$_hasMicrophonePermission, ready=$_speechEngineReady, cleanup=$_isCleaningUp');
       return;
     }
-
-    // Cancel any existing restart timer
-    _restartListeningTimer?.cancel();
 
     // Make sure audio session is active for Bluetooth call simulation (Mobile only)
     if (Platform.isAndroid || Platform.isIOS) {
@@ -311,6 +295,17 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
     if (!mounted || _isPaused || _currentState != VoiceChatState.listening || _isProcessingVoiceInput) {
        print('[OmniChat Dart] _doStartListening: State check failed. mounted=$mounted, paused=$_isPaused, state=$_currentState, proc=$_isProcessingVoiceInput');
        return;
+    }
+
+    if (_isListening) {
+      print('[OmniChat Dart] _doStartListening: Already flagged as listening, aborting to prevent overlap.');
+      return;
+    }
+
+    // Attempt to clear any native stuck state before re-engaging
+    if (_speechToText.isListening) {
+      print('[OmniChat Dart] _doStartListening: Native engine thinks it is listening. Forcing cancel.');
+      try { await _speechToText.cancel(); } catch (_) {}
     }
 
     _isListening = true;
@@ -453,15 +448,19 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
         },
         listenMode: ListenMode.dictation,
         localeId: selectedLocaleId,
-        cancelOnError: false,
+        cancelOnError: true,
         partialResults: true,
+        pauseFor: const Duration(seconds: 7),
+        listenFor: const Duration(seconds: 60),
       );
       print('[OmniChat Dart] _speechToText.listen() returned.');
     } catch (e) {
       print('[OmniChat Dart] _doStartListening Exception: $e');
       _isListening = false;
       if (!_isPaused && mounted) {
-        _scheduleRestart(const Duration(milliseconds: 500));
+        setState(() {
+          _isPaused = true;
+        });
       }
     }
   }
@@ -474,7 +473,6 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
       _manualStopInProgress = true;
       await _speechToText.stop();
       _isListening = false;
-      _restartListeningTimer?.cancel();
     }
 
     // After processing the voice input, ensure we restart listening
@@ -490,8 +488,6 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
       _manualStopInProgress = true;
       await _speechToText.stop();
       _isListening = false;
-      _restartListeningTimer?.cancel();
-      _listeningWatchdog?.cancel();
     }
 
     final localization = AppLocalizations.of(context);
@@ -1001,6 +997,9 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
   }
 
   String _getStateText(BuildContext context) {
+    if (_isPaused) {
+      return 'Paused'; // Fallback text for paused state
+    }
     final l10n = AppLocalizations.of(context)!;
     switch (_currentState) {
       case VoiceChatState.listening:
@@ -1013,6 +1012,9 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
   }
 
   Color _getStateColor(ColorScheme cs) {
+    if (_isPaused) {
+      return Colors.grey.shade400;
+    }
     switch (_currentState) {
       case VoiceChatState.listening:
         return Colors.green.shade400;
@@ -1044,7 +1046,6 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
         _manualStopInProgress = true;
         _speechToText.stop();
         _isListening = false;
-        _restartListeningTimer?.cancel();
       }
     } else {
       // Only restart if we're in listening state and not processing voice input
@@ -1158,8 +1159,6 @@ class _VoiceChatScreenViewState extends State<VoiceChatScreenView> {
     print('[OmniChat Dart] _cleanup: Starting cleanup...');
     
     try {
-      _restartListeningTimer?.cancel();
-      _listeningWatchdog?.cancel();
       _voiceStopTimer?.cancel();
       
       if (_isListening) {

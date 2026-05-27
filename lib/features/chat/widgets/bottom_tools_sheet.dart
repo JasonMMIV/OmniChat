@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../core/services/haptics.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -10,6 +11,7 @@ import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
+import '../../../desktop/desktop_context_menu.dart';
 import '../../model/widgets/ocr_prompt_sheet.dart';
 
 class BottomToolsSheet extends StatelessWidget {
@@ -21,6 +23,7 @@ class BottomToolsSheet extends StatelessWidget {
     this.onClear,
     this.clearLabel,
     this.assistantId,
+    this.overflowItems,
   });
 
   final VoidCallback? onCamera;
@@ -29,6 +32,7 @@ class BottomToolsSheet extends StatelessWidget {
   final VoidCallback? onClear;
   final String? clearLabel;
   final String? assistantId;
+  final List<DesktopContextMenuItem>? overflowItems;
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +40,7 @@ class BottomToolsSheet extends StatelessWidget {
     final bg = Theme.of(context).colorScheme.surface;
     final maxHeight = MediaQuery.sizeOf(context).height * 0.8;
 
-    Widget roundedAction({required IconData icon, required String label, VoidCallback? onTap}) {
+    Widget roundedAction({IconData? icon, String? svgAsset, required String label, VoidCallback? onTap}) {
       final isDark = Theme.of(context).brightness == Brightness.dark;
       final cardColor = isDark ? Colors.white10 : const Color(0xFFF2F3F5);
       return Expanded(
@@ -55,9 +59,12 @@ class BottomToolsSheet extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(icon, size: 24, color: Theme.of(context).colorScheme.onSurface),
+                  if (svgAsset != null)
+                    SvgPicture.asset(svgAsset, width: 24, height: 24, colorFilter: ColorFilter.mode(Theme.of(context).colorScheme.onSurface, BlendMode.srcIn))
+                  else
+                    Icon(icon ?? Lucide.Circle, size: 24, color: Theme.of(context).colorScheme.onSurface),
                   const SizedBox(height: 6),
-                  Text(label, style: const TextStyle(fontSize: 13)),
+                  Text(label, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis),
                 ],
               ),
             ),
@@ -103,32 +110,13 @@ class BottomToolsSheet extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      children: [
-                        roundedAction(
-                          icon: Lucide.Camera,
-                          label: l10n.bottomToolsSheetCamera,
-                          onTap: onCamera,
-                        ),
-                        const SizedBox(width: 12),
-                        roundedAction(
-                          icon: Lucide.Image,
-                          label: l10n.bottomToolsSheetPhotos,
-                          onTap: onPhotos,
-                        ),
-                        const SizedBox(width: 12),
-                        roundedAction(
-                          icon: Lucide.Paperclip,
-                          label: l10n.bottomToolsSheetUpload,
-                          onTap: onUpload,
-                        ),
-                      ],
-                    ),
+                    ..._buildActionRows(context, l10n, roundedAction),
                     const SizedBox(height: 12),
                     _LearningAndClearSection(
                       clearLabel: clearLabel,
                       onClear: onClear,
                       assistantId: assistantId,
+                      overflowItems: overflowItems,
                     ),
                   ],
                 ),
@@ -139,20 +127,46 @@ class BottomToolsSheet extends StatelessWidget {
       ),
     );
   }
+
+  List<Widget> _buildActionRows(BuildContext context, AppLocalizations l10n, Widget Function({IconData? icon, String? svgAsset, required String label, VoidCallback? onTap}) roundedAction) {
+    final allActions = <DesktopContextMenuItem>[];
+    
+    if (onCamera != null) allActions.add(DesktopContextMenuItem(icon: Lucide.Camera, label: l10n.bottomToolsSheetCamera, onTap: onCamera));
+    if (onPhotos != null) allActions.add(DesktopContextMenuItem(icon: Lucide.Image, label: l10n.bottomToolsSheetPhotos, onTap: onPhotos));
+    if (onUpload != null) allActions.add(DesktopContextMenuItem(icon: Lucide.Paperclip, label: l10n.bottomToolsSheetUpload, onTap: onUpload));
+
+    final rows = <Widget>[];
+    for (int i = 0; i < allActions.length; i += 3) {
+      final rowChildren = <Widget>[];
+      for (int j = 0; j < 3; j++) {
+        if (i + j < allActions.length) {
+          final a = allActions[i + j];
+          rowChildren.add(roundedAction(icon: a.icon, svgAsset: a.svgAsset, label: a.label, onTap: a.onTap));
+        } else {
+          rowChildren.add(const Expanded(child: SizedBox()));
+        }
+        if (j < 2) rowChildren.add(const SizedBox(width: 12));
+      }
+      rows.add(Row(children: rowChildren));
+      if (i + 3 < allActions.length) rows.add(const SizedBox(height: 12));
+    }
+    return rows;
+  }
 }
 
 class _LearningAndClearSection extends StatefulWidget {
-  const _LearningAndClearSection({this.onClear, this.clearLabel, this.assistantId});
+  const _LearningAndClearSection({this.onClear, this.clearLabel, this.assistantId, this.overflowItems});
   final VoidCallback? onClear;
   final String? clearLabel;
   final String? assistantId;
+  final List<DesktopContextMenuItem>? overflowItems;
 
   @override
   State<_LearningAndClearSection> createState() => _LearningAndClearSectionState();
 }
 
 class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
-  Widget _row({required IconData icon, required String label, bool selected = false, VoidCallback? onTap, VoidCallback? onLongPress}) {
+  Widget _row({IconData? icon, String? svgAsset, required String label, bool selected = false, VoidCallback? onTap, VoidCallback? onLongPress}) {
     final cs = Theme.of(context).colorScheme;
     final onColor = selected ? cs.primary : cs.onSurface;
     final radius = BorderRadius.circular(14);
@@ -167,9 +181,12 @@ class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: onColor),
+            if (svgAsset != null)
+              SvgPicture.asset(svgAsset, width: 20, height: 20, colorFilter: ColorFilter.mode(onColor, BlendMode.srcIn))
+            else
+              Icon(icon ?? Lucide.Circle, size: 20, color: onColor),
             const SizedBox(width: 10),
-            Expanded(child: Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: onColor))),
+            Expanded(child: Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: onColor), overflow: TextOverflow.ellipsis)),
             if (selected) Icon(Lucide.Check, size: 18, color: cs.primary) else const SizedBox(width: 18),
           ],
         ),
@@ -187,6 +204,25 @@ class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (widget.overflowItems != null && widget.overflowItems!.isNotEmpty) ...[
+          for (final item in widget.overflowItems!)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _row(
+                icon: item.icon,
+                svgAsset: item.svgAsset,
+                label: item.label,
+                onTap: () {
+                  Haptics.light();
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).maybePop();
+                  }
+                  item.onTap?.call();
+                },
+              ),
+            ),
+          const SizedBox(height: 8),
+        ],
         if (items.isEmpty)
           _row(
             icon: Lucide.Layers,

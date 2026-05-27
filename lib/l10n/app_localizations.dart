@@ -2003,6 +2003,18 @@ abstract class AppLocalizations {
   /// **'More'**
   String get chatInputBarMoreTooltip;
 
+  /// No description provided for @chatInputBarDictationTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Dictation'**
+  String get chatInputBarDictationTooltip;
+
+  /// No description provided for @chatInputBarStopDictationTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop Dictation'**
+  String get chatInputBarStopDictationTooltip;
+
   /// No description provided for @miniMapTitle.
   ///
   /// In en, this message translates to:
