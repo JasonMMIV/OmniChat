@@ -1,6 +1,6 @@
 # OmniChat Developer Changes Log
 
-## [v1.5.14] - 2026-05-27: Revert Unreliable Android STT Timeout Automation
+## [v1.5.14] - 2026-05-27: Consolidated Release for MCP, Voice Chat, and Input Bar Updates
 
 ### 102. Harden Local JavaScript MCP Execution
 - **Purpose**: Make the built-in `run-javascript` MCP tool safer and more predictable.
@@ -9,7 +9,7 @@
 - **Details**:
   - **No Network APIs**: Disabled the default JS runtime fetch/XHR setup for the built-in JavaScript execution tool and reject direct network API usage patterns.
   - **Per-Call Runtime Isolation**: Each tool call now creates and disposes its own JavaScript runtime so globals and modified built-ins do not leak across executions.
-  - **Execution Guards**: QuickJS-backed platforms use runtime timeout and memory limits. The tool also rejects empty, oversized, and obvious infinite-loop snippets before evaluation.
+  - **Execution Guards**: QuickJS-backed platforms use runtime timeout and stack-size guards. The tool also rejects empty, oversized, and obvious infinite-loop snippets before evaluation.
   - **Prompting Fix**: Updated the tool description to use valid JavaScript examples and clarified that plain expressions, IIFEs, and top-level `return` are accepted.
 
 ### 101. Revert Dictation Auto-Exit and Voice Chat Pause-on-Timeout
@@ -22,8 +22,6 @@
   - **Voice Chat Manual Control Restored**: Voice chat no longer switches to paused mode from timeout/no-match style STT errors. These Android callbacks are not reliable enough to drive the Play/Pause UI state.
   - **Rationale**: Android may express silence timeout through different callback paths, and `notListening` can also mean normal end-of-speech. Removing these automatic transitions keeps voice behavior predictable.
 
-## [v1.5.13] - 2026-05-27: Chat Input Bar Overflow UI Refactor
-
 ### 100. Chat Input Bar Overflow UI Refactor
 - **Purpose**: Clean up the mobile UI when action buttons in the chat input bar overflow, routing them to the existing right-side `+` menu instead of displaying a redundant left-side `+` button.
 - **Files Modified**:
@@ -35,8 +33,6 @@
   - **Overflow Items List Layout**: Styled the collapsed overflow items (such as Dictation and Reasoning Mode) in the bottom tools sheet to list below "Learning Mode" and "Clear Context", using the standard list layout (icon on the left, name on the right, matching existing items exactly).
   - **Dynamic Callback Routing**: Updated the mobile/desktop `onMore` callback interface in `ChatInputBar` to supply the list of overflow actions to the triggering page (`HomePage`), allowing the bottom tools sheet to render those actions dynamically.
 
-## [v1.5.12] - 2026-05-27: Dictation Auto-Exit on Timeout
-
 ### 99. Dictation Auto-Exit on Timeout
 - **Status**: Superseded by v1.5.14. The auto-exit behavior was removed because Android `notListening` is not a reliable silence-timeout signal.
 - **Purpose**: Ensure that the inline dictation mode automatically exits and resets the UI when the system's voice recognition stops (e.g., due to a 7-second silence timeout).
@@ -45,8 +41,6 @@
 - **Details**:
   - **Auto-Exit Logic**: Expanded the `onStatus` callback of `SpeechToText` to not only check for `'done'`, but also for `'notListening'`.
   - **UI Reset**: When a silence timeout occurs (which emits `'notListening'`), `stopDictation()` is automatically triggered. This ensures that the `_isDictating` state is set to `false`, causing the chat input bar to correctly revert its right-side buttons (from "Stop Dictation" back to standard actions) without requiring manual user intervention.
-
-## [v1.5.11] - 2026-05-27: Inline Voice Dictation Localization
 
 ### 98. Inline Voice Dictation Localization
 - **Purpose**: Localize the inline voice dictation button/tooltip in both English and Traditional/Simplified Chinese, utilizing the application's configured locale.
@@ -62,8 +56,6 @@
   - **UI Translation**: Fully localized tooltips and labels inside both the main chat input bar actions, the dynamic mobile overflow sheets, and the desktop context menus.
   - **Typings Correction**: Corrected signature of `onMore` callback in `chat_input_bar.dart` from `VoidCallback?` to `void Function(List<DesktopContextMenuItem>)?` to resolve positional argument type mismatch compiling errors.
 
-## [v1.5.10] - 2026-05-27: Voice Chat Pause-on-Timeout Mechanism
-
 ### 97. Voice Chat STT Pause-on-Timeout
 - **Status**: Superseded by v1.5.14. The pause-on-timeout behavior was removed because Android timeout/no-match callbacks are not reliable enough to drive Play/Pause UI state.
 - **Purpose**: Resolve race conditions caused by the auto-restart mechanism on Android by transitioning to a "paused" state when a silence timeout occurs.
@@ -73,8 +65,6 @@
   - **Removed Auto-Restart**: Completely removed `_restartListeningTimer`, `_listeningWatchdog`, and the `_scheduleRestart` logic.
   - **Pause on Timeout**: Modified `_handleSpeechError` and `_handleSpeechStatus` to automatically set `_isPaused = true` instead of restarting when common timeout errors (`error_speech_timeout`, `error_no_match`) occur.
   - **UI Synchronization**: The automatic pause naturally syncs with the existing UI, changing the pause button to a "Play" icon. Users can resume the voice chat by manually pressing the Play button.
-
-## [v1.5.9] - 2026-05-27: JavaScript MCP Naming & Stability Fix
 
 ### 96. MCP Naming & Cache Migration
 - **Purpose**: Ensure the JavaScript MCP displays as `run-javascript` and correctly handles the migration from the old `kelivo_run_js` ID to prevent crashes.
@@ -86,8 +76,6 @@
   - **Migration Logic**: Implemented an auto-migration loop in `McpProvider._load()` that detects the old `kelivo_run_js` ID in `SharedPreferences` and renames it to `run_js` / `run-javascript`.
   - **Persistence Fix**: Forced a `_persist()` call after renaming to ensure the old cached names never return.
 
-## [v1.5.8] - 2026-05-27: Inline Voice Dictation
-
 ### 95. Inline Speech-to-Text Dictation
 - **Purpose**: Allow users to dictate text directly into the chat input bar without entering the full-screen voice mode.
 - **Files Modified**:
@@ -97,12 +85,10 @@
   - `lib/features/home/pages/home_page.dart`
   - `lib/icons/lucide_adapter.dart`
 - **Details**:
-  - **UI/UX**: Added a microphone icon button to the `ChatInputBar` (positioned after the Quick Phrase button). 
+  - **UI/UX**: Added a microphone icon button to the `ChatInputBar` (positioned after the Quick Phrase button).
   - **Dictation Mode**: Implemented a dedicated state that hides left action buttons and shows "Stop" (Square) and "Confirm" (Check) buttons on the right when active.
   - **Logic**: Integrated `SpeechToText` within `HomePageController` to append recognized words to existing text instead of overwriting.
   - **Icon Support**: Added missing `Lucide.Mic` mapping to `lucide_adapter.dart`.
-
-## [v1.5.7] - 2026-05-27: Voice Chat STT Auto-Restart Reliability
 
 ### 94. Android STT Auto-Restart Fix
 - **Purpose**: Fix the issue where voice recognition failed to restart automatically after the Android system's ~6-second silence timeout.
@@ -112,8 +98,6 @@
   - **Hardware Release Window**: Increased the minimum restart delay in `_scheduleRestart` to 500ms to allow the Android OS to fully release the microphone hardware.
   - **State Sanitization**: Explicitly reset the `_isListening` flag before re-triggering recognition to prevent state-lock issues.
   - **Native Force-Cancel**: Added a forced `_speechToText.cancel()` call inside `_doStartListening` to clear any lingering "listening" status in the native engine before starting a new session.
-
-## [v1.5.6] - 2026-05-27: Local JavaScript Code Execution (MCP)
 
 ### 93. Local JavaScript MCP Server
 - **Purpose**: Provide a sandboxed environment for LLM to execute code locally, replacing the need for remote Python servers on mobile/desktop.
