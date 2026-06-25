@@ -1765,7 +1765,7 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
               ],
 
               // API Path (OpenAI chat)
-              if (kind == ProviderKind.openai && (cfg.useResponseApi != true)) ...[
+              if ((kind == ProviderKind.openai || kind == ProviderKind.neuralwatt) && (cfg.useResponseApi != true)) ...[
                 const SizedBox(height: 14),
                 _sectionLabel(context, l10n.providerDetailPageApiPathLabel, bold: true),
                 const SizedBox(height: 6),
@@ -2296,7 +2296,7 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
                         switchInCurve: Curves.easeOutCubic,
                         switchOutCurve: Curves.easeInCubic,
                         child: () {
-                          if (kindNow == ProviderKind.openai) {
+                          if (kindNow == ProviderKind.openai || kindNow == ProviderKind.neuralwatt) {
                             return KeyedSubtree(
                               key: const ValueKey('openai-resp'),
                               child: row(l10n.providerDetailPageResponseApiTitle, Align(alignment: Alignment.centerRight, child: IosSwitch(value: respNow, onChanged: (v) async {
@@ -3394,6 +3394,7 @@ class _ProviderTypeDropdownState extends State<_ProviderTypeDropdown> {
       (ProviderKind.openai, 'OpenAI'),
       (ProviderKind.google, 'Google'),
       (ProviderKind.claude, 'Claude'),
+      (ProviderKind.neuralwatt, 'Neuralwatt'),
     ];
     _entry = OverlayEntry(builder: (ctx) {
       final cs = Theme.of(ctx).colorScheme;
@@ -3449,6 +3450,7 @@ class _ProviderTypeDropdownState extends State<_ProviderTypeDropdown> {
       ProviderKind.openai => 'OpenAI',
       ProviderKind.google => 'Google',
       ProviderKind.claude => 'Claude',
+      ProviderKind.neuralwatt => 'Neuralwatt',
     };
     return CompositedTransformTarget(
       link: _link,

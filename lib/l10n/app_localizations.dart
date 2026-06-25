@@ -2411,6 +2411,12 @@ abstract class AppLocalizations {
   /// **'Bocha'**
   String get searchServiceNameBocha;
 
+  /// No description provided for @searchServiceNameTinyfish.
+  ///
+  /// In en, this message translates to:
+  /// **'Tinyfish'**
+  String get searchServiceNameTinyfish;
+
   /// No description provided for @searchServicesAddDialogAdd.
   ///
   /// In en, this message translates to:
@@ -3449,6 +3455,18 @@ abstract class AppLocalizations {
   /// **'Deep thinking'**
   String get chatMessageWidgetDeepThinking;
 
+  /// No description provided for @chatMessageWidgetSelectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select All'**
+  String get chatMessageWidgetSelectAll;
+
+  /// No description provided for @chatMessageWidgetCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get chatMessageWidgetCopy;
+
   /// No description provided for @messageMoreSheetSelectCopy.
   ///
   /// In en, this message translates to:
@@ -3670,6 +3688,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'DuckDuckGo search'**
   String get searchProviderDuckDuckGoDescription;
+
+  /// No description provided for @searchProviderTinyfishDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Search the live web with Tinyfish Search API.'**
+  String get searchProviderTinyfishDescription;
 
   /// No description provided for @selectCopyPageCopiedAll.
   ///

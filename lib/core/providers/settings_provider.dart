@@ -2245,7 +2245,7 @@ class _SocksProxyHttpOverrides extends HttpOverrides {
   }
 }
 
-enum ProviderKind { openai, google, claude }
+enum ProviderKind { openai, google, claude, neuralwatt }
 
 // Background rendering mode for chat message bubbles
 enum ChatMessageBackgroundStyle { defaultStyle, frosted, solid }
@@ -2463,6 +2463,7 @@ class ProviderConfig {
     
     // Otherwise, infer from the key
     final k = key.toLowerCase();
+    if (k.contains('neuralwatt')) return ProviderKind.neuralwatt;
     if (k.contains('gemini') || k.contains('google')) return ProviderKind.google;
     if (k.contains('claude') || k.contains('anthropic')) return ProviderKind.claude;
     return ProviderKind.openai;
@@ -2472,6 +2473,7 @@ class ProviderConfig {
     final k = key.toLowerCase();
     if (k.contains('tensdaq')) return 'https://tensdaq-api.x-aio.com/v1';
     if (k.contains('kelivoin')) return 'https://text.pollinations.ai/openai';
+    if (k.contains('neuralwatt')) return 'https://api.neuralwatt.com/v1';
     if (k.contains('openrouter')) return 'https://openrouter.ai/api/v1';
     if (k.contains('aihubmix')) return 'https://aihubmix.com/v1';
     if (RegExp(r'qwen|aliyun|dashscope').hasMatch(k)) return 'https://dashscope.aliyuncs.com/compatible-mode/v1';
@@ -2494,6 +2496,7 @@ class ProviderConfig {
       if (s.contains('silicon')) return true;
       if (s.contains('openrouter')) return true;
       if (s.contains('kelivoin')) return true;
+      if (s.contains('neuralwatt')) return true;
       return false; // others disabled by default
     }
     final kind = classify(key);
@@ -2548,6 +2551,31 @@ class ProviderConfig {
           balanceEnabled: false,
           balanceApiPath: '',
           balanceResultKey: '',
+        );
+      case ProviderKind.neuralwatt:
+        return ProviderConfig(
+          id: key,
+          enabled: _defaultEnabled(key),
+          name: displayName ?? 'Neuralwatt',
+          apiKey: '',
+          baseUrl: _defaultBase(key),
+          providerType: ProviderKind.neuralwatt,
+          chatPath: '/chat/completions',
+          useResponseApi: false,
+          models: const [],
+          modelOverrides: const {},
+          proxyEnabled: false,
+          proxyHost: '',
+          proxyPort: '8080',
+          proxyUsername: '',
+          proxyPassword: '',
+          multiKeyEnabled: false,
+          apiKeys: const [],
+          keyManagement: const KeyManagementConfig(),
+          aihubmixAppCodeEnabled: false,
+          balanceEnabled: true,
+          balanceApiPath: '/quota',
+          balanceResultKey: 'balance.credits_remaining_usd',
         );
       case ProviderKind.openai:
       default:

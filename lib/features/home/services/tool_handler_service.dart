@@ -102,6 +102,7 @@ class ToolHandlerService {
         allowed = {'type', 'description', 'properties', 'required', 'items', 'enum'};
         break;
       case ProviderKind.openai:
+      case ProviderKind.neuralwatt:
       case ProviderKind.claude:
         allowed = {'type', 'description', 'properties', 'required', 'items', 'enum'};
         break;

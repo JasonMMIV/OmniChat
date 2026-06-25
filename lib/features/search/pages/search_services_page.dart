@@ -581,6 +581,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     if (service is JinaOptions) return Lucide.Sparkles;
     if (service is PerplexityOptions) return Lucide.Search;
     if (service is BochaOptions) return Lucide.Search;
+    if (service is TinyfishOptions) return Lucide.Search;
     return Lucide.Search;
   }
 
@@ -633,6 +634,10 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
       return service.apiKey.isNotEmpty
           ? l10n.searchServicesPageConfiguredStatus
           : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (service is TinyfishOptions)
+      return service.apiKey.isNotEmpty
+          ? l10n.searchServicesPageConfiguredStatus
+          : l10n.searchServicesPageApiKeyRequiredStatus;
     return null;
   }
 
@@ -667,6 +672,7 @@ class _BrandBadge extends StatelessWidget {
     if (s is JinaOptions) return 'jina';
     if (s is PerplexityOptions) return 'perplexity';
     if (s is BochaOptions) return 'bocha';
+    if (s is TinyfishOptions) return 'tinyfish';
     return 'search';
   }
 
@@ -840,6 +846,7 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
       {'type': 'ollama', 'name': l10n.searchServiceNameOllama},
       {'type': 'perplexity', 'name': l10n.searchServiceNamePerplexity},
       {'type': 'bocha', 'name': l10n.searchServiceNameBocha},
+      {'type': 'tinyfish', 'name': l10n.searchServiceNameTinyfish},
     ];
     return ListView.builder(
       key: const ValueKey('service_list'),
@@ -902,6 +909,8 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
         return l10n.searchServiceNamePerplexity;
       case 'bocha':
         return l10n.searchServiceNameBocha;
+      case 'tinyfish':
+        return l10n.searchServiceNameTinyfish;
       default:
         return '';
     }
@@ -1037,6 +1046,7 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
       case 'ollama':
       case 'perplexity':
       case 'bocha':
+      case 'tinyfish':
         return [
           _buildTextField(
             key: 'apiKey',
@@ -1151,6 +1161,8 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
         return PerplexityOptions(id: id, apiKey: _controllers['apiKey']!.text);
       case 'bocha':
         return BochaOptions(id: id, apiKey: _controllers['apiKey']!.text);
+      case 'tinyfish':
+        return TinyfishOptions(id: id, apiKey: _controllers['apiKey']!.text);
       default:
         return BingLocalOptions(id: id);
     }
@@ -1210,6 +1222,8 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
     } else if (service is JinaOptions) {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
     } else if (service is BochaOptions) {
+      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+    } else if (service is TinyfishOptions) {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
     }
   }
@@ -1363,7 +1377,8 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
         service is MetasoOptions ||
         service is OllamaOptions ||
         service is JinaOptions ||
-        service is BochaOptions) {
+        service is BochaOptions ||
+        service is TinyfishOptions) {
       return [
         _buildTextField(
           key: 'apiKey',
@@ -1499,6 +1514,11 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
         include: service.include,
         exclude: service.exclude,
       );
+    } else if (service is TinyfishOptions) {
+      return TinyfishOptions(
+        id: service.id,
+        apiKey: _controllers['apiKey']!.text,
+      );
     }
 
     return service;
@@ -1595,6 +1615,8 @@ class _ServiceIcon extends StatelessWidget {
         return 'ollama';
       case 'bocha':
         return 'bocha';
+      case 'tinyfish':
+        return 'tinyfish';
       default:
         return type;
     }

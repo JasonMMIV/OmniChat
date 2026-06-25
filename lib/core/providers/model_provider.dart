@@ -370,6 +370,102 @@ class GoogleProvider extends BaseProvider {
   }
 }
 
+class NeuralwattProvider extends BaseProvider {
+  String _base(ProviderConfig cfg) {
+    final raw = cfg.baseUrl.trim().isEmpty
+        ? 'https://api.neuralwatt.com/v1'
+        : cfg.baseUrl.trim();
+    return raw.endsWith('/') ? raw.substring(0, raw.length - 1) : raw;
+  }
+
+  @override
+  Future<List<ModelInfo>> listModels(ProviderConfig cfg) async {
+    final key = ProviderManager._effectiveApiKey(cfg);
+    final client = _Http.clientFor(cfg);
+    try {
+      final uri = Uri.parse('${_base(cfg)}/models');
+      final headers = <String, String>{};
+      if (key.isNotEmpty) headers['Authorization'] = 'Bearer $key';
+
+      final res = await client.get(uri, headers: headers);
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final obj = jsonDecode(res.body) as Map<String, dynamic>;
+        final data = (obj['data'] as List?) ?? const <dynamic>[];
+        return [
+          for (final e in data)
+            if (e is Map && e['id'] is String)
+              _fromModelJson(e.cast<String, dynamic>()),
+        ];
+      }
+      return [];
+    } finally {
+      client.close();
+    }
+  }
+
+  ModelInfo _fromModelJson(Map<String, dynamic> e) {
+    final id = e['id'] as String;
+    final meta = e['metadata'];
+    final metaMap = meta is Map ? meta.cast<String, dynamic>() : const <String, dynamic>{};
+    final displayName = (metaMap['display_name'] as String?)?.trim();
+    final capsRaw = metaMap['capabilities'];
+    final caps = capsRaw is Map ? capsRaw.cast<String, dynamic>() : const <String, dynamic>{};
+    final deprecated = metaMap['deprecated'] == true;
+
+    final input = <Modality>[Modality.text];
+    if (caps['vision'] == true && !input.contains(Modality.image)) {
+      input.add(Modality.image);
+    }
+
+    final abilities = <ModelAbility>[];
+    if (caps['tools'] == true) abilities.add(ModelAbility.tool);
+    if (caps['reasoning'] == true || caps['reasoning_effort'] == true) {
+      abilities.add(ModelAbility.reasoning);
+    }
+
+    final name = (displayName != null && displayName.isNotEmpty)
+        ? displayName
+        : id;
+
+    final effectiveName = deprecated ? '$name (deprecated)' : name;
+
+    return ModelRegistry.infer(ModelInfo(
+      id: id,
+      displayName: effectiveName,
+      input: input,
+      output: const [Modality.text],
+      abilities: abilities,
+    ));
+  }
+
+  @override
+  Future<String> getBalance(ProviderConfig cfg) async {
+    final key = ProviderManager._effectiveApiKey(cfg);
+    if (key.trim().isEmpty) return '';
+
+    final client = _Http.clientFor(cfg);
+    try {
+      final uri = Uri.parse('${_base(cfg)}/quota');
+      final res = await client.get(
+        uri,
+        headers: {'Authorization': 'Bearer $key'},
+      );
+
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final data = jsonDecode(res.body);
+        final value = _JsonUtils.eval(data, 'balance.credits_remaining_usd');
+        if (value is num) return '\$${value.toStringAsFixed(2)}';
+        if (value != null) return value.toString();
+      }
+      return '';
+    } catch (_) {
+      return '';
+    } finally {
+      client.close();
+    }
+  }
+}
+
 class ProviderManager {
   static String _effectiveApiKey(ProviderConfig cfg) {
     try {
@@ -379,6 +475,12 @@ class ProviderManager {
       }
     } catch (_) {}
     return cfg.apiKey;
+  }
+
+  /// Treat Neuralwatt as OpenAI-compatible for chat API request format.
+  static ProviderKind _apiKind(ProviderConfig cfg) {
+    final kind = ProviderConfig.classify(cfg.id, explicitType: cfg.providerType);
+    return kind == ProviderKind.neuralwatt ? ProviderKind.openai : kind;
   }
   // Per-model override helpers (duplicated logic from ChatApiService)
   static Map<String, dynamic> _modelOverride(ProviderConfig cfg, String modelId) {
@@ -437,6 +539,8 @@ class ProviderManager {
         return GoogleProvider();
       case ProviderKind.claude:
         return ClaudeProvider();
+      case ProviderKind.neuralwatt:
+        return NeuralwattProvider();
       case ProviderKind.openai:
       default:
         return OpenAIProvider();
@@ -452,7 +556,7 @@ class ProviderManager {
   }
 
   static Future<void> testConnection(ProviderConfig cfg, String modelId, {bool useStream = false}) async {
-    final kind = ProviderConfig.classify(cfg.id, explicitType: cfg.providerType);
+    final kind = _apiKind(cfg);
     final client = _Http.clientFor(cfg);
     try {
       if (kind == ProviderKind.openai) {

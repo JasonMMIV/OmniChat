@@ -14,6 +14,7 @@ import 'providers/bocha_search_service.dart';
 import 'providers/perplexity_search_service.dart';
 import 'providers/duckduckgo_search_service.dart';
 import 'providers/google_search_service.dart';
+import 'providers/tinyfish_search_service.dart';
 
 // Base interface for all search services
 abstract class SearchService<T extends SearchServiceOptions> {
@@ -58,6 +59,8 @@ abstract class SearchService<T extends SearchServiceOptions> {
         return DuckDuckGoSearchService() as SearchService;
       case GoogleOptions:
         return GoogleSearchService() as SearchService;
+      case TinyfishOptions:
+        return TinyfishSearchService() as SearchService;
       default:
         return BingSearchService() as SearchService;
     }
@@ -175,6 +178,8 @@ abstract class SearchServiceOptions {
         return PerplexityOptions.fromJson(json);
       case 'google':
         return GoogleOptions.fromJson(json);
+      case 'tinyfish':
+        return TinyfishOptions.fromJson(json);
       default:
         return BingLocalOptions(id: json['id']);
     }
@@ -476,5 +481,23 @@ class BochaOptions extends SearchServiceOptions {
     summary: (json['summary'] ?? true) as bool,
     include: json['include'],
     exclude: json['exclude'],
+  );
+}
+
+class TinyfishOptions extends SearchServiceOptions {
+  final String apiKey;
+
+  TinyfishOptions({required String id, required this.apiKey}) : super(id: id);
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'tinyfish',
+    'id': id,
+    'apiKey': apiKey,
+  };
+
+  factory TinyfishOptions.fromJson(Map<String, dynamic> json) => TinyfishOptions(
+    id: json['id'],
+    apiKey: json['apiKey'] ?? '',
   );
 }

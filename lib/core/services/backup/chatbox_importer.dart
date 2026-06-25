@@ -177,8 +177,8 @@ class ChatboxImporter {
             ? normalized.apiHost
             : ProviderConfig.defaultsFor(key, displayName: key).baseUrl,
         'providerType': kind.name,
-        'chatPath': kind == ProviderKind.openai ? normalized.apiPath : null,
-        'useResponseApi': kind == ProviderKind.openai ? false : null,
+        'chatPath': (kind == ProviderKind.openai || kind == ProviderKind.neuralwatt) ? normalized.apiPath : null,
+        'useResponseApi': (kind == ProviderKind.openai || kind == ProviderKind.neuralwatt) ? false : null,
         'vertexAI': kind == ProviderKind.google ? false : null,
         'location': null,
         'projectId': null,
@@ -912,7 +912,7 @@ class ChatboxImporter {
       host = 'https://$host';
     }
 
-    if (kind == ProviderKind.openai) {
+    if (kind == ProviderKind.openai || kind == ProviderKind.neuralwatt) {
       if (path.isNotEmpty && !path.startsWith('/')) path = '/$path';
       // If host already includes the full path, split it out.
       if (host.toLowerCase().endsWith('/chat/completions')) {

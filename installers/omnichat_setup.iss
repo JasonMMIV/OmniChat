@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "OmniChat"
-#define MyAppVersion "1.5.13"
+#define MyAppVersion "1.5.16"
 #define MyAppPublisher "JasonMMIV"
 #define MyAppURL "https://github.com/JasonMMIV/OmniChat"
 #define MyAppExeName "OmniChat.exe"
@@ -22,9 +22,9 @@ DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non-administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
-OutputDir=C:\temp\OmniChat_v1.5.5\installers
-OutputBaseFilename=omnichat_setup
-SetupIconFile=C:\temp\OmniChat_v1.5.5\windows\runner\resources\app_icon.ico
+OutputDir=C:\Users\w2bn1\Documents\GitHub\OmniChat\installers
+OutputBaseFilename=omnichat_setup_1.5.16
+SetupIconFile=C:\Users\w2bn1\Documents\GitHub\OmniChat\windows\runner\resources\app_icon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -36,9 +36,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "C:\temp\OmniChat_v1.5.5\build\windows\x64\runner\Release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\temp\OmniChat_v1.5.5\build\windows\x64\runner\Release\*.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\temp\OmniChat_v1.5.5\build\windows\x64\runner\Release\data\*"; DestDir: "{app}\data"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "C:\Users\w2bn1\Documents\GitHub\OmniChat\build\windows\x64\runner\Release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "C:\Users\w2bn1\Documents\GitHub\OmniChat\build\windows\x64\runner\Release\*.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "C:\Users\w2bn1\Documents\GitHub\OmniChat\build\windows\x64\runner\Release\data\*"; DestDir: "{app}\data"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]

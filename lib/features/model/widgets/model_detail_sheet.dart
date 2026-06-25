@@ -95,7 +95,7 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
     final settings = context.read<SettingsProvider>();
     final cfg = settings.getProviderConfig(widget.providerKey);
     _providerKind = ProviderConfig.classify(cfg.id, explicitType: cfg.providerType);
-    _showBuiltinToolsTab = _providerKind == ProviderKind.google || _providerKind == ProviderKind.openai;
+    _showBuiltinToolsTab = _providerKind == ProviderKind.google || _providerKind == ProviderKind.openai || _providerKind == ProviderKind.neuralwatt;
     _tabCtrl = TabController(length: _showBuiltinToolsTab ? 3 : 2, vsync: this);
     _tabCtrl.addListener(() {
       if (_tabCtrl.indexIsChanging) return;
@@ -555,7 +555,7 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
             onChanged: (v) => setState(() => _googleYoutubeTool = v),
           ),
         ),
-      ] else if (_providerKind == ProviderKind.openai) ...[
+      ] else if (_providerKind == ProviderKind.openai || _providerKind == ProviderKind.neuralwatt) ...[
         if (cfg.useResponseApi != true)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
@@ -674,7 +674,7 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
       if (_googleUrlContextTool) builtInSet.add(BuiltInToolNames.urlContext);
       if (_googleCodeExecutionTool) builtInSet.add(BuiltInToolNames.codeExecution);
       if (_googleYoutubeTool) builtInSet.add(BuiltInToolNames.youtube);
-    } else if (_providerKind == ProviderKind.openai) {
+    } else if (_providerKind == ProviderKind.openai || _providerKind == ProviderKind.neuralwatt) {
       builtInSet.remove(BuiltInToolNames.codeInterpreter);
       builtInSet.remove(BuiltInToolNames.imageGeneration);
       if (_openaiCodeInterpreterTool) builtInSet.add(BuiltInToolNames.codeInterpreter);

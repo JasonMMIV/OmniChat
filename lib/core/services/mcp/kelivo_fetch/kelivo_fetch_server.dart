@@ -53,26 +53,75 @@ class KelivoFetcher {
   static const _defaultUA =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-  static Future<http.Response> _fetch(KelivoFetchRequestPayload payload) async {
+  /// Maximum download size for a single fetch (2 MB).
+  static const int _maxDownloadBytes = 2 * 1024 * 1024;
+
+  /// Pre-clean HTML by stripping memory-heavy, unnecessary elements before
+  /// DOM parsing or Markdown conversion. This can shrink raw HTML by 70–90%.
+  static String _preCleanHtml(String html) {
+    var cleaned = html;
+    cleaned = cleaned.replaceAll(
+        RegExp(r'<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>',
+            caseSensitive: false),
+        '');
+    cleaned = cleaned.replaceAll(
+        RegExp(r'<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>',
+            caseSensitive: false),
+        '');
+    cleaned = cleaned.replaceAll(
+        RegExp(r'<head\b[^<]*(?:(?!<\/head>)<[^<]*)*<\/head>',
+            caseSensitive: false),
+        '');
+    cleaned = cleaned.replaceAll(
+        RegExp(r'<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>',
+            caseSensitive: false),
+        '');
+    cleaned = cleaned.replaceAll(
+        RegExp(r'<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>',
+            caseSensitive: false),
+        '');
+    cleaned = cleaned.replaceAll(
+        RegExp(r'<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>',
+            caseSensitive: false),
+        '');
+    // Strip large inline data URIs (base64 images, etc.)
+    cleaned = cleaned.replaceAll(
+        RegExp(r"""src=["']data:[^"']*["']"""),
+        'src=""');
+    return cleaned;
+  }
+
+  /// Fetch with size limiting — reads the response stream chunk by chunk and
+  /// throws if the body exceeds [_maxDownloadBytes].
+  static Future<String> _fetchWithLimit(KelivoFetchRequestPayload payload) async {
+    final merged = <String, String>{
+      'User-Agent': _defaultUA,
+      ...payload.headers,
+    };
+    final req = http.Request('GET', payload.url)..headers.addAll(merged);
+    final client = http.Client();
     try {
-      final merged = <String, String>{
-        'User-Agent': _defaultUA,
-        ...payload.headers,
-      };
-      final resp = await http.get(payload.url, headers: merged);
-      if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        throw Exception('HTTP ${resp.statusCode}');
+      final streamed = await client.send(req);
+      if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+        throw Exception('HTTP ${streamed.statusCode}');
       }
-      return resp;
-    } catch (e) {
-      throw Exception('Failed to fetch ${payload.url}: ${e is Exception ? e.toString() : 'Unknown error'}');
+      final builder = <int>[];
+      await for (final chunk in streamed.stream) {
+        builder.addAll(chunk);
+        if (builder.length > _maxDownloadBytes) {
+          throw Exception(
+              'Response exceeded ${_maxDownloadBytes ~/ (1024 * 1024)}MB download limit');
+        }
+      }
+      return utf8.decode(builder, allowMalformed: true);
+    } finally {
+      client.close();
     }
   }
 
   static Future<Map<String, dynamic>> html(KelivoFetchRequestPayload payload) async {
     try {
-      final resp = await _fetch(payload);
-      final text = resp.body;
+      final text = await _fetchWithLimit(payload);
       return _ok(text);
     } catch (e) {
       return _err(e.toString());
@@ -81,8 +130,7 @@ class KelivoFetcher {
 
   static Future<Map<String, dynamic>> json(KelivoFetchRequestPayload payload) async {
     try {
-      final resp = await _fetch(payload);
-      final raw = resp.body;
+      final raw = await _fetchWithLimit(payload);
       final dynamic data = jsonDecode(raw);
       return _ok(const JsonEncoder.withIndent('  ').convert(data));
     } catch (e) {
@@ -92,8 +140,7 @@ class KelivoFetcher {
 
   static Future<Map<String, dynamic>> txt(KelivoFetchRequestPayload payload) async {
     try {
-      final resp = await _fetch(payload);
-      final html = resp.body;
+      final html = _preCleanHtml(await _fetchWithLimit(payload));
       final dom.Document document = html_parser.parse(html);
       document.querySelectorAll('script,style').forEach((el) => el.remove());
       final text = document.body?.text ?? '';
@@ -106,8 +153,7 @@ class KelivoFetcher {
 
   static Future<Map<String, dynamic>> markdown(KelivoFetchRequestPayload payload) async {
     try {
-      final resp = await _fetch(payload);
-      final html = resp.body;
+      final html = _preCleanHtml(await _fetchWithLimit(payload));
       final md = html2md.convert(html);
       return _ok(md);
     } catch (e) {

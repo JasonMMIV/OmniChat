@@ -608,7 +608,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
               );
             },
           ),
-          if (_kind == ProviderKind.openai)
+          if (_kind == ProviderKind.openai || _kind == ProviderKind.neuralwatt)
             _iosRow(
               context,
               label: l10n.providerDetailPageResponseApiTitle,
@@ -737,7 +737,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
             onChanged: (_) => _save(),
           ),
         ],
-        if (_kind == ProviderKind.openai && widget.keyName.toLowerCase() != 'kelivoin' && !_useResp) ...[
+        if ((_kind == ProviderKind.openai || _kind == ProviderKind.neuralwatt) && widget.keyName.toLowerCase() != 'kelivoin' && !_useResp) ...[
           const SizedBox(height: 12),
           _inputRow(
             context,
@@ -1494,8 +1494,8 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       apiKey: _keyCtrl.text.trim(),
       baseUrl: _baseCtrl.text.trim(),
       providerType: _kind,  // Save the selected provider type
-      chatPath: _kind == ProviderKind.openai ? _pathCtrl.text.trim() : old.chatPath,
-      useResponseApi: _kind == ProviderKind.openai ? _useResp : old.useResponseApi,
+      chatPath: (_kind == ProviderKind.openai || _kind == ProviderKind.neuralwatt) ? _pathCtrl.text.trim() : old.chatPath,
+      useResponseApi: (_kind == ProviderKind.openai || _kind == ProviderKind.neuralwatt) ? _useResp : old.useResponseApi,
       vertexAI: _kind == ProviderKind.google ? _vertexAI : old.vertexAI,
       location: _kind == ProviderKind.google ? _locationCtrl.text.trim() : old.location,
       projectId: _kind == ProviderKind.google ? projectId : old.projectId,

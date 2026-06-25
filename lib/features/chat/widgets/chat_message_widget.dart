@@ -2532,6 +2532,36 @@ class _SourcesSummaryCard extends StatelessWidget {
   }
 }
 
+/// Context menu for reasoning text selection with "Select All" and "Copy".
+class _TextContextMenu extends StatelessWidget {
+  const _TextContextMenu({required this.state});
+  final SelectableRegionState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context)!;
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: state.contextMenuAnchors,
+      buttonItems: [
+        ContextMenuButtonItem(
+          type: ContextMenuButtonType.selectAll,
+          onPressed: () {
+            state.selectAll();
+          },
+        ),
+        ContextMenuButtonItem(
+          type: ContextMenuButtonType.copy,
+          onPressed: () {
+            state.copySelection(SelectionChangedCause.toolbar);
+          },
+        ),
+      ],
+    );
+  }
+}
+
 class _ReasoningSection extends StatefulWidget {
   const _ReasoningSection({
     required this.text,
@@ -2723,18 +2753,28 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
 // 未加载：不要再指定 color: fg，让它继承和"加载中"相同的颜色
     Widget _reasoningContent(String text) {
       if (settings.enableReasoningMarkdown) {
-        return RepaintBoundary(
-          child: MarkdownWithCodeHighlight(
-            text: text.isNotEmpty ? text : '…',
-            baseStyle: baseStyle,
+        return SelectionArea(
+          contextMenuBuilder: (context, selectableRegionState) {
+            return _TextContextMenu(state: selectableRegionState);
+          },
+          child: RepaintBoundary(
+            child: MarkdownWithCodeHighlight(
+              text: text.isNotEmpty ? text : '…',
+              baseStyle: baseStyle,
+            ),
           ),
         );
       }
-      return Text(
-        text.isNotEmpty ? text : '…',
-        style: baseStyle,
-        strutStyle: baseStrut,
-        textHeightBehavior: baseTHB,
+      return SelectionArea(
+        contextMenuBuilder: (context, selectableRegionState) {
+          return _TextContextMenu(state: selectableRegionState);
+        },
+        child: Text(
+          text.isNotEmpty ? text : '…',
+          style: baseStyle,
+          strutStyle: baseStrut,
+          textHeightBehavior: baseTHB,
+        ),
       );
     }
 

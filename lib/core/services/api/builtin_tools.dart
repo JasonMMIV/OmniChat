@@ -72,7 +72,7 @@ abstract class BuiltInToolNames {
 abstract class BuiltInToolsHelper {
   /// Check if a provider supports built-in tools configuration.
   static bool supportsBuiltInTools(ProviderKind kind) {
-    return kind == ProviderKind.google || kind == ProviderKind.openai;
+    return kind == ProviderKind.google || kind == ProviderKind.openai || kind == ProviderKind.neuralwatt;
   }
 
   /// Check if the provider/model combination supports search tool.
@@ -86,6 +86,7 @@ abstract class BuiltInToolsHelper {
         return true;
       case ProviderKind.claude:
         return true;
+      case ProviderKind.neuralwatt:
       case ProviderKind.openai:
         // OpenAI requires Responses API, or Grok models
         if (useResponseApi) return true;
@@ -119,7 +120,7 @@ abstract class BuiltInToolsHelper {
       codeExecutionActive = builtInSet.contains(BuiltInToolNames.codeExecution);
       urlContextActive = builtInSet.contains(BuiltInToolNames.urlContext);
       youtubeActive = builtInSet.contains(BuiltInToolNames.youtube);
-    } else if (kind == ProviderKind.openai) {
+    } else if (kind == ProviderKind.openai || kind == ProviderKind.neuralwatt) {
       codeInterpreterActive = builtInSet.contains(BuiltInToolNames.codeInterpreter);
       imageGenerationActive = builtInSet.contains(BuiltInToolNames.imageGeneration);
     }

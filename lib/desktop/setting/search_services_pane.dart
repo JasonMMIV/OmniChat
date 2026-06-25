@@ -601,6 +601,7 @@ class _BrandBadge extends StatelessWidget {
     if (s is JinaOptions) return 'jina';
     if (s is PerplexityOptions) return 'perplexity';
     if (s is BochaOptions) return 'bocha';
+    if (s is TinyfishOptions) return 'tinyfish';
     return 'search';
   }
 
@@ -868,6 +869,7 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
       case 'ollama':
       case 'perplexity':
       case 'bocha':
+      case 'tinyfish':
         return [
           TextField(
             controller: _controllers['apiKey'],
@@ -959,6 +961,8 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
         return PerplexityOptions(id: id, apiKey: _controllers['apiKey']!.text);
       case 'bocha':
         return BochaOptions(id: id, apiKey: _controllers['apiKey']!.text);
+      case 'tinyfish':
+        return TinyfishOptions(id: id, apiKey: _controllers['apiKey']!.text);
       case 'bing_local':
       default:
         return BingLocalOptions(id: id);
@@ -1015,6 +1019,8 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
     } else if (s is PerplexityOptions) {
       _controllers['apiKey'] = TextEditingController(text: s.apiKey);
     } else if (s is BochaOptions) {
+      _controllers['apiKey'] = TextEditingController(text: s.apiKey);
+    } else if (s is TinyfishOptions) {
       _controllers['apiKey'] = TextEditingController(text: s.apiKey);
     }
   }
@@ -1100,7 +1106,8 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
         s is JinaOptions ||
         s is OllamaOptions ||
         s is PerplexityOptions ||
-        s is BochaOptions) {
+        s is BochaOptions ||
+        s is TinyfishOptions) {
       return [
         TextField(
           controller: _controllers['apiKey'],
@@ -1197,6 +1204,8 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
       return PerplexityOptions(id: s.id, apiKey: _controllers['apiKey']!.text);
     if (s is BochaOptions)
       return BochaOptions(id: s.id, apiKey: _controllers['apiKey']!.text);
+    if (s is TinyfishOptions)
+      return TinyfishOptions(id: s.id, apiKey: _controllers['apiKey']!.text);
     return s;
   }
 }
@@ -1228,6 +1237,7 @@ class _ServiceTypeChipsState extends State<_ServiceTypeChips> {
     (type: 'ollama', name: 'Ollama', brand: 'ollama'),
     (type: 'perplexity', name: 'Perplexity', brand: 'perplexity'),
     (type: 'bocha', name: 'Bocha', brand: 'bocha'),
+    (type: 'tinyfish', name: 'Tinyfish', brand: 'tinyfish'),
   ];
   @override
   Widget build(BuildContext context) {

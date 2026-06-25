@@ -6,7 +6,7 @@ import '../../providers/settings_provider.dart';
 class SearchToolService {
   static const String toolName = 'search_web';
   static const String toolDescription = 'Search the web for information';
-  
+
   static Map<String, dynamic> getToolDefinition() {
     return {
       'type': 'function',

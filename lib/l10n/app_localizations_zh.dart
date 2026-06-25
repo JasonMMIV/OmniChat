@@ -1201,6 +1201,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchServiceNameBocha => '博查';
 
   @override
+  String get searchServiceNameTinyfish => 'Tinyfish';
+
+  @override
   String get searchServicesAddDialogAdd => '添加';
 
   @override
@@ -1749,6 +1752,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatMessageWidgetDeepThinking => '深度思考';
 
   @override
+  String get chatMessageWidgetSelectAll => '全选';
+
+  @override
+  String get chatMessageWidgetCopy => '复制';
+
+  @override
   String get messageMoreSheetSelectCopy => '选择复制';
 
   @override
@@ -1867,6 +1876,10 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get searchProviderDuckDuckGoDescription =>
       '基于 DDGS 的 DuckDuckGo 隐私搜索，无需 API 密钥，支持设置地区。';
+
+  @override
+  String get searchProviderTinyfishDescription =>
+      '使用 Tinyfish Search API 搜索即时网页结果。';
 
   @override
   String get selectCopyPageCopiedAll => '已复制全部';
@@ -4273,6 +4286,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get searchServiceNameBocha => '博查';
 
   @override
+  String get searchServiceNameTinyfish => 'Tinyfish';
+
+  @override
   String get searchServicesAddDialogAdd => '添加';
 
   @override
@@ -4821,6 +4837,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatMessageWidgetDeepThinking => '深度思考';
 
   @override
+  String get chatMessageWidgetSelectAll => '全选';
+
+  @override
+  String get chatMessageWidgetCopy => '复制';
+
+  @override
   String get messageMoreSheetSelectCopy => '选择复制';
 
   @override
@@ -4933,6 +4955,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   @override
   String get searchProviderDuckDuckGoDescription =>
       '基于 DDGS 的 DuckDuckGo 隐私搜索，无需 API 密钥，支持设置地区。';
+
+  @override
+  String get searchProviderTinyfishDescription =>
+      '使用 Tinyfish Search API 搜索即时网页结果。';
 
   @override
   String get selectCopyPageCopiedAll => '已复制全部';
@@ -7283,6 +7309,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get searchServiceNameBocha => '博查';
 
   @override
+  String get searchServiceNameTinyfish => 'Tinyfish';
+
+  @override
   String get searchServicesAddDialogAdd => '新增';
 
   @override
@@ -7830,6 +7859,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatMessageWidgetDeepThinking => '深度思考';
 
   @override
+  String get chatMessageWidgetSelectAll => '全選';
+
+  @override
+  String get chatMessageWidgetCopy => '複製';
+
+  @override
   String get messageMoreSheetSelectCopy => '選擇複製';
 
   @override
@@ -7943,6 +7978,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get searchProviderDuckDuckGoDescription =>
       '基於 DDGS 的 DuckDuckGo 隱私搜尋，無需 API 金鑰，支援設定地區。';
+
+  @override
+  String get searchProviderTinyfishDescription =>
+      '使用 Tinyfish Search API 搜尋即時網頁結果。';
 
   @override
   String get selectCopyPageCopiedAll => '已複製全部';

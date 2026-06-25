@@ -30,6 +30,12 @@ class ChatApiService {
     } catch (_) {}
   }
 
+  /// Treat Neuralwatt as OpenAI-compatible for chat API request format.
+  static ProviderKind _apiKind(ProviderConfig config) {
+    final kind = ProviderConfig.classify(config.id, explicitType: config.providerType);
+    return kind == ProviderKind.neuralwatt ? ProviderKind.openai : kind;
+  }
+
   /// Resolve the upstream/vendor model id for a given logical model key.
   /// When per-instance overrides specify `apiModelId`, that value is used for
   /// outbound HTTP requests and vendor-specific heuristics. Otherwise the
@@ -569,7 +575,7 @@ class ChatApiService {
     bool stream = true,
     String? requestId,
   }) async* {
-    final kind = ProviderConfig.classify(config.id, explicitType: config.providerType);
+    final kind = _apiKind(config);
     final cancelToken = CancelToken();
     final rid = (requestId ?? '').trim();
     if (rid.isNotEmpty) {
@@ -653,7 +659,7 @@ class ChatApiService {
     Map<String, dynamic>? extraBody,
     int? thinkingBudget,
   }) async {
-    final kind = ProviderConfig.classify(config.id, explicitType: config.providerType);
+    final kind = _apiKind(config);
     final client = _clientFor(config, CancelToken());
     final upstreamModelId = _apiModelId(config, modelId);
     final safePrompt = UnicodeSanitizer.sanitize(prompt);

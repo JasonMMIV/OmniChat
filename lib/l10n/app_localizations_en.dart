@@ -1206,6 +1206,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchServiceNameBocha => 'Bocha';
 
   @override
+  String get searchServiceNameTinyfish => 'Tinyfish';
+
+  @override
   String get searchServicesAddDialogAdd => 'Add';
 
   @override
@@ -1750,6 +1753,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatMessageWidgetDeepThinking => 'Deep thinking';
 
   @override
+  String get chatMessageWidgetSelectAll => 'Select All';
+
+  @override
+  String get chatMessageWidgetCopy => 'Copy';
+
+  @override
   String get messageMoreSheetSelectCopy => 'Select';
 
   @override
@@ -1860,6 +1869,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchProviderDuckDuckGoDescription => 'DuckDuckGo search';
+
+  @override
+  String get searchProviderTinyfishDescription =>
+      'Search the live web with Tinyfish Search API.';
 
   @override
   String get selectCopyPageCopiedAll => 'Copied';
