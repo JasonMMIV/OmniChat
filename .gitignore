@@ -66,3 +66,7 @@ internationalization.md
 .claude/settings.local.json
 *.exe
 *.apk
+
+# Developer notes — not for public repo
+/CHANGES_LOG.md
+/OmniChat_Project_Plan.md
