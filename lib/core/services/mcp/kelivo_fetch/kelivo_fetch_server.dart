@@ -53,8 +53,35 @@ class KelivoFetcher {
   static const _defaultUA =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-  /// Maximum download size for a single fetch (2 MB).
-  static const int _maxDownloadBytes = 2 * 1024 * 1024;
+  /// Maximum download size for a single fetch (512 KB).
+  static const int _maxDownloadBytes = 512 * 1024;
+
+  /// Maximum concurrent fetch operations.
+  static const int _maxConcurrent = 2;
+  static int _activeFetchCount = 0;
+  static final List<Completer<void>> _fetchWaiters = <Completer<void>>[];
+
+  /// Run [task] with a concurrency limit of [_maxConcurrent].
+  /// If the limit is reached, the caller waits until a slot frees up.
+  static Future<T> _withFetchQueue<T>(Future<T> Function() task) async {
+    while (_activeFetchCount >= _maxConcurrent) {
+      if (_fetchWaiters.length > 50) {
+        throw Exception('Too many pending fetch requests');
+      }
+      final completer = Completer<void>();
+      _fetchWaiters.add(completer);
+      await completer.future;
+    }
+    _activeFetchCount++;
+    try {
+      return await task();
+    } finally {
+      _activeFetchCount--;
+      if (_fetchWaiters.isNotEmpty) {
+        _fetchWaiters.removeAt(0).complete();
+      }
+    }
+  }
 
   /// Pre-clean HTML by stripping memory-heavy, unnecessary elements before
   /// DOM parsing or Markdown conversion. This can shrink raw HTML by 70–90%.
@@ -110,7 +137,7 @@ class KelivoFetcher {
         builder.addAll(chunk);
         if (builder.length > _maxDownloadBytes) {
           throw Exception(
-              'Response exceeded ${_maxDownloadBytes ~/ (1024 * 1024)}MB download limit');
+              'Response exceeded ${_maxDownloadBytes ~/ 1024}KB download limit');
         }
       }
       return utf8.decode(builder, allowMalformed: true);
@@ -120,45 +147,53 @@ class KelivoFetcher {
   }
 
   static Future<Map<String, dynamic>> html(KelivoFetchRequestPayload payload) async {
-    try {
-      final text = await _fetchWithLimit(payload);
-      return _ok(text);
-    } catch (e) {
-      return _err(e.toString());
-    }
+    return _withFetchQueue(() async {
+      try {
+        final text = await _fetchWithLimit(payload);
+        return _ok(text);
+      } catch (e) {
+        return _err(e.toString());
+      }
+    });
   }
 
   static Future<Map<String, dynamic>> json(KelivoFetchRequestPayload payload) async {
-    try {
-      final raw = await _fetchWithLimit(payload);
-      final dynamic data = jsonDecode(raw);
-      return _ok(const JsonEncoder.withIndent('  ').convert(data));
-    } catch (e) {
-      return _err(e.toString());
-    }
+    return _withFetchQueue(() async {
+      try {
+        final raw = await _fetchWithLimit(payload);
+        final dynamic data = jsonDecode(raw);
+        return _ok(const JsonEncoder.withIndent('  ').convert(data));
+      } catch (e) {
+        return _err(e.toString());
+      }
+    });
   }
 
   static Future<Map<String, dynamic>> txt(KelivoFetchRequestPayload payload) async {
-    try {
-      final html = _preCleanHtml(await _fetchWithLimit(payload));
-      final dom.Document document = html_parser.parse(html);
-      document.querySelectorAll('script,style').forEach((el) => el.remove());
-      final text = document.body?.text ?? '';
-      final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
-      return _ok(normalized);
-    } catch (e) {
-      return _err(e.toString());
-    }
+    return _withFetchQueue(() async {
+      try {
+        final html = _preCleanHtml(await _fetchWithLimit(payload));
+        final dom.Document document = html_parser.parse(html);
+        document.querySelectorAll('script,style').forEach((el) => el.remove());
+        final text = document.body?.text ?? '';
+        final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+        return _ok(normalized);
+      } catch (e) {
+        return _err(e.toString());
+      }
+    });
   }
 
   static Future<Map<String, dynamic>> markdown(KelivoFetchRequestPayload payload) async {
-    try {
-      final html = _preCleanHtml(await _fetchWithLimit(payload));
-      final md = html2md.convert(html);
-      return _ok(md);
-    } catch (e) {
-      return _err(e.toString());
-    }
+    return _withFetchQueue(() async {
+      try {
+        final html = _preCleanHtml(await _fetchWithLimit(payload));
+        final md = html2md.convert(html);
+        return _ok(md);
+      } catch (e) {
+        return _err(e.toString());
+      }
+    });
   }
 
   static Map<String, dynamic> _ok(String text) => {

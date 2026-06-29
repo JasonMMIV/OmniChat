@@ -30,6 +30,92 @@ class ChatApiService {
     } catch (_) {}
   }
 
+  /// Truncate a tool result text to [maxChars] characters, keeping head and tail.
+  /// Returns the original string if it does not exceed the threshold.
+  static String _truncateToolResultText(String content) {
+    const maxChars = 32768;
+    if (content.length <= maxChars) return content;
+    final head = content.substring(0, maxChars ~/ 2);
+    final tail = content.substring(content.length - maxChars ~/ 2);
+    final originalSizeKB = (content.length / 1024).round();
+    return '$head\n\n...[content truncated, original size ${originalSizeKB}KB]...\n\n$tail';
+  }
+
+  /// Truncate tool result contents in a message list for all API formats.
+  /// - OpenAI: `role == 'tool'` → truncate `content`
+  /// - Claude: `role == 'user'` with `content is List` → find `type == 'tool_result'` → truncate `content`
+  /// - Google: `role == 'user'` with `parts is List` → find `functionResponse` → truncate `response['result']`
+  static List<Map<String, dynamic>> _truncateToolResultsInMessages(
+      List<Map<String, dynamic>> messages) {
+    return messages.map((m) {
+      final role = m['role'];
+      // OpenAI format
+      if (role == 'tool') {
+        final content = m['content'];
+        if (content is String && content.isNotEmpty) {
+          return <String, dynamic>{...m, 'content': _truncateToolResultText(content)};
+        }
+        return m;
+      }
+      // Claude format: user message with content as List of blocks
+      if (role == 'user' && m['content'] is List) {
+        final contentList = m['content'] as List;
+        final modified = <dynamic>[];
+        var changed = false;
+        for (final item in contentList) {
+          if (item is Map && item['type'] == 'tool_result') {
+            final tc = item['content'];
+            if (tc is String && tc.isNotEmpty) {
+              modified.add(<String, dynamic>{...item, 'content': _truncateToolResultText(tc)});
+              changed = true;
+              continue;
+            }
+          }
+          modified.add(item);
+        }
+        if (changed) {
+          return <String, dynamic>{...m, 'content': modified};
+        }
+        return m;
+      }
+      // Google format: user message with parts containing functionResponse
+      if (role == 'user' && m['parts'] is List) {
+        final parts = m['parts'] as List;
+        final modified = <dynamic>[];
+        var changed = false;
+        for (final part in parts) {
+          if (part is Map && part['functionResponse'] is Map) {
+            final fr = part['functionResponse'] as Map;
+            final resp = fr['response'];
+            if (resp is Map && resp['result'] is String) {
+              final resultStr = resp['result'] as String;
+              if (resultStr.isNotEmpty) {
+                modified.add(<String, dynamic>{
+                  ...part,
+                  'functionResponse': <String, dynamic>{
+                    ...fr,
+                    'response': <String, dynamic>{
+                      ...resp,
+                      'result': _truncateToolResultText(resultStr),
+                    },
+                  },
+                });
+                changed = true;
+                continue;
+              }
+            }
+          }
+          modified.add(part);
+        }
+        if (changed) {
+          return <String, dynamic>{...m, 'parts': modified};
+        }
+        return m;
+      }
+      return m;
+    }).toList();
+  }
+
   /// Treat Neuralwatt as OpenAI-compatible for chat API request format.
   static ProviderKind _apiKind(ProviderConfig config) {
     final kind = ProviderConfig.classify(config.id, explicitType: config.providerType);
@@ -1688,6 +1774,7 @@ class ChatApiService {
             headers2.addAll(_customHeaders(config, modelId));
             if (extraHeaders != null && extraHeaders.isNotEmpty) headers2.addAll(extraHeaders);
             req.headers.addAll(headers2);
+            messages = _truncateToolResultsInMessages(messages);
             final next = <Map<String, dynamic>>[];
             for (final m in messages) {
               next.add({'role': m['role'] ?? 'user', 'content': m['content'] ?? ''});
@@ -1828,6 +1915,7 @@ class ChatApiService {
             }
 
             // Build follow-up messages
+            messages = _truncateToolResultsInMessages(messages);
             final mm2 = <Map<String, dynamic>>[];
             for (final m in messages) {
               mm2.add({'role': m['role'] ?? 'user', 'content': m['content'] ?? ''});
@@ -2158,6 +2246,7 @@ class ChatApiService {
                 if (preserveReasoningDetails && reasoningDetailsAccum is List && reasoningDetailsAccum.isNotEmpty) {
                   nextAssistantToolCall['reasoning_details'] = reasoningDetailsAccum;
                 }
+                currentMessages = _truncateToolResultsInMessages(currentMessages);
                 currentMessages = [
                   ...currentMessages,
                   if (contentAccum.isNotEmpty) {'role': 'assistant', 'content': contentAccum},
@@ -2832,6 +2921,7 @@ class ChatApiService {
               yield ChatStreamChunk(content: '', isDone: false, totalTokens: usage?.totalTokens ?? 0, usage: usage, toolResults: resultsInfo);
             }
             // Build follow-up messages
+            messages = _truncateToolResultsInMessages(messages);
             final mm2 = <Map<String, dynamic>>[];
             for (final m in messages) {
               mm2.add({'role': m['role'] ?? 'user', 'content': m['content'] ?? ''});
@@ -3167,6 +3257,7 @@ class ChatApiService {
                 if (preserveReasoningDetails && reasoningDetailsAccum is List && reasoningDetailsAccum.isNotEmpty) {
                   nextAssistantToolCall['reasoning_details'] = reasoningDetailsAccum;
                 }
+                currentMessages = _truncateToolResultsInMessages(currentMessages);
                 currentMessages = [
                   ...currentMessages,
                   if (contentAccum.isNotEmpty) {'role': 'assistant', 'content': contentAccum},
@@ -3232,6 +3323,7 @@ class ChatApiService {
                   yield ChatStreamChunk(content: '', isDone: false, totalTokens: usage?.totalTokens ?? 0, usage: usage, toolResults: resultsInfo);
                 }
                 // Build follow-up messages
+                messages = _truncateToolResultsInMessages(messages);
                 final mm2 = <Map<String, dynamic>>[];
                 for (final m in messages) {
                   mm2.add({'role': m['role'] ?? 'user', 'content': m['content'] ?? ''});
@@ -3541,6 +3633,7 @@ class ChatApiService {
                     if (preserveReasoningDetails && reasoningDetailsAccum is List && reasoningDetailsAccum.isNotEmpty) {
                       nextAssistantToolCall['reasoning_details'] = reasoningDetailsAccum;
                     }
+                    currentMessages = _truncateToolResultsInMessages(currentMessages);
                     currentMessages = [
                       ...currentMessages,
                       if (contentAccum.isNotEmpty) {'role': 'assistant', 'content': contentAccum},
@@ -3932,6 +4025,7 @@ class ChatApiService {
           // Extend convo: assistant + user tool_result, loop
           final assistantMsg = {'role': 'assistant', 'content': assistantBlocks};
           final userToolMsg = {'role': 'user', 'content': results};
+          convo = _truncateToolResultsInMessages(convo);
           convo = [...convo, assistantMsg, userToolMsg];
           continue; // next round
         }
@@ -4251,6 +4345,7 @@ class ChatApiService {
       }
 
       // Extend conversation: assistant content (with tool_use blocks) + user tool_results
+      convo = _truncateToolResultsInMessages(convo);
       convo = [
         ...convo,
         {'role': 'assistant', 'content': assistantBlocks},
@@ -4470,6 +4565,7 @@ class ChatApiService {
           yield ChatStreamChunk(content: '', isDone: false, totalTokens: totalUsage?.totalTokens ?? 0, usage: totalUsage, toolCalls: [ToolCallInfo(id: 'fn_0', name: name, arguments: args)]);
           final res = await onToolCall(name, args) ?? '';
           yield ChatStreamChunk(content: '', isDone: false, totalTokens: totalUsage?.totalTokens ?? 0, usage: totalUsage, toolResults: [ToolResultInfo(id: 'fn_0', name: name, arguments: args, content: res)]);
+          currentContents = _truncateToolResultsInMessages(currentContents);
           currentContents = [
             ...currentContents,
             {'role': 'model', 'parts': parts},
@@ -5097,6 +5193,7 @@ class ChatApiService {
       }
 
       // Append model functionCall(s) and user functionResponse(s) to conversation, then loop
+      convo = _truncateToolResultsInMessages(convo);
       for (final c in calls) {
         final name = (c['name'] ?? '').toString();
         final args = (c['args'] as Map<String, dynamic>? ?? const <String, dynamic>{});
