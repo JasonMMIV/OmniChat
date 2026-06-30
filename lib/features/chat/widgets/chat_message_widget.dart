@@ -27,6 +27,7 @@ import '../../../core/models/assistant.dart';
 import '../../../core/providers/tts_provider.dart';
 import '../../../shared/widgets/markdown_with_highlight.dart';
 import '../../../shared/widgets/snackbar.dart';
+import 'ai_team_proposals_section.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/providers/settings_provider.dart';
@@ -1200,6 +1201,12 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             ],
           ),
           const SizedBox(height: 8),
+          // AI Team proposals section (collapsible, "最終回答") — shown BEFORE reasoning
+          if (widget.message.aiTeamProposalsJson != null &&
+              widget.message.aiTeamProposalsJson!.isNotEmpty) ...[
+            AiTeamProposalsSection(data: widget.message.aiTeamProposalsJson!),
+            const SizedBox(height: 8),
+          ],
           // Mixed reasoning and tool sections
           if (widget.reasoningSegments != null && widget.reasoningSegments!.isNotEmpty) ...[
             // Build mixed content using tool index ranges carried by segments

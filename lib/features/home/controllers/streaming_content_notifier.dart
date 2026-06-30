@@ -44,6 +44,7 @@ class StreamingContentNotifier {
         reasoningFinishedAt: current.reasoningFinishedAt,
         toolPartsVersion: current.toolPartsVersion,
         uiVersion: current.uiVersion,
+        aiTeamProposalsJson: current.aiTeamProposalsJson,
       );
     }
   }
@@ -65,6 +66,7 @@ class StreamingContentNotifier {
         reasoningFinishedAt: reasoningFinishedAt ?? current.reasoningFinishedAt,
         toolPartsVersion: current.toolPartsVersion,
         uiVersion: current.uiVersion,
+        aiTeamProposalsJson: current.aiTeamProposalsJson,
       );
     }
   }
@@ -83,6 +85,7 @@ class StreamingContentNotifier {
         reasoningFinishedAt: current.reasoningFinishedAt,
         toolPartsVersion: current.toolPartsVersion + 1,
         uiVersion: current.uiVersion,
+        aiTeamProposalsJson: current.aiTeamProposalsJson,
       );
     }
   }
@@ -101,6 +104,26 @@ class StreamingContentNotifier {
         reasoningFinishedAt: current.reasoningFinishedAt,
         toolPartsVersion: current.toolPartsVersion,
         uiVersion: current.uiVersion + 1,
+        aiTeamProposalsJson: current.aiTeamProposalsJson,
+      );
+    }
+  }
+
+  /// Update AI Team proposals JSON for a streaming message.
+  /// Used during the proposal phase to show proposals in real-time as each proposer completes.
+  void updateProposals(String messageId, String? proposalsJson) {
+    final notifier = _notifiers[messageId];
+    if (notifier != null) {
+      final current = notifier.value;
+      notifier.value = StreamingContentData(
+        content: current.content,
+        totalTokens: current.totalTokens,
+        reasoningText: current.reasoningText,
+        reasoningStartAt: current.reasoningStartAt,
+        reasoningFinishedAt: current.reasoningFinishedAt,
+        toolPartsVersion: current.toolPartsVersion,
+        uiVersion: current.uiVersion,
+        aiTeamProposalsJson: proposalsJson,
       );
     }
   }
@@ -136,6 +159,7 @@ class StreamingContentData {
     this.reasoningFinishedAt,
     this.toolPartsVersion = 0,
     this.uiVersion = 0,
+    this.aiTeamProposalsJson,
   });
 
   final String content;
@@ -147,6 +171,8 @@ class StreamingContentData {
   final int toolPartsVersion;
   /// Version counter for UI state changes (e.g., reasoning expanded toggle).
   final int uiVersion;
+  /// AI Team proposals JSON for real-time display during proposal phase.
+  final String? aiTeamProposalsJson;
 
   @override
   bool operator ==(Object other) =>
@@ -159,7 +185,8 @@ class StreamingContentData {
           reasoningStartAt == other.reasoningStartAt &&
           reasoningFinishedAt == other.reasoningFinishedAt &&
           toolPartsVersion == other.toolPartsVersion &&
-          uiVersion == other.uiVersion;
+          uiVersion == other.uiVersion &&
+          aiTeamProposalsJson == other.aiTeamProposalsJson;
 
   @override
   int get hashCode =>
@@ -169,5 +196,6 @@ class StreamingContentData {
       reasoningStartAt.hashCode ^
       reasoningFinishedAt.hashCode ^
       toolPartsVersion.hashCode ^
-      uiVersion.hashCode;
+      uiVersion.hashCode ^
+      aiTeamProposalsJson.hashCode;
 }

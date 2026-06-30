@@ -256,6 +256,18 @@ abstract class AppLocalizations {
   /// **'System prompts'**
   String get settingsPageInstructionInjectionDescription;
 
+  /// No description provided for @settingsPageAiTeam.
+  ///
+  /// In en, this message translates to:
+  /// **'AI Team'**
+  String get settingsPageAiTeam;
+
+  /// No description provided for @settingsPageAiTeamDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Mixture of Agents'**
+  String get settingsPageAiTeamDescription;
+
   /// No description provided for @settingsPageNetworkProxy.
   ///
   /// In en, this message translates to:
@@ -6187,6 +6199,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cancel'**
   String get importProviderSheetCancelButton;
+
+  /// No description provided for @chatInputBarAiTeamTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'AI Team'**
+  String get chatInputBarAiTeamTooltip;
+
+  /// No description provided for @aiTeamTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'AI Team'**
+  String get aiTeamTitle;
+
+  /// No description provided for @aiTeamEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable AI Team'**
+  String get aiTeamEnable;
+
+  /// No description provided for @aiTeamProposerCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Proposer count'**
+  String get aiTeamProposerCount;
+
+  /// No description provided for @aiTeamProposerModels.
+  ///
+  /// In en, this message translates to:
+  /// **'Proposer models'**
+  String get aiTeamProposerModels;
+
+  /// No description provided for @aiTeamAggregatorModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Aggregator model'**
+  String get aiTeamAggregatorModel;
+
+  /// No description provided for @aiTeamAggregatorUseCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Use current chat model'**
+  String get aiTeamAggregatorUseCurrent;
+
+  /// No description provided for @aiTeamProposalPromptLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Proposal prompt'**
+  String get aiTeamProposalPromptLabel;
+
+  /// No description provided for @aiTeamAggregatorPromptLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Aggregator prompt'**
+  String get aiTeamAggregatorPromptLabel;
+
+  /// No description provided for @aiTeamResetPrompts.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to defaults'**
+  String get aiTeamResetPrompts;
+
+  /// No description provided for @aiTeamEmptyProposerSlot.
+  ///
+  /// In en, this message translates to:
+  /// **'Not set (tap to select)'**
+  String get aiTeamEmptyProposerSlot;
+
+  /// No description provided for @aiTeamFinalAnswerLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Collaboration Process'**
+  String get aiTeamFinalAnswerLabel;
+
+  /// No description provided for @aiTeamProposalLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Proposal {index}'**
+  String aiTeamProposalLabel(int index);
+
+  /// No description provided for @aiTeamStopped.
+  ///
+  /// In en, this message translates to:
+  /// **'AI Team stopped'**
+  String get aiTeamStopped;
+
+  /// No description provided for @aiTeamDefaultProposalPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Answer the question directly. No greetings, no pleasantries, no follow-up questions, no commentary about the question itself. Just provide your answer and reasoning.'**
+  String get aiTeamDefaultProposalPrompt;
+
+  /// No description provided for @aiTeamDefaultAggregatorPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'I have gathered several different lines of thinking on this question. Please integrate them into a single, coherent final answer.\nRequirements:\n- Do not summarize or list the individual thoughts; produce a single integrated answer.\n- Preserve the strongest reasoning and best examples; remove redundant or weak parts.\n- If there are contradictions, make a judgment and pick the most defensible position.\n- The final answer must be more complete and precise than any individual proposal.\n- Answer as if responding for the first time; do not mention \"previous thoughts\" or \"the integration process.\"'**
+  String get aiTeamDefaultAggregatorPrompt;
+
+  /// No description provided for @aiTeamProposalInProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'AI Team running… Proposal {current}/{total}'**
+  String aiTeamProposalInProgress(int current, int total);
+
+  /// No description provided for @aiTeamThinkingLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Thinking'**
+  String get aiTeamThinkingLabel;
+
+  /// No description provided for @aiTeamToolCallsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Tool Calls'**
+  String get aiTeamToolCallsLabel;
+
+  /// No description provided for @aiTeamAggregatorLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Aggregated Answer'**
+  String get aiTeamAggregatorLabel;
+
+  /// No description provided for @aiTeamRestoreDefaultPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore default'**
+  String get aiTeamRestoreDefaultPrompt;
+
+  /// No description provided for @aiTeamAggregatorUserPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Please review the proposals above and synthesize them into a single, coherent final answer.'**
+  String get aiTeamAggregatorUserPrompt;
 }
 
 class _AppLocalizationsDelegate

@@ -8,6 +8,7 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
+import '../../../core/providers/ai_team_provider.dart';
 import '../../../core/services/api/builtin_tools.dart';
 import '../../../desktop/desktop_context_menu.dart';
 import '../utils/model_display_helper.dart';
@@ -57,6 +58,7 @@ class ChatInputSection extends StatelessWidget {
     this.onUploadFiles,
     this.onToggleLearningMode,
     this.onLongPressLearning,
+    this.onToggleAiTeam,
     this.onClearContext,
     this.isDictating = false,
     this.onStartDictation,
@@ -95,6 +97,7 @@ class ChatInputSection extends StatelessWidget {
   final VoidCallback? onUploadFiles;
   final VoidCallback? onToggleLearningMode;
   final VoidCallback? onLongPressLearning;
+  final VoidCallback? onToggleAiTeam;
   final VoidCallback? onClearContext;
   final bool isDictating;
   final VoidCallback? onStartDictation;
@@ -178,6 +181,8 @@ class ChatInputSection extends StatelessWidget {
       learningModeActive: isTablet
           ? context.watch<InstructionInjectionProvider>().activeIdsFor(assistantId).isNotEmpty
           : false,
+      onToggleAiTeam: onToggleAiTeam,
+      aiTeamActive: context.watch<AiTeamProvider>().enabled,
       showMoreButton: !isTablet,
       onClearContext: isTablet ? onClearContext : null,
     );

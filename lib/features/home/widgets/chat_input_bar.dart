@@ -73,6 +73,8 @@ class ChatInputBar extends StatefulWidget {
     this.onClearContext,
     this.onLongPressLearning,
     this.learningModeActive = false,
+    this.onToggleAiTeam,
+    this.aiTeamActive = false,
     this.showMoreButton = true,
     this.showQuickPhraseButton = false,
     this.onQuickPhrase,
@@ -115,6 +117,8 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback? onClearContext;
   final VoidCallback? onLongPressLearning;
   final bool learningModeActive;
+  final VoidCallback? onToggleAiTeam;
+  final bool aiTeamActive;
   final bool showMoreButton;
   final bool showQuickPhraseButton;
   final VoidCallback? onQuickPhrase;
@@ -932,6 +936,19 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
               label: l10n.chatInputBarReasoningStrengthTooltip,
               onTap: widget.onConfigureReasoning,
             ),
+          ));
+        }
+
+        if (widget.onToggleAiTeam != null) {
+          actions.add(_OverflowAction(
+            width: normalButtonW,
+            builder: () => _CompactIconButton(
+              tooltip: l10n.chatInputBarAiTeamTooltip,
+              icon: Lucide.Users,
+              active: widget.aiTeamActive,
+              onTap: widget.onToggleAiTeam,
+            ),
+            menu: DesktopContextMenuItem(icon: Lucide.Users, label: l10n.chatInputBarAiTeamTooltip, onTap: widget.onToggleAiTeam),
           ));
         }
 

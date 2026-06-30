@@ -87,6 +87,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsPageInstructionInjectionDescription => 'System prompts';
 
   @override
+  String get settingsPageAiTeam => 'AI 团队';
+
+  @override
+  String get settingsPageAiTeamDescription => 'Mixture of Agents';
+
+  @override
   String get settingsPageNetworkProxy => '网络代理';
 
   @override
@@ -3186,6 +3192,78 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get importProviderSheetCancelButton => '取消';
+
+  @override
+  String get chatInputBarAiTeamTooltip => 'AI 团队';
+
+  @override
+  String get aiTeamTitle => 'AI 团队';
+
+  @override
+  String get aiTeamEnable => '启用 AI 团队';
+
+  @override
+  String get aiTeamProposerCount => '提案模型数量';
+
+  @override
+  String get aiTeamProposerModels => '提案模型';
+
+  @override
+  String get aiTeamAggregatorModel => '汇整模型';
+
+  @override
+  String get aiTeamAggregatorUseCurrent => '使用当前对话选中模型';
+
+  @override
+  String get aiTeamProposalPromptLabel => '提案模型提示词';
+
+  @override
+  String get aiTeamAggregatorPromptLabel => '汇整模型提示词';
+
+  @override
+  String get aiTeamResetPrompts => '重置为默认';
+
+  @override
+  String get aiTeamEmptyProposerSlot => '未设定（点击选择模型）';
+
+  @override
+  String get aiTeamFinalAnswerLabel => '协作过程';
+
+  @override
+  String aiTeamProposalLabel(int index) {
+    return '提案 $index';
+  }
+
+  @override
+  String get aiTeamStopped => 'AI 团队已停止';
+
+  @override
+  String get aiTeamDefaultProposalPrompt =>
+      '直接回答问题。不要问候、不要结尾客套话、不要追问用户、不要评价问题本身。只给出你的答案和推理。';
+
+  @override
+  String get aiTeamDefaultAggregatorPrompt =>
+      '我到目前为止对这个问题整理了几种不同的思考方向。请你帮我把这些思考整合成一个完整、连贯的最终回答。\n要求：\n- 不是总结或列举这些思考，而是直接给出一个整合后的答案。\n- 保留其中最扎实的推理和最好的例子，去掉重复或薄弱的部份。\n- 如果有互相矛盾的地方，做出判断，挑最站得住脚的说法，不要两边都留。\n- 最终回答必须比任何一段单独的思考更完整、更精准。\n- 像你第一次回答这个问题那样直接给出答案，不要提「之前的思考」或「整合过程」。';
+
+  @override
+  String aiTeamProposalInProgress(int current, int total) {
+    return 'AI 团队执行中… 提案 $current/$total';
+  }
+
+  @override
+  String get aiTeamThinkingLabel => '思考过程';
+
+  @override
+  String get aiTeamToolCallsLabel => '工具调用';
+
+  @override
+  String get aiTeamAggregatorLabel => '彙整回答';
+
+  @override
+  String get aiTeamRestoreDefaultPrompt => '恢复默认';
+
+  @override
+  String get aiTeamAggregatorUserPrompt => '请根据以上提案，整合出一个完整、连贯的最终回答。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -3239,6 +3317,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get settingsPageInstructionInjection => '指令注入';
+
+  @override
+  String get settingsPageAiTeam => 'AI 团队';
+
+  @override
+  String get settingsPageAiTeamDescription => 'Mixture of Agents';
 
   @override
   String get settingsPageNetworkProxy => '网络代理';
@@ -6256,6 +6340,78 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get importProviderSheetCancelButton => '取消';
+
+  @override
+  String get chatInputBarAiTeamTooltip => 'AI 团队';
+
+  @override
+  String get aiTeamTitle => 'AI 团队';
+
+  @override
+  String get aiTeamEnable => '启用 AI 团队';
+
+  @override
+  String get aiTeamProposerCount => '提案模型数量';
+
+  @override
+  String get aiTeamProposerModels => '提案模型';
+
+  @override
+  String get aiTeamAggregatorModel => '汇整模型';
+
+  @override
+  String get aiTeamAggregatorUseCurrent => '使用当前对话选中模型';
+
+  @override
+  String get aiTeamProposalPromptLabel => '提案模型提示词';
+
+  @override
+  String get aiTeamAggregatorPromptLabel => '汇整模型提示词';
+
+  @override
+  String get aiTeamResetPrompts => '重置为默认';
+
+  @override
+  String get aiTeamEmptyProposerSlot => '未设定（点击选择模型）';
+
+  @override
+  String get aiTeamFinalAnswerLabel => '协作过程';
+
+  @override
+  String aiTeamProposalLabel(int index) {
+    return '提案 $index';
+  }
+
+  @override
+  String get aiTeamStopped => 'AI 团队已停止';
+
+  @override
+  String get aiTeamDefaultProposalPrompt =>
+      '直接回答问题。不要问候、不要结尾客套话、不要追问用户、不要评价问题本身。只给出你的答案和推理。';
+
+  @override
+  String get aiTeamDefaultAggregatorPrompt =>
+      '我到目前为止对这个问题整理了几种不同的思考方向。请你帮我把这些思考整合成一个完整、连贯的最终回答。\n要求：\n- 不是总结或列举这些思考，而是直接给出一个整合后的答案。\n- 保留其中最扎实的推理和最好的例子，去掉重复或薄弱的部份。\n- 如果有互相矛盾的地方，做出判断，挑最站得住脚的说法，不要两边都留。\n- 最终回答必须比任何一段单独的思考更完整、更精准。\n- 像你第一次回答这个问题那样直接给出答案，不要提「之前的思考」或「整合过程」。';
+
+  @override
+  String aiTeamProposalInProgress(int current, int total) {
+    return 'AI 团队执行中… 提案 $current/$total';
+  }
+
+  @override
+  String get aiTeamThinkingLabel => '思考过程';
+
+  @override
+  String get aiTeamToolCallsLabel => '工具调用';
+
+  @override
+  String get aiTeamAggregatorLabel => '彙整回答';
+
+  @override
+  String get aiTeamRestoreDefaultPrompt => '恢复默认';
+
+  @override
+  String get aiTeamAggregatorUserPrompt => '请根据以上提案，整合出一个完整、连贯的最终回答。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -6309,6 +6465,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get settingsPageInstructionInjection => '指令注入';
+
+  @override
+  String get settingsPageAiTeam => 'AI 團隊';
+
+  @override
+  String get settingsPageAiTeamDescription => 'Mixture of Agents';
 
   @override
   String get settingsPageNetworkProxy => '網絡代理';
@@ -9286,4 +9448,76 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get importProviderSheetCancelButton => '取消';
+
+  @override
+  String get chatInputBarAiTeamTooltip => 'AI 團隊';
+
+  @override
+  String get aiTeamTitle => 'AI 團隊';
+
+  @override
+  String get aiTeamEnable => '啟用 AI 團隊';
+
+  @override
+  String get aiTeamProposerCount => '提案模型數量';
+
+  @override
+  String get aiTeamProposerModels => '提案模型';
+
+  @override
+  String get aiTeamAggregatorModel => '彙整模型';
+
+  @override
+  String get aiTeamAggregatorUseCurrent => '使用目前對話選中模型';
+
+  @override
+  String get aiTeamProposalPromptLabel => '提案模型提示詞';
+
+  @override
+  String get aiTeamAggregatorPromptLabel => '彙整模型提示詞';
+
+  @override
+  String get aiTeamResetPrompts => '重置為預設';
+
+  @override
+  String get aiTeamEmptyProposerSlot => '未設定（點擊選擇模型）';
+
+  @override
+  String get aiTeamFinalAnswerLabel => '協作過程';
+
+  @override
+  String aiTeamProposalLabel(int index) {
+    return '提案 $index';
+  }
+
+  @override
+  String get aiTeamStopped => 'AI 團隊已停止';
+
+  @override
+  String get aiTeamDefaultProposalPrompt =>
+      '直接回答問題。不要問候、不要結尾客套話、不要追問使用者、不要評價問題本身。只給出你的答案和推理。';
+
+  @override
+  String get aiTeamDefaultAggregatorPrompt =>
+      '我到目前為止對這個問題整理了幾種不同的思考方向。請你幫我把這些思考整合成一個完整、連貫的最終回答。\n要求：\n- 不是總結或列舉這些思考，而是直接給出一個整合後的答案。\n- 保留其中最扎實的推理和最好的例子，去掉重複或薄弱的部份。\n- 如果有互相矛盾的地方，做出判斷，挑最站得住腳的說法，不要兩邊都留。\n- 最終回答必須比任何一段單獨的思考更完整、更精準。\n- 像你第一次回答這個問題那樣直接給出答案，不要提「之前的思考」或「整合過程」。';
+
+  @override
+  String aiTeamProposalInProgress(int current, int total) {
+    return 'AI 團隊執行中… 提案 $current/$total';
+  }
+
+  @override
+  String get aiTeamThinkingLabel => '思考過程';
+
+  @override
+  String get aiTeamToolCallsLabel => '工具調用';
+
+  @override
+  String get aiTeamAggregatorLabel => '彙整回答';
+
+  @override
+  String get aiTeamRestoreDefaultPrompt => '恢復預設';
+
+  @override
+  String get aiTeamAggregatorUserPrompt => '請根據以上提案，整合出一個完整、連貫的最終回答。';
 }

@@ -87,6 +87,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPageInstructionInjectionDescription => 'System prompts';
 
   @override
+  String get settingsPageAiTeam => 'AI Team';
+
+  @override
+  String get settingsPageAiTeamDescription => 'Mixture of Agents';
+
+  @override
   String get settingsPageNetworkProxy => 'Network Proxy';
 
   @override
@@ -3177,4 +3183,77 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get importProviderSheetCancelButton => 'Cancel';
+
+  @override
+  String get chatInputBarAiTeamTooltip => 'AI Team';
+
+  @override
+  String get aiTeamTitle => 'AI Team';
+
+  @override
+  String get aiTeamEnable => 'Enable AI Team';
+
+  @override
+  String get aiTeamProposerCount => 'Proposer count';
+
+  @override
+  String get aiTeamProposerModels => 'Proposer models';
+
+  @override
+  String get aiTeamAggregatorModel => 'Aggregator model';
+
+  @override
+  String get aiTeamAggregatorUseCurrent => 'Use current chat model';
+
+  @override
+  String get aiTeamProposalPromptLabel => 'Proposal prompt';
+
+  @override
+  String get aiTeamAggregatorPromptLabel => 'Aggregator prompt';
+
+  @override
+  String get aiTeamResetPrompts => 'Reset to defaults';
+
+  @override
+  String get aiTeamEmptyProposerSlot => 'Not set (tap to select)';
+
+  @override
+  String get aiTeamFinalAnswerLabel => 'Collaboration Process';
+
+  @override
+  String aiTeamProposalLabel(int index) {
+    return 'Proposal $index';
+  }
+
+  @override
+  String get aiTeamStopped => 'AI Team stopped';
+
+  @override
+  String get aiTeamDefaultProposalPrompt =>
+      'Answer the question directly. No greetings, no pleasantries, no follow-up questions, no commentary about the question itself. Just provide your answer and reasoning.';
+
+  @override
+  String get aiTeamDefaultAggregatorPrompt =>
+      'I have gathered several different lines of thinking on this question. Please integrate them into a single, coherent final answer.\nRequirements:\n- Do not summarize or list the individual thoughts; produce a single integrated answer.\n- Preserve the strongest reasoning and best examples; remove redundant or weak parts.\n- If there are contradictions, make a judgment and pick the most defensible position.\n- The final answer must be more complete and precise than any individual proposal.\n- Answer as if responding for the first time; do not mention \"previous thoughts\" or \"the integration process.\"';
+
+  @override
+  String aiTeamProposalInProgress(int current, int total) {
+    return 'AI Team running… Proposal $current/$total';
+  }
+
+  @override
+  String get aiTeamThinkingLabel => 'Thinking';
+
+  @override
+  String get aiTeamToolCallsLabel => 'Tool Calls';
+
+  @override
+  String get aiTeamAggregatorLabel => 'Aggregated Answer';
+
+  @override
+  String get aiTeamRestoreDefaultPrompt => 'Restore default';
+
+  @override
+  String get aiTeamAggregatorUserPrompt =>
+      'Please review the proposals above and synthesize them into a single, coherent final answer.';
 }

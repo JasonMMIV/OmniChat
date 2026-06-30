@@ -58,6 +58,9 @@ class ChatMessage extends HiveObject {
   @HiveField(15)
   final int version;
 
+  @HiveField(16)
+  final String? aiTeamProposalsJson;
+
   ChatMessage({
     String? id,
     required this.role,
@@ -75,6 +78,7 @@ class ChatMessage extends HiveObject {
     this.reasoningSegmentsJson,
     String? groupId,
     int? version,
+    this.aiTeamProposalsJson,
   })  : id = id ?? const Uuid().v4(),
         timestamp = timestamp ?? DateTime.now(),
         groupId = groupId ?? id,
@@ -97,6 +101,7 @@ class ChatMessage extends HiveObject {
     String? reasoningSegmentsJson,
     String? groupId,
     int? version,
+    String? aiTeamProposalsJson,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -115,6 +120,7 @@ class ChatMessage extends HiveObject {
       reasoningSegmentsJson: reasoningSegmentsJson ?? this.reasoningSegmentsJson,
       groupId: groupId ?? this.groupId,
       version: version ?? this.version,
+      aiTeamProposalsJson: aiTeamProposalsJson ?? this.aiTeamProposalsJson,
     );
   }
 
@@ -136,6 +142,7 @@ class ChatMessage extends HiveObject {
       'reasoningSegmentsJson': reasoningSegmentsJson,
       'groupId': groupId,
       'version': version,
+      'aiTeamProposalsJson': aiTeamProposalsJson,
     };
   }
 
@@ -161,6 +168,7 @@ class ChatMessage extends HiveObject {
       reasoningSegmentsJson: json['reasoningSegmentsJson'] as String?,
       groupId: json['groupId'] as String?,
       version: (json['version'] as int?) ?? 0,
+      aiTeamProposalsJson: json['aiTeamProposalsJson'] as String?,
     );
   }
 }

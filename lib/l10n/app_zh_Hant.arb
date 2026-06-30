@@ -20,6 +20,8 @@
   "settingsPageMcp": "MCP",
   "settingsPageQuickPhrase": "快捷短语",
   "settingsPageInstructionInjection": "指令注入",
+  "settingsPageAiTeam": "AI 團隊",
+  "settingsPageAiTeamDescription": "Mixture of Agents",
   "settingsPageDataSection": "資料設定",
   "settingsPageBackup": "資料備份",
   "settingsPageHotkeys": "快捷鍵",
@@ -1215,5 +1217,38 @@
   "assistantEditSummaryDialogTitle": "編輯摘要",
   "assistantEditSummaryDialogHint": "輸入摘要內容",
   "assistantEditDeleteSummaryTitle": "清除摘要",
-  "assistantEditDeleteSummaryContent": "確定要清除此摘要嗎？"
+  "assistantEditDeleteSummaryContent": "確定要清除此摘要嗎？",
+  "chatInputBarAiTeamTooltip": "AI 團隊",
+  "aiTeamTitle": "AI 團隊",
+  "aiTeamEnable": "啟用 AI 團隊",
+  "aiTeamProposerCount": "提案模型數量",
+  "aiTeamProposerModels": "提案模型",
+  "aiTeamAggregatorModel": "彙整模型",
+  "aiTeamAggregatorUseCurrent": "使用目前對話選中模型",
+  "aiTeamProposalPromptLabel": "提案模型提示詞",
+  "aiTeamAggregatorPromptLabel": "彙整模型提示詞",
+  "aiTeamResetPrompts": "重置為預設",
+  "aiTeamEmptyProposerSlot": "未設定（點擊選擇模型）",
+  "aiTeamFinalAnswerLabel": "協作過程",
+  "aiTeamProposalLabel": "提案 {index}",
+  "@aiTeamProposalLabel": {
+    "placeholders": {
+      "index": {"type": "int"}
+    }
+  },
+  "aiTeamStopped": "AI 團隊已停止",
+  "aiTeamDefaultProposalPrompt": "直接回答問題。不要問候、不要結尾客套話、不要追問使用者、不要評價問題本身。只給出你的答案和推理。",
+  "aiTeamDefaultAggregatorPrompt": "我到目前為止對這個問題整理了幾種不同的思考方向。請你幫我把這些思考整合成一個完整、連貫的最終回答。\n要求：\n- 不是總結或列舉這些思考，而是直接給出一個整合後的答案。\n- 保留其中最扎實的推理和最好的例子，去掉重複或薄弱的部份。\n- 如果有互相矛盾的地方，做出判斷，挑最站得住腳的說法，不要兩邊都留。\n- 最終回答必須比任何一段單獨的思考更完整、更精準。\n- 像你第一次回答這個問題那樣直接給出答案，不要提「之前的思考」或「整合過程」。",
+  "aiTeamProposalInProgress": "AI 團隊執行中… 提案 {current}/{total}",
+  "@aiTeamProposalInProgress": {
+    "placeholders": {
+      "current": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "aiTeamThinkingLabel": "思考過程",
+  "aiTeamToolCallsLabel": "工具調用",
+  "aiTeamAggregatorLabel": "彙整回答",
+  "aiTeamRestoreDefaultPrompt": "恢復預設",
+  "aiTeamAggregatorUserPrompt": "請根據以上提案，整合出一個完整、連貫的最終回答。"
 }

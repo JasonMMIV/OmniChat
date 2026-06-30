@@ -15,6 +15,7 @@ import '../../search/pages/search_services_page.dart';
 import '../../backup/pages/backup_page.dart';
 import '../../quick_phrase/pages/quick_phrases_page.dart';
 import '../../instruction_injection/pages/instruction_injection_page.dart';
+import '../../ai_team/pages/ai_team_page.dart';
 import 'network_proxy_page.dart';
 import 'storage_space_page.dart';
 import '../../../core/services/storage/storage_usage_service.dart';
@@ -242,6 +243,17 @@ class SettingsPage extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const InstructionInjectionPage()),
+                );
+              },
+            ),
+            _iosDivider(context),
+            _iosNavRow(
+              context,
+              icon: Lucide.Users,
+              label: l10n.settingsPageAiTeam,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AiTeamPage()),
                 );
               },
             ),

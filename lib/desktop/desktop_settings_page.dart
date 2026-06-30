@@ -45,6 +45,7 @@ import 'setting/mcp_pane.dart';
 import 'setting/tts_services_pane.dart';
 import 'setting/quick_phrases_pane.dart';
 import 'setting/instruction_injection_pane.dart';
+import 'setting/ai_team_pane.dart';
 import 'setting/backup_pane.dart';
 import 'setting/hotkeys_pane.dart';
 import 'setting/network_proxy_pane.dart';
@@ -80,6 +81,7 @@ enum _SettingsMenuItem {
   mcp,
   quickPhrases,
   instructionInjection,
+  aiTeam,
   tts,
   networkProxy,
   backup,
@@ -123,6 +125,8 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
           return l10n.settingsPageQuickPhrase;
         case _SettingsMenuItem.instructionInjection:
           return l10n.settingsPageInstructionInjection;
+        case _SettingsMenuItem.aiTeam:
+          return l10n.settingsPageAiTeam;
         case _SettingsMenuItem.tts:
           return l10n.settingsPageTts;
         case _SettingsMenuItem.networkProxy:
@@ -204,6 +208,8 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
                           return const DesktopQuickPhrasesPane(key: ValueKey('quickPhrases'));
                         case _SettingsMenuItem.instructionInjection:
                           return const DesktopInstructionInjectionPane(key: ValueKey('instructionInjection'));
+                        case _SettingsMenuItem.aiTeam:
+                          return const DesktopAiTeamPane(key: ValueKey('aiTeam'));
                         case _SettingsMenuItem.tts:
                           return const DesktopTtsServicesPane(key: ValueKey('tts'));
                         case _SettingsMenuItem.about:
@@ -245,6 +251,7 @@ class _SettingsMenu extends StatelessWidget {
       (_SettingsMenuItem.mcp, lucide.Lucide.Terminal, l10n.settingsPageMcp),
       (_SettingsMenuItem.quickPhrases, lucide.Lucide.Zap, l10n.settingsPageQuickPhrase),
       (_SettingsMenuItem.instructionInjection, lucide.Lucide.Layers, l10n.settingsPageInstructionInjection),
+      (_SettingsMenuItem.aiTeam, lucide.Lucide.Users, l10n.settingsPageAiTeam),
       (_SettingsMenuItem.tts, lucide.Lucide.Volume2, l10n.settingsPageTts),
       (_SettingsMenuItem.networkProxy, lucide.Lucide.EthernetPort, l10n.settingsPageNetworkProxy),
       (_SettingsMenuItem.backup, lucide.Lucide.Database, l10n.settingsPageBackup),

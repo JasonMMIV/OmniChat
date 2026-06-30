@@ -539,6 +539,7 @@ class ChatService extends ChangeNotifier {
     DateTime? reasoningFinishedAt,
     String? translation,
     String? reasoningSegmentsJson,
+    String? aiTeamProposalsJson,
   }) async {
     if (!_initialized) return;
 
@@ -554,6 +555,7 @@ class ChatService extends ChangeNotifier {
       reasoningFinishedAt: reasoningFinishedAt ?? message.reasoningFinishedAt,
       translation: translation,
       reasoningSegmentsJson: reasoningSegmentsJson ?? message.reasoningSegmentsJson,
+      aiTeamProposalsJson: aiTeamProposalsJson ?? message.aiTeamProposalsJson,
     );
 
     await _messagesBox.put(messageId, updatedMessage);
@@ -583,6 +585,7 @@ class ChatService extends ChangeNotifier {
     DateTime? reasoningFinishedAt,
     String? translation,
     String? reasoningSegmentsJson,
+    String? aiTeamProposalsJson,
   }) async {
     if (!_initialized) return;
 
@@ -598,6 +601,7 @@ class ChatService extends ChangeNotifier {
       reasoningFinishedAt: reasoningFinishedAt ?? message.reasoningFinishedAt,
       translation: translation,
       reasoningSegmentsJson: reasoningSegmentsJson ?? message.reasoningSegmentsJson,
+      aiTeamProposalsJson: aiTeamProposalsJson ?? message.aiTeamProposalsJson,
     );
 
     await _messagesBox.put(messageId, updatedMessage);

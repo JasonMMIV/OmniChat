@@ -382,6 +382,7 @@ class MessageListView extends StatelessWidget {
         final streamingMessage = message.copyWith(
           content: displayContent,
           totalTokens: displayTokens,
+          aiTeamProposalsJson: data.aiTeamProposalsJson ?? message.aiTeamProposalsJson,
         );
 
         // Update reasoning text from streaming data while preserving expanded state from r

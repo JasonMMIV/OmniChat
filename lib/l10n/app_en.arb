@@ -26,6 +26,8 @@
   "settingsPageQuickPhraseDescription": "Manage shortcuts",
   "settingsPageInstructionInjection": "Instruction Injection",
   "settingsPageInstructionInjectionDescription": "System prompts",
+  "settingsPageAiTeam": "AI Team",
+  "settingsPageAiTeamDescription": "Mixture of Agents",
   "settingsPageNetworkProxy": "Network Proxy",
   "settingsPageNetworkProxyDescription": "Proxy configuration",
   "settingsPageDataSection": "Data",
@@ -1285,5 +1287,38 @@
   "defaultModelPageSummaryPromptHint": "Summary prompt hint",
   "assistantEditEmojiDialogTitle": "Emoji",
   "assistantEditEmojiDialogHint": "Pick an emoji",
-  "importProviderSheetCancelButton": "Cancel"
+  "importProviderSheetCancelButton": "Cancel",
+  "chatInputBarAiTeamTooltip": "AI Team",
+  "aiTeamTitle": "AI Team",
+  "aiTeamEnable": "Enable AI Team",
+  "aiTeamProposerCount": "Proposer count",
+  "aiTeamProposerModels": "Proposer models",
+  "aiTeamAggregatorModel": "Aggregator model",
+  "aiTeamAggregatorUseCurrent": "Use current chat model",
+  "aiTeamProposalPromptLabel": "Proposal prompt",
+  "aiTeamAggregatorPromptLabel": "Aggregator prompt",
+  "aiTeamResetPrompts": "Reset to defaults",
+  "aiTeamEmptyProposerSlot": "Not set (tap to select)",
+  "aiTeamFinalAnswerLabel": "Collaboration Process",
+  "aiTeamProposalLabel": "Proposal {index}",
+  "@aiTeamProposalLabel": {
+    "placeholders": {
+      "index": {"type": "int"}
+    }
+  },
+  "aiTeamStopped": "AI Team stopped",
+  "aiTeamDefaultProposalPrompt": "Answer the question directly. No greetings, no pleasantries, no follow-up questions, no commentary about the question itself. Just provide your answer and reasoning.",
+  "aiTeamDefaultAggregatorPrompt": "I have gathered several different lines of thinking on this question. Please integrate them into a single, coherent final answer.\nRequirements:\n- Do not summarize or list the individual thoughts; produce a single integrated answer.\n- Preserve the strongest reasoning and best examples; remove redundant or weak parts.\n- If there are contradictions, make a judgment and pick the most defensible position.\n- The final answer must be more complete and precise than any individual proposal.\n- Answer as if responding for the first time; do not mention \"previous thoughts\" or \"the integration process.\"",
+  "aiTeamProposalInProgress": "AI Team running… Proposal {current}/{total}",
+  "@aiTeamProposalInProgress": {
+    "placeholders": {
+      "current": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "aiTeamThinkingLabel": "Thinking",
+  "aiTeamToolCallsLabel": "Tool Calls",
+  "aiTeamAggregatorLabel": "Aggregated Answer",
+  "aiTeamRestoreDefaultPrompt": "Restore default",
+  "aiTeamAggregatorUserPrompt": "Please review the proposals above and synthesize them into a single, coherent final answer."
 }

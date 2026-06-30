@@ -14,6 +14,7 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
+import '../../../core/providers/ai_team_provider.dart';
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/services/android_process_text.dart';
@@ -38,6 +39,7 @@ import '../../quick_phrase/widgets/quick_phrase_menu.dart';
 import '../widgets/chat_input_bar.dart';
 import '../widgets/mini_map_sheet.dart';
 import '../widgets/instruction_injection_sheet.dart';
+import '../../ai_team/pages/ai_team_page.dart';
 import '../widgets/learning_prompt_sheet.dart';
 import '../widgets/scroll_nav_buttons.dart';
 import '../widgets/selection_toolbar.dart';
@@ -691,6 +693,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       onUploadFiles: _controller.onPickFiles,
       onToggleLearningMode: _openInstructionInjectionPopover,
       onLongPressLearning: _showLearningPromptSheet,
+      onToggleAiTeam: _openAiTeamSettings,
       onClearContext: _controller.clearContext,
       isDictating: _controller.isDictating,
       onStartDictation: _controller.startDictation,
@@ -853,6 +856,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   void _showLearningPromptSheet() {
     showLearningPromptSheet(context);
+  }
+
+  void _openAiTeamSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AiTeamPage()),
+    );
   }
 
   void _toggleTools(List<DesktopContextMenuItem>? overflowItems) {

@@ -20,6 +20,8 @@
   "settingsPageMcp": "MCP",
   "settingsPageQuickPhrase": "快捷短语",
   "settingsPageInstructionInjection": "指令注入",
+  "settingsPageAiTeam": "AI 团队",
+  "settingsPageAiTeamDescription": "Mixture of Agents",
   "settingsPageDataSection": "数据设置",
   "settingsPageBackup": "数据备份",
   "settingsPageHotkeys": "快捷键",
@@ -1225,5 +1227,38 @@
   "assistantEditSystemPromptImportButton": "导入提示词",
   "assistantEditSystemPromptImportEmpty": "文件中未找到提示词。",
   "assistantEditSystemPromptImportSuccess": "提示词导入成功。",
-  "assistantEditSystemPromptImportFailed": "导入提示词失败：{error}"
+  "assistantEditSystemPromptImportFailed": "导入提示词失败：{error}",
+  "chatInputBarAiTeamTooltip": "AI 团队",
+  "aiTeamTitle": "AI 团队",
+  "aiTeamEnable": "启用 AI 团队",
+  "aiTeamProposerCount": "提案模型数量",
+  "aiTeamProposerModels": "提案模型",
+  "aiTeamAggregatorModel": "汇整模型",
+  "aiTeamAggregatorUseCurrent": "使用当前对话选中模型",
+  "aiTeamProposalPromptLabel": "提案模型提示词",
+  "aiTeamAggregatorPromptLabel": "汇整模型提示词",
+  "aiTeamResetPrompts": "重置为默认",
+  "aiTeamEmptyProposerSlot": "未设定（点击选择模型）",
+  "aiTeamFinalAnswerLabel": "协作过程",
+  "aiTeamProposalLabel": "提案 {index}",
+  "@aiTeamProposalLabel": {
+    "placeholders": {
+      "index": {"type": "int"}
+    }
+  },
+  "aiTeamStopped": "AI 团队已停止",
+  "aiTeamDefaultProposalPrompt": "直接回答问题。不要问候、不要结尾客套话、不要追问用户、不要评价问题本身。只给出你的答案和推理。",
+  "aiTeamDefaultAggregatorPrompt": "我到目前为止对这个问题整理了几种不同的思考方向。请你帮我把这些思考整合成一个完整、连贯的最终回答。\n要求：\n- 不是总结或列举这些思考，而是直接给出一个整合后的答案。\n- 保留其中最扎实的推理和最好的例子，去掉重复或薄弱的部份。\n- 如果有互相矛盾的地方，做出判断，挑最站得住脚的说法，不要两边都留。\n- 最终回答必须比任何一段单独的思考更完整、更精准。\n- 像你第一次回答这个问题那样直接给出答案，不要提「之前的思考」或「整合过程」。",
+  "aiTeamProposalInProgress": "AI 团队执行中… 提案 {current}/{total}",
+  "@aiTeamProposalInProgress": {
+    "placeholders": {
+      "current": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "aiTeamThinkingLabel": "思考过程",
+  "aiTeamToolCallsLabel": "工具调用",
+  "aiTeamAggregatorLabel": "彙整回答",
+  "aiTeamRestoreDefaultPrompt": "恢复默认",
+  "aiTeamAggregatorUserPrompt": "请根据以上提案，整合出一个完整、连贯的最终回答。"
 }
