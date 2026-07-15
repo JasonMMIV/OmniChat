@@ -40,6 +40,8 @@ app.*.symbols
 # Secrets and Keystores
 upload-keystore.jks
 *.jks
+key.properties
+/key.properties
 /lib/secrets/
 
 # Obfuscation related

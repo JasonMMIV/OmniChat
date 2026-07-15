@@ -166,7 +166,15 @@ class _LearningAndClearSection extends StatefulWidget {
 }
 
 class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
-  Widget _row({IconData? icon, String? svgAsset, required String label, bool selected = false, VoidCallback? onTap, VoidCallback? onLongPress}) {
+  Widget _row({
+    String? svgAsset,
+    IconData? icon,
+    required String label,
+    bool selected = false,
+    VoidCallback? onTap,
+    VoidCallback? onLongPress,
+    Widget? trailing,
+  }) {
     final cs = Theme.of(context).colorScheme;
     final onColor = selected ? cs.primary : cs.onSurface;
     final radius = BorderRadius.circular(14);
@@ -187,7 +195,10 @@ class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
               Icon(icon ?? Lucide.Circle, size: 20, color: onColor),
             const SizedBox(width: 10),
             Expanded(child: Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: onColor), overflow: TextOverflow.ellipsis)),
-            if (selected) Icon(Lucide.Check, size: 18, color: cs.primary) else const SizedBox(width: 18),
+            trailing ??
+                (selected
+                    ? Icon(Lucide.Check, size: 18, color: cs.primary)
+                    : const SizedBox(width: 18)),
           ],
         ),
       ),
@@ -269,12 +280,17 @@ class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
         ],
         const SizedBox(height: 8),
         _row(
-          icon: Lucide.Eraser,
-          label: widget.clearLabel ?? l10n.bottomToolsSheetClearContext,
+          icon: Lucide.workflow,
+          label: l10n.contextManagement,
           onTap: () {
             Haptics.light();
             widget.onClear?.call();
           },
+          trailing: Icon(
+            Lucide.ChevronRight,
+            size: 18,
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
+          ),
         ),
       ],
     );

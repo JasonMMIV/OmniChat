@@ -753,6 +753,62 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bottomToolsSheetClearContext => 'Clear Context';
 
   @override
+  String get compressContext => 'Compress Context';
+
+  @override
+  String get compressContextDesc => 'Summarize and start a new chat';
+
+  @override
+  String get clearContextDesc => 'Mark a context boundary';
+
+  @override
+  String get contextManagement => 'Context Management';
+
+  @override
+  String get compressingContext => 'Compressing context...';
+
+  @override
+  String get compressContextFailed => 'Failed to compress context';
+
+  @override
+  String get compressContextNoMessages => 'No messages to compress';
+
+  @override
+  String get compressContextNoConversation => 'No conversation to compress';
+
+  @override
+  String get compressContextNoModel => 'No compression model configured';
+
+  @override
+  String get compressContextEmptySummary =>
+      'Compression returned an empty summary';
+
+  @override
+  String get compressContextOptionsTitle => 'Compress Context';
+
+  @override
+  String get compressContextOptionsDesc =>
+      'Choose which part of the current chat is sent to the compression model.';
+
+  @override
+  String get compressContextKeepStart => 'Start';
+
+  @override
+  String get compressContextKeepRecent => 'Recent';
+
+  @override
+  String get compressContextUnlimited => 'Unlimited';
+
+  @override
+  String get compressContextMaxCharsLabel => 'Characters';
+
+  @override
+  String get compressContextInvalidLimit => 'Enter a positive character count';
+
+  @override
+  String get compressContextStartButton => 'Compress';
+
+  @override
   String get instructionInjectionEditTitle => 'Edit';
 
   @override
@@ -3174,6 +3230,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get defaultModelPageSummaryPromptHint => 'Summary prompt hint';
+
+  @override
+  String get defaultModelPageCompressModelTitle => 'Compress Model';
+
+  @override
+  String get defaultModelPageCompressModelSubtitle =>
+      'Used for compressing conversation context; prefer fast models';
+
+  @override
+  String get defaultModelPageCompressPromptHint =>
+      'Enter prompt template for context compression';
+
+  @override
+  String defaultModelPageCompressVars(String contentVar, String localeVar) {
+    return 'Variables: conversation: $contentVar, language: $localeVar';
+  }
 
   @override
   String get assistantEditEmojiDialogTitle => 'Emoji';

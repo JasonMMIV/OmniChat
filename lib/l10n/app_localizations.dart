@@ -1541,6 +1541,114 @@ abstract class AppLocalizations {
   /// **'Clear Context'**
   String get bottomToolsSheetClearContext;
 
+  /// No description provided for @compressContext.
+  ///
+  /// In en, this message translates to:
+  /// **'Compress Context'**
+  String get compressContext;
+
+  /// No description provided for @compressContextDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Summarize and start a new chat'**
+  String get compressContextDesc;
+
+  /// No description provided for @clearContextDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark a context boundary'**
+  String get clearContextDesc;
+
+  /// No description provided for @contextManagement.
+  ///
+  /// In en, this message translates to:
+  /// **'Context Management'**
+  String get contextManagement;
+
+  /// No description provided for @compressingContext.
+  ///
+  /// In en, this message translates to:
+  /// **'Compressing context...'**
+  String get compressingContext;
+
+  /// No description provided for @compressContextFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to compress context'**
+  String get compressContextFailed;
+
+  /// No description provided for @compressContextNoMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'No messages to compress'**
+  String get compressContextNoMessages;
+
+  /// No description provided for @compressContextNoConversation.
+  ///
+  /// In en, this message translates to:
+  /// **'No conversation to compress'**
+  String get compressContextNoConversation;
+
+  /// No description provided for @compressContextNoModel.
+  ///
+  /// In en, this message translates to:
+  /// **'No compression model configured'**
+  String get compressContextNoModel;
+
+  /// No description provided for @compressContextEmptySummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Compression returned an empty summary'**
+  String get compressContextEmptySummary;
+
+  /// No description provided for @compressContextOptionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Compress Context'**
+  String get compressContextOptionsTitle;
+
+  /// No description provided for @compressContextOptionsDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose which part of the current chat is sent to the compression model.'**
+  String get compressContextOptionsDesc;
+
+  /// No description provided for @compressContextKeepStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start'**
+  String get compressContextKeepStart;
+
+  /// No description provided for @compressContextKeepRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent'**
+  String get compressContextKeepRecent;
+
+  /// No description provided for @compressContextUnlimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlimited'**
+  String get compressContextUnlimited;
+
+  /// No description provided for @compressContextMaxCharsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Characters'**
+  String get compressContextMaxCharsLabel;
+
+  /// No description provided for @compressContextInvalidLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a positive character count'**
+  String get compressContextInvalidLimit;
+
+  /// No description provided for @compressContextStartButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Compress'**
+  String get compressContextStartButton;
+
   /// No description provided for @instructionInjectionEditTitle.
   ///
   /// In en, this message translates to:
@@ -6181,6 +6289,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Summary prompt hint'**
   String get defaultModelPageSummaryPromptHint;
+
+  /// No description provided for @defaultModelPageCompressModelTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Compress Model'**
+  String get defaultModelPageCompressModelTitle;
+
+  /// No description provided for @defaultModelPageCompressModelSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Used for compressing conversation context; prefer fast models'**
+  String get defaultModelPageCompressModelSubtitle;
+
+  /// No description provided for @defaultModelPageCompressPromptHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter prompt template for context compression'**
+  String get defaultModelPageCompressPromptHint;
+
+  /// No description provided for @defaultModelPageCompressVars.
+  ///
+  /// In en, this message translates to:
+  /// **'Variables: conversation: {contentVar}, language: {localeVar}'**
+  String defaultModelPageCompressVars(String contentVar, String localeVar);
 
   /// No description provided for @assistantEditEmojiDialogTitle.
   ///

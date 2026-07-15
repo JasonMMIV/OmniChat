@@ -25,6 +25,7 @@ import '../../../shared/widgets/ios_tactile.dart';
 import '../../../utils/app_directories.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import '../../../desktop/desktop_context_menu.dart';
+import '../../../core/services/haptics.dart';
 
 // Desktop context menu actions for right-click on the input field
 enum _DesktopTextMenuAction { paste, cut, copy, selectAll }
@@ -71,6 +72,7 @@ class ChatInputBar extends StatefulWidget {
     this.onUploadFiles,
     this.onToggleLearningMode,
     this.onClearContext,
+    this.onCompressContext,
     this.onLongPressLearning,
     this.learningModeActive = false,
     this.onToggleAiTeam,
@@ -115,6 +117,7 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback? onUploadFiles;
   final VoidCallback? onToggleLearningMode;
   final VoidCallback? onClearContext;
+  final VoidCallback? onCompressContext;
   final VoidCallback? onLongPressLearning;
   final bool learningModeActive;
   final VoidCallback? onToggleAiTeam;
@@ -146,6 +149,7 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
   static const Duration _repeatPeriod = Duration(milliseconds: 35);
   // Anchor for the responsive overflow menu on the left action bar
   final GlobalKey _leftOverflowAnchorKey = GlobalKey(debugLabel: 'left-overflow-anchor');
+  final GlobalKey _contextMgmtAnchorKey = GlobalKey(debugLabel: 'context-mgmt-anchor');
   // Suppress context menu briefly after app resume to avoid flickering
   bool _suppressContextMenu = false;
 
@@ -967,14 +971,47 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
         }
 
         if (widget.onClearContext != null) {
+          void showContextMenu() {
+            showDesktopAnchoredMenu(
+              context,
+              anchorKey: _contextMgmtAnchorKey,
+              items: [
+                if (widget.onCompressContext != null)
+                  DesktopContextMenuItem(
+                    icon: Lucide.package2,
+                    label: l10n.compressContext,
+                    onTap: () {
+                      Haptics.light();
+                      widget.onCompressContext?.call();
+                    },
+                  ),
+                DesktopContextMenuItem(
+                  icon: Lucide.Eraser,
+                  label: l10n.bottomToolsSheetClearContext,
+                  onTap: () {
+                    Haptics.light();
+                    widget.onClearContext?.call();
+                  },
+                ),
+              ],
+            );
+          }
+
           actions.add(_OverflowAction(
             width: normalButtonW,
-            builder: () => _CompactIconButton(
-              tooltip: l10n.bottomToolsSheetClearContext,
-              icon: Lucide.Eraser,
-              onTap: widget.onClearContext,
+            builder: () => Container(
+              key: _contextMgmtAnchorKey,
+              child: _CompactIconButton(
+                tooltip: l10n.contextManagement,
+                icon: Lucide.workflow,
+                onTap: showContextMenu,
+              ),
             ),
-            menu: DesktopContextMenuItem(icon: Lucide.Eraser, label: l10n.bottomToolsSheetClearContext, onTap: widget.onClearContext),
+            menu: DesktopContextMenuItem(
+              icon: Lucide.workflow,
+              label: l10n.contextManagement,
+              onTap: showContextMenu,
+            ),
           ));
         }
 

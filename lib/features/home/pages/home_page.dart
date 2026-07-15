@@ -29,6 +29,14 @@ import '../../../desktop/instruction_injection_popover.dart';
 import '../../../desktop/desktop_context_menu.dart';
 import '../../chat/widgets/bottom_tools_sheet.dart';
 import '../../chat/widgets/reasoning_budget_sheet.dart';
+import '../../chat/widgets/context_management_sheet.dart';
+import '../../../shared/widgets/loading_dialog_card.dart';
+import '../../../shared/widgets/ios_form_text_field.dart';
+import '../../../shared/widgets/ios_tactile.dart';
+import '../../../theme/app_font_weights.dart';
+import '../controllers/home_view_model.dart';
+import '../../../shared/widgets/snackbar.dart';
+import '../../../icons/lucide_adapter.dart';
 import '../../search/widgets/search_settings_sheet.dart';
 import '../../model/widgets/model_select_sheet.dart';
 import '../../mcp/pages/mcp_page.dart';
@@ -695,6 +703,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       onLongPressLearning: _showLearningPromptSheet,
       onToggleAiTeam: _openAiTeamSettings,
       onClearContext: _controller.clearContext,
+      onCompressContext: _handleDesktopCompressContext,
       isDictating: _controller.isDictating,
       onStartDictation: _controller.startDictation,
       onStopDictation: _controller.stopDictation,
@@ -878,7 +887,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           onCamera: _controller.onPickCamera,
           onPhotos: _controller.onPickPhotos,
           onUpload: _controller.onPickFiles,
-          onClear: _controller.clearContext,
+          onClear: () async {
+            await Navigator.of(ctx).maybePop();
+            _showContextManagementSheet();
+          },
           clearLabel: _controller.clearContextLabel(),
           assistantId: a?.id,
         ),
@@ -920,5 +932,366 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     if (confirm == true) {
       await _controller.deleteMessage(message: message, byGroup: byGroup);
     }
+  }
+
+  void _showContextManagementSheet() async {
+    final cs = Theme.of(context).colorScheme;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: ContextManagementSheet(
+            clearLabel: _controller.clearContextLabel(),
+            onCompress: () async {
+              await Navigator.of(ctx).maybePop();
+              if (!mounted) return;
+              await _showCompressContextOptions();
+            },
+            onClear: () async {
+              Navigator.of(ctx).maybePop();
+              await _controller.clearContext();
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void _handleDesktopCompressContext() async {
+    await _showCompressContextOptions();
+  }
+
+  Future<void> _showCompressContextOptions() async {
+    final options = await showDialog<CompressContextOptions>(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => const _CompressContextOptionsDialog(),
+    );
+    if (options == null || !mounted) return;
+
+    final l10n = AppLocalizations.of(context)!;
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => LoadingDialogCard(label: l10n.compressingContext),
+      ),
+    );
+
+    String? error;
+    try {
+      error = await _controller.compressContext(options: options);
+    } catch (e) {
+      error = e.toString();
+    } finally {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).maybePop();
+      }
+    }
+    if (error != null && mounted) {
+      showAppSnackBar(
+        context,
+        message: _compressContextErrorMessage(l10n, error),
+        type: NotificationType.error,
+        duration: const Duration(seconds: 6),
+      );
+    }
+  }
+}
+
+String _compressContextErrorMessage(AppLocalizations l10n, String error) {
+  return switch (error) {
+    'no_messages' => l10n.compressContextNoMessages,
+    'no_conversation' => l10n.compressContextNoConversation,
+    'no_model' => l10n.compressContextNoModel,
+    'empty_summary' => l10n.compressContextEmptySummary,
+    _ => '${l10n.compressContextFailed}: $error',
+  };
+}
+
+class _CompressContextOptionsDialog extends StatefulWidget {
+  const _CompressContextOptionsDialog();
+
+  @override
+  State<_CompressContextOptionsDialog> createState() =>
+      _CompressContextOptionsDialogState();
+}
+
+class _CompressContextOptionsDialogState
+    extends State<_CompressContextOptionsDialog> {
+  CompressContextLimitMode _mode = CompressContextLimitMode.start;
+  late final TextEditingController _maxCharsController;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _maxCharsController = TextEditingController(
+      text: CompressContextOptions.defaultMaxChars.toString(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _maxCharsController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    int? maxChars;
+    if (_mode != CompressContextLimitMode.unlimited) {
+      maxChars = int.tryParse(_maxCharsController.text.trim());
+      if (maxChars == null || maxChars <= 0) {
+        setState(() {
+          _error = AppLocalizations.of(context)!.compressContextInvalidLimit;
+        });
+        return;
+      }
+    }
+
+    Navigator.of(
+      context,
+    ).pop(CompressContextOptions(mode: _mode, maxChars: maxChars));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final panelColor = isDark ? const Color(0xFF1C1C1E) : cs.surface;
+    final constrainedWidth = MediaQuery.of(
+      context,
+    ).size.width.clamp(0.0, 420.0).toDouble();
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      backgroundColor: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: constrainedWidth),
+        child: Material(
+          color: panelColor,
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Icon(Lucide.package2, size: 20, color: cs.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        l10n.compressContextOptionsTitle,
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: AppFontWeights.emphasis,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  l10n.compressContextOptionsDesc,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.35,
+                    color: cs.onSurface.withValues(alpha: 0.62),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _CompressModeSegmented(
+                  mode: _mode,
+                  onChanged: (mode) {
+                    setState(() {
+                      _mode = mode;
+                      _error = null;
+                    });
+                  },
+                ),
+                if (_mode != CompressContextLimitMode.unlimited) ...[
+                  const SizedBox(height: 10),
+                  IosFormTextField(
+                    label: l10n.compressContextMaxCharsLabel,
+                    controller: _maxCharsController,
+                    keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.done,
+                    selectAllOnFocus: true,
+                    fieldWidth: 120,
+                    onChanged: (_) {
+                      if (_error != null) setState(() => _error = null);
+                    },
+                  ),
+                ],
+                if (_error != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    _error!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: cs.error,
+                      fontWeight: AppFontWeights.medium,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _DialogActionButton(
+                        label: l10n.homePageCancel,
+                        onTap: () => Navigator.of(context).maybePop(),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _DialogActionButton(
+                        label: l10n.compressContextStartButton,
+                        primary: true,
+                        onTap: _submit,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompressModeSegmented extends StatelessWidget {
+  const _CompressModeSegmented({required this.mode, required this.onChanged});
+
+  final CompressContextLimitMode mode;
+  final ValueChanged<CompressContextLimitMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Row(
+      children: [
+        Expanded(
+          child: _SegmentButton(
+            label: l10n.compressContextKeepStart,
+            selected: mode == CompressContextLimitMode.start,
+            onTap: () => onChanged(CompressContextLimitMode.start),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _SegmentButton(
+            label: l10n.compressContextKeepRecent,
+            selected: mode == CompressContextLimitMode.recent,
+            onTap: () => onChanged(CompressContextLimitMode.recent),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _SegmentButton(
+            label: l10n.compressContextUnlimited,
+            selected: mode == CompressContextLimitMode.unlimited,
+            onTap: () => onChanged(CompressContextLimitMode.unlimited),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SegmentButton extends StatelessWidget {
+  const _SegmentButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final selectedBg = isDark
+        ? cs.primary.withValues(alpha: 0.22)
+        : cs.primary.withValues(alpha: 0.12);
+    final baseBg = isDark ? Colors.white10 : const Color(0xFFF2F3F5);
+
+    return IosCardPress(
+      baseColor: selected ? selectedBg : baseBg,
+      borderRadius: BorderRadius.circular(10),
+      pressedScale: 0.98,
+      onTap: onTap,
+      haptics: false,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      child: Center(
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: AppFontWeights.emphasis,
+            color: selected ? cs.primary : cs.onSurface.withValues(alpha: 0.78),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DialogActionButton extends StatelessWidget {
+  const _DialogActionButton({
+    required this.label,
+    required this.onTap,
+    this.primary = false,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final bool primary;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final base = primary
+        ? cs.primary
+        : (isDark ? Colors.white10 : const Color(0xFFF2F3F5));
+
+    return IosCardPress(
+      baseColor: base,
+      borderRadius: BorderRadius.circular(11),
+      pressedScale: 0.98,
+      onTap: onTap,
+      haptics: false,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: AppFontWeights.emphasis,
+            color: primary ? cs.onPrimary : cs.onSurface,
+          ),
+        ),
+      ),
+    );
   }
 }

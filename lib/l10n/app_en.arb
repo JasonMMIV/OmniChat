@@ -271,6 +271,24 @@
   "instructionInjectionTitle": "Instruction Injection",
   "bottomToolsSheetOcr": "OCR",
   "bottomToolsSheetClearContext": "Clear Context",
+  "compressContext": "Compress Context",
+  "compressContextDesc": "Summarize and start a new chat",
+  "clearContextDesc": "Mark a context boundary",
+  "contextManagement": "Context Management",
+  "compressingContext": "Compressing context...",
+  "compressContextFailed": "Failed to compress context",
+  "compressContextNoMessages": "No messages to compress",
+  "compressContextNoConversation": "No conversation to compress",
+  "compressContextNoModel": "No compression model configured",
+  "compressContextEmptySummary": "Compression returned an empty summary",
+  "compressContextOptionsTitle": "Compress Context",
+  "compressContextOptionsDesc": "Choose which part of the current chat is sent to the compression model.",
+  "compressContextKeepStart": "Start",
+  "compressContextKeepRecent": "Recent",
+  "compressContextUnlimited": "Unlimited",
+  "compressContextMaxCharsLabel": "Characters",
+  "compressContextInvalidLimit": "Enter a positive character count",
+  "compressContextStartButton": "Compress",
   "instructionInjectionEditTitle": "Edit Injection",
   "instructionInjectionNameLabel": "Name",
   "instructionInjectionPromptLabel": "Prompt",
@@ -1285,6 +1303,20 @@
   "defaultModelPageTitlePromptHint": "Title prompt hint",
   "defaultModelPageTranslatePromptHint": "Translate prompt hint",
   "defaultModelPageSummaryPromptHint": "Summary prompt hint",
+  "defaultModelPageCompressModelTitle": "Compress Model",
+  "defaultModelPageCompressModelSubtitle": "Used for compressing conversation context; prefer fast models",
+  "defaultModelPageCompressPromptHint": "Enter prompt template for context compression",
+  "defaultModelPageCompressVars": "Variables: conversation: {contentVar}, language: {localeVar}",
+  "@defaultModelPageCompressVars": {
+    "placeholders": {
+      "contentVar": {
+        "type": "String"
+      },
+      "localeVar": {
+        "type": "String"
+      }
+    }
+  },
   "assistantEditEmojiDialogTitle": "Emoji",
   "assistantEditEmojiDialogHint": "Pick an emoji",
   "importProviderSheetCancelButton": "Cancel",

@@ -60,6 +60,7 @@ class ChatInputSection extends StatelessWidget {
     this.onLongPressLearning,
     this.onToggleAiTeam,
     this.onClearContext,
+    this.onCompressContext,
     this.isDictating = false,
     this.onStartDictation,
     this.onStopDictation,
@@ -99,6 +100,7 @@ class ChatInputSection extends StatelessWidget {
   final VoidCallback? onLongPressLearning;
   final VoidCallback? onToggleAiTeam;
   final VoidCallback? onClearContext;
+  final VoidCallback? onCompressContext;
   final bool isDictating;
   final VoidCallback? onStartDictation;
   final VoidCallback? onStopDictation;
@@ -185,6 +187,7 @@ class ChatInputSection extends StatelessWidget {
       aiTeamActive: context.watch<AiTeamProvider>().enabled,
       showMoreButton: !isTablet,
       onClearContext: isTablet ? onClearContext : null,
+      onCompressContext: isTablet ? onCompressContext : null,
     );
   }
 

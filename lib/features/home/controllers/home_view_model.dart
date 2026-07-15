@@ -16,6 +16,42 @@ import 'chat_controller.dart';
 import 'generation_controller.dart';
 import 'stream_controller.dart' as stream_ctrl;
 
+enum CompressContextLimitMode { start, recent, unlimited }
+
+class CompressContextOptions {
+  const CompressContextOptions({required this.mode, this.maxChars});
+
+  static const int defaultMaxChars = 6000;
+
+  final CompressContextLimitMode mode;
+  final int? maxChars;
+}
+
+String buildCompressContextContent(
+  String joined,
+  CompressContextOptions options,
+) {
+  if (options.mode == CompressContextLimitMode.unlimited) return joined;
+  final maxChars = options.maxChars ?? CompressContextOptions.defaultMaxChars;
+  if (maxChars <= 0 || joined.length <= maxChars) return joined;
+  return switch (options.mode) {
+    CompressContextLimitMode.start => joined.substring(0, maxChars),
+    CompressContextLimitMode.recent => joined.substring(
+      joined.length - maxChars,
+    ),
+    CompressContextLimitMode.unlimited => joined,
+  };
+}
+
+String buildConversationTextForCompression(List<ChatMessage> messages) {
+  return messages
+      .where((m) => m.content.trim().isNotEmpty)
+      .map(
+        (m) => '${m.role == "assistant" ? "Assistant" : "User"}: ${m.content}',
+      )
+      .join('\n\n');
+}
+
 /// ViewModel for the home page, combining actions + services.
 ///
 /// This ViewModel:
@@ -428,6 +464,91 @@ class HomeViewModel extends ChangeNotifier {
     }
   }
 
+  /// Compress context: summarize messages via LLM, create new conversation with summary.
+  /// Returns null on success, or an error key string on failure.
+  Future<String?> compressContext({
+    required CompressContextOptions options,
+  }) async {
+    final convo = currentConversation;
+    if (convo == null) return 'no_conversation';
+
+    // Get messages and collapse to selected versions
+    final allMsgs = _chatService.getMessages(convo.id);
+    final collapsed = collapseVersions(allMsgs);
+    if (collapsed.isEmpty) return 'no_messages';
+
+    // Build conversation text for compression
+    final joined = buildConversationTextForCompression(collapsed);
+    if (joined.trim().isEmpty) return 'no_messages';
+
+    final content = buildCompressContextContent(joined, options);
+    final locale = Localizations.localeOf(_contextProvider).toLanguageTag();
+
+    // Resolve model: compress model ?? summary model ?? title model ?? assistant model ?? global default
+    final settings = _contextProvider.read<SettingsProvider>();
+    final ap = _contextProvider.read<AssistantProvider>();
+    final assistant = convo.assistantId != null
+        ? ap.getById(convo.assistantId!)
+        : ap.currentAssistant;
+
+    final provKey =
+        settings.compressModelProvider ??
+        settings.summaryModelProvider ??
+        settings.titleModelProvider ??
+        assistant?.chatModelProvider ??
+        settings.currentModelProvider;
+    final mdlId =
+        settings.compressModelId ??
+        settings.summaryModelId ??
+        settings.titleModelId ??
+        assistant?.chatModelId ??
+        settings.currentModelId;
+    if (provKey == null || mdlId == null) return 'no_model';
+
+    final cfg = settings.getProviderConfig(provKey);
+
+    // Build compression prompt from settings template
+    final prompt = settings.compressPrompt
+        .replaceAll('{content}', content)
+        .replaceAll('{locale}', locale);
+
+    try {
+      final summary = (await ChatApiService.generateText(
+        config: cfg,
+        modelId: mdlId,
+        prompt: prompt,
+      )).trim();
+
+      if (summary.isEmpty) return 'empty_summary';
+
+      // Create new conversation with the summary as first user message
+      final newConvo = await _chatService.createDraftConversation(
+        title: convo.title,
+        assistantId: convo.assistantId,
+      );
+
+      await _chatService.addMessage(
+        conversationId: newConvo.id,
+        role: 'user',
+        content: summary,
+      );
+
+      // Switch to the new conversation
+      _chatService.setCurrentConversation(newConvo.id);
+      _chatController.setCurrentConversation(
+        _chatService.getConversation(newConvo.id) ?? newConvo,
+      );
+      _streamController.clearAllState();
+      notifyListeners();
+      onConversationSwitched?.call();
+      onScrollToBottom?.call();
+
+      return null; // success
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   /// Update current conversation reference.
   void updateCurrentConversation(Conversation? conversation) {
     _chatController.updateCurrentConversation(conversation);
@@ -508,32 +629,46 @@ class HomeViewModel extends ChangeNotifier {
         (assistant?.limitContextMessages ?? true)
             ? (assistant?.contextMessageSize ?? 0)
             : 0;
-    // Use collapsed view for counting
-    final collapsed = collapseVersions(messages);
-    // Map raw truncate index to collapsed start index
-    final int tRaw = currentConversation?.truncateIndex ?? -1;
-    int startCollapsed = 0;
-    if (tRaw > 0) {
-      final seen = <String>{};
-      final int limit = tRaw < messages.length ? tRaw : messages.length;
-      int count = 0;
-      for (int i = 0; i < limit; i++) {
-        final gid0 = (messages[i].groupId ?? messages[i].id);
-        if (seen.add(gid0)) count++;
-      }
-      startCollapsed = count;
-    }
-    int remaining = 0;
-    for (int i = 0; i < collapsed.length; i++) {
-      if (i >= startCollapsed) {
-        if (collapsed[i].content.trim().isNotEmpty) remaining++;
-      }
-    }
+    final convo = currentConversation;
+    final completeMessages = convo != null ? _chatService.getMessages(convo.id) : const <ChatMessage>[];
+    final collapsed = collapseVersions(completeMessages);
+    final remaining = computeClearContextRemainingMessageCount(
+      completeMessages: completeMessages,
+      collapsedMessages: collapsed,
+      truncateIndex: currentConversation?.truncateIndex ?? -1,
+    );
     if (configured > 0) {
       final actual = remaining > configured ? configured : remaining;
       return withCountFormatter(actual.toString(), configured.toString());
     }
     return defaultLabel;
+  }
+
+  static int computeClearContextRemainingMessageCount({
+    required List<ChatMessage> completeMessages,
+    required List<ChatMessage> collapsedMessages,
+    required int truncateIndex,
+  }) {
+    var safeTruncateIndex = truncateIndex;
+    if (safeTruncateIndex < 0 || safeTruncateIndex > completeMessages.length) {
+      safeTruncateIndex = 0;
+    }
+    final firstIndexByGroup = <String, int>{};
+    for (var i = 0; i < completeMessages.length; i++) {
+      final groupId = completeMessages[i].groupId ?? completeMessages[i].id;
+      firstIndexByGroup.putIfAbsent(groupId, () => i);
+    }
+
+    var remaining = 0;
+    for (final message in collapsedMessages) {
+      if (message.content.trim().isEmpty) continue;
+      final groupId = message.groupId ?? message.id;
+      final firstIndex = firstIndexByGroup[groupId];
+      if (firstIndex != null && firstIndex >= safeTruncateIndex) {
+        remaining++;
+      }
+    }
+    return remaining;
   }
 
   // ============================================================================

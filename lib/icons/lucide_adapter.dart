@@ -165,4 +165,6 @@ class Lucide {
   static const IconData Mic = lucide.LucideIcons.mic;
   static const IconData MicOff = lucide.LucideIcons.micOff;
   static const IconData Banknote = lucide.LucideIcons.banknote;
+  static const IconData package2 = lucide.LucideIcons.package2;
+  static const IconData workflow = lucide.LucideIcons.workflow;
 }

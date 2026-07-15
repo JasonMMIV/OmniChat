@@ -747,6 +747,60 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bottomToolsSheetClearContext => '清空上下文';
 
   @override
+  String get compressContext => '压缩上下文';
+
+  @override
+  String get compressContextDesc => '总结对话并开始新聊天';
+
+  @override
+  String get clearContextDesc => '标记上下文分界点';
+
+  @override
+  String get contextManagement => '上下文管理';
+
+  @override
+  String get compressingContext => '正在压缩上下文...';
+
+  @override
+  String get compressContextFailed => '压缩上下文失败';
+
+  @override
+  String get compressContextNoMessages => '没有可压缩的消息';
+
+  @override
+  String get compressContextNoConversation => '没有可压缩的会话';
+
+  @override
+  String get compressContextNoModel => '未配置压缩模型';
+
+  @override
+  String get compressContextEmptySummary => '压缩返回了空摘要';
+
+  @override
+  String get compressContextOptionsTitle => '压缩上下文';
+
+  @override
+  String get compressContextOptionsDesc => '选择发送给压缩模型的当前聊天范围。';
+
+  @override
+  String get compressContextKeepStart => '最开始';
+
+  @override
+  String get compressContextKeepRecent => '最近';
+
+  @override
+  String get compressContextUnlimited => '无限制';
+
+  @override
+  String get compressContextMaxCharsLabel => '字符数';
+
+  @override
+  String get compressContextInvalidLimit => '请输入大於 0 的字符数';
+
+  @override
+  String get compressContextStartButton => '开始压缩';
+
+  @override
   String get instructionInjectionEditTitle => '编辑指令注入';
 
   @override
@@ -3185,6 +3239,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get defaultModelPageSummaryPromptHint => '输入用于生成摘要的提示词模板';
 
   @override
+  String get defaultModelPageCompressModelTitle => '压缩模型';
+
+  @override
+  String get defaultModelPageCompressModelSubtitle => '用于压缩对话上下文的模型，推荐使用快速模型';
+
+  @override
+  String get defaultModelPageCompressPromptHint => '输入用于上下文压缩的提示词模板';
+
+  @override
+  String defaultModelPageCompressVars(String contentVar, String localeVar) {
+    return '变量：对话内容：$contentVar，语言：$localeVar';
+  }
+
+  @override
   String get assistantEditEmojiDialogTitle => '选择表情';
 
   @override
@@ -3908,6 +3976,60 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get bottomToolsSheetClearContext => '清空上下文';
+
+  @override
+  String get compressContext => '压缩上下文';
+
+  @override
+  String get compressContextDesc => '总结对话并开始新聊天';
+
+  @override
+  String get clearContextDesc => '标记上下文分界点';
+
+  @override
+  String get contextManagement => '上下文管理';
+
+  @override
+  String get compressingContext => '正在压缩上下文...';
+
+  @override
+  String get compressContextFailed => '压缩上下文失败';
+
+  @override
+  String get compressContextNoMessages => '没有可压缩的消息';
+
+  @override
+  String get compressContextNoConversation => '没有可压缩的会话';
+
+  @override
+  String get compressContextNoModel => '未配置压缩模型';
+
+  @override
+  String get compressContextEmptySummary => '压缩返回了空摘要';
+
+  @override
+  String get compressContextOptionsTitle => '压缩上下文';
+
+  @override
+  String get compressContextOptionsDesc => '选择发送给压缩模型的当前聊天范围。';
+
+  @override
+  String get compressContextKeepStart => '最开始';
+
+  @override
+  String get compressContextKeepRecent => '最近';
+
+  @override
+  String get compressContextUnlimited => '无限制';
+
+  @override
+  String get compressContextMaxCharsLabel => '字符数';
+
+  @override
+  String get compressContextInvalidLimit => '请输入大於 0 的字符数';
+
+  @override
+  String get compressContextStartButton => '开始压缩';
 
   @override
   String get instructionInjectionEditTitle => '编辑指令注入';
@@ -6333,6 +6455,20 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get defaultModelPageSummaryPromptHint => '输入用于生成摘要的提示词模板';
 
   @override
+  String get defaultModelPageCompressModelTitle => '压缩模型';
+
+  @override
+  String get defaultModelPageCompressModelSubtitle => '用于压缩对话上下文的模型，推荐使用快速模型';
+
+  @override
+  String get defaultModelPageCompressPromptHint => '输入用于上下文压缩的提示词模板';
+
+  @override
+  String defaultModelPageCompressVars(String contentVar, String localeVar) {
+    return '变量：对话内容：$contentVar，语言：$localeVar';
+  }
+
+  @override
   String get assistantEditEmojiDialogTitle => '选择表情';
 
   @override
@@ -7068,6 +7204,60 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get bottomToolsSheetClearContext => '清空上下文';
+
+  @override
+  String get compressContext => '壓縮上下文';
+
+  @override
+  String get compressContextDesc => '總結對話並開始新聊天';
+
+  @override
+  String get clearContextDesc => '標記上下文分界點';
+
+  @override
+  String get contextManagement => '上下文管理';
+
+  @override
+  String get compressingContext => '正在壓縮上下文...';
+
+  @override
+  String get compressContextFailed => '壓縮上下文失敗';
+
+  @override
+  String get compressContextNoMessages => '沒有可壓縮的訊息';
+
+  @override
+  String get compressContextNoConversation => '沒有可壓縮的對話';
+
+  @override
+  String get compressContextNoModel => '未設定壓縮模型';
+
+  @override
+  String get compressContextEmptySummary => '壓縮返回了空摘要';
+
+  @override
+  String get compressContextOptionsTitle => '壓縮上下文';
+
+  @override
+  String get compressContextOptionsDesc => '選擇要傳送給壓縮模型的目前聊天範圍。';
+
+  @override
+  String get compressContextKeepStart => '最開始';
+
+  @override
+  String get compressContextKeepRecent => '最近';
+
+  @override
+  String get compressContextUnlimited => '無限制';
+
+  @override
+  String get compressContextMaxCharsLabel => '字元數';
+
+  @override
+  String get compressContextInvalidLimit => '請輸入大於 0 的字元數';
+
+  @override
+  String get compressContextStartButton => '開始壓縮';
 
   @override
   String get instructionInjectionEditTitle => '編輯指令注入';
@@ -9439,6 +9629,20 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get defaultModelPageSummaryPromptHint => '輸入用於生成摘要的提示詞範本';
+
+  @override
+  String get defaultModelPageCompressModelTitle => '壓縮模型';
+
+  @override
+  String get defaultModelPageCompressModelSubtitle => '用於壓縮對話上下文的模型，建議使用快速模型';
+
+  @override
+  String get defaultModelPageCompressPromptHint => '輸入用於上下文壓縮的提示詞範本';
+
+  @override
+  String defaultModelPageCompressVars(String contentVar, String localeVar) {
+    return '變數：對話內容：$contentVar，語言：$localeVar';
+  }
 
   @override
   String get assistantEditEmojiDialogTitle => '選擇表情';
