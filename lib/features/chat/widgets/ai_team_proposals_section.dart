@@ -11,9 +11,11 @@ class AiTeamProposalsSection extends StatefulWidget {
   const AiTeamProposalsSection({
     super.key,
     required this.data,
+    this.isStreaming = false,
   });
 
   final String data;
+  final bool isStreaming;
 
   @override
   State<AiTeamProposalsSection> createState() => _AiTeamProposalsSectionState();
@@ -98,8 +100,8 @@ class _AiTeamProposalsSectionState extends State<AiTeamProposalsSection> {
             firstChild: const SizedBox(height: 0),
             secondChild: Padding(
               padding: const EdgeInsets.only(top: 8, left: 2, right: 2, bottom: 2),
-              child: SelectionArea(
-                child: RepaintBoundary(
+              child: Builder(builder: (context) {
+                final content = RepaintBoundary(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -109,8 +111,9 @@ class _AiTeamProposalsSectionState extends State<AiTeamProposalsSection> {
                       ],
                     ],
                   ),
-                ),
-              ),
+                );
+                return widget.isStreaming ? content : SelectionArea(child: content);
+              }),
             ),
           ),
         ],

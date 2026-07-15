@@ -1204,7 +1204,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           // AI Team proposals section (collapsible, "最終回答") — shown BEFORE reasoning
           if (widget.message.aiTeamProposalsJson != null &&
               widget.message.aiTeamProposalsJson!.isNotEmpty) ...[
-            AiTeamProposalsSection(data: widget.message.aiTeamProposalsJson!),
+            AiTeamProposalsSection(
+              data: widget.message.aiTeamProposalsJson!,
+              isStreaming: widget.message.isStreaming,
+            ),
             const SizedBox(height: 8),
           ],
           // Mixed reasoning and tool sections
@@ -1330,18 +1333,21 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       defaultTargetPlatform == TargetPlatform.windows ||
                       defaultTargetPlatform == TargetPlatform.linux;
                   final double baseAssistant = isDesktop ? 14.0 : 15.7;
-                  return RepaintBoundary(
-                    child: SelectionArea(
-                      key: ValueKey('assistant_${widget.message.id}'),
-                      child: DefaultTextStyle.merge(
-                        style: TextStyle(fontSize: baseAssistant, height: 1.5),
-                        child: MarkdownWithCodeHighlight(
-                          text: visualContent,
-                          onCitationTap: (id) => _handleCitationTap(id),
-                          baseStyle: TextStyle(fontSize: baseAssistant, height: 1.5),
-                        ),
-                      ),
+                  final contentWidget = DefaultTextStyle.merge(
+                    style: TextStyle(fontSize: baseAssistant, height: 1.5),
+                    child: MarkdownWithCodeHighlight(
+                      text: visualContent,
+                      onCitationTap: (id) => _handleCitationTap(id),
+                      baseStyle: TextStyle(fontSize: baseAssistant, height: 1.5),
                     ),
+                  );
+                  return RepaintBoundary(
+                    child: widget.message.isStreaming
+                        ? contentWidget
+                        : SelectionArea(
+                            key: ValueKey('assistant_${widget.message.id}'),
+                            child: contentWidget,
+                          ),
                   );
                 }),
                 // Inline sources removed; show a summary card at bottom instead
@@ -2760,29 +2766,35 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
 // 未加载：不要再指定 color: fg，让它继承和"加载中"相同的颜色
     Widget _reasoningContent(String text) {
       if (settings.enableReasoningMarkdown) {
-        return SelectionArea(
-          contextMenuBuilder: (context, selectableRegionState) {
-            return _TextContextMenu(state: selectableRegionState);
-          },
-          child: RepaintBoundary(
-            child: MarkdownWithCodeHighlight(
-              text: text.isNotEmpty ? text : '…',
-              baseStyle: baseStyle,
-            ),
+        final contentWidget = RepaintBoundary(
+          child: MarkdownWithCodeHighlight(
+            text: text.isNotEmpty ? text : '…',
+            baseStyle: baseStyle,
           ),
         );
+        return widget.loading
+            ? contentWidget
+            : SelectionArea(
+                contextMenuBuilder: (context, selectableRegionState) {
+                  return _TextContextMenu(state: selectableRegionState);
+                },
+                child: contentWidget,
+              );
       }
-      return SelectionArea(
-        contextMenuBuilder: (context, selectableRegionState) {
-          return _TextContextMenu(state: selectableRegionState);
-        },
-        child: Text(
-          text.isNotEmpty ? text : '…',
-          style: baseStyle,
-          strutStyle: baseStrut,
-          textHeightBehavior: baseTHB,
-        ),
+      final contentWidget = Text(
+        text.isNotEmpty ? text : '…',
+        style: baseStyle,
+        strutStyle: baseStrut,
+        textHeightBehavior: baseTHB,
       );
+      return widget.loading
+          ? contentWidget
+          : SelectionArea(
+              contextMenuBuilder: (context, selectableRegionState) {
+                return _TextContextMenu(state: selectableRegionState);
+              },
+              child: contentWidget,
+            );
     }
 
     Widget body = Padding(
