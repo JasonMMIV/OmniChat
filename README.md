@@ -2,7 +2,7 @@
 
 > Cross-Platform LLM Chat Application with AI Team
 
-English | [繁體中文](README_ZH_TW_v2.MD)
+English | [繁體中文](README_ZH_TW.MD)
 
 OmniChat is a modern AI chat application designed for seamless voice interaction and a unified cross-platform experience.
 
@@ -10,7 +10,17 @@ OmniChat is a modern AI chat application designed for seamless voice interaction
 
 ### AI Team (Mixture of Agents)
 
-Orchestrate 1–4 "proposer" models to explore a question from multiple angles, then let an "aggregator" model synthesize their outputs into a single, richer final answer. All proposals are displayed in real time as they complete.
+Supports two advanced multi-agent collaboration pipelines for complex problem solving:
+- **Parallel (MoA)**: Orchestrate 1–4 "proposer" models to explore a question independently, then let an "aggregator" model synthesize their perspectives into a single, comprehensive response.
+- **Chain (CMoA)**: Sequential reasoning chain (Proposer -> Self-Audit Critics 0~3 -> Aggregator). Critics apply 7 Analytical Lenses (Adversarial, Causal/Structural, Comparative, Temporal, etc.) to stress-test and audit preceding outputs.
+- **Real-Time Streaming**: Proposals and audit logs stream live as each model completes, rendered in clean, layered collapsible sections.
+
+### Deep Research
+
+Preset agent protocol designed for complex scientific, technical, and investigative research:
+- **Dual Think & Search Engine**: Combines multi-round deep reasoning with real-time web search. Uses targeted search queries to resolve uncertainties and fuels subsequent reasoning loops.
+- **Epistemic Discipline**: Enforces a strict distinction between *Evidence* (empirical facts), *Inference* (logical deductions), and *Judgment* (value choices).
+- **Rigorous Synthesis**: Dynamic stopping criteria based on information saturation, producing decision-useful research reports backed by verifiable citations and epistemic calibration.
 
 ### Advanced Web Search
 
