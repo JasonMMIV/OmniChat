@@ -576,6 +576,8 @@ class ChatActions {
     final baseApiMessages = ctx.apiMessages;
     final l10n = AppLocalizations.of(contextProvider)!;
 
+    final isChain = aiTeamConfig.mode == AiTeamMode.chain;
+
     // Resolve effective prompts: l10n default or user-customized
     final effectiveProposalPrompt = aiTeamConfig.useDefaultProposalPrompt
         ? l10n.aiTeamDefaultProposalPrompt
@@ -584,26 +586,66 @@ class ChatActions {
         ? l10n.aiTeamDefaultAggregatorPrompt
         : aiTeamConfig.aggregatorSystemPrompt;
 
+    final effectiveChainProposerPrompt = aiTeamConfig.useDefaultChainProposerPrompt
+        ? AiTeamConfigDefaults.defaultChainProposerPrompt
+        : aiTeamConfig.chainProposerSystemPrompt;
+    final effectiveChainCriticPrompt = aiTeamConfig.useDefaultChainCriticPrompt
+        ? AiTeamConfigDefaults.defaultChainCriticPrompt
+        : aiTeamConfig.chainCriticSystemPrompt;
+    final effectiveChainAggregatorPrompt = aiTeamConfig.useDefaultChainAggregatorPrompt
+        ? AiTeamConfigDefaults.defaultChainAggregatorPrompt
+        : aiTeamConfig.chainAggregatorSystemPrompt;
+
     _aiTeamCancelled = false;
     _aiTeamInProposalPhase = true;
 
-    // Run proposers sequentially (D2)
+    // Run proposers sequentially
     final List<Map<String, dynamic>> proposals = [];
-    final activeProposers = aiTeamConfig.activeProposers;
-    final totalProposers = activeProposers.length;
+    final activeChainModels = isChain ? aiTeamConfig.activeChainModels : [];
+    final activeProposers = isChain ? activeChainModels : aiTeamConfig.activeProposers;
+    final totalSteps = activeProposers.length;
 
-    for (var idx = 0; idx < totalProposers; idx++) {
+    for (var idx = 0; idx < totalSteps; idx++) {
       final slot = activeProposers[idx];
       if (_aiTeamCancelled) break;
 
+      // Labeling and Progress Text
+      String label;
+      String progressText;
+      if (isChain) {
+        if (idx == 0) {
+          label = l10n.aiTeamProposerModels;
+          progressText = l10n.aiTeamProposalInProgress(1, 1);
+        } else {
+          label = l10n.aiTeamCriticLabel(idx);
+          try {
+            progressText = l10n.aiTeamCriticInProgress(idx, totalSteps - 1);
+          } catch (_) {
+            progressText = 'AI Team running… Critic $idx/${totalSteps - 1}';
+          }
+        }
+      } else {
+        label = l10n.aiTeamProposalLabel(idx + 1);
+        progressText = l10n.aiTeamProposalInProgress(idx + 1, totalSteps);
+      }
+
       // Push progress text to streaming UI
-      final progressText = l10n.aiTeamProposalInProgress(idx + 1, totalProposers);
       streamController.streamingContentNotifier.updateContent(
         messageId, progressText, 0,
       );
 
-      final propMessages =
-          _cloneForProposer(baseApiMessages, effectiveProposalPrompt);
+      // Build message list for this step
+      List<Map<String, dynamic>> stepMessages;
+      if (isChain) {
+        if (idx == 0) {
+          stepMessages = _cloneForProposer(baseApiMessages, effectiveChainProposerPrompt);
+        } else {
+          stepMessages = _buildChainCriticMessages(baseApiMessages, proposals, effectiveChainCriticPrompt);
+        }
+      } else {
+        stepMessages = _cloneForProposer(baseApiMessages, effectiveProposalPrompt);
+      }
+
       final propConfig = ctx.settings.getProviderConfig(slot.providerKey);
 
       // Check if proposer model supports reasoning
@@ -619,7 +661,7 @@ class ChatActions {
           conversationId: conversationId,
           config: propConfig,
           modelId: slot.modelId,
-          apiMessages: propMessages,
+          apiMessages: stepMessages,
           userImagePaths: ctx.userImagePaths,
           thinkingBudget: propBudget,
           temperature: ctx.assistant?.temperature,
@@ -646,6 +688,7 @@ class ChatActions {
         'content': proposerResult['content'] as String? ?? '',
         'reasoning': proposerResult['reasoning'] as String? ?? '',
         'toolCalls': proposerResult['toolCalls'] as List<dynamic>? ?? const [],
+        'label': label,
       });
 
       // Push partial proposals to streaming UI for real-time display
@@ -672,14 +715,15 @@ class ChatActions {
       return;
     }
 
-    // Build aggregator apiMessages with proposals injected (I2)
-    final aggMessages = _buildAggregatorMessages(
-        baseApiMessages, proposals, effectiveAggregatorPrompt, l10n.aiTeamAggregatorUserPrompt);
+    // Build aggregator apiMessages with proposals injected
+    final aggMessages = isChain
+        ? _buildChainAggregatorMessages(baseApiMessages, proposals, effectiveChainCriticPrompt, effectiveChainAggregatorPrompt)
+        : _buildAggregatorMessages(baseApiMessages, proposals, effectiveAggregatorPrompt, l10n.aiTeamAggregatorUserPrompt);
 
     // Store pending proposals for persistence after aggregator finishes
     _aiTeamPendingProposals[messageId] = jsonEncode(proposals);
 
-    // Build aggregator context (no tools for aggregator, clean slate)
+    // Build aggregator context (aggregator can also use tools)
     final aggCtx = stream_ctrl.GenerationContext(
       assistantMessage: ctx.assistantMessage,
       apiMessages: aggMessages,
@@ -689,8 +733,8 @@ class ChatActions {
       assistant: ctx.assistant,
       settings: ctx.settings,
       config: ctx.config,
-      toolDefs: const [],
-      onToolCall: null,
+      toolDefs: ctx.toolDefs,
+      onToolCall: ctx.onToolCall,
       extraHeaders: ctx.extraHeaders,
       extraBody: ctx.extraBody,
       supportsReasoning: ctx.supportsReasoning,
@@ -891,6 +935,57 @@ class ChatActions {
       // Required by Mistral API which rejects assistant as the last message.
       cloned.add({'role': 'user', 'content': aggregatorUserPrompt});
     }
+
+    return cloned;
+  }
+
+  /// Build chain critic messages: append proposer output and preceding critic outputs
+  /// separated by the self-audit critic prompt.
+  List<Map<String, dynamic>> _buildChainCriticMessages(
+    List<Map<String, dynamic>> baseApiMessages,
+    List<Map<String, dynamic>> proposals,
+    String criticPrompt,
+  ) {
+    final cloned = baseApiMessages
+        .map((m) => Map<String, dynamic>.from(m))
+        .toList(growable: true);
+
+    for (var i = 0; i < proposals.length; i++) {
+      final p = proposals[i];
+      final content = p['content'] as String? ?? '';
+      if (content.trim().isEmpty) continue;
+      cloned.add({'role': 'assistant', 'content': content});
+      cloned.add({'role': 'user', 'content': criticPrompt});
+    }
+
+    return cloned;
+  }
+
+  /// Build chain aggregator messages: append proposer + critic outputs and final synthesis prompt.
+  List<Map<String, dynamic>> _buildChainAggregatorMessages(
+    List<Map<String, dynamic>> baseApiMessages,
+    List<Map<String, dynamic>> proposals,
+    String criticPrompt,
+    String aggregatorPrompt,
+  ) {
+    final cloned = baseApiMessages
+        .map((m) => Map<String, dynamic>.from(m))
+        .toList(growable: true);
+
+    final validProposals = proposals
+        .where((p) => (p['content'] as String? ?? '').trim().isNotEmpty)
+        .toList(growable: false);
+
+    for (var i = 0; i < validProposals.length; i++) {
+      final p = validProposals[i];
+      final content = p['content'] as String? ?? '';
+      cloned.add({'role': 'assistant', 'content': content});
+      if (i < validProposals.length - 1) {
+        cloned.add({'role': 'user', 'content': criticPrompt});
+      }
+    }
+
+    cloned.add({'role': 'user', 'content': aggregatorPrompt});
 
     return cloned;
   }

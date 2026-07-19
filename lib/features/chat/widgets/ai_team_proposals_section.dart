@@ -129,7 +129,8 @@ class _AiTeamProposalsSectionState extends State<AiTeamProposalsSection> {
     final reasoning = proposal['reasoning'] as String? ?? '';
     final toolCalls = (proposal['toolCalls'] as List?)?.whereType<Map<String, dynamic>>().toList() ?? const [];
 
-    final label = l10n.aiTeamProposalLabel(index + 1);
+    final customLabel = proposal['label'] as String?;
+    final label = customLabel ?? l10n.aiTeamProposalLabel(index + 1);
     final providerName = _providerName(providerKey);
     final subtitle = providerName.isNotEmpty ? '$providerName · $modelId' : modelId;
 

@@ -1272,5 +1272,25 @@
   "aiTeamToolCallsLabel": "工具調用",
   "aiTeamAggregatorLabel": "彙整回答",
   "aiTeamRestoreDefaultPrompt": "恢復預設",
-  "aiTeamAggregatorUserPrompt": "請根據以上提案，整合出一個完整、連貫的最終回答。"
+  "aiTeamAggregatorUserPrompt": "請根據以上提案，整合出一個完整、連貫的最終回答。",
+  "aiTeamModeLabel": "協作模式",
+  "aiTeamModeParallel": "並列式 (MoA)",
+  "aiTeamModeChain": "鍊式 (CMoA)",
+  "aiTeamCriticCount": "審計模型數量",
+  "aiTeamCriticPromptLabel": "審計模型提示詞",
+  "aiTeamCriticLabel": "審計 {index}",
+  "@aiTeamCriticLabel": {
+    "placeholders": {
+      "index": {"type": "int"}
+    }
+  },
+  "aiTeamProposerPromptLabelShort": "提案模型提示詞",
+  "aiTeamAggregatorPromptLabelShort": "彙整模型提示詞",
+  "aiTeamCriticInProgress": "AI 團隊執行中… 審計 {current}/{total}",
+  "@aiTeamCriticInProgress": {
+    "placeholders": {
+      "current": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  }
 }

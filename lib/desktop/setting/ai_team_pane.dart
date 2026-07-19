@@ -99,42 +99,96 @@ class _DesktopAiTeamPaneState extends State<DesktopAiTeamPane> {
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-              // Proposer count
-              SliverToBoxAdapter(child: _sectionLabel(context, l10n.aiTeamProposerCount)),
+              // Collaboration Mode Selector
+              SliverToBoxAdapter(child: _sectionLabel(context, l10n.aiTeamModeLabel)),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: SegmentedButton<int>(
-                    segments: const [ButtonSegment(value: 1, label: Text('1')), ButtonSegment(value: 2, label: Text('2')), ButtonSegment(value: 3, label: Text('3')), ButtonSegment(value: 4, label: Text('4'))],
-                    selected: {provider.proposerCount},
-                    onSelectionChanged: (s) => provider.setProposerCount(s.first),
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: SegmentedButton<AiTeamMode>(
+                    segments: [
+                      ButtonSegment(value: AiTeamMode.parallel, label: Text(l10n.aiTeamModeParallel)),
+                      ButtonSegment(value: AiTeamMode.chain, label: Text(l10n.aiTeamModeChain)),
+                    ],
+                    selected: {provider.mode},
+                    onSelectionChanged: (s) => provider.setMode(s.first),
                   ),
                 ),
               ),
 
-              // Proposer model slots
-              SliverToBoxAdapter(child: _sectionLabel(context, l10n.aiTeamProposerModels)),
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (ctx, i) {
-                    final slot = provider.proposers[i];
-                    return _desktopCard(
-                      context,
-                      onTap: () => _pickModel(i),
-                      child: _modelSlotContent(
-                        context,
-                        slot: slot,
-                        fallbackText: l10n.aiTeamEmptyProposerSlot,
-                        onClear: slot != null ? () => provider.setProposerAt(i, null) : null,
-                      ),
-                    );
-                  },
-                  childCount: provider.proposerCount,
+              if (provider.mode == AiTeamMode.parallel) ...[
+                // Parallel: Proposer count
+                SliverToBoxAdapter(child: _sectionLabel(context, l10n.aiTeamProposerCount)),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: SegmentedButton<int>(
+                      segments: const [ButtonSegment(value: 1, label: Text('1')), ButtonSegment(value: 2, label: Text('2')), ButtonSegment(value: 3, label: Text('3')), ButtonSegment(value: 4, label: Text('4'))],
+                      selected: {provider.proposerCount},
+                      onSelectionChanged: (s) => provider.setProposerCount(s.first),
+                    ),
+                  ),
                 ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-              // Aggregator model
+                // Parallel: Proposer model slots
+                SliverToBoxAdapter(child: _sectionLabel(context, l10n.aiTeamProposerModels)),
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (ctx, i) {
+                      final slot = provider.proposers[i];
+                      return _desktopCard(
+                        context,
+                        onTap: () => _pickModel(i),
+                        child: _modelSlotContent(
+                          context,
+                          slot: slot,
+                          fallbackText: l10n.aiTeamEmptyProposerSlot,
+                          onClear: slot != null ? () => provider.setProposerAt(i, null) : null,
+                        ),
+                      );
+                    },
+                    childCount: provider.proposerCount,
+                  ),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 16)),
+              ] else ...[
+                // Chain: Critic count
+                SliverToBoxAdapter(child: _sectionLabel(context, l10n.aiTeamCriticCount)),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: SegmentedButton<int>(
+                      segments: const [ButtonSegment(value: 0, label: Text('0')), ButtonSegment(value: 1, label: Text('1')), ButtonSegment(value: 2, label: Text('2')), ButtonSegment(value: 3, label: Text('3'))],
+                      selected: {provider.criticCount},
+                      onSelectionChanged: (s) => provider.setCriticCount(s.first),
+                    ),
+                  ),
+                ),
+
+                // Chain: Model slots (Proposer + Critics)
+                SliverToBoxAdapter(child: _sectionLabel(context, l10n.aiTeamProposerModels)),
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (ctx, i) {
+                      final slot = provider.proposers[i];
+                      final fallback = i == 0 ? l10n.aiTeamProposerModels : l10n.aiTeamCriticLabel(i);
+                      return _desktopCard(
+                        context,
+                        onTap: () => _pickModel(i),
+                        child: _modelSlotContent(
+                          context,
+                          slot: slot,
+                          fallbackText: fallback,
+                          onClear: slot != null ? () => provider.setProposerAt(i, null) : null,
+                        ),
+                      );
+                    },
+                    childCount: provider.criticCount + 1,
+                  ),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 16)),
+              ],
+
+              // Aggregator model (Always visible)
               SliverToBoxAdapter(child: _sectionLabel(context, l10n.aiTeamAggregatorModel)),
               SliverToBoxAdapter(
                 child: _desktopCard(
@@ -150,54 +204,132 @@ class _DesktopAiTeamPaneState extends State<DesktopAiTeamPane> {
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-              // Proposal prompt
-              SliverToBoxAdapter(child: _sectionLabel(context, l10n.aiTeamProposalPromptLabel)),
-              SliverToBoxAdapter(
-                child: _desktopCard(
-                  context,
-                  onTap: () => _editPromptDialog(
+              if (provider.mode == AiTeamMode.parallel) ...[
+                // Proposal prompt
+                SliverToBoxAdapter(child: _sectionLabel(context, l10n.aiTeamProposalPromptLabel)),
+                SliverToBoxAdapter(
+                  child: _desktopCard(
                     context,
-                    title: l10n.aiTeamProposalPromptLabel,
-                    initial: provider.useDefaultProposalPrompt
-                        ? l10n.aiTeamDefaultProposalPrompt
-                        : provider.proposalPrompt,
-                    onSave: (s) => provider.setProposalPrompt(s),
-                    onRestoreDefault: () => provider.update((c) => c.copyWith(useDefaultProposalPrompt: true)),
-                  ),
-                  child: _promptPreview(
-                    context,
-                    provider.useDefaultProposalPrompt
-                        ? l10n.aiTeamDefaultProposalPrompt
-                        : provider.proposalPrompt,
-                    l10n.aiTeamProposalPromptLabel,
+                    onTap: () => _editPromptDialog(
+                      context,
+                      title: l10n.aiTeamProposalPromptLabel,
+                      initial: provider.useDefaultProposalPrompt
+                          ? l10n.aiTeamDefaultProposalPrompt
+                          : provider.proposalPrompt,
+                      onSave: (s) => provider.setProposalPrompt(s),
+                      onRestoreDefault: () => provider.update((c) => c.copyWith(useDefaultProposalPrompt: true)),
+                    ),
+                    child: _promptPreview(
+                      context,
+                      provider.useDefaultProposalPrompt
+                          ? l10n.aiTeamDefaultProposalPrompt
+                          : provider.proposalPrompt,
+                      l10n.aiTeamProposalPromptLabel,
+                    ),
                   ),
                 ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-              // Aggregator prompt
-              SliverToBoxAdapter(child: _sectionLabel(context, l10n.aiTeamAggregatorPromptLabel)),
-              SliverToBoxAdapter(
-                child: _desktopCard(
-                  context,
-                  onTap: () => _editPromptDialog(
+                // Aggregator prompt
+                SliverToBoxAdapter(child: _sectionLabel(context, l10n.aiTeamAggregatorPromptLabel)),
+                SliverToBoxAdapter(
+                  child: _desktopCard(
                     context,
-                    title: l10n.aiTeamAggregatorPromptLabel,
-                    initial: provider.useDefaultAggregatorPrompt
-                        ? l10n.aiTeamDefaultAggregatorPrompt
-                        : provider.aggregatorPrompt,
-                    onSave: (s) => provider.setAggregatorPrompt(s),
-                    onRestoreDefault: () => provider.update((c) => c.copyWith(useDefaultAggregatorPrompt: true)),
-                  ),
-                  child: _promptPreview(
-                    context,
-                    provider.useDefaultAggregatorPrompt
-                        ? l10n.aiTeamDefaultAggregatorPrompt
-                        : provider.aggregatorPrompt,
-                    l10n.aiTeamAggregatorPromptLabel,
+                    onTap: () => _editPromptDialog(
+                      context,
+                      title: l10n.aiTeamAggregatorPromptLabel,
+                      initial: provider.useDefaultAggregatorPrompt
+                          ? l10n.aiTeamDefaultAggregatorPrompt
+                          : provider.aggregatorPrompt,
+                      onSave: (s) => provider.setAggregatorPrompt(s),
+                      onRestoreDefault: () => provider.update((c) => c.copyWith(useDefaultAggregatorPrompt: true)),
+                    ),
+                    child: _promptPreview(
+                      context,
+                      provider.useDefaultAggregatorPrompt
+                          ? l10n.aiTeamDefaultAggregatorPrompt
+                          : provider.aggregatorPrompt,
+                      l10n.aiTeamAggregatorPromptLabel,
+                    ),
                   ),
                 ),
-              ),
+              ] else ...[
+                // Chain Proposer Prompt
+                SliverToBoxAdapter(child: _sectionLabel(context, l10n.aiTeamProposerPromptLabelShort)),
+                SliverToBoxAdapter(
+                  child: _desktopCard(
+                    context,
+                    onTap: () => _editPromptDialog(
+                      context,
+                      title: l10n.aiTeamProposerPromptLabelShort,
+                      initial: provider.useDefaultChainProposerPrompt
+                          ? AiTeamConfigDefaults.defaultChainProposerPrompt
+                          : provider.chainProposerPrompt,
+                      onSave: (s) => provider.setChainProposerPrompt(s),
+                      onRestoreDefault: () => provider.update((c) => c.copyWith(useDefaultChainProposerPrompt: true)),
+                    ),
+                    child: _promptPreview(
+                      context,
+                      provider.useDefaultChainProposerPrompt
+                          ? AiTeamConfigDefaults.defaultChainProposerPrompt
+                          : provider.chainProposerPrompt,
+                      l10n.aiTeamProposerPromptLabelShort,
+                    ),
+                  ),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+                // Chain Critic Prompt (if criticCount > 0)
+                if (provider.criticCount > 0) ...[
+                  SliverToBoxAdapter(child: _sectionLabel(context, l10n.aiTeamCriticPromptLabel)),
+                  SliverToBoxAdapter(
+                    child: _desktopCard(
+                      context,
+                      onTap: () => _editPromptDialog(
+                        context,
+                        title: l10n.aiTeamCriticPromptLabel,
+                        initial: provider.useDefaultChainCriticPrompt
+                            ? AiTeamConfigDefaults.defaultChainCriticPrompt
+                            : provider.chainCriticPrompt,
+                        onSave: (s) => provider.setChainCriticPrompt(s),
+                        onRestoreDefault: () => provider.update((c) => c.copyWith(useDefaultChainCriticPrompt: true)),
+                      ),
+                      child: _promptPreview(
+                        context,
+                        provider.useDefaultChainCriticPrompt
+                            ? AiTeamConfigDefaults.defaultChainCriticPrompt
+                            : provider.chainCriticPrompt,
+                        l10n.aiTeamCriticPromptLabel,
+                      ),
+                    ),
+                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                ],
+
+                // Chain Aggregator Prompt
+                SliverToBoxAdapter(child: _sectionLabel(context, l10n.aiTeamAggregatorPromptLabelShort)),
+                SliverToBoxAdapter(
+                  child: _desktopCard(
+                    context,
+                    onTap: () => _editPromptDialog(
+                      context,
+                      title: l10n.aiTeamAggregatorPromptLabelShort,
+                      initial: provider.useDefaultChainAggregatorPrompt
+                          ? AiTeamConfigDefaults.defaultChainAggregatorPrompt
+                          : provider.chainAggregatorPrompt,
+                      onSave: (s) => provider.setChainAggregatorPrompt(s),
+                      onRestoreDefault: () => provider.update((c) => c.copyWith(useDefaultChainAggregatorPrompt: true)),
+                    ),
+                    child: _promptPreview(
+                      context,
+                      provider.useDefaultChainAggregatorPrompt
+                          ? AiTeamConfigDefaults.defaultChainAggregatorPrompt
+                          : provider.chainAggregatorPrompt,
+                      l10n.aiTeamAggregatorPromptLabelShort,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

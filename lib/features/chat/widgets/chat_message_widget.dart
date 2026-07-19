@@ -1232,6 +1232,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                         loading: seg.loading,
                         startAt: seg.startAt,
                         finishedAt: seg.finishedAt,
+                        isParentStreaming: widget.message.isStreaming,
                         onToggle: seg.onToggle,
                       ),
                     ),
@@ -1290,6 +1291,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                   loading: effectiveLoading,
                   startAt: usingInlineThink ? null : widget.reasoningStartAt,
                   finishedAt: usingInlineThink ? null : widget.reasoningFinishedAt,
+                  isParentStreaming: widget.message.isStreaming,
                   onToggle: usingInlineThink
                       ? () => setState(() { _inlineThinkExpanded = !(_inlineThinkExpanded ?? true); _inlineThinkManuallyToggled = true; })
                       : widget.onToggleReasoning,
@@ -1437,23 +1439,26 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
                                 child: RepaintBoundary(
-                                  child: SelectionArea(
-                                    key: ValueKey('translation_${widget.message.id}'),
-                                    child: Builder(builder: (context) {
-                                      final bool isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                                          defaultTargetPlatform == TargetPlatform.windows ||
-                                          defaultTargetPlatform == TargetPlatform.linux;
-                                      final double baseTranslation = isDesktop ? 14.0 : 15.5;
-                                      return DefaultTextStyle.merge(
-                                        style: TextStyle(fontSize: baseTranslation, height: 1.4),
-                                        child: MarkdownWithCodeHighlight(
-                                          text: translationText!,
-                                          onCitationTap: (id) => _handleCitationTap(id),
-                                          baseStyle: TextStyle(fontSize: baseTranslation, height: 1.4),
-                                        ),
-                                      );
-                                    }),
-                                  ),
+                                  child: Builder(builder: (context) {
+                                    final bool isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+                                        defaultTargetPlatform == TargetPlatform.windows ||
+                                        defaultTargetPlatform == TargetPlatform.linux;
+                                    final double baseTranslation = isDesktop ? 14.0 : 15.5;
+                                    final translationWidget = DefaultTextStyle.merge(
+                                      style: TextStyle(fontSize: baseTranslation, height: 1.4),
+                                      child: MarkdownWithCodeHighlight(
+                                        text: translationText!,
+                                        onCitationTap: (id) => _handleCitationTap(id),
+                                        baseStyle: TextStyle(fontSize: baseTranslation, height: 1.4),
+                                      ),
+                                    );
+                                    return widget.message.isStreaming
+                                        ? translationWidget
+                                        : SelectionArea(
+                                            key: ValueKey('translation_${widget.message.id}'),
+                                            child: translationWidget,
+                                          );
+                                  }),
                                 ),
                               ),
                           ],
@@ -2582,6 +2587,7 @@ class _ReasoningSection extends StatefulWidget {
     required this.loading,
     required this.startAt,
     required this.finishedAt,
+    required this.isParentStreaming,
     this.onToggle,
   });
 
@@ -2590,6 +2596,7 @@ class _ReasoningSection extends StatefulWidget {
   final bool loading;
   final DateTime? startAt;
   final DateTime? finishedAt;
+  final bool isParentStreaming;
   final VoidCallback? onToggle;
 
   @override
@@ -2772,7 +2779,7 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
             baseStyle: baseStyle,
           ),
         );
-        return widget.loading
+        return (widget.loading || widget.isParentStreaming)
             ? contentWidget
             : SelectionArea(
                 contextMenuBuilder: (context, selectableRegionState) {
@@ -2787,7 +2794,7 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
         strutStyle: baseStrut,
         textHeightBehavior: baseTHB,
       );
-      return widget.loading
+      return (widget.loading || widget.isParentStreaming)
           ? contentWidget
           : SelectionArea(
               contextMenuBuilder: (context, selectableRegionState) {

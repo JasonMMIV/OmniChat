@@ -72,6 +72,54 @@ class _AiTeamPageState extends State<AiTeamPage> {
     }
   }
 
+  Future<void> _editChainProposerPrompt() async {
+    final provider = context.read<AiTeamProvider>();
+    final l = l10n;
+    final initial = provider.useDefaultChainProposerPrompt
+        ? AiTeamConfigDefaults.defaultChainProposerPrompt
+        : provider.chainProposerPrompt;
+    final result = await _showPromptEditor(
+      title: l.aiTeamProposerPromptLabelShort,
+      initial: initial,
+      onRestoreDefault: () => provider.update((c) => c.copyWith(useDefaultChainProposerPrompt: true)),
+    );
+    if (result != null && mounted) {
+      await provider.setChainProposerPrompt(result);
+    }
+  }
+
+  Future<void> _editChainCriticPrompt() async {
+    final provider = context.read<AiTeamProvider>();
+    final l = l10n;
+    final initial = provider.useDefaultChainCriticPrompt
+        ? AiTeamConfigDefaults.defaultChainCriticPrompt
+        : provider.chainCriticPrompt;
+    final result = await _showPromptEditor(
+      title: l.aiTeamCriticPromptLabel,
+      initial: initial,
+      onRestoreDefault: () => provider.update((c) => c.copyWith(useDefaultChainCriticPrompt: true)),
+    );
+    if (result != null && mounted) {
+      await provider.setChainCriticPrompt(result);
+    }
+  }
+
+  Future<void> _editChainAggregatorPrompt() async {
+    final provider = context.read<AiTeamProvider>();
+    final l = l10n;
+    final initial = provider.useDefaultChainAggregatorPrompt
+        ? AiTeamConfigDefaults.defaultChainAggregatorPrompt
+        : provider.chainAggregatorPrompt;
+    final result = await _showPromptEditor(
+      title: l.aiTeamAggregatorPromptLabelShort,
+      initial: initial,
+      onRestoreDefault: () => provider.update((c) => c.copyWith(useDefaultChainAggregatorPrompt: true)),
+    );
+    if (result != null && mounted) {
+      await provider.setChainAggregatorPrompt(result);
+    }
+  }
+
   AppLocalizations get l10n => AppLocalizations.of(context)!;
 
   Future<String?> _showPromptEditor({
@@ -214,36 +262,92 @@ class _AiTeamPageState extends State<AiTeamPage> {
           ]),
           const SizedBox(height: 12),
 
-          // Proposer count
-          _sectionTitle(context, l10n.aiTeamProposerCount),
+          // Collaboration Mode Selector
+          _sectionTitle(context, l10n.aiTeamModeLabel),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: SegmentedButton<int>(
-              segments: const [ButtonSegment(value: 1, label: Text('1')), ButtonSegment(value: 2, label: Text('2')), ButtonSegment(value: 3, label: Text('3')), ButtonSegment(value: 4, label: Text('4'))],
-              selected: {provider.proposerCount},
-              onSelectionChanged: (s) => provider.setProposerCount(s.first),
+            child: SegmentedButton<AiTeamMode>(
+              segments: [
+                ButtonSegment(value: AiTeamMode.parallel, label: Text(l10n.aiTeamModeParallel)),
+                ButtonSegment(value: AiTeamMode.chain, label: Text(l10n.aiTeamModeChain)),
+              ],
+              selected: {provider.mode},
+              onSelectionChanged: (s) => provider.setMode(s.first),
             ),
           ),
           const SizedBox(height: 12),
 
-          // Proposer model slots
-          _sectionTitle(context, l10n.aiTeamProposerModels),
-          _iosSectionCard(context, children: [
-            for (int i = 0; i < provider.proposerCount; i++) ...[
-              if (i > 0) _iosDivider(context),
+          if (provider.mode == AiTeamMode.parallel) ...[
+            // Parallel: Proposer count
+            _sectionTitle(context, l10n.aiTeamProposerCount),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: SegmentedButton<int>(
+                segments: const [ButtonSegment(value: 1, label: Text('1')), ButtonSegment(value: 2, label: Text('2')), ButtonSegment(value: 3, label: Text('3')), ButtonSegment(value: 4, label: Text('4'))],
+                selected: {provider.proposerCount},
+                onSelectionChanged: (s) => provider.setProposerCount(s.first),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Parallel: Proposer model slots
+            _sectionTitle(context, l10n.aiTeamProposerModels),
+            _iosSectionCard(context, children: [
+              for (int i = 0; i < provider.proposerCount; i++) ...[
+                if (i > 0) _iosDivider(context),
+                _modelSlotRow(
+                  context,
+                  slot: provider.proposers[i],
+                  onTap: () => _pickModel(i),
+                  onClear: provider.proposers[i] != null
+                      ? () => provider.setProposerAt(i, null)
+                      : null,
+                ),
+              ],
+            ]),
+            const SizedBox(height: 12),
+          ] else ...[
+            // Chain: Critic count
+            _sectionTitle(context, l10n.aiTeamCriticCount),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: SegmentedButton<int>(
+                segments: const [ButtonSegment(value: 0, label: Text('0')), ButtonSegment(value: 1, label: Text('1')), ButtonSegment(value: 2, label: Text('2')), ButtonSegment(value: 3, label: Text('3'))],
+                selected: {provider.criticCount},
+                onSelectionChanged: (s) => provider.setCriticCount(s.first),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Chain: Model slots (Proposer + Critics)
+            _sectionTitle(context, l10n.aiTeamProposerModels),
+            _iosSectionCard(context, children: [
               _modelSlotRow(
                 context,
-                slot: provider.proposers[i],
-                onTap: () => _pickModel(i),
-                onClear: provider.proposers[i] != null
-                    ? () => provider.setProposerAt(i, null)
+                slot: provider.proposers[0],
+                onTap: () => _pickModel(0),
+                fallbackText: l10n.aiTeamProposerModels,
+                onClear: provider.proposers[0] != null
+                    ? () => provider.setProposerAt(0, null)
                     : null,
               ),
-            ],
-          ]),
-          const SizedBox(height: 12),
+              for (int i = 1; i <= provider.criticCount; i++) ...[
+                _iosDivider(context),
+                _modelSlotRow(
+                  context,
+                  slot: provider.proposers[i],
+                  onTap: () => _pickModel(i),
+                  fallbackText: l10n.aiTeamCriticLabel(i),
+                  onClear: provider.proposers[i] != null
+                      ? () => provider.setProposerAt(i, null)
+                      : null,
+                ),
+              ],
+            ]),
+            const SizedBox(height: 12),
+          ],
 
-          // Aggregator model
+          // Aggregator model (Always visible)
           _sectionTitle(context, l10n.aiTeamAggregatorModel),
           _iosSectionCard(context, children: [
             _modelSlotRow(
@@ -258,36 +362,87 @@ class _AiTeamPageState extends State<AiTeamPage> {
           ]),
           const SizedBox(height: 12),
 
-          // Proposal prompt
-          _sectionTitle(context, l10n.aiTeamProposalPromptLabel),
-          _iosSectionCard(context, children: [
-            _pressableRow(
-              context,
-              icon: Lucide.FileText,
-              title: l10n.aiTeamProposalPromptLabel,
-              subtitle: provider.useDefaultProposalPrompt
-                  ? l10n.aiTeamDefaultProposalPrompt
-                  : provider.proposalPrompt,
-              maxLines: 2,
-              onTap: _editProposalPrompt,
-            ),
-          ]),
-          const SizedBox(height: 12),
+          if (provider.mode == AiTeamMode.parallel) ...[
+            // Proposal prompt
+            _sectionTitle(context, l10n.aiTeamProposalPromptLabel),
+            _iosSectionCard(context, children: [
+              _pressableRow(
+                context,
+                icon: Lucide.FileText,
+                title: l10n.aiTeamProposalPromptLabel,
+                subtitle: provider.useDefaultProposalPrompt
+                    ? l10n.aiTeamDefaultProposalPrompt
+                    : provider.proposalPrompt,
+                maxLines: 2,
+                onTap: _editProposalPrompt,
+              ),
+            ]),
+            const SizedBox(height: 12),
 
-          // Aggregator prompt
-          _sectionTitle(context, l10n.aiTeamAggregatorPromptLabel),
-          _iosSectionCard(context, children: [
-            _pressableRow(
-              context,
-              icon: Lucide.FileText,
-              title: l10n.aiTeamAggregatorPromptLabel,
-              subtitle: provider.useDefaultAggregatorPrompt
-                  ? l10n.aiTeamDefaultAggregatorPrompt
-                  : provider.aggregatorPrompt,
-              maxLines: 2,
-              onTap: _editAggregatorPrompt,
-            ),
-          ]),
+            // Aggregator prompt
+            _sectionTitle(context, l10n.aiTeamAggregatorPromptLabel),
+            _iosSectionCard(context, children: [
+              _pressableRow(
+                context,
+                icon: Lucide.FileText,
+                title: l10n.aiTeamAggregatorPromptLabel,
+                subtitle: provider.useDefaultAggregatorPrompt
+                    ? l10n.aiTeamDefaultAggregatorPrompt
+                    : provider.aggregatorPrompt,
+                maxLines: 2,
+                onTap: _editAggregatorPrompt,
+              ),
+            ]),
+          ] else ...[
+            // Chain Proposer Prompt
+            _sectionTitle(context, l10n.aiTeamProposerPromptLabelShort),
+            _iosSectionCard(context, children: [
+              _pressableRow(
+                context,
+                icon: Lucide.FileText,
+                title: l10n.aiTeamProposerPromptLabelShort,
+                subtitle: provider.useDefaultChainProposerPrompt
+                    ? AiTeamConfigDefaults.defaultChainProposerPrompt
+                    : provider.chainProposerPrompt,
+                maxLines: 2,
+                onTap: _editChainProposerPrompt,
+              ),
+            ]),
+            const SizedBox(height: 12),
+
+            // Chain Critic Prompt (if criticCount > 0)
+            if (provider.criticCount > 0) ...[
+              _sectionTitle(context, l10n.aiTeamCriticPromptLabel),
+              _iosSectionCard(context, children: [
+                _pressableRow(
+                  context,
+                  icon: Lucide.FileText,
+                  title: l10n.aiTeamCriticPromptLabel,
+                  subtitle: provider.useDefaultChainCriticPrompt
+                      ? AiTeamConfigDefaults.defaultChainCriticPrompt
+                      : provider.chainCriticPrompt,
+                  maxLines: 2,
+                  onTap: _editChainCriticPrompt,
+                ),
+              ]),
+              const SizedBox(height: 12),
+            ],
+
+            // Chain Aggregator Prompt
+            _sectionTitle(context, l10n.aiTeamAggregatorPromptLabelShort),
+            _iosSectionCard(context, children: [
+              _pressableRow(
+                context,
+                icon: Lucide.FileText,
+                title: l10n.aiTeamAggregatorPromptLabelShort,
+                subtitle: provider.useDefaultChainAggregatorPrompt
+                    ? AiTeamConfigDefaults.defaultChainAggregatorPrompt
+                    : provider.chainAggregatorPrompt,
+                maxLines: 2,
+                onTap: _editChainAggregatorPrompt,
+              ),
+            ]),
+          ],
         ],
       ),
     );
