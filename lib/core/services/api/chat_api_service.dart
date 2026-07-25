@@ -4789,10 +4789,10 @@ class ChatApiService {
         if (wantsImageOutput) 'responseModalities': ['TEXT', 'IMAGE'],
         if (isReasoning)
           'thinkingConfig': () {
-            // Match gemini-3-pro or gemini-3-pro-preview (and similar variants)
-            final isGemini3ProImage = modelId.contains(RegExp(r'gemini-3-pro-image(-preview)?', caseSensitive: false));
-            final isGemini3Pro = modelId.contains(RegExp(r'gemini-3-pro(-preview)?', caseSensitive: false));
-            final isGemini3Flash = modelId.contains(RegExp(r'gemini-3-flash(-preview)?', caseSensitive: false));
+            // Match gemini-3-pro, gemini-3-flash, gemini-3-lite and 3.x variants
+            final isGemini3ProImage = modelId.contains(RegExp(r'gemini-3.*-pro-image(-preview)?', caseSensitive: false));
+            final isGemini3Pro = modelId.contains(RegExp(r'gemini-3.*-pro(-preview)?', caseSensitive: false));
+            final isGemini3FlashOrLite = modelId.contains(RegExp(r'gemini-3.*-(flash|lite)(-preview)?', caseSensitive: false));
             if (isGemini3ProImage) {
               return {
                 'includeThoughts': true,
@@ -4809,8 +4809,8 @@ class ChatApiService {
               }
               return {'includeThoughts': true, 'thinkingLevel': level};
             }
-            // Gemini 3 Flash: supports 'minimal', 'low', 'medium', 'high'
-            if (isGemini3Flash) {
+            // Gemini 3 Flash / Lite: supports 'minimal', 'low', 'medium', 'high'
+            if (isGemini3FlashOrLite) {
               String level = 'high';
               if (off) {
                 level = 'minimal';
