@@ -89,27 +89,22 @@ class JsMcpServerEngine {
   }
 
   Future<Map<String, dynamic>> _executeJs(String code) async {
-    JavascriptRuntime? jsRuntime;
+    final guardError = _validateCode(code);
+    if (guardError != null) {
+      return _toolResult('Rejected: $guardError', isError: true);
+    }
+
     try {
-      final guardError = _validateCode(code);
-      if (guardError != null) {
-        return _toolResult('Rejected: $guardError', isError: true);
+      // Offload QuickJS execution to background isolate via compute() with 5s timeout
+      if (kIsWeb) {
+        return await _executeJsInIsolate(code);
       }
-
-      jsRuntime = _createRuntime();
-      final jsResult = _evaluateWithReturnFallback(jsRuntime, code);
-
-      if (jsResult.isError) {
-        return _toolResult('Error: ${jsResult.stringResult}', isError: true);
-      }
-
-      return _toolResult(jsResult.stringResult, isError: false);
+      return await compute(_executeJsInIsolate, code).timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => _toolResult('Execution Error: Timeout after 5 seconds', isError: true),
+      );
     } catch (e) {
       return _toolResult('Execution Error: $e', isError: true);
-    } finally {
-      try {
-        jsRuntime?.dispose();
-      } catch (_) {}
     }
   }
 
@@ -238,5 +233,64 @@ class JsInMemoryClientTransport implements mcp.ClientTransport {
     } catch (_) {}
     if (!_messageController.isClosed) _messageController.close();
     if (!_closeCompleter.isCompleted) _closeCompleter.complete();
+  }
+}
+
+/// Top-level function for compute() background isolate execution.
+Future<Map<String, dynamic>> _executeJsInIsolate(String code) async {
+  JavascriptRuntime? jsRuntime;
+  try {
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.linux)) {
+      jsRuntime = QuickJsRuntime2(
+        timeout: 2000,
+        stackSize: 1024 * 1024,
+      );
+    } else {
+      jsRuntime = getJavascriptRuntime(xhr: false);
+    }
+
+    final trimmed = code.trim();
+    var direct = jsRuntime.evaluate(trimmed);
+    if (direct.isError) {
+      final errorText = direct.stringResult.toLowerCase();
+      final mayBeTopLevelReturn = errorText.contains('return') || trimmed.contains(RegExp(r'\breturn\b'));
+      if (mayBeTopLevelReturn) {
+        final wrapped = '(() => {\n$trimmed\n})()';
+        direct = jsRuntime.evaluate(wrapped);
+      }
+    }
+
+    if (direct.isError) {
+      return {
+        'content': [
+          {'type': 'text', 'text': 'Error: ${direct.stringResult}'}
+        ],
+        'isStreaming': false,
+        'isError': true,
+      };
+    }
+
+    return {
+      'content': [
+        {'type': 'text', 'text': direct.stringResult}
+      ],
+      'isStreaming': false,
+      'isError': false,
+    };
+  } catch (e) {
+    return {
+      'content': [
+        {'type': 'text', 'text': 'Execution Error: $e'}
+      ],
+      'isStreaming': false,
+      'isError': true,
+    };
+  } finally {
+    try {
+      jsRuntime?.dispose();
+    } catch (_) {}
   }
 }

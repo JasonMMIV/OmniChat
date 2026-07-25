@@ -138,6 +138,10 @@ LRESULT CALLBACK SpeechToTextWindowsPlugin::MessageWindowProc(HWND hwnd, UINT me
 }
 
 void SpeechToTextWindowsPlugin::RunOnMainThread(std::function<void()> task) {
+    if (!m_messageWindow || !IsWindow(m_messageWindow)) {
+        std::cout << "[OmniChat] Message Window missing/invalid, recreating..." << std::endl;
+        CreateMessageWindow();
+    }
     if (m_messageWindow && IsWindow(m_messageWindow)) {
         {
             std::lock_guard<std::mutex> lock(m_queueMutex);
@@ -146,12 +150,9 @@ void SpeechToTextWindowsPlugin::RunOnMainThread(std::function<void()> task) {
         BOOL posted = PostMessage(m_messageWindow, WM_RUN_ON_MAIN_THREAD, 0, 0);
         if (!posted) {
             std::cout << "[OmniChat] ERROR: PostMessage failed! Error: " << GetLastError() << std::endl;
-            // Fallback: execute directly (unsafe)
-            task(); 
         }
     } else {
-        std::cout << "[OmniChat] WARNING: No Message Window! Executing on current thread. " << std::endl;
-        task(); 
+        std::cout << "[OmniChat] ERROR: No Message Window available! Task dropped safely to prevent crash." << std::endl;
     }
 }
 

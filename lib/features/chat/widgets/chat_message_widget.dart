@@ -710,8 +710,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       );
                     }
 
-                    // Enable desktop selection/copy for user messages
-                    return isDesktop ? SelectionArea(key: ValueKey('user_${widget.message.id}'), child: content) : content;
+                    // Enable desktop selection/copy for user messages (bypassed on Windows to prevent flutter_windows.dll 0xc0000005 crashes)
+                    final bool isWindows = defaultTargetPlatform == TargetPlatform.windows;
+                    return (isDesktop && !isWindows) ? SelectionArea(key: ValueKey('user_${widget.message.id}'), child: content) : content;
                   }),
                 if (parsed.images.isNotEmpty) ...[
                   const SizedBox(height: 8),
@@ -1343,8 +1344,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       baseStyle: TextStyle(fontSize: baseAssistant, height: 1.5),
                     ),
                   );
+                  final bool isWindows = defaultTargetPlatform == TargetPlatform.windows;
                   return RepaintBoundary(
-                    child: widget.message.isStreaming
+                    child: (widget.message.isStreaming || isWindows)
                         ? contentWidget
                         : SelectionArea(
                             key: ValueKey('assistant_${widget.message.id}'),
@@ -1452,7 +1454,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                         baseStyle: TextStyle(fontSize: baseTranslation, height: 1.4),
                                       ),
                                     );
-                                    return widget.message.isStreaming
+                                    final bool isWindows = defaultTargetPlatform == TargetPlatform.windows;
+                                    return (widget.message.isStreaming || isWindows)
                                         ? translationWidget
                                         : SelectionArea(
                                             key: ValueKey('translation_${widget.message.id}'),
@@ -2772,6 +2775,7 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
 
 // 未加载：不要再指定 color: fg，让它继承和"加载中"相同的颜色
     Widget _reasoningContent(String text) {
+      final bool isWindows = defaultTargetPlatform == TargetPlatform.windows;
       if (settings.enableReasoningMarkdown) {
         final contentWidget = RepaintBoundary(
           child: MarkdownWithCodeHighlight(
@@ -2779,7 +2783,7 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
             baseStyle: baseStyle,
           ),
         );
-        return (widget.loading || widget.isParentStreaming)
+        return (widget.loading || widget.isParentStreaming || isWindows)
             ? contentWidget
             : SelectionArea(
                 contextMenuBuilder: (context, selectableRegionState) {
@@ -2794,7 +2798,7 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
         strutStyle: baseStrut,
         textHeightBehavior: baseTHB,
       );
-      return (widget.loading || widget.isParentStreaming)
+      return (widget.loading || widget.isParentStreaming || isWindows)
           ? contentWidget
           : SelectionArea(
               contextMenuBuilder: (context, selectableRegionState) {

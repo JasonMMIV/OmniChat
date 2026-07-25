@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -28,7 +29,7 @@ class _AiTeamProposalsSectionState extends State<AiTeamProposalsSection> {
     try {
       final decoded = jsonDecode(widget.data);
       if (decoded is List) {
-        return decoded.whereType<Map<String, dynamic>>().toList(growable: false);
+        return decoded.whereType<Map<String, dynamic>>().toList();
       }
     } catch (_) {}
     return const [];
@@ -46,73 +47,106 @@ class _AiTeamProposalsSectionState extends State<AiTeamProposalsSection> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final l10n = AppLocalizations.of(context)!;
     final proposals = _parseProposals();
-    if (proposals.isEmpty) return const SizedBox.shrink();
+    // Filter out proposals that have empty content, empty reasoning, AND empty toolCalls
+    final visibleProposals = proposals.where((p) {
+      final c = (p['content'] as String? ?? '').trim();
+      final r = (p['reasoning'] as String? ?? '').trim();
+      final tc = (p['toolCalls'] as List?) ?? const [];
+      return c.isNotEmpty || r.isNotEmpty || tc.isNotEmpty;
+    }).toList();
 
-    // Filter out proposals with completely empty content
-    final visibleProposals = proposals
-        .where((p) => (p['content'] as String? ?? '').trim().isNotEmpty)
-        .toList();
-    if (visibleProposals.isEmpty) return const SizedBox.shrink();
+    if (visibleProposals.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
-    final bg = cs.primaryContainer.withOpacity(isDark ? 0.25 : 0.30);
+    final l10n = AppLocalizations.of(context)!;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final bg = colorScheme.primaryContainer.withOpacity(isDark ? 0.25 : 0.30);
+    final border = colorScheme.outlineVariant.withOpacity(isDark ? 0.3 : 0.5);
 
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: border, width: 0.8),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
+          // Header / Toggle bar
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
             onTap: () => setState(() => _expanded = !_expanded),
-            child: Row(
-              children: [
-                Icon(Lucide.Users, size: 18, color: cs.primary),
-                const SizedBox(width: 8),
-                Text(
-                  l10n.aiTeamFinalAnswerLabel,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: cs.onSurface.withOpacity(0.8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                children: [
+                  Icon(
+                    Lucide.Users,
+                    size: 14,
+                    color: colorScheme.primary,
                   ),
-                ),
-                const Spacer(),
-                AnimatedRotation(
-                  turns: _expanded ? 0.25 : 0,
-                  duration: const Duration(milliseconds: 200),
-                  child: Icon(Lucide.ChevronRight, size: 16, color: cs.onSurface.withOpacity(0.5)),
-                ),
-              ],
+                  const SizedBox(width: 6),
+                  Text(
+                    l10n.aiTeamFinalAnswerLabel,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${visibleProposals.length}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    _expanded ? Lucide.ChevronUp : Lucide.ChevronDown,
+                    size: 14,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
             ),
           ),
+          // Collapsible body
           AnimatedCrossFade(
             duration: const Duration(milliseconds: 200),
             crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
             firstChild: const SizedBox(height: 0),
             secondChild: Padding(
-              padding: const EdgeInsets.only(top: 8, left: 2, right: 2, bottom: 2),
+              padding: const EdgeInsets.only(top: 2, left: 2, right: 2, bottom: 8),
               child: Builder(builder: (context) {
                 final content = RepaintBoundary(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       for (int i = 0; i < visibleProposals.length; i++) ...[
-                        if (i > 0) const SizedBox(height: 8),
+                        if (i > 0) const Divider(height: 16),
                         _buildProposalBlock(context, i, visibleProposals[i]),
                       ],
                     ],
                   ),
                 );
-                return widget.isStreaming ? content : SelectionArea(child: content);
+                final bool isWindows = defaultTargetPlatform == TargetPlatform.windows;
+                return (widget.isStreaming || isWindows) ? content : SelectionArea(child: content);
               }),
             ),
           ),
