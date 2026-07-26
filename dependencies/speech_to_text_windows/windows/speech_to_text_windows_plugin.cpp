@@ -23,7 +23,7 @@ static std::string EscapeJsonString(const std::string& s) {
     std::ostringstream o;
     for (char c : s) {
         if (c == '"') o << "\\\"";
-        else if (c == '\\') o << "\\b\\a\\c\\k\\s\\l\\a\\s\\h\\b\\a\\c\\k\\s\\l\\a\\s\\h";
+        else if (c == '\\') o << "\\\\";
         else if (c == '\b') o << "\\b";
         else if (c == '\f') o << "\\f";
         else if (c == '\n') o << "\\n";
@@ -61,6 +61,7 @@ const LPCWSTR SpeechToTextWindowsPlugin::kMessageWindowClassName = L"OmniChatSpe
 
 SpeechToTextWindowsPlugin::SpeechToTextWindowsPlugin(flutter::PluginRegistrarWindows *registrar) {
     std::cout << "[OmniChat] SpeechToTextWindowsPlugin created" << std::endl;
+    m_mainThreadId = GetCurrentThreadId();
     CreateMessageWindow();
 }
 
@@ -68,8 +69,21 @@ SpeechToTextWindowsPlugin::~SpeechToTextWindowsPlugin() {
     std::cout << "[OmniChat] SpeechToTextWindowsPlugin destroying" << std::endl;
     DestroyMessageWindow();
     
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (m_recognizer) {
         try {
+            if (m_hypothesisToken) {
+                m_recognizer.HypothesisGenerated(m_hypothesisToken);
+                m_hypothesisToken = {};
+            }
+            if (m_resultToken) {
+                m_recognizer.ContinuousRecognitionSession().ResultGenerated(m_resultToken);
+                m_resultToken = {};
+            }
+            if (m_completedToken) {
+                m_recognizer.ContinuousRecognitionSession().Completed(m_completedToken);
+                m_completedToken = {};
+            }
             if (m_isListening) {
                 m_recognizer.ContinuousRecognitionSession().StopAsync().get();
             }
@@ -139,8 +153,13 @@ LRESULT CALLBACK SpeechToTextWindowsPlugin::MessageWindowProc(HWND hwnd, UINT me
 
 void SpeechToTextWindowsPlugin::RunOnMainThread(std::function<void()> task) {
     if (!m_messageWindow || !IsWindow(m_messageWindow)) {
-        std::cout << "[OmniChat] Message Window missing/invalid, recreating..." << std::endl;
-        CreateMessageWindow();
+        if (GetCurrentThreadId() == m_mainThreadId) {
+            std::cout << "[OmniChat] Message Window missing/invalid, recreating on main thread..." << std::endl;
+            CreateMessageWindow();
+        } else {
+            std::cout << "[OmniChat] Message Window missing, cannot recreate from background thread. Task dropped." << std::endl;
+            return;
+        }
     }
     if (m_messageWindow && IsWindow(m_messageWindow)) {
         {
@@ -398,17 +417,17 @@ fire_and_forget SpeechToTextWindowsPlugin::StartListeningAsync(
         }
 
         std::cout << "[OmniChat] Subscribing events..." << std::endl;
-        recognizer.HypothesisGenerated([this](auto const&, auto const& args) {
+        m_hypothesisToken = recognizer.HypothesisGenerated([this](auto const&, auto const& args) {
              // std::cout << "[OmniChat] HypothesisGenerated" << std::endl;
              SendTextRecognition(ToUtf8(args.Hypothesis().Text()), false);
         });
 
-        recognizer.ContinuousRecognitionSession().ResultGenerated([this](auto const&, auto const& args) {
+        m_resultToken = recognizer.ContinuousRecognitionSession().ResultGenerated([this](auto const&, auto const& args) {
              std::cout << "[OmniChat] ResultGenerated" << std::endl;
              SendTextRecognition(ToUtf8(args.Result().Text()), true);
         });
         
-        recognizer.ContinuousRecognitionSession().Completed([this](auto const&, auto const&) {
+        m_completedToken = recognizer.ContinuousRecognitionSession().Completed([this](auto const&, auto const&) {
              std::cout << "[OmniChat] Session Completed" << std::endl;
              SendStatus("notListening");
              m_isListening = false;

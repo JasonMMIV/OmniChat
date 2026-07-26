@@ -55,6 +55,24 @@ class ChatApiService {
         if (content is String && content.isNotEmpty) {
           return <String, dynamic>{...m, 'content': _truncateToolResultText(content)};
         }
+        if (content is List) {
+          final modified = <dynamic>[];
+          var changed = false;
+          for (final block in content) {
+            if (block is Map && block['type'] == 'text' && block['text'] is String) {
+              final text = block['text'] as String;
+              if (text.length > 32768) {
+                modified.add(<String, dynamic>{...block, 'text': _truncateToolResultText(text)});
+                changed = true;
+                continue;
+              }
+            }
+            modified.add(block);
+          }
+          if (changed) {
+            return <String, dynamic>{...m, 'content': modified};
+          }
+        }
         return m;
       }
       // Claude format: user message with content as List of blocks
@@ -69,6 +87,26 @@ class ChatApiService {
               modified.add(<String, dynamic>{...item, 'content': _truncateToolResultText(tc)});
               changed = true;
               continue;
+            }
+            if (tc is List) {
+              final innerModified = <dynamic>[];
+              var innerChanged = false;
+              for (final block in tc) {
+                if (block is Map && block['type'] == 'text' && block['text'] is String) {
+                  final text = block['text'] as String;
+                  if (text.length > 32768) {
+                    innerModified.add(<String, dynamic>{...block, 'text': _truncateToolResultText(text)});
+                    innerChanged = true;
+                    continue;
+                  }
+                }
+                innerModified.add(block);
+              }
+              if (innerChanged) {
+                modified.add(<String, dynamic>{...item, 'content': innerModified});
+                changed = true;
+                continue;
+              }
             }
           }
           modified.add(item);
@@ -87,21 +125,46 @@ class ChatApiService {
           if (part is Map && part['functionResponse'] is Map) {
             final fr = part['functionResponse'] as Map;
             final resp = fr['response'];
-            if (resp is Map && resp['result'] is String) {
-              final resultStr = resp['result'] as String;
-              if (resultStr.isNotEmpty) {
-                modified.add(<String, dynamic>{
-                  ...part,
-                  'functionResponse': <String, dynamic>{
-                    ...fr,
-                    'response': <String, dynamic>{
-                      ...resp,
-                      'result': _truncateToolResultText(resultStr),
+            if (resp is Map) {
+              if (resp['result'] is String) {
+                final resultStr = resp['result'] as String;
+                if (resultStr.isNotEmpty && resultStr.length > 32768) {
+                  modified.add(<String, dynamic>{
+                    ...part,
+                    'functionResponse': <String, dynamic>{
+                      ...fr,
+                      'response': <String, dynamic>{
+                        ...resp,
+                        'result': _truncateToolResultText(resultStr),
+                      },
                     },
-                  },
-                });
-                changed = true;
-                continue;
+                  });
+                  changed = true;
+                  continue;
+                }
+              }
+              if (resp['result'] is Map) {
+                final resultMap = resp['result'] as Map;
+                if (resultMap['output'] is String) {
+                  final output = resultMap['output'] as String;
+                  if (output.length > 32768) {
+                    modified.add(<String, dynamic>{
+                      ...part,
+                      'functionResponse': <String, dynamic>{
+                        ...fr,
+                        'response': <String, dynamic>{
+                          ...resp,
+                          'result': <String, dynamic>{
+                            ...resultMap,
+                            'output': _truncateToolResultText(output),
+                          },
+                        },
+                      },
+                    });
+                    changed = true;
+                    continue;
+                  }
+                }
               }
             }
           }
@@ -670,6 +733,7 @@ class ChatApiService {
       _activeCancelTokens[rid] = cancelToken;
     }
     final safeMessages = _sanitizeMessages(messages);
+    final truncatedMessages = _truncateToolResultsInMessages(safeMessages);
     final client = _clientFor(config, cancelToken);
 
     try {
@@ -678,7 +742,7 @@ class ChatApiService {
           client,
           config,
           modelId,
-          safeMessages,
+          truncatedMessages,
           userImagePaths: userImagePaths,
           thinkingBudget: thinkingBudget,
           temperature: temperature,
@@ -695,7 +759,7 @@ class ChatApiService {
           client,
           config,
           modelId,
-          safeMessages,
+          truncatedMessages,
           userImagePaths: userImagePaths,
           thinkingBudget: thinkingBudget,
           temperature: temperature,
@@ -712,7 +776,7 @@ class ChatApiService {
           client,
           config,
           modelId,
-          safeMessages,
+          truncatedMessages,
           userImagePaths: userImagePaths,
           thinkingBudget: thinkingBudget,
           temperature: temperature,

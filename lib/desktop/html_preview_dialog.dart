@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_windows/webview_windows.dart' as winweb;
 import 'package:path_provider/path_provider.dart';
@@ -270,8 +271,8 @@ class _ConsoleDialog extends StatelessWidget {
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: SelectionArea(
-                      child: ListView.builder(
+                    child: Builder(builder: (context) {
+                      final listView = ListView.builder(
                         itemCount: messages.length,
                         itemBuilder: (ctx, i) {
                           final m = messages[i];
@@ -290,8 +291,11 @@ class _ConsoleDialog extends StatelessWidget {
                             ),
                           );
                         },
-                      ),
-                    ),
+                      );
+                      return defaultTargetPlatform == TargetPlatform.windows
+                          ? listView
+                          : SelectionArea(child: listView);
+                    }),
                   ),
                 ),
               ],

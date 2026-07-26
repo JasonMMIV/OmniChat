@@ -78,10 +78,15 @@ class SpeechToTextWindowsPlugin : public flutter::Plugin {
   
   // Threading state
   HWND m_messageWindow = nullptr; // Our private message-only window
+  DWORD m_mainThreadId = 0; // Main UI thread ID
   std::mutex m_queueMutex;
   std::queue<std::function<void()>> m_taskQueue;
   static const UINT WM_RUN_ON_MAIN_THREAD = WM_USER + 4242;
   static const LPCWSTR kMessageWindowClassName;
+
+  winrt::event_token m_hypothesisToken{};
+  winrt::event_token m_resultToken{};
+  winrt::event_token m_completedToken{};
 
   std::mutex m_mutex;
   std::atomic<bool> m_isListening{ false };

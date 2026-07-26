@@ -145,8 +145,7 @@ class _AiTeamProposalsSectionState extends State<AiTeamProposalsSection> {
                     ],
                   ),
                 );
-                final bool isWindows = defaultTargetPlatform == TargetPlatform.windows;
-                return (widget.isStreaming || isWindows) ? content : SelectionArea(child: content);
+                return widget.isStreaming ? content : SelectionArea(child: content);
               }),
             ),
           ),

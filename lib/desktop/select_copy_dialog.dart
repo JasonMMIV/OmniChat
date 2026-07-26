@@ -19,16 +19,33 @@ class _SelectCopyDesktopDialog extends StatelessWidget {
   const _SelectCopyDesktopDialog({required this.message});
   final ChatMessage message;
 
+  String get _fullText {
+    final buf = StringBuffer();
+    if (message.reasoningText != null && message.reasoningText!.isNotEmpty) {
+      buf.writeln('=== Reasoning ===');
+      buf.writeln(message.reasoningText);
+      buf.writeln('=== Response ===');
+    }
+    buf.write(message.content);
+    if (message.translation != null && message.translation!.isNotEmpty) {
+      buf.writeln();
+      buf.writeln('\n=== Translation ===');
+      buf.write(message.translation);
+    }
+    return buf.toString();
+  }
+
   Future<void> _copyAll(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
+    final text = _fullText;
     try {
-      final html = md.markdownToHtml(message.content, extensionSet: md.ExtensionSet.gitHubFlavored);
+      final html = md.markdownToHtml(text, extensionSet: md.ExtensionSet.gitHubFlavored);
       final item = DataWriterItem();
       item.add(Formats.htmlText(html));
-      item.add(Formats.plainText(message.content));
+      item.add(Formats.plainText(text));
       await SystemClipboard.instance?.write([item]);
     } catch (_) {
-      await Clipboard.setData(ClipboardData(text: message.content));
+      await Clipboard.setData(ClipboardData(text: text));
     }
     if (!context.mounted) return;
     showAppSnackBar(context, message: l10n.selectCopyPageCopiedAll, type: NotificationType.success);
@@ -86,7 +103,7 @@ class _SelectCopyDesktopDialog extends StatelessWidget {
                           padding: const EdgeInsets.all(12),
                           child: SelectionArea(
                             child: Text(
-                              message.content,
+                              _fullText,
                               style: const TextStyle(fontSize: 15, height: 1.5),
                             ),
                           ),
