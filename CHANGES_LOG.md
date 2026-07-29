@@ -2,6 +2,21 @@
 
 ## [v1.5.29] - 2026-07-29: Windows Crash Unified Root Cause Fix - Streaming-Deferred Native Widgets & Subwindow Guard
 
+### 126. Terminology Update — Assistant Feature Renamed to Project in UI (l10n)
+- **Purpose**: Rename the user-facing "Assistant" (助理 / 助手) feature terminology to "Project" (專案 / 项目) across English, Traditional Chinese, and Simplified Chinese localization files and hardcoded UI text, while preserving underlying model/class architecture and LLM system prompt definitions.
+- **Files Modified**:
+  - `lib/l10n/app_en.arb` (updated UI strings from "Assistant/Assistants" to "Project/Projects")
+  - `lib/l10n/app_zh_Hant.arb` (updated UI strings from "助理/助手" to "專案")
+  - `lib/l10n/app_zh_Hans.arb` & `lib/l10n/app_zh.arb` (updated UI strings from "助手/助理" to "项目")
+  - `lib/l10n/app_localizations*.dart` (regenerated via `flutter gen-l10n`)
+  - `lib/features/backup/pages/backup_page.dart` (updated hardcoded dialog prompt text from 助手 to 项目/專案)
+  - `lib/core/providers/assistant_provider.dart` (added "Deep Research Project" and traditional/simplified variants to lookup fallbacks while preserving legacy "Deep Research Assistant")
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Localization Update**: Replaced user-facing UI labels ("Assistant Settings" -> "Project Settings", "Default Assistant" -> "Default Project", "Edit Assistant" -> "Edit Project", "Search assistants..." -> "Search projects...", etc.) across all 4 locale files.
+  - **Preserved Contexts**: Reverted system prompt template role descriptions ("You are a helpful AI assistant") and "Deep Research Assistant" default names back to Assistant/助理/助手 for LLM prompt clarity and backward compatibility.
+  - **Architecture Protection**: Code symbols (`Assistant` class, provider keys, database schemas) remain unchanged to avoid breaking changes to user-saved data and states.
+
 ### 125. AI Team — Real-time Proposer Streaming Display
 - **Purpose**: Show each proposer model's streaming output in the main content area in real-time during the AI Team proposal phase, replacing the static progress text ("Proposal X/N"). After each proposer completes, its result moves to the "Collaboration Process" proposals section and the next proposer's output takes over the main content area. Pass `isStreaming` to proposal section `MarkdownWithCodeHighlight` calls to defer Mermaid/PlantUML WebView2 during active streaming.
 - **Files Modified**:
