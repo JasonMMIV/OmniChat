@@ -173,8 +173,8 @@ class ChatInputSection extends StatelessWidget {
       onStartDictation: onStartDictation,
       onStopDictation: onStopDictation,
       // Tablet-specific parameters
-      showMiniMapButton: isTablet,
-      onOpenMiniMap: isTablet ? onOpenMiniMap : null,
+      showMiniMapButton: false,
+      onOpenMiniMap: null,
       onPickCamera: isTablet ? (isDesktop ? null : onPickCamera) : null,
       onPickPhotos: isTablet ? (isDesktop ? null : onPickPhotos) : null,
       onUploadFiles: isTablet ? onUploadFiles : null,

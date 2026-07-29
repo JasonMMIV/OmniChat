@@ -82,6 +82,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   final ChatInputBarController _mediaController = ChatInputBarController();
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _inputBarKey = GlobalKey();
+  final GlobalKey _topMiniMapKey = GlobalKey();
   StreamSubscription<String>? _processTextSub;
 
   // ============================================================================
@@ -280,6 +281,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }) {
     return HomeMobileScaffold(
       scaffoldKey: _scaffoldKey,
+      miniMapKey: _topMiniMapKey,
       drawerController: _drawerController,
       assistantPickerCloseTick: _assistantPickerCloseTick,
       loadingConversationIds: _controller.loadingConversationIds,
@@ -298,7 +300,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         final collapsed = _controller.collapseVersions(_controller.messages);
         String? selectedId;
         if (PlatformUtils.isDesktop) {
-          selectedId = await showDesktopMiniMapPopover(context, anchorKey: _inputBarKey, messages: collapsed);
+          selectedId = await showDesktopMiniMapPopover(context, anchorKey: _topMiniMapKey, messages: collapsed);
         } else {
           selectedId = await showMiniMapSheet(context, collapsed);
         }
@@ -385,6 +387,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
     return HomeDesktopScaffold(
       scaffoldKey: _scaffoldKey,
+      miniMapKey: _topMiniMapKey,
       assistantPickerCloseTick: _assistantPickerCloseTick,
       loadingConversationIds: _controller.loadingConversationIds,
       title: title,
@@ -407,6 +410,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       onCreateNewConversation: () async {
         await _controller.createNewConversationAnimated();
         if (mounted) _controller.forceScrollToBottomSoon(animate: false);
+      },
+      onOpenMiniMap: () async {
+        final collapsed = _controller.collapseVersions(_controller.messages);
+        String? selectedId;
+        if (PlatformUtils.isDesktop) {
+          selectedId = await showDesktopMiniMapPopover(context, anchorKey: _topMiniMapKey, messages: collapsed);
+        } else {
+          selectedId = await showMiniMapSheet(context, collapsed);
+        }
+        if (!mounted) return;
+        if (selectedId != null && selectedId.isNotEmpty) {
+          await _controller.scrollToMessageId(selectedId);
+        }
       },
       onSelectModel: () => showModelSelectSheet(context),
       onSidebarWidthChanged: _controller.updateSidebarWidth,

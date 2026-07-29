@@ -26,6 +26,7 @@ class HomeMobileScaffold extends StatelessWidget {
   const HomeMobileScaffold({
     super.key,
     required this.scaffoldKey,
+    this.miniMapKey,
     required this.drawerController,
     required this.assistantPickerCloseTick,
     required this.loadingConversationIds,
@@ -44,6 +45,7 @@ class HomeMobileScaffold extends StatelessWidget {
   });
 
   final GlobalKey<ScaffoldState> scaffoldKey;
+  final GlobalKey? miniMapKey;
   final InteractiveDrawerController drawerController;
   final ValueNotifier<int> assistantPickerCloseTick;
   final Set<String> loadingConversationIds;
@@ -185,6 +187,7 @@ class HomeMobileScaffold extends StatelessWidget {
             icon: Lucide.Phone,
           ),
         IosIconButton(
+          key: miniMapKey,
           size: 24,
           minSize: 44,
           onTap: onOpenMiniMap,

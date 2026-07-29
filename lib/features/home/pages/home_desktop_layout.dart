@@ -24,6 +24,7 @@ class HomeDesktopScaffold extends StatelessWidget {
   const HomeDesktopScaffold({
     super.key,
     required this.scaffoldKey,
+    this.miniMapKey,
     required this.assistantPickerCloseTick,
     required this.loadingConversationIds,
     required this.title,
@@ -42,6 +43,7 @@ class HomeDesktopScaffold extends StatelessWidget {
     required this.onSelectConversation,
     required this.onNewConversation,
     required this.onCreateNewConversation,
+    this.onOpenMiniMap,
     required this.onSelectModel,
     required this.onSidebarWidthChanged,
     required this.onSidebarWidthChangeEnd,
@@ -53,6 +55,7 @@ class HomeDesktopScaffold extends StatelessWidget {
   });
 
   final GlobalKey<ScaffoldState> scaffoldKey;
+  final GlobalKey? miniMapKey;
   final ValueNotifier<int> assistantPickerCloseTick;
   final Set<String> loadingConversationIds;
   final String title;
@@ -73,6 +76,7 @@ class HomeDesktopScaffold extends StatelessWidget {
   final void Function(String id) onSelectConversation;
   final VoidCallback onNewConversation;
   final Future<void> Function() onCreateNewConversation;
+  final VoidCallback? onOpenMiniMap;
   final VoidCallback onSelectModel;
   final void Function(double dx) onSidebarWidthChanged;
   final VoidCallback onSidebarWidthChangeEnd;
@@ -355,6 +359,16 @@ class HomeDesktopScaffold extends StatelessWidget {
           icon: Lucide.Phone,
           onTap: onVoiceChat,
           semanticLabel: AppLocalizations.of(context)!.voiceChatButtonTooltip,
+        ),
+      if (onOpenMiniMap != null)
+        IosIconButton(
+          key: miniMapKey,
+          size: 28,
+          padding: const EdgeInsets.all(8),
+          minSize: 48,
+          icon: Lucide.Map,
+          onTap: onOpenMiniMap,
+          semanticLabel: AppLocalizations.of(context)!.miniMapTooltip,
         ),
       // Right sidebar toggle (desktop + topics on right)
       if (_isDesktop && topicsOnRight)

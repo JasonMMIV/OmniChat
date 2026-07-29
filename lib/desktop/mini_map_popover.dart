@@ -95,6 +95,52 @@ class _MiniMapPopoverState extends State<_MiniMapPopover>
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.of(context).size;
+    final isTopAnchor = widget.anchorRect.top < screen.height / 2;
+
+    if (isTopAnchor) {
+      final width = 380.0.clamp(280.0, screen.width - 24.0);
+      final top = (widget.anchorRect.bottom + 6.0).clamp(0.0, screen.height - 100.0);
+      final maxHeight = (screen.height - top - 24.0).clamp(200.0, 560.0);
+      final right = (screen.width - widget.anchorRect.right - 4.0).clamp(12.0, screen.width - width - 12.0);
+
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _close,
+            ),
+          ),
+          Positioned(
+            right: right,
+            top: top,
+            width: width,
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            child: FadeTransition(
+              opacity: _fadeIn,
+              child: AnimatedBuilder(
+                animation: _slideY,
+                builder: (context, child) => Transform.translate(
+                  offset: Offset(0, -_slideY.value),
+                  child: child,
+                ),
+                child: _GlassPanel(
+                  borderRadius: BorderRadius.circular(14),
+                  child: _MiniMapList(
+                    messages: widget.messages,
+                    onSelect: (id) {
+                      if (_closing) return;
+                      widget.onSelect(id);
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     final width = (widget.anchorWidth - 16).clamp(320.0, 800.0);
     final left = (widget.anchorRect.left + (widget.anchorRect.width - width) / 2)
         .clamp(8.0, screen.width - width - 8.0);

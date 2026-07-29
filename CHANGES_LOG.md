@@ -1,6 +1,21 @@
 # OmniChat Developer Changes Log
 
-## [v1.5.31] - 2026-07-30: Unified Left Drawer Folder-Tree Architecture across Desktop & Mobile
+## [v1.5.31] - 2026-07-30: Unified Left Drawer Folder-Tree Architecture & Top Mini Map Unification
+
+### 128. Unified Mini Map Button Position Across Desktop & Mobile
+- **Purpose**: Relocate the Desktop Mini map (chat navigator) button from the chat input bar to the top App bar's top-right actions area (between Voice Chat and New Conversation buttons), unifying the UI layout across desktop and mobile devices, and updating the desktop popover placement to anchor below the top-right button.
+- **Files Modified**:
+  - `lib/features/home/pages/home_desktop_layout.dart` (added `miniMapKey` and `onOpenMiniMap` to `HomeDesktopScaffold`; rendered `IosIconButton(icon: Lucide.Map)` in `_buildActions` between Voice Chat and New Conversation)
+  - `lib/features/home/pages/home_mobile_layout.dart` (added `miniMapKey` to `HomeMobileScaffold` and attached key to Mini map `IosIconButton`)
+  - `lib/features/home/pages/home_page.dart` (added `_topMiniMapKey` to `_HomePageState` and passed to `HomeDesktopScaffold` and `HomeMobileScaffold`; updated `onOpenMiniMap` callback to pass `_topMiniMapKey` to `showDesktopMiniMapPopover`)
+  - `lib/features/home/widgets/chat_input_section.dart` (disabled `showMiniMapButton` in `ChatInputSection` to avoid duplicate button in input bar)
+  - `lib/desktop/mini_map_popover.dart` (updated `_MiniMapPopoverState.build` with `isTopAnchor` logic to position popover card below top-anchored button with top-right screen alignment and downward slide-in animation)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Unified Top-Right Actions Layout**: Placed the Mini map button (`Lucide.Map`) in the top App bar's action area on desktop, positioning it between the Voice Chat (`Lucide.Phone`) button and the New Conversation (`Lucide.MessageCirclePlus`) button.
+  - **Input Bar Button Removal**: Set `showMiniMapButton: false` in `ChatInputSection` for desktop/tablet mode to prevent duplicate Mini map controls.
+  - **Top-Anchored Popover Positioning**: Extended `showDesktopMiniMapPopover` positioning math to support top-anchored buttons (`isTopAnchor = widget.anchorRect.top < screen.height / 2`). The popover now floats right below the top App bar button, aligned to its right edge with a smooth downward slide-in animation.
+  - **Responsive Narrow Window Support**: Attached `miniMapKey` to `HomeMobileScaffold` so that when a desktop app window is resized to narrow width, clicking the top-right Mini map button continues to correctly anchor and render the desktop popover.
 
 ### 127. Unified Left Drawer Folder-Tree Architecture
 - **Purpose**: Unify Windows Desktop and Mobile/Tablet left drawer/sidebar layouts into a single folder-tree structure where projects (assistants) act as expandable folders containing their respective conversations, replacing legacy Desktop tabs, top "Current Assistant" cards, and the separate right-side topics sidebar.
