@@ -132,6 +132,7 @@ class IosCardPress extends StatefulWidget {
     this.onTap,
     this.onLongPress,
     this.borderRadius,
+    this.border,
     this.baseColor,
     this.pressedBlendStrength,
     this.padding,
@@ -144,6 +145,7 @@ class IosCardPress extends StatefulWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final BorderRadius? borderRadius;
+  final BoxBorder? border;
   final Color? baseColor;
   // 0..1; how much to blend towards surface tint on press
   final double? pressedBlendStrength;
@@ -207,6 +209,7 @@ class _IosCardPressState extends State<IosCardPress> {
             decoration: BoxDecoration(
               color: target,
               borderRadius: widget.borderRadius ?? BorderRadius.circular(12),
+              border: widget.border,
             ),
             child: content,
           ),

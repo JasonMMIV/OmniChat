@@ -40,6 +40,28 @@ import '../../../shared/widgets/emoji_text.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:super_clipboard/super_clipboard.dart';
 
+final RegExp _urlSchemeRe = RegExp(r'^[a-zA-Z][a-zA-Z0-9+.-]*:');
+
+Uri? _tryNormalizeExternalUri(String raw) {
+  var u = raw.trim();
+  if (u.isEmpty) return null;
+
+  // Handle JSON-ish values like `"example.com"` defensively.
+  if ((u.startsWith('"') && u.endsWith('"')) ||
+      (u.startsWith("'") && u.endsWith("'"))) {
+    u = u.substring(1, u.length - 1).trim();
+    if (u.isEmpty) return null;
+  }
+
+  if (u.startsWith('//')) {
+    u = 'https:$u';
+  } else if (!_urlSchemeRe.hasMatch(u)) {
+    u = 'https://$u';
+  }
+
+  return Uri.tryParse(u);
+}
+
 class ChatMessageWidget extends StatefulWidget {
   final ChatMessage message;
   final Widget? modelIcon;
@@ -1475,11 +1497,12 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             ),
           ),
           // Sources summary card (tap to open full citations)
-          if (_latestSearchItems().isNotEmpty) ...[
+          if (_allSearchItems().isNotEmpty) ...[
             const SizedBox(height: 8),
             _SourcesSummaryCard(
-              count: _latestSearchItems().length,
-              onTap: () => _showCitationsSheet(_latestSearchItems()),
+              count: _allSearchItems().length,
+              items: _allSearchItems(),
+              onTap: () => _showCitationsSheet(_allSearchItems()),
             ),
           ],
           // Action buttons (hidden while generating)
@@ -1646,15 +1669,33 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     );
   }
 
-  // Try resolve citation id -> url from the latest search_web tool results of this assistant message
+  // Try resolve citation id -> url from all search_web/builtin_search tool results of this assistant message
   void _handleCitationTap(String id) async {
     final l10n = AppLocalizations.of(context)!;
-    final items = _latestSearchItems();
-    final match = items.cast<Map<String, dynamic>?>().firstWhere(
+    final items = _allSearchItems();
+    Map<String, dynamic>? match = items.cast<Map<String, dynamic>?>().firstWhere(
       (e) => (e?['id']?.toString() ?? '') == id,
       orElse: () => null,
     );
-    final url = match?['url']?.toString();
+
+    // Fallbacks for models that don't strictly follow "index:id":
+    // 1) If id is actually an index number, match by item.index.
+    // 2) If id itself looks like a URL, open it directly.
+    String? url = match?['url']?.toString();
+    if (url == null || url.isEmpty) {
+      final idx = int.tryParse(id.trim());
+      if (idx != null) {
+        match = items.cast<Map<String, dynamic>?>().firstWhere(
+          (e) => (e?['index']?.toString() ?? '') == idx.toString(),
+          orElse: () => null,
+        );
+        url = match?['url']?.toString();
+      }
+    }
+    if ((url == null || url.isEmpty) && (id.contains('/') || id.contains('.'))) {
+      url = id;
+    }
+
     if (url == null || url.isEmpty) {
       if (context.mounted) {
         showAppSnackBar(
@@ -1666,11 +1707,21 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       return;
     }
     try {
-      final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      final uri = _tryNormalizeExternalUri(url);
+      if (uri == null) {
+        if (!context.mounted) return;
+        showAppSnackBar(
+          context,
+          message: l10n.chatMessageWidgetOpenLinkError,
+          type: NotificationType.error,
+        );
+        return;
+      }
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok && context.mounted) {
         showAppSnackBar(
           context,
-          message: l10n.chatMessageWidgetCannotOpenUrl(url),
+          message: l10n.chatMessageWidgetCannotOpenUrl(uri.toString()),
           type: NotificationType.error,
         );
       }
@@ -1685,26 +1736,35 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     }
   }
 
-  // Extract items from the last search_web or builtin_search tool result for this assistant message
-  List<Map<String, dynamic>> _latestSearchItems() {
+  // Extract items from all search_web or builtin_search tool results for this assistant message
+  List<Map<String, dynamic>> _allSearchItems() {
     final parts = widget.toolParts ?? const <ToolUIPart>[];
+    if (parts.isEmpty) return const <Map<String, dynamic>>[];
+
+    final out = <Map<String, dynamic>>[];
+    final seen = <String>{};
+
     for (int i = parts.length - 1; i >= 0; i--) {
       final p = parts[i];
-      if ((p.toolName == 'search_web' || p.toolName == 'builtin_search') && (p.content?.isNotEmpty ?? false)) {
-        try {
-          final obj = jsonDecode(p.content!) as Map<String, dynamic>;
-          final arr = obj['items'] as List? ?? const <dynamic>[];
-          return [
-            for (final it in arr)
-              if (it is Map)
-                it.cast<String, dynamic>()
-          ];
-        } catch (_) {
-          return const <Map<String, dynamic>>[];
-        }
+      if ((p.toolName != 'search_web' && p.toolName != 'builtin_search') ||
+          (p.content?.isNotEmpty ?? false) == false) {
+        continue;
       }
+      try {
+        final obj = jsonDecode(p.content!) as Map<String, dynamic>;
+        final arr = obj['items'] as List? ?? const <dynamic>[];
+        for (final it in arr) {
+          if (it is! Map) continue;
+          final m = it.cast<String, dynamic>();
+          final key = (m['id'] ?? m['url'] ?? '').toString();
+          if (key.isNotEmpty) {
+            if (!seen.add(key)) continue;
+          }
+          out.add(m);
+        }
+      } catch (_) {}
     }
-    return const <Map<String, dynamic>>[];
+    return out;
   }
 
   void _showCitationsSheet(List<Map<String, dynamic>> items) {
@@ -2523,31 +2583,162 @@ class _SourceRow extends StatelessWidget {
 }
 
 class _SourcesSummaryCard extends StatelessWidget {
-  const _SourcesSummaryCard({required this.count, required this.onTap});
+  const _SourcesSummaryCard({
+    required this.count,
+    required this.items,
+    required this.onTap,
+  });
+
   final int count;
+  final List<Map<String, dynamic>> items;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final label = l10n.chatMessageWidgetCitationsCount(count);
+    final isDark = theme.brightness == Brightness.dark;
+
     return IosCardPress(
-      borderRadius: BorderRadius.circular(12),
-      baseColor: cs.primaryContainer.withOpacity(
-        Theme.of(context).brightness == Brightness.dark ? 0.25 : 0.30,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(
+        color: isDark
+            ? Colors.white.withOpacity(0.16)
+            : Colors.black.withOpacity(0.10),
+        width: 0.8,
       ),
+      baseColor: Colors.transparent,
       pressedScale: 1.0,
       duration: const Duration(milliseconds: 260),
       onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 18),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _SourceFaviconStack(items: items),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.clip,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface.withOpacity(isDark ? 0.90 : 0.86),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SourceFaviconStack extends StatelessWidget {
+  const _SourceFaviconStack({required this.items});
+
+  final List<Map<String, dynamic>> items;
+
+  static const double _iconSize = 16;
+  static const double _slotSize = 18;
+  static const double _overlapStep = 11;
+  static const int _maxIcons = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    final domains = _domains();
+    if (domains.isEmpty) {
+      return const _SourceFaviconFallback(size: _slotSize);
+    }
+
+    return SizedBox(
+      width: _slotSize + (domains.length - 1) * _overlapStep,
+      height: _slotSize,
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          Icon(Lucide.BookOpen, size: 16, color: cs.secondary),
-          const SizedBox(width: 8),
-          Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cs.secondary)),
+          for (var i = 0; i < domains.length; i++)
+            PositionedDirectional(
+              start: i * _overlapStep,
+              top: 1,
+              child: _SourceFavicon(domain: domains[i]),
+            ),
         ],
+      ),
+    );
+  }
+
+  List<String> _domains() {
+    final seen = <String>{};
+    final domains = <String>[];
+    for (final item in items) {
+      final url = (item['url'] ?? '').toString();
+      final host = _tryNormalizeExternalUri(url)?.host ?? '';
+      if (host.isEmpty || !seen.add(host)) {
+        continue;
+      }
+      domains.add(host);
+      if (domains.length == _maxIcons) {
+        break;
+      }
+    }
+    return domains;
+  }
+}
+
+class _SourceFavicon extends StatelessWidget {
+  const _SourceFavicon({required this.domain});
+
+  final String domain;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final borderColor = isDark ? Colors.black.withOpacity(0.40) : Colors.white;
+
+    return Container(
+      width: _SourceFaviconStack._iconSize,
+      height: _SourceFaviconStack._iconSize,
+      decoration: BoxDecoration(
+        color: isDark ? cs.surfaceContainerHigh : cs.surface,
+        shape: BoxShape.circle,
+        border: Border.all(color: borderColor, width: 0.5),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Image.network(
+        'https://favicone.com/$domain',
+        width: _SourceFaviconStack._iconSize,
+        height: _SourceFaviconStack._iconSize,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) =>
+            const _SourceFaviconFallback(size: _SourceFaviconStack._iconSize),
+      ),
+    );
+  }
+}
+
+class _SourceFaviconFallback extends StatelessWidget {
+  const _SourceFaviconFallback({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Icon(
+        Lucide.Globe,
+        size: size * 0.72,
+        color: cs.onSurface.withOpacity(0.52),
       ),
     );
   }

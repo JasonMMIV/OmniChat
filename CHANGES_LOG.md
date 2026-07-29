@@ -1,5 +1,22 @@
 # OmniChat Developer Changes Log
 
+## [v1.5.32] - 2026-07-30: Consolidated Search Citations Card & Source Favicons
+
+### 130. Consolidated Search Citations & Source Favicons Integration
+- **Purpose**: Import upstream `kelivo` search citation block optimizations, consolidating all search results from multiple web/builtin search tool calls into a single summary card at the bottom of AI messages, styled with a transparent card border and source site favicons.
+- **Files Modified**:
+  - `pubspec.yaml` (bumped version to `1.5.32+56`)
+  - `installers/omnichat_setup.iss` (updated `MyAppVersion` to `1.5.32` and `OutputBaseFilename` to `omnichat_setup_1.5.32`)
+  - `lib/shared/widgets/ios_tactile.dart` (added `BoxBorder? border` property to `IosCardPress`)
+  - `lib/features/chat/widgets/chat_message_widget.dart` (replaced `_latestSearchItems()` with `_allSearchItems()`, updated `_SourcesSummaryCard` UI, added `_SourceFaviconStack`, `_SourceFavicon`, `_SourceFaviconFallback` widgets and `_tryNormalizeExternalUri` helper)
+  - `lib/features/home/controllers/stream_controller.dart` (enhanced `dedupeToolPartsList` and `dedupeToolEvents` with `_toolDedupeBase` and `_toolDedupeKey` for robust stream tool result deduplication)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **All-Search Aggregation**: Replaced single-result `_latestSearchItems()` with `_allSearchItems()`, ensuring all unique search results across multiple `search_web` or `builtin_search` tool calls are collected and displayed together.
+  - **Favicon Stack**: Added `_SourceFaviconStack` to render up to 3 overlapping source website favicons fetched from `favicone.com`, with fallback to a globe icon.
+  - **UI Refinement**: Updated `_SourcesSummaryCard` styling to feature a transparent base with a dark/light mode aware border.
+  - **Stream Tool Deduplication**: Enhanced `StreamController` to preserve completed no-ID tool calls while dropping stale placeholders during streaming.
+
 ## [v1.5.31] - 2026-07-30: Unified Left Drawer Folder-Tree Architecture & Top Mini Map Unification
 
 ### 129. Sidebar Cleanup — Removed Storage & Translate Buttons
