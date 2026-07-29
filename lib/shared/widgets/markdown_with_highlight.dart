@@ -36,11 +36,20 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     required this.text,
     this.onCitationTap,
     this.baseStyle,
+    this.isStreaming = false,
   });
 
   final String text;
   final void Function(String id)? onCitationTap;
   final TextStyle? baseStyle; // optional override for base markdown text style
+  // When true, the widget is owned by an actively streaming message (typewriter
+  // updates each chunk). To avoid native resource lifecycle races amplified by
+  // the markdown rebuild storm, native-backed code blocks (Mermaid WebView2 /
+  // PlantUML, which spawn WebView2) are deferred: while streaming they render as
+  // a pure-Dart collapsible code block. Once isStreaming flips to false, a
+  // rebuild swaps in the real WebView2 renderer. Backward-compatible default
+  // keeps existing static-content call sites unchanged.
+  final bool isStreaming;
 
   // Tunable: list scaling compensation exponent.
   // When chat scale s != 1.0, lists often feel slightly off compared to body.
@@ -105,7 +114,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     components.insert(0, AtxHeadingMd());
     // Ensure fenced code blocks take precedence over headings and other blocks
     // so lines like "# comment" inside code fences are not parsed as headings.
-    components.insert(0, FencedCodeBlockMd());
+    components.insert(0, FencedCodeBlockMd(isStreaming: isStreaming));
     // Inline components: keep defaults but make link parsing line-scoped
     final inlineComponents = List<MarkdownComponent>.from(
       MarkdownComponent.inlineComponents,
@@ -594,9 +603,19 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       // Fenced code block styling via codeBuilder (with collapse/expand)
       codeBuilder: (ctx, name, code, closed) {
         final lang = name.trim();
-        if (lang.toLowerCase() == 'mermaid') {
+        final langLower = lang.toLowerCase();
+        // While the owning message is actively streaming, defer native-backed
+        // code blocks (Mermaid/PlantUML WebView2) to a pure-Dart collapsible
+        // code block. This eliminates WebView2 init/dispose races amplified by
+        // the per-chunk markdown rebuild storm (root cause of 0xc0000374 heap
+        // corruption observed on Windows). When isStreaming flips to false, the
+        // parent rebuild swaps in the real WebView2 renderer.
+        if ((langLower == 'mermaid' || langLower == 'plantuml') && isStreaming) {
+          return _CollapsibleCodeBlock(language: lang, code: code);
+        }
+        if (langLower == 'mermaid') {
           return _MermaidBlock(code: code);
-        } else if (lang.toLowerCase() == 'plantuml') {
+        } else if (langLower == 'plantuml') {
           return PlantUMLBlock(code: code);
         }
         return _CollapsibleCodeBlock(language: lang, code: code);
@@ -1958,6 +1977,13 @@ class SoftHrLine extends BlockMd {
 
 // Robust fenced code block that takes precedence over other blocks
 class FencedCodeBlockMd extends BlockMd {
+  FencedCodeBlockMd({this.isStreaming = false});
+
+  // When true, the owning message is actively streaming. Mermaid/PlantUML
+  // (WebView2-backed) blocks are deferred to a pure-Dart collapsible code block
+  // to avoid init/dispose races amplified by per-chunk markdown rebuild storms.
+  final bool isStreaming;
+
   @override
   // Match ```lang\n...\n``` at line starts. Non-greedy to stop at first closing fence.
   String get expString => (r"^\s*```([^\n`]*)\s*\n([\s\S]*?)\n```$");
@@ -1969,6 +1995,9 @@ class FencedCodeBlockMd extends BlockMd {
     final lang = (m.group(1) ?? '').trim();
     final code = (m.group(2) ?? '');
     final langLower = lang.toLowerCase();
+    if ((langLower == 'mermaid' || langLower == 'plantuml') && isStreaming) {
+      return _CollapsibleCodeBlock(language: lang, code: code);
+    }
     if (langLower == 'mermaid') {
       return _MermaidBlock(code: code);
     } else if (langLower == 'plantuml') {

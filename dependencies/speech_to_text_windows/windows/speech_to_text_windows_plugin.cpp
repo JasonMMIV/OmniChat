@@ -67,29 +67,51 @@ SpeechToTextWindowsPlugin::SpeechToTextWindowsPlugin(flutter::PluginRegistrarWin
 
 SpeechToTextWindowsPlugin::~SpeechToTextWindowsPlugin() {
     std::cout << "[OmniChat] SpeechToTextWindowsPlugin destroying" << std::endl;
-    DestroyMessageWindow();
-    
-    std::lock_guard<std::mutex> lock(m_mutex);
-    if (m_recognizer) {
-        try {
-            if (m_hypothesisToken) {
-                m_recognizer.HypothesisGenerated(m_hypothesisToken);
-                m_hypothesisToken = {};
-            }
-            if (m_resultToken) {
-                m_recognizer.ContinuousRecognitionSession().ResultGenerated(m_resultToken);
-                m_resultToken = {};
-            }
-            if (m_completedToken) {
-                m_recognizer.ContinuousRecognitionSession().Completed(m_completedToken);
-                m_completedToken = {};
-            }
-            if (m_isListening) {
-                m_recognizer.ContinuousRecognitionSession().StopAsync().get();
-            }
-            m_recognizer.Close();
-        } catch (...) {}
+
+    // (v1.5.29 Fix D) Reorder notes - the previous implementation called
+    // DestroyMessageWindow() FIRST, then revoked event tokens. Between those
+    // two steps a WinRT background callback could still fire (the tokens had
+    // not been revoked yet) and dispatch into RunOnMainThread, which would
+    // read the now-null m_messageWindow and silently drop the task - but
+    // any pending coroutine state captured `this` could still resurrect
+    // dangling pointers, leading to use-after-free under stress. We now:
+    //   1) flip m_isDestroyed so any in-flight RunOnMainThread callback
+    //      observes the downed state and short-circuits;
+    //   2) under the mutex, revoke all WinRT event tokens and close the
+    //      recognizer (this  stops any further background callbacks from
+    //      being dispatched);
+    //   3) only then destroy the message window. There is no longer a
+    //      window where a background thread can race the UI thread through
+    //      the half-destroyed state.
+    m_isDestroyed.store(true, std::memory_order_release);
+
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_recognizer) {
+            try {
+                if (m_hypothesisToken) {
+                    m_recognizer.HypothesisGenerated(m_hypothesisToken);
+                    m_hypothesisToken = {};
+                }
+                if (m_resultToken) {
+                    m_recognizer.ContinuousRecognitionSession().ResultGenerated(m_resultToken);
+                    m_resultToken = {};
+                }
+                if (m_completedToken) {
+                    m_recognizer.ContinuousRecognitionSession().Completed(m_completedToken);
+                    m_completedToken = {};
+                }
+                if (m_isListening) {
+                    m_recognizer.ContinuousRecognitionSession().StopAsync().get();
+                }
+                m_recognizer.Close();
+            } catch (...) {}
+        }
     }
+
+    // Now that no more background WinRT callbacks can be dispatched, it is
+    // safe to destroy the message-only window.
+    DestroyMessageWindow();
 }
 
 void SpeechToTextWindowsPlugin::CreateMessageWindow() {
@@ -98,10 +120,10 @@ void SpeechToTextWindowsPlugin::CreateMessageWindow() {
     windowClass.lpfnWndProc = SpeechToTextWindowsPlugin::MessageWindowProc;
     windowClass.hInstance = GetModuleHandle(nullptr);
     windowClass.lpszClassName = kMessageWindowClassName;
-    
+
     RegisterClassEx(&windowClass);
 
-    m_messageWindow = CreateWindowEx(
+    HWND hwnd = CreateWindowEx(
         0,
         kMessageWindowClassName,
         L"OmniChatSpeechMsgWindow",
@@ -113,19 +135,27 @@ void SpeechToTextWindowsPlugin::CreateMessageWindow() {
         this
     );
 
-    if (m_messageWindow) {
-        std::cout << "[OmniChat] Message-Only Window created: " << m_messageWindow << std::endl;
+    if (hwnd) {
+        std::cout << "[OmniChat] Message-Only Window created: " << hwnd << std::endl;
         // Store 'this' pointer in the window user data so WndProc can access it
-        SetWindowLongPtr(m_messageWindow, GWLP_USERDATA, (LONG_PTR)this);
+        SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)this);
     } else {
         std::cout << "[OmniChat] ERROR: Failed to create Message-Only Window! Error: " << GetLastError() << std::endl;
     }
+
+    // Publish the window under the atomic so background threads observe it
+    // only once it is fully wired up. Release ordering pairs with the acquire
+    // load in RunOnMainThread.
+    m_messageWindow.store(hwnd, std::memory_order_release);
 }
 
 void SpeechToTextWindowsPlugin::DestroyMessageWindow() {
-    if (m_messageWindow) {
-        DestroyWindow(m_messageWindow);
-        m_messageWindow = nullptr;
+    // Clear the atomic FIRST so that a background WinRT callback dispatching
+    // through RunOnMainThread concurrently sees nullptr and drops the task
+    // safely, instead of racing DestroyWindow.
+    HWND hwnd = m_messageWindow.exchange(nullptr, std::memory_order_acq_rel);
+    if (hwnd) {
+        DestroyWindow(hwnd);
     }
     UnregisterClass(kMessageWindowClassName, GetModuleHandle(nullptr));
 }
@@ -135,6 +165,18 @@ LRESULT CALLBACK SpeechToTextWindowsPlugin::MessageWindowProc(HWND hwnd, UINT me
 
     if (message == WM_RUN_ON_MAIN_THREAD) {
         if (plugin) {
+            // v1.5.29 Fix D: skip queued tasks if the plugin is being torn
+            // down. The destructor revokes WinRT event tokens BEFORE
+            // destroying this window, so in principle no new tasks should
+            // arrive after m_isDestroyed flips. But a task posted by a
+            // background thread that already passed the RunOnMainThread
+            // short-circuit check (just before the destructor ran) can
+            // still be sitting in the queue when WM_RUN_ON_MAIN_THREAD is
+            // dispatched. Running it would invoke captured `this`/members
+            // already destroyed; safer to drop silently.
+            if (plugin->m_isDestroyed.load(std::memory_order_acquire)) {
+                return 0;
+            }
             // std::cout << "[OmniChat] WndProc processing tasks..." << std::endl;
             std::queue<std::function<void()>> tasks;
             {
@@ -152,21 +194,39 @@ LRESULT CALLBACK SpeechToTextWindowsPlugin::MessageWindowProc(HWND hwnd, UINT me
 }
 
 void SpeechToTextWindowsPlugin::RunOnMainThread(std::function<void()> task) {
-    if (!m_messageWindow || !IsWindow(m_messageWindow)) {
+    // v1.5.29 Fix D: short-circuit if the plugin is already being destroyed.
+    // Without this guard, a WinRT background callback dispatched after the
+    // destructor started (but before the tokens were revoked) would queue a
+    // task whose closure captured `this`/members that the destructor was
+    // simultaneously tearing down, leading to use-after-free.
+    if (m_isDestroyed.load(std::memory_order_acquire)) {
+        return;
+    }
+    // Read the HWND through the atomic so we never observe a torn pointer
+    // if DestroyMessageWindow() is concurrently exchanging it to nullptr.
+    HWND hwnd = m_messageWindow.load(std::memory_order_acquire);
+    if (!hwnd || !IsWindow(hwnd)) {
         if (GetCurrentThreadId() == m_mainThreadId) {
             std::cout << "[OmniChat] Message Window missing/invalid, recreating on main thread..." << std::endl;
             CreateMessageWindow();
+            hwnd = m_messageWindow.load(std::memory_order_acquire);
         } else {
             std::cout << "[OmniChat] Message Window missing, cannot recreate from background thread. Task dropped." << std::endl;
             return;
         }
     }
-    if (m_messageWindow && IsWindow(m_messageWindow)) {
+    // Re-check the destroyed flag: CreateMessageWindow may have observed a
+    // destroyed state and skipped (or the destructor may have raced in between
+    // the two atomic reads).
+    if (m_isDestroyed.load(std::memory_order_acquire)) {
+        return;
+    }
+    if (hwnd && IsWindow(hwnd)) {
         {
             std::lock_guard<std::mutex> lock(m_queueMutex);
             m_taskQueue.push(task);
         }
-        BOOL posted = PostMessage(m_messageWindow, WM_RUN_ON_MAIN_THREAD, 0, 0);
+        BOOL posted = PostMessage(hwnd, WM_RUN_ON_MAIN_THREAD, 0, 0);
         if (!posted) {
             std::cout << "[OmniChat] ERROR: PostMessage failed! Error: " << GetLastError() << std::endl;
         }

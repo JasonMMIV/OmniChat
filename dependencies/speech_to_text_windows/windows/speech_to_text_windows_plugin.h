@@ -74,10 +74,21 @@ class SpeechToTextWindowsPlugin : public flutter::Plugin {
   fire_and_forget StartListeningAsync(std::string localeId, std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
   fire_and_forget StopListeningAsync(std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
 
-  SpeechRecognizer m_recognizer{ nullptr };
-  
+SpeechRecognizer m_recognizer{ nullptr };
+
   // Threading state
-  HWND m_messageWindow = nullptr; // Our private message-only window
+  // m_messageWindow is read by WinRT background threads via RunOnMainThread
+  // and written by the UI thread (Create/DestroyMessageWindow). Making it
+  // atomic<HWND> eliminates the data race that previously allowed a
+  // background callback to read a torn/stale HWND while the destructor was
+  // tearing it down. HWND fits in a pointer-sized atomic, so it is
+  // lock-free on x64 Windows.
+  std::atomic<HWND> m_messageWindow{ nullptr }; // Our private message-only window
+  // Set to true at the very start of the destructor so that any background
+  // WinRT callback that fires RunOnMainThread after tokens are revoked can
+  // observe the downed state and short-circuit instead of touching a
+  // destroyed window or a revived-but-stale task queue.
+  std::atomic<bool> m_isDestroyed{ false };
   DWORD m_mainThreadId = 0; // Main UI thread ID
   std::mutex m_queueMutex;
   std::queue<std::function<void()>> m_taskQueue;

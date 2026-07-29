@@ -37,6 +37,20 @@ class _MermaidInlineWindowsViewState extends State<_MermaidInlineWindowsView> {
   String? _tempFilePath;
   Completer<String?>? _exportCompleter;
   Timer? _heightDebounce;
+  // Race-safe init/dispose guards (v1.5.29 Fix C):
+  // _controller.initialize() is asynchronous (it spawns native WebView2 COM
+  // objects on a background thread). If the Widget is deactivated during init
+  // (e.g. message scroll, list recycling, or streaming Markdown rebuild storm),
+  // dispose() runs concurrently with the still-pending initialize(), both
+  // touching the same COM heap -> 0xc0000374 heap corruption. These two flags
+  // ensure that we never call _controller.dispose() while initialize() is
+  // in flight: dispose() either fully bypasses COM teardown (leaving native
+  // cleanup to Dart GC, which is safe) or runs it after initialize() has
+  // completed. Fix C is defensive hardening layered on top of Fix A, which
+  // prevents _MermaidInlineWindowsView from being constructed during streaming
+  // in the first place.
+  bool _disposed = false;
+  bool _initialized = false;
 
   @override
   void initState() {
@@ -52,7 +66,12 @@ class _MermaidInlineWindowsViewState extends State<_MermaidInlineWindowsView> {
   Future<void> _init() async {
     try {
       await _controller.initialize();
+      // After this await, dispose() may have already run; bail out before
+      // touching any COM surface to avoid racing the disposal path.
+      if (_disposed) return;
+      _initialized = true;
       try { await _controller.setBackgroundColor(const Color(0x00000000)); } catch (_) {}
+      if (_disposed) return;
       _msgSub = _controller.webMessage.listen((event) {
         String text;
         try {
@@ -67,6 +86,11 @@ class _MermaidInlineWindowsViewState extends State<_MermaidInlineWindowsView> {
         }
         _handleWebMessage(text);
       });
+      if (_disposed) {
+        _msgSub?.cancel();
+        _msgSub = null;
+        return;
+      }
       await _loadHtml();
     } catch (_) {}
   }
@@ -163,11 +187,23 @@ class _MermaidInlineWindowsViewState extends State<_MermaidInlineWindowsView> {
 
   @override
   void dispose() {
+    // Mark disposed FIRST so that any in-flight _init() continuation, after
+    // its next await, observes the flag and exits without touching COM.
+    _disposed = true;
     try { _heightDebounce?.cancel(); } catch (_) {}
     _heightDebounce = null;
     try { _msgSub?.cancel(); } catch (_) {}
     _msgSub = null;
-    try { _controller.dispose(); } catch (_) {}
+    // Only synchronously dispose the native controller when initialize() has
+    // already completed. Calling dispose() while initialize() is still in
+    // flight races the COM heap and is the source of the 0xc0000374
+    // (STATUS_HEAP_CORRUPTION) crashes traced in v1.5.29. If initialize() is
+    // still pending, leave native cleanup to Dart GC, which collects the
+    // controller on a later idle turn after initialize() has resolved,
+    // avoiding the cross-thread race entirely.
+    if (_initialized) {
+      try { _controller.dispose(); } catch (_) {}
+    }
     try {
       if (_tempFilePath != null) {
         File(_tempFilePath!).deleteSync();

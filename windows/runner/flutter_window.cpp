@@ -7,6 +7,7 @@
 #include <wincodec.h>
 #include <objbase.h>  // CoInitializeEx / CoUninitialize
 #include <shellapi.h>  // CF_HDROP / DragQueryFile
+#include <commctrl.h>  // SetWindowSubclass / RemoveWindowSubclass / DefSubclassProc
 
 #include <flutter/method_channel.h>
 #include <flutter/standard_method_codec.h>
@@ -34,6 +35,20 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+
+  // Install a subclass proc on the Flutter engine's child window so we can
+  // short-circuit WM_GETOBJECT at the child level too. The child HWND is the
+  // actual surface where the Flutter engine renders and it has its own WndProc
+  // (distinct from the runner's top-level window). Intercepting WM_GETOBJECT
+  // only on the parent (as v1.5.28 did) still allowed AT clients and Windows
+  // itself (taskbar previews, Alt+Tab, DWM) to reach the child and enable the
+  // engine's semantics pipeline, triggering flutter_windows.dll 0xc0000005
+  // races during streaming.
+  child_hwnd_ = flutter_controller_->view()->GetNativeWindow();
+  if (child_hwnd_) {
+    SetWindowSubclass(child_hwnd_, &FlutterWindow::ChildWndSubclassProc,
+                      /*id_subclass=*/1, /*ref_data=*/0);
+  }
 
   // Method channel for clipboard images.
   auto channel = std::make_shared<flutter::MethodChannel<flutter::EncodableValue>>(
@@ -284,6 +299,15 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  // Remove the subclass BEFORE destroying the controller. Once the controller
+  // is gone, the child HWND is destroyed and RemoveWindowSubclass would touch
+  // invalid state. Removing first also guarantees that a WM_GETOBJECT arriving
+  // during teardown is routed through the default handler (which itself never
+  // invokes Flutter engine semantics), eliminating a teardown-time race.
+  if (child_hwnd_) {
+    RemoveWindowSubclass(child_hwnd_, &FlutterWindow::ChildWndSubclassProc, 1);
+    child_hwnd_ = nullptr;
+  }
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -313,4 +337,24 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   return Win32Window::MessageHandler(hwnd, message, wparam, lparam);
+}
+
+LRESULT CALLBACK FlutterWindow::ChildWndSubclassProc(
+    HWND hwnd,
+    UINT msg,
+    WPARAM wparam,
+    LPARAM lparam,
+    UINT_PTR id_subclass,
+    DWORD_PTR ref_data) noexcept {
+  // Second-layer WM_GETOBJECT guard, mirroring the parent's MessageHandler
+  // guard above. Returning 0 is the MSDN-documented "no accessible object
+  // available" reply. AT clients and OS-level query sources (taskbar previews,
+  // Alt+Tab thumbnails, DWM) will see an inaccessible child and skip it. The
+  // engine's OnGetObject -> OnUpdateSemanticsEnabled(true) -> accessibility
+  // bridge instantiation path is bypassed entirely, eliminating the residual
+  // flutter_windows.dll 0xc0000005 crashes observed in v1.5.28.
+  if (msg == WM_GETOBJECT) {
+    return 0;
+  }
+  return DefSubclassProc(hwnd, msg, wparam, lparam);
 }

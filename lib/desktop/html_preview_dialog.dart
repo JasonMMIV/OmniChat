@@ -43,6 +43,16 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
   bool? _lastDark;
   final List<_ConsoleMessage> _console = <_ConsoleMessage>[];
   StreamSubscription? _msgSub;
+  // Race-safe init/dispose guards (v1.5.29 Fix C):
+  // _winCtrl.initialize() is asynchronous (native WebView2 COM init on a
+  // background thread). If the dialog is closed during initialize() the
+  // previous dispose() ran _winCtrl?.dispose() concurrently with the
+  // still-pending init, racing the COM heap -> 0xc0000374. These flags
+  // ensure dispose() only touches the native controller after init has
+  // completed; if init is still in flight we leave native cleanup to Dart
+  // GC, avoiding the cross-thread race.
+  bool _disposed = false;
+  bool _initialized = false;
 
   @override
   void initState() {
@@ -54,8 +64,13 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
     if (Platform.isWindows) {
       final c = winweb.WebviewController();
       await c.initialize();
-      try { await c.setBackgroundColor(const Color(0x00000000)); } catch (_) {}
+      // After this await, dispose() may have already run; bail before touching
+      // any COM surface to avoid racing the disposal path.
+      if (_disposed) return;
+      _initialized = true;
       _winCtrl = c;
+      try { await c.setBackgroundColor(const Color(0x00000000)); } catch (_) {}
+      if (_disposed) return;
       // Listen to web messages (console bridge)
       _msgSub = _winCtrl!.webMessage.listen((event) {
         try {
@@ -70,9 +85,15 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
           _pushConsole(level: (obj['level']?.toString() ?? 'log').toUpperCase(), message: obj['message']?.toString() ?? '', source: obj['source']?.toString(), line: (obj['line'] as num?)?.toInt());
         } catch (_) {}
       });
+      if (_disposed) {
+        _msgSub?.cancel();
+        _msgSub = null;
+        return;
+      }
       _ready = true;
       if (mounted) setState(() {});
     } else {
+      if (_disposed) return;
       final c = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..addJavaScriptChannel('Console', onMessageReceived: (m) {
@@ -205,10 +226,17 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
 
   @override
   void dispose() {
+    // Mark disposed FIRST so that any in-flight _init() continuation, after
+    // its next await, observes the flag and exits without touching COM.
+    _disposed = true;
     try { _msgSub?.cancel(); } catch (_) {}
-    try {
-      _winCtrl?.dispose();
-    } catch (_) {}
+    // Only synchronously dispose the native controller when initialize() has
+    // already completed. Disposing while initialize() is still pending races
+    // the COM heap (source of 0xc0000374 ntdll crashes traced in v1.5.29).
+    // If init is still in flight, leave native cleanup to Dart GC.
+    if (_initialized && _winCtrl != null) {
+      try { _winCtrl!.dispose(); } catch (_) {}
+    }
     super.dispose();
   }
 }

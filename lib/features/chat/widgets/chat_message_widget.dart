@@ -1341,6 +1341,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       text: visualContent,
                       onCitationTap: (id) => _handleCitationTap(id),
                       baseStyle: TextStyle(fontSize: baseAssistant, height: 1.5),
+                      isStreaming: widget.message.isStreaming,
                     ),
                   );
                   return RepaintBoundary(
@@ -1444,15 +1445,16 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                         defaultTargetPlatform == TargetPlatform.windows ||
                                         defaultTargetPlatform == TargetPlatform.linux;
                                     final double baseTranslation = isDesktop ? 14.0 : 15.5;
+                                    final bool translationInProgress = translationText == AppLocalizations.of(context)!.chatMessageWidgetTranslating;
                                     final translationWidget = DefaultTextStyle.merge(
                                       style: TextStyle(fontSize: baseTranslation, height: 1.4),
                                       child: MarkdownWithCodeHighlight(
                                         text: translationText!,
                                         onCitationTap: (id) => _handleCitationTap(id),
                                         baseStyle: TextStyle(fontSize: baseTranslation, height: 1.4),
+                                        isStreaming: widget.message.isStreaming || translationInProgress,
                                       ),
                                     );
-                                    final bool translationInProgress = translationText == AppLocalizations.of(context)!.chatMessageWidgetTranslating;
                                     return (widget.message.isStreaming || translationInProgress)
                                         ? translationWidget
                                         : SelectionArea(
@@ -2778,6 +2780,7 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
           child: MarkdownWithCodeHighlight(
             text: text.isNotEmpty ? text : '…',
             baseStyle: baseStyle,
+            isStreaming: widget.loading || widget.isParentStreaming,
           ),
         );
         return (widget.loading || widget.isParentStreaming)

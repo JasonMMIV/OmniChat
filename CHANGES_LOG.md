@@ -1,5 +1,62 @@
 # OmniChat Developer Changes Log
 
+## [v1.5.29] - 2026-07-29: Windows Crash Unified Root Cause Fix - Streaming-Deferred Native Widgets & Subwindow Guard
+
+### 124. Comprehensive Windows Crash Root Cause Fix
+- **Purpose**: Eliminate the residual native Windows crashes (`0xc0000374` heap corruption in `ntdll.dll`, `0xc0000005` access violation in `flutter_windows.dll` and unknown modules) that persisted after v1.5.28's parent-window `WM_GETOBJECT` intercept. These crashes occurred during AI response streaming even without external AT tools running. The fix applies a unified engineering principle - **defer native-resource-heavy widgets during streaming** - that was already applied to `SelectionArea` in v1.5.23/26/27 but had never been extended to WebView2-backed widgets (Mermaid/PlantUML). Four independent crash paths are addressed: (A) WebView2 init/dispose COM heap race, (B) child-window `WM_GETOBJECT` leakage, (C) WebView2 race-safe disposal guard, and (D) WinRT speech plugin thread safety.
+- **Files Modified**:
+  - `pubspec.yaml` (bumped version to `1.5.29+53`)
+  - `installers/omnichat_setup.iss` (updated `MyAppVersion` to `1.5.29` and installer output filename)
+  - `lib/shared/widgets/markdown_with_highlight.dart` (added `isStreaming` parameter to `MarkdownWithCodeHighlight` and `FencedCodeBlockMd`; defer Mermaid/PlantUML WebView2 creation during streaming to pure-Dart `_CollapsibleCodeBlock`)
+  - `lib/features/chat/widgets/chat_message_widget.dart` (passed `isStreaming` to assistant content, translation, and reasoning `MarkdownWithCodeHighlight` call sites)
+  - `windows/runner/flutter_window.h` (added `child_hwnd_` member and `ChildWndSubclassProc` static callback declaration)
+  - `windows/runner/flutter_window.cpp` (installed `SetWindowSubclass` on the Flutter child window to intercept `WM_GETOBJECT` at the child level; reordered `OnDestroy` to remove subclass before controller teardown)
+  - `windows/runner/CMakeLists.txt` (added explicit `comctl32.lib` link for `SetWindowSubclass`/`RemoveWindowSubclass`)
+  - `lib/shared/widgets/mermaid_bridge_stub.dart` (added `_disposed`/`_initialized` race-safe guards in `_MermaidInlineWindowsViewState`; `_controller.dispose()` now skipped when `initialize()` is still in flight, leaving cleanup to Dart GC)
+  - `lib/desktop/html_preview_dialog.dart` (same `_disposed`/`_initialized` race-safe pattern in `_HtmlPreviewDialogState`)
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.h` (changed `HWND m_messageWindow` to `std::atomic<HWND>`; added `std::atomic<bool> m_isDestroyed`)
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.cpp` (reordered destructor: mark `m_isDestroyed` first, then revoke WinRT event tokens, then destroy message window; `RunOnMainThread` checks `m_isDestroyed` and uses atomic `HWND` load; `DestroyMessageWindow` uses `exchange(nullptr)` for atomic clearing; `CreateMessageWindow` uses atomic store at end; `MessageWindowProc` checks `m_isDestroyed` before executing queued tasks)
+  - `CHANGES_LOG.md`
+- **Unified Root Cause Analysis**:
+  - **Cross-version pattern**: Every historical crash fix (v1.5.18, v1.5.23, v1.5.26, v1.5.27, v1.5.28) shares a single engineering principle: **during streaming, defer or simplify widgets whose lifecycle involves native async resources (WebView2 COM, WinRT, SemanticsNode trees, QuickJS C heap)**. Each token chunk triggers a full `MarkdownWithCodeHighlight` rebuild, creating a "rebuild storm" that amplifies every latent native lifecycle race into statistical inevitability. v1.5.23/26/27 applied this principle to `SelectionArea` but never extended it to WebView2-backed Mermaid/PlantUML widgets.
+  - **Crash #1 (`0xc0000374` ntdll heap corruption)**: During streaming, if a ` ```mermaid` code fence is present, each markdown rebuild creates/updates a `_MermaidInlineWindowsView` with a `winweb.WebviewController`. `initialize()` is async (native COM on a background thread). If the widget is disposed before `initialize()` completes (e.g. message scrolled out, list recycling, or fence code change), `dispose()` calls `_controller.dispose()` concurrently with the still-in-progress `initialize()`, both operating on the same COM heap. This is the source of `0xc0000374` (STATUS_HEAP_CORRUPTION).
+  - **Crash #2/#3 (`0xc0000005` in unknown module)**: Secondary crash - once the heap is corrupted by crash #1, subsequent native operations read invalid memory at random addresses. The "unknown" faulting module (version 0.0.0.0) and variable fault offsets confirm this is a cascade effect.
+  - **Crash #4 (`0xc0000005` in `flutter_windows.dll`)**: Separate path - v1.5.28 intercepts `WM_GETOBJECT` only on the **parent** window (`FlutterWindow::MessageHandler`). But the Flutter engine renders into a **child** window (`FlutterViewController`'s native HWND) which has its own `WndProc` set up by the engine. Windows itself sends `WM_GETOBJECT` to the child window for taskbar previews, Alt+Tab thumbnails, DWM compositing, etc., even without explicit AT tools. This activates the engine's `OnGetObject` -> `OnUpdateSemanticsEnabled(true)` path, which stays active permanently (no disable path). Subsequent streaming rebuilds trigger the SemanticsNode callback race, producing `0xc0000005`.
+  - **Why v1.5.28 reduced but did not eliminate crashes**: v1.5.28 closed the parent-window `WM_GETOBJECT` path (reducing #4 frequency) but left crash #1 (WebView2 COM race) and the child-window path to #4 completely unaddressed.
+- **Fix A (Root Cause - Streaming-Deferred Rendering)**:
+  - `MarkdownWithCodeHighlight` and `FencedCodeBlockMd` now accept an `isStreaming` flag (default `false` for backward compatibility with static call sites).
+  - When `isStreaming == true`, Mermaid and PlantUML code blocks render as a pure-Dart `_CollapsibleCodeBlock` (no native resource). When `isStreaming` flips to `false` (message completes streaming), the widget tree rebuilds and swaps in the real WebView2-based `_MermaidBlock` / `PlantUMLBlock` renderer.
+  - This eliminates the WebView2 COM init/dispose race entirely during streaming - the dominant trigger for crash #1.
+  - This is the same policy applied to `SelectionArea` in v1.5.23, now extended to all native-resource-heavy widgets.
+  - `isStreaming` is passed from: (1) assistant content (`widget.message.isStreaming`), (2) translation section (`widget.message.isStreaming || translationInProgress`), (3) reasoning section (`widget.loading || widget.isParentStreaming`).
+  - All other call sites (user messages, AI Team proposals, SelectCopy dialogs, HTML preview, export) retain the default `false`, since they render static/completed content.
+- **Fix B (Defense - Child Window WM_GETOBJECT Double-Layer Guard)**:
+  - After `SetChildContent(...)`, the runner now installs `SetWindowSubclass` on the Flutter engine's child window with a `ChildWndSubclassProc` that returns `0` for `WM_GETOBJECT`.
+  - `RemoveWindowSubclass` is called in `OnDestroy` **before** destroying the Flutter controller, ensuring no teardown-time race.
+  - This forms a double-layer guard (parent `MessageHandler` + child subclass), ensuring zero `WM_GETOBJECT` reaches the engine regardless of which window receives it.
+  - `comctl32.lib` is explicitly linked in `CMakeLists.txt` for `SetWindowSubclass`/`RemoveWindowSubclass`/`DefSubclassProc`.
+- **Fix C (Defense - WebView2 Race-Safe Init/Dispose Guard)**:
+  - Both `_MermaidInlineWindowsViewState` and `_HtmlPreviewDialogState` now track `_disposed` and `_initialized` flags.
+  - `_init()` checks `_disposed` after every `await` and bails out if the widget was disposed during initialization.
+  - `dispose()` sets `_disposed = true` first, then only calls `_controller.dispose()` if `_initialized == true`. If `initialize()` is still in flight, native cleanup is left to Dart GC, avoiding the cross-thread COM heap race.
+  - This is defensive hardening layered on top of Fix A - it protects any remaining WebView2 lifecycle scenarios (manual HTML preview dialog, future Mermaid usage outside streaming guard).
+- **Fix D (Defense - WinRT Speech Plugin Thread Safety)**:
+  - `m_messageWindow` changed from raw `HWND` to `std::atomic<HWND>`, eliminating data races from cross-thread reads.
+  - `m_isDestroyed` (`std::atomic<bool>`) added, set at the very start of the destructor.
+  - Destructor reordered: (1) flip `m_isDestroyed`, (2) revoke all WinRT event tokens and close recognizer under mutex, (3) only then destroy message window. The previous order (destroy window first, revoke tokens second) left a window where background callbacks could fire into a half-destroyed state.
+  - `RunOnMainThread` checks `m_isDestroyed` on entry, uses atomic `HWND` load, and re-checks destroyed flag after potential `CreateMessageWindow` fallback.
+  - `MessageWindowProc` checks `m_isDestroyed` before executing queued tasks, preventing use-after-free from tasks queued just before the destructor ran.
+  - `CreateMessageWindow` stores the new HWND via atomic store (release ordering); `DestroyMessageWindow` exchanges to nullptr (acq-rel ordering) before `DestroyWindow`.
+  - This fixes a long-standing latent UAF/data-race that was unrelated to streaming but could manifest during extended sessions with voice input.
+- **Trade-offs**:
+  - **Mermaid during streaming**: While `isStreaming == true`, ` ```mermaid` code blocks display as a collapsible code block showing the Mermaid source. Once streaming completes, the block automatically swaps to the rendered chart via WebView2. This is an **improvement** over the previous behavior (mid-stream WebView2 rendering that flickered on each chunk).
+  - **Lost (same as v1.5.28)**: Windows screen readers remain unable to introspect OmniChat's Flutter widgets, now at both parent and child window layers.
+  - **Preserved**: All text selection on completed messages (`SelectionArea` is completely untouched), keyboard navigation, mouse/touch interaction, copy/paste, WebView2 rendering (after streaming), all plugins.
+- **Re-enabling in the future**: Both `WM_GETOBJECT` short-circuits (parent in `MessageHandler` and child in `ChildWndSubclassProc`) should be removed once upstream Flutter resolves the Windows engine AX 2.0 callback race. See v1.5.28 re-enabling instructions for validation steps. The streaming-deferred rendering (Fix A) is a permanent architectural improvement and should be retained regardless.
+- **Version Bump**: `1.5.28+52` -> `1.5.29+53`.
+
+---
+
 ## [v1.5.28] - 2026-07-26: Windows Crash Root Cause Fix — Disable Flutter Windows Semantics
 
 ### 123. Windows Crash Root Cause — Disable Flutter Windows Engine Semantics
