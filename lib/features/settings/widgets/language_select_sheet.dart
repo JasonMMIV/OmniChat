@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import '../../../icons/lucide_adapter.dart';
@@ -83,31 +84,39 @@ Future<LanguageOption?> showLanguageSelector(BuildContext context) async {
 
   // Desktop anchored menu
   final l10n = AppLocalizations.of(context)!;
-  LanguageOption? selected;
+  final completer = Completer<LanguageOption?>();
   final items = [
     ...supportedLanguages.map((lang) => DesktopContextMenuItem(
           icon: null,
           label: '${lang.flag} ${_displayNameFor(l10n, lang.code)}',
-          onTap: () => selected = lang,
+          onTap: () {
+            if (!completer.isCompleted) completer.complete(lang);
+          },
         )),
     DesktopContextMenuItem(
       icon: Lucide.X,
       label: l10n.languageSelectSheetClearButton,
-      onTap: () => selected = const LanguageOption(
-        code: '__clear__',
-        displayName: 'Clear Translation',
-        displayNameZh: '清空翻译',
-        flag: '',
-      ),
+      onTap: () {
+        if (!completer.isCompleted) {
+          completer.complete(const LanguageOption(
+            code: '__clear__',
+            displayName: 'Clear Translation',
+            displayNameZh: '清空翻译',
+            flag: '',
+          ));
+        }
+      },
       danger: true,
     ),
   ];
-  await showDesktopContextMenuAt(
+  showDesktopContextMenuAt(
     context,
     globalPosition: DesktopMenuAnchor.positionOrCenter(context),
     items: items,
-  );
-  return selected;
+  ).then((_) {
+    if (!completer.isCompleted) completer.complete(null);
+  });
+  return completer.future;
 }
 
 class _LanguageSelectSheet extends StatefulWidget {
