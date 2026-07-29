@@ -115,23 +115,25 @@ class _MiniMapPopoverState extends State<_MiniMapPopover>
             right: right,
             top: top,
             width: width,
-            constraints: BoxConstraints(maxHeight: maxHeight),
-            child: FadeTransition(
-              opacity: _fadeIn,
-              child: AnimatedBuilder(
-                animation: _slideY,
-                builder: (context, child) => Transform.translate(
-                  offset: Offset(0, -_slideY.value),
-                  child: child,
-                ),
-                child: _GlassPanel(
-                  borderRadius: BorderRadius.circular(14),
-                  child: _MiniMapList(
-                    messages: widget.messages,
-                    onSelect: (id) {
-                      if (_closing) return;
-                      widget.onSelect(id);
-                    },
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxHeight),
+              child: FadeTransition(
+                opacity: _fadeIn,
+                child: AnimatedBuilder(
+                  animation: _slideY,
+                  builder: (context, child) => Transform.translate(
+                    offset: Offset(0, -_slideY.value),
+                    child: child,
+                  ),
+                  child: _GlassPanel(
+                    borderRadius: BorderRadius.circular(14),
+                    child: _MiniMapList(
+                      messages: widget.messages,
+                      onSelect: (id) {
+                        if (_closing) return;
+                        widget.onSelect(id);
+                      },
+                    ),
                   ),
                 ),
               ),

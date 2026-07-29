@@ -730,9 +730,9 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     }
 
     // Desktop-only: enable tabs for embedded sidebar when requested
-    final bool _assistOnly = widget.desktopAssistantsOnly && _isDesktop && widget.embedded;
-    final bool _topicsOnly = widget.desktopTopicsOnly && _isDesktop && widget.embedded;
-    final bool _useTabs = widget.useDesktopTabs && _isDesktop && widget.embedded && !_assistOnly && !_topicsOnly;
+    const bool _assistOnly = false;
+    const bool _topicsOnly = false;
+    const bool _useTabs = false;
 
     final inner = SafeArea(
       child: Stack(
@@ -757,35 +757,13 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                         switchOutCurve: Curves.easeInCubic,
                         transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: child),
                         child: Row(
-                          key: ValueKey<String>((() {
-                            final l10n = AppLocalizations.of(context)!;
-                            String hint;
-                            if (_useTabs) {
-                              hint = ((_tabController?.index ?? 0) == 0)
-                                  ? l10n.sideDrawerSearchAssistantsHint
-                                  : l10n.sideDrawerSearchHint;
-                            } else if (_assistOnly) {
-                              hint = l10n.sideDrawerSearchAssistantsHint;
-                            } else {
-                              hint = l10n.sideDrawerSearchHint;
-                            }
-                            return hint;
-                          })()),
+                          key: ValueKey<String>(AppLocalizations.of(context)!.sideDrawerSearchHint),
                           children: [
                           Expanded(
                             child: TextField(
                               controller: _searchController,
                               decoration: InputDecoration(
-                                hintText: (() {
-                                  final l10n = AppLocalizations.of(context)!;
-                                  if (_useTabs) {
-                                    return ((_tabController?.index ?? 0) == 0)
-                                        ? l10n.sideDrawerSearchAssistantsHint
-                                        : l10n.sideDrawerSearchHint;
-                                  }
-                                  if (_assistOnly) return l10n.sideDrawerSearchAssistantsHint;
-                                  return l10n.sideDrawerSearchHint;
-                                })(),
+                                hintText: AppLocalizations.of(context)!.sideDrawerSearchHint,
                                 filled: true,
                                 fillColor: isDark ? Colors.white10 : Colors.grey.shade200.withOpacity(0.80),
                                 isDense: true,
@@ -799,8 +777,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                                   ),
                                 ),
                                 prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                                // 右侧（话题列表）不需要历史入口（左侧已有）；左侧或默认仍保留
-                                suffixIcon: _topicsOnly ? null : Padding(
+                                suffixIcon: Padding(
                                   padding: const EdgeInsets.only(right: 6),
                                   child: IosIconButton(
                                     size: 20,
@@ -808,7 +785,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                                     icon: Lucide.History,
                                     padding: const EdgeInsets.all(4),
                                     onTap: () async {
-                                      final selectedId = await showChatHistoryDesktopDialog(context, assistantId: currentAssistantId);
+                                      final selectedId = await showChatHistoryDesktopDialog(context);
                                       if (selectedId != null && selectedId.isNotEmpty) {
                                         final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
                                         widget.onSelectConversation?.call(selectedId, closeDrawer: closeDrawer);
@@ -896,9 +873,9 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                               icon: Lucide.History,
                               padding: const EdgeInsets.all(6),
                               onTap: () async {
-                                final selectedId = await Navigator.of(context).push<String>(
-                                  MaterialPageRoute(builder: (_) => ChatHistoryPage(assistantId: currentAssistantId)),
-                                );
+                                  final selectedId = await Navigator.of(context).push<String>(
+                                    MaterialPageRoute(builder: (_) => const ChatHistoryPage()),
+                                  );
                                 if (selectedId != null && selectedId.isNotEmpty) {
                                   final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
                                   widget.onSelectConversation?.call(selectedId, closeDrawer: closeDrawer);
