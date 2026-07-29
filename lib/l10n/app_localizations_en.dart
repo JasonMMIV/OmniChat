@@ -36,7 +36,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPageDisplayDescription => 'Customize UI and font';
 
   @override
-  String get settingsPageAssistant => 'Assistant Settings';
+  String get settingsPageAssistant => 'Project Settings';
 
   @override
   String get settingsPageAssistantDescription => 'Configure default parameters';
@@ -168,7 +168,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidebarHistory => 'History';
 
   @override
-  String get sidebarAssistants => 'Assistants';
+  String get sidebarAssistants => 'Projects';
 
   @override
   String get sidebarTopics => 'Topics';
@@ -297,13 +297,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addProviderSheetAddButton => 'Add Provider';
 
   @override
-  String get desktopSidebarTabAssistants => 'Assistants';
+  String get desktopSidebarTabAssistants => 'Projects';
 
   @override
   String get desktopSidebarTabTopics => 'Topics';
 
   @override
-  String get desktopAssistantsListTitle => 'Assistants';
+  String get desktopAssistantsListTitle => 'Projects';
 
   @override
   String get desktopAvatarMenuUseEmoji => 'Use Emoji';
@@ -318,7 +318,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sideDrawerSearchHint => 'Search chats...';
 
   @override
-  String get sideDrawerSearchAssistantsHint => 'Search assistants...';
+  String get sideDrawerSearchAssistantsHint => 'Search projects...';
 
   @override
   String get sideDrawerRenameHint => 'Enter new name';
@@ -435,10 +435,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get assistantEditPageTitle => 'Edit Assistant';
+  String get assistantEditPageTitle => 'Edit Project';
 
   @override
-  String get assistantEditPageNotFound => 'Assistant not found';
+  String get assistantEditPageNotFound => 'Project not found';
 
   @override
   String get assistantEditPageBasicTab => 'Basic';
@@ -541,7 +541,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantEditBodyValueLabel => 'Value';
 
   @override
-  String get assistantEditAssistantNameLabel => 'Assistant Name';
+  String get assistantEditAssistantNameLabel => 'Project Name';
 
   @override
   String get assistantEditContextMessagesTitle => 'Context Messages';
@@ -560,7 +560,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantEditMaxTokensHint => 'Unlimited';
 
   @override
-  String get assistantEditUseAssistantAvatarTitle => 'Use Assistant Avatar';
+  String get assistantEditUseAssistantAvatarTitle => 'Use Project Avatar';
 
   @override
   String get assistantEditStreamOutputTitle => 'Stream Output';
@@ -579,7 +579,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get assistantEditChatBackgroundDescription =>
-      'Set a custom background for this assistant';
+      'Set a custom background for this project';
 
   @override
   String get assistantEditChooseImageButton => 'Choose Image';
@@ -609,7 +609,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantEditParameterDisabled2 => 'Default';
 
   @override
-  String get assistantTagsContextMenuEditAssistant => 'Edit Assistant';
+  String get assistantTagsContextMenuEditAssistant => 'Edit Project';
 
   @override
   String get assistantTagsClearTag => 'Clear Tag';
@@ -618,14 +618,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantTagsContextMenuManageTags => 'Manage Tags';
 
   @override
-  String get assistantTagsContextMenuDeleteAssistant => 'Delete Assistant';
+  String get assistantTagsContextMenuDeleteAssistant => 'Delete Project';
 
   @override
-  String get assistantSettingsDeleteDialogTitle => 'Delete Assistant';
+  String get assistantSettingsDeleteDialogTitle => 'Delete Project';
 
   @override
   String get assistantSettingsDeleteDialogContent =>
-      'Are you sure? This will delete the assistant and its settings.';
+      'Are you sure? This will delete the project and its settings.';
 
   @override
   String get assistantSettingsDeleteDialogCancel => 'Cancel';
@@ -635,16 +635,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get assistantSettingsAtLeastOneAssistantRequired =>
-      'Cannot delete the last assistant.';
+      'Cannot delete the last project.';
 
   @override
-  String get assistantSettingsCopySuccess => 'Assistant copied successfully';
+  String get assistantSettingsCopySuccess => 'Project copied successfully';
 
   @override
   String get assistantSettingsNoPromptPlaceholder => 'No system prompt set';
 
   @override
-  String get assistantSettingsAddSheetTitle => 'New Assistant';
+  String get assistantSettingsAddSheetTitle => 'New Project';
 
   @override
   String get assistantSettingsAddSheetHint => 'Name';
@@ -690,10 +690,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopTrayMenuExit => 'Exit';
 
   @override
-  String get assistantProviderDefaultAssistantName => 'Default Assistant';
+  String get assistantProviderDefaultAssistantName => 'Default Project';
 
   @override
-  String get assistantProviderSampleAssistantName => 'Sample Assistant';
+  String get assistantProviderSampleAssistantName => 'Sample Project';
 
   @override
   String get assistantProviderDeepResearchAssistantName =>
@@ -713,14 +713,14 @@ class AppLocalizationsEn extends AppLocalizations {
     String device_info,
     String system_version,
   ) {
-    return 'You are $model_name, a helpful AI. Time: $cur_datetime';
+    return 'You are $model_name, a helpful AI assistant. Time: $cur_datetime';
   }
 
   @override
   String get assistantSettingsCopySuffix => 'Copy';
 
   @override
-  String get assistantProviderNewAssistantName => 'New Assistant';
+  String get assistantProviderNewAssistantName => 'New Project';
 
   @override
   String get searchSettingsSheetBuiltinSearchTitle => 'Built-in Search';
@@ -990,7 +990,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get providersPageExportShareButton => 'Share';
 
   @override
-  String get mcpAssistantSheetTitle => 'MCP Assistant';
+  String get mcpAssistantSheetTitle => 'MCP Project';
 
   @override
   String get assistantEditMcpNoServersMessage => 'No servers';
@@ -1007,7 +1007,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get quickPhraseGlobalTitle => 'Phrases';
 
   @override
-  String get quickPhraseAssistantTitle => 'Assistant Phrases';
+  String get quickPhraseAssistantTitle => 'Project Phrases';
 
   @override
   String get quickPhraseAddTooltip => 'Add';
@@ -1122,7 +1122,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get titleForLocale => 'New Chat';
 
   @override
-  String get homePageDefaultAssistant => 'Assistant';
+  String get homePageDefaultAssistant => 'Project';
 
   @override
   String get voiceChatButtonTooltip => 'Voice';
@@ -2026,7 +2026,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get storageSpaceCategoryChatData => 'Chat Data';
 
   @override
-  String get storageSpaceCategoryAssistantData => 'Assistants';
+  String get storageSpaceCategoryAssistantData => 'Projects';
 
   @override
   String get storageSpaceCategoryCache => 'Cache';
@@ -2365,7 +2365,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get displaySettingsPageHapticsOnGenerateTitle => 'Generate';
 
   @override
-  String get assistantSettingsPageTitle => 'Assistants';
+  String get assistantSettingsPageTitle => 'Projects';
 
   @override
   String get assistantSettingsCopyButton => 'Copy';
@@ -3006,7 +3006,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatMessageWidgetTranslating => 'Translating...';
 
   @override
-  String get messageExportSheetAssistant => 'Assistant';
+  String get messageExportSheetAssistant => 'Project';
 
   @override
   String get messageExportSheetDefaultTitle => 'New Chat';

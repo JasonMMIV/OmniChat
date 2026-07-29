@@ -9,7 +9,7 @@
   "settingsPageSystemMode": "System",
   "settingsPageDisplay": "Display Settings",
   "settingsPageDisplayDescription": "Customize UI and font",
-  "settingsPageAssistant": "Assistant Settings",
+  "settingsPageAssistant": "Project Settings",
   "settingsPageAssistantDescription": "Configure default parameters",
   "settingsPageModelsServicesSection": "Models & Services",
   "settingsPageDefaultModel": "Default Model",
@@ -44,8 +44,12 @@
   "settingsPageFilesCount": "{count} files, {size}",
   "@settingsPageFilesCount": {
     "placeholders": {
-      "count": {"type": "int"},
-      "size": {"type": "String"}
+      "count": {
+        "type": "int"
+      },
+      "size": {
+        "type": "String"
+      }
     }
   },
   "homePageNewChat": "New Chat",
@@ -58,7 +62,7 @@
   "homePageCopy": "Copy",
   "homePageShare": "Share",
   "sidebarHistory": "History",
-  "sidebarAssistants": "Assistants",
+  "sidebarAssistants": "Projects",
   "sidebarTopics": "Topics",
   "aboutPageVersion": "Version",
   "aboutPageSystem": "System",
@@ -91,7 +95,7 @@
   "providerDetailPageBatchDetectStart": "Check Connectivity",
   "providerDetailPageBatchDetectButton": "Check",
   "providerDetailPageTestButton": "Test Connection",
-  "providerDetailPageAddNewModelButton": "Add Custom Model",
+  "providerDetailPageAddNewModelButton": "Add",
   "providerDetailPageApiKeyHint": "Enter API Key",
   "providerDetailPageManageKeysButton": "Manage Keys",
   "providerDetailPageDeleteProviderTitle": "Delete Provider",
@@ -100,14 +104,14 @@
   "providerDetailPageDeleteButton": "Delete",
   "multiKeyPageKey": "API Key",
   "addProviderSheetAddButton": "Add Provider",
-  "desktopSidebarTabAssistants": "Assistants",
+  "desktopSidebarTabAssistants": "Projects",
   "desktopSidebarTabTopics": "Topics",
-  "desktopAssistantsListTitle": "Assistants",
+  "desktopAssistantsListTitle": "Projects",
   "desktopAvatarMenuUseEmoji": "Use Emoji",
   "desktopAvatarMenuChangeFromImage": "Pick Image",
   "desktopAvatarMenuReset": "Reset Default",
   "sideDrawerSearchHint": "Search chats...",
-  "sideDrawerSearchAssistantsHint": "Search assistants...",
+  "sideDrawerSearchAssistantsHint": "Search projects...",
   "sideDrawerRenameHint": "Enter new name",
   "sideDrawerCancel": "Cancel",
   "sideDrawerOK": "OK",
@@ -121,7 +125,9 @@
   "sideDrawerDeleteSnackbar": "Deleted \"{title}\"",
   "@sideDrawerDeleteSnackbar": {
     "placeholders": {
-      "title": {"type": "String"}
+      "title": {
+        "type": "String"
+      }
     }
   },
   "sideDrawerGreetingMorning": "Good morning",
@@ -150,18 +156,24 @@
   "sideDrawerUpdateTitle": "Update Available: {version}",
   "@sideDrawerUpdateTitle": {
     "placeholders": {
-      "version": {"type": "String"}
+      "version": {
+        "type": "String"
+      }
     }
   },
   "sideDrawerUpdateTitleWithBuild": "Update Available: {version} ({build})",
   "@sideDrawerUpdateTitleWithBuild": {
     "placeholders": {
-      "version": {"type": "String"},
-      "build": {"type": "int"}
+      "version": {
+        "type": "String"
+      },
+      "build": {
+        "type": "int"
+      }
     }
   },
-  "assistantEditPageTitle": "Edit Assistant",
-  "assistantEditPageNotFound": "Assistant not found",
+  "assistantEditPageTitle": "Edit Project",
+  "assistantEditPageNotFound": "Project not found",
   "assistantEditPageBasicTab": "Basic",
   "assistantEditPagePromptsTab": "Prompts",
   "assistantEditPageMemoryTab": "Memory",
@@ -195,19 +207,19 @@
   "assistantEditHeaderValueLabel": "Value",
   "assistantEditBodyKeyLabel": "Key",
   "assistantEditBodyValueLabel": "Value",
-  "assistantEditAssistantNameLabel": "Assistant Name",
+  "assistantEditAssistantNameLabel": "Project Name",
   "assistantEditContextMessagesTitle": "Context Messages",
   "assistantEditContextMessagesDescription": "Number of previous messages to include",
   "assistantEditThinkingBudgetTitle": "Thinking Budget",
   "assistantEditMaxTokensTitle": "Max Tokens",
   "assistantEditMaxTokensHint": "Unlimited",
-  "assistantEditUseAssistantAvatarTitle": "Use Assistant Avatar",
+  "assistantEditUseAssistantAvatarTitle": "Use Project Avatar",
   "assistantEditStreamOutputTitle": "Stream Output",
   "assistantEditChatModelTitle": "Chat Model",
   "assistantEditChatModelSubtitle": "Override default model",
   "assistantEditModelUseGlobalDefault": "Use Global Default",
   "assistantEditChatBackgroundTitle": "Chat Background",
-  "assistantEditChatBackgroundDescription": "Set a custom background for this assistant",
+  "assistantEditChatBackgroundDescription": "Set a custom background for this project",
   "assistantEditChooseImageButton": "Choose Image",
   "assistantEditAvatarChooseImage": "Local Image",
   "assistantEditAvatarChooseEmoji": "Emoji",
@@ -217,18 +229,18 @@
   "assistantEditImageUrlDialogHint": "Enter image link",
   "assistantEditParameterDisabled": "Not set",
   "assistantEditParameterDisabled2": "Default",
-  "assistantTagsContextMenuEditAssistant": "Edit Assistant",
+  "assistantTagsContextMenuEditAssistant": "Edit Project",
   "assistantTagsClearTag": "Clear Tag",
   "assistantTagsContextMenuManageTags": "Manage Tags",
-  "assistantTagsContextMenuDeleteAssistant": "Delete Assistant",
-  "assistantSettingsDeleteDialogTitle": "Delete Assistant",
-  "assistantSettingsDeleteDialogContent": "Are you sure? This will delete the assistant and its settings.",
+  "assistantTagsContextMenuDeleteAssistant": "Delete Project",
+  "assistantSettingsDeleteDialogTitle": "Delete Project",
+  "assistantSettingsDeleteDialogContent": "Are you sure? This will delete the project and its settings.",
   "assistantSettingsDeleteDialogCancel": "Cancel",
   "assistantSettingsDeleteDialogConfirm": "Delete",
-  "assistantSettingsAtLeastOneAssistantRequired": "Cannot delete the last assistant.",
-  "assistantSettingsCopySuccess": "Assistant copied successfully",
+  "assistantSettingsAtLeastOneAssistantRequired": "Cannot delete the last project.",
+  "assistantSettingsCopySuccess": "Project copied successfully",
   "assistantSettingsNoPromptPlaceholder": "No system prompt set",
-  "assistantSettingsAddSheetTitle": "New Assistant",
+  "assistantSettingsAddSheetTitle": "New Project",
   "assistantSettingsAddSheetHint": "Name",
   "assistantSettingsAddSheetCancel": "Cancel",
   "assistantSettingsAddSheetSave": "Create",
@@ -243,23 +255,35 @@
   "homePageDeleteMessageConfirm": "Delete this message?",
   "desktopTrayMenuShowWindow": "Show Window",
   "desktopTrayMenuExit": "Exit",
-  "assistantProviderDefaultAssistantName": "Default Assistant",
-  "assistantProviderSampleAssistantName": "Sample Assistant",
+  "assistantProviderDefaultAssistantName": "Default Project",
+  "assistantProviderSampleAssistantName": "Sample Project",
   "assistantProviderDeepResearchAssistantName": "Deep Research Assistant",
   "assistantProviderDeepResearchAssistantSystemPrompt": "# Role & Persona\n\nToday is {cur_date}.\nYou are an advanced Deep Reasoning & Research AI Agent.\nYour primary objective is to conduct multi-round, rigorous reasoning integrated with comprehensive research before producing any answer. You think deeply to know what to search for, and search thoroughly to fuel deeper thinking. You value depth of insight, logical validity, and authoritative evidence.\n\nYour purpose is not to validate the first plausible explanation, but to construct the most accurate, well-calibrated, and decision-useful understanding that the available evidence permits.\n\n---\n\n# Epistemic Discipline\n\nThroughout your reasoning and research process, you must maintain a strict distinction between:\n\n1. **Evidence:** Direct observations, data, empirical findings, expert consensus, and other externally checkable claims.\n2. **Inference:** Interpretations, causal explanations, generalizations, and conclusions drawn from evidence.\n3. **Judgment:** Recommendations, priorities, trade-offs, and value-dependent choices.\n\nNever present an inference as an observed fact. Never present a preference or value judgment as if evidence alone determines it.\n\n---\n\n# Core Protocol\n\nBefore formulating your final response, you must strictly follow this iterative process. Execute the following loop repeatedly until the Stop criteria in Step 3 are met:\n\n## Step 1 — Think & Search\n\nYour strategy must evolve across rounds:\n\n- **Round 1 (Frame & Survey):**\n  - *Think*: Identify the fundamental principles governing this problem. Restate the question sharply. Identify key assumptions, ambiguities, and potential confounders.\n  - *Search*: Use broad keywords to build a landscape map of the topic — identify key terms, core debates, the vocabulary of the field, and authoritative sources.\n- **Round 2+ (Deepen & Target):**\n  - *Think*: Challenge your current understanding by applying **one or more** of the most relevant of these **7 Analytical Lenses**:\n    1. **Adversarial**: Step outside your framing. Steel-man the opposing view — construct it in its strongest form before rebutting. Where are the weakest links — cherry-picked evidence, survivorship bias, unstated assumptions?\n    2. **Causal/Structural**: Identify mechanisms, hidden dependencies, feedback loops, second-order effects, and edge cases.\n    3. **Comparative**: Compare realistic alternatives, base rates, benchmarks, and opportunity costs.\n    4. **Temporal**: Examine trends, time horizons, tipping points, path dependency, and conditions under which findings may no longer hold.\n    5. **Stakeholder**: Analyze how incentives, risks, and constraints vary across affected groups.\n    6. **Analogical**: Use cross-domain analogies to reveal structure, then explicitly test where the analogy breaks.\n    7. **Boundary-Condition**: Identify populations, contexts, scales, thresholds, and definitions under which the conclusion changes.\n  - *Search*: Use precise queries driven by your current gaps — combine discovered terminology with target concepts, search for counterevidence and methodology critiques, use quoted phrases from sources you've found, add strict constraints (specific years, \"systematic review\", \"meta-analysis\", site:.gov/.edu).\n\n*(Language rule: Default to English for scientific/technical topics; use the user's language for local/region-specific matters. If results are poor, try the other language. Beyond search, use other available tools as needed.)*\n\n## Step 2 — Reflect & Consolidate\n\nAfter each round, perform a rigorous self-audit:\n\n1. **What genuinely shifted?** Identify new insights from both your reasoning and your research — not restatements. Do not silently discard conflicting evidence — flag the tension and investigate it.\n2. **Where is understanding still fragile?** Pinpoint specific gaps, then convert each into:\n  - A **reasoning question** for the next Think phase (e.g., \"Under what conditions does X fail?\")\n  - A **search query** for the next Search phase (e.g., \"X failure rate meta-analysis 2024\")\n3. **Belief Calibration:**\n  - Current conclusion:\n  - Main support (note source quality — authoritative vs. weak):\n  - Main objections:\n  - Still uncertain:\n  - Ruled-out hypotheses (and why):\n  - Define *under what specific conditions or new evidence* your current conclusion would change or stop applying.\n\n## Step 3 — Decision (Continue or Conclude)\n\n🔴 **CONTINUE if ANY of these apply:**\n\n- Your conclusion rests on unexamined assumptions.\n- A plausible competing explanation, strong counterargument, or alternative framing has not been seriously tested.\n- The evidence is repetitive, weak, rests on a single line of reasoning, or lacks cross-verification from authoritative sources.\n- A targeted additional inquiry could plausibly alter your material conclusion.\n- Your subjective sense of certainty exceeds what the evidence supports.\n\n🟢 **STOP if MOST of these apply:**\n\n- Additional rounds produce diminishing returns — refinements, not revisions, and recent rounds yield no meaningful new insight.\n- You have cross-verified key claims from multiple independent, credible sources.\n- You have stress-tested your conclusion against serious counterarguments.\n- You can articulate where experts would disagree, and why.\n- Remaining uncertainty requires information that is genuinely unavailable, not more reasoning or searching.\n- **If continuing:** State the specific question or weakness driving the next round. Return to Step 1.\n- **If stopping:** Proceed to the final response.\n\n---\n\n# Output Requirements\n\nSynthesize your reasoning and research into a final response. The structure should adapt to the question's complexity. All responses must follow these principles:\n\n1. **Language:** Respond in the same language the user used.\n2. **Cite Material Claims.** Every key factual claim must be backed by traceable sources. Use [numbered references] with a reference list at the end. Never fabricate or misrepresent sources.\n3. **Epistemic Honesty (where applicable).** Clearly separate what is well-established, what is a well-supported inference, and what remains unresolved. State assumptions, evidence gaps, and source conflicts explicitly. Use explicit epistemic markers (e.g., \"evidence suggests,\" \"we infer,\" \"uncertainty remains\").\n4. **Present the strongest counter-perspective (where applicable).** Articulate the best opposing argument fairly and explain why your position is more compelling — or why the question remains genuinely open.\n5. **Be decision-useful.** If the user is making a decision, provide actionable recommendations. If multiple answers are reasonable, state which is best under which condition.",
-  "assistantProviderSampleAssistantSystemPrompt": "You are {model_name}, a helpful AI. Time: {cur_datetime}",
+  "assistantProviderSampleAssistantSystemPrompt": "You are {model_name}, a helpful AI assistant. Time: {cur_datetime}",
   "@assistantProviderSampleAssistantSystemPrompt": {
     "placeholders": {
-      "model_name": {"type": "String"},
-      "cur_datetime": {"type": "String"},
-      "locale": {"type": "String"},
-      "timezone": {"type": "String"},
-      "device_info": {"type": "String"},
-      "system_version": {"type": "String"}
+      "model_name": {
+        "type": "String"
+      },
+      "cur_datetime": {
+        "type": "String"
+      },
+      "locale": {
+        "type": "String"
+      },
+      "timezone": {
+        "type": "String"
+      },
+      "device_info": {
+        "type": "String"
+      },
+      "system_version": {
+        "type": "String"
+      }
     }
   },
   "assistantSettingsCopySuffix": "Copy",
-  "assistantProviderNewAssistantName": "New Assistant",
+  "assistantProviderNewAssistantName": "New Project",
   "searchSettingsSheetBuiltinSearchTitle": "Built-in Search",
   "reasoningBudgetSheetOff": "Off",
   "reasoningBudgetSheetAuto": "Auto",
@@ -291,7 +315,7 @@
   "compressContextMaxCharsLabel": "Characters",
   "compressContextInvalidLimit": "Enter a positive character count",
   "compressContextStartButton": "Compress",
-  "instructionInjectionEditTitle": "Edit Injection",
+  "instructionInjectionEditTitle": "Edit",
   "instructionInjectionNameLabel": "Name",
   "instructionInjectionPromptLabel": "Prompt",
   "quickPhraseCancelButton": "Cancel",
@@ -324,8 +348,12 @@
   "mcpPageToolsCount": "{enabled}/{total} tools",
   "@mcpPageToolsCount": {
     "placeholders": {
-      "enabled": {"type": "int"},
-      "total": {"type": "int"}
+      "enabled": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
   },
   "mcpPageStatusDisabled": "Disabled",
@@ -352,24 +380,30 @@
   "providersPageExportSelectedTitle": "Export {count} items",
   "@providersPageExportSelectedTitle": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "providersPageExportCopyButton": "Copy",
   "providersPageExportCopiedSnackbar": "Copied",
   "providersPageExportShareButton": "Share",
-  "mcpAssistantSheetTitle": "MCP Assistant",
+  "mcpAssistantSheetTitle": "MCP Project",
   "assistantEditMcpNoServersMessage": "No servers",
   "assistantEditMcpToolsCountTag": "{enabled}/{total}",
   "@assistantEditMcpToolsCountTag": {
     "placeholders": {
-      "enabled": {"type": "String"},
-      "total": {"type": "String"}
+      "enabled": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
     }
   },
   "quickPhraseBackTooltip": "Back",
   "quickPhraseGlobalTitle": "Phrases",
-  "quickPhraseAssistantTitle": "Assistant Phrases",
+  "quickPhraseAssistantTitle": "Project Phrases",
   "quickPhraseAddTooltip": "Add",
   "quickPhraseEmptyMessage": "No phrases",
   "quickPhraseDeleteButton": "Delete",
@@ -404,7 +438,9 @@
   "homePageTranslateFailed": "Failed: {error}",
   "@homePageTranslateFailed": {
     "placeholders": {
-      "error": {"type": "String"}
+      "error": {
+        "type": "String"
+      }
     }
   },
   "desktopTtsPleaseAddProvider": "Add TTS provider",
@@ -412,37 +448,49 @@
   "homePageClearContextWithCount": "Clear ({actual}/{configured})",
   "@homePageClearContextWithCount": {
     "placeholders": {
-      "actual": {"type": "String"},
-      "configured": {"type": "String"}
+      "actual": {
+        "type": "String"
+      },
+      "configured": {
+        "type": "String"
+      }
     }
   },
   "titleForLocale": "New Chat",
-  "homePageDefaultAssistant": "Assistant",
+  "homePageDefaultAssistant": "Project",
   "voiceChatButtonTooltip": "Voice",
   "voiceChatErrorInitFailed": "Init failed",
   "voiceChatError": "Error: {error}",
   "@voiceChatError": {
     "placeholders": {
-      "error": {"type": "String"}
+      "error": {
+        "type": "String"
+      }
     }
   },
   "voiceChatProcessing": "Thinking",
   "voiceChatErrorApi": "API: {error}",
   "@voiceChatErrorApi": {
     "placeholders": {
-      "error": {"type": "String"}
+      "error": {
+        "type": "String"
+      }
     }
   },
   "voiceChatErrorProcessingResponse": "Parse error: {error}",
   "@voiceChatErrorProcessingResponse": {
     "placeholders": {
-      "error": {"type": "String"}
+      "error": {
+        "type": "String"
+      }
     }
   },
   "voiceChatErrorTts": "TTS: {error}",
   "@voiceChatErrorTts": {
     "placeholders": {
-      "error": {"type": "String"}
+      "error": {
+        "type": "String"
+      }
     }
   },
   "voiceChatErrorNoModel": "No model",
@@ -571,7 +619,6 @@
   "providerDetailPageConfirmDeleteContent": "Delete?",
   "providerDetailPageModelDeletedSnackbar": "Deleted",
   "providerDetailPageUndoButton": "Undo",
-  "providerDetailPageAddNewModelButton": "Add",
   "providerDetailPageFetchModelsButton": "Fetch",
   "providerDetailPageEnableProxyTitle": "Proxy",
   "providerDetailPageHostLabel": "Host",
@@ -625,13 +672,17 @@
   "importProviderSheetImportSuccessMessage": "Imported {count}",
   "@importProviderSheetImportSuccessMessage": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "importProviderSheetImportFailedMessage": "Failed: {error}",
   "@importProviderSheetImportFailedMessage": {
     "placeholders": {
-      "error": {"type": "String"}
+      "error": {
+        "type": "String"
+      }
     }
   },
   "importProviderSheetFromGalleryTooltip": "Gallery",
@@ -653,19 +704,25 @@
   "chatMessageWidgetFileNotFound": "Not found: {fileName}",
   "@chatMessageWidgetFileNotFound": {
     "placeholders": {
-      "fileName": {"type": "String"}
+      "fileName": {
+        "type": "String"
+      }
     }
   },
   "chatMessageWidgetCannotOpenFile": "Error: {message}",
   "@chatMessageWidgetCannotOpenFile": {
     "placeholders": {
-      "message": {"type": "String"}
+      "message": {
+        "type": "String"
+      }
     }
   },
   "chatMessageWidgetOpenFileError": "Error: {error}",
   "@chatMessageWidgetOpenFileError": {
     "placeholders": {
-      "error": {"type": "String"}
+      "error": {
+        "type": "String"
+      }
     }
   },
   "chatMessageWidgetThinking": "Thinking",
@@ -674,14 +731,18 @@
   "chatMessageWidgetCannotOpenUrl": "Error: {url}",
   "@chatMessageWidgetCannotOpenUrl": {
     "placeholders": {
-      "url": {"type": "String"}
+      "url": {
+        "type": "String"
+      }
     }
   },
   "chatMessageWidgetOpenLinkError": "Error",
   "chatMessageWidgetCitationsTitle": "{count} Citations",
   "@chatMessageWidgetCitationsTitle": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatMessageWidgetCreateMemory": "Remember",
@@ -690,20 +751,26 @@
   "chatMessageWidgetWebSearch": "Search: {query}",
   "@chatMessageWidgetWebSearch": {
     "placeholders": {
-      "query": {"type": "String"}
+      "query": {
+        "type": "String"
+      }
     }
   },
   "chatMessageWidgetBuiltinSearch": "Search",
   "chatMessageWidgetToolResult": "Result: {name}",
   "@chatMessageWidgetToolResult": {
     "placeholders": {
-      "name": {"type": "String"}
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatMessageWidgetToolCall": "Call: {name}",
   "@chatMessageWidgetToolCall": {
     "placeholders": {
-      "name": {"type": "String"}
+      "name": {
+        "type": "String"
+      }
     }
   },
   "chatMessageWidgetNoResultYet": "Waiting",
@@ -712,7 +779,9 @@
   "chatMessageWidgetCitationsCount": "{count} citations",
   "@chatMessageWidgetCitationsCount": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "chatMessageWidgetDeepThinking": "Deep thinking",
@@ -769,7 +838,9 @@
   "imagePreviewSheetSaveFailed": "Failed: {error}",
   "@imagePreviewSheetSaveFailed": {
     "placeholders": {
-      "error": {"type": "String"}
+      "error": {
+        "type": "String"
+      }
     }
   },
   "settingsPageShare": "Share",
@@ -787,7 +858,7 @@
   "storageSpaceCategoryImages": "Images",
   "storageSpaceCategoryFiles": "Files",
   "storageSpaceCategoryChatData": "Chat Data",
-  "storageSpaceCategoryAssistantData": "Assistants",
+  "storageSpaceCategoryAssistantData": "Projects",
   "storageSpaceCategoryCache": "Cache",
   "storageSpaceCategoryLogs": "Logs",
   "storageSpaceCategoryOther": "Other",
@@ -806,20 +877,26 @@
   "storageSpaceClearConfirmMessage": "Clear {targetName}?",
   "@storageSpaceClearConfirmMessage": {
     "placeholders": {
-      "targetName": {"type": "String"}
+      "targetName": {
+        "type": "String"
+      }
     }
   },
   "storageSpaceClearButton": "Clear",
   "storageSpaceClearDone": "Cleared {targetName}",
   "@storageSpaceClearDone": {
     "placeholders": {
-      "targetName": {"type": "String"}
+      "targetName": {
+        "type": "String"
+      }
     }
   },
   "storageSpaceClearFailed": "Failed: {error}",
   "@storageSpaceClearFailed": {
     "placeholders": {
-      "error": {"type": "String"}
+      "error": {
+        "type": "String"
+      }
     }
   },
   "storageSpaceLoadFailed": "Failed to load",
@@ -829,19 +906,25 @@
   "storageSpaceClearableLabel": "Clearable: {size}",
   "@storageSpaceClearableLabel": {
     "placeholders": {
-      "size": {"type": "String"}
+      "size": {
+        "type": "String"
+      }
     }
   },
   "storageSpaceClearableHint": "Clearable: {size}",
   "@storageSpaceClearableHint": {
     "placeholders": {
-      "size": {"type": "String"}
+      "size": {
+        "type": "String"
+      }
     }
   },
   "storageSpaceFilesCount": "{count} files",
   "@storageSpaceFilesCount": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "storageSpaceSafeToClearHint": "Safe",
@@ -854,13 +937,17 @@
   "storageSpaceDeleteUploadsConfirmMessage": "Delete {count} items?",
   "@storageSpaceDeleteUploadsConfirmMessage": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "storageSpaceDeletedUploadsDone": "Deleted {count} items",
   "@storageSpaceDeletedUploadsDone": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "storageSpaceNoUploads": "No uploads",
@@ -869,13 +956,17 @@
   "storageSpaceSelectedCount": "{count} selected",
   "@storageSpaceSelectedCount": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "storageSpaceUploadsCount": "{count} items",
   "@storageSpaceUploadsCount": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "displaySettingsPageThemeSettingsTitle": "Theme",
@@ -942,7 +1033,7 @@
   "displaySettingsPageHapticsOnListItemTapTitle": "List",
   "displaySettingsPageHapticsOnCardTapTitle": "Card",
   "displaySettingsPageHapticsOnGenerateTitle": "Generate",
-  "assistantSettingsPageTitle": "Assistants",
+  "assistantSettingsPageTitle": "Projects",
   "assistantSettingsCopyButton": "Copy",
   "assistantSettingsDeleteButton": "Delete",
   "ttsServicesPageBackButton": "Back",
@@ -953,7 +1044,9 @@
   "ttsServicesPageSystemTtsUnavailableSubtitle": "Error: {error}",
   "@ttsServicesPageSystemTtsUnavailableSubtitle": {
     "placeholders": {
-      "error": {"type": "String"}
+      "error": {
+        "type": "String"
+      }
     }
   },
   "ttsServicesPageSystemTtsUnavailableNotInitialized": "Not init",
@@ -1014,16 +1107,15 @@
   "instructionInjectionImportSuccess": "Imported {count}",
   "@instructionInjectionImportSuccess": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "instructionInjectionBackTooltip": "Back",
   "instructionInjectionImportTooltip": "Import",
   "instructionInjectionAddTooltip": "Add",
-  "instructionInjectionEmptyMessage": "Empty",
-  "instructionInjectionDefaultTitle": "Default",
   "instructionInjectionAddTitle": "Add",
-  "instructionInjectionEditTitle": "Edit",
   "networkProxyEnableLabel": "Enabled",
   "networkProxyType": "Type",
   "networkProxyServerHost": "Host",
@@ -1040,7 +1132,9 @@
   "networkProxyTestFailed": "Failed: {error}",
   "@networkProxyTestFailed": {
     "placeholders": {
-      "error": {"type": "String"}
+      "error": {
+        "type": "String"
+      }
     }
   },
   "networkProxyNoUrl": "No URL",
@@ -1126,7 +1220,9 @@
   "assistantEditSystemPromptImportFailed": "Failed: {error}",
   "@assistantEditSystemPromptImportFailed": {
     "placeholders": {
-      "error": {"type": "String"}
+      "error": {
+        "type": "String"
+      }
     }
   },
   "assistantEditSampleUser": "User",
@@ -1171,42 +1267,57 @@
   "defaultModelPageTitleVars": "{contentVar} {localeVar}",
   "@defaultModelPageTitleVars": {
     "placeholders": {
-      "contentVar": {"type": "String"},
-      "localeVar": {"type": "String"}
+      "contentVar": {
+        "type": "String"
+      },
+      "localeVar": {
+        "type": "String"
+      }
     }
   },
   "defaultModelPageTranslateVars": "{sourceVar} {targetVar}",
   "@defaultModelPageTranslateVars": {
     "placeholders": {
-      "sourceVar": {"type": "String"},
-      "targetVar": {"type": "String"}
+      "sourceVar": {
+        "type": "String"
+      },
+      "targetVar": {
+        "type": "String"
+      }
     }
   },
   "defaultModelPageSummaryVars": "{previousSummaryVar} {userMessagesVar}",
   "@defaultModelPageSummaryVars": {
     "placeholders": {
-      "previousSummaryVar": {"type": "String"},
-      "userMessagesVar": {"type": "String"}
+      "previousSummaryVar": {
+        "type": "String"
+      },
+      "userMessagesVar": {
+        "type": "String"
+      }
     }
   },
   "messageEditPageSave": "Save",
   "chatMessageWidgetTranslating": "Translating...",
-  "messageExportSheetAssistant": "Assistant",
+  "messageExportSheetAssistant": "Project",
   "messageExportSheetDefaultTitle": "New Chat",
   "messageExportSheetExportedAs": "Exported as {filename}",
   "@messageExportSheetExportedAs": {
     "placeholders": {
-      "filename": {"type": "String"}
+      "filename": {
+        "type": "String"
+      }
     }
   },
   "messageExportSheetExportFailed": "Failed: {error}",
   "@messageExportSheetExportFailed": {
     "placeholders": {
-      "error": {"type": "String"}
+      "error": {
+        "type": "String"
+      }
     }
   },
   "messageExportSheetFormatTitle": "Format",
-  "messageEditDialogTitle": "Edit Message",
   "multiKeyPageTitle": "Keys",
   "multiKeyPageDeleteErrorsTooltip": "Delete errors",
   "multiKeyPageDetect": "Detect",
@@ -1233,7 +1344,9 @@
   "multiKeyPageImportedSnackbar": "Imported {n}",
   "@multiKeyPageImportedSnackbar": {
     "placeholders": {
-      "n": {"type": "int"}
+      "n": {
+        "type": "int"
+      }
     }
   },
   "multiKeyPagePleaseAddModel": "Add model",
@@ -1242,7 +1355,9 @@
   "multiKeyPageDeletedErrorsSnackbar": "Deleted {n}",
   "@multiKeyPageDeletedErrorsSnackbar": {
     "placeholders": {
-      "n": {"type": "int"}
+      "n": {
+        "type": "int"
+      }
     }
   },
   "multiKeyPageAlias": "Alias",
@@ -1255,7 +1370,9 @@
   "codeBlockCollapsedLines": "{n} lines",
   "@codeBlockCollapsedLines": {
     "placeholders": {
-      "n": {"type": "int"}
+      "n": {
+        "type": "int"
+      }
     }
   },
   "mermaidExportFailed": "Failed",
@@ -1263,7 +1380,9 @@
   "imageViewerPageSaveFailed": "Failed: {error}",
   "@imageViewerPageSaveFailed": {
     "placeholders": {
-      "error": {"type": "String"}
+      "error": {
+        "type": "String"
+      }
     }
   },
   "imageViewerPageSaveSuccess": "Saved",
@@ -1271,13 +1390,17 @@
   "imageViewerPageShareFailed": "Failed: {error}",
   "@imageViewerPageShareFailed": {
     "placeholders": {
-      "error": {"type": "String"}
+      "error": {
+        "type": "String"
+      }
     }
   },
   "imageViewerPageShareFailedOpenFile": "Failed: {message}",
   "@imageViewerPageShareFailedOpenFile": {
     "placeholders": {
-      "message": {"type": "String"}
+      "message": {
+        "type": "String"
+      }
     }
   },
   "desktopNavTranslateTooltip": "Translate",
@@ -1337,7 +1460,9 @@
   "aiTeamProposalLabel": "Proposal {index}",
   "@aiTeamProposalLabel": {
     "placeholders": {
-      "index": {"type": "int"}
+      "index": {
+        "type": "int"
+      }
     }
   },
   "aiTeamStopped": "AI Team stopped",
@@ -1346,8 +1471,12 @@
   "aiTeamProposalInProgress": "AI Team running… Proposal {current}/{total}",
   "@aiTeamProposalInProgress": {
     "placeholders": {
-      "current": {"type": "int"},
-      "total": {"type": "int"}
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
   },
   "aiTeamThinkingLabel": "Thinking",
@@ -1363,7 +1492,9 @@
   "aiTeamCriticLabel": "Critic {index}",
   "@aiTeamCriticLabel": {
     "placeholders": {
-      "index": {"type": "int"}
+      "index": {
+        "type": "int"
+      }
     }
   },
   "aiTeamProposerPromptLabelShort": "Proposer Prompt",
@@ -1371,8 +1502,12 @@
   "aiTeamCriticInProgress": "AI Team running… Critic {current}/{total}",
   "@aiTeamCriticInProgress": {
     "placeholders": {
-      "current": {"type": "int"},
-      "total": {"type": "int"}
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
   }
 }

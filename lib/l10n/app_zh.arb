@@ -10,8 +10,8 @@
   "settingsPageColorMode": "颜色模式",
   "settingsPageDisplay": "显示设置",
   "settingsPageDisplaySubtitle": "界面主题与字号等外观设置",
-  "settingsPageAssistant": "助手",
-  "settingsPageAssistantSubtitle": "默认助手与对话风格",
+  "settingsPageAssistant": "项目",
+  "settingsPageAssistantSubtitle": "默认项目与对话风格",
   "settingsPageModelsServicesSection": "模型与服务",
   "settingsPageDefaultModel": "默认模型",
   "settingsPageProviders": "供应商",
@@ -37,7 +37,7 @@
   "storageSpaceCategoryImages": "图片",
   "storageSpaceCategoryFiles": "文件",
   "storageSpaceCategoryChatData": "聊天记录",
-  "storageSpaceCategoryAssistantData": "助手",
+  "storageSpaceCategoryAssistantData": "项目",
   "storageSpaceCategoryCache": "缓存",
   "storageSpaceCategoryLogs": "日志",
   "storageSpaceCategoryOther": "应用",
@@ -86,8 +86,8 @@
   "languageDisplaySpanish": "Español",
   "languageSelectSheetTitle": "选择翻译语言",
   "languageSelectSheetClearButton": "清空翻译",
-  "assistantEditPageTitle": "助手",
-  "assistantEditPageNotFound": "助手不存在",
+  "assistantEditPageTitle": "项目",
+  "assistantEditPageNotFound": "项目不存在",
   "assistantEditPageBasicTab": "基础设置",
   "assistantEditPagePromptsTab": "提示词",
   "assistantEditPageMcpTab": "MCP",
@@ -104,11 +104,11 @@
   "assistantEditBodyKeyLabel": "Body Key",
   "assistantEditBodyValueLabel": "Body 值 (JSON)",
   "assistantEditDeleteTooltip": "删除",
-  "assistantEditAssistantNameLabel": "助手名称",
-  "assistantEditUseAssistantAvatarTitle": "使用助手头像",
-  "assistantEditUseAssistantAvatarSubtitle": "在聊天中使用助手头像和名字而不是模型头像和名字",
+  "assistantEditAssistantNameLabel": "项目名称",
+  "assistantEditUseAssistantAvatarTitle": "使用项目头像",
+  "assistantEditUseAssistantAvatarSubtitle": "在聊天中使用项目头像和名字而不是模型头像和名字",
   "assistantEditChatModelTitle": "聊天模型",
-  "assistantEditChatModelSubtitle": "为该助手设置默认聊天模型（未设置时使用全局默认）",
+  "assistantEditChatModelSubtitle": "为该项目设置默认聊天模型（未设置时使用全局默认）",
   "assistantEditTemperatureDescription": "控制输出的随机性，范围 0–2",
   "assistantEditTopPDescription": "请不要修改此值，除非你知道自己在做什么",
   "assistantEditParameterDisabled": "已关闭（使用服务商默认）",
@@ -123,7 +123,7 @@
   "assistantEditMaxTokensDescription": "留空表示无限制",
   "assistantEditMaxTokensHint": "无限制",
   "assistantEditChatBackgroundTitle": "聊天背景",
-  "assistantEditChatBackgroundDescription": "设置助手聊天页面的背景图片",
+  "assistantEditChatBackgroundDescription": "设置项目聊天页面的背景图片",
   "assistantEditChooseImageButton": "选择背景图片",
   "assistantEditClearButton": "清除",
   "desktopNavChatTooltip": "聊天",
@@ -151,7 +151,7 @@
   "androidBackgroundOptionOnNotify": "开启并在生成完时发送消息",
   "androidBackgroundOptionOff": "关闭",
   "notificationChatCompletedTitle": "生成完成",
-  "notificationChatCompletedBody": "助手回复已生成",
+  "notificationChatCompletedBody": "项目回复已生成",
   "androidBackgroundNotificationTitle": "OmniChat 正在运行",
   "androidBackgroundNotificationText": "后台保持聊天生成",
   "assistantEditEmojiDialogTitle": "选择表情",
@@ -174,7 +174,9 @@
   "providersPageExportSelectedTitle": "导出 {count} 个供应商",
   "@providersPageExportSelectedTitle": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "providersPageExportCopyButton": "复制",
@@ -236,9 +238,9 @@
   "assistantEditVariableDeviceInfo": "设备信息",
   "assistantEditVariableBatteryLevel": "电池电量",
   "assistantEditVariableNickname": "用户昵称",
-  "assistantEditVariableAssistantName": "助手名称",
+  "assistantEditVariableAssistantName": "项目名称",
   "assistantEditMessageTemplateTitle": "聊天内容模板",
-  "assistantEditVariableRole": "助手",
+  "assistantEditVariableRole": "项目",
   "assistantEditVariableMessage": "内容",
   "assistantEditPreviewTitle": "预览",
   "codeBlockPreviewButton": "预览",
@@ -258,19 +260,19 @@
   "assistantEditMcpConnectedTag": "已连接",
   "assistantEditMcpToolsCountTag": "工具: {enabled}/{total}",
   "assistantEditModelUseGlobalDefault": "使用全局默认",
-  "assistantSettingsPageTitle": "助手设置",
+  "assistantSettingsPageTitle": "项目设置",
   "assistantSettingsDefaultTag": "默认",
   "assistantSettingsCopyButton": "复制",
-  "assistantSettingsCopySuccess": "已复制助手",
+  "assistantSettingsCopySuccess": "已复制项目",
   "assistantSettingsCopySuffix": "副本",
   "assistantSettingsDeleteButton": "删除",
   "assistantSettingsEditButton": "编辑",
-  "assistantSettingsAddSheetTitle": "助手名称",
-  "assistantSettingsAddSheetHint": "输入助手名称",
+  "assistantSettingsAddSheetTitle": "项目名称",
+  "assistantSettingsAddSheetHint": "输入项目名称",
   "assistantSettingsAddSheetCancel": "取消",
   "assistantSettingsAddSheetSave": "保存",
-  "desktopAssistantsListTitle": "助手列表",
-  "desktopSidebarTabAssistants": "助手",
+  "desktopAssistantsListTitle": "项目列表",
+  "desktopSidebarTabAssistants": "项目",
   "desktopSidebarTabTopics": "话题",
   "desktopTrayMenuShowWindow": "显示窗口",
   "desktopTrayMenuExit": "退出",
@@ -279,7 +281,7 @@
   "hotkeyOpenSettings": "打开设置",
   "hotkeyNewTopic": "新建话题",
   "hotkeySwitchModel": "切换模型",
-  "hotkeyToggleAssistantPanel": "切换助手显示",
+  "hotkeyToggleAssistantPanel": "切换项目显示",
   "hotkeyToggleTopicPanel": "切换话题显示",
   "hotkeysPressShortcut": "按下快捷键",
   "hotkeysResetDefault": "重置为默认",
@@ -287,16 +289,16 @@
   "hotkeysResetAll": "重置所有快捷键为默认",
   "assistantEditTemperatureTitle": "温度",
   "assistantEditTopPTitle": "Top-p",
-  "assistantSettingsDeleteDialogTitle": "删除助手",
-  "assistantSettingsDeleteDialogContent": "确定要删除该助手吗？此操作不可撤销。",
+  "assistantSettingsDeleteDialogTitle": "删除项目",
+  "assistantSettingsDeleteDialogContent": "确定要删除该项目吗？此操作不可撤销。",
   "assistantSettingsDeleteDialogCancel": "取消",
   "assistantSettingsDeleteDialogConfirm": "删除",
-  "assistantSettingsAtLeastOneAssistantRequired": "至少需要保留一个助手",
-  "assistantProviderDefaultAssistantName": "默认助手",
-  "assistantProviderSampleAssistantName": "示例助手",
+  "assistantSettingsAtLeastOneAssistantRequired": "至少需要保留一个项目",
+  "assistantProviderDefaultAssistantName": "默认项目",
+  "assistantProviderSampleAssistantName": "示例项目",
   "assistantProviderDeepResearchAssistantName": "深度研究助手",
   "assistantProviderDeepResearchAssistantSystemPrompt": "# Role & Persona\n\nToday is {cur_date}.\nYou are an advanced Deep Reasoning & Research AI Agent.\nYour primary objective is to conduct multi-round, rigorous reasoning integrated with comprehensive research before producing any answer. You think deeply to know what to search for, and search thoroughly to fuel deeper thinking. You value depth of insight, logical validity, and authoritative evidence.\n\nYour purpose is not to validate the first plausible explanation, but to construct the most accurate, well-calibrated, and decision-useful understanding that the available evidence permits.\n\n---\n\n# Epistemic Discipline\n\nThroughout your reasoning and research process, you must maintain a strict distinction between:\n\n1. **Evidence:** Direct observations, data, empirical findings, expert consensus, and other externally checkable claims.\n2. **Inference:** Interpretations, causal explanations, generalizations, and conclusions drawn from evidence.\n3. **Judgment:** Recommendations, priorities, trade-offs, and value-dependent choices.\n\nNever present an inference as an observed fact. Never present a preference or value judgment as if evidence alone determines it.\n\n---\n\n# Core Protocol\n\nBefore formulating your final response, you must strictly follow this iterative process. Execute the following loop repeatedly until the Stop criteria in Step 3 are met:\n\n## Step 1 — Think & Search\n\nYour strategy must evolve across rounds:\n\n- **Round 1 (Frame & Survey):**\n  - *Think*: Identify the fundamental principles governing this problem. Restate the question sharply. Identify key assumptions, ambiguities, and potential confounders.\n  - *Search*: Use broad keywords to build a landscape map of the topic — identify key terms, core debates, the vocabulary of the field, and authoritative sources.\n- **Round 2+ (Deepen & Target):**\n  - *Think*: Challenge your current understanding by applying **one or more** of the most relevant of these **7 Analytical Lenses**:\n    1. **Adversarial**: Step outside your framing. Steel-man the opposing view — construct it in its strongest form before rebutting. Where are the weakest links — cherry-picked evidence, survivorship bias, unstated assumptions?\n    2. **Causal/Structural**: Identify mechanisms, hidden dependencies, feedback loops, second-order effects, and edge cases.\n    3. **Comparative**: Compare realistic alternatives, base rates, benchmarks, and opportunity costs.\n    4. **Temporal**: Examine trends, time horizons, tipping points, path dependency, and conditions under which findings may no longer hold.\n    5. **Stakeholder**: Analyze how incentives, risks, and constraints vary across affected groups.\n    6. **Analogical**: Use cross-domain analogies to reveal structure, then explicitly test where the analogy breaks.\n    7. **Boundary-Condition**: Identify populations, contexts, scales, thresholds, and definitions under which the conclusion changes.\n  - *Search*: Use precise queries driven by your current gaps — combine discovered terminology with target concepts, search for counterevidence and methodology critiques, use quoted phrases from sources you've found, add strict constraints (specific years, \"systematic review\", \"meta-analysis\", site:.gov/.edu).\n\n*(Language rule: Default to English for scientific/technical topics; use the user's language for local/region-specific matters. If results are poor, try the other language. Beyond search, use other available tools as needed.)*\n\n## Step 2 — Reflect & Consolidate\n\nAfter each round, perform a rigorous self-audit:\n\n1. **What genuinely shifted?** Identify new insights from both your reasoning and your research — not restatements. Do not silently discard conflicting evidence — flag the tension and investigate it.\n2. **Where is understanding still fragile?** Pinpoint specific gaps, then convert each into:\n  - A **reasoning question** for the next Think phase (e.g., \"Under what conditions does X fail?\")\n  - A **search query** for the next Search phase (e.g., \"X failure rate meta-analysis 2024\")\n3. **Belief Calibration:**\n  - Current conclusion:\n  - Main support (note source quality — authoritative vs. weak):\n  - Main objections:\n  - Still uncertain:\n  - Ruled-out hypotheses (and why):\n  - Define *under what specific conditions or new evidence* your current conclusion would change or stop applying.\n\n## Step 3 — Decision (Continue or Conclude)\n\n🔴 **CONTINUE if ANY of these apply:**\n\n- Your conclusion rests on unexamined assumptions.\n- A plausible competing explanation, strong counterargument, or alternative framing has not been seriously tested.\n- The evidence is repetitive, weak, rests on a single line of reasoning, or lacks cross-verification from authoritative sources.\n- A targeted additional inquiry could plausibly alter your material conclusion.\n- Your subjective sense of certainty exceeds what the evidence supports.\n\n🟢 **STOP if MOST of these apply:**\n\n- Additional rounds produce diminishing returns — refinements, not revisions, and recent rounds yield no meaningful new insight.\n- You have cross-verified key claims from multiple independent, credible sources.\n- You have stress-tested your conclusion against serious counterarguments.\n- You can articulate where experts would disagree, and why.\n- Remaining uncertainty requires information that is genuinely unavailable, not more reasoning or searching.\n- **If continuing:** State the specific question or weakness driving the next round. Return to Step 1.\n- **If stopping:** Proceed to the final response.\n\n---\n\n# Output Requirements\n\nSynthesize your reasoning and research into a final response. The structure should adapt to the question's complexity. All responses must follow these principles:\n\n1. **Language:** Respond in the same language the user used.\n2. **Cite Material Claims.** Every key factual claim must be backed by traceable sources. Use [numbered references] with a reference list at the end. Never fabricate or misrepresent sources.\n3. **Epistemic Honesty (where applicable).** Clearly separate what is well-established, what is a well-supported inference, and what remains unresolved. State assumptions, evidence gaps, and source conflicts explicitly. Use explicit epistemic markers (e.g., \"evidence suggests,\" \"we infer,\" \"uncertainty remains\").\n4. **Present the strongest counter-perspective (where applicable).** Articulate the best opposing argument fairly and explain why your position is more compelling — or why the question remains genuinely open.\n5. **Be decision-useful.** If the user is making a decision, provide actionable recommendations. If multiple answers are reasonable, state which is best under which condition.",
-  "assistantProviderNewAssistantName": "新助手",
+  "assistantProviderNewAssistantName": "新项目",
   "assistantProviderSampleAssistantSystemPrompt": "你是{model_name}, 一个人工智能助手，乐意为用户提供准确，有益的帮助。现在时间是{cur_datetime}，用户设备语言为{locale}，时区为{timezone}，用户正在使用{device_info}，版本{system_version}。如果用户没有明确说明，请使用用户设备语言进行回复。",
   "@assistantProviderSampleAssistantSystemPrompt": {
     "placeholders": {
@@ -338,7 +340,7 @@
   "chatServiceDefaultConversationTitle": "新对话",
   "userProviderDefaultUserName": "用户",
   "mcpAssistantSheetTitle": "MCP服务器",
-  "mcpAssistantSheetSubtitle": "为该助手启用的服务",
+  "mcpAssistantSheetSubtitle": "为该项目启用的服务",
   "mcpAssistantSheetSelectAll": "全选",
   "mcpAssistantSheetClearAll": "全不选",
   "backupPageTitle": "备份与恢复",
@@ -387,7 +389,7 @@
   "backupPageImportFromChatbox": "从 Chatbox 导入",
   "homePageClearContext": "清空上下文",
   "homePageClearContextWithCount": "清空上下文 ({actual}/{configured})",
-  "homePageDefaultAssistant": "默认助手",
+  "homePageDefaultAssistant": "默认项目",
   "mermaidExportPng": "导出 PNG",
   "mermaidExportFailed": "导出失败",
   "mermaidPreviewOpen": "浏览器预览",
@@ -502,7 +504,7 @@
   "chatMessageWidgetArguments": "参数",
   "chatMessageWidgetResult": "结果",
   "chatMessageWidgetCitationsCount": "共{count}条引用",
-  "messageExportSheetAssistant": "助手",
+  "messageExportSheetAssistant": "项目",
   "messageExportSheetDefaultTitle": "新对话",
   "messageExportSheetExporting": "正在导出…",
   "messageExportSheetExportFailed": "导出失败: {error}",
@@ -551,14 +553,14 @@
   "sideDrawerDateShortPattern": "M月d日",
   "sideDrawerDateFullPattern": "yyyy年M月d日",
   "sideDrawerSearchHint": "搜索聊天记录",
-  "sideDrawerSearchAssistantsHint": "搜索助手",
+  "sideDrawerSearchAssistantsHint": "搜索项目",
   "sideDrawerUpdateTitle": "发现新版本：{version}",
   "sideDrawerUpdateTitleWithBuild": "发现新版本：{version} ({build})",
   "sideDrawerLinkCopied": "已复制下载链接",
   "sideDrawerPinnedLabel": "置顶",
   "sideDrawerHistory": "聊天历史",
   "sideDrawerSettings": "设置",
-  "sideDrawerChooseAssistantTitle": "选择助手",
+  "sideDrawerChooseAssistantTitle": "选择项目",
   "sideDrawerChooseImage": "选择图片",
   "sideDrawerChooseEmoji": "选择表情",
   "sideDrawerEnterLink": "输入链接",
@@ -608,7 +610,7 @@
   "mcpPageUndo": "撤销",
   "mcpPageCancel": "取消",
   "mcpConversationSheetTitle": "MCP服务器",
-  "mcpConversationSheetSubtitle": "选择在此助手中启用的服务",
+  "mcpConversationSheetSubtitle": "选择在此项目中启用的服务",
   "mcpConversationSheetSelectAll": "全选",
   "mcpConversationSheetClearAll": "全不选",
   "mcpConversationSheetNoRunning": "暂无已启动的 MCP 服务器",
@@ -883,7 +885,7 @@
   "searchSettingsSheetNoServicesMessage": "暂无可用服务，请先在\"搜索服务\"中添加",
   "aboutPageEasterEggMessage": "\n（好吧现在还没彩蛋）",
   "aboutPageEasterEggButton": "好的",
-  "aboutPageAppDescription": "开源AI 助手",
+  "aboutPageAppDescription": "开源AI 项目",
   "aboutPageVersion": "版本",
   "aboutPageSystem": "系统",
   "aboutPageLicense": "许可证",
@@ -903,9 +905,9 @@
   "displaySettingsPageAutoCollapseThinkingSubtitle": "思考完成后自动折叠，保持界面简洁",
   "displaySettingsPageShowChatListDateTitle": "显示对话列表日期",
   "displaySettingsPageShowChatListDateSubtitle": "在左侧对话列表中显示日期分组标签",
-  "displaySettingsPageKeepSidebarOpenOnAssistantTapTitle": "点选助手时不自动关闭侧边栏",
+  "displaySettingsPageKeepSidebarOpenOnAssistantTapTitle": "点选项目时不自动关闭侧边栏",
   "displaySettingsPageKeepSidebarOpenOnTopicTapTitle": "点选话题时不自动关闭侧边栏",
-  "displaySettingsPageKeepAssistantListExpandedOnSidebarCloseTitle": "关闭侧边栏时不折叠助手列表",
+  "displaySettingsPageKeepAssistantListExpandedOnSidebarCloseTitle": "关闭侧边栏时不折叠项目列表",
   "displaySettingsPageShowUpdatesTitle": "显示更新",
   "displaySettingsPageShowUpdatesSubtitle": "显示应用更新通知",
   "displaySettingsPageMessageNavButtonsTitle": "消息导航按钮",
@@ -919,7 +921,7 @@
   "displaySettingsPageHapticsOnGenerateTitle": "消息生成触觉反馈",
   "displaySettingsPageHapticsOnGenerateSubtitle": "生成消息时启用触觉反馈",
   "displaySettingsPageNewChatAfterDeleteTitle": "删除话题后新建对话",
-  "displaySettingsPageNewChatOnAssistantSwitchTitle": "切换助手时新建对话",
+  "displaySettingsPageNewChatOnAssistantSwitchTitle": "切换项目时新建对话",
   "displaySettingsPageNewChatOnLaunchTitle": "启动时新建对话",
   "displaySettingsPageAutoSwitchTopicsTitle": "自动切换话题",
   "desktopDisplaySettingsTopicPositionTitle": "话题位置",
@@ -1055,7 +1057,7 @@
   "displaySettingsPageAutoCollapseCodeBlockLinesUnit": "行",
   "quickPhraseBackTooltip": "返回",
   "quickPhraseGlobalTitle": "快捷短语",
-  "quickPhraseAssistantTitle": "助手快捷短语",
+  "quickPhraseAssistantTitle": "项目快捷短语",
   "quickPhraseAddTooltip": "添加快捷短语",
   "quickPhraseEmptyMessage": "暂无快捷短语",
   "quickPhraseAddTitle": "添加快捷短语",
@@ -1086,11 +1088,11 @@
   "quickPhraseMenuTitle": "快捷短语",
   "chatInputBarQuickPhraseTooltip": "快捷短语",
   "chatInputBarOcrTooltip": "OCR 文字识别",
-  "assistantEditQuickPhraseDescription": "管理该助手的快捷短语。点击下方按钮添加短语。",
+  "assistantEditQuickPhraseDescription": "管理该项目的快捷短语。点击下方按钮添加短语。",
   "assistantEditManageQuickPhraseButton": "管理快捷短语",
   "assistantEditPageMemoryTab": "记忆",
   "assistantEditMemorySwitchTitle": "记忆",
-  "assistantEditMemorySwitchDescription": "允许助手主动存储并在对话间引用用户相关信息",
+  "assistantEditMemorySwitchDescription": "允许项目主动存储并在对话间引用用户相关信息",
   "assistantEditRecentChatsSwitchTitle": "参考历史聊天记录",
   "assistantEditRecentChatsSwitchDescription": "在新对话中引用最近的对话标题以增强上下文",
   "assistantEditManageMemoryTitle": "管理记忆",
@@ -1121,15 +1123,14 @@
   "assistantSettingsNoPromptPlaceholder": "暂无提示词",
   "assistantEditPresetTitle": "预设对话信息",
   "assistantEditPresetAddUser": "添加预设用户信息",
-  "assistantEditPresetAddAssistant": "添加预设助手信息",
+  "assistantEditPresetAddAssistant": "添加预设项目信息",
   "instructionInjectionSheetSubtitle": "为当前对话选择并应用一条指令提示词",
   "assistantEditPresetInputHintUser": "输入用户消息…",
-  "assistantEditPresetInputHintAssistant": "输入助手消息…",
+  "assistantEditPresetInputHintAssistant": "输入项目消息…",
   "assistantEditPresetEmpty": "暂无预设消息",
   "assistantEditPresetEditDialogTitle": "编辑预设消息",
   "assistantEditPresetRoleUser": "用户",
-  "assistantEditPresetRoleAssistant": "助手"
-  ,
+  "assistantEditPresetRoleAssistant": "项目",
   "assistantTagsManageTitle": "管理标签",
   "assistantTagsCreateButton": "创建",
   "assistantTagsCreateDialogTitle": "创建标签",
@@ -1144,7 +1145,7 @@
   "assistantTagsDeleteConfirmContent": "确定要删除该标签吗？",
   "assistantTagsDeleteConfirmOk": "删除",
   "assistantTagsDeleteConfirmCancel": "取消",
-  "assistantTagsContextMenuEditAssistant": "编辑助手",
+  "assistantTagsContextMenuEditAssistant": "编辑项目",
   "assistantTagsContextMenuManageTags": "管理标签",
   "mcpTransportOptionStdio": "STDIO",
   "mcpTransportTagStdio": "STDIO",
@@ -1158,8 +1159,7 @@
   "mcpServerEditSheetStdioEnvValueLabel": "值",
   "mcpServerEditSheetStdioAddEnv": "添加环境变量",
   "mcpServerEditSheetStdioCommandRequired": "STDIO 需要填写命令",
-  "assistantTagsContextMenuDeleteAssistant": "删除助手"
-  ,
+  "assistantTagsContextMenuDeleteAssistant": "删除项目",
   "assistantTagsClearTag": "清除标签",
   "desktopTtsPleaseAddProvider": "请先在设置中添加语音服务商",
   "settingsPageNetworkProxy": "网络代理",
@@ -1181,7 +1181,11 @@
   "networkProxyTestSuccess": "连接成功",
   "networkProxyTestFailed": "测试失败：{error}",
   "@networkProxyTestFailed": {
-    "placeholders": { "error": { "type": "String" } }
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   },
   "networkProxyNoUrl": "请输入测试地址",
   "networkProxyPriorityNote": "当同时开启全局代理与供应商代理时，将优先使用供应商代理。",
@@ -1205,7 +1209,6 @@
   "providerDetailPageDetectSuccess": "检测成功",
   "providerDetailPageDetectFailed": "检测失败",
   "providerDetailPageDeleteAllModelsWarning": "此操作不可撤回",
-  "displaySettingsPageOtherSettingsTitle": "其他设置",
   "requestLogSettingTitle": "请求日志打印",
   "requestLogSettingSubtitle": "开启后会将请求/响应详情写入 logs/logs.txt",
   "flutterLogSettingTitle": "应用日志打印",
@@ -1236,7 +1239,9 @@
   "aiTeamProposalLabel": "提案 {index}",
   "@aiTeamProposalLabel": {
     "placeholders": {
-      "index": {"type": "int"}
+      "index": {
+        "type": "int"
+      }
     }
   },
   "aiTeamStopped": "AI 团队已停止",
@@ -1245,8 +1250,12 @@
   "aiTeamProposalInProgress": "AI 团队执行中… 提案 {current}/{total}",
   "@aiTeamProposalInProgress": {
     "placeholders": {
-      "current": {"type": "int"},
-      "total": {"type": "int"}
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
   },
   "aiTeamThinkingLabel": "思考过程",
@@ -1262,7 +1271,9 @@
   "aiTeamCriticLabel": "审计 {index}",
   "@aiTeamCriticLabel": {
     "placeholders": {
-      "index": {"type": "int"}
+      "index": {
+        "type": "int"
+      }
     }
   },
   "aiTeamProposerPromptLabelShort": "提案模型提示词",
@@ -1270,8 +1281,12 @@
   "aiTeamCriticInProgress": "AI 团队执行中… 审计 {current}/{total}",
   "@aiTeamCriticInProgress": {
     "placeholders": {
-      "current": {"type": "int"},
-      "total": {"type": "int"}
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
   }
 }

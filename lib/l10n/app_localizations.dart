@@ -157,7 +157,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsPageAssistant.
   ///
   /// In en, this message translates to:
-  /// **'Assistant Settings'**
+  /// **'Project Settings'**
   String get settingsPageAssistant;
 
   /// No description provided for @settingsPageAssistantDescription.
@@ -415,7 +415,7 @@ abstract class AppLocalizations {
   /// No description provided for @sidebarAssistants.
   ///
   /// In en, this message translates to:
-  /// **'Assistants'**
+  /// **'Projects'**
   String get sidebarAssistants;
 
   /// No description provided for @sidebarTopics.
@@ -667,7 +667,7 @@ abstract class AppLocalizations {
   /// No description provided for @desktopSidebarTabAssistants.
   ///
   /// In en, this message translates to:
-  /// **'Assistants'**
+  /// **'Projects'**
   String get desktopSidebarTabAssistants;
 
   /// No description provided for @desktopSidebarTabTopics.
@@ -679,7 +679,7 @@ abstract class AppLocalizations {
   /// No description provided for @desktopAssistantsListTitle.
   ///
   /// In en, this message translates to:
-  /// **'Assistants'**
+  /// **'Projects'**
   String get desktopAssistantsListTitle;
 
   /// No description provided for @desktopAvatarMenuUseEmoji.
@@ -709,7 +709,7 @@ abstract class AppLocalizations {
   /// No description provided for @sideDrawerSearchAssistantsHint.
   ///
   /// In en, this message translates to:
-  /// **'Search assistants...'**
+  /// **'Search projects...'**
   String get sideDrawerSearchAssistantsHint;
 
   /// No description provided for @sideDrawerRenameHint.
@@ -931,13 +931,13 @@ abstract class AppLocalizations {
   /// No description provided for @assistantEditPageTitle.
   ///
   /// In en, this message translates to:
-  /// **'Edit Assistant'**
+  /// **'Edit Project'**
   String get assistantEditPageTitle;
 
   /// No description provided for @assistantEditPageNotFound.
   ///
   /// In en, this message translates to:
-  /// **'Assistant not found'**
+  /// **'Project not found'**
   String get assistantEditPageNotFound;
 
   /// No description provided for @assistantEditPageBasicTab.
@@ -1141,7 +1141,7 @@ abstract class AppLocalizations {
   /// No description provided for @assistantEditAssistantNameLabel.
   ///
   /// In en, this message translates to:
-  /// **'Assistant Name'**
+  /// **'Project Name'**
   String get assistantEditAssistantNameLabel;
 
   /// No description provided for @assistantEditContextMessagesTitle.
@@ -1177,7 +1177,7 @@ abstract class AppLocalizations {
   /// No description provided for @assistantEditUseAssistantAvatarTitle.
   ///
   /// In en, this message translates to:
-  /// **'Use Assistant Avatar'**
+  /// **'Use Project Avatar'**
   String get assistantEditUseAssistantAvatarTitle;
 
   /// No description provided for @assistantEditStreamOutputTitle.
@@ -1213,7 +1213,7 @@ abstract class AppLocalizations {
   /// No description provided for @assistantEditChatBackgroundDescription.
   ///
   /// In en, this message translates to:
-  /// **'Set a custom background for this assistant'**
+  /// **'Set a custom background for this project'**
   String get assistantEditChatBackgroundDescription;
 
   /// No description provided for @assistantEditChooseImageButton.
@@ -1273,7 +1273,7 @@ abstract class AppLocalizations {
   /// No description provided for @assistantTagsContextMenuEditAssistant.
   ///
   /// In en, this message translates to:
-  /// **'Edit Assistant'**
+  /// **'Edit Project'**
   String get assistantTagsContextMenuEditAssistant;
 
   /// No description provided for @assistantTagsClearTag.
@@ -1291,19 +1291,19 @@ abstract class AppLocalizations {
   /// No description provided for @assistantTagsContextMenuDeleteAssistant.
   ///
   /// In en, this message translates to:
-  /// **'Delete Assistant'**
+  /// **'Delete Project'**
   String get assistantTagsContextMenuDeleteAssistant;
 
   /// No description provided for @assistantSettingsDeleteDialogTitle.
   ///
   /// In en, this message translates to:
-  /// **'Delete Assistant'**
+  /// **'Delete Project'**
   String get assistantSettingsDeleteDialogTitle;
 
   /// No description provided for @assistantSettingsDeleteDialogContent.
   ///
   /// In en, this message translates to:
-  /// **'Are you sure? This will delete the assistant and its settings.'**
+  /// **'Are you sure? This will delete the project and its settings.'**
   String get assistantSettingsDeleteDialogContent;
 
   /// No description provided for @assistantSettingsDeleteDialogCancel.
@@ -1321,13 +1321,13 @@ abstract class AppLocalizations {
   /// No description provided for @assistantSettingsAtLeastOneAssistantRequired.
   ///
   /// In en, this message translates to:
-  /// **'Cannot delete the last assistant.'**
+  /// **'Cannot delete the last project.'**
   String get assistantSettingsAtLeastOneAssistantRequired;
 
   /// No description provided for @assistantSettingsCopySuccess.
   ///
   /// In en, this message translates to:
-  /// **'Assistant copied successfully'**
+  /// **'Project copied successfully'**
   String get assistantSettingsCopySuccess;
 
   /// No description provided for @assistantSettingsNoPromptPlaceholder.
@@ -1339,7 +1339,7 @@ abstract class AppLocalizations {
   /// No description provided for @assistantSettingsAddSheetTitle.
   ///
   /// In en, this message translates to:
-  /// **'New Assistant'**
+  /// **'New Project'**
   String get assistantSettingsAddSheetTitle;
 
   /// No description provided for @assistantSettingsAddSheetHint.
@@ -1429,13 +1429,13 @@ abstract class AppLocalizations {
   /// No description provided for @assistantProviderDefaultAssistantName.
   ///
   /// In en, this message translates to:
-  /// **'Default Assistant'**
+  /// **'Default Project'**
   String get assistantProviderDefaultAssistantName;
 
   /// No description provided for @assistantProviderSampleAssistantName.
   ///
   /// In en, this message translates to:
-  /// **'Sample Assistant'**
+  /// **'Sample Project'**
   String get assistantProviderSampleAssistantName;
 
   /// No description provided for @assistantProviderDeepResearchAssistantName.
@@ -1453,7 +1453,7 @@ abstract class AppLocalizations {
   /// No description provided for @assistantProviderSampleAssistantSystemPrompt.
   ///
   /// In en, this message translates to:
-  /// **'You are {model_name}, a helpful AI. Time: {cur_datetime}'**
+  /// **'You are {model_name}, a helpful AI assistant. Time: {cur_datetime}'**
   String assistantProviderSampleAssistantSystemPrompt(
     String model_name,
     String cur_datetime,
@@ -1472,7 +1472,7 @@ abstract class AppLocalizations {
   /// No description provided for @assistantProviderNewAssistantName.
   ///
   /// In en, this message translates to:
-  /// **'New Assistant'**
+  /// **'New Project'**
   String get assistantProviderNewAssistantName;
 
   /// No description provided for @searchSettingsSheetBuiltinSearchTitle.
@@ -2000,7 +2000,7 @@ abstract class AppLocalizations {
   /// No description provided for @mcpAssistantSheetTitle.
   ///
   /// In en, this message translates to:
-  /// **'MCP Assistant'**
+  /// **'MCP Project'**
   String get mcpAssistantSheetTitle;
 
   /// No description provided for @assistantEditMcpNoServersMessage.
@@ -2030,7 +2030,7 @@ abstract class AppLocalizations {
   /// No description provided for @quickPhraseAssistantTitle.
   ///
   /// In en, this message translates to:
-  /// **'Assistant Phrases'**
+  /// **'Project Phrases'**
   String get quickPhraseAssistantTitle;
 
   /// No description provided for @quickPhraseAddTooltip.
@@ -2252,7 +2252,7 @@ abstract class AppLocalizations {
   /// No description provided for @homePageDefaultAssistant.
   ///
   /// In en, this message translates to:
-  /// **'Assistant'**
+  /// **'Project'**
   String get homePageDefaultAssistant;
 
   /// No description provided for @voiceChatButtonTooltip.
@@ -3986,7 +3986,7 @@ abstract class AppLocalizations {
   /// No description provided for @storageSpaceCategoryAssistantData.
   ///
   /// In en, this message translates to:
-  /// **'Assistants'**
+  /// **'Projects'**
   String get storageSpaceCategoryAssistantData;
 
   /// No description provided for @storageSpaceCategoryCache.
@@ -4616,7 +4616,7 @@ abstract class AppLocalizations {
   /// No description provided for @assistantSettingsPageTitle.
   ///
   /// In en, this message translates to:
-  /// **'Assistants'**
+  /// **'Projects'**
   String get assistantSettingsPageTitle;
 
   /// No description provided for @assistantSettingsCopyButton.
@@ -5867,7 +5867,7 @@ abstract class AppLocalizations {
   /// No description provided for @messageExportSheetAssistant.
   ///
   /// In en, this message translates to:
-  /// **'Assistant'**
+  /// **'Project'**
   String get messageExportSheetAssistant;
 
   /// No description provided for @messageExportSheetDefaultTitle.

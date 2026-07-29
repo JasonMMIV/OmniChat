@@ -36,7 +36,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsPageDisplayDescription => 'Customize UI and font';
 
   @override
-  String get settingsPageAssistant => '助手';
+  String get settingsPageAssistant => '项目';
 
   @override
   String get settingsPageAssistantDescription => 'Configure default parameters';
@@ -167,7 +167,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidebarHistory => 'History';
 
   @override
-  String get sidebarAssistants => 'Assistants';
+  String get sidebarAssistants => 'Projects';
 
   @override
   String get sidebarTopics => 'Topics';
@@ -179,7 +179,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aboutPageSystem => '系统';
 
   @override
-  String get aboutPageAppDescription => '开源AI 助手';
+  String get aboutPageAppDescription => '开源AI 项目';
 
   @override
   String get aboutPageLicense => '许可证';
@@ -294,13 +294,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get addProviderSheetAddButton => '添加';
 
   @override
-  String get desktopSidebarTabAssistants => '助手';
+  String get desktopSidebarTabAssistants => '项目';
 
   @override
   String get desktopSidebarTabTopics => '话题';
 
   @override
-  String get desktopAssistantsListTitle => '助手列表';
+  String get desktopAssistantsListTitle => '项目列表';
 
   @override
   String get desktopAvatarMenuUseEmoji => '使用表情符号';
@@ -315,7 +315,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sideDrawerSearchHint => '搜索聊天记录';
 
   @override
-  String get sideDrawerSearchAssistantsHint => '搜索助手';
+  String get sideDrawerSearchAssistantsHint => '搜索项目';
 
   @override
   String get sideDrawerRenameHint => '输入新名称';
@@ -433,10 +433,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get assistantEditPageTitle => '助手';
+  String get assistantEditPageTitle => '项目';
 
   @override
-  String get assistantEditPageNotFound => '助手不存在';
+  String get assistantEditPageNotFound => '项目不存在';
 
   @override
   String get assistantEditPageBasicTab => '基础设置';
@@ -538,7 +538,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditBodyValueLabel => 'Body 值 (JSON)';
 
   @override
-  String get assistantEditAssistantNameLabel => '助手名称';
+  String get assistantEditAssistantNameLabel => '项目名称';
 
   @override
   String get assistantEditContextMessagesTitle => '上下文消息数量';
@@ -557,7 +557,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditMaxTokensHint => '无限制';
 
   @override
-  String get assistantEditUseAssistantAvatarTitle => '使用助手头像';
+  String get assistantEditUseAssistantAvatarTitle => '使用项目头像';
 
   @override
   String get assistantEditStreamOutputTitle => '流式输出';
@@ -566,7 +566,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditChatModelTitle => '聊天模型';
 
   @override
-  String get assistantEditChatModelSubtitle => '为该助手设置默认聊天模型（未设置时使用全局默认）';
+  String get assistantEditChatModelSubtitle => '为该项目设置默认聊天模型（未设置时使用全局默认）';
 
   @override
   String get assistantEditModelUseGlobalDefault => '使用全局默认';
@@ -575,7 +575,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditChatBackgroundTitle => '聊天背景';
 
   @override
-  String get assistantEditChatBackgroundDescription => '设置助手聊天页面的背景图片';
+  String get assistantEditChatBackgroundDescription => '设置项目聊天页面的背景图片';
 
   @override
   String get assistantEditChooseImageButton => '选择背景图片';
@@ -606,7 +606,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditParameterDisabled2 => '已关闭（无限制）';
 
   @override
-  String get assistantTagsContextMenuEditAssistant => '编辑助手';
+  String get assistantTagsContextMenuEditAssistant => '编辑项目';
 
   @override
   String get assistantTagsClearTag => '清除标签';
@@ -615,13 +615,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantTagsContextMenuManageTags => '管理标签';
 
   @override
-  String get assistantTagsContextMenuDeleteAssistant => '删除助手';
+  String get assistantTagsContextMenuDeleteAssistant => '删除项目';
 
   @override
-  String get assistantSettingsDeleteDialogTitle => '删除助手';
+  String get assistantSettingsDeleteDialogTitle => '删除项目';
 
   @override
-  String get assistantSettingsDeleteDialogContent => '确定要删除该助手吗？此操作不可撤销。';
+  String get assistantSettingsDeleteDialogContent => '确定要删除该项目吗？此操作不可撤销。';
 
   @override
   String get assistantSettingsDeleteDialogCancel => '取消';
@@ -630,19 +630,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantSettingsDeleteDialogConfirm => '删除';
 
   @override
-  String get assistantSettingsAtLeastOneAssistantRequired => '至少需要保留一个助手';
+  String get assistantSettingsAtLeastOneAssistantRequired => '至少需要保留一个项目';
 
   @override
-  String get assistantSettingsCopySuccess => '已复制助手';
+  String get assistantSettingsCopySuccess => '已复制项目';
 
   @override
   String get assistantSettingsNoPromptPlaceholder => '暂无提示词';
 
   @override
-  String get assistantSettingsAddSheetTitle => '助手名称';
+  String get assistantSettingsAddSheetTitle => '项目名称';
 
   @override
-  String get assistantSettingsAddSheetHint => '输入助手名称';
+  String get assistantSettingsAddSheetHint => '输入项目名称';
 
   @override
   String get assistantSettingsAddSheetCancel => '取消';
@@ -684,10 +684,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get desktopTrayMenuExit => '退出';
 
   @override
-  String get assistantProviderDefaultAssistantName => '默认助手';
+  String get assistantProviderDefaultAssistantName => '默认项目';
 
   @override
-  String get assistantProviderSampleAssistantName => '示例助手';
+  String get assistantProviderSampleAssistantName => '示例项目';
 
   @override
   String get assistantProviderDeepResearchAssistantName => '深度研究助手';
@@ -713,7 +713,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantSettingsCopySuffix => '副本';
 
   @override
-  String get assistantProviderNewAssistantName => '新助手';
+  String get assistantProviderNewAssistantName => '新项目';
 
   @override
   String get searchSettingsSheetBuiltinSearchTitle => '模型内置搜索';
@@ -999,7 +999,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get quickPhraseGlobalTitle => '快捷短语';
 
   @override
-  String get quickPhraseAssistantTitle => '助手快捷短语';
+  String get quickPhraseAssistantTitle => '项目快捷短语';
 
   @override
   String get quickPhraseAddTooltip => '添加快捷短语';
@@ -1114,7 +1114,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get titleForLocale => '新对话';
 
   @override
-  String get homePageDefaultAssistant => '默认助手';
+  String get homePageDefaultAssistant => '默认项目';
 
   @override
   String get voiceChatButtonTooltip => '语音聊天';
@@ -2030,7 +2030,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get storageSpaceCategoryChatData => '聊天记录';
 
   @override
-  String get storageSpaceCategoryAssistantData => '助手';
+  String get storageSpaceCategoryAssistantData => '项目';
 
   @override
   String get storageSpaceCategoryCache => '缓存';
@@ -2331,7 +2331,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get displaySettingsPageKeepSidebarOpenOnAssistantTapTitle =>
-      '点选助手时不自动关闭侧边栏';
+      '点选项目时不自动关闭侧边栏';
 
   @override
   String get displaySettingsPageKeepSidebarOpenOnTopicTapTitle =>
@@ -2339,10 +2339,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get displaySettingsPageKeepAssistantListExpandedOnSidebarCloseTitle =>
-      '关闭侧边栏时不折叠助手列表';
+      '关闭侧边栏时不折叠项目列表';
 
   @override
-  String get displaySettingsPageNewChatOnAssistantSwitchTitle => '切换助手时新建对话';
+  String get displaySettingsPageNewChatOnAssistantSwitchTitle => '切换项目时新建对话';
 
   @override
   String get displaySettingsPageNewChatAfterDeleteTitle => '删除话题后新建对话';
@@ -2369,7 +2369,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get displaySettingsPageHapticsOnGenerateTitle => '消息生成触觉反馈';
 
   @override
-  String get assistantSettingsPageTitle => '助手设置';
+  String get assistantSettingsPageTitle => '项目设置';
 
   @override
   String get assistantSettingsCopyButton => '复制';
@@ -2792,7 +2792,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantTagsManageTitle => '管理标签';
 
   @override
-  String get sideDrawerChooseAssistantTitle => '选择助手';
+  String get sideDrawerChooseAssistantTitle => '选择项目';
 
   @override
   String get searchServicesPageAtLeastOneServiceRequired => '至少需要一个搜索服务';
@@ -2924,13 +2924,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditVariableNickname => '用户昵称';
 
   @override
-  String get assistantEditVariableAssistantName => '助手名称';
+  String get assistantEditVariableAssistantName => '项目名称';
 
   @override
   String get assistantEditMessageTemplateTitle => '聊天内容模板';
 
   @override
-  String get assistantEditVariableRole => '助手';
+  String get assistantEditVariableRole => '项目';
 
   @override
   String get assistantEditVariableMessage => '内容';
@@ -2939,7 +2939,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditPresetAddUser => '添加预设用户信息';
 
   @override
-  String get assistantEditPresetAddAssistant => '添加预设助手信息';
+  String get assistantEditPresetAddAssistant => '添加预设项目信息';
 
   @override
   String get assistantEditPresetTitle => '预设对话信息';
@@ -2948,7 +2948,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditPresetEmpty => '暂无预设消息';
 
   @override
-  String get assistantEditPresetInputHintAssistant => '输入助手消息…';
+  String get assistantEditPresetInputHintAssistant => '输入项目消息…';
 
   @override
   String get assistantEditPresetInputHintUser => '输入用户消息…';
@@ -2960,7 +2960,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditMcpConnectedTag => '已连接';
 
   @override
-  String get assistantEditQuickPhraseDescription => '管理该助手的快捷短语。点击下方按钮添加短语。';
+  String get assistantEditQuickPhraseDescription => '管理该项目的快捷短语。点击下方按钮添加短语。';
 
   @override
   String get assistantEditAddQuickPhraseButton => '添加快捷短语';
@@ -3011,7 +3011,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatMessageWidgetTranslating => '翻译中...';
 
   @override
-  String get messageExportSheetAssistant => '助手';
+  String get messageExportSheetAssistant => '项目';
 
   @override
   String get messageExportSheetDefaultTitle => '新对话';
@@ -3399,7 +3399,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get settingsPageDisplay => '显示设置';
 
   @override
-  String get settingsPageAssistant => '助手';
+  String get settingsPageAssistant => '项目';
 
   @override
   String get settingsPageModelsServicesSection => '模型与服务';
@@ -3476,7 +3476,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get aboutPageSystem => '系统';
 
   @override
-  String get aboutPageAppDescription => '开源 AI 助手';
+  String get aboutPageAppDescription => '开源 AI 项目';
 
   @override
   String get aboutPageLicense => '许可协议';
@@ -3591,7 +3591,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get sideDrawerSearchHint => '搜索聊天记录';
 
   @override
-  String get sideDrawerSearchAssistantsHint => '搜索助手';
+  String get sideDrawerSearchAssistantsHint => '搜索项目';
 
   @override
   String get sideDrawerRenameHint => '输入新名称';
@@ -3709,10 +3709,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
-  String get assistantEditPageTitle => '助手';
+  String get assistantEditPageTitle => '项目';
 
   @override
-  String get assistantEditPageNotFound => '助手不存在';
+  String get assistantEditPageNotFound => '项目不存在';
 
   @override
   String get assistantEditPageBasicTab => '基础设置';
@@ -3814,7 +3814,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditBodyValueLabel => 'Body 值 (JSON)';
 
   @override
-  String get assistantEditAssistantNameLabel => '助手名称';
+  String get assistantEditAssistantNameLabel => '项目名称';
 
   @override
   String get assistantEditContextMessagesTitle => '上下文消息数量';
@@ -3833,7 +3833,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditMaxTokensHint => '无限制';
 
   @override
-  String get assistantEditUseAssistantAvatarTitle => '使用助手头像';
+  String get assistantEditUseAssistantAvatarTitle => '使用项目头像';
 
   @override
   String get assistantEditStreamOutputTitle => '流式输出';
@@ -3842,7 +3842,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditChatModelTitle => '聊天模型';
 
   @override
-  String get assistantEditChatModelSubtitle => '为该助手设置默认聊天模型（未设置时使用全局默认）';
+  String get assistantEditChatModelSubtitle => '为该项目设置默认聊天模型（未设置时使用全局默认）';
 
   @override
   String get assistantEditModelUseGlobalDefault => '使用全局默认';
@@ -3851,7 +3851,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditChatBackgroundTitle => '聊天背景';
 
   @override
-  String get assistantEditChatBackgroundDescription => '设置助手聊天页面的背景图片';
+  String get assistantEditChatBackgroundDescription => '设置项目聊天页面的背景图片';
 
   @override
   String get assistantEditChooseImageButton => '选择背景图片';
@@ -3882,7 +3882,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditParameterDisabled2 => '已关闭（无限制）';
 
   @override
-  String get assistantTagsContextMenuEditAssistant => '编辑助手';
+  String get assistantTagsContextMenuEditAssistant => '编辑项目';
 
   @override
   String get assistantTagsClearTag => '清除标签';
@@ -3891,13 +3891,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantTagsContextMenuManageTags => '管理标签';
 
   @override
-  String get assistantTagsContextMenuDeleteAssistant => '删除助手';
+  String get assistantTagsContextMenuDeleteAssistant => '删除项目';
 
   @override
-  String get assistantSettingsDeleteDialogTitle => '删除助手';
+  String get assistantSettingsDeleteDialogTitle => '删除项目';
 
   @override
-  String get assistantSettingsDeleteDialogContent => '确定要删除该助手吗？此操作不可撤销。';
+  String get assistantSettingsDeleteDialogContent => '确定要删除该项目吗？此操作不可撤销。';
 
   @override
   String get assistantSettingsDeleteDialogCancel => '取消';
@@ -3906,19 +3906,19 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantSettingsDeleteDialogConfirm => '删除';
 
   @override
-  String get assistantSettingsAtLeastOneAssistantRequired => '至少需要保留一个助手';
+  String get assistantSettingsAtLeastOneAssistantRequired => '至少需要保留一个项目';
 
   @override
-  String get assistantSettingsCopySuccess => '已复制助手';
+  String get assistantSettingsCopySuccess => '已复制项目';
 
   @override
   String get assistantSettingsNoPromptPlaceholder => '暂无提示词';
 
   @override
-  String get assistantSettingsAddSheetTitle => '助手名称';
+  String get assistantSettingsAddSheetTitle => '项目名称';
 
   @override
-  String get assistantSettingsAddSheetHint => '输入助手名称';
+  String get assistantSettingsAddSheetHint => '输入项目名称';
 
   @override
   String get assistantSettingsAddSheetCancel => '取消';
@@ -3954,10 +3954,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get homePageDeleteMessageConfirm => '确定要删除这条消息吗？此操作不可撤销。';
 
   @override
-  String get assistantProviderDefaultAssistantName => '默认助手';
+  String get assistantProviderDefaultAssistantName => '默认项目';
 
   @override
-  String get assistantProviderSampleAssistantName => '示例助手';
+  String get assistantProviderSampleAssistantName => '示例项目';
 
   @override
   String get assistantProviderDeepResearchAssistantName => '深度研究助手';
@@ -3983,7 +3983,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantSettingsCopySuffix => '副本';
 
   @override
-  String get assistantProviderNewAssistantName => '新助手';
+  String get assistantProviderNewAssistantName => '新项目';
 
   @override
   String get searchSettingsSheetBuiltinSearchTitle => '模型内置搜索';
@@ -4269,7 +4269,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get quickPhraseGlobalTitle => '快捷短语';
 
   @override
-  String get quickPhraseAssistantTitle => '助手快捷短语';
+  String get quickPhraseAssistantTitle => '项目快捷短语';
 
   @override
   String get quickPhraseAddTooltip => '添加快捷短语';
@@ -4384,7 +4384,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get titleForLocale => '新对话';
 
   @override
-  String get homePageDefaultAssistant => '默认助手';
+  String get homePageDefaultAssistant => '默认项目';
 
   @override
   String get voiceChatButtonTooltip => '语音聊天';
@@ -5291,7 +5291,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get storageSpaceCategoryChatData => '聊天记录';
 
   @override
-  String get storageSpaceCategoryAssistantData => '助手';
+  String get storageSpaceCategoryAssistantData => '项目';
 
   @override
   String get storageSpaceCategoryCache => '缓存';
@@ -5592,7 +5592,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get displaySettingsPageKeepSidebarOpenOnAssistantTapTitle =>
-      '点选助手时不自动关闭侧边栏';
+      '点选项目时不自动关闭侧边栏';
 
   @override
   String get displaySettingsPageKeepSidebarOpenOnTopicTapTitle =>
@@ -5600,10 +5600,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get displaySettingsPageKeepAssistantListExpandedOnSidebarCloseTitle =>
-      '关闭侧边栏时不折叠助手列表';
+      '关闭侧边栏时不折叠项目列表';
 
   @override
-  String get displaySettingsPageNewChatOnAssistantSwitchTitle => '切换助手时新建对话';
+  String get displaySettingsPageNewChatOnAssistantSwitchTitle => '切换项目时新建对话';
 
   @override
   String get displaySettingsPageNewChatAfterDeleteTitle => '删除话题后新建对话';
@@ -5630,7 +5630,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get displaySettingsPageHapticsOnGenerateTitle => '消息生成触觉反馈';
 
   @override
-  String get assistantSettingsPageTitle => '助手设置';
+  String get assistantSettingsPageTitle => '项目设置';
 
   @override
   String get assistantSettingsCopyButton => '复制';
@@ -6053,7 +6053,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantTagsManageTitle => '管理标签';
 
   @override
-  String get sideDrawerChooseAssistantTitle => '选择助手';
+  String get sideDrawerChooseAssistantTitle => '选择项目';
 
   @override
   String get searchServicesPageAtLeastOneServiceRequired => '至少需要一个搜索服务';
@@ -6185,7 +6185,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditVariableNickname => '用户昵称';
 
   @override
-  String get assistantEditVariableAssistantName => '助手名称';
+  String get assistantEditVariableAssistantName => '项目名称';
 
   @override
   String get assistantEditMessageTemplateTitle => '聊天内容模板';
@@ -6200,7 +6200,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditPresetAddUser => '添加预设用户信息';
 
   @override
-  String get assistantEditPresetAddAssistant => '添加预设助手信息';
+  String get assistantEditPresetAddAssistant => '添加预设项目信息';
 
   @override
   String get assistantEditPresetTitle => '预设对话信息';
@@ -6209,7 +6209,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditPresetEmpty => '暂无预设消息';
 
   @override
-  String get assistantEditPresetInputHintAssistant => '输入助手消息…';
+  String get assistantEditPresetInputHintAssistant => '输入项目消息…';
 
   @override
   String get assistantEditPresetInputHintUser => '输入用户消息…';
@@ -6221,7 +6221,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditMcpConnectedTag => '已连接';
 
   @override
-  String get assistantEditQuickPhraseDescription => '管理该助手的快捷短语。点击下方按钮添加短语。';
+  String get assistantEditQuickPhraseDescription => '管理该项目的快捷短语。点击下方按钮添加短语。';
 
   @override
   String get assistantEditAddQuickPhraseButton => '添加快捷短语';
@@ -6266,7 +6266,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatMessageWidgetTranslating => '翻译中...';
 
   @override
-  String get messageExportSheetAssistant => '助手';
+  String get messageExportSheetAssistant => '项目';
 
   @override
   String get messageExportSheetDefaultTitle => '新对话';
@@ -6654,7 +6654,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get settingsPageDisplay => '顯示設定';
 
   @override
-  String get settingsPageAssistant => '助理';
+  String get settingsPageAssistant => '專案';
 
   @override
   String get settingsPageModelsServicesSection => '模型與服務';
@@ -6731,7 +6731,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get aboutPageSystem => '系統';
 
   @override
-  String get aboutPageAppDescription => '開源 AI 助理';
+  String get aboutPageAppDescription => '開源 AI 專案';
 
   @override
   String get aboutPageLicense => '授權';
@@ -6831,13 +6831,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get addProviderSheetAddButton => '新增';
 
   @override
-  String get desktopSidebarTabAssistants => '助理';
+  String get desktopSidebarTabAssistants => '專案';
 
   @override
   String get desktopSidebarTabTopics => '主題';
 
   @override
-  String get desktopAssistantsListTitle => '助理列表';
+  String get desktopAssistantsListTitle => '專案列表';
 
   @override
   String get desktopAvatarMenuUseEmoji => '使用表情符號';
@@ -6852,7 +6852,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get sideDrawerSearchHint => '搜尋聊天記錄';
 
   @override
-  String get sideDrawerSearchAssistantsHint => '搜尋助理';
+  String get sideDrawerSearchAssistantsHint => '搜尋專案';
 
   @override
   String get sideDrawerRenameHint => '輸入新名稱';
@@ -6970,10 +6970,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get assistantEditPageTitle => '助理';
+  String get assistantEditPageTitle => '專案';
 
   @override
-  String get assistantEditPageNotFound => '助理不存在';
+  String get assistantEditPageNotFound => '專案不存在';
 
   @override
   String get assistantEditPageBasicTab => '基礎設定';
@@ -7075,7 +7075,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditBodyValueLabel => 'Body 值 (JSON)';
 
   @override
-  String get assistantEditAssistantNameLabel => '助理名稱';
+  String get assistantEditAssistantNameLabel => '專案名稱';
 
   @override
   String get assistantEditContextMessagesTitle => '上下文訊息數量';
@@ -7094,7 +7094,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditMaxTokensHint => '無限制';
 
   @override
-  String get assistantEditUseAssistantAvatarTitle => '使用助理頭像';
+  String get assistantEditUseAssistantAvatarTitle => '使用專案頭像';
 
   @override
   String get assistantEditStreamOutputTitle => '串流輸出';
@@ -7103,7 +7103,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditChatModelTitle => '聊天模型';
 
   @override
-  String get assistantEditChatModelSubtitle => '為該助理設定預設聊天模型（未設定時使用全域預設）';
+  String get assistantEditChatModelSubtitle => '為該專案設定預設聊天模型（未設定時使用全域預設）';
 
   @override
   String get assistantEditModelUseGlobalDefault => '使用全域預設';
@@ -7112,7 +7112,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditChatBackgroundTitle => '聊天背景';
 
   @override
-  String get assistantEditChatBackgroundDescription => '設定助理聊天頁面的背景圖片';
+  String get assistantEditChatBackgroundDescription => '設定專案聊天頁面的背景圖片';
 
   @override
   String get assistantEditChooseImageButton => '選擇背景圖片';
@@ -7143,7 +7143,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditParameterDisabled2 => '已關閉（無限制）';
 
   @override
-  String get assistantTagsContextMenuEditAssistant => '編輯助理';
+  String get assistantTagsContextMenuEditAssistant => '編輯專案';
 
   @override
   String get assistantTagsClearTag => '清除標籤';
@@ -7152,13 +7152,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantTagsContextMenuManageTags => '管理標籤';
 
   @override
-  String get assistantTagsContextMenuDeleteAssistant => '刪除助理';
+  String get assistantTagsContextMenuDeleteAssistant => '刪除專案';
 
   @override
-  String get assistantSettingsDeleteDialogTitle => '刪除助理';
+  String get assistantSettingsDeleteDialogTitle => '刪除專案';
 
   @override
-  String get assistantSettingsDeleteDialogContent => '確定要刪除該助理嗎？此操作不可撤銷。';
+  String get assistantSettingsDeleteDialogContent => '確定要刪除該專案嗎？此操作不可撤銷。';
 
   @override
   String get assistantSettingsDeleteDialogCancel => '取消';
@@ -7167,19 +7167,19 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantSettingsDeleteDialogConfirm => '刪除';
 
   @override
-  String get assistantSettingsAtLeastOneAssistantRequired => '至少需要保留一個助理';
+  String get assistantSettingsAtLeastOneAssistantRequired => '至少需要保留一個專案';
 
   @override
-  String get assistantSettingsCopySuccess => '已複製助理';
+  String get assistantSettingsCopySuccess => '已複製專案';
 
   @override
   String get assistantSettingsNoPromptPlaceholder => '暫無提示詞';
 
   @override
-  String get assistantSettingsAddSheetTitle => '助理名稱';
+  String get assistantSettingsAddSheetTitle => '專案名稱';
 
   @override
-  String get assistantSettingsAddSheetHint => '輸入助理名稱';
+  String get assistantSettingsAddSheetHint => '輸入專案名稱';
 
   @override
   String get assistantSettingsAddSheetCancel => '取消';
@@ -7221,10 +7221,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get desktopTrayMenuExit => '結束';
 
   @override
-  String get assistantProviderDefaultAssistantName => '預設助理';
+  String get assistantProviderDefaultAssistantName => '預設專案';
 
   @override
-  String get assistantProviderSampleAssistantName => '範例助理';
+  String get assistantProviderSampleAssistantName => '範例專案';
+
+  @override
+  String get assistantProviderDeepResearchAssistantName => '深度研究助理';
 
   @override
   String assistantProviderSampleAssistantSystemPrompt(
@@ -7242,7 +7245,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantSettingsCopySuffix => '副本';
 
   @override
-  String get assistantProviderNewAssistantName => '新助理';
+  String get assistantProviderNewAssistantName => '新專案';
 
   @override
   String get searchSettingsSheetBuiltinSearchTitle => '模型內建搜尋';
@@ -7528,7 +7531,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get quickPhraseGlobalTitle => '快捷片語';
 
   @override
-  String get quickPhraseAssistantTitle => '助理快捷片語';
+  String get quickPhraseAssistantTitle => '專案快捷片語';
 
   @override
   String get quickPhraseAddTooltip => '新增快捷片語';
@@ -7643,7 +7646,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get titleForLocale => '新對話';
 
   @override
-  String get homePageDefaultAssistant => '預設助理';
+  String get homePageDefaultAssistant => '預設專案';
 
   @override
   String get defaultModelPagePromptLabel => '提示詞';
@@ -8491,7 +8494,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get storageSpaceCategoryChatData => '聊天記錄';
 
   @override
-  String get storageSpaceCategoryAssistantData => '助理';
+  String get storageSpaceCategoryAssistantData => '專案';
 
   @override
   String get storageSpaceCategoryCache => '快取';
@@ -8792,7 +8795,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get displaySettingsPageKeepSidebarOpenOnAssistantTapTitle =>
-      '點選助手時不自動關閉側邊欄';
+      '點選專案時不自動關閉側邊欄';
 
   @override
   String get displaySettingsPageKeepSidebarOpenOnTopicTapTitle =>
@@ -8800,10 +8803,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get displaySettingsPageKeepAssistantListExpandedOnSidebarCloseTitle =>
-      '關閉側邊欄時不折疊助手列表';
+      '關閉側邊欄時不折疊專案列表';
 
   @override
-  String get displaySettingsPageNewChatOnAssistantSwitchTitle => '切換助理時新建對話';
+  String get displaySettingsPageNewChatOnAssistantSwitchTitle => '切換專案時新建對話';
 
   @override
   String get displaySettingsPageNewChatAfterDeleteTitle => '刪除話題後新建對話';
@@ -8830,7 +8833,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get displaySettingsPageHapticsOnGenerateTitle => '訊息生成觸覺回饋';
 
   @override
-  String get assistantSettingsPageTitle => '助理設定';
+  String get assistantSettingsPageTitle => '專案設定';
 
   @override
   String get assistantSettingsCopyButton => '複製';
@@ -9097,7 +9100,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get networkProxyTypeHttp => 'HTTP';
 
   @override
-  String get assistantEditRegexDescription => '為使用者/助理訊息配置正則規則，可修改或僅調整顯示效果。';
+  String get assistantEditRegexDescription => '為使用者/專案訊息配置正則規則，可修改或僅調整顯示效果。';
 
   @override
   String get assistantEditAddRegexButton => '新增正則規則';
@@ -9112,7 +9115,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantRegexScopeUser => '使用者';
 
   @override
-  String get assistantRegexScopeAssistant => '助理';
+  String get assistantRegexScopeAssistant => '專案';
 
   @override
   String get assistantRegexScopeVisualOnly => '僅視覺';
@@ -9253,7 +9256,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantTagsManageTitle => '管理標籤';
 
   @override
-  String get sideDrawerChooseAssistantTitle => '選擇助理';
+  String get sideDrawerChooseAssistantTitle => '選擇專案';
 
   @override
   String get searchServicesPageAtLeastOneServiceRequired => '至少需要一個搜尋服務';
@@ -9385,7 +9388,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditVariableNickname => '使用者暱稱';
 
   @override
-  String get assistantEditVariableAssistantName => '助理名稱';
+  String get assistantEditVariableAssistantName => '專案名稱';
 
   @override
   String get assistantEditMessageTemplateTitle => '聊天內容範本';
@@ -9400,7 +9403,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditPresetAddUser => '新增預設使用者訊息';
 
   @override
-  String get assistantEditPresetAddAssistant => '新增預設助手訊息';
+  String get assistantEditPresetAddAssistant => '新增預設專案訊息';
 
   @override
   String get assistantEditPresetTitle => '預設對話訊息';
@@ -9409,7 +9412,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditPresetEmpty => '暫無預設訊息';
 
   @override
-  String get assistantEditPresetInputHintAssistant => '輸入助手訊息…';
+  String get assistantEditPresetInputHintAssistant => '輸入專案訊息…';
 
   @override
   String get assistantEditPresetInputHintUser => '輸入使用者訊息…';
@@ -9422,7 +9425,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get assistantEditQuickPhraseDescription =>
-      '管理此助理的快捷片語。點擊下方按鈕以新增或編輯片語。';
+      '管理此專案的快捷片語。點擊下方按鈕以新增或編輯片語。';
 
   @override
   String get assistantEditAddQuickPhraseButton => '新增快捷片語';
@@ -9473,7 +9476,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatMessageWidgetTranslating => '翻譯中...';
 
   @override
-  String get messageExportSheetAssistant => '助理';
+  String get messageExportSheetAssistant => '專案';
 
   @override
   String get messageExportSheetDefaultTitle => '新對話';

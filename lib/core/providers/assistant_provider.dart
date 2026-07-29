@@ -110,7 +110,7 @@ class AssistantProvider extends ChangeNotifier {
     }
     // 3) Deep Research Assistant (Add if not exists)
     final deepResearchName = l10n.assistantProviderDeepResearchAssistantName;
-    final drIdx = _assistants.indexWhere((a) => a.name == deepResearchName || a.name == 'Deep Research Assistant' || a.name == '深度研究助理' || a.name == '深度研究助手');
+    final drIdx = _assistants.indexWhere((a) => a.name == deepResearchName || a.name == 'Deep Research Assistant' || a.name == 'Deep Research Project' || a.name == '深度研究助理' || a.name == '深度研究助手' || a.name == '深度研究專案' || a.name == '深度研究項目');
     if (drIdx == -1) {
       _assistants.add(Assistant(
         id: const Uuid().v4(),

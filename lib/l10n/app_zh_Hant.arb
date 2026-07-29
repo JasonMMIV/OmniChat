@@ -10,8 +10,8 @@
   "settingsPageColorMode": "顏色模式",
   "settingsPageDisplay": "顯示設定",
   "settingsPageDisplaySubtitle": "介面主題與字號等外觀設定",
-  "settingsPageAssistant": "助理",
-  "settingsPageAssistantSubtitle": "預設助理與對話風格",
+  "settingsPageAssistant": "專案",
+  "settingsPageAssistantSubtitle": "預設專案與對話風格",
   "settingsPageModelsServicesSection": "模型與服務",
   "settingsPageDefaultModel": "預設模型",
   "settingsPageProviders": "供應商",
@@ -37,7 +37,7 @@
   "storageSpaceCategoryImages": "圖片",
   "storageSpaceCategoryFiles": "檔案",
   "storageSpaceCategoryChatData": "聊天記錄",
-  "storageSpaceCategoryAssistantData": "助理",
+  "storageSpaceCategoryAssistantData": "專案",
   "storageSpaceCategoryCache": "快取",
   "storageSpaceCategoryLogs": "日誌",
   "storageSpaceCategoryOther": "應用",
@@ -90,15 +90,15 @@
   "mermaidExportFailed": "匯出失敗",
   "mermaidPreviewOpen": "瀏覽器預覽",
   "mermaidPreviewOpenFailed": "無法打開預覽",
-  "assistantEditPageTitle": "助理",
-  "assistantEditPageNotFound": "助理不存在",
+  "assistantEditPageTitle": "專案",
+  "assistantEditPageNotFound": "專案不存在",
   "assistantEditPageQuickPhraseTab": "快捷片語",
   "assistantEditPageBasicTab": "基礎設定",
   "assistantEditPagePromptsTab": "提示詞",
   "assistantEditPageMcpTab": "MCP",
   "assistantEditPageCustomTab": "自訂請求",
   "assistantEditPageRegexTab": "正則替換",
-  "assistantEditRegexDescription": "為使用者/助理訊息配置正則規則，可修改或僅調整顯示效果。",
+  "assistantEditRegexDescription": "為使用者/專案訊息配置正則規則，可修改或僅調整顯示效果。",
   "assistantEditAddRegexButton": "新增正則規則",
   "assistantRegexAddTitle": "新增正則規則",
   "assistantRegexEditTitle": "編輯正則規則",
@@ -107,7 +107,7 @@
   "assistantRegexReplacementLabel": "替換字串",
   "assistantRegexScopeLabel": "影響範圍",
   "assistantRegexScopeUser": "使用者",
-  "assistantRegexScopeAssistant": "助理",
+  "assistantRegexScopeAssistant": "專案",
   "assistantRegexScopeVisualOnly": "僅視覺",
   "assistantRegexAddAction": "新增",
   "assistantRegexSaveAction": "儲存",
@@ -127,11 +127,11 @@
   "assistantEditBodyKeyLabel": "Body Key",
   "assistantEditBodyValueLabel": "Body 值 (JSON)",
   "assistantEditDeleteTooltip": "刪除",
-  "assistantEditAssistantNameLabel": "助理名稱",
-  "assistantEditUseAssistantAvatarTitle": "使用助理頭像",
-  "assistantEditUseAssistantAvatarSubtitle": "在聊天中使用助理頭像和名字而不是模型頭像和名字",
+  "assistantEditAssistantNameLabel": "專案名稱",
+  "assistantEditUseAssistantAvatarTitle": "使用專案頭像",
+  "assistantEditUseAssistantAvatarSubtitle": "在聊天中使用專案頭像和名字而不是模型頭像和名字",
   "assistantEditChatModelTitle": "聊天模型",
-  "assistantEditChatModelSubtitle": "為該助理設定預設聊天模型（未設定時使用全域預設）",
+  "assistantEditChatModelSubtitle": "為該專案設定預設聊天模型（未設定時使用全域預設）",
   "assistantEditTemperatureDescription": "控制輸出的隨機性，範圍 0–2",
   "assistantEditTopPDescription": "請不要修改此值，除非你知道自己在做什麼",
   "assistantEditParameterDisabled": "已關閉（使用服務商預設）",
@@ -146,7 +146,7 @@
   "assistantEditMaxTokensDescription": "留空表示無限制",
   "assistantEditMaxTokensHint": "無限制",
   "assistantEditChatBackgroundTitle": "聊天背景",
-  "assistantEditChatBackgroundDescription": "設定助理聊天頁面的背景圖片",
+  "assistantEditChatBackgroundDescription": "設定專案聊天頁面的背景圖片",
   "assistantEditChooseImageButton": "選擇背景圖片",
   "assistantEditClearButton": "清除",
   "desktopNavChatTooltip": "聊天",
@@ -159,7 +159,7 @@
   "hotkeyOpenSettings": "打開設定",
   "hotkeyNewTopic": "新建話題",
   "hotkeySwitchModel": "切換模型",
-  "hotkeyToggleAssistantPanel": "切換助理顯示",
+  "hotkeyToggleAssistantPanel": "切換專案顯示",
   "hotkeyToggleTopicPanel": "切換話題顯示",
   "hotkeysPressShortcut": "按下快捷鍵",
   "hotkeysResetDefault": "重置為預設",
@@ -185,7 +185,7 @@
   "androidBackgroundOptionOnNotify": "開啟並在生成完時發送消息",
   "androidBackgroundOptionOff": "關閉",
   "notificationChatCompletedTitle": "生成完成",
-  "notificationChatCompletedBody": "助手回覆已生成",
+  "notificationChatCompletedBody": "專案回覆已生成",
   "androidBackgroundNotificationTitle": "OmniChat 正在運行",
   "androidBackgroundNotificationText": "後台保持聊天生成",
   "assistantEditEmojiDialogTitle": "選擇表情",
@@ -206,7 +206,13 @@
   "providersPageDeleteSelectedConfirmContent": "確定要刪除選中的供應商嗎？此操作不可撤銷。",
   "providersPageDeleteSelectedSnackbar": "已刪除選中的供應商",
   "providersPageExportSelectedTitle": "匯出 {count} 個供應商",
-  "@providersPageExportSelectedTitle": {"placeholders": {"count": {"type": "int"}}},
+  "@providersPageExportSelectedTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "providersPageExportCopyButton": "複製",
   "providersPageExportShareButton": "分享",
   "providersPageExportCopiedSnackbar": "已複製匯出代碼",
@@ -242,7 +248,7 @@
   "assistantEditVariableDeviceInfo": "裝置資訊",
   "assistantEditVariableBatteryLevel": "電池電量",
   "assistantEditVariableNickname": "使用者暱稱",
-  "assistantEditVariableAssistantName": "助理名稱",
+  "assistantEditVariableAssistantName": "專案名稱",
   "assistantEditMessageTemplateTitle": "聊天內容範本",
   "assistantEditVariableRole": "角色",
   "assistantEditVariableMessage": "內容",
@@ -264,24 +270,24 @@
   "assistantEditMcpConnectedTag": "已連線",
   "assistantEditMcpToolsCountTag": "工具: {enabled}/{total}",
   "assistantEditModelUseGlobalDefault": "使用全域預設",
-  "assistantSettingsPageTitle": "助理設定",
+  "assistantSettingsPageTitle": "專案設定",
   "assistantSettingsDefaultTag": "預設",
   "assistantSettingsCopyButton": "複製",
-  "assistantSettingsCopySuccess": "已複製助理",
+  "assistantSettingsCopySuccess": "已複製專案",
   "assistantSettingsCopySuffix": "副本",
   "assistantSettingsDeleteButton": "刪除",
   "assistantSettingsEditButton": "編輯",
-  "assistantSettingsAddSheetTitle": "助理名稱",
-  "assistantSettingsAddSheetHint": "輸入助理名稱",
+  "assistantSettingsAddSheetTitle": "專案名稱",
+  "assistantSettingsAddSheetHint": "輸入專案名稱",
   "assistantSettingsAddSheetCancel": "取消",
   "assistantSettingsAddSheetSave": "儲存",
-  "assistantSettingsDeleteDialogTitle": "刪除助理",
-  "assistantSettingsDeleteDialogContent": "確定要刪除該助理嗎？此操作不可撤銷。",
+  "assistantSettingsDeleteDialogTitle": "刪除專案",
+  "assistantSettingsDeleteDialogContent": "確定要刪除該專案嗎？此操作不可撤銷。",
   "assistantSettingsDeleteDialogCancel": "取消",
   "assistantSettingsDeleteDialogConfirm": "刪除",
-  "assistantSettingsAtLeastOneAssistantRequired": "至少需要保留一個助理",
-  "desktopAssistantsListTitle": "助理列表",
-  "desktopSidebarTabAssistants": "助理",
+  "assistantSettingsAtLeastOneAssistantRequired": "至少需要保留一個專案",
+  "desktopAssistantsListTitle": "專案列表",
+  "desktopSidebarTabAssistants": "專案",
   "desktopSidebarTabTopics": "主題",
   "desktopTrayMenuShowWindow": "顯示視窗",
   "desktopTrayMenuExit": "結束",
@@ -299,7 +305,7 @@
   "assistantTagsDeleteConfirmContent": "確定要刪除該標籤嗎？",
   "assistantTagsDeleteConfirmOk": "刪除",
   "assistantTagsDeleteConfirmCancel": "取消",
-  "assistantTagsContextMenuEditAssistant": "編輯助理",
+  "assistantTagsContextMenuEditAssistant": "編輯專案",
   "assistantTagsContextMenuManageTags": "管理標籤",
   "mcpTransportOptionStdio": "STDIO",
   "mcpTransportTagStdio": "STDIO",
@@ -313,13 +319,13 @@
   "mcpServerEditSheetStdioEnvValueLabel": "值",
   "mcpServerEditSheetStdioAddEnv": "新增環境變數",
   "mcpServerEditSheetStdioCommandRequired": "STDIO 需要填寫命令",
-  "assistantTagsContextMenuDeleteAssistant": "刪除助理",
+  "assistantTagsContextMenuDeleteAssistant": "刪除專案",
   "assistantTagsClearTag": "清除標籤",
   "assistantEditTemperatureTitle": "溫度",
   "assistantEditTopPTitle": "Top-p",
-  "assistantProviderDefaultAssistantName": "預設助理",
-  "assistantProviderSampleAssistantName": "範例助理",
-  "assistantProviderNewAssistantName": "新助理",
+  "assistantProviderDefaultAssistantName": "預設專案",
+  "assistantProviderSampleAssistantName": "範例專案",
+  "assistantProviderNewAssistantName": "新專案",
   "assistantProviderSampleAssistantSystemPrompt": "你是{model_name}, 一個人工智慧助理，樂意為使用者提供準確，有益的幫助。現在時間是{cur_datetime}，使用者裝置語言為{locale}，時區為{timezone}，使用者正在使用{device_info}，版本{system_version}。如果使用者沒有明確說明，請使用使用者裝置語言進行回覆。",
   "@assistantProviderSampleAssistantSystemPrompt": {
     "placeholders": {
@@ -361,7 +367,7 @@
   "chatServiceDefaultConversationTitle": "新對話",
   "userProviderDefaultUserName": "使用者",
   "mcpAssistantSheetTitle": "MCP伺服器",
-  "mcpAssistantSheetSubtitle": "為該助理啟用的服務",
+  "mcpAssistantSheetSubtitle": "為該專案啟用的服務",
   "mcpAssistantSheetSelectAll": "全選",
   "mcpAssistantSheetClearAll": "全不選",
   "backupPageTitle": "備份與還原",
@@ -410,7 +416,7 @@
   "backupPageImportFromChatbox": "從 Chatbox 匯入",
   "homePageClearContext": "清空上下文",
   "homePageClearContextWithCount": "清空上下文 ({actual}/{configured})",
-  "homePageDefaultAssistant": "預設助理",
+  "homePageDefaultAssistant": "預設專案",
   "homePageDeleteMessage": "刪除訊息",
   "homePageDeleteMessageConfirm": "確定要刪除這條訊息嗎？此操作不可撤銷。",
   "homePageCancel": "取消",
@@ -522,7 +528,7 @@
   "chatMessageWidgetArguments": "參數",
   "chatMessageWidgetResult": "結果",
   "chatMessageWidgetCitationsCount": "共{count}條引用",
-  "messageExportSheetAssistant": "助理",
+  "messageExportSheetAssistant": "專案",
   "messageExportSheetDefaultTitle": "新對話",
   "messageExportSheetExporting": "正在匯出…",
   "messageExportSheetExportFailed": "匯出失敗: {error}",
@@ -561,14 +567,14 @@
   "sideDrawerDateShortPattern": "M月d日",
   "sideDrawerDateFullPattern": "yyyy年M月d日",
   "sideDrawerSearchHint": "搜尋聊天記錄",
-  "sideDrawerSearchAssistantsHint": "搜尋助理",
+  "sideDrawerSearchAssistantsHint": "搜尋專案",
   "sideDrawerUpdateTitle": "發現新版本：{version}",
   "sideDrawerUpdateTitleWithBuild": "發現新版本：{version} ({build})",
   "sideDrawerLinkCopied": "已複製下載連結",
   "sideDrawerPinnedLabel": "置頂",
   "sideDrawerHistory": "聊天歷史",
   "sideDrawerSettings": "設定",
-  "sideDrawerChooseAssistantTitle": "選擇助理",
+  "sideDrawerChooseAssistantTitle": "選擇專案",
   "sideDrawerChooseImage": "選擇圖片",
   "sideDrawerChooseEmoji": "選擇表情",
   "sideDrawerEnterLink": "輸入連結",
@@ -620,7 +626,7 @@
   "mcpPageUndo": "撤銷",
   "mcpPageCancel": "取消",
   "mcpConversationSheetTitle": "MCP伺服器",
-  "mcpConversationSheetSubtitle": "選擇在此助理中啟用的服務",
+  "mcpConversationSheetSubtitle": "選擇在此專案中啟用的服務",
   "mcpConversationSheetSelectAll": "全選",
   "mcpConversationSheetClearAll": "全不選",
   "mcpConversationSheetNoRunning": "暫無已啟動的 MCP 伺服器",
@@ -893,7 +899,7 @@
   "searchSettingsSheetNoServicesMessage": "暫無可用服務，請先在\"搜尋服務\"中新增",
   "aboutPageEasterEggMessage": "\n（好吧現在還沒彩蛋）",
   "aboutPageEasterEggButton": "好的",
-  "aboutPageAppDescription": "開源 AI 助理",
+  "aboutPageAppDescription": "開源 AI 專案",
   "aboutPageVersion": "版本",
   "aboutPageSystem": "系統",
   "aboutPageLicense": "授權",
@@ -913,9 +919,9 @@
   "displaySettingsPageAutoCollapseThinkingSubtitle": "思考完成後自動折疊，保持介面簡潔",
   "displaySettingsPageShowChatListDateTitle": "顯示對話列表日期",
   "displaySettingsPageShowChatListDateSubtitle": "在左側對話列表中顯示日期分組標籤",
-  "displaySettingsPageKeepSidebarOpenOnAssistantTapTitle": "點選助手時不自動關閉側邊欄",
+  "displaySettingsPageKeepSidebarOpenOnAssistantTapTitle": "點選專案時不自動關閉側邊欄",
   "displaySettingsPageKeepSidebarOpenOnTopicTapTitle": "點選話題時不自動關閉側邊欄",
-  "displaySettingsPageKeepAssistantListExpandedOnSidebarCloseTitle": "關閉側邊欄時不折疊助手列表",
+  "displaySettingsPageKeepAssistantListExpandedOnSidebarCloseTitle": "關閉側邊欄時不折疊專案列表",
   "displaySettingsPageShowUpdatesTitle": "顯示更新",
   "displaySettingsPageShowUpdatesSubtitle": "顯示應用程式更新通知",
   "displaySettingsPageMessageNavButtonsTitle": "訊息導航按鈕",
@@ -929,7 +935,7 @@
   "displaySettingsPageHapticsOnGenerateTitle": "訊息生成觸覺回饋",
   "displaySettingsPageHapticsOnGenerateSubtitle": "生成訊息時啟用觸覺回饋",
   "displaySettingsPageNewChatAfterDeleteTitle": "刪除話題後新建對話",
-  "displaySettingsPageNewChatOnAssistantSwitchTitle": "切換助理時新建對話",
+  "displaySettingsPageNewChatOnAssistantSwitchTitle": "切換專案時新建對話",
   "displaySettingsPageNewChatOnLaunchTitle": "啟動時新建對話",
   "displaySettingsPageAutoSwitchTopicsTitle": "自動切換話題",
   "desktopDisplaySettingsTopicPositionTitle": "主題位置",
@@ -1067,7 +1073,7 @@
   "displaySettingsPageAutoCollapseCodeBlockLinesUnit": "行",
   "quickPhraseBackTooltip": "返回",
   "quickPhraseGlobalTitle": "快捷片語",
-  "quickPhraseAssistantTitle": "助理快捷片語",
+  "quickPhraseAssistantTitle": "專案快捷片語",
   "quickPhraseAddTooltip": "新增快捷片語",
   "quickPhraseEmptyMessage": "暫無快捷片語",
   "quickPhraseAddTitle": "新增快捷片語",
@@ -1089,7 +1095,7 @@
   "quickPhraseMenuTitle": "快捷片語",
   "chatInputBarQuickPhraseTooltip": "快捷片語",
   "chatInputBarOcrTooltip": "OCR 文字辨識",
-  "assistantEditQuickPhraseDescription": "管理此助理的快捷片語。點擊下方按鈕以新增或編輯片語。",
+  "assistantEditQuickPhraseDescription": "管理此專案的快捷片語。點擊下方按鈕以新增或編輯片語。",
   "assistantEditManageQuickPhraseButton": "管理快捷片語",
   "instructionInjectionTitle": "指令注入",
   "instructionInjectionBackTooltip": "返回",
@@ -1111,7 +1117,7 @@
   },
   "assistantEditPageMemoryTab": "記憶",
   "assistantEditMemorySwitchTitle": "記憶",
-  "assistantEditMemorySwitchDescription": "允許助理主動儲存並在對話間引用使用者相關資訊",
+  "assistantEditMemorySwitchDescription": "允許專案主動儲存並在對話間引用使用者相關資訊",
   "assistantEditRecentChatsSwitchTitle": "參考歷史聊天記錄",
   "assistantEditRecentChatsSwitchDescription": "在新對話中引用最近的對話標題以增強上下文",
   "assistantEditManageMemoryTitle": "管理記憶",
@@ -1181,13 +1187,13 @@
   "assistantSettingsNoPromptPlaceholder": "暫無提示詞",
   "assistantEditPresetTitle": "預設對話訊息",
   "assistantEditPresetAddUser": "新增預設使用者訊息",
-  "assistantEditPresetAddAssistant": "新增預設助手訊息",
+  "assistantEditPresetAddAssistant": "新增預設專案訊息",
   "assistantEditPresetInputHintUser": "輸入使用者訊息…",
-  "assistantEditPresetInputHintAssistant": "輸入助手訊息…",
+  "assistantEditPresetInputHintAssistant": "輸入專案訊息…",
   "assistantEditPresetEmpty": "暫無預設訊息",
   "assistantEditPresetEditDialogTitle": "編輯預設訊息",
   "assistantEditPresetRoleUser": "使用者",
-  "assistantEditPresetRoleAssistant": "助手",
+  "assistantEditPresetRoleAssistant": "專案",
   "desktopTtsPleaseAddProvider": "請先在設定中新增語音服務商",
   "settingsPageNetworkProxy": "網絡代理",
   "networkProxyEnableLabel": "啟動代理",
@@ -1208,7 +1214,11 @@
   "networkProxyTestSuccess": "連線成功",
   "networkProxyTestFailed": "測試失敗：{error}",
   "@networkProxyTestFailed": {
-    "placeholders": { "error": { "type": "String" } }
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   },
   "networkProxyNoUrl": "請輸入測試地址",
   "networkProxyPriorityNote": "同時啟用全域代理與供應商代理時，將優先使用供應商代理。",
@@ -1224,7 +1234,6 @@
   "providerDetailPageDetectSuccess": "檢測成功",
   "providerDetailPageDetectFailed": "檢測失敗",
   "providerDetailPageDeleteAllModelsWarning": "此操作不可撤回",
-  "displaySettingsPageOtherSettingsTitle": "其他設定",
   "requestLogSettingTitle": "請求日誌列印",
   "requestLogSettingSubtitle": "開啟後會將請求/回應詳細寫入 logs/logs.txt",
   "flutterLogSettingTitle": "Flutter日誌列印",
@@ -1255,7 +1264,9 @@
   "aiTeamProposalLabel": "提案 {index}",
   "@aiTeamProposalLabel": {
     "placeholders": {
-      "index": {"type": "int"}
+      "index": {
+        "type": "int"
+      }
     }
   },
   "aiTeamStopped": "AI 團隊已停止",
@@ -1264,8 +1275,12 @@
   "aiTeamProposalInProgress": "AI 團隊執行中… 提案 {current}/{total}",
   "@aiTeamProposalInProgress": {
     "placeholders": {
-      "current": {"type": "int"},
-      "total": {"type": "int"}
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
   },
   "aiTeamThinkingLabel": "思考過程",
@@ -1281,7 +1296,9 @@
   "aiTeamCriticLabel": "審計 {index}",
   "@aiTeamCriticLabel": {
     "placeholders": {
-      "index": {"type": "int"}
+      "index": {
+        "type": "int"
+      }
     }
   },
   "aiTeamProposerPromptLabelShort": "提案模型提示詞",
@@ -1289,8 +1306,13 @@
   "aiTeamCriticInProgress": "AI 團隊執行中… 審計 {current}/{total}",
   "@aiTeamCriticInProgress": {
     "placeholders": {
-      "current": {"type": "int"},
-      "total": {"type": "int"}
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
-  }
+  },
+  "assistantProviderDeepResearchAssistantName": "深度研究助理"
 }
