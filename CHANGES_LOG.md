@@ -2,6 +2,15 @@
 
 ## [v1.5.32] - 2026-07-30: Consolidated Search Citations Card & Source Favicons
 
+### 133. Side Drawer UI Optimization — Removed Project Icon from Folder Tree
+- **Purpose**: Clean up project/assistant folder tile visuals in the unified folder tree by removing the assistant avatar icon and retaining only the folder icon (`Lucide.Folder` / `Lucide.FolderOpen`).
+- **Files Modified**:
+  - `lib/features/home/widgets/side_drawer.dart` (removed `avatar` from `_AssistantFolderTile` and removed unused `_assistantAvatar` helpers)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Visual Cleanup**: Removed `widget.avatar` from `_AssistantFolderTile`, simplifying the project row layout to show only the folder icon and project title.
+  - **Dead Code Cleanup**: Deleted unused `_assistantAvatar`, `_assistantInitialAvatar`, and `_assistantEmojiAvatar` helper methods.
+
 ### 132. Desktop Language Selector Async Fix
 - **Purpose**: Resolve async race condition in `showLanguageSelector` for desktop platforms where opening the context menu and selecting a target language returned `null` before selection completed.
 - **Files Modified**:

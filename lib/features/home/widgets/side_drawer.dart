@@ -81,123 +81,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   final Set<String> _expandedAssistantIds = {};
   final Set<String> _collapsedTags = {};
 
-  // Assistant avatar renderer shared across drawer views
-  Widget _assistantAvatar(BuildContext context, Assistant? a, {double size = 28, VoidCallback? onTap}) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final av = a?.avatar?.trim() ?? '';
-    final name = a?.name ?? '';
-    
-    Widget avatar;
-      if (av.isNotEmpty) {
-        if (av.startsWith('http')) {
-          avatar = FutureBuilder<String?>(
-            future: AvatarCache.getPath(av),
-            builder: (ctx, snap) {
-              final p = snap.data;
-              if (p != null && File(p).existsSync()) {
-                return ClipOval(
-                  child: Image(
-                    image: FileImage(File(p)),
-                    width: size,
-                    height: size,
-                    fit: BoxFit.cover,
-                  ),
-                );
-              }
-              return ClipOval(
-                child: Image.network(
-                  av,
-                  width: size,
-                  height: size,
-                  fit: BoxFit.cover,
-                  errorBuilder: (c, e, s) => _assistantInitialAvatar(cs, name, size),
-                ),
-              );
-            },
-          );
-        } else if (!kIsWeb && (av.startsWith('/') || av.contains(':'))) {
-          final fixed = SandboxPathResolver.fix(av);
-          final f = File(fixed);
-          if (f.existsSync()) {
-            avatar = ClipOval(
-              child: Image(
-                image: FileImage(f),
-                width: size,
-                height: size,
-                fit: BoxFit.cover,
-              ),
-            );
-          } else {
-            avatar = _assistantInitialAvatar(cs, name, size);
-          }
-        } else {
-          avatar = _assistantEmojiAvatar(cs, av, size);
-        }
-      } else {
-        avatar = _assistantInitialAvatar(cs, name, size);
-      }
-    
-    // Add border
-    final child = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: isDark ? Colors.white24 : Colors.black12,
-          width: 0.5,
-        ),
-      ),
-      child: avatar,
-    );
-
-    if (onTap == null) return child;
-
-    return InkWell(
-      onTap: onTap,
-      customBorder: const CircleBorder(),
-      child: child,
-    );
-  }
-
-  Widget _assistantInitialAvatar(ColorScheme cs, String name, double size) {
-    final letter = name.isNotEmpty ? name.characters.first : '?';
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: cs.primary.withOpacity(0.15),
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        letter,
-        style: TextStyle(
-          color: cs.primary,
-          fontSize: size * 0.42,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-
-  Widget _assistantEmojiAvatar(ColorScheme cs, String emoji, double size) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: cs.primary.withOpacity(0.15),
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: EmojiText(
-        emoji.characters.take(1).toString(),
-        fontSize: size * 0.5,
-        optimizeEmojiAlign: true,
-      ),
-    );
-  }
 
   @override
   void initState() {
@@ -1720,7 +1603,6 @@ extension on _SideDrawerState {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _AssistantFolderTile(
-            avatar: _assistantAvatar(context, a, size: 24),
             name: a.name,
             textColor: textBase,
             embedded: widget.embedded,
@@ -1928,7 +1810,6 @@ class _GroupHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final textBase = cs.onSurface;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -1964,7 +1845,6 @@ class _GroupHeader extends StatelessWidget {
 }
 
 class _AssistantFolderTile extends StatefulWidget {
-  final Widget avatar;
   final String name;
   final Color textColor;
   final bool embedded;
@@ -1978,7 +1858,6 @@ class _AssistantFolderTile extends StatefulWidget {
 
   const _AssistantFolderTile({
     Key? key,
-    required this.avatar,
     required this.name,
     required this.textColor,
     this.embedded = false,
@@ -2026,8 +1905,6 @@ class _AssistantFolderTileState extends State<_AssistantFolderTile> {
                 size: 20,
                 color: widget.isCurrent ? cs.primary : cs.onSurface.withOpacity(0.7),
               ),
-              const SizedBox(width: 8),
-              widget.avatar,
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
