@@ -2,6 +2,20 @@
 
 ## [v1.5.31] - 2026-07-30: Unified Left Drawer Folder-Tree Architecture & Top Mini Map Unification
 
+### 129. Sidebar Cleanup — Removed Storage & Translate Buttons
+- **Purpose**: Remove duplicate Storage Space button (already available in Settings) and standalone Translate button/page from the left sidebar drawer (`SideDrawer`), while preserving message-level translation in chat conversations. Also clean up unused `desktop_nav_rail.dart`, `translate_page.dart`, and `desktop_translate_page.dart` dead code.
+- **Files Modified**:
+  - `lib/features/home/widgets/side_drawer.dart` (removed Storage Space and Translate buttons from bottom action bar, removed unused imports)
+  - `lib/desktop/desktop_nav_rail.dart` [DELETED] (removed unused legacy desktop navigation rail component)
+  - `lib/features/translate/pages/translate_page.dart` [DELETED] (removed unused standalone translate page)
+  - `lib/desktop/desktop_translate_page.dart` [DELETED] (removed unused desktop translate page)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Storage Button Removal**: Removed `Lucide.Folder` (Storage Space) button from the bottom of `SideDrawer` since Storage Space is accessible via Settings (`SettingsPage`).
+  - **Sidebar Translate Button Removal**: Removed `Lucide.Languages` (Translate) button from the bottom of `SideDrawer`.
+  - **Preserved Message-Level Translation**: Retained `widget.onTranslate` callback and translation menu actions in `chat_message_widget.dart` for inline message translation.
+  - **Dead Code Cleanup**: Deleted unreferenced `desktop_nav_rail.dart`, `translate_page.dart`, and `desktop_translate_page.dart` files.
+
 ### 128. Unified Mini Map Button Position Across Desktop & Mobile
 - **Purpose**: Relocate the Desktop Mini map (chat navigator) button from the chat input bar to the top App bar's top-right actions area (between Voice Chat and New Conversation buttons), unifying the UI layout across desktop and mobile devices, and updating the desktop popover placement to anchor below the top-right button.
 - **Files Modified**:
