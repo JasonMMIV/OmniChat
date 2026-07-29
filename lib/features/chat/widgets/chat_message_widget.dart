@@ -2543,40 +2543,85 @@ class _SourceRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    
+    final domain = _tryNormalizeExternalUri(url)?.host ?? url;
+    
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 18,
-            height: 18,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: cs.primary.withOpacity(0.20),
-              borderRadius: BorderRadius.circular(9),
+      padding: const EdgeInsets.only(bottom: 8),
+      child: IosCardPress(
+        onTap: () async {
+          try {
+            final uri = _tryNormalizeExternalUri(url);
+            if (uri != null) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            }
+          } catch (_) {}
+        },
+        borderRadius: BorderRadius.circular(12),
+        baseColor: isDark ? cs.surfaceContainerHigh.withValues(alpha: 0.5) : cs.surfaceContainer,
+        border: Border.all(
+          color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+          width: 0.5,
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: _SourceFavicon(domain: domain),
             ),
-            margin: const EdgeInsets.only(top: 2),
-            child: Text(index, style: const TextStyle(fontSize: 11)),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: InkWell(
-              onTap: () async {
-                try {
-                  await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-                } catch (_) {}
-              },
-              child: Text(
-                title.isNotEmpty ? title : url,
-                style: TextStyle(color: cs.primary),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title.isNotEmpty ? title : url,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.3),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: cs.onSurface.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          index,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: cs.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          domain,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: cs.onSurface.withValues(alpha: 0.5),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -2,6 +2,16 @@
 
 ## [v1.5.32] - 2026-07-30: Consolidated Search Citations Card & Source Favicons
 
+### 131. Citation Sheet Details UI Optimization
+- **Purpose**: Upgrade the citation detail popover/sheet items (`_SourceRow`) to match `kelivo`'s modern card layout, featuring favicons, distinct title hierarchy, index badges, and domain names.
+- **Files Modified**:
+  - `lib/features/chat/widgets/chat_message_widget.dart` (redesigned `_SourceRow` with `IosCardPress`, `_SourceFavicon`, domain extraction, and dark/light adaptive theme borders)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Card Layout**: Converted `_SourceRow` into a tactile `IosCardPress` card with subtle borders.
+  - **Favicon Integration**: Added domain favicon to each individual citation entry in the popup sheet.
+  - **Typography & Hierarchy**: Enhanced readability with 2-line title wrapping, explicit host domain, and index pill badge.
+
 ### 130. Consolidated Search Citations & Source Favicons Integration
 - **Purpose**: Import upstream `kelivo` search citation block optimizations, consolidating all search results from multiple web/builtin search tool calls into a single summary card at the bottom of AI messages, styled with a transparent card border and source site favicons.
 - **Files Modified**:
