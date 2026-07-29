@@ -2,6 +2,14 @@
 
 ## [v1.5.32] - 2026-07-30: Consolidated Search Citations Card & Source Favicons
 
+### 132. Desktop Language Selector Async Fix
+- **Purpose**: Resolve async race condition in `showLanguageSelector` for desktop platforms where opening the context menu and selecting a target language returned `null` before selection completed.
+- **Files Modified**:
+  - `lib/features/settings/widgets/language_select_sheet.dart` (implemented `Completer<LanguageOption?>` pattern for synchronous-safe async selection handling)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Completer Async Pattern**: Replaced direct variable assignment with `Completer<LanguageOption?>` to safely capture target language selection or menu dismissal, ensuring single-message inline translation triggers reliably on desktop.
+
 ### 131. Citation Sheet Details UI Optimization
 - **Purpose**: Upgrade the citation detail popover/sheet items (`_SourceRow`) to match `kelivo`'s modern card layout, featuring favicons, distinct title hierarchy, index badges, and domain names.
 - **Files Modified**:
