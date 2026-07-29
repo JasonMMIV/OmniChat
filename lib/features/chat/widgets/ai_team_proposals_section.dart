@@ -173,6 +173,7 @@ class _AiTeamProposalsSectionState extends State<AiTeamProposalsSection> {
       content: content,
       reasoning: reasoning,
       toolCalls: toolCalls,
+      isStreaming: widget.isStreaming,
     );
   }
 }
@@ -185,6 +186,7 @@ class _CollapsibleProposalBlock extends StatefulWidget {
     required this.content,
     required this.reasoning,
     required this.toolCalls,
+    this.isStreaming = false,
   });
 
   final String label;
@@ -192,6 +194,7 @@ class _CollapsibleProposalBlock extends StatefulWidget {
   final String content;
   final String reasoning;
   final List<Map<String, dynamic>> toolCalls;
+  final bool isStreaming;
 
   @override
   State<_CollapsibleProposalBlock> createState() => _CollapsibleProposalBlockState();
@@ -230,7 +233,7 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
             label: l10n.aiTeamThinkingLabel,
             expanded: _thinkingExpanded,
             onToggle: () => setState(() => _thinkingExpanded = !_thinkingExpanded),
-            child: MarkdownWithCodeHighlight(text: widget.reasoning),
+            child: MarkdownWithCodeHighlight(text: widget.reasoning, isStreaming: widget.isStreaming),
           ),
           const SizedBox(height: 4),
         ],
@@ -257,7 +260,7 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
         ],
 
         // Final answer (always visible)
-        MarkdownWithCodeHighlight(text: widget.content),
+        MarkdownWithCodeHighlight(text: widget.content, isStreaming: widget.isStreaming),
       ],
     );
   }

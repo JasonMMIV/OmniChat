@@ -116,6 +116,10 @@ class StreamController {
   /// Pending content to be applied on next throttle tick.
   final Map<String, String> _pendingStreamContent = <String, String>{};
 
+  /// Pending total tokens per message, updated on each scheduleThrottledUpdate call.
+  /// This avoids capturing totalTokens in the timer closure (??= creates the timer once).
+  final Map<String, int> _pendingTotalTokens = <String, int>{};
+
   /// Delay before sanitizing inline base64 images.
   static const Duration _inlineImageSanitizeDelay = Duration(milliseconds: 120);
 
@@ -331,6 +335,7 @@ class StreamController {
     required int totalTokens,
   }) {
     _pendingStreamContent[messageId] = content;
+    _pendingTotalTokens[messageId] = totalTokens;
 
     // Ensure notifier exists for this message
     streamingContentNotifier.getNotifier(messageId);
@@ -339,10 +344,12 @@ class StreamController {
         Timer.periodic(_streamThrottleInterval, (_) {
       final pending = _pendingStreamContent[messageId];
       if (pending != null && getCurrentConversationId() == conversationId) {
+        // Use latest totalTokens from mutable map (not the closure-captured value)
+        final tokens = _pendingTotalTokens[messageId] ?? 0;
         // Use lightweight notifier instead of full page rebuild
-        streamingContentNotifier.updateContent(messageId, pending, totalTokens);
+        streamingContentNotifier.updateContent(messageId, pending, tokens);
         // Also update the message list data (without triggering rebuild)
-        updateMessageInList(messageId, pending, totalTokens);
+        updateMessageInList(messageId, pending, tokens);
         onStreamTick?.call();
       }
     });
@@ -362,6 +369,7 @@ class StreamController {
     _streamThrottleTimers[messageId]?.cancel();
     _streamThrottleTimers.remove(messageId);
     _pendingStreamContent.remove(messageId);
+    _pendingTotalTokens.remove(messageId);
     _inlineImageSanitizeTimers[messageId]?.cancel();
     _inlineImageSanitizeTimers.remove(messageId);
     _inlineImageSanitizing.remove(messageId);
@@ -380,6 +388,7 @@ class StreamController {
     }
     _streamThrottleTimers.clear();
     _pendingStreamContent.clear();
+    _pendingTotalTokens.clear();
     for (final timer in _inlineImageSanitizeTimers.values) {
       timer?.cancel();
     }

@@ -599,6 +599,9 @@ class ChatActions {
     _aiTeamCancelled = false;
     _aiTeamInProposalPhase = true;
 
+    // Throttle timestamp for reasoning updates during proposer streaming
+    DateTime? lastReasoningUpdate;
+
     // Run proposers sequentially
     final List<Map<String, dynamic>> proposals = [];
     final activeChainModels = isChain ? aiTeamConfig.activeChainModels : [];
@@ -633,6 +636,9 @@ class ChatActions {
       streamController.streamingContentNotifier.updateContent(
         messageId, progressText, 0,
       );
+      // Sync pending stream content so the throttle timer doesn't overwrite with stale data
+      // from a previous proposer
+      streamController.setPendingStreamContent(messageId, progressText);
 
       // Build message list for this step
       List<Map<String, dynamic>> stepMessages;
@@ -672,6 +678,34 @@ class ChatActions {
           extraHeaders: ctx.extraHeaders,
           extraBody: ctx.extraBody,
           streamOutput: ctx.streamOutput,
+          onPartialContent: ctx.streamOutput
+              ? (content, reasoning, reasoningStartAt) {
+                  // Push streaming content to main content area (throttled 60ms)
+                  streamController.scheduleThrottledUpdate(
+                    messageId,
+                    conversationId,
+                    content,
+                    totalTokens: 0,
+                    updateMessageInList: (id, c, tokens) {
+                      onContentUpdated?.call(id, c, tokens);
+                    },
+                  );
+                  // Push reasoning (throttled to ~60ms)
+                  if (reasoning.isNotEmpty) {
+                    final now = DateTime.now();
+                    if (lastReasoningUpdate == null ||
+                        now.difference(lastReasoningUpdate!) >=
+                            const Duration(milliseconds: 60)) {
+                      lastReasoningUpdate = now;
+                      streamController.streamingContentNotifier.updateReasoning(
+                        messageId,
+                        reasoningText: reasoning,
+                        reasoningStartAt: reasoningStartAt,
+                      );
+                    }
+                  }
+                }
+              : null,
         );
       } catch (e) {
         // I1: Per-proposer error — skip, continue
@@ -707,6 +741,8 @@ class ChatActions {
     streamController.streamingContentNotifier.updateContent(
       messageId, '', 0,
     );
+    // Clear pending stream content so throttle timer doesn't push stale proposer content
+    streamController.setPendingStreamContent(messageId, '');
 
     // If cancelled or all proposals empty, show stopped
     if (_aiTeamCancelled ||
@@ -749,6 +785,8 @@ class ChatActions {
 
   /// Run a single proposer silently (no UI push), return map with content/reasoning/toolCalls.
   /// R1: Uses Future.any to race stream completion vs cancel signal to prevent deadlock.
+  /// [onPartialContent]: optional callback fired (unthrottled) on each chunk with current
+  /// buffered content and reasoning. The caller is responsible for throttling UI updates.
   Future<Map<String, dynamic>> _runProposerSilent({
     required String conversationId,
     required dynamic config,
@@ -764,6 +802,7 @@ class ChatActions {
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     required bool streamOutput,
+    void Function(String content, String reasoning, DateTime? reasoningStartAt)? onPartialContent,
   }) async {
     final completer = Completer<Map<String, dynamic>>();
     final buffer = StringBuffer();
@@ -771,6 +810,7 @@ class ChatActions {
     final toolCallsList = <Map<String, dynamic>>[];
     final toolResultsMap = <String, String>{};
     _aiTeamCancelCompleter = Completer<void>();
+    DateTime? reasoningStartAt;
 
     final stream = ChatApiService.sendMessageStream(
       config: config,
@@ -796,6 +836,7 @@ class ChatActions {
         }
         if ((chunk.reasoning ?? '').isNotEmpty) {
           reasoningBuffer.write(chunk.reasoning);
+          reasoningStartAt ??= DateTime.now();
         }
         if ((chunk.toolCalls ?? const []).isNotEmpty) {
           for (final tc in chunk.toolCalls!) {
@@ -814,6 +855,15 @@ class ChatActions {
                 ? '${result.substring(0, 2000)}…'
                 : result;
           }
+        }
+        // Push partial content to caller for real-time UI display
+        if (onPartialContent != null &&
+            (buffer.isNotEmpty || reasoningBuffer.isNotEmpty)) {
+          onPartialContent(
+            buffer.toString(),
+            reasoningBuffer.toString(),
+            reasoningStartAt,
+          );
         }
       },
       onError: (e) {
@@ -1008,6 +1058,9 @@ class ChatActions {
     _aiTeamPendingProposals.remove(assistantMessage.id);
 
     streamController.markStreamingEnded(assistantMessage.id);
+    // Cancel the proposer-phase throttle timer to prevent it from
+    // overwriting message.content after cancel (Bug Fix 2)
+    streamController.cleanupTimers(assistantMessage.id);
     await chatService.updateMessage(
       assistantMessage.id,
       content: l10nReason,
