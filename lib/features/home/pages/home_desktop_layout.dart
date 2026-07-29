@@ -152,8 +152,6 @@ class HomeDesktopScaffold extends StatelessWidget {
       assistantName: _getAssistantName(context),
       closePickerTicker: assistantPickerCloseTick,
       loadingConversationIds: loadingConversationIds,
-      useDesktopTabs: _isDesktop && !topicsOnRight,
-      desktopAssistantsOnly: _isDesktop && topicsOnRight,
       onNewConversation: ({closeDrawer = true}) => onNewConversation(),
       onSelectConversation: (id, {closeDrawer = true}) => onSelectConversation(id),
     );
@@ -175,46 +173,7 @@ class HomeDesktopScaffold extends StatelessWidget {
   }
 
   Widget _buildRightSidebar(BuildContext context, ColorScheme cs, bool topicsOnRight) {
-    if (!_isDesktop || !topicsOnRight) return const SizedBox.shrink();
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SidebarResizeHandle(
-          visible: rightSidebarOpen,
-          onDrag: onRightSidebarWidthChanged,
-          onDragEnd: onRightSidebarWidthChangeEnd,
-        ),
-        AnimatedContainer(
-          duration: _sidebarAnimDuration,
-          curve: _sidebarAnimCurve,
-          width: rightSidebarOpen ? rightSidebarWidth : 0,
-          child: ClipRect(
-            child: OverflowBox(
-              alignment: Alignment.centerRight,
-              minWidth: 0,
-              maxWidth: rightSidebarWidth,
-              child: SizedBox(
-                width: rightSidebarWidth,
-                child: SideDrawer(
-                  embedded: true,
-                  embeddedWidth: rightSidebarWidth,
-                  userName: context.watch<UserProvider>().name,
-                  assistantName: _getAssistantName(context),
-                  closePickerTicker: assistantPickerCloseTick,
-                  loadingConversationIds: loadingConversationIds,
-                  useDesktopTabs: false,
-                  desktopTopicsOnly: true,
-                  showBottomBar: false,
-                  onSelectConversation: (id, {closeDrawer = true}) => onSelectConversation(id),
-                  onNewConversation: ({closeDrawer = true}) => onNewConversation(),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
+    return const SizedBox.shrink();
   }
 
   String _getAssistantName(BuildContext context) {

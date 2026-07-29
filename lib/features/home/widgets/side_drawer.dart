@@ -56,9 +56,6 @@ class SideDrawer extends StatefulWidget {
     this.embedded = false,
     this.embeddedWidth,
     this.showBottomBar = true,
-    this.useDesktopTabs = false,
-    this.desktopAssistantsOnly = false,
-    this.desktopTopicsOnly = false,
   });
 
   final String userName;
@@ -70,9 +67,6 @@ class SideDrawer extends StatefulWidget {
   final bool embedded; // when true, render as a fixed side panel instead of a Drawer
   final double? embeddedWidth; // optional explicit width for embedded mode
   final bool showBottomBar; // desktop can hide this bottom area
-  final bool useDesktopTabs; // desktop-only: show tabs (Assistants/Topics)
-  final bool desktopAssistantsOnly; // desktop-only: show only assistants list
-  final bool desktopTopicsOnly; // desktop-only: show only topics list
 
   @override
   State<SideDrawer> createState() => _SideDrawerState();
@@ -85,11 +79,9 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   final GlobalKey _assistantTileKey = GlobalKey();
   OverlayEntry? _assistantPickerEntry;
   ValueNotifier<int>? _closeTicker;
-  bool _assistantsExpanded = false;
   final ScrollController _listController = ScrollController();
-  bool _assistantHeaderHovered = false;
-  TabController? _tabController; // desktop tabs
-  StreamSubscription<int>? _tabBusSub;
+  final Set<String> _expandedAssistantIds = {};
+  final Set<String> _collapsedTags = {};
 
   // Assistant avatar renderer shared across drawer views
   Widget _assistantAvatar(BuildContext context, Assistant? a, {double size = 28, VoidCallback? onTap}) {
@@ -218,23 +210,15 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         setState(() => _query = _searchController.text);
       }
     });
-    // Update check moved to app startup (main.dart)
-    // Prepare desktop tabs controller (available when useDesktopTabs)
-    _tabController = TabController(length: 2, vsync: this, initialIndex: 0);
-    _tabController!.addListener(_onDesktopTabChanged);
-    // Reflect current index to bus and listen for external switches
-    DesktopSidebarTabBus.instance.setCurrentIndex(_tabController!.index);
-    _tabBusSub = DesktopSidebarTabBus.instance.stream.listen((idx) {
-      if (widget.useDesktopTabs && mounted) {
-        try { _tabController!.animateTo(idx, duration: const Duration(milliseconds: 140), curve: Curves.easeOutCubic); } catch (_) {}
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final currentAssistantId = context.read<AssistantProvider>().currentAssistantId;
+      if (currentAssistantId != null) {
+        setState(() {
+          _expandedAssistantIds.add(currentAssistantId);
+        });
       }
     });
-  }
-
-  void _onDesktopTabChanged() {
-    if (!mounted) return;
-    DesktopSidebarTabBus.instance.setCurrentIndex(_tabController?.index ?? 0);
-    setState(() {}); // update search hint when switching tabs
   }
 
   void _showChatMenu(BuildContext context, ChatItem chat, {Offset? anchor}) async {
@@ -575,15 +559,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     _closeTicker?.removeListener(_handleCloseTick);
     _searchController.dispose();
     _listController.dispose();
-    _tabController?.removeListener(_onDesktopTabChanged);
-    _tabController?.dispose();
-    try { _tabBusSub?.cancel(); } catch (_) {}
     super.dispose();
   }
 
   @override
   void deactivate() {
-    _closeAssistantPicker();
     super.deactivate();
   }
 
@@ -603,7 +583,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   }
 
   void _handleCloseTick() {
-    _closeAssistantPicker();
   }
 
 
@@ -659,27 +638,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     final textBase = isDark ? Colors.white : Colors.black; // 纯黑（白天），夜间自动适配
     final chatService = context.watch<ChatService>();
     final ap = context.watch<AssistantProvider>();
-    final currentAssistantId = ap.currentAssistantId;
-    final conversations = chatService
-        .getAllConversations()
-        .where((c) => c.assistantId == currentAssistantId || c.assistantId == null)
-        .toList();
-    // Use last-activity time (updatedAt) for ordering and grouping
-    final all = conversations
-        .map((c) => ChatItem(id: c.id, title: c.title, created: c.updatedAt))
-        .toList();
 
-    final base = _query.trim().isEmpty
-        ? all
-        : all.where((c) => c.title.toLowerCase().contains(_query.toLowerCase())).toList();
-    final pinnedList = base
-        .where((c) => (chatService.getConversation(c.id)?.isPinned ?? false))
-        .toList()
-      ..sort((a, b) => b.created.compareTo(a.created));
-    final rest = base
-        .where((c) => !(chatService.getConversation(c.id)?.isPinned ?? false))
-        .toList();
-    final groups = _groupByDate(context, rest);
 
     // Avatar renderer: emoji / url / file / default initial
     Widget avatarWidget(String name, UserProvider up, {double size = 40}) {
@@ -954,119 +913,19 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                     ),
 
                   SizedBox(height: _isDesktop ? 8 : 12),
-                  
-                  // 桌面端：替换为 Tab（助手 / 话题）
-                  if (_useTabs)
-                    _DesktopSidebarTabs(textColor: textBase, controller: _tabController!)
-                  else if (!_assistOnly && !_topicsOnly)
-                    // 当前助手区域（固定）
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: KeyedSubtree(
-                        key: _assistantTileKey,
-                        child: MouseRegion(
-                          onEnter: (_) { if (_isDesktop) setState(() => _assistantHeaderHovered = true); },
-                          onExit: (_) { if (_isDesktop) setState(() => _assistantHeaderHovered = false); },
-                          cursor: _isDesktop ? SystemMouseCursors.click : SystemMouseCursors.basic,
-                          child: IosCardPress(
-                            baseColor: (() {
-                              final embedded = widget.embedded;
-                              final base = embedded ? Colors.transparent : cs.surface;
-                              if (_isDesktop && _assistantHeaderHovered) {
-                                return embedded ? cs.primary.withOpacity(0.08) : cs.surface.withOpacity(0.9);
-                              }
-                              return base;
-                            })(),
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: _toggleAssistantPicker,
-                            onLongPress: _isDesktop ? null : () {
-                              _closeAssistantPicker();
-                              final id = context.read<AssistantProvider>().currentAssistantId;
-                              if (id != null) {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(builder: (_) => AssistantSettingsEditPage(assistantId: id)),
-                                );
-                              }
-                            },
-                            padding: const EdgeInsets.fromLTRB(4, 6, 12, 6),
-                            child: Row(
-                              children: [
-                                _assistantAvatar(
-                                  context,
-                                  ap.currentAssistant,
-                                  size: 32,
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Text(
-                                    (ap.currentAssistant?.name ?? widget.assistantName),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(fontSize: _isDesktop ? 14 : 15, fontWeight: FontWeight.w500, color: textBase),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                AnimatedRotation(
-                                  turns: _assistantsExpanded ? 0.5 : 0.0,
-                                  duration: const Duration(milliseconds: 350),
-                                  curve: Curves.easeOutCubic,
-                                  child: Icon(
-                                    Lucide.ChevronDown,
-                                    size: 18,
-                                    color: textBase.withOpacity(0.7),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                  // 注意：内联助手列表已移动至下方可滚动区域
                 ],
               ),
             ),
 
             // Scrollable area below header
             Expanded(
-              child: () {
-                if (_useTabs) {
-                  return _DesktopTabViews(
-                    controller: _tabController!,
-                    listController: _listController,
-                    buildAssistants: () => _buildAssistantsList(context),
-                    buildConversations: () => _buildConversationsList(context, cs, textBase, chatService, pinnedList, groups, includeUpdateBanner: true),
-                  );
-                }
-                if (_assistOnly) {
-                  return ListView(
-                    controller: _listController,
-                    padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
-                    children: [
-                      _buildAssistantsList(context, inlineMode: true),
-                    ],
-                  );
-                }
-                if (_topicsOnly) {
-                  final isDesktop = _isDesktop;
-                  final topPad = context.watch<SettingsProvider>().showChatListDate ? (isDesktop ? 2.0 : 4.0) : 10.0;
-                  return ListView(
-                    controller: _listController,
-                    padding: EdgeInsets.fromLTRB(10, topPad, 10, 16),
-                    children: [
-                      _buildConversationsList(context, cs, textBase, chatService, pinnedList, groups, includeUpdateBanner: true),
-                    ],
-                  );
-                }
-                return _LegacyListArea(
-                  listController: _listController,
-                  isDesktop: _isDesktop,
-                  assistantsExpanded: _assistantsExpanded,
-                  buildAssistants: () => _buildAssistantsList(context, inlineMode: true),
-                  buildConversations: () => _buildConversationsList(context, cs, textBase, chatService, pinnedList, groups, includeUpdateBanner: true),
-                );
-              }(),
+              child: ListView(
+                controller: _listController,
+                padding: const EdgeInsets.fromLTRB(10, 4, 10, 16),
+                children: [
+                  _buildFolderTreeList(context),
+                ],
+              ),
             ),
 
             if (widget.showBottomBar) Container(
@@ -1231,80 +1090,29 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     );
   }
 
-  void _toggleAssistantPicker() {
-    final goingToExpand = !_assistantsExpanded;
+  void _handleToggleAssistant(String assistantId) {
     setState(() {
-      _assistantsExpanded = goingToExpand;
-    });
-    if (goingToExpand) {
-      // Smoothly reveal the assistant list at the top
-      if (_listController.hasClients) {
-        // Slight delay to ensure layout is ready before animating
-        Future<void>.delayed(const Duration(milliseconds: 10), () {
-          if (!_listController.hasClients) return;
-          _listController.animateTo(
-            0,
-            duration: const Duration(milliseconds: 420),
-            curve: Curves.easeOutCubic,
-          );
-        });
+      if (_expandedAssistantIds.contains(assistantId)) {
+        _expandedAssistantIds.remove(assistantId);
+      } else {
+        _expandedAssistantIds.clear();
+        _expandedAssistantIds.add(assistantId);
       }
-    }
-  }
-
-  void _closeAssistantPicker() {
-    if (!_assistantsExpanded) return;
-    setState(() {
-      _assistantsExpanded = false;
     });
   }
 
-  Future<void> _handleSelectAssistant(Assistant assistant) async {
+  Future<void> _handleNewConversationForAssistant(BuildContext context, Assistant assistant) async {
     final sp = context.read<SettingsProvider>();
-    final closeDrawer = !sp.keepSidebarOpenOnAssistantTap;
-    if (closeDrawer) {
-      _closeAssistantPicker();
-    }
-    final ap = context.read<AssistantProvider>();
-    await ap.setCurrentAssistant(assistant.id);
-    // Desktop: optionally switch to Topics tab per user preference
-    try {
-      if (_isDesktop && widget.embedded && widget.useDesktopTabs && sp.desktopAutoSwitchTopics) {
-        _tabController?.animateTo(1, duration: const Duration(milliseconds: 140), curve: Curves.easeOutCubic);
-      }
-    } catch (_) {}
-    if (!mounted) return;
-    final forceNewChat = sp.newChatOnAssistantSwitch && widget.onNewConversation != null;
-    if (forceNewChat) {
-      widget.onNewConversation?.call(closeDrawer: closeDrawer);
-    } else {
-      // Jump to the most recent conversation for this assistant if any,
-      // otherwise create a new conversation.
-      try {
-        final chatService = context.read<ChatService>();
-        final all = chatService.getAllConversations();
-        // Filter conversations owned by this assistant and pick the newest
-        final recent = all
-            .where((c) => c.assistantId == assistant.id)
-            .toList();
-        if (recent.isNotEmpty) {
-          // getAllConversations is already sorted by updatedAt desc
-          widget.onSelectConversation?.call(recent.first.id, closeDrawer: closeDrawer);
-        } else {
-          widget.onNewConversation?.call(closeDrawer: closeDrawer);
-        }
-      } catch (_) {
-        // Fallback: new conversation on any error
-        widget.onNewConversation?.call(closeDrawer: closeDrawer);
-      }
-    }
-    if (closeDrawer) {
-      Navigator.of(context).maybePop();
-    }
+    final closeDrawer = !sp.keepSidebarOpenOnTopicTap;
+    await context.read<AssistantProvider>().setCurrentAssistant(assistant.id);
+    setState(() {
+      _expandedAssistantIds.clear();
+      _expandedAssistantIds.add(assistant.id);
+    });
+    widget.onNewConversation?.call(closeDrawer: closeDrawer);
   }
 
   void _openAssistantSettings(String id) {
-    _closeAssistantPicker();
     final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.linux;
@@ -1348,7 +1156,6 @@ extension on _SideDrawerState {
           icon: Lucide.Bookmark,
           label: l10n.assistantTagsContextMenuManageTags,
           onTap: () async {
-            _closeAssistantPicker();
             await showAssistantTagsManagerDialog(context, assistantId: a.id);
           },
         ),
@@ -1873,22 +1680,27 @@ extension on _SideDrawerState {
     }
   }
 
-  // Build assistants list (ungrouped + grouped by tags). When inlineMode=false (desktop tabs),
-  // apply search filter on assistant names.
-  Widget _buildAssistantsList(BuildContext context, {bool inlineMode = false}) {
-    final ap2 = context.watch<AssistantProvider>();
+  Widget _buildFolderTreeList(BuildContext context) {
+    final ap = context.watch<AssistantProvider>();
     final tp = context.watch<TagProvider>();
-    final isDark2 = Theme.of(context).brightness == Brightness.dark;
-    final textBase2 = isDark2 ? Colors.white : Colors.black;
+    final chatService = context.watch<ChatService>();
+    final showChatListDate = context.watch<SettingsProvider>().showChatListDate;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textBase = isDark ? Colors.white : Colors.black;
 
-    List<Assistant> assistants = ap2.assistants;
-    // Apply search filter when:
-    // - Desktop tab mode (inlineMode == false), OR
-    // - Desktop assistants-only mode (left sidebar when topics are on right)
-    final shouldFilterAssistants = (!inlineMode) || (widget.desktopAssistantsOnly && _isDesktop);
-    if (shouldFilterAssistants && _query.trim().isNotEmpty) {
-      final q = _query.toLowerCase();
-      assistants = assistants.where((a) => (a.name).toLowerCase().contains(q)).toList();
+    // Filter conversations for the current query (if any)
+    final allConvos = chatService.getAllConversations();
+    final hasQuery = _query.trim().isNotEmpty;
+    final q = _query.toLowerCase();
+    
+    // Build list of assistants
+    List<Assistant> assistants = ap.assistants;
+    if (hasQuery) {
+      final matchingConvoAssistantIds = allConvos
+          .where((c) => c.title.toLowerCase().contains(q) && c.assistantId != null)
+          .map((c) => c.assistantId!)
+          .toSet();
+      assistants = assistants.where((a) => a.name.toLowerCase().contains(q) || matchingConvoAssistantIds.contains(a.id)).toList();
     }
 
     final tags = tp.tags;
@@ -1899,271 +1711,140 @@ extension on _SideDrawerState {
       if (list.isNotEmpty) groupedByTag[t.id] = list;
     }
 
-    Widget buildTile(Assistant a) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-        child: _AssistantInlineTile(
-          avatar: _assistantAvatar(context, a, size: _isDesktop ? 28 : 32),
-          name: a.name,
-          textColor: textBase2,
-          embedded: widget.embedded,
-          selected: ap2.currentAssistantId == a.id,
-          onTap: () => _handleSelectAssistant(a),
-          onEditTap: () => _openAssistantSettings(a.id),
-          onLongPress: () => _showAssistantItemMenuMobile(a),
-          onSecondaryTapDown: (pos) => _showAssistantItemMenuDesktop(a, pos),
-        ),
-      );
-    }
-
-    // Desktop: enable drag-reorder within each group; Mobile/tablet: keep static list
-    final bool enableReorder = _isDesktop;
-
-    Widget buildReorderable(List<Assistant> list, {required List<String> subsetIds}) {
-      if (!enableReorder) {
-        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: list.map(buildTile).toList());
-      }
-      return ReorderableListView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        buildDefaultDragHandles: false,
-        proxyDecorator: (child, index, animation) {
-          // Remove default shadow/elevation and clip to rounded card only.
-          return AnimatedBuilder(
-            animation: animation,
-            builder: (context, _) {
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: child,
-                ),
-              );
-            },
-          );
-        },
-        onReorder: (oldIndex, newIndex) async {
-          if (newIndex > oldIndex) newIndex -= 1;
-          try {
-            await context.read<AssistantProvider>().reorderAssistantsWithin(
-              subsetIds: subsetIds,
-              oldIndex: oldIndex,
-              newIndex: newIndex,
-            );
-          } catch (_) {}
-        },
-        itemCount: list.length,
-        itemBuilder: (ctx, index) {
-          final a = list[index];
-          final tile = buildTile(a);
-          return KeyedSubtree(
-            key: ValueKey('assistant-${a.id}'),
-            child: ReorderableDragStartListener(
-              index: index,
-              enabled: enableReorder,
-              child: tile,
-            ),
-          );
-        },
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(6, 6, 6, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (ungrouped.isNotEmpty)
-            buildReorderable(ungrouped, subsetIds: ungrouped.map((a) => a.id).toList()),
-          for (final t in tags)
-            if ((groupedByTag[t.id] ?? const <Assistant>[]).isNotEmpty) ...[
-              const SizedBox(height: 4),
-              _GroupHeader(
-                title: t.name,
-                collapsed: tp.isCollapsed(t.id),
-                onToggle: () => tp.toggleCollapsed(t.id),
-              ),
-              AnimatedSize(
-                duration: const Duration(milliseconds: 260),
-                curve: Curves.easeInOutCubic,
-                alignment: Alignment.topCenter,
-                child: tp.isCollapsed(t.id)
-                    ? const SizedBox.shrink()
-                    : buildReorderable(
-                        groupedByTag[t.id]!,
-                        subsetIds: (groupedByTag[t.id] ?? const <Assistant>[]) .map((a) => a.id).toList(),
-                      ),
-              ),
-            ],
-        ],
-      ),
-    );
-  }
-
-  // Build conversations list area, optionally including the update banner.
-  Widget _buildConversationsList(
-    BuildContext context,
-    ColorScheme cs,
-    Color textBase,
-    ChatService chatService,
-    List<ChatItem> pinnedList,
-    List<_ChatGroup> groups, {
-    bool includeUpdateBanner = false,
-  }) {
     final children = <Widget>[];
-    if (includeUpdateBanner) {
-      children.add(Builder(builder: (context) {
-        final settings = context.watch<SettingsProvider>();
-        final upd = context.watch<UpdateProvider>();
-        if (!settings.showAppUpdates) return const SizedBox.shrink();
-        final info = upd.available;
-        if (upd.checking && info == null) return const SizedBox.shrink();
-        if (info == null) return const SizedBox.shrink();
-        final url = info.bestDownloadUrl();
-        if (url == null || url.isEmpty) return const SizedBox.shrink();
-        final ver = info.version;
-        final build = info.build;
-        final l10n = AppLocalizations.of(context)!;
-        final title = build != null
-            ? l10n.sideDrawerUpdateTitleWithBuild(ver, build)
-            : l10n.sideDrawerUpdateTitle(ver);
-        final cs2 = Theme.of(context).colorScheme;
-        final isDark2 = Theme.of(context).brightness == Brightness.dark;
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Material(
-            color: isDark2 ? Colors.white10 : const Color(0xFFF2F3F5),
-            borderRadius: BorderRadius.circular(12),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () async {
-                final uri = Uri.parse(url);
-                try {
-                  // ignore: deprecated_member_use
-                  await launchUrl(uri);
-                } catch (_) {
-                  Clipboard.setData(ClipboardData(text: url));
-                  showAppSnackBar(
-                    context,
-                    message: l10n.sideDrawerLinkCopied,
-                    type: NotificationType.success,
-                  );
-                }
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Lucide.BadgeInfo, size: 18, color: cs2.primary),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if ((info.notes ?? '').trim().isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        info.notes!,
-                        style: TextStyle(fontSize: 13, color: cs2.onSurface.withOpacity(0.8)),
-                      ),
-                    ],
-                  ],
-                ),
+
+    // Helper to build a single assistant + its conversations if expanded
+    Widget buildAssistantNode(Assistant a) {
+      final isExpanded = _expandedAssistantIds.contains(a.id) || hasQuery;
+      final isCurrent = ap.currentAssistantId == a.id;
+      
+      final convos = allConvos.where((c) => c.assistantId == a.id).toList();
+      final filteredConvos = hasQuery ? convos.where((c) => c.title.toLowerCase().contains(q)).toList() : convos;
+
+      Widget _buildChatTile(ChatItem chatItem) {
+        return _ChatTile(
+          chat: chatItem,
+          loading: widget.loadingConversationIds.contains(chatItem.id),
+          selected: chatService.currentConversationId == chatItem.id,
+          onTap: () {
+            final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
+            ap.setCurrentAssistant(a.id);
+            widget.onSelectConversation?.call(chatItem.id, closeDrawer: closeDrawer);
+          },
+          onLongPress: () => _showChatMenu(context, chatItem),
+          onSecondaryTap: (pos) => _showChatMenu(context, chatItem, anchor: pos),
+          textColor: textBase,
+        );
+      }
+
+      final convosWidgets = <Widget>[];
+      if (isExpanded && filteredConvos.isNotEmpty) {
+        final convosItems = filteredConvos.map((c) => ChatItem(id: c.id, title: c.title, created: c.updatedAt)).toList();
+        final pinnedList = convosItems
+            .where((c) => (chatService.getConversation(c.id)?.isPinned ?? false))
+            .toList()
+          ..sort((a, b) => b.created.compareTo(a.created));
+        final rest = convosItems
+            .where((c) => !(chatService.getConversation(c.id)?.isPinned ?? false))
+            .toList();
+        final groups = _groupByDate(context, rest);
+
+        if (pinnedList.isNotEmpty) {
+          convosWidgets.add(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 6, 0, 6),
+              child: Text(
+                AppLocalizations.of(context)!.sideDrawerPinnedLabel,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.primary),
               ),
             ),
-          ),
-        );
-      }));
-    }
+          );
+          convosWidgets.addAll(pinnedList.map(_buildChatTile));
+        }
 
-    children.add(
-      PageTransitionSwitcher(
-        duration: const Duration(milliseconds: 260),
-        reverse: false,
-        transitionBuilder: (child, primary, secondary) => FadeThroughTransition(
-          fillColor: Colors.transparent,
-          animation: CurvedAnimation(parent: primary, curve: Curves.easeOutCubic),
-          secondaryAnimation: CurvedAnimation(parent: secondary, curve: Curves.easeInCubic),
-          child: child,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          key: ValueKey('${_query}_' + ([...pinnedList.map((c)=>c.id), ...groups.expand((g)=>g.items.map((c)=>c.id))].join(','))),
-          children: [
-            if (pinnedList.isNotEmpty) ...[
+        for (final group in groups) {
+          if (showChatListDate) {
+            convosWidgets.add(
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 6, 0, 6),
                 child: Text(
-                  AppLocalizations.of(context)!.sideDrawerPinnedLabel,
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: cs.primary),
-                ).animate().fadeIn(duration: 180.ms).moveY(begin: 4, end: 0, duration: 220.ms, curve: Curves.easeOutCubic),
-              ),
-              Column(
-                children: [
-                  for (int i = 0; i < pinnedList.length; i++)
-                    _ChatTile(
-                      chat: pinnedList[i],
-                      textColor: textBase,
-                      selected: pinnedList[i].id == chatService.currentConversationId,
-                      loading: widget.loadingConversationIds.contains(pinnedList[i].id),
-                      onTap: () {
-                        final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
-                        widget.onSelectConversation?.call(pinnedList[i].id, closeDrawer: closeDrawer);
-                      },
-                      onLongPress: () => _showChatMenu(context, pinnedList[i]),
-                      onSecondaryTap: (pos) => _showChatMenu(context, pinnedList[i], anchor: pos),
-                    ).animate(key: ValueKey('pin-${pinnedList[i].id}'))
-                      .fadeIn(duration: 220.ms, delay: (20 * i).ms)
-                      .moveY(begin: 8, end: 0, duration: 260.ms, curve: Curves.easeOutCubic, delay: (20 * i).ms),
-                ],
-              ),
-              const SizedBox(height: 8),
-            ],
-            for (final group in groups) ...[
-              if (context.watch<SettingsProvider>().showChatListDate)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 6, 0, 6),
-                  child: Text(
-                    group.label,
-                    textAlign: TextAlign.left,
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: cs.primary),
-                  ).animate().fadeIn(duration: 180.ms).moveY(begin: 4, end: 0, duration: 220.ms, curve: Curves.easeOutCubic),
+                  group.label,
+                  textAlign: TextAlign.left,
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.primary),
                 ),
-              Column(
-                children: [
-                  for (int j = 0; j < group.items.length; j++)
-                    _ChatTile(
-                      chat: group.items[j],
-                      textColor: textBase,
-                      selected: group.items[j].id == chatService.currentConversationId,
-                      loading: widget.loadingConversationIds.contains(group.items[j].id),
-                      onTap: () {
-                        final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
-                        widget.onSelectConversation?.call(group.items[j].id, closeDrawer: closeDrawer);
-                      },
-                      onLongPress: () => _showChatMenu(context, group.items[j]),
-                      onSecondaryTap: (pos) => _showChatMenu(context, group.items[j], anchor: pos),
-                    ).animate(key: ValueKey('grp-${group.label}-${group.items[j].id}'))
-                      .fadeIn(duration: 220.ms, delay: (16 * j).ms)
-                      .moveY(begin: 6, end: 0, duration: 240.ms, curve: Curves.easeOutCubic, delay: (16 * j).ms),
-                ],
               ),
-              if (context.watch<SettingsProvider>().showChatListDate)
-                const SizedBox(height: 8),
-            ],
-          ],
-        ),
-      ),
-    );
+            );
+          }
+          convosWidgets.addAll(group.items.map(_buildChatTile));
+        }
+      }
 
-    return Column(children: children);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _AssistantFolderTile(
+            avatar: _assistantAvatar(context, a, size: 24),
+            name: a.name,
+            textColor: textBase,
+            embedded: widget.embedded,
+            isCurrent: isCurrent,
+            isExpanded: isExpanded,
+            onTap: () {
+              if (hasQuery) {
+                // Ignore toggling when searching
+              } else {
+                _handleToggleAssistant(a.id);
+              }
+            },
+            onNewChat: () => _handleNewConversationForAssistant(context, a),
+            onEditTap: () => _openAssistantSettings(a.id),
+            onLongPress: () => _showAssistantItemMenuMobile(a),
+            onSecondaryTapDown: (pos) => _showAssistantItemMenuDesktop(a, pos),
+          ),
+          if (isExpanded && convosWidgets.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: convosWidgets,
+              ),
+            ),
+        ],
+      );
+    }
+
+    if (ungrouped.isNotEmpty) {
+      children.addAll(ungrouped.map(buildAssistantNode));
+    }
+
+    for (final t in tags) {
+      final list = groupedByTag[t.id];
+      if (list == null || list.isEmpty) continue;
+      final collapsed = _collapsedTags.contains(t.id);
+      children.add(
+        _GroupHeader(
+          title: t.name,
+          collapsed: collapsed,
+          onToggle: () {
+            setState(() {
+              if (collapsed) {
+                _collapsedTags.remove(t.id);
+              } else {
+                _collapsedTags.add(t.id);
+              }
+            });
+          },
+        ),
+      );
+      if (!collapsed) {
+        children.addAll(list.map(buildAssistantNode));
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
+    );
   }
 }
 
@@ -2345,347 +2026,105 @@ class _GroupHeader extends StatelessWidget {
   }
 }
 
-// Desktop: Header tabs (Assistants / Topics)
-class _DesktopSidebarTabs extends StatefulWidget {
-  const _DesktopSidebarTabs({required this.textColor, required this.controller});
-  final Color textColor;
-  final TabController controller;
-  @override
-  State<_DesktopSidebarTabs> createState() => _DesktopSidebarTabsState();
-}
-
-class _DesktopSidebarTabsState extends State<_DesktopSidebarTabs> {
-  bool _hoverLeft = false;
-  bool _hoverRight = false;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_rebuildOnTabChanged);
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_rebuildOnTabChanged);
-    super.dispose();
-  }
-
-  void _rebuildOnTabChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final idx = widget.controller.index;
-    return SizedBox(
-      height: 40,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final double pad = 4;
-            final double segW = (constraints.maxWidth - pad * 2) / 2;
-            return Container(
-              decoration: BoxDecoration(
-                color: isDark ? Colors.white10 : Colors.grey.shade200.withOpacity(0.80),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Stack(
-                children: [
-                  // Selection knob
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 140),
-                    curve: Curves.easeOutCubic,
-                    left: pad + (idx == 0 ? 0 : segW),
-                    top: pad,
-                    bottom: pad,
-                    width: segW,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 140),
-                      curve: Curves.easeOutCubic,
-                      decoration: BoxDecoration(
-                        color: cs.primary.withOpacity(isDark ? 0.16 : 0.12),
-                        borderRadius: BorderRadius.circular(13),
-                      ),
-                    ),
-                  ),
-                  // Left segment
-                  Row(
-                    children: [
-                      Expanded(
-                        child: MouseRegion(
-                          onEnter: (_) => setState(() => _hoverLeft = true),
-                          onExit: (_) => setState(() => _hoverLeft = false),
-                          cursor: SystemMouseCursors.click,
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () => widget.controller.animateTo(0, duration: const Duration(milliseconds: 140), curve: Curves.easeOutCubic),
-                            child: Stack(
-                              children: [
-                                // Hover wash
-                                AnimatedOpacity(
-                                  duration: const Duration(milliseconds: 120),
-                                  curve: Curves.easeOutCubic,
-                                  opacity: _hoverLeft && idx != 0 ? 1 : 0,
-                                  child: Container(
-                                    margin: EdgeInsets.all(pad),
-                                    decoration: BoxDecoration(
-                                      color: cs.primary.withOpacity(0.06),
-                                      borderRadius: BorderRadius.circular(13),
-                                    ),
-                                  ),
-                                ),
-                                // Label
-                                Center(
-                                  child: AnimatedDefaultTextStyle(
-                                    duration: const Duration(milliseconds: 140),
-                                    curve: Curves.easeOutCubic,
-                                    style: (Theme.of(context).textTheme.titleSmall ?? const TextStyle()).copyWith(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: idx == 0 ? cs.primary : widget.textColor.withOpacity(0.78),
-                                    ),
-                                    child: Text(l10n.desktopSidebarTabAssistants, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: MouseRegion(
-                          onEnter: (_) => setState(() => _hoverRight = true),
-                          onExit: (_) => setState(() => _hoverRight = false),
-                          cursor: SystemMouseCursors.click,
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () => widget.controller.animateTo(1, duration: const Duration(milliseconds: 140), curve: Curves.easeOutCubic),
-                            child: Stack(
-                              children: [
-                                AnimatedOpacity(
-                                  duration: const Duration(milliseconds: 120),
-                                  curve: Curves.easeOutCubic,
-                                  opacity: _hoverRight && idx != 1 ? 1 : 0,
-                                  child: Container(
-                                    margin: EdgeInsets.all(pad),
-                                    decoration: BoxDecoration(
-                                      color: cs.primary.withOpacity(0.06),
-                                      borderRadius: BorderRadius.circular(13),
-                                    ),
-                                  ),
-                                ),
-                                Center(
-                                  child: AnimatedDefaultTextStyle(
-                                    duration: const Duration(milliseconds: 140),
-                                    curve: Curves.easeOutCubic,
-                                    style: (Theme.of(context).textTheme.titleSmall ?? const TextStyle()).copyWith(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: idx == 1 ? cs.primary : widget.textColor.withOpacity(0.78),
-                                    ),
-                                    child: Text(l10n.desktopSidebarTabTopics, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-// Desktop: TabBarView area hosting assistants and topics lists
-class _DesktopTabViews extends StatelessWidget {
-  const _DesktopTabViews({
-    required this.controller,
-    required this.listController,
-    required this.buildAssistants,
-    required this.buildConversations,
-  });
-  final TabController controller;
-  final ScrollController listController;
-  final Widget Function() buildAssistants;
-  final Widget Function() buildConversations;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-        defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.linux;
-    final topPad = context.watch<SettingsProvider>().showChatListDate ? (isDesktop ? 2.0 : 4.0) : 10.0;
-    return TabBarView(
-      controller: controller,
-      physics: const BouncingScrollPhysics(),
-      children: [
-        // Assistants
-        ListView(
-          controller: listController,
-          padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
-          children: [buildAssistants()],
-        ),
-        // Topics (conversations)
-        ListView(
-          controller: listController,
-          padding: EdgeInsets.fromLTRB(10, topPad, 10, 16),
-          children: [buildConversations()],
-        ),
-      ],
-    );
-  }
-}
-
-// Legacy (mobile/tablet): original single-list layout with optional inline assistants
-class _LegacyListArea extends StatelessWidget {
-  const _LegacyListArea({
-    required this.listController,
-    required this.isDesktop,
-    required this.assistantsExpanded,
-    required this.buildAssistants,
-    required this.buildConversations,
-  });
-  final ScrollController listController;
-  final bool isDesktop;
-  final bool assistantsExpanded;
-  final Widget Function() buildAssistants;
-  final Widget Function() buildConversations;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      controller: listController,
-      padding: EdgeInsets.fromLTRB(
-        10,
-        (context.watch<SettingsProvider>().showChatListDate || assistantsExpanded)
-            ? (isDesktop ? 2 : 4)
-            : 10,
-        10,
-        16,
-      ),
-      children: [
-        // Inline assistants
-        AnimatedSize(
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeInOutCubic,
-          alignment: Alignment.topCenter,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
-            child: !assistantsExpanded
-                ? const SizedBox.shrink()
-                : KeyedSubtree(key: const ValueKey('assistants-inline'), child: buildAssistants()),
-          ),
-        ),
-        // Conversations
-        buildConversations(),
-      ],
-    );
-  }
-}
-
-class _AssistantInlineTile extends StatefulWidget {
-  const _AssistantInlineTile({
-    required this.avatar,
-    required this.name,
-    required this.textColor,
-    required this.embedded,
-    required this.onTap,
-    required this.onEditTap,
-    this.onLongPress,
-    this.onSecondaryTapDown,
-    this.selected = false,
-  });
-
+class _AssistantFolderTile extends StatefulWidget {
   final Widget avatar;
   final String name;
   final Color textColor;
   final bool embedded;
+  final bool isCurrent;
+  final bool isExpanded;
   final VoidCallback onTap;
+  final VoidCallback onNewChat;
   final VoidCallback onEditTap;
-  final VoidCallback? onLongPress;
-  final void Function(Offset globalPosition)? onSecondaryTapDown;
-  final bool selected;
+  final VoidCallback onLongPress;
+  final void Function(Offset) onSecondaryTapDown;
+
+  const _AssistantFolderTile({
+    Key? key,
+    required this.avatar,
+    required this.name,
+    required this.textColor,
+    this.embedded = false,
+    this.isCurrent = false,
+    this.isExpanded = false,
+    required this.onTap,
+    required this.onNewChat,
+    required this.onEditTap,
+    required this.onLongPress,
+    required this.onSecondaryTapDown,
+  }) : super(key: key);
 
   @override
-  State<_AssistantInlineTile> createState() => _AssistantInlineTileState();
+  State<_AssistantFolderTile> createState() => _AssistantFolderTileState();
 }
 
-class _AssistantInlineTileState extends State<_AssistantInlineTile> {
+class _AssistantFolderTileState extends State<_AssistantFolderTile> {
   bool _hovered = false;
-  bool get _isDesktop => defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux;
-
+  
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final embedded = widget.embedded;
-    final Color tileColor = _isDesktop
-        ? (embedded
-            ? (widget.selected ? cs.primary.withOpacity(0.16) : Colors.transparent)
-            : (widget.selected ? cs.primary.withOpacity(0.12) : cs.surface))
-        : (embedded ? Colors.transparent : cs.surface);
-    final Color bg = _isDesktop && !widget.selected && _hovered
-        ? (embedded ? cs.primary.withOpacity(0.08) : cs.surface.withOpacity(0.9))
-        : tileColor;
-    final content = MouseRegion(
-      onEnter: (_) { if (_isDesktop) setState(() => _hovered = true); },
-      onExit: (_) { if (_isDesktop) setState(() => _hovered = false); },
-      cursor: _isDesktop ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      child: IosCardPress(
-        baseColor: bg,
-        borderRadius: BorderRadius.circular(16),
-        haptics: false,
-        onTap: widget.onTap,
-        onLongPress: widget.onLongPress,
-        padding: EdgeInsets.fromLTRB(_isDesktop ? 12 : 4, 6, 12, 6),
-        child: Row(
-          children: [
-            widget.avatar,
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                widget.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: _isDesktop ? 14 : 15, fontWeight: FontWeight.w600, color: widget.textColor),
+    final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux;
+        
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: isDesktop ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        onSecondaryTapDown: (details) => widget.onSecondaryTapDown(details.globalPosition),
+        child: IosCardPress(
+          baseColor: widget.isCurrent 
+              ? cs.primary.withOpacity(0.08)
+              : (_hovered ? cs.surface.withOpacity(0.8) : Colors.transparent),
+          borderRadius: BorderRadius.circular(12),
+          onTap: widget.onTap,
+          onLongPress: isDesktop ? null : widget.onLongPress,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            children: [
+              Icon(
+                widget.isExpanded ? Lucide.FolderOpen : Lucide.Folder,
+                size: 20,
+                color: widget.isCurrent ? cs.primary : cs.onSurface.withOpacity(0.7),
               ),
-            ),
-            if (!_isDesktop) ...[
               const SizedBox(width: 8),
-              IosIconButton(
-                icon: Lucide.Pencil,
-                size: 18,
-                color: cs.onSurface.withOpacity(0.7),
-                padding: const EdgeInsets.all(8),
-                minSize: 36,
-                onTap: widget.onEditTap,
-                semanticLabel: 'Edit assistant',
+              widget.avatar,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  widget.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: widget.isCurrent ? FontWeight.w600 : FontWeight.w500,
+                    color: widget.textColor,
+                  ),
+                ),
               ),
+              if (_hovered || !isDesktop)
+                IosIconButton(
+                  icon: Lucide.Plus,
+                  size: 18,
+                  padding: const EdgeInsets.all(4),
+                  onTap: widget.onNewChat,
+                )
+              else
+                AnimatedRotation(
+                  turns: widget.isExpanded ? 0.25 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    Lucide.ChevronRight,
+                    size: 16,
+                    color: widget.textColor.withOpacity(0.5),
+                  ),
+                ),
             ],
-          ],
+          ),
         ),
       ),
-    );
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onSecondaryTapDown: widget.onSecondaryTapDown == null
-          ? null
-          : (details) => widget.onSecondaryTapDown!(details.globalPosition),
-      child: content,
     );
   }
 }

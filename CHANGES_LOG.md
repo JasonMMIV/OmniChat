@@ -1,6 +1,25 @@
 # OmniChat Developer Changes Log
 
-## [v1.5.29] - 2026-07-29: Windows Crash Unified Root Cause Fix - Streaming-Deferred Native Widgets & Subwindow Guard
+## [v1.5.31] - 2026-07-30: Unified Left Drawer Folder-Tree Architecture across Desktop & Mobile
+
+### 127. Unified Left Drawer Folder-Tree Architecture
+- **Purpose**: Unify Windows Desktop and Mobile/Tablet left drawer/sidebar layouts into a single folder-tree structure where projects (assistants) act as expandable folders containing their respective conversations, replacing legacy Desktop tabs, top "Current Assistant" cards, and the separate right-side topics sidebar.
+- **Files Modified**:
+  - `pubspec.yaml` (bumped version to `1.5.31+55`)
+  - `installers/omnichat_setup.iss` (updated `MyAppVersion` to `1.5.31` and `OutputBaseFilename` to `omnichat_setup_1.5.31`)
+  - `lib/features/home/widgets/side_drawer.dart` (implemented `_buildFolderTreeList` and `_AssistantFolderTile`, added accordion logic via `_expandedAssistantIds`, preserved tag grouping, date grouping, and pinned conversation sections; removed legacy desktop tabs/views/headers)
+  - `lib/features/home/pages/home_desktop_layout.dart` (removed `_buildRightSidebar` and legacy desktop tab parameters from `SideDrawer`)
+  - `lib/desktop/desktop_sidebar.dart` (updated `SideDrawer` initialization parameters)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Folder Accordion Structure**: Each project (assistant) is rendered as a folder tile (`_AssistantFolderTile`). Clicking the project toggles its open/closed state (`FolderOpen` / `Folder`) while keeping the active conversation intact.
+  - **Top Card Removal**: Removed the top "Current Project" card from `SideDrawer`, leaving search and history buttons at the top.
+  - **New Chat Button**: Replaced the edit/settings button on project tiles with a `Lucide.Plus` button. Clicking `+` sets `currentAssistantId`, expands the folder, and creates a new conversation under that project.
+  - **Desktop Layout Simplification**: Completely removed the desktop-specific dual-tab view (Projects/Topics) and right-side topics panel, unifying the UI across Windows desktop and mobile devices.
+  - **Sub-conversation Grouping**: Retained Pinned (`isPinned`) and Date Grouping (`showChatListDate`) logic inside expanded project folders.
+- **Version bump**: 1.5.30+54 -> 1.5.31+55.
+
+## [v1.5.30] - 2026-07-29: Terminology Update & AI Team Real-time Proposer Streaming
 
 ### 126. Terminology Update — Assistant Feature Renamed to Project in UI (l10n)
 - **Purpose**: Rename the user-facing "Assistant" (助理 / 助手) feature terminology to "Project" (專案 / 项目) across English, Traditional Chinese, and Simplified Chinese localization files and hardcoded UI text, while preserving underlying model/class architecture and LLM system prompt definitions.
