@@ -685,44 +685,53 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               if (settings.showUserNameTimestamp || widget.showTokenStats)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    if (settings.showUserNameTimestamp)
-                      Text(
-                        userProvider.name,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: cs.onSurface.withOpacity(0.7),
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (settings.showUserNameTimestamp)
+                        Text(
+                          userProvider.name,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: cs.onSurface.withOpacity(0.7),
+                          ),
                         ),
-                      ),
-                    Builder(builder: (context) {
-                      final List<Widget> rowChildren = [];
-                      if (settings.showUserNameTimestamp) {
-                        rowChildren.add(Text(
-                          _dateFormat.format(widget.message.timestamp),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: cs.onSurface.withOpacity(0.5),
-                          ),
-                        ));
-                      }
-                      if (widget.showTokenStats) {
-                        if (rowChildren.isNotEmpty) rowChildren.add(const SizedBox(width: 8));
-                        rowChildren.add(Text(
-                          _buildStatsText(widget.message),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: cs.onSurface.withOpacity(0.5),
-                          ),
-                        ));
-                      }
-                      return rowChildren.isNotEmpty
-                          ? Row(mainAxisSize: MainAxisSize.min, children: rowChildren)
-                          : const SizedBox.shrink();
-                    }),
-                  ],
+                      Builder(builder: (context) {
+                        final List<Widget> wrapChildren = [];
+                        if (settings.showUserNameTimestamp) {
+                          wrapChildren.add(Text(
+                            _dateFormat.format(widget.message.timestamp),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: cs.onSurface.withOpacity(0.5),
+                            ),
+                          ));
+                        }
+                        if (widget.showTokenStats) {
+                          wrapChildren.add(Text(
+                            _buildStatsText(widget.message),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: cs.onSurface.withOpacity(0.5),
+                            ),
+                          ));
+                        }
+                        return wrapChildren.isNotEmpty
+                            ? Wrap(
+                                alignment: WrapAlignment.end,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 8,
+                                runSpacing: 2,
+                                children: wrapChildren,
+                              )
+                            : const SizedBox.shrink();
+                      }),
+                    ],
+                  ),
                 ),
               if (widget.showUserAvatar) ...[
                 const SizedBox(width: 8),
@@ -1235,46 +1244,55 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 const SizedBox(width: 8),
               ],
               if (settings.showModelNameTimestamp || widget.showTokenStats)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (settings.showModelNameTimestamp)
-                      Text(
-                        widget.useAssistantAvatar
-                            ? (widget.assistantName?.trim().isNotEmpty == true ? widget.assistantName!.trim() : 'Assistant')
-                            : _resolveModelDisplayName(settings),
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: cs.onSurface.withOpacity(0.7),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (settings.showModelNameTimestamp)
+                        Text(
+                          widget.useAssistantAvatar
+                              ? (widget.assistantName?.trim().isNotEmpty == true ? widget.assistantName!.trim() : 'Assistant')
+                              : _resolveModelDisplayName(settings),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: cs.onSurface.withOpacity(0.7),
+                          ),
                         ),
-                      ),
-                    Builder(builder: (context) {
-                      final List<Widget> rowChildren = [];
-                      if (settings.showModelNameTimestamp) {
-                        rowChildren.add(Text(
-                          _dateFormat.format(widget.message.timestamp),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: cs.onSurface.withOpacity(0.5),
-                          ),
-                        ));
-                      }
-                      if (widget.showTokenStats) {
-                        if (rowChildren.isNotEmpty) rowChildren.add(const SizedBox(width: 8));
-                        rowChildren.add(Text(
-                          _buildStatsText(widget.message),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: cs.onSurface.withOpacity(0.5),
-                          ),
-                        ));
-                      }
-                      return rowChildren.isNotEmpty
-                          ? Row(children: rowChildren)
-                          : const SizedBox.shrink();
-                    }),
-                  ],
+                      Builder(builder: (context) {
+                        final List<Widget> wrapChildren = [];
+                        if (settings.showModelNameTimestamp) {
+                          wrapChildren.add(Text(
+                            _dateFormat.format(widget.message.timestamp),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: cs.onSurface.withOpacity(0.5),
+                            ),
+                          ));
+                        }
+                        if (widget.showTokenStats) {
+                          wrapChildren.add(Text(
+                            _buildStatsText(widget.message),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: cs.onSurface.withOpacity(0.5),
+                            ),
+                          ));
+                        }
+                        return wrapChildren.isNotEmpty
+                            ? Wrap(
+                                alignment: WrapAlignment.start,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 8,
+                                runSpacing: 2,
+                                children: wrapChildren,
+                              )
+                            : const SizedBox.shrink();
+                      }),
+                    ],
+                  ),
                 ),
             ],
           ),

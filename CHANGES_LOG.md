@@ -2,17 +2,19 @@
 
 ## [v1.6.3] - 2026-07-31: Token & Context Statistics Display Fix
 
-### 139. Fix Token and Context Statistics Display in Chat Messages
-- **Purpose**: Fix an issue where enabling "Display Token and Context Statistics" in Settings -> Display Settings -> Chat Items Display did not show token/context statistics on the chat message view.
+### 139. Fix Token and Context Statistics Display & Mobile Overflow in Chat Messages
+- **Purpose**: Fix an issue where enabling "Display Token and Context Statistics" in Settings -> Display Settings -> Chat Items Display did not show token/context statistics, and resolve mobile layout overflow where long user/model names and timestamp/token text ran off screen without wrapping.
 - **Files Modified**:
-  - `lib/features/chat/widgets/chat_message_widget.dart` (updated `_buildUserMessage` and `_buildAssistantMessage` to uniformly respect `showTokenStats`, added CJK-aware `_estimateTokens` fallback and `_buildStatsText` helper)
+  - `lib/features/chat/widgets/chat_message_widget.dart` (updated `_buildUserMessage` and `_buildAssistantMessage` to uniformly respect `showTokenStats`, wrapped header Columns in `Flexible`/`Expanded`, implemented `Wrap` for timestamp & token stats to auto-wrap on mobile, added CJK-aware `_estimateTokens` fallback and `_buildStatsText` helper)
   - `lib/features/home/controllers/chat_actions.dart` (preserved `totalTokens` when updating message state via `copyWith` upon stream completion)
   - `CHANGES_LOG.md` (this entry)
 - **Details**:
-  - `_buildUserMessage` lacked rendering logic for `showTokenStats`, preventing user messages from ever showing token statistics.
-  - `_buildAssistantMessage` only rendered token stats when `message.totalTokens != null`, resulting in missing statistics when token counts were not provided by the API provider.
-  - Updated both message builders to display statistics when `showTokenStats` is enabled, using an estimated token count algorithm (`_estimateTokens`) that accounts for CJK character weights when `totalTokens` is not returned by the API.
-  - Resolved a state update bug in `chat_actions.dart` where `totalTokens` was dropped when copying message state upon stream completion.
+  - **Token Stats Rendering**: `_buildUserMessage` lacked rendering logic for `showTokenStats`, and `_buildAssistantMessage` only rendered token stats when `message.totalTokens != null`. Updated both to render statistics using CJK-aware estimation fallback when `totalTokens` is not returned by the API.
+  - **Mobile Layout & Auto-Wrap Fix**:
+    - Unconstrained `Column` elements in header `Row`s caused long user names, model names, and timestamp/token text to overflow the screen on mobile devices.
+    - Wrapped the user message header `Column` in `Flexible` and assistant message header `Column` in `Expanded` with text truncation (`TextOverflow.ellipsis`).
+    - Replaced non-wrapping `Row` for timestamp and token stats with responsive `Wrap` widgets (`WrapAlignment.end` for user, `WrapAlignment.start` for assistant), allowing timestamp and token/char counts to wrap cleanly onto a new line when horizontal space is limited on mobile screens.
+  - **State Persistence**: Resolved a state update bug in `chat_actions.dart` where `totalTokens` was dropped when copying message state upon stream completion.
 
 ## [v1.6.2] - 2026-07-30: Android Back Navigation Fix
 
