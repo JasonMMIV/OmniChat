@@ -3380,6 +3380,57 @@ class AppLocalizationsZh extends AppLocalizations {
   String aiTeamCriticInProgress(int current, int total) {
     return 'AI 团队执行中… 审计 $current/$total';
   }
+
+  @override
+  String get displaySettingsPageNewChatPageTitle => '新对话页面';
+
+  @override
+  String get newChatPageSettingsTitle => '新对话页面设置';
+
+  @override
+  String get newChatLogoSettingsHeader => '图标设置';
+
+  @override
+  String get newChatLogoOptionOmnichat => 'OmniChat 图标';
+
+  @override
+  String get newChatLogoOptionModel => '模型图标';
+
+  @override
+  String get newChatLogoOptionCustom => '自定义图片';
+
+  @override
+  String get newChatLogoOptionNone => '不显示图标';
+
+  @override
+  String get newChatSelectImage => '选择图片';
+
+  @override
+  String get newChatTextSettingsHeader => '下方文本设置';
+
+  @override
+  String get newChatTextOptionPreset => '固定问候语';
+
+  @override
+  String get newChatTextOptionAiGreeting => 'AI 智慧动态问候语';
+
+  @override
+  String get newChatTextOptionModelName => '当前模型名称';
+
+  @override
+  String get newChatTextOptionCustom => '自定义文本';
+
+  @override
+  String get newChatTextOptionNone => '不显示文本';
+
+  @override
+  String get newChatCustomTextDialogTitle => '自定义文本内容';
+
+  @override
+  String get newChatCustomTextHint => '输入在新对话页面显示的自定义文本';
+
+  @override
+  String get newChatClickToSet => '点击设置';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -9854,4 +9905,55 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String aiTeamCriticInProgress(int current, int total) {
     return 'AI 團隊執行中… 審計 $current/$total';
   }
+
+  @override
+  String get displaySettingsPageNewChatPageTitle => '新對話頁面';
+
+  @override
+  String get newChatPageSettingsTitle => '新對話頁面設定';
+
+  @override
+  String get newChatLogoSettingsHeader => '圖標設定';
+
+  @override
+  String get newChatLogoOptionOmnichat => 'OmniChat 圖標';
+
+  @override
+  String get newChatLogoOptionModel => '模型圖標';
+
+  @override
+  String get newChatLogoOptionCustom => '自訂圖片';
+
+  @override
+  String get newChatLogoOptionNone => '不顯示圖標';
+
+  @override
+  String get newChatSelectImage => '選擇圖片';
+
+  @override
+  String get newChatTextSettingsHeader => '下方文字設定';
+
+  @override
+  String get newChatTextOptionPreset => '固定問候語';
+
+  @override
+  String get newChatTextOptionAiGreeting => 'AI 智慧動態問候語';
+
+  @override
+  String get newChatTextOptionModelName => '目前模型名稱';
+
+  @override
+  String get newChatTextOptionCustom => '自訂文字';
+
+  @override
+  String get newChatTextOptionNone => '不顯示文字';
+
+  @override
+  String get newChatCustomTextDialogTitle => '自訂文字內容';
+
+  @override
+  String get newChatCustomTextHint => '輸入在新對話頁面顯示的自訂文字';
+
+  @override
+  String get newChatClickToSet => '點擊設定';
 }

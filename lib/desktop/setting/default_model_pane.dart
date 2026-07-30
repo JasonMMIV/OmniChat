@@ -188,8 +188,8 @@ class DesktopDefaultModelPane extends StatelessWidget {
                   const SizedBox(height: 16),
                   _ModelCard(
                     icon: lucide.Lucide.Sparkles,
-                    title: '問候語模型',
-                    subtitle: '用於在 APP 啟動時生成動態開場問候語',
+                    title: l10n.defaultModelPageGreetingModelTitle,
+                    subtitle: l10n.defaultModelPageGreetingModelSubtitle,
                     modelProvider: settings.greetingModelProvider,
                     modelId: settings.greetingModelId,
                     fallbackProvider: settings.currentModelProvider,
@@ -360,7 +360,7 @@ class DesktopDefaultModelPane extends StatelessWidget {
                       minLines: 8,
                       style: const TextStyle(fontSize: 14),
                       decoration: _deskInputDecoration(ctx).copyWith(
-                        hintText: '輸入用於問候語生底的提示詞範本',
+                        hintText: l10n.defaultModelPageGreetingPromptHint,
                       ),
                     ),
                   ),

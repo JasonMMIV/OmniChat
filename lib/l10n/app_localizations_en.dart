@@ -3378,4 +3378,56 @@ class AppLocalizationsEn extends AppLocalizations {
   String aiTeamCriticInProgress(int current, int total) {
     return 'AI Team running… Critic $current/$total';
   }
+
+  @override
+  String get displaySettingsPageNewChatPageTitle => 'New Chat Page';
+
+  @override
+  String get newChatPageSettingsTitle => 'New Chat Page Settings';
+
+  @override
+  String get newChatLogoSettingsHeader => 'Logo Settings';
+
+  @override
+  String get newChatLogoOptionOmnichat => 'OmniChat Logo';
+
+  @override
+  String get newChatLogoOptionModel => 'Model Icon';
+
+  @override
+  String get newChatLogoOptionCustom => 'Custom Image';
+
+  @override
+  String get newChatLogoOptionNone => 'Hide Logo';
+
+  @override
+  String get newChatSelectImage => 'Select Image';
+
+  @override
+  String get newChatTextSettingsHeader => 'Bottom Text Settings';
+
+  @override
+  String get newChatTextOptionPreset => 'Preset Greeting';
+
+  @override
+  String get newChatTextOptionAiGreeting => 'AI Dynamic Greeting';
+
+  @override
+  String get newChatTextOptionModelName => 'Current Model Name';
+
+  @override
+  String get newChatTextOptionCustom => 'Custom Text';
+
+  @override
+  String get newChatTextOptionNone => 'Hide Text';
+
+  @override
+  String get newChatCustomTextDialogTitle => 'Custom Text Content';
+
+  @override
+  String get newChatCustomTextHint =>
+      'Enter custom text to display on new chat page';
+
+  @override
+  String get newChatClickToSet => 'Tap to set';
 }

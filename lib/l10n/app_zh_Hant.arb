@@ -1317,5 +1317,22 @@
       }
     }
   },
-  "assistantProviderDeepResearchAssistantName": "深度研究"
+  "assistantProviderDeepResearchAssistantName": "深度研究",
+  "displaySettingsPageNewChatPageTitle": "新對話頁面",
+  "newChatPageSettingsTitle": "新對話頁面設定",
+  "newChatLogoSettingsHeader": "圖標設定",
+  "newChatLogoOptionOmnichat": "OmniChat 圖標",
+  "newChatLogoOptionModel": "模型圖標",
+  "newChatLogoOptionCustom": "自訂圖片",
+  "newChatLogoOptionNone": "不顯示圖標",
+  "newChatSelectImage": "選擇圖片",
+  "newChatTextSettingsHeader": "下方文字設定",
+  "newChatTextOptionPreset": "固定問候語",
+  "newChatTextOptionAiGreeting": "AI 智慧動態問候語",
+  "newChatTextOptionModelName": "目前模型名稱",
+  "newChatTextOptionCustom": "自訂文字",
+  "newChatTextOptionNone": "不顯示文字",
+  "newChatCustomTextDialogTitle": "自訂文字內容",
+  "newChatCustomTextHint": "輸入在新對話頁面顯示的自訂文字",
+  "newChatClickToSet": "點擊設定"
 }

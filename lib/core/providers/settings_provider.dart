@@ -937,6 +937,7 @@ class SettingsProvider extends ChangeNotifier {
     final tag = _localeToTag(locale);
     if (_appLocaleTag == tag) return;
     _appLocaleTag = tag;
+    _newChatCachedAiGreeting = null;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_appLocaleKey, _appLocaleTag!);
@@ -945,6 +946,7 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setAppLocaleFollowSystem() async {
     if (_appLocaleTag == 'system') return;
     _appLocaleTag = 'system';
+    _newChatCachedAiGreeting = null;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_appLocaleKey, 'system');
@@ -1505,10 +1507,34 @@ Please translate the <source_text> section:
       ? '${_greetingModelProvider!}::${_greetingModelId!}'
       : null;
 
-  static const String defaultGreetingPrompt = '請用台灣繁體中文生成一句簡短、溫馨且親切的AI助理對話開場問候語（15字以內，切勿使用大陸用語如「晚上好」、「下午好」，勿包含引號或說明文字）。';
+  static const String defaultGreetingPromptZhHant = '請用台灣繁體中文生成一句簡短、溫馨且親切的AI助理對話開場問候語（15字以內，切勿使用大陸用語如「晚上好」、「下午好」，勿包含引號或說明文字）。';
+  static const String defaultGreetingPromptZhHans = '请用简短、温馨且亲切的中文生成一句AI助手对话开场问候语（15字以内，勿包含引号或说明文字）。';
+  static const String defaultGreetingPromptEn = 'Generate a short, warm, and friendly AI assistant greeting for starting a conversation (within 15 words, do not include quotes or explanatory text).';
 
-  String _greetingPrompt = defaultGreetingPrompt;
+  static String getDefaultGreetingPrompt(Locale? locale) {
+    final lang = locale?.languageCode ?? 'zh';
+    final script = locale?.scriptCode ?? '';
+    final country = locale?.countryCode ?? '';
+    if (lang == 'en') return defaultGreetingPromptEn;
+    if (lang == 'zh' && (script == 'Hant' || country == 'TW' || country == 'HK')) {
+      return defaultGreetingPromptZhHant;
+    }
+    return defaultGreetingPromptZhHans;
+  }
+
+  static const String defaultGreetingPrompt = defaultGreetingPromptZhHant;
+
+  String _greetingPrompt = defaultGreetingPromptZhHant;
   String get greetingPrompt => _greetingPrompt;
+
+  String getGreetingPromptForLocale(Locale? locale) {
+    if (_greetingPrompt == defaultGreetingPromptZhHant ||
+        _greetingPrompt == defaultGreetingPromptZhHans ||
+        _greetingPrompt == defaultGreetingPromptEn) {
+      return getDefaultGreetingPrompt(locale);
+    }
+    return _greetingPrompt;
+  }
 
   Future<void> setGreetingModel(String providerKey, String modelId) async {
     _greetingModelProvider = providerKey;
@@ -1527,13 +1553,14 @@ Please translate the <source_text> section:
   }
 
   Future<void> setGreetingPrompt(String prompt) async {
-    _greetingPrompt = prompt.trim().isEmpty ? defaultGreetingPrompt : prompt;
+    final defPrompt = getDefaultGreetingPrompt(appLocale);
+    _greetingPrompt = prompt.trim().isEmpty ? defPrompt : prompt;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_greetingPromptKey, _greetingPrompt);
   }
 
-  Future<void> resetGreetingPrompt() async => setGreetingPrompt(defaultGreetingPrompt);
+  Future<void> resetGreetingPrompt() async => setGreetingPrompt(getDefaultGreetingPrompt(appLocale));
 
   // New Chat Page Customization Settings
   String _newChatLogoType = 'model'; // 'omnichat' | 'model' | 'custom' | 'none'

@@ -6547,6 +6547,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'AI Team running… Critic {current}/{total}'**
   String aiTeamCriticInProgress(int current, int total);
+
+  /// No description provided for @displaySettingsPageNewChatPageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'New Chat Page'**
+  String get displaySettingsPageNewChatPageTitle;
+
+  /// No description provided for @newChatPageSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'New Chat Page Settings'**
+  String get newChatPageSettingsTitle;
+
+  /// No description provided for @newChatLogoSettingsHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Logo Settings'**
+  String get newChatLogoSettingsHeader;
+
+  /// No description provided for @newChatLogoOptionOmnichat.
+  ///
+  /// In en, this message translates to:
+  /// **'OmniChat Logo'**
+  String get newChatLogoOptionOmnichat;
+
+  /// No description provided for @newChatLogoOptionModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Model Icon'**
+  String get newChatLogoOptionModel;
+
+  /// No description provided for @newChatLogoOptionCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom Image'**
+  String get newChatLogoOptionCustom;
+
+  /// No description provided for @newChatLogoOptionNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide Logo'**
+  String get newChatLogoOptionNone;
+
+  /// No description provided for @newChatSelectImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Image'**
+  String get newChatSelectImage;
+
+  /// No description provided for @newChatTextSettingsHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Bottom Text Settings'**
+  String get newChatTextSettingsHeader;
+
+  /// No description provided for @newChatTextOptionPreset.
+  ///
+  /// In en, this message translates to:
+  /// **'Preset Greeting'**
+  String get newChatTextOptionPreset;
+
+  /// No description provided for @newChatTextOptionAiGreeting.
+  ///
+  /// In en, this message translates to:
+  /// **'AI Dynamic Greeting'**
+  String get newChatTextOptionAiGreeting;
+
+  /// No description provided for @newChatTextOptionModelName.
+  ///
+  /// In en, this message translates to:
+  /// **'Current Model Name'**
+  String get newChatTextOptionModelName;
+
+  /// No description provided for @newChatTextOptionCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom Text'**
+  String get newChatTextOptionCustom;
+
+  /// No description provided for @newChatTextOptionNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide Text'**
+  String get newChatTextOptionNone;
+
+  /// No description provided for @newChatCustomTextDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom Text Content'**
+  String get newChatCustomTextDialogTitle;
+
+  /// No description provided for @newChatCustomTextHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter custom text to display on new chat page'**
+  String get newChatCustomTextHint;
+
+  /// No description provided for @newChatClickToSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to set'**
+  String get newChatClickToSet;
 }
 
 class _AppLocalizationsDelegate

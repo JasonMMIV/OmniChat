@@ -108,7 +108,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
             _iosNavRow(
               context,
               icon: Lucide.Sparkles,
-              label: '新對話頁面',
+              label: l10n.displaySettingsPageNewChatPageTitle,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NewChatPageSettingsPage())),
             ),
             _iosDivider(context),
@@ -1304,6 +1304,7 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
 
   Future<void> _showCustomTextDialog(BuildContext context) async {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final sp = context.read<SettingsProvider>();
     final controller = TextEditingController(text: sp.newChatCustomText);
     await showDialog(
@@ -1311,26 +1312,26 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
       builder: (ctx) {
         return AlertDialog(
           backgroundColor: cs.surface,
-          title: const Text('自訂文字內容', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          title: Text(l10n.newChatCustomTextDialogTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           content: TextField(
             controller: controller,
             maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: '輸入在新對話頁面顯示的自訂文字',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              hintText: l10n.newChatCustomTextHint,
+              border: const OutlineInputBorder(),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('取消'),
+              child: Text(l10n.importProviderSheetCancelButton),
             ),
             FilledButton(
               onPressed: () async {
                 await sp.setNewChatCustomText(controller.text.trim());
                 if (ctx.mounted) Navigator.of(ctx).pop();
               },
-              child: const Text('儲存'),
+              child: Text(l10n.defaultModelPageSave),
             ),
           ],
         );
@@ -1366,30 +1367,30 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
             onTap: () => Navigator.of(context).maybePop(),
           ),
         ),
-        title: const Text('新對話頁面設定'),
+        title: Text(l10n.newChatPageSettingsTitle),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
-          header('圖標設定'),
+          header(l10n.newChatLogoSettingsHeader),
           _iosSectionCard(children: [
             _iosSelectableRow(
               context,
-              label: 'OmniChat 圖標',
+              label: l10n.newChatLogoOptionOmnichat,
               selected: logoType == 'omnichat',
               onTap: () => sp.setNewChatLogoType('omnichat'),
             ),
             _iosDivider(context),
             _iosSelectableRow(
               context,
-              label: '模型圖標',
+              label: l10n.newChatLogoOptionModel,
               selected: logoType == 'model',
               onTap: () => sp.setNewChatLogoType('model'),
             ),
             _iosDivider(context),
             _iosSelectableRow(
               context,
-              label: '自訂圖片',
+              label: l10n.newChatLogoOptionCustom,
               selected: logoType == 'custom',
               onTap: () async {
                 await sp.setNewChatLogoType('custom');
@@ -1409,7 +1410,7 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
                   TextButton(
                     onPressed: _pickCustomImage,
                     style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(40, 24)),
-                    child: const Text('選擇圖片', style: TextStyle(fontSize: 13)),
+                    child: Text(l10n.newChatSelectImage, style: const TextStyle(fontSize: 13)),
                   ),
                 ],
               ),
@@ -1417,48 +1418,48 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
             _iosDivider(context),
             _iosSelectableRow(
               context,
-              label: '不顯示圖標',
+              label: l10n.newChatLogoOptionNone,
               selected: logoType == 'none',
               onTap: () => sp.setNewChatLogoType('none'),
             ),
           ]),
-          header('下方文字設定'),
+          header(l10n.newChatTextSettingsHeader),
           _iosSectionCard(children: [
             _iosSelectableRow(
               context,
-              label: '固定問候語',
+              label: l10n.newChatTextOptionPreset,
               selected: textType == 'presetGreeting',
               onTap: () => sp.setNewChatTextType('presetGreeting'),
             ),
             _iosDivider(context),
             _iosSelectableRow(
               context,
-              label: 'AI 智慧動態問候語',
+              label: l10n.newChatTextOptionAiGreeting,
               selected: textType == 'aiGreeting',
               onTap: () => sp.setNewChatTextType('aiGreeting'),
             ),
             _iosDivider(context),
             _iosSelectableRow(
               context,
-              label: '目前模型名稱',
+              label: l10n.newChatTextOptionModelName,
               selected: textType == 'modelName',
               onTap: () => sp.setNewChatTextType('modelName'),
             ),
             _iosDivider(context),
             _iosSelectableRow(
               context,
-              label: '自訂文字',
+              label: l10n.newChatTextOptionCustom,
               selected: textType == 'custom',
               onTap: () async {
                 await sp.setNewChatTextType('custom');
                 if (context.mounted) await _showCustomTextDialog(context);
               },
-              detailText: sp.newChatCustomText.isNotEmpty ? sp.newChatCustomText : '點擊設定',
+              detailText: sp.newChatCustomText.isNotEmpty ? sp.newChatCustomText : l10n.newChatClickToSet,
             ),
             _iosDivider(context),
             _iosSelectableRow(
               context,
-              label: '不顯示文字',
+              label: l10n.newChatTextOptionNone,
               selected: textType == 'none',
               onTap: () => sp.setNewChatTextType('none'),
             ),

@@ -176,8 +176,8 @@ class DefaultModelPage extends StatelessWidget {
           const SizedBox(height: 16),
           _ModelCard(
             icon: Lucide.Sparkles,
-            title: '問候語模型',
-            subtitle: '用於在 APP 啟動時生成動態開場問候語',
+            title: l10n.defaultModelPageGreetingModelTitle,
+            subtitle: l10n.defaultModelPageGreetingModelSubtitle,
             modelProvider: settings.greetingModelProvider,
             modelId: settings.greetingModelId,
             fallbackProvider: settings.currentModelProvider,
@@ -312,7 +312,7 @@ class DefaultModelPage extends StatelessWidget {
                   controller: controller,
                   maxLines: 8,
                   decoration: InputDecoration(
-                    hintText: '輸入用於問候語生底的提示詞範本',
+                    hintText: l10n.defaultModelPageGreetingPromptHint,
                     filled: true,
                     fillColor: Theme.of(ctx).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF2F3F5),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4))),

@@ -117,15 +117,17 @@ class _NewChatEmptyStateState extends State<NewChatEmptyState> {
         break;
     }
 
+    final locale = Localizations.localeOf(context);
+
     String? textContent;
     switch (textType) {
       case 'presetGreeting':
-        textContent = GreetingService.getPresetGreeting();
+        textContent = GreetingService.getPresetGreeting(locale: locale);
         break;
       case 'aiGreeting':
         textContent = (settings.newChatCachedAiGreeting != null && settings.newChatCachedAiGreeting!.isNotEmpty)
             ? settings.newChatCachedAiGreeting
-            : GreetingService.getPresetGreeting();
+            : GreetingService.getPresetGreeting(locale: locale);
         break;
       case 'modelName':
         textContent = modelDisplay ?? modelId ?? 'OmniChat';

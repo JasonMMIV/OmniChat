@@ -7334,19 +7334,20 @@ class _DesktopNewChatLogoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final sp = context.watch<SettingsProvider>();
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
 
     String labelFor(String type) {
       switch (type) {
-        case 'omnichat': return 'OmniChat 圖標';
-        case 'model': return '模型圖標';
-        case 'custom': return '自訂圖片';
+        case 'omnichat': return l10n.newChatLogoOptionOmnichat;
+        case 'model': return l10n.newChatLogoOptionModel;
+        case 'custom': return l10n.newChatLogoOptionCustom;
         case 'none':
-        default: return '不顯示圖標';
+        default: return l10n.newChatLogoOptionNone;
       }
     }
 
     return _LabeledRow(
-      label: '圖標設定',
+      label: l10n.newChatLogoSettingsHeader,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -7366,7 +7367,7 @@ class _DesktopNewChatLogoRow extends StatelessWidget {
                   await sp.setNewChatLogoType('custom');
                 }
               },
-              child: const Text('選擇圖片'),
+              child: Text(l10n.newChatSelectImage),
             ),
             const SizedBox(width: 8),
           ],
@@ -7389,10 +7390,10 @@ class _DesktopNewChatLogoRow extends StatelessWidget {
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(value: 'omnichat', child: Text('OmniChat 圖標')),
-              const PopupMenuItem(value: 'model', child: Text('模型圖標')),
-              const PopupMenuItem(value: 'custom', child: Text('自訂圖片')),
-              const PopupMenuItem(value: 'none', child: Text('不顯示圖標')),
+              PopupMenuItem(value: 'omnichat', child: Text(l10n.newChatLogoOptionOmnichat)),
+              PopupMenuItem(value: 'model', child: Text(l10n.newChatLogoOptionModel)),
+              PopupMenuItem(value: 'custom', child: Text(l10n.newChatLogoOptionCustom)),
+              PopupMenuItem(value: 'none', child: Text(l10n.newChatLogoOptionNone)),
             ],
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -7423,51 +7424,54 @@ class _DesktopNewChatTextRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final sp = context.watch<SettingsProvider>();
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
 
     String labelFor(String type) {
       switch (type) {
-        case 'presetGreeting': return '固定問候語';
-        case 'aiGreeting': return 'AI 智慧動態問候語';
-        case 'modelName': return '目前模型名稱';
-        case 'custom': return '自訂文字';
+        case 'presetGreeting': return l10n.newChatTextOptionPreset;
+        case 'aiGreeting': return l10n.newChatTextOptionAiGreeting;
+        case 'modelName': return l10n.newChatTextOptionModelName;
+        case 'custom': return l10n.newChatTextOptionCustom;
         case 'none':
-        default: return '不顯示文字';
+        default: return l10n.newChatTextOptionNone;
       }
     }
 
+    Future<void> showCustomDialog() async {
+      final controller = TextEditingController(text: sp.newChatCustomText);
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: cs.surface,
+          title: Text(l10n.newChatCustomTextDialogTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          content: TextField(
+            controller: controller,
+            maxLines: 3,
+            decoration: InputDecoration(hintText: l10n.newChatCustomTextHint, border: const OutlineInputBorder()),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(l10n.importProviderSheetCancelButton)),
+            FilledButton(
+              onPressed: () async {
+                await sp.setNewChatCustomText(controller.text.trim());
+                if (ctx.mounted) Navigator.of(ctx).pop();
+              },
+              child: Text(l10n.defaultModelPageSave),
+            ),
+          ],
+        ),
+      );
+    }
+
     return _LabeledRow(
-      label: '下方文字設定',
+      label: l10n.newChatTextSettingsHeader,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (sp.newChatTextType == 'custom') ...[
             TextButton(
-              onPressed: () async {
-                final controller = TextEditingController(text: sp.newChatCustomText);
-                await showDialog(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    backgroundColor: cs.surface,
-                    title: const Text('自訂文字內容', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    content: TextField(
-                      controller: controller,
-                      maxLines: 3,
-                      decoration: const InputDecoration(hintText: '輸入在新對話頁面顯示的自訂文字', border: OutlineInputBorder()),
-                    ),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('取消')),
-                      FilledButton(
-                        onPressed: () async {
-                          await sp.setNewChatCustomText(controller.text.trim());
-                          if (ctx.mounted) Navigator.of(ctx).pop();
-                        },
-                        child: const Text('儲存'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-              child: Text(sp.newChatCustomText.isNotEmpty ? sp.newChatCustomText : '設定文字'),
+              onPressed: showCustomDialog,
+              child: Text(sp.newChatCustomText.isNotEmpty ? sp.newChatCustomText : l10n.newChatClickToSet),
             ),
             const SizedBox(width: 8),
           ],
@@ -7476,37 +7480,15 @@ class _DesktopNewChatTextRow extends StatelessWidget {
             onSelected: (type) async {
               await sp.setNewChatTextType(type);
               if (type == 'custom') {
-                final controller = TextEditingController(text: sp.newChatCustomText);
-                await showDialog(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    backgroundColor: cs.surface,
-                    title: const Text('自訂文字內容', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    content: TextField(
-                      controller: controller,
-                      maxLines: 3,
-                      decoration: const InputDecoration(hintText: '輸入在新對話頁面顯示的自訂文字', border: OutlineInputBorder()),
-                    ),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('取消')),
-                      FilledButton(
-                        onPressed: () async {
-                          await sp.setNewChatCustomText(controller.text.trim());
-                          if (ctx.mounted) Navigator.of(ctx).pop();
-                        },
-                        child: const Text('儲存'),
-                      ),
-                    ],
-                  ),
-                );
+                await showCustomDialog();
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(value: 'presetGreeting', child: Text('固定問候語')),
-              const PopupMenuItem(value: 'aiGreeting', child: Text('AI 智慧動態問候語')),
-              const PopupMenuItem(value: 'modelName', child: Text('目前模型名稱')),
-              const PopupMenuItem(value: 'custom', child: Text('自訂文字')),
-              const PopupMenuItem(value: 'none', child: Text('不顯示文字')),
+              PopupMenuItem(value: 'presetGreeting', child: Text(l10n.newChatTextOptionPreset)),
+              PopupMenuItem(value: 'aiGreeting', child: Text(l10n.newChatTextOptionAiGreeting)),
+              PopupMenuItem(value: 'modelName', child: Text(l10n.newChatTextOptionModelName)),
+              PopupMenuItem(value: 'custom', child: Text(l10n.newChatTextOptionCustom)),
+              PopupMenuItem(value: 'none', child: Text(l10n.newChatTextOptionNone)),
             ],
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

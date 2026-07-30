@@ -1512,5 +1512,22 @@
         "type": "int"
       }
     }
-  }
+  },
+  "displaySettingsPageNewChatPageTitle": "New Chat Page",
+  "newChatPageSettingsTitle": "New Chat Page Settings",
+  "newChatLogoSettingsHeader": "Logo Settings",
+  "newChatLogoOptionOmnichat": "OmniChat Logo",
+  "newChatLogoOptionModel": "Model Icon",
+  "newChatLogoOptionCustom": "Custom Image",
+  "newChatLogoOptionNone": "Hide Logo",
+  "newChatSelectImage": "Select Image",
+  "newChatTextSettingsHeader": "Bottom Text Settings",
+  "newChatTextOptionPreset": "Preset Greeting",
+  "newChatTextOptionAiGreeting": "AI Dynamic Greeting",
+  "newChatTextOptionModelName": "Current Model Name",
+  "newChatTextOptionCustom": "Custom Text",
+  "newChatTextOptionNone": "Hide Text",
+  "newChatCustomTextDialogTitle": "Custom Text Content",
+  "newChatCustomTextHint": "Enter custom text to display on new chat page",
+  "newChatClickToSet": "Tap to set"
 }
