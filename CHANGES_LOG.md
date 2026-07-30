@@ -1,5 +1,17 @@
 # OmniChat Developer Changes Log
 
+## [v1.6.2] - 2026-07-30: Android Back Navigation Fix
+
+### 138. Android Back Button Navigation Fix for Root Chat Page
+- **Purpose**: Fix an issue where pressing the Android system back button on the new chat (or root chat) page would not exit the app, getting trapped on the root page until a sub-page (like history) was navigated.
+- **Files Modified**:
+  - `lib/shared/widgets/interactive_drawer.dart` (updated `PopScope` back invocation logic to invoke `SystemNavigator.pop()` when `!didPop` and drawer is closed)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - After upgrading from `WillPopScope` to `PopScope` in Flutter 3.44, when the app was on the root home page (`Navigator.canPop()` == `false`) and the side drawer was closed, pressing Android back resulted in `didPop` == `false`.
+  - The previous handler only checked `if (!didPop && _controllerProxy.isOpen) _controllerProxy.close()`, doing nothing when the drawer was closed.
+  - Updated `onPopInvokedWithResult` to trigger `SystemNavigator.pop()` when `!didPop` and `!_controllerProxy.isOpen`, ensuring back gesture correctly exits the application on Android root pages.
+
 ## [v1.6.1] - 2026-07-30: Customizable New Chat Empty State & Dynamic AI Greetings
 
 ### 137. Customizable New Chat Empty State & Dynamic AI Greetings

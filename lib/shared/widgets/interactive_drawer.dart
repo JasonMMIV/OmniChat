@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Drawer placement side.
 enum DrawerSide { left, right }
@@ -355,8 +356,12 @@ class _InteractiveDrawerState extends State<InteractiveDrawer>
           return PopScope(
             canPop: !_controllerProxy.isOpen,
             onPopInvokedWithResult: (didPop, result) {
-              if (!didPop && _controllerProxy.isOpen) {
-                _controllerProxy.close();
+              if (!didPop) {
+                if (_controllerProxy.isOpen) {
+                  _controllerProxy.close();
+                } else {
+                  SystemNavigator.pop();
+                }
               }
             },
             child: AnimatedBuilder(
