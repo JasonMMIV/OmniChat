@@ -15,7 +15,7 @@
   - **Default Assistant Unification**: Merged the blank "Default Assistant" with "Sample Project" into a single, comprehensive "Default Project" ("預設專案" / "默认项目") to clean up default project setup.
   - **Deep Research Renaming**: Renamed "Deep Research Assistant" ("深度研究助理") to "Deep Research" ("深度研究").
   - **Localization Synchronization**: Updated ARB files across all supported languages (en, zh, zh-Hans, zh-Hant) for consistent project names.
-  - **Legacy Migration**: Implemented automatic migration logic in `AssistantProvider.ensureDefaults` to migrate existing stored user assistant names seamlessly upon app launch.
+  - **Legacy Migration & Persistence**: Implemented automatic migration logic in `AssistantProvider.ensureDefaults` to migrate existing stored user assistant names seamlessly upon app launch, and added `_hasSeededDeepResearchKey` to prevent deleted default projects from reappearing on app restart.
 
 ### 133. Side Drawer UI Optimization — Removed Project Icon from Folder Tree
 - **Purpose**: Clean up project/assistant folder tile visuals in the unified folder tree by removing the assistant avatar icon and retaining only the folder icon (`Lucide.Folder` / `Lucide.FolderOpen`).
