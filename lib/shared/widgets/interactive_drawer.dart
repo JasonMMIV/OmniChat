@@ -352,13 +352,12 @@ class _InteractiveDrawerState extends State<InteractiveDrawer>
             _drawerWidth = widget.drawerWidth ?? math.max(300.0, constraints.maxWidth * 0.80);
           }
 
-          return WillPopScope(
-            onWillPop: () async {
-              if (_controllerProxy.isOpen) {
+          return PopScope(
+            canPop: !_controllerProxy.isOpen,
+            onPopInvokedWithResult: (didPop, result) {
+              if (!didPop && _controllerProxy.isOpen) {
                 _controllerProxy.close();
-                return false;
               }
-              return true;
             },
             child: AnimatedBuilder(
               animation: _anim,

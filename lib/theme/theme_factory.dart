@@ -153,7 +153,6 @@ ThemeData buildLightTheme(ColorScheme? dynamicScheme) {
   // _logColorScheme('Light ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
 
   final theme = ThemeData(
-    useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
     snackBarTheme: SnackBarThemeData(
@@ -218,7 +217,6 @@ ThemeData buildLightThemeForScheme(
   // Align logging behavior with buildLightTheme so diagnostics are consistent.
   // _logColorScheme('Light ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
   final theme = ThemeData(
-    useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
     snackBarTheme: SnackBarThemeData(
@@ -302,7 +300,6 @@ ThemeData buildDarkTheme(ColorScheme? dynamicScheme) {
   // _logColorScheme('Dark ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
 
   final theme = ThemeData(
-    useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
     snackBarTheme: SnackBarThemeData(
@@ -366,7 +363,6 @@ ThemeData buildDarkThemeForScheme(
   // Align logging behavior with buildDarkTheme so diagnostics are consistent.
   // _logColorScheme('Dark ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
   final theme = ThemeData(
-    useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
     snackBarTheme: SnackBarThemeData(

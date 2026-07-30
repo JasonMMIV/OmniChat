@@ -1,5 +1,36 @@
 # OmniChat Developer Changes Log
 
+## [v1.6.0] - 2026-07-30: Flutter 3.38 → 3.44 Upgrade & Bug Fixes
+
+### 135. Flutter SDK Upgrade (3.38.6 → 3.44.8) & Full Cleanup
+- **Purpose**: Upgrade Flutter SDK to latest stable 3.44.8 (Dart 3.12.2), sync Android build toolchain, fix deprecation warnings, merge orphaned Android platform channel, and resolve latent naming/configuration issues across all platforms.
+- **Files Modified**:
+  - `pubspec.yaml` (SDK constraint `^3.8.1` → `^3.9.0`, `lucide_icons_flutter` `^3.1.4` → `^3.1.15`)
+  - `android/settings.gradle.kts` (AGP `8.9.1` → `8.11.1`, KGP `2.1.0` → `2.2.20`)
+  - `android/gradle/wrapper/gradle-wrapper.properties` (Gradle `8.12` → `8.14`)
+  - `android/app/build.gradle.kts` (NDK `flutter.ndkVersion`, Java 11 → 17, removed duplicate `dependencies{}`/`android{lint{}}` blocks)
+  - `android/gradle.properties` (Flutter migrator auto-added `builtInKotlin=false`, `newDsl=false`)
+  - `android/app/src/main/kotlin/com/psyche/omnichat/MainActivity.kt` (merged `app.process_text` channel from orphaned kelivo)
+  - `android/app/src/main/kotlin/com/psyche/kelivo/MainActivity.kt` (deleted — orphaned package)
+  - `lib/shared/pages/webview_page.dart` (`WillPopScope` → `PopScope`)
+  - `lib/shared/widgets/interactive_drawer.dart` (`WillPopScope` → `PopScope`)
+  - `lib/theme/theme_factory.dart` (removed `useMaterial3: true` × 4 — now default)
+  - `lib/icons/lucide_adapter.dart` (`Github` icon: `lucide.LucideIcons.github` → `lucide.LucideIcons.cat` — upstream removed `github`)
+  - `linux/runner/my_application.cc` (window title `kelivo` → `OmniChat`)
+  - `analysis_options.yaml` (removed stale `analyzer: exclude: dependencies/flutter_tts/**` — path never existed)
+- **Details**:
+  - **Flutter SDK**: 3.38.6 → 3.44.8 (Dart 3.12.2, DevTools 2.57.0). Covers 3.41 + 3.44 stable releases.
+  - **Android Toolchain**: AGP 8.11.1, Gradle 8.14, KGP 2.2.20, Java 17, NDK aligned with Flutter default (`flutter.ndkVersion` = r28). Matches Flutter 3.44 recommended compatibility matrix.
+  - **`app.process_text` Channel Restoration**: The `app.process_text` channel (`getInitialText`/`onProcessText`) was defined in an orphaned `com.psyche.kelivo.MainActivity` that was never instantiated (manifest points to `com.psyche.omnichat.MainActivity`). Merged the channel into the active `MainActivity` and deleted the orphan, restoring Android "share text to app" functionality.
+  - **Deprecation Cleanup**: `WillPopScope` → `PopScope` (2 widgets), `useMaterial3: true` removal (4 ThemeData constructors — Material 3 is default since Flutter 3.16).
+  - **`lucide_icons_flutter` 3.1.6 → 3.1.15**: Upgraded to fix `IconData` marked `final` (3.44 breaking change). Upstream removed `github` icon (trademark); replaced with `cat` (closest visual match).
+  - **Linux Branding Fix**: Window title `kelivo` → `OmniChat` in `linux/runner/my_application.cc`.
+  - **Analysis Cleanup**: Removed dead `analyzer: exclude` for non-existent `dependencies/flutter_tts/**` path.
+  - **Windows Build**: Verified — `OmniChat.exe` produced.
+  - **Android Build**: Verified — `app-debug.apk` produced (Gradle 561 tasks, 1m 16s).
+  - **iOS/macOS**: Phase D (SwiftPM migration) and Phase E (UIScene manual migration — `AppDelegate.swift` has custom `app.clipboard` channel) deferred to macOS environment.
+  - **Upgrade Plan**: Full plan documented in `Flutter_Upgrade_Plan.md`.
+
 ## [v1.5.32] - 2026-07-30: Consolidated Search Citations Card & Source Favicons
 
 ### 134. Unified Assistant/Project Naming & Cleanup — Default Project & Deep Research

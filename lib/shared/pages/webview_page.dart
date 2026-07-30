@@ -123,13 +123,12 @@ class _WebViewPageState extends State<WebViewPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final bool contentMode = (widget.contentBase64 != null && (widget.contentBase64!.isNotEmpty)) && ((widget.url == null) || widget.url!.isEmpty);
-    return WillPopScope(
-      onWillPop: () async {
-        if (_canGoBack) {
+    return PopScope(
+      canPop: !_canGoBack,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _canGoBack) {
           _controller.goBack();
-          return false;
         }
-        return true;
       },
       child: Scaffold(
         appBar: AppBar(
