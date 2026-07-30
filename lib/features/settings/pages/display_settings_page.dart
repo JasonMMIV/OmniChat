@@ -1371,7 +1371,7 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
-          header('圖標 (Logo) 設定'),
+          header('圖標設定'),
           _iosSectionCard(children: [
             _iosSelectableRow(
               context,
@@ -1382,7 +1382,7 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
             _iosDivider(context),
             _iosSelectableRow(
               context,
-              label: '模型圖標 (Model Icon)',
+              label: '模型圖標',
               selected: logoType == 'model',
               onTap: () => sp.setNewChatLogoType('model'),
             ),
@@ -1417,7 +1417,7 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
             _iosDivider(context),
             _iosSelectableRow(
               context,
-              label: '不顯示 Logo',
+              label: '不顯示圖標',
               selected: logoType == 'none',
               onTap: () => sp.setNewChatLogoType('none'),
             ),
@@ -1426,14 +1426,14 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
           _iosSectionCard(children: [
             _iosSelectableRow(
               context,
-              label: '固定問候語 (依時段輪播)',
+              label: '固定問候語',
               selected: textType == 'presetGreeting',
               onTap: () => sp.setNewChatTextType('presetGreeting'),
             ),
             _iosDivider(context),
             _iosSelectableRow(
               context,
-              label: 'AI 智慧動態問候語 (APP 啟動時背景生成)',
+              label: 'AI 智慧動態問候語',
               selected: textType == 'aiGreeting',
               onTap: () => sp.setNewChatTextType('aiGreeting'),
             ),

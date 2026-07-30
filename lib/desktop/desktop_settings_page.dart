@@ -7338,15 +7338,15 @@ class _DesktopNewChatLogoRow extends StatelessWidget {
     String labelFor(String type) {
       switch (type) {
         case 'omnichat': return 'OmniChat 圖標';
-        case 'model': return '模型圖標 (Model Icon)';
+        case 'model': return '模型圖標';
         case 'custom': return '自訂圖片';
         case 'none':
-        default: return '不顯示 Logo';
+        default: return '不顯示圖標';
       }
     }
 
     return _LabeledRow(
-      label: '圖標 (Logo) 設定',
+      label: '圖標設定',
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -7390,9 +7390,9 @@ class _DesktopNewChatLogoRow extends StatelessWidget {
             },
             itemBuilder: (context) => [
               const PopupMenuItem(value: 'omnichat', child: Text('OmniChat 圖標')),
-              const PopupMenuItem(value: 'model', child: Text('模型圖標 (Model Icon)')),
+              const PopupMenuItem(value: 'model', child: Text('模型圖標')),
               const PopupMenuItem(value: 'custom', child: Text('自訂圖片')),
-              const PopupMenuItem(value: 'none', child: Text('不顯示 Logo')),
+              const PopupMenuItem(value: 'none', child: Text('不顯示圖標')),
             ],
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -7426,8 +7426,8 @@ class _DesktopNewChatTextRow extends StatelessWidget {
 
     String labelFor(String type) {
       switch (type) {
-        case 'presetGreeting': return '固定問候語 (依時段輪播)';
-        case 'aiGreeting': return 'AI 智慧動態問候語 (背景生成)';
+        case 'presetGreeting': return '固定問候語';
+        case 'aiGreeting': return 'AI 智慧動態問候語';
         case 'modelName': return '目前模型名稱';
         case 'custom': return '自訂文字';
         case 'none':
@@ -7502,8 +7502,8 @@ class _DesktopNewChatTextRow extends StatelessWidget {
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(value: 'presetGreeting', child: Text('固定問候語 (依時段輪播)')),
-              const PopupMenuItem(value: 'aiGreeting', child: Text('AI 智慧動態問候語 (背景生成)')),
+              const PopupMenuItem(value: 'presetGreeting', child: Text('固定問候語')),
+              const PopupMenuItem(value: 'aiGreeting', child: Text('AI 智慧動態問候語')),
               const PopupMenuItem(value: 'modelName', child: Text('目前模型名稱')),
               const PopupMenuItem(value: 'custom', child: Text('自訂文字')),
               const PopupMenuItem(value: 'none', child: Text('不顯示文字')),

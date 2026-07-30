@@ -2,9 +2,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/conversation.dart';
+import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../utils/app_directories.dart';
 import '../services/greeting_service.dart';
+import '../utils/model_display_helper.dart';
 import 'model_icon.dart';
 
 /// Widget displayed when a new chat has no messages.
@@ -36,6 +38,7 @@ class _NewChatEmptyStateState extends State<NewChatEmptyState> {
   void didUpdateWidget(covariant NewChatEmptyState oldWidget) {
     super.didUpdateWidget(oldWidget);
     _loadCustomLogoFile();
+    _fetchAiGreetingIfNeeded();
   }
 
   Future<void> _loadCustomLogoFile() async {
@@ -56,8 +59,7 @@ class _NewChatEmptyStateState extends State<NewChatEmptyState> {
 
   void _fetchAiGreetingIfNeeded() {
     final settings = context.read<SettingsProvider>();
-    if (settings.newChatTextType == 'aiGreeting' &&
-        (settings.newChatCachedAiGreeting == null || settings.newChatCachedAiGreeting!.isEmpty)) {
+    if (settings.newChatTextType == 'aiGreeting') {
       GreetingService.fetchAiGreetingInBackground(settings);
     }
   }
@@ -66,12 +68,15 @@ class _NewChatEmptyStateState extends State<NewChatEmptyState> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final settings = context.watch<SettingsProvider>();
+    final assistant = context.watch<AssistantProvider>().currentAssistant;
+    final modelInfo = getModelDisplayInfo(settings, assistant: assistant);
 
     final logoType = settings.newChatLogoType;
     final textType = settings.newChatTextType;
 
-    final providerKey = widget.currentConversation?.modelProvider ?? settings.currentModelProvider;
-    final modelId = widget.currentConversation?.modelId ?? settings.currentModelId;
+    final providerKey = modelInfo.providerKey;
+    final modelId = modelInfo.modelId;
+    final modelDisplay = modelInfo.modelDisplay;
 
     Widget? logoWidget;
     switch (logoType) {
@@ -123,7 +128,7 @@ class _NewChatEmptyStateState extends State<NewChatEmptyState> {
             : GreetingService.getPresetGreeting();
         break;
       case 'modelName':
-        textContent = modelId ?? 'OmniChat';
+        textContent = modelDisplay ?? modelId ?? 'OmniChat';
         break;
       case 'custom':
         textContent = settings.newChatCustomText;

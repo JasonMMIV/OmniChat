@@ -3251,6 +3251,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Enter prompt template for context compression';
 
   @override
+  String get defaultModelPageGreetingModelTitle => 'Greeting Model';
+
+  @override
+  String get defaultModelPageGreetingModelSubtitle =>
+      'Used for generating background greeting message on App launch';
+
+  @override
+  String get defaultModelPageGreetingPromptHint =>
+      'Enter prompt template for generating greeting message';
+
+  @override
   String defaultModelPageCompressVars(String contentVar, String localeVar) {
     return 'Variables: conversation: $contentVar, language: $localeVar';
   }

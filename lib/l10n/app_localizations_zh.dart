@@ -3256,6 +3256,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get defaultModelPageCompressPromptHint => '输入用于上下文压缩的提示词模板';
 
   @override
+  String get defaultModelPageGreetingModelTitle => '问候语模型';
+
+  @override
+  String get defaultModelPageGreetingModelSubtitle => '用于在 APP 启动时生成动态开场问候语';
+
+  @override
+  String get defaultModelPageGreetingPromptHint => '输入用于生成开场问候语的提示词模板';
+
+  @override
   String defaultModelPageCompressVars(String contentVar, String localeVar) {
     return '变量：对话内容：$contentVar，语言：$localeVar';
   }
@@ -9719,6 +9728,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get defaultModelPageCompressPromptHint => '輸入用於上下文壓縮的提示詞範本';
+
+  @override
+  String get defaultModelPageGreetingModelTitle => '問候語模型';
+
+  @override
+  String get defaultModelPageGreetingModelSubtitle => '用於在 APP 啟動時生成動態開場問候語';
+
+  @override
+  String get defaultModelPageGreetingPromptHint => '輸入用於生成開場問候語的提示詞範本';
 
   @override
   String defaultModelPageCompressVars(String contentVar, String localeVar) {

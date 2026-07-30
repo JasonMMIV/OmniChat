@@ -22,6 +22,11 @@
   - **Zero-Latency AI Greetings**: `GreetingService` fetches AI greetings in the background during app startup or settings updates, caching the result in `SettingsProvider` to ensure instant loading on new chat creation.
   - **Greeting Model Configuration**: Dedicated Greeting Model card added to Default Model settings on both Mobile and Desktop, allowing custom model provider/ID selection and prompt customization.
   - **Cross-Platform Adaptability**: Desktop and Mobile settings UI tailored to respective design guidelines.
+  - **Refinements**:
+    - **Cleaned UI Labels**: Removed redundant parenthetical English annotations (e.g., `(Logo)`, `(Model Icon)`).
+    - **Model Icon & Model Name Resolution**: Integrated `getModelDisplayInfo` to accurately resolve active model icons and friendly model names (e.g. GPT-4o, Gemini 1.5 Pro) instead of fallback defaults.
+    - **Taiwan Chinese Terminology**: Standardized greetings (e.g., "午安", "晚安", "夜深了") and default prompt to strict Taiwan Traditional Chinese conventions.
+    - **Continuous AI Greeting Refresh**: Added concurrency guard (`_isFetching`) and refreshed background AI greetings on app/page mount for dynamic updates.
 
 ## [v1.6.0] - 2026-07-30: Flutter 3.38 → 3.44 Upgrade & Bug Fixes
 

@@ -1505,7 +1505,7 @@ Please translate the <source_text> section:
       ? '${_greetingModelProvider!}::${_greetingModelId!}'
       : null;
 
-  static const String defaultGreetingPrompt = '請用繁體中文生成一句簡短、溫馨且親切的AI助理對話開場問候語（15字以內，切勿包含任何引號、標點符號或說明文字）。';
+  static const String defaultGreetingPrompt = '請用台灣繁體中文生成一句簡短、溫馨且親切的AI助理對話開場問候語（15字以內，切勿使用大陸用語如「晚上好」、「下午好」，勿包含引號或說明文字）。';
 
   String _greetingPrompt = defaultGreetingPrompt;
   String get greetingPrompt => _greetingPrompt;

@@ -6320,6 +6320,24 @@ abstract class AppLocalizations {
   /// **'Enter prompt template for context compression'**
   String get defaultModelPageCompressPromptHint;
 
+  /// No description provided for @defaultModelPageGreetingModelTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Greeting Model'**
+  String get defaultModelPageGreetingModelTitle;
+
+  /// No description provided for @defaultModelPageGreetingModelSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Used for generating background greeting message on App launch'**
+  String get defaultModelPageGreetingModelSubtitle;
+
+  /// No description provided for @defaultModelPageGreetingPromptHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter prompt template for generating greeting message'**
+  String get defaultModelPageGreetingPromptHint;
+
   /// No description provided for @defaultModelPageCompressVars.
   ///
   /// In en, this message translates to:
