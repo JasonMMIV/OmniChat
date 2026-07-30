@@ -27,6 +27,7 @@
     - **Model Icon & Model Name Resolution**: Integrated `getModelDisplayInfo` to accurately resolve active model icons and friendly model names (e.g. GPT-4o, Gemini 1.5 Pro) instead of fallback defaults.
     - **Taiwan Chinese Terminology**: Standardized greetings (e.g., "午安", "晚安", "夜深了") and default prompt to strict Taiwan Traditional Chinese conventions.
     - **App-Launch AI Greeting Refresh**: Added session guard (`_hasFetchedThisSession`) and concurrency guard (`_isFetching`) so AI greetings auto-generate exactly once per App cold boot, while preventing redundant API calls on subsequent new chat pages during the same session.
+    - **Signed ARM64 APK Build**: Generated signed release Android ARM64 APK (`OmniChat_1.6.1.apk`) using key.properties and upload-keystore.jks.
 
 ## [v1.6.0] - 2026-07-30: Flutter 3.38 → 3.44 Upgrade & Bug Fixes
 
