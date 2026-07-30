@@ -1376,6 +1376,7 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
           _iosSectionCard(children: [
             _iosSelectableRow(
               context,
+              icon: Lucide.MessageSquare,
               label: l10n.newChatLogoOptionOmnichat,
               selected: logoType == 'omnichat',
               onTap: () => sp.setNewChatLogoType('omnichat'),
@@ -1383,6 +1384,7 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
             _iosDivider(context),
             _iosSelectableRow(
               context,
+              icon: Lucide.Bot,
               label: l10n.newChatLogoOptionModel,
               selected: logoType == 'model',
               onTap: () => sp.setNewChatLogoType('model'),
@@ -1390,6 +1392,7 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
             _iosDivider(context),
             _iosSelectableRow(
               context,
+              icon: Lucide.Image,
               label: l10n.newChatLogoOptionCustom,
               selected: logoType == 'custom',
               onTap: () async {
@@ -1418,6 +1421,7 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
             _iosDivider(context),
             _iosSelectableRow(
               context,
+              icon: Lucide.EyeOff,
               label: l10n.newChatLogoOptionNone,
               selected: logoType == 'none',
               onTap: () => sp.setNewChatLogoType('none'),
@@ -1427,6 +1431,7 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
           _iosSectionCard(children: [
             _iosSelectableRow(
               context,
+              icon: Lucide.MessageCircle,
               label: l10n.newChatTextOptionPreset,
               selected: textType == 'presetGreeting',
               onTap: () => sp.setNewChatTextType('presetGreeting'),
@@ -1434,6 +1439,7 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
             _iosDivider(context),
             _iosSelectableRow(
               context,
+              icon: Lucide.Sparkles,
               label: l10n.newChatTextOptionAiGreeting,
               selected: textType == 'aiGreeting',
               onTap: () => sp.setNewChatTextType('aiGreeting'),
@@ -1441,6 +1447,7 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
             _iosDivider(context),
             _iosSelectableRow(
               context,
+              icon: Lucide.Type,
               label: l10n.newChatTextOptionModelName,
               selected: textType == 'modelName',
               onTap: () => sp.setNewChatTextType('modelName'),
@@ -1448,6 +1455,7 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
             _iosDivider(context),
             _iosSelectableRow(
               context,
+              icon: Lucide.Pencil,
               label: l10n.newChatTextOptionCustom,
               selected: textType == 'custom',
               onTap: () async {
@@ -1459,6 +1467,7 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
             _iosDivider(context),
             _iosSelectableRow(
               context,
+              icon: Lucide.EyeOff,
               label: l10n.newChatTextOptionNone,
               selected: textType == 'none',
               onTap: () => sp.setNewChatTextType('none'),
@@ -1471,6 +1480,7 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
 
   Widget _iosSelectableRow(
     BuildContext context, {
+    IconData? icon,
     required String label,
     required bool selected,
     required VoidCallback onTap,
@@ -1484,6 +1494,17 @@ class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
+            if (icon != null) ...[
+              SizedBox(
+                width: 24,
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: selected ? cs.primary : cs.onSurface.withOpacity(0.6),
+                ),
+              ),
+              const SizedBox(width: 12),
+            ],
             Expanded(
               child: Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400)),
             ),

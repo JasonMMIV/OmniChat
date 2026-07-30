@@ -7390,10 +7390,10 @@ class _DesktopNewChatLogoRow extends StatelessWidget {
               }
             },
             itemBuilder: (context) => [
-              PopupMenuItem(value: 'omnichat', child: Text(l10n.newChatLogoOptionOmnichat)),
-              PopupMenuItem(value: 'model', child: Text(l10n.newChatLogoOptionModel)),
-              PopupMenuItem(value: 'custom', child: Text(l10n.newChatLogoOptionCustom)),
-              PopupMenuItem(value: 'none', child: Text(l10n.newChatLogoOptionNone)),
+              PopupMenuItem(value: 'omnichat', child: Row(children: [const Icon(lucide.Lucide.MessageSquare, size: 16), const SizedBox(width: 8), Text(l10n.newChatLogoOptionOmnichat)])),
+              PopupMenuItem(value: 'model', child: Row(children: [const Icon(lucide.Lucide.Bot, size: 16), const SizedBox(width: 8), Text(l10n.newChatLogoOptionModel)])),
+              PopupMenuItem(value: 'custom', child: Row(children: [const Icon(lucide.Lucide.Image, size: 16), const SizedBox(width: 8), Text(l10n.newChatLogoOptionCustom)])),
+              PopupMenuItem(value: 'none', child: Row(children: [const Icon(lucide.Lucide.EyeOff, size: 16), const SizedBox(width: 8), Text(l10n.newChatLogoOptionNone)])),
             ],
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -7404,6 +7404,8 @@ class _DesktopNewChatLogoRow extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  Icon(_logoIconFor(sp.newChatLogoType), size: 16),
+                  const SizedBox(width: 6),
                   Text(labelFor(sp.newChatLogoType), style: const TextStyle(fontSize: 13)),
                   const SizedBox(width: 4),
                   const Icon(Icons.arrow_drop_down, size: 18),
@@ -7415,10 +7417,31 @@ class _DesktopNewChatLogoRow extends StatelessWidget {
       ),
     );
   }
+
+  IconData _logoIconFor(String type) {
+    switch (type) {
+      case 'omnichat': return lucide.Lucide.MessageSquare;
+      case 'model': return lucide.Lucide.Bot;
+      case 'custom': return lucide.Lucide.Image;
+      case 'none':
+      default: return lucide.Lucide.EyeOff;
+    }
+  }
 }
 
 class _DesktopNewChatTextRow extends StatelessWidget {
   const _DesktopNewChatTextRow();
+
+  IconData _textIconFor(String type) {
+    switch (type) {
+      case 'presetGreeting': return lucide.Lucide.MessageCircle;
+      case 'aiGreeting': return lucide.Lucide.Sparkles;
+      case 'modelName': return lucide.Lucide.Type;
+      case 'custom': return lucide.Lucide.Pencil;
+      case 'none':
+      default: return lucide.Lucide.EyeOff;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -7484,11 +7507,11 @@ class _DesktopNewChatTextRow extends StatelessWidget {
               }
             },
             itemBuilder: (context) => [
-              PopupMenuItem(value: 'presetGreeting', child: Text(l10n.newChatTextOptionPreset)),
-              PopupMenuItem(value: 'aiGreeting', child: Text(l10n.newChatTextOptionAiGreeting)),
-              PopupMenuItem(value: 'modelName', child: Text(l10n.newChatTextOptionModelName)),
-              PopupMenuItem(value: 'custom', child: Text(l10n.newChatTextOptionCustom)),
-              PopupMenuItem(value: 'none', child: Text(l10n.newChatTextOptionNone)),
+              PopupMenuItem(value: 'presetGreeting', child: Row(children: [const Icon(lucide.Lucide.MessageCircle, size: 16), const SizedBox(width: 8), Text(l10n.newChatTextOptionPreset)])),
+              PopupMenuItem(value: 'aiGreeting', child: Row(children: [const Icon(lucide.Lucide.Sparkles, size: 16), const SizedBox(width: 8), Text(l10n.newChatTextOptionAiGreeting)])),
+              PopupMenuItem(value: 'modelName', child: Row(children: [const Icon(lucide.Lucide.Type, size: 16), const SizedBox(width: 8), Text(l10n.newChatTextOptionModelName)])),
+              PopupMenuItem(value: 'custom', child: Row(children: [const Icon(lucide.Lucide.Pencil, size: 16), const SizedBox(width: 8), Text(l10n.newChatTextOptionCustom)])),
+              PopupMenuItem(value: 'none', child: Row(children: [const Icon(lucide.Lucide.EyeOff, size: 16), const SizedBox(width: 8), Text(l10n.newChatTextOptionNone)])),
             ],
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -7499,6 +7522,8 @@ class _DesktopNewChatTextRow extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  Icon(_textIconFor(sp.newChatTextType), size: 16),
+                  const SizedBox(width: 6),
                   Text(labelFor(sp.newChatTextType), style: const TextStyle(fontSize: 13)),
                   const SizedBox(width: 4),
                   const Icon(Icons.arrow_drop_down, size: 18),
