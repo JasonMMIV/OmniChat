@@ -687,10 +687,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantProviderDefaultAssistantName => '默认项目';
 
   @override
-  String get assistantProviderSampleAssistantName => '示例项目';
+  String get assistantProviderSampleAssistantName => '默认项目';
 
   @override
-  String get assistantProviderDeepResearchAssistantName => '深度研究助手';
+  String get assistantProviderDeepResearchAssistantName => '深度研究';
 
   @override
   String assistantProviderDeepResearchAssistantSystemPrompt(Object cur_date) {
@@ -3957,10 +3957,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantProviderDefaultAssistantName => '默认项目';
 
   @override
-  String get assistantProviderSampleAssistantName => '示例项目';
+  String get assistantProviderSampleAssistantName => '默认项目';
 
   @override
-  String get assistantProviderDeepResearchAssistantName => '深度研究助手';
+  String get assistantProviderDeepResearchAssistantName => '深度研究';
 
   @override
   String assistantProviderDeepResearchAssistantSystemPrompt(Object cur_date) {
@@ -7224,10 +7224,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantProviderDefaultAssistantName => '預設專案';
 
   @override
-  String get assistantProviderSampleAssistantName => '範例專案';
+  String get assistantProviderSampleAssistantName => '預設專案';
 
   @override
-  String get assistantProviderDeepResearchAssistantName => '深度研究助理';
+  String get assistantProviderDeepResearchAssistantName => '深度研究';
 
   @override
   String assistantProviderSampleAssistantSystemPrompt(

@@ -1435,13 +1435,13 @@ abstract class AppLocalizations {
   /// No description provided for @assistantProviderSampleAssistantName.
   ///
   /// In en, this message translates to:
-  /// **'Sample Project'**
+  /// **'Default Project'**
   String get assistantProviderSampleAssistantName;
 
   /// No description provided for @assistantProviderDeepResearchAssistantName.
   ///
   /// In en, this message translates to:
-  /// **'Deep Research Assistant'**
+  /// **'Deep Research'**
   String get assistantProviderDeepResearchAssistantName;
 
   /// No description provided for @assistantProviderDeepResearchAssistantSystemPrompt.

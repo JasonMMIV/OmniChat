@@ -78,23 +78,6 @@ class AssistantProvider extends ChangeNotifier {
   Assistant _defaultAssistant(AppLocalizations l10n) => Assistant(
         id: const Uuid().v4(),
         name: l10n.assistantProviderDefaultAssistantName,
-        systemPrompt: '',
-        deletable: false,
-        thinkingBudget: null,
-        temperature: 0.6,
-        topP: null,
-      );
-
-  // Ensure localized default assistants exist; call this after localization is ready.
-  Future<void> ensureDefaults(dynamic context) async {
-    final l10n = AppLocalizations.of(context)!;
-    if (_assistants.isEmpty) {
-      // 1) 默认助手
-      _assistants.add(_defaultAssistant(l10n));
-      // 2) 示例助手（带提示词模板）
-      _assistants.add(Assistant(
-        id: const Uuid().v4(),
-        name: l10n.assistantProviderSampleAssistantName,
         systemPrompt: l10n.assistantProviderSampleAssistantSystemPrompt(
           '{model_name}',
           '{cur_datetime}',
@@ -106,11 +89,51 @@ class AssistantProvider extends ChangeNotifier {
         deletable: false,
         temperature: 0.6,
         topP: null,
-      ));
+      );
+
+  // Ensure localized default assistants exist; call this after localization is ready.
+  Future<void> ensureDefaults(dynamic context) async {
+    final l10n = AppLocalizations.of(context)!;
+    if (_assistants.isEmpty) {
+      // 1) 預設專案（帶提示詞範本）
+      _assistants.add(_defaultAssistant(l10n));
+    } else {
+      // 遷移舊的專案名稱與結構
+      final oldDefaultIdx = _assistants.indexWhere((a) =>
+          a.systemPrompt.trim().isEmpty &&
+          (a.name == '預設專案' || a.name == '默认项目' || a.name == 'Default Project'));
+      final sampleIdx = _assistants.indexWhere((a) =>
+          a.name == '範例專案' || a.name == '示例项目' || a.name == 'Sample Project');
+
+      if (oldDefaultIdx != -1 && sampleIdx != -1) {
+        _assistants.removeAt(oldDefaultIdx);
+        final newSampleIdx = _assistants.indexWhere((a) =>
+            a.name == '範例專案' || a.name == '示例项目' || a.name == 'Sample Project');
+        if (newSampleIdx != -1) {
+          _assistants[newSampleIdx] = _assistants[newSampleIdx].copyWith(
+            name: l10n.assistantProviderDefaultAssistantName,
+            deletable: false,
+          );
+        }
+      } else if (sampleIdx != -1) {
+        _assistants[sampleIdx] = _assistants[sampleIdx].copyWith(
+          name: l10n.assistantProviderDefaultAssistantName,
+          deletable: false,
+        );
+      }
     }
-    // 3) Deep Research Assistant (Add if not exists)
+    // 2) 深度研究 (Add if not exists)
     final deepResearchName = l10n.assistantProviderDeepResearchAssistantName;
-    final drIdx = _assistants.indexWhere((a) => a.name == deepResearchName || a.name == 'Deep Research Assistant' || a.name == 'Deep Research Project' || a.name == '深度研究助理' || a.name == '深度研究助手' || a.name == '深度研究專案' || a.name == '深度研究項目');
+    final drIdx = _assistants.indexWhere((a) =>
+        a.name == deepResearchName ||
+        a.name == 'Deep Research' ||
+        a.name == 'Deep Research Assistant' ||
+        a.name == 'Deep Research Project' ||
+        a.name == '深度研究' ||
+        a.name == '深度研究助理' ||
+        a.name == '深度研究助手' ||
+        a.name == '深度研究專案' ||
+        a.name == '深度研究項目');
     if (drIdx == -1) {
       _assistants.add(Assistant(
         id: const Uuid().v4(),
@@ -120,8 +143,18 @@ class AssistantProvider extends ChangeNotifier {
         temperature: 0.6,
         topP: null,
       ));
-    } else if (!_assistants[drIdx].deletable) {
-      _assistants[drIdx] = _assistants[drIdx].copyWith(deletable: true);
+    } else {
+      final existingName = _assistants[drIdx].name;
+      if (existingName == 'Deep Research Assistant' ||
+          existingName == 'Deep Research Project' ||
+          existingName == '深度研究助理' ||
+          existingName == '深度研究助手' ||
+          existingName == '深度研究專案' ||
+          existingName == '深度研究項目') {
+        _assistants[drIdx] = _assistants[drIdx].copyWith(name: deepResearchName, deletable: true);
+      } else if (!_assistants[drIdx].deletable) {
+        _assistants[drIdx] = _assistants[drIdx].copyWith(deletable: true);
+      }
     }
     await _persist();
     // Set current assistant if not set

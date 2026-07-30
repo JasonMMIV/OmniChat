@@ -324,7 +324,7 @@
   "assistantEditTemperatureTitle": "溫度",
   "assistantEditTopPTitle": "Top-p",
   "assistantProviderDefaultAssistantName": "預設專案",
-  "assistantProviderSampleAssistantName": "範例專案",
+  "assistantProviderSampleAssistantName": "預設專案",
   "assistantProviderNewAssistantName": "新專案",
   "assistantProviderSampleAssistantSystemPrompt": "你是{model_name}, 一個人工智慧助理，樂意為使用者提供準確，有益的幫助。現在時間是{cur_datetime}，使用者裝置語言為{locale}，時區為{timezone}，使用者正在使用{device_info}，版本{system_version}。如果使用者沒有明確說明，請使用使用者裝置語言進行回覆。",
   "@assistantProviderSampleAssistantSystemPrompt": {
@@ -1314,5 +1314,5 @@
       }
     }
   },
-  "assistantProviderDeepResearchAssistantName": "深度研究助理"
+  "assistantProviderDeepResearchAssistantName": "深度研究"
 }

@@ -2,6 +2,21 @@
 
 ## [v1.5.32] - 2026-07-30: Consolidated Search Citations Card & Source Favicons
 
+### 134. Unified Assistant/Project Naming & Cleanup — Default Project & Deep Research
+- **Purpose**: Simplify default assistant structure by eliminating the redundant blank default assistant, standardizing the primary assistant as "Default Project" ("預設專案"), renaming "Deep Research Assistant" to "Deep Research" ("深度研究"), and updating all localization files and automatic migration logic.
+- **Files Modified**:
+  - `lib/l10n/app_en.arb` (updated assistant default/sample and deep research names)
+  - `lib/l10n/app_zh.arb` (updated assistant default/sample and deep research names)
+  - `lib/l10n/app_zh_Hans.arb` (updated assistant default/sample and deep research names)
+  - `lib/l10n/app_zh_Hant.arb` (updated assistant default/sample and deep research names)
+  - `lib/core/providers/assistant_provider.dart` (merged sample assistant into primary default project, updated deep research name, and added migration logic for legacy assistant names)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Default Assistant Unification**: Merged the blank "Default Assistant" with "Sample Project" into a single, comprehensive "Default Project" ("預設專案" / "默认项目") to clean up default project setup.
+  - **Deep Research Renaming**: Renamed "Deep Research Assistant" ("深度研究助理") to "Deep Research" ("深度研究").
+  - **Localization Synchronization**: Updated ARB files across all supported languages (en, zh, zh-Hans, zh-Hant) for consistent project names.
+  - **Legacy Migration**: Implemented automatic migration logic in `AssistantProvider.ensureDefaults` to migrate existing stored user assistant names seamlessly upon app launch.
+
 ### 133. Side Drawer UI Optimization — Removed Project Icon from Folder Tree
 - **Purpose**: Clean up project/assistant folder tile visuals in the unified folder tree by removing the assistant avatar icon and retaining only the folder icon (`Lucide.Folder` / `Lucide.FolderOpen`).
 - **Files Modified**:

@@ -693,11 +693,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantProviderDefaultAssistantName => 'Default Project';
 
   @override
-  String get assistantProviderSampleAssistantName => 'Sample Project';
+  String get assistantProviderSampleAssistantName => 'Default Project';
 
   @override
-  String get assistantProviderDeepResearchAssistantName =>
-      'Deep Research Assistant';
+  String get assistantProviderDeepResearchAssistantName => 'Deep Research';
 
   @override
   String assistantProviderDeepResearchAssistantSystemPrompt(Object cur_date) {
