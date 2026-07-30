@@ -26,7 +26,7 @@
     - **Cleaned UI Labels**: Removed redundant parenthetical English annotations (e.g., `(Logo)`, `(Model Icon)`).
     - **Model Icon & Model Name Resolution**: Integrated `getModelDisplayInfo` to accurately resolve active model icons and friendly model names (e.g. GPT-4o, Gemini 1.5 Pro) instead of fallback defaults.
     - **Taiwan Chinese Terminology**: Standardized greetings (e.g., "午安", "晚安", "夜深了") and default prompt to strict Taiwan Traditional Chinese conventions.
-    - **Continuous AI Greeting Refresh**: Added concurrency guard (`_isFetching`) and refreshed background AI greetings on app/page mount for dynamic updates.
+    - **App-Launch AI Greeting Refresh**: Added session guard (`_hasFetchedThisSession`) and concurrency guard (`_isFetching`) so AI greetings auto-generate exactly once per App cold boot, while preventing redundant API calls on subsequent new chat pages during the same session.
 
 ## [v1.6.0] - 2026-07-30: Flutter 3.38 → 3.44 Upgrade & Bug Fixes
 

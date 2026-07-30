@@ -51,9 +51,13 @@ class GreetingService {
     return pool[rand.nextInt(pool.length)];
   }
 
+  static bool _hasFetchedThisSession = false;
+
   /// Triggers background fetching of AI greeting if configured.
-  static Future<void> fetchAiGreetingInBackground(SettingsProvider settings) async {
+  /// Generates once per App launch session unless [force] is true.
+  static Future<void> fetchAiGreetingInBackground(SettingsProvider settings, {bool force = false}) async {
     if (settings.newChatTextType != 'aiGreeting') return;
+    if (!force && _hasFetchedThisSession) return;
     if (_isFetching) return;
 
     _isFetching = true;
@@ -78,6 +82,7 @@ class GreetingService {
       text = text.replaceAll('\n', ' ').trim();
       if (text.isNotEmpty) {
         await settings.setNewChatCachedAiGreeting(text);
+        _hasFetchedThisSession = true;
       }
     } catch (_) {
       // Fallback or background error silently ignored
