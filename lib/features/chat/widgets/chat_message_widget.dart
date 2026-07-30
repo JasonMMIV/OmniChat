@@ -339,6 +339,43 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     return fallback.isNotEmpty ? fallback : baseId;
   }
 
+  int _estimateTokens(String text) {
+    if (text.isEmpty) return 0;
+    int cjkCount = 0;
+    int otherCharCount = 0;
+    for (final char in text.runes) {
+      if ((char >= 0x4E00 && char <= 0x9FFF) ||
+          (char >= 0x3400 && char <= 0x4DBF) ||
+          (char >= 0x3000 && char <= 0x303F) ||
+          (char >= 0xFF00 && char <= 0xFFEF)) {
+        cjkCount++;
+      } else {
+        otherCharCount++;
+      }
+    }
+    return cjkCount + (otherCharCount / 4).ceil();
+  }
+
+  String _buildStatsText(ChatMessage message) {
+    final int tokens;
+    final bool isEstimated;
+    if (message.totalTokens != null && message.totalTokens! > 0) {
+      tokens = message.totalTokens!;
+      isEstimated = false;
+    } else {
+      final fullText = message.content + (message.reasoningText ?? '');
+      tokens = _estimateTokens(fullText);
+      isEstimated = true;
+    }
+
+    final tokenStr = isEstimated ? '~$tokens tokens' : '$tokens tokens';
+    final charCount = message.content.length;
+    if (charCount > 0) {
+      return '$tokenStr · $charCount 字';
+    }
+    return tokenStr;
+  }
+
   @override
   void dispose() {
     try { _userMenuOverlay?.remove(); } catch (_) {}
@@ -647,26 +684,44 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              if (settings.showUserNameTimestamp)
+              if (settings.showUserNameTimestamp || widget.showTokenStats)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      userProvider.name,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: cs.onSurface.withOpacity(0.7),
+                    if (settings.showUserNameTimestamp)
+                      Text(
+                        userProvider.name,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: cs.onSurface.withOpacity(0.7),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _dateFormat.format(widget.message.timestamp),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: cs.onSurface.withOpacity(0.5),
-                      ),
-                    ),
+                    Builder(builder: (context) {
+                      final List<Widget> rowChildren = [];
+                      if (settings.showUserNameTimestamp) {
+                        rowChildren.add(Text(
+                          _dateFormat.format(widget.message.timestamp),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: cs.onSurface.withOpacity(0.5),
+                          ),
+                        ));
+                      }
+                      if (widget.showTokenStats) {
+                        if (rowChildren.isNotEmpty) rowChildren.add(const SizedBox(width: 8));
+                        rowChildren.add(Text(
+                          _buildStatsText(widget.message),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: cs.onSurface.withOpacity(0.5),
+                          ),
+                        ));
+                      }
+                      return rowChildren.isNotEmpty
+                          ? Row(mainAxisSize: MainAxisSize.min, children: rowChildren)
+                          : const SizedBox.shrink();
+                    }),
                   ],
                 ),
               if (widget.showUserAvatar) ...[
@@ -1179,47 +1234,48 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 ),
                 const SizedBox(width: 8),
               ],
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (settings.showModelNameTimestamp)
-                    Text(
-                      widget.useAssistantAvatar
-                          ? (widget.assistantName?.trim().isNotEmpty == true ? widget.assistantName!.trim() : 'Assistant')
-                          : _resolveModelDisplayName(settings),
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: cs.onSurface.withOpacity(0.7),
+              if (settings.showModelNameTimestamp || widget.showTokenStats)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (settings.showModelNameTimestamp)
+                      Text(
+                        widget.useAssistantAvatar
+                            ? (widget.assistantName?.trim().isNotEmpty == true ? widget.assistantName!.trim() : 'Assistant')
+                            : _resolveModelDisplayName(settings),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: cs.onSurface.withOpacity(0.7),
+                        ),
                       ),
-                    ),
-                  Builder(builder: (context) {
-                    final List<Widget> rowChildren = [];
-                    if (settings.showModelNameTimestamp) {
-                      rowChildren.add(Text(
-                        _dateFormat.format(widget.message.timestamp),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: cs.onSurface.withOpacity(0.5),
-                        ),
-                      ));
-                    }
-                    if (widget.showTokenStats && widget.message.totalTokens != null) {
-                      if (rowChildren.isNotEmpty) rowChildren.add(const SizedBox(width: 8));
-                      rowChildren.add(Text(
-                        '${widget.message.totalTokens} tokens',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: cs.onSurface.withOpacity(0.5),
-                        ),
-                      ));
-                    }
-                    return rowChildren.isNotEmpty
-                        ? Row(children: rowChildren)
-                        : const SizedBox.shrink();
-                  }),
-                ],
-              ),
+                    Builder(builder: (context) {
+                      final List<Widget> rowChildren = [];
+                      if (settings.showModelNameTimestamp) {
+                        rowChildren.add(Text(
+                          _dateFormat.format(widget.message.timestamp),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: cs.onSurface.withOpacity(0.5),
+                          ),
+                        ));
+                      }
+                      if (widget.showTokenStats) {
+                        if (rowChildren.isNotEmpty) rowChildren.add(const SizedBox(width: 8));
+                        rowChildren.add(Text(
+                          _buildStatsText(widget.message),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: cs.onSurface.withOpacity(0.5),
+                          ),
+                        ));
+                      }
+                      return rowChildren.isNotEmpty
+                          ? Row(children: rowChildren)
+                          : const SizedBox.shrink();
+                    }),
+                  ],
+                ),
             ],
           ),
           const SizedBox(height: 8),

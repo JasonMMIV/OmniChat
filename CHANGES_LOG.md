@@ -1,5 +1,19 @@
 # OmniChat Developer Changes Log
 
+## [v1.6.3] - 2026-07-31: Token & Context Statistics Display Fix
+
+### 139. Fix Token and Context Statistics Display in Chat Messages
+- **Purpose**: Fix an issue where enabling "Display Token and Context Statistics" in Settings -> Display Settings -> Chat Items Display did not show token/context statistics on the chat message view.
+- **Files Modified**:
+  - `lib/features/chat/widgets/chat_message_widget.dart` (updated `_buildUserMessage` and `_buildAssistantMessage` to uniformly respect `showTokenStats`, added CJK-aware `_estimateTokens` fallback and `_buildStatsText` helper)
+  - `lib/features/home/controllers/chat_actions.dart` (preserved `totalTokens` when updating message state via `copyWith` upon stream completion)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - `_buildUserMessage` lacked rendering logic for `showTokenStats`, preventing user messages from ever showing token statistics.
+  - `_buildAssistantMessage` only rendered token stats when `message.totalTokens != null`, resulting in missing statistics when token counts were not provided by the API provider.
+  - Updated both message builders to display statistics when `showTokenStats` is enabled, using an estimated token count algorithm (`_estimateTokens`) that accounts for CJK character weights when `totalTokens` is not returned by the API.
+  - Resolved a state update bug in `chat_actions.dart` where `totalTokens` was dropped when copying message state upon stream completion.
+
 ## [v1.6.2] - 2026-07-30: Android Back Navigation Fix
 
 ### 138. Android Back Button Navigation Fix for Root Chat Page

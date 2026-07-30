@@ -470,6 +470,7 @@ class ChatActions {
       if (idx != -1) {
         _messages[idx] = _messages[idx].copyWith(
           isStreaming: false,
+          totalTokens: streaming.totalTokens,
           aiTeamProposalsJson: pendingProposals,
         );
         onMessagesChanged?.call();
