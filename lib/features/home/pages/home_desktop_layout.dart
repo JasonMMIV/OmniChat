@@ -14,7 +14,6 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../shared/animations/widgets.dart';
 import '../../../shared/widgets/ios_tactile.dart';
-import '../../../utils/brand_assets.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 
 /// Desktop/Tablet layout scaffold for the home page
@@ -28,8 +27,6 @@ class HomeDesktopScaffold extends StatelessWidget {
     required this.assistantPickerCloseTick,
     required this.loadingConversationIds,
     required this.title,
-    required this.providerName,
-    required this.modelDisplay,
     // Sidebar state
     required this.tabletSidebarOpen,
     required this.rightSidebarOpen,
@@ -44,7 +41,6 @@ class HomeDesktopScaffold extends StatelessWidget {
     required this.onNewConversation,
     required this.onCreateNewConversation,
     this.onOpenMiniMap,
-    required this.onSelectModel,
     required this.onSidebarWidthChanged,
     required this.onSidebarWidthChangeEnd,
     required this.onRightSidebarWidthChanged,
@@ -59,8 +55,6 @@ class HomeDesktopScaffold extends StatelessWidget {
   final ValueNotifier<int> assistantPickerCloseTick;
   final Set<String> loadingConversationIds;
   final String title;
-  final String? providerName;
-  final String? modelDisplay;
 
   // Sidebar state
   final bool tabletSidebarOpen;
@@ -77,7 +71,6 @@ class HomeDesktopScaffold extends StatelessWidget {
   final VoidCallback onNewConversation;
   final Future<void> Function() onCreateNewConversation;
   final VoidCallback? onOpenMiniMap;
-  final VoidCallback onSelectModel;
   final void Function(double dx) onSidebarWidthChanged;
   final VoidCallback onSidebarWidthChangeEnd;
   final void Function(double dx) onRightSidebarWidthChanged;
@@ -225,69 +218,29 @@ class HomeDesktopScaffold extends StatelessWidget {
 
   Widget _buildTitle(BuildContext context, ColorScheme cs) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final String? brandAsset = (modelDisplay != null
-            ? BrandAssets.assetForName(modelDisplay!)
-            : null) ??
-        (providerName != null ? BrandAssets.assetForName(providerName!) : null);
+    
+    final l10n = AppLocalizations.of(context)!;
+    final a = context.watch<AssistantProvider>().currentAssistant;
+    final n = a?.name.trim();
+    final String assistantName = (n == null || n.isEmpty) ? l10n.homePageDefaultAssistant : n;
 
-    Widget? capsule;
-    String? capsuleLabel;
-
-    if (providerName != null && modelDisplay != null) {
-      final showProv = context.watch<SettingsProvider>().showProviderInModelCapsule;
-      capsuleLabel = showProv ? '$modelDisplay | $providerName' : '$modelDisplay';
-
-      final Widget brandIcon = AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        transitionBuilder: (child, anim) => FadeTransition(
-          opacity: anim,
-          child: ScaleTransition(scale: anim, child: child),
+    final Widget capsule = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: AnimatedTextSwap(
+        text: assistantName,
+        style: TextStyle(
+          fontSize: 12,
+          height: 1.1,
+          color: isDark ? Colors.white.withOpacity(0.92) : cs.onSurface.withOpacity(0.9),
+          fontWeight: FontWeight.w500,
         ),
-        child: (brandAsset != null)
-            ? (brandAsset.endsWith('.svg')
-                ? SvgPicture.asset(brandAsset, width: 16, height: 16, key: ValueKey('brand:$brandAsset'))
-                : Image.asset(brandAsset, width: 16, height: 16, key: ValueKey('brand:$brandAsset')))
-            : Icon(Lucide.Boxes, size: 16, color: cs.onSurface.withOpacity(0.7), key: const ValueKey('brand:default')),
-      );
-
-      capsule = IosCardPress(
-        borderRadius: BorderRadius.circular(20),
-        baseColor: Colors.transparent,
-        pressedBlendStrength: isDark ? 0.18 : 0.12,
-        padding: EdgeInsets.zero,
-        onTap: onSelectModel,
-        child: AnimatedSize(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                brandIcon,
-                const SizedBox(width: 6),
-                Flexible(
-                  child: AnimatedTextSwap(
-                    text: capsuleLabel!,
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.1,
-                      color: isDark ? Colors.white.withOpacity(0.92) : cs.onSurface.withOpacity(0.9),
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
 
     final row = Row(
       mainAxisSize: MainAxisSize.max,
@@ -306,30 +259,28 @@ class HomeDesktopScaffold extends StatelessWidget {
             ),
           ),
         ),
-        if (capsule != null) ...[
-          const SizedBox(width: 8),
-          Flexible(
-            fit: FlexFit.loose,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
-                transitionBuilder: (child, anim) => FadeTransition(
-                  opacity: anim,
-                  child: SlideTransition(
-                    position: Tween<Offset>(begin: const Offset(0.06, 0), end: Offset.zero).animate(anim),
-                    child: child,
-                  ),
+        const SizedBox(width: 8),
+        Flexible(
+          fit: FlexFit.loose,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: SlideTransition(
+                  position: Tween<Offset>(begin: const Offset(0.06, 0), end: Offset.zero).animate(anim),
+                  child: child,
                 ),
-                child: KeyedSubtree(
-                  key: ValueKey('cap:${capsuleLabel ?? ''}'),
-                  child: capsule!,
-                ),
+              ),
+              child: KeyedSubtree(
+                key: ValueKey('cap:$assistantName'),
+                child: capsule,
               ),
             ),
           ),
-        ],
+        ),
       ],
     );
 
@@ -344,7 +295,7 @@ class HomeDesktopScaffold extends StatelessWidget {
             child: child,
           ),
         ),
-        child: KeyedSubtree(key: ValueKey('hdr:$title|${capsuleLabel ?? ''}'), child: row),
+        child: KeyedSubtree(key: ValueKey('hdr:$title|$assistantName'), child: row),
       ),
     );
   }

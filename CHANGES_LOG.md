@@ -31,6 +31,19 @@
   - **iOS/macOS**: Phase D (SwiftPM migration) and Phase E (UIScene manual migration — `AppDelegate.swift` has custom `app.clipboard` channel) deferred to macOS environment.
   - **Upgrade Plan**: Full plan documented in `Flutter_Upgrade_Plan.md`.
 
+### 136. Replace Header Model Selector with Current Project Name Display
+- **Purpose**: Remove the top header model selection menu/capsule across both mobile and desktop layouts and replace it with the current project name (assistant name) while maintaining the original typography and animation transitions.
+- **Files Modified**:
+  - `lib/features/home/pages/home_mobile_layout.dart` (replaced dynamic model selector with static assistant name text, cleaned unused params)
+  - `lib/features/home/pages/home_desktop_layout.dart` (replaced clickable model capsule with static assistant name text, cleaned unused params)
+  - `lib/features/home/pages/home_page.dart` (removed unused model display parameter pass-throughs, variables, and imports)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - Replaced interactive model selector in top bar on both mobile and desktop layouts with current assistant/project name (`_getAssistantName`).
+  - Preserved font size, alignment, and `AnimatedTextSwap` transition behavior.
+  - Kept bottom chat input bar model selector (`ChatInputSection`) intact.
+  - Removed unused constructor parameters (`providerName`, `modelDisplay`, `onSelectModel`) and imports across affected files for code cleanliness.
+
 ## [v1.5.32] - 2026-07-30: Consolidated Search Citations Card & Source Favicons
 
 ### 134. Unified Assistant/Project Naming & Cleanup — Default Project & Deep Research

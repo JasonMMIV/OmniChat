@@ -14,7 +14,6 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
-import '../../../core/providers/ai_team_provider.dart';
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/services/android_process_text.dart';
@@ -53,7 +52,6 @@ import '../widgets/scroll_nav_buttons.dart';
 import '../widgets/selection_toolbar.dart';
 import '../widgets/message_list_view.dart';
 import '../widgets/chat_input_section.dart';
-import '../utils/model_display_helper.dart';
 import '../utils/chat_layout_constants.dart';
 import '../controllers/home_page_controller.dart';
 import 'home_mobile_layout.dart';
@@ -244,10 +242,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final cs = Theme.of(context).colorScheme;
-    final settings = context.watch<SettingsProvider>();
-    final assistant = context.watch<AssistantProvider>().currentAssistant;
-
-    final modelInfo = getModelDisplayInfo(settings, assistant: assistant);
 
     final title = ((_controller.currentConversation?.title ?? '').trim().isNotEmpty)
         ? _controller.currentConversation!.title
@@ -257,8 +251,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       return _buildTabletLayout(
         context,
         title: title,
-        providerName: modelInfo.providerName,
-        modelDisplay: modelInfo.modelDisplay,
         cs: cs,
       );
     }
@@ -266,8 +258,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     return _buildMobileLayout(
       context,
       title: title,
-      providerName: modelInfo.providerName,
-      modelDisplay: modelInfo.modelDisplay,
       cs: cs,
     );
   }
@@ -275,8 +265,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget _buildMobileLayout(
     BuildContext context, {
     required String title,
-    required String? providerName,
-    required String? modelDisplay,
     required ColorScheme cs,
   }) {
     return HomeMobileScaffold(
@@ -286,8 +274,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       assistantPickerCloseTick: _assistantPickerCloseTick,
       loadingConversationIds: _controller.loadingConversationIds,
       title: title,
-      providerName: providerName,
-      modelDisplay: modelDisplay,
       onToggleDrawer: () => _drawerController.toggle(),
       onDismissKeyboard: _controller.dismissKeyboard,
       onSelectConversation: (id) {
@@ -315,7 +301,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           _controller.forceScrollToBottomSoon(animate: false);
         }
       },
-      onSelectModel: () => showModelSelectSheet(context),
       onVoiceChat: _startVoiceChat,
       body: _wrapWithDropTarget(_buildMobileBody(context, cs)),
     );
@@ -379,8 +364,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget _buildTabletLayout(
     BuildContext context, {
     required String title,
-    required String? providerName,
-    required String? modelDisplay,
     required ColorScheme cs,
   }) {
     _controller.initDesktopUi();
@@ -391,8 +374,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       assistantPickerCloseTick: _assistantPickerCloseTick,
       loadingConversationIds: _controller.loadingConversationIds,
       title: title,
-      providerName: providerName,
-      modelDisplay: modelDisplay,
       tabletSidebarOpen: _controller.tabletSidebarOpen,
       rightSidebarOpen: _controller.rightSidebarOpen,
       embeddedSidebarWidth: _controller.embeddedSidebarWidth,
@@ -424,7 +405,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           await _controller.scrollToMessageId(selectedId);
         }
       },
-      onSelectModel: () => showModelSelectSheet(context),
       onSidebarWidthChanged: _controller.updateSidebarWidth,
       onSidebarWidthChangeEnd: _controller.saveSidebarWidth,
       onRightSidebarWidthChanged: _controller.updateRightSidebarWidth,

@@ -3,13 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/interactive_drawer.dart';
-import '../widgets/chat_input_bar.dart';
 import '../widgets/side_drawer.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/user_provider.dart';
@@ -31,15 +29,12 @@ class HomeMobileScaffold extends StatelessWidget {
     required this.assistantPickerCloseTick,
     required this.loadingConversationIds,
     required this.title,
-    required this.providerName,
-    required this.modelDisplay,
     required this.onToggleDrawer,
     required this.onDismissKeyboard,
     required this.onSelectConversation,
     required this.onNewConversation,
     required this.onOpenMiniMap,
     required this.onCreateNewConversation,
-    required this.onSelectModel,
     this.onVoiceChat,
     required this.body,
   });
@@ -50,15 +45,12 @@ class HomeMobileScaffold extends StatelessWidget {
   final ValueNotifier<int> assistantPickerCloseTick;
   final Set<String> loadingConversationIds;
   final String title;
-  final String? providerName;
-  final String? modelDisplay;
   final VoidCallback onToggleDrawer;
   final VoidCallback onDismissKeyboard;
   final void Function(String id) onSelectConversation;
   final VoidCallback onNewConversation;
   final VoidCallback onOpenMiniMap;
   final Future<void> Function() onCreateNewConversation;
-  final VoidCallback onSelectModel;
   final VoidCallback? onVoiceChat;
   final Widget body;
 
@@ -154,27 +146,19 @@ class HomeMobileScaffold extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
-          if (providerName != null && modelDisplay != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(6),
-                onTap: onSelectModel,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 0),
-                  child: AnimatedTextSwap(
-                    text: '$modelDisplay ($providerName)',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: cs.onSurface.withOpacity(0.6),
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: AnimatedTextSwap(
+              text: _getAssistantName(context),
+              style: TextStyle(
+                fontSize: 11,
+                color: cs.onSurface.withOpacity(0.6),
+                fontWeight: FontWeight.w500,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
+          ),
         ],
       ),
       actions: [
