@@ -4720,6 +4720,15 @@ class _DisplaySettingsBody extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               _SettingsCard(
+                title: '新對話頁面設定',
+                children: const [
+                  _DesktopNewChatLogoRow(),
+                  _RowDivider(),
+                  _DesktopNewChatTextRow(),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _SettingsCard(
                 title: l10n.displaySettingsPageBehaviorStartupTitle,
                 children: const [
                   _ToggleRowAutoSwitchTopicsDesktop(),
@@ -7312,6 +7321,209 @@ class _BackgroundMaskRowState extends State<_BackgroundMaskRow> {
           ),
           const SizedBox(width: 8),
           Text('%', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7), fontSize: 14, decoration: TextDecoration.none)),
+        ],
+      ),
+    );
+  }
+}
+
+class _DesktopNewChatLogoRow extends StatelessWidget {
+  const _DesktopNewChatLogoRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final sp = context.watch<SettingsProvider>();
+    final cs = Theme.of(context).colorScheme;
+
+    String labelFor(String type) {
+      switch (type) {
+        case 'omnichat': return 'OmniChat 圖標';
+        case 'model': return '模型圖標 (Model Icon)';
+        case 'custom': return '自訂圖片';
+        case 'none':
+        default: return '不顯示 Logo';
+      }
+    }
+
+    return _LabeledRow(
+      label: '圖標 (Logo) 設定',
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (sp.newChatLogoType == 'custom') ...[
+            TextButton(
+              onPressed: () async {
+                final result = await FilePicker.platform.pickFiles(type: FileType.image);
+                if (result != null && result.files.single.path != null) {
+                  final srcFile = File(result.files.single.path!);
+                  final dir = await AppDirectories.getImagesDirectory();
+                  if (!await dir.exists()) await dir.create(recursive: true);
+                  final ext = p.extension(srcFile.path);
+                  final fileName = 'custom_logo_${DateTime.now().millisecondsSinceEpoch}$ext';
+                  final targetFile = File('${dir.path}/$fileName');
+                  await srcFile.copy(targetFile.path);
+                  await sp.setNewChatCustomLogoFileName(fileName);
+                  await sp.setNewChatLogoType('custom');
+                }
+              },
+              child: const Text('選擇圖片'),
+            ),
+            const SizedBox(width: 8),
+          ],
+          PopupMenuButton<String>(
+            initialValue: sp.newChatLogoType,
+            onSelected: (type) async {
+              await sp.setNewChatLogoType(type);
+              if (type == 'custom' && (sp.newChatCustomLogoFileName == null || sp.newChatCustomLogoFileName!.isEmpty)) {
+                final result = await FilePicker.platform.pickFiles(type: FileType.image);
+                if (result != null && result.files.single.path != null) {
+                  final srcFile = File(result.files.single.path!);
+                  final dir = await AppDirectories.getImagesDirectory();
+                  if (!await dir.exists()) await dir.create(recursive: true);
+                  final ext = p.extension(srcFile.path);
+                  final fileName = 'custom_logo_${DateTime.now().millisecondsSinceEpoch}$ext';
+                  final targetFile = File('${dir.path}/$fileName');
+                  await srcFile.copy(targetFile.path);
+                  await sp.setNewChatCustomLogoFileName(fileName);
+                }
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'omnichat', child: Text('OmniChat 圖標')),
+              const PopupMenuItem(value: 'model', child: Text('模型圖標 (Model Icon)')),
+              const PopupMenuItem(value: 'custom', child: Text('自訂圖片')),
+              const PopupMenuItem(value: 'none', child: Text('不顯示 Logo')),
+            ],
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: cs.outlineVariant.withOpacity(0.4)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(labelFor(sp.newChatLogoType), style: const TextStyle(fontSize: 13)),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.arrow_drop_down, size: 18),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DesktopNewChatTextRow extends StatelessWidget {
+  const _DesktopNewChatTextRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final sp = context.watch<SettingsProvider>();
+    final cs = Theme.of(context).colorScheme;
+
+    String labelFor(String type) {
+      switch (type) {
+        case 'presetGreeting': return '固定問候語 (依時段輪播)';
+        case 'aiGreeting': return 'AI 智慧動態問候語 (背景生成)';
+        case 'modelName': return '目前模型名稱';
+        case 'custom': return '自訂文字';
+        case 'none':
+        default: return '不顯示文字';
+      }
+    }
+
+    return _LabeledRow(
+      label: '下方文字設定',
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (sp.newChatTextType == 'custom') ...[
+            TextButton(
+              onPressed: () async {
+                final controller = TextEditingController(text: sp.newChatCustomText);
+                await showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    backgroundColor: cs.surface,
+                    title: const Text('自訂文字內容', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    content: TextField(
+                      controller: controller,
+                      maxLines: 3,
+                      decoration: const InputDecoration(hintText: '輸入在新對話頁面顯示的自訂文字', border: OutlineInputBorder()),
+                    ),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('取消')),
+                      FilledButton(
+                        onPressed: () async {
+                          await sp.setNewChatCustomText(controller.text.trim());
+                          if (ctx.mounted) Navigator.of(ctx).pop();
+                        },
+                        child: const Text('儲存'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              child: Text(sp.newChatCustomText.isNotEmpty ? sp.newChatCustomText : '設定文字'),
+            ),
+            const SizedBox(width: 8),
+          ],
+          PopupMenuButton<String>(
+            initialValue: sp.newChatTextType,
+            onSelected: (type) async {
+              await sp.setNewChatTextType(type);
+              if (type == 'custom') {
+                final controller = TextEditingController(text: sp.newChatCustomText);
+                await showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    backgroundColor: cs.surface,
+                    title: const Text('自訂文字內容', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    content: TextField(
+                      controller: controller,
+                      maxLines: 3,
+                      decoration: const InputDecoration(hintText: '輸入在新對話頁面顯示的自訂文字', border: OutlineInputBorder()),
+                    ),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('取消')),
+                      FilledButton(
+                        onPressed: () async {
+                          await sp.setNewChatCustomText(controller.text.trim());
+                          if (ctx.mounted) Navigator.of(ctx).pop();
+                        },
+                        child: const Text('儲存'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'presetGreeting', child: Text('固定問候語 (依時段輪播)')),
+              const PopupMenuItem(value: 'aiGreeting', child: Text('AI 智慧動態問候語 (背景生成)')),
+              const PopupMenuItem(value: 'modelName', child: Text('目前模型名稱')),
+              const PopupMenuItem(value: 'custom', child: Text('自訂文字')),
+              const PopupMenuItem(value: 'none', child: Text('不顯示文字')),
+            ],
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: cs.outlineVariant.withOpacity(0.4)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(labelFor(sp.newChatTextType), style: const TextStyle(fontSize: 13)),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.arrow_drop_down, size: 18),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

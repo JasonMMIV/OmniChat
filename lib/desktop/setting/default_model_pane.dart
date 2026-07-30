@@ -184,6 +184,30 @@ class DesktopDefaultModelPane extends StatelessWidget {
                     },
                     configAction: () => _showOcrPromptDialog(context),
                   ),
+
+                  const SizedBox(height: 16),
+                  _ModelCard(
+                    icon: lucide.Lucide.Sparkles,
+                    title: '問候語模型',
+                    subtitle: '用於在 APP 啟動時生成動態開場問候語',
+                    modelProvider: settings.greetingModelProvider,
+                    modelId: settings.greetingModelId,
+                    fallbackProvider: settings.currentModelProvider,
+                    fallbackModelId: settings.currentModelId,
+                    onReset: () async {
+                      await context.read<SettingsProvider>().resetGreetingModel();
+                    },
+                    onPick: () async {
+                      final sel = await showModelSelector(context);
+                      if (sel != null) {
+                        await context.read<SettingsProvider>().setGreetingModel(
+                          sel.providerKey,
+                          sel.modelId,
+                        );
+                      }
+                    },
+                    configAction: () => _showGreetingPromptDialog(context),
+                  ),
                 ],
               ),
             ),
@@ -280,6 +304,89 @@ class DesktopDefaultModelPane extends StatelessWidget {
                       color: cs.onSurface.withOpacity(0.6),
                       fontSize: 12,
                     ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showGreetingPromptDialog(BuildContext context) async {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final sp = context.read<SettingsProvider>();
+    final ctrl = TextEditingController(text: sp.greetingPrompt);
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: cs.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: SizedBox(
+            width: 520,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          l10n.defaultModelPagePromptLabel,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      _SmallIconBtn(
+                        icon: lucide.Lucide.X,
+                        onTap: () => Navigator.of(ctx).maybePop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 160),
+                    child: TextField(
+                      controller: ctrl,
+                      maxLines: null,
+                      minLines: 8,
+                      style: const TextStyle(fontSize: 14),
+                      decoration: _deskInputDecoration(ctx).copyWith(
+                        hintText: '輸入用於問候語生底的提示詞範本',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _DeskIosButton(
+                        label: l10n.defaultModelPageResetDefault,
+                        filled: false,
+                        dense: true,
+                        onTap: () async {
+                          await sp.resetGreetingPrompt();
+                          ctrl.text = sp.greetingPrompt;
+                        },
+                      ),
+                      const Spacer(),
+                      _DeskIosButton(
+                        label: l10n.defaultModelPageSave,
+                        filled: true,
+                        dense: true,
+                        onTap: () async {
+                          await sp.setGreetingPrompt(ctrl.text.trim());
+                          if (ctx.mounted) Navigator.of(ctx).maybePop();
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),

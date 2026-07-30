@@ -97,6 +97,13 @@ class SettingsProvider extends ChangeNotifier {
   static const String _appLocaleKey = 'app_locale_v1';
   static const String _translateModelKey = 'translate_model_v1';
   static const String _translatePromptKey = 'translate_prompt_v1';
+  static const String _greetingModelKey = 'greeting_model_v1';
+  static const String _greetingPromptKey = 'greeting_prompt_v1';
+  static const String _newChatLogoTypeKey = 'new_chat_logo_type_v1';
+  static const String _newChatCustomLogoFileNameKey = 'new_chat_custom_logo_file_name_v1';
+  static const String _newChatTextTypeKey = 'new_chat_text_type_v1';
+  static const String _newChatCustomTextKey = 'new_chat_custom_text_v1';
+  static const String _newChatCachedAiGreetingKey = 'new_chat_cached_ai_greeting_v1';
   static const String _ocrEnabledKey = 'ocr_enabled_v1';
   static const String _learningModeEnabledKey = 'learning_mode_enabled_v1';
   static const String _learningModePromptKey = 'learning_mode_prompt_v1';
@@ -280,6 +287,24 @@ class SettingsProvider extends ChangeNotifier {
     // load translate prompt
     final transp = prefs.getString(_translatePromptKey);
     _translatePrompt = (transp == null || transp.trim().isEmpty) ? defaultTranslatePrompt : transp;
+    // load greeting model
+    final greetingSel = prefs.getString(_greetingModelKey);
+    if (greetingSel != null && greetingSel.contains('::')) {
+      final parts = greetingSel.split('::');
+      if (parts.length >= 2) {
+        _greetingModelProvider = parts[0];
+        _greetingModelId = parts.sublist(1).join('::');
+      }
+    }
+    // load greeting prompt
+    final greetingp = prefs.getString(_greetingPromptKey);
+    _greetingPrompt = (greetingp == null || greetingp.trim().isEmpty) ? defaultGreetingPrompt : greetingp;
+    // load new chat empty state settings
+    _newChatLogoType = prefs.getString(_newChatLogoTypeKey) ?? 'model';
+    _newChatCustomLogoFileName = prefs.getString(_newChatCustomLogoFileNameKey);
+    _newChatTextType = prefs.getString(_newChatTextTypeKey) ?? 'aiGreeting';
+    _newChatCustomText = prefs.getString(_newChatCustomTextKey) ?? '';
+    _newChatCachedAiGreeting = prefs.getString(_newChatCachedAiGreetingKey);
     // load OCR model
     final ocrSel = prefs.getString(_ocrModelKey);
     if (ocrSel != null && ocrSel.contains('::')) {
@@ -1470,6 +1495,104 @@ Please translate the <source_text> section:
   }
 
   Future<void> resetTranslatePrompt() async => setTranslatePrompt(defaultTranslatePrompt);
+
+  // Greeting model and prompt
+  String? _greetingModelProvider;
+  String? _greetingModelId;
+  String? get greetingModelProvider => _greetingModelProvider;
+  String? get greetingModelId => _greetingModelId;
+  String? get greetingModelKey => (_greetingModelProvider != null && _greetingModelId != null)
+      ? '${_greetingModelProvider!}::${_greetingModelId!}'
+      : null;
+
+  static const String defaultGreetingPrompt = '請用繁體中文生成一句簡短、溫馨且親切的AI助理對話開場問候語（15字以內，切勿包含任何引號、標點符號或說明文字）。';
+
+  String _greetingPrompt = defaultGreetingPrompt;
+  String get greetingPrompt => _greetingPrompt;
+
+  Future<void> setGreetingModel(String providerKey, String modelId) async {
+    _greetingModelProvider = providerKey;
+    _greetingModelId = modelId;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_greetingModelKey, '$providerKey::$modelId');
+  }
+
+  Future<void> resetGreetingModel() async {
+    _greetingModelProvider = null;
+    _greetingModelId = null;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_greetingModelKey);
+  }
+
+  Future<void> setGreetingPrompt(String prompt) async {
+    _greetingPrompt = prompt.trim().isEmpty ? defaultGreetingPrompt : prompt;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_greetingPromptKey, _greetingPrompt);
+  }
+
+  Future<void> resetGreetingPrompt() async => setGreetingPrompt(defaultGreetingPrompt);
+
+  // New Chat Page Customization Settings
+  String _newChatLogoType = 'model'; // 'omnichat' | 'model' | 'custom' | 'none'
+  String get newChatLogoType => _newChatLogoType;
+
+  String? _newChatCustomLogoFileName;
+  String? get newChatCustomLogoFileName => _newChatCustomLogoFileName;
+
+  String _newChatTextType = 'aiGreeting'; // 'presetGreeting' | 'aiGreeting' | 'modelName' | 'none' | 'custom'
+  String get newChatTextType => _newChatTextType;
+
+  String _newChatCustomText = '';
+  String get newChatCustomText => _newChatCustomText;
+
+  String? _newChatCachedAiGreeting;
+  String? get newChatCachedAiGreeting => _newChatCachedAiGreeting;
+
+  Future<void> setNewChatLogoType(String type) async {
+    _newChatLogoType = type;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_newChatLogoTypeKey, type);
+  }
+
+  Future<void> setNewChatCustomLogoFileName(String? fileName) async {
+    _newChatCustomLogoFileName = fileName;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    if (fileName == null || fileName.isEmpty) {
+      await prefs.remove(_newChatCustomLogoFileNameKey);
+    } else {
+      await prefs.setString(_newChatCustomLogoFileNameKey, fileName);
+    }
+  }
+
+  Future<void> setNewChatTextType(String type) async {
+    _newChatTextType = type;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_newChatTextTypeKey, type);
+  }
+
+  Future<void> setNewChatCustomText(String text) async {
+    _newChatCustomText = text;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_newChatCustomTextKey, text);
+  }
+
+  Future<void> setNewChatCachedAiGreeting(String? greeting) async {
+    _newChatCachedAiGreeting = greeting;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    if (greeting == null) {
+      await prefs.remove(_newChatCachedAiGreetingKey);
+    } else {
+      await prefs.setString(_newChatCachedAiGreetingKey, greeting);
+    }
+  }
 
   // OCR model, prompt and toggle
   String? _ocrModelProvider;

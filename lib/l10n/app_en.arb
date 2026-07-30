@@ -1431,6 +1431,9 @@
   "defaultModelPageCompressModelTitle": "Compress Model",
   "defaultModelPageCompressModelSubtitle": "Used for compressing conversation context; prefer fast models",
   "defaultModelPageCompressPromptHint": "Enter prompt template for context compression",
+  "defaultModelPageGreetingModelTitle": "Greeting Model",
+  "defaultModelPageGreetingModelSubtitle": "Used for generating background greeting message on App launch",
+  "defaultModelPageGreetingPromptHint": "Enter prompt template for generating greeting message",
   "defaultModelPageCompressVars": "Variables: conversation: {contentVar}, language: {localeVar}",
   "@defaultModelPageCompressVars": {
     "placeholders": {

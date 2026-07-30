@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'dart:io' show Platform;
+import 'dart:io';
+import 'package:path/path.dart' as p;
+import '../../../utils/app_directories.dart';
 import '../../../core/services/android_background.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -101,6 +103,13 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
               icon: Lucide.MessageCircleMore,
               label: l10n.displaySettingsPageChatItemDisplayTitle,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChatItemDisplaySettingsPage())),
+            ),
+            _iosDivider(context),
+            _iosNavRow(
+              context,
+              icon: Lucide.Sparkles,
+              label: '新對話頁面',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NewChatPageSettingsPage())),
             ),
             _iosDivider(context),
             _iosNavRow(
@@ -1236,6 +1245,258 @@ class HapticsSettingsPage extends StatelessWidget {
           _iosSwitchRow(context, icon: Lucide.Vibrate, label: l10n.displaySettingsPageHapticsOnGenerateTitle, value: sp.hapticsOnGenerate, onChanged: (v) => context.read<SettingsProvider>().setHapticsOnGenerate(v)),
         ]),
       ]),
+    );
+  }
+}
+
+class NewChatPageSettingsPage extends StatefulWidget {
+  const NewChatPageSettingsPage({super.key});
+
+  @override
+  State<NewChatPageSettingsPage> createState() => _NewChatPageSettingsPageState();
+}
+
+class _NewChatPageSettingsPageState extends State<NewChatPageSettingsPage> {
+  File? _customLogoFile;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomLogoFile();
+  }
+
+  Future<void> _loadCustomLogoFile() async {
+    final settings = context.read<SettingsProvider>();
+    final fileName = settings.newChatCustomLogoFileName;
+    if (fileName != null && fileName.isNotEmpty) {
+      final dir = await AppDirectories.getImagesDirectory();
+      final file = File('${dir.path}/$fileName');
+      if (await file.exists()) {
+        if (mounted) setState(() => _customLogoFile = file);
+        return;
+      }
+    }
+    if (mounted && _customLogoFile != null) {
+      setState(() => _customLogoFile = null);
+    }
+  }
+
+  Future<void> _pickCustomImage() async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.image);
+    if (result != null && result.files.single.path != null) {
+      final srcFile = File(result.files.single.path!);
+      final dir = await AppDirectories.getImagesDirectory();
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      final ext = p.extension(srcFile.path);
+      final fileName = 'custom_logo_${DateTime.now().millisecondsSinceEpoch}$ext';
+      final targetFile = File('${dir.path}/$fileName');
+      await srcFile.copy(targetFile.path);
+      if (mounted) {
+        final sp = context.read<SettingsProvider>();
+        await sp.setNewChatCustomLogoFileName(fileName);
+        await sp.setNewChatLogoType('custom');
+        setState(() => _customLogoFile = targetFile);
+      }
+    }
+  }
+
+  Future<void> _showCustomTextDialog(BuildContext context) async {
+    final cs = Theme.of(context).colorScheme;
+    final sp = context.read<SettingsProvider>();
+    final controller = TextEditingController(text: sp.newChatCustomText);
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: cs.surface,
+          title: const Text('自訂文字內容', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          content: TextField(
+            controller: controller,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              hintText: '輸入在新對話頁面顯示的自訂文字',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                await sp.setNewChatCustomText(controller.text.trim());
+                if (ctx.mounted) Navigator.of(ctx).pop();
+              },
+              child: const Text('儲存'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final sp = context.watch<SettingsProvider>();
+
+    final logoType = sp.newChatLogoType;
+    final textType = sp.newChatTextType;
+
+    Widget header(String text) => Padding(
+          padding: const EdgeInsets.fromLTRB(12, 18, 12, 6),
+          child: Text(
+            text,
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.8)),
+          ),
+        );
+
+    return Scaffold(
+      appBar: AppBar(
+        leading: Tooltip(
+          message: l10n.settingsPageBackButton,
+          child: _TactileIconButton(
+            icon: Lucide.ArrowLeft,
+            color: cs.onSurface,
+            size: 22,
+            onTap: () => Navigator.of(context).maybePop(),
+          ),
+        ),
+        title: const Text('新對話頁面設定'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        children: [
+          header('圖標 (Logo) 設定'),
+          _iosSectionCard(children: [
+            _iosSelectableRow(
+              context,
+              label: 'OmniChat 圖標',
+              selected: logoType == 'omnichat',
+              onTap: () => sp.setNewChatLogoType('omnichat'),
+            ),
+            _iosDivider(context),
+            _iosSelectableRow(
+              context,
+              label: '模型圖標 (Model Icon)',
+              selected: logoType == 'model',
+              onTap: () => sp.setNewChatLogoType('model'),
+            ),
+            _iosDivider(context),
+            _iosSelectableRow(
+              context,
+              label: '自訂圖片',
+              selected: logoType == 'custom',
+              onTap: () async {
+                await sp.setNewChatLogoType('custom');
+                if (_customLogoFile == null) {
+                  await _pickCustomImage();
+                }
+              },
+              trailingWidget: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_customLogoFile != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Image.file(_customLogoFile!, width: 24, height: 24, fit: BoxFit.cover),
+                    ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _pickCustomImage,
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(40, 24)),
+                    child: const Text('選擇圖片', style: TextStyle(fontSize: 13)),
+                  ),
+                ],
+              ),
+            ),
+            _iosDivider(context),
+            _iosSelectableRow(
+              context,
+              label: '不顯示 Logo',
+              selected: logoType == 'none',
+              onTap: () => sp.setNewChatLogoType('none'),
+            ),
+          ]),
+          header('下方文字設定'),
+          _iosSectionCard(children: [
+            _iosSelectableRow(
+              context,
+              label: '固定問候語 (依時段輪播)',
+              selected: textType == 'presetGreeting',
+              onTap: () => sp.setNewChatTextType('presetGreeting'),
+            ),
+            _iosDivider(context),
+            _iosSelectableRow(
+              context,
+              label: 'AI 智慧動態問候語 (APP 啟動時背景生成)',
+              selected: textType == 'aiGreeting',
+              onTap: () => sp.setNewChatTextType('aiGreeting'),
+            ),
+            _iosDivider(context),
+            _iosSelectableRow(
+              context,
+              label: '目前模型名稱',
+              selected: textType == 'modelName',
+              onTap: () => sp.setNewChatTextType('modelName'),
+            ),
+            _iosDivider(context),
+            _iosSelectableRow(
+              context,
+              label: '自訂文字',
+              selected: textType == 'custom',
+              onTap: () async {
+                await sp.setNewChatTextType('custom');
+                if (context.mounted) await _showCustomTextDialog(context);
+              },
+              detailText: sp.newChatCustomText.isNotEmpty ? sp.newChatCustomText : '點擊設定',
+            ),
+            _iosDivider(context),
+            _iosSelectableRow(
+              context,
+              label: '不顯示文字',
+              selected: textType == 'none',
+              onTap: () => sp.setNewChatTextType('none'),
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  Widget _iosSelectableRow(
+    BuildContext context, {
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+    String? detailText,
+    Widget? trailingWidget,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400)),
+            ),
+            if (detailText != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Text(detailText, style: TextStyle(color: cs.onSurface.withOpacity(0.5), fontSize: 13)),
+              ),
+            if (trailingWidget != null) trailingWidget,
+            if (selected && trailingWidget == null)
+              Icon(Lucide.Check, size: 18, color: cs.primary),
+          ],
+        ),
+      ),
     );
   }
 }

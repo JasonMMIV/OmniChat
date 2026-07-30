@@ -13,6 +13,7 @@ import '../controllers/stream_controller.dart' as stream_ctrl;
 import '../controllers/streaming_content_notifier.dart';
 import '../utils/chat_layout_constants.dart';
 import 'model_icon.dart';
+import 'new_chat_empty_state.dart';
 
 /// Callback types for message list view actions
 typedef OnVersionChange = Future<void> Function(String groupId, int version);
@@ -208,6 +209,16 @@ class MessageListView extends StatelessWidget {
         final horizontalPad =
             ((constraints.maxWidth - ChatLayoutConstants.maxContentWidth) / 2)
                 .clamp(0.0, double.infinity);
+
+        if (collapsedMessages.isEmpty) {
+          return Stack(
+            children: [
+              NewChatEmptyState(currentConversation: currentConversation),
+              if (isPinnedIndicatorActive && buildPinnedStreamingIndicator != null)
+                buildPinnedStreamingIndicator!(),
+            ],
+          );
+        }
 
         final list = ListView.builder(
           controller: scrollController,

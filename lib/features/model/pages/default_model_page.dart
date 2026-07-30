@@ -173,6 +173,26 @@ class DefaultModelPage extends StatelessWidget {
             },
             configAction: () => showOcrPromptSheet(context),
           ),
+          const SizedBox(height: 16),
+          _ModelCard(
+            icon: Lucide.Sparkles,
+            title: '問候語模型',
+            subtitle: '用於在 APP 啟動時生成動態開場問候語',
+            modelProvider: settings.greetingModelProvider,
+            modelId: settings.greetingModelId,
+            fallbackProvider: settings.currentModelProvider,
+            fallbackModelId: settings.currentModelId,
+            onReset: () async {
+              await context.read<SettingsProvider>().resetGreetingModel();
+            },
+            onPick: () async {
+              final sel = await showModelSelector(context);
+              if (sel != null) {
+                await context.read<SettingsProvider>().setGreetingModel(sel.providerKey, sel.modelId);
+              }
+            },
+            configAction: () => _showGreetingPromptSheet(context),
+          ),
         ],
       ),
     );
@@ -246,6 +266,80 @@ class DefaultModelPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(l10n.defaultModelPageTitleVars('{content}', '{locale}'), style: TextStyle(color: cs.onSurface.withOpacity(0.6), fontSize: 12)),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showGreetingPromptSheet(BuildContext context) async {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final settings = context.read<SettingsProvider>();
+    final controller = TextEditingController(text: settings.greetingPrompt);
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 12,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: cs.onSurface.withOpacity(0.2), borderRadius: BorderRadius.circular(999)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(l10n.defaultModelPagePromptLabel, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller,
+                  maxLines: 8,
+                  decoration: InputDecoration(
+                    hintText: '輸入用於問候語生底的提示詞範本',
+                    filled: true,
+                    fillColor: Theme.of(ctx).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF2F3F5),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4))),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4))),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: cs.primary.withOpacity(0.5))),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: () async {
+                        await settings.resetGreetingPrompt();
+                        controller.text = settings.greetingPrompt;
+                      },
+                      child: Text(l10n.defaultModelPageResetDefault),
+                    ),
+                    const Spacer(),
+                    FilledButton(
+                      onPressed: () async {
+                        await settings.setGreetingPrompt(controller.text.trim());
+                        if (ctx.mounted) Navigator.of(ctx).pop();
+                      },
+                      child: Text(l10n.defaultModelPageSave),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),

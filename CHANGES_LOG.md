@@ -1,5 +1,28 @@
 # OmniChat Developer Changes Log
 
+## [v1.6.1] - 2026-07-30: Customizable New Chat Empty State & Dynamic AI Greetings
+
+### 137. Customizable New Chat Empty State & Dynamic AI Greetings
+- **Purpose**: Allow users to customize the empty state of new chat pages with custom logos (OmniChat icon, current model icon, custom uploaded image, or hidden) and greeting texts (preset time-based greeting, dynamic AI background-cached greeting, current model name, custom text, or hidden), plus dedicated Greeting Model & Prompt configuration.
+- **Files Modified**:
+  - `pubspec.yaml` (bumped version to `1.6.1+58`)
+  - `installers/omnichat_setup.iss` (updated `MyAppVersion` to `1.6.1` and `OutputBaseFilename` to `omnichat_setup_1.6.1`)
+  - `lib/features/home/services/greeting_service.dart` (created: non-blocking background AI greeting fetching with 12s timeout & local fallback pool)
+  - `lib/features/home/widgets/new_chat_empty_state.dart` (created: UI widget for rendering custom logo and text on empty chat pages)
+  - `lib/features/home/widgets/message_list_view.dart` (integrated `NewChatEmptyState` when message list is empty)
+  - `lib/core/providers/settings_provider.dart` (added state management & persistence for logo/text choices, custom image filenames, custom text, and greeting model/prompt configuration)
+  - `lib/features/settings/pages/display_settings_page.dart` (added Mobile New Chat Page customization settings subpage)
+  - `lib/desktop/desktop_settings_page.dart` (added Desktop New Chat Page logo/text configuration rows)
+  - `lib/features/model/pages/default_model_page.dart` (added Mobile Greeting Model selector and prompt editor)
+  - `lib/desktop/setting/default_model_pane.dart` (added Desktop Greeting Model selector and prompt editor)
+  - `lib/l10n/app_en.arb`, `lib/l10n/app_zh.arb`, `lib/l10n/app_zh_Hant.arb` (added localization keys for New Chat Page & Greeting Model settings)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Dynamic Logo & Text Options**: Users can choose logo display (`omnichat`, `model`, `custom`, `none`) and text display (`preset`, `ai_greeting`, `model_name`, `custom`, `none`).
+  - **Zero-Latency AI Greetings**: `GreetingService` fetches AI greetings in the background during app startup or settings updates, caching the result in `SettingsProvider` to ensure instant loading on new chat creation.
+  - **Greeting Model Configuration**: Dedicated Greeting Model card added to Default Model settings on both Mobile and Desktop, allowing custom model provider/ID selection and prompt customization.
+  - **Cross-Platform Adaptability**: Desktop and Mobile settings UI tailored to respective design guidelines.
+
 ## [v1.6.0] - 2026-07-30: Flutter 3.38 → 3.44 Upgrade & Bug Fixes
 
 ### 135. Flutter SDK Upgrade (3.38.6 → 3.44.8) & Full Cleanup
