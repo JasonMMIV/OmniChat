@@ -76,6 +76,16 @@
   - **RikkaHub Header Styling**: Replaced Kelivo's top floating "V 僅儲存" bar with an in-box header banner matching RikkaHub UI (pencil icon + title + close `X` button).
   - **Full Localization (l10n)**: Dynamically binds title to `AppLocalizations.of(context)!.messageEditPageTitle`, adapting automatically to system language settings (English, Simplified Chinese, Traditional Chinese, etc.).
 
+### 146. Update Voice Call Icon to Cupertino Waveform Circle
+- **Purpose**: Replace the phone icon (`Lucide.Phone`) on the voice call button with an outline waveform circle (`CupertinoIcons.waveform_circle`) to align with voice chat functionality while maintaining OmniChat's stroke line-art design language.
+- **Files Modified**:
+  - `lib/features/home/pages/home_desktop_layout.dart` (imported `cupertino.dart` and replaced `Lucide.Phone` with `CupertinoIcons.waveform_circle`)
+  - `lib/features/home/pages/home_mobile_layout.dart` (imported `cupertino.dart` and replaced `Lucide.Phone` with `CupertinoIcons.waveform_circle`)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Visual Alignment**: The outline waveform circle (`CupertinoIcons.waveform_circle`) provides a clear voice waveform representation matching OmniChat's transparent stroke line-art UI style.
+  - **Dynamic Theme Adaptation**: Automatically renders dark lines in light mode and white lines in dark mode.
+
 ## [v1.6.3] - 2026-07-31: Token Stats Fix & Deep Research Refactoring
 
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:provider/provider.dart';
@@ -168,7 +169,7 @@ class HomeMobileScaffold extends StatelessWidget {
             minSize: 44,
             onTap: onVoiceChat,
             semanticLabel: AppLocalizations.of(context)!.voiceChatButtonTooltip,
-            icon: Lucide.Phone,
+            icon: CupertinoIcons.waveform_circle,
           ),
         IosIconButton(
           key: miniMapKey,

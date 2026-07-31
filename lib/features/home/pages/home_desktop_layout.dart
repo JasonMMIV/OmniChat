@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:provider/provider.dart';
@@ -307,7 +308,7 @@ class HomeDesktopScaffold extends StatelessWidget {
           size: 28,
           padding: const EdgeInsets.all(8),
           minSize: 48,
-          icon: Lucide.Phone,
+          icon: CupertinoIcons.waveform_circle,
           onTap: onVoiceChat,
           semanticLabel: AppLocalizations.of(context)!.voiceChatButtonTooltip,
         ),
