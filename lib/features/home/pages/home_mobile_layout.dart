@@ -165,7 +165,7 @@ class HomeMobileScaffold extends StatelessWidget {
       actions: [
         if (onVoiceChat != null)
           IosIconButton(
-            size: 24,
+            size: 27,
             minSize: 44,
             onTap: onVoiceChat,
             semanticLabel: AppLocalizations.of(context)!.voiceChatButtonTooltip,

@@ -519,7 +519,6 @@ class HomePageController extends ChangeNotifier {
       final targetMsg = _editingMessage!;
       _editingMessage = null;
 
-      final content = input.text.trim();
       final imageMarkers = input.imagePaths.map((p) => '\n[image:$p]').join();
       final docMarkers = input.documents.map((d) => '\n[file:${d.path}|${d.fileName}|${d.mime}]').join();
       final nextContent = content + imageMarkers + docMarkers;

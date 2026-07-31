@@ -305,7 +305,7 @@ class HomeDesktopScaffold extends StatelessWidget {
     return [
       if (onVoiceChat != null)
         IosIconButton(
-          size: 28,
+          size: 32,
           padding: const EdgeInsets.all(8),
           minSize: 48,
           icon: CupertinoIcons.waveform_circle,
