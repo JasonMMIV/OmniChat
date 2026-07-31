@@ -50,6 +50,7 @@ import 'setting/backup_pane.dart';
 import 'setting/hotkeys_pane.dart';
 import 'setting/network_proxy_pane.dart';
 import 'setting/about_pane.dart';
+import 'setting/stats_pane.dart';
 import 'package:system_fonts/system_fonts.dart';
 import 'package:flutter/gestures.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -86,6 +87,7 @@ enum _SettingsMenuItem {
   networkProxy,
   backup,
   hotkeys,
+  stats,
   about,
 }
 
@@ -135,6 +137,8 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
           return l10n.settingsPageBackup;
         case _SettingsMenuItem.hotkeys:
           return l10n.settingsPageHotkeys;
+        case _SettingsMenuItem.stats:
+          return l10n.settingsPageStatistics;
         case _SettingsMenuItem.about:
           return l10n.settingsPageAbout;
       }
@@ -229,6 +233,8 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
                           return const DesktopAiTeamPane(key: ValueKey('aiTeam'));
                         case _SettingsMenuItem.tts:
                           return const DesktopTtsServicesPane(key: ValueKey('tts'));
+                        case _SettingsMenuItem.stats:
+                          return const DesktopStatsPane(key: ValueKey('stats'));
                         case _SettingsMenuItem.about:
                           return const DesktopAboutPane(key: ValueKey('about'));
                         default:
@@ -273,6 +279,7 @@ class _SettingsMenu extends StatelessWidget {
       (_SettingsMenuItem.networkProxy, lucide.Lucide.EthernetPort, l10n.settingsPageNetworkProxy),
       (_SettingsMenuItem.backup, lucide.Lucide.Database, l10n.settingsPageBackup),
       (_SettingsMenuItem.hotkeys, lucide.Lucide.Keyboard, l10n.settingsPageHotkeys),
+      (_SettingsMenuItem.stats, lucide.Lucide.Activity, l10n.settingsPageStatistics),
       (_SettingsMenuItem.about, lucide.Lucide.BadgeInfo, l10n.settingsPageAbout),
     ];
     final cs = Theme.of(context).colorScheme;

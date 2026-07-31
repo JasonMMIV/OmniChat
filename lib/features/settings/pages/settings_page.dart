@@ -10,6 +10,7 @@ import 'display_settings_page.dart';
 import '../../mcp/pages/mcp_page.dart';
 import '../../assistant/pages/assistant_settings_page.dart';
 import 'about_page.dart';
+import '../../stats/pages/stats_page.dart';
 import 'tts_services_page.dart';
 import '../../search/pages/search_services_page.dart';
 import '../../backup/pages/backup_page.dart';
@@ -304,6 +305,15 @@ class SettingsPage extends StatelessWidget {
               label: l10n.settingsPageAbout,
               onTap: () {
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutPage()));
+              },
+            ),
+            _iosDivider(context),
+            _iosNavRow(
+              context,
+              icon: Lucide.Activity,
+              label: l10n.settingsPageStatistics,
+              onTap: () {
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const StatsPage()));
               },
             ),
           ]),

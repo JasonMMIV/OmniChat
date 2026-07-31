@@ -1293,6 +1293,9 @@ class ChatActions {
       messageId,
       content: streamingProcessed,
       totalTokens: state.totalTokens,
+      promptTokens: state.usage?.promptTokens,
+      completionTokens: state.usage?.completionTokens,
+      cachedTokens: state.usage?.cachedTokens,
     );
 
     if (state.ctx.streamOutput &&
@@ -1302,6 +1305,9 @@ class ChatActions {
         _messages[index] = _messages[index].copyWith(
           content: streamingProcessed,
           totalTokens: state.totalTokens,
+          promptTokens: state.usage?.promptTokens,
+          completionTokens: state.usage?.completionTokens,
+          cachedTokens: state.usage?.cachedTokens,
         );
         // NOTE: Do NOT call onMessagesChanged here!
         // Streaming content updates are handled by StreamingContentNotifier
@@ -1450,6 +1456,9 @@ class ChatActions {
       messageId,
       content: sanitizedContent,
       totalTokens: state.totalTokens,
+      promptTokens: state.usage?.promptTokens,
+      completionTokens: state.usage?.completionTokens,
+      cachedTokens: state.usage?.cachedTokens,
       isStreaming: false,
       aiTeamProposalsJson: pendingProposals,
     );
@@ -1459,6 +1468,9 @@ class ChatActions {
       _messages[index] = _messages[index].copyWith(
         content: sanitizedContent,
         totalTokens: state.totalTokens,
+        promptTokens: state.usage?.promptTokens,
+        completionTokens: state.usage?.completionTokens,
+        cachedTokens: state.usage?.cachedTokens,
         isStreaming: false,
         aiTeamProposalsJson: pendingProposals,
       );

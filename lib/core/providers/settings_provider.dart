@@ -227,12 +227,19 @@ class SettingsProvider extends ChangeNotifier {
   String get globalProxyUsername => _globalProxyUsername;
   String get globalProxyPassword => _globalProxyPassword;
 
+  static const String _appLaunchCountKey = 'app_launch_count_v1';
+
+  int _appLaunchCount = 0;
+  int get appLaunchCount => _appLaunchCount;
+
   SettingsProvider() {
     _load();
   }
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
+    _appLaunchCount = (prefs.getInt(_appLaunchCountKey) ?? 0) + 1;
+    await prefs.setInt(_appLaunchCountKey, _appLaunchCount);
     _providersOrder = prefs.getStringList(_providersOrderKey) ?? [];
     final m = prefs.getString(_themeModeKey);
     switch (m) {

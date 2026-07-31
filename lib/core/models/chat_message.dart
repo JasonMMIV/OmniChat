@@ -61,6 +61,15 @@ class ChatMessage extends HiveObject {
   @HiveField(16)
   final String? aiTeamProposalsJson;
 
+  @HiveField(17)
+  final int? promptTokens;
+
+  @HiveField(18)
+  final int? completionTokens;
+
+  @HiveField(19)
+  final int? cachedTokens;
+
   ChatMessage({
     String? id,
     required this.role,
@@ -79,6 +88,9 @@ class ChatMessage extends HiveObject {
     String? groupId,
     int? version,
     this.aiTeamProposalsJson,
+    this.promptTokens,
+    this.completionTokens,
+    this.cachedTokens,
   })  : id = id ?? const Uuid().v4(),
         timestamp = timestamp ?? DateTime.now(),
         groupId = groupId ?? id,
@@ -102,6 +114,9 @@ class ChatMessage extends HiveObject {
     String? groupId,
     int? version,
     String? aiTeamProposalsJson,
+    int? promptTokens,
+    int? completionTokens,
+    int? cachedTokens,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -121,6 +136,9 @@ class ChatMessage extends HiveObject {
       groupId: groupId ?? this.groupId,
       version: version ?? this.version,
       aiTeamProposalsJson: aiTeamProposalsJson ?? this.aiTeamProposalsJson,
+      promptTokens: promptTokens ?? this.promptTokens,
+      completionTokens: completionTokens ?? this.completionTokens,
+      cachedTokens: cachedTokens ?? this.cachedTokens,
     );
   }
 
@@ -143,6 +161,9 @@ class ChatMessage extends HiveObject {
       'groupId': groupId,
       'version': version,
       'aiTeamProposalsJson': aiTeamProposalsJson,
+      'promptTokens': promptTokens,
+      'completionTokens': completionTokens,
+      'cachedTokens': cachedTokens,
     };
   }
 
@@ -169,6 +190,9 @@ class ChatMessage extends HiveObject {
       groupId: json['groupId'] as String?,
       version: (json['version'] as int?) ?? 0,
       aiTeamProposalsJson: json['aiTeamProposalsJson'] as String?,
+      promptTokens: json['promptTokens'] as int?,
+      completionTokens: json['completionTokens'] as int?,
+      cachedTokens: json['cachedTokens'] as int?,
     );
   }
 }

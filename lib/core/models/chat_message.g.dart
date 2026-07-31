@@ -34,13 +34,16 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       groupId: fields[14] as String?,
       version: fields[15] as int?,
       aiTeamProposalsJson: fields[16] as String?,
+      promptTokens: fields[17] as int?,
+      completionTokens: fields[18] as int?,
+      cachedTokens: fields[19] as int?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ChatMessage obj) {
     writer
-      ..writeByte(17)
+      ..writeByte(20)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -74,7 +77,13 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       ..writeByte(15)
       ..write(obj.version)
       ..writeByte(16)
-      ..write(obj.aiTeamProposalsJson);
+      ..write(obj.aiTeamProposalsJson)
+      ..writeByte(17)
+      ..write(obj.promptTokens)
+      ..writeByte(18)
+      ..write(obj.completionTokens)
+      ..writeByte(19)
+      ..write(obj.cachedTokens);
   }
 
   @override

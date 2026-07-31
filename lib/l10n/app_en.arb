@@ -1718,5 +1718,48 @@
   "mcpTransportTagStdio": "STDIO",
   "networkProxySettingsHeader": "代理设置",
   "desktopShowProviderInModelCapsule": "模型胶囊显示供应商",
-  "logViewerOpenFolder": "打开日志目录"
+  "logViewerOpenFolder": "打开日志目录",
+  "settingsPageStatistics": "Statistics",
+  "statsPageTitle": "Statistics",
+  "statsPageRangeAllTime": "All Time",
+  "statsPageRangeLast30Days": "Last 30 Days",
+  "statsPageRangePreviousMonth": "Last Month",
+  "statsPageRangePreviousQuarter": "Last Quarter",
+  "statsPageRangeCustom": "Custom",
+  "statsPageHeatmapTitle": "Chat Heatmap",
+  "statsPageHeatmapLess": "Less",
+  "statsPageHeatmapMore": "More",
+  "statsPageSummaryTitle": "Overview",
+  "statsPageTotalConversations": "Total Conversations",
+  "statsPageTotalMessages": "Total Messages",
+  "statsPageInputTokens": "Input Tokens",
+  "statsPageOutputTokens": "Output Tokens",
+  "statsPageCachedTokens": "Cached Tokens",
+  "statsPageLaunchCount": "App Launches",
+  "statsPageUsageTrendTitle": "Usage Trend",
+  "statsPageModelUsageTitle": "Model Usage",
+  "statsPageAssistantUsageTitle": "Project Usage",
+  "statsPageModelColumn": "Model",
+  "statsPageAssistantColumn": "Project",
+  "statsPageMessagesColumn": "Messages",
+  "statsPageTopicsColumn": "Conversations",
+  "statsPageEmptyTitle": "No statistics yet",
+  "statsPageShowAllTooltip": "Show all",
+  "statsPageClose": "Close",
+  "statsPageUnknownProvider": "Unknown Provider",
+  "statsPageUnknownAssistant": "Default Project",
+  "statsPageUnknownModel": "Unknown Model",
+  "statsPageCustomRangeTitle": "Custom Range",
+  "statsPageCustomRangeStart": "Start",
+  "statsPageCustomRangeEnd": "End",
+  "statsPageCustomRangeCancel": "Cancel",
+  "statsPageCustomRangeApply": "Apply",
+  "tokenDetailTotalTokens": "{count} tokens",
+  "@tokenDetailTotalTokens": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

@@ -179,6 +179,25 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 
 ## 📜 Version Changes Log
 
+## [v1.6.5] - 2026-08-01: Kelivo Statistics Integration & Token Tracking
+
+### 142. Project Usage Statistics & Token Metrics
+
+- **Purpose**: Port statistical data visualization features from upstream kelivo while refining the accuracy of granular token counting.
+- **Files Modified**:
+  - lib/core/models/chat_message.dart & chat_message.g.dart (Hive Type 0 extended)
+  - lib/core/services/chat/chat_service.dart
+  - lib/features/home/controllers/chat_actions.dart
+  - lib/features/stats/services/stats_aggregation_service.dart
+  - lib/features/settings/pages/settings_page.dart & lib/desktop/desktop_settings_page.dart
+  - pubspec.yaml (bumped version to 1.6.5+60)
+  - CHANGES_LOG.md (this entry)
+- **Details**:
+  - **Granular Token Metrics**: Added promptTokens, completionTokens, and cachedTokens to ChatMessage while maintaining compatibility with historical 	otalTokens.
+  - **Upstream Kelivo Statistics UI**: Integrated upstream "Statistics" page (via Settings -> Statistics), renaming "Assistant Usage" to "Project Usage" and dropping the "Topic Size" metric to align with user constraints.
+  - **Improved Stream Merging**: Updated chat_actions.dart to faithfully propagate usage metrics dynamicly across completion chunks.
+
+
 ## [v1.6.4] - 2026-07-31: Port Upstream Kelivo Features (v1.1.9, v1.1.11, v1.1.16, v1.1.17)
 
 ### 141. Upstream Kelivo Features Integration
