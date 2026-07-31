@@ -163,7 +163,7 @@ class _NewChatEmptyStateState extends State<NewChatEmptyState> {
                 textContent,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 19,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: cs.onSurface.withOpacity(0.9),
                   height: 1.4,

@@ -275,13 +275,13 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 
 - **Purpose**: Enlarge custom/model/app logo, refine typography and spacing on the New Chat Empty State page, and adjust default greeting prompt length constraint to 10 characters/words.
 - **Files Modified**:
-  - `lib/features/home/widgets/new_chat_empty_state.dart` (enlarged logo size from 72px to 100px (+40%), updated custom logo border radius from 16px to 22px, updated greeting text to `FontWeight.bold` and 19px font size, increased vertical spacing to 22px)
+  - `lib/features/home/widgets/new_chat_empty_state.dart` (enlarged logo size from 72px to 100px (+40%), updated custom logo border radius from 16px to 22px, updated greeting text to `FontWeight.bold` and 18px font size, increased vertical spacing to 22px)
   - `lib/core/providers/settings_provider.dart` (updated default AI greeting prompts `defaultGreetingPromptZhHant`, `defaultGreetingPromptZhHans`, `defaultGreetingPromptEn` length constraint from 15 to 10 characters/words)
   - `installers/omnichat_setup.iss` (updated installer script version to 1.6.4 and output binary name to `omnichat_setup_1.6.4`)
   - `lib/core/providers/update_provider.dart` (updated default update checking endpoint constant `kUpdateCheckUrl`)
   - `CHANGES_LOG.md` (this entry)
 - **Details**:
-  - **Logo Sizing & Aesthetics**: Enlarged logo to 100px and set text font weight to bold with 19px size to create a stronger visual anchor on new chat empty screens.
+  - **Logo Sizing & Aesthetics**: Enlarged logo to 100px and set text font weight to bold with 18px size to create a stronger visual anchor on new chat empty screens.
   - **Proportional Spacing**: Increased logo-to-text spacing to 22px and custom logo border radius to 22px for better visual proportion.
   - **Greeting Prompt Length**: Adjusted the default AI greeting prompt limit from 15 to 10 characters/words across Traditional Chinese, Simplified Chinese, and English defaults for more concise greetings.
 
