@@ -1,6 +1,29 @@
 # OmniChat Developer Changes Log
 
+## [v1.6.4] - 2026-07-31: Port Upstream Kelivo Features (v1.1.9, v1.1.11, v1.1.16, v1.1.17)
+
+### 141. Upstream Kelivo Features Integration
+- **Purpose**: Port features and optimizations from upstream project `kelivo` (v1.1.9, v1.1.11, v1.1.16, v1.1.17) into OmniChat.
+- **Files Modified**:
+  - `lib/features/home/widgets/side_drawer.dart` (added topic deletion confirmation dialog)
+  - `lib/features/home/controllers/chat_actions.dart` (preserved trailing messages when regenerating from earlier messages)
+  - `lib/features/home/services/message_builder_service.dart` (supported media attachments when editing user messages)
+  - `lib/features/home/widgets/chat_selection_delete_bar.dart` (added multi-selection batch deletion toolbar)
+  - `lib/features/home/controllers/home_view_model.dart` & `lib/features/home/controllers/home_page_controller.dart` (implemented batch delete logic and selection state)
+  - `lib/features/chat/widgets/message_more_sheet.dart` & `lib/features/home/widgets/message_list_view.dart` (added multi-select entry in message menu)
+  - `lib/core/providers/settings_provider.dart`, `lib/features/model/pages/default_model_page.dart`, `lib/desktop/setting/default_model_pane.dart` (added "Enable Thinking" toggle for chat title generation)
+  - `lib/l10n/app_en.arb`, `lib/l10n/app_zh.arb`, `lib/l10n/app_zh_Hans.arb`, `lib/l10n/app_zh_Hant.arb` (added localization keys)
+  - `pubspec.yaml` (bumped version to 1.6.4+59)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Topic Deletion Confirmation**: Added confirmation modal before deleting conversations in the side drawer.
+  - **Message Regeneration Trailing Preservation**: Retained subsequent messages and version branch structure when regenerating from earlier messages in a conversation.
+  - **Edit Message Attachments**: Extended message parsing to preserve and allow editing/uploading attachments when editing user messages.
+  - **Message Multi-Select & Batch Delete**: Added message multi-selection mode with custom selection toolbar allowing deletion of selected message versions or all history versions of selected messages.
+  - **Title Generation Thinking Control**: Added "Enable Thinking" toggle in default model settings to control thinking budget during title generation API requests.
+
 ## [v1.6.3] - 2026-07-31: Token Stats Fix & Deep Research Refactoring
+
 
 ### 140. Deep Research Prompt Migration & System-Wide Code Refactoring
 - **Purpose**: Consolidate "Deep Research" prompt injection into `InstructionInjectionStore` / `DeepResearchStore`, replace default prompt with deep reasoning prompt, remove redundant auto-created assistant from `AssistantProvider`, and refactor all `learningMode` legacy symbols to `deepResearch` and `instructionInjection`.

@@ -92,7 +92,9 @@ class DefaultModelPage extends StatelessWidget {
               }
             },
             configAction: () => _showTitlePromptSheet(context),
+            extra: _TitleThinkingSwitchRow(settings: settings, l10n: l10n, cs: cs),
           ),
+
           const SizedBox(height: 16),
           _ModelCard(
             icon: Lucide.FileText,
@@ -589,6 +591,7 @@ class _ModelCard extends StatelessWidget {
     this.fallbackProvider,
     this.fallbackModelId,
     this.configAction,
+    this.extra,
   });
 
   final IconData icon;
@@ -601,6 +604,8 @@ class _ModelCard extends StatelessWidget {
   final VoidCallback onPick;
   final VoidCallback? onReset;
   final VoidCallback? configAction;
+  final Widget? extra;
+
 
   @override
   Widget build(BuildContext context) {
@@ -723,12 +728,56 @@ class _ModelCard extends StatelessWidget {
                 );
               },
             ),
+            if (extra != null) extra!,
           ],
         ),
       ),
     );
   }
 }
+
+class _TitleThinkingSwitchRow extends StatelessWidget {
+  const _TitleThinkingSwitchRow({
+    required this.settings,
+    required this.l10n,
+    required this.cs,
+  });
+
+  final SettingsProvider settings;
+  final AppLocalizations l10n;
+  final ColorScheme cs;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = settings.titleGenerationThinkingEnabled;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Text(
+              l10n.titleModelThinkingTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: cs.onSurface.withOpacity(0.92),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Switch(
+            value: value,
+            onChanged: settings.setTitleGenerationThinkingEnabled,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 
 class _BrandAvatar extends StatelessWidget {
   const _BrandAvatar({required this.name, this.size = 20});

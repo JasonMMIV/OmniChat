@@ -1514,7 +1514,7 @@ abstract class AppLocalizations {
   /// No description provided for @instructionInjectionDefaultTitle.
   ///
   /// In en, this message translates to:
-  /// **'Default'**
+  /// **'Deep Research'**
   String get instructionInjectionDefaultTitle;
 
   /// No description provided for @bottomToolsSheetCamera.
@@ -6649,6 +6649,1122 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Tap to set'**
   String get newChatClickToSet;
+
+  /// No description provided for @chatMessageWidgetRegenerateConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm Regenerate'**
+  String get chatMessageWidgetRegenerateConfirmTitle;
+
+  /// No description provided for @chatMessageWidgetRegenerateConfirmContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Regenerating only updates this message and keeps the messages below it. Continue?'**
+  String get chatMessageWidgetRegenerateConfirmContent;
+
+  /// No description provided for @chatMessageWidgetRegenerateConfirmCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get chatMessageWidgetRegenerateConfirmCancel;
+
+  /// No description provided for @chatMessageWidgetRegenerateConfirmOk.
+  ///
+  /// In en, this message translates to:
+  /// **'Regenerate'**
+  String get chatMessageWidgetRegenerateConfirmOk;
+
+  /// No description provided for @messageMoreSheetSelectMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Messages'**
+  String get messageMoreSheetSelectMessages;
+
+  /// No description provided for @chatSelectionDeleteSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Selected'**
+  String get chatSelectionDeleteSelected;
+
+  /// No description provided for @chatSelectionSelectMessagesToDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Please select messages to delete'**
+  String get chatSelectionSelectMessagesToDelete;
+
+  /// No description provided for @chatSelectionDeleteSelectedConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {count} selected version(s)? This cannot be undone.'**
+  String chatSelectionDeleteSelectedConfirm(int count);
+
+  /// No description provided for @chatSelectionDeleteSelectedAllVersionsConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete all versions of {count} selected message(s)? This cannot be undone.'**
+  String chatSelectionDeleteSelectedAllVersionsConfirm(int count);
+
+  /// No description provided for @titleModelThinkingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable Thinking'**
+  String get titleModelThinkingTitle;
+
+  /// No description provided for @mcpServerEditSheetStdioOnlyDesktop.
+  ///
+  /// In en, this message translates to:
+  /// **'STDIO is only available on desktop'**
+  String get mcpServerEditSheetStdioOnlyDesktop;
+
+  /// No description provided for @mcpServerEditSheetStdioCommandRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Command is required for STDIO transport'**
+  String get mcpServerEditSheetStdioCommandRequired;
+
+  /// No description provided for @mcpTransportOptionStdio.
+  ///
+  /// In en, this message translates to:
+  /// **'STDIO'**
+  String get mcpTransportOptionStdio;
+
+  /// No description provided for @mcpServerEditSheetStdioCommandLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Command'**
+  String get mcpServerEditSheetStdioCommandLabel;
+
+  /// No description provided for @mcpServerEditSheetStdioArgumentsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Arguments'**
+  String get mcpServerEditSheetStdioArgumentsLabel;
+
+  /// No description provided for @mcpServerEditSheetStdioWorkingDirectoryLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Working Directory'**
+  String get mcpServerEditSheetStdioWorkingDirectoryLabel;
+
+  /// No description provided for @mcpServerEditSheetStdioEnvironmentTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Environment Variables'**
+  String get mcpServerEditSheetStdioEnvironmentTitle;
+
+  /// No description provided for @mcpServerEditSheetStdioEnvNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get mcpServerEditSheetStdioEnvNameLabel;
+
+  /// No description provided for @mcpServerEditSheetStdioEnvValueLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Value'**
+  String get mcpServerEditSheetStdioEnvValueLabel;
+
+  /// No description provided for @mcpServerEditSheetStdioAddEnv.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Environment Variable'**
+  String get mcpServerEditSheetStdioAddEnv;
+
+  /// No description provided for @mcpServerEditSheetCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get mcpServerEditSheetCancel;
+
+  /// No description provided for @sideDrawerDeleteConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Topic'**
+  String get sideDrawerDeleteConfirmTitle;
+
+  /// No description provided for @sideDrawerDeleteConfirmContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to delete \"{title}\"? This cannot be undone.'**
+  String sideDrawerDeleteConfirmContent(String title);
+
+  /// No description provided for @messageMoreSheetDeleteAllVersions.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete All Versions'**
+  String get messageMoreSheetDeleteAllVersions;
+
+  /// No description provided for @chatMessageWidgetDeleteConfirmDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get chatMessageWidgetDeleteConfirmDelete;
+
+  /// No description provided for @helloWorld.
+  ///
+  /// In en, this message translates to:
+  /// **'你好，世界！'**
+  String get helloWorld;
+
+  /// No description provided for @settingsPageDisplaySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'界面主题与字号等外观设置'**
+  String get settingsPageDisplaySubtitle;
+
+  /// No description provided for @settingsPageAssistantSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'默认项目与对话风格'**
+  String get settingsPageAssistantSubtitle;
+
+  /// No description provided for @settingsPageHotkeys.
+  ///
+  /// In en, this message translates to:
+  /// **'快捷键'**
+  String get settingsPageHotkeys;
+
+  /// No description provided for @languageSelectSheetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'选择翻译语言'**
+  String get languageSelectSheetTitle;
+
+  /// No description provided for @assistantEditDeleteTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'删除'**
+  String get assistantEditDeleteTooltip;
+
+  /// No description provided for @assistantEditUseAssistantAvatarSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'在聊天中使用项目头像和名字而不是模型头像和名字'**
+  String get assistantEditUseAssistantAvatarSubtitle;
+
+  /// No description provided for @assistantEditStreamOutputDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'是否启用消息的流式输出'**
+  String get assistantEditStreamOutputDescription;
+
+  /// No description provided for @assistantEditConfigureButton.
+  ///
+  /// In en, this message translates to:
+  /// **'配置'**
+  String get assistantEditConfigureButton;
+
+  /// No description provided for @desktopNavChatTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'聊天'**
+  String get desktopNavChatTooltip;
+
+  /// No description provided for @desktopNavStorageTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'存储'**
+  String get desktopNavStorageTooltip;
+
+  /// No description provided for @desktopNavThemeToggleTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'主题切换'**
+  String get desktopNavThemeToggleTooltip;
+
+  /// No description provided for @desktopNavSettingsTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'设置'**
+  String get desktopNavSettingsTooltip;
+
+  /// No description provided for @assistantEditAvatarImportQQ.
+  ///
+  /// In en, this message translates to:
+  /// **'QQ头像'**
+  String get assistantEditAvatarImportQQ;
+
+  /// No description provided for @notificationChatCompletedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'生成完成'**
+  String get notificationChatCompletedTitle;
+
+  /// No description provided for @notificationChatCompletedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'项目回复已生成'**
+  String get notificationChatCompletedBody;
+
+  /// No description provided for @multiKeyPageAccuracy.
+  ///
+  /// In en, this message translates to:
+  /// **'正确率'**
+  String get multiKeyPageAccuracy;
+
+  /// No description provided for @multiKeyPageEditAlias.
+  ///
+  /// In en, this message translates to:
+  /// **'编辑别名'**
+  String get multiKeyPageEditAlias;
+
+  /// No description provided for @assistantSettingsEditButton.
+  ///
+  /// In en, this message translates to:
+  /// **'编辑'**
+  String get assistantSettingsEditButton;
+
+  /// No description provided for @hotkeyToggleAppVisibility.
+  ///
+  /// In en, this message translates to:
+  /// **'显示/隐藏应用'**
+  String get hotkeyToggleAppVisibility;
+
+  /// No description provided for @hotkeyCloseWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'关闭窗口'**
+  String get hotkeyCloseWindow;
+
+  /// No description provided for @hotkeyOpenSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'打开设置'**
+  String get hotkeyOpenSettings;
+
+  /// No description provided for @hotkeyNewTopic.
+  ///
+  /// In en, this message translates to:
+  /// **'新建话题'**
+  String get hotkeyNewTopic;
+
+  /// No description provided for @hotkeySwitchModel.
+  ///
+  /// In en, this message translates to:
+  /// **'切换模型'**
+  String get hotkeySwitchModel;
+
+  /// No description provided for @hotkeyToggleAssistantPanel.
+  ///
+  /// In en, this message translates to:
+  /// **'切换项目显示'**
+  String get hotkeyToggleAssistantPanel;
+
+  /// No description provided for @hotkeyToggleTopicPanel.
+  ///
+  /// In en, this message translates to:
+  /// **'切换话题显示'**
+  String get hotkeyToggleTopicPanel;
+
+  /// No description provided for @hotkeysPressShortcut.
+  ///
+  /// In en, this message translates to:
+  /// **'按下快捷键'**
+  String get hotkeysPressShortcut;
+
+  /// No description provided for @hotkeysResetDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'重置为默认'**
+  String get hotkeysResetDefault;
+
+  /// No description provided for @hotkeysClearShortcut.
+  ///
+  /// In en, this message translates to:
+  /// **'清除快捷键'**
+  String get hotkeysClearShortcut;
+
+  /// No description provided for @hotkeysResetAll.
+  ///
+  /// In en, this message translates to:
+  /// **'重置所有快捷键为默认'**
+  String get hotkeysResetAll;
+
+  /// No description provided for @displaySettingsPageLanguageSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'选择界面语言'**
+  String get displaySettingsPageLanguageSubtitle;
+
+  /// No description provided for @mcpAssistantSheetSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'为该项目启用的服务'**
+  String get mcpAssistantSheetSubtitle;
+
+  /// No description provided for @backupPageWebDavTab.
+  ///
+  /// In en, this message translates to:
+  /// **'WebDAV 备份'**
+  String get backupPageWebDavTab;
+
+  /// No description provided for @backupPageImportExportTab.
+  ///
+  /// In en, this message translates to:
+  /// **'导入和导出'**
+  String get backupPageImportExportTab;
+
+  /// No description provided for @backupPageSelectImportModeDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'请选择如何导入备份数据：'**
+  String get backupPageSelectImportModeDescription;
+
+  /// No description provided for @backupPageBackup.
+  ///
+  /// In en, this message translates to:
+  /// **'立即备份'**
+  String get backupPageBackup;
+
+  /// No description provided for @backupPageExportToFileSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'导出APP数据为文件'**
+  String get backupPageExportToFileSubtitle;
+
+  /// No description provided for @backupPageImportBackupFileSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'导入本地备份文件'**
+  String get backupPageImportBackupFileSubtitle;
+
+  /// No description provided for @backupPageImportFromOtherApps.
+  ///
+  /// In en, this message translates to:
+  /// **'从其他APP导入'**
+  String get backupPageImportFromOtherApps;
+
+  /// No description provided for @backupPageImportFromRikkaHub.
+  ///
+  /// In en, this message translates to:
+  /// **'从 RikkaHub 导入'**
+  String get backupPageImportFromRikkaHub;
+
+  /// No description provided for @backupPageNotSupportedYet.
+  ///
+  /// In en, this message translates to:
+  /// **'暂不支持'**
+  String get backupPageNotSupportedYet;
+
+  /// No description provided for @backupPageRestoreTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'恢复'**
+  String get backupPageRestoreTooltip;
+
+  /// No description provided for @backupPageDeleteTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'删除'**
+  String get backupPageDeleteTooltip;
+
+  /// No description provided for @mermaidExportPng.
+  ///
+  /// In en, this message translates to:
+  /// **'导出 PNG'**
+  String get mermaidExportPng;
+
+  /// No description provided for @bottomToolsSheetConfigurePrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'设置提示词'**
+  String get bottomToolsSheetConfigurePrompt;
+
+  /// No description provided for @bottomToolsSheetResetDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'重置为默认'**
+  String get bottomToolsSheetResetDefault;
+
+  /// No description provided for @messageMoreSheetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'更多操作'**
+  String get messageMoreSheetTitle;
+
+  /// No description provided for @messageMoreSheetNotImplemented.
+  ///
+  /// In en, this message translates to:
+  /// **'暂未实现'**
+  String get messageMoreSheetNotImplemented;
+
+  /// No description provided for @reasoningBudgetSheetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'思维链强度'**
+  String get reasoningBudgetSheetTitle;
+
+  /// No description provided for @reasoningBudgetSheetCurrentLevel.
+  ///
+  /// In en, this message translates to:
+  /// **'当前档位：{level}'**
+  String reasoningBudgetSheetCurrentLevel(Object level);
+
+  /// No description provided for @reasoningBudgetSheetOffSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'关闭推理功能，直接回答'**
+  String get reasoningBudgetSheetOffSubtitle;
+
+  /// No description provided for @reasoningBudgetSheetAutoSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'由模型自动决定推理级别'**
+  String get reasoningBudgetSheetAutoSubtitle;
+
+  /// No description provided for @reasoningBudgetSheetLightSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'使用少量推理来回答问题'**
+  String get reasoningBudgetSheetLightSubtitle;
+
+  /// No description provided for @reasoningBudgetSheetMediumSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'使用较多推理来回答问题'**
+  String get reasoningBudgetSheetMediumSubtitle;
+
+  /// No description provided for @reasoningBudgetSheetHeavySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'使用大量推理来回答问题，适合复杂问题'**
+  String get reasoningBudgetSheetHeavySubtitle;
+
+  /// No description provided for @reasoningBudgetSheetCustomLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'自定义推理预算 (tokens)'**
+  String get reasoningBudgetSheetCustomLabel;
+
+  /// No description provided for @reasoningBudgetSheetCustomHint.
+  ///
+  /// In en, this message translates to:
+  /// **'例如：2048 (-1 自动，0 关闭)'**
+  String get reasoningBudgetSheetCustomHint;
+
+  /// No description provided for @chatMessageWidgetResendTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'重新发送'**
+  String get chatMessageWidgetResendTooltip;
+
+  /// No description provided for @chatMessageWidgetMoreTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'更多'**
+  String get chatMessageWidgetMoreTooltip;
+
+  /// No description provided for @chatMessageWidgetRegenerateTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'重新生成'**
+  String get chatMessageWidgetRegenerateTooltip;
+
+  /// No description provided for @chatMessageWidgetSpeakTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'朗读'**
+  String get chatMessageWidgetSpeakTooltip;
+
+  /// No description provided for @chatMessageWidgetBuiltinSearchHideNote.
+  ///
+  /// In en, this message translates to:
+  /// **'隐藏内置搜索工具卡片'**
+  String get chatMessageWidgetBuiltinSearchHideNote;
+
+  /// No description provided for @sideDrawerHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'聊天历史'**
+  String get sideDrawerHistory;
+
+  /// No description provided for @sideDrawerSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'设置'**
+  String get sideDrawerSettings;
+
+  /// No description provided for @sideDrawerImportFromQQ.
+  ///
+  /// In en, this message translates to:
+  /// **'QQ头像'**
+  String get sideDrawerImportFromQQ;
+
+  /// No description provided for @sideDrawerQQAvatarDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'使用QQ头像'**
+  String get sideDrawerQQAvatarDialogTitle;
+
+  /// No description provided for @sideDrawerQQAvatarInputHint.
+  ///
+  /// In en, this message translates to:
+  /// **'输入QQ号码（5-12位）'**
+  String get sideDrawerQQAvatarInputHint;
+
+  /// No description provided for @sideDrawerQQAvatarFetchFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'获取随机QQ头像失败，请重试'**
+  String get sideDrawerQQAvatarFetchFailed;
+
+  /// No description provided for @sideDrawerRandomQQ.
+  ///
+  /// In en, this message translates to:
+  /// **'随机QQ'**
+  String get sideDrawerRandomQQ;
+
+  /// No description provided for @sideDrawerRename.
+  ///
+  /// In en, this message translates to:
+  /// **'重命名'**
+  String get sideDrawerRename;
+
+  /// No description provided for @mcpConversationSheetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'MCP服务器'**
+  String get mcpConversationSheetTitle;
+
+  /// No description provided for @mcpConversationSheetSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'选择在此项目中启用的服务'**
+  String get mcpConversationSheetSubtitle;
+
+  /// No description provided for @mcpConversationSheetSelectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'全选'**
+  String get mcpConversationSheetSelectAll;
+
+  /// No description provided for @mcpConversationSheetClearAll.
+  ///
+  /// In en, this message translates to:
+  /// **'全不选'**
+  String get mcpConversationSheetClearAll;
+
+  /// No description provided for @mcpConversationSheetNoRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'暂无已启动的 MCP 服务器'**
+  String get mcpConversationSheetNoRunning;
+
+  /// No description provided for @mcpConversationSheetConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'已连接'**
+  String get mcpConversationSheetConnected;
+
+  /// No description provided for @mcpConversationSheetToolsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'工具: {enabled}/{total}'**
+  String mcpConversationSheetToolsCount(Object enabled, Object total);
+
+  /// No description provided for @modelDetailSheetModelIdDisabledHint.
+  ///
+  /// In en, this message translates to:
+  /// **'{modelId}'**
+  String modelDetailSheetModelIdDisabledHint(Object modelId);
+
+  /// No description provided for @modelDetailSheetSearchTool.
+  ///
+  /// In en, this message translates to:
+  /// **'搜索'**
+  String get modelDetailSheetSearchTool;
+
+  /// No description provided for @modelDetailSheetSearchToolDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'启用 Google 搜索集成'**
+  String get modelDetailSheetSearchToolDescription;
+
+  /// No description provided for @modelDetailSheetModelIdExistsError.
+  ///
+  /// In en, this message translates to:
+  /// **'模型 ID 已存在'**
+  String get modelDetailSheetModelIdExistsError;
+
+  /// No description provided for @providerDetailPageSaveButton.
+  ///
+  /// In en, this message translates to:
+  /// **'保存'**
+  String get providerDetailPageSaveButton;
+
+  /// No description provided for @providerDetailPageSavedSnackbar.
+  ///
+  /// In en, this message translates to:
+  /// **'已保存'**
+  String get providerDetailPageSavedSnackbar;
+
+  /// No description provided for @providersPageModelsCountSuffix.
+  ///
+  /// In en, this message translates to:
+  /// **' models'**
+  String get providersPageModelsCountSuffix;
+
+  /// No description provided for @providersPageModelsCountSingleSuffix.
+  ///
+  /// In en, this message translates to:
+  /// **'个模型'**
+  String get providersPageModelsCountSingleSuffix;
+
+  /// No description provided for @addProviderSheetCancelButton.
+  ///
+  /// In en, this message translates to:
+  /// **'取消'**
+  String get addProviderSheetCancelButton;
+
+  /// No description provided for @importProviderSheetInputHint.
+  ///
+  /// In en, this message translates to:
+  /// **'ai-provider:v1:...'**
+  String get importProviderSheetInputHint;
+
+  /// No description provided for @desktopProviderContextMenuShare.
+  ///
+  /// In en, this message translates to:
+  /// **'分享'**
+  String get desktopProviderContextMenuShare;
+
+  /// No description provided for @desktopProviderShareCopyText.
+  ///
+  /// In en, this message translates to:
+  /// **'复制文字'**
+  String get desktopProviderShareCopyText;
+
+  /// No description provided for @desktopProviderShareCopyQr.
+  ///
+  /// In en, this message translates to:
+  /// **'复制二维码'**
+  String get desktopProviderShareCopyQr;
+
+  /// No description provided for @providerModelsGetButton.
+  ///
+  /// In en, this message translates to:
+  /// **'获取'**
+  String get providerModelsGetButton;
+
+  /// No description provided for @providerDetailPageCapsVision.
+  ///
+  /// In en, this message translates to:
+  /// **'视觉'**
+  String get providerDetailPageCapsVision;
+
+  /// No description provided for @providerDetailPageCapsImage.
+  ///
+  /// In en, this message translates to:
+  /// **'生图'**
+  String get providerDetailPageCapsImage;
+
+  /// No description provided for @providerDetailPageCapsTool.
+  ///
+  /// In en, this message translates to:
+  /// **'工具'**
+  String get providerDetailPageCapsTool;
+
+  /// No description provided for @providerDetailPageCapsReasoning.
+  ///
+  /// In en, this message translates to:
+  /// **'推理'**
+  String get providerDetailPageCapsReasoning;
+
+  /// No description provided for @searchServicesPageEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'编辑'**
+  String get searchServicesPageEdit;
+
+  /// No description provided for @searchServicesPageEditServiceTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'编辑服务'**
+  String get searchServicesPageEditServiceTooltip;
+
+  /// No description provided for @searchServicesPageDeleteServiceTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'删除服务'**
+  String get searchServicesPageDeleteServiceTooltip;
+
+  /// No description provided for @searchServicesAddDialogServiceType.
+  ///
+  /// In en, this message translates to:
+  /// **'服务类型'**
+  String get searchServicesAddDialogServiceType;
+
+  /// No description provided for @searchServicesAddDialogBingLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'本地'**
+  String get searchServicesAddDialogBingLocal;
+
+  /// No description provided for @searchServicesAddDialogCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'取消'**
+  String get searchServicesAddDialogCancel;
+
+  /// No description provided for @searchServicesEditDialogEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'编辑'**
+  String get searchServicesEditDialogEdit;
+
+  /// No description provided for @searchServicesEditDialogCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'取消'**
+  String get searchServicesEditDialogCancel;
+
+  /// No description provided for @searchSettingsSheetBuiltinSearchDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'是否启用模型内置的搜索功能'**
+  String get searchSettingsSheetBuiltinSearchDescription;
+
+  /// No description provided for @searchSettingsSheetWebSearchDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'是否启用网页搜索'**
+  String get searchSettingsSheetWebSearchDescription;
+
+  /// No description provided for @aboutPageEasterEggMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'\n（好吧现在还没彩蛋）'**
+  String get aboutPageEasterEggMessage;
+
+  /// No description provided for @displaySettingsPageShowUserAvatarSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'是否在聊天消息中显示用户头像'**
+  String get displaySettingsPageShowUserAvatarSubtitle;
+
+  /// No description provided for @displaySettingsPageShowUserNameTimestampSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'是否在聊天消息中显示用户名称和时间戳'**
+  String get displaySettingsPageShowUserNameTimestampSubtitle;
+
+  /// No description provided for @displaySettingsPageShowUserMessageActionsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'在用户消息下方显示复制、重发与更多按钮'**
+  String get displaySettingsPageShowUserMessageActionsSubtitle;
+
+  /// No description provided for @displaySettingsPageShowModelNameTimestampSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'是否在聊天消息中显示模型名称和时间戳'**
+  String get displaySettingsPageShowModelNameTimestampSubtitle;
+
+  /// No description provided for @displaySettingsPageChatModelIconSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'是否在聊天消息中显示模型图标'**
+  String get displaySettingsPageChatModelIconSubtitle;
+
+  /// No description provided for @displaySettingsPageShowTokenStatsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'显示 token 用量与消息数量'**
+  String get displaySettingsPageShowTokenStatsSubtitle;
+
+  /// No description provided for @displaySettingsPageAutoCollapseThinkingSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'思考完成后自动折叠，保持界面简洁'**
+  String get displaySettingsPageAutoCollapseThinkingSubtitle;
+
+  /// No description provided for @displaySettingsPageShowChatListDateSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'在左侧对话列表中显示日期分组标签'**
+  String get displaySettingsPageShowChatListDateSubtitle;
+
+  /// No description provided for @displaySettingsPageShowUpdatesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'显示应用更新通知'**
+  String get displaySettingsPageShowUpdatesSubtitle;
+
+  /// No description provided for @displaySettingsPageMessageNavButtonsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'滚动时显示快速跳转按钮'**
+  String get displaySettingsPageMessageNavButtonsSubtitle;
+
+  /// No description provided for @displaySettingsPageHapticsOnSidebarSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'打开/关闭侧边栏时启用触觉反馈'**
+  String get displaySettingsPageHapticsOnSidebarSubtitle;
+
+  /// No description provided for @displaySettingsPageHapticsOnGenerateSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'生成消息时启用触觉反馈'**
+  String get displaySettingsPageHapticsOnGenerateSubtitle;
+
+  /// No description provided for @displaySettingsPageAutoSwitchTopicsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'自动切换话题'**
+  String get displaySettingsPageAutoSwitchTopicsTitle;
+
+  /// No description provided for @desktopDisplaySettingsTopicPositionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'话题位置'**
+  String get desktopDisplaySettingsTopicPositionTitle;
+
+  /// No description provided for @desktopDisplaySettingsTopicPositionLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'左侧'**
+  String get desktopDisplaySettingsTopicPositionLeft;
+
+  /// No description provided for @desktopDisplaySettingsTopicPositionRight.
+  ///
+  /// In en, this message translates to:
+  /// **'右侧'**
+  String get desktopDisplaySettingsTopicPositionRight;
+
+  /// No description provided for @displaySettingsPageNewChatOnLaunchSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'应用启动时自动创建新对话'**
+  String get displaySettingsPageNewChatOnLaunchSubtitle;
+
+  /// No description provided for @displaySettingsPageThemeColorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'主题颜色'**
+  String get displaySettingsPageThemeColorTitle;
+
+  /// No description provided for @desktopSettingsFontsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'字体设置'**
+  String get desktopSettingsFontsTitle;
+
+  /// No description provided for @displaySettingsPageTrayTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'托盘'**
+  String get displaySettingsPageTrayTitle;
+
+  /// No description provided for @displaySettingsPageTrayShowTrayTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'显示托盘图标'**
+  String get displaySettingsPageTrayShowTrayTitle;
+
+  /// No description provided for @displaySettingsPageTrayMinimizeOnCloseTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'关闭时最小化到托盘'**
+  String get displaySettingsPageTrayMinimizeOnCloseTitle;
+
+  /// No description provided for @desktopFontAppLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'应用字体'**
+  String get desktopFontAppLabel;
+
+  /// No description provided for @desktopFontCodeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'代码字体'**
+  String get desktopFontCodeLabel;
+
+  /// No description provided for @desktopFontFilterHint.
+  ///
+  /// In en, this message translates to:
+  /// **'输入以过滤字体…'**
+  String get desktopFontFilterHint;
+
+  /// No description provided for @desktopFontLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'正在加载字体…'**
+  String get desktopFontLoading;
+
+  /// No description provided for @displaySettingsPageOtherSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'其他设置'**
+  String get displaySettingsPageOtherSettingsTitle;
+
+  /// No description provided for @themeSettingsPageColorPalettesSection.
+  ///
+  /// In en, this message translates to:
+  /// **'配色方案'**
+  String get themeSettingsPageColorPalettesSection;
+
+  /// No description provided for @ttsServicesPageAddNotImplemented.
+  ///
+  /// In en, this message translates to:
+  /// **'新增 TTS 服务暂未实现'**
+  String get ttsServicesPageAddNotImplemented;
+
+  /// No description provided for @ttsServicesPageConfigureTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'配置'**
+  String get ttsServicesPageConfigureTooltip;
+
+  /// No description provided for @ttsServicesPageTestVoiceTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'测试语音'**
+  String get ttsServicesPageTestVoiceTooltip;
+
+  /// No description provided for @ttsServicesPageStopTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'停止'**
+  String get ttsServicesPageStopTooltip;
+
+  /// No description provided for @ttsServicesPageDeleteTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'删除'**
+  String get ttsServicesPageDeleteTooltip;
+
+  /// No description provided for @ttsServicesPageNetworkSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'网络 TTS'**
+  String get ttsServicesPageNetworkSectionTitle;
+
+  /// No description provided for @ttsServicesPageNoNetworkServices.
+  ///
+  /// In en, this message translates to:
+  /// **'暂无语音服务'**
+  String get ttsServicesPageNoNetworkServices;
+
+  /// No description provided for @ttsServicesDialogCancelButton.
+  ///
+  /// In en, this message translates to:
+  /// **'取消'**
+  String get ttsServicesDialogCancelButton;
+
+  /// No description provided for @ttsServicesDialogAddButton.
+  ///
+  /// In en, this message translates to:
+  /// **'添加'**
+  String get ttsServicesDialogAddButton;
+
+  /// No description provided for @ttsServicesDialogSaveButton.
+  ///
+  /// In en, this message translates to:
+  /// **'保存'**
+  String get ttsServicesDialogSaveButton;
+
+  /// No description provided for @imageViewerPageShareButton.
+  ///
+  /// In en, this message translates to:
+  /// **'分享图片'**
+  String get imageViewerPageShareButton;
+
+  /// No description provided for @displaySettingsPageEnableDollarLatexSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'将 \$...\$ 之间的内容按行内数学公式渲染'**
+  String get displaySettingsPageEnableDollarLatexSubtitle;
+
+  /// No description provided for @displaySettingsPageEnableMathSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'渲染 LaTeX 数学公式（行内与块级）'**
+  String get displaySettingsPageEnableMathSubtitle;
+
+  /// No description provided for @quickPhraseEditButton.
+  ///
+  /// In en, this message translates to:
+  /// **'编辑'**
+  String get quickPhraseEditButton;
+
+  /// No description provided for @quickPhraseMenuTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'快捷短语'**
+  String get quickPhraseMenuTitle;
+
+  /// No description provided for @assistantEditManageQuickPhraseButton.
+  ///
+  /// In en, this message translates to:
+  /// **'管理快捷短语'**
+  String get assistantEditManageQuickPhraseButton;
+
+  /// No description provided for @assistantEditMemorySwitchDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'允许项目主动存储并在对话间引用用户相关信息'**
+  String get assistantEditMemorySwitchDescription;
+
+  /// No description provided for @assistantEditRecentChatsSwitchDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'在新对话中引用最近的对话标题以增强上下文'**
+  String get assistantEditRecentChatsSwitchDescription;
+
+  /// No description provided for @assistantEditPresetRoleUser.
+  ///
+  /// In en, this message translates to:
+  /// **'用户'**
+  String get assistantEditPresetRoleUser;
+
+  /// No description provided for @assistantEditPresetRoleAssistant.
+  ///
+  /// In en, this message translates to:
+  /// **'项目'**
+  String get assistantEditPresetRoleAssistant;
+
+  /// No description provided for @assistantTagsCreateButton.
+  ///
+  /// In en, this message translates to:
+  /// **'创建'**
+  String get assistantTagsCreateButton;
+
+  /// No description provided for @assistantTagsRenameButton.
+  ///
+  /// In en, this message translates to:
+  /// **'重命名'**
+  String get assistantTagsRenameButton;
+
+  /// No description provided for @assistantTagsDeleteButton.
+  ///
+  /// In en, this message translates to:
+  /// **'删除'**
+  String get assistantTagsDeleteButton;
+
+  /// No description provided for @mcpTransportTagStdio.
+  ///
+  /// In en, this message translates to:
+  /// **'STDIO'**
+  String get mcpTransportTagStdio;
+
+  /// No description provided for @networkProxySettingsHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'代理设置'**
+  String get networkProxySettingsHeader;
+
+  /// No description provided for @desktopShowProviderInModelCapsule.
+  ///
+  /// In en, this message translates to:
+  /// **'模型胶囊显示供应商'**
+  String get desktopShowProviderInModelCapsule;
+
+  /// No description provided for @logViewerOpenFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'打开日志目录'**
+  String get logViewerOpenFolder;
 }
 
 class _AppLocalizationsDelegate

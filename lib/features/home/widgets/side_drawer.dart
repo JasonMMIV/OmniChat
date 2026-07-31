@@ -9,7 +9,9 @@ import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/models/chat_item.dart';
+import '../../../core/models/conversation.dart';
 import '../../../core/providers/user_provider.dart';
+
 import '../../settings/pages/settings_page.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/update_provider.dart';
@@ -171,6 +173,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             label: l10n.sideDrawerMenuDelete,
             danger: true,
             onTap: () async {
+              final confirmed = await _confirmDeleteConversation(context, chat);
+              if (!confirmed) return;
               final deletingCurrent = chatService.currentConversationId == chat.id;
               final nextId = _nextRecentConversation(chatService, chat.id);
               await chatService.deleteConversation(chat.id);
@@ -409,6 +413,33 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     }
   }
 
+  Future<bool> _confirmDeleteConversation(BuildContext context, ChatItem chat) async {
+
+    final l10n = AppLocalizations.of(context)!;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.sideDrawerDeleteConfirmTitle),
+        content: Text(l10n.sideDrawerDeleteConfirmContent(chat.title)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.chatMessageWidgetRegenerateConfirmCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              l10n.chatMessageWidgetDeleteConfirmDelete,
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+    return confirm ?? false;
+  }
+
+
   Future<void> _regenerateTitle(BuildContext context, String conversationId) async {
     final settings = context.read<SettingsProvider>();
     final chatService = context.read<ChatService>();
@@ -426,7 +457,14 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     final locale = Localizations.localeOf(context).toLanguageTag();
     final prompt = settings.titlePrompt.replaceAll('{locale}', locale).replaceAll('{content}', content);
     try {
-      final title = (await ChatApiService.generateText(config: cfg, modelId: mdlId, prompt: prompt)).trim();
+      final assistant = convo.assistantId != null ? context.read<AssistantProvider>().getById(convo.assistantId!) : null;
+      final title = (await ChatApiService.generateText(
+        config: cfg,
+        modelId: mdlId,
+        prompt: prompt,
+        thinkingBudget: settings.titleGenerationThinkingBudgetFor(assistant?.thinkingBudget),
+      )).trim();
+
       if (title.isNotEmpty) {
         await chatService.renameConversation(conversationId, title);
       }

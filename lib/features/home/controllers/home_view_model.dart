@@ -289,6 +289,155 @@ class HomeViewModel extends ChangeNotifier {
     await _chatActions.cancelStreaming(currentConversation);
   }
 
+
+  @visibleForTesting
+  static int? computeNextVersionSelection({
+    required List<ChatMessage> versionsBefore,
+    required Set<String> deletedMessageIds,
+    required int? oldSelection,
+  }) {
+    final sorted = List<ChatMessage>.of(versionsBefore)
+      ..sort((a, b) => a.version.compareTo(b.version));
+    if (sorted.isEmpty) return null;
+
+    final remainingCount = sorted
+        .where((message) => !deletedMessageIds.contains(message.id))
+        .length;
+    if (remainingCount <= 0) return null;
+
+    int newSelection = oldSelection ?? (sorted.length - 1);
+    final deletedIndices = <int>[];
+    for (int i = 0; i < sorted.length; i++) {
+      if (deletedMessageIds.contains(sorted[i].id)) {
+        deletedIndices.add(i);
+      }
+    }
+
+    for (final delIndex in deletedIndices) {
+      if (delIndex < newSelection) {
+        newSelection--;
+      } else if (delIndex == newSelection) {
+        newSelection = (newSelection > 0) ? newSelection - 1 : 0;
+      }
+    }
+
+    if (newSelection < 0) newSelection = 0;
+    if (newSelection > remainingCount - 1) newSelection = remainingCount - 1;
+    return newSelection;
+  }
+
+  @visibleForTesting
+  static BatchDeletePlan buildBatchDeletePlan({
+    required List<ChatMessage> messages,
+    required Set<String> selectedMessageIds,
+    required Map<String, int> versionSelections,
+    bool deleteAllVersions = false,
+  }) {
+    if (selectedMessageIds.isEmpty || messages.isEmpty) {
+      return BatchDeletePlan.empty;
+    }
+
+    final byGroup = <String, List<ChatMessage>>{};
+    final deletedByGroup = <String, Set<String>>{};
+    for (final message in messages) {
+      final groupId = message.groupId ?? message.id;
+      byGroup.putIfAbsent(groupId, () => <ChatMessage>[]).add(message);
+      if (selectedMessageIds.contains(message.id)) {
+        deletedByGroup.putIfAbsent(groupId, () => <String>{});
+        if (!deleteAllVersions) {
+          deletedByGroup[groupId]!.add(message.id);
+        }
+      }
+    }
+
+    if (deletedByGroup.isEmpty) return BatchDeletePlan.empty;
+
+    final groups = <String, BatchDeleteGroupPlan>{};
+    final nextVersionSelections = <String, int>{};
+    final clearedVersionSelectionGroupIds = <String>{};
+
+    for (final entry in deletedByGroup.entries) {
+      final groupId = entry.key;
+      final versionsBefore = List<ChatMessage>.of(
+        byGroup[groupId] ?? const <ChatMessage>[],
+      )..sort((a, b) => a.version.compareTo(b.version));
+      final deletedMessageIds = deleteAllVersions
+          ? versionsBefore.map((message) => message.id).toSet()
+          : Set<String>.of(entry.value);
+      final oldSelection =
+          versionSelections[groupId] ??
+          (versionsBefore.isNotEmpty ? versionsBefore.length - 1 : 0);
+      final nextVersionSelection = computeNextVersionSelection(
+        versionsBefore: versionsBefore,
+        deletedMessageIds: deletedMessageIds,
+        oldSelection: oldSelection,
+      );
+
+      groups[groupId] = BatchDeleteGroupPlan(
+        groupId: groupId,
+        versionsBefore: versionsBefore,
+        deletedMessageIds: deletedMessageIds,
+        nextVersionSelection: nextVersionSelection,
+      );
+
+      if (nextVersionSelection == null) {
+        clearedVersionSelectionGroupIds.add(groupId);
+      } else {
+        nextVersionSelections[groupId] = nextVersionSelection;
+      }
+    }
+
+    return BatchDeletePlan(
+      groups: groups,
+      nextVersionSelections: nextVersionSelections,
+      clearedVersionSelectionGroupIds: clearedVersionSelectionGroupIds,
+    );
+  }
+
+  Future<void> deleteMessages({
+    required Set<String> messageIds,
+    bool deleteAllVersions = false,
+  }) async {
+    final conversation = currentConversation;
+    if (conversation == null || messageIds.isEmpty) return;
+
+    final allMessages = _chatService.getMessages(conversation.id);
+    final plan = buildBatchDeletePlan(
+      messages: allMessages,
+      selectedMessageIds: messageIds,
+      versionSelections: _chatController.versionSelections,
+      deleteAllVersions: deleteAllVersions,
+    );
+    if (plan.isEmpty) return;
+
+    for (final id in plan.deletedMessageIds) {
+      _streamController.clearMessageState(id);
+    }
+
+    for (final groupId in plan.clearedVersionSelectionGroupIds) {
+      _chatController.versionSelections.remove(groupId);
+      await _chatService.removeSelectedVersion(conversation.id, groupId);
+    }
+    for (final entry in plan.nextVersionSelections.entries) {
+      _chatController.versionSelections[entry.key] = entry.value;
+      await _chatService.setSelectedVersion(
+        conversation.id,
+        entry.key,
+        entry.value,
+      );
+    }
+
+    final messagesToDelete = allMessages
+        .where((message) => plan.deletedMessageIds.contains(message.id))
+        .toList();
+    for (final message in messagesToDelete) {
+      await _chatService.deleteMessage(message.id);
+    }
+
+    _chatController.reloadMessages();
+    notifyListeners();
+  }
+
   /// Delete a message and adjust version selections.
   ///
   /// Returns the list of message IDs to clean up UI state for.
@@ -343,6 +492,7 @@ class HomeViewModel extends ChangeNotifier {
     _chatController.reloadMessages();
     notifyListeners();
   }
+
 
   // ============================================================================
   // Public Methods - Conversation Management
@@ -722,8 +872,12 @@ class HomeViewModel extends ChangeNotifier {
 
     try {
       final title = (await ChatApiService.generateText(
-              config: cfg, modelId: mdlId, prompt: prompt))
-          .trim();
+        config: cfg,
+        modelId: mdlId,
+        prompt: prompt,
+        thinkingBudget: settings.titleGenerationThinkingBudgetFor(assistant?.thinkingBudget),
+      )).trim();
+
       if (title.isNotEmpty) {
         await _chatService.renameConversation(convo.id, title);
         if (currentConversation?.id == convo.id) {
@@ -868,3 +1022,42 @@ class HomeViewModel extends ChangeNotifier {
     }
   }
 }
+
+class BatchDeleteGroupPlan {
+  const BatchDeleteGroupPlan({
+    required this.groupId,
+    required this.versionsBefore,
+    required this.deletedMessageIds,
+    required this.nextVersionSelection,
+  });
+
+  final String groupId;
+  final List<ChatMessage> versionsBefore;
+  final Set<String> deletedMessageIds;
+  final int? nextVersionSelection;
+}
+
+class BatchDeletePlan {
+  const BatchDeletePlan({
+    required this.groups,
+    required this.nextVersionSelections,
+    required this.clearedVersionSelectionGroupIds,
+  });
+
+  static const empty = BatchDeletePlan(
+    groups: <String, BatchDeleteGroupPlan>{},
+    nextVersionSelections: <String, int>{},
+    clearedVersionSelectionGroupIds: <String>{},
+  );
+
+  final Map<String, BatchDeleteGroupPlan> groups;
+  final Map<String, int> nextVersionSelections;
+  final Set<String> clearedVersionSelectionGroupIds;
+
+  bool get isEmpty => groups.isEmpty;
+
+  Set<String> get deletedMessageIds => {
+        for (final group in groups.values) ...group.deletedMessageIds,
+      };
+}
+

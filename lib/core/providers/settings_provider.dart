@@ -37,6 +37,9 @@ class SettingsProvider extends ChangeNotifier {
   static const String _themePaletteKey = 'theme_palette_v1';
   static const String _useDynamicColorKey = 'use_dynamic_color_v1';
   static const String _thinkingBudgetKey = 'thinking_budget_v1';
+  static const String _titleGenerationThinkingEnabledKey =
+      'title_generation_thinking_enabled_v1';
+
   static const String _displayShowUserAvatarKey = 'display_show_user_avatar_v1';
   static const String _displayShowModelIconKey = 'display_show_model_icon_v1';
   static const String _displayShowModelNameTimestampKey = 'display_show_model_name_timestamp_v1';
@@ -354,6 +357,9 @@ class SettingsProvider extends ChangeNotifier {
     _deepResearchPrompt = (lmp == null || lmp.trim().isEmpty) ? defaultDeepResearchPrompt : lmp;
     // load thinking budget (reasoning strength)
     _thinkingBudget = prefs.getInt(_thinkingBudgetKey);
+    _titleGenerationThinkingEnabled =
+        prefs.getBool(_titleGenerationThinkingEnabledKey) ?? true;
+
 
     // display settings
     _showUserAvatar = prefs.getBool(_displayShowUserAvatarKey) ?? true;
@@ -1949,6 +1955,26 @@ Synthesize your reasoning and research into a final response. The structure shou
       await prefs.setInt(_thinkingBudgetKey, budget);
     }
   }
+
+  // Title generation thinking toggle. Defaults to true for backward compatibility.
+  bool _titleGenerationThinkingEnabled = true;
+  bool get titleGenerationThinkingEnabled => _titleGenerationThinkingEnabled;
+  Future<void> setTitleGenerationThinkingEnabled(bool enabled) async {
+    if (_titleGenerationThinkingEnabled == enabled) return;
+    _titleGenerationThinkingEnabled = enabled;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_titleGenerationThinkingEnabledKey, enabled);
+  }
+
+  Future<void> resetTitleGenerationThinkingEnabled() async =>
+      setTitleGenerationThinkingEnabled(true);
+
+  int? titleGenerationThinkingBudgetFor(int? assistantBudget) {
+    if (!_titleGenerationThinkingEnabled) return 0;
+    return assistantBudget ?? _thinkingBudget;
+  }
+
 
   // Display settings: user avatar and model icon visibility
   bool _showUserAvatar = true;

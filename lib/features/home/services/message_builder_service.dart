@@ -117,7 +117,10 @@ class MessageBuilderService {
   }
 
   /// Parse input data from raw message content (extracts images and documents).
-  ChatInputData parseInputFromRaw(String raw) {
+  ChatInputData parseInputFromRaw(
+    String raw, {
+    bool includeMediaFilePathsAsImages = true,
+  }) {
     final imgRe = RegExp(r"\[image:(.+?)\]");
     final fileRe = RegExp(r"\[file:(.+?)\|(.+?)\|(.+?)\]");
     final images = <String>[];
@@ -140,9 +143,10 @@ class MessageBuilderService {
         final doc = DocumentAttachment(path: path, fileName: name, mime: mime);
         docs.add(doc);
         // Treat video attachments as image-style attachments for downstream APIs (e.g., Qwen video_url).
-        if (mime.toLowerCase().startsWith('video/') && path.isNotEmpty) {
+        if (includeMediaFilePathsAsImages && mime.toLowerCase().startsWith('video/') && path.isNotEmpty) {
           images.add(path);
         }
+
         idx = fileMatch.end;
         continue;
       }

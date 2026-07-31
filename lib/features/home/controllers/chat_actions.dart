@@ -278,11 +278,52 @@ class ChatActions {
   // Regenerate Message
   // ============================================================================
 
+  @visibleForTesting
+  static List<ChatMessage> projectMessagesForRegenerationContext({
+    required List<ChatMessage> messages,
+    required int lastKeep,
+    required String? targetGroupId,
+  }) {
+    if (lastKeep < 0) return [...messages];
+    final projected = <ChatMessage>[];
+
+    for (int i = 0; i <= lastKeep && i < messages.length; i++) {
+      projected.add(messages[i]);
+    }
+
+    if (targetGroupId != null) {
+      for (int i = lastKeep + 1; i < messages.length; i++) {
+        final m = messages[i];
+        if (m.groupId == targetGroupId) {
+          projected.add(m);
+        }
+      }
+    }
+
+    return projected;
+  }
+
+  @visibleForTesting
+  static List<ChatMessage> buildRegenerationMessages({
+    required List<ChatMessage> messages,
+    required int lastKeep,
+    required String? targetGroupId,
+    required ChatMessage assistantPlaceholder,
+  }) {
+    return <ChatMessage>[
+      ...projectMessagesForRegenerationContext(
+        messages: messages,
+        lastKeep: lastKeep,
+        targetGroupId: targetGroupId,
+      ),
+      assistantPlaceholder,
+    ];
+  }
+
   /// Regenerate response at a specific message.
   ///
   /// Returns [ChatActionResult] with success status and the new assistant message.
   /// UI is responsible for:
-  /// - Removing trailing messages from the list
   /// - Adding new assistant placeholder
   /// - Showing snackbars on errors
   /// - Haptic feedback
@@ -306,17 +347,6 @@ class ChatActions {
     );
     if (versioning.lastKeep < 0) {
       return ChatActionResult.error('invalid_versioning');
-    }
-
-    // Remove trailing messages - returns list of removed IDs for UI cleanup
-    final removeIds = await messageGenerationService.removeTrailingMessages(
-      messages: _messages,
-      lastKeep: versioning.lastKeep,
-      targetGroupId: versioning.targetGroupId,
-    );
-    if (removeIds.isNotEmpty) {
-      _messages.removeWhere((m) => removeIds.contains(m.id));
-      onMessagesChanged?.call();
     }
 
     // Get model config
@@ -352,6 +382,13 @@ class ChatActions {
       version: versioning.nextVersion,
     );
 
+    final regenerationMessages = ChatActions.buildRegenerationMessages(
+      messages: _messages,
+      lastKeep: versioning.lastKeep,
+      targetGroupId: versioning.targetGroupId,
+      assistantPlaceholder: assistantMessage,
+    );
+
     // Pre-create streaming notifier BEFORE adding message to list
     // so that MessageListView can detect it's streaming on first render
     streamController.markStreamingStarted(assistantMessage.id);
@@ -377,7 +414,8 @@ class ChatActions {
     // Prepare API messages
     final prepared =
         await messageGenerationService.prepareApiMessagesWithInjections(
-      messages: _messages,
+      messages: regenerationMessages,
+
       versionSelections: _versionSelections,
       currentConversation: conversation,
       settings: settings,

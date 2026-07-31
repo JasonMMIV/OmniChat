@@ -42,10 +42,13 @@ import '../services/file_upload_service.dart';
 import '../widgets/chat_input_bar.dart';
 import '../../model/widgets/model_select_sheet.dart';
 
+enum ChatSelectionMode { share, delete }
+
 /// Translation data for UI state (expanded/collapsed).
 class TranslationData {
   bool expanded = true; // default to expanded when translation is added
 }
+
 
 /// Controller that manages all state and service wiring for HomePage.
 ///
@@ -131,7 +134,9 @@ class HomePageController extends ChangeNotifier {
 
   // Selection mode
   bool _selecting = false;
+  ChatSelectionMode _selectionMode = ChatSelectionMode.share;
   final Set<String> _selectedItems = <String>{};
+
 
   // Desktop drag-and-drop
   bool _isDragHovering = false;
@@ -237,7 +242,9 @@ class HomePageController extends ChangeNotifier {
   Map<String, TranslationData> get translations => _translations;
   Map<String, GlobalKey> get messageKeys => _messageKeys;
   bool get selecting => _selecting;
+  ChatSelectionMode get selectionMode => _selectionMode;
   Set<String> get selectedItems => _selectedItems;
+
   bool get isDragHovering => _isDragHovering;
   bool get tabletSidebarOpen => _tabletSidebarOpen;
   bool get rightSidebarOpen => _rightSidebarOpen;
@@ -754,7 +761,21 @@ class HomePageController extends ChangeNotifier {
   }
 
   void shareMessage(int messageIndex, List<ChatMessage> messageList) {
+    startMessageSelection(
+      messageIndex: messageIndex,
+      messageList: messageList,
+      mode: ChatSelectionMode.share,
+    );
+  }
+
+  void startMessageSelection({
+    required int messageIndex,
+    required List<ChatMessage> messageList,
+    required ChatSelectionMode mode,
+  }) {
+    dismissKeyboard();
     _selecting = true;
+    _selectionMode = mode;
     _selectedItems.clear();
     for (int i = 0; i <= messageIndex && i < messageList.length; i++) {
       final m = messageList[i];
@@ -763,6 +784,73 @@ class HomePageController extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  Future<void> deleteSelectedMessages({required bool deleteAllVersions}) async {
+    final selectedMessageIds = Set<String>.of(_selectedItems);
+    if (selectedMessageIds.isEmpty) return;
+
+    final deletedMessageIds = _selectedMessageIdsForDeletion(
+      selectedMessageIds,
+      deleteAllVersions: deleteAllVersions,
+    );
+    for (final id in deletedMessageIds) {
+      _translations.remove(id);
+    }
+    await _viewModel.deleteMessages(
+      messageIds: selectedMessageIds,
+      deleteAllVersions: deleteAllVersions,
+    );
+    _selecting = false;
+    _selectionMode = ChatSelectionMode.share;
+    _selectedItems.clear();
+    notifyListeners();
+  }
+
+  Set<String> _selectedMessageIdsForDeletion(
+    Set<String> selectedMessageIds, {
+    required bool deleteAllVersions,
+  }) {
+    if (!deleteAllVersions) return selectedMessageIds;
+
+    final selectedGroupIds = <String>{};
+    final allMessages = _allCurrentConversationMessages();
+    for (final message in allMessages) {
+      if (selectedMessageIds.contains(message.id)) {
+        selectedGroupIds.add(message.groupId ?? message.id);
+      }
+    }
+    return {
+      for (final message in allMessages)
+        if (selectedGroupIds.contains(message.groupId ?? message.id))
+          message.id,
+    };
+  }
+
+  bool get selectedMessagesIncludeMultipleVersions {
+    return _selectedSelectionGroupIds().any((groupId) {
+      var count = 0;
+      for (final message in _allCurrentConversationMessages()) {
+        if ((message.groupId ?? message.id) == groupId) count++;
+        if (count > 1) return true;
+      }
+      return false;
+    });
+  }
+
+  Set<String> _selectedSelectionGroupIds() {
+    if (_selectedItems.isEmpty) return const <String>{};
+    return {
+      for (final message in collapseVersions(messages))
+        if (_selectedItems.contains(message.id)) message.groupId ?? message.id,
+    };
+  }
+
+  List<ChatMessage> _allCurrentConversationMessages() {
+    final conversation = currentConversation;
+    if (conversation == null) return const <ChatMessage>[];
+    return _chatService.getMessages(conversation.id);
+  }
+
 
   Future<void> confirmSelection() async {
     final convo = currentConversation;
@@ -790,9 +878,11 @@ class HomePageController extends ChangeNotifier {
 
   void cancelSelection() {
     _selecting = false;
+    _selectionMode = ChatSelectionMode.share;
     _selectedItems.clear();
     notifyListeners();
   }
+
 
   void toggleSelection(String messageId, bool selected) {
     if (selected) {

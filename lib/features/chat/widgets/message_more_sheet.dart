@@ -21,7 +21,7 @@ import '../../../shared/pages/webview_page.dart';
 import '../../../desktop/html_preview_dialog.dart';
 import 'dart:convert';
 
-enum MessageMoreAction { edit, fork, delete, share }
+enum MessageMoreAction { edit, fork, delete, share, select }
 
 Future<MessageMoreAction?> showMessageMoreSheet(BuildContext context, ChatMessage message) async {
   final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
@@ -87,6 +87,11 @@ Future<MessageMoreAction?> showMessageMoreSheet(BuildContext context, ChatMessag
         onTap: () { selected = MessageMoreAction.share; },
       ),
       DesktopContextMenuItem(
+        icon: Lucide.CheckSquare,
+        label: l10n.messageMoreSheetSelectMessages,
+        onTap: () { selected = MessageMoreAction.select; },
+      ),
+      DesktopContextMenuItem(
         icon: Lucide.GitFork,
         label: l10n.messageMoreSheetCreateBranch,
         onTap: () { selected = MessageMoreAction.fork; },
@@ -101,6 +106,7 @@ Future<MessageMoreAction?> showMessageMoreSheet(BuildContext context, ChatMessag
   );
   return selected;
 }
+
 
 class _MessageMoreSheet extends StatefulWidget {
   const _MessageMoreSheet({required this.message, required this.parentContext});
@@ -277,12 +283,20 @@ class _MessageMoreSheetState extends State<_MessageMoreSheet> {
                       },
                     ),
                     _actionItem(
+                      icon: Lucide.CheckSquare,
+                      label: l10n.messageMoreSheetSelectMessages,
+                      onTap: () {
+                        Navigator.of(context).pop(MessageMoreAction.select);
+                      },
+                    ),
+                    _actionItem(
                       icon: Lucide.GitFork,
                       label: l10n.messageMoreSheetCreateBranch,
                       onTap: () {
                         Navigator.of(context).pop(MessageMoreAction.fork);
                       },
                     ),
+
                     _actionItem(
                       icon: Lucide.Trash2,
                       label: l10n.messageMoreSheetDelete,

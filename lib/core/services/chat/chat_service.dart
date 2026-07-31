@@ -825,6 +825,23 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> removeSelectedVersion(String conversationId, String groupId) async {
+    if (_draftConversations.containsKey(conversationId)) {
+      final draft = _draftConversations[conversationId]!;
+      draft.versionSelections.remove(groupId);
+      draft.updatedAt = DateTime.now();
+      notifyListeners();
+      return;
+    }
+    final c = _conversationsBox.get(conversationId);
+    if (c == null) return;
+    c.versionSelections.remove(groupId);
+    c.updatedAt = DateTime.now();
+    await c.save();
+    notifyListeners();
+  }
+
+
   Future<Conversation?> toggleTruncateAtTail(String conversationId, {String? defaultTitle}) async {
     if (!_initialized) await init();
     // Draft case

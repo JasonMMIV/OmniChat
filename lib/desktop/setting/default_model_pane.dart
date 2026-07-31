@@ -87,7 +87,9 @@ class DesktopDefaultModelPane extends StatelessWidget {
                       }
                     },
                     configAction: () => _showTitlePromptDialog(context),
+                    extra: _TitleThinkingSwitchRow(settings: settings, l10n: l10n, cs: cs),
                   ),
+
 
                   const SizedBox(height: 16),
                   _ModelCard(
@@ -115,8 +117,10 @@ class DesktopDefaultModelPane extends StatelessWidget {
 
                   const SizedBox(height: 16),
                   _ModelCard(
-                    icon: lucide.Lucide.Package2,
+                    icon: lucide.Lucide.Box,
                     title: l10n.defaultModelPageCompressModelTitle,
+
+
                     subtitle: l10n.defaultModelPageCompressModelSubtitle,
                     modelProvider: settings.compressModelProvider,
                     modelId: settings.compressModelId,
@@ -799,6 +803,7 @@ class _ModelCard extends StatefulWidget {
     this.fallbackModelId,
     this.onReset,
     this.configAction,
+    this.extra,
   });
 
   final IconData icon;
@@ -811,6 +816,8 @@ class _ModelCard extends StatefulWidget {
   final VoidCallback? onReset;
   final VoidCallback onPick;
   final VoidCallback? configAction;
+  final Widget? extra;
+
 
   @override
   State<_ModelCard> createState() => _ModelCardState();
@@ -956,12 +963,56 @@ class _ModelCardState extends State<_ModelCard> {
                 ),
               ),
             ),
+            if (widget.extra != null) widget.extra!,
           ],
         ),
       ),
     );
   }
 }
+
+class _TitleThinkingSwitchRow extends StatelessWidget {
+  const _TitleThinkingSwitchRow({
+    required this.settings,
+    required this.l10n,
+    required this.cs,
+  });
+
+  final SettingsProvider settings;
+  final AppLocalizations l10n;
+  final ColorScheme cs;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = settings.titleGenerationThinkingEnabled;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Text(
+              l10n.titleModelThinkingTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: cs.onSurface.withOpacity(0.92),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Switch(
+            value: value,
+            onChanged: settings.setTitleGenerationThinkingEnabled,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 
 class _DeskIosButton extends StatefulWidget {
   const _DeskIosButton({
