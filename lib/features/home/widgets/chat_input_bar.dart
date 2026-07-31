@@ -87,6 +87,8 @@ class ChatInputBar extends StatefulWidget {
     this.isDictating = false,
     this.onStartDictation,
     this.onStopDictation,
+    this.isEditing = false,
+    this.onCancelEdit,
   });
 
   final ValueChanged<ChatInputData>? onSend;
@@ -132,6 +134,8 @@ class ChatInputBar extends StatefulWidget {
   final bool isDictating;
   final VoidCallback? onStartDictation;
   final VoidCallback? onStopDictation;
+  final bool isEditing;
+  final VoidCallback? onCancelEdit;
 
   @override
   State<ChatInputBar> createState() => _ChatInputBarState();
@@ -1300,6 +1304,7 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final hasText = _controller.text.trim().isNotEmpty;
@@ -1456,7 +1461,51 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
                   ),
                   child: Column(
                     children: [
-                  // Input field with expand/collapse button
+                      if (widget.isEditing) ...[
+                        Container(
+                          margin: const EdgeInsets.fromLTRB(10, 8, 10, 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Lucide.Pencil,
+                                size: 15,
+                                color: theme.colorScheme.onSurface.withOpacity(0.7),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                l10n.messageEditPageTitle,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.colorScheme.onSurface.withOpacity(0.85),
+                                ),
+                              ),
+                              const Spacer(),
+                              GestureDetector(
+                                onTap: () {
+                                  Haptics.light();
+                                  widget.onCancelEdit?.call();
+                                },
+                                behavior: HitTestBehavior.opaque,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(2.0),
+                                  child: Icon(
+                                    Lucide.X,
+                                    size: 16,
+                                    color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      // Input field with expand/collapse button
                   Stack(
                     children: [
                       Padding(

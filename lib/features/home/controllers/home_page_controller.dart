@@ -235,6 +235,9 @@ class HomePageController extends ChangeNotifier {
   Animation<double> get convoFade => _convoFade;
   AnimationController get convoFadeController => _convoFadeController;
 
+  ChatMessage? _editingMessage;
+  ChatMessage? get editingMessage => _editingMessage;
+
   Map<String, TranslationData> get translations => _translations;
   Map<String, GlobalKey> get messageKeys => _messageKeys;
   bool get selecting => _selecting;
@@ -509,6 +512,44 @@ class HomePageController extends ChangeNotifier {
   // ============================================================================
 
   Future<void> sendMessage(ChatInputData input) async {
+    if (_editingMessage != null) {
+      final content = input.text.trim();
+      if (content.isEmpty && input.imagePaths.isEmpty && input.documents.isEmpty) return;
+
+      final targetMsg = _editingMessage!;
+      _editingMessage = null;
+
+      final content = input.text.trim();
+      final imageMarkers = input.imagePaths.map((p) => '\n[image:$p]').join();
+      final docMarkers = input.documents.map((d) => '\n[file:${d.path}|${d.fileName}|${d.mime}]').join();
+      final nextContent = content + imageMarkers + docMarkers;
+
+      _inputController.clear();
+      _mediaController.clearImages();
+      _mediaController.clearFiles();
+
+      final newMsg = await _chatService.appendMessageVersion(messageId: targetMsg.id, content: nextContent);
+      if (newMsg == null) return;
+
+      messages.add(newMsg);
+      final gid = (newMsg.groupId ?? newMsg.id);
+      versionSelections[gid] = newMsg.version;
+      notifyListeners();
+
+      if (currentConversation != null) {
+        try {
+          await _chatService.setSelectedVersion(currentConversation!.id, gid, newMsg.version);
+        } catch (_) {}
+      }
+
+      if (targetMsg.role == 'assistant') {
+        await regenerateAtMessage(newMsg, assistantAsNewReply: true);
+      } else {
+        await regenerateAtMessage(newMsg);
+      }
+      return;
+    }
+
     final content = input.text.trim();
     if (content.isEmpty && input.imagePaths.isEmpty && input.documents.isEmpty) return;
     if (currentConversation == null) await _createNewConversation();
@@ -517,6 +558,32 @@ class HomePageController extends ChangeNotifier {
     if (success) {
       notifyListeners();
     }
+  }
+
+  void startEditingMessage(ChatMessage message) {
+    _editingMessage = message;
+    final parsedInput = _messageBuilderService.parseInputFromRaw(message.content);
+    _inputController.text = parsedInput.text;
+    _inputController.selection = TextSelection.fromPosition(TextPosition(offset: parsedInput.text.length));
+    _mediaController.clearImages();
+    _mediaController.clearFiles();
+    if (parsedInput.imagePaths.isNotEmpty) {
+      _mediaController.addImages(parsedInput.imagePaths);
+    }
+    if (parsedInput.documents.isNotEmpty) {
+      _mediaController.addFiles(parsedInput.documents);
+    }
+    _inputFocus.requestFocus();
+    notifyListeners();
+  }
+
+  void cancelEditingMessage() {
+    if (_editingMessage == null) return;
+    _editingMessage = null;
+    _inputController.clear();
+    _mediaController.clearImages();
+    _mediaController.clearFiles();
+    notifyListeners();
   }
 
   Future<void> regenerateAtMessage(ChatMessage message, {bool assistantAsNewReply = false}) async {
@@ -552,6 +619,7 @@ class HomePageController extends ChangeNotifier {
   // ============================================================================
 
   Future<void> switchConversationAnimated(String id) async {
+    cancelEditingMessage();
     try { await _viewModel.flushCurrentConversationProgress(); } catch (_) {}
     if (currentConversation?.id == id) return;
     if (!isDesktopPlatform) {
@@ -576,6 +644,7 @@ class HomePageController extends ChangeNotifier {
   }
 
   Future<void> createNewConversationAnimated() async {
+    cancelEditingMessage();
     try { await _viewModel.flushCurrentConversationProgress(); } catch (_) {}
     if (!isDesktopPlatform) {
       try { await _convoFadeController.reverse(); } catch (_) {}
@@ -592,6 +661,7 @@ class HomePageController extends ChangeNotifier {
   }
 
   Future<void> _createNewConversation() async {
+    cancelEditingMessage();
     _translations.clear();
     await _viewModel.createNewConversation();
     notifyListeners();
@@ -647,35 +717,7 @@ class HomePageController extends ChangeNotifier {
   }
 
   Future<void> editMessage(ChatMessage message) async {
-    final isDesktop = isDesktopPlatform;
-    final result = isDesktop
-        ? await showMessageEditDesktopDialog(_context, message: message)
-        : await showMessageEditSheet(_context, message: message);
-    if (result == null) return;
-
-    final String nextContent = (result is String) ? result : (result as MessageEditResult).content;
-    final bool shouldSend = (result is String) ? false : (result as MessageEditResult).shouldSend;
-
-    final newMsg = await _chatService.appendMessageVersion(messageId: message.id, content: nextContent);
-    if (newMsg == null) return;
-
-    messages.add(newMsg);
-    final gid = (newMsg.groupId ?? newMsg.id);
-    versionSelections[gid] = newMsg.version;
-    notifyListeners();
-
-    if (currentConversation != null) {
-      try {
-        await _chatService.setSelectedVersion(currentConversation!.id, gid, newMsg.version);
-      } catch (_) {}
-    }
-
-    if (!shouldSend) return;
-    if (message.role == 'assistant') {
-      await regenerateAtMessage(newMsg, assistantAsNewReply: true);
-    } else {
-      await regenerateAtMessage(newMsg);
-    }
+    startEditingMessage(message);
   }
 
   Future<void> translateMessage(ChatMessage message) async {

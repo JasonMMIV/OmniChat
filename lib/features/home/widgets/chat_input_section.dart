@@ -65,6 +65,8 @@ class ChatInputSection extends StatelessWidget {
     this.onStartDictation,
     this.onStopDictation,
     this.onConfirmDictation,
+    this.isEditing = false,
+    this.onCancelEdit,
   });
 
   final GlobalKey inputBarKey;
@@ -105,6 +107,8 @@ class ChatInputSection extends StatelessWidget {
   final VoidCallback? onStartDictation;
   final VoidCallback? onStopDictation;
   final VoidCallback? onConfirmDictation;
+  final bool isEditing;
+  final VoidCallback? onCancelEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -188,6 +192,8 @@ class ChatInputSection extends StatelessWidget {
       showMoreButton: !isTablet,
       onClearContext: isTablet ? onClearContext : null,
       onCompressContext: isTablet ? onCompressContext : null,
+      isEditing: isEditing,
+      onCancelEdit: onCancelEdit,
     );
   }
 

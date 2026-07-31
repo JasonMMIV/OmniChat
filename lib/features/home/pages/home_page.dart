@@ -705,6 +705,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       isDictating: _controller.isDictating,
       onStartDictation: _controller.startDictation,
       onStopDictation: _controller.stopDictation,
+      isEditing: _controller.editingMessage != null,
+      onCancelEdit: _controller.cancelEditingMessage,
     );
   }
 

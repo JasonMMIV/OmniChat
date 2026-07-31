@@ -62,6 +62,20 @@
   - **Removed Feature**: Completely removed the message multi-select and batch delete functionality that was added in v1.6.4 entry #141.
   - **Preserved Share Mode**: The share selection mode (`confirmSelection`, `cancelSelection`, `toggleSelection`) remains intact as it was pre-existing functionality.
 
+### 145. Upstream Kelivo v1.1.16 Inline Message Editing & Attachment Support with RikkaHub Header Style
+- **Purpose**: Port user message editing optimization from upstream project `kelivo` (v1.1.16), allowing users to edit messages and modify attachments directly inside the main chat input bar instead of modal popups, while styling the edit header banner according to RikkaHub's UI design and supporting dynamic localization (`AppLocalizations`).
+- **Files Modified**:
+  - `lib/features/home/controllers/home_page_controller.dart` (added `editingMessage` state, `startEditingMessage`, `cancelEditingMessage`; updated `sendMessage` to format & save edited text and attachments and trigger AI regeneration; cleared edit state on conversation switch)
+  - `lib/features/home/widgets/chat_input_bar.dart` (added `isEditing` and `onCancelEdit` parameters; rendered RikkaHub-style top header banner inside input container with `Lucide.Pencil`, `AppLocalizations.of(context)!.messageEditPageTitle`, and `Lucide.X` close button)
+  - `lib/features/home/widgets/chat_input_section.dart` (passed `isEditing` and `onCancelEdit` to `ChatInputBar`)
+  - `lib/features/home/pages/home_page.dart` (wired `_controller.startEditingMessage` and passed edit state & cancel callback to `ChatInputSection`)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Inline Editing**: Removed modal popup sheet and desktop edit dialog in favor of inline editing directly within `ChatInputBar`.
+  - **Attachment Modification**: Parsed raw message content into text and media attachments (`imagePaths`, `documents`) upon editing, pre-filling the chat input bar and allowing users to add, remove, or update attachments before submitting.
+  - **RikkaHub Header Styling**: Replaced Kelivo's top floating "V 僅儲存" bar with an in-box header banner matching RikkaHub UI (pencil icon + title + close `X` button).
+  - **Full Localization (l10n)**: Dynamically binds title to `AppLocalizations.of(context)!.messageEditPageTitle`, adapting automatically to system language settings (English, Simplified Chinese, Traditional Chinese, etc.).
+
 ## [v1.6.3] - 2026-07-31: Token Stats Fix & Deep Research Refactoring
 
 
