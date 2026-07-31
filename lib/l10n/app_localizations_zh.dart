@@ -3468,6 +3468,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get titleModelThinkingTitle => '启用思考';
 
   @override
+  String get greetingModelThinkingTitle => '启用思考';
+
+  @override
   String get mcpServerEditSheetStdioOnlyDesktop => 'STDIO 仅在桌面端可用';
 
   @override
@@ -7301,6 +7304,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get titleModelThinkingTitle => '是否开启思考';
 
   @override
+  String get greetingModelThinkingTitle => '是否开启思考';
+
+  @override
   String get mcpServerEditSheetStdioOnlyDesktop => 'STDIO 仅在桌面端可用';
 
   @override
@@ -11108,6 +11114,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get titleModelThinkingTitle => '是否開啟思考';
+
+  @override
+  String get greetingModelThinkingTitle => '是否開啟思考';
 
   @override
   String get mcpServerEditSheetStdioOnlyDesktop => 'STDIO 僅在桌面端可用';

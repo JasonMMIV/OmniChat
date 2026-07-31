@@ -1554,6 +1554,7 @@
     }
   },
   "titleModelThinkingTitle": "Enable Thinking",
+  "greetingModelThinkingTitle": "Enable Thinking",
   "mcpServerEditSheetStdioOnlyDesktop": "STDIO is only available on desktop",
   "mcpServerEditSheetStdioCommandRequired": "Command is required for STDIO transport",
   "mcpTransportOptionStdio": "STDIO",

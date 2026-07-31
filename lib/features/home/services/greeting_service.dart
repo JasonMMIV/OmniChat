@@ -139,6 +139,7 @@ class GreetingService {
         config: cfg,
         modelId: modelId,
         prompt: prompt,
+        thinkingBudget: settings.greetingGenerationThinkingBudgetFor(),
       ).timeout(const Duration(seconds: 12));
 
       var text = result.trim();

@@ -194,6 +194,7 @@ class DefaultModelPage extends StatelessWidget {
               }
             },
             configAction: () => _showGreetingPromptSheet(context),
+            extra: _GreetingThinkingSwitchRow(settings: settings, l10n: l10n, cs: cs),
           ),
         ],
       ),
@@ -771,6 +772,49 @@ class _TitleThinkingSwitchRow extends StatelessWidget {
           Switch(
             value: value,
             onChanged: settings.setTitleGenerationThinkingEnabled,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+class _GreetingThinkingSwitchRow extends StatelessWidget {
+  const _GreetingThinkingSwitchRow({
+    required this.settings,
+    required this.l10n,
+    required this.cs,
+  });
+
+  final SettingsProvider settings;
+  final AppLocalizations l10n;
+  final ColorScheme cs;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = settings.greetingGenerationThinkingEnabled;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Text(
+              l10n.greetingModelThinkingTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: cs.onSurface.withOpacity(0.92),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Switch(
+            value: value,
+            onChanged: settings.setGreetingGenerationThinkingEnabled,
           ),
         ],
       ),

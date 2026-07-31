@@ -3468,6 +3468,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get titleModelThinkingTitle => 'Enable Thinking';
 
   @override
+  String get greetingModelThinkingTitle => 'Enable Thinking';
+
+  @override
   String get mcpServerEditSheetStdioOnlyDesktop =>
       'STDIO is only available on desktop';
 

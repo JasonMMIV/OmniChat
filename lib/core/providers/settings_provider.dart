@@ -39,6 +39,8 @@ class SettingsProvider extends ChangeNotifier {
   static const String _thinkingBudgetKey = 'thinking_budget_v1';
   static const String _titleGenerationThinkingEnabledKey =
       'title_generation_thinking_enabled_v1';
+  static const String _greetingGenerationThinkingEnabledKey =
+      'greeting_generation_thinking_enabled_v1';
 
   static const String _displayShowUserAvatarKey = 'display_show_user_avatar_v1';
   static const String _displayShowModelIconKey = 'display_show_model_icon_v1';
@@ -359,6 +361,8 @@ class SettingsProvider extends ChangeNotifier {
     _thinkingBudget = prefs.getInt(_thinkingBudgetKey);
     _titleGenerationThinkingEnabled =
         prefs.getBool(_titleGenerationThinkingEnabledKey) ?? true;
+    _greetingGenerationThinkingEnabled =
+        prefs.getBool(_greetingGenerationThinkingEnabledKey) ?? true;
 
 
     // display settings
@@ -1973,6 +1977,25 @@ Synthesize your reasoning and research into a final response. The structure shou
   int? titleGenerationThinkingBudgetFor(int? assistantBudget) {
     if (!_titleGenerationThinkingEnabled) return 0;
     return assistantBudget ?? _thinkingBudget;
+  }
+
+  // Greeting generation thinking toggle. Defaults to true for backward compatibility.
+  bool _greetingGenerationThinkingEnabled = true;
+  bool get greetingGenerationThinkingEnabled => _greetingGenerationThinkingEnabled;
+  Future<void> setGreetingGenerationThinkingEnabled(bool enabled) async {
+    if (_greetingGenerationThinkingEnabled == enabled) return;
+    _greetingGenerationThinkingEnabled = enabled;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_greetingGenerationThinkingEnabledKey, enabled);
+  }
+
+  Future<void> resetGreetingGenerationThinkingEnabled() async =>
+      setGreetingGenerationThinkingEnabled(true);
+
+  int? greetingGenerationThinkingBudgetFor() {
+    if (!_greetingGenerationThinkingEnabled) return 0;
+    return _thinkingBudget;
   }
 
 

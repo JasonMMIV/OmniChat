@@ -33,6 +33,20 @@
   - **Localization Fix**: The `sideDrawerDeleteConfirmTitle` and `sideDrawerDeleteConfirmContent` keys were missing from `app_zh_Hant.arb` and `app_zh_Hans.arb`, causing the dialog to fall back to Simplified Chinese from `app_zh.arb`. Added proper translations for both Traditional and Simplified Chinese.
   - **Mobile Confirmation Dialog**: The mobile bottom sheet delete action (line 311-328 in `side_drawer.dart`) directly deleted conversations without confirmation. Added `_confirmDeleteConversation` call to match desktop behavior.
 
+### 143. Add "Enable Thinking" Toggle for Greeting Model
+- **Purpose**: Add an "Enable Thinking" toggle for the greeting model, matching the existing functionality for title generation.
+- **Files Modified**:
+  - `lib/core/providers/settings_provider.dart` (added `greetingGenerationThinkingEnabled` setting, getter, setter, and `greetingGenerationThinkingBudgetFor` method)
+  - `lib/features/home/services/greeting_service.dart` (pass `thinkingBudget` to `ChatApiService.generateText`)
+  - `lib/features/model/pages/default_model_page.dart` (added `_GreetingThinkingSwitchRow` widget and passed it as `extra` to greeting model `_ModelCard`)
+  - `lib/desktop/setting/default_model_pane.dart` (added `_GreetingThinkingSwitchRow` widget and passed it as `extra` to greeting model `_ModelCard`)
+  - `lib/l10n/app_en.arb`, `lib/l10n/app_zh.arb`, `lib/l10n/app_zh_Hans.arb`, `lib/l10n/app_zh_Hant.arb` (added `greetingModelThinkingTitle` key)
+  - `lib/l10n/app_localizations_zh.dart` (regenerated)
+- **Details**:
+  - **Settings Provider**: Added `greetingGenerationThinkingEnabled` boolean setting with default `true`, loaded from SharedPreferences. Added `greetingGenerationThinkingBudgetFor()` method that returns 0 when disabled, otherwise returns the global thinking budget.
+  - **Greeting Service**: Updated `fetchAiGreetingInBackground` to pass `thinkingBudget: settings.greetingGenerationThinkingBudgetFor()` to `ChatApiService.generateText`.
+  - **Mobile & Desktop UI**: Added `_GreetingThinkingSwitchRow` widget (matching `_TitleThinkingSwitchRow` pattern) and passed it as `extra` parameter to the greeting model `_ModelCard` in both mobile and desktop settings pages.
+
 ## [v1.6.3] - 2026-07-31: Token Stats Fix & Deep Research Refactoring
 
 

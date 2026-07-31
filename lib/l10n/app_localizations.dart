@@ -6710,6 +6710,12 @@ abstract class AppLocalizations {
   /// **'Enable Thinking'**
   String get titleModelThinkingTitle;
 
+  /// No description provided for @greetingModelThinkingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable Thinking'**
+  String get greetingModelThinkingTitle;
+
   /// No description provided for @mcpServerEditSheetStdioOnlyDesktop.
   ///
   /// In en, this message translates to:
