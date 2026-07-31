@@ -86,7 +86,6 @@ class MessageListView extends StatelessWidget {
     this.onDeleteMessage,
     this.onForkConversation,
     this.onShareMessage,
-    this.onSelectMessages,
     this.onSpeakMessage,
     this.onToggleSelection,
     this.onToggleReasoning,
@@ -124,7 +123,6 @@ class MessageListView extends StatelessWidget {
   final OnDeleteMessage? onDeleteMessage;
   final OnForkConversation? onForkConversation;
   final OnShareMessage? onShareMessage;
-  final void Function(int index, List<ChatMessage> messages)? onSelectMessages;
   final OnSpeakMessage? onSpeakMessage;
   final void Function(String messageId, bool selected)? onToggleSelection;
   final void Function(String messageId)? onToggleReasoning;
@@ -515,8 +513,6 @@ class MessageListView extends StatelessWidget {
           await onForkConversation?.call(message);
         } else if (action == MessageMoreAction.share) {
           onShareMessage?.call(index, messages);
-        } else if (action == MessageMoreAction.select) {
-          onSelectMessages?.call(index, messages);
         }
 
       },

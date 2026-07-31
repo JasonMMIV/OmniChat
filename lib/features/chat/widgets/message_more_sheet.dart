@@ -21,7 +21,7 @@ import '../../../shared/pages/webview_page.dart';
 import '../../../desktop/html_preview_dialog.dart';
 import 'dart:convert';
 
-enum MessageMoreAction { edit, fork, delete, share, select }
+enum MessageMoreAction { edit, fork, delete, share }
 
 Future<MessageMoreAction?> showMessageMoreSheet(BuildContext context, ChatMessage message) async {
   final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
@@ -85,11 +85,6 @@ Future<MessageMoreAction?> showMessageMoreSheet(BuildContext context, ChatMessag
         icon: Lucide.Share,
         label: l10n.messageMoreSheetShare,
         onTap: () { selected = MessageMoreAction.share; },
-      ),
-      DesktopContextMenuItem(
-        icon: Lucide.CheckSquare,
-        label: l10n.messageMoreSheetSelectMessages,
-        onTap: () { selected = MessageMoreAction.select; },
       ),
       DesktopContextMenuItem(
         icon: Lucide.GitFork,
@@ -280,13 +275,6 @@ class _MessageMoreSheetState extends State<_MessageMoreSheet> {
                       label: l10n.messageMoreSheetShare,
                       onTap: () {
                         Navigator.of(context).pop(MessageMoreAction.share);
-                      },
-                    ),
-                    _actionItem(
-                      icon: Lucide.CheckSquare,
-                      label: l10n.messageMoreSheetSelectMessages,
-                      onTap: () {
-                        Navigator.of(context).pop(MessageMoreAction.select);
                       },
                     ),
                     _actionItem(

@@ -1534,25 +1534,6 @@
   "chatMessageWidgetRegenerateConfirmContent": "Regenerating only updates this message and keeps the messages below it. Continue?",
   "chatMessageWidgetRegenerateConfirmCancel": "Cancel",
   "chatMessageWidgetRegenerateConfirmOk": "Regenerate",
-  "messageMoreSheetSelectMessages": "Select Messages",
-  "chatSelectionDeleteSelected": "Delete Selected",
-  "chatSelectionSelectMessagesToDelete": "Please select messages to delete",
-  "chatSelectionDeleteSelectedConfirm": "Delete {count} selected version(s)? This cannot be undone.",
-  "@chatSelectionDeleteSelectedConfirm": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "chatSelectionDeleteSelectedAllVersionsConfirm": "Delete all versions of {count} selected message(s)? This cannot be undone.",
-  "@chatSelectionDeleteSelectedAllVersionsConfirm": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "titleModelThinkingTitle": "Enable Thinking",
   "greetingModelThinkingTitle": "Enable Thinking",
   "mcpServerEditSheetStdioOnlyDesktop": "STDIO is only available on desktop",
@@ -1575,7 +1556,6 @@
       }
     }
   },
-  "messageMoreSheetDeleteAllVersions": "Delete All Versions",
   "chatMessageWidgetDeleteConfirmDelete": "Delete",
 
   "helloWorld": "你好，世界！",

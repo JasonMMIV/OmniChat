@@ -50,7 +50,6 @@ import '../../ai_team/pages/ai_team_page.dart';
 import '../widgets/instruction_prompt_sheet.dart';
 import '../widgets/scroll_nav_buttons.dart';
 import '../widgets/selection_toolbar.dart';
-import '../widgets/chat_selection_delete_bar.dart';
 import '../widgets/message_list_view.dart';
 
 import '../widgets/chat_input_section.dart';
@@ -598,11 +597,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       onDeleteMessage: (message, byGroup) => _handleDeleteMessage(context, message, byGroup),
       onForkConversation: (message) => _controller.forkConversation(message),
       onShareMessage: (index, messages) => _controller.shareMessage(index, messages),
-      onSelectMessages: (index, messages) => _controller.startMessageSelection(
-        messageIndex: index,
-        messageList: messages,
-        mode: ChatSelectionMode.delete,
-      ),
       onSpeakMessage: (message) => _controller.speakMessage(message),
 
       onToggleSelection: (messageId, selected) {
@@ -715,28 +709,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Widget _buildSelectionToolbarOverlay() {
-    if (_controller.selectionMode == ChatSelectionMode.delete) {
-      return Align(
-        alignment: Alignment.bottomCenter,
-        child: AnimatedSelectionBar(
-          visible: _controller.selecting,
-          child: ChatSelectionDeleteBar(
-            hasMultiVersionSelection:
-                _controller.selectedMessagesIncludeMultipleVersions,
-            onDeleteCurrentVersions: () {
-              unawaited(
-                _handleDeleteSelectedMessages(context, deleteAllVersions: false),
-              );
-            },
-            onDeleteAllVersions: () {
-              unawaited(
-                _handleDeleteSelectedMessages(context, deleteAllVersions: true),
-              );
-            },
-          ),
-        ),
-      );
-    }
     return Align(
       alignment: Alignment.bottomCenter,
       child: SafeArea(
@@ -752,59 +724,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           ),
         ),
       ),
-    );
-  }
-
-  Future<void> _handleDeleteSelectedMessages(
-    BuildContext context, {
-    required bool deleteAllVersions,
-  }) async {
-    final l10n = AppLocalizations.of(context)!;
-    if (_controller.selectedItems.isEmpty) {
-      showAppSnackBar(
-        context,
-        message: l10n.chatSelectionSelectMessagesToDelete,
-        type: NotificationType.info,
-      );
-      return;
-    }
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          deleteAllVersions
-              ? l10n.messageMoreSheetDeleteAllVersions
-              : l10n.chatSelectionDeleteSelected,
-        ),
-        content: Text(
-          deleteAllVersions
-              ? l10n.chatSelectionDeleteSelectedAllVersionsConfirm(
-                  _controller.selectedItems.length,
-                )
-              : l10n.chatSelectionDeleteSelectedConfirm(
-                  _controller.selectedItems.length,
-                ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.chatMessageWidgetRegenerateConfirmCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              l10n.chatMessageWidgetDeleteConfirmDelete,
-              style: const TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-
-    await _controller.deleteSelectedMessages(
-      deleteAllVersions: deleteAllVersions,
     );
   }
 

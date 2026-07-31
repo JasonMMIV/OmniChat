@@ -47,6 +47,21 @@
   - **Greeting Service**: Updated `fetchAiGreetingInBackground` to pass `thinkingBudget: settings.greetingGenerationThinkingBudgetFor()` to `ChatApiService.generateText`.
   - **Mobile & Desktop UI**: Added `_GreetingThinkingSwitchRow` widget (matching `_TitleThinkingSwitchRow` pattern) and passed it as `extra` parameter to the greeting model `_ModelCard` in both mobile and desktop settings pages.
 
+### 144. Revert Message Multi-Select & Batch Delete Feature
+- **Purpose**: Remove the message multi-select and batch delete feature due to poor usability.
+- **Files Modified**:
+  - `lib/features/home/controllers/home_page_controller.dart` (removed `ChatSelectionMode` enum, selection state fields, `deleteSelectedMessages`, `_selectedMessageIdsForDeletion`, `selectedMessagesIncludeMultipleVersions`, `_selectedSelectionGroupIds`, `_allCurrentConversationMessages` methods; simplified `startMessageSelection` and `cancelSelection`)
+  - `lib/features/home/controllers/home_view_model.dart` (removed `deleteMessages`, `buildBatchDeletePlan`, `computeNextVersionSelection` methods and `BatchDeletePlan`, `BatchDeleteGroupPlan` classes)
+  - `lib/features/chat/widgets/message_more_sheet.dart` (removed `MessageMoreAction.select` enum value and "Select Messages" UI from both desktop and mobile)
+  - `lib/features/home/pages/home_page.dart` (removed `chat_selection_delete_bar.dart` import, `_buildSelectionToolbarOverlay` delete mode handling, `_handleDeleteSelectedMessages` method, `onSelectMessages` callback)
+  - `lib/features/home/widgets/message_list_view.dart` (removed `onSelectMessages` parameter and `MessageMoreAction.select` handler)
+  - `lib/features/home/widgets/chat_selection_delete_bar.dart` (deleted file)
+  - `lib/l10n/app_en.arb`, `lib/l10n/app_zh.arb`, `lib/l10n/app_zh_Hans.arb`, `lib/l10n/app_zh_Hant.arb` (removed `messageMoreSheetSelectMessages`, `chatSelectionDeleteSelected`, `chatSelectionSelectMessagesToDelete`, `chatSelectionDeleteSelectedConfirm`, `chatSelectionDeleteSelectedAllVersionsConfirm`, `messageMoreSheetDeleteAllVersions` keys)
+  - `lib/l10n/app_localizations_zh.dart` (regenerated)
+- **Details**:
+  - **Removed Feature**: Completely removed the message multi-select and batch delete functionality that was added in v1.6.4 entry #141.
+  - **Preserved Share Mode**: The share selection mode (`confirmSelection`, `cancelSelection`, `toggleSelection`) remains intact as it was pre-existing functionality.
+
 ## [v1.6.3] - 2026-07-31: Token Stats Fix & Deep Research Refactoring
 
 

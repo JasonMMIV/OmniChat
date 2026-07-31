@@ -6674,36 +6674,6 @@ abstract class AppLocalizations {
   /// **'Regenerate'**
   String get chatMessageWidgetRegenerateConfirmOk;
 
-  /// No description provided for @messageMoreSheetSelectMessages.
-  ///
-  /// In en, this message translates to:
-  /// **'Select Messages'**
-  String get messageMoreSheetSelectMessages;
-
-  /// No description provided for @chatSelectionDeleteSelected.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete Selected'**
-  String get chatSelectionDeleteSelected;
-
-  /// No description provided for @chatSelectionSelectMessagesToDelete.
-  ///
-  /// In en, this message translates to:
-  /// **'Please select messages to delete'**
-  String get chatSelectionSelectMessagesToDelete;
-
-  /// No description provided for @chatSelectionDeleteSelectedConfirm.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete {count} selected version(s)? This cannot be undone.'**
-  String chatSelectionDeleteSelectedConfirm(int count);
-
-  /// No description provided for @chatSelectionDeleteSelectedAllVersionsConfirm.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete all versions of {count} selected message(s)? This cannot be undone.'**
-  String chatSelectionDeleteSelectedAllVersionsConfirm(int count);
-
   /// No description provided for @titleModelThinkingTitle.
   ///
   /// In en, this message translates to:
@@ -6793,12 +6763,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Are you sure you want to delete \"{title}\"? This cannot be undone.'**
   String sideDrawerDeleteConfirmContent(String title);
-
-  /// No description provided for @messageMoreSheetDeleteAllVersions.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete All Versions'**
-  String get messageMoreSheetDeleteAllVersions;
 
   /// No description provided for @chatMessageWidgetDeleteConfirmDelete.
   ///
