@@ -1,8 +1,188 @@
-# OmniChat Developer Changes Log
+# OmniChat Documentation & Developer Changes Log
+
+## 📌 Core Architecture & Feature Overview
+
+### Project Overview
+
+- **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
+- **Status**: Active Development / Feature Integration
+- **Last Updated**: 2026-07-31 (v1.6.4)
+- **Platforms**: Android (ARM64 v8a), Windows
+
+---
+
+### Core Feature Modules
+
+#### 1. Voice Chat Functionality (Integrated)
+
+Provides a seamless, hands-free conversational experience with AI.
+
+- **Cross-Platform State Machine**: Transitions smoothly between `Listening`, `Thinking` (processing), and `Talking` (TTS playback).
+- **Silence Timeout Handling (v1.5.10, reverted in v1.5.14)**: 
+  - The automatic "Pause-on-Timeout" strategy was removed because Android speech recognition timeout/status callbacks are not reliable enough to drive UI state.
+  - Voice Chat now keeps Play/Pause state under explicit user control instead of auto-pausing on `notListening`, `error_speech_timeout`, or `error_no_match`.
+- **Inline Voice Dictation (v1.5.8 - v1.5.12, timeout auto-exit reverted in v1.5.14)**: 
+  - Added a microphone button directly to the text input bar, fully localized in English, Traditional Chinese, and Simplified Chinese according to system/app settings.
+  - Supports non-destructive text entry (appends recognized speech to existing text).
+  - Integrated dedicated "Stop" and "Confirm/Send" buttons (also fully localized) for a focused dictation UX.
+  - **Manual Exit**: Timeout-driven auto-exit was removed. Users explicitly end dictation with Stop or Confirm for more predictable Android behavior.
+- **Audio Session Management**: Optimized for Bluetooth/CarPlay on Mobile; platform-guarded on Desktop to prevent crashes.
+- **Windows Architecture**:
+  - **Current Implementation (v1.5.4)**: Dedicated Win32 Message-Only Window for robust thread marshalling and Chinese locale fallback.
+  - **Key Feature**: Native support for high-accuracy "OneCore" DNN engines (Windows 10/11 Dictation quality).
+  - **Crash Mitigation (v1.5.17 → v1.5.26)**:
+    - **v1.5.17**: Reduced fetch download limit (2 MB → 512 KB), added historical tool-result truncation, and introduced a fetch concurrency queue to reduce compound memory pressure during deep-thinking + web-search + multi-fetch conversations.
+    - **v1.5.18**: Replaced ReDoS-vulnerable RegExp patterns in `_preCleanHtml()` with linear-complexity lazy matchers (`[\s\S]*?`). Added `_capForParsing()` to truncate HTML to 256 KB before DOM parsing. Added 30-second HTTP timeout to `_fetchWithLimit()`. Offloaded heavy HTML→Markdown/TXT conversion to background isolates via `compute()` for pages >32 KB, with 15-second isolate timeout.
+    - **v1.5.26**: Resolved `flutter_windows.dll` (`0xc0000005`), `ntdll.dll` (`0xc0000374` Heap Corruption), and `ucrtbase.dll` crashes by completely bypassing `SelectionArea` across message list items on Windows (`defaultTargetPlatform == TargetPlatform.windows`), while delegating text selection to dedicated modal dialogs (`SelectCopyPage`/`SelectCopyDialog`). Removed unsafe direct fallback execution in `speech_to_text_windows_plugin.cpp` when `PostMessage` fails, preventing WinRT background thread pool calls into Flutter MethodChannels.
+
+#### 2. Account Balance Support (Integrated)
+
+Ported from Rikkahub to provide real-time usage monitoring.
+
+- **Provider Integration**: Supports OpenAI, Google Gemini, DeepSeek, OpenRouter, Moonshot, and **Neuralwatt (v1.5.15)**.
+- **Custom Configuration**: Users can toggle balance fetching and define custom API paths and JSON result keys per provider.
+- **Neuralwatt Quota (v1.5.15)**: Uses the official `GET /v1/quota` endpoint. Displays `balance.credits_remaining_usd` formatted as `$xx.xx`.
+- **UI Display**: Balance display integrated into Provider Settings and Model Selection menus.
+- **Status**: **Verified Working**.
+
+#### 3. UI/UX Enhancements & Rebranding
+
+Refined visual identity and improved accessibility.
+
+- **Global Rebranding**: Completed migration from "Kelivo" to "OmniChat" across all visible strings (About section, notifications, tray icons).
+- **Streamlined Settings**: Removed redundant "Docs" and "Sponsor" options to focus on core chat experience.
+- **Translation Localization**: Updated default translation target to **Traditional Chinese (zh-TW)** for Chinese-speaking regions.
+- **Icon Maximization**: Enlarged action icons across the app (AppBar, Sidebar, and Input Toolbar).
+- **Desktop Optimization**: 1.4x scale for Voice Chat and New Chat buttons for better target acquisition.
+- **Brand Icons (v1.5.16)**: Added `neuralwatt-color.svg` (brand blue `#2563EB`, replacing `currentColor` for cross-theme visibility) and `tinyfish.png` (64x64, resized from 200x200) to `assets/icons/`. Registered both in `BrandAssets` mapping so they appear in provider avatars, search service lists, model selectors, and all UI surfaces that resolve brand icons.
+- **Reasoning Text Selection (v1.5.16)**: Reasoning/thinking blocks from reasoning-capable models now support text selection. Wrapped both plain-text and Markdown rendering paths in `SelectionArea` with a custom context menu providing "Select All" and "Copy" actions (long-press on mobile, right-click on desktop).
+  - Implemented dynamic layout calculations to automatically hide overflowing input actions (e.g. Inline Dictation, Reasoning Mode) on smaller screen sizes (mobile).
+  - Instead of spawning a redundant second `+` button on the left, these overflowed items are gracefully consolidated into the existing right-side `+` (More) menu.
+  - Within the `BottomToolsSheet`, the overflowed items are presented below "Learning Mode" and "Clear Context", rendered in a matching list row layout (icon on the left, label on the right).
+
+#### 4. Search Services (Integrated)
+
+Provides configurable external web search providers for tool-enabled text chat.
+
+- **Provider Registry**: Search providers are represented by typed `SearchServiceOptions` and resolved through `SearchService.getService`.
+- **Supported Providers**: Bing Local, DuckDuckGo, Tavily, Exa, Zhipu, SearXNG, LinkUp, Brave, Google, Metaso, Jina, Ollama, Perplexity, Bocha, and **Tinyfish (v1.5.15)**.
+- **Google Search API**: Uses Google Custom Search JSON API with `apiKey` and Programmable Search Engine ID (`cx`). Per-request result count is capped to Google's `num <= 10` API limit.
+- **Tinyfish Search API (v1.5.15)**: Uses the official `GET https://api.search.tinyfish.ai` REST endpoint with `X-API-Key` header. Maps response `results[]` — `title`, `url`, `snippet` — to `SearchResultItem`. Supports `resultSize` limit and `timeout` control. REST API only; MCP integration is deferred.
+- **UI Coverage**: Both mobile search service sheets and desktop settings panes support provider creation, editing, selection, status display, and brand icons.
+
+#### 5. Local Code Execution (MCP) (Integrated)
+
+Provides a sandboxed environment for LLM to execute code locally on all platforms, including Android.
+
+- **In-memory MCP Transport**: Implemented an internal, high-performance transport that doesn't require network overhead.
+- **JavaScript Runtime**: Integrated `flutter_js` (QuickJS/JavaScriptCore) to provide a secure, lightweight execution environment.
+- **Tooling**: Exposes `run_javascript` tool to the LLM for data processing, calculations, and logic evaluation (e.g., fortune-telling algorithms).
+- **Architecture**: Decoupled engine (`JsMcpServerEngine`) from the transport layer to ensure maintainability and portability.
+- **Safety Hardening (v1.5.14)**:
+  - Runs each JavaScript tool call in a fresh runtime to prevent global state leakage between calls.
+  - Disables JavaScript network APIs for the built-in local execution tool and rejects direct `fetch`/`XMLHttpRequest`/`WebSocket` usage patterns.
+  - Applies QuickJS timeout and memory limits on QuickJS-backed platforms, with preflight rejection for empty, oversized, and obvious infinite-loop snippets.
+- **Fetch Server Memory Optimization (v1.5.16 → v1.5.18)**:
+  - **v1.5.16**: Replaced unbuffered `http.get()` with a streaming `_fetchWithLimit()` method that reads the HTTP response chunk-by-chunk and rejects bodies exceeding 2 MB, preventing memory spikes from large web pages.
+  - **v1.5.16**: Added `_preCleanHtml()` helper that strips `<script>`, `<style>`, `<head>`, `<noscript>`, `<svg>`, `<iframe>`, and inline `data:` URIs via RegExp before DOM parsing or Markdown conversion, reducing raw HTML payload by 70–90%.
+  - **v1.5.17**: Reduced the download hard limit from 2 MB to **512 KB**. After pre-cleaning, most pages' meaningful content is 50–200 KB; 512 KB provides ample headroom while cutting peak per-fetch transient memory by ~75%.
+  - **v1.5.17**: Added historical tool-result truncation in `ChatApiService` via `_truncateToolResultText()` (32,768-char threshold, head+tail preservation) and `_truncateToolResultsInMessages()`. Applied before every follow-up request across OpenAI, Claude, and Google formats, preventing `currentMessages` / `convo` from ballooning across multi-round tool-call loops.
+  - **v1.5.17**: Added `_withFetchQueue()` concurrency limit of **2 parallel fetches** in `KelivoFetcher` with `Completer`-based FIFO queuing and exception-safe `finally` cleanup.
+  - **v1.5.18**: Replaced ReDoS-prone RegExp patterns in `_preCleanHtml()` (`[^<]*(?:(?!</tag>)<[^<]*)*`) with linear lazy matchers (`[\s\S]*?`). This fixes deterministic crashes on HTML inputs containing many unpaired `<` characters that previously caused exponential backtracking (O(2ⁿ)).
+  - **v1.5.18**: Added `_capForParsing()` to limit DOM parse input to **256 KB** (with UTF-16 surrogate pair safety), preventing OOM from building full DOM trees on large pages.
+  - **v1.5.18**: Added a **30-second HTTP timeout** to `_fetchWithLimit()` to prevent indefinite hangs on slow/hanging servers.
+  - **v1.5.18**: Offloaded heavy synchronous HTML processing (`_preCleanHtml` + `html2md.convert` / `html_parser.parse`) to background isolates via `compute()` for pages >32 KB. Isolates are capped at **15 seconds**; OOM or CPU spin in the isolate kills only the background worker, not the UI.
+  - Applies to all four fetch tools: `fetch_html`, `fetch_markdown`, `fetch_txt`, `fetch_json`.
+  - **Status**: **Verified Working (v1.5.9), hardened in v1.5.14, memory-optimized in v1.5.16, crash-threshold lowered in v1.5.17, ReDoS root cause fixed in v1.5.18**.
+
+#### 6. Built-in API Providers (Integrated)
+
+OmniChat ships with a curated list of built-in API providers, each with default base URLs, enabled states, and provider-specific configurations.
+
+- **Provider Architecture**: Uses `ProviderKind` enum (`openai`, `google`, `claude`, `neuralwatt`) with `ProviderConfig.classify()` for automatic key-based inference and `ProviderConfig.defaultsFor()` for sensible defaults.
+- **Provider Management**: `ProviderManager.forConfig()` resolves the correct `BaseProvider` implementation for model list fetching, balance checking, and connection testing.
+- **Neuralwatt Provider (v1.5.15)**:
+  - **Base URL**: `https://api.neuralwatt.com/v1`
+  - **Model List**: Fetches from `GET /v1/models` and parses Neuralwatt-specific `metadata` — `display_name` for model display name, `capabilities.vision` for image input, `capabilities.tools` for tool ability, `capabilities.reasoning` / `reasoning_effort` for reasoning ability, and `deprecated` flag for deprecation marker.
+  - **Balance**: `GET /v1/quota` extracting `balance.credits_remaining_usd`.
+  - **Chat API**: OpenAI-compatible; neuralwatt is routed to the OpenAI chat completion / Responses API flow via `_apiKind()` helper in `ChatApiService` and `ProviderManager.testConnection()`.
+  - **Config Defaults**: `chatPath: /chat/completions`, `useResponseApi: false`, `balanceEnabled: true`, `balanceApiPath: /quota`, `balanceResultKey: balance.credits_remaining_usd`.
+  - **Brand Icon**: Mapped to `neuralwatt-color.svg` (v1.5.16, brand blue `#2563EB`) with letter `N` fallback.
+  - **Scope**: First version covers REST API only; does not implement `/v1/usage/energy`, per-request energy display, or API key allowance management.
+
+#### 7. AI Team — Mixture of Agents (Integrated, v1.5.23)
+
+Provides a Mixture-of-Agents pipeline supporting both Parallel (MoA) and sequential Chain (CMoA) collaboration models.
+
+- **Parallel (MoA) Mode**: 1–4 "proposer" models answer the user's question independently, and an "aggregator" model synthesizes their outputs into a single final response.
+- **Chain (CMoA) Mode**: Sequential chain pipeline (Proposer -> Critics -> Aggregator). The Proposer runs first with Proposer Prompt A. Then, sequential Critics (0-3) audit the previous outputs using Critic Prompt B, with preceding assistant and critic outputs stitched chronologically into the conversation history to simulate an ongoing dialogue. Finally, the Aggregator synthesizes the entire chain's thinking with Aggregator Prompt C.
+- **Execution Strategy**: **Serial** execution — proposers and critics run sequentially (not in parallel) to avoid memory spikes during multi-round tool-call + web-search conversations, aligning with the v1.5.16–v1.5.18 fetch memory optimization work.
+- **Proposal Phase**: Each proposer receives a cloned copy of the pre-pared `apiMessages` (including instruction injection, memory, search prompts) with the proposal system prompt **appended** to the existing system message (preserving assistant persona). Proposers can use all tools (search, fetch, MCP) inherited from the user's current toolbar settings.
+- **Aggregation Phase**: Proposals are injected as `{role:'assistant'}` messages after the last user message, followed by a trailing `{role:'user'}` message instructing the aggregator to synthesize. This trailing user message ensures the last role is `user`, which is required by providers like Mistral that reject an assistant as the final message. The aggregator system prompt is appended to the existing system message. The aggregator receives `toolDefs` and `onToolCall` inherited from the toolbar settings, enabling it to call tools (search, fetch, MCP) when synthesizing the final answer. The aggregator stream is dispatched via the standard `_executeGeneration` flow, so UI streaming updates and tool cards work identically.
+- **Stream Subscription Management**: Proposer/Critic subscriptions are managed via a local variable (NOT stored in `_conversationStreams`). Only the aggregator's subscription is registered for cancellation.
+- **Placeholder Model ID**: When AI Team is enabled and an aggregator is explicitly configured, the assistant placeholder's `modelId`/`providerId` are set to the aggregator's values.
+- **Error Handling**: Per-proposer/critic failures (429, timeout, network) are caught and skipped; only if ALL proposers fail does the entire flow abort.
+- **Cancellation**: Cancelling during the proposal phase cancels the current proposer/critic subscription **and the underlying HTTP request** (via `ChatApiService.cancelRequest('${cid}_proposer')`), marks the placeholder with "AI Team stopped", and persists any partial proposals.
+- **Proposals Rendering**: After the aggregator finishes, proposals are persisted as JSON in `ChatMessage.aiTeamProposalsJson` (HiveField 16) and rendered as a collapsible grey box titled "協作過程" (Collaboration Process) — visually mirroring the reasoning section but semantically independent.
+- **Model Selection**: `showModelSelector` is called without `limitProviderKey`, allowing cross-provider MoA combinations (e.g. OpenAI + Claude + Google).
+- **Default Prompts**: Defaults are localized (en, zh-Hans, zh-Hant) and switch with app language. Users can customize prompts; when customized, the `useDefaultProposalPrompt` / `useDefaultAggregatorPrompt` / `useDefaultChainProposerPrompt` / `useDefaultChainCriticPrompt` / `useDefaultChainAggregatorPrompt` flags flip to `false`, and the custom text is used. Each prompt editor has its own **Restore Default** button, so a single prompt can be reverted to the l10n default without touching the others.
+- **Progress Indicator**: During the proposal/critic phase, a localized progress text (e.g., "AI Team running… Proposal X/N" or "AI Team running… Critic X/N") is pushed to the streaming UI via `StreamingContentNotifier.updateContent()`, giving users visual feedback that work is in progress.
+- **Real-time Proposals**: Proposals and audits are shown in the UI as soon as each slot completes — not waiting for the entire flow to finish. After each completes, the partial proposals JSON is pushed to `StreamingContentNotifier.updateProposals()`, persisted to DB via `updateMessageSilent()`, and the in-memory message list is updated. The `AiTeamProposalsSection` widget dynamically filters empty proposals, so only completed proposals are visible during the phase. `sendMessage` and `regenerateAtMessage` use `unawaited(_executeAiTeamGeneration(...))` (instead of `await`) so that `sendMessage` returns immediately, `notifyListeners()` fires, `MessageListView` rebuilds, and `ValueListenableBuilder` mounts.
+- **Mistral Aggregator Compatibility**: `_buildAggregatorMessages` appends a trailing `{role:'user'}` message after the proposals so the final role is `user`. Mistral API rejects an assistant as the last message (HTTP 400 `invalid_request_message_order`); the trailing user prompt resolves this and is harmless to other providers.
+- **Rich Proposals**: Each proposal/audit captures not only the final content but also the reasoning text and tool-call history (name, arguments, truncated results). These are stored in the proposals JSON and rendered as collapsible sections within each block.
+- **Proposals Position**: Proposals are rendered **before** the aggregator's reasoning section and main content, matching the logical reading order: proposals → aggregator thinking → aggregator answer.
+- **Layered Collapsible UI**: Each proposal block in the grey box has individually collapsible Thinking and Tool Calls sections (default collapsed), with the final answer always visible.
+- **Settings UI**: Full settings page (mobile `AiTeamPage` + desktop `DesktopAiTeamPane`) for enable toggle, collaboration mode selector (Parallel vs Chain), proposer/critic count, per-slot model selection, aggregator selection, and prompt editing. When `useDefault=true`, the l10n default is shown as preview. Accessible from Settings → Models & Services → AI Team.
+- **Toolbar Button**: A `Lucide.Users` button is placed between Reasoning and Learning mode in the chat input bar, opening the AI Team settings page when tapped.
+- **Regenerate**: `regenerateAtMessage` supports AI Team — when enabled, regeneration runs the full proposer → aggregator pipeline, consistent with `sendMessage`.
+- **Status**: Integrated (v1.5.23).
+
+#### 8. Context Management & Compression (Integrated, v1.5.22)
+
+Provides a comprehensive context control flow aligned with upstream (Kelivo)'s design.
+
+- **Context Management Sheet**: Mobile users access an elegant bottom sheet to select between "Clear Context" and "Compress Context".
+- **Desktop Dropdowns**: Integrated with the desktop text composer toolbar, featuring an anchored popover to select context operations.
+- **Context Compression (Compress Context)**: 
+  - Gathers the active chat history (optionally limited to the earliest, most recent, or unlimited characters) and serializes it.
+  - Queries the LLM with the custom summary prompt (fully editable in settings).
+  - Automatically creates a new conversation with the summary as the first message and transitions the user session to it, leaving the original conversation history untouched.
+  - Dynamically resolves the most appropriate model: `Compress Model` (custom-configured) -> `Summary Model` -> `Title Model` -> `Assistant Model` -> `Chat Model` (global default).
+- **Remaining Message Count**: Fixed context remaining message counting logic by utilizing complete messages in the view model instead of lazy-loaded segments.
+- **Status**: **Integrated (v1.5.22)**.
+
+---
+
+### Technical Implementation Details
+
+#### Architecture & State Management
+
+- **Providers**: Centralized logic using `SettingsProvider`, `AssistantProvider`, `ChatService`, and `VoiceChatProvider`.
+- **Windows Plugin**: Locally forked and patched `speech_to_text_windows` to support modern WinRT APIs and custom JSON transformation.
+- **Text Chat Streaming**: Chat stream handling now serializes async chunk processing with subscription pause/resume guards. Unhandled async errors are routed into stream error handling and global guarded logging to reduce Windows text chat crashes.
+
+#### Windows WinRT Migration Roadmap
+
+1. **Phase 1 (Done)**: Build environment setup.
+2. **Phase 2 (Done)**: Core implementation rewrite (SpeechRecognizer integrated).
+3. **Phase 3 (Done)**: Runtime validation and robust threading via Message-Only Window.
+4. **Phase 4 (Done)**: Chinese locale fallback and stability improvements.
+
+#### Build & Release
+
+- **Target Platform**: 
+  - Android: Signed ARM64 v8a APK.
+  - Windows: Portable ZIP and Inno Setup Installer.
+- **Optimization**: Tree-shaking enabled; high-resolution asset unification.
+
+---
+
+## 📜 Version Changes Log
 
 ## [v1.6.4] - 2026-07-31: Port Upstream Kelivo Features (v1.1.9, v1.1.11, v1.1.16, v1.1.17)
 
 ### 141. Upstream Kelivo Features Integration
+
 - **Purpose**: Port features and optimizations from upstream project `kelivo` (v1.1.9, v1.1.11, v1.1.16, v1.1.17) into OmniChat.
 - **Files Modified**:
   - `lib/features/home/widgets/side_drawer.dart` (added topic deletion confirmation dialog)
@@ -23,6 +203,7 @@
   - **Title Generation Thinking Control**: Added "Enable Thinking" toggle in default model settings to control thinking budget during title generation API requests.
 
 ### 142. Fix Topic Deletion Confirmation Dialog Localization & Mobile Display
+
 - **Purpose**: Fix two issues with the topic deletion confirmation dialog: (1) desktop dialog displayed Simplified Chinese regardless of system language, and (2) mobile version did not show confirmation dialog at all.
 - **Files Modified**:
   - `lib/l10n/app_zh_Hant.arb` (added `sideDrawerDeleteConfirmTitle` and `sideDrawerDeleteConfirmContent` Traditional Chinese translations)
@@ -34,6 +215,7 @@
   - **Mobile Confirmation Dialog**: The mobile bottom sheet delete action (line 311-328 in `side_drawer.dart`) directly deleted conversations without confirmation. Added `_confirmDeleteConversation` call to match desktop behavior.
 
 ### 143. Add "Enable Thinking" Toggle for Greeting Model
+
 - **Purpose**: Add an "Enable Thinking" toggle for the greeting model, matching the existing functionality for title generation.
 - **Files Modified**:
   - `lib/core/providers/settings_provider.dart` (added `greetingGenerationThinkingEnabled` setting, getter, setter, and `greetingGenerationThinkingBudgetFor` method)
@@ -48,6 +230,7 @@
   - **Mobile & Desktop UI**: Added `_GreetingThinkingSwitchRow` widget (matching `_TitleThinkingSwitchRow` pattern) and passed it as `extra` parameter to the greeting model `_ModelCard` in both mobile and desktop settings pages.
 
 ### 144. Revert Message Multi-Select & Batch Delete Feature
+
 - **Purpose**: Remove the message multi-select and batch delete feature due to poor usability.
 - **Files Modified**:
   - `lib/features/home/controllers/home_page_controller.dart` (removed `ChatSelectionMode` enum, selection state fields, `deleteSelectedMessages`, `_selectedMessageIdsForDeletion`, `selectedMessagesIncludeMultipleVersions`, `_selectedSelectionGroupIds`, `_allCurrentConversationMessages` methods; simplified `startMessageSelection` and `cancelSelection`)
@@ -63,6 +246,7 @@
   - **Preserved Share Mode**: The share selection mode (`confirmSelection`, `cancelSelection`, `toggleSelection`) remains intact as it was pre-existing functionality.
 
 ### 145. Upstream Kelivo v1.1.16 Inline Message Editing & Attachment Support with RikkaHub Header Style
+
 - **Purpose**: Port user message editing optimization from upstream project `kelivo` (v1.1.16), allowing users to edit messages and modify attachments directly inside the main chat input bar instead of modal popups, while styling the edit header banner according to RikkaHub's UI design and supporting dynamic localization (`AppLocalizations`).
 - **Files Modified**:
   - `lib/features/home/controllers/home_page_controller.dart` (added `editingMessage` state, `startEditingMessage`, `cancelEditingMessage`; updated `sendMessage` to format & save edited text and attachments and trigger AI regeneration; cleared edit state on conversation switch)
@@ -77,6 +261,7 @@
   - **Full Localization (l10n)**: Dynamically binds title to `AppLocalizations.of(context)!.messageEditPageTitle`, adapting automatically to system language settings (English, Simplified Chinese, Traditional Chinese, etc.).
 
 ### 146. Update Voice Call Icon to Cupertino Waveform Circle
+
 - **Purpose**: Replace the phone icon (`Lucide.Phone`) on the voice call button with an outline waveform circle (`CupertinoIcons.waveform_circle`) to align with voice chat functionality while maintaining OmniChat's stroke line-art design language.
 - **Files Modified**:
   - `lib/features/home/pages/home_desktop_layout.dart` (imported `cupertino.dart` and replaced `Lucide.Phone` with `CupertinoIcons.waveform_circle`)
@@ -86,10 +271,22 @@
   - **Visual Alignment**: The outline waveform circle (`CupertinoIcons.waveform_circle`) provides a clear voice waveform representation matching OmniChat's transparent stroke line-art UI style.
   - **Dynamic Theme Adaptation**: Automatically renders dark lines in light mode and white lines in dark mode.
 
+### 147. Visual Refinement of New Chat Empty State UI & Logo Sizing
+
+- **Purpose**: Enlarge custom/model/app logo and refine typography and spacing on the New Chat Empty State page for enhanced visual impact and UI balance.
+- **Files Modified**:
+  - `lib/features/home/widgets/new_chat_empty_state.dart` (enlarged logo size from 72px to 100px (+40%), updated custom logo border radius from 16px to 22px, updated greeting text to `FontWeight.bold` and 19px font size, increased vertical spacing to 22px)
+  - `installers/omnichat_setup.iss` (updated installer script version to 1.6.4 and output binary name to `omnichat_setup_1.6.4`)
+  - `lib/core/providers/update_provider.dart` (updated default update checking endpoint constant `kUpdateCheckUrl`)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Logo Sizing & Aesthetics**: Enlarged logo to 100px and set text font weight to bold with 19px size to create a stronger visual anchor on new chat empty screens.
+  - **Proportional Spacing**: Increased logo-to-text spacing to 22px and custom logo border radius to 22px for better visual proportion.
+
 ## [v1.6.3] - 2026-07-31: Token Stats Fix & Deep Research Refactoring
 
-
 ### 140. Deep Research Prompt Migration & System-Wide Code Refactoring
+
 - **Purpose**: Consolidate "Deep Research" prompt injection into `InstructionInjectionStore` / `DeepResearchStore`, replace default prompt with deep reasoning prompt, remove redundant auto-created assistant from `AssistantProvider`, and refactor all `learningMode` legacy symbols to `deepResearch` and `instructionInjection`.
 - **Files Modified**:
   - `lib/core/services/deep_research_store.dart` (renamed from `learning_mode_store.dart`, updated class name and default prompt)
@@ -108,6 +305,7 @@
   - **Codebase Refactoring**: Completely refactored all legacy `learningMode` / `LearningMode` variables, widget properties, and helper sheets to `deepResearch` / `instructionInjection`, removing old file `learning_prompt_sheet.dart`.
 
 ### 139. Fix Token and Context Statistics Display & Mobile Overflow in Chat Messages
+
 - **Purpose**: Fix an issue where enabling "Display Token and Context Statistics" in Settings -> Display Settings -> Chat Items Display did not show token/context statistics, and resolve mobile layout overflow where long user/model names and timestamp/token text ran off screen without wrapping.
 - **Files Modified**:
   - `lib/features/chat/widgets/chat_message_widget.dart` (updated `_buildUserMessage` and `_buildAssistantMessage` to uniformly respect `showTokenStats`, wrapped header Columns in `Flexible`/`Expanded`, implemented `Wrap` for timestamp & token stats to auto-wrap on mobile, added CJK-aware `_estimateTokens` fallback and `_buildStatsText` helper)
@@ -124,6 +322,7 @@
 ## [v1.6.2] - 2026-07-30: Android Back Navigation Fix
 
 ### 138. Android Back Button Navigation Fix for Root Chat Page
+
 - **Purpose**: Fix an issue where pressing the Android system back button on the new chat (or root chat) page would not exit the app, getting trapped on the root page until a sub-page (like history) was navigated.
 - **Files Modified**:
   - `lib/shared/widgets/interactive_drawer.dart` (updated `PopScope` back invocation logic to invoke `SystemNavigator.pop()` when `!didPop` and drawer is closed)
@@ -136,6 +335,7 @@
 ## [v1.6.1] - 2026-07-30: Customizable New Chat Empty State & Dynamic AI Greetings
 
 ### 137. Customizable New Chat Empty State & Dynamic AI Greetings
+
 - **Purpose**: Allow users to customize the empty state of new chat pages with custom logos (OmniChat icon, current model icon, custom uploaded image, or hidden) and greeting texts (preset time-based greeting, dynamic AI background-cached greeting, current model name, custom text, or hidden), plus dedicated Greeting Model & Prompt configuration.
 - **Files Modified**:
   - `pubspec.yaml` (bumped version to `1.6.1+58`)
@@ -167,6 +367,7 @@
 ## [v1.6.0] - 2026-07-30: Flutter 3.38 → 3.44 Upgrade & Bug Fixes
 
 ### 135. Flutter SDK Upgrade (3.38.6 → 3.44.8) & Full Cleanup
+
 - **Purpose**: Upgrade Flutter SDK to latest stable 3.44.8 (Dart 3.12.2), sync Android build toolchain, fix deprecation warnings, merge orphaned Android platform channel, and resolve latent naming/configuration issues across all platforms.
 - **Files Modified**:
   - `pubspec.yaml` (SDK constraint `^3.8.1` → `^3.9.0`, `lucide_icons_flutter` `^3.1.4` → `^3.1.15`)
@@ -196,6 +397,7 @@
   - **Upgrade Plan**: Full plan documented in `Flutter_Upgrade_Plan.md`.
 
 ### 136. Replace Header Model Selector with Current Project Name Display
+
 - **Purpose**: Remove the top header model selection menu/capsule across both mobile and desktop layouts and replace it with the current project name (assistant name) while maintaining the original typography and animation transitions.
 - **Files Modified**:
   - `lib/features/home/pages/home_mobile_layout.dart` (replaced dynamic model selector with static assistant name text, cleaned unused params)
@@ -211,6 +413,7 @@
 ## [v1.5.32] - 2026-07-30: Consolidated Search Citations Card & Source Favicons
 
 ### 134. Unified Assistant/Project Naming & Cleanup — Default Project & Deep Research
+
 - **Purpose**: Simplify default assistant structure by eliminating the redundant blank default assistant, standardizing the primary assistant as "Default Project" ("預設專案"), renaming "Deep Research Assistant" to "Deep Research" ("深度研究"), and updating all localization files and automatic migration logic.
 - **Files Modified**:
   - `lib/l10n/app_en.arb` (updated assistant default/sample and deep research names)
@@ -226,6 +429,7 @@
   - **Legacy Migration & Persistence**: Implemented automatic migration logic in `AssistantProvider.ensureDefaults` to migrate existing stored user assistant names seamlessly upon app launch, and added `_hasSeededDeepResearchKey` to prevent deleted default projects from reappearing on app restart.
 
 ### 133. Side Drawer UI Optimization — Removed Project Icon from Folder Tree
+
 - **Purpose**: Clean up project/assistant folder tile visuals in the unified folder tree by removing the assistant avatar icon and retaining only the folder icon (`Lucide.Folder` / `Lucide.FolderOpen`).
 - **Files Modified**:
   - `lib/features/home/widgets/side_drawer.dart` (removed `avatar` from `_AssistantFolderTile` and removed unused `_assistantAvatar` helpers)
@@ -235,6 +439,7 @@
   - **Dead Code Cleanup**: Deleted unused `_assistantAvatar`, `_assistantInitialAvatar`, and `_assistantEmojiAvatar` helper methods.
 
 ### 132. Desktop Language Selector Async Fix
+
 - **Purpose**: Resolve async race condition in `showLanguageSelector` for desktop platforms where opening the context menu and selecting a target language returned `null` before selection completed.
 - **Files Modified**:
   - `lib/features/settings/widgets/language_select_sheet.dart` (implemented `Completer<LanguageOption?>` pattern for synchronous-safe async selection handling)
@@ -243,6 +448,7 @@
   - **Completer Async Pattern**: Replaced direct variable assignment with `Completer<LanguageOption?>` to safely capture target language selection or menu dismissal, ensuring single-message inline translation triggers reliably on desktop.
 
 ### 131. Citation Sheet Details UI Optimization
+
 - **Purpose**: Upgrade the citation detail popover/sheet items (`_SourceRow`) to match `kelivo`'s modern card layout, featuring favicons, distinct title hierarchy, index badges, and domain names.
 - **Files Modified**:
   - `lib/features/chat/widgets/chat_message_widget.dart` (redesigned `_SourceRow` with `IosCardPress`, `_SourceFavicon`, domain extraction, and dark/light adaptive theme borders)
@@ -253,6 +459,7 @@
   - **Typography & Hierarchy**: Enhanced readability with 2-line title wrapping, explicit host domain, and index pill badge.
 
 ### 130. Consolidated Search Citations & Source Favicons Integration
+
 - **Purpose**: Import upstream `kelivo` search citation block optimizations, consolidating all search results from multiple web/builtin search tool calls into a single summary card at the bottom of AI messages, styled with a transparent card border and source site favicons.
 - **Files Modified**:
   - `pubspec.yaml` (bumped version to `1.5.32+56`)
@@ -270,6 +477,7 @@
 ## [v1.5.31] - 2026-07-30: Unified Left Drawer Folder-Tree Architecture & Top Mini Map Unification
 
 ### 129. Sidebar Cleanup — Removed Storage & Translate Buttons
+
 - **Purpose**: Remove duplicate Storage Space button (already available in Settings) and standalone Translate button/page from the left sidebar drawer (`SideDrawer`), while preserving message-level translation in chat conversations. Also clean up unused `desktop_nav_rail.dart`, `translate_page.dart`, and `desktop_translate_page.dart` dead code.
 - **Files Modified**:
   - `lib/features/home/widgets/side_drawer.dart` (removed Storage Space and Translate buttons from bottom action bar, removed unused imports)
@@ -284,6 +492,7 @@
   - **Dead Code Cleanup**: Deleted unreferenced `desktop_nav_rail.dart`, `translate_page.dart`, and `desktop_translate_page.dart` files.
 
 ### 128. Unified Mini Map Button Position Across Desktop & Mobile
+
 - **Purpose**: Relocate the Desktop Mini map (chat navigator) button from the chat input bar to the top App bar's top-right actions area (between Voice Chat and New Conversation buttons), unifying the UI layout across desktop and mobile devices, and updating the desktop popover placement to anchor below the top-right button.
 - **Files Modified**:
   - `lib/features/home/pages/home_desktop_layout.dart` (added `miniMapKey` and `onOpenMiniMap` to `HomeDesktopScaffold`; rendered `IosIconButton(icon: Lucide.Map)` in `_buildActions` between Voice Chat and New Conversation)
@@ -299,6 +508,7 @@
   - **Responsive Narrow Window Support**: Attached `miniMapKey` to `HomeMobileScaffold` so that when a desktop app window is resized to narrow width, clicking the top-right Mini map button continues to correctly anchor and render the desktop popover.
 
 ### 127. Unified Left Drawer Folder-Tree Architecture
+
 - **Purpose**: Unify Windows Desktop and Mobile/Tablet left drawer/sidebar layouts into a single folder-tree structure where projects (assistants) act as expandable folders containing their respective conversations, replacing legacy Desktop tabs, top "Current Assistant" cards, and the separate right-side topics sidebar.
 - **Files Modified**:
   - `pubspec.yaml` (bumped version to `1.5.31+55`)
@@ -318,6 +528,7 @@
 ## [v1.5.30] - 2026-07-29: Terminology Update & AI Team Real-time Proposer Streaming
 
 ### 126. Terminology Update — Assistant Feature Renamed to Project in UI (l10n)
+
 - **Purpose**: Rename the user-facing "Assistant" (助理 / 助手) feature terminology to "Project" (專案 / 项目) across English, Traditional Chinese, and Simplified Chinese localization files and hardcoded UI text, while preserving underlying model/class architecture and LLM system prompt definitions.
 - **Files Modified**:
   - `lib/l10n/app_en.arb` (updated UI strings from "Assistant/Assistants" to "Project/Projects")
@@ -333,6 +544,7 @@
   - **Architecture Protection**: Code symbols (`Assistant` class, provider keys, database schemas) remain unchanged to avoid breaking changes to user-saved data and states.
 
 ### 125. AI Team — Real-time Proposer Streaming Display
+
 - **Purpose**: Show each proposer model's streaming output in the main content area in real-time during the AI Team proposal phase, replacing the static progress text ("Proposal X/N"). After each proposer completes, its result moves to the "Collaboration Process" proposals section and the next proposer's output takes over the main content area. Pass `isStreaming` to proposal section `MarkdownWithCodeHighlight` calls to defer Mermaid/PlantUML WebView2 during active streaming.
 - **Files Modified**:
   - `lib/features/home/controllers/chat_actions.dart` (`_runProposerSilent` gains `onPartialContent` callback fired on each chunk; `_executeAiTeamGeneration` proposer loop passes callback using `scheduleThrottledUpdate` (60ms throttle) for content + `updateReasoning` with timestamp throttle for reasoning; adds `setPendingStreamContent` between proposers to prevent stale content overwrite; clears pending content before aggregator phase; `_handleAiTeamStopped` now calls `cleanupTimers` to cancel proposer-phase throttle timer on cancel)
@@ -349,6 +561,7 @@
 - **Version bump**: 1.5.29+53 -> 1.5.30+54.
 
 ### 124. Comprehensive Windows Crash Root Cause Fix
+
 - **Purpose**: Eliminate the residual native Windows crashes (`0xc0000374` heap corruption in `ntdll.dll`, `0xc0000005` access violation in `flutter_windows.dll` and unknown modules) that persisted after v1.5.28's parent-window `WM_GETOBJECT` intercept. These crashes occurred during AI response streaming even without external AT tools running. The fix applies a unified engineering principle - **defer native-resource-heavy widgets during streaming** - that was already applied to `SelectionArea` in v1.5.23/26/27 but had never been extended to WebView2-backed widgets (Mermaid/PlantUML). Four independent crash paths are addressed: (A) WebView2 init/dispose COM heap race, (B) child-window `WM_GETOBJECT` leakage, (C) WebView2 race-safe disposal guard, and (D) WinRT speech plugin thread safety.
 - **Files Modified**:
   - `pubspec.yaml` (bumped version to `1.5.29+53`)
@@ -406,6 +619,7 @@
 ## [v1.5.28] - 2026-07-26: Windows Crash Root Cause Fix — Disable Flutter Windows Semantics
 
 ### 123. Windows Crash Root Cause — Disable Flutter Windows Engine Semantics
+
 - **Purpose**: Definitively resolve the recurring native Windows crashes (`0xc0000005` access violation in `flutter_windows.dll` and secondary `ntdll.dll` heap corruption) that occurred during AI response streaming. v1.5.27's restoration of inline `SelectionArea` made these crashes noticeably more frequent than v1.5.26, but the root cause is **not** `SelectionArea` itself — it is a Flutter Windows engine semantics lifecycle defect present since Flutter 3.22.
 - **Files Modified**:
   - `pubspec.yaml` (bumped version to `1.5.28+52`)
@@ -434,6 +648,7 @@
 ## [v1.5.27] - 2026-07-26: API Tool Result Truncation, WinRT Thread Validation & SelectCopy Enhancement
 
 ### 122. Initial Request Tool Truncation, WinRT Thread ID Safety & SelectCopy Full Text
+
 - **Purpose**: Resolve 5 medium-risk vulnerabilities identified during code review: (1) Truncate historical tool results on initial API request, (2) Support List/Map tool result block truncation, (3) Validate main thread ID in WinRT speech plugin, (4) Revoke WinRT event tokens on plugin destruction, (5) Fix `EscapeJsonString` backslash escaping, and (6) Enhance `SelectCopyDesktopDialog` to display and copy full content including Reasoning and Translation sections.
 - **Files Modified**:
   - `pubspec.yaml` (bumped version to `1.5.27+51`)
@@ -460,6 +675,7 @@
 ## [v1.5.26] - 2026-07-26: Windows Crash Fix — Complete SelectionArea Bypass & WinRT Thread Safety
 
 ### 121. Windows Crash Fix — Complete SelectionArea Bypass in Message Lists & WinRT Thread Guard
+
 - **Purpose**: Fix non-deterministic Windows crashes (`0xc0000005` in `flutter_windows.dll`, `0xc0000374` in `ntdll.dll`, `ucrtbase.dll`) caused by (1) Flutter Windows engine's native `SkParagraph` dangling pointers when `SelectionArea` is used inside scrolling `ListView.builder`, and (2) `speech_to_text_windows` fallback executing tasks directly on WinRT background threads when message window handle is lost.
 - **Files Modified**:
   - `pubspec.yaml` (bumped version to `1.5.26+50`)
@@ -479,6 +695,7 @@
 ## [v1.5.25] - 2026-07-25: Gemini 3.5 Lite Thinking Level Translation & Reasoning Documentation
 
 ### 120. Gemini 3.5 Lite & 3.x Lite Reasoning Level Translation & Model Mapping
+
 - **Purpose**: Expand Google Gemini 3 series regex matching in `ChatApiService` to include `gemini-3.5-lite` and all `gemini-3.x-lite` model variants, ensuring their thinking effort options map dynamically to Gemini official `thinkingLevel` parameters (`minimal`, `low`, `medium`, `high`) instead of falling back to raw token budgets.
 - **Files Modified**:
   - `lib/core/services/api/chat_api_service.dart`
@@ -498,6 +715,7 @@
 ## [v1.5.23] - 2026-07-19: Windows Crash Fix — SelectionArea Bypass for Reasoning & Translation
 
 ### 117. Windows Crash Fix — SelectionArea Bypass during Active Typewriter Streaming (Reasoning & Translation)
+
 - **Purpose**: Fix a non-deterministic Windows crash (`0xc0000005` in `flutter_windows.dll`) occurring while receiving typewriter streaming outputs when reasoning blocks (`_ReasoningSection`) or translation sections have completed loading but the main message is still actively streaming.
 - **Files Modified**:
   - `pubspec.yaml` (bumped version to `1.5.23+48`)
@@ -511,6 +729,7 @@
   - **Version Bump**: `1.5.22+47` → `1.5.23+48`.
 
 ### 118. AI Team — Enable Tool Calling for Aggregator Model
+
 - **Purpose**: Enable external tool definitions (`toolDefs`) and execution callbacks (`onToolCall`) for the aggregator model in the AI Team Mixture-of-Agents pipeline, matching the proposer models' capabilities.
 - **Files Modified**:
   - `lib/features/home/controllers/chat_actions.dart`
@@ -519,8 +738,8 @@
 - **Details**:
   - **Aggregator Tool Execution**: Updated `_executeAiTeamGeneration` to pass `ctx.toolDefs` and `ctx.onToolCall` into `aggCtx` (previously hardcoded to `const []` and `null`). When the user enables tools (web search, fetch, local JS MCP engine, etc.) on the chat toolbar, the aggregator model can now invoke tools during the synthesis phase, matching proposer behavior.
 
-
 ### 119. AI Team — Add Chain Mixture of Agents (CMoA) Mode
+
 - **Purpose**: Implement a configurable toggle to switch the AI Team from a Parallel (MoA) pipeline to a sequential Chain (CMoA) pipeline (Proposer -> Critics -> Aggregator), providing deep reflection and synthesis capability.
 - **Files Modified**:
   - `lib/core/models/ai_team_config.dart`
@@ -543,6 +762,7 @@
 ## [v1.5.22] - 2026-07-15: Context Management & Compression Aligned with Upstream
 
 ### 115. Context Management — Clear & Compress Context Integration
+
 - **Purpose**: Align context clearing functionality with upstream (Kelivo)'s "Context Management" bottom sheets and dropdown popovers, and add the "Compress Context" summary generation feature.
 - **Files Modified**:
   - `pubspec.yaml` (bumped version to `1.5.22+47`)
@@ -571,6 +791,7 @@
 ---
 
 ### 116. Windows Crash Fix — SelectionArea Bypass during Active Typewriter Streaming
+
 - **Purpose**: Fix a non-deterministic Windows crash (0xc0000005 in `flutter_windows.dll`) occurring while receiving typewriter streaming outputs. The crash was triggered by `SelectionArea` attempting to recalculate selection geometries/offsets on a dynamically updating text widget while the user hovered or had active selection.
 - **Files Modified**:
   - `lib/features/chat/widgets/chat_message_widget.dart`
@@ -584,6 +805,7 @@
 ## [v1.5.21] - 2026-06-30: AI Team Label, Real-time Proposals, Mistral Fix
 
 ### 114. AI Team — Fix Real-time UI Updates (unawaited _executeAiTeamGeneration)
+
 - **Purpose**: Fix a critical rendering bug where AI Team progress text ("Proposal X/N") and real-time proposals were not visible during the proposal phase on Windows (nothing shown at all) and Android (only progress text, no proposals section). The root cause was that `sendMessage` and `regenerateAtMessage` used `await _executeAiTeamGeneration(...)`, which blocked the entire call until all proposers + aggregator finished. This prevented `sendMessage` from returning, which prevented `HomePageController.notifyListeners()` from firing, which prevented `MessageListView` from rebuilding, which prevented `ValueListenableBuilder` from mounting — so all `StreamingContentNotifier` updates had no UI listener.
 - **Files Modified**:
   - `lib/features/home/controllers/chat_actions.dart` (two call sites: `sendMessage` and `regenerateAtMessage` — changed `await _executeAiTeamGeneration(ctx, aiTeamConfig)` to `unawaited(_executeAiTeamGeneration(ctx, aiTeamConfig))`)
@@ -596,6 +818,7 @@
 ---
 
 ### 113. AI Team — Collaboration Label, Real-time Proposals, Mistral Aggregator Fix
+
 - **Purpose**: Address three AI Team issues: (1) rename the proposals box header from "最終回答"/"Final Answer" to "協作過程"/"Collaboration Process" since it holds proposals, not the final answer; (2) show proposals in real-time during the proposal phase instead of waiting for all proposers to complete; (3) fix HTTP 400 `invalid_request_message_order` error when using Mistral as the aggregator.
 - **Files Modified**:
   - `lib/l10n/app_en.arb` / `app_zh.arb` / `app_zh_Hans.arb` / `app_zh_Hant.arb` (renamed `aiTeamFinalAnswerLabel` value; added new `aiTeamAggregatorUserPrompt` key)
@@ -616,6 +839,7 @@
 ## [v1.5.20] - 2026-06-30: AI Team UX Enhancements
 
 ### 111. AI Team — Progress Indicator, Rich Proposals, Localized Prompts, Layered UI
+
 - **Purpose**: Enhance the AI Team feature with (1) real-time progress indication during proposal phase, (2) proposer reasoning + tool-call capture, (3) localized default prompts that switch with app language, (4) proposals moved before aggregator content, (5) layered collapsible proposal UI (thinking → tools → answer).
 - **Files Modified**:
   - `lib/core/models/ai_team_config.dart` (added `useDefaultProposalPrompt` / `useDefaultAggregatorPrompt` flags)
@@ -644,6 +868,7 @@
 ## [v1.5.20] - 2026-06-30: AI Team Polish — Restore-Default Button & Proposal-Phase HTTP Cancel
 
 ### 112. AI Team — Per-Prompt Restore Default & Proposal-Phase HTTP Cancellation
+
 - **Purpose**: Address two AI Team UX/gap issues: (1) the prompt editor only had Cancel/Save and no way to revert a single prompt to its localized default, and (2) the Stop button during the proposal phase needed to abort the underlying HTTP request as well as the local stream subscription.
 - **Files Modified**:
   - `lib/features/ai_team/pages/ai_team_page.dart` (mobile prompt editor now shows a "Restore Default" button between Cancel and Save)
@@ -664,6 +889,7 @@
 ## [v1.5.19] - 2026-06-30: AI Team (Mixture of Agents)
 
 ### 110. AI Team Feature — Multi-Model Proposal & Aggregation Pipeline
+
 - **Purpose**: Implement a Mixture-of-Agents (MoA) feature where 1–4 "proposer" models answer the user's question independently, and an "aggregator" model synthesizes their outputs into a single final response.
 - **Files Added**:
   - `lib/core/models/ai_team_config.dart`
@@ -708,6 +934,7 @@
 ## [v1.5.18] - 2026-06-29: Kelivo Fetch ReDoS Root Cause Fix — RegExp, DOM Cap, Timeout, compute()
 
 ### 109. Fix ReDoS in Kelivo Fetch, Add DOM Cap, HTTP Timeout, and Isolate Offloading
+
 - **Purpose**: Fix deterministic Windows crashes during `fetch_markdown` tool execution caused by (1) ReDoS-vulnerable RegExp in `_preCleanHtml()`, (2) unbounded DOM parse on UI isolate, and (3) no HTTP timeout / no crash isolation.
 - **Files Modified**:
   - `lib/core/services/mcp/kelivo_fetch/kelivo_fetch_server.dart`
@@ -724,6 +951,7 @@
 ## [v1.5.17] - 2026-06-29: Windows Crash Fix — Fetch Memory Reduction & Tool Result Truncation
 
 ### 108. Windows Crash Fix: Reduce Fetch Download Limit, Truncate Tool Results, Add Fetch Queue
+
 - **Purpose**: Fix non-deterministic Windows crashes during deep-thinking + web-search + multi-fetch conversations caused by compound memory pressure (unbounded `currentMessages` growth, persistent stream-controller maps, concurrent fetch spikes).
 - **Files Modified**:
   - `lib/core/services/mcp/kelivo_fetch/kelivo_fetch_server.dart`
@@ -739,6 +967,7 @@
 ## [v1.5.16] - 2026-06-25: Fetch Server Memory Optimization, Brand Icons & Reasoning Text Selection
 
 ### 107. Enable Text Selection in Reasoning Blocks
+
 - **Purpose**: Allow users to select, copy, and "Select All" text within reasoning/thinking blocks produced by reasoning-capable models.
 - **Files Modified**:
   - `lib/features/chat/widgets/chat_message_widget.dart`
@@ -753,6 +982,7 @@
   - ~~Added `chatMessageWidgetSelectAll` and `chatMessageWidgetCopy` localization keys to all 4 ARB files~~ (no longer needed — `AdaptiveTextSelectionToolbar` uses system-native labels).
 
 ### 106. Add Neuralwatt & Tinyfish Brand Icons
+
 - **Purpose**: Replace generic letter-fallback icons with proper brand icons for the Neuralwatt provider and Tinyfish search service.
 - **Files Added**:
   - `assets/icons/neuralwatt-color.svg`
@@ -765,6 +995,7 @@
   - **BrandAssets mapping**: Added `MapEntry(RegExp(r'neuralwatt'), 'neuralwatt-color.svg')` and `MapEntry(RegExp(r'tinyfish'), 'tinyfish.png')` to the icon resolver. Icons are now displayed in provider avatars, search service lists (mobile/desktop), model selectors, and all other locations that use `BrandAssets.assetForName()`.
 
 ### 105. Optimize Kelivo Fetch Server to Prevent Memory Leaks
+
 - **Purpose**: Address memory growth and OOM crashes during multi-round chat sessions with web fetch tools by limiting download size and pre-cleaning HTML before DOM parsing.
 - **Files Modified**:
   - `lib/core/services/mcp/kelivo_fetch/kelivo_fetch_server.dart`
@@ -774,6 +1005,7 @@
   - **Scope**: Applies to all four fetch tools (`fetch_html`, `fetch_markdown`, `fetch_txt`, `fetch_json`). The original `_fetch()` method was removed and replaced by `_fetchWithLimit()`.
 
 ### 104. Update Inno Setup Installer Script
+
 - **Purpose**: Update the Windows installer script to match the current project paths and version.
 - **Files Modified**:
   - `installers/omnichat_setup.iss`
@@ -787,6 +1019,7 @@
 ## [v1.5.15] - 2026-06-25: Tinyfish Search Provider & Neuralwatt Built-in Provider
 
 ### 104. Add Neuralwatt Built-in API Provider
+
 - **Purpose**: Add Neuralwatt as a built-in API provider with official `/v1/models` model list fetching, `/v1/quota` balance checking, and Neuralwatt-specific model metadata parsing (display name, capabilities).
 - **Files Modified**:
   - `lib/core/providers/settings_provider.dart`
@@ -812,6 +1045,7 @@
   - **Brand icon**: Added `neuralwatt` → `neuralwatt-color.svg` mapping in `BrandAssets`; falls back to letter `N` if the SVG asset is absent.
 
 ### 103. Add Tinyfish Search Provider
+
 - **Purpose**: Integrate Tinyfish Search as a search provider in OmniChat's existing search service architecture, allowing users to add Tinyfish in search service settings, enter an API key, and retrieve search results via the existing `search_web` tool.
 - **Files Added**:
   - `lib/core/services/search/providers/tinyfish_search_service.dart`

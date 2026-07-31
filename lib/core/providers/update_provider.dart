@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
+/// Update check endpoint.
+/// TODO: Replace with your own update server URL.
+const String kUpdateCheckUrl = 'https://example.com/update.json';
+
 class UpdateInfo {
   final String app;
   final String version;
@@ -68,7 +72,7 @@ class UpdateProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final ts = DateTime.now().millisecondsSinceEpoch;
-      final url = Uri.parse('https://kelivo.psycheas.top/update.json?kelivo=$ts');
+      final url = Uri.parse('$kUpdateCheckUrl?ts=$ts');
       final resp = await http.get(url);
       if (resp.statusCode != 200) {
         throw Exception('HTTP ${resp.statusCode}');

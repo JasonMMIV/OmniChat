@@ -78,13 +78,15 @@ class _NewChatEmptyStateState extends State<NewChatEmptyState> {
     final modelId = modelInfo.modelId;
     final modelDisplay = modelInfo.modelDisplay;
 
+    const logoSize = 100.0;
+
     Widget? logoWidget;
     switch (logoType) {
       case 'omnichat':
         logoWidget = Image.asset(
           'assets/app_icon.png',
-          width: 72,
-          height: 72,
+          width: logoSize,
+          height: logoSize,
           fit: BoxFit.contain,
         );
         break;
@@ -92,23 +94,23 @@ class _NewChatEmptyStateState extends State<NewChatEmptyState> {
         logoWidget = CurrentModelIcon(
           providerKey: providerKey,
           modelId: modelId,
-          size: 72,
+          size: logoSize,
         );
         break;
       case 'custom':
         if (_customLogoFile != null) {
           logoWidget = ClipRRect(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(22),
             child: Image.file(
               _customLogoFile!,
-              width: 72,
-              height: 72,
+              width: logoSize,
+              height: logoSize,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Image.asset('assets/app_icon.png', width: 72, height: 72),
+              errorBuilder: (_, __, ___) => Image.asset('assets/app_icon.png', width: logoSize, height: logoSize),
             ),
           );
         } else {
-          logoWidget = Image.asset('assets/app_icon.png', width: 72, height: 72);
+          logoWidget = Image.asset('assets/app_icon.png', width: logoSize, height: logoSize);
         }
         break;
       case 'none':
@@ -154,16 +156,16 @@ class _NewChatEmptyStateState extends State<NewChatEmptyState> {
           children: [
             if (logoWidget != null) ...[
               logoWidget,
-              if (textContent != null && textContent.trim().isNotEmpty) const SizedBox(height: 20),
+              if (textContent != null && textContent.trim().isNotEmpty) const SizedBox(height: 22),
             ],
             if (textContent != null && textContent.trim().isNotEmpty)
               Text(
                 textContent,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                  color: cs.onSurface.withOpacity(0.85),
+                  fontSize: 19,
+                  fontWeight: FontWeight.bold,
+                  color: cs.onSurface.withOpacity(0.9),
                   height: 1.4,
                 ),
               ),
