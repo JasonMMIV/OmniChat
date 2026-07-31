@@ -1,32 +1,53 @@
 # OmniChat
 
-> Cross-Platform LLM Chat Application with AI Team
+> Cross-Platform LLM Chat Application with AI Team & Deep Research
 
 English | [繁體中文](README_ZH_TW.MD)
 
-OmniChat is a modern AI chat application designed for seamless voice interaction and a unified cross-platform experience.
+---
 
-## Key Features
+<p align="center">
+  <img src="Screenshots/Windows.jpg" alt="OmniChat Desktop Interface" width="90%" />
+</p>
 
-### AI Team (Mixture of Agents)
+OmniChat is a modern, feature-rich AI chat application designed for seamless voice interaction, deep research, multi-agent collaboration, and a unified cross-platform experience.
+
+---
+
+## ✨ Key Features
+
+### 🤖 AI Team (Mixture of Agents)
 
 Supports two advanced multi-agent collaboration pipelines for complex problem solving:
+
 - **Parallel (MoA)**: Orchestrate 1–4 "proposer" models to explore a question independently, then let an "aggregator" model synthesize their perspectives into a single, comprehensive response.
 - **Chain (CMoA)**: Sequential reasoning chain (Proposer -> Self-Audit Critics 0~3 -> Aggregator). Critics apply 7 Analytical Lenses (Adversarial, Causal/Structural, Comparative, Temporal, etc.) to stress-test and audit preceding outputs.
 - **Real-Time Streaming**: Proposals and audit logs stream live as each model completes, rendered in clean, layered collapsible sections.
 
-### Deep Research
+<p align="center">
+  <img src="Screenshots/AI_TEAM.jpg" alt="AI Team Interface" width="30%" />
+</p>
 
-Preset agent protocol designed for complex scientific, technical, and investigative research:
-- **Dual Think & Search Engine**: Combines multi-round deep reasoning with real-time web search. Uses targeted search queries to resolve uncertainties and fuels subsequent reasoning loops.
-- **Epistemic Discipline**: Enforces a strict distinction between *Evidence* (empirical facts), *Inference* (logical deductions), and *Judgment* (value choices).
-- **Rigorous Synthesis**: Dynamic stopping criteria based on information saturation, producing decision-useful research reports backed by verifiable citations and epistemic calibration.
+---
 
-### Advanced Web Search
+### 🎨 Customizable New Chat Empty State & Dynamic AI Greetings
 
-Integrated Tinyfish Search API, Google Search API, and multiple search providers for high-quality real-time information.
+Personalize your empty chat screen with zero-latency greetings and branding:
 
-### Real-Time Voice Chat
+- **Flexible Logo & Icon Display**: Choose between OmniChat logo, active model icon, custom uploaded image, or hidden logo.
+- **Zero-Latency AI Dynamic Greetings**: Pre-caches AI-generated warm greetings in the background upon app start for instant display.
+- **Dedicated Greeting Model & Prompts**: Independently select the model for greeting generation, customize prompts, and toggle thinking budget (Enable Thinking).
+- **Refined Visual Layout**: Enlarged logo aesthetics (100px) and bold typography for a modern, premium feel.
+
+<p align="center">
+  <img src="Screenshots/Customizable_New_Chat_Empty_State_1.jpg" alt="Customizable Empty State 1" width="30%" />
+  &nbsp;&nbsp;
+  <img src="Screenshots/Customizable_New_Chat_Empty_State_2.jpg" alt="Customizable Empty State 2" width="30%" />
+</p>
+
+---
+
+### 🎙️ Real-Time Voice Chat
 
 Experience AI interaction as natural as a phone call:
 
@@ -34,33 +55,43 @@ Experience AI interaction as natural as a phone call:
 - **Bluetooth Optimization**: Enhanced headset detection and audio routing in Call Mode.
 - **Native Performance**: Utilizes system-level Speech-to-Text (STT) for low latency.
 
-### Account Balance Monitoring
+<p align="center">
+  <img src="Screenshots/Voice_Chat.jpg" alt="Voice Chat Interface" width="30%" />
+</p>
 
-**Real-Time Tracking**: Keep track of your usage effortlessly. Account balance is now displayed directly within the Model Selection menu and Provider Settings.
+---
 
-### Advanced Interaction & Tools
+### 💳 Account Balance Monitoring
 
+Keep track of your usage effortlessly. Real-time account balance is displayed directly within the Model Selection menu and Provider Settings (supports OpenAI, Gemini, DeepSeek, OpenRouter, Neuralwatt, and more).
+
+<p align="center">
+  <img src="Screenshots/Account_Balance.jpg" alt="Account Balance Monitoring" width="30%" />
+</p>
+
+---
+
+### 🔬 Deep Research
+
+Preset agent protocol designed for complex scientific, technical, and investigative research:
+
+- **Dual Think & Search Engine**: Combines multi-round deep reasoning with real-time web search. Uses targeted search queries to resolve uncertainties and fuels subsequent reasoning loops.
+- **Epistemic Discipline**: Enforces a strict distinction between *Evidence* (empirical facts), *Inference* (logical deductions), and *Judgment* (value choices).
+- **Rigorous Synthesis**: Dynamic stopping criteria based on information saturation, producing decision-useful research reports backed by verifiable citations and epistemic calibration.
+
+---
+
+### 🌐 Advanced Web Search & Local MCP Tools
+
+- **Advanced Web Search**: Integrated Tinyfish Search API, Google Search API, and multiple search providers for high-quality real-time information.
 - **Inline Voice Dictation**: Dictate text directly into the chat input bar with localized support for English and Chinese.
 - **Local JavaScript MCP**: Secure, sandboxed environment (QuickJS/JavaScriptCore) allowing AI to execute code locally for calculations and data processing.
 
-### UI/UX Optimization
+---
 
-- **Refined Interface**: Optimized icon sizes in the chat input bar and model selector to improve touch targets and overall accessibility.
-
-## Cross-Platform Support
+## 💻 Cross-Platform Support
 
 Enjoy a consistent experience across your devices:
 
-- **Windows** (New!)
+- **Windows**
 - **Android**
-
-## Screenshots
-
-<img src="Screenshot01.jpg" width="80%" />
-
-<img src="Screenshot02.jpg" width="40%" />
-
-<p float="left">
-  <img src="Screenshot03.jpg" width="49%" />
-  <img src="Screenshot04.jpg" width="49%" />
-</p>
