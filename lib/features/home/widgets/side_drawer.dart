@@ -313,6 +313,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                       label: l10n.sideDrawerMenuDelete,
                       color: Colors.redAccent,
                       action: () async {
+                        final confirmed = await _confirmDeleteConversation(context, chat);
+                        if (!confirmed) return;
                         final deletingCurrent = chatService.currentConversationId == chat.id;
                         final nextId = _nextRecentConversation(chatService, chat.id);
                         await chatService.deleteConversation(chat.id);

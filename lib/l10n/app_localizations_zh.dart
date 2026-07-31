@@ -7334,6 +7334,14 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get mcpServerEditSheetCancel => '取消';
 
   @override
+  String get sideDrawerDeleteConfirmTitle => '删除话题';
+
+  @override
+  String sideDrawerDeleteConfirmContent(String title) {
+    return '确定要删除话题“$title”吗？此操作无法撤销。';
+  }
+
+  @override
   String get helloWorld => '你好，世界！';
 
   @override
@@ -11133,6 +11141,14 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get mcpServerEditSheetCancel => '取消';
+
+  @override
+  String get sideDrawerDeleteConfirmTitle => '刪除話題';
+
+  @override
+  String sideDrawerDeleteConfirmContent(String title) {
+    return '確定要刪除話題「$title」嗎？此操作無法撤銷。';
+  }
 
   @override
   String get helloWorld => '你好，世界！';

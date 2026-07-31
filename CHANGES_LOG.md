@@ -22,6 +22,17 @@
   - **Message Multi-Select & Batch Delete**: Added message multi-selection mode with custom selection toolbar allowing deletion of selected message versions or all history versions of selected messages.
   - **Title Generation Thinking Control**: Added "Enable Thinking" toggle in default model settings to control thinking budget during title generation API requests.
 
+### 142. Fix Topic Deletion Confirmation Dialog Localization & Mobile Display
+- **Purpose**: Fix two issues with the topic deletion confirmation dialog: (1) desktop dialog displayed Simplified Chinese regardless of system language, and (2) mobile version did not show confirmation dialog at all.
+- **Files Modified**:
+  - `lib/l10n/app_zh_Hant.arb` (added `sideDrawerDeleteConfirmTitle` and `sideDrawerDeleteConfirmContent` Traditional Chinese translations)
+  - `lib/l10n/app_zh_Hans.arb` (added `sideDrawerDeleteConfirmTitle` and `sideDrawerDeleteConfirmContent` Simplified Chinese translations)
+  - `lib/features/home/widgets/side_drawer.dart` (added `_confirmDeleteConversation` call in mobile bottom sheet delete action)
+  - `lib/l10n/app_localizations_zh.dart` (regenerated)
+- **Details**:
+  - **Localization Fix**: The `sideDrawerDeleteConfirmTitle` and `sideDrawerDeleteConfirmContent` keys were missing from `app_zh_Hant.arb` and `app_zh_Hans.arb`, causing the dialog to fall back to Simplified Chinese from `app_zh.arb`. Added proper translations for both Traditional and Simplified Chinese.
+  - **Mobile Confirmation Dialog**: The mobile bottom sheet delete action (line 311-328 in `side_drawer.dart`) directly deleted conversations without confirmation. Added `_confirmDeleteConversation` call to match desktop behavior.
+
 ## [v1.6.3] - 2026-07-31: Token Stats Fix & Deep Research Refactoring
 
 

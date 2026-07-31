@@ -1342,6 +1342,8 @@
   "chatSelectionSelectMessagesToDelete": "請選擇要刪除的訊息",
   "chatSelectionDeleteSelectedConfirm": "確定要刪除已選擇的{count}個版本嗎？此操作不可撤銷。",
   "chatSelectionDeleteSelectedAllVersionsConfirm": "確定要刪除已選擇{count}條訊息的全部版本嗎？此操作不可撤銷。",
-  "titleModelThinkingTitle": "是否開啟思考"
+  "titleModelThinkingTitle": "是否開啟思考",
+  "sideDrawerDeleteConfirmTitle": "刪除話題",
+  "sideDrawerDeleteConfirmContent": "確定要刪除話題「{title}」嗎？此操作無法撤銷。"
 }
 
