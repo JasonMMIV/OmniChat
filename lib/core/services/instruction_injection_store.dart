@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/instruction_injection.dart';
-import 'learning_mode_store.dart';
+import 'deep_research_store.dart';
 
 class InstructionInjectionStore {
   static const String _itemsKey = 'instruction_injections_v1';
@@ -36,8 +36,8 @@ class InstructionInjectionStore {
     final prefs = await SharedPreferences.getInstance();
     final json = prefs.getString(_itemsKey);
     if (json == null || json.isEmpty) {
-      // Seed with a default "Learning Mode" card using existing learning mode prompt/settings.
-      final seeded = await _seedDefaultFromLearningMode(prefs);
+      // Seed with a default "Deep Research" card using existing deep research prompt/settings.
+      final seeded = await _seedDefaultFromDeepResearch(prefs);
       _cache = seeded;
       return List<InstructionInjection>.from(seeded);
     }
@@ -53,17 +53,17 @@ class InstructionInjectionStore {
     }
   }
 
-  static Future<List<InstructionInjection>> _seedDefaultFromLearningMode(SharedPreferences prefs) async {
-    // Use existing learning mode prompt and enabled flag to create a default card.
+  static Future<List<InstructionInjection>> _seedDefaultFromDeepResearch(SharedPreferences prefs) async {
+    // Use existing deep research prompt and enabled flag to create a default card.
     String prompt;
     bool enabled;
     try {
-      prompt = await LearningModeStore.getPrompt();
+      prompt = await DeepResearchStore.getPrompt();
     } catch (_) {
-      prompt = LearningModeStore.defaultPrompt;
+      prompt = DeepResearchStore.defaultPrompt;
     }
     try {
-      enabled = await LearningModeStore.isEnabled();
+      enabled = await DeepResearchStore.isEnabled();
     } catch (_) {
       enabled = false;
     }

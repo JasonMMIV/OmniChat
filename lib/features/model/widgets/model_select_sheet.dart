@@ -12,7 +12,7 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
-import '../../../desktop/desktop_home_page.dart';
+import '../../../desktop/desktop_settings_page.dart';
 import 'model_detail_sheet.dart';
 import '../../provider/pages/provider_detail_page.dart';
 import '../../provider/widgets/provider_balance_text.dart';
@@ -1667,7 +1667,7 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
                   barrierDismissible: true,
                   barrierLabel: 'settings-dialog',
                   transitionDuration: const Duration(milliseconds: 200),
-                  pageBuilder: (_, __, ___) => DesktopHomePage(initialTabIndex: 3, initialProviderKey: providerKey),
+                  pageBuilder: (_, __, ___) => DesktopSettingsPage(initialProviderKey: providerKey),
                 );
               },
             ),

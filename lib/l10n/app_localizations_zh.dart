@@ -734,7 +734,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get reasoningBudgetSheetHeavy => '重度推理';
 
   @override
-  String get instructionInjectionDefaultTitle => '学习模式';
+  String get instructionInjectionDefaultTitle => '深度研究';
 
   @override
   String get bottomToolsSheetCamera => '拍照';
@@ -4064,7 +4064,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get reasoningBudgetSheetHeavy => '重度推理';
 
   @override
-  String get instructionInjectionDefaultTitle => '学习模式';
+  String get instructionInjectionDefaultTitle => '深度研究';
 
   @override
   String get bottomToolsSheetCamera => '拍照';
@@ -7326,7 +7326,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get reasoningBudgetSheetHeavy => '重度推理';
 
   @override
-  String get instructionInjectionDefaultTitle => '學習模式';
+  String get instructionInjectionDefaultTitle => '深度研究';
 
   @override
   String get bottomToolsSheetCamera => '拍照';

@@ -47,7 +47,7 @@ import '../widgets/chat_input_bar.dart';
 import '../widgets/mini_map_sheet.dart';
 import '../widgets/instruction_injection_sheet.dart';
 import '../../ai_team/pages/ai_team_page.dart';
-import '../widgets/learning_prompt_sheet.dart';
+import '../widgets/instruction_prompt_sheet.dart';
 import '../widgets/scroll_nav_buttons.dart';
 import '../widgets/selection_toolbar.dart';
 import '../widgets/message_list_view.dart';
@@ -695,8 +695,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       onPickCamera: _controller.onPickCamera,
       onPickPhotos: _controller.onPickPhotos,
       onUploadFiles: _controller.onPickFiles,
-      onToggleLearningMode: _openInstructionInjectionPopover,
-      onLongPressLearning: _showLearningPromptSheet,
+      onToggleInstructionInjection: _openInstructionInjectionPopover,
+      onLongPressInstruction: _showInstructionPromptSheet,
       onToggleAiTeam: _openAiTeamSettings,
       onClearContext: _controller.clearContext,
       onCompressContext: _handleDesktopCompressContext,
@@ -859,8 +859,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     }
   }
 
-  void _showLearningPromptSheet() {
-    showLearningPromptSheet(context);
+  void _showInstructionPromptSheet() {
+    showInstructionPromptSheet(context);
   }
 
   void _openAiTeamSettings() {

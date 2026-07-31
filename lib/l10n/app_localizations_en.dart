@@ -740,7 +740,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reasoningBudgetSheetHeavy => 'Heavy';
 
   @override
-  String get instructionInjectionDefaultTitle => 'Default';
+  String get instructionInjectionDefaultTitle => 'Deep Research';
 
   @override
   String get bottomToolsSheetCamera => 'Camera';

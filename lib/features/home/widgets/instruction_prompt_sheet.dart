@@ -8,8 +8,8 @@ import '../../../l10n/app_localizations.dart';
 ///
 /// This widget allows users to edit the prompt text of an instruction
 /// injection item directly.
-class LearningPromptSheet extends StatefulWidget {
-  const LearningPromptSheet({
+class InstructionPromptSheet extends StatefulWidget {
+  const InstructionPromptSheet({
     super.key,
     required this.target,
   });
@@ -18,10 +18,10 @@ class LearningPromptSheet extends StatefulWidget {
   final InstructionInjection target;
 
   @override
-  State<LearningPromptSheet> createState() => _LearningPromptSheetState();
+  State<InstructionPromptSheet> createState() => _InstructionPromptSheetState();
 }
 
-class _LearningPromptSheetState extends State<LearningPromptSheet> {
+class _InstructionPromptSheetState extends State<InstructionPromptSheet> {
   late final TextEditingController _controller;
 
   @override
@@ -116,11 +116,11 @@ class _LearningPromptSheetState extends State<LearningPromptSheet> {
   }
 }
 
-/// Shows the learning prompt bottom sheet.
+/// Shows the instruction prompt bottom sheet.
 ///
 /// This function initializes the provider and shows the sheet for editing
 /// the active instruction injection item's prompt.
-Future<void> showLearningPromptSheet(BuildContext context) async {
+Future<void> showInstructionPromptSheet(BuildContext context) async {
   final provider = context.read<InstructionInjectionProvider>();
   await provider.initialize();
   final items = provider.items;
@@ -136,7 +136,7 @@ Future<void> showLearningPromptSheet(BuildContext context) async {
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
     builder: (ctx) {
-      return LearningPromptSheet(target: target);
+      return InstructionPromptSheet(target: target);
     },
   );
 }

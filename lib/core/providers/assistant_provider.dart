@@ -13,7 +13,6 @@ import '../../utils/app_directories.dart';
 class AssistantProvider extends ChangeNotifier {
   static const String _assistantsKey = 'assistants_v1';
   static const String _currentAssistantKey = 'current_assistant_id_v1';
-  static const String _hasSeededDeepResearchKey = 'has_seeded_deep_research_v1';
 
   final List<Assistant> _assistants = <Assistant>[];
   String? _currentAssistantId;
@@ -121,48 +120,6 @@ class AssistantProvider extends ChangeNotifier {
           name: l10n.assistantProviderDefaultAssistantName,
           deletable: false,
         );
-      }
-    }
-    // 2) 深度研究 (Add if not exists and not seeded yet)
-    final prefs = await SharedPreferences.getInstance();
-    final hasSeededDR = prefs.getBool(_hasSeededDeepResearchKey) ?? false;
-
-    final deepResearchName = l10n.assistantProviderDeepResearchAssistantName;
-    final drIdx = _assistants.indexWhere((a) =>
-        a.name == deepResearchName ||
-        a.name == 'Deep Research' ||
-        a.name == 'Deep Research Assistant' ||
-        a.name == 'Deep Research Project' ||
-        a.name == '深度研究' ||
-        a.name == '深度研究助理' ||
-        a.name == '深度研究助手' ||
-        a.name == '深度研究專案' ||
-        a.name == '深度研究項目');
-    if (!hasSeededDR) {
-      if (drIdx == -1) {
-        _assistants.add(Assistant(
-          id: const Uuid().v4(),
-          name: deepResearchName,
-          systemPrompt: l10n.assistantProviderDeepResearchAssistantSystemPrompt('{cur_date}'),
-          deletable: true,
-          temperature: 0.6,
-          topP: null,
-        ));
-      }
-      await prefs.setBool(_hasSeededDeepResearchKey, true);
-    }
-
-    if (drIdx != -1) {
-      final existingName = _assistants[drIdx].name;
-      if (existingName == 'Deep Research Assistant' ||
-          existingName == 'Deep Research Project' ||
-          existingName == '深度研究助理' ||
-          existingName == '深度研究助手' ||
-          existingName == '深度研究專案' ||
-          existingName == '深度研究項目') {
-        _assistants[drIdx] = _assistants[drIdx].copyWith(name: deepResearchName, deletable: true);
-      } else if (!_assistants[drIdx].deletable) {
-        _assistants[drIdx] = _assistants[drIdx].copyWith(deletable: true);
       }
     }
     await _persist();

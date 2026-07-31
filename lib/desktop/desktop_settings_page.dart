@@ -142,20 +142,37 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
 
     const double menuWidth = 250;
     final topBar = SizedBox(
-      height: 36,
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Padding(
-          padding: const EdgeInsets.only(left: 16, top: 8),
-          child: Text(
-            l10n.settingsPageTitle, // 固定显示“设置”
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: cs.onSurface,
-              decoration: TextDecoration.none,
+      height: 40,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Row(
+          children: [
+            if (Navigator.of(context).canPop()) ...[
+              Tooltip(
+                message: l10n.settingsPageBackButton,
+                child: IconButton(
+                  icon: Icon(lucide.Lucide.ArrowLeft, size: 18, color: cs.onSurface),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+              ),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              l10n.settingsPageTitle, // 固定显示“设置”
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
+                decoration: TextDecoration.none,
+              ),
             ),
-          ),
+            const Spacer(),
+            if (Navigator.of(context).canPop())
+              IconButton(
+                icon: Icon(lucide.Lucide.X, size: 18, color: cs.onSurface.withOpacity(0.7)),
+                onPressed: () => Navigator.of(context).maybePop(),
+              ),
+          ],
         ),
       ),
     );

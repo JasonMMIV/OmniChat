@@ -70,11 +70,11 @@ class ChatInputBar extends StatefulWidget {
     this.onPickCamera,
     this.onPickPhotos,
     this.onUploadFiles,
-    this.onToggleLearningMode,
+    this.onToggleInstructionInjection,
     this.onClearContext,
     this.onCompressContext,
-    this.onLongPressLearning,
-    this.learningModeActive = false,
+    this.onLongPressInstruction,
+    this.instructionInjectionActive = false,
     this.onToggleAiTeam,
     this.aiTeamActive = false,
     this.showMoreButton = true,
@@ -115,11 +115,11 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback? onPickCamera;
   final VoidCallback? onPickPhotos;
   final VoidCallback? onUploadFiles;
-  final VoidCallback? onToggleLearningMode;
+  final VoidCallback? onToggleInstructionInjection;
   final VoidCallback? onClearContext;
   final VoidCallback? onCompressContext;
-  final VoidCallback? onLongPressLearning;
-  final bool learningModeActive;
+  final VoidCallback? onLongPressInstruction;
+  final bool instructionInjectionActive;
   final VoidCallback? onToggleAiTeam;
   final bool aiTeamActive;
   final bool showMoreButton;
@@ -956,17 +956,17 @@ class _ChatInputBarState extends State<ChatInputBar> with WidgetsBindingObserver
           ));
         }
 
-        if (widget.onToggleLearningMode != null) {
+        if (widget.onToggleInstructionInjection != null) {
           actions.add(_OverflowAction(
             width: normalButtonW,
             builder: () => _CompactIconButton(
               tooltip: l10n.instructionInjectionTitle,
               icon: Lucide.Layers,
-              active: widget.learningModeActive,
-              onTap: widget.onToggleLearningMode,
-              onLongPress: widget.onLongPressLearning,
+              active: widget.instructionInjectionActive,
+              onTap: widget.onToggleInstructionInjection,
+              onLongPress: widget.onLongPressInstruction,
             ),
-            menu: DesktopContextMenuItem(icon: Lucide.Layers, label: l10n.instructionInjectionTitle, onTap: widget.onToggleLearningMode),
+            menu: DesktopContextMenuItem(icon: Lucide.Layers, label: l10n.instructionInjectionTitle, onTap: widget.onToggleInstructionInjection),
           ));
         }
 

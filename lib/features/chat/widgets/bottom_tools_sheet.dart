@@ -240,7 +240,7 @@ class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
             label: l10n.instructionInjectionTitle,
             selected: false,
             onTap: () {},
-            onLongPress: () => _showLearningPromptSheet(context),
+            onLongPress: () => _showInstructionPromptSheet(context),
           )
         else ...[
           for (int i = 0; i < items.length; i++)
@@ -296,7 +296,7 @@ class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
     );
   }
 
-  Future<void> _showLearningPromptSheet(BuildContext context) async {
+  Future<void> _showInstructionPromptSheet(BuildContext context) async {
     final provider = context.read<InstructionInjectionProvider>();
     await provider.initialize();
     final items = provider.items;

@@ -1,6 +1,24 @@
 # OmniChat Developer Changes Log
 
-## [v1.6.3] - 2026-07-31: Token & Context Statistics Display Fix
+## [v1.6.3] - 2026-07-31: Token Stats Fix & Deep Research Refactoring
+
+### 140. Deep Research Prompt Migration & System-Wide Code Refactoring
+- **Purpose**: Consolidate "Deep Research" prompt injection into `InstructionInjectionStore` / `DeepResearchStore`, replace default prompt with deep reasoning prompt, remove redundant auto-created assistant from `AssistantProvider`, and refactor all `learningMode` legacy symbols to `deepResearch` and `instructionInjection`.
+- **Files Modified**:
+  - `lib/core/services/deep_research_store.dart` (renamed from `learning_mode_store.dart`, updated class name and default prompt)
+  - `lib/core/services/instruction_injection_store.dart` (updated reference to `DeepResearchStore`)
+  - `lib/core/providers/settings_provider.dart` (updated default prompt constant, renamed `learningMode` fields/getters/setters to `deepResearch`)
+  - `lib/core/providers/assistant_provider.dart` (removed automated seeding logic and key for "Deep Research" assistant)
+  - `lib/features/home/widgets/instruction_prompt_sheet.dart` (renamed from `learning_prompt_sheet.dart`, updated class name and method `showInstructionPromptSheet`)
+  - `lib/features/home/widgets/chat_input_bar.dart` & `lib/features/home/widgets/chat_input_section.dart` (renamed `onToggleLearningMode`, `learningModeActive`, `onLongPressLearning` parameters to `onToggleInstructionInjection`, `instructionInjectionActive`, `onLongPressInstruction`)
+  - `lib/features/home/pages/home_page.dart` (updated imports, handlers, and method bindings)
+  - `lib/features/chat/widgets/bottom_tools_sheet.dart` (renamed handler call to `_showInstructionPromptSheet`)
+  - `lib/l10n/app_zh.arb`, `lib/l10n/app_zh_Hans.arb`, `lib/l10n/app_zh_Hant.arb` (updated `instructionInjectionDefaultTitle` to "深度研究" and removed unused `bottomToolsSheetLearningMode` keys)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Prompt Replacement**: Replaced the legacy teaching prompt with an advanced Deep Reasoning & Research prompt in `DeepResearchStore` and `SettingsProvider`.
+  - **Assistant Seeding Cleanup**: Removed redundant auto-creation of a "Deep Research" assistant in `AssistantProvider` to unify all instruction injection entries under `InstructionInjectionStore`.
+  - **Codebase Refactoring**: Completely refactored all legacy `learningMode` / `LearningMode` variables, widget properties, and helper sheets to `deepResearch` / `instructionInjection`, removing old file `learning_prompt_sheet.dart`.
 
 ### 139. Fix Token and Context Statistics Display & Mobile Overflow in Chat Messages
 - **Purpose**: Fix an issue where enabling "Display Token and Context Statistics" in Settings -> Display Settings -> Chat Items Display did not show token/context statistics, and resolve mobile layout overflow where long user/model names and timestamp/token text ran off screen without wrapping.

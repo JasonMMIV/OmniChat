@@ -56,8 +56,8 @@ class ChatInputSection extends StatelessWidget {
     this.onPickCamera,
     this.onPickPhotos,
     this.onUploadFiles,
-    this.onToggleLearningMode,
-    this.onLongPressLearning,
+    this.onToggleInstructionInjection,
+    this.onLongPressInstruction,
     this.onToggleAiTeam,
     this.onClearContext,
     this.onCompressContext,
@@ -96,8 +96,8 @@ class ChatInputSection extends StatelessWidget {
   final VoidCallback? onPickCamera;
   final VoidCallback? onPickPhotos;
   final VoidCallback? onUploadFiles;
-  final VoidCallback? onToggleLearningMode;
-  final VoidCallback? onLongPressLearning;
+  final VoidCallback? onToggleInstructionInjection;
+  final VoidCallback? onLongPressInstruction;
   final VoidCallback? onToggleAiTeam;
   final VoidCallback? onClearContext;
   final VoidCallback? onCompressContext;
@@ -178,9 +178,9 @@ class ChatInputSection extends StatelessWidget {
       onPickCamera: isTablet ? (isDesktop ? null : onPickCamera) : null,
       onPickPhotos: isTablet ? (isDesktop ? null : onPickPhotos) : null,
       onUploadFiles: isTablet ? onUploadFiles : null,
-      onToggleLearningMode: isTablet ? onToggleLearningMode : null,
-      onLongPressLearning: isTablet ? onLongPressLearning : null,
-      learningModeActive: isTablet
+      onToggleInstructionInjection: isTablet ? onToggleInstructionInjection : null,
+      onLongPressInstruction: isTablet ? onLongPressInstruction : null,
+      instructionInjectionActive: isTablet
           ? context.watch<InstructionInjectionProvider>().activeIdsFor(assistantId).isNotEmpty
           : false,
       onToggleAiTeam: onToggleAiTeam,
