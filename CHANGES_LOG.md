@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-07-31 (v1.6.4)
+- **Last Updated**: 2026-08-01 (v1.6.6)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -690,6 +690,28 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
   - **Translation Selection Area Bypass**: Added `translationInProgress` check to bypass `SelectionArea` during active translation streaming.
   - **SelectCopy Full Content Support**: Updated `SelectCopyDesktopDialog` to format and render complete message content including Reasoning/Thinking blocks and Translation blocks.
   - **HTML Preview Console SelectionArea Bypass**: Bypassed `SelectionArea` wrapping `ListView.builder` inside `html_preview_dialog.dart` on Windows (`defaultTargetPlatform == TargetPlatform.windows`), eliminating the final remaining `SkParagraph` dangling pointer crash source in `flutter_windows.dll` (`0xc0000005`).
+
+---
+
+## [v1.6.6] - 2026-08-01: Dropbox Streaming Backup, Memory Optimization & Configuration Scope Fixes
+
+### 122. Dropbox Streaming Upload & Memory Leak Fixes
+- **Purpose**: Resolve `OutOfMemory` crashes during ZIP creation and HTTP timeouts/RAM exhaustion when uploading large backups to Dropbox.
+- **Files Modified**:
+  - `lib/core/services/backup/data_sync.dart`
+  - `lib/core/services/backup/dropbox_auth_service.dart`
+  - `lib/desktop/setting/backup_pane.dart`
+  - `lib/features/backup/pages/backup_page.dart`
+  - `lib/core/models/backup.dart`
+  - `installer.iss`
+  - `installers/omnichat_setup.iss`
+  - `pubspec.yaml`
+- **Details**:
+  - **ZipFileEncoder Streaming**: Replaced `Archive` package in `prepareBackupFile` with `ZipFileEncoder` to stream backup ZIP contents directly to disk, avoiding RAM buffer spikes.
+  - **Streamed HTTP Upload**: Replaced `http.post` in `backupToDropbox` with `http.StreamedRequest` (`File.openRead()`) to stream file chunks to network, with 30-minute upload timeout.
+  - **Preserve Toggle Settings**: Fixed Dropbox re-authentication resetting `includeChats` and `includeFiles` to `true`, ensuring user scope preferences remain intact.
+  - **Default Prefix & Folder Rename**: Renamed backup filename prefix to `omnichat_backup_` and default directory to `omnichat_backups` with regex backward compatibility for `kelivo_backup_`.
+  - **Inno Setup Directory Guard**: Added `UsePreviousAppDir=no` to Inno Setup scripts to enforce default installation path `C:\Program Files\OmniChat`.
 
 ---
 

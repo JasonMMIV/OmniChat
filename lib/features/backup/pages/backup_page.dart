@@ -21,6 +21,7 @@ import '../../../core/services/chat/chat_service.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import '../../../core/services/backup/cherry_importer.dart';
 import '../../../core/services/backup/chatbox_importer.dart';
+import '../../../core/services/backup/dropbox_auth_service.dart';
 
 // File size formatter (B, KB, MB, GB)
 String _fmtBytes(int bytes) {
@@ -256,10 +257,12 @@ class _BackupPageState extends State<BackupPage> {
       create: (_) => BackupProvider(
         chatService: context.read<ChatService>(),
         initialConfig: settings.webDavConfig,
+        initialDropboxConfig: settings.dropboxConfig,
       ),
       child: Builder(builder: (context) {
         final vm = context.watch<BackupProvider>();
         final cfg = vm.config;
+        final dropboxCfg = settings.dropboxConfig;
 
         // iOS-style section header
         Widget header(String text, {bool first = false}) => Padding(
@@ -291,7 +294,7 @@ class _BackupPageState extends State<BackupPage> {
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: [
-              // Section 1: 备份管理
+              // Section 1: 備份管理
               header(l10n.backupPageBackupManagement, first: true),
               _iosSectionCard(children: [
                 _iosSwitchRow(
@@ -303,6 +306,9 @@ class _BackupPageState extends State<BackupPage> {
                     final newCfg = cfg.copyWith(includeChats: v);
                     await settings.setWebDavConfig(newCfg);
                     vm.updateConfig(newCfg);
+                    final newDb = dropboxCfg.copyWith(includeChats: v);
+                    await settings.setDropboxConfig(newDb);
+                    vm.updateDropboxConfig(newDb);
                   },
                 ),
                 _iosDivider(context),
@@ -315,11 +321,333 @@ class _BackupPageState extends State<BackupPage> {
                     final newCfg = cfg.copyWith(includeFiles: v);
                     await settings.setWebDavConfig(newCfg);
                     vm.updateConfig(newCfg);
+                    final newDb = dropboxCfg.copyWith(includeFiles: v);
+                    await settings.setDropboxConfig(newDb);
+                    vm.updateDropboxConfig(newDb);
                   },
                 ),
               ]),
 
-              // Section 2: WebDAV备份
+              // Section 2: 本地備份
+              header(l10n.backupPageLocalBackup),
+              _iosSectionCard(children: [
+                _iosNavRow(
+                  context,
+                  icon: Lucide.Export,
+                  label: l10n.backupPageExportToFile,
+                  onTap: () => _doExport(context, vm),
+                ),
+                _iosDivider(context),
+                _iosNavRow(
+                  context,
+                  icon: Lucide.Import2,
+                  label: l10n.backupPageImportBackupFile,
+                  onTap: () => _doImportLocal(context, vm),
+                ),
+                _iosDivider(context),
+                _iosNavRow(
+                  context,
+                  icon: Lucide.Box,
+                  label: l10n.backupPageImportFromCherryStudio,
+                  onTap: () async {
+                    final acknowledged = await _confirmCherryImport(context);
+                    if (acknowledged != true) return;
+                    if (!mounted) return;
+                    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['zip', 'bak']);
+                    final path = result?.files.single.path;
+                    if (path == null) return;
+
+                    final mode = await _chooseImportModeDialog(context);
+                    if (mode == null) return;
+
+                    await _runWithImportingOverlay(context, () async {
+                      try {
+                        final file = File(path);
+                        final res = await CherryImporter.importFromCherryStudio(
+                          file: file,
+                          mode: mode,
+                          settings: settings,
+                          chatService: context.read<ChatService>(),
+                        );
+                        if (!mounted) return;
+                        await showDialog(
+                          context: context,
+                          builder: (dctx) => AlertDialog(
+                            title: Text(l10n.backupPageRestartRequired),
+                            content: Text(
+                              '${l10n.backupPageImportFromCherryStudio}:\n'
+                              ' • Providers: ${res.providers}\n'
+                              ' • Assistants: ${res.assistants}\n'
+                              ' • Conversations: ${res.conversations}\n'
+                              ' • Messages: ${res.messages}\n'
+                              ' • Files: ${res.files}\n\n'
+                              '${l10n.backupPageRestartContent}',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(dctx).pop(),
+                                child: Text(l10n.backupPageOK),
+                              ),
+                            ],
+                          ),
+                        );
+                      } catch (e) {
+                        if (!mounted) return;
+                        showAppSnackBar(context, message: e.toString(), type: NotificationType.error);
+                      }
+                    });
+                  },
+                ),
+                _iosDivider(context),
+                _iosNavRow(
+                  context,
+                  icon: Lucide.Box,
+                  label: l10n.backupPageImportFromChatbox,
+                  onTap: () async {
+                    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['json']);
+                    final path = result?.files.single.path;
+                    if (path == null) return;
+
+                    final mode = await _chooseImportModeDialog(context);
+                    if (mode == null) return;
+
+                    await _runWithImportingOverlay(context, () async {
+                      try {
+                        final file = File(path);
+                        final res = await ChatboxImporter.importFromChatbox(
+                          file: file,
+                          mode: mode,
+                          settings: settings,
+                          chatService: context.read<ChatService>(),
+                        );
+                        if (!mounted) return;
+                        await showDialog(
+                          context: context,
+                          builder: (dctx) => AlertDialog(
+                            title: Text(l10n.backupPageRestartRequired),
+                            content: Text(
+                              '${l10n.backupPageImportFromChatbox}:\n'
+                              ' • Providers: ${res.providers}\n'
+                              ' • Assistants: ${res.assistants}\n'
+                              ' • Conversations: ${res.conversations}\n'
+                              ' • Messages: ${res.messages}\n\n'
+                              '${l10n.backupPageRestartContent}',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(dctx).pop(),
+                                child: Text(l10n.backupPageOK),
+                              ),
+                            ],
+                          ),
+                        );
+                      } catch (e) {
+                        if (!mounted) return;
+                        showAppSnackBar(context, message: e.toString(), type: NotificationType.error);
+                      }
+                    });
+                  },
+                ),
+              ]),
+
+              // Section 3: Dropbox備份
+              header('Dropbox 備份'),
+              _iosSectionCard(children: [
+                _iosNavRow(
+                  context,
+                  icon: Lucide.KeyRound,
+                  label: 'App Key (Client ID): ${dropboxCfg.clientId.isEmpty ? "未設定 (請設定)" : dropboxCfg.clientId}',
+                  onTap: () async {
+                    final ctrl = TextEditingController(text: dropboxCfg.clientId);
+                    final newKey = await showDialog<String>(
+                      context: context,
+                      builder: (dctx) => AlertDialog(
+                        title: const Text('設定 Dropbox App Key'),
+                        content: TextField(
+                          controller: ctrl,
+                          decoration: const InputDecoration(
+                            hintText: '請輸入您在 Dropbox Developer Console 建立的 App Key',
+                          ),
+                        ),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.of(dctx).pop(), child: Text(l10n.backupPageCancel)),
+                          TextButton(onPressed: () => Navigator.of(dctx).pop(ctrl.text.trim()), child: Text(l10n.backupPageOK)),
+                        ],
+                      ),
+                    );
+                    if (newKey != null) {
+                      final newCfg = dropboxCfg.copyWith(clientId: newKey);
+                      await settings.setDropboxConfig(newCfg);
+                      vm.updateDropboxConfig(newCfg);
+                    }
+                  },
+                ),
+                _iosDivider(context),
+                _iosNavRow(
+                  context,
+                  icon: Lucide.Link,
+                  label: dropboxCfg.isConnected ? '帳號連結 (${dropboxCfg.accountEmail.isNotEmpty ? dropboxCfg.accountEmail : "已連結"})' : '連結 Dropbox 帳號',
+                  onTap: vm.busy ? null : () async {
+                    if (dropboxCfg.isConnected) {
+                      final newCfg = const DropboxConfig();
+                      await settings.setDropboxConfig(newCfg);
+                      vm.updateDropboxConfig(newCfg);
+                      showAppSnackBar(context, message: '已解除 Dropbox 連結', type: NotificationType.info);
+                    } else {
+                      try {
+                        final newCfg = await DropboxAuthService.authenticate(customClientId: dropboxCfg.clientId);
+                        final updatedCfg = newCfg.copyWith(
+                          includeChats: cfg.includeChats,
+                          includeFiles: cfg.includeFiles,
+                        );
+                        await settings.setDropboxConfig(updatedCfg);
+                        vm.updateDropboxConfig(updatedCfg);
+                        showAppSnackBar(context, message: 'Dropbox 連結成功！', type: NotificationType.success);
+                      } catch (e) {
+                        if (!mounted) return;
+                        showAppSnackBar(context, message: e.toString(), type: NotificationType.error);
+                      }
+                    }
+                  },
+                ),
+                _iosDivider(context),
+                _iosNavRow(
+                  context,
+                  icon: Lucide.Folder,
+                  label: '路徑: ${dropboxCfg.path}',
+                  onTap: () async {
+                    final ctrl = TextEditingController(text: dropboxCfg.path);
+                    final newPath = await showDialog<String>(
+                      context: context,
+                      builder: (dctx) => AlertDialog(
+                        title: const Text('設定 Dropbox 備份路徑'),
+                        content: TextField(
+                          controller: ctrl,
+                          decoration: const InputDecoration(hintText: 'omnichat_backups'),
+                        ),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.of(dctx).pop(), child: Text(l10n.backupPageCancel)),
+                          TextButton(onPressed: () => Navigator.of(dctx).pop(ctrl.text.trim()), child: Text(l10n.backupPageOK)),
+                        ],
+                      ),
+                    );
+                    if (newPath != null) {
+                      final clean = newPath.isEmpty ? 'omnichat_backups' : newPath;
+                      final newCfg = dropboxCfg.copyWith(path: clean);
+                      await settings.setDropboxConfig(newCfg);
+                      vm.updateDropboxConfig(newCfg);
+                    }
+                  },
+                ),
+                _iosDivider(context),
+                _iosNavRow(
+                  context,
+                  icon: Lucide.Cable,
+                  label: l10n.backupPageTestConnection,
+                  onTap: (vm.busy || !dropboxCfg.isConnected) ? null : () async {
+                    await vm.testDropbox(dropboxCfg);
+                    if (!mounted) return;
+                    final rawMessage = vm.message;
+                    final message = rawMessage ?? l10n.backupPageTestDone;
+                    showAppSnackBar(
+                      context,
+                      message: message,
+                      type: rawMessage != null && rawMessage != 'OK'
+                          ? NotificationType.error
+                          : NotificationType.success,
+                    );
+                  },
+                ),
+                _iosDivider(context),
+                _iosNavRow(
+                  context,
+                  icon: Lucide.Import,
+                  label: l10n.backupPageRestore,
+                  onTap: (vm.busy || !dropboxCfg.isConnected) ? null : () async {
+                    setState(() => _loadingRemote = true);
+                    try {
+                      final list = await vm.listDropboxRemote(dropboxCfg);
+                      list.sort((a, b) {
+                        if (a.lastModified != null && b.lastModified != null) return b.lastModified!.compareTo(a.lastModified!);
+                        if (a.lastModified == null && b.lastModified == null) return b.displayName.compareTo(a.displayName);
+                        if (a.lastModified == null) return 1;
+                        return -1;
+                      });
+                      setState(() => _remote = list);
+                    } finally {
+                      setState(() => _loadingRemote = false);
+                    }
+
+                    if (!mounted) return;
+                    await showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: cs.surface,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                      ),
+                      builder: (ctx) => _RemoteListSheet(
+                        items: _remote,
+                        loading: _loadingRemote,
+                        onDelete: (item) async {
+                          final list = await vm.deleteAndReloadDropbox(dropboxCfg, item);
+                          list.sort((a, b) {
+                            if (a.lastModified != null && b.lastModified != null) return b.lastModified!.compareTo(a.lastModified!);
+                            if (a.lastModified == null && b.lastModified == null) return b.displayName.compareTo(a.displayName);
+                            if (a.lastModified == null) return 1;
+                            return -1;
+                          });
+                          setState(() => _remote = list);
+                        },
+                        onRestore: (item) async {
+                          Navigator.of(ctx).pop();
+                          if (!mounted) return;
+                          final mode = await _chooseImportModeDialog(context);
+                          if (mode == null) return;
+                          await _runWithImportingOverlay(context, () => vm.restoreDropboxFromItem(dropboxCfg, item, mode: mode));
+                          if (!mounted) return;
+                          await showDialog(
+                            context: context,
+                            builder: (dctx) => AlertDialog(
+                              title: Text(l10n.backupPageRestartRequired),
+                              content: Text(l10n.backupPageRestartContent),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.of(dctx).pop(), child: Text(l10n.backupPageOK)),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+                _iosDivider(context),
+                _iosNavRow(
+                  context,
+                  icon: Lucide.Upload,
+                  label: l10n.backupPageBackupNow,
+                  onTap: (vm.busy || !dropboxCfg.isConnected) ? null : () async {
+                    await _runWithExportingOverlay(context, () => vm.backupDropbox(dropboxCfg));
+                    if (!mounted) return;
+                    final rawMessage = vm.message;
+                    final isSuccess = rawMessage != null && rawMessage.startsWith('OK:');
+                    final String message;
+                    if (isSuccess) {
+                      final path = rawMessage.substring(3);
+                      message = 'Dropbox 備份上傳成功！檔案已儲存至：$path';
+                    } else {
+                      message = rawMessage ?? 'Dropbox 備份失敗';
+                    }
+                    showAppSnackBar(
+                      context,
+                      message: message,
+                      type: isSuccess ? NotificationType.success : NotificationType.error,
+                    );
+                  },
+                ),
+              ]),
+
+              // Section 4: WebDAV份
               header(l10n.backupPageWebDavBackup),
               _iosSectionCard(children: [
                 _iosNavRow(
@@ -357,17 +685,9 @@ class _BackupPageState extends State<BackupPage> {
                     setState(() => _loadingRemote = true);
                     try {
                       final list = await vm.listRemote();
-                      // 按时间倒序排列（最新的在前）
                       list.sort((a, b) {
-                        // 优先使用 lastModified
-                        if (a.lastModified != null && b.lastModified != null) {
-                          return b.lastModified!.compareTo(a.lastModified!);
-                        }
-                        // 如果都没有 lastModified，按文件名倒序（文件名通常包含时间戳）
-                        if (a.lastModified == null && b.lastModified == null) {
-                          return b.displayName.compareTo(a.displayName);
-                        }
-                        // 有 lastModified 的排在前面
+                        if (a.lastModified != null && b.lastModified != null) return b.lastModified!.compareTo(a.lastModified!);
+                        if (a.lastModified == null && b.lastModified == null) return b.displayName.compareTo(a.displayName);
                         if (a.lastModified == null) return 1;
                         return -1;
                       });
@@ -389,17 +709,9 @@ class _BackupPageState extends State<BackupPage> {
                         loading: _loadingRemote,
                         onDelete: (item) async {
                           final list = await vm.deleteAndReload(item);
-                          // 按时间倒序排列（最新的在前）
                           list.sort((a, b) {
-                            // 优先使用 lastModified
-                            if (a.lastModified != null && b.lastModified != null) {
-                              return b.lastModified!.compareTo(a.lastModified!);
-                            }
-                            // 如果都没有 lastModified，按文件名倒序（文件名通常包含时间戳）
-                            if (a.lastModified == null && b.lastModified == null) {
-                              return b.displayName.compareTo(a.displayName);
-                            }
-                            // 有 lastModified 的排在前面
+                            if (a.lastModified != null && b.lastModified != null) return b.lastModified!.compareTo(a.lastModified!);
+                            if (a.lastModified == null && b.lastModified == null) return b.displayName.compareTo(a.displayName);
                             if (a.lastModified == null) return 1;
                             return -1;
                           });
@@ -407,12 +719,9 @@ class _BackupPageState extends State<BackupPage> {
                         },
                         onRestore: (item) async {
                           Navigator.of(ctx).pop();
-                          
                           if (!mounted) return;
                           final mode = await _chooseImportModeDialog(context);
-                          
                           if (mode == null) return;
-                          
                           await _runWithImportingOverlay(context, () => vm.restoreFromItem(item, mode: mode));
                           if (!mounted) return;
                           await showDialog(
@@ -445,145 +754,6 @@ class _BackupPageState extends State<BackupPage> {
                       message: message,
                       type: NotificationType.info,
                     );
-                  },
-                ),
-              ]),
-
-              // Section 3: 本地备份
-              header(l10n.backupPageLocalBackup),
-              _iosSectionCard(children: [
-                _iosNavRow(
-                  context,
-                  icon: Lucide.Export,
-                  label: l10n.backupPageExportToFile,
-                  onTap: () => _doExport(context, vm),
-                ),
-                _iosDivider(context),
-                _iosNavRow(
-                  context,
-                  icon: Lucide.Import2,
-                  label: l10n.backupPageImportBackupFile,
-                  onTap: () => _doImportLocal(context, vm),
-                ),
-                _iosDivider(context),
-                _iosNavRow(
-                  context,
-                  icon: Lucide.Box,
-                  label: l10n.backupPageImportFromCherryStudio,
-                  onTap: () async {
-                    // 1) Warn user that Cherry import is experimental
-                    final acknowledged = await _confirmCherryImport(context);
-                    if (acknowledged != true) return;
-
-                    if (!mounted) return;
-                    // Pick Cherry Studio backup (.zip or .bak)
-                    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['zip', 'bak']);
-                    final path = result?.files.single.path;
-                    if (path == null) return;
-
-                    final mode = await _chooseImportModeDialog(context);
-                    if (mode == null) return;
-
-                    await _runWithImportingOverlay(context, () async {
-                      try {
-                        final settings = context.read<SettingsProvider>();
-                        final cs = context.read<ChatService>();
-                        final file = File(path);
-                        // Defer import to service
-                        final res = await CherryImporter.importFromCherryStudio(
-                          file: file,
-                          mode: mode,
-                          settings: settings,
-                          chatService: cs,
-                        );
-                        if (!mounted) return;
-                        await showDialog(
-                          context: context,
-                          builder: (dctx) => AlertDialog(
-                            title: Text(l10n.backupPageRestartRequired),
-                            content: Text(
-                              '${l10n.backupPageImportFromCherryStudio}:\n'
-                              ' • Providers: ${res.providers}\n'
-                              ' • Assistants: ${res.assistants}\n'
-                              ' • Conversations: ${res.conversations}\n'
-                              ' • Messages: ${res.messages}\n'
-                              ' • Files: ${res.files}\n\n'
-                              '${l10n.backupPageRestartContent}',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(dctx).pop(),
-                                child: Text(l10n.backupPageOK),
-                              ),
-                            ],
-                          ),
-                        );
-                      } catch (e) {
-                        if (!mounted) return;
-                        showAppSnackBar(
-                          context,
-                          message: e.toString(),
-                          type: NotificationType.error,
-                        );
-                      }
-                    });
-                  },
-                ),
-                _iosDivider(context),
-                _iosNavRow(
-                  context,
-                  icon: Lucide.Box,
-                  label: l10n.backupPageImportFromChatbox,
-                  onTap: () async {
-                    // Pick Chatbox exported json
-                    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['json']);
-                    final path = result?.files.single.path;
-                    if (path == null) return;
-
-                    final mode = await _chooseImportModeDialog(context);
-                    if (mode == null) return;
-
-                    await _runWithImportingOverlay(context, () async {
-                      try {
-                        final cs = context.read<ChatService>();
-                        final settings = context.read<SettingsProvider>();
-                        final file = File(path);
-                        final res = await ChatboxImporter.importFromChatbox(
-                          file: file,
-                          mode: mode,
-                          settings: settings,
-                          chatService: cs,
-                        );
-                        if (!mounted) return;
-                        await showDialog(
-                          context: context,
-                          builder: (dctx) => AlertDialog(
-                            title: Text(l10n.backupPageRestartRequired),
-                            content: Text(
-                              '${l10n.backupPageImportFromChatbox}:\n'
-                              ' • Providers: ${res.providers}\n'
-                              ' • Assistants: ${res.assistants}\n'
-                              ' • Conversations: ${res.conversations}\n'
-                              ' • Messages: ${res.messages}\n\n'
-                              '${l10n.backupPageRestartContent}',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(dctx).pop(),
-                                child: Text(l10n.backupPageOK),
-                              ),
-                            ],
-                          ),
-                        );
-                      } catch (e) {
-                        if (!mounted) return;
-                        showAppSnackBar(
-                          context,
-                          message: e.toString(),
-                          type: NotificationType.error,
-                        );
-                      }
-                    });
                   },
                 ),
               ]),
@@ -1242,7 +1412,7 @@ class _WebDavSettingsSheetState extends State<_WebDavSettingsSheet> {
     _urlCtrl = TextEditingController(text: widget.cfg.url);
     _userCtrl = TextEditingController(text: widget.cfg.username);
     _passCtrl = TextEditingController(text: widget.cfg.password);
-    _pathCtrl = TextEditingController(text: widget.cfg.path.isEmpty ? 'kelivo_backups' : widget.cfg.path);
+    _pathCtrl = TextEditingController(text: widget.cfg.path.isEmpty ? 'omnichat_backups' : widget.cfg.path);
   }
 
   @override
@@ -1310,7 +1480,7 @@ class _WebDavSettingsSheetState extends State<_WebDavSettingsSheet> {
                         url: _urlCtrl.text.trim(),
                         username: _userCtrl.text.trim(),
                         password: _passCtrl.text,
-                        path: _pathCtrl.text.trim().isEmpty ? 'kelivo_backups' : _pathCtrl.text.trim(),
+                        path: _pathCtrl.text.trim().isEmpty ? 'omnichat_backups' : _pathCtrl.text.trim(),
                       );
                       await widget.settings.setWebDavConfig(newCfg);
                       widget.vm.updateConfig(newCfg);
@@ -1348,7 +1518,7 @@ class _WebDavSettingsSheetState extends State<_WebDavSettingsSheet> {
               _InputRow(
                 label: l10n.backupPagePath,
                 controller: _pathCtrl,
-                hint: 'kelivo_backups',
+                hint: 'omnichat_backups',
               ),
               const SizedBox(height: 16),
             ],

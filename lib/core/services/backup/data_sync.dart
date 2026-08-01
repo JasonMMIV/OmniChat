@@ -14,11 +14,189 @@ import '../../models/backup.dart';
 import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
 import '../chat/chat_service.dart';
+import 'dropbox_auth_service.dart';
 import '../../../utils/app_directories.dart';
 
 class DataSync {
   final ChatService chatService;
   DataSync({required this.chatService});
+
+  // ===== Dropbox helpers =====
+  static String _escapeDropboxHeaderJson(Map<String, dynamic> map) {
+    final raw = jsonEncode(map);
+    final sb = StringBuffer();
+    for (final rune in raw.runes) {
+      if (rune > 127) {
+        sb.write('\\u${rune.toRadixString(16).padLeft(4, '0')}');
+      } else {
+        sb.writeCharCode(rune);
+      }
+    }
+    return sb.toString();
+  }
+
+  Future<DropboxConfig> _ensureDropboxConfig(DropboxConfig cfg) async {
+    if ((cfg.isExpired || cfg.accessToken.isEmpty) && cfg.refreshToken.isNotEmpty) {
+      try {
+        return await DropboxAuthService.refreshAccessToken(cfg);
+      } catch (_) {}
+    }
+    return cfg;
+  }
+
+  Future<void> testDropbox(DropboxConfig cfg) async {
+    final active = await _ensureDropboxConfig(cfg);
+    if (!active.isConnected) throw Exception('Dropbox未連結');
+    final uri = Uri.https('api.dropboxapi.com', '/2/users/get_current_account');
+    final res = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer ${active.accessToken}',
+        'Content-Type': 'application/json',
+      },
+      body: 'null',
+    ).timeout(const Duration(seconds: 30));
+    if (res.statusCode != 200) {
+      throw Exception('Dropbox 測試連線失敗 (${res.statusCode}): ${res.body}');
+    }
+  }
+
+  Future<String> backupToDropbox(DropboxConfig cfg) async {
+    final active = await _ensureDropboxConfig(cfg);
+    if (!active.isConnected) throw Exception('Dropbox未連結');
+
+    final file = await prepareBackupFile(WebDavConfig(includeChats: active.includeChats, includeFiles: active.includeFiles));
+
+    final cleanPath = active.path.trim().replaceAll(RegExp(r'^/+'), '').replaceAll(RegExp(r'/+$'), '');
+    final dropboxFilePath = cleanPath.isEmpty
+        ? '/${p.basename(file.path)}'
+        : '/$cleanPath/${p.basename(file.path)}';
+
+    final uri = Uri.https('content.dropboxapi.com', '/2/files/upload');
+
+    final req = http.StreamedRequest('POST', uri);
+    req.headers.addAll({
+      'Authorization': 'Bearer ${active.accessToken}',
+      'Dropbox-API-Arg': _escapeDropboxHeaderJson({
+        'path': dropboxFilePath,
+        'mode': {'.tag': 'overwrite'},
+        'autorename': false,
+        'mute': false,
+        'strict_conflict': false,
+      }),
+      'Content-Type': 'application/octet-stream',
+    });
+
+    final fileStream = file.openRead();
+    fileStream.listen(
+      (chunk) => req.sink.add(chunk),
+      onDone: () => req.sink.close(),
+      onError: (e, st) => req.sink.addError(e, st),
+    );
+
+    // Increase timeout to 30 minutes to allow slow connections to upload large backup files
+    final streamedRes = await req.send().timeout(const Duration(minutes: 30));
+    final res = await http.Response.fromStream(streamedRes);
+
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw Exception('Dropbox 上傳失敗 (${res.statusCode}): ${res.body}');
+    }
+    return dropboxFilePath;
+  }
+
+  Future<List<BackupFileItem>> listDropboxBackupFiles(DropboxConfig cfg) async {
+    final active = await _ensureDropboxConfig(cfg);
+    if (!active.isConnected) return [];
+
+    final cleanPath = active.path.trim().replaceAll(RegExp(r'^/+'), '').replaceAll(RegExp(r'/+$'), '');
+    final folderPath = cleanPath.isEmpty ? '' : '/$cleanPath';
+
+    final uri = Uri.https('api.dropboxapi.com', '/2/files/list_folder');
+    final res = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer ${active.accessToken}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'path': folderPath,
+        'recursive': false,
+        'include_media_info': false,
+        'include_deleted': false,
+      }),
+    ).timeout(const Duration(seconds: 30));
+
+    if (res.statusCode != 200) {
+      if (res.body.contains('path/not_found')) return [];
+      throw Exception('Dropbox 讀取列表失敗 (${res.statusCode}): ${res.body}');
+    }
+
+    final json = jsonDecode(res.body) as Map<String, dynamic>;
+    final entries = (json['entries'] as List?) ?? [];
+    final items = <BackupFileItem>[];
+
+    for (final ent in entries) {
+      if (ent is Map && ent['.tag'] == 'file') {
+        final name = (ent['name'] as String?) ?? '';
+        final pathDisplay = (ent['path_display'] as String?) ?? name;
+        final size = (ent['size'] as int?) ?? 0;
+        DateTime? mtime;
+        if (ent['server_modified'] != null) {
+          try { mtime = DateTime.parse(ent['server_modified'] as String); } catch (_) {}
+        }
+        items.add(BackupFileItem(
+          href: Uri.parse(pathDisplay),
+          displayName: name,
+          size: size,
+          lastModified: mtime,
+        ));
+      }
+    }
+    return items;
+  }
+
+  Future<void> restoreFromDropbox(DropboxConfig cfg, BackupFileItem item, {RestoreMode mode = RestoreMode.overwrite}) async {
+    final active = await _ensureDropboxConfig(cfg);
+    if (!active.isConnected) throw Exception('Dropbox未連結');
+
+    final uri = Uri.https('content.dropboxapi.com', '/2/files/download');
+    final res = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer ${active.accessToken}',
+        'Dropbox-API-Arg': _escapeDropboxHeaderJson({'path': item.href.toString()}),
+      },
+    ).timeout(const Duration(minutes: 5));
+
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw Exception('Dropbox 下載失敗 (${res.statusCode}): ${res.body}');
+    }
+
+    final tmpDir = await getTemporaryDirectory();
+    final file = File(p.join(tmpDir.path, item.displayName));
+    await file.writeAsBytes(res.bodyBytes);
+    await _restoreFromBackupFile(file, WebDavConfig(includeChats: active.includeChats, includeFiles: active.includeFiles), mode: mode);
+    try { await file.delete(); } catch (_) {}
+  }
+
+  Future<void> deleteDropboxBackupFile(DropboxConfig cfg, BackupFileItem item) async {
+    final active = await _ensureDropboxConfig(cfg);
+    if (!active.isConnected) throw Exception('Dropbox未連結');
+
+    final uri = Uri.https('api.dropboxapi.com', '/2/files/delete_v2');
+    final res = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer ${active.accessToken}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'path': item.href.toString()}),
+    ).timeout(const Duration(seconds: 30));
+
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw Exception('Dropbox 刪除失敗 (${res.statusCode}): ${res.body}');
+    }
+  }
 
   // ===== WebDAV helpers =====
   Uri _collectionUri(WebDavConfig cfg) {
@@ -106,24 +284,24 @@ class DataSync {
   Future<File> prepareBackupFile(WebDavConfig cfg) async {
     final tmp = await getTemporaryDirectory();
     final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-    final outFile = File(p.join(tmp.path, 'kelivo_backup_$timestamp.zip'));
+    final outFile = File(p.join(tmp.path, 'omnichat_backup_$timestamp.zip'));
     if (await outFile.exists()) await outFile.delete();
 
-    // Use Archive instead of ZipFileEncoder for better control
-    final archive = Archive();
+    final zip = ZipFileEncoder();
+    zip.create(outFile.path);
 
     // settings.json
     final settingsJson = await _exportSettingsJson();
     final settingsBytes = utf8.encode(settingsJson);
     final settingsArchiveFile = ArchiveFile('settings.json', settingsBytes.length, settingsBytes);
-    archive.addFile(settingsArchiveFile);
+    zip.addArchiveFile(settingsArchiveFile);
 
     // chats
     if (cfg.includeChats) {
       final chatsJson = await _exportChatsJson();
       final chatsBytes = utf8.encode(chatsJson);
       final chatsArchiveFile = ArchiveFile('chats.json', chatsBytes.length, chatsBytes);
-      archive.addFile(chatsArchiveFile);
+      zip.addArchiveFile(chatsArchiveFile);
     }
 
     // files under upload/, images/, and avatars/
@@ -135,11 +313,8 @@ class DataSync {
         for (final ent in entries) {
           if (ent is File) {
             final rel = p.relative(ent.path, from: uploadDir.path);
-            // ZIP entries must use forward slashes regardless of platform
             final relPosix = rel.replaceAll('\\', '/');
-            final fileBytes = await ent.readAsBytes();
-            final archiveFile = ArchiveFile('upload/$relPosix', fileBytes.length, fileBytes);
-            archive.addFile(archiveFile);
+            zip.addFile(ent, 'upload/$relPosix');
           }
         }
       }
@@ -152,9 +327,7 @@ class DataSync {
           if (ent is File) {
             final rel = p.relative(ent.path, from: avatarsDir.path);
             final relPosix = rel.replaceAll('\\', '/');
-            final fileBytes = await ent.readAsBytes();
-            final archiveFile = ArchiveFile('avatars/$relPosix', fileBytes.length, fileBytes);
-            archive.addFile(archiveFile);
+            zip.addFile(ent, 'avatars/$relPosix');
           }
         }
       }
@@ -167,19 +340,13 @@ class DataSync {
           if (ent is File) {
             final rel = p.relative(ent.path, from: imagesDir.path);
             final relPosix = rel.replaceAll('\\', '/');
-            final fileBytes = await ent.readAsBytes();
-            final archiveFile = ArchiveFile('images/$relPosix', fileBytes.length, fileBytes);
-            archive.addFile(archiveFile);
+            zip.addFile(ent, 'images/$relPosix');
           }
         }
       }
     }
 
-    // Encode archive to ZIP
-    final zipEncoder = ZipEncoder();
-    final zipBytes = zipEncoder.encode(archive)!;
-    await outFile.writeAsBytes(zipBytes);
-    
+    zip.close();
     return outFile;
   }
 
@@ -246,9 +413,9 @@ class DataSync {
           ? disp.first.trim()
           : Uri.parse(href).pathSegments.last;
       
-      // If mtime is null, try to extract from filename (format: kelivo_backup_2025-01-19T12-34-56.123456.zip)
+      // If mtime is null, try to extract from filename (format: omnichat_backup_2025-01-19T12-34-56.123456.zip)
       if (mtime == null) {
-        final match = RegExp(r'kelivo_backup_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d+)\.zip').firstMatch(name);
+        final match = RegExp(r'(?:omnichat|kelivo)_backup_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d+)\.zip').firstMatch(name);
         if (match != null) {
           try {
             // Replace hyphens in time part back to colons

@@ -138,6 +138,7 @@ class MyApp extends StatelessWidget {
           create: (ctx) => BackupProvider(
             chatService: ctx.read<ChatService>(),
             initialConfig: ctx.read<SettingsProvider>().webDavConfig,
+            initialDropboxConfig: ctx.read<SettingsProvider>().dropboxConfig,
           ),
         ),
       ],

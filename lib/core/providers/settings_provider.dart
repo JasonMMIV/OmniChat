@@ -118,6 +118,7 @@ class SettingsProvider extends ChangeNotifier {
   static const String _searchEnabledKey = 'search_enabled_v1';
   static const String _searchAutoTestOnLaunchKey = 'search_auto_test_on_launch_v1';
   static const String _webDavConfigKey = 'webdav_config_v1';
+  static const String _dropboxConfigKey = 'dropbox_config_v1';
   // Global network proxy
   static const String _globalProxyEnabledKey = 'global_proxy_enabled_v1';
   static const String _globalProxyTypeKey = 'global_proxy_type_v1'; // http|https|socks5 (socks5 not yet supported)
@@ -552,6 +553,10 @@ class SettingsProvider extends ChangeNotifier {
     final webdavStr = prefs.getString(_webDavConfigKey);
     if (webdavStr != null && webdavStr.isNotEmpty) {
       try { _webDavConfig = WebDavConfig.fromJson(jsonDecode(webdavStr) as Map<String, dynamic>); } catch (_) {}
+    }
+    final dropboxStr = prefs.getString(_dropboxConfigKey);
+    if (dropboxStr != null && dropboxStr.isNotEmpty) {
+      try { _dropboxConfig = DropboxConfig.fromJson(jsonDecode(dropboxStr) as Map<String, dynamic>); } catch (_) {}
     }
     if (_providerConfigs.isEmpty) {
       // Seed a couple of sensible defaults on first launch, but do not recreate
@@ -1014,6 +1019,15 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_webDavConfigKey, jsonEncode(cfg.toJson()));
+  }
+
+  DropboxConfig _dropboxConfig = const DropboxConfig();
+  DropboxConfig get dropboxConfig => _dropboxConfig;
+  Future<void> setDropboxConfig(DropboxConfig cfg) async {
+    _dropboxConfig = cfg;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_dropboxConfigKey, jsonEncode(cfg.toJson()));
   }
 
   Future<void> _initSearchConnectivityTests() async {

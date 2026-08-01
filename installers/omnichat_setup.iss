@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "OmniChat"
-#define MyAppVersion "1.6.5"
+#define MyAppVersion "1.6.6"
 #define MyAppPublisher "JasonMMIV"
 #define MyAppURL "https://github.com/JasonMMIV/OmniChat"
 #define MyAppExeName "OmniChat.exe"
@@ -19,11 +19,12 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
+UsePreviousAppDir=no
 DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non-administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
 OutputDir=C:\Users\w2bn1\Documents\GitHub\OmniChat\installers
-OutputBaseFilename=omnichat_setup_1.6.5
+OutputBaseFilename=omnichat_setup_1.6.6
 SetupIconFile=C:\Users\w2bn1\Documents\GitHub\OmniChat\windows\runner\resources\app_icon.ico
 Compression=lzma
 SolidCompression=yes
