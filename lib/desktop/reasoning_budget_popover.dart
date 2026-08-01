@@ -5,35 +5,52 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
+import '../core/providers/assistant_provider.dart';
 import '../core/providers/settings_provider.dart';
+import '../core/utils/reasoning_capabilities.dart';
 import '../icons/lucide_adapter.dart';
 import '../l10n/app_localizations.dart';
 
-Future<void> showDesktopReasoningBudgetPopover(
+Future<ReasoningBudgetSelection?> showDesktopReasoningBudgetPopover(
   BuildContext context, {
   required GlobalKey anchorKey,
+  int? initialBudget,
+  String? modelProvider,
+  String? modelId,
+  bool allowInherit = false,
 }) async {
   final overlay = Overlay.of(context);
-  if (overlay == null) return;
+  if (overlay == null) return null;
   final keyContext = anchorKey.currentContext;
-  if (keyContext == null) return;
+  if (keyContext == null) return null;
 
   final box = keyContext.findRenderObject() as RenderBox?;
-  if (box == null) return;
+  if (box == null) return null;
   final offset = box.localToGlobal(Offset.zero);
   final size = box.size;
-  final anchorRect = Rect.fromLTWH(offset.dx, offset.dy, size.width, size.height);
+  final anchorRect = Rect.fromLTWH(
+    offset.dx,
+    offset.dy,
+    size.width,
+    size.height,
+  );
 
-  final completer = Completer<void>();
+  final completer = Completer<ReasoningBudgetSelection?>();
 
   late OverlayEntry entry;
   entry = OverlayEntry(
     builder: (ctx) => _ReasoningPopoverOverlay(
       anchorRect: anchorRect,
       anchorWidth: size.width,
-      onClose: () {
-        try { entry.remove(); } catch (_) {}
-        if (!completer.isCompleted) completer.complete();
+      initialBudget: initialBudget,
+      modelProvider: modelProvider,
+      modelId: modelId,
+      allowInherit: allowInherit,
+      onClose: (selection) {
+        try {
+          entry.remove();
+        } catch (_) {}
+        if (!completer.isCompleted) completer.complete(selection);
       },
     ),
   );
@@ -45,15 +62,24 @@ class _ReasoningPopoverOverlay extends StatefulWidget {
   const _ReasoningPopoverOverlay({
     required this.anchorRect,
     required this.anchorWidth,
+    this.initialBudget,
+    this.modelProvider,
+    this.modelId,
+    this.allowInherit = false,
     required this.onClose,
   });
 
   final Rect anchorRect;
   final double anchorWidth;
-  final VoidCallback onClose;
+  final int? initialBudget;
+  final String? modelProvider;
+  final String? modelId;
+  final bool allowInherit;
+  final ValueChanged<ReasoningBudgetSelection?> onClose;
 
   @override
-  State<_ReasoningPopoverOverlay> createState() => _ReasoningPopoverOverlayState();
+  State<_ReasoningPopoverOverlay> createState() =>
+      _ReasoningPopoverOverlayState();
 }
 
 class _ReasoningPopoverOverlayState extends State<_ReasoningPopoverOverlay>
@@ -66,12 +92,17 @@ class _ReasoningPopoverOverlayState extends State<_ReasoningPopoverOverlay>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 260));
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    );
     _fadeIn = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       setState(() => _offset = Offset.zero);
-      try { await _controller.forward(); } catch (_) {}
+      try {
+        await _controller.forward();
+      } catch (_) {}
     });
   }
 
@@ -81,12 +112,14 @@ class _ReasoningPopoverOverlayState extends State<_ReasoningPopoverOverlay>
     super.dispose();
   }
 
-  Future<void> _close() async {
+  Future<void> _close([ReasoningBudgetSelection? selection]) async {
     if (_closing) return;
     _closing = true;
     setState(() => _offset = const Offset(0, 1.0));
-    try { await _controller.reverse(); } catch (_) {}
-    if (mounted) widget.onClose();
+    try {
+      await _controller.reverse();
+    } catch (_) {}
+    if (mounted) widget.onClose(selection);
   }
 
   @override
@@ -94,8 +127,11 @@ class _ReasoningPopoverOverlayState extends State<_ReasoningPopoverOverlay>
     final screen = MediaQuery.of(context).size;
     // Slightly narrower than input width
     final width = (widget.anchorWidth - 16).clamp(260.0, 720.0);
-    final left = (widget.anchorRect.left + (widget.anchorRect.width - width) / 2)
-        .clamp(8.0, screen.width - width - 8.0);
+    final left =
+        (widget.anchorRect.left + (widget.anchorRect.width - width) / 2).clamp(
+          8.0,
+          screen.width - width - 8.0,
+        );
     final clipHeight = widget.anchorRect.top.clamp(0.0, screen.height);
 
     return Stack(
@@ -126,8 +162,16 @@ class _ReasoningPopoverOverlayState extends State<_ReasoningPopoverOverlay>
                       curve: Curves.easeOutCubic,
                       offset: _offset,
                       child: _GlassPanel(
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-                        child: _ReasoningContent(onDone: _close),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(14),
+                        ),
+                        child: _ReasoningContent(
+                          initialBudget: widget.initialBudget,
+                          modelProvider: widget.modelProvider,
+                          modelId: widget.modelId,
+                          allowInherit: widget.allowInherit,
+                          onDone: _close,
+                        ),
                       ),
                     ),
                   ),
@@ -156,17 +200,25 @@ class _GlassPanel extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             // Match the preferred grey smudge style
-            color: (isDark ? Colors.black : Colors.white).withOpacity(isDark ? 0.28 : 0.56),
+            color: (isDark ? Colors.black : Colors.white).withOpacity(
+              isDark ? 0.28 : 0.56,
+            ),
             border: Border(
-              top: BorderSide(color: Colors.white.withOpacity(isDark ? 0.06 : 0.18), width: 0.7),
-              left: BorderSide(color: Colors.white.withOpacity(isDark ? 0.04 : 0.12), width: 0.6),
-              right: BorderSide(color: Colors.white.withOpacity(isDark ? 0.04 : 0.12), width: 0.6),
+              top: BorderSide(
+                color: Colors.white.withOpacity(isDark ? 0.06 : 0.18),
+                width: 0.7,
+              ),
+              left: BorderSide(
+                color: Colors.white.withOpacity(isDark ? 0.04 : 0.12),
+                width: 0.6,
+              ),
+              right: BorderSide(
+                color: Colors.white.withOpacity(isDark ? 0.04 : 0.12),
+                width: 0.6,
+              ),
             ),
           ),
-          child: Material(
-            type: MaterialType.transparency,
-            child: child,
-          ),
+          child: Material(type: MaterialType.transparency, child: child),
         ),
       ),
     );
@@ -174,31 +226,66 @@ class _GlassPanel extends StatelessWidget {
 }
 
 class _ReasoningContent extends StatelessWidget {
-  const _ReasoningContent({required this.onDone});
-  final VoidCallback onDone;
+  const _ReasoningContent({
+    required this.onDone,
+    this.initialBudget,
+    this.modelProvider,
+    this.modelId,
+    this.allowInherit = false,
+  });
 
-  int _bucket(int? n) {
-    if (n == null) return -1;
-    if (n == -1) return -1;
-    if (n < 1024) return 0;
-    if (n < 16000) return 1024;
-    if (n < 32000) return 16000;
-    return 32000;
+  final ValueChanged<ReasoningBudgetSelection?> onDone;
+  final int? initialBudget;
+  final String? modelProvider;
+  final String? modelId;
+  final bool allowInherit;
+
+  ReasoningCapabilities _capabilities(
+    BuildContext context,
+    SettingsProvider settings,
+  ) {
+    final assistant = context.read<AssistantProvider>().currentAssistant;
+    final provider =
+        modelProvider ??
+        assistant?.chatModelProvider ??
+        settings.currentModelProvider;
+    final model = modelId ?? assistant?.chatModelId ?? settings.currentModelId;
+    if (provider == null || model == null) {
+      return ReasoningCapabilities.unsupported;
+    }
+    return settings.reasoningCapabilities(provider, model);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final sp = context.watch<SettingsProvider>();
-    final selected = _bucket(sp.thinkingBudget);
+    final capabilities = _capabilities(context, sp);
+    final selected = allowInherit
+        ? initialBudget
+        : (initialBudget ?? ReasoningBudget.auto);
+
+    bool isActive(int? value) {
+      if (value == null) return allowInherit && selected == null;
+      final effectiveSelected =
+          capabilities.thinkingAlwaysOn && selected == ReasoningBudget.off
+          ? ReasoningBudget.auto
+          : selected;
+      return ReasoningBudget.bucket(
+            effectiveSelected,
+            allowXhigh: capabilities.supportsXhigh,
+            allowMax: capabilities.supportsMax,
+          ) ==
+          value;
+    }
 
     Widget tile({
       required Widget Function(Color color) leadingBuilder,
       required String label,
-      required int value,
+      required int? value,
     }) {
       final cs = Theme.of(context).colorScheme;
-      final active = selected == value;
+      final active = isActive(value);
       final onColor = active ? cs.primary : cs.onSurface;
       final iconColor = active ? cs.primary : cs.onSurface;
       return Padding(
@@ -207,12 +294,12 @@ class _ReasoningContent extends StatelessWidget {
           leading: leadingBuilder(iconColor),
           label: label,
           selected: active,
-          onTap: () async {
-            await context.read<SettingsProvider>().setThinkingBudget(value);
-            onDone();
-          },
-          labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w400, decoration: TextDecoration.none)
-              .copyWith(color: onColor),
+          onTap: () => onDone(ReasoningBudgetSelection(value)),
+          labelStyle: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w400,
+            decoration: TextDecoration.none,
+          ).copyWith(color: onColor),
         ),
       );
     }
@@ -224,31 +311,76 @@ class _ReasoningContent extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            tile(
-              leadingBuilder: (c) => Icon(Lucide.X, size: 16, color: c),
-              label: l10n.reasoningBudgetSheetOff,
-              value: 0,
-            ),
+            if (allowInherit)
+              tile(
+                leadingBuilder: (c) =>
+                    Icon(Lucide.Settings2, size: 16, color: c),
+                label: l10n.reasoningBudgetSheetUseGlobal,
+                value: null,
+              ),
+            if (!capabilities.thinkingAlwaysOn)
+              tile(
+                leadingBuilder: (c) => Icon(Lucide.X, size: 16, color: c),
+                label: l10n.reasoningBudgetSheetOff,
+                value: ReasoningBudget.off,
+              ),
             tile(
               leadingBuilder: (c) => Icon(Lucide.Settings2, size: 16, color: c),
               label: l10n.reasoningBudgetSheetAuto,
-              value: -1,
+              value: ReasoningBudget.auto,
             ),
             tile(
-              leadingBuilder: (c) => SvgPicture.asset('assets/icons/deepthink.svg', width: 16, height: 16, colorFilter: ColorFilter.mode(c, BlendMode.srcIn)),
+              leadingBuilder: (c) => SvgPicture.asset(
+                'assets/icons/deepthink.svg',
+                width: 16,
+                height: 16,
+                colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
+              ),
               label: l10n.reasoningBudgetSheetLight,
-              value: 1024,
+              value: ReasoningBudget.light,
             ),
             tile(
-              leadingBuilder: (c) => SvgPicture.asset('assets/icons/deepthink.svg', width: 16, height: 16, colorFilter: ColorFilter.mode(c, BlendMode.srcIn)),
+              leadingBuilder: (c) => SvgPicture.asset(
+                'assets/icons/deepthink.svg',
+                width: 16,
+                height: 16,
+                colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
+              ),
               label: l10n.reasoningBudgetSheetMedium,
-              value: 16000,
+              value: ReasoningBudget.medium,
             ),
             tile(
-              leadingBuilder: (c) => SvgPicture.asset('assets/icons/deepthink.svg', width: 16, height: 16, colorFilter: ColorFilter.mode(c, BlendMode.srcIn)),
+              leadingBuilder: (c) => SvgPicture.asset(
+                'assets/icons/deepthink.svg',
+                width: 16,
+                height: 16,
+                colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
+              ),
               label: l10n.reasoningBudgetSheetHeavy,
-              value: 32000,
+              value: ReasoningBudget.heavy,
             ),
+            if (capabilities.supportsXhigh)
+              tile(
+                leadingBuilder: (c) => SvgPicture.asset(
+                  'assets/icons/deepthink.svg',
+                  width: 16,
+                  height: 16,
+                  colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
+                ),
+                label: l10n.reasoningBudgetSheetXhigh,
+                value: ReasoningBudget.xhigh,
+              ),
+            if (capabilities.supportsMax)
+              tile(
+                leadingBuilder: (c) => SvgPicture.asset(
+                  'assets/icons/deepthink.svg',
+                  width: 16,
+                  height: 16,
+                  colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
+                ),
+                label: l10n.reasoningBudgetSheetMax,
+                value: ReasoningBudget.max,
+              ),
           ],
         ),
       ),
@@ -283,7 +415,9 @@ class _HoverRowState extends State<_HoverRow> {
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final baseBg = Colors.transparent;
-    final hoverBg = (isDark ? Colors.white : Colors.black).withOpacity(isDark ? 0.12 : 0.10);
+    final hoverBg = (isDark ? Colors.white : Colors.black).withOpacity(
+      isDark ? 0.12 : 0.10,
+    );
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -302,20 +436,35 @@ class _HoverRowState extends State<_HoverRow> {
           ),
           child: Row(
             children: [
-              SizedBox(width: 22, height: 22, child: Center(child: widget.leading)),
+              SizedBox(
+                width: 22,
+                height: 22,
+                child: Center(child: widget.leading),
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   widget.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: widget.labelStyle ?? const TextStyle(fontSize: 13, fontWeight: FontWeight.w400, decoration: TextDecoration.none),
+                  style:
+                      widget.labelStyle ??
+                      const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                        decoration: TextDecoration.none,
+                      ),
                 ),
               ),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 160),
                 child: widget.selected
-                    ? Icon(Lucide.Check, key: const ValueKey('check'), size: 16, color: cs.primary)
+                    ? Icon(
+                        Lucide.Check,
+                        key: const ValueKey('check'),
+                        size: 16,
+                        color: cs.primary,
+                      )
                     : const SizedBox(width: 16, key: ValueKey('space')),
               ),
             ],

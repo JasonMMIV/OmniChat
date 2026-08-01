@@ -16,6 +16,7 @@ import '../services/haptics.dart';
 import '../../utils/app_directories.dart';
 import '../../utils/sandbox_path_resolver.dart';
 import '../../utils/avatar_cache.dart';
+import '../utils/reasoning_capabilities.dart';
 
 // Desktop: topic list position
 enum DesktopTopicPosition { left, right }
@@ -44,71 +45,114 @@ class SettingsProvider extends ChangeNotifier {
 
   static const String _displayShowUserAvatarKey = 'display_show_user_avatar_v1';
   static const String _displayShowModelIconKey = 'display_show_model_icon_v1';
-  static const String _displayShowModelNameTimestampKey = 'display_show_model_name_timestamp_v1';
+  static const String _displayShowModelNameTimestampKey =
+      'display_show_model_name_timestamp_v1';
   static const String _displayShowTokenStatsKey = 'display_show_token_stats_v1';
-  static const String _displayShowUserNameTimestampKey = 'display_show_user_name_timestamp_v1';
-  static const String _displayShowUserMessageActionsKey = 'display_show_user_message_actions_v1';
-  static const String _displayAutoCollapseThinkingKey = 'display_auto_collapse_thinking_v1';
+  static const String _displayShowUserNameTimestampKey =
+      'display_show_user_name_timestamp_v1';
+  static const String _displayShowUserMessageActionsKey =
+      'display_show_user_message_actions_v1';
+  static const String _displayAutoCollapseThinkingKey =
+      'display_auto_collapse_thinking_v1';
   static const String _displayShowMessageNavKey = 'display_show_message_nav_v1';
-  static const String _displayShowProviderInModelCapsuleKey = 'display_show_provider_in_model_capsule_v1';
-  static const String _displayHapticsOnGenerateKey = 'display_haptics_on_generate_v1';
-  static const String _displayHapticsOnDrawerKey = 'display_haptics_on_drawer_v1';
-  static const String _displayHapticsGlobalEnabledKey = 'display_haptics_global_enabled_v1';
-  static const String _displayHapticsIosSwitchKey = 'display_haptics_ios_switch_v1';
-  static const String _displayHapticsOnListItemTapKey = 'display_haptics_on_list_item_tap_v1';
-  static const String _displayHapticsOnCardTapKey = 'display_haptics_on_card_tap_v1';
+  static const String _displayShowProviderInModelCapsuleKey =
+      'display_show_provider_in_model_capsule_v1';
+  static const String _displayHapticsOnGenerateKey =
+      'display_haptics_on_generate_v1';
+  static const String _displayHapticsOnDrawerKey =
+      'display_haptics_on_drawer_v1';
+  static const String _displayHapticsGlobalEnabledKey =
+      'display_haptics_global_enabled_v1';
+  static const String _displayHapticsIosSwitchKey =
+      'display_haptics_ios_switch_v1';
+  static const String _displayHapticsOnListItemTapKey =
+      'display_haptics_on_list_item_tap_v1';
+  static const String _displayHapticsOnCardTapKey =
+      'display_haptics_on_card_tap_v1';
   static const String _displayShowAppUpdatesKey = 'display_show_app_updates_v1';
-  static const String _displayKeepSidebarOpenOnAssistantTapKey = 'display_keep_sidebar_open_on_assistant_tap_v1';
-  static const String _displayKeepSidebarOpenOnTopicTapKey = 'display_keep_sidebar_open_on_topic_tap_v1';
-  static const String _displayKeepAssistantListExpandedOnSidebarCloseKey = 'display_keep_assistant_list_expanded_on_sidebar_close_v1';
-  static const String _displayNewChatOnAssistantSwitchKey = 'display_new_chat_on_assistant_switch_v1';
-  static const String _displayNewChatOnLaunchKey = 'display_new_chat_on_launch_v1';
-  static const String _displayNewChatAfterDeleteKey = 'display_new_chat_after_delete_v1';
+  static const String _displayKeepSidebarOpenOnAssistantTapKey =
+      'display_keep_sidebar_open_on_assistant_tap_v1';
+  static const String _displayKeepSidebarOpenOnTopicTapKey =
+      'display_keep_sidebar_open_on_topic_tap_v1';
+  static const String _displayKeepAssistantListExpandedOnSidebarCloseKey =
+      'display_keep_assistant_list_expanded_on_sidebar_close_v1';
+  static const String _displayNewChatOnAssistantSwitchKey =
+      'display_new_chat_on_assistant_switch_v1';
+  static const String _displayNewChatOnLaunchKey =
+      'display_new_chat_on_launch_v1';
+  static const String _displayNewChatAfterDeleteKey =
+      'display_new_chat_after_delete_v1';
   static const String _displayChatFontScaleKey = 'display_chat_font_scale_v1';
-  static const String _displayAutoScrollEnabledKey = 'display_auto_scroll_enabled_v1';
-  static const String _displayAutoScrollIdleSecondsKey = 'display_auto_scroll_idle_seconds_v1';
-  static const String _displayChatBackgroundMaskStrengthKey = 'display_chat_background_mask_strength_v1';
-  static const String _displayEnableDollarLatexKey = 'display_enable_dollar_latex_v1';
-  static const String _displayEnableMathRenderingKey = 'display_enable_math_rendering_v1';
-  static const String _displayEnableUserMarkdownKey = 'display_enable_user_markdown_v1';
-  static const String _displayEnableReasoningMarkdownKey = 'display_enable_reasoning_markdown_v1';
-  static const String _displayShowChatListDateKey = 'display_show_chat_list_date_v1';
-  static const String _displayMobileCodeBlockWrapKey = 'display_mobile_code_block_wrap_v1';
-  static const String _displayAutoCollapseCodeBlockKey = 'display_auto_collapse_code_block_v1';
-  static const String _displayAutoCollapseCodeBlockLinesKey = 'display_auto_collapse_code_block_lines_v1';
-  static const String _displayDesktopAutoSwitchTopicsKey = 'display_desktop_auto_switch_topics_v1';
-  static const String _displayDesktopShowTrayKey = 'display_desktop_show_tray_v1';
-  static const String _displayDesktopMinimizeToTrayOnCloseKey = 'display_desktop_minimize_to_tray_on_close_v1';
-  static const String _displayUsePureBackgroundKey = 'display_use_pure_background_v1';
-  static const String _displayChatMessageBackgroundStyleKey = 'display_chat_message_background_style_v1';
+  static const String _displayAutoScrollEnabledKey =
+      'display_auto_scroll_enabled_v1';
+  static const String _displayAutoScrollIdleSecondsKey =
+      'display_auto_scroll_idle_seconds_v1';
+  static const String _displayChatBackgroundMaskStrengthKey =
+      'display_chat_background_mask_strength_v1';
+  static const String _displayEnableDollarLatexKey =
+      'display_enable_dollar_latex_v1';
+  static const String _displayEnableMathRenderingKey =
+      'display_enable_math_rendering_v1';
+  static const String _displayEnableUserMarkdownKey =
+      'display_enable_user_markdown_v1';
+  static const String _displayEnableReasoningMarkdownKey =
+      'display_enable_reasoning_markdown_v1';
+  static const String _displayShowChatListDateKey =
+      'display_show_chat_list_date_v1';
+  static const String _displayMobileCodeBlockWrapKey =
+      'display_mobile_code_block_wrap_v1';
+  static const String _displayAutoCollapseCodeBlockKey =
+      'display_auto_collapse_code_block_v1';
+  static const String _displayAutoCollapseCodeBlockLinesKey =
+      'display_auto_collapse_code_block_lines_v1';
+  static const String _displayDesktopAutoSwitchTopicsKey =
+      'display_desktop_auto_switch_topics_v1';
+  static const String _displayDesktopShowTrayKey =
+      'display_desktop_show_tray_v1';
+  static const String _displayDesktopMinimizeToTrayOnCloseKey =
+      'display_desktop_minimize_to_tray_on_close_v1';
+  static const String _displayUsePureBackgroundKey =
+      'display_use_pure_background_v1';
+  static const String _displayChatMessageBackgroundStyleKey =
+      'display_chat_message_background_style_v1';
   // Network request logging (debug)
   static const String _requestLogEnabledKey = 'request_log_enabled_v1';
   // Flutter runtime logging (debug)
   static const String _flutterLogEnabledKey = 'flutter_log_enabled_v1';
   // Desktop topic panel placement + right sidebar open state
   static const String _desktopTopicPositionKey = 'desktop_topic_position_v1';
-  static const String _desktopRightSidebarOpenKey = 'desktop_right_sidebar_open_v1';
+  static const String _desktopRightSidebarOpenKey =
+      'desktop_right_sidebar_open_v1';
   // Android background chat generation mode
-  static const String _androidBackgroundChatModeKey = 'android_background_chat_mode_v1';
+  static const String _androidBackgroundChatModeKey =
+      'android_background_chat_mode_v1';
   // Fonts
   static const String _displayAppFontFamilyKey = 'display_app_font_family_v1';
   static const String _displayCodeFontFamilyKey = 'display_code_font_family_v1';
-  static const String _displayAppFontIsGoogleKey = 'display_app_font_is_google_v1';
-  static const String _displayCodeFontIsGoogleKey = 'display_code_font_is_google_v1';
-  static const String _displayAppFontLocalPathKey = 'display_app_font_local_path_v1';
-  static const String _displayCodeFontLocalPathKey = 'display_code_font_local_path_v1';
-  static const String _displayAppFontLocalAliasKey = 'display_app_font_local_alias_v1';
-  static const String _displayCodeFontLocalAliasKey = 'display_code_font_local_alias_v1';
+  static const String _displayAppFontIsGoogleKey =
+      'display_app_font_is_google_v1';
+  static const String _displayCodeFontIsGoogleKey =
+      'display_code_font_is_google_v1';
+  static const String _displayAppFontLocalPathKey =
+      'display_app_font_local_path_v1';
+  static const String _displayCodeFontLocalPathKey =
+      'display_code_font_local_path_v1';
+  static const String _displayAppFontLocalAliasKey =
+      'display_app_font_local_alias_v1';
+  static const String _displayCodeFontLocalAliasKey =
+      'display_code_font_local_alias_v1';
   static const String _appLocaleKey = 'app_locale_v1';
   static const String _translateModelKey = 'translate_model_v1';
   static const String _translatePromptKey = 'translate_prompt_v1';
   static const String _greetingModelKey = 'greeting_model_v1';
   static const String _greetingPromptKey = 'greeting_prompt_v1';
   static const String _newChatLogoTypeKey = 'new_chat_logo_type_v1';
-  static const String _newChatCustomLogoFileNameKey = 'new_chat_custom_logo_file_name_v1';
+  static const String _newChatCustomLogoFileNameKey =
+      'new_chat_custom_logo_file_name_v1';
   static const String _newChatTextTypeKey = 'new_chat_text_type_v1';
   static const String _newChatCustomTextKey = 'new_chat_custom_text_v1';
-  static const String _newChatCachedAiGreetingKey = 'new_chat_cached_ai_greeting_v1';
+  static const String _newChatCachedAiGreetingKey =
+      'new_chat_cached_ai_greeting_v1';
   static const String _ocrEnabledKey = 'ocr_enabled_v1';
   static const String _deepResearchEnabledKey = 'learning_mode_enabled_v1';
   static const String _deepResearchPromptKey = 'learning_mode_prompt_v1';
@@ -116,12 +160,14 @@ class SettingsProvider extends ChangeNotifier {
   static const String _searchCommonKey = 'search_common_v1';
   static const String _searchSelectedKey = 'search_selected_v1';
   static const String _searchEnabledKey = 'search_enabled_v1';
-  static const String _searchAutoTestOnLaunchKey = 'search_auto_test_on_launch_v1';
+  static const String _searchAutoTestOnLaunchKey =
+      'search_auto_test_on_launch_v1';
   static const String _webDavConfigKey = 'webdav_config_v1';
   static const String _dropboxConfigKey = 'dropbox_config_v1';
   // Global network proxy
   static const String _globalProxyEnabledKey = 'global_proxy_enabled_v1';
-  static const String _globalProxyTypeKey = 'global_proxy_type_v1'; // http|https|socks5 (socks5 not yet supported)
+  static const String _globalProxyTypeKey =
+      'global_proxy_type_v1'; // http|https|socks5 (socks5 not yet supported)
   static const String _globalProxyHostKey = 'global_proxy_host_v1';
   static const String _globalProxyPortKey = 'global_proxy_port_v1';
   static const String _globalProxyUsernameKey = 'global_proxy_username_v1';
@@ -132,7 +178,8 @@ class SettingsProvider extends ChangeNotifier {
   // Desktop UI
   static const String _desktopSidebarWidthKey = 'desktop_sidebar_width_v1';
   static const String _desktopSidebarOpenKey = 'desktop_sidebar_open_v1';
-  static const String _desktopRightSidebarWidthKey = 'desktop_right_sidebar_width_v1';
+  static const String _desktopRightSidebarWidthKey =
+      'desktop_right_sidebar_width_v1';
 
   // ===== Network TTS services =====
   List<TtsServiceOptions> _ttsServices = const <TtsServiceOptions>[];
@@ -140,7 +187,8 @@ class SettingsProvider extends ChangeNotifier {
   List<TtsServiceOptions> get ttsServices => _ttsServices;
   int get ttsServiceSelected => _ttsServiceSelected;
   bool get usingSystemTts => _ttsServiceSelected < 0;
-  TtsServiceOptions? get selectedTtsService => (_ttsServiceSelected >= 0 && _ttsServiceSelected < _ttsServices.length)
+  TtsServiceOptions? get selectedTtsService =>
+      (_ttsServiceSelected >= 0 && _ttsServiceSelected < _ttsServices.length)
       ? _ttsServices[_ttsServiceSelected]
       : null;
 
@@ -172,13 +220,16 @@ class SettingsProvider extends ChangeNotifier {
   // Desktop: topic list position (left or right) and right sidebar open state
   DesktopTopicPosition _desktopTopicPosition = DesktopTopicPosition.left;
   DesktopTopicPosition get desktopTopicPosition => _desktopTopicPosition;
-  bool get desktopTopicsOnRight => _desktopTopicPosition == DesktopTopicPosition.right;
+  bool get desktopTopicsOnRight =>
+      _desktopTopicPosition == DesktopTopicPosition.right;
   bool _desktopRightSidebarOpen = true;
   bool get desktopRightSidebarOpen => _desktopRightSidebarOpen;
 
   Map<String, ProviderConfig> _providerConfigs = {};
-  Map<String, ProviderConfig> get providerConfigs => Map.unmodifiable(_providerConfigs);
-  bool get hasAnyActiveModel => _providerConfigs.values.any((c) => c.enabled && c.models.isNotEmpty);
+  Map<String, ProviderConfig> get providerConfigs =>
+      Map.unmodifiable(_providerConfigs);
+  bool get hasAnyActiveModel =>
+      _providerConfigs.values.any((c) => c.enabled && c.models.isNotEmpty);
   // Returns a config for the given key without mutating internal state when missing.
   // This avoids implicitly creating providers during read paths (e.g., rendering old chats).
   ProviderConfig getProviderConfig(String key, {String? defaultName}) {
@@ -199,8 +250,11 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   // Search service settings
-  List<SearchServiceOptions> _searchServices = [SearchServiceOptions.defaultOption];
-  List<SearchServiceOptions> get searchServices => List.unmodifiable(_searchServices);
+  List<SearchServiceOptions> _searchServices = [
+    SearchServiceOptions.defaultOption,
+  ];
+  List<SearchServiceOptions> get searchServices =>
+      List.unmodifiable(_searchServices);
   SearchCommonOptions _searchCommonOptions = const SearchCommonOptions();
   SearchCommonOptions get searchCommonOptions => _searchCommonOptions;
   int _searchServiceSelected = 0;
@@ -211,7 +265,8 @@ class SettingsProvider extends ChangeNotifier {
   bool get searchAutoTestOnLaunch => _searchAutoTestOnLaunch;
   // Ephemeral connection test results: serviceId -> connected (true), failed (false), or null (not tested)
   final Map<String, bool?> _searchConnection = <String, bool?>{};
-  Map<String, bool?> get searchConnection => Map.unmodifiable(_searchConnection);
+  Map<String, bool?> get searchConnection =>
+      Map.unmodifiable(_searchConnection);
 
   // ===== Global Proxy Settings =====
   bool _globalProxyEnabled = false;
@@ -237,6 +292,41 @@ class SettingsProvider extends ChangeNotifier {
     _load();
   }
 
+  ReasoningCapabilities reasoningCapabilities(
+    String providerKey,
+    String modelId,
+  ) {
+    final cfg = getProviderConfig(providerKey);
+    final kind = ProviderConfig.classify(
+      cfg.id,
+      explicitType: cfg.providerType,
+    );
+    final rawOverride = cfg.modelOverrides[modelId];
+    final override = rawOverride is Map
+        ? rawOverride.cast<String, dynamic>()
+        : const <String, dynamic>{};
+    final overriddenId = (override['apiModelId'] ?? override['api_model_id'])
+        ?.toString()
+        .trim();
+    final effectiveModelId = overriddenId == null || overriddenId.isEmpty
+        ? modelId
+        : overriddenId;
+
+    final transport = switch (kind) {
+      ProviderKind.openai => ReasoningTransport.openAi,
+      ProviderKind.neuralwatt => ReasoningTransport.openAi,
+      ProviderKind.claude => ReasoningTransport.claude,
+      ProviderKind.google => ReasoningTransport.google,
+    };
+    return ReasoningCapabilities.forModel(transport, effectiveModelId);
+  }
+
+  bool supportsXhighReasoning(String providerKey, String modelId) =>
+      reasoningCapabilities(providerKey, modelId).supportsXhigh;
+
+  bool supportsMaxReasoning(String providerKey, String modelId) =>
+      reasoningCapabilities(providerKey, modelId).supportsMax;
+
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     _appLaunchCount = (prefs.getInt(_appLaunchCountKey) ?? 0) + 1;
@@ -259,7 +349,10 @@ class SettingsProvider extends ChangeNotifier {
     if (cfgStr != null && cfgStr.isNotEmpty) {
       try {
         final raw = jsonDecode(cfgStr) as Map<String, dynamic>;
-        _providerConfigs = raw.map((k, v) => MapEntry(k, ProviderConfig.fromJson(v as Map<String, dynamic>)));
+        _providerConfigs = raw.map(
+          (k, v) =>
+              MapEntry(k, ProviderConfig.fromJson(v as Map<String, dynamic>)),
+        );
       } catch (_) {}
     }
     // load pinned models
@@ -299,7 +392,9 @@ class SettingsProvider extends ChangeNotifier {
     }
     // load translate prompt
     final transp = prefs.getString(_translatePromptKey);
-    _translatePrompt = (transp == null || transp.trim().isEmpty) ? defaultTranslatePrompt : transp;
+    _translatePrompt = (transp == null || transp.trim().isEmpty)
+        ? defaultTranslatePrompt
+        : transp;
     // load greeting model
     final greetingSel = prefs.getString(_greetingModelKey);
     if (greetingSel != null && greetingSel.contains('::')) {
@@ -311,7 +406,9 @@ class SettingsProvider extends ChangeNotifier {
     }
     // load greeting prompt
     final greetingp = prefs.getString(_greetingPromptKey);
-    _greetingPrompt = (greetingp == null || greetingp.trim().isEmpty) ? defaultGreetingPrompt : greetingp;
+    _greetingPrompt = (greetingp == null || greetingp.trim().isEmpty)
+        ? defaultGreetingPrompt
+        : greetingp;
     // load new chat empty state settings
     _newChatLogoType = prefs.getString(_newChatLogoTypeKey) ?? 'model';
     _newChatCustomLogoFileName = prefs.getString(_newChatCustomLogoFileNameKey);
@@ -329,7 +426,9 @@ class SettingsProvider extends ChangeNotifier {
     }
     // load OCR prompt
     final ocrp = prefs.getString(_ocrPromptKey);
-    _ocrPrompt = (ocrp == null || ocrp.trim().isEmpty) ? defaultOcrPrompt : ocrp;
+    _ocrPrompt = (ocrp == null || ocrp.trim().isEmpty)
+        ? defaultOcrPrompt
+        : ocrp;
     // load OCR enabled (only effective when model is configured)
     _ocrEnabled = prefs.getBool(_ocrEnabledKey) ?? false;
     if (_ocrModelProvider == null || _ocrModelId == null) {
@@ -346,8 +445,9 @@ class SettingsProvider extends ChangeNotifier {
     }
     // load summary prompt
     final summaryp = prefs.getString(_summaryPromptKey);
-    _summaryPrompt =
-        (summaryp == null || summaryp.trim().isEmpty) ? defaultSummaryPrompt : summaryp;
+    _summaryPrompt = (summaryp == null || summaryp.trim().isEmpty)
+        ? defaultSummaryPrompt
+        : summaryp;
     // load compress model
     final compressSel = prefs.getString(_compressModelKey);
     if (compressSel != null && compressSel.contains('::')) {
@@ -359,12 +459,15 @@ class SettingsProvider extends ChangeNotifier {
     }
     // load compress prompt
     final compressp = prefs.getString(_compressPromptKey);
-    _compressPrompt =
-        (compressp == null || compressp.trim().isEmpty) ? defaultCompressPrompt : compressp;
+    _compressPrompt = (compressp == null || compressp.trim().isEmpty)
+        ? defaultCompressPrompt
+        : compressp;
     // deep research
     _deepResearchEnabled = prefs.getBool(_deepResearchEnabledKey) ?? false;
     final lmp = prefs.getString(_deepResearchPromptKey);
-    _deepResearchPrompt = (lmp == null || lmp.trim().isEmpty) ? defaultDeepResearchPrompt : lmp;
+    _deepResearchPrompt = (lmp == null || lmp.trim().isEmpty)
+        ? defaultDeepResearchPrompt
+        : lmp;
     // load thinking budget (reasoning strength)
     _thinkingBudget = prefs.getInt(_thinkingBudgetKey);
     _titleGenerationThinkingEnabled =
@@ -372,43 +475,57 @@ class SettingsProvider extends ChangeNotifier {
     _greetingGenerationThinkingEnabled =
         prefs.getBool(_greetingGenerationThinkingEnabledKey) ?? true;
 
-
     // display settings
     _showUserAvatar = prefs.getBool(_displayShowUserAvatarKey) ?? true;
     _showModelIcon = prefs.getBool(_displayShowModelIconKey) ?? true;
-    _showModelNameTimestamp = prefs.getBool(_displayShowModelNameTimestampKey) ?? true;
+    _showModelNameTimestamp =
+        prefs.getBool(_displayShowModelNameTimestampKey) ?? true;
     _showTokenStats = prefs.getBool(_displayShowTokenStatsKey) ?? true;
-    _showUserNameTimestamp = prefs.getBool(_displayShowUserNameTimestampKey) ?? true;
-    _showUserMessageActions = prefs.getBool(_displayShowUserMessageActionsKey) ?? true;
-    _autoCollapseThinking = prefs.getBool(_displayAutoCollapseThinkingKey) ?? true;
+    _showUserNameTimestamp =
+        prefs.getBool(_displayShowUserNameTimestampKey) ?? true;
+    _showUserMessageActions =
+        prefs.getBool(_displayShowUserMessageActionsKey) ?? true;
+    _autoCollapseThinking =
+        prefs.getBool(_displayAutoCollapseThinkingKey) ?? true;
     _showMessageNavButtons = prefs.getBool(_displayShowMessageNavKey) ?? true;
-    _showProviderInModelCapsule = prefs.getBool(_displayShowProviderInModelCapsuleKey) ?? true;
+    _showProviderInModelCapsule =
+        prefs.getBool(_displayShowProviderInModelCapsuleKey) ?? true;
     _hapticsOnGenerate = prefs.getBool(_displayHapticsOnGenerateKey) ?? false;
     _hapticsOnDrawer = prefs.getBool(_displayHapticsOnDrawerKey) ?? true;
-    _hapticsGlobalEnabled = prefs.getBool(_displayHapticsGlobalEnabledKey) ?? true;
+    _hapticsGlobalEnabled =
+        prefs.getBool(_displayHapticsGlobalEnabledKey) ?? true;
     _hapticsIosSwitch = prefs.getBool(_displayHapticsIosSwitchKey) ?? true;
-    _hapticsOnListItemTap = prefs.getBool(_displayHapticsOnListItemTapKey) ?? true;
+    _hapticsOnListItemTap =
+        prefs.getBool(_displayHapticsOnListItemTapKey) ?? true;
     _hapticsOnCardTap = prefs.getBool(_displayHapticsOnCardTapKey) ?? true;
     // Apply global haptics to service layer
     Haptics.setEnabled(_hapticsGlobalEnabled);
     _showAppUpdates = prefs.getBool(_displayShowAppUpdatesKey) ?? true;
-    _keepSidebarOpenOnAssistantTap = prefs.getBool(_displayKeepSidebarOpenOnAssistantTapKey) ?? false;
-    _keepSidebarOpenOnTopicTap = prefs.getBool(_displayKeepSidebarOpenOnTopicTapKey) ?? false;
-    _keepAssistantListExpandedOnSidebarClose = prefs.getBool(_displayKeepAssistantListExpandedOnSidebarCloseKey) ?? false;
+    _keepSidebarOpenOnAssistantTap =
+        prefs.getBool(_displayKeepSidebarOpenOnAssistantTapKey) ?? false;
+    _keepSidebarOpenOnTopicTap =
+        prefs.getBool(_displayKeepSidebarOpenOnTopicTapKey) ?? false;
+    _keepAssistantListExpandedOnSidebarClose =
+        prefs.getBool(_displayKeepAssistantListExpandedOnSidebarCloseKey) ??
+        false;
     _requestLogEnabled = prefs.getBool(_requestLogEnabledKey) ?? false;
     await RequestLogger.setEnabled(_requestLogEnabled);
     _flutterLogEnabled = prefs.getBool(_flutterLogEnabledKey) ?? false;
     await FlutterLogger.setEnabled(_flutterLogEnabled);
     _newChatOnLaunch = prefs.getBool(_displayNewChatOnLaunchKey) ?? true;
-    _newChatOnAssistantSwitch = prefs.getBool(_displayNewChatOnAssistantSwitchKey) ?? false;
+    _newChatOnAssistantSwitch =
+        prefs.getBool(_displayNewChatOnAssistantSwitchKey) ?? false;
     _newChatAfterDelete = prefs.getBool(_displayNewChatAfterDeleteKey) ?? false;
     _chatFontScale = prefs.getDouble(_displayChatFontScaleKey) ?? 1.0;
     _autoScrollEnabled = prefs.getBool(_displayAutoScrollEnabledKey) ?? true;
-    _autoScrollIdleSeconds = prefs.getInt(_displayAutoScrollIdleSecondsKey) ?? 8;
-    _chatBackgroundMaskStrength = prefs.getDouble(_displayChatBackgroundMaskStrengthKey) ?? 1.0;
+    _autoScrollIdleSeconds =
+        prefs.getInt(_displayAutoScrollIdleSecondsKey) ?? 8;
+    _chatBackgroundMaskStrength =
+        prefs.getDouble(_displayChatBackgroundMaskStrengthKey) ?? 1.0;
     final pureBgPref = prefs.getBool(_displayUsePureBackgroundKey);
     if (pureBgPref == null) {
-      final isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+      final isDesktop =
+          Platform.isMacOS || Platform.isWindows || Platform.isLinux;
       _usePureBackground = isDesktop;
       await prefs.setBool(_displayUsePureBackgroundKey, _usePureBackground);
     } else {
@@ -416,33 +533,50 @@ class SettingsProvider extends ChangeNotifier {
     }
     // display: markdown/math rendering
     _enableDollarLatex = prefs.getBool(_displayEnableDollarLatexKey) ?? true;
-    _enableMathRendering = prefs.getBool(_displayEnableMathRenderingKey) ?? true;
+    _enableMathRendering =
+        prefs.getBool(_displayEnableMathRenderingKey) ?? true;
     _enableUserMarkdown = prefs.getBool(_displayEnableUserMarkdownKey) ?? true;
-    _enableReasoningMarkdown = prefs.getBool(_displayEnableReasoningMarkdownKey) ?? true;
+    _enableReasoningMarkdown =
+        prefs.getBool(_displayEnableReasoningMarkdownKey) ?? true;
     _showChatListDate = prefs.getBool(_displayShowChatListDateKey) ?? false;
-    _mobileCodeBlockWrap = prefs.getBool(_displayMobileCodeBlockWrapKey) ?? false;
-    _autoCollapseCodeBlock = prefs.getBool(_displayAutoCollapseCodeBlockKey) ?? false;
+    _mobileCodeBlockWrap =
+        prefs.getBool(_displayMobileCodeBlockWrapKey) ?? false;
+    _autoCollapseCodeBlock =
+        prefs.getBool(_displayAutoCollapseCodeBlockKey) ?? false;
     _autoCollapseCodeBlockLines =
-        (prefs.getInt(_displayAutoCollapseCodeBlockLinesKey) ?? 2).clamp(1, 999);
-    _desktopAutoSwitchTopics = prefs.getBool(_displayDesktopAutoSwitchTopicsKey) ?? false;
+        (prefs.getInt(_displayAutoCollapseCodeBlockLinesKey) ?? 2).clamp(
+          1,
+          999,
+        );
+    _desktopAutoSwitchTopics =
+        prefs.getBool(_displayDesktopAutoSwitchTopicsKey) ?? false;
     // Desktop: tray settings (default enabled on desktop platforms)
     final trayPref = prefs.getBool(_displayDesktopShowTrayKey);
     if (trayPref == null) {
-      final isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+      final isDesktop =
+          Platform.isMacOS || Platform.isWindows || Platform.isLinux;
       _desktopShowTray = isDesktop;
       await prefs.setBool(_displayDesktopShowTrayKey, _desktopShowTray);
     } else {
       _desktopShowTray = trayPref;
     }
-    final minimizeTrayPref = prefs.getBool(_displayDesktopMinimizeToTrayOnCloseKey);
+    final minimizeTrayPref = prefs.getBool(
+      _displayDesktopMinimizeToTrayOnCloseKey,
+    );
     if (minimizeTrayPref == null) {
       _desktopMinimizeToTrayOnClose = _desktopShowTray;
-      await prefs.setBool(_displayDesktopMinimizeToTrayOnCloseKey, _desktopMinimizeToTrayOnClose);
+      await prefs.setBool(
+        _displayDesktopMinimizeToTrayOnCloseKey,
+        _desktopMinimizeToTrayOnClose,
+      );
     } else {
       // Enforce invariant: cannot minimize to tray if tray is hidden.
       _desktopMinimizeToTrayOnClose = minimizeTrayPref && _desktopShowTray;
       if (minimizeTrayPref && !_desktopShowTray) {
-        await prefs.setBool(_displayDesktopMinimizeToTrayOnCloseKey, _desktopMinimizeToTrayOnClose);
+        await prefs.setBool(
+          _displayDesktopMinimizeToTrayOnCloseKey,
+          _desktopMinimizeToTrayOnClose,
+        );
       }
     }
     // desktop: topic panel placement + right sidebar open state
@@ -455,9 +589,11 @@ class SettingsProvider extends ChangeNotifier {
       default:
         _desktopTopicPosition = DesktopTopicPosition.left;
     }
-    _desktopRightSidebarOpen = prefs.getBool(_desktopRightSidebarOpenKey) ?? true;
+    _desktopRightSidebarOpen =
+        prefs.getBool(_desktopRightSidebarOpenKey) ?? true;
     // Chat message background style (default | frosted | solid)
-    final bgStyleStr = prefs.getString(_displayChatMessageBackgroundStyleKey) ?? 'default';
+    final bgStyleStr =
+        prefs.getString(_displayChatMessageBackgroundStyleKey) ?? 'default';
     switch (bgStyleStr) {
       case 'frosted':
         _chatMessageBackgroundStyle = ChatMessageBackgroundStyle.frosted;
@@ -471,7 +607,8 @@ class SettingsProvider extends ChangeNotifier {
     // desktop UI
     _desktopSidebarWidth = prefs.getDouble(_desktopSidebarWidthKey) ?? 300;
     _desktopSidebarOpen = prefs.getBool(_desktopSidebarOpenKey) ?? true;
-    _desktopRightSidebarWidth = prefs.getDouble(_desktopRightSidebarWidthKey) ?? 300;
+    _desktopRightSidebarWidth =
+        prefs.getDouble(_desktopRightSidebarWidthKey) ?? 300;
     // Load app locale; default to follow system on first launch
     _appLocaleTag = prefs.getString(_appLocaleKey);
     if (_appLocaleTag == null || _appLocaleTag!.isEmpty) {
@@ -502,24 +639,31 @@ class SettingsProvider extends ChangeNotifier {
     } catch (_) {
       _androidBackgroundChatMode = AndroidBackgroundChatMode.off;
     }
-    
+
     // load search settings
     final searchServicesStr = prefs.getString(_searchServicesKey);
     if (searchServicesStr != null && searchServicesStr.isNotEmpty) {
       try {
         final list = jsonDecode(searchServicesStr) as List;
-        _searchServices = list.map((e) => SearchServiceOptions.fromJson(e as Map<String, dynamic>)).toList();
+        _searchServices = list
+            .map(
+              (e) => SearchServiceOptions.fromJson(e as Map<String, dynamic>),
+            )
+            .toList();
       } catch (_) {}
     }
     final searchCommonStr = prefs.getString(_searchCommonKey);
     if (searchCommonStr != null && searchCommonStr.isNotEmpty) {
       try {
-        _searchCommonOptions = SearchCommonOptions.fromJson(jsonDecode(searchCommonStr) as Map<String, dynamic>);
+        _searchCommonOptions = SearchCommonOptions.fromJson(
+          jsonDecode(searchCommonStr) as Map<String, dynamic>,
+        );
       } catch (_) {}
     }
     _searchServiceSelected = prefs.getInt(_searchSelectedKey) ?? 0;
     _searchEnabled = prefs.getBool(_searchEnabledKey) ?? false;
-    _searchAutoTestOnLaunch = prefs.getBool(_searchAutoTestOnLaunchKey) ?? false;
+    _searchAutoTestOnLaunch =
+        prefs.getBool(_searchAutoTestOnLaunchKey) ?? false;
 
     // load global proxy
     _globalProxyEnabled = prefs.getBool(_globalProxyEnabledKey) ?? false;
@@ -536,7 +680,10 @@ class SettingsProvider extends ChangeNotifier {
         final list = jsonDecode(ttsStr) as List;
         _ttsServices = [
           for (final e in list)
-            if (e is Map<String, dynamic>) TtsServiceOptions.fromJson(e) else TtsServiceOptions.fromJson(Map<String, dynamic>.from(e as Map))
+            if (e is Map<String, dynamic>)
+              TtsServiceOptions.fromJson(e)
+            else
+              TtsServiceOptions.fromJson(Map<String, dynamic>.from(e as Map)),
         ];
       } else {
         _ttsServices = const <TtsServiceOptions>[];
@@ -552,11 +699,19 @@ class SettingsProvider extends ChangeNotifier {
     // webdav config
     final webdavStr = prefs.getString(_webDavConfigKey);
     if (webdavStr != null && webdavStr.isNotEmpty) {
-      try { _webDavConfig = WebDavConfig.fromJson(jsonDecode(webdavStr) as Map<String, dynamic>); } catch (_) {}
+      try {
+        _webDavConfig = WebDavConfig.fromJson(
+          jsonDecode(webdavStr) as Map<String, dynamic>,
+        );
+      } catch (_) {}
     }
     final dropboxStr = prefs.getString(_dropboxConfigKey);
     if (dropboxStr != null && dropboxStr.isNotEmpty) {
-      try { _dropboxConfig = DropboxConfig.fromJson(jsonDecode(dropboxStr) as Map<String, dynamic>); } catch (_) {}
+      try {
+        _dropboxConfig = DropboxConfig.fromJson(
+          jsonDecode(dropboxStr) as Map<String, dynamic>,
+        );
+      } catch (_) {}
     }
     if (_providerConfigs.isEmpty) {
       // Seed a couple of sensible defaults on first launch, but do not recreate
@@ -566,7 +721,7 @@ class SettingsProvider extends ChangeNotifier {
       ensureProviderConfig('SiliconFlow', defaultName: 'SiliconFlow');
       ensureProviderConfig('AIhubmix', defaultName: 'AIhubmix');
     }
-    
+
     // kick off a one-time connectivity test for services (exclude local Bing)
     if (_searchAutoTestOnLaunch) {
       _initSearchConnectivityTests();
@@ -584,30 +739,34 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> _migrateBalanceSettings() async {
     bool changed = false;
     final Map<String, ProviderConfig> migrated = Map.from(_providerConfigs);
-    
+
     migrated.forEach((key, cfg) {
       final lowerKey = key.toLowerCase();
-      final isSupported = lowerKey.contains('silicon') || 
-            lowerKey.contains('aihubmix') || 
-            lowerKey.contains('deepseek') || 
-            lowerKey.contains('openrouter') || 
-            lowerKey.contains('moonshot');
+      final isSupported =
+          lowerKey.contains('silicon') ||
+          lowerKey.contains('aihubmix') ||
+          lowerKey.contains('deepseek') ||
+          lowerKey.contains('openrouter') ||
+          lowerKey.contains('moonshot');
 
       if (isSupported) {
         final def = ProviderConfig.defaultsFor(key, displayName: cfg.name);
         bool needsUpdate = false;
-        
+
         if (cfg.balanceEnabled == null) {
           needsUpdate = true;
         } else if (cfg.balanceEnabled == true) {
           // Fix empty paths or known outdated paths (e.g. OpenRouter using default /user/info)
-          if ((cfg.balanceApiPath ?? '').isEmpty || 
+          if ((cfg.balanceApiPath ?? '').isEmpty ||
               (cfg.balanceResultKey ?? '').isEmpty ||
-              (lowerKey.contains('openrouter') && (cfg.balanceApiPath == '/user/info' || cfg.balanceApiPath == '/user/balance' || cfg.balanceResultKey == 'data.total_credits'))) {
+              (lowerKey.contains('openrouter') &&
+                  (cfg.balanceApiPath == '/user/info' ||
+                      cfg.balanceApiPath == '/user/balance' ||
+                      cfg.balanceResultKey == 'data.total_credits'))) {
             needsUpdate = true;
           }
         }
-        
+
         if (needsUpdate) {
           migrated[key] = cfg.copyWith(
             balanceEnabled: true,
@@ -693,9 +852,19 @@ class SettingsProvider extends ChangeNotifier {
       }
       final port = int.tryParse(portStr) ?? 8080;
       if (type == 'socks5') {
-        HttpOverrides.global = _SocksProxyHttpOverrides(host: host, port: port, username: user.isEmpty ? null : user, password: pass);
+        HttpOverrides.global = _SocksProxyHttpOverrides(
+          host: host,
+          port: port,
+          username: user.isEmpty ? null : user,
+          password: pass,
+        );
       } else {
-        HttpOverrides.global = _ProxyHttpOverrides(host: host, port: port, username: user.isEmpty ? null : user, password: pass);
+        HttpOverrides.global = _ProxyHttpOverrides(
+          host: host,
+          port: port,
+          username: user.isEmpty ? null : user,
+          password: pass,
+        );
       }
     } catch (_) {
       // ignore
@@ -723,7 +892,8 @@ class SettingsProvider extends ChangeNotifier {
 
   // ===== User Font Settings =====
   String? _appFontFamily; // system or Google font family to use globally
-  String? _codeFontFamily; // system or Google font family to use for code blocks
+  String?
+  _codeFontFamily; // system or Google font family to use for code blocks
   // Whether the above family names refer to Google Fonts (as opposed to system fonts)
   bool _appFontIsGoogle = false;
   bool _codeFontIsGoogle = false;
@@ -742,12 +912,16 @@ class SettingsProvider extends ChangeNotifier {
   String? get codeFontLocalAlias => _codeFontLocalAlias;
 
   // Use alias if a local font is set and successfully registered
-  String? get _effectiveAppFontAlias => (_appFontLocalAlias?.isNotEmpty == true) ? _appFontLocalAlias : null;
-  String? get _effectiveCodeFontAlias => (_codeFontLocalAlias?.isNotEmpty == true) ? _codeFontLocalAlias : null;
+  String? get _effectiveAppFontAlias =>
+      (_appFontLocalAlias?.isNotEmpty == true) ? _appFontLocalAlias : null;
+  String? get _effectiveCodeFontAlias =>
+      (_codeFontLocalAlias?.isNotEmpty == true) ? _codeFontLocalAlias : null;
 
   Future<void> setAppFontSystemFamily(String? family) async {
     _appFontIsGoogle = false;
-    _appFontFamily = (family == null || family.trim().isEmpty) ? null : family.trim();
+    _appFontFamily = (family == null || family.trim().isEmpty)
+        ? null
+        : family.trim();
     // Clear local alias for system/google switch
     _appFontLocalAlias = null;
     _appFontLocalPath = null;
@@ -761,7 +935,9 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> setCodeFontSystemFamily(String? family) async {
     _codeFontIsGoogle = false;
-    _codeFontFamily = (family == null || family.trim().isEmpty) ? null : family.trim();
+    _codeFontFamily = (family == null || family.trim().isEmpty)
+        ? null
+        : family.trim();
     _codeFontLocalAlias = null;
     _codeFontLocalPath = null;
     notifyListeners();
@@ -798,8 +974,14 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.remove(_displayCodeFontLocalPathKey);
   }
 
-  Future<void> setAppFontFromLocal({required String path, String? alias}) async {
-    final fam = await _registerLocalFont(path: path, aliasPrefix: alias ?? 'kelivo_local_app');
+  Future<void> setAppFontFromLocal({
+    required String path,
+    String? alias,
+  }) async {
+    final fam = await _registerLocalFont(
+      path: path,
+      aliasPrefix: alias ?? 'kelivo_local_app',
+    );
     if (fam == null) return;
     _appFontIsGoogle = false;
     _appFontFamily = fam;
@@ -813,8 +995,14 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setString(_displayAppFontLocalPathKey, _appFontLocalPath!);
   }
 
-  Future<void> setCodeFontFromLocal({required String path, String? alias}) async {
-    final fam = await _registerLocalFont(path: path, aliasPrefix: alias ?? 'kelivo_local_code');
+  Future<void> setCodeFontFromLocal({
+    required String path,
+    String? alias,
+  }) async {
+    final fam = await _registerLocalFont(
+      path: path,
+      aliasPrefix: alias ?? 'kelivo_local_code',
+    );
     if (fam == null) return;
     _codeFontIsGoogle = false;
     _codeFontFamily = fam;
@@ -862,14 +1050,23 @@ class SettingsProvider extends ChangeNotifier {
     _appFontIsGoogle = prefs.getBool(_displayAppFontIsGoogleKey) ?? false;
     _codeFontIsGoogle = prefs.getBool(_displayCodeFontIsGoogleKey) ?? false;
     _appFontLocalPath = _nonEmpty(prefs.getString(_displayAppFontLocalPathKey));
-    _codeFontLocalPath = _nonEmpty(prefs.getString(_displayCodeFontLocalPathKey));
-    _appFontLocalAlias = _nonEmpty(prefs.getString(_displayAppFontLocalAliasKey));
-    _codeFontLocalAlias = _nonEmpty(prefs.getString(_displayCodeFontLocalAliasKey));
+    _codeFontLocalPath = _nonEmpty(
+      prefs.getString(_displayCodeFontLocalPathKey),
+    );
+    _appFontLocalAlias = _nonEmpty(
+      prefs.getString(_displayAppFontLocalAliasKey),
+    );
+    _codeFontLocalAlias = _nonEmpty(
+      prefs.getString(_displayCodeFontLocalAliasKey),
+    );
 
     // Re-register local fonts if paths are available (best effort)
     if (_appFontLocalPath != null && _appFontLocalPath!.isNotEmpty) {
       final alias = _appFontLocalAlias ?? 'kelivo_local_app';
-      final fam = await _registerLocalFont(path: _appFontLocalPath!, aliasPrefix: alias);
+      final fam = await _registerLocalFont(
+        path: _appFontLocalPath!,
+        aliasPrefix: alias,
+      );
       if (fam != null) {
         _appFontLocalAlias = fam;
         _appFontFamily = fam;
@@ -877,7 +1074,10 @@ class SettingsProvider extends ChangeNotifier {
     }
     if (_codeFontLocalPath != null && _codeFontLocalPath!.isNotEmpty) {
       final alias = _codeFontLocalAlias ?? 'kelivo_local_code';
-      final fam = await _registerLocalFont(path: _codeFontLocalPath!, aliasPrefix: alias);
+      final fam = await _registerLocalFont(
+        path: _codeFontLocalPath!,
+        aliasPrefix: alias,
+      );
       if (fam != null) {
         _codeFontLocalAlias = fam;
         _codeFontFamily = fam;
@@ -887,7 +1087,10 @@ class SettingsProvider extends ChangeNotifier {
 
   String? _nonEmpty(String? s) => (s == null || s.isEmpty) ? null : s;
 
-  Future<String?> _registerLocalFont({required String path, required String aliasPrefix}) async {
+  Future<String?> _registerLocalFont({
+    required String path,
+    required String aliasPrefix,
+  }) async {
     try {
       // Use a stable alias derived from file name to reduce duplicates
       final ts = DateTime.now().millisecondsSinceEpoch;
@@ -928,7 +1131,10 @@ class SettingsProvider extends ChangeNotifier {
     _desktopRightSidebarWidth = w;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_desktopRightSidebarWidthKey, _desktopRightSidebarWidth);
+    await prefs.setDouble(
+      _desktopRightSidebarWidthKey,
+      _desktopRightSidebarWidth,
+    );
   }
 
   // Desktop: topic panel placement (left/right)
@@ -953,8 +1159,10 @@ class SettingsProvider extends ChangeNotifier {
   // ===== App locale (UI language) =====
   String? _appLocaleTag; // 'system', 'zh_CN', 'zh_Hant', 'en_US'
   Locale get appLocale => _parseLocaleTag(_appLocaleTag ?? 'en_US');
-  bool get isFollowingSystemLocale => (_appLocaleTag == null) || (_appLocaleTag == 'system');
-  Locale? get appLocaleForMaterialApp => isFollowingSystemLocale ? null : appLocale;
+  bool get isFollowingSystemLocale =>
+      (_appLocaleTag == null) || (_appLocaleTag == 'system');
+  Locale? get appLocaleForMaterialApp =>
+      isFollowingSystemLocale ? null : appLocale;
   Future<void> setAppLocale(Locale locale) async {
     final tag = _localeToTag(locale);
     if (_appLocaleTag == tag) return;
@@ -981,7 +1189,10 @@ class SettingsProvider extends ChangeNotifier {
     final script = (device.scriptCode ?? '').toLowerCase();
     if (lc == 'zh') {
       // Map Traditional Chinese by script or common regions
-      if (script == 'hant' || region == 'TW' || region == 'HK' || region == 'MO') {
+      if (script == 'hant' ||
+          region == 'TW' ||
+          region == 'HK' ||
+          region == 'MO') {
         return 'zh_Hant';
       }
       return 'zh_CN';
@@ -1043,10 +1254,17 @@ class SettingsProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _testSingleSearchService(SearchServiceOptions s, SearchCommonOptions common) async {
+  Future<void> _testSingleSearchService(
+    SearchServiceOptions s,
+    SearchCommonOptions common,
+  ) async {
     try {
       final svc = SearchService.getService(s);
-      await svc.search(query: 'connectivity test', commonOptions: common, serviceOptions: s);
+      await svc.search(
+        query: 'connectivity test',
+        commonOptions: common,
+        serviceOptions: s,
+      );
       _searchConnection[s.id] = true;
     } catch (_) {
       _searchConnection[s.id] = false;
@@ -1073,8 +1291,8 @@ class SettingsProvider extends ChangeNotifier {
     final v = mode == ThemeMode.light
         ? 'light'
         : mode == ThemeMode.dark
-            ? 'dark'
-            : 'system';
+        ? 'dark'
+        : 'system';
     await prefs.setString(_themeModeKey, v);
   }
 
@@ -1103,9 +1321,13 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   // Display: chat message background style (affects user/assistant bubbles)
-  ChatMessageBackgroundStyle _chatMessageBackgroundStyle = ChatMessageBackgroundStyle.defaultStyle;
-  ChatMessageBackgroundStyle get chatMessageBackgroundStyle => _chatMessageBackgroundStyle;
-  Future<void> setChatMessageBackgroundStyle(ChatMessageBackgroundStyle style) async {
+  ChatMessageBackgroundStyle _chatMessageBackgroundStyle =
+      ChatMessageBackgroundStyle.defaultStyle;
+  ChatMessageBackgroundStyle get chatMessageBackgroundStyle =>
+      _chatMessageBackgroundStyle;
+  Future<void> setChatMessageBackgroundStyle(
+    ChatMessageBackgroundStyle style,
+  ) async {
     if (_chatMessageBackgroundStyle == style) return;
     _chatMessageBackgroundStyle = style;
     notifyListeners();
@@ -1119,9 +1341,13 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   // ===== Android background chat generation =====
-  AndroidBackgroundChatMode _androidBackgroundChatMode = AndroidBackgroundChatMode.off;
-  AndroidBackgroundChatMode get androidBackgroundChatMode => _androidBackgroundChatMode;
-  Future<void> setAndroidBackgroundChatMode(AndroidBackgroundChatMode mode) async {
+  AndroidBackgroundChatMode _androidBackgroundChatMode =
+      AndroidBackgroundChatMode.off;
+  AndroidBackgroundChatMode get androidBackgroundChatMode =>
+      _androidBackgroundChatMode;
+  Future<void> setAndroidBackgroundChatMode(
+    AndroidBackgroundChatMode mode,
+  ) async {
     if (_androidBackgroundChatMode == mode) return;
     _androidBackgroundChatMode = mode;
     notifyListeners();
@@ -1151,7 +1377,8 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<void> toggleTheme() => setThemeMode(
-      _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark);
+    _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark,
+  );
 
   Future<void> followSystem() => setThemeMode(ThemeMode.system);
 
@@ -1168,16 +1395,24 @@ class SettingsProvider extends ChangeNotifier {
     final e = emoji.trim();
     if (e.isEmpty) return;
     final old = getProviderConfig(key);
-    await setProviderConfig(key, old.copyWith(avatarType: 'emoji', avatarValue: e));
+    await setProviderConfig(
+      key,
+      old.copyWith(avatarType: 'emoji', avatarValue: e),
+    );
   }
 
   Future<void> setProviderAvatarUrl(String key, String url) async {
     final u = url.trim();
     if (u.isEmpty) return;
     final old = getProviderConfig(key);
-    await setProviderConfig(key, old.copyWith(avatarType: 'url', avatarValue: u));
+    await setProviderConfig(
+      key,
+      old.copyWith(avatarType: 'url', avatarValue: u),
+    );
     // Prefetch for offline
-    try { await AvatarCache.getPath(u); } catch (_) {}
+    try {
+      await AvatarCache.getPath(u);
+    } catch (_) {}
   }
 
   Future<void> setProviderAvatarFilePath(String key, String path) async {
@@ -1200,7 +1435,8 @@ class SettingsProvider extends ChangeNotifier {
         ext = 'jpg';
       }
       final safeKey = key.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
-      final filename = 'provider_${safeKey}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final filename =
+          'provider_${safeKey}_${DateTime.now().millisecondsSinceEpoch}.$ext';
       final dest = File('${avatarsDir.path}/$filename');
       await src.copy(dest.path);
 
@@ -1209,17 +1445,25 @@ class SettingsProvider extends ChangeNotifier {
       if (old.avatarType == 'file' && (old.avatarValue ?? '').isNotEmpty) {
         try {
           final oldFile = File(old.avatarValue!);
-          if ((oldFile.path.contains('/avatars/') || oldFile.path.contains('\\\\avatars\\\\')) && await oldFile.exists()) {
+          if ((oldFile.path.contains('/avatars/') ||
+                  oldFile.path.contains('\\\\avatars\\\\')) &&
+              await oldFile.exists()) {
             await oldFile.delete();
           }
         } catch (_) {}
       }
 
-      await setProviderConfig(key, old.copyWith(avatarType: 'file', avatarValue: dest.path));
+      await setProviderConfig(
+        key,
+        old.copyWith(avatarType: 'file', avatarValue: dest.path),
+      );
     } catch (_) {
       // Fallback: still save original path
       final old = getProviderConfig(key);
-      await setProviderConfig(key, old.copyWith(avatarType: 'file', avatarValue: fixedInput));
+      await setProviderConfig(
+        key,
+        old.copyWith(avatarType: 'file', avatarValue: fixedInput),
+      );
     }
   }
 
@@ -1229,16 +1473,23 @@ class SettingsProvider extends ChangeNotifier {
     if (old.avatarType == 'file' && (old.avatarValue ?? '').isNotEmpty) {
       try {
         final f = File(old.avatarValue!);
-        if ((f.path.contains('/avatars/') || f.path.contains('\\\\avatars\\\\')) && await f.exists()) {
+        if ((f.path.contains('/avatars/') ||
+                f.path.contains('\\\\avatars\\\\')) &&
+            await f.exists()) {
           await f.delete();
         }
       } catch (_) {}
     }
     // Best-effort: evict cached URL avatar
     if (old.avatarType == 'url' && (old.avatarValue ?? '').isNotEmpty) {
-      try { await AvatarCache.evict(old.avatarValue!); } catch (_) {}
+      try {
+        await AvatarCache.evict(old.avatarValue!);
+      } catch (_) {}
     }
-    await setProviderConfig(key, old.copyWith(avatarType: null, avatarValue: null));
+    await setProviderConfig(
+      key,
+      old.copyWith(avatarType: null, avatarValue: null),
+    );
   }
 
   /// Clears all global model selections (current, title, translate, OCR) that reference the given provider.
@@ -1289,7 +1540,10 @@ class SettingsProvider extends ChangeNotifier {
 
   /// Clears global model selections that reference a specific model.
   /// Used when a model is deleted from a provider.
-  Future<void> clearSelectionsForModel(String providerKey, String modelId) async {
+  Future<void> clearSelectionsForModel(
+    String providerKey,
+    String modelId,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     bool changed = false;
     if (_currentModelProvider == providerKey && _currentModelId == modelId) {
@@ -1304,7 +1558,8 @@ class SettingsProvider extends ChangeNotifier {
       await prefs.remove(_titleModelKey);
       changed = true;
     }
-    if (_translateModelProvider == providerKey && _translateModelId == modelId) {
+    if (_translateModelProvider == providerKey &&
+        _translateModelId == modelId) {
       _translateModelProvider = null;
       _translateModelId = null;
       await prefs.remove(_translateModelKey);
@@ -1398,7 +1653,8 @@ class SettingsProvider extends ChangeNotifier {
   // Favorites (pinned models)
   final Set<String> _pinnedModels = <String>{};
   Set<String> get pinnedModels => Set.unmodifiable(_pinnedModels);
-  bool isModelPinned(String providerKey, String modelId) => _pinnedModels.contains('$providerKey::$modelId');
+  bool isModelPinned(String providerKey, String modelId) =>
+      _pinnedModels.contains('$providerKey::$modelId');
   Future<void> togglePinModel(String providerKey, String modelId) async {
     final k = '$providerKey::$modelId';
     if (_pinnedModels.contains(k)) {
@@ -1416,7 +1672,8 @@ class SettingsProvider extends ChangeNotifier {
   String? _currentModelId;
   String? get currentModelProvider => _currentModelProvider;
   String? get currentModelId => _currentModelId;
-  String? get currentModelKey => (_currentModelProvider != null && _currentModelId != null)
+  String? get currentModelKey =>
+      (_currentModelProvider != null && _currentModelId != null)
       ? '${_currentModelProvider!}::${_currentModelId!}'
       : null;
   Future<void> setCurrentModel(String providerKey, String modelId) async {
@@ -1440,11 +1697,13 @@ class SettingsProvider extends ChangeNotifier {
   String? _titleModelId;
   String? get titleModelProvider => _titleModelProvider;
   String? get titleModelId => _titleModelId;
-  String? get titleModelKey => (_titleModelProvider != null && _titleModelId != null)
+  String? get titleModelKey =>
+      (_titleModelProvider != null && _titleModelId != null)
       ? '${_titleModelProvider!}::${_titleModelId!}'
       : null;
 
-  static const String defaultTitlePrompt = '''I will give you some dialogue content in the `<content>` block.
+  static const String defaultTitlePrompt =
+      '''I will give you some dialogue content in the `<content>` block.
 You need to summarize the conversation between user and assistant into a short title.
 1. The title language should be consistent with the user's primary language
 2. Do not use punctuation or other special symbols
@@ -1489,11 +1748,13 @@ You need to summarize the conversation between user and assistant into a short t
   String? _translateModelId;
   String? get translateModelProvider => _translateModelProvider;
   String? get translateModelId => _translateModelId;
-  String? get translateModelKey => (_translateModelProvider != null && _translateModelId != null)
+  String? get translateModelKey =>
+      (_translateModelProvider != null && _translateModelId != null)
       ? '${_translateModelProvider!}::${_translateModelId!}'
       : null;
 
-  static const String defaultTranslatePrompt = '''You are a translation expert, skilled in translating various languages, and maintaining accuracy, faithfulness, and elegance in translation.
+  static const String defaultTranslatePrompt =
+      '''You are a translation expert, skilled in translating various languages, and maintaining accuracy, faithfulness, and elegance in translation.
 Next, I will send you text. Please translate it into {target_lang}, and return the translation result directly, without adding any explanations or other content.
 
 Please translate the <source_text> section:
@@ -1527,27 +1788,33 @@ Please translate the <source_text> section:
     await prefs.setString(_translatePromptKey, _translatePrompt);
   }
 
-  Future<void> resetTranslatePrompt() async => setTranslatePrompt(defaultTranslatePrompt);
+  Future<void> resetTranslatePrompt() async =>
+      setTranslatePrompt(defaultTranslatePrompt);
 
   // Greeting model and prompt
   String? _greetingModelProvider;
   String? _greetingModelId;
   String? get greetingModelProvider => _greetingModelProvider;
   String? get greetingModelId => _greetingModelId;
-  String? get greetingModelKey => (_greetingModelProvider != null && _greetingModelId != null)
+  String? get greetingModelKey =>
+      (_greetingModelProvider != null && _greetingModelId != null)
       ? '${_greetingModelProvider!}::${_greetingModelId!}'
       : null;
 
-  static const String defaultGreetingPromptZhHant = '請用台灣繁體中文生成一句簡短、溫馨且親切的AI助理對話開場問候語（10字以內，切勿使用大陸用語如「晚上好」、「下午好」，勿包含引號或說明文字）。';
-  static const String defaultGreetingPromptZhHans = '请用简短、温馨且亲切的中文生成一句AI助手对话开场问候语（10字以内，勿包含引号或说明文字）。';
-  static const String defaultGreetingPromptEn = 'Generate a short, warm, and friendly AI assistant greeting for starting a conversation (within 10 words, do not include quotes or explanatory text).';
+  static const String defaultGreetingPromptZhHant =
+      '請用台灣繁體中文生成一句簡短、溫馨且親切的AI助理對話開場問候語（10字以內，切勿使用大陸用語如「晚上好」、「下午好」，勿包含引號或說明文字）。';
+  static const String defaultGreetingPromptZhHans =
+      '请用简短、温馨且亲切的中文生成一句AI助手对话开场问候语（10字以内，勿包含引号或说明文字）。';
+  static const String defaultGreetingPromptEn =
+      'Generate a short, warm, and friendly AI assistant greeting for starting a conversation (within 10 words, do not include quotes or explanatory text).';
 
   static String getDefaultGreetingPrompt(Locale? locale) {
     final lang = locale?.languageCode ?? 'zh';
     final script = locale?.scriptCode ?? '';
     final country = locale?.countryCode ?? '';
     if (lang == 'en') return defaultGreetingPromptEn;
-    if (lang == 'zh' && (script == 'Hant' || country == 'TW' || country == 'HK')) {
+    if (lang == 'zh' &&
+        (script == 'Hant' || country == 'TW' || country == 'HK')) {
       return defaultGreetingPromptZhHant;
     }
     return defaultGreetingPromptZhHans;
@@ -1591,7 +1858,8 @@ Please translate the <source_text> section:
     await prefs.setString(_greetingPromptKey, _greetingPrompt);
   }
 
-  Future<void> resetGreetingPrompt() async => setGreetingPrompt(getDefaultGreetingPrompt(appLocale));
+  Future<void> resetGreetingPrompt() async =>
+      setGreetingPrompt(getDefaultGreetingPrompt(appLocale));
 
   // New Chat Page Customization Settings
   String _newChatLogoType = 'model'; // 'omnichat' | 'model' | 'custom' | 'none'
@@ -1600,7 +1868,8 @@ Please translate the <source_text> section:
   String? _newChatCustomLogoFileName;
   String? get newChatCustomLogoFileName => _newChatCustomLogoFileName;
 
-  String _newChatTextType = 'aiGreeting'; // 'presetGreeting' | 'aiGreeting' | 'modelName' | 'none' | 'custom'
+  String _newChatTextType =
+      'aiGreeting'; // 'presetGreeting' | 'aiGreeting' | 'modelName' | 'none' | 'custom'
   String get newChatTextType => _newChatTextType;
 
   String _newChatCustomText = '';
@@ -1727,8 +1996,8 @@ Do not interpret or translate—only transcribe and describe what is visually pr
   String? get summaryModelId => _summaryModelId;
   String? get summaryModelKey =>
       (_summaryModelProvider != null && _summaryModelId != null)
-          ? '${_summaryModelProvider!}::${_summaryModelId!}'
-          : null;
+      ? '${_summaryModelProvider!}::${_summaryModelId!}'
+      : null;
 
   static const String defaultSummaryPrompt =
       '''I will give you user messages from a conversation in the `<messages>` block.
@@ -1784,8 +2053,8 @@ Generate or update a brief summary of the user's questions and intentions.
   String? get compressModelId => _compressModelId;
   String? get compressModelKey =>
       (_compressModelProvider != null && _compressModelId != null)
-          ? '${_compressModelProvider!}::${_compressModelId!}'
-          : null;
+      ? '${_compressModelProvider!}::${_compressModelId!}'
+      : null;
 
   static const String defaultCompressPrompt =
       '''Provide a detailed summary of the following conversation for continuing in a new session.
@@ -1959,16 +2228,20 @@ Synthesize your reasoning and research into a final response. The structure shou
   String _deepResearchPrompt = defaultDeepResearchPrompt;
   String get deepResearchPrompt => _deepResearchPrompt;
   Future<void> setDeepResearchPrompt(String prompt) async {
-    _deepResearchPrompt = prompt.trim().isEmpty ? defaultDeepResearchPrompt : prompt;
+    _deepResearchPrompt = prompt.trim().isEmpty
+        ? defaultDeepResearchPrompt
+        : prompt;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_deepResearchPromptKey, _deepResearchPrompt);
   }
 
-  Future<void> resetDeepResearchPrompt() async => setDeepResearchPrompt(defaultDeepResearchPrompt);
+  Future<void> resetDeepResearchPrompt() async =>
+      setDeepResearchPrompt(defaultDeepResearchPrompt);
 
   // Reasoning strength / thinking budget
-  int? _thinkingBudget; // null = not set, use provider defaults; -1 = auto; 0 = off; >0 = budget tokens
+  int?
+  _thinkingBudget; // null = not set, use provider defaults; -1 = auto; 0 = off; >0 = budget tokens
   int? get thinkingBudget => _thinkingBudget;
   Future<void> setThinkingBudget(int? budget) async {
     _thinkingBudget = budget;
@@ -2002,7 +2275,8 @@ Synthesize your reasoning and research into a final response. The structure shou
 
   // Greeting generation thinking toggle. Defaults to true for backward compatibility.
   bool _greetingGenerationThinkingEnabled = true;
-  bool get greetingGenerationThinkingEnabled => _greetingGenerationThinkingEnabled;
+  bool get greetingGenerationThinkingEnabled =>
+      _greetingGenerationThinkingEnabled;
   Future<void> setGreetingGenerationThinkingEnabled(bool enabled) async {
     if (_greetingGenerationThinkingEnabled == enabled) return;
     _greetingGenerationThinkingEnabled = enabled;
@@ -2018,7 +2292,6 @@ Synthesize your reasoning and research into a final response. The structure shou
     if (!_greetingGenerationThinkingEnabled) return 0;
     return _thinkingBudget;
   }
-
 
   // Display settings: user avatar and model icon visibility
   bool _showUserAvatar = true;
@@ -2182,7 +2455,10 @@ Synthesize your reasoning and research into a final response. The structure shou
     _autoScrollIdleSeconds = v;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_displayAutoScrollIdleSecondsKey, _autoScrollIdleSeconds);
+    await prefs.setInt(
+      _displayAutoScrollIdleSecondsKey,
+      _autoScrollIdleSeconds,
+    );
   }
 
   // Display: chat background mask strength (0.0 - 2.0, default 1.0)
@@ -2194,7 +2470,10 @@ Synthesize your reasoning and research into a final response. The structure shou
     _chatBackgroundMaskStrength = s;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_displayChatBackgroundMaskStrengthKey, _chatBackgroundMaskStrength);
+    await prefs.setDouble(
+      _displayChatBackgroundMaskStrengthKey,
+      _chatBackgroundMaskStrength,
+    );
   }
 
   // Display: inline $...$ LaTeX rendering
@@ -2309,7 +2588,10 @@ Synthesize your reasoning and research into a final response. The structure shou
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_displayDesktopShowTrayKey, _desktopShowTray);
-    await prefs.setBool(_displayDesktopMinimizeToTrayOnCloseKey, _desktopMinimizeToTrayOnClose);
+    await prefs.setBool(
+      _displayDesktopMinimizeToTrayOnCloseKey,
+      _desktopMinimizeToTrayOnClose,
+    );
   }
 
   // Desktop-only: minimize to tray when closing window
@@ -2321,7 +2603,10 @@ Synthesize your reasoning and research into a final response. The structure shou
     _desktopMinimizeToTrayOnClose = next;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_displayDesktopMinimizeToTrayOnCloseKey, _desktopMinimizeToTrayOnClose);
+    await prefs.setBool(
+      _displayDesktopMinimizeToTrayOnCloseKey,
+      _desktopMinimizeToTrayOnClose,
+    );
   }
 
   // Display: haptics on message generation
@@ -2427,7 +2712,8 @@ Synthesize your reasoning and research into a final response. The structure shou
 
   // Display: keep assistant list expanded when closing sidebar (mobile)
   bool _keepAssistantListExpandedOnSidebarClose = false;
-  bool get keepAssistantListExpandedOnSidebarClose => _keepAssistantListExpandedOnSidebarClose;
+  bool get keepAssistantListExpandedOnSidebarClose =>
+      _keepAssistantListExpandedOnSidebarClose;
   Future<void> setKeepAssistantListExpandedOnSidebarClose(bool v) async {
     if (_keepAssistantListExpandedOnSidebarClose == v) return;
     _keepAssistantListExpandedOnSidebarClose = v;
@@ -2464,11 +2750,16 @@ Synthesize your reasoning and research into a final response. The structure shou
   Future<void> setSearchServices(List<SearchServiceOptions> services) async {
     _searchServices = List.from(services);
     if (_searchServiceSelected >= _searchServices.length) {
-      _searchServiceSelected = _searchServices.isNotEmpty ? _searchServices.length - 1 : 0;
+      _searchServiceSelected = _searchServices.isNotEmpty
+          ? _searchServices.length - 1
+          : 0;
     }
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_searchServicesKey, jsonEncode(_searchServices.map((e) => e.toJson()).toList()));
+    await prefs.setString(
+      _searchServicesKey,
+      jsonEncode(_searchServices.map((e) => e.toJson()).toList()),
+    );
     await prefs.setInt(_searchSelectedKey, _searchServiceSelected);
   }
 
@@ -2480,7 +2771,10 @@ Synthesize your reasoning and research into a final response. The structure shou
   }
 
   Future<void> setSearchServiceSelected(int index) async {
-    _searchServiceSelected = index.clamp(0, _searchServices.isNotEmpty ? _searchServices.length - 1 : 0);
+    _searchServiceSelected = index.clamp(
+      0,
+      _searchServices.isNotEmpty ? _searchServices.length - 1 : 0,
+    );
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_searchSelectedKey, _searchServiceSelected);
@@ -2529,9 +2823,11 @@ Synthesize your reasoning and research into a final response. The structure shou
     final copy = SettingsProvider();
     copy._searchServices = searchServices ?? _searchServices;
     copy._searchCommonOptions = searchCommonOptions ?? _searchCommonOptions;
-    copy._searchServiceSelected = searchServiceSelected ?? _searchServiceSelected;
+    copy._searchServiceSelected =
+        searchServiceSelected ?? _searchServiceSelected;
     copy._searchEnabled = searchEnabled ?? _searchEnabled;
-    copy._searchAutoTestOnLaunch = searchAutoTestOnLaunch ?? _searchAutoTestOnLaunch;
+    copy._searchAutoTestOnLaunch =
+        searchAutoTestOnLaunch ?? _searchAutoTestOnLaunch;
     // Copy other fields
     copy._providersOrder = _providersOrder;
     copy._themeMode = _themeMode;
@@ -2568,7 +2864,8 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._showAppUpdates = _showAppUpdates;
     copy._keepSidebarOpenOnAssistantTap = _keepSidebarOpenOnAssistantTap;
     copy._keepSidebarOpenOnTopicTap = _keepSidebarOpenOnTopicTap;
-    copy._keepAssistantListExpandedOnSidebarClose = _keepAssistantListExpandedOnSidebarClose;
+    copy._keepAssistantListExpandedOnSidebarClose =
+        _keepAssistantListExpandedOnSidebarClose;
     copy._requestLogEnabled = _requestLogEnabled;
     copy._flutterLogEnabled = _flutterLogEnabled;
     copy._newChatOnLaunch = _newChatOnLaunch;
@@ -2598,30 +2895,50 @@ class _ProxyHttpOverrides extends HttpOverrides {
   final int port;
   final String? username;
   final String? password;
-  _ProxyHttpOverrides({required this.host, required this.port, this.username, this.password});
+  _ProxyHttpOverrides({
+    required this.host,
+    required this.port,
+    this.username,
+    this.password,
+  });
   @override
   HttpClient createHttpClient(SecurityContext? context) {
     final client = super.createHttpClient(context);
     client.findProxy = (_) => 'PROXY $host:$port';
     if (username != null && username!.isNotEmpty) {
-      client.addProxyCredentials(host, port, '', HttpClientBasicCredentials(username!, password ?? ''));
+      client.addProxyCredentials(
+        host,
+        port,
+        '',
+        HttpClientBasicCredentials(username!, password ?? ''),
+      );
     }
     return client;
   }
 }
+
 class _SocksProxyHttpOverrides extends HttpOverrides {
   final String host;
   final int port;
   final String? username;
   final String? password;
-  _SocksProxyHttpOverrides({required this.host, required this.port, this.username, this.password});
+  _SocksProxyHttpOverrides({
+    required this.host,
+    required this.port,
+    this.username,
+    this.password,
+  });
   @override
   HttpClient createHttpClient(SecurityContext? context) {
     final client = super.createHttpClient(context);
     try {
       final List<socks.ProxySettings> proxies = [
-        socks.ProxySettings(InternetAddress(host), port,
-            username: username, password: password),
+        socks.ProxySettings(
+          InternetAddress(host),
+          port,
+          username: username,
+          password: password,
+        ),
       ];
       socks.SocksTCPClient.assignToHttpClient(client, proxies);
     } catch (_) {}
@@ -2633,6 +2950,7 @@ enum ProviderKind { openai, google, claude, neuralwatt }
 
 // Background rendering mode for chat message bubbles
 enum ChatMessageBackgroundStyle { defaultStyle, frosted, solid }
+
 enum AndroidBackgroundChatMode { off, on, onNotify }
 
 class ProviderConfig {
@@ -2641,7 +2959,8 @@ class ProviderConfig {
   final String name;
   final String apiKey;
   final String baseUrl;
-  final ProviderKind? providerType; // Explicit provider type to avoid misclassification
+  final ProviderKind?
+  providerType; // Explicit provider type to avoid misclassification
   final String? chatPath; // openai only
   final bool? useResponseApi; // openai only
   final bool? vertexAI; // google only
@@ -2739,117 +3058,130 @@ class ProviderConfig {
     String? balanceApiPath,
     String? balanceResultKey,
   }) => ProviderConfig(
-        id: id ?? this.id,
-        enabled: enabled ?? this.enabled,
-        name: name ?? this.name,
-        apiKey: apiKey ?? this.apiKey,
-        baseUrl: baseUrl ?? this.baseUrl,
-        providerType: providerType ?? this.providerType,
-        chatPath: chatPath ?? this.chatPath,
-        useResponseApi: useResponseApi ?? this.useResponseApi,
-        vertexAI: vertexAI ?? this.vertexAI,
-        location: location ?? this.location,
-        projectId: projectId ?? this.projectId,
-        serviceAccountJson: serviceAccountJson ?? this.serviceAccountJson,
-        models: models ?? this.models,
-        modelOverrides: modelOverrides ?? this.modelOverrides,
-        proxyEnabled: proxyEnabled ?? this.proxyEnabled,
-        proxyHost: proxyHost ?? this.proxyHost,
-        proxyPort: proxyPort ?? this.proxyPort,
-        proxyUsername: proxyUsername ?? this.proxyUsername,
-        proxyPassword: proxyPassword ?? this.proxyPassword,
-        avatarType: (identical(avatarType, _sentinel)) ? this.avatarType : (avatarType as String?),
-        avatarValue: (identical(avatarValue, _sentinel)) ? this.avatarValue : (avatarValue as String?),
-        multiKeyEnabled: multiKeyEnabled ?? this.multiKeyEnabled,
-        apiKeys: apiKeys ?? this.apiKeys,
-        keyManagement: keyManagement ?? this.keyManagement,
-        aihubmixAppCodeEnabled: aihubmixAppCodeEnabled ?? this.aihubmixAppCodeEnabled,
-        balanceEnabled: balanceEnabled ?? this.balanceEnabled,
-        balanceApiPath: balanceApiPath ?? this.balanceApiPath,
-        balanceResultKey: balanceResultKey ?? this.balanceResultKey,
-      );
+    id: id ?? this.id,
+    enabled: enabled ?? this.enabled,
+    name: name ?? this.name,
+    apiKey: apiKey ?? this.apiKey,
+    baseUrl: baseUrl ?? this.baseUrl,
+    providerType: providerType ?? this.providerType,
+    chatPath: chatPath ?? this.chatPath,
+    useResponseApi: useResponseApi ?? this.useResponseApi,
+    vertexAI: vertexAI ?? this.vertexAI,
+    location: location ?? this.location,
+    projectId: projectId ?? this.projectId,
+    serviceAccountJson: serviceAccountJson ?? this.serviceAccountJson,
+    models: models ?? this.models,
+    modelOverrides: modelOverrides ?? this.modelOverrides,
+    proxyEnabled: proxyEnabled ?? this.proxyEnabled,
+    proxyHost: proxyHost ?? this.proxyHost,
+    proxyPort: proxyPort ?? this.proxyPort,
+    proxyUsername: proxyUsername ?? this.proxyUsername,
+    proxyPassword: proxyPassword ?? this.proxyPassword,
+    avatarType: (identical(avatarType, _sentinel))
+        ? this.avatarType
+        : (avatarType as String?),
+    avatarValue: (identical(avatarValue, _sentinel))
+        ? this.avatarValue
+        : (avatarValue as String?),
+    multiKeyEnabled: multiKeyEnabled ?? this.multiKeyEnabled,
+    apiKeys: apiKeys ?? this.apiKeys,
+    keyManagement: keyManagement ?? this.keyManagement,
+    aihubmixAppCodeEnabled:
+        aihubmixAppCodeEnabled ?? this.aihubmixAppCodeEnabled,
+    balanceEnabled: balanceEnabled ?? this.balanceEnabled,
+    balanceApiPath: balanceApiPath ?? this.balanceApiPath,
+    balanceResultKey: balanceResultKey ?? this.balanceResultKey,
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'enabled': enabled,
-        'name': name,
-        'apiKey': apiKey,
-        'baseUrl': baseUrl,
-        'providerType': providerType?.name,
-        'chatPath': chatPath,
-        'useResponseApi': useResponseApi,
-        'vertexAI': vertexAI,
-        'location': location,
-        'projectId': projectId,
-        'serviceAccountJson': serviceAccountJson,
-        'models': models,
-        'modelOverrides': modelOverrides,
-        'proxyEnabled': proxyEnabled,
-        'proxyHost': proxyHost,
-        'proxyPort': proxyPort,
-        'proxyUsername': proxyUsername,
-        'proxyPassword': proxyPassword,
-        'avatarType': avatarType,
-        'avatarValue': avatarValue,
-        'multiKeyEnabled': multiKeyEnabled,
-        'apiKeys': apiKeys?.map((e) => e.toJson()).toList(),
-        'keyManagement': keyManagement?.toJson(),
-        'aihubmixAppCodeEnabled': aihubmixAppCodeEnabled,
-        'balanceEnabled': balanceEnabled,
-        'balanceApiPath': balanceApiPath,
-        'balanceResultKey': balanceResultKey,
-      };
+    'id': id,
+    'enabled': enabled,
+    'name': name,
+    'apiKey': apiKey,
+    'baseUrl': baseUrl,
+    'providerType': providerType?.name,
+    'chatPath': chatPath,
+    'useResponseApi': useResponseApi,
+    'vertexAI': vertexAI,
+    'location': location,
+    'projectId': projectId,
+    'serviceAccountJson': serviceAccountJson,
+    'models': models,
+    'modelOverrides': modelOverrides,
+    'proxyEnabled': proxyEnabled,
+    'proxyHost': proxyHost,
+    'proxyPort': proxyPort,
+    'proxyUsername': proxyUsername,
+    'proxyPassword': proxyPassword,
+    'avatarType': avatarType,
+    'avatarValue': avatarValue,
+    'multiKeyEnabled': multiKeyEnabled,
+    'apiKeys': apiKeys?.map((e) => e.toJson()).toList(),
+    'keyManagement': keyManagement?.toJson(),
+    'aihubmixAppCodeEnabled': aihubmixAppCodeEnabled,
+    'balanceEnabled': balanceEnabled,
+    'balanceApiPath': balanceApiPath,
+    'balanceResultKey': balanceResultKey,
+  };
 
   factory ProviderConfig.fromJson(Map<String, dynamic> json) => ProviderConfig(
-        id: json['id'] as String? ?? (json['name'] as String? ?? ''),
-        enabled: json['enabled'] as bool? ?? true,
-        name: json['name'] as String? ?? '',
-        apiKey: json['apiKey'] as String? ?? '',
-        baseUrl: json['baseUrl'] as String? ?? '',
-        providerType: json['providerType'] != null 
-            ? ProviderKind.values.firstWhere(
-                (e) => e.name == json['providerType'],
-                orElse: () => classify(json['id'] as String? ?? ''),
-              )
-            : null,
-        chatPath: json['chatPath'] as String?,
-        useResponseApi: json['useResponseApi'] as bool?,
-        vertexAI: json['vertexAI'] as bool?,
-        location: json['location'] as String?,
-        projectId: json['projectId'] as String?,
-        serviceAccountJson: json['serviceAccountJson'] as String?,
-        models: (json['models'] as List?)?.map((e) => e.toString()).toList() ?? const [],
-        modelOverrides: (json['modelOverrides'] as Map?)?.map((k, v) => MapEntry(k.toString(), v)) ?? const {},
-        proxyEnabled: json['proxyEnabled'] as bool?,
-        proxyHost: json['proxyHost'] as String?,
-        proxyPort: json['proxyPort'] as String?,
-        proxyUsername: json['proxyUsername'] as String?,
-        proxyPassword: json['proxyPassword'] as String?,
-        avatarType: json['avatarType'] as String?,
-        avatarValue: json['avatarValue'] as String?,
-        multiKeyEnabled: json['multiKeyEnabled'] as bool?,
-        apiKeys: (json['apiKeys'] as List?)
-            ?.whereType<Map>()
-            .map((e) => ApiKeyConfig.fromJson(e.cast<String, dynamic>()))
-            .toList(),
-        keyManagement: KeyManagementConfig.fromJson(
-          (json['keyManagement'] as Map?)?.cast<String, dynamic>(),
-        ),
-        aihubmixAppCodeEnabled: json['aihubmixAppCodeEnabled'] as bool?,
-        balanceEnabled: json['balanceEnabled'] as bool?,
-        balanceApiPath: json['balanceApiPath'] as String?,
-        balanceResultKey: json['balanceResultKey'] as String?,
-      );
+    id: json['id'] as String? ?? (json['name'] as String? ?? ''),
+    enabled: json['enabled'] as bool? ?? true,
+    name: json['name'] as String? ?? '',
+    apiKey: json['apiKey'] as String? ?? '',
+    baseUrl: json['baseUrl'] as String? ?? '',
+    providerType: json['providerType'] != null
+        ? ProviderKind.values.firstWhere(
+            (e) => e.name == json['providerType'],
+            orElse: () => classify(json['id'] as String? ?? ''),
+          )
+        : null,
+    chatPath: json['chatPath'] as String?,
+    useResponseApi: json['useResponseApi'] as bool?,
+    vertexAI: json['vertexAI'] as bool?,
+    location: json['location'] as String?,
+    projectId: json['projectId'] as String?,
+    serviceAccountJson: json['serviceAccountJson'] as String?,
+    models:
+        (json['models'] as List?)?.map((e) => e.toString()).toList() ??
+        const [],
+    modelOverrides:
+        (json['modelOverrides'] as Map?)?.map(
+          (k, v) => MapEntry(k.toString(), v),
+        ) ??
+        const {},
+    proxyEnabled: json['proxyEnabled'] as bool?,
+    proxyHost: json['proxyHost'] as String?,
+    proxyPort: json['proxyPort'] as String?,
+    proxyUsername: json['proxyUsername'] as String?,
+    proxyPassword: json['proxyPassword'] as String?,
+    avatarType: json['avatarType'] as String?,
+    avatarValue: json['avatarValue'] as String?,
+    multiKeyEnabled: json['multiKeyEnabled'] as bool?,
+    apiKeys: (json['apiKeys'] as List?)
+        ?.whereType<Map>()
+        .map((e) => ApiKeyConfig.fromJson(e.cast<String, dynamic>()))
+        .toList(),
+    keyManagement: KeyManagementConfig.fromJson(
+      (json['keyManagement'] as Map?)?.cast<String, dynamic>(),
+    ),
+    aihubmixAppCodeEnabled: json['aihubmixAppCodeEnabled'] as bool?,
+    balanceEnabled: json['balanceEnabled'] as bool?,
+    balanceApiPath: json['balanceApiPath'] as String?,
+    balanceResultKey: json['balanceResultKey'] as String?,
+  );
 
   static ProviderKind classify(String key, {ProviderKind? explicitType}) {
     // If an explicit type is provided, use it
     if (explicitType != null) return explicitType;
-    
+
     // Otherwise, infer from the key
     final k = key.toLowerCase();
     if (k.contains('neuralwatt')) return ProviderKind.neuralwatt;
-    if (k.contains('gemini') || k.contains('google')) return ProviderKind.google;
-    if (k.contains('claude') || k.contains('anthropic')) return ProviderKind.claude;
+    if (k.contains('gemini') || k.contains('google'))
+      return ProviderKind.google;
+    if (k.contains('claude') || k.contains('anthropic'))
+      return ProviderKind.claude;
     return ProviderKind.openai;
   }
 
@@ -2860,14 +3192,20 @@ class ProviderConfig {
     if (k.contains('neuralwatt')) return 'https://api.neuralwatt.com/v1';
     if (k.contains('openrouter')) return 'https://openrouter.ai/api/v1';
     if (k.contains('aihubmix')) return 'https://aihubmix.com/v1';
-    if (RegExp(r'qwen|aliyun|dashscope').hasMatch(k)) return 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-    if (RegExp(r'bytedance|doubao|volces|ark').hasMatch(k)) return 'https://ark.cn-beijing.volces.com/api/v3';
+    if (RegExp(r'qwen|aliyun|dashscope').hasMatch(k))
+      return 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+    if (RegExp(r'bytedance|doubao|volces|ark').hasMatch(k))
+      return 'https://ark.cn-beijing.volces.com/api/v3';
     if (k.contains('silicon')) return 'https://api.siliconflow.cn/v1';
-    if (k.contains('grok') || k.contains('x.ai') || k.contains('xai')) return 'https://api.x.ai/v1';
+    if (k.contains('grok') || k.contains('x.ai') || k.contains('xai'))
+      return 'https://api.x.ai/v1';
     if (k.contains('deepseek')) return 'https://api.deepseek.com/v1';
-    if (RegExp(r'zhipu|智谱|glm').hasMatch(k)) return 'https://open.bigmodel.cn/api/paas/v4';
-    if (k.contains('gemini') || k.contains('google')) return 'https://generativelanguage.googleapis.com/v1beta';
-    if (k.contains('claude') || k.contains('anthropic')) return 'https://api.anthropic.com/v1';
+    if (RegExp(r'zhipu|智谱|glm').hasMatch(k))
+      return 'https://open.bigmodel.cn/api/paas/v4';
+    if (k.contains('gemini') || k.contains('google'))
+      return 'https://generativelanguage.googleapis.com/v1beta';
+    if (k.contains('claude') || k.contains('anthropic'))
+      return 'https://api.anthropic.com/v1';
     return 'https://api.openai.com/v1';
   }
 
@@ -2883,6 +3221,7 @@ class ProviderConfig {
       if (s.contains('neuralwatt')) return true;
       return false; // others disabled by default
     }
+
     final kind = classify(key);
     final lowerKey = key.toLowerCase();
     switch (kind) {
@@ -2972,7 +3311,8 @@ class ProviderConfig {
             apiKey: 'kelivo',
             baseUrl: _defaultBase(key),
             providerType: ProviderKind.openai,
-            chatPath: null, // keep empty in UI; code uses default '/chat/completions'
+            chatPath:
+                null, // keep empty in UI; code uses default '/chat/completions'
             useResponseApi: false,
             models: const [
               // 'openai-fast',
@@ -3024,10 +3364,7 @@ class ProviderConfig {
             providerType: ProviderKind.openai,
             chatPath: '/chat/completions',
             useResponseApi: false,
-            models: const [
-              'THUDM/GLM-4-9B-0414',
-              'Qwen/Qwen3-8B',
-            ],
+            models: const ['THUDM/GLM-4-9B-0414', 'Qwen/Qwen3-8B'],
             modelOverrides: const {
               'THUDM/GLM-4-9B-0414': {
                 'type': 'chat',
@@ -3076,13 +3413,23 @@ class ProviderConfig {
           apiKeys: const [],
           keyManagement: const KeyManagementConfig(),
           aihubmixAppCodeEnabled: lowerKey.contains('aihubmix'),
-          balanceEnabled: lowerKey.contains('aihubmix') || lowerKey.contains('deepseek') || lowerKey.contains('openrouter') || lowerKey.contains('moonshot'),
-          balanceApiPath: lowerKey.contains('openrouter') 
-              ? '/credits' 
-              : (lowerKey.contains('moonshot') ? '/users/me/balance' : (lowerKey.contains('deepseek') ? '/user/balance' : '/user/info')),
+          balanceEnabled:
+              lowerKey.contains('aihubmix') ||
+              lowerKey.contains('deepseek') ||
+              lowerKey.contains('openrouter') ||
+              lowerKey.contains('moonshot'),
+          balanceApiPath: lowerKey.contains('openrouter')
+              ? '/credits'
+              : (lowerKey.contains('moonshot')
+                    ? '/users/me/balance'
+                    : (lowerKey.contains('deepseek')
+                          ? '/user/balance'
+                          : '/user/info')),
           balanceResultKey: lowerKey.contains('openrouter')
               ? 'data.total_credits - data.total_usage'
-              : (lowerKey.contains('aihubmix') || lowerKey.contains('deepseek') ? 'balance_infos[0].total_balance' : 'data.available_balance'),
+              : (lowerKey.contains('aihubmix') || lowerKey.contains('deepseek')
+                    ? 'balance_infos[0].total_balance'
+                    : 'data.available_balance'),
         );
     }
   }

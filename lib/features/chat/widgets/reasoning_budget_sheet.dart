@@ -1,86 +1,106 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/utils/reasoning_capabilities.dart';
 import '../../../icons/lucide_adapter.dart';
-import '../../../theme/design_tokens.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../core/services/haptics.dart';
 
-Future<void> showReasoningBudgetSheet(BuildContext context) async {
-  await showModalBottomSheet(
+Future<ReasoningBudgetSelection?> showReasoningBudgetSheet(
+  BuildContext context, {
+  int? initialBudget,
+  String? modelProvider,
+  String? modelId,
+  bool allowInherit = false,
+}) async {
+  return showModalBottomSheet<ReasoningBudgetSelection>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (ctx) => const _ReasoningBudgetSheet(),
+    builder: (ctx) => _ReasoningBudgetSheet(
+      initialBudget: initialBudget,
+      modelProvider: modelProvider,
+      modelId: modelId,
+      allowInherit: allowInherit,
+    ),
   );
 }
 
 class _ReasoningBudgetSheet extends StatefulWidget {
-  const _ReasoningBudgetSheet();
+  const _ReasoningBudgetSheet({
+    this.initialBudget,
+    this.modelProvider,
+    this.modelId,
+    this.allowInherit = false,
+  });
+
+  final int? initialBudget;
+  final String? modelProvider;
+  final String? modelId;
+  final bool allowInherit;
+
   @override
   State<_ReasoningBudgetSheet> createState() => _ReasoningBudgetSheetState();
 }
 
 class _ReasoningBudgetSheetState extends State<_ReasoningBudgetSheet> {
   late int? _selected;
-  late final TextEditingController _controller;
 
   @override
   void initState() {
     super.initState();
-    final s = context.read<SettingsProvider>();
-    _selected = s.thinkingBudget ?? -1;
-    _controller = TextEditingController(text: (_selected ?? -1).toString());
+    _selected = widget.allowInherit
+        ? widget.initialBudget
+        : (widget.initialBudget ?? ReasoningBudget.auto);
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  void _select(int? value) {
+    Navigator.of(context).pop(ReasoningBudgetSelection(value));
   }
 
-  void _select(int value) {
-    setState(() {
-      _selected = value;
-      _controller.text = value.toString();
-    });
-    context.read<SettingsProvider>().setThinkingBudget(value);
-  }
-
-  int _bucket(int? n) {
-    if (n == null) return -1; // treat as auto in UI bucketting
-    if (n == -1) return -1;
-    if (n < 1024) return 0;
-    if (n < 16000) return 1024;
-    if (n < 32000) return 16000;
-    return 32000;
-  }
-
-  String _bucketName(BuildContext context, int? n) {
-    final l10n = AppLocalizations.of(context)!;
-    final b = _bucket(n);
-    switch (b) {
-      case 0:
-        return l10n.reasoningBudgetSheetOff;
-      case -1:
-        return l10n.reasoningBudgetSheetAuto;
-      case 1024:
-        return l10n.reasoningBudgetSheetLight;
-      case 16000:
-        return l10n.reasoningBudgetSheetMedium;
-      default:
-        return l10n.reasoningBudgetSheetHeavy;
+  ReasoningCapabilities _capabilities(SettingsProvider settings) {
+    final assistant = context.read<AssistantProvider>().currentAssistant;
+    final provider =
+        widget.modelProvider ??
+        assistant?.chatModelProvider ??
+        settings.currentModelProvider;
+    final model =
+        widget.modelId ?? assistant?.chatModelId ?? settings.currentModelId;
+    if (provider == null || model == null) {
+      return ReasoningCapabilities.unsupported;
     }
+    return settings.reasoningCapabilities(provider, model);
   }
 
-  Widget _tile(IconData icon, String title, int value, {String? subtitle, bool deepthink = false}) {
+  bool _active(int? value, ReasoningCapabilities capabilities) {
+    if (value == null) return widget.allowInherit && _selected == null;
+    final selected =
+        capabilities.thinkingAlwaysOn && _selected == ReasoningBudget.off
+        ? ReasoningBudget.auto
+        : _selected;
+    return ReasoningBudget.bucket(
+          selected,
+          allowXhigh: capabilities.supportsXhigh,
+          allowMax: capabilities.supportsMax,
+        ) ==
+        value;
+  }
+
+  Widget _tile(
+    IconData icon,
+    String title,
+    int? value, {
+    required ReasoningCapabilities capabilities,
+    bool deepthink = false,
+  }) {
     final cs = Theme.of(context).colorScheme;
-    final active = _bucket(_selected) == value;
+    final active = _active(value, capabilities);
     final Color iconColor = active ? cs.primary : cs.onSurface.withOpacity(0.7);
     final Color onColor = active ? cs.primary : cs.onSurface;
     return Padding(
@@ -94,7 +114,6 @@ class _ReasoningBudgetSheetState extends State<_ReasoningBudgetSheet> {
           onTap: () {
             Haptics.light();
             _select(value);
-            Navigator.of(context).maybePop();
           },
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Row(
@@ -111,12 +130,19 @@ class _ReasoningBudgetSheetState extends State<_ReasoningBudgetSheet> {
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: onColor),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: onColor,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (active) Icon(Lucide.Check, size: 18, color: cs.primary) else const SizedBox(width: 18),
+              if (active)
+                Icon(Lucide.Check, size: 18, color: cs.primary)
+              else
+                const SizedBox(width: 18),
             ],
           ),
         ),
@@ -128,13 +154,17 @@ class _ReasoningBudgetSheetState extends State<_ReasoningBudgetSheet> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    final settings = context.watch<SettingsProvider>();
+    final capabilities = _capabilities(settings);
     final maxHeight = MediaQuery.sizeOf(context).height * 0.8;
     return SafeArea(
       top: false,
       child: AnimatedPadding(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
-        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: maxHeight),
           child: SingleChildScrollView(
@@ -143,18 +173,77 @@ class _ReasoningBudgetSheetState extends State<_ReasoningBudgetSheet> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox(height: 12),
-                Container(width: 40, height: 4, decoration: BoxDecoration(color: cs.onSurface.withOpacity(0.2), borderRadius: BorderRadius.circular(999))),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: cs.onSurface.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
                 const SizedBox(height: 6),
                 // No title per iOS style; keep content close to handle
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Column(
                     children: [
-                      _tile(Lucide.X, l10n.reasoningBudgetSheetOff, 0),
-                      _tile(Lucide.Settings2, l10n.reasoningBudgetSheetAuto, -1),
-                      _tile(Lucide.Brain, l10n.reasoningBudgetSheetLight, 1024, deepthink: true),
-                      _tile(Lucide.Brain, l10n.reasoningBudgetSheetMedium, 16000, deepthink: true),
-                      _tile(Lucide.Brain, l10n.reasoningBudgetSheetHeavy, 32000, deepthink: true),
+                      if (widget.allowInherit)
+                        _tile(
+                          Lucide.Settings2,
+                          l10n.reasoningBudgetSheetUseGlobal,
+                          null,
+                          capabilities: capabilities,
+                        ),
+                      if (!capabilities.thinkingAlwaysOn)
+                        _tile(
+                          Lucide.X,
+                          l10n.reasoningBudgetSheetOff,
+                          ReasoningBudget.off,
+                          capabilities: capabilities,
+                        ),
+                      _tile(
+                        Lucide.Settings2,
+                        l10n.reasoningBudgetSheetAuto,
+                        ReasoningBudget.auto,
+                        capabilities: capabilities,
+                      ),
+                      _tile(
+                        Lucide.Brain,
+                        l10n.reasoningBudgetSheetLight,
+                        ReasoningBudget.light,
+                        capabilities: capabilities,
+                        deepthink: true,
+                      ),
+                      _tile(
+                        Lucide.Brain,
+                        l10n.reasoningBudgetSheetMedium,
+                        ReasoningBudget.medium,
+                        capabilities: capabilities,
+                        deepthink: true,
+                      ),
+                      _tile(
+                        Lucide.Brain,
+                        l10n.reasoningBudgetSheetHeavy,
+                        ReasoningBudget.heavy,
+                        capabilities: capabilities,
+                        deepthink: true,
+                      ),
+                      if (capabilities.supportsXhigh)
+                        _tile(
+                          Lucide.Brain,
+                          l10n.reasoningBudgetSheetXhigh,
+                          ReasoningBudget.xhigh,
+                          capabilities: capabilities,
+                          deepthink: true,
+                        ),
+                      if (capabilities.supportsMax)
+                        _tile(
+                          Lucide.Brain,
+                          l10n.reasoningBudgetSheetMax,
+                          ReasoningBudget.max,
+                          capabilities: capabilities,
+                          deepthink: true,
+                        ),
                     ],
                   ),
                 ),

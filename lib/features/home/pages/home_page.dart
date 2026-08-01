@@ -12,6 +12,7 @@ import '../../../shared/responsive/breakpoints.dart';
 import '../../../theme/design_tokens.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
+import '../../../core/utils/reasoning_capabilities.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/models/chat_input_data.dart';
@@ -59,7 +60,8 @@ import 'home_mobile_layout.dart';
 import 'home_desktop_layout.dart';
 
 import '../../chat/voice_chat_provider.dart';
-import '../../../features/voice_chat/pages/voice_chat_screen.dart' hide VoiceChatState;
+import '../../../features/voice_chat/pages/voice_chat_screen.dart'
+    hide VoiceChatState;
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -68,13 +70,15 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin, RouteAware, WidgetsBindingObserver {
+class _HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin, RouteAware, WidgetsBindingObserver {
   // ============================================================================
   // UI Controllers (owned by State for lifecycle management)
   // ============================================================================
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final InteractiveDrawerController _drawerController = InteractiveDrawerController();
+  final InteractiveDrawerController _drawerController =
+      InteractiveDrawerController();
   final ValueNotifier<int> _assistantPickerCloseTick = ValueNotifier<int>(0);
   final FocusNode _inputFocus = FocusNode();
   final TextEditingController _inputController = TextEditingController();
@@ -98,7 +102,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   @override
   void initState() {
     super.initState();
-    try { WidgetsBinding.instance.addObserver(this); } catch (_) {}
+    try {
+      WidgetsBinding.instance.addObserver(this);
+    } catch (_) {}
 
     _controller = HomePageController(
       context: context,
@@ -151,7 +157,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   @override
   void dispose() {
-    try { WidgetsBinding.instance.removeObserver(this); } catch (_) {}
+    try {
+      WidgetsBinding.instance.removeObserver(this);
+    } catch (_) {}
     _voiceChatProvider?.removeListener(_onVoiceChatStateChanged);
     _processTextSub?.cancel();
     _controller.removeListener(_onControllerChanged);
@@ -199,7 +207,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     final start = (selection.start >= 0 && selection.start <= current.length)
         ? selection.start
         : current.length;
-    final end = (selection.end >= 0 && selection.end <= current.length && selection.end >= start)
+    final end =
+        (selection.end >= 0 &&
+            selection.end <= current.length &&
+            selection.end >= start)
         ? selection.end
         : start;
     final next = current.replaceRange(start, end, trimmed);
@@ -218,7 +229,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   // Voice Chat Logic
   void _onVoiceChatStateChanged() {
     if (!mounted) return;
-    if (_voiceChatProvider!.state == VoiceChatState.idle && _voiceChatProvider!.lastWords.isNotEmpty) {
+    if (_voiceChatProvider!.state == VoiceChatState.idle &&
+        _voiceChatProvider!.lastWords.isNotEmpty) {
       final lastWords = _voiceChatProvider!.lastWords;
       _voiceChatProvider!.clearLastWords();
       _controller.sendMessage(ChatInputData(text: lastWords));
@@ -230,9 +242,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       await _controller.createNewConversationAnimated();
     }
     // Navigate to the voice chat screen
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => VoiceChatScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => VoiceChatScreen()));
   }
 
   // ============================================================================
@@ -244,23 +256,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     final width = MediaQuery.sizeOf(context).width;
     final cs = Theme.of(context).colorScheme;
 
-    final title = ((_controller.currentConversation?.title ?? '').trim().isNotEmpty)
+    final title =
+        ((_controller.currentConversation?.title ?? '').trim().isNotEmpty)
         ? _controller.currentConversation!.title
         : _controller.titleForLocale();
 
     if (width >= AppBreakpoints.tablet) {
-      return _buildTabletLayout(
-        context,
-        title: title,
-        cs: cs,
-      );
+      return _buildTabletLayout(context, title: title, cs: cs);
     }
 
-    return _buildMobileLayout(
-      context,
-      title: title,
-      cs: cs,
-    );
+    return _buildMobileLayout(context, title: title, cs: cs);
   }
 
   Widget _buildMobileLayout(
@@ -287,7 +292,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         final collapsed = _controller.collapseVersions(_controller.messages);
         String? selectedId;
         if (PlatformUtils.isDesktop) {
-          selectedId = await showDesktopMiniMapPopover(context, anchorKey: _topMiniMapKey, messages: collapsed);
+          selectedId = await showDesktopMiniMapPopover(
+            context,
+            anchorKey: _topMiniMapKey,
+            messages: collapsed,
+          );
         } else {
           selectedId = await showMiniMapSheet(context, collapsed);
         }
@@ -314,26 +323,43 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         _buildChatBackground(context, cs),
         // Main content
         Padding(
-          padding: EdgeInsets.only(top: kToolbarHeight + MediaQuery.paddingOf(context).top),
+          padding: EdgeInsets.only(
+            top: kToolbarHeight + MediaQuery.paddingOf(context).top,
+          ),
           child: Column(
             children: [
               Expanded(
                 child: Builder(
                   builder: (context) {
                     final content = KeyedSubtree(
-                      key: ValueKey<String>(_controller.currentConversation?.id ?? 'none'),
+                      key: ValueKey<String>(
+                        _controller.currentConversation?.id ?? 'none',
+                      ),
                       child: _buildMessageListView(
                         context,
-                        dividerPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: AppSpacing.md),
+                        dividerPadding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                          horizontal: AppSpacing.md,
+                        ),
                       ),
                     );
-                    final isAndroid = Theme.of(context).platform == TargetPlatform.android;
+                    final isAndroid =
+                        Theme.of(context).platform == TargetPlatform.android;
                     Widget w = content;
                     if (!isAndroid) {
                       w = w
-                          .animate(key: ValueKey('mob_body_'+(_controller.currentConversation?.id ?? 'none')))
+                          .animate(
+                            key: ValueKey(
+                              'mob_body_' +
+                                  (_controller.currentConversation?.id ??
+                                      'none'),
+                            ),
+                          )
                           .fadeIn(duration: 200.ms, curve: Curves.easeOutCubic);
-                      w = FadeTransition(opacity: _controller.convoFade, child: w);
+                      w = FadeTransition(
+                        opacity: _controller.convoFade,
+                        child: w,
+                      );
                     }
                     return w;
                   },
@@ -342,12 +368,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               // Input bar
               NotificationListener<SizeChangedLayoutNotification>(
                 onNotification: (n) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) => _controller.measureInputBar());
+                  WidgetsBinding.instance.addPostFrameCallback(
+                    (_) => _controller.measureInputBar(),
+                  );
                   return false;
                 },
                 child: SizeChangedLayoutNotifier(
                   child: Builder(
-                    builder: (context) => _buildChatInputBar(context, isTablet: false),
+                    builder: (context) =>
+                        _buildChatInputBar(context, isTablet: false),
                   ),
                 ),
               ),
@@ -397,7 +426,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         final collapsed = _controller.collapseVersions(_controller.messages);
         String? selectedId;
         if (PlatformUtils.isDesktop) {
-          selectedId = await showDesktopMiniMapPopover(context, anchorKey: _topMiniMapKey, messages: collapsed);
+          selectedId = await showDesktopMiniMapPopover(
+            context,
+            anchorKey: _topMiniMapKey,
+            messages: collapsed,
+          );
         } else {
           selectedId = await showMiniMapSheet(context, collapsed);
         }
@@ -420,32 +453,52 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     return Stack(
       children: [
         Padding(
-          padding: EdgeInsets.only(top: kToolbarHeight + MediaQuery.paddingOf(context).top),
+          padding: EdgeInsets.only(
+            top: kToolbarHeight + MediaQuery.paddingOf(context).top,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
                 child: FadeTransition(
                   opacity: _controller.convoFade,
-                  child: KeyedSubtree(
-                    key: ValueKey<String>(_controller.currentConversation?.id ?? 'none'),
-                    child: _buildMessageListView(
-                      context,
-                      dividerPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    ),
-                  ).animate(key: ValueKey('tab_body_'+(_controller.currentConversation?.id ?? 'none')))
-                   .fadeIn(duration: 200.ms, curve: Curves.easeOutCubic),
+                  child:
+                      KeyedSubtree(
+                            key: ValueKey<String>(
+                              _controller.currentConversation?.id ?? 'none',
+                            ),
+                            child: _buildMessageListView(
+                              context,
+                              dividerPadding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                                horizontal: 12,
+                              ),
+                            ),
+                          )
+                          .animate(
+                            key: ValueKey(
+                              'tab_body_' +
+                                  (_controller.currentConversation?.id ??
+                                      'none'),
+                            ),
+                          )
+                          .fadeIn(duration: 200.ms, curve: Curves.easeOutCubic),
                 ),
               ),
               NotificationListener<SizeChangedLayoutNotification>(
                 onNotification: (n) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) => _controller.measureInputBar());
+                  WidgetsBinding.instance.addPostFrameCallback(
+                    (_) => _controller.measureInputBar(),
+                  );
                   return false;
                 },
                 child: SizeChangedLayoutNotifier(
                   child: Builder(
                     builder: (context) {
-                      Widget input = _buildChatInputBar(context, isTablet: true);
+                      Widget input = _buildChatInputBar(
+                        context,
+                        isTablet: true,
+                      );
                       input = Center(
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(
@@ -475,8 +528,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget _buildChatBackground(BuildContext context, ColorScheme cs) {
     return Builder(
       builder: (context) {
-        final bg = context.watch<AssistantProvider>().currentAssistant?.background;
-        final maskStrength = context.watch<SettingsProvider>().chatBackgroundMaskStrength;
+        final bg = context
+            .watch<AssistantProvider>()
+            .currentAssistant
+            ?.background;
+        final maskStrength = context
+            .watch<SettingsProvider>()
+            .chatBackgroundMaskStrength;
         if (bg == null || bg.trim().isEmpty) return const SizedBox.shrink();
         ImageProvider provider;
         if (bg.startsWith('http')) {
@@ -496,7 +554,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     image: DecorationImage(
                       image: provider,
                       fit: BoxFit.cover,
-                      colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.04), BlendMode.srcATop),
+                      colorFilter: ColorFilter.mode(
+                        Colors.black.withOpacity(0.04),
+                        BlendMode.srcATop,
+                      ),
                     ),
                   ),
                 ),
@@ -535,7 +596,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     Widget? bg;
     if (bgRaw.isNotEmpty) {
       if (bgRaw.startsWith('http')) {
-        bg = Image.network(bgRaw, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox.shrink());
+        bg = Image.network(
+          bgRaw,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+        );
       } else {
         try {
           final fixed = SandboxPathResolver.fix(bgRaw);
@@ -590,13 +655,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       onVersionChange: (groupId, version) async {
         await _controller.setSelectedVersion(groupId, version);
       },
-      onRegenerateMessage: (message) => _controller.regenerateAtMessage(message),
+      onRegenerateMessage: (message) =>
+          _controller.regenerateAtMessage(message),
       onResendMessage: (message) => _controller.regenerateAtMessage(message),
       onTranslateMessage: (message) => _controller.translateMessage(message),
       onEditMessage: (message) => _controller.editMessage(message),
-      onDeleteMessage: (message, byGroup) => _handleDeleteMessage(context, message, byGroup),
+      onDeleteMessage: (message, byGroup) =>
+          _handleDeleteMessage(context, message, byGroup),
       onForkConversation: (message) => _controller.forkConversation(message),
-      onShareMessage: (index, messages) => _controller.shareMessage(index, messages),
+      onShareMessage: (index, messages) =>
+          _controller.shareMessage(index, messages),
       onSpeakMessage: (message) => _controller.speakMessage(message),
 
       onToggleSelection: (messageId, selected) {
@@ -628,37 +696,50 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       onMore: _toggleTools,
       onSelectModel: () => showModelSelectSheet(context),
       onLongPressSelectModel: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const ProvidersPage()),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const ProvidersPage()));
       },
       onOpenMcp: () {
         final a = context.read<AssistantProvider>().currentAssistant;
         if (a != null) {
           if (PlatformUtils.isDesktop) {
-            showDesktopMcpServersPopover(context, anchorKey: _inputBarKey, assistantId: a.id);
+            showDesktopMcpServersPopover(
+              context,
+              anchorKey: _inputBarKey,
+              assistantId: a.id,
+            );
           } else {
             showAssistantMcpSheet(context, assistantId: a.id);
           }
         }
       },
       onLongPressMcp: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const McpPage()),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const McpPage()));
       },
       onOpenSearch: _openSearchSettings,
       onConfigureReasoning: () async {
+        final settings = context.read<SettingsProvider>();
+        final assistantProvider = context.read<AssistantProvider>();
         final assistant = context.read<AssistantProvider>().currentAssistant;
+        final provider =
+            assistant?.chatModelProvider ?? settings.currentModelProvider;
+        final model = assistant?.chatModelId ?? settings.currentModelId;
+        final result = await _openReasoningSettings(
+          initialBudget: assistant?.thinkingBudget ?? settings.thinkingBudget,
+          modelProvider: provider,
+          modelId: model,
+        );
+        if (result == null || !mounted) return;
         if (assistant != null) {
-          if (assistant.thinkingBudget != null) {
-            context.read<SettingsProvider>().setThinkingBudget(assistant.thinkingBudget);
-          }
-          await _openReasoningSettings();
-          final chosen = context.read<SettingsProvider>().thinkingBudget;
-          await context.read<AssistantProvider>().updateAssistant(
-            assistant.copyWith(thinkingBudget: chosen),
-          );
+          final updated = result.value == null
+              ? assistant.copyWith(clearThinkingBudget: true)
+              : assistant.copyWith(thinkingBudget: result.value);
+          await assistantProvider.updateAssistant(updated);
+        } else {
+          await settings.setThinkingBudget(result.value);
         }
       },
       onSend: (data) {
@@ -673,9 +754,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       onStop: _controller.cancelStreaming,
       onQuickPhrase: _showQuickPhraseMenu,
       onLongPressQuickPhrase: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const QuickPhrasesPage()),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const QuickPhrasesPage()));
       },
       onToggleOcr: () async {
         final sp = context.read<SettingsProvider>();
@@ -685,7 +766,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         final collapsed = _controller.collapseVersions(_controller.messages);
         String? selectedId;
         if (PlatformUtils.isDesktop) {
-          selectedId = await showDesktopMiniMapPopover(context, anchorKey: _inputBarKey, messages: collapsed);
+          selectedId = await showDesktopMiniMapPopover(
+            context,
+            anchorKey: _inputBarKey,
+            messages: collapsed,
+          );
         } else {
           selectedId = await showMiniMapSheet(context, collapsed);
         }
@@ -729,20 +814,24 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-
   Widget _buildScrollButtons() {
-    return Builder(builder: (context) {
-      final showSetting = context.watch<SettingsProvider>().showMessageNavButtons;
-      if (!showSetting || _controller.messages.isEmpty) return const SizedBox.shrink();
-      return ScrollNavButtonsPanel(
-        visible: _controller.scrollCtrl.showNavButtons,
-        bottomOffset: _controller.inputBarHeight + 12,
-        onScrollToTop: _controller.scrollToTop,
-        onPreviousMessage: _controller.jumpToPreviousQuestion,
-        onNextMessage: _controller.jumpToNextQuestion,
-        onScrollToBottom: _controller.forceScrollToBottom,
-      );
-    });
+    return Builder(
+      builder: (context) {
+        final showSetting = context
+            .watch<SettingsProvider>()
+            .showMessageNavButtons;
+        if (!showSetting || _controller.messages.isEmpty)
+          return const SizedBox.shrink();
+        return ScrollNavButtonsPanel(
+          visible: _controller.scrollCtrl.showNavButtons,
+          bottomOffset: _controller.inputBarHeight + 12,
+          onScrollToTop: _controller.scrollToTop,
+          onPreviousMessage: _controller.jumpToPreviousQuestion,
+          onNextMessage: _controller.jumpToNextQuestion,
+          onScrollToBottom: _controller.forceScrollToBottom,
+        );
+      },
+    );
   }
 
   Widget _wrapWithDropTarget(Widget child) {
@@ -771,15 +860,28 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 color: Colors.black.withOpacity(0.12),
                 child: Center(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 16,
+                    ),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface.withOpacity(0.95),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surface.withOpacity(0.95),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.4), width: 2),
+                      border: Border.all(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withOpacity(0.4),
+                        width: 2,
+                      ),
                     ),
                     child: Text(
                       AppLocalizations.of(context)!.homePageDropToUpload,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
@@ -802,11 +904,26 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     }
   }
 
-  Future<void> _openReasoningSettings() async {
+  Future<ReasoningBudgetSelection?> _openReasoningSettings({
+    required int? initialBudget,
+    required String? modelProvider,
+    required String? modelId,
+  }) async {
     if (PlatformUtils.isDesktop) {
-      await showDesktopReasoningBudgetPopover(context, anchorKey: _inputBarKey);
+      return showDesktopReasoningBudgetPopover(
+        context,
+        anchorKey: _inputBarKey,
+        initialBudget: initialBudget,
+        modelProvider: modelProvider,
+        modelId: modelId,
+      );
     } else {
-      await showReasoningBudgetSheet(context);
+      return showReasoningBudgetSheet(
+        context,
+        initialBudget: initialBudget,
+        modelProvider: modelProvider,
+        modelId: modelId,
+      );
     }
   }
 
@@ -829,7 +946,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         _controller.handleQuickPhraseSelection(selected);
       }
     } else {
-      final RenderBox? box = _inputBarKey.currentContext?.findRenderObject() as RenderBox?;
+      final RenderBox? box =
+          _inputBarKey.currentContext?.findRenderObject() as RenderBox?;
       final Offset position = box?.localToGlobal(Offset.zero) ?? Offset.zero;
 
       final selected = await showQuickPhraseMenu(
@@ -848,7 +966,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     final assistantId = ap.currentAssistant?.id;
     final provider = context.read<InstructionInjectionProvider>();
     if (provider.items.isEmpty) {
-        await provider.initialize();
+      await provider.initialize();
     }
     final items = provider.items;
 
@@ -869,9 +987,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   void _openAiTeamSettings() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const AiTeamPage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AiTeamPage()));
   }
 
   void _toggleTools(List<DesktopContextMenuItem>? overflowItems) {
@@ -912,7 +1030,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     });
   }
 
-  Future<void> _handleDeleteMessage(BuildContext context, ChatMessage message, Map<String, List<ChatMessage>> byGroup) async {
+  Future<void> _handleDeleteMessage(
+    BuildContext context,
+    ChatMessage message,
+    Map<String, List<ChatMessage>> byGroup,
+  ) async {
     final l10n = AppLocalizations.of(context)!;
     // Confirm dialog
     final confirm = await showDialog<bool>(
@@ -921,7 +1043,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         title: Text(l10n.homePageDeleteMessage),
         content: Text(l10n.homePageDeleteMessageConfirm),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.homePageCancel)),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.homePageCancel),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),

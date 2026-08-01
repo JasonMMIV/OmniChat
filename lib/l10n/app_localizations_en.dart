@@ -740,6 +740,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reasoningBudgetSheetHeavy => 'Heavy';
 
   @override
+  String get reasoningBudgetSheetXhigh => 'Extra High';
+
+  @override
+  String get reasoningBudgetSheetMax => 'Max';
+
+  @override
+  String get reasoningBudgetSheetUseGlobal => 'Use Global Setting';
+
+  @override
   String get instructionInjectionDefaultTitle => 'Deep Research';
 
   @override

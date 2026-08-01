@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-01 (v1.6.6)
+- **Last Updated**: 2026-08-01 (v1.6.7)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -178,6 +178,35 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+
+## [v1.6.7] - 2026-08-01: Extra High & Max Reasoning Effort Levels with Model-Specific API Translation
+
+### 143. Extra High/Max Reasoning Budget Support & Model-Specific Effort Translation
+
+- **Purpose**: Introduce `xhigh` (Extra High) and `max` reasoning budget tiers, and translate the stored token budget into each provider's official API parameters — OpenAI `reasoning_effort`, Anthropic adaptive `thinking`, DeepSeek `thinking` knob, and Moonshot Kimi K3 effort levels — instead of sending raw token values.
+- **Files Modified**:
+  - `lib/core/utils/reasoning_capabilities.dart` (NEW)
+  - `lib/core/services/api/chat_api_service.dart`
+  - `lib/core/providers/model_provider.dart`
+  - `lib/core/providers/settings_provider.dart`
+  - `lib/features/chat/widgets/reasoning_budget_sheet.dart`
+  - `lib/desktop/reasoning_budget_popover.dart`
+  - `lib/features/assistant/pages/assistant_settings_edit_page.dart`
+  - `lib/features/home/pages/home_page.dart`
+  - `lib/l10n/app_en.arb` / `app_zh.arb` / `app_zh_Hans.arb` / `app_zh_Hant.arb` (+ generated localizations)
+  - `test/reasoning_capabilities_test.dart` (NEW)
+  - `test/reasoning_budget_api_test.dart` (NEW)
+  - `pubspec.yaml` (bumped version to `1.6.7+62`)
+  - `installer.iss` / `installers/omnichat_setup.iss` (updated installer version to 1.6.7)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Effort Normalization**: New `ReasoningCapabilities.normalizeOpenAiEffort()` maps the requested OpenAI `reasoning_effort` onto the model's supported set (`openAiEfforts`) with an off fallback (`openAiOffFallback`); DeepSeek gains `xhigh`, Moonshot Kimi K3 officially supports only `low/high/max`.
+  - **Kimi K3 (Always-On Reasoning)**: K3 models are flagged `thinkingAlwaysOn` — the Off tier is hidden in both the mobile sheet and desktop popover and maps to `low`; `temperature`/`top_p` are stripped from all request bodies per the official Chat Completions contract.
+  - **DeepSeek Thinking Knob**: Non-OpenRouter DeepSeek requests now send `thinking: {type: enabled|disabled}` (DeepSeek Anthropic-compatible API), with legacy `reasoning_content`/`reasoning_budget`/`reasoning_effort` fields cleaned up; `deepseek-v4` is now classified as a reasoning/tool model.
+  - **Claude Adaptive Always-On**: Budget 0 no longer disables thinking for always-on Claude models (Fable/Mythos) — they keep `{type: adaptive}`.
+  - **UI/UX**: Always-on models display the Auto state instead of Off; assistant settings page shows the "Use Global Setting" detail text when inheriting the global budget.
+
+---
 
 ## [v1.6.5] - 2026-08-01: Kelivo Statistics Integration & Token Tracking
 

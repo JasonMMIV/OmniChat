@@ -1511,6 +1511,24 @@ abstract class AppLocalizations {
   /// **'Heavy'**
   String get reasoningBudgetSheetHeavy;
 
+  /// No description provided for @reasoningBudgetSheetXhigh.
+  ///
+  /// In en, this message translates to:
+  /// **'Extra High'**
+  String get reasoningBudgetSheetXhigh;
+
+  /// No description provided for @reasoningBudgetSheetMax.
+  ///
+  /// In en, this message translates to:
+  /// **'Max'**
+  String get reasoningBudgetSheetMax;
+
+  /// No description provided for @reasoningBudgetSheetUseGlobal.
+  ///
+  /// In en, this message translates to:
+  /// **'Use Global Setting'**
+  String get reasoningBudgetSheetUseGlobal;
+
   /// No description provided for @instructionInjectionDefaultTitle.
   ///
   /// In en, this message translates to:

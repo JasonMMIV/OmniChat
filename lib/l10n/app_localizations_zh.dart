@@ -734,6 +734,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get reasoningBudgetSheetHeavy => '重度推理';
 
   @override
+  String get reasoningBudgetSheetXhigh => '超高推理';
+
+  @override
+  String get reasoningBudgetSheetMax => '最大推理';
+
+  @override
+  String get reasoningBudgetSheetUseGlobal => '使用全域設定';
+
+  @override
   String get instructionInjectionDefaultTitle => '深度研究';
 
   @override
@@ -4733,6 +4742,15 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get reasoningBudgetSheetHeavy => '重度推理';
 
   @override
+  String get reasoningBudgetSheetXhigh => '超高推理';
+
+  @override
+  String get reasoningBudgetSheetMax => '最大推理';
+
+  @override
+  String get reasoningBudgetSheetUseGlobal => '使用全局设置';
+
+  @override
   String get instructionInjectionDefaultTitle => '深度研究';
 
   @override
@@ -8626,6 +8644,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get reasoningBudgetSheetHeavy => '重度推理';
+
+  @override
+  String get reasoningBudgetSheetXhigh => '超高推理';
+
+  @override
+  String get reasoningBudgetSheetMax => '最大推理';
+
+  @override
+  String get reasoningBudgetSheetUseGlobal => '使用全域設定';
 
   @override
   String get instructionInjectionDefaultTitle => '深度研究';
