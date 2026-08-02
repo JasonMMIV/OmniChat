@@ -6218,6 +6218,12 @@ abstract class AppLocalizations {
   /// **'Preview'**
   String get codeBlockPreviewButton;
 
+  /// No description provided for @codeBlockDownloadButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get codeBlockDownloadButton;
+
   /// No description provided for @htmlPreviewNotSupportedOnLinux.
   ///
   /// In en, this message translates to:

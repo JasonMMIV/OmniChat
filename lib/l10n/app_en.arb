@@ -1386,6 +1386,7 @@
   "multiKeyPageCancel": "Cancel",
   "multiKeyPageAddHint": "Keys",
   "codeBlockPreviewButton": "Preview",
+  "codeBlockDownloadButton": "Download",
   "htmlPreviewNotSupportedOnLinux": "Not on Linux",
   "codeBlockCollapsedLines": "{n} lines",
   "@codeBlockCollapsedLines": {

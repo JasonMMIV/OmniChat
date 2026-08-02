@@ -3199,6 +3199,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get codeBlockPreviewButton => '预览';
 
   @override
+  String get codeBlockDownloadButton => '下载';
+
+  @override
   String get htmlPreviewNotSupportedOnLinux => 'Linux 暂不支持 HTML 预览';
 
   @override
@@ -7246,6 +7249,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get codeBlockPreviewButton => '预览';
 
   @override
+  String get codeBlockDownloadButton => '下载';
+
+  @override
   String get htmlPreviewNotSupportedOnLinux => 'Linux 暂不支持 HTML 预览';
 
   @override
@@ -11150,6 +11156,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get codeBlockPreviewButton => '預覽';
+
+  @override
+  String get codeBlockDownloadButton => '下載';
 
   @override
   String get htmlPreviewNotSupportedOnLinux => 'Linux 暫不支援 HTML 預覽';

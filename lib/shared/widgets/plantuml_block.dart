@@ -6,6 +6,7 @@ import '../../utils/plantuml_encoder.dart';
 import '../../icons/lucide_adapter.dart';
 import 'package:OmniChat/l10n/app_localizations.dart';
 import 'snackbar.dart';
+import 'code_block_download_button.dart';
 import 'export_capture_scope.dart';
 import 'dart:io';
 
@@ -40,6 +41,10 @@ class _PlantUMLBlockState extends State<PlantUMLBlock> {
     final encoded = PlantUmlEncoder.encode(widget.code);
     _imageUrl = 'https://www.plantuml.com/plantuml/svg/$encoded';
   }
+
+  // Save the diagram source as a .puml file.
+  Future<void> _downloadCode() =>
+      saveCodeBlockToFile(context, widget.code, 'puml');
 
   @override
   Widget build(BuildContext context) {
@@ -164,6 +169,8 @@ class _PlantUMLBlockState extends State<PlantUMLBlock> {
                           ),
                         ),
                       ),
+                      // Download action: save the .puml source
+                      CodeBlockDownloadButton(onTap: _downloadCode),
                       const SizedBox(width: 6),
                       // Open in browser
                       InkWell(

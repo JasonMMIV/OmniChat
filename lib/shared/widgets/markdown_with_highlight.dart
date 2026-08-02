@@ -18,6 +18,7 @@ import '../../utils/sandbox_path_resolver.dart';
 import '../../utils/markdown_preview_html.dart';
 import '../../features/chat/pages/image_viewer_page.dart';
 import '../../features/chat/pages/html_preview_page.dart';
+import 'code_block_download_button.dart';
 import 'snackbar.dart';
 import 'mermaid_bridge.dart';
 import 'export_capture_scope.dart';
@@ -1110,10 +1111,7 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                       ),
                     ),
                     const Spacer(),
-                    if (_isHtml(widget.language) ||
-                        _isXml(widget.language) ||
-                        _isMarkdown(widget.language) ||
-                        _isTable(widget.language))
+                    if (_isPreviewable(widget.language))
                       InkWell(
                         onTap: () async {
                           final l10n = AppLocalizations.of(context)!;
@@ -1230,6 +1228,9 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                           ),
                         ),
                       ),
+                    // Download action: save the block as a file. Shown on every
+                    // code block (the Copy button is always available).
+                    CodeBlockDownloadButton(onTap: _downloadCode),
                     // Copy action: icon + label ("复制"/localized)
                     InkWell(
                       onTap: () async {
@@ -1511,6 +1512,13 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
     final end = _trimTrailingNewlinesEndIndex(s);
     return end == s.length ? s : s.substring(0, end);
   }
+
+  // Save the code block to a file using the shared export flow.
+  Future<void> _downloadCode() => saveCodeBlockToFile(
+        context,
+        widget.code,
+        _downloadExtensionFor(widget.language),
+      );
 }
 
 bool _isHtml(String? lang) {
@@ -1543,6 +1551,168 @@ bool _isTable(String? lang) {
   final l = (lang ?? '').trim().toLowerCase();
   return l == 'csv' || l == 'tsv';
 }
+
+bool _isPreviewable(String? lang) =>
+    _isHtml(lang) || _isXml(lang) || _isMarkdown(lang) || _isTable(lang);
+
+// Map a code block language tag to the file extension used when downloading it.
+// Covers the common languages; unknown tags fall back to .txt.
+String _downloadExtensionFor(String? lang) {
+  switch ((lang ?? '').trim().toLowerCase()) {
+    case 'html':
+    case 'htm':
+    case 'rawhtml':
+    case 'raw_html':
+      return 'html';
+    case 'xml':
+      return 'xml';
+    case 'svg':
+      return 'svg';
+    case 'xsd':
+      return 'xsd';
+    case 'xsl':
+      return 'xsl';
+    case 'xslt':
+      return 'xslt';
+    case 'rss':
+      return 'rss';
+    case 'atom':
+      return 'atom';
+    case 'plist':
+      return 'plist';
+    case 'xaml':
+      return 'xaml';
+    case 'md':
+    case 'markdown':
+    case 'mdx':
+      return 'md';
+    case 'csv':
+      return 'csv';
+    case 'tsv':
+      return 'tsv';
+    case 'js':
+    case 'javascript':
+      return 'js';
+    case 'jsx':
+      return 'jsx';
+    case 'ts':
+    case 'typescript':
+      return 'ts';
+    case 'tsx':
+      return 'tsx';
+    case 'sh':
+    case 'zsh':
+    case 'bash':
+    case 'shell':
+      return 'sh';
+    case 'yml':
+    case 'yaml':
+      return 'yml';
+    case 'py':
+    case 'python':
+      return 'py';
+    case 'rb':
+    case 'ruby':
+      return 'rb';
+    case 'kt':
+    case 'kotlin':
+      return 'kt';
+    case 'java':
+      return 'java';
+    case 'c#':
+    case 'cs':
+    case 'csharp':
+      return 'cs';
+    case 'c':
+      return 'c';
+    case 'cpp':
+    case 'c++':
+    case 'cc':
+    case 'hpp':
+      return 'cpp';
+    case 'h':
+      return 'h';
+    case 'objc':
+    case 'objectivec':
+      return 'm';
+    case 'swift':
+      return 'swift';
+    case 'go':
+    case 'golang':
+      return 'go';
+    case 'php':
+      return 'php';
+    case 'dart':
+      return 'dart';
+    case 'rust':
+    case 'rs':
+      return 'rs';
+    case 'json':
+      return 'json';
+    case 'json5':
+      return 'json5';
+    case 'sql':
+      return 'sql';
+    case 'css':
+      return 'css';
+    case 'scss':
+      return 'scss';
+    case 'sass':
+      return 'sass';
+    case 'less':
+      return 'less';
+    case 'vue':
+      return 'vue';
+    case 'svelte':
+      return 'svelte';
+    case 'lua':
+      return 'lua';
+    case 'r':
+      return 'r';
+    case 'scala':
+      return 'scala';
+    case 'groovy':
+      return 'groovy';
+    case 'perl':
+    case 'pl':
+      return 'pl';
+    case 'toml':
+      return 'toml';
+    case 'ini':
+    case 'cfg':
+    case 'conf':
+      return 'ini';
+    case 'diff':
+    case 'patch':
+      return 'diff';
+    case 'txt':
+    case 'text':
+    case 'plaintext':
+      return 'txt';
+    case 'dockerfile':
+      return 'dockerfile';
+    case 'makefile':
+      return 'mk';
+    case 'gradle':
+      return 'gradle';
+    case 'cmake':
+      return 'cmake';
+    case 'ps1':
+    case 'powershell':
+      return 'ps1';
+    case 'bat':
+    case 'batch':
+      return 'bat';
+    case 'mermaid':
+      return 'mmd';
+    case 'plantuml':
+    case 'puml':
+      return 'puml';
+    default:
+      return 'txt';
+  }
+}
+
 
 // Build a themed HTML table fragment for CSV/TSV code blocks. The fragment is
 // embedded into the preview shell, which supplies the theme background/text
@@ -1871,6 +2041,8 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                           ),
                         ),
                       ),
+                      // Download action: save the .mmd diagram source
+                      CodeBlockDownloadButton(onTap: _downloadCode),
                       if (handle != null) ...[
                         const SizedBox(width: 6),
                         InkWell(
@@ -2077,6 +2249,10 @@ class _MermaidBlockState extends State<_MermaidBlock> {
     _vMermaidScrollController.dispose();
     super.dispose();
   }
+
+  // Save the diagram source as a .mmd file.
+  Future<void> _downloadCode() =>
+      saveCodeBlockToFile(context, widget.code, 'mmd');
 
   Future<void> _openMermaidPreviewInBrowser(
     BuildContext context,

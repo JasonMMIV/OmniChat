@@ -254,6 +254,7 @@
   "assistantEditVariableMessage": "內容",
   "assistantEditPreviewTitle": "預覽",
   "codeBlockPreviewButton": "預覽",
+  "codeBlockDownloadButton": "下載",
   "codeBlockCollapsedLines": "… 已摺疊 {n} 行",
   "@codeBlockCollapsedLines": {
     "placeholders": {

@@ -244,6 +244,7 @@
   "assistantEditVariableMessage": "内容",
   "assistantEditPreviewTitle": "预览",
   "codeBlockPreviewButton": "预览",
+  "codeBlockDownloadButton": "下载",
   "codeBlockCollapsedLines": "… 已折叠 {n} 行",
   "@codeBlockCollapsedLines": {
     "placeholders": {

@@ -179,6 +179,24 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 
 ## 📜 Version Changes Log
 
+## [v1.6.8+] - 2026-08-03: Code Block Download Buttons (All Languages)
+
+### 151. Download Button for All Code Blocks
+
+- **Purpose**: Add a Download button to every code block in chat messages — not just preview-capable languages. Since every block already has a Copy button, blocks that can be copied should also be downloadable. The button sits between the Preview and Copy buttons in the code block header (saving the raw `.mmd` / `.puml` source for Mermaid / PlantUML blocks).
+- **Files Modified**:
+  - `lib/shared/widgets/code_block_download_button.dart` (NEW — shared `saveCodeBlockToFile()` save flow + `CodeBlockDownloadButton` widget used by all three block widgets)
+  - `lib/shared/widgets/markdown_with_highlight.dart` (download button shown on all `_CollapsibleCodeBlock` blocks; `_MermaidBlock` downloads `.mmd` source; expanded `_downloadExtensionFor` to ~50 common language tags; removed the now-shared private helpers)
+  - `lib/shared/widgets/plantuml_block.dart` (download button saving `.puml` source)
+  - `lib/l10n/app_en.arb` / `app_zh.arb` / `app_zh_Hans.arb` / `app_zh_Hant.arb` (+ regenerated `app_localizations*.dart`, added `codeBlockDownloadButton` key: en `Download`, zh-Hant `下載`)
+- **Details**:
+  - **Shared Save Flow**: `saveCodeBlockToFile()` follows the `message_export_sheet.dart` convention — desktop uses `FilePicker.platform.saveFile(...)` then `writeAsString`; mobile passes `bytes` to `saveFile` (file_picker requires the bytes argument to write the file itself on Android/iOS). Cancel, failure, and `context.mounted` are all handled.
+  - **Extension Mapping**: `_downloadExtensionFor` maps ~50 language tags (js/ts/py/java/dart/json/cpp/go/rust/php/css/sql/…) with a `.txt` fallback for unknown languages. Dialog title / success / failure messages reuse the existing `backupPageExportToFile` / `messageExportSheetExportedAs` / `messageExportSheetExportFailed` keys.
+  - **Mermaid / PlantUML**: Both blocks gained the download button inside the `!ExportCaptureScope.of(context)` section so it hides together with the Copy button during screenshot export capture — "wherever Copy shows, Download shows".
+  - **No Circular Imports**: The shared file exists because `plantuml_block.dart` cannot import `markdown_with_highlight.dart` (the reverse import would create a cycle); all three widgets now share one implementation.
+
+---
+
 ## [v1.6.8+] - 2026-08-03: Code Block Preview Buttons (XML / Markdown / CSV / TSV)
 
 ### 148. XML & XML-Family Code Block Preview
