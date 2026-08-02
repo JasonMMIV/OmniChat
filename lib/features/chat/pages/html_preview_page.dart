@@ -1,10 +1,16 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../../l10n/app_localizations.dart';
 
 class HtmlPreviewPage extends StatefulWidget {
-  const HtmlPreviewPage({super.key, required this.html});
+  const HtmlPreviewPage({super.key, required this.html, this.isXml = false});
   final String html;
+  // When true, the content is XML/SVG and is loaded as a standalone XML
+  // document so the browser renders its native collapsible tree (or the SVG
+  // graphic). HTML wrapping/theme injection is skipped for XML.
+  final bool isXml;
 
   @override
   State<HtmlPreviewPage> createState() => _HtmlPreviewPageState();
@@ -13,6 +19,7 @@ class HtmlPreviewPage extends StatefulWidget {
 class _HtmlPreviewPageState extends State<HtmlPreviewPage> {
   late final WebViewController _controller;
   bool _didInit = false;
+  bool _xmlLoaded = false;
 
   @override
   void initState() {
@@ -29,12 +36,25 @@ class _HtmlPreviewPageState extends State<HtmlPreviewPage> {
       _didInit = true;
       _loadHtml();
     } else {
-      // Reload on theme changes
+      // Reload on theme changes (HTML only; XML is theme-independent)
       _loadHtml();
     }
   }
 
   Future<void> _loadHtml() async {
+    if (widget.isXml) {
+      // Native XML document view: no theme dependence, load once.
+      if (_xmlLoaded) return;
+      final dir = await getTemporaryDirectory();
+      final file = File(
+        '${dir.path}/xml_preview_${DateTime.now().millisecondsSinceEpoch}.xml',
+      );
+      await file.writeAsString(widget.html, flush: true);
+      // Android's implementation of loadFile enables allowFileAccess itself.
+      await _controller.loadFile(file.path);
+      _xmlLoaded = true;
+      return;
+    }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final html = _wrapIfNeeded(widget.html, isDark: isDark);
     await _controller.loadHtmlString(html);

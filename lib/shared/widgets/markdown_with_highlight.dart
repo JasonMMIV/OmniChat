@@ -15,6 +15,7 @@ import 'dart:math' as math;
 import 'dart:convert';
 import 'dart:ui' as ui;
 import '../../utils/sandbox_path_resolver.dart';
+import '../../utils/markdown_preview_html.dart';
 import '../../features/chat/pages/image_viewer_page.dart';
 import '../../features/chat/pages/html_preview_page.dart';
 import 'snackbar.dart';
@@ -1109,16 +1110,50 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                       ),
                     ),
                     const Spacer(),
-                    if (_isHtml(widget.language))
+                    if (_isHtml(widget.language) ||
+                        _isXml(widget.language) ||
+                        _isMarkdown(widget.language) ||
+                        _isTable(widget.language))
                       InkWell(
                         onTap: () async {
                           final l10n = AppLocalizations.of(context)!;
+                          final isXml = _isXml(widget.language);
+                          // Markdown/CSV/TSV blocks are transformed into
+                          // renderable HTML before opening the preview.
+                          String html = widget.code;
+                          if (_isMarkdown(widget.language)) {
+                            try {
+                              html =
+                                  await MarkdownPreviewHtmlBuilder
+                                      .buildFromMarkdown(
+                                        context,
+                                        widget.code,
+                                      );
+                            } catch (_) {
+                              if (!mounted) return;
+                              showAppSnackBar(
+                                context,
+                                message: l10n.mermaidPreviewOpenFailed,
+                                type: NotificationType.error,
+                              );
+                              return;
+                            }
+                          } else if (_isTable(widget.language)) {
+                            html = _buildTableHtml(
+                              widget.code,
+                              isTsv: widget.language.trim().toLowerCase() ==
+                                  'tsv',
+                            );
+                          }
+                          if (!mounted) return;
                           if (Platform.isAndroid || Platform.isIOS) {
                             // Mobile: navigate to preview page
                             Navigator.of(context).push(
                               PageRouteBuilder(
-                                pageBuilder: (_, __, ___) =>
-                                    HtmlPreviewPage(html: widget.code),
+                                pageBuilder: (_, __, ___) => HtmlPreviewPage(
+                                  html: html,
+                                  isXml: isXml,
+                                ),
                                 transitionDuration: const Duration(
                                   milliseconds: 300,
                                 ),
@@ -1153,7 +1188,8 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                               // ignore: use_build_context_synchronously
                               await showHtmlPreviewDesktopDialog(
                                 context,
-                                html: widget.code,
+                                html: html,
+                                isXml: isXml,
                               );
                             } catch (_) {}
                           }
@@ -1481,6 +1517,155 @@ bool _isHtml(String? lang) {
   final l = (lang ?? '').trim().toLowerCase();
   return l == 'html' || l == 'htm' || l == 'rawhtml' || l == 'raw_html';
 }
+
+bool _isXml(String? lang) {
+  final l = (lang ?? '').trim().toLowerCase();
+  const xmlFamily = {
+    'xml',
+    'svg',
+    'xsd',
+    'xsl',
+    'xslt',
+    'rss',
+    'atom',
+    'plist',
+    'xaml',
+  };
+  return xmlFamily.contains(l);
+}
+
+bool _isMarkdown(String? lang) {
+  final l = (lang ?? '').trim().toLowerCase();
+  return l == 'md' || l == 'markdown' || l == 'mdx';
+}
+
+bool _isTable(String? lang) {
+  final l = (lang ?? '').trim().toLowerCase();
+  return l == 'csv' || l == 'tsv';
+}
+
+// Build a themed HTML table fragment for CSV/TSV code blocks. The fragment is
+// embedded into the preview shell, which supplies the theme background/text
+// colors, so the styles here only need to be theme-neutral.
+String _buildTableHtml(String code, {required bool isTsv}) {
+  final delimiter = isTsv ? '\t' : ',';
+  final rows = _parseDelimited(code, delimiter);
+  if (rows.isEmpty) return '<p>${_escapeHtml(code)}</p>';
+
+  var colCount = 0;
+  for (final r in rows) {
+    if (r.length > colCount) colCount = r.length;
+  }
+
+  final buffer = StringBuffer();
+  buffer.write('''
+<style>
+  .csv-table-wrap { overflow: auto; max-height: 70vh; }
+  table.csv-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  table.csv-table th, table.csv-table td {
+    border: 1px solid rgba(128, 128, 128, 0.35);
+    padding: 6px 10px; text-align: left; vertical-align: top;
+    word-break: break-word; white-space: pre-wrap;
+  }
+  table.csv-table th {
+    background: rgba(128, 128, 128, 0.16);
+    font-weight: 600; position: sticky; top: 0;
+  }
+  table.csv-table tbody tr:nth-child(even) td {
+    background: rgba(128, 128, 128, 0.06);
+  }
+</style>
+<div class="csv-table-wrap"><table class="csv-table">''');
+
+  // First row is treated as the header.
+  final header = rows.first;
+  buffer.write('<thead><tr>');
+  for (var i = 0; i < colCount; i++) {
+    buffer.write(
+      '<th>${_escapeHtml(i < header.length ? header[i] : '')}</th>',
+    );
+  }
+  buffer.write('</tr></thead><tbody>');
+  for (var r = 1; r < rows.length; r++) {
+    final row = rows[r];
+    buffer.write('<tr>');
+    for (var i = 0; i < colCount; i++) {
+      buffer.write(
+        '<td>${_escapeHtml(i < row.length ? row[i] : '')}</td>',
+      );
+    }
+    buffer.write('</tr>');
+  }
+  buffer.write('</tbody></table></div>');
+  return buffer.toString();
+}
+
+// Minimal CSV/TSV parser: supports double-quoted fields, escaped quotes (""),
+// delimiters/newlines inside quotes, and CRLF line endings.
+List<List<String>> _parseDelimited(String input, String delimiter) {
+  final rows = <List<String>>[];
+  var row = <String>[];
+  final buf = StringBuffer();
+  var inQuotes = false;
+  var i = 0;
+  final n = input.length;
+  while (i < n) {
+    final c = input[i];
+    if (inQuotes) {
+      if (c == '"') {
+        if (i + 1 < n && input[i + 1] == '"') {
+          buf.write('"');
+          i += 2;
+          continue;
+        }
+        inQuotes = false;
+        i++;
+        continue;
+      }
+      buf.write(c);
+      i++;
+      continue;
+    }
+    if (c == '"') {
+      inQuotes = true;
+      i++;
+      continue;
+    }
+    if (c == delimiter) {
+      row.add(buf.toString());
+      buf.clear();
+      i++;
+      continue;
+    }
+    if (c == '\r' || c == '\n') {
+      row.add(buf.toString());
+      buf.clear();
+      rows.add(row);
+      row = <String>[];
+      if (c == '\r' && i + 1 < n && input[i + 1] == '\n') i++;
+      i++;
+      continue;
+    }
+    buf.write(c);
+    i++;
+  }
+  if (buf.isNotEmpty || row.isNotEmpty) {
+    row.add(buf.toString());
+    rows.add(row);
+  }
+  // Drop fully-empty trailing rows (common trailing newline).
+  while (rows.isNotEmpty && rows.last.every((f) => f.trim().isEmpty)) {
+    rows.removeLast();
+  }
+  return rows;
+}
+
+String _escapeHtml(String s) => s
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 
 class _MermaidBlock extends StatefulWidget {
   final String code;

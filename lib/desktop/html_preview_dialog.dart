@@ -12,7 +12,7 @@ import '../shared/widgets/snackbar.dart';
 import '../shared/widgets/ios_tactile.dart';
 import 'dart:convert';
 
-Future<void> showHtmlPreviewDesktopDialog(BuildContext context, {required String html}) async {
+Future<void> showHtmlPreviewDesktopDialog(BuildContext context, {required String html, bool isXml = false}) async {
   if (Platform.isLinux) {
     final l10n = AppLocalizations.of(context)!;
     showAppSnackBar(context, message: l10n.htmlPreviewNotSupportedOnLinux, type: NotificationType.warning);
@@ -21,13 +21,17 @@ Future<void> showHtmlPreviewDesktopDialog(BuildContext context, {required String
   await showDialog(
     context: context,
     barrierDismissible: true,
-    builder: (ctx) => _HtmlPreviewDialog(html: html),
+    builder: (ctx) => _HtmlPreviewDialog(html: html, isXml: isXml),
   );
 }
 
 class _HtmlPreviewDialog extends StatefulWidget {
-  const _HtmlPreviewDialog({required this.html});
+  const _HtmlPreviewDialog({required this.html, this.isXml = false});
   final String html;
+  // When true, the content is XML/SVG and is loaded as a standalone XML
+  // document so the browser renders its native collapsible tree (or the SVG
+  // graphic). HTML wrapping/theme injection is skipped for XML.
+  final bool isXml;
 
   @override
   State<_HtmlPreviewDialog> createState() => _HtmlPreviewDialogState();
@@ -41,6 +45,7 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
   bool _ready = false;
   bool _loadedOnce = false;
   bool? _lastDark;
+  bool _xmlLoaded = false; // XML documents are theme-independent: load once
   final List<_ConsoleMessage> _console = <_ConsoleMessage>[];
   StreamSubscription? _msgSub;
   // Race-safe init/dispose guards (v1.5.29 Fix C):
@@ -125,21 +130,35 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
     return '''<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><style>html,body{background:${bg};color:${fg};margin:0;padding:0}.container{padding:12px}img,video,canvas,iframe{max-width:100%;height:auto}pre,code{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, \"Liberation Mono\", monospace;}</style></head><body><div class="container">${input}</div></body></html>''';
   }
 
-  Future<String> _writeTempHtml(String html) async {
+  Future<String> _writeTempFile(String content, String extension) async {
     final dir = await getTemporaryDirectory();
-    final file = io.File('${dir.path}/html_preview_${DateTime.now().millisecondsSinceEpoch}.html');
-    await file.writeAsString(html, flush: true);
+    final file = io.File('${dir.path}/preview_${DateTime.now().millisecondsSinceEpoch}$extension');
+    await file.writeAsString(content, flush: true);
     return file.path;
   }
 
   Future<void> _loadWithTheme() async {
     if (!_ready) return;
+    if (widget.isXml) {
+      // Native XML document view: no theme dependence, load once.
+      if (_xmlLoaded) return;
+      final path = await _writeTempFile(widget.html, '.xml');
+      _tempFilePath = path;
+      if (Platform.isWindows) {
+        await _winCtrl?.loadUrl(Uri.file(path).toString());
+      } else {
+        await _flutterCtrl?.loadFile(path);
+      }
+      _xmlLoaded = true;
+      if (mounted) setState(() {});
+      return;
+    }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     if (_loadedOnce && _lastDark == isDark) return; // no change
     _lastDark = isDark;
     final html = _wrapWithTheme(widget.html, isDark: isDark);
     if (Platform.isWindows) {
-      final path = await _writeTempHtml(html);
+      final path = await _writeTempFile(html, '.html');
       _tempFilePath = path;
       await _winCtrl?.loadUrl(Uri.file(path).toString());
     } else {

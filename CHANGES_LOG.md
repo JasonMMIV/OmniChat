@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-02 (v1.6.8)
+- **Last Updated**: 2026-08-03 (v1.6.8+)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -178,6 +178,39 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+
+## [v1.6.8+] - 2026-08-03: Code Block Preview Buttons (XML / Markdown / CSV / TSV)
+
+### 148. XML & XML-Family Code Block Preview
+
+- **Purpose**: Add a Preview button to XML-family code blocks (`xml`, `svg`, `xsd`, `xsl`/`xslt`, `rss`, `atom`, `plist`, `xaml`) in chat messages, matching the existing HTML preview. Instead of injecting XML into the HTML preview shell (which would strip tags/attributes), the XML is loaded as a standalone `.xml` document in the WebView so browsers render their native collapsible tree view; `svg` blocks render the graphic directly.
+- **Files Modified**:
+  - `lib/shared/widgets/markdown_with_highlight.dart` (added `_isXml` helper; the preview button now also shows for XML-family languages and passes an `isXml` flag)
+  - `lib/features/chat/pages/html_preview_page.dart` (added `isXml` param; writes a temp `.xml` file and uses `loadFile` so the native XML document view is used on mobile)
+  - `lib/desktop/html_preview_dialog.dart` (added `isXml` param; writes a temp `.xml` file and loads via `loadUrl` (Windows) / `loadFile` (macOS); generalized `_writeTempHtml` → `_writeTempFile(content, extension)`)
+- **Details**:
+  - The existing `_wrapWithTheme` / `_wrapIfNeeded` HTML-shell wrapping is skipped for XML — embedding XML into an HTML document would make browsers parse the tags as HTML elements and drop all attributes. Loading the raw XML document instead gives Chromium/WebKit's native collapsible tree.
+  - Android's `loadFile` implementation auto-enables `allowFileAccess` (verified in `webview_flutter_android` source), so no extra platform configuration is needed.
+
+### 149. Markdown Code Block Preview
+
+- **Purpose**: Add a Preview button to Markdown code blocks (`md`, `markdown`, `mdx`) so fenced documents render as formatted HTML instead of raw source.
+- **Files Modified**:
+  - `lib/shared/widgets/markdown_with_highlight.dart` (added `_isMarkdown` helper; the preview converts the block via `MarkdownPreviewHtmlBuilder.buildFromMarkdown` before opening the existing preview page/dialog)
+- **Details**:
+  - Reuses the existing `MarkdownPreviewHtmlBuilder` — the same pipeline as the message-level "Render as HTML" action — which builds a theme-colored HTML page from the bundled `assets/html/mark.html` template.
+  - Conversion failures show an error snackbar instead of opening a blank preview.
+
+### 150. CSV / TSV Table Preview
+
+- **Purpose**: Add a Preview button to CSV/TSV code blocks so tabular data renders as a themed HTML table (first row = sticky header, zebra striping, scrollable) instead of raw text.
+- **Files Modified**:
+  - `lib/shared/widgets/markdown_with_highlight.dart` (added `_isTable` helper, `_parseDelimited` CSV/TSV parser, `_buildTableHtml` table generator, and `_escapeHtml`)
+- **Details**:
+  - The minimal parser supports double-quoted fields, escaped quotes (`""`), delimiters/newlines inside quoted fields, and CRLF line endings.
+  - All cell content is HTML-escaped (no injection risk). The table fragment is embedded in the existing preview shell so it picks up the current light/dark theme automatically.
+
+---
 
 ## [v1.6.8] - 2026-08-02: Academic Search Providers — arXiv, PubMed & Semantic Scholar
 
