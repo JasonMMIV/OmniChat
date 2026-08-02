@@ -203,6 +203,21 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
   - **Optional API Key Design**: All three providers function with an empty key. PubMed & Semantic Scholar show an optional "API Key" field in add/edit dialogs and a "No key required" status when left blank; arXiv needs no configuration at all.
   - **Localization**: Added 17 new l10n keys across en / zh / zh_Hans / zh_Hant (service names, descriptions, optional-key hints, status strings).
 
+### 145. Academic Search Provider Brand Icons (arXiv / PubMed / Semantic Scholar)
+
+- **Purpose**: Add official brand icons for the three v1.6.8 academic search providers so they display branded badges instead of letter fallbacks across all UI surfaces, consistent with the other search services.
+- **Files Modified**:
+  - `assets/icons/arxiv-color.svg` (NEW, brand red `#B31B1B`)
+  - `assets/icons/pubmed-color.svg` (NEW, brand blue `#326599`)
+  - `assets/icons/semanticscholar-color.svg` (NEW, brand blue `#1857B6`)
+  - `lib/utils/brand_assets.dart` (registered 3 new `_mapping` entries)
+  - `lib/desktop/setting/search_services_pane.dart` (added 3 cases to `_nameForService`)
+  - `lib/features/search/widgets/search_settings_sheet.dart` (added 3 cases to `_nameForService`)
+- **Details**:
+  - **Brand Assets**: Downloaded official brand SVG icons (Simple Icons CDN) into `assets/icons/` following the existing `-color.svg` naming convention, so dark-mode tinting logic (`isColorful`) keeps the brand colors intact.
+  - **BrandAssets Mapping**: Added `arxiv`, `pubmed`, and `semanticscholar|semantic scholar` regex entries to `BrandAssets._mapping`. The alternation covers both the display name `'Semantic Scholar'` (with space, used by `chat_input_bar.dart` / `search_provider_popover.dart`) and the `'semanticscholar'` key used by `_BrandBadge._nameForService`.
+  - **Fallback Fix**: The desktop `search_services_pane.dart` and mobile `search_settings_sheet.dart` `_nameForService` methods previously lacked the three new cases and fell back to the generic `'search'` badge; added explicit mappings so the brand badges render correctly everywhere.
+
 ---
 
 ## [v1.6.7] - 2026-08-01: Extra High & Max Reasoning Effort Levels with Model-Specific API Translation

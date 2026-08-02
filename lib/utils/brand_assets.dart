@@ -76,5 +76,8 @@ class BrandAssets {
     MapEntry(RegExp(r'mimo|xiaomi|小米'), 'mimo.svg'),
     MapEntry(RegExp(r'neuralwatt'), 'neuralwatt-color.svg'),
     MapEntry(RegExp(r'tinyfish'), 'tinyfish.png'),
+    MapEntry(RegExp(r'arxiv'), 'arxiv-color.svg'),
+    MapEntry(RegExp(r'pubmed'), 'pubmed-color.svg'),
+    MapEntry(RegExp(r'semanticscholar|semantic scholar'), 'semanticscholar-color.svg'),
   ];
 }

@@ -602,6 +602,9 @@ class _BrandBadge extends StatelessWidget {
     if (s is PerplexityOptions) return 'perplexity';
     if (s is BochaOptions) return 'bocha';
     if (s is TinyfishOptions) return 'tinyfish';
+    if (s is ArxivOptions) return 'arxiv';
+    if (s is PubMedOptions) return 'pubmed';
+    if (s is SemanticScholarOptions) return 'semanticscholar';
     return 'search';
   }
 
