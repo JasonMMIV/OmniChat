@@ -15,6 +15,9 @@ import 'providers/perplexity_search_service.dart';
 import 'providers/duckduckgo_search_service.dart';
 import 'providers/google_search_service.dart';
 import 'providers/tinyfish_search_service.dart';
+import 'providers/arxiv_search_service.dart';
+import 'providers/pubmed_search_service.dart';
+import 'providers/semantic_scholar_search_service.dart';
 
 // Base interface for all search services
 abstract class SearchService<T extends SearchServiceOptions> {
@@ -61,6 +64,12 @@ abstract class SearchService<T extends SearchServiceOptions> {
         return GoogleSearchService() as SearchService;
       case TinyfishOptions:
         return TinyfishSearchService() as SearchService;
+      case ArxivOptions:
+        return ArxivSearchService() as SearchService;
+      case PubMedOptions:
+        return PubmedSearchService() as SearchService;
+      case SemanticScholarOptions:
+        return SemanticScholarSearchService() as SearchService;
       default:
         return BingSearchService() as SearchService;
     }
@@ -180,6 +189,12 @@ abstract class SearchServiceOptions {
         return GoogleOptions.fromJson(json);
       case 'tinyfish':
         return TinyfishOptions.fromJson(json);
+      case 'arxiv':
+        return ArxivOptions.fromJson(json);
+      case 'pubmed':
+        return PubMedOptions.fromJson(json);
+      case 'semantic_scholar':
+        return SemanticScholarOptions.fromJson(json);
       default:
         return BingLocalOptions(id: json['id']);
     }
@@ -500,4 +515,60 @@ class TinyfishOptions extends SearchServiceOptions {
     id: json['id'],
     apiKey: json['apiKey'] ?? '',
   );
+}
+
+class ArxivOptions extends SearchServiceOptions {
+  const ArxivOptions({required String id}) : super(id: id);
+
+  @override
+  Map<String, dynamic> toJson() => {'type': 'arxiv', 'id': id};
+
+  factory ArxivOptions.fromJson(Map<String, dynamic> json) =>
+      ArxivOptions(id: json['id']);
+}
+
+class PubMedOptions extends SearchServiceOptions {
+  final String apiKey;
+  final String tool;
+  final String email;
+
+  PubMedOptions({
+    required String id,
+    this.apiKey = '',
+    this.tool = '',
+    this.email = '',
+  }) : super(id: id);
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'pubmed',
+    'id': id,
+    'apiKey': apiKey,
+    'tool': tool,
+    'email': email,
+  };
+
+  factory PubMedOptions.fromJson(Map<String, dynamic> json) => PubMedOptions(
+    id: json['id'],
+    apiKey: json['apiKey'] ?? '',
+    tool: json['tool'] ?? '',
+    email: json['email'] ?? '',
+  );
+}
+
+class SemanticScholarOptions extends SearchServiceOptions {
+  final String apiKey;
+
+  SemanticScholarOptions({required String id, this.apiKey = ''})
+    : super(id: id);
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'semantic_scholar',
+    'id': id,
+    'apiKey': apiKey,
+  };
+
+  factory SemanticScholarOptions.fromJson(Map<String, dynamic> json) =>
+      SemanticScholarOptions(id: json['id'], apiKey: json['apiKey'] ?? '');
 }

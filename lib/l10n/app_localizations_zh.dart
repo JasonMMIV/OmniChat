@@ -839,6 +839,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchServicesPageApiKeyRequiredStatus => '需要 API Key';
 
   @override
+  String get searchServicesPageNoKeyRequiredStatus => '无需 API 密钥';
+
+  @override
   String get searchServicesPageUrlRequiredStatus => '需要 URL';
 
   @override
@@ -1281,6 +1284,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchServiceNameTinyfish => 'Tinyfish';
 
   @override
+  String get searchServiceNameArxiv => 'arXiv';
+
+  @override
+  String get searchServiceNamePubMed => 'PubMed';
+
+  @override
+  String get searchServiceNameSemanticScholar => 'Semantic Scholar';
+
+  @override
   String get searchServicesAddDialogAdd => '添加';
 
   @override
@@ -1288,6 +1300,21 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get searchServicesAddDialogApiKeyRequired => 'API Key 必填';
+
+  @override
+  String get searchServicesAddDialogApiKeyOptional => 'API Key（可选）';
+
+  @override
+  String get searchServicesAddDialogApiKeyOptionalHint => '可选 - 提高速率限制';
+
+  @override
+  String get searchServicesAddDialogNoKeyRequiredHint => '无需 API 密钥，开箱即用。';
+
+  @override
+  String get searchServicesAddDialogToolOptional => 'Tool（可选）';
+
+  @override
+  String get searchServicesAddDialogEmailOptional => 'Email（可选）';
 
   @override
   String get searchServicesAddDialogInstanceUrl => '实例 URL';
@@ -1318,6 +1345,21 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get searchServicesEditDialogApiKeyRequired => 'API Key 必填';
+
+  @override
+  String get searchServicesEditDialogApiKeyOptional => 'API Key（可选）';
+
+  @override
+  String get searchServicesEditDialogApiKeyOptionalHint => '可选 - 提高速率限制';
+
+  @override
+  String get searchServicesEditDialogToolOptional => 'Tool（可选）';
+
+  @override
+  String get searchServicesEditDialogEmailOptional => 'Email（可选）';
+
+  @override
+  String get searchServicesEditDialogNoConfigRequired => '无需配置。';
 
   @override
   String get searchServicesEditDialogInstanceUrl => '实例 URL';
@@ -1957,6 +1999,18 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get searchProviderTinyfishDescription =>
       '使用 Tinyfish Search API 搜索即时网页结果。';
+
+  @override
+  String get searchProviderArxivDescription =>
+      'arXiv 预印本库，涵盖物理、数学、计算机科学等领域。无需 API 密钥。';
+
+  @override
+  String get searchProviderPubMedDescription =>
+      'PubMed 生物医学文献检索，返回摘要。无需 API 密钥（填写密钥可提高速率限制）。';
+
+  @override
+  String get searchProviderSemanticScholarDescription =>
+      'Semantic Scholar 学术搜索，包含引用数与 AI 摘要。API 密钥可选。';
 
   @override
   String get selectCopyPageCopiedAll => '已复制全部';
@@ -4847,6 +4901,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get searchServicesPageApiKeyRequiredStatus => '需要 API Key';
 
   @override
+  String get searchServicesPageNoKeyRequiredStatus => '无需 API 密钥';
+
+  @override
   String get searchServicesPageUrlRequiredStatus => '需要 URL';
 
   @override
@@ -5289,6 +5346,15 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get searchServiceNameTinyfish => 'Tinyfish';
 
   @override
+  String get searchServiceNameArxiv => 'arXiv';
+
+  @override
+  String get searchServiceNamePubMed => 'PubMed';
+
+  @override
+  String get searchServiceNameSemanticScholar => 'Semantic Scholar';
+
+  @override
   String get searchServicesAddDialogAdd => '添加';
 
   @override
@@ -5296,6 +5362,21 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get searchServicesAddDialogApiKeyRequired => 'API Key 必填';
+
+  @override
+  String get searchServicesAddDialogApiKeyOptional => 'API Key（可选）';
+
+  @override
+  String get searchServicesAddDialogApiKeyOptionalHint => '可选 - 提高速率限制';
+
+  @override
+  String get searchServicesAddDialogNoKeyRequiredHint => '无需 API 密钥，开箱即用。';
+
+  @override
+  String get searchServicesAddDialogToolOptional => 'Tool（可选）';
+
+  @override
+  String get searchServicesAddDialogEmailOptional => 'Email（可选）';
 
   @override
   String get searchServicesAddDialogInstanceUrl => '实例 URL';
@@ -5326,6 +5407,21 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get searchServicesEditDialogApiKeyRequired => 'API Key 必填';
+
+  @override
+  String get searchServicesEditDialogApiKeyOptional => 'API Key（可选）';
+
+  @override
+  String get searchServicesEditDialogApiKeyOptionalHint => '可选 - 提高速率限制';
+
+  @override
+  String get searchServicesEditDialogToolOptional => 'Tool（可选）';
+
+  @override
+  String get searchServicesEditDialogEmailOptional => 'Email（可选）';
+
+  @override
+  String get searchServicesEditDialogNoConfigRequired => '无需配置。';
 
   @override
   String get searchServicesEditDialogInstanceUrl => '实例 URL';
@@ -5959,6 +6055,18 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   @override
   String get searchProviderTinyfishDescription =>
       '使用 Tinyfish Search API 搜索即时网页结果。';
+
+  @override
+  String get searchProviderArxivDescription =>
+      'arXiv 预印本库，涵盖物理、数学、计算机科学等领域。无需 API 密钥。';
+
+  @override
+  String get searchProviderPubMedDescription =>
+      'PubMed 生物医学文献检索，返回摘要。无需 API 密钥（填写密钥可提高速率限制）。';
+
+  @override
+  String get searchProviderSemanticScholarDescription =>
+      'Semantic Scholar 学术搜索，包含引用数与 AI 摘要。API 密钥可选。';
 
   @override
   String get selectCopyPageCopiedAll => '已复制全部';
@@ -8751,6 +8859,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get searchServicesPageApiKeyRequiredStatus => '需要 API Key';
 
   @override
+  String get searchServicesPageNoKeyRequiredStatus => '無需 API 金鑰';
+
+  @override
   String get searchServicesPageUrlRequiredStatus => '需要 URL';
 
   @override
@@ -9134,6 +9245,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get searchServiceNameTinyfish => 'Tinyfish';
 
   @override
+  String get searchServiceNameArxiv => 'arXiv';
+
+  @override
+  String get searchServiceNamePubMed => 'PubMed';
+
+  @override
+  String get searchServiceNameSemanticScholar => 'Semantic Scholar';
+
+  @override
   String get searchServicesAddDialogAdd => '新增';
 
   @override
@@ -9141,6 +9261,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get searchServicesAddDialogApiKeyRequired => 'API Key 必填';
+
+  @override
+  String get searchServicesAddDialogApiKeyOptional => 'API Key（選填）';
+
+  @override
+  String get searchServicesAddDialogApiKeyOptionalHint => '選填 - 提高速率限制';
+
+  @override
+  String get searchServicesAddDialogNoKeyRequiredHint => '無需 API 金鑰，開箱即用。';
+
+  @override
+  String get searchServicesAddDialogToolOptional => 'Tool（選填）';
+
+  @override
+  String get searchServicesAddDialogEmailOptional => 'Email（選填）';
 
   @override
   String get searchServicesAddDialogInstanceUrl => '實例 URL';
@@ -9171,6 +9306,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get searchServicesEditDialogApiKeyRequired => 'API Key 必填';
+
+  @override
+  String get searchServicesEditDialogApiKeyOptional => 'API Key（選填）';
+
+  @override
+  String get searchServicesEditDialogApiKeyOptionalHint => '選填 - 提高速率限制';
+
+  @override
+  String get searchServicesEditDialogToolOptional => 'Tool（選填）';
+
+  @override
+  String get searchServicesEditDialogEmailOptional => 'Email（選填）';
+
+  @override
+  String get searchServicesEditDialogNoConfigRequired => '無需設定。';
 
   @override
   String get searchServicesEditDialogInstanceUrl => '實例 URL';
@@ -9804,6 +9954,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get searchProviderTinyfishDescription =>
       '使用 Tinyfish Search API 搜尋即時網頁結果。';
+
+  @override
+  String get searchProviderArxivDescription =>
+      'arXiv 預印本庫，涵蓋物理、數學、電腦科學等領域。無需 API 金鑰。';
+
+  @override
+  String get searchProviderPubMedDescription =>
+      'PubMed 生物醫學文獻檢索，回傳摘要。無需 API 金鑰（填寫金鑰可提高速率限制）。';
+
+  @override
+  String get searchProviderSemanticScholarDescription =>
+      'Semantic Scholar 學術搜尋，包含引用數與 AI 摘要。API 金鑰選填。';
 
   @override
   String get selectCopyPageCopiedAll => '已複製全部';

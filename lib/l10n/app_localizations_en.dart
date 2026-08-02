@@ -847,6 +847,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchServicesPageApiKeyRequiredStatus => 'API Key Required';
 
   @override
+  String get searchServicesPageNoKeyRequiredStatus => 'No key required';
+
+  @override
   String get searchServicesPageUrlRequiredStatus => 'URL Required';
 
   @override
@@ -1288,6 +1291,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchServiceNameTinyfish => 'Tinyfish';
 
   @override
+  String get searchServiceNameArxiv => 'arXiv';
+
+  @override
+  String get searchServiceNamePubMed => 'PubMed';
+
+  @override
+  String get searchServiceNameSemanticScholar => 'Semantic Scholar';
+
+  @override
   String get searchServicesAddDialogAdd => 'Add';
 
   @override
@@ -1295,6 +1307,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchServicesAddDialogApiKeyRequired => 'Key required';
+
+  @override
+  String get searchServicesAddDialogApiKeyOptional => 'API Key (Optional)';
+
+  @override
+  String get searchServicesAddDialogApiKeyOptionalHint =>
+      'Optional - raises the rate limit';
+
+  @override
+  String get searchServicesAddDialogNoKeyRequiredHint =>
+      'No API key required. Works out of the box.';
+
+  @override
+  String get searchServicesAddDialogToolOptional => 'Tool (Optional)';
+
+  @override
+  String get searchServicesAddDialogEmailOptional => 'Email (Optional)';
 
   @override
   String get searchServicesAddDialogInstanceUrl => 'URL';
@@ -1325,6 +1354,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchServicesEditDialogApiKeyRequired => 'Key required';
+
+  @override
+  String get searchServicesEditDialogApiKeyOptional => 'API Key (Optional)';
+
+  @override
+  String get searchServicesEditDialogApiKeyOptionalHint =>
+      'Optional - raises the rate limit';
+
+  @override
+  String get searchServicesEditDialogToolOptional => 'Tool (Optional)';
+
+  @override
+  String get searchServicesEditDialogEmailOptional => 'Email (Optional)';
+
+  @override
+  String get searchServicesEditDialogNoConfigRequired =>
+      'No configuration required.';
 
   @override
   String get searchServicesEditDialogInstanceUrl => 'URL';
@@ -1952,6 +1998,18 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get searchProviderTinyfishDescription =>
       'Search the live web with Tinyfish Search API.';
+
+  @override
+  String get searchProviderArxivDescription =>
+      'arXiv preprint repository for physics, math, computer science and more. No API key required.';
+
+  @override
+  String get searchProviderPubMedDescription =>
+      'PubMed biomedical literature search with abstracts from the U.S. National Library of Medicine. No API key required (an optional key raises the rate limit).';
+
+  @override
+  String get searchProviderSemanticScholarDescription =>
+      'Semantic Scholar academic search with citations and AI summaries. API key optional.';
 
   @override
   String get selectCopyPageCopiedAll => 'Copied';

@@ -582,6 +582,9 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     if (service is PerplexityOptions) return Lucide.Search;
     if (service is BochaOptions) return Lucide.Search;
     if (service is TinyfishOptions) return Lucide.Search;
+    if (service is ArxivOptions) return Lucide.BookOpen;
+    if (service is PubMedOptions) return Lucide.Activity;
+    if (service is SemanticScholarOptions) return Lucide.Brain;
     return Lucide.Search;
   }
 
@@ -638,6 +641,15 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
       return service.apiKey.isNotEmpty
           ? l10n.searchServicesPageConfiguredStatus
           : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (service is ArxivOptions) return l10n.searchServicesPageConfiguredStatus;
+    if (service is PubMedOptions)
+      return service.apiKey.isNotEmpty
+          ? l10n.searchServicesPageConfiguredStatus
+          : l10n.searchServicesPageNoKeyRequiredStatus;
+    if (service is SemanticScholarOptions)
+      return service.apiKey.isNotEmpty
+          ? l10n.searchServicesPageConfiguredStatus
+          : l10n.searchServicesPageNoKeyRequiredStatus;
     return null;
   }
 
@@ -673,6 +685,9 @@ class _BrandBadge extends StatelessWidget {
     if (s is PerplexityOptions) return 'perplexity';
     if (s is BochaOptions) return 'bocha';
     if (s is TinyfishOptions) return 'tinyfish';
+    if (s is ArxivOptions) return 'arxiv';
+    if (s is PubMedOptions) return 'pubmed';
+    if (s is SemanticScholarOptions) return 'semanticscholar';
     return 'search';
   }
 
@@ -847,6 +862,12 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
       {'type': 'perplexity', 'name': l10n.searchServiceNamePerplexity},
       {'type': 'bocha', 'name': l10n.searchServiceNameBocha},
       {'type': 'tinyfish', 'name': l10n.searchServiceNameTinyfish},
+      {'type': 'arxiv', 'name': l10n.searchServiceNameArxiv},
+      {'type': 'pubmed', 'name': l10n.searchServiceNamePubMed},
+      {
+        'type': 'semantic_scholar',
+        'name': l10n.searchServiceNameSemanticScholar,
+      },
     ];
     return ListView.builder(
       key: const ValueKey('service_list'),
@@ -911,6 +932,12 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
         return l10n.searchServiceNameBocha;
       case 'tinyfish':
         return l10n.searchServiceNameTinyfish;
+      case 'arxiv':
+        return l10n.searchServiceNameArxiv;
+      case 'pubmed':
+        return l10n.searchServiceNamePubMed;
+      case 'semantic_scholar':
+        return l10n.searchServiceNameSemanticScholar;
       default:
         return '';
     }
@@ -1108,6 +1135,59 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
             obscureText: true,
           ),
         ];
+      case 'arxiv':
+        return [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: cs.surfaceVariant.withOpacity(isDark ? 0.18 : 0.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Lucide.BookOpen, size: 20, color: cs.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    l10n.searchServicesAddDialogNoKeyRequiredHint,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: cs.onSurface.withOpacity(0.8),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ];
+      case 'pubmed':
+        return [
+          _buildTextField(
+            key: 'apiKey',
+            label: l10n.searchServicesAddDialogApiKeyOptional,
+            hint: l10n.searchServicesAddDialogApiKeyOptionalHint,
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'tool',
+            label: l10n.searchServicesAddDialogToolOptional,
+            hint: 'OmniChat',
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'email',
+            label: l10n.searchServicesAddDialogEmailOptional,
+            hint: 'you@example.com',
+          ),
+        ];
+      case 'semantic_scholar':
+        return [
+          _buildTextField(
+            key: 'apiKey',
+            label: l10n.searchServicesAddDialogApiKeyOptional,
+            hint: l10n.searchServicesAddDialogApiKeyOptionalHint,
+          ),
+        ];
       default:
         return [];
     }
@@ -1163,6 +1243,20 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
         return BochaOptions(id: id, apiKey: _controllers['apiKey']!.text);
       case 'tinyfish':
         return TinyfishOptions(id: id, apiKey: _controllers['apiKey']!.text);
+      case 'arxiv':
+        return ArxivOptions(id: id);
+      case 'pubmed':
+        return PubMedOptions(
+          id: id,
+          apiKey: _controllers['apiKey']?.text ?? '',
+          tool: _controllers['tool']?.text ?? '',
+          email: _controllers['email']?.text ?? '',
+        );
+      case 'semantic_scholar':
+        return SemanticScholarOptions(
+          id: id,
+          apiKey: _controllers['apiKey']?.text ?? '',
+        );
       default:
         return BingLocalOptions(id: id);
     }
@@ -1224,6 +1318,12 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
     } else if (service is BochaOptions) {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
     } else if (service is TinyfishOptions) {
+      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+    } else if (service is PubMedOptions) {
+      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['tool'] = TextEditingController(text: service.tool);
+      _controllers['email'] = TextEditingController(text: service.email);
+    } else if (service is SemanticScholarOptions) {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
     }
   }
@@ -1440,6 +1540,36 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
           obscureText: true,
         ),
       ];
+    } else if (service is PubMedOptions) {
+      return [
+        _buildTextField(
+          key: 'apiKey',
+          label: l10n.searchServicesEditDialogApiKeyOptional,
+          hint: l10n.searchServicesEditDialogApiKeyOptionalHint,
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'tool',
+          label: l10n.searchServicesEditDialogToolOptional,
+          hint: 'OmniChat',
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'email',
+          label: l10n.searchServicesEditDialogEmailOptional,
+          hint: 'you@example.com',
+        ),
+      ];
+    } else if (service is SemanticScholarOptions) {
+      return [
+        _buildTextField(
+          key: 'apiKey',
+          label: l10n.searchServicesEditDialogApiKeyOptional,
+          hint: l10n.searchServicesEditDialogApiKeyOptionalHint,
+        ),
+      ];
+    } else if (service is ArxivOptions) {
+      return [Text(l10n.searchServicesEditDialogNoConfigRequired)];
     }
 
     return [];
@@ -1518,6 +1648,18 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
       return TinyfishOptions(
         id: service.id,
         apiKey: _controllers['apiKey']!.text,
+      );
+    } else if (service is PubMedOptions) {
+      return PubMedOptions(
+        id: service.id,
+        apiKey: _controllers['apiKey']?.text ?? '',
+        tool: _controllers['tool']?.text ?? '',
+        email: _controllers['email']?.text ?? '',
+      );
+    } else if (service is SemanticScholarOptions) {
+      return SemanticScholarOptions(
+        id: service.id,
+        apiKey: _controllers['apiKey']?.text ?? '',
       );
     }
 
@@ -1617,6 +1759,12 @@ class _ServiceIcon extends StatelessWidget {
         return 'bocha';
       case 'tinyfish':
         return 'tinyfish';
+      case 'arxiv':
+        return 'arxiv';
+      case 'pubmed':
+        return 'pubmed';
+      case 'semantic_scholar':
+        return 'semanticscholar';
       default:
         return type;
     }

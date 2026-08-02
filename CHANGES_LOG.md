@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-01 (v1.6.7)
+- **Last Updated**: 2026-08-02 (v1.6.8)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -178,6 +178,32 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+
+## [v1.6.8] - 2026-08-02: Academic Search Providers — arXiv, PubMed & Semantic Scholar
+
+### 144. Academic Search Services (arXiv / PubMed / Semantic Scholar)
+
+- **Purpose**: Add three free academic search providers to the search service, following the existing provider pattern (options class + factory registration + add/edit dialogs on mobile & desktop). All three work out of the box; PubMed and Semantic Scholar accept an optional API key to raise their rate limits.
+- **Files Modified**:
+  - `lib/core/services/search/providers/arxiv_search_service.dart` (NEW)
+  - `lib/core/services/search/providers/pubmed_search_service.dart` (NEW)
+  - `lib/core/services/search/providers/semantic_scholar_search_service.dart` (NEW)
+  - `lib/core/services/search/search_service.dart`
+  - `lib/features/search/pages/search_services_page.dart`
+  - `lib/features/search/widgets/search_settings_sheet.dart`
+  - `lib/desktop/setting/search_services_pane.dart`
+  - `lib/l10n/app_en.arb` / `app_zh.arb` / `app_zh_Hans.arb` / `app_zh_Hant.arb` (+ generated localizations)
+  - `pubspec.yaml` (bumped version to `1.6.8+63`)
+  - `installer.iss` / `installers/omnichat_setup.iss` (updated installer version to 1.6.8)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **arXiv**: Uses the official arXiv API (`export.arxiv.org/api/query`) with Atom XML parsing via the existing `xml` package. No API key or registration needed. A global 3-second throttle enforces the arXiv guideline of at most one request every 3 seconds.
+  - **PubMed (E-utilities)**: Two-step `esearch` (JSON) → `efetch` (XML, abstract) flow returns titles + abstracts only (no full-text). Optional `api_key`/`tool`/`email` parameters; without a key NCBI allows 3 rps, with a free My NCBI key 10 rps.
+  - **Semantic Scholar**: Uses the Academic Graph API `v1/paper/search` (JSON) with a `fields` param and graceful `429` rate-limit messaging. Optional `x-api-key` header; without a key it shares the public pool.
+  - **Optional API Key Design**: All three providers function with an empty key. PubMed & Semantic Scholar show an optional "API Key" field in add/edit dialogs and a "No key required" status when left blank; arXiv needs no configuration at all.
+  - **Localization**: Added 17 new l10n keys across en / zh / zh_Hans / zh_Hant (service names, descriptions, optional-key hints, status strings).
+
+---
 
 ## [v1.6.7] - 2026-08-01: Extra High & Max Reasoning Effort Levels with Model-Specific API Translation
 

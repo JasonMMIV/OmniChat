@@ -772,6 +772,8 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
     'password': TextEditingController(),
     'region': TextEditingController(text: 'us-en'),
     'searchEngineId': TextEditingController(),
+    'tool': TextEditingController(),
+    'email': TextEditingController(),
   };
 
   @override
@@ -911,6 +913,40 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
             obscureText: true,
           ),
         ];
+      case 'arxiv':
+        return [
+          Text(
+            l10n.searchServicesAddDialogNoKeyRequiredHint,
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.75),
+            ),
+          ),
+        ];
+      case 'pubmed':
+        return [
+          TextField(
+            controller: _controllers['apiKey'],
+            decoration: deco(l10n.searchServicesAddDialogApiKeyOptional),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controllers['tool'],
+            decoration: deco(l10n.searchServicesAddDialogToolOptional),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controllers['email'],
+            decoration: deco(l10n.searchServicesAddDialogEmailOptional),
+          ),
+        ];
+      case 'semantic_scholar':
+        return [
+          TextField(
+            controller: _controllers['apiKey'],
+            decoration: deco(l10n.searchServicesAddDialogApiKeyOptional),
+          ),
+        ];
       case 'bing_local':
       default:
         return [];
@@ -963,6 +999,20 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
         return BochaOptions(id: id, apiKey: _controllers['apiKey']!.text);
       case 'tinyfish':
         return TinyfishOptions(id: id, apiKey: _controllers['apiKey']!.text);
+      case 'arxiv':
+        return ArxivOptions(id: id);
+      case 'pubmed':
+        return PubMedOptions(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+          tool: _controllers['tool']!.text,
+          email: _controllers['email']!.text,
+        );
+      case 'semantic_scholar':
+        return SemanticScholarOptions(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+        );
       case 'bing_local':
       default:
         return BingLocalOptions(id: id);
@@ -1021,6 +1071,12 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
     } else if (s is BochaOptions) {
       _controllers['apiKey'] = TextEditingController(text: s.apiKey);
     } else if (s is TinyfishOptions) {
+      _controllers['apiKey'] = TextEditingController(text: s.apiKey);
+    } else if (s is PubMedOptions) {
+      _controllers['apiKey'] = TextEditingController(text: s.apiKey);
+      _controllers['tool'] = TextEditingController(text: s.tool);
+      _controllers['email'] = TextEditingController(text: s.email);
+    } else if (s is SemanticScholarOptions) {
       _controllers['apiKey'] = TextEditingController(text: s.apiKey);
     }
   }
@@ -1156,6 +1212,32 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
           obscureText: true,
         ),
       ];
+    } else if (s is PubMedOptions) {
+      return [
+        TextField(
+          controller: _controllers['apiKey'],
+          decoration: deco(l10n.searchServicesEditDialogApiKeyOptional),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _controllers['tool'],
+          decoration: deco(l10n.searchServicesEditDialogToolOptional),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _controllers['email'],
+          decoration: deco(l10n.searchServicesEditDialogEmailOptional),
+        ),
+      ];
+    } else if (s is SemanticScholarOptions) {
+      return [
+        TextField(
+          controller: _controllers['apiKey'],
+          decoration: deco(l10n.searchServicesEditDialogApiKeyOptional),
+        ),
+      ];
+    } else if (s is ArxivOptions) {
+      return [Text(l10n.searchServicesEditDialogNoConfigRequired)];
     }
     return [];
   }
@@ -1206,6 +1288,18 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
       return BochaOptions(id: s.id, apiKey: _controllers['apiKey']!.text);
     if (s is TinyfishOptions)
       return TinyfishOptions(id: s.id, apiKey: _controllers['apiKey']!.text);
+    if (s is PubMedOptions)
+      return PubMedOptions(
+        id: s.id,
+        apiKey: _controllers['apiKey']!.text,
+        tool: _controllers['tool']!.text,
+        email: _controllers['email']!.text,
+      );
+    if (s is SemanticScholarOptions)
+      return SemanticScholarOptions(
+        id: s.id,
+        apiKey: _controllers['apiKey']!.text,
+      );
     return s;
   }
 }
@@ -1238,6 +1332,9 @@ class _ServiceTypeChipsState extends State<_ServiceTypeChips> {
     (type: 'perplexity', name: 'Perplexity', brand: 'perplexity'),
     (type: 'bocha', name: 'Bocha', brand: 'bocha'),
     (type: 'tinyfish', name: 'Tinyfish', brand: 'tinyfish'),
+    (type: 'arxiv', name: 'arXiv', brand: 'arxiv'),
+    (type: 'pubmed', name: 'PubMed', brand: 'pubmed'),
+    (type: 'semantic_scholar', name: 'Semantic Scholar', brand: 'semanticscholar'),
   ];
   @override
   Widget build(BuildContext context) {

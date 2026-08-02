@@ -1721,6 +1721,12 @@ abstract class AppLocalizations {
   /// **'API Key Required'**
   String get searchServicesPageApiKeyRequiredStatus;
 
+  /// No description provided for @searchServicesPageNoKeyRequiredStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'No key required'**
+  String get searchServicesPageNoKeyRequiredStatus;
+
   /// No description provided for @searchServicesPageUrlRequiredStatus.
   ///
   /// In en, this message translates to:
@@ -2567,6 +2573,24 @@ abstract class AppLocalizations {
   /// **'Tinyfish'**
   String get searchServiceNameTinyfish;
 
+  /// No description provided for @searchServiceNameArxiv.
+  ///
+  /// In en, this message translates to:
+  /// **'arXiv'**
+  String get searchServiceNameArxiv;
+
+  /// No description provided for @searchServiceNamePubMed.
+  ///
+  /// In en, this message translates to:
+  /// **'PubMed'**
+  String get searchServiceNamePubMed;
+
+  /// No description provided for @searchServiceNameSemanticScholar.
+  ///
+  /// In en, this message translates to:
+  /// **'Semantic Scholar'**
+  String get searchServiceNameSemanticScholar;
+
   /// No description provided for @searchServicesAddDialogAdd.
   ///
   /// In en, this message translates to:
@@ -2584,6 +2608,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Key required'**
   String get searchServicesAddDialogApiKeyRequired;
+
+  /// No description provided for @searchServicesAddDialogApiKeyOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'API Key (Optional)'**
+  String get searchServicesAddDialogApiKeyOptional;
+
+  /// No description provided for @searchServicesAddDialogApiKeyOptionalHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional - raises the rate limit'**
+  String get searchServicesAddDialogApiKeyOptionalHint;
+
+  /// No description provided for @searchServicesAddDialogNoKeyRequiredHint.
+  ///
+  /// In en, this message translates to:
+  /// **'No API key required. Works out of the box.'**
+  String get searchServicesAddDialogNoKeyRequiredHint;
+
+  /// No description provided for @searchServicesAddDialogToolOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Tool (Optional)'**
+  String get searchServicesAddDialogToolOptional;
+
+  /// No description provided for @searchServicesAddDialogEmailOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Email (Optional)'**
+  String get searchServicesAddDialogEmailOptional;
 
   /// No description provided for @searchServicesAddDialogInstanceUrl.
   ///
@@ -2644,6 +2698,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Key required'**
   String get searchServicesEditDialogApiKeyRequired;
+
+  /// No description provided for @searchServicesEditDialogApiKeyOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'API Key (Optional)'**
+  String get searchServicesEditDialogApiKeyOptional;
+
+  /// No description provided for @searchServicesEditDialogApiKeyOptionalHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional - raises the rate limit'**
+  String get searchServicesEditDialogApiKeyOptionalHint;
+
+  /// No description provided for @searchServicesEditDialogToolOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Tool (Optional)'**
+  String get searchServicesEditDialogToolOptional;
+
+  /// No description provided for @searchServicesEditDialogEmailOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Email (Optional)'**
+  String get searchServicesEditDialogEmailOptional;
+
+  /// No description provided for @searchServicesEditDialogNoConfigRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'No configuration required.'**
+  String get searchServicesEditDialogNoConfigRequired;
 
   /// No description provided for @searchServicesEditDialogInstanceUrl.
   ///
@@ -3844,6 +3928,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Search the live web with Tinyfish Search API.'**
   String get searchProviderTinyfishDescription;
+
+  /// No description provided for @searchProviderArxivDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'arXiv preprint repository for physics, math, computer science and more. No API key required.'**
+  String get searchProviderArxivDescription;
+
+  /// No description provided for @searchProviderPubMedDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'PubMed biomedical literature search with abstracts from the U.S. National Library of Medicine. No API key required (an optional key raises the rate limit).'**
+  String get searchProviderPubMedDescription;
+
+  /// No description provided for @searchProviderSemanticScholarDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Semantic Scholar academic search with citations and AI summaries. API key optional.'**
+  String get searchProviderSemanticScholarDescription;
 
   /// No description provided for @selectCopyPageCopiedAll.
   ///
