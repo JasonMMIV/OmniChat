@@ -81,6 +81,18 @@ OmniChat 是一款現代化、功能豐富的 AI 聊天軟體，專為流暢的�
 
 ---
 
+### 📚 學術搜尋（Academic Search）
+
+內建學術搜尋服務，將三大免費學術資料庫直接整合至搜尋功能中：
+
+- **arXiv**：透過官方 arXiv API 搜尋預印本論文 — 無需 API 金鑰或註冊，並自動套用速率限制（每 3 秒最多一次請求）。
+- **PubMed（E-utilities）**：以 esearch → efetch 兩階段流程，回傳 NCBI 論文的標題與摘要。
+- **Semantic Scholar**：透過 Academic Graph API 搜尋論文，並以優雅的方式處理速率限制訊息。
+
+三大服務皆可開箱即用；PubMed 與 Semantic Scholar 可選填 API 金鑰以提升速率限制。所有介面（行動版與桌面版）均顯示官方品牌圖示。
+
+---
+
 ### 🌐 進階聯網搜尋與本地工具
 
 - **進階聯網搜尋**：整合 Tinyfish Search API、Google Search API 與多種搜尋引擎，提供更精準、高品質的即時聯網資訊。

@@ -81,6 +81,18 @@ Preset agent protocol designed for complex scientific, technical, and investigat
 
 ---
 
+### 📚 Academic Search
+
+Built-in free academic search providers for scholarly literature, fully integrated into the search service:
+
+- **arXiv**: Search preprints through the official arXiv API — no API key or registration required, with automatic rate-limit throttling (one request every 3 seconds).
+- **PubMed (E-utilities)**: Two-step esearch → efetch flow returns paper titles and abstracts from NCBI.
+- **Semantic Scholar**: Paper search via the Academic Graph API with graceful rate-limit messaging.
+
+All three providers work out of the box; PubMed and Semantic Scholar accept an optional API key to raise their rate limits. Official brand icons are displayed across all UI surfaces (mobile & desktop).
+
+---
+
 ### 🌐 Advanced Web Search & Local MCP Tools
 
 - **Advanced Web Search**: Integrated Tinyfish Search API, Google Search API, and multiple search providers for high-quality real-time information.
