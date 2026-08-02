@@ -179,6 +179,23 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 
 ## 📜 Version Changes Log
 
+## [v1.6.8+] - 2026-08-03: Sidebar New Project Button & Unified Item Spacing
+
+### 152. New Project Button as Part of the Sidebar Project List & Unified 4px Item Spacing
+
+- **Purpose**: (1) Unify vertical spacing in the left sidebar so projects, conversations, and the New Project button all use the same 4px gap; (2) add a localized "New Project" button (folder-with-plus icon) that creates a project through the existing add-assistant flow, rendered as the first item of the scrollable project list rather than a separate fixed row.
+- **Files Modified**:
+  - `lib/features/home/widgets/side_drawer.dart` (new shared `_sideDrawerTileGap` constant; project tiles wrapped in `Padding(bottom: _sideDrawerTileGap)` matching the chat-tile gap; new `_NewProjectButton` widget, `_handleNewProject` handler and `_promptNewProjectName` dialog/sheet; button added as the first child of `_buildFolderTreeList`)
+  - `lib/icons/lucide_adapter.dart` (added `FolderPlus` icon)
+  - `lib/l10n/app_en.arb` / `app_zh.arb` / `app_zh_Hans.arb` / `app_zh_Hant.arb` (+ regenerated `app_localizations*.dart`, added `sideDrawerNewProject` key: en `New Project`, zh-Hans `新增项目`, zh-Hant `新增專案`)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Unified Item Spacing**: Introduced a single top-level constant `_sideDrawerTileGap = 4`. Conversation tiles (`_ChatTile._vGap`), project tiles (`_AssistantFolderTile` wrapped in `Padding(bottom: _sideDrawerTileGap)`), and the New Project button all share it, so button → project → conversation spacing is visually identical (4px).
+  - **New Project Button**: Full-width row with the `FolderPlus` (folder + "+") icon and a system-language label (en / zh-Hans / zh-Hant). Tapping prompts for a project name — desktop uses a modal dialog, mobile uses a bottom sheet (matching existing app conventions) — then calls `AssistantProvider.addAssistant`, switches the current assistant to the new project, and expands it in the list.
+  - **Part of the List**: The button is the first child of `_buildFolderTreeList`, so it scrolls together with the project list instead of being a separate fixed header row (per requirement: the button is part of the project list, not an independent row).
+
+---
+
 ## [v1.6.8+] - 2026-08-03: Code Block Download Buttons (All Languages)
 
 ### 151. Download Button for All Code Blocks

@@ -333,6 +333,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sideDrawerSave => 'Save';
 
   @override
+  String get sideDrawerNewProject => 'New Project';
+
+  @override
   String get sideDrawerMenuRename => 'Rename';
 
   @override

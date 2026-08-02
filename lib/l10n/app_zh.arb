@@ -535,6 +535,7 @@
       }
     }
   },
+  "sideDrawerNewProject": "新增项目",
   "sideDrawerMenuRename": "重命名",
   "sideDrawerMenuPin": "置顶",
   "sideDrawerMenuUnpin": "取消置顶",

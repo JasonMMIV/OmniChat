@@ -330,6 +330,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sideDrawerSave => '保存';
 
   @override
+  String get sideDrawerNewProject => '新增项目';
+
+  @override
   String get sideDrawerMenuRename => '重命名';
 
   @override
@@ -4401,6 +4404,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get sideDrawerSave => '保存';
 
   @override
+  String get sideDrawerNewProject => '新增项目';
+
+  @override
   String get sideDrawerMenuRename => '重命名';
 
   @override
@@ -8359,6 +8365,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get sideDrawerSave => '儲存';
+
+  @override
+  String get sideDrawerNewProject => '新增專案';
 
   @override
   String get sideDrawerMenuRename => '重新命名';

@@ -972,6 +972,197 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     widget.onNewConversation?.call(closeDrawer: closeDrawer);
   }
 
+  Future<void> _handleNewProject() async {
+    final name = await _promptNewProjectName(context);
+    if (name == null || name.trim().isEmpty || !mounted) return;
+    final ap = context.read<AssistantProvider>();
+    final id = await ap.addAssistant(name: name.trim(), context: context);
+    if (!mounted) return;
+    await ap.setCurrentAssistant(id);
+    if (!mounted) return;
+    setState(() {
+      _expandedAssistantIds.clear();
+      _expandedAssistantIds.add(id);
+    });
+  }
+
+  Future<String?> _promptNewProjectName(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final controller = TextEditingController();
+    if (_isDesktop) {
+      return showDialog<String>(
+        context: context,
+        barrierDismissible: true,
+        builder: (ctx) => Dialog(
+          backgroundColor: cs.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          l10n.sideDrawerNewProject,
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      IosIconButton(
+                        size: 18,
+                        color: cs.onSurface,
+                        icon: Lucide.X,
+                        padding: const EdgeInsets.all(6),
+                        onTap: () => Navigator.of(ctx).pop(),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextField(
+                        controller: controller,
+                        autofocus: true,
+                        decoration: InputDecoration(
+                          hintText: l10n.assistantSettingsAddSheetHint,
+                          filled: true,
+                          fillColor: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.transparent),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.transparent),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: cs.primary.withOpacity(0.4)),
+                          ),
+                        ),
+                        onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            child: Text(l10n.assistantSettingsAddSheetCancel),
+                          ),
+                          const SizedBox(width: 8),
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+                            child: Text(
+                              l10n.assistantSettingsAddSheetSave,
+                              style: TextStyle(color: cs.primary, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    // Mobile: bottom sheet (matches app convention)
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.only(left: 16, right: 16, top: 12, bottom: bottomInset + 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: cs.onSurface.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Center(
+                  child: Text(
+                    l10n.sideDrawerNewProject,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: l10n.assistantSettingsAddSheetHint,
+                    filled: true,
+                    fillColor: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: cs.primary.withOpacity(0.5)),
+                    ),
+                  ),
+                  onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: Text(l10n.assistantSettingsAddSheetCancel),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+                        child: Text(l10n.assistantSettingsAddSheetSave),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _openAssistantSettings(String id) {
     final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.windows ||
@@ -1573,6 +1764,17 @@ extension on _SideDrawerState {
 
     final children = <Widget>[];
 
+    // New Project button: first item of the project list (scrolls with it)
+    children.add(
+      Padding(
+        padding: const EdgeInsets.only(bottom: _sideDrawerTileGap),
+        child: _NewProjectButton(
+          label: AppLocalizations.of(context)!.sideDrawerNewProject,
+          onTap: _handleNewProject,
+        ),
+      ),
+    );
+
     // Helper to build a single assistant + its conversations if expanded
     Widget buildAssistantNode(Assistant a) {
       final isExpanded = _expandedAssistantIds.contains(a.id) || hasQuery;
@@ -1642,23 +1844,26 @@ extension on _SideDrawerState {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _AssistantFolderTile(
-            name: a.name,
-            textColor: textBase,
-            embedded: widget.embedded,
-            isCurrent: isCurrent,
-            isExpanded: isExpanded,
-            onTap: () {
-              if (hasQuery) {
-                // Ignore toggling when searching
-              } else {
-                _handleToggleAssistant(a.id);
-              }
-            },
-            onNewChat: () => _handleNewConversationForAssistant(context, a),
-            onEditTap: () => _openAssistantSettings(a.id),
-            onLongPress: () => _showAssistantItemMenuMobile(a),
-            onSecondaryTapDown: (pos) => _showAssistantItemMenuDesktop(a, pos),
+          Padding(
+            padding: const EdgeInsets.only(bottom: _sideDrawerTileGap),
+            child: _AssistantFolderTile(
+              name: a.name,
+              textColor: textBase,
+              embedded: widget.embedded,
+              isCurrent: isCurrent,
+              isExpanded: isExpanded,
+              onTap: () {
+                if (hasQuery) {
+                  // Ignore toggling when searching
+                } else {
+                  _handleToggleAssistant(a.id);
+                }
+              },
+              onNewChat: () => _handleNewConversationForAssistant(context, a),
+              onEditTap: () => _openAssistantSettings(a.id),
+              onLongPress: () => _showAssistantItemMenuMobile(a),
+              onSecondaryTapDown: (pos) => _showAssistantItemMenuDesktop(a, pos),
+            ),
           ),
           if (isExpanded && convosWidgets.isNotEmpty)
             Padding(
@@ -1707,6 +1912,9 @@ extension on _SideDrawerState {
   }
 }
 
+/// Vertical gap between list items in the sidebar (projects & conversations).
+const double _sideDrawerTileGap = 4;
+
 class _ChatGroup {
   final String label;
   final List<ChatItem> items;
@@ -1754,7 +1962,7 @@ class _ChatTileState extends State<_ChatTile> {
     final base = _isDesktop && !widget.selected && _hovered
         ? (embedded ? cs.primary.withOpacity(0.08) : cs.surface.withOpacity(0.9))
         : tileColor;
-    final double _vGap = _isDesktop ? 4 : 4;
+    final double _vGap = _sideDrawerTileGap;
     return Padding(
       padding: EdgeInsets.only(bottom: _vGap),
       child: GestureDetector(
@@ -1878,6 +2086,75 @@ class _GroupHeader extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NewProjectButton extends StatefulWidget {
+  const _NewProjectButton({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<_NewProjectButton> createState() => _NewProjectButtonState();
+}
+
+class _NewProjectButtonState extends State<_NewProjectButton> {
+  bool _hovered = false;
+
+  bool get _isDesktop =>
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color bg = _hovered
+        ? (isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.06))
+        : cs.primary.withOpacity(0.10);
+    return MouseRegion(
+      onEnter: (_) {
+        if (_isDesktop) setState(() => _hovered = true);
+      },
+      onExit: (_) {
+        if (_isDesktop) setState(() => _hovered = false);
+      },
+      cursor: _isDesktop ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: cs.primary.withOpacity(0.25)),
+          ),
+          child: Row(
+            children: [
+              Icon(Lucide.FolderPlus, size: 18, color: cs.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: cs.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

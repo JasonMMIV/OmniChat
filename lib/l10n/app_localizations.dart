@@ -736,6 +736,12 @@ abstract class AppLocalizations {
   /// **'Save'**
   String get sideDrawerSave;
 
+  /// No description provided for @sideDrawerNewProject.
+  ///
+  /// In en, this message translates to:
+  /// **'New Project'**
+  String get sideDrawerNewProject;
+
   /// No description provided for @sideDrawerMenuRename.
   ///
   /// In en, this message translates to:
