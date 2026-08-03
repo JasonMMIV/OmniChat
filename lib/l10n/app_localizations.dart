@@ -8114,6 +8114,42 @@ abstract class AppLocalizations {
   /// **'Clear workspace'**
   String get workspaceClear;
 
+  /// No description provided for @workspaceDoNotUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Do not use workspace'**
+  String get workspaceDoNotUse;
+
+  /// No description provided for @workspaceUseProjectDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Use project default directory'**
+  String get workspaceUseProjectDirectory;
+
+  /// No description provided for @workspaceDefaultDirectorySettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Default working directory'**
+  String get workspaceDefaultDirectorySettings;
+
+  /// No description provided for @workspaceDefaultDirectoryPrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'App private directory'**
+  String get workspaceDefaultDirectoryPrivate;
+
+  /// No description provided for @workspaceDefaultDirectoryReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore App private directory'**
+  String get workspaceDefaultDirectoryReset;
+
+  /// No description provided for @workspaceDefaultDirectoryDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'This applies to projects and conversations that use the default directory.'**
+  String get workspaceDefaultDirectoryDescription;
+
   /// No description provided for @workspaceFiles.
   ///
   /// In en, this message translates to:

@@ -22,6 +22,7 @@ import '../../../core/models/chat_message.dart';
 import '../../../core/models/preset_message.dart';
 import '../../../core/models/quick_phrase.dart';
 import '../../../core/models/conversation.dart';
+import '../../../core/models/workspace_config.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/utils/reasoning_capabilities.dart';
@@ -43,6 +44,7 @@ import '../../../utils/avatar_cache.dart';
 import '../../../utils/brand_assets.dart';
 import '../../model/widgets/model_select_sheet.dart';
 import '../../chat/widgets/reasoning_budget_sheet.dart';
+import '../../chat/widgets/workspace_settings_dialog.dart';
 import '../../chat/widgets/chat_message_widget.dart';
 import '../../quick_phrase/widgets/quick_phrase_menu.dart';
 import 'assistant_regex_tab.dart';
@@ -55,6 +57,15 @@ const int _contextMessageMax = 256;
 
 int _clampContextMessages(num value) =>
     value.clamp(_contextMessageMin, _contextMessageMax).toInt();
+
+String _workspaceSettingLabel(AppLocalizations l10n, WorkspaceConfig config) {
+  return switch (config.mode) {
+    WorkspaceMode.disabled => l10n.workspaceDoNotUse,
+    WorkspaceMode.useDefault => l10n.workspaceUseDefaultDirectory,
+    WorkspaceMode.custom => config.path ?? l10n.workspaceChooseFolder,
+    WorkspaceMode.inheritProject => l10n.workspaceUseProjectDirectory,
+  };
+}
 
 Future<int?> _showContextMessageInputDialog(
   BuildContext context, {
@@ -2139,6 +2150,36 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
               ],
             ),
           ),
+        ),
+        const SizedBox(height: 16),
+        _iosSectionCard(
+          children: [
+            _iosNavRow(
+              context,
+              icon: Lucide.FolderCode,
+              label: l10n.workspaceTitle,
+              detailText: _workspaceSettingLabel(l10n, a.workspace),
+              accessory: a.workspace.mode == WorkspaceMode.useDefault
+                  ? IconButton(
+                      tooltip: l10n.workspaceDefaultDirectorySettings,
+                      icon: const Icon(Lucide.Settings2, size: 18),
+                      onPressed: () =>
+                          showDefaultWorkspaceDirectoryDialog(context),
+                    )
+                  : null,
+              onTap: () async {
+                final selected = await showProjectWorkspaceSettingsSheet(
+                  context,
+                  initial: a.workspace,
+                );
+                if (selected != null && context.mounted) {
+                  await context.read<AssistantProvider>().updateAssistant(
+                    a.copyWith(workspace: selected),
+                  );
+                }
+              },
+            ),
+          ],
         ),
       ],
     );
@@ -7833,6 +7874,35 @@ class _DesktopAssistantBasicPaneState
                     ),
                   ],
                 ],
+              ),
+            ),
+            sectionDivider(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+              child: _iosNavRow(
+                context,
+                icon: Lucide.FolderCode,
+                label: l10n.workspaceTitle,
+                detailText: _workspaceSettingLabel(l10n, a.workspace),
+                accessory: a.workspace.mode == WorkspaceMode.useDefault
+                    ? IconButton(
+                        tooltip: l10n.workspaceDefaultDirectorySettings,
+                        icon: const Icon(Lucide.Settings2, size: 18),
+                        onPressed: () =>
+                            showDefaultWorkspaceDirectoryDialog(context),
+                      )
+                    : null,
+                onTap: () async {
+                  final selected = await showProjectWorkspaceSettingsSheet(
+                    context,
+                    initial: a.workspace,
+                  );
+                  if (selected != null && context.mounted) {
+                    await context.read<AssistantProvider>().updateAssistant(
+                      a.copyWith(workspace: selected),
+                    );
+                  }
+                },
               ),
             ),
           ],

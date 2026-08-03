@@ -6,6 +6,7 @@ import '../../../core/models/chat_message.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant_regex.dart';
 import '../controllers/stream_controller.dart' as stream_ctrl;
@@ -101,11 +102,17 @@ class MessageGenerationService {
         .processUserMessagesForApi(apiMessages, settings, assistant);
 
     // Inject prompts and the effective per-conversation file workspace.
-    final workspacePath = currentConversation == null
+    final workspaceResolution = currentConversation == null
         ? null
-        : await chatService.getEffectiveConversationWorkspace(
-            currentConversation.id,
+        : await WorkspaceResolver.resolve(
+            conversation: currentConversation,
+            project: assistant,
+            conversationConfig: chatService.getConversationWorkspaceConfig(
+              currentConversation.id,
+            ),
+            defaultPath: settings.defaultWorkspacePath,
           );
+    final workspacePath = workspaceResolution?.path;
     messageBuilderService.injectSystemPrompt(
       apiMessages,
       assistant,
@@ -144,6 +151,7 @@ class MessageGenerationService {
       providerKey,
       modelId,
       hasBuiltInSearch,
+      workspaceEnabled: workspaceResolution?.enabled ?? false,
     );
     final onToolCall = toolDefs.isNotEmpty
         ? generationController.buildToolCallHandler(
@@ -151,6 +159,7 @@ class MessageGenerationService {
             assistant,
             conversationId: currentConversation?.id,
             messageId: assistantMessageId,
+            workspacePath: workspacePath,
           )
         : null;
 

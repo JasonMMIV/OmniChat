@@ -123,14 +123,16 @@ class GenerationController {
     Assistant? assistant,
     String providerKey,
     String modelId,
-    bool hasBuiltInSearch,
-  ) {
+    bool hasBuiltInSearch, {
+    required bool workspaceEnabled,
+  }) {
     return toolHandlerService.buildToolDefinitions(
       settings,
       assistant,
       providerKey,
       modelId,
       hasBuiltInSearch,
+      workspaceEnabled: workspaceEnabled,
       isToolModel: isToolModel,
     );
   }
@@ -142,12 +144,14 @@ class GenerationController {
     Assistant? assistant, {
     String? conversationId,
     String? messageId,
+    String? workspacePath,
   }) {
     return toolHandlerService.buildToolCallHandler(
       settings,
       assistant,
       conversationId: conversationId,
       messageId: messageId,
+      workspacePath: workspacePath,
     );
   }
 

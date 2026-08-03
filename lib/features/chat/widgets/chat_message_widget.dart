@@ -25,6 +25,7 @@ import '../../../icons/lucide_adapter.dart';
 // import '../../../theme/design_tokens.dart';
 import '../../../core/providers/user_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../core/providers/assistant_provider.dart';
 import 'package:intl/intl.dart';
 import '../../../utils/sandbox_path_resolver.dart';
@@ -1342,9 +1343,25 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       return;
     }
 
-    final workspace = await context
-        .read<ChatService>()
-        .getEffectiveConversationWorkspace(widget.message.conversationId);
+    final chatService = context.read<ChatService>();
+    final conversation = chatService.getConversation(
+      widget.message.conversationId,
+    );
+    final assistantProvider = context.read<AssistantProvider>();
+    final assistant = conversation?.assistantId == null
+        ? assistantProvider.currentAssistant
+        : assistantProvider.getById(conversation!.assistantId!);
+    final workspace = conversation == null
+        ? null
+        : (await WorkspaceResolver.resolve(
+            conversation: conversation,
+            project: assistant,
+            conversationConfig: chatService.getConversationWorkspaceConfig(
+              conversation.id,
+            ),
+            defaultPath: context.read<SettingsProvider>().defaultWorkspacePath,
+          )).path;
+    if (workspace == null || workspace.trim().isEmpty) return;
     if (!mounted) return;
     final relativeDirectory = p.relative(file.parent.path, from: workspace);
     await Navigator.of(context).push(
@@ -1521,7 +1538,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     } else if (ext == 'html' || ext == 'htm') {
       html = content;
     } else {
-      html = '<pre style="white-space: pre-wrap; word-break: break-word;">'
+      html =
+          '<pre style="white-space: pre-wrap; word-break: break-word;">'
           '${_escapeHtml(content)}</pre>';
     }
     if (!mounted) return;
@@ -1660,9 +1678,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       minSize: 32,
                       icon: Lucide.MoreVertical,
                       color: cs.onSurface.withOpacity(0.55),
-                      semanticLabel:
-                          AppLocalizations.of(context)!
-                              .chatMessageWidgetFileActions,
+                      semanticLabel: AppLocalizations.of(
+                        context,
+                      )!.chatMessageWidgetFileActions,
                       onTap: null,
                     ),
                   ),

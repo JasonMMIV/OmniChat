@@ -4186,6 +4186,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get workspaceClear => '清除工作区';
 
   @override
+  String get workspaceDoNotUse => '不使用工作区';
+
+  @override
+  String get workspaceUseProjectDirectory => '使用项目默认目录';
+
+  @override
+  String get workspaceDefaultDirectorySettings => '默认工作目录';
+
+  @override
+  String get workspaceDefaultDirectoryPrivate => '应用私有目录';
+
+  @override
+  String get workspaceDefaultDirectoryReset => '恢复应用私有目录';
+
+  @override
+  String get workspaceDefaultDirectoryDescription => '此设置会套用到使用默认目录的项目与对话。';
+
+  @override
   String get workspaceFiles => '文件';
 
   @override
@@ -8187,6 +8205,24 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get workspaceClear => '清除工作区';
+
+  @override
+  String get workspaceDoNotUse => '不使用工作区';
+
+  @override
+  String get workspaceUseProjectDirectory => '使用项目默认目录';
+
+  @override
+  String get workspaceDefaultDirectorySettings => '默认工作目录';
+
+  @override
+  String get workspaceDefaultDirectoryPrivate => '应用私有目录';
+
+  @override
+  String get workspaceDefaultDirectoryReset => '恢复应用私有目录';
+
+  @override
+  String get workspaceDefaultDirectoryDescription => '此设置会应用到使用默认目录的项目与对话。';
 
   @override
   String get workspaceFiles => '文件';
@@ -12297,6 +12333,24 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get workspaceClear => '清除工作區';
+
+  @override
+  String get workspaceDoNotUse => '不使用工作區';
+
+  @override
+  String get workspaceUseProjectDirectory => '使用專案預設目錄';
+
+  @override
+  String get workspaceDefaultDirectorySettings => '預設工作目錄';
+
+  @override
+  String get workspaceDefaultDirectoryPrivate => 'App 私有目錄';
+
+  @override
+  String get workspaceDefaultDirectoryReset => '恢復 App 私有目錄';
+
+  @override
+  String get workspaceDefaultDirectoryDescription => '這會套用到設定為使用預設目錄的專案與對話。';
 
   @override
   String get workspaceFiles => '檔案';

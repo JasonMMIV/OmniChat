@@ -179,6 +179,40 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 
 ## 📜 Version Changes Log
 
+## [v1.6.9+] - 2026-08-03: Workspace Modes & Global Default Working Directory
+
+### 157. Workspace Modes (Disabled / Default / Project Default / Custom) & Global Default Directory
+
+- **Purpose**: Replace the redundant "Clear workspace" action with a three-level workspace model — global default directory, per-project workspace setting, and per-conversation override — so users can opt out of file tools entirely ("Do not use workspace"), inherit the project's workspace, use the global default directory, or pick a custom folder per conversation.
+- **Files Modified**:
+  - `lib/core/models/workspace_config.dart` (NEW — `WorkspaceMode` enum (`inherit_project` / `disabled` / `use_default` / `custom`) and `WorkspaceConfig` serialization)
+  - `lib/core/services/workspace/workspace_resolver.dart` (NEW — resolves the effective workspace: conversation override → project setting → global default → app-private `files/` sandbox)
+  - `lib/features/chat/widgets/workspace_settings_dialog.dart` (NEW — global default directory sheet and project workspace mode sheet)
+  - `test/workspace_config_test.dart` (NEW — mode serialization, conversation-overrides-project, inheritance & disabled resolution)
+  - `lib/core/providers/settings_provider.dart` (`default_workspace_path_v1`, `setDefaultWorkspacePath`)
+  - `lib/core/services/chat/chat_service.dart` (`conversation_workspace_bindings_v2` typed box, legacy `conversation_workspaces_v1` migration, `setConversationWorkspaceConfig`, fork/delete/clear coverage)
+  - `lib/core/models/assistant.dart` (per-project `workspace` config, default `use_default`)
+  - `lib/features/settings/pages/settings_page.dart` (General section row "Default working directory")
+  - `lib/features/assistant/pages/assistant_settings_edit_page.dart` (workspace row in project Basic settings, mobile & desktop, gear shortcut to global default)
+  - `lib/features/chat/widgets/workspace_sheet.dart` (menu rewritten: Do not use / Use default directory / Use project default directory / Choose folder / Files; gear shortcut re-resolves after global default changes)
+  - `lib/features/home/services/message_generation_service.dart` / `lib/features/home/services/tool_handler_service.dart` / `lib/features/home/controllers/generation_controller.dart` (workspace resolution at generation time; `file_*` tools and system-prompt injection omitted when disabled; handler rejects file calls with no active workspace)
+  - `lib/features/home/controllers/chat_actions.dart` (resolve assistant from the conversation's `assistantId` instead of the current assistant)
+  - `lib/features/home/controllers/home_view_model.dart` (compress-context copies the workspace binding)
+  - `lib/features/chat/widgets/chat_message_widget.dart` (show-in-folder resolves the current effective workspace)
+  - `lib/core/services/backup/data_sync.dart` (backup version 3: `workspaceBindings` section, backward-compatible v2 restore)
+  - `lib/l10n/app_en.arb` / `app_zh.arb` / `app_zh_Hans.arb` / `app_zh_Hant.arb` (+ regenerated `app_localizations*.dart`)
+- **Details**:
+  - **Migration**: Existing custom workspace paths are preserved as conversation `custom` bindings; conversations without a binding and all new conversations inherit the project setting (previously they fell back to the app-private sandbox).
+  - **Resolution order**: conversation setting → project setting → global default directory → app-private `files/` sandbox; "Do not use workspace" resolves to no workspace and disables the file browser entry.
+  - **Disabled mode**: `file_*` tool definitions are not offered to the model and the system prompt omits the workspace block; the tool-call handler rejects stray `file_` calls when no workspace is active.
+  - **Global default directory**: configured under Settings → General → "Default working directory" (choose folder / restore app-private), with gear shortcuts from the project Basic settings and the conversation workspace sheet; the sheet re-resolves after the settings dialog closes.
+  - **Project setting**: Basic settings shows the workspace mode with the effective label; options are disabled / use default directory / custom folder.
+  - **Conversation menu**: Do not use workspace / Use default directory (with gear shortcut) / Use project default directory / Choose folder / Files — "Clear workspace" removed.
+  - **Backup v3**: `workspaceBindings` stores typed modes; restore (overwrite & merge) writes them back; v2 backups remain readable.
+  - **Tests**: `flutter test` — 35 tests pass (10 workspace & file-tool focused).
+
+---
+
 ## [v1.6.9+] - 2026-08-03: New Project Button Styling & File Tool Reliability Fix
 
 ### 154. New Project Button Matches Project List Format

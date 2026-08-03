@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
 import '../../models/file_record.dart';
+import '../../models/workspace_config.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/app_directories.dart';
 
@@ -15,6 +15,8 @@ class ChatService extends ChangeNotifier {
   static const String _toolEventsBoxName = 'tool_events_v1';
   static const String _conversationWorkspacesBoxName =
       'conversation_workspaces_v1';
+  static const String _conversationWorkspaceBindingsBoxName =
+      'conversation_workspace_bindings_v2';
   static const String _messageFileRecordsBoxName = 'message_file_records_v1';
 
   late Box<Conversation> _conversationsBox;
@@ -23,6 +25,8 @@ class ChatService extends ChangeNotifier {
   _toolEventsBox; // key: assistantMessageId, value: List<Map<String,dynamic>>
   late Box
   _conversationWorkspacesBox; // key: conversationId, value: absolute path
+  late Box
+  _conversationWorkspaceBindingsBox; // key: conversationId, value: WorkspaceConfig JSON
   late Box
   _messageFileRecordsBox; // key: messageId, value: List<Map<String,dynamic>>
   String _sigKey(String id) => 'sig_$id';
@@ -64,13 +68,31 @@ class ChatService extends ChangeNotifier {
     _conversationWorkspacesBox = await Hive.openBox(
       _conversationWorkspacesBoxName,
     );
+    _conversationWorkspaceBindingsBox = await Hive.openBox(
+      _conversationWorkspaceBindingsBoxName,
+    );
     _messageFileRecordsBox = await Hive.openBox(_messageFileRecordsBoxName);
+
+    await _migrateConversationWorkspaceBindings();
 
     // Migrate any persisted message content that references old iOS sandbox paths
     await _migrateSandboxPaths();
 
     _initialized = true;
     notifyListeners();
+  }
+
+  Future<void> _migrateConversationWorkspaceBindings() async {
+    for (final key in _conversationWorkspacesBox.keys) {
+      if (_conversationWorkspaceBindingsBox.containsKey(key)) continue;
+      final raw = _conversationWorkspacesBox.get(key);
+      if (raw is String && raw.trim().isNotEmpty) {
+        await _conversationWorkspaceBindingsBox.put(
+          key,
+          WorkspaceConfig.custom(raw.trim()).toJson(),
+        );
+      }
+    }
   }
 
   List<Conversation> getAllConversations() {
@@ -154,6 +176,7 @@ class ChatService extends ChangeNotifier {
     if (_draftConversations.containsKey(id)) {
       _draftConversations.remove(id);
       if (_initialized) await _conversationWorkspacesBox.delete(id);
+      if (_initialized) await _conversationWorkspaceBindingsBox.delete(id);
       if (_currentConversationId == id) {
         _currentConversationId = null;
       }
@@ -214,6 +237,7 @@ class ChatService extends ChangeNotifier {
     // Delete conversation
     await _conversationsBox.delete(id);
     await _conversationWorkspacesBox.delete(id);
+    await _conversationWorkspaceBindingsBox.delete(id);
 
     // Remove cached messages
     // Clear cache
@@ -393,31 +417,45 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Conversation-scoped MCP servers selection
-  String? getConversationWorkspace(String conversationId) {
+  // Conversation-scoped workspace settings.
+  WorkspaceConfig? getConversationWorkspaceConfig(String conversationId) {
     if (!_initialized) return null;
-    final value = _conversationWorkspacesBox.get(conversationId);
-    return value is String && value.trim().isNotEmpty ? value : null;
-  }
+    final raw = _conversationWorkspaceBindingsBox.get(conversationId);
+    if (raw is Map) return WorkspaceConfig.fromJson(raw);
 
-  Future<String> getEffectiveConversationWorkspace(
-    String conversationId,
-  ) async {
-    final configured = getConversationWorkspace(conversationId);
-    if (configured != null) return configured;
-    return (await AppDirectories.getFileSandboxDirectory()).path;
+    // Keep reading the legacy box if migration was interrupted.
+    final legacy = _conversationWorkspacesBox.get(conversationId);
+    if (legacy is String && legacy.trim().isNotEmpty) {
+      return WorkspaceConfig.custom(legacy.trim());
+    }
+    return null;
   }
 
   Future<void> setConversationWorkspace(
     String conversationId,
     String? path,
   ) async {
+    await setConversationWorkspaceConfig(
+      conversationId,
+      path == null || path.trim().isEmpty
+          ? const WorkspaceConfig.inheritProject()
+          : WorkspaceConfig.custom(path.trim()),
+    );
+  }
+
+  Future<void> setConversationWorkspaceConfig(
+    String conversationId,
+    WorkspaceConfig config,
+  ) async {
     if (!_initialized) await init();
-    final value = path?.trim();
-    if (value == null || value.isEmpty) {
-      await _conversationWorkspacesBox.delete(conversationId);
+    await _conversationWorkspacesBox.delete(conversationId);
+    if (config.mode == WorkspaceMode.inheritProject) {
+      await _conversationWorkspaceBindingsBox.delete(conversationId);
     } else {
-      await _conversationWorkspacesBox.put(conversationId, value);
+      await _conversationWorkspaceBindingsBox.put(
+        conversationId,
+        config.toJson(),
+      );
     }
     notifyListeners();
   }
@@ -865,9 +903,9 @@ class ChatService extends ChangeNotifier {
     );
     final sourceWorkspace = sourceMessages.isEmpty
         ? null
-        : getConversationWorkspace(sourceMessages.first.conversationId);
+        : getConversationWorkspaceConfig(sourceMessages.first.conversationId);
     if (sourceWorkspace != null) {
-      await setConversationWorkspace(convo.id, sourceWorkspace);
+      await setConversationWorkspaceConfig(convo.id, sourceWorkspace);
     }
     final ids = <String>[];
     for (final src in sourceMessages) {
@@ -1142,6 +1180,7 @@ class ChatService extends ChangeNotifier {
     await _conversationsBox.clear();
     await _toolEventsBox.clear();
     await _conversationWorkspacesBox.clear();
+    await _conversationWorkspaceBindingsBox.clear();
     await _messageFileRecordsBox.clear();
     _messagesCache.clear();
     _draftConversations.clear();

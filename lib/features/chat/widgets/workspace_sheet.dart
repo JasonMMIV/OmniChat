@@ -7,10 +7,15 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/models/workspace_config.dart';
+import '../../../core/providers/assistant_provider.dart';
+import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import 'workspace_file_browser.dart';
+import 'workspace_settings_dialog.dart';
 
 Future<void> showWorkspaceSheet(
   BuildContext context, {
@@ -52,7 +57,7 @@ class WorkspaceSheet extends StatefulWidget {
 
 class _WorkspaceSheetState extends State<WorkspaceSheet> {
   String? _workspacePath;
-  bool _configured = false;
+  WorkspaceResolution? _resolution;
   bool _loading = true;
   bool _busy = false;
 
@@ -66,14 +71,28 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
 
   Future<void> _loadWorkspace() async {
     final service = context.read<ChatService>();
-    final configured = service.getConversationWorkspace(widget.conversationId);
-    final effective = await service.getEffectiveConversationWorkspace(
-      widget.conversationId,
-    );
+    final conversation = service.getConversation(widget.conversationId);
+    final assistantProvider = context.read<AssistantProvider>();
+    final project = conversation?.assistantId == null
+        ? assistantProvider.currentAssistant
+        : assistantProvider.getById(conversation!.assistantId!);
+    final resolution = conversation == null
+        ? const WorkspaceResolution(
+            source: WorkspaceSource.disabled,
+            path: null,
+          )
+        : await WorkspaceResolver.resolve(
+            conversation: conversation,
+            project: project,
+            conversationConfig: service.getConversationWorkspaceConfig(
+              widget.conversationId,
+            ),
+            defaultPath: context.read<SettingsProvider>().defaultWorkspacePath,
+          );
     if (!mounted) return;
     setState(() {
-      _configured = configured != null;
-      _workspacePath = effective;
+      _resolution = resolution;
+      _workspacePath = resolution.path;
       _loading = false;
     });
   }
@@ -105,14 +124,17 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
     }
   }
 
-  Future<void> _useDefaultDirectory() async {
-    await _chatService.setConversationWorkspace(widget.conversationId, null);
+  Future<void> _setWorkspaceConfig(WorkspaceConfig config) async {
+    await _chatService.setConversationWorkspaceConfig(
+      widget.conversationId,
+      config,
+    );
     await _loadWorkspace();
   }
 
   Future<void> _openBrowser() async {
     final path = _workspacePath;
-    if (path == null) return;
+    if (path == null || _resolution?.enabled != true) return;
     final navigator = Navigator.of(context);
     final isDesktop =
         defaultTargetPlatform == TargetPlatform.windows ||
@@ -144,6 +166,10 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    final resolution = _resolution;
+    final pathLabel = resolution?.enabled == true
+        ? (resolution!.path ?? '')
+        : l10n.workspaceDoNotUse;
     final content = SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
@@ -173,7 +199,7 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _configured ? (_workspacePath ?? '') : l10n.workspaceNotSet,
+                    pathLabel,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -182,6 +208,36 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Lucide.CircleX),
+                    title: Text(l10n.workspaceDoNotUse),
+                    onTap: () =>
+                        _setWorkspaceConfig(const WorkspaceConfig.disabled()),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Lucide.Folder),
+                    title: Text(l10n.workspaceUseDefaultDirectory),
+                    onTap: () =>
+                        _setWorkspaceConfig(const WorkspaceConfig.useDefault()),
+                    trailing: IconButton(
+                      tooltip: l10n.workspaceDefaultDirectorySettings,
+                      icon: const Icon(Lucide.Settings2),
+                      onPressed: () async {
+                        await showDefaultWorkspaceDirectoryDialog(context);
+                        if (mounted) await _loadWorkspace();
+                      },
+                    ),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Lucide.Folder),
+                    title: Text(l10n.workspaceUseProjectDirectory),
+                    onTap: () => _setWorkspaceConfig(
+                      const WorkspaceConfig.inheritProject(),
+                    ),
+                  ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Lucide.FolderCode),
@@ -197,21 +253,9 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Lucide.Folder),
-                    title: Text(l10n.workspaceUseDefaultDirectory),
-                    onTap: _useDefaultDirectory,
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Lucide.Trash2),
-                    title: Text(l10n.workspaceClear),
-                    onTap: _configured ? _useDefaultDirectory : null,
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
                     leading: const Icon(Lucide.FileText),
                     title: Text(l10n.workspaceFiles),
-                    onTap: _openBrowser,
+                    onTap: resolution?.enabled == true ? _openBrowser : null,
                   ),
                 ],
               ),

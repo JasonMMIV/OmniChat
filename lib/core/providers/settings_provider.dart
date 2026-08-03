@@ -147,6 +147,7 @@ class SettingsProvider extends ChangeNotifier {
   static const String _greetingModelKey = 'greeting_model_v1';
   static const String _greetingPromptKey = 'greeting_prompt_v1';
   static const String _newChatLogoTypeKey = 'new_chat_logo_type_v1';
+  static const String _defaultWorkspacePathKey = 'default_workspace_path_v1';
   static const String _newChatCustomLogoFileNameKey =
       'new_chat_custom_logo_file_name_v1';
   static const String _newChatTextTypeKey = 'new_chat_text_type_v1';
@@ -283,6 +284,9 @@ class SettingsProvider extends ChangeNotifier {
   String get globalProxyUsername => _globalProxyUsername;
   String get globalProxyPassword => _globalProxyPassword;
 
+  String? _defaultWorkspacePath;
+  String? get defaultWorkspacePath => _defaultWorkspacePath;
+
   static const String _appLaunchCountKey = 'app_launch_count_v1';
 
   int _appLaunchCount = 0;
@@ -345,6 +349,7 @@ class SettingsProvider extends ChangeNotifier {
     }
     _themePaletteId = prefs.getString(_themePaletteKey) ?? 'default';
     _useDynamicColor = prefs.getBool(_useDynamicColorKey) ?? true;
+    _defaultWorkspacePath = prefs.getString(_defaultWorkspacePathKey)?.trim();
     final cfgStr = prefs.getString(_providerConfigsKey);
     if (cfgStr != null && cfgStr.isNotEmpty) {
       try {
@@ -2744,6 +2749,18 @@ Synthesize your reasoning and research into a final response. The structure shou
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_flutterLogEnabledKey, v);
     await FlutterLogger.setEnabled(v);
+  }
+
+  Future<void> setDefaultWorkspacePath(String? path) async {
+    final value = path?.trim();
+    _defaultWorkspacePath = value == null || value.isEmpty ? null : value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    if (_defaultWorkspacePath == null) {
+      await prefs.remove(_defaultWorkspacePathKey);
+    } else {
+      await prefs.setString(_defaultWorkspacePathKey, _defaultWorkspacePath!);
+    }
   }
 
   // Search service settings

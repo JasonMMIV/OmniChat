@@ -4192,6 +4192,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get workspaceClear => 'Clear workspace';
 
   @override
+  String get workspaceDoNotUse => 'Do not use workspace';
+
+  @override
+  String get workspaceUseProjectDirectory => 'Use project default directory';
+
+  @override
+  String get workspaceDefaultDirectorySettings => 'Default working directory';
+
+  @override
+  String get workspaceDefaultDirectoryPrivate => 'App private directory';
+
+  @override
+  String get workspaceDefaultDirectoryReset => 'Restore App private directory';
+
+  @override
+  String get workspaceDefaultDirectoryDescription =>
+      'This applies to projects and conversations that use the default directory.';
+
+  @override
   String get workspaceFiles => 'Files';
 
   @override

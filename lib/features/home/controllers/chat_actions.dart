@@ -179,9 +179,10 @@ class ChatActions {
     }
 
     final settings = contextProvider.read<SettingsProvider>();
-    final assistant = contextProvider
-        .read<AssistantProvider>()
-        .currentAssistant;
+    final assistantProvider = contextProvider.read<AssistantProvider>();
+    final assistant = conversation.assistantId == null
+        ? assistantProvider.currentAssistant
+        : assistantProvider.getById(conversation.assistantId!);
     final assistantId = assistant?.id;
     final modelConfig = messageGenerationService.getModelConfig(
       settings,
@@ -363,9 +364,10 @@ class ChatActions {
 
     // Get model config
     final settings = contextProvider.read<SettingsProvider>();
-    final assistant = contextProvider
-        .read<AssistantProvider>()
-        .currentAssistant;
+    final assistantProvider = contextProvider.read<AssistantProvider>();
+    final assistant = conversation.assistantId == null
+        ? assistantProvider.currentAssistant
+        : assistantProvider.getById(conversation.assistantId!);
     final assistantId = assistant?.id;
     final modelConfig = messageGenerationService.getModelConfig(
       settings,

@@ -14,6 +14,7 @@ import '../../models/backup.dart';
 import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
 import '../../models/file_record.dart';
+import '../../models/workspace_config.dart';
 import '../chat/chat_service.dart';
 import 'dropbox_auth_service.dart';
 import '../../../utils/app_directories.dart';
@@ -604,10 +605,18 @@ class DataSync {
     final toolEvents = <String, List<Map<String, dynamic>>>{};
     final geminiThoughtSigs = <String, String>{};
     final workspaces = <String, String>{};
+    final workspaceBindings = <String, Map<String, dynamic>>{};
     final fileRecords = <String, List<Map<String, dynamic>>>{};
     for (final c in conversations) {
-      final workspace = chatService.getConversationWorkspace(c.id);
-      if (workspace != null) workspaces[c.id] = workspace;
+      final workspaceConfig = chatService.getConversationWorkspaceConfig(c.id);
+      if (workspaceConfig != null &&
+          workspaceConfig.mode != WorkspaceMode.inheritProject) {
+        workspaceBindings[c.id] = workspaceConfig.toJson();
+        if (workspaceConfig.mode == WorkspaceMode.custom &&
+            workspaceConfig.path != null) {
+          workspaces[c.id] = workspaceConfig.path!;
+        }
+      }
       final msgs = chatService.getMessages(c.id);
       allMsgs.addAll(msgs);
       for (final m in msgs) {
@@ -624,12 +633,13 @@ class DataSync {
       }
     }
     final obj = {
-      'version': 2,
+      'version': 3,
       'conversations': conversations.map((c) => c.toJson()).toList(),
       'messages': allMsgs.map((m) => m.toJson()).toList(),
       'toolEvents': toolEvents,
       'geminiThoughtSigs': geminiThoughtSigs,
       'workspaces': workspaces,
+      'workspaceBindings': workspaceBindings,
       'fileRecords': fileRecords,
     };
     return jsonEncode(obj);
@@ -946,6 +956,22 @@ class DataSync {
             if (path.isNotEmpty) workspaces[entry.key.toString()] = path;
           }
         }
+        final workspaceBindings = <String, WorkspaceConfig>{};
+        final rawWorkspaceBindings = obj['workspaceBindings'];
+        if (rawWorkspaceBindings is Map) {
+          for (final entry in rawWorkspaceBindings.entries) {
+            final config = WorkspaceConfig.fromJson(entry.value);
+            if (config.mode != WorkspaceMode.inheritProject) {
+              workspaceBindings[entry.key.toString()] = config;
+            }
+          }
+        }
+        for (final entry in workspaces.entries) {
+          workspaceBindings.putIfAbsent(
+            entry.key,
+            () => WorkspaceConfig.custom(entry.value),
+          );
+        }
         final fileRecords = <String, List<FileRecord>>{};
         final rawFileRecords = obj['fileRecords'];
         if (rawFileRecords is Map) {
@@ -990,9 +1016,9 @@ class DataSync {
               );
             } catch (_) {}
           }
-          for (final entry in workspaces.entries) {
+          for (final entry in workspaceBindings.entries) {
             try {
-              await chatService.setConversationWorkspace(
+              await chatService.setConversationWorkspaceConfig(
                 entry.key,
                 entry.value,
               );
@@ -1061,10 +1087,10 @@ class DataSync {
               } catch (_) {}
             }
           }
-          for (final entry in workspaces.entries) {
-            if (chatService.getConversationWorkspace(entry.key) == null) {
+          for (final entry in workspaceBindings.entries) {
+            if (chatService.getConversationWorkspaceConfig(entry.key) == null) {
               try {
-                await chatService.setConversationWorkspace(
+                await chatService.setConversationWorkspaceConfig(
                   entry.key,
                   entry.value,
                 );

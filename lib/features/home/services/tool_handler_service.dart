@@ -160,6 +160,7 @@ class ToolHandlerService {
     String providerKey,
     String modelId,
     bool hasBuiltInSearch, {
+    required bool workspaceEnabled,
     required bool Function(String providerKey, String modelId) isToolModel,
   }) {
     final List<Map<String, dynamic>> toolDefs = <Map<String, dynamic>>[];
@@ -185,7 +186,7 @@ class ToolHandlerService {
     toolDefs.addAll(mcpTools);
 
     // File tools are available to every model that supports function calls.
-    if (supportsTools) {
+    if (supportsTools && workspaceEnabled) {
       toolDefs.addAll(FileToolService.getToolDefinitions());
     }
 
@@ -326,6 +327,7 @@ class ToolHandlerService {
     Assistant? assistant, {
     String? conversationId,
     String? messageId,
+    String? workspacePath,
   }) {
     final mcp = contextProvider.read<McpProvider>();
     final toolSvc = contextProvider.read<McpToolService>();
@@ -335,13 +337,15 @@ class ToolHandlerService {
 
     return (name, args) async {
       if (name.startsWith('file_')) {
+        if (workspacePath == null || workspacePath.trim().isEmpty) {
+          return 'Error: Workspace is disabled for this conversation.';
+        }
         try {
-          final workspace = conversationId == null
-              ? null
-              : await chatService.getEffectiveConversationWorkspace(
-                  conversationId,
-                );
-          final result = await FileToolService.execute(name, args, workspace);
+          final result = await FileToolService.execute(
+            name,
+            args,
+            workspacePath,
+          );
           if (result.createdOrModifiedFilePath != null && messageId != null) {
             try {
               await chatService.addMessageFileRecord(
