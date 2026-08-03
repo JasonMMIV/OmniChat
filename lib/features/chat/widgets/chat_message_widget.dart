@@ -1359,7 +1359,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             conversationConfig: chatService.getConversationWorkspaceConfig(
               conversation.id,
             ),
-            defaultPath: context.read<SettingsProvider>().defaultWorkspacePath,
+            defaultConfig: context
+                .read<SettingsProvider>()
+                .defaultWorkspaceConfig,
           )).path;
     if (workspace == null || workspace.trim().isEmpty) return;
     if (!mounted) return;

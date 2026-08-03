@@ -1798,7 +1798,7 @@
   "workspaceUseProjectDirectory": "Use project default directory",
   "workspaceDefaultDirectorySettings": "Default working directory",
   "workspaceDefaultDirectoryPrivate": "App private directory",
-  "workspaceDefaultDirectoryReset": "Restore App private directory",
+  "workspaceUseAppPrivateDirectory": "Use app private directory",
   "workspaceDefaultDirectoryDescription": "This applies to projects and conversations that use the default directory.",
   "workspaceFiles": "Files",
   "workspaceSelectFolderDialogTitle": "Select workspace",

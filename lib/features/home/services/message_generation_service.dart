@@ -110,7 +110,7 @@ class MessageGenerationService {
             conversationConfig: chatService.getConversationWorkspaceConfig(
               currentConversation.id,
             ),
-            defaultPath: settings.defaultWorkspacePath,
+            defaultConfig: settings.defaultWorkspaceConfig,
           );
     final workspacePath = workspaceResolution?.path;
     messageBuilderService.injectSystemPrompt(

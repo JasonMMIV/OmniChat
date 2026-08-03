@@ -29,7 +29,7 @@ void main() {
       conversation: conversation,
       project: project,
       conversationConfig: const WorkspaceConfig.custom('/conversation'),
-      defaultPath: '/default',
+      defaultConfig: const WorkspaceConfig.custom('/default'),
     );
 
     expect(resolution.path, '/conversation');
@@ -47,7 +47,7 @@ void main() {
       conversation: conversation,
       project: project,
       conversationConfig: null,
-      defaultPath: '/default',
+      defaultConfig: const WorkspaceConfig.custom('/default'),
     );
     expect(defaultResolution.path, '/default');
 
@@ -59,9 +59,26 @@ void main() {
         workspace: const WorkspaceConfig.disabled(),
       ),
       conversationConfig: null,
-      defaultPath: '/default',
+      defaultConfig: const WorkspaceConfig.custom('/default'),
     );
     expect(disabledResolution.enabled, isFalse);
     expect(disabledResolution.path, isNull);
+  });
+
+  test('a disabled global default disables inherited workspaces', () async {
+    final resolution = await WorkspaceResolver.resolve(
+      conversation: conversation,
+      project: Assistant(
+        id: 'project',
+        name: 'Project',
+        workspace: const WorkspaceConfig.useDefault(),
+      ),
+      conversationConfig: null,
+      defaultConfig: const WorkspaceConfig.disabled(),
+    );
+
+    expect(resolution.enabled, isFalse);
+    expect(resolution.path, isNull);
+    expect(resolution.source, WorkspaceSource.disabled);
   });
 }

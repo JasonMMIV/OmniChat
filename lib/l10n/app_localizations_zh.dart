@@ -4213,7 +4213,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get workspaceDefaultDirectoryPrivate => '应用私有目录';
 
   @override
-  String get workspaceDefaultDirectoryReset => '恢复应用私有目录';
+  String get workspaceUseAppPrivateDirectory => '使用 App 私有目录';
 
   @override
   String get workspaceDefaultDirectoryDescription => '此设置会套用到使用默认目录的项目与对话。';
@@ -8249,7 +8249,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get workspaceDefaultDirectoryPrivate => '应用私有目录';
 
   @override
-  String get workspaceDefaultDirectoryReset => '恢复应用私有目录';
+  String get workspaceUseAppPrivateDirectory => '使用 App 私有目录';
 
   @override
   String get workspaceDefaultDirectoryDescription => '此设置会应用到使用默认目录的项目与对话。';
@@ -12392,7 +12392,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get workspaceDefaultDirectoryPrivate => 'App 私有目錄';
 
   @override
-  String get workspaceDefaultDirectoryReset => '恢復 App 私有目錄';
+  String get workspaceUseAppPrivateDirectory => '使用 App 私有目錄';
 
   @override
   String get workspaceDefaultDirectoryDescription => '這會套用到設定為使用預設目錄的專案與對話。';

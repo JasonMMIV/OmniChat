@@ -1394,7 +1394,7 @@
   "workspaceUseProjectDirectory": "使用项目默认目录",
   "workspaceDefaultDirectorySettings": "默认工作目录",
   "workspaceDefaultDirectoryPrivate": "应用私有目录",
-  "workspaceDefaultDirectoryReset": "恢复应用私有目录",
+  "workspaceUseAppPrivateDirectory": "使用 App 私有目录",
   "workspaceDefaultDirectoryDescription": "此设置会套用到使用默认目录的项目与对话。",
   "workspaceFiles": "文件",
   "workspaceSelectFolderDialogTitle": "选择工作区",

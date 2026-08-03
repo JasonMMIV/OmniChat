@@ -8168,11 +8168,11 @@ abstract class AppLocalizations {
   /// **'App private directory'**
   String get workspaceDefaultDirectoryPrivate;
 
-  /// No description provided for @workspaceDefaultDirectoryReset.
+  /// No description provided for @workspaceUseAppPrivateDirectory.
   ///
   /// In en, this message translates to:
-  /// **'Restore App private directory'**
-  String get workspaceDefaultDirectoryReset;
+  /// **'Use app private directory'**
+  String get workspaceUseAppPrivateDirectory;
 
   /// No description provided for @workspaceDefaultDirectoryDescription.
   ///

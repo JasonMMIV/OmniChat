@@ -190,9 +190,10 @@ class SettingsPage extends StatelessWidget {
                 context,
                 icon: Lucide.FolderCode,
                 label: l10n.workspaceDefaultDirectorySettings,
-                detailText:
-                    settings.defaultWorkspacePath ??
-                    l10n.workspaceDefaultDirectoryPrivate,
+                detailText: workspaceDefaultDirectoryLabel(
+                  l10n,
+                  settings.defaultWorkspaceConfig,
+                ),
                 onTap: () => showDefaultWorkspaceDirectoryDialog(context),
               ),
             ],

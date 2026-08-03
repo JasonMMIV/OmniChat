@@ -1438,7 +1438,7 @@
   "workspaceUseProjectDirectory": "使用專案預設目錄",
   "workspaceDefaultDirectorySettings": "預設工作目錄",
   "workspaceDefaultDirectoryPrivate": "App 私有目錄",
-  "workspaceDefaultDirectoryReset": "恢復 App 私有目錄",
+  "workspaceUseAppPrivateDirectory": "使用 App 私有目錄",
   "workspaceDefaultDirectoryDescription": "這會套用到設定為使用預設目錄的專案與對話。",
   "workspaceFiles": "檔案",
   "workspaceSelectFolderDialogTitle": "選擇工作區",

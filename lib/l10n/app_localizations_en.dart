@@ -4219,7 +4219,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get workspaceDefaultDirectoryPrivate => 'App private directory';
 
   @override
-  String get workspaceDefaultDirectoryReset => 'Restore App private directory';
+  String get workspaceUseAppPrivateDirectory => 'Use app private directory';
 
   @override
   String get workspaceDefaultDirectoryDescription =>

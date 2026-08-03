@@ -12,6 +12,7 @@ import '../services/network/request_logger.dart';
 import '../services/logging/flutter_logger.dart';
 import '../models/api_keys.dart';
 import '../models/backup.dart';
+import '../models/workspace_config.dart';
 import '../services/haptics.dart';
 import '../../utils/app_directories.dart';
 import '../../utils/sandbox_path_resolver.dart';
@@ -116,10 +117,8 @@ class SettingsProvider extends ChangeNotifier {
   static const String _displayChatMessageBackgroundStyleKey =
       'display_chat_message_background_style_v1';
   // Chat input bar button order / visibility
-  static const String _chatInputButtonOrderKey =
-      'chat_input_button_order_v1';
-  static const String _chatInputButtonHiddenKey =
-      'chat_input_button_hidden_v1';
+  static const String _chatInputButtonOrderKey = 'chat_input_button_order_v1';
+  static const String _chatInputButtonHiddenKey = 'chat_input_button_hidden_v1';
   // Network request logging (debug)
   static const String _requestLogEnabledKey = 'request_log_enabled_v1';
   // Flutter runtime logging (debug)
@@ -153,6 +152,8 @@ class SettingsProvider extends ChangeNotifier {
   static const String _greetingPromptKey = 'greeting_prompt_v1';
   static const String _newChatLogoTypeKey = 'new_chat_logo_type_v1';
   static const String _defaultWorkspacePathKey = 'default_workspace_path_v1';
+  static const String _defaultWorkspaceConfigKey =
+      'default_workspace_config_v1';
   static const String _newChatCustomLogoFileNameKey =
       'new_chat_custom_logo_file_name_v1';
   static const String _newChatTextTypeKey = 'new_chat_text_type_v1';
@@ -296,8 +297,8 @@ class SettingsProvider extends ChangeNotifier {
   String get globalProxyUsername => _globalProxyUsername;
   String get globalProxyPassword => _globalProxyPassword;
 
-  String? _defaultWorkspacePath;
-  String? get defaultWorkspacePath => _defaultWorkspacePath;
+  WorkspaceConfig _defaultWorkspaceConfig = const WorkspaceConfig.useDefault();
+  WorkspaceConfig get defaultWorkspaceConfig => _defaultWorkspaceConfig;
 
   static const String _appLaunchCountKey = 'app_launch_count_v1';
 
@@ -365,7 +366,28 @@ class SettingsProvider extends ChangeNotifier {
     }
     _themePaletteId = prefs.getString(_themePaletteKey) ?? 'default';
     _useDynamicColor = prefs.getBool(_useDynamicColorKey) ?? true;
-    _defaultWorkspacePath = prefs.getString(_defaultWorkspacePathKey)?.trim();
+    final savedConfig = prefs.getString(_defaultWorkspaceConfigKey);
+    if (savedConfig != null && savedConfig.isNotEmpty) {
+      try {
+        _defaultWorkspaceConfig = WorkspaceConfig.fromJson(
+          jsonDecode(savedConfig),
+          fallback: WorkspaceMode.useDefault,
+        );
+      } catch (_) {
+        _defaultWorkspaceConfig = const WorkspaceConfig.useDefault();
+      }
+    } else {
+      // Migrate the legacy single-path setting (null = app private directory).
+      final legacyPath = prefs.getString(_defaultWorkspacePathKey)?.trim();
+      if (legacyPath != null && legacyPath.isNotEmpty) {
+        _defaultWorkspaceConfig = WorkspaceConfig.custom(legacyPath);
+        await prefs.setString(
+          _defaultWorkspaceConfigKey,
+          jsonEncode(_defaultWorkspaceConfig.toJson()),
+        );
+        await prefs.remove(_defaultWorkspacePathKey);
+      }
+    }
     final cfgStr = prefs.getString(_providerConfigsKey);
     if (cfgStr != null && cfgStr.isNotEmpty) {
       try {
@@ -1316,7 +1338,10 @@ class SettingsProvider extends ChangeNotifier {
     _chatInputButtonHidden = List.unmodifiable(hidden);
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_chatInputButtonHiddenKey, _chatInputButtonHidden);
+    await prefs.setStringList(
+      _chatInputButtonHiddenKey,
+      _chatInputButtonHidden,
+    );
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
@@ -2781,16 +2806,15 @@ Synthesize your reasoning and research into a final response. The structure shou
     await FlutterLogger.setEnabled(v);
   }
 
-  Future<void> setDefaultWorkspacePath(String? path) async {
-    final value = path?.trim();
-    _defaultWorkspacePath = value == null || value.isEmpty ? null : value;
+  Future<void> setDefaultWorkspaceConfig(WorkspaceConfig config) async {
+    _defaultWorkspaceConfig = config;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    if (_defaultWorkspacePath == null) {
-      await prefs.remove(_defaultWorkspacePathKey);
-    } else {
-      await prefs.setString(_defaultWorkspacePathKey, _defaultWorkspacePath!);
-    }
+    await prefs.setString(
+      _defaultWorkspaceConfigKey,
+      jsonEncode(config.toJson()),
+    );
+    await prefs.remove(_defaultWorkspacePathKey);
   }
 
   // Search service settings

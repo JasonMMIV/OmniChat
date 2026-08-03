@@ -21,7 +21,7 @@ class WorkspaceResolver {
     required Conversation conversation,
     required Assistant? project,
     required WorkspaceConfig? conversationConfig,
-    required String? defaultPath,
+    required WorkspaceConfig? defaultConfig,
   }) async {
     final conversationSetting =
         conversationConfig ?? const WorkspaceConfig.inheritProject();
@@ -29,21 +29,21 @@ class WorkspaceResolver {
       return _resolveSetting(
         conversationSetting,
         source: WorkspaceSource.conversation,
-        defaultPath: defaultPath,
+        defaultConfig: defaultConfig,
       );
     }
 
     return _resolveSetting(
       project?.workspace ?? const WorkspaceConfig.useDefault(),
       source: WorkspaceSource.project,
-      defaultPath: defaultPath,
+      defaultConfig: defaultConfig,
     );
   }
 
   static Future<WorkspaceResolution> _resolveSetting(
     WorkspaceConfig setting, {
     required WorkspaceSource source,
-    required String? defaultPath,
+    required WorkspaceConfig? defaultConfig,
   }) async {
     switch (setting.mode) {
       case WorkspaceMode.disabled:
@@ -54,23 +54,41 @@ class WorkspaceResolver {
       case WorkspaceMode.custom:
         final path = setting.path?.trim();
         if (path == null || path.isEmpty) {
-          return _resolveDefault(defaultPath, source: source);
+          return _resolveDefault(defaultConfig, source: source);
         }
         return WorkspaceResolution(source: source, path: path);
       case WorkspaceMode.useDefault:
       case WorkspaceMode.inheritProject:
-        return _resolveDefault(defaultPath, source: source);
+        return _resolveDefault(defaultConfig, source: source);
     }
   }
 
   static Future<WorkspaceResolution> _resolveDefault(
-    String? configuredPath, {
+    WorkspaceConfig? defaultConfig, {
     required WorkspaceSource source,
   }) async {
-    final configured = configuredPath?.trim();
-    if (configured != null && configured.isNotEmpty) {
-      return WorkspaceResolution(source: source, path: configured);
+    switch (defaultConfig?.mode) {
+      case WorkspaceMode.disabled:
+        return const WorkspaceResolution(
+          source: WorkspaceSource.disabled,
+          path: null,
+        );
+      case WorkspaceMode.custom:
+        final configured = defaultConfig!.path?.trim();
+        if (configured != null && configured.isNotEmpty) {
+          return WorkspaceResolution(source: source, path: configured);
+        }
+        return _resolveAppPrivate(source);
+      case WorkspaceMode.useDefault:
+      case WorkspaceMode.inheritProject:
+      case null:
+        return _resolveAppPrivate(source);
     }
+  }
+
+  static Future<WorkspaceResolution> _resolveAppPrivate(
+    WorkspaceSource source,
+  ) async {
     final fallback = (await AppDirectories.getFileSandboxDirectory()).path;
     return WorkspaceResolution(
       source: WorkspaceSource.defaultDirectory,

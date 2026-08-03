@@ -179,6 +179,26 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 
 ## 📜 Version Changes Log
 
+## [v1.6.9+] - 2026-08-03: Default Working Directory Options & Workspace Sheet Auto-Close
+
+### 159. Global Default Working Directory Mode & Auto-Close Workspace Sheets
+
+- **Purpose**: Turn the global default working directory into an explicit three-option setting (Do not use workspace / Use app private directory / Choose folder) stored as a typed `WorkspaceConfig`, and make the default-directory dialog and the conversation workspace sheet auto-close after a selection — consistent with the project workspace sheet.
+- **Files Modified**:
+  - `lib/core/providers/settings_provider.dart` (global default stored as `default_workspace_config_v1` typed JSON; legacy `default_workspace_path_v1` migrates to `custom` on first load; `setDefaultWorkspaceConfig` replaces `setDefaultWorkspacePath`)
+  - `lib/core/services/workspace/workspace_resolver.dart` (global default now accepts `WorkspaceConfig?`; a disabled global default disables inherited project/conversation workspaces; unset/`useDefault` falls back to the app-private `files/` sandbox)
+  - `lib/features/chat/widgets/workspace_settings_dialog.dart` (default directory sheet rewritten to three options with live check marks and custom-path subtitle; auto-closes after selection; `workspaceDefaultDirectoryLabel` helper)
+  - `lib/features/chat/widgets/workspace_sheet.dart` (conversation mode options and folder picker auto-close after selection)
+  - `lib/features/settings/pages/settings_page.dart` (row detail shows the current global mode: not used / app private / custom path)
+  - `lib/features/home/services/message_generation_service.dart` / `lib/features/chat/widgets/chat_message_widget.dart` (pass `defaultWorkspaceConfig` to the resolver)
+  - `lib/l10n/app_en.arb` / `app_zh.arb` / `app_zh_Hans.arb` / `app_zh_Hant.arb` (+ regenerated `app_localizations*.dart`; added `workspaceUseAppPrivateDirectory`, removed `workspaceDefaultDirectoryReset`)
+  - `test/workspace_config_test.dart` (disabled-global-default resolution test)
+- **Details**:
+  - **Typed global default**: `default_workspace_config_v1` stores `{mode, path?}`; users pick disabled / app private / custom folder. The legacy single-path key is migrated once and removed.
+  - **Disabled propagation**: a disabled global default resolves inherited "use default" project/conversation settings to no workspace, omitting `file_*` tools and the workspace prompt block.
+  - **Consistent UX**: the default-directory dialog and the conversation workspace sheet close immediately after a selection, matching the project workspace sheet; the workspace sheet re-resolves after the gear-opened default-directory dialog closes.
+- **Tests**: `flutter test` — 52 tests pass.
+
 ## [v1.6.9+] - 2026-08-03: Incremental File Editing and Segmented Reads
 
 ### 158. `file_edit` / `file_patch` Tools and Bounded `file_read` Segments

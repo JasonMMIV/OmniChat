@@ -87,7 +87,9 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
             conversationConfig: service.getConversationWorkspaceConfig(
               widget.conversationId,
             ),
-            defaultPath: context.read<SettingsProvider>().defaultWorkspacePath,
+            defaultConfig: context
+                .read<SettingsProvider>()
+                .defaultWorkspaceConfig,
           );
     if (!mounted) return;
     setState(() {
@@ -117,7 +119,7 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
           widget.conversationId,
           selected,
         );
-        await _loadWorkspace();
+        if (mounted) Navigator.of(context).pop();
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -129,7 +131,7 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
       widget.conversationId,
       config,
     );
-    await _loadWorkspace();
+    if (mounted) Navigator.of(context).pop();
   }
 
   Future<void> _openBrowser() async {

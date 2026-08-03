@@ -26,6 +26,18 @@ Future<String?> _pickWorkspaceFolder(BuildContext context) async {
   return value == null || value.isEmpty ? null : value;
 }
 
+String workspaceDefaultDirectoryLabel(
+  AppLocalizations l10n,
+  WorkspaceConfig config,
+) {
+  return switch (config.mode) {
+    WorkspaceMode.disabled => l10n.workspaceDoNotUse,
+    WorkspaceMode.useDefault => l10n.workspaceDefaultDirectoryPrivate,
+    WorkspaceMode.custom => config.path ?? l10n.workspaceChooseFolder,
+    WorkspaceMode.inheritProject => l10n.workspaceDefaultDirectoryPrivate,
+  };
+}
+
 Future<void> showDefaultWorkspaceDirectoryDialog(BuildContext context) async {
   final isDesktop =
       defaultTargetPlatform == TargetPlatform.windows ||
@@ -74,8 +86,27 @@ class _DefaultWorkspaceDirectorySheet extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final settings = context.watch<SettingsProvider>();
-    final configured = settings.defaultWorkspacePath;
-    final displayPath = configured ?? l10n.workspaceDefaultDirectoryPrivate;
+    final current = settings.defaultWorkspaceConfig;
+
+    Widget option({
+      required IconData icon,
+      required String title,
+      required WorkspaceConfig value,
+    }) {
+      final selected = current == value;
+      return ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(icon),
+        title: Text(title),
+        trailing: selected ? Icon(Lucide.Check, color: cs.primary) : null,
+        onTap: () async {
+          await context.read<SettingsProvider>().setDefaultWorkspaceConfig(
+            value,
+          );
+          if (context.mounted) Navigator.of(context).pop();
+        },
+      );
+    }
 
     return Material(
       color: cs.surface,
@@ -96,7 +127,7 @@ class _DefaultWorkspaceDirectorySheet extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                displayPath,
+                workspaceDefaultDirectoryLabel(l10n, current),
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -105,28 +136,42 @@ class _DefaultWorkspaceDirectorySheet extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
+              option(
+                icon: Lucide.CircleX,
+                title: l10n.workspaceDoNotUse,
+                value: const WorkspaceConfig.disabled(),
+              ),
+              option(
+                icon: Lucide.Folder,
+                title: l10n.workspaceUseAppPrivateDirectory,
+                value: const WorkspaceConfig.useDefault(),
+              ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Lucide.FolderCode),
                 title: Text(l10n.workspaceChooseFolder),
+                subtitle: current.mode == WorkspaceMode.custom
+                    ? Text(
+                        current.path ?? '',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    : null,
+                trailing: current.mode == WorkspaceMode.custom
+                    ? Icon(Lucide.Check, color: cs.primary)
+                    : null,
                 onTap: () async {
                   final selected = await _pickWorkspaceFolder(context);
                   if (selected != null && context.mounted) {
                     await context
                         .read<SettingsProvider>()
-                        .setDefaultWorkspacePath(selected);
+                        .setDefaultWorkspaceConfig(
+                          WorkspaceConfig.custom(selected),
+                        );
+                    if (context.mounted) Navigator.of(context).pop();
                   }
                 },
               ),
-              if (configured != null)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Lucide.RotateCcw),
-                  title: Text(l10n.workspaceDefaultDirectoryReset),
-                  onTap: () => context
-                      .read<SettingsProvider>()
-                      .setDefaultWorkspacePath(null),
-                ),
               const SizedBox(height: 4),
               Text(
                 l10n.workspaceDefaultDirectoryDescription,
