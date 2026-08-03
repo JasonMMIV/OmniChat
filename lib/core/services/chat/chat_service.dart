@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
+import '../../models/file_record.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/app_directories.dart';
 
@@ -12,12 +13,20 @@ class ChatService extends ChangeNotifier {
   static const String _conversationsBoxName = 'conversations';
   static const String _messagesBoxName = 'messages';
   static const String _toolEventsBoxName = 'tool_events_v1';
+  static const String _conversationWorkspacesBoxName =
+      'conversation_workspaces_v1';
+  static const String _messageFileRecordsBoxName = 'message_file_records_v1';
 
   late Box<Conversation> _conversationsBox;
   late Box<ChatMessage> _messagesBox;
-  late Box _toolEventsBox; // key: assistantMessageId, value: List<Map<String,dynamic>>
+  late Box
+  _toolEventsBox; // key: assistantMessageId, value: List<Map<String,dynamic>>
+  late Box
+  _conversationWorkspacesBox; // key: conversationId, value: absolute path
+  late Box
+  _messageFileRecordsBox; // key: messageId, value: List<Map<String,dynamic>>
   String _sigKey(String id) => 'sig_$id';
-  
+
   String? _currentConversationId;
   final Map<String, List<ChatMessage>> _messagesCache = {};
   final Map<String, Conversation> _draftConversations = {};
@@ -52,6 +61,10 @@ class ChatService extends ChangeNotifier {
     _conversationsBox = await Hive.openBox<Conversation>(_conversationsBoxName);
     _messagesBox = await Hive.openBox<ChatMessage>(_messagesBoxName);
     _toolEventsBox = await Hive.openBox(_toolEventsBoxName);
+    _conversationWorkspacesBox = await Hive.openBox(
+      _conversationWorkspacesBoxName,
+    );
+    _messageFileRecordsBox = await Hive.openBox(_messageFileRecordsBoxName);
 
     // Migrate any persisted message content that references old iOS sandbox paths
     await _migrateSandboxPaths();
@@ -78,7 +91,7 @@ class ChatService extends ChangeNotifier {
 
   List<ChatMessage> getMessages(String conversationId) {
     if (!_initialized) return [];
-    
+
     // Check cache first
     if (_messagesCache.containsKey(conversationId)) {
       return _messagesCache[conversationId]!;
@@ -101,7 +114,10 @@ class ChatService extends ChangeNotifier {
     return messages;
   }
 
-  Future<Conversation> createConversation({String? title, String? assistantId}) async {
+  Future<Conversation> createConversation({
+    String? title,
+    String? assistantId,
+  }) async {
     if (!_initialized) await init();
 
     final conversation = Conversation(
@@ -116,9 +132,15 @@ class ChatService extends ChangeNotifier {
   }
 
   // Create a draft conversation that is not persisted until first message arrives.
-  Future<Conversation> createDraftConversation({String? title, String? assistantId}) async {
+  Future<Conversation> createDraftConversation({
+    String? title,
+    String? assistantId,
+  }) async {
     if (!_initialized) await init();
-    final conversation = Conversation(title: title ?? _defaultConversationTitle, assistantId: assistantId);
+    final conversation = Conversation(
+      title: title ?? _defaultConversationTitle,
+      assistantId: assistantId,
+    );
     _draftConversations[conversation.id] = conversation;
     _currentConversationId = conversation.id;
     notifyListeners();
@@ -131,6 +153,7 @@ class ChatService extends ChangeNotifier {
     // If it's a draft and never persisted, just drop it.
     if (_draftConversations.containsKey(id)) {
       _draftConversations.remove(id);
+      if (_initialized) await _conversationWorkspacesBox.delete(id);
       if (_currentConversationId == id) {
         _currentConversationId = null;
       }
@@ -151,7 +174,10 @@ class ChatService extends ChangeNotifier {
       final imgRe = RegExp(r"\[image:(.+?)\]");
       for (final m in imgRe.allMatches(content)) {
         final pth = m.group(1)?.trim();
-        if (pth != null && pth.isNotEmpty && !pth.startsWith('http') && !pth.startsWith('data:')) {
+        if (pth != null &&
+            pth.isNotEmpty &&
+            !pth.startsWith('http') &&
+            !pth.startsWith('data:')) {
           pathsToMaybeDelete.add(pth);
         }
       }
@@ -159,7 +185,10 @@ class ChatService extends ChangeNotifier {
       final fileRe = RegExp(r"\[file:(.+?)\|(.+?)\|(.+?)\]");
       for (final m in fileRe.allMatches(content)) {
         final pth = m.group(1)?.trim();
-        if (pth != null && pth.isNotEmpty && !pth.startsWith('http') && !pth.startsWith('data:')) {
+        if (pth != null &&
+            pth.isNotEmpty &&
+            !pth.startsWith('http') &&
+            !pth.startsWith('data:')) {
           pathsToMaybeDelete.add(pth);
         }
       }
@@ -169,14 +198,22 @@ class ChatService extends ChangeNotifier {
     for (final messageId in conversation.messageIds) {
       final msg = _messagesBox.get(messageId);
       if (msg != null && msg.role == 'assistant') {
-        try { await _toolEventsBox.delete(msg.id); } catch (_) {}
-        try { await _toolEventsBox.delete(_sigKey(msg.id)); } catch (_) {}
+        try {
+          await _toolEventsBox.delete(msg.id);
+        } catch (_) {}
+        try {
+          await _toolEventsBox.delete(_sigKey(msg.id));
+        } catch (_) {}
       }
+      try {
+        await _messageFileRecordsBox.delete(messageId);
+      } catch (_) {}
       await _messagesBox.delete(messageId);
     }
 
     // Delete conversation
     await _conversationsBox.delete(id);
+    await _conversationWorkspacesBox.delete(id);
 
     // Remove cached messages
     // Clear cache
@@ -197,14 +234,20 @@ class ChatService extends ChangeNotifier {
     final imgRe = RegExp(r"\[image:(.+?)\]");
     for (final m in imgRe.allMatches(content)) {
       final pth = m.group(1)?.trim();
-      if (pth != null && pth.isNotEmpty && !pth.startsWith('http') && !pth.startsWith('data:')) {
+      if (pth != null &&
+          pth.isNotEmpty &&
+          !pth.startsWith('http') &&
+          !pth.startsWith('data:')) {
         out.add(SandboxPathResolver.fix(pth));
       }
     }
     final fileRe = RegExp(r"\[file:(.+?)\|(.+?)\|(.+?)\]");
     for (final m in fileRe.allMatches(content)) {
       final pth = m.group(1)?.trim();
-      if (pth != null && pth.isNotEmpty && !pth.startsWith('http') && !pth.startsWith('data:')) {
+      if (pth != null &&
+          pth.isNotEmpty &&
+          !pth.startsWith('http') &&
+          !pth.startsWith('data:')) {
         out.add(SandboxPathResolver.fix(pth));
       }
     }
@@ -280,14 +323,19 @@ class ChatService extends ChangeNotifier {
         if (ent is File) {
           final filePath = _canon(ent.path);
           if (!referenced.contains(filePath)) {
-            try { await ent.delete(); } catch (_) {}
+            try {
+              await ent.delete();
+            } catch (_) {}
           }
         }
       }
     } catch (_) {}
   }
 
-  Future<void> restoreConversation(Conversation conversation, List<ChatMessage> messages) async {
+  Future<void> restoreConversation(
+    Conversation conversation,
+    List<ChatMessage> messages,
+  ) async {
     if (!_initialized) await init();
     // Restore messages first
     for (final m in messages) {
@@ -316,12 +364,15 @@ class ChatService extends ChangeNotifier {
   }
 
   // Add a message directly to an existing conversation (for merge mode)
-  Future<void> addMessageDirectly(String conversationId, ChatMessage message) async {
+  Future<void> addMessageDirectly(
+    String conversationId,
+    ChatMessage message,
+  ) async {
     if (!_initialized) await init();
-    
+
     // Add message to box
     await _messagesBox.put(message.id, message);
-    
+
     // Update conversation
     final conversation = _conversationsBox.get(conversationId);
     if (conversation != null) {
@@ -331,25 +382,85 @@ class ChatService extends ChangeNotifier {
         await conversation.save();
       }
     }
-    
+
     // Update cache
     if (_messagesCache.containsKey(conversationId)) {
       if (!_messagesCache[conversationId]!.any((m) => m.id == message.id)) {
         _messagesCache[conversationId]!.add(message);
       }
     }
-    
+
     notifyListeners();
   }
 
   // Conversation-scoped MCP servers selection
+  String? getConversationWorkspace(String conversationId) {
+    if (!_initialized) return null;
+    final value = _conversationWorkspacesBox.get(conversationId);
+    return value is String && value.trim().isNotEmpty ? value : null;
+  }
+
+  Future<String> getEffectiveConversationWorkspace(
+    String conversationId,
+  ) async {
+    final configured = getConversationWorkspace(conversationId);
+    if (configured != null) return configured;
+    return (await AppDirectories.getFileSandboxDirectory()).path;
+  }
+
+  Future<void> setConversationWorkspace(
+    String conversationId,
+    String? path,
+  ) async {
+    if (!_initialized) await init();
+    final value = path?.trim();
+    if (value == null || value.isEmpty) {
+      await _conversationWorkspacesBox.delete(conversationId);
+    } else {
+      await _conversationWorkspacesBox.put(conversationId, value);
+    }
+    notifyListeners();
+  }
+
+  List<FileRecord> getMessageFileRecords(String messageId) {
+    if (!_initialized) return const <FileRecord>[];
+    final value = _messageFileRecordsBox.get(messageId);
+    if (value is! List) return const <FileRecord>[];
+    final records = <FileRecord>[];
+    for (final item in value) {
+      try {
+        if (item is Map) {
+          records.add(FileRecord.fromJson(Map<String, dynamic>.from(item)));
+        }
+      } catch (_) {}
+    }
+    return records;
+  }
+
+  Future<void> addMessageFileRecord(String messageId, FileRecord record) async {
+    if (!_initialized) await init();
+    final records = getMessageFileRecords(messageId)
+      ..removeWhere((item) => item.path == record.path)
+      ..add(record);
+    await _messageFileRecordsBox.put(
+      messageId,
+      records.map((item) => item.toJson()).toList(),
+    );
+    notifyListeners();
+  }
+
   List<String> getConversationMcpServers(String conversationId) {
     if (!_initialized) return const <String>[];
-    final c = _conversationsBox.get(conversationId) ?? _draftConversations[conversationId];
+    final c =
+        _conversationsBox.get(conversationId) ??
+        _draftConversations[conversationId];
     return c?.mcpServerIds ?? const <String>[];
   }
 
-  Future<void> setConversationMcpServers(String conversationId, List<String> serverIds) async {
+  Future<void> setConversationMcpServers(
+    String conversationId,
+    List<String> serverIds,
+  ) async {
     if (!_initialized) await init();
     if (_draftConversations.containsKey(conversationId)) {
       final draft = _draftConversations[conversationId]!;
@@ -366,7 +477,11 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> toggleConversationMcpServer(String conversationId, String serverId, bool enabled) async {
+  Future<void> toggleConversationMcpServer(
+    String conversationId,
+    String serverId,
+    bool enabled,
+  ) async {
     final current = getConversationMcpServers(conversationId);
     final set = current.toSet();
     if (enabled) {
@@ -422,13 +537,17 @@ class ChatService extends ChangeNotifier {
   }
 
   /// Gets all conversations with non-empty summaries for a specific assistant.
-  List<Conversation> getConversationsWithSummaryForAssistant(String assistantId) {
+  List<Conversation> getConversationsWithSummaryForAssistant(
+    String assistantId,
+  ) {
     if (!_initialized) return [];
     return getAllConversations()
-        .where((c) =>
-            c.assistantId == assistantId &&
-            c.summary != null &&
-            c.summary!.trim().isNotEmpty)
+        .where(
+          (c) =>
+              c.assistantId == assistantId &&
+              c.summary != null &&
+              c.summary!.trim().isNotEmpty,
+        )
         .toList();
   }
 
@@ -498,7 +617,10 @@ class ChatService extends ChangeNotifier {
         conversation = draft;
       } else {
         // Create a new one on the fly as a fallback
-        conversation = Conversation(id: conversationId, title: _defaultConversationTitle);
+        conversation = Conversation(
+          id: conversationId,
+          title: _defaultConversationTitle,
+        );
         await _conversationsBox.put(conversationId, conversation);
       }
     }
@@ -522,7 +644,7 @@ class ChatService extends ChangeNotifier {
     );
 
     await _messagesBox.put(message.id, message);
-    
+
     conversation.messageIds.add(message.id);
     conversation.updatedAt = DateTime.now();
     await conversation.save();
@@ -536,7 +658,8 @@ class ChatService extends ChangeNotifier {
     return message;
   }
 
-  Future<void> updateMessage(String messageId, {
+  Future<void> updateMessage(
+    String messageId, {
     String? content,
     int? totalTokens,
     int? promptTokens,
@@ -566,7 +689,8 @@ class ChatService extends ChangeNotifier {
       reasoningStartAt: reasoningStartAt ?? message.reasoningStartAt,
       reasoningFinishedAt: reasoningFinishedAt ?? message.reasoningFinishedAt,
       translation: translation,
-      reasoningSegmentsJson: reasoningSegmentsJson ?? message.reasoningSegmentsJson,
+      reasoningSegmentsJson:
+          reasoningSegmentsJson ?? message.reasoningSegmentsJson,
       aiTeamProposalsJson: aiTeamProposalsJson ?? message.aiTeamProposalsJson,
     );
 
@@ -588,7 +712,8 @@ class ChatService extends ChangeNotifier {
   /// Update message content during streaming without triggering notifyListeners.
   /// This is used for streaming updates to avoid unnecessary rebuilds of
   /// widgets watching ChatService (e.g., side_drawer).
-  Future<void> updateMessageSilent(String messageId, {
+  Future<void> updateMessageSilent(
+    String messageId, {
     String? content,
     int? totalTokens,
     int? promptTokens,
@@ -618,7 +743,8 @@ class ChatService extends ChangeNotifier {
       reasoningStartAt: reasoningStartAt ?? message.reasoningStartAt,
       reasoningFinishedAt: reasoningFinishedAt ?? message.reasoningFinishedAt,
       translation: translation,
-      reasoningSegmentsJson: reasoningSegmentsJson ?? message.reasoningSegmentsJson,
+      reasoningSegmentsJson:
+          reasoningSegmentsJson ?? message.reasoningSegmentsJson,
       aiTeamProposalsJson: aiTeamProposalsJson ?? message.aiTeamProposalsJson,
     );
 
@@ -649,7 +775,10 @@ class ChatService extends ChangeNotifier {
     return const <Map<String, dynamic>>[];
   }
 
-  Future<void> setToolEvents(String assistantMessageId, List<Map<String, dynamic>> events) async {
+  Future<void> setToolEvents(
+    String assistantMessageId,
+    List<Map<String, dynamic>> events,
+  ) async {
     if (!_initialized) await init();
     await _toolEventsBox.put(assistantMessageId, events);
     notifyListeners();
@@ -663,7 +792,9 @@ class ChatService extends ChangeNotifier {
     String? content,
   }) async {
     if (!_initialized) await init();
-    final list = List<Map<String, dynamic>>.of(getToolEvents(assistantMessageId));
+    final list = List<Map<String, dynamic>>.of(
+      getToolEvents(assistantMessageId),
+    );
     final cleanId = (id).toString();
 
     int idx = -1;
@@ -673,9 +804,11 @@ class ChatService extends ChangeNotifier {
     }
     // If no id or not found, match the first placeholder (no content) with same name
     if (idx < 0) {
-      idx = list.indexWhere((e) =>
-          (e['name']?.toString() ?? '') == name &&
-          (e['content'] == null || (e['content']?.toString().isEmpty ?? true))
+      idx = list.indexWhere(
+        (e) =>
+            (e['name']?.toString() ?? '') == name &&
+            (e['content'] == null ||
+                (e['content']?.toString().isEmpty ?? true)),
       );
     }
 
@@ -702,7 +835,10 @@ class ChatService extends ChangeNotifier {
     return null;
   }
 
-  Future<void> setGeminiThoughtSignature(String assistantMessageId, String signature) async {
+  Future<void> setGeminiThoughtSignature(
+    String assistantMessageId,
+    String signature,
+  ) async {
     if (!_initialized) await init();
     await _toolEventsBox.put(_sigKey(assistantMessageId), signature);
     notifyListeners();
@@ -710,7 +846,9 @@ class ChatService extends ChangeNotifier {
 
   Future<void> removeGeminiThoughtSignature(String assistantMessageId) async {
     if (!_initialized) await init();
-    try { await _toolEventsBox.delete(_sigKey(assistantMessageId)); } catch (_) {}
+    try {
+      await _toolEventsBox.delete(_sigKey(assistantMessageId));
+    } catch (_) {}
   }
 
   Future<Conversation> forkConversation({
@@ -721,7 +859,16 @@ class ChatService extends ChangeNotifier {
   }) async {
     if (!_initialized) await init();
     // Create new conversation first
-    final convo = await createConversation(title: title, assistantId: assistantId);
+    final convo = await createConversation(
+      title: title,
+      assistantId: assistantId,
+    );
+    final sourceWorkspace = sourceMessages.isEmpty
+        ? null
+        : getConversationWorkspace(sourceMessages.first.conversationId);
+    if (sourceWorkspace != null) {
+      await setConversationWorkspace(convo.id, sourceWorkspace);
+    }
     final ids = <String>[];
     for (final src in sourceMessages) {
       final clone = ChatMessage(
@@ -745,6 +892,13 @@ class ChatService extends ChangeNotifier {
         version: src.version,
       );
       await _messagesBox.put(clone.id, clone);
+      final records = getMessageFileRecords(src.id);
+      if (records.isNotEmpty) {
+        await _messageFileRecordsBox.put(
+          clone.id,
+          records.map((record) => record.toJson()).toList(),
+        );
+      }
       ids.add(clone.id);
     }
     // Attach to conversation in storage
@@ -753,14 +907,14 @@ class ChatService extends ChangeNotifier {
       c.messageIds
         ..clear()
         ..addAll(ids);
-      c.versionSelections = Map<String, int>.from(versionSelections ?? const <String, int>{});
+      c.versionSelections = Map<String, int>.from(
+        versionSelections ?? const <String, int>{},
+      );
       c.updatedAt = DateTime.now();
       await c.save();
     }
     // Cache
-    _messagesCache[convo.id] = [
-      for (final id in ids) _messagesBox.get(id)!
-    ];
+    _messagesCache[convo.id] = [for (final id in ids) _messagesBox.get(id)!];
     notifyListeners();
     return _conversationsBox.get(convo.id)!;
   }
@@ -826,11 +980,17 @@ class ChatService extends ChangeNotifier {
   }
 
   Map<String, int> getVersionSelections(String conversationId) {
-    final c = _conversationsBox.get(conversationId) ?? _draftConversations[conversationId];
+    final c =
+        _conversationsBox.get(conversationId) ??
+        _draftConversations[conversationId];
     return Map<String, int>.from(c?.versionSelections ?? const <String, int>{});
   }
 
-  Future<void> setSelectedVersion(String conversationId, String groupId, int version) async {
+  Future<void> setSelectedVersion(
+    String conversationId,
+    String groupId,
+    int version,
+  ) async {
     if (_draftConversations.containsKey(conversationId)) {
       final draft = _draftConversations[conversationId]!;
       draft.versionSelections[groupId] = version;
@@ -846,7 +1006,10 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> removeSelectedVersion(String conversationId, String groupId) async {
+  Future<void> removeSelectedVersion(
+    String conversationId,
+    String groupId,
+  ) async {
     if (_draftConversations.containsKey(conversationId)) {
       final draft = _draftConversations[conversationId]!;
       draft.versionSelections.remove(groupId);
@@ -862,14 +1025,18 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
-
-  Future<Conversation?> toggleTruncateAtTail(String conversationId, {String? defaultTitle}) async {
+  Future<Conversation?> toggleTruncateAtTail(
+    String conversationId, {
+    String? defaultTitle,
+  }) async {
     if (!_initialized) await init();
     // Draft case
     if (_draftConversations.containsKey(conversationId)) {
       final draft = _draftConversations[conversationId]!;
       final lastIndexPlusOne = draft.messageIds.length; // last index + 1
-      final newValue = (draft.truncateIndex == lastIndexPlusOne) ? -1 : lastIndexPlusOne;
+      final newValue = (draft.truncateIndex == lastIndexPlusOne)
+          ? -1
+          : lastIndexPlusOne;
       draft.truncateIndex = newValue;
       if ((defaultTitle ?? '').isNotEmpty) draft.title = defaultTitle!;
       draft.updatedAt = DateTime.now();
@@ -880,7 +1047,9 @@ class ChatService extends ChangeNotifier {
     final c = _conversationsBox.get(conversationId);
     if (c == null) return null;
     final lastIndexPlusOne = c.messageIds.length;
-    final newValue = (c.truncateIndex == lastIndexPlusOne) ? -1 : lastIndexPlusOne;
+    final newValue = (c.truncateIndex == lastIndexPlusOne)
+        ? -1
+        : lastIndexPlusOne;
     c.truncateIndex = newValue;
     if ((defaultTitle ?? '').isNotEmpty) c.title = defaultTitle!;
     c.updatedAt = DateTime.now();
@@ -927,7 +1096,9 @@ class ChatService extends ChangeNotifier {
 
         if (replacementId != null) {
           ids.remove(replacementId);
-          final insertAt = removedIndex <= ids.length ? removedIndex : ids.length;
+          final insertAt = removedIndex <= ids.length
+              ? removedIndex
+              : ids.length;
           ids.insert(insertAt, replacementId);
         }
       }
@@ -938,9 +1109,16 @@ class ChatService extends ChangeNotifier {
     await _messagesBox.delete(messageId);
     // Remove any tool events linked to this assistant message
     if (message.role == 'assistant') {
-      try { await _toolEventsBox.delete(message.id); } catch (_) {}
-      try { await _toolEventsBox.delete(_sigKey(message.id)); } catch (_) {}
+      try {
+        await _toolEventsBox.delete(message.id);
+      } catch (_) {}
+      try {
+        await _toolEventsBox.delete(_sigKey(message.id));
+      } catch (_) {}
     }
+    try {
+      await _messageFileRecordsBox.delete(messageId);
+    } catch (_) {}
 
     // Update cache: clear this conversation so that next getMessages()
     // reloads messages in the updated order from conversation.messageIds.
@@ -963,6 +1141,8 @@ class ChatService extends ChangeNotifier {
     await _messagesBox.clear();
     await _conversationsBox.clear();
     await _toolEventsBox.clear();
+    await _conversationWorkspacesBox.clear();
+    await _messageFileRecordsBox.clear();
     _messagesCache.clear();
     _draftConversations.clear();
     _currentConversationId = null;
@@ -989,7 +1169,9 @@ class ChatService extends ChangeNotifier {
       for (final ent in entries) {
         if (ent is File) {
           count += 1;
-          try { bytes += await ent.length(); } catch (_) {}
+          try {
+            bytes += await ent.length();
+          } catch (_) {}
         }
       }
       return UploadStats(fileCount: count, totalBytes: bytes);

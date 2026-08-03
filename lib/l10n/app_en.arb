@@ -1783,5 +1783,28 @@
         "type": "int"
       }
     }
-  }
+  },
+  "workspaceTitle": "Workspace",
+  "workspaceNotSet": "Not set (using the default private directory)",
+  "workspaceChooseFolder": "Choose folder",
+  "workspaceUseDefaultDirectory": "Use default directory",
+  "workspaceClear": "Clear workspace",
+  "workspaceFiles": "Files",
+  "workspaceSelectFolderDialogTitle": "Select workspace",
+  "workspaceFileBrowserEmpty": "This directory is empty.",
+  "workspaceFileBrowserReadError": "Unable to read this directory: {error}",
+  "@workspaceFileBrowserReadError": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "workspaceFileBrowserOpenError": "Unable to open entry: {error}",
+  "@workspaceFileBrowserOpenError": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "chatMessageWidgetShowInFolder": "Show in folder",
+  "chatMessageWidgetOpenExternally": "Open externally",
+  "chatMessageWidgetDownload": "Download"
 }

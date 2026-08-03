@@ -8083,6 +8083,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count} tokens'**
   String tokenDetailTotalTokens(int count);
+
+  /// No description provided for @workspaceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace'**
+  String get workspaceTitle;
+
+  /// No description provided for @workspaceNotSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Not set (using the default private directory)'**
+  String get workspaceNotSet;
+
+  /// No description provided for @workspaceChooseFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose folder'**
+  String get workspaceChooseFolder;
+
+  /// No description provided for @workspaceUseDefaultDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Use default directory'**
+  String get workspaceUseDefaultDirectory;
+
+  /// No description provided for @workspaceClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear workspace'**
+  String get workspaceClear;
+
+  /// No description provided for @workspaceFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get workspaceFiles;
+
+  /// No description provided for @workspaceSelectFolderDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Select workspace'**
+  String get workspaceSelectFolderDialogTitle;
+
+  /// No description provided for @workspaceFileBrowserEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'This directory is empty.'**
+  String get workspaceFileBrowserEmpty;
+
+  /// No description provided for @workspaceFileBrowserReadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to read this directory: {error}'**
+  String workspaceFileBrowserReadError(Object error);
+
+  /// No description provided for @workspaceFileBrowserOpenError.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to open entry: {error}'**
+  String workspaceFileBrowserOpenError(Object error);
+
+  /// No description provided for @chatMessageWidgetShowInFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Show in folder'**
+  String get chatMessageWidgetShowInFolder;
+
+  /// No description provided for @chatMessageWidgetOpenExternally.
+  ///
+  /// In en, this message translates to:
+  /// **'Open externally'**
+  String get chatMessageWidgetOpenExternally;
+
+  /// No description provided for @chatMessageWidgetDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get chatMessageWidgetDownload;
 }
 
 class _AppLocalizationsDelegate

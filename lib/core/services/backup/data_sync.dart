@@ -13,6 +13,7 @@ import 'package:xml/xml.dart';
 import '../../models/backup.dart';
 import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
+import '../../models/file_record.dart';
 import '../chat/chat_service.dart';
 import 'dropbox_auth_service.dart';
 import '../../../utils/app_directories.dart';
@@ -36,7 +37,8 @@ class DataSync {
   }
 
   Future<DropboxConfig> _ensureDropboxConfig(DropboxConfig cfg) async {
-    if ((cfg.isExpired || cfg.accessToken.isEmpty) && cfg.refreshToken.isNotEmpty) {
+    if ((cfg.isExpired || cfg.accessToken.isEmpty) &&
+        cfg.refreshToken.isNotEmpty) {
       try {
         return await DropboxAuthService.refreshAccessToken(cfg);
       } catch (_) {}
@@ -48,14 +50,16 @@ class DataSync {
     final active = await _ensureDropboxConfig(cfg);
     if (!active.isConnected) throw Exception('Dropbox未連結');
     final uri = Uri.https('api.dropboxapi.com', '/2/users/get_current_account');
-    final res = await http.post(
-      uri,
-      headers: {
-        'Authorization': 'Bearer ${active.accessToken}',
-        'Content-Type': 'application/json',
-      },
-      body: 'null',
-    ).timeout(const Duration(seconds: 30));
+    final res = await http
+        .post(
+          uri,
+          headers: {
+            'Authorization': 'Bearer ${active.accessToken}',
+            'Content-Type': 'application/json',
+          },
+          body: 'null',
+        )
+        .timeout(const Duration(seconds: 30));
     if (res.statusCode != 200) {
       throw Exception('Dropbox 測試連線失敗 (${res.statusCode}): ${res.body}');
     }
@@ -65,9 +69,17 @@ class DataSync {
     final active = await _ensureDropboxConfig(cfg);
     if (!active.isConnected) throw Exception('Dropbox未連結');
 
-    final file = await prepareBackupFile(WebDavConfig(includeChats: active.includeChats, includeFiles: active.includeFiles));
+    final file = await prepareBackupFile(
+      WebDavConfig(
+        includeChats: active.includeChats,
+        includeFiles: active.includeFiles,
+      ),
+    );
 
-    final cleanPath = active.path.trim().replaceAll(RegExp(r'^/+'), '').replaceAll(RegExp(r'/+$'), '');
+    final cleanPath = active.path
+        .trim()
+        .replaceAll(RegExp(r'^/+'), '')
+        .replaceAll(RegExp(r'/+$'), '');
     final dropboxFilePath = cleanPath.isEmpty
         ? '/${p.basename(file.path)}'
         : '/$cleanPath/${p.basename(file.path)}';
@@ -108,23 +120,28 @@ class DataSync {
     final active = await _ensureDropboxConfig(cfg);
     if (!active.isConnected) return [];
 
-    final cleanPath = active.path.trim().replaceAll(RegExp(r'^/+'), '').replaceAll(RegExp(r'/+$'), '');
+    final cleanPath = active.path
+        .trim()
+        .replaceAll(RegExp(r'^/+'), '')
+        .replaceAll(RegExp(r'/+$'), '');
     final folderPath = cleanPath.isEmpty ? '' : '/$cleanPath';
 
     final uri = Uri.https('api.dropboxapi.com', '/2/files/list_folder');
-    final res = await http.post(
-      uri,
-      headers: {
-        'Authorization': 'Bearer ${active.accessToken}',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'path': folderPath,
-        'recursive': false,
-        'include_media_info': false,
-        'include_deleted': false,
-      }),
-    ).timeout(const Duration(seconds: 30));
+    final res = await http
+        .post(
+          uri,
+          headers: {
+            'Authorization': 'Bearer ${active.accessToken}',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'path': folderPath,
+            'recursive': false,
+            'include_media_info': false,
+            'include_deleted': false,
+          }),
+        )
+        .timeout(const Duration(seconds: 30));
 
     if (res.statusCode != 200) {
       if (res.body.contains('path/not_found')) return [];
@@ -142,31 +159,43 @@ class DataSync {
         final size = (ent['size'] as int?) ?? 0;
         DateTime? mtime;
         if (ent['server_modified'] != null) {
-          try { mtime = DateTime.parse(ent['server_modified'] as String); } catch (_) {}
+          try {
+            mtime = DateTime.parse(ent['server_modified'] as String);
+          } catch (_) {}
         }
-        items.add(BackupFileItem(
-          href: Uri.parse(pathDisplay),
-          displayName: name,
-          size: size,
-          lastModified: mtime,
-        ));
+        items.add(
+          BackupFileItem(
+            href: Uri.parse(pathDisplay),
+            displayName: name,
+            size: size,
+            lastModified: mtime,
+          ),
+        );
       }
     }
     return items;
   }
 
-  Future<void> restoreFromDropbox(DropboxConfig cfg, BackupFileItem item, {RestoreMode mode = RestoreMode.overwrite}) async {
+  Future<void> restoreFromDropbox(
+    DropboxConfig cfg,
+    BackupFileItem item, {
+    RestoreMode mode = RestoreMode.overwrite,
+  }) async {
     final active = await _ensureDropboxConfig(cfg);
     if (!active.isConnected) throw Exception('Dropbox未連結');
 
     final uri = Uri.https('content.dropboxapi.com', '/2/files/download');
-    final res = await http.post(
-      uri,
-      headers: {
-        'Authorization': 'Bearer ${active.accessToken}',
-        'Dropbox-API-Arg': _escapeDropboxHeaderJson({'path': item.href.toString()}),
-      },
-    ).timeout(const Duration(minutes: 5));
+    final res = await http
+        .post(
+          uri,
+          headers: {
+            'Authorization': 'Bearer ${active.accessToken}',
+            'Dropbox-API-Arg': _escapeDropboxHeaderJson({
+              'path': item.href.toString(),
+            }),
+          },
+        )
+        .timeout(const Duration(minutes: 5));
 
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw Exception('Dropbox 下載失敗 (${res.statusCode}): ${res.body}');
@@ -175,23 +204,37 @@ class DataSync {
     final tmpDir = await getTemporaryDirectory();
     final file = File(p.join(tmpDir.path, item.displayName));
     await file.writeAsBytes(res.bodyBytes);
-    await _restoreFromBackupFile(file, WebDavConfig(includeChats: active.includeChats, includeFiles: active.includeFiles), mode: mode);
-    try { await file.delete(); } catch (_) {}
+    await _restoreFromBackupFile(
+      file,
+      WebDavConfig(
+        includeChats: active.includeChats,
+        includeFiles: active.includeFiles,
+      ),
+      mode: mode,
+    );
+    try {
+      await file.delete();
+    } catch (_) {}
   }
 
-  Future<void> deleteDropboxBackupFile(DropboxConfig cfg, BackupFileItem item) async {
+  Future<void> deleteDropboxBackupFile(
+    DropboxConfig cfg,
+    BackupFileItem item,
+  ) async {
     final active = await _ensureDropboxConfig(cfg);
     if (!active.isConnected) throw Exception('Dropbox未連結');
 
     final uri = Uri.https('api.dropboxapi.com', '/2/files/delete_v2');
-    final res = await http.post(
-      uri,
-      headers: {
-        'Authorization': 'Bearer ${active.accessToken}',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({'path': item.href.toString()}),
-    ).timeout(const Duration(seconds: 30));
+    final res = await http
+        .post(
+          uri,
+          headers: {
+            'Authorization': 'Bearer ${active.accessToken}',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({'path': item.href.toString()}),
+        )
+        .timeout(const Duration(seconds: 30));
 
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw Exception('Dropbox 刪除失敗 (${res.statusCode}): ${res.body}');
@@ -228,7 +271,10 @@ class DataSync {
     try {
       // Ensure each segment exists
       final url = cfg.url.trim().replaceAll(RegExp(r'/+$'), '');
-      final segments = cfg.path.split('/').where((s) => s.trim().isNotEmpty).toList();
+      final segments = cfg.path
+          .split('/')
+          .where((s) => s.trim().isNotEmpty)
+          .toList();
       String acc = url;
       for (final seg in segments) {
         acc = acc + '/' + seg;
@@ -240,14 +286,17 @@ class DataSync {
           'Content-Type': 'application/xml; charset=utf-8',
           ..._authHeaders(cfg),
         });
-        req.body = '<?xml version="1.0" encoding="utf-8" ?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>';
+        req.body =
+            '<?xml version="1.0" encoding="utf-8" ?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>';
         final res = await client.send(req).then(http.Response.fromStream);
         if (res.statusCode == 404) {
           // create this level
           final mk = await client
               .send(http.Request('MKCOL', u)..headers.addAll(_authHeaders(cfg)))
               .then(http.Response.fromStream);
-          if (mk.statusCode != 201 && mk.statusCode != 200 && mk.statusCode != 405) {
+          if (mk.statusCode != 201 &&
+              mk.statusCode != 200 &&
+              mk.statusCode != 405) {
             throw Exception('MKCOL failed at $u: ${mk.statusCode}');
           }
         } else if (res.statusCode == 401) {
@@ -268,15 +317,21 @@ class DataSync {
   Future<void> testWebdav(WebDavConfig cfg) async {
     final uri = _collectionUri(cfg);
     final req = http.Request('PROPFIND', uri);
-    req.headers.addAll({'Depth': '1', 'Content-Type': 'application/xml; charset=utf-8', ..._authHeaders(cfg)});
-    req.body = '<?xml version="1.0" encoding="utf-8" ?>\n'
+    req.headers.addAll({
+      'Depth': '1',
+      'Content-Type': 'application/xml; charset=utf-8',
+      ..._authHeaders(cfg),
+    });
+    req.body =
+        '<?xml version="1.0" encoding="utf-8" ?>\n'
         '<d:propfind xmlns:d="DAV:">\n'
         '  <d:prop>\n'
         '    <d:displayname/>\n'
         '  </d:prop>\n'
         '</d:propfind>';
     final res = await http.Client().send(req).then(http.Response.fromStream);
-    if (res.statusCode != 207 && (res.statusCode < 200 || res.statusCode >= 300)) {
+    if (res.statusCode != 207 &&
+        (res.statusCode < 200 || res.statusCode >= 300)) {
       throw Exception('WebDAV test failed: ${res.statusCode}');
     }
   }
@@ -293,14 +348,22 @@ class DataSync {
     // settings.json
     final settingsJson = await _exportSettingsJson();
     final settingsBytes = utf8.encode(settingsJson);
-    final settingsArchiveFile = ArchiveFile('settings.json', settingsBytes.length, settingsBytes);
+    final settingsArchiveFile = ArchiveFile(
+      'settings.json',
+      settingsBytes.length,
+      settingsBytes,
+    );
     zip.addArchiveFile(settingsArchiveFile);
 
     // chats
     if (cfg.includeChats) {
       final chatsJson = await _exportChatsJson();
       final chatsBytes = utf8.encode(chatsJson);
-      final chatsArchiveFile = ArchiveFile('chats.json', chatsBytes.length, chatsBytes);
+      final chatsArchiveFile = ArchiveFile(
+        'chats.json',
+        chatsBytes.length,
+        chatsBytes,
+      );
       zip.addArchiveFile(chatsArchiveFile);
     }
 
@@ -322,7 +385,10 @@ class DataSync {
       // Export avatars directory
       final avatarsDir = await _getAvatarsDir();
       if (await avatarsDir.exists()) {
-        final entries = avatarsDir.listSync(recursive: true, followLinks: false);
+        final entries = avatarsDir.listSync(
+          recursive: true,
+          followLinks: false,
+        );
         for (final ent in entries) {
           if (ent is File) {
             final rel = p.relative(ent.path, from: avatarsDir.path);
@@ -355,10 +421,11 @@ class DataSync {
     await _ensureCollection(cfg);
     final target = _fileUri(cfg, p.basename(file.path));
     final bytes = await file.readAsBytes();
-    final res = await http.put(target, headers: {
-      'content-type': 'application/zip',
-      ..._authHeaders(cfg),
-    }, body: bytes);
+    final res = await http.put(
+      target,
+      headers: {'content-type': 'application/zip', ..._authHeaders(cfg)},
+      body: bytes,
+    );
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw Exception('Upload failed: ${res.statusCode}');
     }
@@ -368,8 +435,13 @@ class DataSync {
     await _ensureCollection(cfg);
     final uri = _collectionUri(cfg);
     final req = http.Request('PROPFIND', uri);
-    req.headers.addAll({'Depth': '1', 'Content-Type': 'application/xml; charset=utf-8', ..._authHeaders(cfg)});
-    req.body = '<?xml version="1.0" encoding="utf-8" ?>\n'
+    req.headers.addAll({
+      'Depth': '1',
+      'Content-Type': 'application/xml; charset=utf-8',
+      ..._authHeaders(cfg),
+    });
+    req.body =
+        '<?xml version="1.0" encoding="utf-8" ?>\n'
         '<d:propfind xmlns:d="DAV:">\n'
         '  <d:prop>\n'
         '    <d:displayname/>\n'
@@ -388,12 +460,14 @@ class DataSync {
       final href = resp.getElement('href', namespace: '*')?.innerText ?? '';
       if (href.isEmpty) continue;
       // Skip the collection itself
-      final abs = Uri.parse(href).isAbsolute ? Uri.parse(href).toString() : uri.resolve(href).toString();
+      final abs = Uri.parse(href).isAbsolute
+          ? Uri.parse(href).toString()
+          : uri.resolve(href).toString();
       if (abs == baseStr) continue;
       final disp = resp
-              .findAllElements('displayname', namespace: '*')
-              .map((e) => e.innerText)
-              .toList();
+          .findAllElements('displayname', namespace: '*')
+          .map((e) => e.innerText)
+          .toList();
       final sizeStr = resp
           .findAllElements('getcontentlength', namespace: '*')
           .map((e) => e.innerText)
@@ -407,34 +481,58 @@ class DataSync {
       final size = (sizeStr.isNotEmpty) ? int.tryParse(sizeStr.first) ?? 0 : 0;
       DateTime? mtime;
       if (mtimeStr.isNotEmpty) {
-        try { mtime = DateTime.parse(mtimeStr.first); } catch (_) {}
+        try {
+          mtime = DateTime.parse(mtimeStr.first);
+        } catch (_) {}
       }
       final name = (disp.isNotEmpty && disp.first.trim().isNotEmpty)
           ? disp.first.trim()
           : Uri.parse(href).pathSegments.last;
-      
+
       // If mtime is null, try to extract from filename (format: omnichat_backup_2025-01-19T12-34-56.123456.zip)
       if (mtime == null) {
-        final match = RegExp(r'(?:omnichat|kelivo)_backup_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d+)\.zip').firstMatch(name);
+        final match = RegExp(
+          r'(?:omnichat|kelivo)_backup_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d+)\.zip',
+        ).firstMatch(name);
         if (match != null) {
           try {
             // Replace hyphens in time part back to colons
-            final timestamp = match.group(1)!.replaceAll(RegExp(r'T(\d{2})-(\d{2})-(\d{2})'), 'T\$1:\$2:\$3');
+            final timestamp = match
+                .group(1)!
+                .replaceAll(
+                  RegExp(r'T(\d{2})-(\d{2})-(\d{2})'),
+                  'T\$1:\$2:\$3',
+                );
             mtime = DateTime.parse(timestamp);
           } catch (_) {}
         }
       }
-      
+
       // Skip directories
       if (abs.endsWith('/')) continue;
       final fullHref = Uri.parse(abs);
-      items.add(BackupFileItem(href: fullHref, displayName: name, size: size, lastModified: mtime));
+      items.add(
+        BackupFileItem(
+          href: fullHref,
+          displayName: name,
+          size: size,
+          lastModified: mtime,
+        ),
+      );
     }
-    items.sort((a, b) => (b.lastModified ?? DateTime(0)).compareTo(a.lastModified ?? DateTime(0)));
+    items.sort(
+      (a, b) => (b.lastModified ?? DateTime(0)).compareTo(
+        a.lastModified ?? DateTime(0),
+      ),
+    );
     return items;
   }
 
-  Future<void> restoreFromWebDav(WebDavConfig cfg, BackupFileItem item, {RestoreMode mode = RestoreMode.overwrite}) async {
+  Future<void> restoreFromWebDav(
+    WebDavConfig cfg,
+    BackupFileItem item, {
+    RestoreMode mode = RestoreMode.overwrite,
+  }) async {
     final res = await http.get(item.href, headers: _authHeaders(cfg));
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw Exception('Download failed: ${res.statusCode}');
@@ -443,10 +541,15 @@ class DataSync {
     final file = File(p.join(tmpDir.path, item.displayName));
     await file.writeAsBytes(res.bodyBytes);
     await _restoreFromBackupFile(file, cfg, mode: mode);
-    try { await file.delete(); } catch (_) {}
+    try {
+      await file.delete();
+    } catch (_) {}
   }
 
-  Future<void> deleteWebDavBackupFile(WebDavConfig cfg, BackupFileItem item) async {
+  Future<void> deleteWebDavBackupFile(
+    WebDavConfig cfg,
+    BackupFileItem item,
+  ) async {
     final req = http.Request('DELETE', item.href);
     req.headers.addAll(_authHeaders(cfg));
     final res = await http.Client().send(req).then(http.Response.fromStream);
@@ -457,7 +560,11 @@ class DataSync {
 
   Future<File> exportToFile(WebDavConfig cfg) => prepareBackupFile(cfg);
 
-  Future<void> restoreFromLocalFile(File file, WebDavConfig cfg, {RestoreMode mode = RestoreMode.overwrite}) async {
+  Future<void> restoreFromLocalFile(
+    File file,
+    WebDavConfig cfg, {
+    RestoreMode mode = RestoreMode.overwrite,
+  }) async {
     if (!await file.exists()) throw Exception('备份文件不存在');
     await _restoreFromBackupFile(file, cfg, mode: mode);
   }
@@ -496,7 +603,11 @@ class DataSync {
     final allMsgs = <ChatMessage>[];
     final toolEvents = <String, List<Map<String, dynamic>>>{};
     final geminiThoughtSigs = <String, String>{};
+    final workspaces = <String, String>{};
+    final fileRecords = <String, List<Map<String, dynamic>>>{};
     for (final c in conversations) {
+      final workspace = chatService.getConversationWorkspace(c.id);
+      if (workspace != null) workspaces[c.id] = workspace;
       final msgs = chatService.getMessages(c.id);
       allMsgs.addAll(msgs);
       for (final m in msgs) {
@@ -506,22 +617,34 @@ class DataSync {
           final sig = chatService.getGeminiThoughtSignature(m.id);
           if (sig != null && sig.isNotEmpty) geminiThoughtSigs[m.id] = sig;
         }
+        final records = chatService.getMessageFileRecords(m.id);
+        if (records.isNotEmpty) {
+          fileRecords[m.id] = records.map((record) => record.toJson()).toList();
+        }
       }
     }
     final obj = {
-      'version': 1,
+      'version': 2,
       'conversations': conversations.map((c) => c.toJson()).toList(),
       'messages': allMsgs.map((m) => m.toJson()).toList(),
       'toolEvents': toolEvents,
       'geminiThoughtSigs': geminiThoughtSigs,
+      'workspaces': workspaces,
+      'fileRecords': fileRecords,
     };
     return jsonEncode(obj);
   }
 
-  Future<void> _restoreFromBackupFile(File file, WebDavConfig cfg, {RestoreMode mode = RestoreMode.overwrite}) async {
+  Future<void> _restoreFromBackupFile(
+    File file,
+    WebDavConfig cfg, {
+    RestoreMode mode = RestoreMode.overwrite,
+  }) async {
     // Extract to temp
     final tmp = await getTemporaryDirectory();
-    final extractDir = Directory(p.join(tmp.path, 'restore_${DateTime.now().millisecondsSinceEpoch}'));
+    final extractDir = Directory(
+      p.join(tmp.path, 'restore_${DateTime.now().millisecondsSinceEpoch}'),
+    );
     await extractDir.create(recursive: true);
     final bytes = await file.readAsBytes();
     final archive = ZipDecoder().decodeBytes(bytes);
@@ -554,30 +677,31 @@ class DataSync {
         } else {
           // For merge mode, intelligently merge settings
           final existing = await prefs.snapshot();
-          
+
           // Keys that should be merged as JSON arrays/objects
           const mergeableKeys = {
-            'assistants_v1',       // Assistant configurations
+            'assistants_v1', // Assistant configurations
             'provider_configs_v1', // Provider configurations
-            'pinned_models_v1',    // Pinned models list
-            'providers_order_v1',  // Provider order list
-            'search_services_v1',  // Search services configuration
-            'assistant_tags_v1',         // Ordered tag list [{id,name}]
-            'assistant_tag_map_v1',      // assistantId -> tagId
-            'assistant_tag_collapsed_v1' // tagId -> bool
+            'pinned_models_v1', // Pinned models list
+            'providers_order_v1', // Provider order list
+            'search_services_v1', // Search services configuration
+            'assistant_tags_v1', // Ordered tag list [{id,name}]
+            'assistant_tag_map_v1', // assistantId -> tagId
+            'assistant_tag_collapsed_v1', // tagId -> bool
           };
-          
+
           for (final entry in map.entries) {
             final key = entry.key;
             final newValue = entry.value;
-            
+
             if (mergeableKeys.contains(key)) {
               // Special handling for mergeable configurations
               if (key == 'assistants_v1' && existing.containsKey(key)) {
                 // Merge assistants by ID with field-level rules.
                 // Preserve local avatar if already set to avoid clearing/overwriting.
                 try {
-                  final existingAssistants = jsonDecode(existing[key] as String) as List;
+                  final existingAssistants =
+                      jsonDecode(existing[key] as String) as List;
                   final newAssistants = jsonDecode(newValue as String) as List;
                   final assistantMap = <String, Map<String, dynamic>>{};
 
@@ -585,7 +709,8 @@ class DataSync {
                   for (final a in existingAssistants) {
                     if (a is Map && a.containsKey('id')) {
                       // Store as mutable map<String, dynamic>
-                      assistantMap[a['id'].toString()] = Map<String, dynamic>.from(a as Map);
+                      assistantMap[a['id'].toString()] =
+                          Map<String, dynamic>.from(a as Map);
                     }
                   }
 
@@ -614,7 +739,9 @@ class DataSync {
                         merged['avatar'] = localAvatar;
                       } else {
                         // Only take imported avatar if present (non-empty)
-                        final s = incomingAvatar is String ? incomingAvatar : incomingAvatar?.toString();
+                        final s = incomingAvatar is String
+                            ? incomingAvatar
+                            : incomingAvatar?.toString();
                         if (s == null || s.trim().isEmpty) {
                           merged['avatar'] = null;
                         } else {
@@ -630,7 +757,9 @@ class DataSync {
                         merged['background'] = localBg;
                       } else {
                         // Only take imported background if present (non-empty)
-                        final sb = incomingBg is String ? incomingBg : incomingBg?.toString();
+                        final sb = incomingBg is String
+                            ? incomingBg
+                            : incomingBg?.toString();
                         if (sb == null || sb.trim().isEmpty) {
                           merged['background'] = null;
                         } else {
@@ -647,25 +776,31 @@ class DataSync {
                 } catch (e) {
                   // If merge fails, keep existing
                 }
-              } else if (key == 'provider_configs_v1' && existing.containsKey(key)) {
+              } else if (key == 'provider_configs_v1' &&
+                  existing.containsKey(key)) {
                 // Merge provider configs: combine both maps
                 try {
-                  final existingConfigs = jsonDecode(existing[key] as String) as Map<String, dynamic>;
-                  final newConfigs = jsonDecode(newValue as String) as Map<String, dynamic>;
-                  
+                  final existingConfigs =
+                      jsonDecode(existing[key] as String)
+                          as Map<String, dynamic>;
+                  final newConfigs =
+                      jsonDecode(newValue as String) as Map<String, dynamic>;
+
                   // Merge configs, new values override existing for same keys
                   final mergedConfigs = {...existingConfigs, ...newConfigs};
                   await prefs.restoreSingle(key, jsonEncode(mergedConfigs));
                 } catch (e) {
                   // If merge fails, keep existing
                 }
-              } else if (key == 'pinned_models_v1' && existing.containsKey(key)) {
+              } else if (key == 'pinned_models_v1' &&
+                  existing.containsKey(key)) {
                 // Merge pinned models: combine and deduplicate
                 try {
-                  final existingModels = jsonDecode(existing[key] as String) as List;
+                  final existingModels =
+                      jsonDecode(existing[key] as String) as List;
                   final newModels = jsonDecode(newValue as String) as List;
                   final modelSet = <String>{};
-                  
+
                   // Add all models to set for deduplication
                   for (final model in existingModels) {
                     if (model is String) modelSet.add(model);
@@ -673,7 +808,7 @@ class DataSync {
                   for (final model in newModels) {
                     if (model is String) modelSet.add(model);
                   }
-                  
+
                   await prefs.restoreSingle(key, jsonEncode(modelSet.toList()));
                 } catch (e) {
                   // If merge fails, keep existing
@@ -683,8 +818,13 @@ class DataSync {
                 try {
                   final existingStr = (existing[key] ?? '') as String?;
                   final newStr = (newValue ?? '') as String?;
-                  final existingList = (existingStr == null || existingStr.isEmpty) ? <dynamic>[] : (jsonDecode(existingStr) as List);
-                  final newList = (newStr == null || newStr.isEmpty) ? <dynamic>[] : (jsonDecode(newStr) as List);
+                  final existingList =
+                      (existingStr == null || existingStr.isEmpty)
+                      ? <dynamic>[]
+                      : (jsonDecode(existingStr) as List);
+                  final newList = (newStr == null || newStr.isEmpty)
+                      ? <dynamic>[]
+                      : (jsonDecode(newStr) as List);
 
                   // Map existing by id and maintain order
                   final existingOrder = <String>[];
@@ -706,7 +846,9 @@ class DataSync {
                       }
                     }
                   }
-                  final merged = [for (final id in existingOrder) tagById[id]].whereType<Map<String, dynamic>>().toList();
+                  final merged = [
+                    for (final id in existingOrder) tagById[id],
+                  ].whereType<Map<String, dynamic>>().toList();
                   await prefs.restoreSingle(key, jsonEncode(merged));
                 } catch (_) {
                   // If merge fails, fall back to existing (no action)
@@ -716,8 +858,13 @@ class DataSync {
                 try {
                   final existingStr = (existing[key] ?? '') as String?;
                   final newStr = (newValue ?? '') as String?;
-                  final existingMap = (existingStr == null || existingStr.isEmpty) ? <String, dynamic>{} : (jsonDecode(existingStr) as Map<String, dynamic>);
-                  final newMap = (newStr == null || newStr.isEmpty) ? <String, dynamic>{} : (jsonDecode(newStr) as Map<String, dynamic>);
+                  final existingMap =
+                      (existingStr == null || existingStr.isEmpty)
+                      ? <String, dynamic>{}
+                      : (jsonDecode(existingStr) as Map<String, dynamic>);
+                  final newMap = (newStr == null || newStr.isEmpty)
+                      ? <String, dynamic>{}
+                      : (jsonDecode(newStr) as Map<String, dynamic>);
                   final merged = <String, dynamic>{...newMap, ...existingMap};
                   await prefs.restoreSingle(key, jsonEncode(merged));
                 } catch (_) {}
@@ -726,12 +873,19 @@ class DataSync {
                 try {
                   final existingStr = (existing[key] ?? '') as String?;
                   final newStr = (newValue ?? '') as String?;
-                  final existingMap = (existingStr == null || existingStr.isEmpty) ? <String, dynamic>{} : (jsonDecode(existingStr) as Map<String, dynamic>);
-                  final newMap = (newStr == null || newStr.isEmpty) ? <String, dynamic>{} : (jsonDecode(newStr) as Map<String, dynamic>);
+                  final existingMap =
+                      (existingStr == null || existingStr.isEmpty)
+                      ? <String, dynamic>{}
+                      : (jsonDecode(existingStr) as Map<String, dynamic>);
+                  final newMap = (newStr == null || newStr.isEmpty)
+                      ? <String, dynamic>{}
+                      : (jsonDecode(newStr) as Map<String, dynamic>);
                   final merged = <String, dynamic>{...newMap, ...existingMap};
                   await prefs.restoreSingle(key, jsonEncode(merged));
                 } catch (_) {}
-              } else if ((key == 'providers_order_v1' || key == 'search_services_v1') && existing.containsKey(key)) {
+              } else if ((key == 'providers_order_v1' ||
+                      key == 'search_services_v1') &&
+                  existing.containsKey(key)) {
                 // For these lists, prefer the imported version if different
                 // This ensures new providers/services are properly ordered
                 await prefs.restoreSingle(key, newValue);
@@ -753,20 +907,64 @@ class DataSync {
     final chatsFile = File(p.join(extractDir.path, 'chats.json'));
     if (cfg.includeChats && await chatsFile.exists()) {
       try {
-        final obj = jsonDecode(await chatsFile.readAsString()) as Map<String, dynamic>;
-        final convs = (obj['conversations'] as List?)
-                ?.map((e) => Conversation.fromJson((e as Map).cast<String, dynamic>()))
+        final obj =
+            jsonDecode(await chatsFile.readAsString()) as Map<String, dynamic>;
+        final convs =
+            (obj['conversations'] as List?)
+                ?.map(
+                  (e) =>
+                      Conversation.fromJson((e as Map).cast<String, dynamic>()),
+                )
                 .toList() ??
             const <Conversation>[];
-        final msgs = (obj['messages'] as List?)
-                ?.map((e) => ChatMessage.fromJson((e as Map).cast<String, dynamic>()))
+        final msgs =
+            (obj['messages'] as List?)
+                ?.map(
+                  (e) =>
+                      ChatMessage.fromJson((e as Map).cast<String, dynamic>()),
+                )
                 .toList() ??
             const <ChatMessage>[];
-        final toolEvents = ((obj['toolEvents'] as Map?) ?? const <String, dynamic>{})
-            .map((k, v) => MapEntry(k.toString(), (v as List).cast<Map>().map((e) => e.cast<String, dynamic>()).toList()));
-        final geminiThoughtSigs = ((obj['geminiThoughtSigs'] as Map?) ?? const <String, dynamic>{})
-            .map((k, v) => MapEntry(k.toString(), v.toString()));
-        
+        final toolEvents =
+            ((obj['toolEvents'] as Map?) ?? const <String, dynamic>{}).map(
+              (k, v) => MapEntry(
+                k.toString(),
+                (v as List)
+                    .cast<Map>()
+                    .map((e) => e.cast<String, dynamic>())
+                    .toList(),
+              ),
+            );
+        final geminiThoughtSigs =
+            ((obj['geminiThoughtSigs'] as Map?) ?? const <String, dynamic>{})
+                .map((k, v) => MapEntry(k.toString(), v.toString()));
+        final workspaces = <String, String>{};
+        final rawWorkspaces = obj['workspaces'];
+        if (rawWorkspaces is Map) {
+          for (final entry in rawWorkspaces.entries) {
+            final path = entry.value?.toString().trim() ?? '';
+            if (path.isNotEmpty) workspaces[entry.key.toString()] = path;
+          }
+        }
+        final fileRecords = <String, List<FileRecord>>{};
+        final rawFileRecords = obj['fileRecords'];
+        if (rawFileRecords is Map) {
+          for (final entry in rawFileRecords.entries) {
+            if (entry.value is! List) continue;
+            final records = <FileRecord>[];
+            for (final rawRecord in entry.value as List) {
+              try {
+                if (rawRecord is Map) {
+                  records.add(
+                    FileRecord.fromJson(Map<String, dynamic>.from(rawRecord)),
+                  );
+                }
+              } catch (_) {}
+            }
+            if (records.isNotEmpty) fileRecords[entry.key.toString()] = records;
+          }
+        }
+
         if (mode == RestoreMode.overwrite) {
           // Clear and restore via ChatService
           await chatService.clearAllData();
@@ -780,23 +978,45 @@ class DataSync {
           }
           // Tool events
           for (final entry in toolEvents.entries) {
-            try { await chatService.setToolEvents(entry.key, entry.value); } catch (_) {}
+            try {
+              await chatService.setToolEvents(entry.key, entry.value);
+            } catch (_) {}
           }
           for (final entry in geminiThoughtSigs.entries) {
-            try { await chatService.setGeminiThoughtSignature(entry.key, entry.value); } catch (_) {}
+            try {
+              await chatService.setGeminiThoughtSignature(
+                entry.key,
+                entry.value,
+              );
+            } catch (_) {}
+          }
+          for (final entry in workspaces.entries) {
+            try {
+              await chatService.setConversationWorkspace(
+                entry.key,
+                entry.value,
+              );
+            } catch (_) {}
+          }
+          for (final entry in fileRecords.entries) {
+            for (final record in entry.value) {
+              try {
+                await chatService.addMessageFileRecord(entry.key, record);
+              } catch (_) {}
+            }
           }
         } else {
           // Merge mode: Add only non-existing conversations and messages
           final existingConvs = chatService.getAllConversations();
           final existingConvIds = existingConvs.map((c) => c.id).toSet();
-          
+
           // Create a map of message IDs to avoid duplicates
           final existingMsgIds = <String>{};
           for (final conv in existingConvs) {
             final messages = chatService.getMessages(conv.id);
             existingMsgIds.addAll(messages.map((m) => m.id));
           }
-          
+
           // Group messages by conversation
           final byConv = <String, List<ChatMessage>>{};
           for (final m in msgs) {
@@ -804,7 +1024,7 @@ class DataSync {
               (byConv[m.conversationId] ??= <ChatMessage>[]).add(m);
             }
           }
-          
+
           // Restore non-existing conversations and their messages
           for (final c in convs) {
             if (!existingConvIds.contains(c.id)) {
@@ -818,18 +1038,46 @@ class DataSync {
               }
             }
           }
-          
+
           // Merge tool events
           for (final entry in toolEvents.entries) {
             final existing = chatService.getToolEvents(entry.key);
             if (existing.isEmpty) {
-              try { await chatService.setToolEvents(entry.key, entry.value); } catch (_) {}
+              try {
+                await chatService.setToolEvents(entry.key, entry.value);
+              } catch (_) {}
             }
           }
           for (final entry in geminiThoughtSigs.entries) {
-            final existingSig = chatService.getGeminiThoughtSignature(entry.key);
+            final existingSig = chatService.getGeminiThoughtSignature(
+              entry.key,
+            );
             if (existingSig == null || existingSig.isEmpty) {
-              try { await chatService.setGeminiThoughtSignature(entry.key, entry.value); } catch (_) {}
+              try {
+                await chatService.setGeminiThoughtSignature(
+                  entry.key,
+                  entry.value,
+                );
+              } catch (_) {}
+            }
+          }
+          for (final entry in workspaces.entries) {
+            if (chatService.getConversationWorkspace(entry.key) == null) {
+              try {
+                await chatService.setConversationWorkspace(
+                  entry.key,
+                  entry.value,
+                );
+              } catch (_) {}
+            }
+          }
+          for (final entry in fileRecords.entries) {
+            if (chatService.getMessageFileRecords(entry.key).isEmpty) {
+              for (final record in entry.value) {
+                try {
+                  await chatService.addMessageFileRecord(entry.key, record);
+                } catch (_) {}
+              }
             }
           }
         }
@@ -845,7 +1093,9 @@ class DataSync {
         if (await uploadSrc.exists()) {
           final dst = await _getUploadDir();
           if (await dst.exists()) {
-            try { await dst.delete(recursive: true); } catch (_) {}
+            try {
+              await dst.delete(recursive: true);
+            } catch (_) {}
           }
           await dst.create(recursive: true);
           for (final ent in uploadSrc.listSync(recursive: true)) {
@@ -863,7 +1113,9 @@ class DataSync {
         if (await imagesSrc.exists()) {
           final dst = await _getImagesDir();
           if (await dst.exists()) {
-            try { await dst.delete(recursive: true); } catch (_) {}
+            try {
+              await dst.delete(recursive: true);
+            } catch (_) {}
           }
           await dst.create(recursive: true);
           for (final ent in imagesSrc.listSync(recursive: true)) {
@@ -881,7 +1133,9 @@ class DataSync {
         if (await avatarsSrc.exists()) {
           final dst = await _getAvatarsDir();
           if (await dst.exists()) {
-            try { await dst.delete(recursive: true); } catch (_) {}
+            try {
+              await dst.delete(recursive: true);
+            } catch (_) {}
           }
           await dst.create(recursive: true);
           for (final ent in avatarsSrc.listSync(recursive: true)) {
@@ -954,7 +1208,9 @@ class DataSync {
       }
     }
 
-    try { await extractDir.delete(recursive: true); } catch (_) {}
+    try {
+      await extractDir.delete(recursive: true);
+    } catch (_) {}
   }
 }
 
@@ -993,23 +1249,31 @@ class SharedPreferencesAsync {
       final k = entry.key;
       final v = entry.value;
       if (_localOnlyKeys.contains(k)) continue;
-      if (v is bool) await prefs.setBool(k, v);
-      else if (v is int) await prefs.setInt(k, v);
-      else if (v is double) await prefs.setDouble(k, v);
-      else if (v is String) await prefs.setString(k, v);
+      if (v is bool)
+        await prefs.setBool(k, v);
+      else if (v is int)
+        await prefs.setInt(k, v);
+      else if (v is double)
+        await prefs.setDouble(k, v);
+      else if (v is String)
+        await prefs.setString(k, v);
       else if (v is List) {
         await prefs.setStringList(k, v.whereType<String>().toList());
       }
     }
   }
-  
+
   Future<void> restoreSingle(String key, dynamic value) async {
     if (_localOnlyKeys.contains(key)) return;
     final prefs = await SharedPreferences.getInstance();
-    if (value is bool) await prefs.setBool(key, value);
-    else if (value is int) await prefs.setInt(key, value);
-    else if (value is double) await prefs.setDouble(key, value);
-    else if (value is String) await prefs.setString(key, value);
+    if (value is bool)
+      await prefs.setBool(key, value);
+    else if (value is int)
+      await prefs.setInt(key, value);
+    else if (value is double)
+      await prefs.setDouble(key, value);
+    else if (value is String)
+      await prefs.setString(key, value);
     else if (value is List) {
       await prefs.setStringList(key, value.whereType<String>().toList());
     }

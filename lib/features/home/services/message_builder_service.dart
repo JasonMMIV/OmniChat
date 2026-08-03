@@ -49,14 +49,15 @@ class MessageBuilderService {
 
   /// Handler to append Gemini thought signatures for API calls
   final String Function(ChatMessage message, String content)?
-      geminiThoughtSignatureHandler;
+  geminiThoughtSignatureHandler;
 
   /// Collapse message versions to show only selected version per group.
   List<ChatMessage> collapseVersions(
     List<ChatMessage> items,
     Map<String, int> versionSelections,
   ) {
-    final Map<String, List<ChatMessage>> byGroup = <String, List<ChatMessage>>{};
+    final Map<String, List<ChatMessage>> byGroup =
+        <String, List<ChatMessage>>{};
     final List<String> order = <String>[];
 
     for (final m in items) {
@@ -96,24 +97,27 @@ class MessageBuilderService {
     required Conversation? currentConversation,
   }) {
     final tIndex = currentConversation?.truncateIndex ?? -1;
-    final List<ChatMessage> sourceAll = (tIndex >= 0 && tIndex <= messages.length)
+    final List<ChatMessage> sourceAll =
+        (tIndex >= 0 && tIndex <= messages.length)
         ? messages.sublist(tIndex)
         : List.of(messages);
-    final List<ChatMessage> source = collapseVersions(sourceAll, versionSelections);
+    final List<ChatMessage> source = collapseVersions(
+      sourceAll,
+      versionSelections,
+    );
 
-    return source
-        .where((m) => m.content.isNotEmpty)
-        .map<Map<String, dynamic>>((m) {
-          var content = m.content;
-          if (m.role == 'assistant' && geminiThoughtSignatureHandler != null) {
-            content = geminiThoughtSignatureHandler!(m, content);
-          }
-          return <String, dynamic>{
-            'role': m.role == 'assistant' ? 'assistant' : 'user',
-            'content': content,
-          };
-        })
-        .toList();
+    return source.where((m) => m.content.isNotEmpty).map<Map<String, dynamic>>((
+      m,
+    ) {
+      var content = m.content;
+      if (m.role == 'assistant' && geminiThoughtSignatureHandler != null) {
+        content = geminiThoughtSignatureHandler!(m, content);
+      }
+      return <String, dynamic>{
+        'role': m.role == 'assistant' ? 'assistant' : 'user',
+        'content': content,
+      };
+    }).toList();
   }
 
   /// Parse input data from raw message content (extracts images and documents).
@@ -143,7 +147,9 @@ class MessageBuilderService {
         final doc = DocumentAttachment(path: path, fileName: name, mime: mime);
         docs.add(doc);
         // Treat video attachments as image-style attachments for downstream APIs (e.g., Qwen video_url).
-        if (includeMediaFilePathsAsImages && mime.toLowerCase().startsWith('video/') && path.isNotEmpty) {
+        if (includeMediaFilePathsAsImages &&
+            mime.toLowerCase().startsWith('video/') &&
+            path.isNotEmpty) {
           images.add(path);
         }
 
@@ -153,7 +159,11 @@ class MessageBuilderService {
       buffer.write(raw[idx]);
       idx++;
     }
-    return ChatInputData(text: buffer.toString().trim(), imagePaths: images, documents: docs);
+    return ChatInputData(
+      text: buffer.toString().trim(),
+      imagePaths: images,
+      documents: docs,
+    );
   }
 
   /// Process user messages in apiMessages: extract documents, apply OCR, inject file prompts.
@@ -164,7 +174,8 @@ class MessageBuilderService {
     SettingsProvider settings,
     Assistant? assistant,
   ) async {
-    final bool ocrActive = settings.ocrEnabled &&
+    final bool ocrActive =
+        settings.ocrEnabled &&
         settings.ocrModelProvider != null &&
         settings.ocrModelId != null;
 
@@ -183,7 +194,10 @@ class MessageBuilderService {
     Future<String?> readDocument(DocumentAttachment d) async {
       if (docTextCache.containsKey(d.path)) return docTextCache[d.path];
       try {
-        final text = await DocumentTextExtractor.extract(path: d.path, mime: d.mime);
+        final text = await DocumentTextExtractor.extract(
+          path: d.path,
+          mime: d.mime,
+        );
         docTextCache[d.path] = text;
         return text;
       } catch (_) {
@@ -198,7 +212,9 @@ class MessageBuilderService {
       final parsedUser = parseInputFromRaw(rawUser);
 
       // Capture image paths from last user message
-      if (i == lastUserIdx && lastUserImagePaths == null && parsedUser.imagePaths.isNotEmpty) {
+      if (i == lastUserIdx &&
+          lastUserImagePaths == null &&
+          parsedUser.imagePaths.isNotEmpty) {
         lastUserImagePaths = List<String>.of(parsedUser.imagePaths);
       }
 
@@ -207,7 +223,9 @@ class MessageBuilderService {
           if (d.mime.toLowerCase().startsWith('video/')) d.path.trim(),
       }..removeWhere((p) => p.isEmpty);
 
-      String cleanedUser = rawUser.replaceAll(RegExp(r"\[file:.*?\]"), '').trim();
+      String cleanedUser = rawUser
+          .replaceAll(RegExp(r"\[file:.*?\]"), '')
+          .trim();
       if (ocrActive) {
         cleanedUser = cleanedUser.replaceAll(RegExp(r"\[image:.*?\]"), '');
       }
@@ -251,7 +269,8 @@ class MessageBuilderService {
     // Apply message template to last user message
     if (lastUserIdx != -1) {
       final userText = (apiMessages[lastUserIdx]['content'] ?? '').toString();
-      final templ = (assistant?.messageTemplate ?? '{{ message }}').trim().isEmpty
+      final templ =
+          (assistant?.messageTemplate ?? '{{ message }}').trim().isEmpty
           ? '{{ message }}'
           : (assistant!.messageTemplate);
       final templated = PromptTransformer.applyMessageTemplate(
@@ -269,7 +288,9 @@ class MessageBuilderService {
   /// Default OCR text wrapper
   String _defaultWrapOcrBlock(String ocrText) {
     final buf = StringBuffer();
-    buf.writeln("The image_file_ocr tag contains a description of an image that the user uploaded to you, not the user's prompt.");
+    buf.writeln(
+      "The image_file_ocr tag contains a description of an image that the user uploaded to you, not the user's prompt.",
+    );
     buf.writeln('<image_file_ocr>');
     buf.writeln(ocrText.trim());
     buf.writeln('</image_file_ocr>');
@@ -281,8 +302,10 @@ class MessageBuilderService {
   void injectSystemPrompt(
     List<Map<String, dynamic>> apiMessages,
     Assistant? assistant,
-    String modelId,
-  ) {
+    String modelId, {
+    String? workspacePath,
+  }) {
+    String? systemText;
     if ((assistant?.systemPrompt.trim().isNotEmpty ?? false)) {
       final vars = PromptTransformer.buildPlaceholders(
         context: contextProvider,
@@ -291,8 +314,25 @@ class MessageBuilderService {
         modelName: modelId,
         userNickname: contextProvider.read<UserProvider>().name,
       );
-      final sys = PromptTransformer.replacePlaceholders(assistant.systemPrompt, vars);
-      apiMessages.insert(0, {'role': 'system', 'content': sys});
+      systemText = PromptTransformer.replacePlaceholders(
+        assistant.systemPrompt,
+        vars,
+      );
+    }
+
+    if (workspacePath != null && workspacePath.trim().isNotEmpty) {
+      final workspacePrompt =
+          '''
+
+[File Workspace]
+You have file operation tools operating in: $workspacePath
+Use relative paths for all file operations. Available tools: file_read, file_write, file_append, file_delete, file_list, file_mkdir, file_info, file_move, file_copy, file_search.
+''';
+      systemText = (systemText ?? '') + workspacePrompt;
+    }
+
+    if (systemText != null && systemText.trim().isNotEmpty) {
+      apiMessages.insert(0, {'role': 'system', 'content': systemText.trim()});
     }
   }
 
@@ -308,7 +348,9 @@ class MessageBuilderService {
         final mems = mp.getForAssistant(assistant!.id);
         final buf = StringBuffer();
         buf.writeln('## Memories');
-        buf.writeln('These are memories that you can reference in the future conversations.');
+        buf.writeln(
+          'These are memories that you can reference in the future conversations.',
+        );
         buf.writeln('<memories>');
         for (final m in mems) {
           buf.writeln('<record>');
@@ -345,7 +387,11 @@ class MessageBuilderService {
       if (assistant?.enableRecentChatsReference == true) {
         final chats = chatService.getAllConversations();
         final relevantChats = chats
-            .where((c) => c.assistantId == assistant!.id && c.id != currentConversationId)
+            .where(
+              (c) =>
+                  c.assistantId == assistant!.id &&
+                  c.id != currentConversationId,
+            )
             .where((c) => c.title.trim().isNotEmpty)
             .take(10)
             .toList();
@@ -396,10 +442,14 @@ class MessageBuilderService {
         final ip = contextProvider.read<InstructionInjectionProvider>();
         actives = ip.activesFor(assistantId);
         if (actives.isEmpty) {
-          actives = await InstructionInjectionStore.getActives(assistantId: assistantId);
+          actives = await InstructionInjectionStore.getActives(
+            assistantId: assistantId,
+          );
         }
       } catch (_) {
-        actives = await InstructionInjectionStore.getActives(assistantId: assistantId);
+        actives = await InstructionInjectionStore.getActives(
+          assistantId: assistantId,
+        );
       }
       final prompts = actives
           .map((e) => e.prompt.trim())
@@ -413,17 +463,25 @@ class MessageBuilderService {
   }
 
   /// Helper to append content to the system message (or create one if missing).
-  void _appendToSystemMessage(List<Map<String, dynamic>> apiMessages, String content) {
+  void _appendToSystemMessage(
+    List<Map<String, dynamic>> apiMessages,
+    String content,
+  ) {
     if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
-      apiMessages[0]['content'] = ((apiMessages[0]['content'] ?? '') as String) + '\n\n' + content;
+      apiMessages[0]['content'] =
+          ((apiMessages[0]['content'] ?? '') as String) + '\n\n' + content;
     } else {
       apiMessages.insert(0, {'role': 'system', 'content': content});
     }
   }
 
   /// Apply context message limit based on assistant settings.
-  void applyContextLimit(List<Map<String, dynamic>> apiMessages, Assistant? assistant) {
-    if ((assistant?.limitContextMessages ?? true) && (assistant?.contextMessageSize ?? 0) > 0) {
+  void applyContextLimit(
+    List<Map<String, dynamic>> apiMessages,
+    Assistant? assistant,
+  ) {
+    if ((assistant?.limitContextMessages ?? true) &&
+        (assistant?.contextMessageSize ?? 0) > 0) {
       final int keep = (assistant!.contextMessageSize).clamp(1, 512);
       int startIdx = 0;
       if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
@@ -444,13 +502,18 @@ class MessageBuilderService {
     for (int i = 0; i < apiMessages.length; i++) {
       final s = (apiMessages[i]['content'] ?? '').toString();
       if (s.isNotEmpty) {
-        apiMessages[i]['content'] = await MarkdownMediaSanitizer.inlineLocalImagesToBase64(s);
+        apiMessages[i]['content'] =
+            await MarkdownMediaSanitizer.inlineLocalImagesToBase64(s);
       }
     }
   }
 
   /// Check if Gemini built-in search is enabled for the given provider/model.
-  bool hasBuiltInGeminiSearch(SettingsProvider settings, String providerKey, String modelId) {
+  bool hasBuiltInGeminiSearch(
+    SettingsProvider settings,
+    String providerKey,
+    String modelId,
+  ) {
     try {
       final cfg = settings.getProviderConfig(providerKey);
       if (cfg.providerType != ProviderKind.google) return false;

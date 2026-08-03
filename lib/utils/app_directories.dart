@@ -33,6 +33,17 @@ class AppDirectories {
     return Directory('${root.path}/upload');
   }
 
+  /// Private fallback workspace for file tools when a conversation has no
+  /// user-selected directory.
+  static Future<Directory> getFileSandboxDirectory() async {
+    final root = await getAppDataDirectory();
+    final directory = Directory('${root.path}/files');
+    if (!directory.existsSync()) {
+      directory.createSync(recursive: true);
+    }
+    return directory;
+  }
+
   /// Gets the directory for image files.
   static Future<Directory> getImagesDirectory() async {
     final root = await getAppDataDirectory();

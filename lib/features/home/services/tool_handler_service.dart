@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:path/path.dart' as path;
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/assistant.dart';
@@ -8,6 +9,9 @@ import '../../../core/providers/memory_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/mcp/mcp_tool_service.dart';
 import '../../../core/services/search/search_tool_service.dart';
+import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/file/file_tool_service.dart';
+import '../../../core/models/file_record.dart';
 
 /// 工具调用处理服务
 ///
@@ -15,13 +19,16 @@ import '../../../core/services/search/search_tool_service.dart';
 /// - MCP 工具
 /// - Memory 工具 (create/edit/delete)
 /// - Search 工具
+/// - Workspace file 工具
 class ToolHandlerService {
   ToolHandlerService({
     required this.contextProvider,
+    required this.chatService,
   });
 
   /// Build context (used for accessing providers)
   final BuildContext contextProvider;
+  final ChatService chatService;
 
   // ============================================================================
   // Tool Schema Sanitization
@@ -61,7 +68,14 @@ class ToolHandlerService {
     }
 
     // Flatten anyOf/oneOf/allOf to first variant for simplicity
-    for (final key in ['anyOf', 'oneOf', 'allOf', 'any_of', 'one_of', 'all_of']) {
+    for (final key in [
+      'anyOf',
+      'oneOf',
+      'allOf',
+      'any_of',
+      'one_of',
+      'all_of',
+    ]) {
       if (m[key] is List && (m[key] as List).isNotEmpty) {
         final first = (m[key] as List).first;
         final flattened = _sanitizeNode(first, kind);
@@ -99,12 +113,26 @@ class ToolHandlerService {
     Set<String> allowed;
     switch (kind) {
       case ProviderKind.google:
-        allowed = {'type', 'description', 'properties', 'required', 'items', 'enum'};
+        allowed = {
+          'type',
+          'description',
+          'properties',
+          'required',
+          'items',
+          'enum',
+        };
         break;
       case ProviderKind.openai:
       case ProviderKind.neuralwatt:
       case ProviderKind.claude:
-        allowed = {'type', 'description', 'properties', 'required', 'items', 'enum'};
+        allowed = {
+          'type',
+          'description',
+          'properties',
+          'required',
+          'items',
+          'enum',
+        };
         break;
     }
     m.removeWhere((k, v) => !allowed.contains(k));
@@ -155,6 +183,11 @@ class ToolHandlerService {
     );
     toolDefs.addAll(mcpTools);
 
+    // File tools are available to every model that supports function calls.
+    if (supportsTools) {
+      toolDefs.addAll(FileToolService.getToolDefinitions());
+    }
+
     return toolDefs;
   }
 
@@ -169,11 +202,14 @@ class ToolHandlerService {
           'parameters': {
             'type': 'object',
             'properties': {
-              'content': {'type': 'string', 'description': 'The content of the memory record'}
+              'content': {
+                'type': 'string',
+                'description': 'The content of the memory record',
+              },
             },
-            'required': ['content']
-          }
-        }
+            'required': ['content'],
+          },
+        },
       },
       {
         'type': 'function',
@@ -183,12 +219,18 @@ class ToolHandlerService {
           'parameters': {
             'type': 'object',
             'properties': {
-              'id': {'type': 'integer', 'description': 'The id of the memory record'},
-              'content': {'type': 'string', 'description': 'The content of the memory record'}
+              'id': {
+                'type': 'integer',
+                'description': 'The id of the memory record',
+              },
+              'content': {
+                'type': 'string',
+                'description': 'The content of the memory record',
+              },
             },
-            'required': ['id', 'content']
-          }
-        }
+            'required': ['id', 'content'],
+          },
+        },
       },
       {
         'type': 'function',
@@ -198,11 +240,14 @@ class ToolHandlerService {
           'parameters': {
             'type': 'object',
             'properties': {
-              'id': {'type': 'integer', 'description': 'The id of the memory record'}
+              'id': {
+                'type': 'integer',
+                'description': 'The id of the memory record',
+              },
             },
-            'required': ['id']
-          }
-        }
+            'required': ['id'],
+          },
+        },
       },
     ];
   }
@@ -238,25 +283,28 @@ class ToolHandlerService {
         baseSchema = Map<String, dynamic>.from(t.schema!);
       } else {
         final props = <String, dynamic>{
-          for (final p in t.params) p.name: {'type': (p.type ?? 'string')}
+          for (final p in t.params) p.name: {'type': (p.type ?? 'string')},
         };
         final required = [
-          for (final p in t.params.where((e) => e.required)) p.name
+          for (final p in t.params.where((e) => e.required)) p.name,
         ];
         baseSchema = {
           'type': 'object',
           'properties': props,
-          if (required.isNotEmpty) 'required': required
+          if (required.isNotEmpty) 'required': required,
         };
       }
-      final sanitized = sanitizeToolParametersForProvider(baseSchema, providerKind);
+      final sanitized = sanitizeToolParametersForProvider(
+        baseSchema,
+        providerKind,
+      );
       return {
         'type': 'function',
         'function': {
           'name': t.name,
           if ((t.description ?? '').isNotEmpty) 'description': t.description,
           'parameters': sanitized,
-        }
+        },
       };
     }).toList();
   }
@@ -274,8 +322,10 @@ class ToolHandlerService {
   /// - MCP tool calls
   Future<String> Function(String, Map<String, dynamic>)? buildToolCallHandler(
     SettingsProvider settings,
-    Assistant? assistant,
-  ) {
+    Assistant? assistant, {
+    String? conversationId,
+    String? messageId,
+  }) {
     final mcp = contextProvider.read<McpProvider>();
     final toolSvc = contextProvider.read<McpToolService>();
     // Capture AssistantProvider reference before async gap to avoid
@@ -283,6 +333,29 @@ class ToolHandlerService {
     final assistantProvider = contextProvider.read<AssistantProvider>();
 
     return (name, args) async {
+      if (name.startsWith('file_')) {
+        final workspace = conversationId == null
+            ? null
+            : await chatService.getEffectiveConversationWorkspace(
+                conversationId,
+              );
+        final result = await FileToolService.execute(name, args, workspace);
+        if (result.createdOrModifiedFilePath != null && messageId != null) {
+          await chatService.addMessageFileRecord(
+            messageId,
+            FileRecord(
+              path: result.createdOrModifiedFilePath!,
+              fileName:
+                  result.fileName ??
+                  path.basename(result.createdOrModifiedFilePath!),
+              sizeBytes: result.fileSizeBytes ?? 0,
+              createdAt: DateTime.now(),
+            ),
+          );
+        }
+        return result.text;
+      }
+
       // Search tool
       if (name == SearchToolService.toolName && settings.searchEnabled) {
         final q = (args['query'] ?? '').toString();

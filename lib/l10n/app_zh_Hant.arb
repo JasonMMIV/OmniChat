@@ -1405,6 +1405,29 @@
         "type": "int"
       }
     }
-  }
+  },
+  "workspaceTitle": "工作區",
+  "workspaceNotSet": "未設定（使用預設私有目錄）",
+  "workspaceChooseFolder": "選擇資料夾",
+  "workspaceUseDefaultDirectory": "使用預設目錄",
+  "workspaceClear": "清除工作區",
+  "workspaceFiles": "檔案",
+  "workspaceSelectFolderDialogTitle": "選擇工作區",
+  "workspaceFileBrowserEmpty": "此目錄是空的。",
+  "workspaceFileBrowserReadError": "無法讀取此目錄：{error}",
+  "@workspaceFileBrowserReadError": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "workspaceFileBrowserOpenError": "無法開啟項目：{error}",
+  "@workspaceFileBrowserOpenError": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "chatMessageWidgetShowInFolder": "顯示所在資料夾",
+  "chatMessageWidgetOpenExternally": "外部開啟",
+  "chatMessageWidgetDownload": "下載"
 }
 

@@ -48,6 +48,7 @@ import '../widgets/chat_input_bar.dart';
 import '../widgets/mini_map_sheet.dart';
 import '../widgets/instruction_injection_sheet.dart';
 import '../../ai_team/pages/ai_team_page.dart';
+import '../../chat/widgets/workspace_sheet.dart';
 import '../widgets/instruction_prompt_sheet.dart';
 import '../widgets/scroll_nav_buttons.dart';
 import '../widgets/selection_toolbar.dart';
@@ -247,6 +248,15 @@ class _HomePageState extends State<HomePage>
     ).push(MaterialPageRoute(builder: (context) => VoiceChatScreen()));
   }
 
+  Future<void> _openWorkspace() async {
+    if (_controller.currentConversation == null) {
+      await _controller.createNewConversationAnimated();
+    }
+    final conversationId = _controller.currentConversation?.id;
+    if (conversationId == null || !mounted) return;
+    await showWorkspaceSheet(context, conversationId: conversationId);
+  }
+
   // ============================================================================
   // Build Methods
   // ============================================================================
@@ -311,7 +321,7 @@ class _HomePageState extends State<HomePage>
           _controller.forceScrollToBottomSoon(animate: false);
         }
       },
-      onVoiceChat: _startVoiceChat,
+      onOpenWorkspace: _openWorkspace,
       body: _wrapWithDropTarget(_buildMobileBody(context, cs)),
     );
   }
@@ -444,7 +454,7 @@ class _HomePageState extends State<HomePage>
       onRightSidebarWidthChanged: _controller.updateRightSidebarWidth,
       onRightSidebarWidthChangeEnd: _controller.saveRightSidebarWidth,
       buildAssistantBackground: _buildAssistantBackground,
-      onVoiceChat: _startVoiceChat,
+      onOpenWorkspace: _openWorkspace,
       body: _wrapWithDropTarget(_buildTabletBody(context, cs)),
     );
   }
@@ -784,6 +794,7 @@ class _HomePageState extends State<HomePage>
       onUploadFiles: _controller.onPickFiles,
       onToggleInstructionInjection: _openInstructionInjectionPopover,
       onLongPressInstruction: _showInstructionPromptSheet,
+      onVoiceChat: _startVoiceChat,
       onToggleAiTeam: _openAiTeamSettings,
       onClearContext: _controller.clearContext,
       onCompressContext: _handleDesktopCompressContext,

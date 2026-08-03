@@ -14,7 +14,8 @@ import 'message_builder_service.dart';
 
 /// Callback types for UI updates from MessageGenerationService
 typedef OnMessagesChanged = void Function();
-typedef OnConversationLoadingChanged = void Function(String conversationId, bool loading);
+typedef OnConversationLoadingChanged =
+    void Function(String conversationId, bool loading);
 typedef OnScrollToBottom = void Function();
 typedef OnShowError = void Function(String message);
 typedef OnShowWarning = void Function(String message);
@@ -79,6 +80,7 @@ class MessageGenerationService {
   /// Prepare API messages with all injections applied.
   Future<PreparedGeneration> prepareApiMessagesWithInjections({
     required List<ChatMessage> messages,
+    required String assistantMessageId,
     required Map<String, int> versionSelections,
     required Conversation? currentConversation,
     required SettingsProvider settings,
@@ -95,23 +97,41 @@ class MessageGenerationService {
     );
 
     // Process user messages (documents, OCR, templates)
-    final lastUserImagePaths = await messageBuilderService.processUserMessagesForApi(
-      apiMessages,
-      settings,
-      assistant,
-    );
+    final lastUserImagePaths = await messageBuilderService
+        .processUserMessagesForApi(apiMessages, settings, assistant);
 
-    // Inject prompts
-    messageBuilderService.injectSystemPrompt(apiMessages, assistant, modelId);
+    // Inject prompts and the effective per-conversation file workspace.
+    final workspacePath = currentConversation == null
+        ? null
+        : await chatService.getEffectiveConversationWorkspace(
+            currentConversation.id,
+          );
+    messageBuilderService.injectSystemPrompt(
+      apiMessages,
+      assistant,
+      modelId,
+      workspacePath: workspacePath,
+    );
     await messageBuilderService.injectMemoryAndRecentChats(
       apiMessages,
       assistant,
       currentConversationId: currentConversation?.id,
     );
 
-    final hasBuiltInSearch = messageBuilderService.hasBuiltInGeminiSearch(settings, providerKey, modelId);
-    messageBuilderService.injectSearchPrompt(apiMessages, settings, hasBuiltInSearch);
-    await messageBuilderService.injectInstructionPrompts(apiMessages, assistantId);
+    final hasBuiltInSearch = messageBuilderService.hasBuiltInGeminiSearch(
+      settings,
+      providerKey,
+      modelId,
+    );
+    messageBuilderService.injectSearchPrompt(
+      apiMessages,
+      settings,
+      hasBuiltInSearch,
+    );
+    await messageBuilderService.injectInstructionPrompts(
+      apiMessages,
+      assistantId,
+    );
 
     // Apply context limit and inline images
     messageBuilderService.applyContextLimit(apiMessages, assistant);
@@ -126,7 +146,12 @@ class MessageGenerationService {
       hasBuiltInSearch,
     );
     final onToolCall = toolDefs.isNotEmpty
-        ? generationController.buildToolCallHandler(settings, assistant)
+        ? generationController.buildToolCallHandler(
+            settings,
+            assistant,
+            conversationId: currentConversation?.id,
+            messageId: assistantMessageId,
+          )
         : null;
 
     return PreparedGeneration(
@@ -146,7 +171,9 @@ class MessageGenerationService {
   }) async {
     final content = input.text.trim();
     final imageMarkers = input.imagePaths.map((p) => '\n[image:$p]').join();
-    final docMarkers = input.documents.map((d) => '\n[file:${d.path}|${d.fileName}|${d.mime}]').join();
+    final docMarkers = input.documents
+        .map((d) => '\n[file:${d.path}|${d.fileName}|${d.mime}]')
+        .join();
 
     final processedUserText = applyAssistantRegexes(
       content,
@@ -236,13 +263,15 @@ class MessageGenerationService {
     Assistant? assistant,
   ) {
     return (
-      providerKey: assistant?.chatModelProvider ?? settings.currentModelProvider,
+      providerKey:
+          assistant?.chatModelProvider ?? settings.currentModelProvider,
       modelId: assistant?.chatModelId ?? settings.currentModelId,
     );
   }
 
   /// Calculate version info for regeneration.
-  ({String? targetGroupId, int nextVersion, int lastKeep}) calculateRegenerationVersioning({
+  ({String? targetGroupId, int nextVersion, int lastKeep})
+  calculateRegenerationVersioning({
     required ChatMessage message,
     required List<ChatMessage> messages,
     required bool assistantAsNewReply,
@@ -311,7 +340,11 @@ class MessageGenerationService {
       }
     }
 
-    return (targetGroupId: targetGroupId, nextVersion: nextVersion, lastKeep: lastKeep);
+    return (
+      targetGroupId: targetGroupId,
+      nextVersion: nextVersion,
+      lastKeep: lastKeep,
+    );
   }
 
   /// Remove trailing messages after regeneration cut point.
@@ -358,7 +391,8 @@ class MessageGenerationService {
     required List<String> lastUserImagePaths,
     required SettingsProvider settings,
   }) {
-    final bool ocrActive = settings.ocrEnabled &&
+    final bool ocrActive =
+        settings.ocrEnabled &&
         settings.ocrModelProvider != null &&
         settings.ocrModelId != null;
 
@@ -371,10 +405,7 @@ class MessageGenerationService {
         for (final d in input.documents)
           if (d.mime.toLowerCase().startsWith('video/')) d.path,
       ];
-      return <String>[
-        ...input.imagePaths,
-        ...currentVideoPaths,
-      ];
+      return <String>[...input.imagePaths, ...currentVideoPaths];
     }
 
     return lastUserImagePaths;

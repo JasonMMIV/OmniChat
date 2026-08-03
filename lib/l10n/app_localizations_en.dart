@@ -4175,4 +4175,47 @@ class AppLocalizationsEn extends AppLocalizations {
   String tokenDetailTotalTokens(int count) {
     return '$count tokens';
   }
+
+  @override
+  String get workspaceTitle => 'Workspace';
+
+  @override
+  String get workspaceNotSet => 'Not set (using the default private directory)';
+
+  @override
+  String get workspaceChooseFolder => 'Choose folder';
+
+  @override
+  String get workspaceUseDefaultDirectory => 'Use default directory';
+
+  @override
+  String get workspaceClear => 'Clear workspace';
+
+  @override
+  String get workspaceFiles => 'Files';
+
+  @override
+  String get workspaceSelectFolderDialogTitle => 'Select workspace';
+
+  @override
+  String get workspaceFileBrowserEmpty => 'This directory is empty.';
+
+  @override
+  String workspaceFileBrowserReadError(Object error) {
+    return 'Unable to read this directory: $error';
+  }
+
+  @override
+  String workspaceFileBrowserOpenError(Object error) {
+    return 'Unable to open entry: $error';
+  }
+
+  @override
+  String get chatMessageWidgetShowInFolder => 'Show in folder';
+
+  @override
+  String get chatMessageWidgetOpenExternally => 'Open externally';
+
+  @override
+  String get chatMessageWidgetDownload => 'Download';
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'package:flutter/services.dart';
@@ -9,11 +10,15 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 import 'package:open_filex/open_filex.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as p;
+import 'package:share_plus/share_plus.dart';
 // import 'package:easy_image_viewer/easy_image_viewer.dart';
 import 'dart:convert';
 import 'package:characters/characters.dart';
 import '../pages/image_viewer_page.dart';
 import '../../../core/models/chat_message.dart';
+import '../../../core/models/file_record.dart';
 import '../../../icons/lucide_adapter.dart';
 // import '../../../theme/design_tokens.dart';
 import '../../../core/providers/user_provider.dart';
@@ -36,6 +41,7 @@ import '../../../core/models/assistant_regex.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../desktop/desktop_context_menu.dart';
 import '../../../desktop/menu_anchor.dart';
+import '../widgets/workspace_file_browser.dart';
 import '../../../shared/widgets/emoji_text.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:super_clipboard/super_clipboard.dart';
@@ -143,7 +149,10 @@ class ChatMessageWidget extends StatefulWidget {
 
 class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   // Match vendor inline thinking blocks: <think>...</think> (or until end)
-  static final RegExp THINKING_REGEX = RegExp(r"<think>([\s\S]*?)(?:</think>|$)", dotAll: true);
+  static final RegExp THINKING_REGEX = RegExp(
+    r"<think>([\s\S]*?)(?:</think>|$)",
+    dotAll: true,
+  );
   final DateFormat _dateFormat = DateFormat('yyyy-MM-dd HH:mm:ss');
   final ScrollController _reasoningScroll = ScrollController();
   bool _tickActive = false;
@@ -182,16 +191,27 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           .map((m) => (m.group(1) ?? '').trim())
           .where((s) => s.isNotEmpty)
           .join('\n\n');
-      final usingInlineThink = (widget.reasoningText == null || widget.reasoningText!.isEmpty) && extracted.isNotEmpty;
-      final loading = usingInlineThink && widget.message.isStreaming && !widget.message.content.contains('</think>');
+      final usingInlineThink =
+          (widget.reasoningText == null || widget.reasoningText!.isEmpty) &&
+          extracted.isNotEmpty;
+      final loading =
+          usingInlineThink &&
+          widget.message.isStreaming &&
+          !widget.message.content.contains('</think>');
 
       // Persist last loading state for later checks
       _inlineThinkWasLoading = loading;
 
       if (usingInlineThink && _inlineThinkExpanded == null) {
-        final autoCollapse = context.read<SettingsProvider>().autoCollapseThinking;
+        final autoCollapse = context
+            .read<SettingsProvider>()
+            .autoCollapseThinking;
         // While loading we default to expanded; once finished honor auto-collapse.
-        _inlineThinkExpanded = loading ? true : !autoCollapse ? true : false;
+        _inlineThinkExpanded = loading
+            ? true
+            : !autoCollapse
+            ? true
+            : false;
       }
     } catch (_) {
       // If anything fails here, fall back to later update logic.
@@ -214,8 +234,13 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
         .map((m) => (m.group(1) ?? '').trim())
         .where((s) => s.isNotEmpty)
         .join('\n\n');
-    final usingInlineThinkNew = (widget.reasoningText == null || widget.reasoningText!.isEmpty) && newExtracted.isNotEmpty;
-    final loadingNew = usingInlineThinkNew && widget.message.isStreaming && !widget.message.content.contains('</think>');
+    final usingInlineThinkNew =
+        (widget.reasoningText == null || widget.reasoningText!.isEmpty) &&
+        newExtracted.isNotEmpty;
+    final loadingNew =
+        usingInlineThinkNew &&
+        widget.message.isStreaming &&
+        !widget.message.content.contains('</think>');
 
     bool loadingOld = false;
     if (oldWidget != null) {
@@ -224,8 +249,14 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           .map((m) => (m.group(1) ?? '').trim())
           .where((s) => s.isNotEmpty)
           .join('\n\n');
-      final usingInlineThinkOld = (oldWidget.reasoningText == null || oldWidget.reasoningText!.isEmpty) && oldExtracted.isNotEmpty;
-      loadingOld = usingInlineThinkOld && oldWidget.message.isStreaming && !oldWidget.message.content.contains('</think>');
+      final usingInlineThinkOld =
+          (oldWidget.reasoningText == null ||
+              oldWidget.reasoningText!.isEmpty) &&
+          oldExtracted.isNotEmpty;
+      loadingOld =
+          usingInlineThinkOld &&
+          oldWidget.message.isStreaming &&
+          !oldWidget.message.content.contains('</think>');
     }
 
     // Persist last loading to assist other checks
@@ -236,7 +267,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     // If finished now (not loading), inline think is used, and auto-collapse is on
     // Only collapse when user hasn't manually toggled; also if we don't yet have a chosen state.
     final finishedNow = usingInlineThinkNew && !loadingNew;
-    final justFinished = oldWidget != null ? (loadingOld && finishedNow) : finishedNow;
+    final justFinished = oldWidget != null
+        ? (loadingOld && finishedNow)
+        : finishedNow;
 
     if (autoCollapse && finishedNow && justFinished) {
       if (!_inlineThinkManuallyToggled || _inlineThinkExpanded == null) {
@@ -246,7 +279,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     }
 
     // On first mount where already finished and no user choice yet, honor autoCollapse
-    if (oldWidget == null && usingInlineThinkNew && !loadingNew && _inlineThinkExpanded == null) {
+    if (oldWidget == null &&
+        usingInlineThinkNew &&
+        !loadingNew &&
+        _inlineThinkExpanded == null) {
       if (autoCollapse) {
         if (mounted) setState(() => _inlineThinkExpanded = false);
       } else {
@@ -256,7 +292,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   }
 
   void _syncTicker() {
-    final loading = widget.reasoningStartAt != null && widget.reasoningFinishedAt == null;
+    final loading =
+        widget.reasoningStartAt != null && widget.reasoningFinishedAt == null;
     _tickActive = loading;
     if (loading) {
       if (!_ticker.isActive) _ticker.start();
@@ -267,7 +304,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
 
   Future<void> _copyFormattedText(String text) async {
     try {
-      final html = md.markdownToHtml(text, extensionSet: md.ExtensionSet.gitHubFlavored);
+      final html = md.markdownToHtml(
+        text,
+        extensionSet: md.ExtensionSet.gitHubFlavored,
+      );
       final item = DataWriterItem();
       item.add(Formats.htmlText(html));
       item.add(Formats.plainText(text));
@@ -314,7 +354,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     }
 
     final providerId = widget.message.providerId;
-     String baseId = modelId;
+    String baseId = modelId;
     if (providerId != null && providerId.isNotEmpty) {
       try {
         final cfg = settings.getProviderConfig(providerId);
@@ -324,7 +364,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           if (name != null && name.isNotEmpty) {
             return name;
           }
-          final apiId = (ov['apiModelId'] ?? ov['api_model_id'])?.toString().trim();
+          final apiId = (ov['apiModelId'] ?? ov['api_model_id'])
+              ?.toString()
+              .trim();
           if (apiId != null && apiId.isNotEmpty) {
             baseId = apiId;
           }
@@ -334,7 +376,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       }
     }
 
-    final inferred = ModelRegistry.infer(ModelInfo(id: baseId, displayName: baseId));
+    final inferred = ModelRegistry.infer(
+      ModelInfo(id: baseId, displayName: baseId),
+    );
     final fallback = inferred.displayName.trim();
     return fallback.isNotEmpty ? fallback : baseId;
   }
@@ -378,7 +422,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
 
   @override
   void dispose() {
-    try { _userMenuOverlay?.remove(); } catch (_) {}
+    try {
+      _userMenuOverlay?.remove();
+    } catch (_) {}
     _userMenuOverlay = null;
     _ticker.dispose();
     _reasoningTick.dispose();
@@ -387,14 +433,18 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   }
 
   void _removeUserMenuOverlay() {
-    try { _userMenuOverlay?.remove(); } catch (_) {}
+    try {
+      _userMenuOverlay?.remove();
+    } catch (_) {}
     _userMenuOverlay = null;
     if (mounted && _userMenuActive) setState(() => _userMenuActive = false);
   }
 
   void _showUserContextMenu() {
     // Haptic feedback (optional)
-    try { Haptics.light(); } catch (_) {}
+    try {
+      Haptics.light();
+    } catch (_) {}
 
     final box = _userBubbleKey.currentContext?.findRenderObject() as RenderBox?;
     final overlay = Overlay.of(context);
@@ -425,7 +475,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
 
     // Decide above vs below using safe area
     final availableAbove = bubbleTopLeft.dy - gap - safeTop;
-    final availableBelow = (screenSize.height - safeBottom) - (bubbleTopLeft.dy + bubbleSize.height + gap);
+    final availableBelow =
+        (screenSize.height - safeBottom) -
+        (bubbleTopLeft.dy + bubbleSize.height + gap);
     final bool canPlaceAbove = availableAbove >= estMenuHeight;
     final bool canPlaceBelow = availableBelow >= estMenuHeight;
 
@@ -496,51 +548,55 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                          _MenuItem(
-                            icon: Lucide.Copy,
-                            label: l10n.shareProviderSheetCopyButton,
-                            onTap: () async {
-                              Navigator.of(ctx).pop();
-                          if (widget.onCopy != null) {
-                            widget.onCopy!.call();
-                          } else {
-                            await _copyFormattedText(widget.message.content);
-                            if (mounted) {
-                              showAppSnackBar(
-                                context,
-                                message: l10n.chatMessageWidgetCopiedToClipboard,
-                                type: NotificationType.success,
-                              );
-                            }
-                          }
-                        },
-                      ),
-                      _MenuItem(
-                        icon: Lucide.Pencil,
-                        label: l10n.messageMoreSheetEdit,
-                        onTap: () {
-                          Navigator.of(ctx).pop();
-                          (widget.onEdit ?? widget.onMore)?.call();
-                        },
-                      ),
-                      _MenuItem(
-                        icon: Lucide.Trash2,
-                        danger: true,
-                        label: l10n.messageMoreSheetDelete,
-                        onTap: () {
-                          Navigator.of(ctx).pop();
-                          (widget.onDelete ?? widget.onMore)?.call();
-                        },
-                      ),
-                    ],
+                              _MenuItem(
+                                icon: Lucide.Copy,
+                                label: l10n.shareProviderSheetCopyButton,
+                                onTap: () async {
+                                  Navigator.of(ctx).pop();
+                                  if (widget.onCopy != null) {
+                                    widget.onCopy!.call();
+                                  } else {
+                                    await _copyFormattedText(
+                                      widget.message.content,
+                                    );
+                                    if (mounted) {
+                                      showAppSnackBar(
+                                        context,
+                                        message: l10n
+                                            .chatMessageWidgetCopiedToClipboard,
+                                        type: NotificationType.success,
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                              _MenuItem(
+                                icon: Lucide.Pencil,
+                                label: l10n.messageMoreSheetEdit,
+                                onTap: () {
+                                  Navigator.of(ctx).pop();
+                                  (widget.onEdit ?? widget.onMore)?.call();
+                                },
+                              ),
+                              _MenuItem(
+                                icon: Lucide.Trash2,
+                                danger: true,
+                                label: l10n.messageMoreSheetDelete,
+                                onTap: () {
+                                  Navigator.of(ctx).pop();
+                                  (widget.onDelete ?? widget.onMore)?.call();
+                                },
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ),
                   ),
+                ),
               ),
             ),
-          )],
+          ],
         );
       },
     ).whenComplete(() {
@@ -551,7 +607,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   Widget _buildUserAvatar(UserProvider userProvider, ColorScheme cs) {
     Widget avatarContent;
 
-    if (userProvider.avatarType == 'emoji' && userProvider.avatarValue != null) {
+    if (userProvider.avatarType == 'emoji' &&
+        userProvider.avatarValue != null) {
       final bool isIOS = defaultTargetPlatform == TargetPlatform.iOS;
       final double fs = 18;
       final Offset? nudge = isIOS ? Offset(fs * 0.065, fs * -0.05) : null;
@@ -563,7 +620,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           nudge: nudge,
         ),
       );
-    } else if (userProvider.avatarType == 'url' && userProvider.avatarValue != null) {
+    } else if (userProvider.avatarType == 'url' &&
+        userProvider.avatarValue != null) {
       final url = userProvider.avatarValue!;
       avatarContent = FutureBuilder<String?>(
         future: AvatarCache.getPath(url),
@@ -585,40 +643,25 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               width: 32,
               height: 32,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Icon(
-                Lucide.User,
-                size: 18,
-                color: cs.primary,
-              ),
+              errorBuilder: (context, error, stackTrace) =>
+                  Icon(Lucide.User, size: 18, color: cs.primary),
             ),
           );
         },
       );
-    } else if (userProvider.avatarType == 'file' && userProvider.avatarValue != null) {
+    } else if (userProvider.avatarType == 'file' &&
+        userProvider.avatarValue != null) {
       final fixed = SandboxPathResolver.fix(userProvider.avatarValue!);
       final f = File(fixed);
       if (f.existsSync()) {
         avatarContent = ClipOval(
-          child: Image.file(
-            f,
-            width: 32,
-            height: 32,
-            fit: BoxFit.cover,
-          ),
+          child: Image.file(f, width: 32, height: 32, fit: BoxFit.cover),
         );
       } else {
-        avatarContent = Icon(
-          Lucide.User,
-          size: 18,
-          color: cs.primary,
-        );
+        avatarContent = Icon(Lucide.User, size: 18, color: cs.primary);
       }
     } else {
-      avatarContent = Icon(
-        Lucide.User,
-        size: 18,
-        color: cs.primary,
-      );
+      avatarContent = Icon(Lucide.User, size: 18, color: cs.primary);
     }
 
     return Container(
@@ -700,36 +743,42 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                             color: cs.onSurface.withOpacity(0.7),
                           ),
                         ),
-                      Builder(builder: (context) {
-                        final List<Widget> wrapChildren = [];
-                        if (settings.showUserNameTimestamp) {
-                          wrapChildren.add(Text(
-                            _dateFormat.format(widget.message.timestamp),
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: cs.onSurface.withOpacity(0.5),
-                            ),
-                          ));
-                        }
-                        if (widget.showTokenStats) {
-                          wrapChildren.add(Text(
-                            _buildStatsText(widget.message),
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: cs.onSurface.withOpacity(0.5),
-                            ),
-                          ));
-                        }
-                        return wrapChildren.isNotEmpty
-                            ? Wrap(
-                                alignment: WrapAlignment.end,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                spacing: 8,
-                                runSpacing: 2,
-                                children: wrapChildren,
-                              )
-                            : const SizedBox.shrink();
-                      }),
+                      Builder(
+                        builder: (context) {
+                          final List<Widget> wrapChildren = [];
+                          if (settings.showUserNameTimestamp) {
+                            wrapChildren.add(
+                              Text(
+                                _dateFormat.format(widget.message.timestamp),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: cs.onSurface.withOpacity(0.5),
+                                ),
+                              ),
+                            );
+                          }
+                          if (widget.showTokenStats) {
+                            wrapChildren.add(
+                              Text(
+                                _buildStatsText(widget.message),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: cs.onSurface.withOpacity(0.5),
+                                ),
+                              ),
+                            );
+                          }
+                          return wrapChildren.isNotEmpty
+                              ? Wrap(
+                                  alignment: WrapAlignment.end,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  spacing: 8,
+                                  runSpacing: 2,
+                                  children: wrapChildren,
+                                )
+                              : const SizedBox.shrink();
+                        },
+                      ),
                     ],
                   ),
                 ),
@@ -744,14 +793,16 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           // Message content (context menu: long-press on mobile, right-click on desktop)
           GestureDetector(
             onLongPressStart: (_) {
-              final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+              final isDesktop =
+                  defaultTargetPlatform == TargetPlatform.macOS ||
                   defaultTargetPlatform == TargetPlatform.windows ||
                   defaultTargetPlatform == TargetPlatform.linux;
               if (isDesktop) return; // Desktop uses right-click menu
               _showUserContextMenu();
             },
             onSecondaryTapDown: (details) {
-              final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+              final isDesktop =
+                  defaultTargetPlatform == TargetPlatform.macOS ||
                   defaultTargetPlatform == TargetPlatform.windows ||
                   defaultTargetPlatform == TargetPlatform.linux;
               if (!isDesktop) return; // Mobile keeps long-press
@@ -767,169 +818,228 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 context: context,
                 isUser: true,
                 child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                if (visualText.isNotEmpty)
-                  Builder(builder: (context) {
-                    final bool isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                        defaultTargetPlatform == TargetPlatform.windows ||
-                        defaultTargetPlatform == TargetPlatform.linux;
-                    final double baseUser = isDesktop ? 14.0 : 15.5;
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (visualText.isNotEmpty)
+                      Builder(
+                        builder: (context) {
+                          final bool isDesktop =
+                              defaultTargetPlatform == TargetPlatform.macOS ||
+                              defaultTargetPlatform == TargetPlatform.windows ||
+                              defaultTargetPlatform == TargetPlatform.linux;
+                          final double baseUser = isDesktop ? 14.0 : 15.5;
 
-                    Widget content;
-                    if (settings.enableUserMarkdown) {
-                      content = DefaultTextStyle.merge(
-                        style: TextStyle(fontSize: baseUser, height: 1.45),
-                        child: MarkdownWithCodeHighlight(
-                          text: visualText,
-                          baseStyle: TextStyle(fontSize: baseUser, height: 1.45),
-                        ),
-                      );
-                    } else {
-                      content = Text(
-                        visualText,
-                        style: TextStyle(
-                          fontSize: baseUser, // slightly smaller on desktop for readability
-                          height: 1.4,
-                          color: cs.onSurface,
-                        ),
-                      );
-                    }
+                          Widget content;
+                          if (settings.enableUserMarkdown) {
+                            content = DefaultTextStyle.merge(
+                              style: TextStyle(
+                                fontSize: baseUser,
+                                height: 1.45,
+                              ),
+                              child: MarkdownWithCodeHighlight(
+                                text: visualText,
+                                baseStyle: TextStyle(
+                                  fontSize: baseUser,
+                                  height: 1.45,
+                                ),
+                              ),
+                            );
+                          } else {
+                            content = Text(
+                              visualText,
+                              style: TextStyle(
+                                fontSize:
+                                    baseUser, // slightly smaller on desktop for readability
+                                height: 1.4,
+                                color: cs.onSurface,
+                              ),
+                            );
+                          }
 
-                    // Enable desktop selection/copy for user messages (bypassed on Windows to prevent flutter_windows.dll 0xc0000005 crashes)
-                    return isDesktop ? SelectionArea(key: ValueKey('user_${widget.message.id}'), child: content) : content;
-                  }),
-                if (parsed.images.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Builder(builder: (context) {
-                    final imgs = parsed.images;
-                    return Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: imgs.asMap().entries.map((entry) {
-                        final idx = entry.key;
-                        final p = entry.value;
-                        return Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              Navigator.of(context).push(PageRouteBuilder(
-                                pageBuilder: (_, __, ___) => ImageViewerPage(images: imgs, initialIndex: idx),
-                                transitionDuration: const Duration(milliseconds: 360),
-                                reverseTransitionDuration: const Duration(milliseconds: 280),
-                                transitionsBuilder: (context, anim, sec, child) {
-                                  final curved = CurvedAnimation(
-                                    parent: anim,
-                                    curve: Curves.easeOutCubic,
-                                    reverseCurve: Curves.easeInCubic,
-                                  );
-                                  return FadeTransition(
-                                    opacity: curved,
-                                    child: SlideTransition(
-                                      position: Tween<Offset>(
-                                        begin: const Offset(0, 0.02), // subtle upward drift
-                                        end: Offset.zero,
-                                      ).animate(curved),
-                                      child: child,
+                          // Enable desktop selection/copy for user messages (bypassed on Windows to prevent flutter_windows.dll 0xc0000005 crashes)
+                          return isDesktop
+                              ? SelectionArea(
+                                  key: ValueKey('user_${widget.message.id}'),
+                                  child: content,
+                                )
+                              : content;
+                        },
+                      ),
+                    if (parsed.images.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Builder(
+                        builder: (context) {
+                          final imgs = parsed.images;
+                          return Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: imgs.asMap().entries.map((entry) {
+                              final idx = entry.key;
+                              final p = entry.value;
+                              return Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      PageRouteBuilder(
+                                        pageBuilder: (_, __, ___) =>
+                                            ImageViewerPage(
+                                              images: imgs,
+                                              initialIndex: idx,
+                                            ),
+                                        transitionDuration: const Duration(
+                                          milliseconds: 360,
+                                        ),
+                                        reverseTransitionDuration:
+                                            const Duration(milliseconds: 280),
+                                        transitionsBuilder:
+                                            (context, anim, sec, child) {
+                                              final curved = CurvedAnimation(
+                                                parent: anim,
+                                                curve: Curves.easeOutCubic,
+                                                reverseCurve:
+                                                    Curves.easeInCubic,
+                                              );
+                                              return FadeTransition(
+                                                opacity: curved,
+                                                child: SlideTransition(
+                                                  position: Tween<Offset>(
+                                                    begin: const Offset(
+                                                      0,
+                                                      0.02,
+                                                    ), // subtle upward drift
+                                                    end: Offset.zero,
+                                                  ).animate(curved),
+                                                  child: child,
+                                                ),
+                                              );
+                                            },
+                                      ),
+                                    );
+                                  },
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Hero(
+                                      tag: 'img:$p',
+                                      child: Image.file(
+                                        File(SandboxPathResolver.fix(p)),
+                                        width: 96,
+                                        height: 96,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(
+                                          width: 96,
+                                          height: 96,
+                                          color: Colors.black12,
+                                          child: const Icon(Icons.broken_image),
+                                        ),
+                                      ),
                                     ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
+                    ],
+                    if (parsed.docs.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: parsed.docs.map((d) {
+                          return Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              overlayColor: MaterialStateProperty.resolveWith(
+                                (states) => cs.primary.withOpacity(
+                                  states.contains(MaterialState.pressed)
+                                      ? 0.14
+                                      : 0.08,
+                                ),
+                              ),
+                              splashColor: cs.primary.withOpacity(0.18),
+                              onTap: () async {
+                                try {
+                                  final fixed = SandboxPathResolver.fix(d.path);
+                                  final f = File(fixed);
+                                  if (!(await f.exists())) {
+                                    showAppSnackBar(
+                                      context,
+                                      message: l10n
+                                          .chatMessageWidgetFileNotFound(
+                                            d.fileName,
+                                          ),
+                                      type: NotificationType.error,
+                                    );
+                                    return;
+                                  }
+                                  final res = await OpenFilex.open(
+                                    fixed,
+                                    type: d.mime,
                                   );
-                                },
-                              ));
-                            },
-                            borderRadius: BorderRadius.circular(8),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Hero(
-                                tag: 'img:$p',
-                                child: Image.file(
-                                  File(SandboxPathResolver.fix(p)),
-                                  width: 96,
-                                  height: 96,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(
-                                    width: 96,
-                                    height: 96,
-                                    color: Colors.black12,
-                                    child: const Icon(Icons.broken_image),
+                                  if (res.type != ResultType.done) {
+                                    showAppSnackBar(
+                                      context,
+                                      message: l10n
+                                          .chatMessageWidgetCannotOpenFile(
+                                            res.message ?? res.type.toString(),
+                                          ),
+                                      type: NotificationType.error,
+                                    );
+                                  }
+                                } catch (e) {
+                                  showAppSnackBar(
+                                    context,
+                                    message: l10n
+                                        .chatMessageWidgetOpenFileError(
+                                          e.toString(),
+                                        ),
+                                    type: NotificationType.error,
+                                  );
+                                }
+                              },
+                              child: Ink(
+                                decoration: BoxDecoration(
+                                  color: isDark ? Colors.white12 : cs.surface,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 8,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.insert_drive_file,
+                                        size: 16,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 180,
+                                        ),
+                                        child: Text(
+                                          d.fileName,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                        );
-                      }).toList(),
-                    );
-                  }),
-                ],
-                if (parsed.docs.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: parsed.docs.map((d) {
-                      return Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(10),
-                          overlayColor: MaterialStateProperty.resolveWith(
-                                (states) => cs.primary.withOpacity(states.contains(MaterialState.pressed) ? 0.14 : 0.08),
-                          ),
-                          splashColor: cs.primary.withOpacity(0.18),
-                          onTap: () async {
-                            try {
-                              final fixed = SandboxPathResolver.fix(d.path);
-                              final f = File(fixed);
-                              if (!(await f.exists())) {
-                                showAppSnackBar(
-                                  context,
-                                  message: l10n.chatMessageWidgetFileNotFound(d.fileName),
-                                  type: NotificationType.error,
-                                );
-                                return;
-                              }
-                              final res = await OpenFilex.open(fixed, type: d.mime);
-                              if (res.type != ResultType.done) {
-                                showAppSnackBar(
-                                  context,
-                                  message: l10n.chatMessageWidgetCannotOpenFile(res.message ?? res.type.toString()),
-                                  type: NotificationType.error,
-                                );
-                              }
-                            } catch (e) {
-                              showAppSnackBar(
-                                context,
-                                message: l10n.chatMessageWidgetOpenFileError(e.toString()),
-                                type: NotificationType.error,
-                              );
-                            }
-                          },
-                          child: Ink(
-                            decoration: BoxDecoration(
-                              color: isDark ? Colors.white12 : cs.surface,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.insert_drive_file, size: 16),
-                                  const SizedBox(width: 6),
-                                  ConstrainedBox(
-                                    constraints: const BoxConstraints(maxWidth: 180),
-                                    child: Text(d.fileName, overflow: TextOverflow.ellipsis),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ],
-                ],
-              )),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ),
           if (showUserActions || showVersionSwitcher) ...[
@@ -937,107 +1047,124 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             Align(
               alignment: Alignment.centerRight,
               child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.75),
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.sizeOf(context).width * 0.75,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                if (showUserActions) ...[
-              SizedBox(
-                width: 28,
-                height: 28,
-                child: Center(
-                  child: IosIconButton(
-                    size: 16,
-                    padding: EdgeInsets.all(4),
-                    icon: Lucide.Copy,
-                    color: cs.onSurface.withOpacity(0.9),
-                    onTap: widget.onCopy ?? () async {
-                      await _copyFormattedText(widget.message.content);
-                      if (mounted) {
-                        showAppSnackBar(
-                          context,
-                          message: l10n.chatMessageWidgetCopiedToClipboard,
-                          type: NotificationType.success,
-                        );
-                      }
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              SizedBox(
-                width: 28,
-                height: 28,
-                child: Center(
-                  child: IosIconButton(
-                    size: 16,
-                    padding: EdgeInsets.all(4),
-                    icon: Lucide.RefreshCw,
-                    color: cs.onSurface.withOpacity(0.9),
-                    onTap: widget.onResend,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              if (widget.onEdit != null) ...[
-                SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: Center(
-                    child: IosIconButton(
-                      size: 16,
-                      padding: EdgeInsets.all(4),
-                      icon: Lucide.Pencil,
-                      color: cs.onSurface.withOpacity(0.9),
-                      onTap: widget.onEdit,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-              ],
-              SizedBox(
-                width: 28,
-                height: 28,
-                child: Center(
-                  child: GestureDetector(
-                    key: _moreBtnKey1,
-                    onTapDown: (d) {
-                      final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                          defaultTargetPlatform == TargetPlatform.windows ||
-                          defaultTargetPlatform == TargetPlatform.linux;
-                      if (isDesktop) {
-                        try { DesktopMenuAnchor.setPosition(d.globalPosition); } catch (_) {}
-                      }
-                    },
-                    onTap: () {
-                      final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                          defaultTargetPlatform == TargetPlatform.windows ||
-                          defaultTargetPlatform == TargetPlatform.linux;
-                      if (isDesktop) {
-                        _setAnchorFromKey(_moreBtnKey1);
-                      }
-                      widget.onMore?.call();
-                    },
-                    child: IosIconButton(
-                      size: 16,
-                      padding: EdgeInsets.all(4),
-                      icon: Lucide.Ellipsis,
-                      color: cs.onSurface.withOpacity(0.9),
-                      onTap: null,
-                    ),
-                  ),
-                ),
-              ),
-                ],
-                if (showVersionSwitcher) ...[
-                  if (showUserActions) const SizedBox(width: 6),
-                  _BranchSelector(
-                    index: widget.versionIndex ?? 0,
-                    total: widget.versionCount ?? 1,
-                    onPrev: widget.onPrevVersion,
-                    onNext: widget.onNextVersion,
-                  ),
-                ],
+                    if (showUserActions) ...[
+                      SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: Center(
+                          child: IosIconButton(
+                            size: 16,
+                            padding: EdgeInsets.all(4),
+                            icon: Lucide.Copy,
+                            color: cs.onSurface.withOpacity(0.9),
+                            onTap:
+                                widget.onCopy ??
+                                () async {
+                                  await _copyFormattedText(
+                                    widget.message.content,
+                                  );
+                                  if (mounted) {
+                                    showAppSnackBar(
+                                      context,
+                                      message: l10n
+                                          .chatMessageWidgetCopiedToClipboard,
+                                      type: NotificationType.success,
+                                    );
+                                  }
+                                },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: Center(
+                          child: IosIconButton(
+                            size: 16,
+                            padding: EdgeInsets.all(4),
+                            icon: Lucide.RefreshCw,
+                            color: cs.onSurface.withOpacity(0.9),
+                            onTap: widget.onResend,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      if (widget.onEdit != null) ...[
+                        SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: Center(
+                            child: IosIconButton(
+                              size: 16,
+                              padding: EdgeInsets.all(4),
+                              icon: Lucide.Pencil,
+                              color: cs.onSurface.withOpacity(0.9),
+                              onTap: widget.onEdit,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: Center(
+                          child: GestureDetector(
+                            key: _moreBtnKey1,
+                            onTapDown: (d) {
+                              final isDesktop =
+                                  defaultTargetPlatform ==
+                                      TargetPlatform.macOS ||
+                                  defaultTargetPlatform ==
+                                      TargetPlatform.windows ||
+                                  defaultTargetPlatform == TargetPlatform.linux;
+                              if (isDesktop) {
+                                try {
+                                  DesktopMenuAnchor.setPosition(
+                                    d.globalPosition,
+                                  );
+                                } catch (_) {}
+                              }
+                            },
+                            onTap: () {
+                              final isDesktop =
+                                  defaultTargetPlatform ==
+                                      TargetPlatform.macOS ||
+                                  defaultTargetPlatform ==
+                                      TargetPlatform.windows ||
+                                  defaultTargetPlatform == TargetPlatform.linux;
+                              if (isDesktop) {
+                                _setAnchorFromKey(_moreBtnKey1);
+                              }
+                              widget.onMore?.call();
+                            },
+                            child: IosIconButton(
+                              size: 16,
+                              padding: EdgeInsets.all(4),
+                              icon: Lucide.Ellipsis,
+                              color: cs.onSurface.withOpacity(0.9),
+                              onTap: null,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                    if (showVersionSwitcher) ...[
+                      if (showUserActions) const SizedBox(width: 6),
+                      _BranchSelector(
+                        index: widget.versionIndex ?? 0,
+                        total: widget.versionCount ?? 1,
+                        onPrev: widget.onPrevVersion,
+                        onNext: widget.onNextVersion,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1051,7 +1178,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   void _showUserContextMenuAt(Offset globalPosition) async {
     final l10n = AppLocalizations.of(context)!;
     // Haptic feedback
-    try { Haptics.light(); } catch (_) {}
+    try {
+      Haptics.light();
+    } catch (_) {}
     await showDesktopContextMenuAt(
       context,
       globalPosition: globalPosition,
@@ -1093,12 +1222,18 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     final rb = key.currentContext?.findRenderObject() as RenderBox?;
     if (rb == null) return;
     try {
-      final center = rb.localToGlobal(Offset(rb.size.width / 2, rb.size.height));
+      final center = rb.localToGlobal(
+        Offset(rb.size.width / 2, rb.size.height),
+      );
       DesktopMenuAnchor.setPosition(center);
     } catch (_) {}
   }
 
-  Widget _buildBubbleContainer({required BuildContext context, required bool isUser, required Widget child}) {
+  Widget _buildBubbleContainer({
+    required BuildContext context,
+    required bool isUser,
+    required Widget child,
+  }) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final style = context.watch<SettingsProvider>().chatMessageBackgroundStyle;
@@ -1115,12 +1250,12 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                     ? const Color(0xFF1C1C1E).withOpacity(0.66)
                     : Colors.white.withOpacity(0.66),
                 borderRadius: radius,
-                border: Border.all(color: cs.outlineVariant.withOpacity(0.14), width: 0.8),
+                border: Border.all(
+                  color: cs.outlineVariant.withOpacity(0.14),
+                  width: 0.8,
+                ),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: child,
-              ),
+              child: Padding(padding: const EdgeInsets.all(12), child: child),
             ),
           ),
         );
@@ -1129,7 +1264,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
             borderRadius: radius,
-            border: Border.all(color: cs.outlineVariant.withOpacity(0.16), width: 0.8),
+            border: Border.all(
+              color: cs.outlineVariant.withOpacity(0.16),
+              width: 0.8,
+            ),
           ),
           padding: const EdgeInsets.all(12),
           child: child,
@@ -1141,7 +1279,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           return Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isDark ? cs.primary.withOpacity(0.15) : cs.primary.withOpacity(0.08),
+              color: isDark
+                  ? cs.primary.withOpacity(0.15)
+                  : cs.primary.withOpacity(0.08),
               borderRadius: radius,
             ),
             child: child,
@@ -1151,9 +1291,224 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     }
   }
 
-  Widget _buildAssistantBubbleContainer({required BuildContext context, required Widget child}) {
+  Widget _buildAssistantBubbleContainer({
+    required BuildContext context,
+    required Widget child,
+  }) {
     // Reuse same styles, but flag as non-user for default fallthrough
     return _buildBubbleContainer(context: context, isUser: false, child: child);
+  }
+
+  List<FileRecord> _messageFileRecords() {
+    return context.watch<ChatService>().getMessageFileRecords(
+      widget.message.id,
+    );
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  Future<void> _showFileInFolder(FileRecord record) async {
+    final l10n = AppLocalizations.of(context)!;
+    final file = File(record.path);
+    if (!await file.exists()) {
+      if (mounted)
+        showAppSnackBar(
+          context,
+          message: l10n.chatMessageWidgetFileNotFound(record.fileName),
+          type: NotificationType.error,
+        );
+      return;
+    }
+    if (Platform.isWindows) {
+      await Process.run('explorer', [
+        '/select,',
+        record.path.replaceAll('/', '\\'),
+      ]);
+      return;
+    }
+    if (Platform.isMacOS) {
+      await Process.run('open', ['-R', record.path]);
+      return;
+    }
+    if (Platform.isLinux) {
+      await Process.run('xdg-open', [file.parent.path]);
+      return;
+    }
+
+    final workspace = await context
+        .read<ChatService>()
+        .getEffectiveConversationWorkspace(widget.message.conversationId);
+    if (!mounted) return;
+    final relativeDirectory = p.relative(file.parent.path, from: workspace);
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => WorkspaceFileBrowser(
+          workspacePath: workspace,
+          initialRelativePath: relativeDirectory == '.'
+              ? ''
+              : relativeDirectory,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openFileExternally(FileRecord record) async {
+    final l10n = AppLocalizations.of(context)!;
+    final result = await OpenFilex.open(record.path);
+    if (!mounted || result.type == ResultType.done) return;
+    showAppSnackBar(
+      context,
+      message: l10n.chatMessageWidgetCannotOpenFile(result.message),
+      type: NotificationType.error,
+    );
+  }
+
+  Future<void> _downloadFile(FileRecord record) async {
+    final l10n = AppLocalizations.of(context)!;
+    final file = File(record.path);
+    if (!await file.exists()) {
+      if (mounted)
+        showAppSnackBar(
+          context,
+          message: l10n.chatMessageWidgetFileNotFound(record.fileName),
+          type: NotificationType.error,
+        );
+      return;
+    }
+    try {
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        final savePath = await FilePicker.platform.saveFile(
+          dialogTitle: l10n.backupPageExportToFile,
+          fileName: record.fileName,
+        );
+        if (savePath == null) return;
+        await File(savePath).parent.create(recursive: true);
+        await file.copy(savePath);
+      } else {
+        await Share.shareXFiles([XFile(record.path)], text: record.fileName);
+      }
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          message: l10n.messageExportSheetExportedAs(record.fileName),
+          type: NotificationType.success,
+        );
+      }
+    } catch (e) {
+      if (mounted)
+        showAppSnackBar(
+          context,
+          message: l10n.messageExportSheetExportFailed('$e'),
+          type: NotificationType.error,
+        );
+    }
+  }
+
+  Future<void> _showFileActions(FileRecord record) async {
+    final l10n = AppLocalizations.of(context)!;
+    final isDesktop =
+        Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+    final items = <DesktopContextMenuItem>[
+      DesktopContextMenuItem(
+        icon: Lucide.FolderOpen,
+        label: l10n.chatMessageWidgetShowInFolder,
+        onTap: () => _showFileInFolder(record),
+      ),
+      DesktopContextMenuItem(
+        icon: Lucide.ExternalLink,
+        label: l10n.chatMessageWidgetOpenExternally,
+        onTap: () => _openFileExternally(record),
+      ),
+      DesktopContextMenuItem(
+        icon: Lucide.Download,
+        label: l10n.chatMessageWidgetDownload,
+        onTap: () => _downloadFile(record),
+      ),
+    ];
+    if (isDesktop) {
+      await showDesktopContextMenuAt(
+        context,
+        globalPosition: DesktopMenuAnchor.positionOrCenter(context),
+        items: items,
+      );
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final item in items)
+              ListTile(
+                leading: item.icon == null ? null : Icon(item.icon),
+                title: Text(item.label),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  item.onTap?.call();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFileCardsSection(List<FileRecord> records) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: records.map((record) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: IosCardPress(
+              borderRadius: BorderRadius.circular(12),
+              baseColor: cs.primaryContainer.withOpacity(0.24),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              onTap: () => _showFileActions(record),
+              child: Row(
+                children: [
+                  Icon(Lucide.FileText, size: 20, color: cs.primary),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          record.fileName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatFileSize(record.sizeBytes),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: cs.onSurface.withOpacity(0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Lucide.MoreVertical,
+                    size: 18,
+                    color: cs.onSurface.withOpacity(0.55),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 
   _ParsedUserContent _parseUserContent(String raw) {
@@ -1217,8 +1572,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           )
         : null;
     final translationText = visualTranslation ?? widget.message.translation;
-    final bool hasTranslation = (translationText != null && translationText.isNotEmpty);
-    final bool isTranslating = translationText == l10n.chatMessageWidgetTranslating;
+    final bool hasTranslation =
+        (translationText != null && translationText.isNotEmpty);
+    final bool isTranslating =
+        translationText == l10n.chatMessageWidgetTranslating;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1232,15 +1589,16 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 _buildAssistantAvatar(cs),
                 const SizedBox(width: 8),
               ] else if (widget.showModelIcon) ...[
-                widget.modelIcon ?? Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: cs.secondary.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Lucide.Bot, size: 18, color: cs.secondary),
-                ),
+                widget.modelIcon ??
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: cs.secondary.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Lucide.Bot, size: 18, color: cs.secondary),
+                    ),
                 const SizedBox(width: 8),
               ],
               if (settings.showModelNameTimestamp || widget.showTokenStats)
@@ -1251,7 +1609,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       if (settings.showModelNameTimestamp)
                         Text(
                           widget.useAssistantAvatar
-                              ? (widget.assistantName?.trim().isNotEmpty == true ? widget.assistantName!.trim() : 'Assistant')
+                              ? (widget.assistantName?.trim().isNotEmpty == true
+                                    ? widget.assistantName!.trim()
+                                    : 'Assistant')
                               : _resolveModelDisplayName(settings),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
@@ -1261,36 +1621,42 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                             color: cs.onSurface.withOpacity(0.7),
                           ),
                         ),
-                      Builder(builder: (context) {
-                        final List<Widget> wrapChildren = [];
-                        if (settings.showModelNameTimestamp) {
-                          wrapChildren.add(Text(
-                            _dateFormat.format(widget.message.timestamp),
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: cs.onSurface.withOpacity(0.5),
-                            ),
-                          ));
-                        }
-                        if (widget.showTokenStats) {
-                          wrapChildren.add(Text(
-                            _buildStatsText(widget.message),
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: cs.onSurface.withOpacity(0.5),
-                            ),
-                          ));
-                        }
-                        return wrapChildren.isNotEmpty
-                            ? Wrap(
-                                alignment: WrapAlignment.start,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                spacing: 8,
-                                runSpacing: 2,
-                                children: wrapChildren,
-                              )
-                            : const SizedBox.shrink();
-                      }),
+                      Builder(
+                        builder: (context) {
+                          final List<Widget> wrapChildren = [];
+                          if (settings.showModelNameTimestamp) {
+                            wrapChildren.add(
+                              Text(
+                                _dateFormat.format(widget.message.timestamp),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: cs.onSurface.withOpacity(0.5),
+                                ),
+                              ),
+                            );
+                          }
+                          if (widget.showTokenStats) {
+                            wrapChildren.add(
+                              Text(
+                                _buildStatsText(widget.message),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: cs.onSurface.withOpacity(0.5),
+                                ),
+                              ),
+                            );
+                          }
+                          return wrapChildren.isNotEmpty
+                              ? Wrap(
+                                  alignment: WrapAlignment.start,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  spacing: 8,
+                                  runSpacing: 2,
+                                  children: wrapChildren,
+                                )
+                              : const SizedBox.shrink();
+                        },
+                      ),
                     ],
                   ),
                 ),
@@ -1307,7 +1673,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             const SizedBox(height: 8),
           ],
           // Mixed reasoning and tool sections
-          if (widget.reasoningSegments != null && widget.reasoningSegments!.isNotEmpty) ...[
+          if (widget.reasoningSegments != null &&
+              widget.reasoningSegments!.isNotEmpty) ...[
             // Build mixed content using tool index ranges carried by segments
             ...() {
               final List<Widget> mixedContent = [];
@@ -1364,20 +1731,33 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             // Fallback to old behavior if no reasoning segments
             // Reasoning preview (if provided) — also support inline <think> blocks
             ...() {
-              final hasProvidedReasoning = (widget.reasoningText != null && widget.reasoningText!.isNotEmpty) || widget.reasoningLoading;
+              final hasProvidedReasoning =
+                  (widget.reasoningText != null &&
+                      widget.reasoningText!.isNotEmpty) ||
+                  widget.reasoningLoading;
               final effectiveReasoningText =
-                  (widget.reasoningText != null && widget.reasoningText!.isNotEmpty)
-                      ? widget.reasoningText!
-                      : extractedThinking;
-              final shouldShowReasoning = hasProvidedReasoning || effectiveReasoningText.isNotEmpty;
+                  (widget.reasoningText != null &&
+                      widget.reasoningText!.isNotEmpty)
+                  ? widget.reasoningText!
+                  : extractedThinking;
+              final shouldShowReasoning =
+                  hasProvidedReasoning || effectiveReasoningText.isNotEmpty;
               if (!shouldShowReasoning) return const <Widget>[];
 
               // If using inline <think>, expand by default and treat as loading when streaming until </think> appears
-              final usingInlineThink = (widget.reasoningText == null || widget.reasoningText!.isEmpty) && extractedThinking.isNotEmpty;
-              final effectiveExpanded = usingInlineThink ? (_inlineThinkExpanded ?? true) : widget.reasoningExpanded;
-              final collapsedNow = usingInlineThink && (_inlineThinkExpanded == false);
+              final usingInlineThink =
+                  (widget.reasoningText == null ||
+                      widget.reasoningText!.isEmpty) &&
+                  extractedThinking.isNotEmpty;
+              final effectiveExpanded = usingInlineThink
+                  ? (_inlineThinkExpanded ?? true)
+                  : widget.reasoningExpanded;
+              final collapsedNow =
+                  usingInlineThink && (_inlineThinkExpanded == false);
               final effectiveLoading = usingInlineThink
-                  ? (widget.message.isStreaming && !widget.message.content.contains('</think>') && !collapsedNow)
+                  ? (widget.message.isStreaming &&
+                        !widget.message.content.contains('</think>') &&
+                        !collapsedNow)
                   : (widget.reasoningFinishedAt == null);
 
               return <Widget>[
@@ -1386,25 +1766,35 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                   expanded: effectiveExpanded,
                   loading: effectiveLoading,
                   startAt: usingInlineThink ? null : widget.reasoningStartAt,
-                  finishedAt: usingInlineThink ? null : widget.reasoningFinishedAt,
+                  finishedAt: usingInlineThink
+                      ? null
+                      : widget.reasoningFinishedAt,
                   isParentStreaming: widget.message.isStreaming,
                   onToggle: usingInlineThink
-                      ? () => setState(() { _inlineThinkExpanded = !(_inlineThinkExpanded ?? true); _inlineThinkManuallyToggled = true; })
+                      ? () => setState(() {
+                          _inlineThinkExpanded =
+                              !(_inlineThinkExpanded ?? true);
+                          _inlineThinkManuallyToggled = true;
+                        })
                       : widget.onToggleReasoning,
                 ),
                 const SizedBox(height: 8),
               ];
             }(),
             // Tool call placeholders before content 隐藏内置搜索工具卡片
-            if ((widget.toolParts ?? const <ToolUIPart>[]).where((p) => p.toolName != 'builtin_search').isNotEmpty) ...[
+            if ((widget.toolParts ?? const <ToolUIPart>[])
+                .where((p) => p.toolName != 'builtin_search')
+                .isNotEmpty) ...[
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: widget.toolParts!
                     .where((p) => p.toolName != 'builtin_search') // 隐藏内置搜索工具卡片
-                    .map((p) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _ToolCallItem(part: p),
-                ))
+                    .map(
+                      (p) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _ToolCallItem(part: p),
+                      ),
+                    )
                     .toList(),
               ),
               const SizedBox(height: 8),
@@ -1420,156 +1810,240 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       alignment: Alignment.centerLeft,
                       child: Semantics(
                         label: l10n.chatMessageWidgetThinking,
-                        child: widget.hideStreamingIndicator ? const SizedBox(height: 16) : const LoadingIndicator(),
+                        child: widget.hideStreamingIndicator
+                            ? const SizedBox(height: 16)
+                            : const LoadingIndicator(),
                       ),
                     )
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                Builder(builder: (context) {
-                  final bool isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                      defaultTargetPlatform == TargetPlatform.windows ||
-                      defaultTargetPlatform == TargetPlatform.linux;
-                  final double baseAssistant = isDesktop ? 14.0 : 15.7;
-                  final contentWidget = DefaultTextStyle.merge(
-                    style: TextStyle(fontSize: baseAssistant, height: 1.5),
-                    child: MarkdownWithCodeHighlight(
-                      text: visualContent,
-                      onCitationTap: (id) => _handleCitationTap(id),
-                      baseStyle: TextStyle(fontSize: baseAssistant, height: 1.5),
-                      isStreaming: widget.message.isStreaming,
-                    ),
-                  );
-                  return RepaintBoundary(
-                    child: widget.message.isStreaming
-                        ? contentWidget
-                        : SelectionArea(
-                            key: ValueKey('assistant_${widget.message.id}'),
-                            child: contentWidget,
+                        Builder(
+                          builder: (context) {
+                            final bool isDesktop =
+                                defaultTargetPlatform == TargetPlatform.macOS ||
+                                defaultTargetPlatform ==
+                                    TargetPlatform.windows ||
+                                defaultTargetPlatform == TargetPlatform.linux;
+                            final double baseAssistant = isDesktop
+                                ? 14.0
+                                : 15.7;
+                            final contentWidget = DefaultTextStyle.merge(
+                              style: TextStyle(
+                                fontSize: baseAssistant,
+                                height: 1.5,
+                              ),
+                              child: MarkdownWithCodeHighlight(
+                                text: visualContent,
+                                onCitationTap: (id) => _handleCitationTap(id),
+                                baseStyle: TextStyle(
+                                  fontSize: baseAssistant,
+                                  height: 1.5,
+                                ),
+                                isStreaming: widget.message.isStreaming,
+                              ),
+                            );
+                            return RepaintBoundary(
+                              child: widget.message.isStreaming
+                                  ? contentWidget
+                                  : SelectionArea(
+                                      key: ValueKey(
+                                        'assistant_${widget.message.id}',
+                                      ),
+                                      child: contentWidget,
+                                    ),
+                            );
+                          },
+                        ),
+                        // Inline sources removed; show a summary card at bottom instead
+                        if (widget.message.isStreaming)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: widget.hideStreamingIndicator
+                                ? const SizedBox(height: 16)
+                                : const LoadingIndicator(),
                           ),
-                  );
-                }),
-                // Inline sources removed; show a summary card at bottom instead
-                if (widget.message.isStreaming)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4),
-                    child: widget.hideStreamingIndicator ? const SizedBox(height: 16) : const LoadingIndicator(),
-                  ),
-                // Translation section (collapsible)
-                if (hasTranslation) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      // Match reasoning section background; no border
-                      color: Theme.of(context).colorScheme.primaryContainer
-                          .withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.25 : 0.30),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: AnimatedSize(
-                      duration: const Duration(milliseconds: 300),
-                      curve: const Cubic(0.2, 0.8, 0.2, 1),
-                      alignment: Alignment.topCenter,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          IosCardPress(
-                            onTap: widget.onToggleTranslation,
-                            borderRadius: BorderRadius.circular(12),
-                            baseColor: Colors.transparent,
-                            pressedBlendStrength: 0.12,
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Lucide.Languages,
-                                  size: 16,
-                                  color: cs.secondary,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  l10n.chatMessageWidgetTranslation,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: cs.secondary,
+                        // Translation section (collapsible)
+                        if (hasTranslation) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              // Match reasoning section background; no border
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primaryContainer
+                                  .withOpacity(
+                                    Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? 0.25
+                                        : 0.30,
                                   ),
-                                ),
-                                const Spacer(),
-                                Icon(
-                                  widget.translationExpanded
-                                      ? Lucide.ChevronDown
-                                      : Lucide.ChevronRight,
-                                  size: 18,
-                                  color: cs.secondary,
-                                ),
-                              ],
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: AnimatedSize(
+                              duration: const Duration(milliseconds: 300),
+                              curve: const Cubic(0.2, 0.8, 0.2, 1),
+                              alignment: Alignment.topCenter,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  IosCardPress(
+                                    onTap: widget.onToggleTranslation,
+                                    borderRadius: BorderRadius.circular(12),
+                                    baseColor: Colors.transparent,
+                                    pressedBlendStrength: 0.12,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 8,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Lucide.Languages,
+                                          size: 16,
+                                          color: cs.secondary,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          l10n.chatMessageWidgetTranslation,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                            color: cs.secondary,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        Icon(
+                                          widget.translationExpanded
+                                              ? Lucide.ChevronDown
+                                              : Lucide.ChevronRight,
+                                          size: 18,
+                                          color: cs.secondary,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (widget.translationExpanded) ...[
+                                    const SizedBox(height: 8),
+                                    if (isTranslating)
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          8,
+                                          2,
+                                          8,
+                                          6,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            const LoadingIndicator(),
+                                            const SizedBox(width: 8),
+                                            Builder(
+                                              builder: (context) {
+                                                final bool isDesktop =
+                                                    defaultTargetPlatform ==
+                                                        TargetPlatform.macOS ||
+                                                    defaultTargetPlatform ==
+                                                        TargetPlatform
+                                                            .windows ||
+                                                    defaultTargetPlatform ==
+                                                        TargetPlatform.linux;
+                                                return Text(
+                                                  l10n.chatMessageWidgetTranslating,
+                                                  style: TextStyle(
+                                                    fontSize: isDesktop
+                                                        ? 14.0
+                                                        : 15.5,
+                                                    color: cs.onSurface
+                                                        .withOpacity(0.5),
+                                                    fontStyle: FontStyle.italic,
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    else
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          8,
+                                          2,
+                                          8,
+                                          6,
+                                        ),
+                                        child: RepaintBoundary(
+                                          child: Builder(
+                                            builder: (context) {
+                                              final bool isDesktop =
+                                                  defaultTargetPlatform ==
+                                                      TargetPlatform.macOS ||
+                                                  defaultTargetPlatform ==
+                                                      TargetPlatform.windows ||
+                                                  defaultTargetPlatform ==
+                                                      TargetPlatform.linux;
+                                              final double baseTranslation =
+                                                  isDesktop ? 14.0 : 15.5;
+                                              final bool translationInProgress =
+                                                  translationText ==
+                                                  AppLocalizations.of(
+                                                    context,
+                                                  )!.chatMessageWidgetTranslating;
+                                              final translationWidget =
+                                                  DefaultTextStyle.merge(
+                                                    style: TextStyle(
+                                                      fontSize: baseTranslation,
+                                                      height: 1.4,
+                                                    ),
+                                                    child: MarkdownWithCodeHighlight(
+                                                      text: translationText!,
+                                                      onCitationTap: (id) =>
+                                                          _handleCitationTap(
+                                                            id,
+                                                          ),
+                                                      baseStyle: TextStyle(
+                                                        fontSize:
+                                                            baseTranslation,
+                                                        height: 1.4,
+                                                      ),
+                                                      isStreaming:
+                                                          widget
+                                                              .message
+                                                              .isStreaming ||
+                                                          translationInProgress,
+                                                    ),
+                                                  );
+                                              return (widget
+                                                          .message
+                                                          .isStreaming ||
+                                                      translationInProgress)
+                                                  ? translationWidget
+                                                  : SelectionArea(
+                                                      key: ValueKey(
+                                                        'translation_${widget.message.id}',
+                                                      ),
+                                                      child: translationWidget,
+                                                    );
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ],
+                              ),
                             ),
                           ),
-                          if (widget.translationExpanded) ...[
-                            const SizedBox(height: 8),
-                            if (isTranslating)
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
-                                child: Row(
-                                  children: [
-                                    const LoadingIndicator(),
-                                    const SizedBox(width: 8),
-                                    Builder(builder: (context) {
-                                      final bool isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                                          defaultTargetPlatform == TargetPlatform.windows ||
-                                          defaultTargetPlatform == TargetPlatform.linux;
-                                      return Text(
-                                        l10n.chatMessageWidgetTranslating,
-                                        style: TextStyle(
-                                          fontSize: isDesktop ? 14.0 : 15.5,
-                                          color: cs.onSurface.withOpacity(0.5),
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      );
-                                    }),
-                                  ],
-                                ),
-                              )
-                            else
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
-                                child: RepaintBoundary(
-                                  child: Builder(builder: (context) {
-                                    final bool isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                                        defaultTargetPlatform == TargetPlatform.windows ||
-                                        defaultTargetPlatform == TargetPlatform.linux;
-                                    final double baseTranslation = isDesktop ? 14.0 : 15.5;
-                                    final bool translationInProgress = translationText == AppLocalizations.of(context)!.chatMessageWidgetTranslating;
-                                    final translationWidget = DefaultTextStyle.merge(
-                                      style: TextStyle(fontSize: baseTranslation, height: 1.4),
-                                      child: MarkdownWithCodeHighlight(
-                                        text: translationText!,
-                                        onCitationTap: (id) => _handleCitationTap(id),
-                                        baseStyle: TextStyle(fontSize: baseTranslation, height: 1.4),
-                                        isStreaming: widget.message.isStreaming || translationInProgress,
-                                      ),
-                                    );
-                                    return (widget.message.isStreaming || translationInProgress)
-                                        ? translationWidget
-                                        : SelectionArea(
-                                            key: ValueKey('translation_${widget.message.id}'),
-                                            child: translationWidget,
-                                          );
-                                  }),
-                                ),
-                              ),
-                          ],
                         ],
-                      ),
+                      ],
                     ),
-                  ),
-                ],
-              ],
-            ),
             ),
           ),
+          if (_messageFileRecords().isNotEmpty)
+            _buildFileCardsSection(_messageFileRecords()),
           // Sources summary card (tap to open full citations)
           if (_allSearchItems().isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -1605,16 +2079,21 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                               padding: EdgeInsets.all(4),
                               icon: Lucide.Copy,
                               color: cs.onSurface.withOpacity(0.9),
-                              onTap: widget.onCopy ?? () async {
-                                await _copyFormattedText(widget.message.content);
-                                if (mounted) {
-                                  showAppSnackBar(
-                                    context,
-                                    message: l10n.chatMessageWidgetCopiedToClipboard,
-                                    type: NotificationType.success,
-                                  );
-                                }
-                              },
+                              onTap:
+                                  widget.onCopy ??
+                                  () async {
+                                    await _copyFormattedText(
+                                      widget.message.content,
+                                    );
+                                    if (mounted) {
+                                      showAppSnackBar(
+                                        context,
+                                        message: l10n
+                                            .chatMessageWidgetCopiedToClipboard,
+                                        type: NotificationType.success,
+                                      );
+                                    }
+                                  },
                             ),
                           ),
                         ),
@@ -1645,10 +2124,21 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                 color: cs.onSurface.withOpacity(0.9),
                                 builder: (color) => AnimatedSwitcher(
                                   duration: const Duration(milliseconds: 200),
-                                  transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: FadeTransition(opacity: anim, child: child)),
+                                  transitionBuilder: (child, anim) =>
+                                      ScaleTransition(
+                                        scale: anim,
+                                        child: FadeTransition(
+                                          opacity: anim,
+                                          child: child,
+                                        ),
+                                      ),
                                   child: Icon(
-                                    tts.isSpeaking ? Lucide.CircleStop : Lucide.Volume2,
-                                    key: ValueKey(tts.isSpeaking ? 'stop' : 'speak'),
+                                    tts.isSpeaking
+                                        ? Lucide.CircleStop
+                                        : Lucide.Volume2,
+                                    key: ValueKey(
+                                      tts.isSpeaking ? 'stop' : 'speak',
+                                    ),
                                     size: 16,
                                     color: color,
                                   ),
@@ -1665,17 +2155,29 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                             child: GestureDetector(
                               key: _translateBtnKey2,
                               onTapDown: (d) {
-                                final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                                    defaultTargetPlatform == TargetPlatform.windows ||
-                                    defaultTargetPlatform == TargetPlatform.linux;
+                                final isDesktop =
+                                    defaultTargetPlatform ==
+                                        TargetPlatform.macOS ||
+                                    defaultTargetPlatform ==
+                                        TargetPlatform.windows ||
+                                    defaultTargetPlatform ==
+                                        TargetPlatform.linux;
                                 if (isDesktop) {
-                                  try { DesktopMenuAnchor.setPosition(d.globalPosition); } catch (_) {}
+                                  try {
+                                    DesktopMenuAnchor.setPosition(
+                                      d.globalPosition,
+                                    );
+                                  } catch (_) {}
                                 }
                               },
                               onTap: () {
-                                final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                                    defaultTargetPlatform == TargetPlatform.windows ||
-                                    defaultTargetPlatform == TargetPlatform.linux;
+                                final isDesktop =
+                                    defaultTargetPlatform ==
+                                        TargetPlatform.macOS ||
+                                    defaultTargetPlatform ==
+                                        TargetPlatform.windows ||
+                                    defaultTargetPlatform ==
+                                        TargetPlatform.linux;
                                 if (isDesktop) {
                                   _setAnchorFromKey(_translateBtnKey2);
                                 }
@@ -1699,17 +2201,29 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                             child: GestureDetector(
                               key: _moreBtnKey2,
                               onTapDown: (d) {
-                                final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                                    defaultTargetPlatform == TargetPlatform.windows ||
-                                    defaultTargetPlatform == TargetPlatform.linux;
+                                final isDesktop =
+                                    defaultTargetPlatform ==
+                                        TargetPlatform.macOS ||
+                                    defaultTargetPlatform ==
+                                        TargetPlatform.windows ||
+                                    defaultTargetPlatform ==
+                                        TargetPlatform.linux;
                                 if (isDesktop) {
-                                  try { DesktopMenuAnchor.setPosition(d.globalPosition); } catch (_) {}
+                                  try {
+                                    DesktopMenuAnchor.setPosition(
+                                      d.globalPosition,
+                                    );
+                                  } catch (_) {}
                                 }
                               },
                               onTap: () {
-                                final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                                    defaultTargetPlatform == TargetPlatform.windows ||
-                                    defaultTargetPlatform == TargetPlatform.linux;
+                                final isDesktop =
+                                    defaultTargetPlatform ==
+                                        TargetPlatform.macOS ||
+                                    defaultTargetPlatform ==
+                                        TargetPlatform.windows ||
+                                    defaultTargetPlatform ==
+                                        TargetPlatform.linux;
                                 if (isDesktop) {
                                   _setAnchorFromKey(_moreBtnKey2);
                                 }
@@ -1747,10 +2261,12 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   void _handleCitationTap(String id) async {
     final l10n = AppLocalizations.of(context)!;
     final items = _allSearchItems();
-    Map<String, dynamic>? match = items.cast<Map<String, dynamic>?>().firstWhere(
-      (e) => (e?['id']?.toString() ?? '') == id,
-      orElse: () => null,
-    );
+    Map<String, dynamic>? match = items
+        .cast<Map<String, dynamic>?>()
+        .firstWhere(
+          (e) => (e?['id']?.toString() ?? '') == id,
+          orElse: () => null,
+        );
 
     // Fallbacks for models that don't strictly follow "index:id":
     // 1) If id is actually an index number, match by item.index.
@@ -1766,7 +2282,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
         url = match?['url']?.toString();
       }
     }
-    if ((url == null || url.isEmpty) && (id.contains('/') || id.contains('.'))) {
+    if ((url == null || url.isEmpty) &&
+        (id.contains('/') || id.contains('.'))) {
       url = id;
     }
 
@@ -1844,7 +2361,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   void _showCitationsSheet(List<Map<String, dynamic>> items) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    final bool isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+    final bool isDesktop =
+        defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.linux;
 
@@ -1855,10 +2373,19 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
         builder: (ctx) {
           return Dialog(
             elevation: 12,
-            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 24,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: 380, maxWidth: 460, maxHeight: 360),
+              constraints: const BoxConstraints(
+                minWidth: 380,
+                maxWidth: 460,
+                maxHeight: 360,
+              ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: Material(
@@ -1875,14 +2402,23 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                l10n.chatMessageWidgetCitationsTitle(items.length),
-                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                                l10n.chatMessageWidgetCitationsTitle(
+                                  items.length,
+                                ),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                             Tooltip(
                               message: l10n.mcpPageClose,
                               child: IconButton(
-                                icon: Icon(Lucide.X, size: 18, color: cs.onSurface.withOpacity(0.75)),
+                                icon: Icon(
+                                  Lucide.X,
+                                  size: 18,
+                                  color: cs.onSurface.withOpacity(0.75),
+                                ),
                                 onPressed: () => Navigator.of(ctx).maybePop(),
                               ),
                             ),
@@ -1902,8 +2438,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                 children: [
                                   for (int i = 0; i < items.length; i++)
                                     _SourceRow(
-                                      index: (items[i]['index'] ?? (i + 1)).toString(),
-                                      title: (items[i]['title'] ?? '').toString(),
+                                      index: (items[i]['index'] ?? (i + 1))
+                                          .toString(),
+                                      title: (items[i]['title'] ?? '')
+                                          .toString(),
                                       url: (items[i]['url'] ?? '').toString(),
                                     ),
                                 ],
@@ -1948,7 +2486,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       Expanded(
                         child: Text(
                           l10n.chatMessageWidgetCitationsTitle(items.length),
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ],
@@ -1963,7 +2504,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                           children: [
                             for (int i = 0; i < items.length; i++)
                               _SourceRow(
-                                index: (items[i]['index'] ?? (i + 1)).toString(),
+                                index: (items[i]['index'] ?? (i + 1))
+                                    .toString(),
                                 title: (items[i]['title'] ?? '').toString(),
                                 url: (items[i]['url'] ?? '').toString(),
                               ),
@@ -2028,7 +2570,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       return Container(
         width: 32,
         height: 32,
-        decoration: BoxDecoration(color: cs.primary.withOpacity(0.1), shape: BoxShape.circle),
+        decoration: BoxDecoration(
+          color: cs.primary.withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
         alignment: Alignment.center,
         child: EmojiText(
           av.characters.take(1).toString(),
@@ -2047,9 +2592,15 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     return Container(
       width: 32,
       height: 32,
-      decoration: BoxDecoration(color: cs.primary.withOpacity(0.1), shape: BoxShape.circle),
+      decoration: BoxDecoration(
+        color: cs.primary.withOpacity(0.1),
+        shape: BoxShape.circle,
+      ),
       alignment: Alignment.center,
-      child: Text(ch, style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700)),
+      child: Text(
+        ch,
+        style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700),
+      ),
     );
   }
 
@@ -2077,7 +2628,9 @@ class _AnimatedPopupState extends State<_AnimatedPopup> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      setState(() { _opacity = 1.0; });
+      setState(() {
+        _opacity = 1.0;
+      });
     });
   }
 
@@ -2093,7 +2646,12 @@ class _AnimatedPopupState extends State<_AnimatedPopup> {
 }
 
 class _MenuItem extends StatelessWidget {
-  const _MenuItem({required this.icon, required this.label, this.onTap, this.danger = false});
+  const _MenuItem({
+    required this.icon,
+    required this.label,
+    this.onTap,
+    this.danger = false,
+  });
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
@@ -2111,7 +2669,9 @@ class _MenuItem extends StatelessWidget {
       borderRadius: BorderRadius.zero,
       baseColor: Colors.transparent,
       onTap: () {
-        try { Haptics.light(); } catch (_) {}
+        try {
+          Haptics.light();
+        } catch (_) {}
         onTap?.call();
       },
       child: Container(
@@ -2122,7 +2682,16 @@ class _MenuItem extends StatelessWidget {
           children: [
             Icon(icon, size: 18, color: ic),
             const SizedBox(width: 10),
-            Expanded(child: Text(label, style: TextStyle(fontSize: 14.5, color: fg, decoration: TextDecoration.none))),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14.5,
+                  color: fg,
+                  decoration: TextDecoration.none,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -2131,7 +2700,12 @@ class _MenuItem extends StatelessWidget {
 }
 
 class _BranchSelector extends StatelessWidget {
-  const _BranchSelector({required this.index, required this.total, this.onPrev, this.onNext});
+  const _BranchSelector({
+    required this.index,
+    required this.total,
+    this.onPrev,
+    this.onNext,
+  });
   final int index; // zero-based
   final int total;
   final VoidCallback? onPrev;
@@ -2166,7 +2740,11 @@ class _BranchSelector extends StatelessWidget {
               fit: BoxFit.scaleDown,
               child: Text(
                 '${index + 1}/$total',
-                style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.8), fontWeight: FontWeight.w500),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: cs.onSurface.withOpacity(0.8),
+                  fontWeight: FontWeight.w500,
+                ),
                 maxLines: 1,
                 softWrap: false,
               ),
@@ -2333,8 +2911,12 @@ class _ToolCallItem extends StatelessWidget {
     }
   }
 
-
-  String _titleFor(BuildContext context, String name, Map<String, dynamic> args, {required bool isResult}) {
+  String _titleFor(
+    BuildContext context,
+    String name,
+    Map<String, dynamic> args, {
+    required bool isResult,
+  }) {
     final l10n = AppLocalizations.of(context)!;
     switch (name) {
       case 'create_memory':
@@ -2349,7 +2931,9 @@ class _ToolCallItem extends StatelessWidget {
       case 'builtin_search':
         return l10n.chatMessageWidgetBuiltinSearch;
       default:
-        return isResult ? l10n.chatMessageWidgetToolResult(name) : l10n.chatMessageWidgetToolCall(name);
+        return isResult
+            ? l10n.chatMessageWidgetToolResult(name)
+            : l10n.chatMessageWidgetToolCall(name);
     }
   }
 
@@ -2383,7 +2967,11 @@ class _ToolCallItem extends StatelessWidget {
                   width: 18,
                   height: 18,
                   child: Center(
-                    child: Icon(_iconFor(part.toolName), size: 18, color: cs.secondary),
+                    child: Icon(
+                      _iconFor(part.toolName),
+                      size: 18,
+                      color: cs.secondary,
+                    ),
                   ),
                 ),
           const SizedBox(width: 10),
@@ -2392,8 +2980,17 @@ class _ToolCallItem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _titleFor(context, part.toolName, part.arguments, isResult: !part.loading),
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: cs.secondary),
+                  _titleFor(
+                    context,
+                    part.toolName,
+                    part.arguments,
+                    isResult: !part.loading,
+                  ),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: cs.secondary,
+                  ),
                 ),
               ],
             ),
@@ -2406,10 +3003,15 @@ class _ToolCallItem extends StatelessWidget {
   void _showDetail(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    final argsPretty = const JsonEncoder.withIndent('  ').convert(part.arguments);
-    final resultText = (part.content ?? '').isNotEmpty ? part.content! : l10n.chatMessageWidgetNoResultYet;
+    final argsPretty = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(part.arguments);
+    final resultText = (part.content ?? '').isNotEmpty
+        ? part.content!
+        : l10n.chatMessageWidgetNoResultYet;
 
-    final bool isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+    final bool isDesktop =
+        defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.linux;
 
@@ -2420,10 +3022,19 @@ class _ToolCallItem extends StatelessWidget {
         builder: (ctx) {
           return Dialog(
             elevation: 12,
-            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 24,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: 360, maxWidth: 560, maxHeight: 560),
+              constraints: const BoxConstraints(
+                minWidth: 360,
+                maxWidth: 560,
+                maxHeight: 560,
+              ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: Material(
@@ -2436,12 +3047,24 @@ class _ToolCallItem extends StatelessWidget {
                         padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
                         child: Row(
                           children: [
-                            Icon(_iconFor(part.toolName), size: 18, color: cs.primary),
+                            Icon(
+                              _iconFor(part.toolName),
+                              size: 18,
+                              color: cs.primary,
+                            ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                _titleFor(context, part.toolName, part.arguments, isResult: !part.loading),
-                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                                _titleFor(
+                                  context,
+                                  part.toolName,
+                                  part.arguments,
+                                  isResult: !part.loading,
+                                ),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -2449,7 +3072,11 @@ class _ToolCallItem extends StatelessWidget {
                             Tooltip(
                               message: l10n.mcpPageClose,
                               child: IconButton(
-                                icon: Icon(Lucide.X, size: 18, color: cs.onSurface.withOpacity(0.75)),
+                                icon: Icon(
+                                  Lucide.X,
+                                  size: 18,
+                                  color: cs.onSurface.withOpacity(0.75),
+                                ),
                                 onPressed: () => Navigator.of(ctx).maybePop(),
                               ),
                             ),
@@ -2465,30 +3092,60 @@ class _ToolCallItem extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(l10n.chatMessageWidgetArguments, style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+                                Text(
+                                  l10n.chatMessageWidgetArguments,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: cs.onSurface.withOpacity(0.6),
+                                  ),
+                                ),
                                 const SizedBox(height: 6),
                                 Container(
                                   width: double.infinity,
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF7F7F9),
+                                    color:
+                                        Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? Colors.white10
+                                        : const Color(0xFFF7F7F9),
                                     borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+                                    border: Border.all(
+                                      color: cs.outlineVariant.withOpacity(0.2),
+                                    ),
                                   ),
-                                  child: SelectableText(argsPretty, style: const TextStyle(fontSize: 12)),
+                                  child: SelectableText(
+                                    argsPretty,
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
                                 ),
                                 const SizedBox(height: 12),
-                                Text(l10n.chatMessageWidgetResult, style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+                                Text(
+                                  l10n.chatMessageWidgetResult,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: cs.onSurface.withOpacity(0.6),
+                                  ),
+                                ),
                                 const SizedBox(height: 6),
                                 Container(
                                   width: double.infinity,
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF7F7F9),
+                                    color:
+                                        Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? Colors.white10
+                                        : const Color(0xFFF7F7F9),
                                     borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+                                    border: Border.all(
+                                      color: cs.outlineVariant.withOpacity(0.2),
+                                    ),
                                   ),
-                                  child: SelectableText(resultText, style: const TextStyle(fontSize: 12)),
+                                  child: SelectableText(
+                                    resultText,
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
                                 ),
                               ],
                             ),
@@ -2527,41 +3184,79 @@ class _ToolCallItem extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(_iconFor(part.toolName), size: 18, color: cs.primary),
+                        Icon(
+                          _iconFor(part.toolName),
+                          size: 18,
+                          color: cs.primary,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            _titleFor(context, part.toolName, part.arguments, isResult: !part.loading),
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                            _titleFor(
+                              context,
+                              part.toolName,
+                              part.arguments,
+                              isResult: !part.loading,
+                            ),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Text(l10n.chatMessageWidgetArguments, style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+                    Text(
+                      l10n.chatMessageWidgetArguments,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurface.withOpacity(0.6),
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF7F7F9),
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white10
+                            : const Color(0xFFF7F7F9),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+                        border: Border.all(
+                          color: cs.outlineVariant.withOpacity(0.2),
+                        ),
                       ),
-                      child: SelectableText(argsPretty, style: const TextStyle(fontSize: 12)),
+                      child: SelectableText(
+                        argsPretty,
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ),
                     const SizedBox(height: 12),
-                    Text(l10n.chatMessageWidgetResult, style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+                    Text(
+                      l10n.chatMessageWidgetResult,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurface.withOpacity(0.6),
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF7F7F9),
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white10
+                            : const Color(0xFFF7F7F9),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+                        border: Border.all(
+                          color: cs.outlineVariant.withOpacity(0.2),
+                        ),
                       ),
-                      child: SelectableText(resultText, style: const TextStyle(fontSize: 12)),
+                      child: SelectableText(
+                        resultText,
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ),
                   ],
                 ),
@@ -2598,11 +3293,19 @@ class _SourcesList extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 6),
             child: Text(
               l10n.chatMessageWidgetCitationsTitle(items.length),
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.75)),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface.withOpacity(0.75),
+              ),
             ),
           ),
           for (int i = 0; i < items.length; i++)
-            _SourceRow(index: (items[i]['index'] ?? (i + 1)).toString(), title: (items[i]['title'] ?? '').toString(), url: (items[i]['url'] ?? '').toString()),
+            _SourceRow(
+              index: (items[i]['index'] ?? (i + 1)).toString(),
+              title: (items[i]['title'] ?? '').toString(),
+              url: (items[i]['url'] ?? '').toString(),
+            ),
         ],
       ),
     );
@@ -2610,7 +3313,11 @@ class _SourcesList extends StatelessWidget {
 }
 
 class _SourceRow extends StatelessWidget {
-  const _SourceRow({required this.index, required this.title, required this.url});
+  const _SourceRow({
+    required this.index,
+    required this.title,
+    required this.url,
+  });
   final String index;
   final String title;
   final String url;
@@ -2620,9 +3327,9 @@ class _SourceRow extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    
+
     final domain = _tryNormalizeExternalUri(url)?.host ?? url;
-    
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: IosCardPress(
@@ -2635,9 +3342,13 @@ class _SourceRow extends StatelessWidget {
           } catch (_) {}
         },
         borderRadius: BorderRadius.circular(12),
-        baseColor: isDark ? cs.surfaceContainerHigh.withValues(alpha: 0.5) : cs.surfaceContainer,
+        baseColor: isDark
+            ? cs.surfaceContainerHigh.withValues(alpha: 0.5)
+            : cs.surfaceContainer,
         border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.black.withValues(alpha: 0.05),
           width: 0.5,
         ),
         padding: const EdgeInsets.all(12),
@@ -2655,7 +3366,11 @@ class _SourceRow extends StatelessWidget {
                 children: [
                   Text(
                     title.isNotEmpty ? title : url,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.3),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      height: 1.3,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -2663,7 +3378,10 @@ class _SourceRow extends StatelessWidget {
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: cs.onSurface.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(4),
@@ -2916,7 +3634,8 @@ class _ReasoningSection extends StatefulWidget {
   State<_ReasoningSection> createState() => _ReasoningSectionState();
 }
 
-class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerProviderStateMixin {
+class _ReasoningSectionState extends State<_ReasoningSection>
+    with SingleTickerProviderStateMixin {
   // Use ValueNotifier to only update elapsed time display, not rebuild entire widget
   final ValueNotifier<int> _elapsedTick = ValueNotifier<int>(0);
   late final Ticker _ticker = Ticker((_) {
@@ -2999,7 +3718,6 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
     return s;
   }
 
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -3035,7 +3753,14 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
             const SizedBox(width: 8),
             _Shimmer(
               enabled: loading,
-              child: Text(l10n.chatMessageWidgetDeepThinking, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: cs.secondary)),
+              child: Text(
+                l10n.chatMessageWidgetDeepThinking,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: cs.secondary,
+                ),
+              ),
             ),
             const SizedBox(width: 8),
             if (widget.startAt != null)
@@ -3043,7 +3768,13 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
                 valueListenable: _elapsedTick,
                 builder: (context, _, __) => _Shimmer(
                   enabled: loading,
-                  child: Text(_elapsed(), style: TextStyle(fontSize: 13, color: cs.secondary.withOpacity(0.9))),
+                  child: Text(
+                    _elapsed(),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: cs.secondary.withOpacity(0.9),
+                    ),
+                  ),
                 ),
               ),
             // No header marquee; content area handles scrolling when loading
@@ -3052,20 +3783,17 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
               turns: widget.expanded ? 0.25 : 0.0, // right -> down
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeInOutCubic,
-              child: Icon(
-                Lucide.ChevronRight,
-                size: 18,
-                color: cs.secondary,
-              ),
+              child: Icon(Lucide.ChevronRight, size: 18, color: cs.secondary),
             ),
           ],
         ),
       ),
     );
 
-// 抽公共样式，继承当前 DefaultTextStyle（从而继承正确的颜色）
-    final TextStyle baseStyle =
-    DefaultTextStyle.of(context).style.copyWith(fontSize: 12.5, height: 1.32);
+    // 抽公共样式，继承当前 DefaultTextStyle（从而继承正确的颜色）
+    final TextStyle baseStyle = DefaultTextStyle.of(
+      context,
+    ).style.copyWith(fontSize: 12.5, height: 1.32);
 
     const StrutStyle baseStrut = StrutStyle(
       forceStrutHeight: true,
@@ -3083,7 +3811,7 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
     final bool isLoading = loading;
     final display = _sanitize(widget.text);
 
-// 未加载：不要再指定 color: fg，让它继承和"加载中"相同的颜色
+    // 未加载：不要再指定 color: fg，让它继承和"加载中"相同的颜色
     Widget _reasoningContent(String text) {
       if (settings.enableReasoningMarkdown) {
         final contentWidget = RepaintBoundary(
@@ -3130,49 +3858,50 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
           constraints: const BoxConstraints(maxHeight: 80),
           child: _hasOverflow
               ? ShaderMask(
-            shaderCallback: (rect) {
-              final h = rect.height;
-              const double topFade = 12.0;
-              const double bottomFade = 28.0;
-              final double sTop = (topFade / h).clamp(0.0, 1.0);
-              final double sBot = (1.0 - bottomFade / h).clamp(0.0, 1.0);
-              return LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: const [
-                  Color(0x00FFFFFF),
-                  Color(0xFFFFFFFF),
-                  Color(0xFFFFFFFF),
-                  Color(0x00FFFFFF),
-                ],
-                stops: [0.0, sTop, sBot, 1.0],
-              ).createShader(rect);
-            },
-            blendMode: BlendMode.dstIn,
-            child: NotificationListener<ScrollUpdateNotification>(
-              onNotification: (_) {
-                WidgetsBinding.instance.addPostFrameCallback((_) => _checkOverflow());
-                return false;
-              },
-              child: SingleChildScrollView(
-                controller: _scroll,
-                physics: const BouncingScrollPhysics(),
-                child: _reasoningContent(display),
-              ),
-            ),
-          )
+                  shaderCallback: (rect) {
+                    final h = rect.height;
+                    const double topFade = 12.0;
+                    const double bottomFade = 28.0;
+                    final double sTop = (topFade / h).clamp(0.0, 1.0);
+                    final double sBot = (1.0 - bottomFade / h).clamp(0.0, 1.0);
+                    return LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: const [
+                        Color(0x00FFFFFF),
+                        Color(0xFFFFFFFF),
+                        Color(0xFFFFFFFF),
+                        Color(0x00FFFFFF),
+                      ],
+                      stops: [0.0, sTop, sBot, 1.0],
+                    ).createShader(rect);
+                  },
+                  blendMode: BlendMode.dstIn,
+                  child: NotificationListener<ScrollUpdateNotification>(
+                    onNotification: (_) {
+                      WidgetsBinding.instance.addPostFrameCallback(
+                        (_) => _checkOverflow(),
+                      );
+                      return false;
+                    },
+                    child: SingleChildScrollView(
+                      controller: _scroll,
+                      physics: const BouncingScrollPhysics(),
+                      child: _reasoningContent(display),
+                    ),
+                  ),
+                )
               : SingleChildScrollView(
-            controller: _scroll,
-            physics: const NeverScrollableScrollPhysics(),
-            child: _reasoningContent(display),
-          ),
+                  controller: _scroll,
+                  physics: const NeverScrollableScrollPhysics(),
+                  child: _reasoningContent(display),
+                ),
         ),
       );
     }
 
     // Enable long-press text selection in reasoning body
     // body = SelectionArea(child: body);
-
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 300),
@@ -3188,10 +3917,7 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              header,
-              if (widget.expanded || isLoading) body,
-            ],
+            children: [header, if (widget.expanded || isLoading) body],
           ),
         ),
       ),
@@ -3215,7 +3941,10 @@ class _ShimmerState extends State<_Shimmer> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
     if (widget.enabled) _c.repeat();
   }
 
@@ -3244,7 +3973,12 @@ class _ShimmerState extends State<_Shimmer> with TickerProviderStateMixin {
             final width = rect.width;
             final gradientWidth = width * 0.4;
             final dx = (width + gradientWidth) * t - gradientWidth;
-            final shaderRect = Rect.fromLTWH(-dx, 0, width + gradientWidth * 2, rect.height);
+            final shaderRect = Rect.fromLTWH(
+              -dx,
+              0,
+              width + gradientWidth * 2,
+              rect.height,
+            );
             return LinearGradient(
               colors: [
                 Colors.white.withOpacity(0.0),
@@ -3282,8 +4016,12 @@ class _Marquee extends StatefulWidget {
   State<_Marquee> createState() => _MarqueeState();
 }
 
-class _MarqueeState extends State<_Marquee> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(vsync: this, duration: widget.duration)..repeat();
+class _MarqueeState extends State<_Marquee>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: widget.duration,
+  )..repeat();
 
   @override
   void dispose() {
@@ -3314,40 +4052,58 @@ class _MarqueeState extends State<_Marquee> with SingleTickerProviderStateMixin 
       child: ClipRect(
         child: needScroll
             ? AnimatedBuilder(
-          animation: _c,
-          builder: (context, _) {
-            final t = Curves.linear.transform(_c.value);
-            final dx = -loopWidth * t;
-            return ShaderMask(
-              shaderCallback: (rect) {
-                return const LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  colors: [
-                    Color(0x00FFFFFF),
-                    Color(0xFFFFFFFF),
-                    Color(0xFFFFFFFF),
-                    Color(0x00FFFFFF),
-                  ],
-                  stops: [0.0, 0.07, 0.93, 1.0],
-                ).createShader(rect);
-              },
-              blendMode: BlendMode.dstIn,
-              child: Transform.translate(
-                offset: Offset(dx, 0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(widget.text, style: widget.style, maxLines: 1, softWrap: false),
-                    SizedBox(width: gap),
-                    Text(widget.text, style: widget.style, maxLines: 1, softWrap: false),
-                  ],
+                animation: _c,
+                builder: (context, _) {
+                  final t = Curves.linear.transform(_c.value);
+                  final dx = -loopWidth * t;
+                  return ShaderMask(
+                    shaderCallback: (rect) {
+                      return const LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          Color(0x00FFFFFF),
+                          Color(0xFFFFFFFF),
+                          Color(0xFFFFFFFF),
+                          Color(0x00FFFFFF),
+                        ],
+                        stops: [0.0, 0.07, 0.93, 1.0],
+                      ).createShader(rect);
+                    },
+                    blendMode: BlendMode.dstIn,
+                    child: Transform.translate(
+                      offset: Offset(dx, 0),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            widget.text,
+                            style: widget.style,
+                            maxLines: 1,
+                            softWrap: false,
+                          ),
+                          SizedBox(width: gap),
+                          Text(
+                            widget.text,
+                            style: widget.style,
+                            maxLines: 1,
+                            softWrap: false,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              )
+            : Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  widget.text,
+                  style: widget.style,
+                  maxLines: 1,
+                  softWrap: false,
                 ),
               ),
-            );
-          },
-        )
-            : Align(alignment: Alignment.centerLeft, child: Text(widget.text, style: widget.style, maxLines: 1, softWrap: false)),
       ),
     );
   }

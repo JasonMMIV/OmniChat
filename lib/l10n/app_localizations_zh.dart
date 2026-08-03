@@ -4169,6 +4169,49 @@ class AppLocalizationsZh extends AppLocalizations {
   String tokenDetailTotalTokens(int count) {
     return '$count Tokens';
   }
+
+  @override
+  String get workspaceTitle => '工作区';
+
+  @override
+  String get workspaceNotSet => '未设置（使用默认私有目录）';
+
+  @override
+  String get workspaceChooseFolder => '选择文件夹';
+
+  @override
+  String get workspaceUseDefaultDirectory => '使用默认目录';
+
+  @override
+  String get workspaceClear => '清除工作区';
+
+  @override
+  String get workspaceFiles => '文件';
+
+  @override
+  String get workspaceSelectFolderDialogTitle => '选择工作区';
+
+  @override
+  String get workspaceFileBrowserEmpty => '此目录为空。';
+
+  @override
+  String workspaceFileBrowserReadError(Object error) {
+    return '无法读取此目录：$error';
+  }
+
+  @override
+  String workspaceFileBrowserOpenError(Object error) {
+    return '无法打开项目：$error';
+  }
+
+  @override
+  String get chatMessageWidgetShowInFolder => '显示所在文件夹';
+
+  @override
+  String get chatMessageWidgetOpenExternally => '外部打开';
+
+  @override
+  String get chatMessageWidgetDownload => '下载';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -8126,6 +8169,49 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String tokenDetailTotalTokens(int count) {
     return '$count Tokens';
   }
+
+  @override
+  String get workspaceTitle => '工作区';
+
+  @override
+  String get workspaceNotSet => '未设置（使用默认私有目录）';
+
+  @override
+  String get workspaceChooseFolder => '选择文件夹';
+
+  @override
+  String get workspaceUseDefaultDirectory => '使用默认目录';
+
+  @override
+  String get workspaceClear => '清除工作区';
+
+  @override
+  String get workspaceFiles => '文件';
+
+  @override
+  String get workspaceSelectFolderDialogTitle => '选择工作区';
+
+  @override
+  String get workspaceFileBrowserEmpty => '此目录为空。';
+
+  @override
+  String workspaceFileBrowserReadError(Object error) {
+    return '无法读取此目录：$error';
+  }
+
+  @override
+  String workspaceFileBrowserOpenError(Object error) {
+    return '无法打开项目：$error';
+  }
+
+  @override
+  String get chatMessageWidgetShowInFolder => '显示所在文件夹';
+
+  @override
+  String get chatMessageWidgetOpenExternally => '外部打开';
+
+  @override
+  String get chatMessageWidgetDownload => '下载';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -12131,4 +12217,47 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String tokenDetailTotalTokens(int count) {
     return '$count Tokens';
   }
+
+  @override
+  String get workspaceTitle => '工作區';
+
+  @override
+  String get workspaceNotSet => '未設定（使用預設私有目錄）';
+
+  @override
+  String get workspaceChooseFolder => '選擇資料夾';
+
+  @override
+  String get workspaceUseDefaultDirectory => '使用預設目錄';
+
+  @override
+  String get workspaceClear => '清除工作區';
+
+  @override
+  String get workspaceFiles => '檔案';
+
+  @override
+  String get workspaceSelectFolderDialogTitle => '選擇工作區';
+
+  @override
+  String get workspaceFileBrowserEmpty => '此目錄是空的。';
+
+  @override
+  String workspaceFileBrowserReadError(Object error) {
+    return '無法讀取此目錄：$error';
+  }
+
+  @override
+  String workspaceFileBrowserOpenError(Object error) {
+    return '無法開啟項目：$error';
+  }
+
+  @override
+  String get chatMessageWidgetShowInFolder => '顯示所在資料夾';
+
+  @override
+  String get chatMessageWidgetOpenExternally => '外部開啟';
+
+  @override
+  String get chatMessageWidgetDownload => '下載';
 }

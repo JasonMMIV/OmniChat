@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-03 (v1.6.8+)
+- **Last Updated**: 2026-08-03 (v1.6.9)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -178,6 +178,48 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+
+## [v1.6.9] - 2026-08-03: LLM File Operations (Workspace Tools) & Review Fixes
+
+### 153. LLM File Operations — Sandboxed Workspace Tools
+
+- **Purpose**: Grant the LLM sandboxed file read/write access to a per-conversation "Workspace" folder through 10 direct function-call tools (`file_read` / `file_write` / `file_append` / `file_delete` / `file_list` / `file_mkdir` / `file_info` / `file_move` / `file_copy` / `file_search`), implemented as Direct Function Calls (not an MCP server). Also address the 5 review findings: strict `content` validation, large-file / large-directory bounds, backup & restore coverage, widget test reliability, and workspace localization.
+- **Files Modified**:
+  - `lib/core/services/file/file_tool_service.dart` (NEW — tool definitions, sandbox path resolution, byte/entry limits, tool dispatch)
+  - `lib/core/models/file_record.dart` (NEW — Hive FileRecord model for tool-produced files)
+  - `lib/features/chat/widgets/workspace_sheet.dart` (NEW — workspace picker sheet)
+  - `lib/features/chat/widgets/workspace_file_browser.dart` (NEW — workspace file browser UI)
+  - `test/file_tool_service_test.dart` (NEW — FileToolService unit tests)
+  - `lib/core/services/chat/chat_service.dart` (`conversation_workspaces_v1` / `message_file_records_v1` Hive boxes, workspace & FileRecord CRUD, fork replication)
+  - `lib/features/home/services/tool_handler_service.dart` (`file_*` tool dispatch, FileRecord persistence)
+  - `lib/features/home/controllers/generation_controller.dart` (pass `conversationId` / `messageId` to tools)
+  - `lib/features/home/services/message_builder_service.dart` (workspace info injected into system prompt)
+  - `lib/features/chat/widgets/chat_message_widget.dart` (assistant file cards: show in folder / open externally / download / share)
+  - `lib/features/home/pages/home_desktop_layout.dart` / `home_mobile_layout.dart` / `home_page.dart` (Workspace button replaces appbar voice-chat entry; Voice Chat moved to input overflow menu)
+  - `lib/features/home/widgets/chat_input_bar.dart` / `chat_input_section.dart` / `lib/features/home/controllers/chat_actions.dart` (overflow menu wiring)
+  - `lib/core/services/backup/data_sync.dart` (backup version 2: `workspaces` + `fileRecords` fields, overwrite/merge restore)
+  - `lib/core/providers/settings_provider.dart` (workspace UI visibility settings)
+  - `lib/core/providers/update_provider.dart` (update check endpoint)
+  - `lib/utils/app_directories.dart` (`getFileSandboxDirectory`)
+  - `lib/main.dart` (`MyApp.enableUpdateCheck` test parameter)
+  - `test/widget_test.dart` (reliable OmniChat smoke test)
+  - `lib/icons/lucide_adapter.dart` (workspace icons)
+  - `android/app/src/main/AndroidManifest.xml` (`MANAGE_EXTERNAL_STORAGE` permission)
+  - `lib/l10n/app_en.arb` / `app_zh.arb` / `app_zh_Hans.arb` / `app_zh_Hant.arb` (+ regenerated `app_localizations*.dart`)
+  - `pubspec.yaml` (direct `path: ^1.9.0` dependency; version bumped to `1.6.9+64`)
+  - `installer.iss` / `installers/omnichat_setup.iss` (installer version 1.6.9)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Security**: Every tool call is routed through `FileToolService.resolveSafePath()` — canonicalization, workspace-root boundary enforcement, and rejection of dangerous extensions (`.exe/.apk/.bat/.sh/.dll/.so/.cmd/.ps1/.vbs`).
+  - **Resource Bounds (review fix)**: `file_read` uses a bounded read (1 MB + 1 bytes) and reports truncation; `file_write`/`file_append` reject payloads over 512 KB; `file_list` streams entries and truncates output at 1000 entries; `file_search` caps results at 1000 and the scan at 10000 visited entries with a truncation warning.
+  - **Strict content validation (review fix)**: `file_write`/`file_append` reject missing or non-string `content` arguments before touching the filesystem — a failed validation never overwrites an existing file.
+  - **Persistence**: Per-conversation workspace bindings (`conversation_workspaces_v1`) and tool-produced `FileRecord`s (`message_file_records_v1`) in Hive; conversation fork replicates both.
+  - **Backup v2 (review fix)**: `data_sync.dart` backup format version raised to 2 with `workspaces` and `fileRecords` sections; both overwrite and merge restore write them back into the Hive boxes.
+  - **UI**: Workspace button in the app bar opens `WorkspaceSheet` (pick / change folder, default = app-private `files/` sandbox); `WorkspaceFileBrowser` browses the sandbox; assistant messages render file cards with show-in-folder / open-externally / download / share actions.
+  - **Tests (review fix)**: `test/widget_test.dart` rewritten as a deterministic `MyApp(enableUpdateCheck: false)` smoke test; `test/file_tool_service_test.dart` covers sandbox escapes, symlink rejection, byte limits, listing/search truncation, and CRUD operations. Full suite: 31 tests pass.
+  - **Localization (review fix)**: workspace & file-card strings added across en / zh / zh_Hans / zh_Hant ARB files and wired to `AppLocalizations`.
+
+---
 
 ## [v1.6.8+] - 2026-08-03: Sidebar New Project Button & Unified Item Spacing
 

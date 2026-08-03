@@ -1379,5 +1379,28 @@
         "type": "int"
       }
     }
-  }
+  },
+  "workspaceTitle": "工作区",
+  "workspaceNotSet": "未设置（使用默认私有目录）",
+  "workspaceChooseFolder": "选择文件夹",
+  "workspaceUseDefaultDirectory": "使用默认目录",
+  "workspaceClear": "清除工作区",
+  "workspaceFiles": "文件",
+  "workspaceSelectFolderDialogTitle": "选择工作区",
+  "workspaceFileBrowserEmpty": "此目录为空。",
+  "workspaceFileBrowserReadError": "无法读取此目录：{error}",
+  "@workspaceFileBrowserReadError": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "workspaceFileBrowserOpenError": "无法打开项目：{error}",
+  "@workspaceFileBrowserOpenError": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "chatMessageWidgetShowInFolder": "显示所在文件夹",
+  "chatMessageWidgetOpenExternally": "外部打开",
+  "chatMessageWidgetDownload": "下载"
 }
