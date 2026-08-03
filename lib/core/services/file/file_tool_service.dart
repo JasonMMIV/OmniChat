@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:path/path.dart' as p;
 
@@ -33,7 +34,14 @@ class FileToolSecurityException implements Exception {
 class FileToolService {
   FileToolService._();
 
-  static const int maxReadBytes = 1024 * 1024;
+  /// Default and hard maximum sizes for one file_read response.
+  ///
+  /// The API layer also caps tool results by character count, but the file
+  /// service must bound the data held by the UI and Hive before that happens.
+  // Keep the complete result below ChatApiService's 32K-character tool-result
+  // budget even for ASCII-heavy source files. The extra room covers metadata.
+  static const int defaultReadBytes = 16 * 1024;
+  static const int maxReadBytes = 24 * 1024;
   static const int maxWriteBytes = 512 * 1024;
   static const int maxListedEntries = 1000;
   static const int maxSearchResults = 1000;
@@ -88,8 +96,20 @@ class FileToolService {
     return <Map<String, dynamic>>[
       definition(
         'file_read',
-        'Read UTF-8 text from a workspace file.',
-        {'path': pathProperty},
+        'Read a byte range of UTF-8 text from a workspace file. Use the returned next_offset to continue reading large files.',
+        {
+          'path': pathProperty,
+          'offset': {
+            'type': 'integer',
+            'description':
+                'Optional zero-based byte offset. Defaults to 0; use next_offset from the previous result for the next segment.',
+          },
+          'limit': {
+            'type': 'integer',
+            'description':
+                'Optional number of bytes to read. Defaults to 16384 and is capped at 24576.',
+          },
+        },
         ['path'],
       ),
       definition(
@@ -115,6 +135,42 @@ class FileToolService {
           },
         },
         ['path', 'content'],
+      ),
+      definition(
+        'file_edit',
+        'Replace exact UTF-8 text in one existing workspace file. By default the old text must match exactly once.',
+        {
+          'path': pathProperty,
+          'old_text': {
+            'type': 'string',
+            'description':
+                'Exact text to find. This is not a regular expression.',
+          },
+          'new_text': {
+            'type': 'string',
+            'description':
+                'Replacement text; an empty string deletes the match.',
+          },
+          'replace_all': {
+            'type': 'boolean',
+            'description':
+                'Optional. Set true only when every exact occurrence should be replaced.',
+          },
+        },
+        ['path', 'old_text', 'new_text'],
+      ),
+      definition(
+        'file_patch',
+        'Apply a single-file unified diff to an existing UTF-8 workspace file. The path argument is authoritative.',
+        {
+          'path': pathProperty,
+          'patch': {
+            'type': 'string',
+            'description':
+                'Unified diff containing one or more hunks for this file. Do not include patches for other files.',
+          },
+        },
+        ['path', 'patch'],
       ),
       definition(
         'file_delete',
@@ -190,6 +246,10 @@ class FileToolService {
           return await _write(args, workspace, append: false);
         case 'file_append':
           return await _write(args, workspace, append: true);
+        case 'file_edit':
+          return await _edit(args, workspace);
+        case 'file_patch':
+          return await _patch(args, workspace);
         case 'file_delete':
           return await _delete(args, workspace);
         case 'file_list':
@@ -333,6 +393,34 @@ class FileToolService {
     return value;
   }
 
+  static String _requiredTextArgument(
+    Map<String, dynamic> args,
+    String key, {
+    bool allowEmpty = true,
+  }) {
+    final value = args[key];
+    if (value is! String || (!allowEmpty && value.isEmpty)) {
+      throw ArgumentError(
+        'The $key argument is required and must be a string${allowEmpty ? '' : ' with at least one character'}.',
+      );
+    }
+    return value;
+  }
+
+  static int _optionalInteger(
+    Map<String, dynamic> args,
+    String key, {
+    required int defaultValue,
+  }) {
+    final value = args[key];
+    if (value == null) return defaultValue;
+    if (value is int) return value;
+    if (value is num && value.isFinite && value == value.truncate()) {
+      return value.toInt();
+    }
+    throw ArgumentError('The $key argument must be an integer.');
+  }
+
   static Future<FileToolResult> _read(
     Map<String, dynamic> args,
     String workspace,
@@ -341,23 +429,511 @@ class FileToolService {
     final file = File(path);
     if (!await file.exists())
       return FileToolResult(text: 'Error: File not found.');
+
+    final offset = _optionalInteger(args, 'offset', defaultValue: 0);
+    final requestedLimit = _optionalInteger(
+      args,
+      'limit',
+      defaultValue: defaultReadBytes,
+    );
+    if (offset < 0) {
+      return const FileToolResult(
+        text: 'Error: The offset must be zero or greater.',
+      );
+    }
+    if (requestedLimit <= 0) {
+      return const FileToolResult(
+        text: 'Error: The limit must be greater than zero.',
+      );
+    }
+
+    final fileLength = await file.length();
+    if (offset > fileLength) {
+      return const FileToolResult(
+        text: 'Error: The offset is beyond the end of the file.',
+      );
+    }
+    final limit = math.min(requestedLimit, maxReadBytes);
+    final capped = requestedLimit > maxReadBytes;
+    if (offset == fileLength) {
+      final capWarning = capped
+          ? '\n[Warning: limit capped at $maxReadBytes bytes.]'
+          : '';
+      return FileToolResult(
+        text:
+            '[Read bytes $offset-$offset of $fileLength; next_offset=$offset; has_more=false]\n(empty)$capWarning',
+      );
+    }
+
+    // Read a few preceding bytes so a segment beginning in the middle of a
+    // UTF-8 code point can advance to the next valid boundary.
+    final readStart = math.max(0, offset - 3);
+    final readLength = math.min(
+      fileLength - readStart,
+      (offset - readStart) + limit + 4,
+    );
     final handle = await file.open();
     late final List<int> bytes;
     try {
-      // Read one extra byte so truncation can be reported without loading the
-      // whole file into memory.
-      bytes = await handle.read(maxReadBytes + 1);
+      await handle.setPosition(readStart);
+      bytes = await handle.read(readLength);
     } finally {
       await handle.close();
     }
-    final truncated = bytes.length > maxReadBytes;
+
+    final requestedIndex = offset - readStart;
+    final startIndex = _skipUtf8ContinuationBytes(bytes, requestedIndex);
+    final endIndex = _takeCompleteUtf8Bytes(
+      bytes,
+      startIndex,
+      math.min(bytes.length, startIndex + limit),
+    );
+    final actualStart = readStart + startIndex;
+    final nextOffset = readStart + endIndex;
+    final hasMore = nextOffset < fileLength;
     final text = utf8.decode(
-      truncated ? bytes.sublist(0, maxReadBytes) : bytes,
+      bytes.sublist(startIndex, endIndex),
       allowMalformed: true,
     );
+    final capWarning = capped
+        ? '\n[Warning: limit capped at $maxReadBytes bytes.]'
+        : '';
     return FileToolResult(
-      text: truncated ? '$text\n[Warning: output truncated at 1 MB.]' : text,
+      text:
+          '[Read bytes $actualStart-$nextOffset of $fileLength; next_offset=$nextOffset; has_more=$hasMore]\n$text$capWarning',
     );
+  }
+
+  static int _skipUtf8ContinuationBytes(List<int> bytes, int start) {
+    var index = start;
+    while (index < bytes.length && _isUtf8Continuation(bytes[index])) {
+      index++;
+    }
+    return index;
+  }
+
+  static bool _isUtf8Continuation(int byte) {
+    return byte >= 0x80 && byte <= 0xbf;
+  }
+
+  static int _takeCompleteUtf8Bytes(List<int> bytes, int start, int maxEnd) {
+    var index = start;
+    while (index < maxEnd) {
+      final width = _utf8SequenceLength(bytes, index, maxEnd);
+      if (width == 0) {
+        // The requested byte limit may end in the middle of a code point.
+        // Include that complete code point, even if the segment grows by a
+        // few bytes, so callers never receive a split UTF-8 sequence.
+        final completeWidth = _utf8SequenceLength(bytes, index, bytes.length);
+        if (completeWidth == 0) break;
+        index += completeWidth;
+        break;
+      }
+      index += width;
+    }
+
+    // Make forward progress for malformed input rather than returning the
+    // same segment repeatedly.
+    if (index == start && start < maxEnd) return start + 1;
+    return index;
+  }
+
+  static int _utf8SequenceLength(List<int> bytes, int index, int maxEnd) {
+    final first = bytes[index];
+    final width = first <= 0x7f
+        ? 1
+        : first >= 0xc2 && first <= 0xdf
+        ? 2
+        : first >= 0xe0 && first <= 0xef
+        ? 3
+        : first >= 0xf0 && first <= 0xf4
+        ? 4
+        : 1;
+    if (index + width > maxEnd) return 0;
+    for (var i = index + 1; i < index + width; i++) {
+      if (!_isUtf8Continuation(bytes[i])) return 1;
+    }
+    return width;
+  }
+
+  static Future<FileToolResult> _edit(
+    Map<String, dynamic> args,
+    String workspace,
+  ) async {
+    final path = resolveSafePath(_requiredString(args, 'path'), workspace);
+    _rejectBlockedExtension(path);
+    final file = File(path);
+    if (!await file.exists()) {
+      return const FileToolResult(text: 'Error: File not found.');
+    }
+
+    final oldText = _requiredTextArgument(args, 'old_text', allowEmpty: false);
+    final newText = _requiredTextArgument(args, 'new_text');
+    final replaceAll = args['replace_all'] ?? false;
+    if (replaceAll is! bool) {
+      return const FileToolResult(
+        text: 'Error: The replace_all argument must be a boolean.',
+      );
+    }
+
+    if (oldText.length > maxWriteBytes || newText.length > maxWriteBytes) {
+      return const FileToolResult(
+        text: 'Error: The edit text arguments exceed the 512 KB limit.',
+      );
+    }
+    final oldTextBytes = utf8.encode(oldText);
+    final newTextBytes = utf8.encode(newText);
+    if (oldTextBytes.length + newTextBytes.length > maxWriteBytes) {
+      return const FileToolResult(
+        text:
+            'Error: The combined edit text arguments exceed the 512 KB limit.',
+      );
+    }
+
+    final snapshot = await _readMutableFile(file);
+    final original = snapshot.content;
+    final occurrences = _countOccurrences(original, oldText);
+    if (occurrences == 0) {
+      return const FileToolResult(
+        text: 'Error: The old_text was not found; the file was not changed.',
+      );
+    }
+    if (!replaceAll && occurrences != 1) {
+      return FileToolResult(
+        text:
+            'Error: old_text matched $occurrences times. Provide more context or set replace_all=true.',
+      );
+    }
+
+    final estimatedSize =
+        snapshot.bytes.length +
+        (newTextBytes.length - oldTextBytes.length) * occurrences;
+    if (estimatedSize > maxWriteBytes) {
+      return const FileToolResult(
+        text: 'Error: The resulting file would exceed the 512 KB limit.',
+      );
+    }
+
+    final updated = replaceAll
+        ? original.replaceAll(oldText, newText)
+        : original.replaceRange(
+            original.indexOf(oldText),
+            original.indexOf(oldText) + oldText.length,
+            newText,
+          );
+    return await _writeModifiedText(
+      path,
+      updated,
+      action: 'Edited',
+      expectedBytes: snapshot.bytes,
+    );
+  }
+
+  static int _countOccurrences(String source, String needle) {
+    var count = 0;
+    var start = 0;
+    while (true) {
+      final index = source.indexOf(needle, start);
+      if (index < 0) return count;
+      count++;
+      start = index + needle.length;
+    }
+  }
+
+  static Future<FileToolResult> _patch(
+    Map<String, dynamic> args,
+    String workspace,
+  ) async {
+    final path = resolveSafePath(_requiredString(args, 'path'), workspace);
+    _rejectBlockedExtension(path);
+    final patch = _requiredTextArgument(args, 'patch', allowEmpty: false);
+    if (utf8.encode(patch).length > maxWriteBytes) {
+      return const FileToolResult(
+        text: 'Error: The patch exceeds the 512 KB limit.',
+      );
+    }
+
+    final file = File(path);
+    if (!await file.exists()) {
+      return const FileToolResult(text: 'Error: File not found.');
+    }
+    final snapshot = await _readMutableFile(file);
+    final parsed = _parseUnifiedPatch(patch);
+    final updated = _applyUnifiedPatch(snapshot.content, parsed);
+    return await _writeModifiedText(
+      path,
+      updated,
+      action: 'Patched',
+      expectedBytes: snapshot.bytes,
+    );
+  }
+
+  static Future<_MutableFileSnapshot> _readMutableFile(File file) async {
+    final type = FileSystemEntity.typeSync(file.path, followLinks: false);
+    if (type != FileSystemEntityType.file) {
+      throw ArgumentError('The target must be a regular file.');
+    }
+    final bytes = await file.readAsBytes();
+    if (bytes.length > maxWriteBytes) {
+      throw ArgumentError('The target file exceeds the 512 KB edit limit.');
+    }
+    try {
+      return _MutableFileSnapshot(
+        bytes: bytes,
+        content: utf8.decode(bytes, allowMalformed: false),
+      );
+    } on FormatException {
+      throw ArgumentError('The target file is not valid UTF-8 text.');
+    }
+  }
+
+  static Future<FileToolResult> _writeModifiedText(
+    String path,
+    String content, {
+    required String action,
+    required List<int> expectedBytes,
+  }) async {
+    final bytes = utf8.encode(content);
+    if (bytes.length > maxWriteBytes) {
+      return const FileToolResult(
+        text: 'Error: The resulting file would exceed the 512 KB limit.',
+      );
+    }
+    final file = File(path);
+    final currentBytes = await file.readAsBytes();
+    if (!_bytesEqual(currentBytes, expectedBytes)) {
+      return const FileToolResult(
+        text: 'Error: The file changed while editing; no changes were made.',
+      );
+    }
+    await _atomicReplace(file, bytes);
+    final size = await file.length();
+    return FileToolResult(
+      text: '$action ${p.basename(path)} ($size bytes).',
+      createdOrModifiedFilePath: path,
+      fileName: p.basename(path),
+      fileSizeBytes: size,
+    );
+  }
+
+  static bool _bytesEqual(List<int> left, List<int> right) {
+    if (left.length != right.length) return false;
+    for (var i = 0; i < left.length; i++) {
+      if (left[i] != right[i]) return false;
+    }
+    return true;
+  }
+
+  static Future<void> _atomicReplace(File target, List<int> bytes) async {
+    final token =
+        '${DateTime.now().microsecondsSinceEpoch}_${target.path.hashCode.abs()}';
+    final temporary = File('${target.path}.omnichat-tmp-$token');
+    final backup = File('${target.path}.omnichat-backup-$token');
+    await temporary.writeAsBytes(bytes, flush: true);
+
+    try {
+      if (!Platform.isWindows) {
+        // A same-directory rename is atomic on the supported desktop/mobile
+        // filesystems and replaces the existing file.
+        await temporary.rename(target.path);
+        return;
+      }
+
+      // Windows does not reliably replace an existing file with rename().
+      // Keep a recovery copy while swapping the prepared temporary file in.
+      await target.rename(backup.path);
+      try {
+        await temporary.rename(target.path);
+      } catch (_) {
+        if (!await target.exists() && await backup.exists()) {
+          await backup.rename(target.path);
+        }
+        rethrow;
+      }
+      try {
+        if (await backup.exists()) await backup.delete();
+      } catch (_) {
+        // The new target is already installed; a stale backup is harmless.
+      }
+    } finally {
+      if (await temporary.exists()) {
+        try {
+          await temporary.delete();
+        } catch (_) {}
+      }
+      if (Platform.isWindows &&
+          !await target.exists() &&
+          await backup.exists()) {
+        try {
+          await backup.rename(target.path);
+        } catch (_) {}
+      }
+    }
+  }
+
+  static _ParsedUnifiedPatch _parseUnifiedPatch(String patch) {
+    final normalized = patch.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    final lines = normalized.split('\n');
+    var index = 0;
+    final hunks = <_PatchHunk>[];
+    var inputHasNoFinalNewline = false;
+    var outputHasNoFinalNewline = false;
+
+    // File headers are optional metadata. The explicit tool path remains the
+    // only path used by the filesystem operation.
+    if (index < lines.length && lines[index].startsWith('--- ')) {
+      if (index + 1 >= lines.length || !lines[index + 1].startsWith('+++ ')) {
+        throw ArgumentError('Invalid unified patch file headers.');
+      }
+      index += 2;
+    }
+
+    while (index < lines.length) {
+      if (lines[index].trim().isEmpty) {
+        index++;
+        continue;
+      }
+      final header = lines[index];
+      final match = RegExp(
+        r'^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@',
+      ).firstMatch(header);
+      if (match == null) {
+        throw ArgumentError('Invalid unified patch hunk header.');
+      }
+
+      final oldStart = int.parse(match.group(1)!);
+      final oldCount = int.tryParse(match.group(2) ?? '1')!;
+      final newStart = int.parse(match.group(3)!);
+      final newCount = int.tryParse(match.group(4) ?? '1')!;
+      final patchLines = <_PatchLine>[];
+      var oldSeen = 0;
+      var newSeen = 0;
+      String? previousPrefix;
+      index++;
+
+      while (index < lines.length && !lines[index].startsWith('@@ ')) {
+        final line = lines[index];
+        // split('\n') leaves one empty element when a normal patch ends with
+        // a newline. It is framing, not an empty patch hunk line.
+        if (line.isEmpty && index == lines.length - 1) {
+          index++;
+          break;
+        }
+        if (line == r'\ No newline at end of file') {
+          if (previousPrefix == '-' || previousPrefix == ' ') {
+            inputHasNoFinalNewline = true;
+          }
+          if (previousPrefix == '+' || previousPrefix == ' ') {
+            outputHasNoFinalNewline = true;
+          }
+          index++;
+          continue;
+        }
+        if (line.isEmpty ||
+            (line[0] != ' ' && line[0] != '+' && line[0] != '-')) {
+          throw ArgumentError('Invalid unified patch line.');
+        }
+        final prefix = line[0];
+        final content = line.substring(1);
+        if (prefix == ' ' || prefix == '-') oldSeen++;
+        if (prefix == ' ' || prefix == '+') newSeen++;
+        patchLines.add(_PatchLine(prefix: prefix, content: content));
+        previousPrefix = prefix;
+        index++;
+      }
+
+      if (oldSeen != oldCount || newSeen != newCount) {
+        throw ArgumentError(
+          'Unified patch hunk line counts do not match its header.',
+        );
+      }
+      hunks.add(
+        _PatchHunk(
+          oldStart: oldStart,
+          oldCount: oldCount,
+          newStart: newStart,
+          newCount: newCount,
+          lines: patchLines,
+        ),
+      );
+    }
+
+    if (hunks.isEmpty) {
+      throw ArgumentError('The unified patch contains no hunks.');
+    }
+    return _ParsedUnifiedPatch(
+      hunks: hunks,
+      inputHasNoFinalNewline: inputHasNoFinalNewline,
+      outputHasNoFinalNewline: outputHasNoFinalNewline,
+    );
+  }
+
+  static String _applyUnifiedPatch(String source, _ParsedUnifiedPatch patch) {
+    final normalizedSource = source
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n');
+    final sourceHasFinalNewline = normalizedSource.endsWith('\n');
+    if (patch.inputHasNoFinalNewline && sourceHasFinalNewline) {
+      throw ArgumentError(
+        'Patch newline metadata does not match the current file.',
+      );
+    }
+    final newline = source.contains('\r\n') ? '\r\n' : '\n';
+    final sourceLines = normalizedSource.isEmpty
+        ? <String>[]
+        : normalizedSource.split('\n');
+    if (sourceHasFinalNewline && sourceLines.isNotEmpty) {
+      sourceLines.removeLast();
+    }
+
+    final output = <String>[];
+    var cursor = 0;
+    for (final hunk in patch.hunks) {
+      final start = hunk.oldCount == 0 ? hunk.oldStart : hunk.oldStart - 1;
+      if (start < cursor || start > sourceLines.length) {
+        throw ArgumentError('Patch hunk starts outside the current file.');
+      }
+      output.addAll(sourceLines.sublist(cursor, start));
+      cursor = start;
+
+      for (final line in hunk.lines) {
+        if (line.prefix == '+') {
+          output.add(line.content);
+          continue;
+        }
+        if (cursor >= sourceLines.length ||
+            sourceLines[cursor] != line.content) {
+          throw ArgumentError(
+            'Patch context did not match; the file was not changed.',
+          );
+        }
+        if (line.prefix == ' ') output.add(line.content);
+        cursor++;
+      }
+    }
+    output.addAll(sourceLines.sublist(cursor));
+
+    var result = output.join('\n');
+    final patchTouchesOutputEnd = patch.hunks.any((hunk) {
+      final outputEnd = hunk.newCount == 0
+          ? hunk.newStart - 1
+          : hunk.newStart + hunk.newCount - 1;
+      return outputEnd == output.length;
+    });
+    final patchTouchesInputEnd = patch.hunks.any((hunk) {
+      final inputEnd = hunk.oldCount == 0
+          ? hunk.oldStart - 1
+          : hunk.oldStart + hunk.oldCount - 1;
+      return inputEnd == sourceLines.length;
+    });
+    final shouldEndWithNewline =
+        !patch.outputHasNoFinalNewline &&
+        (sourceHasFinalNewline ||
+            patchTouchesOutputEnd ||
+            patchTouchesInputEnd);
+    if (shouldEndWithNewline && result.isNotEmpty) result += '\n';
+    if (newline != '\n') result = result.replaceAll('\n', newline);
+    return result;
   }
 
   static Future<FileToolResult> _write(
@@ -600,4 +1176,46 @@ class FileToolService {
     final b = p.normalize(right).replaceAll('\\', '/');
     return Platform.isWindows ? a.toLowerCase() == b.toLowerCase() : a == b;
   }
+}
+
+class _PatchLine {
+  const _PatchLine({required this.prefix, required this.content});
+
+  final String prefix;
+  final String content;
+}
+
+class _PatchHunk {
+  const _PatchHunk({
+    required this.oldStart,
+    required this.oldCount,
+    required this.newStart,
+    required this.newCount,
+    required this.lines,
+  });
+
+  final int oldStart;
+  final int oldCount;
+  final int newStart;
+  final int newCount;
+  final List<_PatchLine> lines;
+}
+
+class _ParsedUnifiedPatch {
+  const _ParsedUnifiedPatch({
+    required this.hunks,
+    required this.inputHasNoFinalNewline,
+    required this.outputHasNoFinalNewline,
+  });
+
+  final List<_PatchHunk> hunks;
+  final bool inputHasNoFinalNewline;
+  final bool outputHasNoFinalNewline;
+}
+
+class _MutableFileSnapshot {
+  const _MutableFileSnapshot({required this.bytes, required this.content});
+
+  final List<int> bytes;
+  final String content;
 }

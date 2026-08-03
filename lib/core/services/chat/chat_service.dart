@@ -18,6 +18,7 @@ class ChatService extends ChangeNotifier {
   static const String _conversationWorkspaceBindingsBoxName =
       'conversation_workspace_bindings_v2';
   static const String _messageFileRecordsBoxName = 'message_file_records_v1';
+  static const int maxPersistedFileReadResultChars = 8192;
 
   late Box<Conversation> _conversationsBox;
   late Box<ChatMessage> _messagesBox;
@@ -807,7 +808,11 @@ class ChatService extends ChangeNotifier {
     if (v is List) {
       return v
           .whereType<Map>()
-          .map((e) => e.map((k, v) => MapEntry(k.toString(), v)))
+          .map(
+            (e) => _boundToolEventForPersistence(
+              e.map((k, v) => MapEntry(k.toString(), v)),
+            ),
+          )
           .toList();
     }
     return const <Map<String, dynamic>>[];
@@ -818,7 +823,10 @@ class ChatService extends ChangeNotifier {
     List<Map<String, dynamic>> events,
   ) async {
     if (!_initialized) await init();
-    await _toolEventsBox.put(assistantMessageId, events);
+    await _toolEventsBox.put(
+      assistantMessageId,
+      events.map(_boundToolEventForPersistence).toList(),
+    );
     notifyListeners();
   }
 
@@ -854,7 +862,7 @@ class ChatService extends ChangeNotifier {
       'id': cleanId,
       'name': name,
       'arguments': arguments,
-      'content': content,
+      'content': _boundToolResultForPersistence(name, content),
     };
     if (idx >= 0) {
       list[idx] = record;
@@ -863,6 +871,31 @@ class ChatService extends ChangeNotifier {
     }
     await _toolEventsBox.put(assistantMessageId, list);
     notifyListeners();
+  }
+
+  Map<String, dynamic> _boundToolEventForPersistence(
+    Map<String, dynamic> event,
+  ) {
+    final bounded = Map<String, dynamic>.from(event);
+    final content = bounded['content'];
+    bounded['content'] = _boundToolResultForPersistence(
+      bounded['name']?.toString() ?? '',
+      content is String ? content : null,
+    );
+    return bounded;
+  }
+
+  String? _boundToolResultForPersistence(String name, String? content) {
+    if (name != 'file_read' ||
+        content == null ||
+        content.length <= maxPersistedFileReadResultChars) {
+      return content;
+    }
+    const marker = '\n\n...[file_read result persisted preview]...\n\n';
+    final available = maxPersistedFileReadResultChars - marker.length;
+    final headLength = available ~/ 2;
+    final tailLength = available - headLength;
+    return '${content.substring(0, headLength)}$marker${content.substring(content.length - tailLength)}';
   }
 
   // Gemini thought signature persistence (per assistant message)

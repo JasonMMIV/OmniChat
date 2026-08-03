@@ -1,6 +1,6 @@
 # OmniChat LLM 檔案操作功能整合計畫 (Implementation Blueprint)
 
-本文件為執行 OmniChat LLM 檔案操作功能的完整實作藍圖，包含架構決策、10 個 Tool 的完整 Specification、資料結構定義、UI/UX 變更規範，以及所有 15 個受影響檔案的精確修改內容。
+本文件為執行 OmniChat LLM 檔案操作功能的初始實作藍圖，包含架構決策、檔案工具 Specification、資料結構定義、UI/UX 變更規範，以及所有受影響檔案的修改內容。後續 workspace mode 與增量檔案工具變更以 `CHANGES_LOG.md` 為準。
 
 ---
 
@@ -20,7 +20,7 @@
 
 ---
 
-## 二、檔案工具規格 (10 File Tools Spec & Security)
+## 二、檔案工具規格 (12 File Tools Spec & Security)
 
 ### 1. 安全機制 (Security Constraints)
 所有檔案工具執行前，**必須**經過 `FileToolService._resolveSafePath(String relativePath, String workspaceRoot)` 解析：
@@ -28,20 +28,22 @@
 2. **Sandbox Root 強制邊界**：正規化後的絕對路徑必須以 `workspaceRoot` 為字首開頭，否則拋出 `SecurityException: Path out of workspace boundary`。
 3. **高風險檔案過濾**：禁止寫入或建立具有危險副檔名的檔案：`.exe`, `.apk`, `.bat`, `.sh`, `.dll`, `.so`, `.cmd`, `.ps1`, `.vbs`。
 4. **讀寫容量限制**：
-   - 讀取單一檔案最大上限：`1 MB` (1,048,576 bytes)，超出時擷取前 1MB 並附加截斷警告。
+   - `file_read` 預設讀取 `16 KB`，單次硬上限 `24 KB`，使用 zero-based byte `offset` / `limit` 分段，並回傳 `next_offset` / `has_more`。
    - 寫入單一檔案最大上限：`512 KB` (524,288 bytes)。
 
-### 2. 10 個 Tools 完整定義 (JSON Schema Spec)
+### 2. 12 個 Tools 完整定義 (JSON Schema Spec)
 
 ```json
 [
   {
     "name": "file_read",
-    "description": "Read text content from a file within the current workspace.",
+    "description": "Read a bounded byte range of UTF-8 text from a file. Use next_offset to continue.",
     "parameters": {
       "type": "object",
       "properties": {
-        "path": { "type": "string", "description": "Relative file path inside workspace (e.g. 'notes.txt' or 'src/main.py')" }
+        "path": { "type": "string", "description": "Relative file path inside workspace (e.g. 'notes.txt' or 'src/main.py')" },
+        "offset": { "type": "integer", "description": "Optional zero-based byte offset; defaults to 0." },
+        "limit": { "type": "integer", "description": "Optional byte count; defaults to 16384 and is capped at 24576." }
       },
       "required": ["path"]
     }
@@ -68,6 +70,32 @@
         "content": { "type": "string", "description": "Text content to append." }
       },
       "required": ["path", "content"]
+    }
+  },
+  {
+    "name": "file_edit",
+    "description": "Replace exact text in one existing workspace file; the old text must match once unless replace_all is true.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string", "description": "Relative target file path." },
+        "old_text": { "type": "string", "description": "Exact text to find; not a regular expression." },
+        "new_text": { "type": "string", "description": "Replacement text." },
+        "replace_all": { "type": "boolean", "description": "Optional explicit replacement of every match." }
+      },
+      "required": ["path", "old_text", "new_text"]
+    }
+  },
+  {
+    "name": "file_patch",
+    "description": "Apply a single-file unified diff to an existing workspace file.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string", "description": "Relative target file path; this path is authoritative." },
+        "patch": { "type": "string", "description": "Single-file unified diff with one or more hunks." }
+      },
+      "required": ["path", "patch"]
     }
   },
   {
@@ -162,7 +190,7 @@
 - **Value**: `workspacePath` (`String`)
 
 ### 2. Message 檔案記錄模型 (FileRecord)
-每當 `file_write`, `file_append`, `file_copy`, `file_move` 成功觸發時，系統必須建立並儲存 `FileRecord`。
+每當 `file_write`, `file_append`, `file_edit`, `file_patch`, `file_copy`, `file_move` 成功觸發時，系統必須建立並儲存 `FileRecord`。
 
 ```dart
 // Location: lib/core/models/file_record.dart (or embedded in chat_service.dart)
@@ -261,7 +289,7 @@ static Future<Directory> getFileSandboxDirectory() async {
 ```
 
 ### 4. [NEW] `lib/core/services/file/file_tool_service.dart`
-- **目的**: 實作 10 個 File Tools 邏輯與安全檢查。
+- **目的**: 實作 12 個 File Tools 邏輯與安全檢查。
 - **核心方法**:
   - `static List<Map<String, dynamic>> getToolDefinitions()`
   - `static Future<FileToolResult> execute(String toolName, Map<String, dynamic> args, String? workspacePath)`
@@ -330,8 +358,8 @@ if (name.startsWith('file_')) {
 if (workspacePath != null) {
   systemPrompt += '\n\n[File Workspace]\n'
     'You have file operation tools operating in: $workspacePath\n'
-    'Use relative paths for all operations. Available tools: file_read, file_write, '
-    'file_append, file_delete, file_list, file_mkdir, file_info, file_move, file_copy, file_search';
+    'Use relative paths for all operations. Available tools: file_read, file_write, file_append, '
+    'file_edit, file_patch, file_delete, file_list, file_mkdir, file_info, file_move, file_copy, file_search';
 }
 ```
 
@@ -360,9 +388,11 @@ if (workspacePath != null) {
 ### 1. 單元測試 (Unit Tests)
 新增 `test/file_tool_service_test.dart`:
 - 測試 `_resolveSafePath`: 防範 `../` traversal, 絕對路徑跳脫, 符號連結跳脫。
-- 測試 10 個 tools 的 CRUD 功能：
+- 測試 12 個 tools 的 CRUD 與增量修改功能：
   - `file_write` 寫入文字與容量限制 (超出 512KB 拒絕)。
-  - `file_read` 讀取文字與容量限制 (超出 1MB 截斷)。
+  - `file_read` 分段 offset/limit、next_offset、UTF-8 邊界與 24KB 上限。
+  - `file_edit` 唯一匹配、replace_all、結果大小與 stale-file 保護。
+  - `file_patch` unified diff、hunk context、CRLF、結尾換行與 atomic replace。
   - `file_move`, `file_copy`, `file_delete`, `file_search` 邏輯正確性。
 
 ### 2. 手動測試矩陣 (Manual E2E Matrix)

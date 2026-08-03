@@ -326,7 +326,7 @@ class MessageBuilderService {
 
 [File Workspace]
 You have file operation tools operating in: $workspacePath
-Use relative paths for all file operations. Available tools: file_read, file_write, file_append, file_delete, file_list, file_mkdir, file_info, file_move, file_copy, file_search.
+Use relative paths for all file operations. Available tools: file_read, file_write, file_append, file_edit, file_patch, file_delete, file_list, file_mkdir, file_info, file_move, file_copy, file_search. file_read supports byte-based offset and limit parameters; use the returned next_offset to continue reading large files. file_edit uses exact text replacement, and file_patch accepts a single-file unified diff.
 ''';
       systemText = (systemText ?? '') + workspacePrompt;
     }

@@ -179,6 +179,26 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 
 ## 📜 Version Changes Log
 
+## [v1.6.9+] - 2026-08-03: Incremental File Editing and Segmented Reads
+
+### 158. `file_edit` / `file_patch` Tools and Bounded `file_read` Segments
+
+- **Purpose**: Add exact text editing, single-file unified patching, and continuation-based reads for files larger than one tool response.
+- **Files Modified**:
+  - `lib/core/services/file/file_tool_service.dart`
+  - `lib/core/services/chat/chat_service.dart`
+  - `lib/features/home/services/message_builder_service.dart`
+  - `test/file_tool_service_test.dart`
+  - `test/chat_service_file_record_test.dart`
+- **Details**:
+  - `file_edit` performs literal replacement, requires a unique match by default, and supports explicit `replace_all`.
+  - `file_patch` applies one-file unified diffs only after all hunk context and line counts validate; the explicit tool path remains authoritative.
+  - Both mutation tools reuse workspace boundary checks, blocked extensions, strict UTF-8 validation, and the 512 KB final-file limit. Successful edits produce the existing FileRecord metadata.
+  - `file_edit` and `file_patch` use a pre-write snapshot comparison and same-directory temporary replacement to avoid overwriting concurrent edits or leaving a partially written target.
+  - `file_read` now accepts zero-based byte `offset` and `limit` parameters, returns `next_offset` / `has_more`, avoids splitting UTF-8 code points, defaults to 16 KB, and caps one response at 24 KB so it stays below the API tool-result budget.
+  - `file_read` tool-event persistence is capped to an 8 KB preview, including legacy events returned for backup, without requiring a Hive schema migration.
+- **Tests**: File tool unit suite passes with coverage for continuation offsets, UTF-8 boundaries, exact/ambiguous edits, replacement bounds, unified patch context/newline failures, CRLF preservation, persistence bounds, and tool definitions.
+
 ## [v1.6.9+] - 2026-08-03: Workspace Modes & Global Default Working Directory
 
 ### 157. Workspace Modes (Disabled / Default / Project Default / Custom) & Global Default Directory

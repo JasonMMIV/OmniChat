@@ -57,4 +57,43 @@ void main() {
     final boxFile = File('${dataDirectory.path}/message_file_records_v1.hive');
     expect(await boxFile.length(), greaterThan(0));
   });
+
+  test(
+    'bounds persisted file-read results and tolerates legacy content types',
+    () async {
+      final service = ChatService();
+      await service.init();
+
+      final content =
+          'header\n' * (ChatService.maxPersistedFileReadResultChars + 100);
+      await service.setToolEvents('large-tool-result', [
+        {
+          'id': 'read-1',
+          'name': 'file_read',
+          'arguments': <String, dynamic>{},
+          'content': content,
+        },
+      ]);
+      final stored = service.getToolEvents('large-tool-result');
+      final storedContent = stored.single['content'] as String;
+      expect(
+        storedContent.length,
+        lessThanOrEqualTo(ChatService.maxPersistedFileReadResultChars),
+      );
+      expect(storedContent, contains('persisted preview'));
+
+      await service.setToolEvents('legacy-tool-result', [
+        {
+          'id': 'legacy-1',
+          'name': 'file_read',
+          'arguments': <String, dynamic>{},
+          'content': <String, dynamic>{'unexpected': true},
+        },
+      ]);
+      expect(
+        service.getToolEvents('legacy-tool-result').single['content'],
+        isNull,
+      );
+    },
+  );
 }
