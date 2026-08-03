@@ -8161,6 +8161,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Download'**
   String get chatMessageWidgetDownload;
+
+  /// No description provided for @chatMessageWidgetFileActions.
+  ///
+  /// In en, this message translates to:
+  /// **'File actions'**
+  String get chatMessageWidgetFileActions;
 }
 
 class _AppLocalizationsDelegate

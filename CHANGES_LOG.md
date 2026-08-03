@@ -202,6 +202,18 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
   - **Follow-up root cause**: The first FileRecord write returned an immutable empty list and failed on `removeWhere`; `ChatService` now copies the list before updating it, with a regression test covering the first record.
   - **Tests**: Full suite `flutter test` — 32 tests pass; the FileRecord regression test passes with `dart analyze` reporting only pre-existing warnings in `chat_service.dart`.
 
+### 156. File Card: Tap to Preview & More Menu Button
+
+- **Purpose**: Change the file card interaction so tapping the card previews the file instead of opening the actions menu, and the trailing three-dot icon becomes a dedicated button that opens the existing menu (show in folder / open externally / download) anchored at the click position on desktop.
+- **Files Modified**:
+  - `lib/features/chat/widgets/chat_message_widget.dart` (added `_previewFile` with a hybrid preview dispatcher: images open the in-app `ImageViewerPage`; Markdown is rendered via `MarkdownPreviewHtmlBuilder`; HTML/XML/SVG open the existing HTML preview (desktop dialog on Windows/macOS, page on mobile, unsupported toast on Linux); plain text/code/JSON/CSV/YAML etc. are HTML-escaped into a `<pre>` preview with a 2 MB in-app cap, falling back to `OpenFilex` for larger or non-text files; the card `onTap` now calls `_previewFile`, and the trailing `MoreVertical` icon became an `IosIconButton` wrapped in a `GestureDetector` that sets `DesktopMenuAnchor.setPosition` from the tap position on desktop so the menu appears near the button)
+  - `lib/l10n/app_en.arb`, `lib/l10n/app_zh.arb`, `lib/l10n/app_zh_Hans.arb`, `lib/l10n/app_zh_Hant.arb` (added `chatMessageWidgetFileActions` semantic label)
+- **Details**:
+  - **Hybrid Preview**: image extensions (png/jpg/jpeg/gif/webp/bmp) open the existing full-screen image viewer; text-like extensions render in-app; everything else (PDF, DOCX, unknown/binary) opens with the system default app — no new dependencies.
+  - **Safe Fallbacks**: file missing → existing error snackbar; text read failure (binary/encoding) → external open; `MarkdownPreviewHtmlBuilder` failure → external open.
+  - **Desktop Anchor Fix**: previously the file menu always opened at the screen center because nothing updated `DesktopMenuAnchor`; the new button sets the anchor from `onTapDown.globalPosition`, matching the pattern used by the message action buttons.
+  - **Tests**: Full suite `flutter test` — 32 tests pass; `dart analyze` on the modified file reports no new issues.
+
 ---
 
 ## [v1.6.9] - 2026-08-03: LLM File Operations (Workspace Tools) & Review Fixes

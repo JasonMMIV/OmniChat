@@ -4218,4 +4218,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatMessageWidgetDownload => 'Download';
+
+  @override
+  String get chatMessageWidgetFileActions => 'File actions';
 }

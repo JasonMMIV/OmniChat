@@ -1415,6 +1415,7 @@
   },
   "chatMessageWidgetShowInFolder": "显示所在文件夹",
   "chatMessageWidgetOpenExternally": "外部打开",
-  "chatMessageWidgetDownload": "下载"
+  "chatMessageWidgetDownload": "下载",
+  "chatMessageWidgetFileActions": "文件操作"
 }
 

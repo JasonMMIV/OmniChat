@@ -1446,6 +1446,7 @@
   },
   "chatMessageWidgetShowInFolder": "顯示所在資料夾",
   "chatMessageWidgetOpenExternally": "外部開啟",
-  "chatMessageWidgetDownload": "下載"
+  "chatMessageWidgetDownload": "下載",
+  "chatMessageWidgetFileActions": "檔案操作"
 }
 

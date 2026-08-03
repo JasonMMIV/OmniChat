@@ -4212,6 +4212,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatMessageWidgetDownload => '下载';
+
+  @override
+  String get chatMessageWidgetFileActions => '文件操作';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -8212,6 +8215,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get chatMessageWidgetDownload => '下载';
+
+  @override
+  String get chatMessageWidgetFileActions => '文件操作';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -12319,4 +12325,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatMessageWidgetDownload => '下載';
+
+  @override
+  String get chatMessageWidgetFileActions => '檔案操作';
 }

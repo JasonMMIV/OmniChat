@@ -17,6 +17,8 @@ import 'package:share_plus/share_plus.dart';
 import 'dart:convert';
 import 'package:characters/characters.dart';
 import '../pages/image_viewer_page.dart';
+import '../pages/html_preview_page.dart';
+import '../../../utils/markdown_preview_html.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/file_record.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -41,6 +43,7 @@ import '../../../core/models/assistant_regex.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../desktop/desktop_context_menu.dart';
 import '../../../desktop/menu_anchor.dart';
+import '../../../desktop/html_preview_dialog.dart';
 import '../widgets/workspace_file_browser.dart';
 import '../../../shared/widgets/emoji_text.dart';
 import 'package:markdown/markdown.dart' as md;
@@ -1458,6 +1461,150 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     );
   }
 
+  Future<void> _previewFile(FileRecord record) async {
+    final l10n = AppLocalizations.of(context)!;
+    final fixed = SandboxPathResolver.fix(record.path);
+    final file = File(fixed);
+    if (!await file.exists()) {
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          message: l10n.chatMessageWidgetFileNotFound(record.fileName),
+          type: NotificationType.error,
+        );
+      }
+      return;
+    }
+    final ext = _fileExtension(record.fileName);
+    if (_previewableImageExts.contains(ext)) {
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ImageViewerPage(images: [fixed], initialIndex: 0),
+        ),
+      );
+      return;
+    }
+    if (_previewableTextExts.contains(ext)) {
+      try {
+        final length = await file.length();
+        if (length > _previewMaxTextBytes) {
+          await _openFileExternally(record);
+          return;
+        }
+        final content = await file.readAsString();
+        if (!mounted) return;
+        await _pushTextPreview(content, ext);
+        return;
+      } catch (_) {
+        // Reading as text failed (e.g. binary or encoding); fall back to the
+        // system default app so the user can still open the file.
+        if (!mounted) return;
+        await _openFileExternally(record);
+        return;
+      }
+    }
+    await _openFileExternally(record);
+  }
+
+  Future<void> _pushTextPreview(String content, String ext) async {
+    String html;
+    var isXml = false;
+    if (ext == 'md' || ext == 'markdown') {
+      html = await MarkdownPreviewHtmlBuilder.buildFromMarkdown(
+        context,
+        content,
+      );
+    } else if (ext == 'xml' || ext == 'svg') {
+      html = content;
+      isXml = true;
+    } else if (ext == 'html' || ext == 'htm') {
+      html = content;
+    } else {
+      html = '<pre style="white-space: pre-wrap; word-break: break-word;">'
+          '${_escapeHtml(content)}</pre>';
+    }
+    if (!mounted) return;
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      await showHtmlPreviewDesktopDialog(context, html: html, isXml: isXml);
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => HtmlPreviewPage(html: html, isXml: isXml),
+      ),
+    );
+  }
+
+  static const Set<String> _previewableImageExts = {
+    'png',
+    'jpg',
+    'jpeg',
+    'gif',
+    'webp',
+    'bmp',
+  };
+
+  static const Set<String> _previewableTextExts = {
+    'md',
+    'markdown',
+    'txt',
+    'text',
+    'json',
+    'csv',
+    'tsv',
+    'html',
+    'htm',
+    'xml',
+    'svg',
+    'yaml',
+    'yml',
+    'log',
+    'ini',
+    'conf',
+    'cfg',
+    'toml',
+    'css',
+    'js',
+    'jsx',
+    'ts',
+    'tsx',
+    'py',
+    'dart',
+    'java',
+    'c',
+    'cpp',
+    'h',
+    'hpp',
+    'go',
+    'rs',
+    'sh',
+    'bat',
+    'ps1',
+    'sql',
+    'php',
+    'rb',
+    'kt',
+    'swift',
+  };
+
+  static const int _previewMaxTextBytes = 2 * 1024 * 1024;
+
+  String _fileExtension(String fileName) {
+    final dot = fileName.lastIndexOf('.');
+    if (dot <= 0 || dot == fileName.length - 1) return '';
+    return fileName.substring(dot + 1).toLowerCase();
+  }
+
+  String _escapeHtml(String input) {
+    return input
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+  }
+
   Widget _buildFileCardsSection(List<FileRecord> records) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
@@ -1471,7 +1618,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               borderRadius: BorderRadius.circular(12),
               baseColor: cs.primaryContainer.withOpacity(0.24),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              onTap: () => _showFileActions(record),
+              onTap: () => _previewFile(record),
               child: Row(
                 children: [
                   Icon(Lucide.FileText, size: 20, color: cs.primary),
@@ -1497,10 +1644,27 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       ],
                     ),
                   ),
-                  Icon(
-                    Lucide.MoreVertical,
-                    size: 18,
-                    color: cs.onSurface.withOpacity(0.55),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapDown: (d) {
+                      if (Platform.isWindows ||
+                          Platform.isLinux ||
+                          Platform.isMacOS) {
+                        DesktopMenuAnchor.setPosition(d.globalPosition);
+                      }
+                    },
+                    onTap: () => _showFileActions(record),
+                    child: IosIconButton(
+                      size: 18,
+                      padding: const EdgeInsets.all(4),
+                      minSize: 32,
+                      icon: Lucide.MoreVertical,
+                      color: cs.onSurface.withOpacity(0.55),
+                      semanticLabel:
+                          AppLocalizations.of(context)!
+                              .chatMessageWidgetFileActions,
+                      onTap: null,
+                    ),
                   ),
                 ],
               ),
