@@ -17,6 +17,7 @@ import '../../../shared/widgets/ios_switch.dart';
 import '../../../core/services/haptics.dart';
 import 'package:file_picker/file_picker.dart';
 import 'google_fonts_picker_page.dart';
+import 'chat_input_button_order_page.dart';
 
 enum _FontTarget { app, code }
 
@@ -110,6 +111,13 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
               icon: Lucide.Sparkles,
               label: l10n.displaySettingsPageNewChatPageTitle,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NewChatPageSettingsPage())),
+            ),
+            _iosDivider(context),
+            _iosNavRow(
+              context,
+              icon: Lucide.ListOrdered,
+              label: l10n.chatInputButtonOrderTitle,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChatInputButtonOrderPage())),
             ),
             _iosDivider(context),
             _iosNavRow(

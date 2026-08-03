@@ -1065,6 +1065,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatInputBarOcrTooltip => 'OCR 文字识别';
 
   @override
+  String get chatInputButtonOrderTitle => '输入栏按钮';
+
+  @override
+  String get chatInputButtonOrderHint => '拖拽调整顺序，开关控制显示';
+
+  @override
+  String get chatInputButtonOrderReset => '重置默认';
+
+  @override
+  String get chatInputButtonOrderCustomize => '自定义';
+
+  @override
+  String get chatInputButtonOrderHiddenCount => '个已隐藏';
+
+  @override
   String get chatInputBarMoreTooltip => '更多';
 
   @override
@@ -5197,6 +5212,21 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatInputBarOcrTooltip => 'OCR 文字识别';
 
   @override
+  String get chatInputButtonOrderTitle => '输入栏按钮';
+
+  @override
+  String get chatInputButtonOrderHint => '拖拽调整顺序，开关控制显示';
+
+  @override
+  String get chatInputButtonOrderReset => '重置默认';
+
+  @override
+  String get chatInputButtonOrderCustomize => '自定义';
+
+  @override
+  String get chatInputButtonOrderHiddenCount => '个已隐藏';
+
+  @override
   String get chatInputBarMoreTooltip => '更多';
 
   @override
@@ -9222,7 +9252,22 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get miniMapTooltip => '迷你地圖';
 
   @override
-  String get chatInputBarOcrTooltip => 'OCR 文字辨識';
+  String get chatInputBarOcrTooltip => 'OCR 文字识别';
+
+  @override
+  String get chatInputButtonOrderTitle => '輸入列按鈕';
+
+  @override
+  String get chatInputButtonOrderHint => '拖曳調整順序，開關控制顯示';
+
+  @override
+  String get chatInputButtonOrderReset => '重置預設';
+
+  @override
+  String get chatInputButtonOrderCustomize => '自訂';
+
+  @override
+  String get chatInputButtonOrderHiddenCount => '個已隱藏';
 
   @override
   String get chatInputBarMoreTooltip => '更多';

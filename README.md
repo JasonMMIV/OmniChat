@@ -101,6 +101,16 @@ All three providers work out of the box; PubMed and Semantic Scholar accept an o
 
 ---
 
+### 🛠️ Customizable Input Bar Buttons
+
+Tailor the chat input bar tools to your workflow — one shared layout for mobile and desktop:
+
+- **Drag to Reorder**: Rearrange input bar buttons (model selector, web search, MCP, quick phrases, dictation, camera/photos, file upload, reasoning, AI Team, instruction injection, voice chat, context management, OCR) in **Settings → Display Settings → Input Bar Buttons**.
+- **Show/Hide Toggles**: Hide rarely used buttons entirely; platform-specific buttons (camera/photos on mobile, file upload/OCR on desktop) are only shown where available.
+- **One-Tap Reset**: Restore the default order and visibility anytime.
+
+---
+
 ## 💻 Cross-Platform Support
 
 Enjoy a consistent experience across your devices:

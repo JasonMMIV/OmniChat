@@ -10,6 +10,7 @@ import 'dart:ui' as ui;
 
 import '../icons/lucide_adapter.dart' as lucide;
 import '../l10n/app_localizations.dart';
+import '../features/settings/pages/chat_input_button_order_page.dart' show ChatInputButtonOrderPanel;
 import '../theme/palettes.dart';
 import '../core/providers/settings_provider.dart';
 import '../core/providers/model_provider.dart';
@@ -4753,6 +4754,13 @@ class _DisplaySettingsBody extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               _SettingsCard(
+                title: l10n.chatInputButtonOrderTitle,
+                children: const [
+                  _ChatInputButtonOrderRow(),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _SettingsCard(
                 title: l10n.displaySettingsPageBehaviorStartupTitle,
                 children: const [
                   _ToggleRowAutoSwitchTopicsDesktop(),
@@ -4851,6 +4859,122 @@ class _RowDivider extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ChatInputButtonOrderRow extends StatelessWidget {
+  const _ChatInputButtonOrderRow();
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final sp = context.watch<SettingsProvider>();
+    final hiddenCount = sp.chatInputButtonHidden.length;
+    return _LabeledRow(
+      label: l10n.chatInputButtonOrderHint,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (hiddenCount > 0) ...[
+            Text(
+              '$hiddenCount ${l10n.chatInputButtonOrderHiddenCount}',
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
+          _IconTextBtn(
+            icon: lucide.Lucide.ListOrdered,
+            label: l10n.chatInputButtonOrderCustomize,
+            onTap: () => _showChatInputButtonOrderDialog(context),
+          ),
+          const SizedBox(width: 8),
+          Tooltip(
+            message: l10n.chatInputButtonOrderReset,
+            child: _IconBtn(
+              icon: lucide.Lucide.RotateCcw,
+              onTap: () {
+                context.read<SettingsProvider>().setChatInputButtonOrder(
+                      const [],
+                    );
+                context.read<SettingsProvider>().setChatInputButtonHidden(
+                      const [],
+                    );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> _showChatInputButtonOrderDialog(BuildContext context) async {
+  final l10n = AppLocalizations.of(context)!;
+  await showDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    builder: (dialogContext) {
+      final cs = Theme.of(dialogContext).colorScheme;
+      return Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: 520,
+          height: 560,
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: cs.outlineVariant.withOpacity(0.2),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        l10n.chatInputButtonOrderTitle,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                    ),
+                    Tooltip(
+                      message: l10n.chatInputButtonOrderReset,
+                      child: _IconBtn(
+                        icon: lucide.Lucide.RotateCcw,
+                        onTap: () {
+                          context.read<SettingsProvider>().setChatInputButtonOrder(
+                                const [],
+                              );
+                          context.read<SettingsProvider>().setChatInputButtonHidden(
+                                const [],
+                              );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    _IconBtn(
+                      icon: lucide.Lucide.X,
+                      onTap: () => Navigator.of(dialogContext).maybePop(),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Expanded(child: ChatInputButtonOrderPanel()),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _LabeledRow extends StatelessWidget {

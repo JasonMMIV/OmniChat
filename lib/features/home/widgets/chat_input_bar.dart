@@ -26,6 +26,7 @@ import '../../../utils/app_directories.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import '../../../desktop/desktop_context_menu.dart';
 import '../../../core/services/haptics.dart';
+import '../utils/chat_input_button_catalog.dart';
 
 // Desktop context menu actions for right-click on the input field
 enum _DesktopTextMenuAction { paste, cut, copy, selectAll }
@@ -808,6 +809,7 @@ class _ChatInputBarState extends State<ChatInputBar>
           // Model select (always present; can be hidden if overflow)
           actions.add(
             _OverflowAction(
+              id: 'model',
               width: (widget.modelIcon != null) ? modelButtonW : normalButtonW,
               builder: () => _CompactIconButton(
                 tooltip: l10n.chatInputBarSelectModelTooltip,
@@ -869,6 +871,7 @@ class _ChatInputBarState extends State<ChatInputBar>
           if (!codeExecutionActive) {
             actions.add(
               _OverflowAction(
+                id: 'search',
                 width: normalButtonW,
                 builder: () {
                   // Not enabled at all -> default globe
@@ -957,6 +960,7 @@ class _ChatInputBarState extends State<ChatInputBar>
           if (widget.showMcpButton && !anyBuiltInConflictsWithMcp) {
             actions.add(
               _OverflowAction(
+                id: 'mcp',
                 width: normalButtonW,
                 builder: () => _CompactIconButton(
                   tooltip: l10n.chatInputBarMcpServersTooltip,
@@ -977,6 +981,7 @@ class _ChatInputBarState extends State<ChatInputBar>
           if (widget.showQuickPhraseButton && widget.onQuickPhrase != null) {
             actions.add(
               _OverflowAction(
+                id: 'quickPhrase',
                 width: normalButtonW,
                 builder: () => _CompactIconButton(
                   tooltip: l10n.chatInputBarQuickPhraseTooltip,
@@ -996,6 +1001,7 @@ class _ChatInputBarState extends State<ChatInputBar>
           if (widget.onStartDictation != null) {
             actions.add(
               _OverflowAction(
+                id: 'dictation',
                 width: normalButtonW,
                 builder: () => _CompactIconButton(
                   tooltip: l10n.chatInputBarDictationTooltip,
@@ -1014,6 +1020,7 @@ class _ChatInputBarState extends State<ChatInputBar>
           if (widget.onPickCamera != null) {
             actions.add(
               _OverflowAction(
+                id: 'camera',
                 width: normalButtonW,
                 builder: () => _CompactIconButton(
                   tooltip: l10n.bottomToolsSheetCamera,
@@ -1032,6 +1039,7 @@ class _ChatInputBarState extends State<ChatInputBar>
           if (widget.onPickPhotos != null) {
             actions.add(
               _OverflowAction(
+                id: 'photos',
                 width: normalButtonW,
                 builder: () => _CompactIconButton(
                   tooltip: l10n.bottomToolsSheetPhotos,
@@ -1050,6 +1058,7 @@ class _ChatInputBarState extends State<ChatInputBar>
           if (widget.onUploadFiles != null) {
             actions.add(
               _OverflowAction(
+                id: 'upload',
                 width: normalButtonW,
                 builder: () => _CompactIconButton(
                   tooltip: l10n.bottomToolsSheetUpload,
@@ -1068,6 +1077,7 @@ class _ChatInputBarState extends State<ChatInputBar>
           if (widget.supportsReasoning) {
             actions.add(
               _OverflowAction(
+                id: 'reasoning',
                 width: normalButtonW,
                 builder: () => _CompactIconButton(
                   tooltip: l10n.chatInputBarReasoningStrengthTooltip,
@@ -1093,6 +1103,7 @@ class _ChatInputBarState extends State<ChatInputBar>
           if (widget.onToggleAiTeam != null) {
             actions.add(
               _OverflowAction(
+                id: 'aiTeam',
                 width: normalButtonW,
                 builder: () => _CompactIconButton(
                   tooltip: l10n.chatInputBarAiTeamTooltip,
@@ -1112,6 +1123,7 @@ class _ChatInputBarState extends State<ChatInputBar>
           if (widget.onToggleInstructionInjection != null) {
             actions.add(
               _OverflowAction(
+                id: 'instruction',
                 width: normalButtonW,
                 builder: () => _CompactIconButton(
                   tooltip: l10n.instructionInjectionTitle,
@@ -1132,6 +1144,7 @@ class _ChatInputBarState extends State<ChatInputBar>
           if (widget.onVoiceChat != null) {
             actions.add(
               _OverflowAction(
+                id: 'voice',
                 width: normalButtonW,
                 builder: () => _CompactIconButton(
                   tooltip: l10n.voiceChatButtonTooltip,
@@ -1176,6 +1189,7 @@ class _ChatInputBarState extends State<ChatInputBar>
 
             actions.add(
               _OverflowAction(
+                id: 'context',
                 width: normalButtonW,
                 builder: () => Container(
                   key: _contextMgmtAnchorKey,
@@ -1197,6 +1211,7 @@ class _ChatInputBarState extends State<ChatInputBar>
           if (widget.showMiniMapButton) {
             actions.add(
               _OverflowAction(
+                id: 'minimap',
                 width: normalButtonW,
                 builder: () => _CompactIconButton(
                   tooltip: l10n.miniMapTooltip,
@@ -1215,6 +1230,7 @@ class _ChatInputBarState extends State<ChatInputBar>
           if (widget.showOcrButton && widget.onToggleOcr != null) {
             actions.add(
               _OverflowAction(
+                id: 'ocr',
                 width: normalButtonW,
                 builder: () => _CompactIconButton(
                   tooltip: l10n.chatInputBarOcrTooltip,
@@ -1231,6 +1247,18 @@ class _ChatInputBarState extends State<ChatInputBar>
             );
           }
         } // end of if (!widget.isDictating)
+
+        // Apply user-configured button order and visibility.
+        final settingsForOrder = context.watch<SettingsProvider>();
+        final hiddenIds = settingsForOrder.chatInputButtonHidden.toSet();
+        final effectiveOrder = chatInputButtonEffectiveOrder(
+          settingsForOrder.chatInputButtonOrder,
+        );
+        actions.retainWhere((a) => !hiddenIds.contains(a.id));
+        actions.sort(
+          (a, b) =>
+              effectiveOrder.indexOf(a.id).compareTo(effectiveOrder.indexOf(b.id)),
+        );
 
         // Compute total width with spacing to see if overflow is needed
         double full = 0;
@@ -1936,10 +1964,12 @@ class _ChatInputBarState extends State<ChatInputBar>
 
 // Internal data model for responsive overflow actions on desktop
 class _OverflowAction {
+  final String id;
   final double width;
   final Widget Function() builder;
   final DesktopContextMenuItem menu;
   const _OverflowAction({
+    required this.id,
     required this.width,
     required this.builder,
     required this.menu,

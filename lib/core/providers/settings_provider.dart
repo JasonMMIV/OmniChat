@@ -115,6 +115,11 @@ class SettingsProvider extends ChangeNotifier {
       'display_use_pure_background_v1';
   static const String _displayChatMessageBackgroundStyleKey =
       'display_chat_message_background_style_v1';
+  // Chat input bar button order / visibility
+  static const String _chatInputButtonOrderKey =
+      'chat_input_button_order_v1';
+  static const String _chatInputButtonHiddenKey =
+      'chat_input_button_hidden_v1';
   // Network request logging (debug)
   static const String _requestLogEnabledKey = 'request_log_enabled_v1';
   // Flutter runtime logging (debug)
@@ -195,6 +200,13 @@ class SettingsProvider extends ChangeNotifier {
 
   List<String> _providersOrder = const [];
   List<String> get providersOrder => _providersOrder;
+
+  // Chat input bar button order (empty => default catalog order)
+  List<String> _chatInputButtonOrder = const [];
+  List<String> get chatInputButtonOrder => _chatInputButtonOrder;
+  // Chat input bar buttons hidden by the user (button ids)
+  List<String> _chatInputButtonHidden = const [];
+  List<String> get chatInputButtonHidden => _chatInputButtonHidden;
 
   ThemeMode _themeMode = ThemeMode.system;
   ThemeMode get themeMode => _themeMode;
@@ -336,6 +348,10 @@ class SettingsProvider extends ChangeNotifier {
     _appLaunchCount = (prefs.getInt(_appLaunchCountKey) ?? 0) + 1;
     await prefs.setInt(_appLaunchCountKey, _appLaunchCount);
     _providersOrder = prefs.getStringList(_providersOrderKey) ?? [];
+    _chatInputButtonOrder =
+        prefs.getStringList(_chatInputButtonOrderKey) ?? const [];
+    _chatInputButtonHidden =
+        prefs.getStringList(_chatInputButtonHiddenKey) ?? const [];
     final m = prefs.getString(_themeModeKey);
     switch (m) {
       case 'light':
@@ -1287,6 +1303,20 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_providersOrderKey, _providersOrder);
+  }
+
+  Future<void> setChatInputButtonOrder(List<String> order) async {
+    _chatInputButtonOrder = List.unmodifiable(order);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_chatInputButtonOrderKey, _chatInputButtonOrder);
+  }
+
+  Future<void> setChatInputButtonHidden(List<String> hidden) async {
+    _chatInputButtonHidden = List.unmodifiable(hidden);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_chatInputButtonHiddenKey, _chatInputButtonHidden);
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
@@ -2847,6 +2877,8 @@ Synthesize your reasoning and research into a final response. The structure shou
         searchAutoTestOnLaunch ?? _searchAutoTestOnLaunch;
     // Copy other fields
     copy._providersOrder = _providersOrder;
+    copy._chatInputButtonOrder = _chatInputButtonOrder;
+    copy._chatInputButtonHidden = _chatInputButtonHidden;
     copy._themeMode = _themeMode;
     copy._providerConfigs = _providerConfigs;
     copy._pinnedModels.addAll(_pinnedModels);

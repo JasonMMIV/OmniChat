@@ -2159,6 +2159,36 @@ abstract class AppLocalizations {
   /// **'OCR'**
   String get chatInputBarOcrTooltip;
 
+  /// No description provided for @chatInputButtonOrderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Input Bar Buttons'**
+  String get chatInputButtonOrderTitle;
+
+  /// No description provided for @chatInputButtonOrderHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag to reorder, toggle to show/hide'**
+  String get chatInputButtonOrderHint;
+
+  /// No description provided for @chatInputButtonOrderReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to Default'**
+  String get chatInputButtonOrderReset;
+
+  /// No description provided for @chatInputButtonOrderCustomize.
+  ///
+  /// In en, this message translates to:
+  /// **'Customize'**
+  String get chatInputButtonOrderCustomize;
+
+  /// No description provided for @chatInputButtonOrderHiddenCount.
+  ///
+  /// In en, this message translates to:
+  /// **'hidden'**
+  String get chatInputButtonOrderHiddenCount;
+
   /// No description provided for @chatInputBarMoreTooltip.
   ///
   /// In en, this message translates to:

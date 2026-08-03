@@ -1072,6 +1072,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatInputBarOcrTooltip => 'OCR';
 
   @override
+  String get chatInputButtonOrderTitle => 'Input Bar Buttons';
+
+  @override
+  String get chatInputButtonOrderHint => 'Drag to reorder, toggle to show/hide';
+
+  @override
+  String get chatInputButtonOrderReset => 'Reset to Default';
+
+  @override
+  String get chatInputButtonOrderCustomize => 'Customize';
+
+  @override
+  String get chatInputButtonOrderHiddenCount => 'hidden';
+
+  @override
   String get chatInputBarMoreTooltip => 'More';
 
   @override
