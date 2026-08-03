@@ -9252,7 +9252,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get miniMapTooltip => '迷你地圖';
 
   @override
-  String get chatInputBarOcrTooltip => 'OCR 文字识别';
+  String get chatInputBarOcrTooltip => 'OCR 文字辨識';
 
   @override
   String get chatInputButtonOrderTitle => '輸入列按鈕';
