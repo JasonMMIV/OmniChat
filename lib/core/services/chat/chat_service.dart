@@ -439,7 +439,7 @@ class ChatService extends ChangeNotifier {
 
   Future<void> addMessageFileRecord(String messageId, FileRecord record) async {
     if (!_initialized) await init();
-    final records = getMessageFileRecords(messageId)
+    final records = List<FileRecord>.of(getMessageFileRecords(messageId))
       ..removeWhere((item) => item.path == record.path)
       ..add(record);
     await _messageFileRecordsBox.put(

@@ -463,7 +463,7 @@
   },
   "titleForLocale": "New Chat",
   "homePageDefaultAssistant": "Project",
-  "voiceChatButtonTooltip": "Voice",
+  "voiceChatButtonTooltip": "Voice Chat",
   "voiceChatErrorInitFailed": "Init failed",
   "voiceChatError": "Error: {error}",
   "@voiceChatError": {
@@ -501,7 +501,7 @@
   "voiceChatErrorNoModel": "No model",
   "voiceChatErrorNoConversation": "No chat",
   "voiceChatErrorNoActiveConversation": "Inactive",
-  "voiceChatTitle": "Voice",
+  "voiceChatTitle": "Voice Chat",
   "voiceChatPermissionRequired": "Permission Required",
   "voiceChatPermissionSubtitle": "Microphone access needed",
   "voiceChatPermissionButton": "Grant",

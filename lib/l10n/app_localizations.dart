@@ -2288,7 +2288,7 @@ abstract class AppLocalizations {
   /// No description provided for @voiceChatButtonTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Voice'**
+  /// **'Voice Chat'**
   String get voiceChatButtonTooltip;
 
   /// No description provided for @voiceChatErrorInitFailed.
@@ -2348,7 +2348,7 @@ abstract class AppLocalizations {
   /// No description provided for @voiceChatTitle.
   ///
   /// In en, this message translates to:
-  /// **'Voice'**
+  /// **'Voice Chat'**
   String get voiceChatTitle;
 
   /// No description provided for @voiceChatPermissionRequired.

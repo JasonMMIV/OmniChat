@@ -199,7 +199,8 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 - **Details**:
   - **Conversation Continuity**: Tool results are now always returned to the LLM, the `toolResults` chunk is always emitted, the tool card resolves to the result state, and the follow-up request proceeds — the conversation never breaks on file-tool failures.
   - **Diagnosability**: Real failures (with stack trace) are recorded to the app's flutter log (`Settings → Log Viewer`) under the `[file-tool]` tag for later inspection.
-  - **Tests**: Full suite `flutter test` — 31 tests pass; `dart analyze` on the modified file — no issues.
+  - **Follow-up root cause**: The first FileRecord write returned an immutable empty list and failed on `removeWhere`; `ChatService` now copies the list before updating it, with a regression test covering the first record.
+  - **Tests**: Full suite `flutter test` — 32 tests pass; the FileRecord regression test passes with `dart analyze` reporting only pre-existing warnings in `chat_service.dart`.
 
 ---
 

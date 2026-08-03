@@ -9250,6 +9250,65 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get homePageDefaultAssistant => '預設專案';
 
   @override
+  String get voiceChatButtonTooltip => '語音聊天';
+
+  @override
+  String get voiceChatErrorInitFailed => '語音辨識初始化失敗';
+
+  @override
+  String voiceChatError(String error) {
+    return '錯誤：$error';
+  }
+
+  @override
+  String get voiceChatProcessing => '處理中...';
+
+  @override
+  String voiceChatErrorApi(String error) {
+    return 'API 錯誤：$error';
+  }
+
+  @override
+  String voiceChatErrorProcessingResponse(String error) {
+    return '處理回應時發生錯誤：$error';
+  }
+
+  @override
+  String voiceChatErrorTts(String error) {
+    return 'TTS 錯誤：$error';
+  }
+
+  @override
+  String get voiceChatErrorNoModel => '請先選擇一個模型';
+
+  @override
+  String get voiceChatErrorNoConversation => '找不到對話';
+
+  @override
+  String get voiceChatErrorNoActiveConversation => '沒有進行中的對話';
+
+  @override
+  String get voiceChatTitle => '語音聊天';
+
+  @override
+  String get voiceChatPermissionRequired => '需要麥克風權限';
+
+  @override
+  String get voiceChatPermissionSubtitle => '此應用程式需要麥克風權限才能進行語音聊天。請在設定中授予權限。';
+
+  @override
+  String get voiceChatPermissionButton => '授予權限';
+
+  @override
+  String get voiceChatListening => '正在聆聽';
+
+  @override
+  String get voiceChatThinking => '正在思考';
+
+  @override
+  String get voiceChatTalking => '正在說話';
+
+  @override
   String get defaultModelPagePromptLabel => '提示詞';
 
   @override

@@ -1139,7 +1139,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homePageDefaultAssistant => 'Project';
 
   @override
-  String get voiceChatButtonTooltip => 'Voice';
+  String get voiceChatButtonTooltip => 'Voice Chat';
 
   @override
   String get voiceChatErrorInitFailed => 'Init failed';
@@ -1177,7 +1177,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get voiceChatErrorNoActiveConversation => 'Inactive';
 
   @override
-  String get voiceChatTitle => 'Voice';
+  String get voiceChatTitle => 'Voice Chat';
 
   @override
   String get voiceChatPermissionRequired => 'Permission Required';
