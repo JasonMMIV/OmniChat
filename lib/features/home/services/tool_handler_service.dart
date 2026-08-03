@@ -11,6 +11,7 @@ import '../../../core/services/mcp/mcp_tool_service.dart';
 import '../../../core/services/search/search_tool_service.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/file/file_tool_service.dart';
+import '../../../core/services/logging/flutter_logger.dart';
 import '../../../core/models/file_record.dart';
 
 /// 工具调用处理服务
@@ -334,26 +335,43 @@ class ToolHandlerService {
 
     return (name, args) async {
       if (name.startsWith('file_')) {
-        final workspace = conversationId == null
-            ? null
-            : await chatService.getEffectiveConversationWorkspace(
-                conversationId,
+        try {
+          final workspace = conversationId == null
+              ? null
+              : await chatService.getEffectiveConversationWorkspace(
+                  conversationId,
+                );
+          final result = await FileToolService.execute(name, args, workspace);
+          if (result.createdOrModifiedFilePath != null && messageId != null) {
+            try {
+              await chatService.addMessageFileRecord(
+                messageId,
+                FileRecord(
+                  path: result.createdOrModifiedFilePath!,
+                  fileName:
+                      result.fileName ??
+                      path.basename(result.createdOrModifiedFilePath!),
+                  sizeBytes: result.fileSizeBytes ?? 0,
+                  createdAt: DateTime.now(),
+                ),
               );
-        final result = await FileToolService.execute(name, args, workspace);
-        if (result.createdOrModifiedFilePath != null && messageId != null) {
-          await chatService.addMessageFileRecord(
-            messageId,
-            FileRecord(
-              path: result.createdOrModifiedFilePath!,
-              fileName:
-                  result.fileName ??
-                  path.basename(result.createdOrModifiedFilePath!),
-              sizeBytes: result.fileSizeBytes ?? 0,
-              createdAt: DateTime.now(),
-            ),
+            } catch (e, st) {
+              // Never let FileRecord persistence break the conversation.
+              FlutterLogger.log(
+                'File tool "$name": failed to persist FileRecord: $e\n$st',
+                tag: 'file-tool',
+              );
+            }
+          }
+          return result.text;
+        } catch (e, st) {
+          // Never let an unexpected file-tool failure break the conversation.
+          FlutterLogger.log(
+            'File tool "$name" failed: $e\n$st',
+            tag: 'file-tool',
           );
+          return 'Error: $e';
         }
-        return result.text;
       }
 
       // Search tool

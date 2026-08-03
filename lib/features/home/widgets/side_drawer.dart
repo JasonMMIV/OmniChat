@@ -2114,47 +2114,36 @@ class _NewProjectButtonState extends State<_NewProjectButton> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color bg = _hovered
-        ? (isDark ? Colors.white.withOpacity(0.10) : Colors.black.withOpacity(0.06))
-        : cs.primary.withOpacity(0.10);
     return MouseRegion(
-      onEnter: (_) {
-        if (_isDesktop) setState(() => _hovered = true);
-      },
-      onExit: (_) {
-        if (_isDesktop) setState(() => _hovered = false);
-      },
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
       cursor: _isDesktop ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      child: GestureDetector(
+      child: IosCardPress(
+        baseColor: _hovered ? cs.surface.withOpacity(0.8) : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
         onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOutCubic,
-          height: 38,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: cs.primary.withOpacity(0.25)),
-          ),
-          child: Row(
-            children: [
-              Icon(Lucide.FolderPlus, size: 18, color: cs.primary),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  widget.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: cs.primary,
-                  ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: Row(
+          children: [
+            Icon(
+              Lucide.FolderPlus,
+              size: 20,
+              color: cs.onSurface.withOpacity(0.7),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                widget.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: isDark ? Colors.white : Colors.black,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

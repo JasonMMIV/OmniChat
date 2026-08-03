@@ -179,6 +179,30 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 
 ## 📜 Version Changes Log
 
+## [v1.6.9+] - 2026-08-03: New Project Button Styling & File Tool Reliability Fix
+
+### 154. New Project Button Matches Project List Format
+
+- **Purpose**: Restyle the sidebar "New Project" button so it matches the project list tiles exactly — black text (theme-aware), no border, no background, same font size (14) and icon size (20) — differing only in the icon (`FolderPlus` instead of `Folder`/`FolderOpen`).
+- **Files Modified**:
+  - `lib/features/home/widgets/side_drawer.dart` (rewrote `_NewProjectButtonState.build` to mirror `_AssistantFolderTile`: `IosCardPress` with transparent base, `BorderRadius.circular(12)`, `EdgeInsets.symmetric(horizontal: 8, vertical: 8)` padding, `FolderPlus` icon at size 20 with `cs.onSurface.withOpacity(0.7)` color, text at 14 / `FontWeight.w500` colored `isDark ? Colors.white : Colors.black`; removed the previous `AnimatedContainer` with primary-tinted background, border, and primary-colored text)
+- **Details**:
+  - **No Border / No Background**: The button now uses `IosCardPress` with `Colors.transparent` base (only a subtle surface tint on hover, identical to project tiles), replacing the old `cs.primary`-tinted container with a `cs.primary` border.
+  - **Black Text**: Label color follows the project-list `textBase` convention — pure black in light mode, white in dark mode.
+  - **Matching Metrics**: Icon 20px / text 14px / `w500` / padding 8/8 / radius 12 — all identical to `_AssistantFolderTile`.
+
+### 155. Fix File Tool Conversation Interruption & Stuck Tool Card
+
+- **Purpose**: Fix a Windows-observed bug where a `file_write` call succeeded on disk but the tool card stayed in the running state with no result ("（暫無結果）") and the conversation stopped. Root cause: the `file_` branch in `ToolHandlerService.buildToolCallHandler` had no error protection — any exception after the write (e.g., FileRecord persistence via Hive) propagated through the stream generator's `await onToolCall(...)`, so the `toolResults` chunk was never emitted and the stream errored.
+- **Files Modified**:
+  - `lib/features/home/services/tool_handler_service.dart` (wrapped the entire `file_` tool branch in `try/catch`: any unexpected failure is logged via `FlutterLogger.log` (tag `file-tool`) and converted into an `Error: ...` result string instead of throwing; `addMessageFileRecord` persistence is additionally isolated in its own `try/catch` so a Hive failure can never break the conversation; added `flutter_logger.dart` import)
+- **Details**:
+  - **Conversation Continuity**: Tool results are now always returned to the LLM, the `toolResults` chunk is always emitted, the tool card resolves to the result state, and the follow-up request proceeds — the conversation never breaks on file-tool failures.
+  - **Diagnosability**: Real failures (with stack trace) are recorded to the app's flutter log (`Settings → Log Viewer`) under the `[file-tool]` tag for later inspection.
+  - **Tests**: Full suite `flutter test` — 31 tests pass; `dart analyze` on the modified file — no issues.
+
+---
+
 ## [v1.6.9] - 2026-08-03: LLM File Operations (Workspace Tools) & Review Fixes
 
 ### 153. LLM File Operations — Sandboxed Workspace Tools
