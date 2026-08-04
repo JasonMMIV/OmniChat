@@ -1,6 +1,6 @@
 # OmniChat
 
-> 支援 AI 團隊與深度研究的跨平台 LLM 聊天應用程式
+> 功能豐富的跨平台 LLM 聊天應用程式
 
 [English](README.md) | 繁體中文
 
@@ -10,11 +10,30 @@
   <img src="Screenshots/Windows.jpg" alt="OmniChat 桌面端介面" width="90%" />
 </p>
 
-OmniChat 是一款現代化、功能豐富的 AI 聊天軟體，專為流暢的語音互動、深度研究、團隊協作與跨平台體驗而設計。
+OmniChat 是一款現代化、功能豐富的 AI 聊天軟體，專為文字檔案編輯、深度研究、AI團隊協作、流暢的語音互動與跨平台體驗而設計。
 
 ---
 
 ## ✨ 核心特色
+
+### 📁 工作區 (Workspace)
+
+讓 AI 直接存取您的檔案，透過安全沙箱工作區進行操作：
+
+- **基本檔案操作**：在用戶指定的目錄內進行讀取、寫入、追加、刪除、移動、複製、搜尋及列出檔案 — 全部透過 LLM 的 function calling 完成。
+- **文字檔案編輯**：支援精確文字替換 (`file_edit`) 與 unified diff 補丁 (`file_patch`) 兩種編輯模式，並具備自動衝突檢測。
+- **常用檔案類型**：`.txt`、`.md`、`.json`、`.csv`、`.yaml`、`.xml`、`.py`、`.js`、`.ts`、`.dart`、`.html`、`.css`、`.log`、`.cfg`、`.toml`、`.ini`、`.env`、`.sh`、`.bat`、`.ps1`、`.sql`、`.java`、`.kt`、`.swift`、`.c`、`.cpp`、`.h`、`.rs`、`.go`、`.rb`、`.php`、`.lua`、`.r`、`.tex`、`.svg` 等。
+- **靈活配置**：可設定全域預設目錄、個別專案工作區或單一對話覆寫設定。支援 Android 與 Windows 平台。
+
+<p align="center">
+  <img src="Screenshots/Workspace_1.jpg" alt="工作區設定" width="30%" />
+   
+  <img src="Screenshots/Workspace_2.jpg" alt="工作區檔案卡片" width="30%" />
+   
+  <img src="Screenshots/Workspace_3.jpg" alt="工作區檔案瀏覽器" width="30%" />
+</p>
+
+---
 
 ### 🤖 AI 團隊（混合智能體）
 
@@ -41,7 +60,7 @@ OmniChat 是一款現代化、功能豐富的 AI 聊天軟體，專為流暢的�
 
 <p align="center">
   <img src="Screenshots/Customizable_New_Chat_Empty_State_1.jpg" alt="自訂開場頁面 1" width="30%" />
-  &nbsp;&nbsp;
+    
   <img src="Screenshots/Customizable_New_Chat_Empty_State_2.jpg" alt="自訂開場頁面 2" width="30%" />
 </p>
 

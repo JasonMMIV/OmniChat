@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-03 (v1.6.9)
+- **Last Updated**: 2026-08-04 (v1.7.0)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -179,7 +179,34 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 
 ## 📜 Version Changes Log
 
-## [v1.6.9+] - 2026-08-03: Default Working Directory Options & Workspace Sheet Auto-Close
+## [v1.7.0] - 2026-08-03: Customizable Chat Input Bar Buttons (Order & Visibility)
+
+### 160. Input Bar Button Order & Visibility Customization
+
+- **Purpose**: Let users tailor the chat input bar tools to their workflow with one shared layout for mobile and desktop — drag to reorder buttons, toggle to show/hide rarely used ones, and one-tap restore the default order/visibility.
+- **Files Modified**:
+  - `lib/features/home/utils/chat_input_button_catalog.dart` (NEW — `ChatInputButtonSpec` catalog: 14 buttons with stable ids, icons, and localized labels; `chatInputButtonDefaultOrder`; `chatInputButtonEffectiveOrder`)
+  - `lib/core/providers/settings_provider.dart` (`chat_input_button_order_v1` / `chat_input_button_hidden_v1` persisted string lists, `setChatInputButtonOrder` / `setChatInputButtonHidden`)
+  - `lib/features/home/widgets/chat_input_bar.dart` (applies effective order & visibility: hidden ids filtered out, actions sorted by effective order)
+  - `lib/features/settings/pages/chat_input_button_order_page.dart` (NEW — mobile settings page + shared `ChatInputButtonOrderPanel` with drag-to-reorder and show/hide toggles)
+  - `lib/desktop/desktop_settings_page.dart` (Display Settings card: hidden count badge, Customize button opening a 520x560 dialog reusing the shared panel, one-tap reset)
+  - `lib/features/settings/pages/display_settings_page.dart` ("Input Bar Buttons" entry)
+  - `lib/l10n/app_en.arb` / `app_zh.arb` / `app_zh_Hans.arb` / `app_zh_Hant.arb` (+ regenerated `app_localizations*.dart`; `.arb` template keys completed in a follow-up commit)
+  - `test/chat_input_button_catalog_test.dart` (NEW)
+  - `pubspec.yaml` (version bumped to `1.7.0+65`)
+  - `installers/omnichat_setup.iss` (installer version 1.7.0)
+  - `README.md` / `README_ZH_TW.MD` (Customizable Input Bar Buttons section)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Stable ids**: model selector, web search, MCP servers, quick phrases, dictation, camera, photos, upload, reasoning, AI Team, instruction injection, voice chat, context management, OCR — shared by the input bar renderer and the settings UI so preferences use stable ids across platforms.
+  - **Effective order**: an empty stored order yields the default catalog order; custom orders keep unspecified buttons appended in catalog order; unknown/legacy ids are dropped via `chatInputButtonEffectiveOrder`.
+  - **Visibility**: hidden button ids are removed from the input bar; platform-specific buttons (camera/photos on mobile, upload/OCR on desktop) only render where available.
+  - **Reset**: one-tap reset clears both stored lists, restoring the default catalog order and visibility.
+- **Tests**: `test/chat_input_button_catalog_test.dart` — 8 tests pass (unique ids, default-order coverage, custom-order merging with append, unknown-id dropping, exactly-once guarantees).
+
+---
+
+## [v1.7.0+] - 2026-08-03: Default Working Directory Options & Workspace Sheet Auto-Close
 
 ### 159. Global Default Working Directory Mode & Auto-Close Workspace Sheets
 

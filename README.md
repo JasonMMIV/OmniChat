@@ -1,6 +1,6 @@
 # OmniChat
 
-> Cross-Platform LLM Chat Application with AI Team & Deep Research
+> Cross-Platform LLM Chat Application with abundant features
 
 English | [繁體中文](README_ZH_TW.MD)
 
@@ -10,11 +10,30 @@ English | [繁體中文](README_ZH_TW.MD)
   <img src="Screenshots/Windows.jpg" alt="OmniChat Desktop Interface" width="90%" />
 </p>
 
-OmniChat is a modern, feature-rich AI chat application designed for seamless voice interaction, deep research, multi-agent collaboration, and a unified cross-platform experience.
+OmniChat is a modern, feature-rich AI chat application designed for text file editing,  deep research, multi-agent collaboration, seamless voice interaction, and a unified cross-platform experience.
 
 ---
 
 ## ✨ Key Features
+
+### 📁 Workspace
+
+Give AI direct access to your files with a secure, sandboxed Workspace:
+
+- **Basic File Operations**: Read, write, append, delete, move, copy, search, and list files within a user-defined directory — all through the LLM's function calling.
+- **Text File Editing**: Fine-grained edits via literal text replacement (`file_edit`) and unified diff patching (`file_patch`), with automatic conflict detection.
+- **Common File Types**: `.txt`, `.md`, `.json`, `.csv`, `.yaml`, `.xml`, `.py`, `.js`, `.ts`, `.dart`, `.html`, `.css`, `.log`, `.cfg`, `.toml`, `.ini`, `.env`, `.sh`, `.bat`, `.ps1`, `.sql`, `.java`, `.kt`, `.swift`, `.c`, `.cpp`, `.h`, `.rs`, `.go`, `.rb`, `.php`, `.lua`, `.r`, `.tex`, `.svg`, and more.
+- **Flexible Configuration**: Set a global default directory, per-project workspace, or per-conversation override. Supports Android and Windows.
+
+<p align="center">
+  <img src="Screenshots/Workspace_1.jpg" alt="Workspace Settings" width="30%" />
+   
+  <img src="Screenshots/Workspace_2.jpg" alt="Workspace File Cards" width="30%" />
+   
+  <img src="Screenshots/Workspace_3.jpg" alt="Workspace File Browser" width="30%" />
+</p>
+
+---
 
 ### 🤖 AI Team (Mixture of Agents)
 
@@ -41,7 +60,7 @@ Personalize your empty chat screen with zero-latency greetings and branding:
 
 <p align="center">
   <img src="Screenshots/Customizable_New_Chat_Empty_State_1.jpg" alt="Customizable Empty State 1" width="30%" />
-  &nbsp;&nbsp;
+    
   <img src="Screenshots/Customizable_New_Chat_Empty_State_2.jpg" alt="Customizable Empty State 2" width="30%" />
 </p>
 
