@@ -22,6 +22,7 @@ OmniChat 是一款現代化、功能豐富的 AI 聊天軟體，專為文字檔�
 
 - **基本檔案操作**：在用戶指定的目錄內進行讀取、寫入、追加、刪除、移動、複製、搜尋及列出檔案 — 全部透過 LLM 的 function calling 完成。
 - **文字檔案編輯**：支援精確文字替換 (`file_edit`) 與 unified diff 補丁 (`file_patch`) 兩種編輯模式，並具備自動衝突檢測。
+- **文件文字抽取**：透過 `file_extract_text` 從 **PDF**、**Word (DOCX)** 與 **PowerPoint (PPTX)** 文件中抽取可讀文字 — 非常適合摘要報告、履歷與簡報內容。大型文件可使用 `next_offset` 分段續讀；掃描型 PDF（純圖片）不支援 OCR。
 - **常用檔案類型**：`.txt`、`.md`、`.json`、`.csv`、`.yaml`、`.xml`、`.py`、`.js`、`.ts`、`.dart`、`.html`、`.css`、`.log`、`.cfg`、`.toml`、`.ini`、`.env`、`.sh`、`.bat`、`.ps1`、`.sql`、`.java`、`.kt`、`.swift`、`.c`、`.cpp`、`.h`、`.rs`、`.go`、`.rb`、`.php`、`.lua`、`.r`、`.tex`、`.svg` 等。
 - **靈活配置**：可設定全域預設目錄、個別專案工作區或單一對話覆寫設定。支援 Android 與 Windows 平台。
 

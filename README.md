@@ -22,6 +22,7 @@ Give AI direct access to your files with a secure, sandboxed Workspace:
 
 - **Basic File Operations**: Read, write, append, delete, move, copy, search, and list files within a user-defined directory — all through the LLM's function calling.
 - **Text File Editing**: Fine-grained edits via literal text replacement (`file_edit`) and unified diff patching (`file_patch`), with automatic conflict detection.
+- **Document Text Extraction**: Extract readable text from **PDF**, **Word (DOCX)**, and **PowerPoint (PPTX)** documents via `file_extract_text` — perfect for summarizing reports, resumes, and slide decks. Large documents are read incrementally with `next_offset` continuation; scanned PDFs (image-only) are not OCR'd.
 - **Common File Types**: `.txt`, `.md`, `.json`, `.csv`, `.yaml`, `.xml`, `.py`, `.js`, `.ts`, `.dart`, `.html`, `.css`, `.log`, `.cfg`, `.toml`, `.ini`, `.env`, `.sh`, `.bat`, `.ps1`, `.sql`, `.java`, `.kt`, `.swift`, `.c`, `.cpp`, `.h`, `.rs`, `.go`, `.rb`, `.php`, `.lua`, `.r`, `.tex`, `.svg`, and more.
 - **Flexible Configuration**: Set a global default directory, per-project workspace, or per-conversation override. Supports Android and Windows.
 

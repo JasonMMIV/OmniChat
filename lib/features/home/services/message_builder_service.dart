@@ -326,7 +326,9 @@ class MessageBuilderService {
 
 [File Workspace]
 You have file operation tools operating in: $workspacePath
-Use relative paths for all file operations. Available tools: file_read, file_write, file_append, file_edit, file_patch, file_delete, file_list, file_mkdir, file_info, file_move, file_copy, file_search. file_read supports byte-based offset and limit parameters; use the returned next_offset to continue reading large files. file_edit uses exact text replacement, and file_patch accepts a single-file unified diff.
+Use relative paths for all file operations. Available tools: file_read, file_write, file_append, file_edit, file_patch, file_delete, file_list, file_mkdir, file_info, file_move, file_copy, file_search, file_extract_text. file_read supports byte-based offset and limit parameters; use the returned next_offset to continue reading large files. file_edit uses exact text replacement, and file_patch accepts a single-file unified diff.
+
+file_extract_text extracts readable text from PDF, DOCX, and PPTX files inside the workspace (workspace-relative path only; other formats are not supported). It returns plain text without layout or OCR, so scanned PDFs may yield no text. Large documents must be read incrementally: use the returned next_offset with the offset parameter to continue. file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPTX binary files directly.
 ''';
       systemText = (systemText ?? '') + workspacePrompt;
     }

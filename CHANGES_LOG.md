@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-04 (v1.7.0)
+- **Last Updated**: 2026-08-04 (v1.8.0)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -178,6 +178,28 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+
+## [v1.8.0] - 2026-08-04: LLM Text Extraction from PDF/DOCX/PPTX (`file_extract_text`)
+
+### 161. `file_extract_text` Workspace Tool
+
+- **Purpose**: Add a read-only `file_extract_text` workspace tool so the LLM can pull readable text from PDF, DOCX, and PPTX files inside the current workspace, with continuation-based segmented reads and strict input/output caps.
+- **Files Modified**:
+  - `lib/core/services/chat/document_text_extractor.dart` (restricted `extractWorkspaceText` entry point plus `DocumentExtractionResult` / `DocumentExtractionException`; page-by-page PDF extraction with `--- Page N ---` markers and guaranteed `dispose()`; DOCX `word/document.xml` `w:p`/`w:t` extraction; relationship-aware PPTX extraction using `p:sldIdLst` order mapped through `presentation.xml.rels`)
+  - `lib/core/services/file/file_tool_service.dart` (`file_extract_text` schema, dispatch case, and `_extractText` with UTF-8-boundary segmentation and the suggested caps: 16 KiB default / 24 KiB hard result cap / 16 MiB input cap / 256 KiB parser text cap)
+  - `lib/features/home/services/message_builder_service.dart` (workspace prompt: added `file_extract_text`, PDF/DOCX/PPTX scope, workspace-relative path, `next_offset` continuation, no-OCR note, and a warning that `file_read` is only for UTF-8 plain text)
+  - `test/file_tool_service_test.dart` (15 new extraction tests)
+  - `pubspec.yaml` (version bumped to `1.8.0+66`)
+  - `installer.iss` / `installers/omnichat_setup.iss` (installer version 1.8.0)
+  - `README.md` / `README_ZH_TW.MD` (Workspace section: PDF/DOCX/PPTX text extraction)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Tool contract**: `path` (required), `format` (`auto`/`pdf`/`docx`/`pptx`, default auto-detected from file signature first, then extension, then ZIP layout), `offset`/`limit` (default 16 KiB, hard cap 24 KiB) with `next_offset`/`has_more` metadata; UTF-8 code points are never split across segments.
+  - **Limits**: source file ≤ 16 MiB (rejected before parsing), parser accumulates ≤ 256 KiB, single XML parts ≤ 4 MiB, ZIP entries ≤ 10000, one result ≤ 24 KiB with a cap warning. Results are text-only; no `FileRecord` is created.
+  - **Safety**: reuses `resolveSafePath()` (absolute/traversal/NUL/symlink-escape rejection), rejects directories and non-files, never extracts archives to disk, and returns safe error text without absolute paths or stack traces.
+  - **PPTX ordering**: slides are read in `p:sldIdLst` relationship order — not ZIP entry or filename order — verified with a fixture whose relationship order is slide2 → slide1 → slide10.
+  - **Out of scope**: XLSX, legacy DOC/PPT, OCR of scanned PDFs, layout/notes/comments restoration, and any document generation or modification.
+- **Tests**: `flutter test` — 29 file-tool tests pass (15 new extraction tests covering definitions, PDF/DOCX/PPTX extraction, auto-detect, format override, path rejection, malformed files, input caps, continuation, UTF-8 boundaries, and hard-cap enforcement).
 
 ## [v1.7.0] - 2026-08-03: Customizable Chat Input Bar Buttons (Order & Visibility)
 

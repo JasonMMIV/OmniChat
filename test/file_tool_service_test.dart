@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive_io.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:OmniChat/core/services/file/file_tool_service.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 void main() {
   late Directory workspace;
@@ -341,4 +343,306 @@ void main() {
       throwsA(isA<FileToolSecurityException>()),
     );
   });
+
+  test('exposes file_extract_text in the definition list', () {
+    final names = FileToolService.getToolDefinitions()
+        .map((definition) => definition['function']['name'])
+        .toSet();
+    expect(names, contains('file_extract_text'));
+  });
+
+  test('extracts DOCX text with paragraphs, entities, and table cells',
+      () async {
+    await File('${workspace.path}/doc.docx').writeAsBytes(_docxFixture());
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'doc.docx',
+    }, workspace.path);
+    expect(result.text, contains('Hello & welcome'));
+    expect(result.text, contains('第二段 中文'));
+    expect(result.text, contains('Cell A1'));
+    expect(result.text, contains('format=docx'));
+    expect(result.text, contains('has_more=false'));
+  });
+
+  test('extracts PPTX text in relationship order, not filename order',
+      () async {
+    await File('${workspace.path}/deck.pptx').writeAsBytes(_pptxFixture());
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'deck.pptx',
+    }, workspace.path);
+    final text = result.text;
+    expect(text, contains('--- Slide 1 ---'));
+    expect(text, contains('--- Slide 3 ---'));
+    // sldIdLst order is rId3 (slide2), rId1 (slide1), rId2 (slide10).
+    expect(text.indexOf('Slide Two'), lessThan(text.indexOf('Slide One')));
+    expect(text.indexOf('Slide One'), lessThan(text.indexOf('Slide Ten')));
+    expect(text, contains('format=pptx'));
+  });
+
+  test('extracts PDF text with page markers', () async {
+    final pdf = _pdfFixture(pages: 2);
+    await File('${workspace.path}/doc.pdf').writeAsBytes(pdf);
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'doc.pdf',
+    }, workspace.path);
+    expect(result.text, contains('--- Page 1 ---'));
+    expect(result.text, contains('--- Page 2 ---'));
+    expect(result.text, contains('Hello Page 1'));
+    expect(result.text, contains('Hello Page 2'));
+  });
+
+  test('reports when a PDF has no extractable text', () async {
+    final blank = PdfDocument();
+    blank.pages.add();
+    final bytes = blank.saveSync();
+    blank.dispose();
+    await File('${workspace.path}/blank.pdf').writeAsBytes(bytes);
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'blank.pdf',
+    }, workspace.path);
+    expect(result.text, contains('no extractable text'));
+  });
+
+  test('auto-detects uppercase extensions', () async {
+    await File('${workspace.path}/UPPER.DOCX').writeAsBytes(_docxFixture());
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'UPPER.DOCX',
+    }, workspace.path);
+    expect(result.text, contains('format=docx'));
+    expect(result.text, contains('Hello & welcome'));
+  });
+
+  test('honors a format override', () async {
+    await File('${workspace.path}/renamed.bin').writeAsBytes(_docxFixture());
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'renamed.bin',
+      'format': 'docx',
+    }, workspace.path);
+    expect(result.text, contains('Hello & welcome'));
+  });
+
+  test('rejects absolute, traversal, and NUL paths for extraction', () async {
+    final absolute = await FileToolService.execute('file_extract_text', {
+      'path': Directory.systemTemp.path,
+    }, workspace.path);
+    expect(absolute.text, contains('Error'));
+    final traversal = await FileToolService.execute('file_extract_text', {
+      'path': '../outside.pdf',
+    }, workspace.path);
+    expect(traversal.text, contains('Error'));
+    final nul = await FileToolService.execute('file_extract_text', {
+      'path': 'bad\u0000.pdf',
+    }, workspace.path);
+    expect(nul.text, contains('Error'));
+  });
+
+  test('rejects directories and missing paths for extraction', () async {
+    await Directory('${workspace.path}/dir').create();
+    final dirResult = await FileToolService.execute('file_extract_text', {
+      'path': 'dir',
+    }, workspace.path);
+    expect(dirResult.text, contains('not a regular file'));
+    final missing = await FileToolService.execute('file_extract_text', {
+      'path': 'missing.docx',
+    }, workspace.path);
+    expect(missing.text, contains('File not found'));
+  });
+
+  test('rejects unsupported formats and malformed files', () async {
+    await File('${workspace.path}/notes.xlsx').writeAsBytes(utf8.encode('x'));
+    final unsupported = await FileToolService.execute('file_extract_text', {
+      'path': 'notes.xlsx',
+    }, workspace.path);
+    expect(unsupported.text, contains('Unsupported file format'));
+
+    await File('${workspace.path}/bad.docx').writeAsBytes(
+      utf8.encode('not a zip file'),
+    );
+    final badDocx = await FileToolService.execute('file_extract_text', {
+      'path': 'bad.docx',
+      'format': 'docx',
+    }, workspace.path);
+    expect(badDocx.text, contains('Error'));
+
+    await File('${workspace.path}/doc.docx').writeAsBytes(_docxFixture());
+    final badFormat = await FileToolService.execute('file_extract_text', {
+      'path': 'doc.docx',
+      'format': 'xlsx',
+    }, workspace.path);
+    expect(badFormat.text, contains('Unsupported format'));
+  });
+
+  test('rejects files over the extraction input limit without parsing',
+      () async {
+    final big = File('${workspace.path}/big.docx');
+    await big.writeAsBytes(
+      List<int>.filled(FileToolService.maxExtractInputBytes + 1, 0),
+    );
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'big.docx',
+    }, workspace.path);
+    expect(result.text, contains('16 MB'));
+  });
+
+  test('supports offset, limit, next_offset, and has_more for extraction',
+      () async {
+    await File('${workspace.path}/long.docx').writeAsBytes(
+      _docxFixture(paragraphs: 500),
+    );
+    final first = await FileToolService.execute('file_extract_text', {
+      'path': 'long.docx',
+    }, workspace.path);
+    expect(first.text, contains('has_more=true'));
+    expect(first.text, contains('next_offset='));
+    final match = RegExp(r'next_offset=(\d+)').firstMatch(first.text);
+    expect(match, isNotNull);
+    final next = int.parse(match!.group(1)!);
+
+    final second = await FileToolService.execute('file_extract_text', {
+      'path': 'long.docx',
+      'offset': next,
+    }, workspace.path);
+    expect(second.text, contains('next_offset='));
+    expect(second.text, contains('Paragraph number'));
+  });
+
+  test('does not split a UTF-8 code point in extracted text', () async {
+    await File('${workspace.path}/uni.docx').writeAsBytes(
+      _docxFixtureRaw('A😀B'),
+    );
+    // The emoji occupies bytes 1..4 of the extracted text; offset 2 lands in
+    // the middle of it and must advance to the next complete code point.
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'uni.docx',
+      'offset': 2,
+      'limit': 10,
+    }, workspace.path);
+    expect(result.text, contains('\nB'));
+    expect(result.text, isNot(contains('\uFFFD')));
+  });
+
+  test('caps the limit parameter at the extract result maximum', () async {
+    await File('${workspace.path}/long.docx').writeAsBytes(
+      _docxFixture(paragraphs: 500),
+    );
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'long.docx',
+      'limit': FileToolService.maxExtractResultBytes + 1,
+    }, workspace.path);
+    expect(result.text, contains('limit capped'));
+    expect(
+      utf8.encode(result.text).length,
+      lessThan(FileToolService.maxExtractResultBytes + 200),
+    );
+  });
+
+  test('rejects an extraction symlink outside the workspace', () async {
+    final outside = await Directory.systemTemp.createTemp(
+      'omnichat_file_tools_outside_',
+    );
+    addTearDown(() async {
+      if (await outside.exists()) await outside.delete(recursive: true);
+    });
+    final pdf = _pdfFixture(pages: 1);
+    await File('${outside.path}/doc.pdf').writeAsBytes(pdf);
+    try {
+      await Link('${workspace.path}/link').create(outside.path);
+    } catch (_) {
+      return; // Symlink creation may require elevated privileges on Windows.
+    }
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'link/doc.pdf',
+    }, workspace.path);
+    expect(result.text, contains('Error'));
+  });
+}
+
+// -------------------------------------------------------------------------
+// Fixture builders
+// -------------------------------------------------------------------------
+
+List<int> _zipBytes(Map<String, String> entries) {
+  final archive = Archive();
+  entries.forEach((name, content) {
+    archive.addFile(ArchiveFile.string(name, content));
+  });
+  return ZipEncoder().encode(archive);
+}
+
+List<int> _docxFixture({int paragraphs = 3}) {
+  final body = StringBuffer();
+  body.write('<w:tbl><w:tr><w:tc><w:p><w:r><w:t>Cell A1</w:t></w:r></w:p></w:tc></w:tr></w:tbl>');
+  for (var i = 0; i < paragraphs; i++) {
+    body.write(
+      '<w:p><w:r><w:t>Paragraph number $i with padding text for length.</w:t></w:r></w:p>',
+    );
+  }
+  return _zipBytes({
+    'word/document.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>Hello &amp; welcome</w:t></w:r></w:p>
+    <w:p><w:r><w:t>第二段 中文</w:t></w:r></w:p>
+    $body
+  </w:body>
+</w:document>''',
+  });
+}
+
+List<int> _docxFixtureRaw(String text) {
+  return _zipBytes({
+    'word/document.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>$text</w:t></w:r></w:p>
+  </w:body>
+</w:document>''',
+  });
+}
+
+List<int> _pptxFixture() {
+  String slide(String text) => '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:spTree>
+    <p:sp>
+      <p:txBody>
+        <a:bodyPr/>
+        <a:p><a:r><a:t>$text</a:t></a:r></a:p>
+      </p:txBody>
+    </p:sp>
+  </p:spTree>
+</p:sld>''';
+  return _zipBytes({
+    'ppt/presentation.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="256" r:id="rId3"/>
+    <p:sldId id="257" r:id="rId1"/>
+    <p:sldId id="258" r:id="rId2"/>
+  </p:sldIdLst>
+</p:presentation>''',
+    'ppt/_rels/presentation.xml.rels': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide10.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide2.xml"/>
+</Relationships>''',
+    'ppt/slides/slide1.xml': slide('Slide One'),
+    'ppt/slides/slide2.xml': slide('Slide Two 中文'),
+    'ppt/slides/slide10.xml': slide('Slide Ten'),
+  });
+}
+
+List<int> _pdfFixture({required int pages}) {
+  final document = PdfDocument();
+  for (var i = 0; i < pages; i++) {
+    final page = document.pages.add();
+    page.graphics.drawString(
+      'Hello Page ${i + 1}',
+      PdfStandardFont(PdfFontFamily.helvetica, 12),
+    );
+  }
+  final bytes = document.saveSync();
+  document.dispose();
+  return bytes;
 }

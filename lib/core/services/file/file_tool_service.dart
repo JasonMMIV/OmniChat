@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:path/path.dart' as p;
 
 import '../../../utils/app_directories.dart';
+import '../chat/document_text_extractor.dart';
 
 class FileToolResult {
   const FileToolResult({
@@ -46,6 +47,16 @@ class FileToolService {
   static const int maxListedEntries = 1000;
   static const int maxSearchResults = 1000;
   static const int maxSearchEntries = 10000;
+
+  /// Default and hard maximum sizes for one file_extract_text response.
+  static const int defaultExtractResultBytes = 16 * 1024;
+  static const int maxExtractResultBytes = 24 * 1024;
+
+  /// Maximum source file size accepted by the text extractors.
+  static const int maxExtractInputBytes = 16 * 1024 * 1024;
+
+  /// Maximum number of UTF-8 bytes the extractor may accumulate per call.
+  static const int maxExtractedTextBytes = 256 * 1024;
 
   static const Set<String> _blockedExtensions = <String>{
     '.apk',
@@ -229,6 +240,30 @@ class FileToolService {
         },
         ['pattern'],
       ),
+      definition(
+        'file_extract_text',
+        'Extract text from a PDF, DOCX, or PPTX file inside the current workspace. Use relative paths only. This tool returns text only and does not perform OCR or preserve document layout.',
+        {
+          'path': pathProperty,
+          'format': {
+            'type': 'string',
+            'enum': ['auto', 'pdf', 'docx', 'pptx'],
+            'description':
+                'Optional format override. Defaults to auto-detection from the file extension and file signature.',
+          },
+          'offset': {
+            'type': 'integer',
+            'description':
+                'Optional zero-based byte offset in the extracted text. Defaults to 0; use next_offset from the previous result to continue.',
+          },
+          'limit': {
+            'type': 'integer',
+            'description':
+                'Optional number of UTF-8 bytes to return from the extracted text. Defaults to 16384 and is capped at 24576.',
+          },
+        },
+        ['path'],
+      ),
     ];
   }
 
@@ -264,6 +299,8 @@ class FileToolService {
           return await _moveOrCopy(args, workspace, move: false);
         case 'file_search':
           return await _search(args, workspace);
+        case 'file_extract_text':
+          return await _extractText(args, workspace);
         default:
           return FileToolResult(text: 'Error: Unknown file tool "$toolName".');
       }
@@ -501,6 +538,129 @@ class FileToolService {
     return FileToolResult(
       text:
           '[Read bytes $actualStart-$nextOffset of $fileLength; next_offset=$nextOffset; has_more=$hasMore]\n$text$capWarning',
+    );
+  }
+
+  static Future<FileToolResult> _extractText(
+    Map<String, dynamic> args,
+    String workspace,
+  ) async {
+    final path = resolveSafePath(_requiredString(args, 'path'), workspace);
+    final type = FileSystemEntity.typeSync(path, followLinks: false);
+    if (type == FileSystemEntityType.notFound) {
+      return const FileToolResult(text: 'Error: File not found.');
+    }
+    if (type != FileSystemEntityType.file) {
+      return const FileToolResult(
+        text: 'Error: The path is not a regular file.',
+      );
+    }
+
+    final format = (args['format'] ?? 'auto').toString().toLowerCase();
+    if (format != 'auto' &&
+        format != 'pdf' &&
+        format != 'docx' &&
+        format != 'pptx') {
+      return const FileToolResult(
+        text: 'Error: Unsupported format. Use auto, pdf, docx, or pptx.',
+      );
+    }
+
+    final offset = _optionalInteger(args, 'offset', defaultValue: 0);
+    final requestedLimit = _optionalInteger(
+      args,
+      'limit',
+      defaultValue: defaultExtractResultBytes,
+    );
+    if (offset < 0) {
+      return const FileToolResult(
+        text: 'Error: The offset must be zero or greater.',
+      );
+    }
+    if (requestedLimit <= 0) {
+      return const FileToolResult(
+        text: 'Error: The limit must be greater than zero.',
+      );
+    }
+
+    final fileLength = await File(path).length();
+    if (fileLength > maxExtractInputBytes) {
+      return const FileToolResult(
+        text:
+            'Error: The file exceeds the 16 MB extraction input limit.',
+      );
+    }
+
+    final DocumentExtractionResult result;
+    try {
+      result = await DocumentTextExtractor.extractWorkspaceText(
+        safePath: path,
+        format: format,
+        maxInputBytes: maxExtractInputBytes,
+        maxOutputBytes: maxExtractedTextBytes,
+      );
+    } on DocumentExtractionException catch (e) {
+      return FileToolResult(text: 'Error: ${e.message}');
+    } catch (_) {
+      return const FileToolResult(
+        text: 'Error: The document could not be parsed.',
+      );
+    }
+
+    final bytes = utf8.encode(result.text);
+    if (bytes.isEmpty) {
+      if (result.truncated) {
+        return FileToolResult(
+          text:
+              '[Extracted format=${result.format}; the document contains text, but extraction was capped before any text could be returned. Try reading again with the same path.]',
+        );
+      }
+      final notice =
+          result.notice ?? 'The document contains no extractable text.';
+      return FileToolResult(
+        text:
+            '[Extracted format=${result.format}; no extractable text. $notice]',
+      );
+    }
+    if (offset > bytes.length) {
+      return const FileToolResult(
+        text: 'Error: The offset is beyond the end of the extracted text.',
+      );
+    }
+
+    final limit = math.min(requestedLimit, maxExtractResultBytes);
+    final capped = requestedLimit > maxExtractResultBytes;
+    if (offset == bytes.length) {
+      final capWarning = capped
+          ? '\n[Warning: limit capped at $maxExtractResultBytes bytes.]'
+          : '';
+      return FileToolResult(
+        text:
+            '[Extracted format=${result.format}; bytes $offset-$offset of ${bytes.length}; next_offset=$offset; has_more=false]\n(empty)$capWarning',
+      );
+    }
+
+    final startIndex = _skipUtf8ContinuationBytes(bytes, offset);
+    final endIndex = _takeCompleteUtf8Bytes(
+      bytes,
+      startIndex,
+      math.min(bytes.length, startIndex + limit),
+    );
+    final nextOffset = endIndex;
+    final hasMore = nextOffset < bytes.length;
+    final text = utf8.decode(
+      bytes.sublist(startIndex, endIndex),
+      allowMalformed: true,
+    );
+    final capWarning = capped
+        ? '\n[Warning: limit capped at $maxExtractResultBytes bytes.]'
+        : '';
+    final truncationWarning = !hasMore && result.truncated
+        ? '\n[Warning: extraction capped at $maxExtractedTextBytes bytes; the document contains more text.]'
+        : '';
+    return FileToolResult(
+      text:
+          '[Extracted format=${result.format}; bytes $startIndex-$nextOffset of ${bytes.length}; next_offset=$nextOffset; has_more=$hasMore]$truncationWarning\n$text$capWarning',
     );
   }
 
