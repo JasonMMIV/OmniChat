@@ -18,22 +18,17 @@ OmniChat is a modern, feature-rich AI chat application designed for text file ed
 
 ### 📁 Workspace
 
-Give AI direct access to your files with a secure, sandboxed Workspace:
+Give the AI direct access to your files — everything happens inside a folder you choose, safely sandboxed:
 
-- **Basic File Operations**: Read, write, append, delete, move, copy, search, and list files within a user-defined directory — all through the LLM's function calling.
-- **Text File Editing**: Fine-grained edits via literal text replacement (`file_edit`) and unified diff patching (`file_patch`), with automatic conflict detection.
-- **Document Text Extraction**: Extract readable text from **PDF**, **Word (DOCX)**, **PowerPoint (PPTX)**, and **Excel (XLSX)** documents via `file_extract_text` — perfect for summarizing reports, resumes, slide decks, and spreadsheets. Tables in DOCX / PPTX / XLSX are returned as **Markdown tables** (`| col1 | col2 |`) with a header separator, and XLSX worksheets are marked by name (`--- Sheet N (name) ---`). Large documents are read incrementally with `next_offset` continuation; scanned PDFs (image-only) are not OCR'd.
-- **Archive Extraction**: Extract `.zip` archives into the workspace with `file_extract_zip` — entry paths are validated against the workspace boundary (Zip-Slip safe), dangerous file types are blocked, and total decompressed size / file count are capped.
-- **PDF Report Generation**: Generate formatted PDF files directly in the workspace with `file_create_pdf` from Markdown text — headings, bold/italic, lists, tables, code blocks, and page numbers, with built-in Simplified / Traditional Chinese rendering (no font bundling).
-- **Common File Types**: Chat uploads accept **any file type** — `.txt`, `.md`, `.json`, `.csv`, `.yaml`, `.xml`, `.html`, `.svg`, `.py`, `.js`, `.ts`, `.dart`, `.sql`, source code, archives, and more. Text-like files are read inline for the model; **PDF / DOCX / PPTX / XLSX** documents are text-extracted automatically.
-- **Flexible Configuration**: Set a global default directory, per-project workspace, or per-conversation override. Supports Android and Windows.
+- **Flexible Setup**: Choose a global default folder, set a workspace per project, or override it for a single conversation.
+- **File Management**: Ask the AI to read, create, edit, delete, move, copy, search, or unzip files inside your chosen folder.
+- **Reads Common File Formats**: Reads common formats inside your workspace, including TXT, MD, HTML, CSV, SVG, JSON, XML, YAML, DOCX, XLSX, PPTX, and PDF.
+- **Create Documents, Slides, Reports, Charts & PDFs**: Supports TXT, MD, HTML, CSV, SVG, PDF, and more (DOCX, XLSX, PPTX not yet supported).
 
 <p align="center">
-  <img src="Screenshots/Workspace_1.jpg" alt="Workspace Settings" width="30%" />
-   
-  <img src="Screenshots/Workspace_2.jpg" alt="Workspace File Cards" width="30%" />
-   
-  <img src="Screenshots/Workspace_3.jpg" alt="Workspace File Browser" width="30%" />
+  <img src="Screenshots/Workspace_1.jpg" alt="Workspace Settings" width="280" />
+  <img src="Screenshots/Workspace_2.jpg" alt="Workspace File Cards" width="280" />
+  <img src="Screenshots/Workspace_3.jpg" alt="Workspace File Browser" width="280" />
 </p>
 
 ---
@@ -47,7 +42,7 @@ Supports two advanced multi-agent collaboration pipelines for complex problem so
 - **Real-Time Streaming**: Proposals and audit logs stream live as each model completes, rendered in clean, layered collapsible sections.
 
 <p align="center">
-  <img src="Screenshots/AI_TEAM.jpg" alt="AI Team Interface" width="30%" />
+  <img src="Screenshots/AI_TEAM.jpg" alt="AI Team Interface" width="300" />
 </p>
 
 ---
@@ -62,9 +57,8 @@ Personalize your empty chat screen with zero-latency greetings and branding:
 - **Refined Visual Layout**: Enlarged logo aesthetics (100px) and bold typography for a modern, premium feel.
 
 <p align="center">
-  <img src="Screenshots/Customizable_New_Chat_Empty_State_1.jpg" alt="Customizable Empty State 1" width="30%" />
-    
-  <img src="Screenshots/Customizable_New_Chat_Empty_State_2.jpg" alt="Customizable Empty State 2" width="30%" />
+  <img src="Screenshots/Customizable_New_Chat_Empty_State_1.jpg" alt="Customizable Empty State 1" width="300" />
+  <img src="Screenshots/Customizable_New_Chat_Empty_State_2.jpg" alt="Customizable Empty State 2" width="300" />
 </p>
 
 ---
@@ -78,7 +72,7 @@ Experience AI interaction as natural as a phone call:
 - **Native Performance**: Utilizes system-level Speech-to-Text (STT) for low latency.
 
 <p align="center">
-  <img src="Screenshots/Voice_Chat.jpg" alt="Voice Chat Interface" width="30%" />
+  <img src="Screenshots/Voice_Chat.jpg" alt="Voice Chat Interface" width="300" />
 </p>
 
 ---
@@ -88,7 +82,7 @@ Experience AI interaction as natural as a phone call:
 Keep track of your usage effortlessly. Real-time account balance is displayed directly within the Model Selection menu and Provider Settings (supports OpenAI, Gemini, DeepSeek, OpenRouter, Neuralwatt, and more).
 
 <p align="center">
-  <img src="Screenshots/Account_Balance.jpg" alt="Account Balance Monitoring" width="30%" />
+  <img src="Screenshots/Account_Balance.jpg" alt="Account Balance Monitoring" width="300" />
 </p>
 
 ---

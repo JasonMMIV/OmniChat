@@ -18,22 +18,17 @@ OmniChat 是一款現代化、功能豐富的 AI 聊天軟體，專為文字檔�
 
 ### 📁 工作區 (Workspace)
 
-讓 AI 直接存取您的檔案，透過安全沙箱工作區進行操作：
+讓 AI 直接存取您的檔案 — 所有操作都在您指定的資料夾內安全地進行：
 
-- **基本檔案操作**：在用戶指定的目錄內進行讀取、寫入、追加、刪除、移動、複製、搜尋及列出檔案 — 全部透過 LLM 的 function calling 完成。
-- **文字檔案編輯**：支援精確文字替換 (`file_edit`) 與 unified diff 補丁 (`file_patch`) 兩種編輯模式，並具備自動衝突檢測。
-- **文件文字抽取**：透過 `file_extract_text` 從 **PDF**、**Word (DOCX)**、**PowerPoint (PPTX)** 與 **Excel (XLSX)** 文件中抽取可讀文字 — 非常適合摘要報告、履歷、簡報與試算表內容。DOCX / PPTX / XLSX 中的表格會以 **Markdown 表格**（`| 欄位A | 欄位B |`）輸出並附上表頭分隔線，XLSX 工作表會以名稱標記（`--- Sheet N (name) ---`）。大型文件可使用 `next_offset` 分段續讀；掃描型 PDF（純圖片）不支援 OCR。
-- **壓縮檔解壓縮**：透過 `file_extract_zip` 將 `.zip` 壓縮檔解壓縮至工作區 — 每個條目路徑都會驗證是否侷限於工作區內（防 Zip-Slip），危險檔案類型會被阻擋，並限制總解壓大小與檔案數量。
-- **PDF 報表生成**：透過 `file_create_pdf` 直接在工作區生成排版精美的 PDF — 支援標題、粗體/斜體、清單、表格、程式碼區塊與頁碼，內建簡中/繁中字型渲染（無需內嵌字型檔）。
-- **常用檔案類型**：聊天上傳支援**任何檔案類型** — `.txt`、`.md`、`.json`、`.csv`、`.yaml`、`.xml`、`.html`、`.svg`、`.py`、`.js`、`.ts`、`.dart`、`.sql`、原始碼、壓縮檔等。文字類檔案會直接內嵌給模型閱讀；**PDF / DOCX / PPTX / XLSX** 文件則會自動抽取文字內容。
-- **靈活配置**：可設定全域預設目錄、個別專案工作區或單一對話覆寫設定。支援 Android 與 Windows 平台。
+- **彈性設定**：可設定全域預設資料夾、為每個專案指定工作區，或只針對單一對話調整。
+- **檔案管理**：請 AI 讀取、建立、編輯、刪除、移動、複製、搜尋或解壓縮您指定資料夾中的檔案。
+- **讀取常用文件格式**：可讀取工作區內 TXT、MD、HTML、CSV、SVG、JSON、XML、YAML、DOCX、XLSX、PPTX、PDF 等常用格式。
+- **建立文件、簡報、報表、圖表與 PDF**：支援 TXT、MD、HTML、CSV、SVG、PDF 等格式（DOCX、XLSX、PPTX 暫不支援）。
 
 <p align="center">
-  <img src="Screenshots/Workspace_1.jpg" alt="工作區設定" width="30%" />
-   
-  <img src="Screenshots/Workspace_2.jpg" alt="工作區檔案卡片" width="30%" />
-   
-  <img src="Screenshots/Workspace_3.jpg" alt="工作區檔案瀏覽器" width="30%" />
+  <img src="Screenshots/Workspace_1.jpg" alt="工作區設定" width="280" />
+  <img src="Screenshots/Workspace_2.jpg" alt="工作區檔案卡片" width="280" />
+  <img src="Screenshots/Workspace_3.jpg" alt="工作區檔案瀏覽器" width="280" />
 </p>
 
 ---
@@ -47,7 +42,7 @@ OmniChat 是一款現代化、功能豐富的 AI 聊天軟體，專為文字檔�
 - **即時呈現**：所有提案與審計推論過程皆即時流式渲染，並提供獨立折疊區塊便於追蹤。
 
 <p align="center">
-  <img src="Screenshots/AI_TEAM.jpg" alt="AI 團隊介面" width="30%" />
+  <img src="Screenshots/AI_TEAM.jpg" alt="AI 團隊介面" width="300" />
 </p>
 
 ---
@@ -62,9 +57,8 @@ OmniChat 是一款現代化、功能豐富的 AI 聊天軟體，專為文字檔�
 - **美觀視覺佈局**：優化放大 Logo 比重與粗體文字佈局，帶來大氣現代的首頁質感。
 
 <p align="center">
-  <img src="Screenshots/Customizable_New_Chat_Empty_State_1.jpg" alt="自訂開場頁面 1" width="30%" />
-    
-  <img src="Screenshots/Customizable_New_Chat_Empty_State_2.jpg" alt="自訂開場頁面 2" width="30%" />
+  <img src="Screenshots/Customizable_New_Chat_Empty_State_1.jpg" alt="自訂開場頁面 1" width="300" />
+  <img src="Screenshots/Customizable_New_Chat_Empty_State_2.jpg" alt="自訂開場頁面 2" width="300" />
 </p>
 
 ---
@@ -78,7 +72,7 @@ OmniChat 是一款現代化、功能豐富的 AI 聊天軟體，專為文字檔�
 - **原生語音辨識**：整合系統原生 STT (Speech-to-Text) 引擎，辨識更精準快速。
 
 <p align="center">
-  <img src="Screenshots/Voice_Chat.jpg" alt="即時語音聊天介面" width="30%" />
+  <img src="Screenshots/Voice_Chat.jpg" alt="即時語音聊天介面" width="300" />
 </p>
 
 ---
@@ -88,7 +82,7 @@ OmniChat 是一款現代化、功能豐富的 AI 聊天軟體，專為文字檔�
 無需切換頁面，直接在「模型選擇選單」與「供應商設定」中即時查看剩餘額度（包含 OpenAI, Gemini, DeepSeek, OpenRouter, Neuralwatt 等），輕鬆掌握 API 使用狀況。
 
 <p align="center">
-  <img src="Screenshots/Account_Balance.jpg" alt="帳戶餘額監控" width="30%" />
+  <img src="Screenshots/Account_Balance.jpg" alt="帳戶餘額監控" width="300" />
 </p>
 
 ---
