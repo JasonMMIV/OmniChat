@@ -158,6 +158,12 @@ class FileUploadService {
     if (lower.endsWith('.docx')) {
       return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     }
+    if (lower.endsWith('.xlsx')) {
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    }
+    if (lower.endsWith('.xls')) return 'application/vnd.ms-excel';
+    if (lower.endsWith('.ppt')) return 'application/vnd.ms-powerpoint';
+    if (lower.endsWith('.csv')) return 'text/csv';
     if (lower.endsWith('.json')) return 'application/json';
     if (lower.endsWith('.js')) return 'application/javascript';
     if (lower.endsWith('.txt') || lower.endsWith('.md')) return 'text/plain';
@@ -179,18 +185,13 @@ class FileUploadService {
   /// 选取文件（图片、视频、文档等）
   Future<void> onPickFiles() async {
     try {
+      // No extension restriction: the allowlist kept missing common types
+      // (xls, xlsx, pptx, csv, svg, archives, source files, ...). Any file is
+      // accepted; images vs documents are classified by extension downstream.
       final res = await FilePicker.platform.pickFiles(
         allowMultiple: true,
         withData: false,
-        type: FileType.custom,
-        allowedExtensions: const [
-          // images
-          'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'heif',
-          // videos
-          'mp4', 'avi', 'mkv', 'mov', 'flv', 'wmv', 'mpeg', 'mpg', 'webm', '3gp', '3gpp',
-          // docs
-          'txt', 'md', 'json', 'js', 'pdf', 'docx', 'html', 'xml', 'py', 'java', 'kt', 'dart', 'ts', 'tsx', 'markdown', 'mdx', 'yml', 'yaml'
-        ],
+        type: FileType.any,
       );
       if (res == null || res.files.isEmpty) return;
       final images = <String>[];

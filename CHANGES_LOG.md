@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-04 (v1.8.0)
+- **Last Updated**: 2026-08-05 (v1.8.1)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -178,6 +178,43 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+
+## [v1.8.1+] - 2026-08-05: Unrestricted Chat File Upload & Legacy Office MIME Handling
+
+### 163. Chat "Upload File" Picker No Longer Restricts File Types
+
+- **Purpose**: The chat file-upload button limited the picker to a hardcoded extension allowlist that kept missing common types (`.xls`, `.xlsx`, `.pptx`, `.csv`, `.svg`, archives, source files, ...). Since maintaining an exhaustive list is impractical, the picker now accepts any file (`FileType.any`); images vs documents are still classified by extension downstream, and drag-and-drop already had no restriction.
+- **Files Modified**:
+  - `lib/features/home/services/file_upload_service.dart` (`onPickFiles` now uses `FileType.any` with no `allowedExtensions`; `inferMimeByExtension` adds `.xls` -> `application/vnd.ms-excel`, `.ppt` -> `application/vnd.ms-powerpoint`, `.csv` -> `text/csv`)
+  - `lib/features/home/widgets/chat_input_bar.dart` (pasted-file `_inferMimeByExtension` adds the same `.xlsx` / `.xls` / `.ppt` / `.csv` mappings so files pasted from Explorer get correct MIME types)
+  - `lib/core/services/chat/document_text_extractor.dart` (global `extract()` returns explicit `[[XLS format (.xls) not supported...]]` and `[[PPT format (.ppt) not supported...]]` messages instead of reading legacy binaries as garbage text)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - Purpose-specific pickers (avatar images, backup restore zip/json, provider JSON, font TTF/OTF, export, system-prompt import) are intentionally unchanged.
+  - Legacy `.xls` / `.ppt` files are now selectable and receive an explicit "not supported for text extraction" result rather than raw binary text.
+
+## [v1.8.1] - 2026-08-05: XLSX Text Extraction (`file_extract_text`)
+
+### 162. XLSX (Excel) Text Extraction
+
+- **Purpose**: Extend the read-only `file_extract_text` workspace tool and the chat attachment extractor to pull readable text and values from `.xlsx` workbooks using the existing `archive` + `xml` dependencies — no new packages, and no changes to the workspace sandbox, FileRecord, backup, or permission layers.
+- **Files Modified**:
+  - `lib/core/services/chat/document_text_extractor.dart` (bounded `_extractXlsxWorkspace`: optional `xl/sharedStrings.xml` table, `xl/workbook.xml` `<sheets>` order mapped through `xl/_rels/workbook.xml.rels` with `--- Sheet N (name) ---` markers, per-row output with cell references like `A1: value`; shared-string lookups with rich-text run concatenation, inline strings, numbers, booleans (`TRUE`/`FALSE`), and cached values of `str`/`d`/`e` cells; `rPh` phonetic runs excluded; dedicated 16 MiB sharedStrings part cap while other XML parts stay at 4 MiB; global `extract()` MIME branch + `_extractXlsx` for chat attachments; format detection for `.xlsx` extension and `xl/workbook.xml` ZIP layout)
+  - `lib/core/services/file/file_tool_service.dart` (`file_extract_text` description and `format` enum now include XLSX; `_extractText` format whitelist and error text)
+  - `lib/features/home/services/message_builder_service.dart` (workspace prompt lists XLSX; notes cell references, raw dates, cached formula values, and that `file_read` must not read XLSX binary)
+  - `lib/features/home/services/file_upload_service.dart` (`.xlsx` MIME mapping + allowed upload extension)
+  - `test/file_tool_service_test.dart` (XLSX fixtures + 11 new tests)
+  - `pubspec.yaml` (version bumped to `1.8.1+67`)
+  - `installer.iss` / `installers/omnichat_setup.iss` (installer version 1.8.1)
+  - `README.md` / `README_ZH_TW.MD` (Workspace section: XLSX text extraction)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Sheet order**: worksheets are read in `xl/workbook.xml` `<sheets>` (tab) order via the workbook relationships — not ZIP entry or filename order — with worksheet names in the markers.
+  - **Cell handling**: `t="s"` shared strings, `t="inlineStr"` inline strings, plain numbers, booleans, and cached values of `str`/`d`/`e` cells; formulas (`<f>`) are skipped and only cached `<v>` values are returned; empty cells and rows are omitted; each non-empty cell is prefixed with its reference so the LLM can reconstruct the grid.
+  - **sharedStrings is optional**: numeric-only workbooks or writers that inline all strings still extract; out-of-range shared-string indexes are skipped defensively.
+  - **Limits**: reuses the 16 MiB input cap, 256 KiB parser cap, 24 KiB result cap, and `next_offset` continuation; malformed worksheets are skipped while malformed workbook/relationships/sharedStrings fail with safe error text.
+  - **Out of scope**: legacy `.xls`, grid layout/styles/formula recomputation, Excel date-serial to human date conversion, chart sheets, and any XLSX generation or modification.
+- **Tests**: `flutter test` — full suite passes (78 tests; 11 new XLSX tests covering workbook-order extraction with cell refs, ZIP-layout auto-detection, uppercase extensions, format override, numeric-only workbooks without sharedStrings, missing workbook error, boolean/formula/out-of-range cells, empty-workbook notice, the chat-attachment extractor, continuation offsets, and UTF-8 boundaries).
 
 ## [v1.8.0] - 2026-08-04: LLM Text Extraction from PDF/DOCX/PPTX (`file_extract_text`)
 

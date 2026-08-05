@@ -242,12 +242,12 @@ class FileToolService {
       ),
       definition(
         'file_extract_text',
-        'Extract text from a PDF, DOCX, or PPTX file inside the current workspace. Use relative paths only. This tool returns text only and does not perform OCR or preserve document layout.',
+        'Extract text from a PDF, DOCX, PPTX, or XLSX file inside the current workspace. Use relative paths only. This tool returns text only and does not perform OCR or preserve document layout.',
         {
           'path': pathProperty,
           'format': {
             'type': 'string',
-            'enum': ['auto', 'pdf', 'docx', 'pptx'],
+            'enum': ['auto', 'pdf', 'docx', 'pptx', 'xlsx'],
             'description':
                 'Optional format override. Defaults to auto-detection from the file extension and file signature.',
           },
@@ -560,9 +560,10 @@ class FileToolService {
     if (format != 'auto' &&
         format != 'pdf' &&
         format != 'docx' &&
-        format != 'pptx') {
+        format != 'pptx' &&
+        format != 'xlsx') {
       return const FileToolResult(
-        text: 'Error: Unsupported format. Use auto, pdf, docx, or pptx.',
+        text: 'Error: Unsupported format. Use auto, pdf, docx, pptx, or xlsx.',
       );
     }
 

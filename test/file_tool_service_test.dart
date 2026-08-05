@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:archive/archive_io.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:OmniChat/core/services/chat/document_text_extractor.dart';
 import 'package:OmniChat/core/services/file/file_tool_service.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
@@ -467,9 +468,169 @@ void main() {
     await File('${workspace.path}/doc.docx').writeAsBytes(_docxFixture());
     final badFormat = await FileToolService.execute('file_extract_text', {
       'path': 'doc.docx',
-      'format': 'xlsx',
+      'format': 'xls',
     }, workspace.path);
     expect(badFormat.text, contains('Unsupported format'));
+  });
+
+  test('extracts XLSX text in workbook sheet order with cell references',
+      () async {
+    await File('${workspace.path}/book.xlsx').writeAsBytes(
+      _xlsxFixture(sheetNames: ['Summary', 'Data']),
+    );
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'book.xlsx',
+    }, workspace.path);
+    final text = result.text;
+    expect(text, contains('format=xlsx'));
+    expect(text, contains('has_more=false'));
+    // workbook.xml <sheets> order is Summary then Data, not filename order.
+    expect(
+      text.indexOf('--- Sheet 1 (Summary) ---'),
+      lessThan(text.indexOf('--- Sheet 2 (Data) ---')),
+    );
+    expect(text, contains('--- Sheet 1 (Summary) ---'));
+    expect(text, contains('--- Sheet 2 (Data) ---'));
+    expect(text, contains('A1: 3.14'));
+    expect(text, contains('A1: Hello Excel'));
+    expect(text, contains('B1: 42'));
+    expect(text, contains('C1: Inline & more'));
+    expect(text, contains('A2: 第二個 中文'));
+  });
+
+  test('auto-detects XLSX from ZIP layout without a known extension',
+      () async {
+    await File('${workspace.path}/renamed.bin').writeAsBytes(
+      _xlsxFixture(sheetNames: ['Data']),
+    );
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'renamed.bin',
+    }, workspace.path);
+    expect(result.text, contains('format=xlsx'));
+    expect(result.text, contains('A1: Hello Excel'));
+  });
+
+  test('handles booleans, formula cache, and out-of-range string indexes',
+      () async {
+    await File('${workspace.path}/types.xlsx').writeAsBytes(
+      _xlsxFixture(sheetNames: ['Data']),
+    );
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'types.xlsx',
+    }, workspace.path);
+    expect(result.text, contains('B2: TRUE'));
+    expect(result.text, contains('C2: 123'));
+    // Shared string index 99 does not exist; the cell must be skipped.
+    expect(result.text, isNot(contains('D2')));
+  });
+
+  test('reports when a workbook has no cell text', () async {
+    await File('${workspace.path}/blank.xlsx').writeAsBytes(
+      _xlsxFixture(sheetNames: ['Empty']),
+    );
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'blank.xlsx',
+    }, workspace.path);
+    expect(result.text, contains('no extractable text'));
+    expect(result.text, contains('no cell text or values'));
+  });
+
+  test('extracts chat-attached XLSX via the global extractor', () async {
+    final path = '${workspace.path}/attached.xlsx';
+    await File(path).writeAsBytes(_xlsxFixture(sheetNames: ['Data']));
+    final text = await DocumentTextExtractor.extract(
+      path: path,
+      mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    expect(text, contains('--- Sheet 1 (Data) ---'));
+    expect(text, contains('A1: Hello Excel'));
+  });
+
+  test('auto-detects uppercase XLSX extensions', () async {
+    await File('${workspace.path}/UPPER.XLSX').writeAsBytes(
+      _xlsxFixture(sheetNames: ['Data']),
+    );
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'UPPER.XLSX',
+    }, workspace.path);
+    expect(result.text, contains('format=xlsx'));
+    expect(result.text, contains('A1: Hello Excel'));
+  });
+
+  test('honors a format override for XLSX', () async {
+    await File('${workspace.path}/renamed.bin').writeAsBytes(
+      _xlsxFixture(sheetNames: ['Data']),
+    );
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'renamed.bin',
+      'format': 'xlsx',
+    }, workspace.path);
+    expect(result.text, contains('A1: Hello Excel'));
+  });
+
+  test('extracts numeric-only workbooks without a sharedStrings part',
+      () async {
+    await File('${workspace.path}/numbers.xlsx').writeAsBytes(
+      _xlsxFixture(
+        sheetNames: ['Summary'],
+        includeSharedStrings: false,
+      ),
+    );
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'numbers.xlsx',
+    }, workspace.path);
+    expect(result.text, contains('format=xlsx'));
+    expect(result.text, contains('A1: 3.14'));
+  });
+
+  test('reports an XLSX missing workbook.xml as an error', () async {
+    await File('${workspace.path}/bad.xlsx').writeAsBytes(
+      _zipBytes({'xl/worksheets/sheet1.xml': '<worksheet/>'}),
+    );
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'bad.xlsx',
+      'format': 'xlsx',
+    }, workspace.path);
+    expect(result.text, contains('Error'));
+    expect(result.text, contains('workbook.xml'));
+  });
+
+  test('supports offset, limit, next_offset, and has_more for XLSX',
+      () async {
+    await File('${workspace.path}/long.xlsx').writeAsBytes(
+      _xlsxFixture(sheetNames: ['Data'], rows: 500),
+    );
+    final first = await FileToolService.execute('file_extract_text', {
+      'path': 'long.xlsx',
+    }, workspace.path);
+    expect(first.text, contains('has_more=true'));
+    expect(first.text, contains('next_offset='));
+    final match = RegExp(r'next_offset=(\d+)').firstMatch(first.text);
+    expect(match, isNotNull);
+    final next = int.parse(match!.group(1)!);
+
+    final second = await FileToolService.execute('file_extract_text', {
+      'path': 'long.xlsx',
+      'offset': next,
+    }, workspace.path);
+    expect(second.text, contains('next_offset='));
+    expect(second.text, contains('Row number'));
+  });
+
+  test('does not split a UTF-8 code point in XLSX extracted text', () async {
+    await File('${workspace.path}/uni.xlsx').writeAsBytes(
+      _xlsxInlineCellFixture('A😀B'),
+    );
+    // Extracted text is '--- Sheet 1 (Data) ---\nA1: A😀B\n'; the emoji
+    // occupies bytes 28..31, so offset 30 lands in the middle of it and must
+    // advance to the next complete code point.
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'uni.xlsx',
+      'offset': 30,
+      'limit': 10,
+    }, workspace.path);
+    expect(result.text, contains('\nB'));
+    expect(result.text, isNot(contains('\uFFFD')));
   });
 
   test('rejects files over the extraction input limit without parsing',
@@ -632,6 +793,99 @@ List<int> _pptxFixture() {
     'ppt/slides/slide10.xml': slide('Slide Ten'),
   });
 }
+
+List<int> _xlsxFixture({
+  List<String> sheetNames = const ['Data'],
+  bool includeSharedStrings = true,
+  int rows = 3,
+}) {
+  final entries = <String, String>{};
+  final sheets = StringBuffer();
+  final rels = StringBuffer();
+  for (var i = 0; i < sheetNames.length; i++) {
+    final n = i + 1;
+    final name = sheetNames[i];
+    sheets.writeln('    <sheet name="$name" sheetId="$n" r:id="rId$n"/>');
+    rels.writeln(
+      '    <Relationship Id="rId$n" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet$n.xml"/>',
+    );
+    entries['xl/worksheets/sheet$n.xml'] = name == 'Summary'
+        ? _xlsxSummarySheetXml()
+        : name == 'Empty'
+        ? _xlsxEmptySheetXml()
+        : _xlsxDataSheetXml(rows);
+  }
+  entries['xl/workbook.xml'] = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+${sheets.toString().trimRight()}
+  </sheets>
+</workbook>''';
+  entries['xl/_rels/workbook.xml.rels'] = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+${rels.toString().trimRight()}
+</Relationships>''';
+  if (includeSharedStrings) {
+    entries['xl/sharedStrings.xml'] = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="2" uniqueCount="2">
+  <si><t>Hello Excel</t></si>
+  <si><r><t>第二個</t></r><r><t> 中文</t></r></si>
+</sst>''';
+  }
+  return _zipBytes(entries);
+}
+
+List<int> _xlsxInlineCellFixture(String text) {
+  return _zipBytes({
+    'xl/workbook.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Data" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>''',
+    'xl/_rels/workbook.xml.rels': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>''',
+    'xl/worksheets/sheet1.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1"><c r="A1" t="inlineStr"><is><t>$text</t></is></c></row>
+  </sheetData>
+</worksheet>''',
+  });
+}
+
+String _xlsxDataSheetXml(int rows) {
+  final buffer = StringBuffer();
+  buffer.writeln('''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1"><v>42</v></c><c r="C1" t="inlineStr"><is><t>Inline &amp; more</t></is></c></row>
+    <row r="2"><c r="A2" t="s"><v>1</v></c><c r="B2" t="b"><v>1</v></c><c r="C2"><f>SUM(1,2)</f><v>123</v></c><c r="D2" t="s"><v>99</v></c></row>''');
+  for (var i = 3; i <= rows; i++) {
+    buffer.writeln(
+      '    <row r="$i"><c r="A$i" t="inlineStr"><is><t>Row number $i with padding text for length.</t></is></c></row>',
+    );
+  }
+  buffer.writeln('  </sheetData>');
+  buffer.writeln('</worksheet>');
+  return buffer.toString();
+}
+
+String _xlsxSummarySheetXml() => '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1"><c r="A1"><v>3.14</v></c></row>
+  </sheetData>
+</worksheet>''';
+
+String _xlsxEmptySheetXml() => '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1"><c r="A1"/></row>
+  </sheetData>
+</worksheet>''';
 
 List<int> _pdfFixture({required int pages}) {
   final document = PdfDocument();

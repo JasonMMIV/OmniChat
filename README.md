@@ -22,8 +22,8 @@ Give AI direct access to your files with a secure, sandboxed Workspace:
 
 - **Basic File Operations**: Read, write, append, delete, move, copy, search, and list files within a user-defined directory — all through the LLM's function calling.
 - **Text File Editing**: Fine-grained edits via literal text replacement (`file_edit`) and unified diff patching (`file_patch`), with automatic conflict detection.
-- **Document Text Extraction**: Extract readable text from **PDF**, **Word (DOCX)**, and **PowerPoint (PPTX)** documents via `file_extract_text` — perfect for summarizing reports, resumes, and slide decks. Large documents are read incrementally with `next_offset` continuation; scanned PDFs (image-only) are not OCR'd.
-- **Common File Types**: `.txt`, `.md`, `.json`, `.csv`, `.yaml`, `.xml`, `.py`, `.js`, `.ts`, `.dart`, `.html`, `.css`, `.log`, `.cfg`, `.toml`, `.ini`, `.env`, `.sh`, `.bat`, `.ps1`, `.sql`, `.java`, `.kt`, `.swift`, `.c`, `.cpp`, `.h`, `.rs`, `.go`, `.rb`, `.php`, `.lua`, `.r`, `.tex`, `.svg`, and more.
+- **Document Text Extraction**: Extract readable text from **PDF**, **Word (DOCX)**, **PowerPoint (PPTX)**, and **Excel (XLSX)** documents via `file_extract_text` — perfect for summarizing reports, resumes, slide decks, and spreadsheets. XLSX worksheets are listed by name with cell references (e.g. `A1: value`). Large documents are read incrementally with `next_offset` continuation; scanned PDFs (image-only) are not OCR'd.
+- **Common File Types**: Chat uploads accept **any file type** — `.txt`, `.md`, `.json`, `.csv`, `.yaml`, `.xml`, `.html`, `.svg`, `.py`, `.js`, `.ts`, `.dart`, `.sql`, source code, archives, and more. Text-like files are read inline for the model; **PDF / DOCX / PPTX / XLSX** documents are text-extracted automatically.
 - **Flexible Configuration**: Set a global default directory, per-project workspace, or per-conversation override. Supports Android and Windows.
 
 <p align="center">
