@@ -2,10 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:archive/archive_io.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:path/path.dart' as p;
 
 import '../../../utils/app_directories.dart';
 import '../chat/document_text_extractor.dart';
+import 'markdown_pdf_converter.dart';
 
 class FileToolResult {
   const FileToolResult({
@@ -57,6 +60,12 @@ class FileToolService {
 
   /// Maximum number of UTF-8 bytes the extractor may accumulate per call.
   static const int maxExtractedTextBytes = 256 * 1024;
+
+  /// Bounds for the file_extract_zip tool.
+  static const int maxZipSourceBytes = 100 * 1024 * 1024;
+  static const int maxZipTotalBytes = 50 * 1024 * 1024;
+  static const int maxZipEntries = 1000;
+  static const int maxZipListingEntries = 100;
 
   static const Set<String> _blockedExtensions = <String>{
     '.apk',
@@ -241,8 +250,34 @@ class FileToolService {
         ['pattern'],
       ),
       definition(
+        'file_extract_zip',
+        'Extract a .zip archive in the workspace into a destination directory. Archive entry paths are validated against the workspace boundary, dangerous file types are blocked, and the total decompressed size and file count are capped.',
+        {
+          'path': pathProperty,
+          'destination': {
+            'type': 'string',
+            'description':
+                'Optional destination directory relative to the workspace. Defaults to a folder named after the archive (without the .zip extension).',
+          },
+        },
+        ['path'],
+      ),
+      definition(
+        'file_create_pdf',
+        'Create a PDF file in the workspace from Markdown text. Supports headings, paragraphs, bold, italic, inline code, lists, tables, fenced code blocks, block quotes, horizontal rules, and page numbers. Chinese text renders correctly.',
+        {
+          'path': pathProperty,
+          'content': {
+            'type': 'string',
+            'description':
+                'Markdown content to render as the PDF body. Keep it under 512 KB.',
+          },
+        },
+        ['path', 'content'],
+      ),
+      definition(
         'file_extract_text',
-        'Extract text from a PDF, DOCX, PPTX, or XLSX file inside the current workspace. Use relative paths only. This tool returns text only and does not perform OCR or preserve document layout.',
+        'Extract text from a PDF, DOCX, PPTX, or XLSX file inside the current workspace. Use relative paths only. This tool returns text only and does not perform OCR or preserve document layout. Tables in DOCX, PPTX, and XLSX are returned as Markdown tables with a header separator row.',
         {
           'path': pathProperty,
           'format': {
@@ -301,6 +336,10 @@ class FileToolService {
           return await _search(args, workspace);
         case 'file_extract_text':
           return await _extractText(args, workspace);
+        case 'file_extract_zip':
+          return await _extractZip(args, workspace);
+        case 'file_create_pdf':
+          return await _createPdf(args, workspace);
         default:
           return FileToolResult(text: 'Error: Unknown file tool "$toolName".');
       }
@@ -425,8 +464,9 @@ class FileToolService {
 
   static String _requiredString(Map<String, dynamic> args, String key) {
     final value = args[key]?.toString() ?? '';
-    if (value.trim().isEmpty)
+    if (value.trim().isEmpty) {
       throw ArgumentError('Missing required argument: $key');
+    }
     return value;
   }
 
@@ -464,8 +504,9 @@ class FileToolService {
   ) async {
     final path = resolveSafePath(_requiredString(args, 'path'), workspace);
     final file = File(path);
-    if (!await file.exists())
+    if (!await file.exists()) {
       return FileToolResult(text: 'Error: File not found.');
+    }
 
     final offset = _optionalInteger(args, 'offset', defaultValue: 0);
     final requestedLimit = _optionalInteger(
@@ -662,6 +703,193 @@ class FileToolService {
     return FileToolResult(
       text:
           '[Extracted format=${result.format}; bytes $startIndex-$nextOffset of ${bytes.length}; next_offset=$nextOffset; has_more=$hasMore]$truncationWarning\n$text$capWarning',
+    );
+  }
+
+  static Future<FileToolResult> _extractZip(
+    Map<String, dynamic> args,
+    String workspace,
+  ) async {
+    final zipPath = resolveSafePath(_requiredString(args, 'path'), workspace);
+    final type = FileSystemEntity.typeSync(zipPath, followLinks: false);
+    if (type == FileSystemEntityType.notFound) {
+      return const FileToolResult(text: 'Error: File not found.');
+    }
+    if (type != FileSystemEntityType.file) {
+      return const FileToolResult(
+        text: 'Error: The path is not a regular file.',
+      );
+    }
+    final file = File(zipPath);
+    final length = await file.length();
+    if (length > maxZipSourceBytes) {
+      return const FileToolResult(
+        text: 'Error: The ZIP archive exceeds the 100 MB input limit.',
+      );
+    }
+
+    final List<int> bytes;
+    try {
+      bytes = await file.readAsBytes();
+    } catch (_) {
+      return const FileToolResult(
+        text: 'Error: The ZIP archive could not be read.',
+      );
+    }
+    final Archive archive;
+    try {
+      archive = ZipDecoder().decodeBytes(bytes);
+    } catch (_) {
+      return const FileToolResult(
+        text: 'Error: The ZIP archive is malformed or corrupt.',
+      );
+    }
+
+    var destinationArg = (args['destination'] ?? '').toString().trim();
+    if (destinationArg.isEmpty) {
+      // Default to a folder named after the archive, next to it.
+      final relative = p.relative(zipPath, from: workspace);
+      destinationArg = p.join(
+        p.dirname(relative),
+        p.basenameWithoutExtension(relative),
+      );
+    }
+    final destination = resolveSafePath(destinationArg, workspace);
+    await Directory(destination).create(recursive: true);
+
+    // Validation pass: every entry must be safe and inside the budget before
+    // any file is written, so a hostile archive cannot leave partial output.
+    var totalBytes = 0;
+    var entryCount = 0;
+    final pending = <_ZipEntryPlan>[];
+    for (final entry in archive.files) {
+      if (!entry.isFile) continue;
+      var name = entry.name.replaceAll('\\', '/');
+      if (name.isEmpty) continue;
+      if (name.startsWith('/')) {
+        throw const FileToolSecurityException(
+          'The ZIP contains an entry with an absolute path.',
+        );
+      }
+      if (name.split('/').contains('..')) {
+        throw const FileToolSecurityException(
+          'The ZIP contains an entry that escapes the destination directory.',
+        );
+      }
+      _rejectBlockedExtension(name);
+      entryCount += 1;
+      if (entryCount > maxZipEntries) {
+        return const FileToolResult(
+          text: 'Error: The ZIP archive contains more than 1000 files.',
+        );
+      }
+      if (entry.size < 0 || totalBytes > maxZipTotalBytes - entry.size) {
+        return const FileToolResult(
+          text: 'Error: The extracted files would exceed the 50 MB limit.',
+        );
+      }
+      totalBytes += entry.size;
+      final target = resolveSafePath(name, destination);
+      pending.add(_ZipEntryPlan(target: target, entry: entry));
+    }
+
+    if (pending.isEmpty) {
+      return const FileToolResult(
+        text: 'Error: The ZIP archive contains no files.',
+      );
+    }
+
+    // Extraction pass with a post-decompression size check as defense in
+    // depth against zip bombs whose headers under-report their size.
+    final written = <String>[];
+    var extractedBytes = 0;
+    try {
+      for (final plan in pending) {
+        final content = plan.entry.content;
+        if (extractedBytes > maxZipTotalBytes - content.length) {
+          throw const FileToolSecurityException(
+            'The extracted files exceed the 50 MB limit.',
+          );
+        }
+        extractedBytes += content.length;
+        await File(plan.target).parent.create(recursive: true);
+        await File(plan.target).writeAsBytes(content, flush: true);
+        written.add(p.relative(plan.target, from: workspace));
+      }
+    } catch (_) {
+      // Best-effort cleanup of the partial extraction.
+      for (final path in written) {
+        try {
+          final f = File(p.join(workspace, path));
+          if (await f.exists()) await f.delete();
+        } catch (_) {}
+      }
+      rethrow;
+    }
+
+    final listing = written
+        .take(maxZipListingEntries)
+        .map((path) => '- ${path.replaceAll('\\', '/')}')
+        .join('\n');
+    final truncatedNote = written.length > maxZipListingEntries
+        ? '\n[Warning: listing truncated.]'
+        : '';
+    return FileToolResult(
+      text:
+          'Extracted ${written.length} file(s) ($extractedBytes bytes) to ${p.relative(destination, from: workspace)}:\n$listing$truncatedNote',
+    );
+  }
+
+  static Future<FileToolResult> _createPdf(
+    Map<String, dynamic> args,
+    String workspace,
+  ) async {
+    final path = resolveSafePath(_requiredString(args, 'path'), workspace);
+    if (!args.containsKey('content') || args['content'] is! String) {
+      return const FileToolResult(
+        text: 'Error: The content argument is required and must be a string.',
+      );
+    }
+    final content = args['content'] as String;
+    if (content.trim().isEmpty) {
+      return const FileToolResult(text: 'Error: The content is empty.');
+    }
+    if (utf8.encode(content).length > maxWriteBytes) {
+      return const FileToolResult(
+        text: 'Error: The content exceeds the 512 KB limit.',
+      );
+    }
+
+    final List<int> bytes;
+    try {
+      // Render in a background isolate so large documents do not jank the UI;
+      // the converter is pure Dart (no platform channels), so it is sendable.
+      bytes = await compute(MarkdownPdfConverter.convert, content);
+    } catch (_) {
+      return const FileToolResult(
+        text: 'Error: The PDF could not be generated from the content.',
+      );
+    }
+    if (bytes.length > MarkdownPdfConverter.maxPdfBytes) {
+      return const FileToolResult(
+        text: 'Error: The generated PDF would exceed the size limit.',
+      );
+    }
+
+    try {
+      await File(path).parent.create(recursive: true);
+      await File(path).writeAsBytes(bytes, flush: true);
+    } catch (_) {
+      return const FileToolResult(
+        text: 'Error: The PDF could not be written to the workspace.',
+      );
+    }
+    final size = await File(path).length();
+    return FileToolResult(
+      text: 'Created ${p.basename(path)} ($size bytes).',
+      createdOrModifiedFilePath: path,
+      fileName: p.basename(path),
+      fileSizeBytes: size,
     );
   }
 
@@ -1165,8 +1393,9 @@ class FileToolService {
   ) async {
     final path = resolveSafePath((args['path'] ?? '').toString(), workspace);
     final directory = Directory(path);
-    if (!await directory.exists())
+    if (!await directory.exists()) {
       return const FileToolResult(text: 'Error: Directory not found.');
+    }
     final entries = <FileSystemEntity>[];
     await for (final entry in directory.list(followLinks: false)) {
       entries.add(entry);
@@ -1186,8 +1415,9 @@ class FileToolService {
           : '[file]';
       lines.add('$marker ${p.relative(entry.path, from: workspace)}');
     }
-    if (entries.length > maxListedEntries)
+    if (entries.length > maxListedEntries) {
       lines.add('[Warning: listing truncated.]');
+    }
     return FileToolResult(text: lines.isEmpty ? '(empty)' : lines.join('\n'));
   }
 
@@ -1206,8 +1436,9 @@ class FileToolService {
   ) async {
     final path = resolveSafePath(_requiredString(args, 'path'), workspace);
     final type = FileSystemEntity.typeSync(path, followLinks: false);
-    if (type == FileSystemEntityType.notFound)
+    if (type == FileSystemEntityType.notFound) {
       return const FileToolResult(text: 'Error: Path not found.');
+    }
     final stat = await FileStat.stat(path);
     return FileToolResult(
       text: jsonEncode({
@@ -1231,8 +1462,9 @@ class FileToolService {
     );
     _rejectBlockedExtension(destination);
     final sourceType = FileSystemEntity.typeSync(source, followLinks: false);
-    if (sourceType == FileSystemEntityType.notFound)
+    if (sourceType == FileSystemEntityType.notFound) {
       return const FileToolResult(text: 'Error: Source not found.');
+    }
     if (FileSystemEntity.typeSync(destination, followLinks: false) !=
         FileSystemEntityType.notFound) {
       return const FileToolResult(text: 'Error: Destination already exists.');
@@ -1272,8 +1504,9 @@ class FileToolService {
     final pattern = _requiredString(args, 'pattern');
     final start = resolveSafePath((args['path'] ?? '').toString(), workspace);
     final directory = Directory(start);
-    if (!await directory.exists())
+    if (!await directory.exists()) {
       return const FileToolResult(text: 'Error: Directory not found.');
+    }
     final wildcard = pattern.contains('*') || pattern.contains('?');
     final regex = wildcard ? _wildcardRegex(pattern) : null;
     final matches = <String>[];
@@ -1379,4 +1612,12 @@ class _MutableFileSnapshot {
 
   final List<int> bytes;
   final String content;
+}
+
+/// A validated ZIP entry queued for extraction.
+class _ZipEntryPlan {
+  const _ZipEntryPlan({required this.target, required this.entry});
+
+  final String target;
+  final ArchiveFile entry;
 }

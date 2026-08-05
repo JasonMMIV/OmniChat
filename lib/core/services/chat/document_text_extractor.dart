@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:archive/archive_io.dart';
 import 'package:xml/xml.dart';
@@ -95,16 +96,8 @@ class DocumentTextExtractor {
       if (docXml == null) return '[DOCX] document.xml not found';
       final xml = XmlDocument.parse(utf8.decode(docXml.content as List<int>));
       final buffer = StringBuffer();
-      for (final p in xml.findAllElements('w:p')) {
-        final texts = p.findAllElements('w:t');
-        if (texts.isEmpty) {
-          buffer.writeln();
-          continue;
-        }
-        for (final t in texts) {
-          buffer.write(t.innerText);
-        }
-        buffer.writeln();
+      for (final line in _docxBlockLines(xml)) {
+        buffer.writeln(line);
       }
       return UnicodeSanitizer.sanitize(buffer.toString());
     } catch (e) {
@@ -154,7 +147,7 @@ class DocumentTextExtractor {
         final sheetXml = XmlDocument.parse(
           utf8.decode(entry.content as List<int>),
         );
-        final lines = _sheetRowLines(sheetXml, sharedStrings).toList();
+        final lines = _sheetTableLines(sheetXml, sharedStrings).toList();
         if (lines.isEmpty) continue;
         sheetNumber += 1;
         buffer.writeln('--- Sheet $sheetNumber (${ref.name}) ---');
@@ -191,6 +184,12 @@ class DocumentTextExtractor {
 
   /// Maximum number of text runs kept when extracting a single PPTX slide.
   static const int maxSlideRuns = 5000;
+
+  /// Maximum characters kept for one cell when rendering Markdown tables.
+  static const int maxTableCellChars = 200;
+
+  /// Maximum columns rendered for one Markdown table.
+  static const int maxTableColumns = 50;
 
   /// Extract text from a PDF, DOCX, or PPTX file that has already been
   /// resolved and verified by [FileToolService.resolveSafePath].
@@ -405,22 +404,8 @@ class DocumentTextExtractor {
     final buffer = StringBuffer();
     var byteCount = 0;
     var truncated = false;
-    for (final p in xml.findAllElements('w:p')) {
-      final texts = p.findAllElements('w:t');
-      final line = StringBuffer();
-      for (final t in texts) {
-        line.write(t.innerText);
-      }
-      if (line.isEmpty) {
-        if (byteCount + 1 > maxOutputBytes) {
-          truncated = true;
-          break;
-        }
-        buffer.writeln();
-        byteCount += 1;
-        continue;
-      }
-      final block = '${line.toString().trimRight()}\n';
+    for (final line in _docxBlockLines(xml)) {
+      final block = line.isEmpty ? '\n' : '${line.trimRight()}\n';
       final blockBytes = utf8.encode(block).length;
       if (byteCount + blockBytes > maxOutputBytes) {
         truncated = true;
@@ -434,6 +419,45 @@ class DocumentTextExtractor {
       text: UnicodeSanitizer.sanitize(buffer.toString()),
       truncated: truncated,
     );
+  }
+
+  /// Yield DOCX text lines in document order, converting `<w:tbl>` elements to
+  /// Markdown table lines. Paragraphs living inside tables are skipped because
+  /// the table renderer already consumes them, while paragraphs nested in
+  /// other containers (`w:sdt` content controls, `w:txbxContent` text boxes)
+  /// are preserved.
+  static Iterable<String> _docxBlockLines(XmlDocument xml) sync* {
+    for (final element in xml.descendants.whereType<XmlElement>()) {
+      final local = element.name.local;
+      if (local == 'tbl') {
+        final rows = <List<String>>[];
+        for (final tr in element.findElements('w:tr')) {
+          final cells = <String>[];
+          for (final tc in tr.findElements('w:tc')) {
+            final buffer = StringBuffer();
+            for (final t in tc.findAllElements('w:t')) {
+              buffer.write(t.innerText);
+            }
+            cells.add(buffer.toString().trim());
+          }
+          if (cells.isNotEmpty) rows.add(cells);
+        }
+        yield* _tableToMarkdown(rows);
+        continue;
+      }
+      if (local != 'p') continue;
+      if (_hasAncestorWithLocal(element, 'tbl')) continue;
+      final texts = element.findAllElements('w:t');
+      if (texts.isEmpty) {
+        yield '';
+        continue;
+      }
+      final line = StringBuffer();
+      for (final t in texts) {
+        line.write(t.innerText);
+      }
+      yield line.toString().trimRight();
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -542,20 +566,11 @@ class DocumentTextExtractor {
       buffer.write(marker);
       byteCount += markerBytes;
 
-      var runsInSlide = 0;
-      for (final paragraph in slideXml.findAllElements('a:p')) {
-        final line = StringBuffer();
-        for (final run in paragraph.findAllElements('a:r')) {
-          for (final t in run.findAllElements('a:t')) {
-            line.write(t.innerText);
-            runsInSlide += 1;
-            if (runsInSlide >= maxSlideRuns) break;
-          }
-          if (runsInSlide >= maxSlideRuns) break;
-        }
+      final runCounter = <int>[0];
+      for (final line in _pptxBlockLines(slideXml, runCounter, maxSlideRuns)) {
         if (line.isEmpty) continue;
         foundText = true;
-        final block = '${line.toString().trimRight()}\n';
+        final block = '${line.trimRight()}\n';
         final blockBytes = utf8.encode(block).length;
         if (byteCount + blockBytes > maxOutputBytes) {
           truncated = true;
@@ -581,6 +596,87 @@ class DocumentTextExtractor {
       text: UnicodeSanitizer.sanitize(text),
       truncated: truncated,
     );
+  }
+
+  /// Yield PPTX text lines in document order, converting `<a:tbl>` elements to
+  /// Markdown table lines and skipping paragraphs that live inside tables.
+  ///
+  /// [runCounter] is mutated to enforce [maxRuns] per slide, mirroring the
+  /// original text-run cap.
+  static Iterable<String> _pptxBlockLines(
+    XmlDocument slideXml,
+    List<int> runCounter,
+    int maxRuns,
+  ) sync* {
+    for (final element in slideXml.descendants.whereType<XmlElement>()) {
+      if (runCounter[0] >= maxRuns) break;
+      final local = element.name.local;
+      if (local == 'tbl') {
+        final rows = <List<String>>[];
+        for (final tr in element.findElements('a:tr')) {
+          final cells = <String>[];
+          for (final tc in tr.findElements('a:tc')) {
+            final buffer = StringBuffer();
+            for (final t in tc.findAllElements('a:t')) {
+              buffer.write(t.innerText);
+            }
+            cells.add(buffer.toString().trim());
+          }
+          if (cells.isNotEmpty) rows.add(cells);
+        }
+        yield* _tableToMarkdown(rows);
+        continue;
+      }
+      if (local != 'p') continue;
+      if (_hasAncestorWithLocal(element, 'tbl')) continue;
+      final line = StringBuffer();
+      for (final t in element.findAllElements('a:t')) {
+        line.write(t.innerText);
+        runCounter[0] += 1;
+        if (runCounter[0] >= maxRuns) break;
+      }
+      final text = line.toString().trimRight();
+      if (text.isNotEmpty) yield text;
+    }
+  }
+
+  static bool _hasAncestorWithLocal(XmlElement element, String localName) {
+    for (final ancestor in element.ancestors.whereType<XmlElement>()) {
+      if (ancestor.name.local == localName) return true;
+    }
+    return false;
+  }
+
+  /// Render collected table rows as Markdown table lines, padding sparse rows
+  /// and truncating oversized cells.
+  static List<String> _tableToMarkdown(List<List<String>> rows) {
+    if (rows.isEmpty) return const <String>[];
+    var maxCols = 0;
+    for (final row in rows) {
+      maxCols = math.max(maxCols, row.length);
+    }
+    maxCols = math.min(maxCols, maxTableColumns);
+    final lines = <String>[];
+    for (var i = 0; i < rows.length; i++) {
+      final cells = <String>[];
+      for (var c = 0; c < maxCols; c++) {
+        final raw = c < rows[i].length ? rows[i][c] : '';
+        cells.add(_markdownCell(raw));
+      }
+      lines.add('| ${cells.join(' | ')} |');
+      if (i == 0) {
+        lines.add('|${List<String>.filled(maxCols, '---').join('|')}|');
+      }
+    }
+    return lines;
+  }
+
+  static String _markdownCell(String text) {
+    var value = text.replaceAll('|', r'\|').replaceAll('\n', ' ').trim();
+    if (value.length > maxTableCellChars) {
+      value = '${value.substring(0, maxTableCellChars)}…';
+    }
+    return value;
   }
 
   /// Read `p:sldId` relationship ids in document order from `p:sldIdLst`.
@@ -727,7 +823,7 @@ class DocumentTextExtractor {
       }
 
       var markerWritten = false;
-      for (final line in _sheetRowLines(sheetXml, sharedStrings)) {
+      for (final line in _sheetTableLines(sheetXml, sharedStrings)) {
         if (!markerWritten) {
           final nextNumber = sheetNumber + 1;
           final marker = '--- Sheet $nextNumber (${ref.name}) ---\n';
@@ -820,22 +916,52 @@ class DocumentTextExtractor {
     return buffer.toString();
   }
 
-  /// Lazily yield one text line per row that has at least one non-empty cell.
-  static Iterable<String> _sheetRowLines(
+  /// Yield one Markdown table line per worksheet row that has at least one
+  /// non-empty cell. Column positions are preserved from cell references so
+  /// sparse rows render as `| a |  | b |` instead of collapsing.
+  static Iterable<String> _sheetTableLines(
     XmlDocument sheetXml,
     List<String> sharedStrings,
   ) sync* {
+    final rows = <List<String>>[];
     for (final row in sheetXml.findAllElements('row')) {
-      final parts = <String>[];
+      final cells = <String>[];
+      var position = 0;
       for (final cell in row.findElements('c')) {
         final ref = _attributeLocal(cell, 'r');
+        final index = _cellColumnIndex(ref, position);
         final text = _cellText(cell, sharedStrings);
-        if (text.isEmpty) continue;
-        parts.add(ref.isEmpty ? text : '$ref: $text');
+        while (cells.length < index) {
+          cells.add('');
+        }
+        cells.add(text);
+        position = index + 1;
       }
-      if (parts.isEmpty) continue;
-      yield parts.join('\t');
+      if (cells.every((c) => c.isEmpty)) continue;
+      rows.add(cells);
     }
+    yield* _tableToMarkdown(rows);
+  }
+
+  /// Zero-based column index parsed from a cell reference like `C4`; falls
+  /// back to the positional index when the reference is missing.
+  static int _cellColumnIndex(String ref, int positional) {
+    var letters = '';
+    for (final rune in ref.runes) {
+      final ch = String.fromCharCode(rune);
+      final code = ch.codeUnitAt(0);
+      if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {
+        letters += ch.toUpperCase();
+      } else {
+        break;
+      }
+    }
+    if (letters.isEmpty) return positional;
+    var column = 0;
+    for (final ch in letters.split('')) {
+      column = column * 26 + (ch.codeUnitAt(0) - 64);
+    }
+    return column - 1;
   }
 
   /// Extract the value of a single `<c>` cell.

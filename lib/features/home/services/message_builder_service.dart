@@ -326,9 +326,15 @@ class MessageBuilderService {
 
 [File Workspace]
 You have file operation tools operating in: $workspacePath
-Use relative paths for all file operations. Available tools: file_read, file_write, file_append, file_edit, file_patch, file_delete, file_list, file_mkdir, file_info, file_move, file_copy, file_search, file_extract_text. file_read supports byte-based offset and limit parameters; use the returned next_offset to continue reading large files. file_edit uses exact text replacement, and file_patch accepts a single-file unified diff.
+Use relative paths for all file operations. Available tools: file_read, file_write, file_append, file_edit, file_patch, file_delete, file_list, file_mkdir, file_info, file_move, file_copy, file_search, file_extract_text, file_extract_zip, file_create_pdf. file_read supports byte-based offset and limit parameters; use the returned next_offset to continue reading large files. file_edit uses exact text replacement, and file_patch accepts a single-file unified diff.
 
-file_extract_text extracts readable text from PDF, DOCX, PPTX, and XLSX files inside the workspace (workspace-relative path only; other formats are not supported). It returns plain text without layout or OCR, so scanned PDFs may yield no text. XLSX output lists each worksheet by name with cell references such as A1: value; dates appear as raw values, formulas as cached results, and grid layout is not preserved. Large documents must be read incrementally: use the returned next_offset with the offset parameter to continue. file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPTX/XLSX binary files directly.
+file_extract_text extracts readable text from PDF, DOCX, PPTX, and XLSX files inside the workspace (workspace-relative path only; other formats are not supported). It returns text without OCR, so scanned PDFs may yield no text. Tables in DOCX, PPTX, and XLSX are returned as Markdown tables (| col1 | col2 |) with a header separator; XLSX worksheets are marked with --- Sheet N (name) ---. Dates appear as raw values and formulas as cached results. Large documents must be read incrementally: use the returned next_offset with the offset parameter to continue.
+
+file_extract_zip extracts a .zip archive into the workspace; the destination defaults to a folder named after the archive. Dangerous file types and workspace escapes are blocked, and total decompressed size is capped.
+
+file_create_pdf writes a .pdf file from Markdown text (headings, paragraphs, bold, italic, lists, tables, code blocks, page numbers). Prefer it over file_write when the user wants a formatted PDF report.
+
+file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPTX/XLSX binary files directly.
 ''';
       systemText = (systemText ?? '') + workspacePrompt;
     }
@@ -470,8 +476,8 @@ file_extract_text extracts readable text from PDF, DOCX, PPTX, and XLSX files in
     String content,
   ) {
     if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
-      apiMessages[0]['content'] =
-          ((apiMessages[0]['content'] ?? '') as String) + '\n\n' + content;
+      final existing = (apiMessages[0]['content'] ?? '') as String;
+      apiMessages[0]['content'] = '$existing\n\n$content';
     } else {
       apiMessages.insert(0, {'role': 'system', 'content': content});
     }

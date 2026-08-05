@@ -352,7 +352,7 @@ void main() {
     expect(names, contains('file_extract_text'));
   });
 
-  test('extracts DOCX text with paragraphs, entities, and table cells',
+  test('extracts DOCX text with paragraphs, entities, and Markdown tables',
       () async {
     await File('${workspace.path}/doc.docx').writeAsBytes(_docxFixture());
     final result = await FileToolService.execute('file_extract_text', {
@@ -360,9 +360,35 @@ void main() {
     }, workspace.path);
     expect(result.text, contains('Hello & welcome'));
     expect(result.text, contains('第二段 中文'));
-    expect(result.text, contains('Cell A1'));
+    // <w:tbl> content is now rendered as a Markdown table.
+    expect(result.text, contains('| Cell A1 |'));
+    expect(result.text, contains('|---|'));
     expect(result.text, contains('format=docx'));
     expect(result.text, contains('has_more=false'));
+  });
+
+  test('extracts DOCX text nested in content controls and text boxes',
+      () async {
+    await File('${workspace.path}/sdt.docx').writeAsBytes(_docxSdtFixture());
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'sdt.docx',
+    }, workspace.path);
+    expect(result.text, contains('SDT paragraph'));
+    expect(result.text, contains('Text box paragraph'));
+    expect(result.text, contains('normal'));
+  });
+
+  test('extracts PPTX tables as Markdown tables', () async {
+    await File('${workspace.path}/table.pptx').writeAsBytes(
+      _pptxTableFixture(),
+    );
+    final result = await FileToolService.execute('file_extract_text', {
+      'path': 'table.pptx',
+    }, workspace.path);
+    expect(result.text, contains('--- Slide 1 ---'));
+    expect(result.text, contains('| Name | Value |'));
+    expect(result.text, contains('|---|---|'));
+    expect(result.text, contains('| Alpha | 1 |'));
   });
 
   test('extracts PPTX text in relationship order, not filename order',
@@ -473,7 +499,7 @@ void main() {
     expect(badFormat.text, contains('Unsupported format'));
   });
 
-  test('extracts XLSX text in workbook sheet order with cell references',
+  test('extracts XLSX text in workbook sheet order as Markdown tables',
       () async {
     await File('${workspace.path}/book.xlsx').writeAsBytes(
       _xlsxFixture(sheetNames: ['Summary', 'Data']),
@@ -491,11 +517,14 @@ void main() {
     );
     expect(text, contains('--- Sheet 1 (Summary) ---'));
     expect(text, contains('--- Sheet 2 (Data) ---'));
-    expect(text, contains('A1: 3.14'));
-    expect(text, contains('A1: Hello Excel'));
-    expect(text, contains('B1: 42'));
-    expect(text, contains('C1: Inline & more'));
-    expect(text, contains('A2: 第二個 中文'));
+    // Single-cell sheets become one-column tables with a header separator.
+    expect(text, contains('| 3.14 |'));
+    expect(text, contains('|---|'));
+    // The second row has four cells (A2..D2); D2 is empty but its column
+    // position is preserved, so the header row is padded to four columns.
+    expect(text, contains('| Hello Excel | 42 | Inline & more |  |'));
+    expect(text, contains('|---|---|---|---|'));
+    expect(text, contains('| 第二個 中文 | TRUE | 123 |  |'));
   });
 
   test('auto-detects XLSX from ZIP layout without a known extension',
@@ -507,7 +536,7 @@ void main() {
       'path': 'renamed.bin',
     }, workspace.path);
     expect(result.text, contains('format=xlsx'));
-    expect(result.text, contains('A1: Hello Excel'));
+    expect(result.text, contains('| Hello Excel |'));
   });
 
   test('handles booleans, formula cache, and out-of-range string indexes',
@@ -518,10 +547,11 @@ void main() {
     final result = await FileToolService.execute('file_extract_text', {
       'path': 'types.xlsx',
     }, workspace.path);
-    expect(result.text, contains('B2: TRUE'));
-    expect(result.text, contains('C2: 123'));
-    // Shared string index 99 does not exist; the cell must be skipped.
+    expect(result.text, contains('| 第二個 中文 | TRUE | 123 |  |'));
+    // Shared string index 99 does not exist; the D2 cell is empty but its
+    // column position is preserved (four columns in the row).
     expect(result.text, isNot(contains('D2')));
+    expect(result.text, contains('|---|---|---|---|'));
   });
 
   test('reports when a workbook has no cell text', () async {
@@ -543,7 +573,7 @@ void main() {
       mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
     expect(text, contains('--- Sheet 1 (Data) ---'));
-    expect(text, contains('A1: Hello Excel'));
+    expect(text, contains('| Hello Excel |'));
   });
 
   test('auto-detects uppercase XLSX extensions', () async {
@@ -554,7 +584,7 @@ void main() {
       'path': 'UPPER.XLSX',
     }, workspace.path);
     expect(result.text, contains('format=xlsx'));
-    expect(result.text, contains('A1: Hello Excel'));
+    expect(result.text, contains('| Hello Excel |'));
   });
 
   test('honors a format override for XLSX', () async {
@@ -565,7 +595,7 @@ void main() {
       'path': 'renamed.bin',
       'format': 'xlsx',
     }, workspace.path);
-    expect(result.text, contains('A1: Hello Excel'));
+    expect(result.text, contains('| Hello Excel |'));
   });
 
   test('extracts numeric-only workbooks without a sharedStrings part',
@@ -580,7 +610,7 @@ void main() {
       'path': 'numbers.xlsx',
     }, workspace.path);
     expect(result.text, contains('format=xlsx'));
-    expect(result.text, contains('A1: 3.14'));
+    expect(result.text, contains('| 3.14 |'));
   });
 
   test('reports an XLSX missing workbook.xml as an error', () async {
@@ -621,15 +651,19 @@ void main() {
     await File('${workspace.path}/uni.xlsx').writeAsBytes(
       _xlsxInlineCellFixture('A😀B'),
     );
-    // Extracted text is '--- Sheet 1 (Data) ---\nA1: A😀B\n'; the emoji
-    // occupies bytes 28..31, so offset 30 lands in the middle of it and must
-    // advance to the next complete code point.
+    // Content is '--- Sheet 1 (Data) ---\n| A😀B |\n'. Find the emoji start
+    // byte inside the pure extracted content, then read from the middle of it.
+    final full = await FileToolService.execute('file_extract_text', {
+      'path': 'uni.xlsx',
+    }, workspace.path);
+    final content = full.text.substring(full.text.indexOf('\n') + 1);
+    final emojiStart = utf8.encode(content.split('😀').first).length;
     final result = await FileToolService.execute('file_extract_text', {
       'path': 'uni.xlsx',
-      'offset': 30,
+      'offset': emojiStart + 1,
       'limit': 10,
     }, workspace.path);
-    expect(result.text, contains('\nB'));
+    expect(result.text, contains('B'));
     expect(result.text, isNot(contains('\uFFFD')));
   });
 
@@ -715,6 +749,187 @@ void main() {
       'path': 'link/doc.pdf',
     }, workspace.path);
     expect(result.text, contains('Error'));
+  });
+
+  // ==========================================================================
+  // file_extract_zip
+  // ==========================================================================
+
+  test('exposes file_extract_zip and file_create_pdf in the definition list',
+      () {
+    final names = FileToolService.getToolDefinitions()
+        .map((definition) => definition['function']['name'])
+        .toSet();
+    expect(names, containsAll(<String>['file_extract_zip', 'file_create_pdf']));
+  });
+
+  test('extracts a ZIP archive into a folder named after the archive',
+      () async {
+    await File('${workspace.path}/bundle.zip').writeAsBytes(_zipBytes({
+      'notes/a.txt': 'alpha',
+      'notes/b.txt': 'beta',
+      'readme.md': '# README',
+    }));
+    final result = await FileToolService.execute('file_extract_zip', {
+      'path': 'bundle.zip',
+    }, workspace.path);
+    expect(result.text, contains('Extracted 3 file(s)'));
+    expect(result.text, contains('- bundle/notes/a.txt'));
+    expect(
+      await File('${workspace.path}/bundle/notes/a.txt').readAsString(),
+      'alpha',
+    );
+    expect(
+      await File('${workspace.path}/bundle/readme.md').readAsString(),
+      '# README',
+    );
+  });
+
+  test('extracts a ZIP into an explicit destination directory', () async {
+    await File('${workspace.path}/bundle.zip').writeAsBytes(_zipBytes({
+      'a.txt': 'x',
+    }));
+    final result = await FileToolService.execute('file_extract_zip', {
+      'path': 'bundle.zip',
+      'destination': 'out/target',
+    }, workspace.path);
+    expect(result.text, contains('out/target'));
+    expect(
+      await File('${workspace.path}/out/target/a.txt').readAsString(),
+      'x',
+    );
+  });
+
+  test('rejects ZIP entries that escape the destination directory', () async {
+    await File('${workspace.path}/evil.zip').writeAsBytes(_zipBytes({
+      '../escape.txt': 'boom',
+    }));
+    final result = await FileToolService.execute('file_extract_zip', {
+      'path': 'evil.zip',
+    }, workspace.path);
+    expect(result.text, contains('Error'));
+    expect(result.text, contains('escapes'));
+    expect(File('${workspace.path}/escape.txt').existsSync(), isFalse);
+  });
+
+  test('rejects backslash traversal and absolute-path ZIP entries', () async {
+    await File('${workspace.path}/evil.zip').writeAsBytes(_zipBytes({
+      r'..\escape.txt': 'boom',
+      r'sub/../escape2.txt': 'boom',
+      '/etc/passwd': 'root',
+    }));
+    final result = await FileToolService.execute('file_extract_zip', {
+      'path': 'evil.zip',
+    }, workspace.path);
+    expect(result.text, contains('Error'));
+    expect(File('${workspace.path}/escape.txt').existsSync(), isFalse);
+    expect(File('${workspace.path}/etc/passwd').existsSync(), isFalse);
+  });
+
+  test('rejects ZIP entries with blocked extensions', () async {
+    await File('${workspace.path}/bad.zip').writeAsBytes(_zipBytes({
+      'tool.exe': 'MZ',
+    }));
+    final result = await FileToolService.execute('file_extract_zip', {
+      'path': 'bad.zip',
+    }, workspace.path);
+    expect(result.text, contains('Error'));
+    expect(result.text, contains('blocked'));
+    expect(File('${workspace.path}/bad/tool.exe').existsSync(), isFalse);
+  });
+
+  test('rejects malformed and missing ZIP archives', () async {
+    // Garbage bytes must be rejected safely (the decoder may return an empty
+    // archive instead of throwing; either way no files are extracted).
+    await File('${workspace.path}/fake.zip').writeAsBytes(
+      utf8.encode('this is definitely not a zip archive'),
+    );
+    final malformed = await FileToolService.execute('file_extract_zip', {
+      'path': 'fake.zip',
+    }, workspace.path);
+    expect(malformed.text, contains('Error'));
+
+    final missing = await FileToolService.execute('file_extract_zip', {
+      'path': 'nope.zip',
+    }, workspace.path);
+    expect(missing.text, contains('File not found'));
+  });
+
+  test('rejects ZIP archives with too many entries', () async {
+    final entries = <String, String>{};
+    for (var i = 0; i <= FileToolService.maxZipEntries; i++) {
+      entries['f$i.txt'] = 'x';
+    }
+    await File('${workspace.path}/many.zip').writeAsBytes(_zipBytes(entries));
+    final result = await FileToolService.execute('file_extract_zip', {
+      'path': 'many.zip',
+    }, workspace.path);
+    expect(result.text, contains('more than 1000 files'));
+  });
+
+  test('rejects a directory or non-file ZIP path', () async {
+    await Directory('${workspace.path}/dir').create();
+    final dirResult = await FileToolService.execute('file_extract_zip', {
+      'path': 'dir',
+    }, workspace.path);
+    expect(dirResult.text, contains('not a regular file'));
+  });
+
+  // ==========================================================================
+  // file_create_pdf
+  // ==========================================================================
+
+  test('creates a readable PDF from Markdown content', () async {
+    final result = await FileToolService.execute('file_create_pdf', {
+      'path': 'report.pdf',
+      'content': '# Title\n\nHello **world** and 中文 content.\n\n- item one\n- item two',
+    }, workspace.path);
+    expect(result.createdOrModifiedFilePath, isNotNull);
+    expect(result.text, contains('Created'));
+    final file = File('${workspace.path}/report.pdf');
+    expect(await file.exists(), isTrue);
+    final bytes = await file.readAsBytes();
+    expect(bytes.length, greaterThan(100));
+
+    final document = PdfDocument(inputBytes: bytes);
+    addTearDown(document.dispose);
+    final text = PdfTextExtractor(document).extractText();
+    expect(text, contains('Title'));
+    expect(text, contains('Hello'));
+    expect(text, contains('world'));
+  });
+
+  test('renders Chinese text and tables in generated PDFs', () async {
+    final result = await FileToolService.execute('file_create_pdf', {
+      'path': 'chinese.pdf',
+      'content': '# 報告\n\n中文段落測試\n\n| 名稱 | 數量 |\n| --- | --- |\n| 蘋果 | 3 |',
+    }, workspace.path);
+    expect(result.text, contains('Created'));
+    final bytes = await File('${workspace.path}/chinese.pdf').readAsBytes();
+    final document = PdfDocument(inputBytes: bytes);
+    addTearDown(document.dispose);
+    final text = PdfTextExtractor(document).extractText();
+    expect(text, contains('報告'));
+    expect(text, contains('蘋果'));
+  });
+
+  test('rejects invalid file_create_pdf arguments', () async {
+    final missing = await FileToolService.execute('file_create_pdf', {
+      'path': 'x.pdf',
+    }, workspace.path);
+    expect(missing.text, contains('content argument'));
+
+    final empty = await FileToolService.execute('file_create_pdf', {
+      'path': 'x.pdf',
+      'content': '   ',
+    }, workspace.path);
+    expect(empty.text, contains('empty'));
+
+    final oversized = await FileToolService.execute('file_create_pdf', {
+      'path': 'x.pdf',
+      'content': 'x' * (FileToolService.maxWriteBytes + 1),
+    }, workspace.path);
+    expect(oversized.text, contains('512 KB'));
   });
 }
 
@@ -886,6 +1101,79 @@ String _xlsxEmptySheetXml() => '''<?xml version="1.0" encoding="UTF-8" standalon
     <row r="1"><c r="A1"/></row>
   </sheetData>
 </worksheet>''';
+
+List<int> _docxSdtFixture() {
+  return _zipBytes({
+    'word/document.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:sdt><w:sdtContent><w:p><w:r><w:t>SDT paragraph</w:t></w:r></w:p></w:sdtContent></w:sdt>
+    <w:p>
+      <w:r>
+        <w:drawing>
+          <wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+            <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
+                <wps:wsp xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
+                  <wps:txbx>
+                    <w:txbxContent>
+                      <w:p><w:r><w:t>Text box paragraph</w:t></w:r></w:p>
+                    </w:txbxContent>
+                  </wps:txbx>
+                </wps:wsp>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+    </w:p>
+    <w:p><w:r><w:t>normal</w:t></w:r></w:p>
+  </w:body>
+</w:document>''',
+  });
+}
+
+List<int> _pptxTableFixture() {
+  return _zipBytes({
+    'ppt/presentation.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="256" r:id="rId1"/>
+  </p:sldIdLst>
+</p:presentation>''',
+    'ppt/_rels/presentation.xml.rels': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>''',
+    'ppt/slides/slide1.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld>
+    <p:spTree>
+      <p:graphicFrame>
+        <a:graphic>
+          <a:graphicData>
+            <a:tbl>
+              <a:tblPr/>
+              <a:tblGrid>
+                <a:gridCol/><a:gridCol/>
+              </a:tblGrid>
+              <a:tr h="100">
+                <a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:t>Name</a:t></a:r></a:p></a:txBody></a:tc>
+                <a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:t>Value</a:t></a:r></a:p></a:txBody></a:tc>
+              </a:tr>
+              <a:tr h="100">
+                <a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:t>Alpha</a:t></a:r></a:p></a:txBody></a:tc>
+                <a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:t>1</a:t></a:r></a:p></a:txBody></a:tc>
+              </a:tr>
+            </a:tbl>
+          </a:graphicData>
+        </a:graphic>
+      </p:graphicFrame>
+    </p:spTree>
+  </p:cSld>
+</p:sld>''',
+  });
+}
 
 List<int> _pdfFixture({required int pages}) {
   final document = PdfDocument();

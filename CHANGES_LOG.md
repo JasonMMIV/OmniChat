@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-05 (v1.8.1)
+- **Last Updated**: 2026-08-05 (v1.9.0)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -178,6 +178,59 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+
+## [v1.9.0] - 2026-08-05: ZIP Extraction, Markdown Table Output & PDF Generation
+
+### 164. `file_extract_zip` Workspace Tool
+
+- **Purpose**: Add a `file_extract_zip` workspace tool so the LLM can unpack batch-uploaded archives inside the workspace, with strict Zip-Slip defenses and decompression-bomb limits. Reuses the existing `archive` dependency — no new packages.
+- **Files Modified**:
+  - `lib/core/services/file/file_tool_service.dart` (`file_extract_zip` schema, dispatch case, `_extractZip`: source cap 100 MB, total decompressed cap 50 MB, entry cap 1000, per-entry `..`/absolute-path rejection, `_rejectBlockedExtension` per entry, header-size pre-check + post-decompression size re-check, validation-before-write pass with best-effort cleanup, default destination = archive stem folder, forward-slash normalized listing capped at 100 entries)
+  - `lib/features/home/services/message_builder_service.dart` (workspace prompt: `file_extract_zip` documented)
+  - `test/file_tool_service_test.dart` (ZIP tests: default & explicit destination, Zip-Slip rejection, blocked extensions, malformed/missing archives, entry-count limit, non-file path)
+  - `README.md` / `README_ZH_TW.MD` (Workspace section)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Zip-Slip defense**: every entry name is normalized (`\` → `/`), rejected when absolute or containing a `..` segment, blocked when the extension is dangerous, and the final path is resolved through the existing `resolveSafePath()` boundary check before any write.
+  - **Zip-bomb defense**: the archive central directory is parsed first; `entry.size` (uncompressed) is summed against the 50 MB total cap **before** any entry is decompressed, and a second check on the actual decompressed length runs during extraction.
+  - **Transactional validation**: all entries are validated before the first file is written; failures abort with an `Error` result and best-effort cleanup of partial output.
+  - **Default destination**: omitted `destination` extracts into a folder named after the archive next to it (e.g. `bundle.zip` → `bundle/`).
+
+### 165. DOCX / PPTX / XLSX Output as Markdown Tables
+
+- **Purpose**: Upgrade `DocumentTextExtractor` so tables in DOCX, PPTX, and XLSX files are returned as structured Markdown tables (`| col1 | col2 |` with a header separator) instead of flattened text / `A1: value` cell references, making spreadsheet and document analysis dramatically more reliable for the LLM.
+- **Files Modified**:
+  - `lib/core/services/chat/document_text_extractor.dart` (shared `_tableToMarkdown` / `_markdownCell` helpers with cell truncation & column caps; DOCX `_docxBlockLines` walks `w:body` children in order, renders `w:tbl` as tables and excludes table-internal paragraphs from the plain loop; PPTX `_pptxBlockLines` walks slide descendants, renders `a:tbl` as tables and skips paragraphs inside tables, preserving the per-slide text-run cap; XLSX `_sheetTableLines` preserves column positions from cell references with empty-cell padding instead of skipping them; both the chat-attachment extractors and the workspace `file_extract_text` path share the new helpers)
+  - `lib/core/services/file/file_tool_service.dart` (`file_extract_text` description: tables returned as Markdown)
+  - `lib/features/home/services/message_builder_service.dart` (workspace prompt: Markdown table output documented, `A1: value` reference removed)
+  - `test/file_tool_service_test.dart` (11 XLSX tests rewritten to the Markdown format, DOCX/PPTX table assertions, new PPTX table fixture)
+  - `README.md` / `README_ZH_TW.MD` (Workspace section)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Duplicate-output fix**: DOCX `w:p` and PPTX `a:p` inside tables are no longer emitted as plain paragraphs (they were previously flattened), preventing table text from appearing twice.
+  - **Sparse cells preserved**: XLSX rows with empty interior cells now render as padded `| a |  | b |` rows instead of collapsing columns; out-of-range shared-string indexes and empty trailing cells keep their column position.
+  - **Bounds**: cells truncated at 200 chars, tables capped at 50 columns; sheet markers (`--- Sheet N (name) ---`) and byte-capped continuation reads are unchanged.
+
+### 166. `file_create_pdf` Workspace Tool (Markdown → PDF)
+
+- **Purpose**: Add a `file_create_pdf` workspace tool so the LLM can write a formatted PDF report from Markdown text. Uses the **already-present** `syncfusion_flutter_pdf` engine (no `pdf` package, no bundled CJK fonts) with built-in Simplified / Traditional Chinese rendering via `PdfCjkStandardFont`.
+- **Files Modified**:
+  - `lib/core/services/file/markdown_pdf_converter.dart` (NEW — `MarkdownPdfConverter`: ATX headings, paragraphs, bold / italic / inline code, ordered & unordered lists, GFM pipe tables via `PdfGrid`, fenced code blocks with tinted background, block quotes, horizontal rules, `[text](url)` / `![alt](url)` links, per-page page numbers; manual word-wrap via `measureString`; traditional-vs-simplified CJK font detection (`monotypeSungLight` vs `sinoTypeSongLight`); 8 MB output cap)
+  - `lib/core/services/file/file_tool_service.dart` (`file_create_pdf` schema & dispatch, `_createPdf`: required string content capped at 512 KB, `MarkdownPdfConverter.convert`, FileRecord metadata returned so the file card appears)
+  - `lib/features/home/services/message_builder_service.dart` (workspace prompt: `file_create_pdf` documented)
+  - `test/markdown_pdf_converter_test.dart` (NEW — headings/lists/code/page numbers, tables/quotes/HR, Simplified & Traditional Chinese extraction round-trip, link stripping, size cap)
+  - `test/file_tool_service_test.dart` (PDF tool tests: readable output, Chinese + table rendering, invalid argument rejection)
+  - `README.md` / `README_ZH_TW.MD` (Workspace section)
+  - `CHANGES_LOG.md` (this entry)
+- **Details**:
+  - **Library choice**: the original plan proposed adding `pdf: ^3.12.0`; review found `syncfusion_flutter_pdf` is already a direct dependency (used for PDF text extraction) and its `PdfCjkStandardFont` renders Chinese without bundling font files, so no new dependency was added.
+  - **CJK detection**: the renderer picks `monotypeSungLight` (MSung) when Traditional-only characters are detected and `sinoTypeSongLight` (STSong) otherwise, so both scripts render without viewer substitution.
+  - **FileRecord**: successful writes return `createdOrModifiedFilePath` / `fileName` / `fileSizeBytes`, so the existing assistant file-card flow attaches the generated PDF automatically.
+  - **Isolate rendering (review fix)**: `_createPdf` runs `MarkdownPdfConverter.convert` via `compute()` in a background isolate so large documents do not jank the UI (the converter is pure Dart and sendable).
+  - **DOCX nested paragraphs (review fix)**: `_docxBlockLines` walks all descendants (like the PPTX path) instead of only direct `w:body` children, so paragraphs nested in `w:sdt` content controls and `w:txbxContent` text boxes are preserved while table-internal paragraphs stay deduplicated.
+  - **ZIP test coverage (review fix)**: added backslash-traversal (`..\x`) and absolute-path (`/etc/passwd`) entry tests.
+  - **Vertical layout fix (second-pass review)**: `_drawRuns` now advances past the final drawn line and `_drawCodeBlock` page-breaks before every line, fixing overlapping text when paragraphs / headings / lists / code blocks wrapped past a single line; the trailing line-height advance no longer produces a spurious blank page at the document end.
+- **Tests**: `flutter test` — full suite passes (99 tests; +11 ZIP tool tests, +5 PDF tool tests, +7 converter tests, +1 DOCX nested-paragraph test, +2 vertical-space page regression tests, XLSX/DOCX/PPTX format assertions updated).
 
 ## [v1.8.1+] - 2026-08-05: Unrestricted Chat File Upload & Legacy Office MIME Handling
 
