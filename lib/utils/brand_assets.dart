@@ -50,6 +50,7 @@ class BrandAssets {
     MapEntry(RegExp(r'github'), 'github.svg'),
     MapEntry(RegExp(r'cloudflare'), 'cloudflare-color.svg'),
     MapEntry(RegExp(r'minimax'), 'minimax-color.svg'),
+    MapEntry(RegExp(r'groq'), 'groq-color.svg'),
     MapEntry(RegExp(r'xai'), 'xai.svg'),
     MapEntry(RegExp(r'juhenext'), 'juhenext.png'),
     MapEntry(RegExp(r'kimi'), 'kimi-color.svg'),

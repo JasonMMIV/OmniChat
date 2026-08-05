@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-05 (v1.9.0)
+- **Last Updated**: 2026-08-06 (v1.10.0)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -470,6 +470,20 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
   - **UI**: Workspace button in the app bar opens `WorkspaceSheet` (pick / change folder, default = app-private `files/` sandbox); `WorkspaceFileBrowser` browses the sandbox; assistant messages render file cards with show-in-folder / open-externally / download / share actions.
   - **Tests (review fix)**: `test/widget_test.dart` rewritten as a deterministic `MyApp(enableUpdateCheck: false)` smoke test; `test/file_tool_service_test.dart` covers sandbox escapes, symlink rejection, byte limits, listing/search truncation, and CRUD operations. Full suite: 31 tests pass.
   - **Localization (review fix)**: workspace & file-card strings added across en / zh / zh_Hans / zh_Hant ARB files and wired to `AppLocalizations`.
+
+- **v1.10.0** (2026-08-06, entry #155):
+  - **Summary**: Integrated upstream Kelivo voice service features — 4 new Network TTS providers (Qwen, Groq, xAI, MiMo), MiniMax default model upgrade to `speech-2.6-turbo`, Voice Settings page (`TtsSettingsPage`) with auto-play assistant replies and speech text content filter ("Full text" / "Text outside brackets"), and Settings button ⚙️ added to voice service headers on Mobile and Desktop.
+  - **Files Changed**:
+    - `lib/core/services/tts/tts_text_selection.dart` (new `TtsTextSelection` utility for regex bracket stripping)
+    - `lib/core/services/tts/network_tts.dart` (`QwenTtsOptions`, `GroqTtsOptions`, `XaiTtsOptions`, `MimoTtsOptions`, API handlers)
+    - `lib/core/providers/settings_provider.dart` (`ttsAutoPlayAssistantReplies`, `ttsTextSelectionMode` getters/setters & persistence)
+    - `lib/features/settings/pages/tts_settings_page.dart` (new settings page with switch and radio controls)
+    - `lib/features/settings/pages/tts_services_page.dart` (mobile settings button & all 8 TTS providers UI)
+    - `lib/desktop/setting/tts_services_pane.dart` (desktop settings button & dialog UI for 8 TTS providers)
+    - `lib/features/home/controllers/home_page_controller.dart` (stream finished auto-play hook & speech text filtering)
+    - `lib/l10n/app_en.arb` / `app_zh.arb` (Voice settings & new TTS provider translations)
+    - `pubspec.yaml` (version bumped to `1.10.0+69`)
+    - `installer.iss` / `installers/omnichat_setup.iss` (installer version 1.10.0)
 
 ---
 

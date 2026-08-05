@@ -5,7 +5,16 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
-enum NetworkTtsKind { openai, gemini, minimax, elevenlabs }
+enum NetworkTtsKind {
+  openai,
+  gemini,
+  minimax,
+  qwen,
+  groq,
+  xai,
+  elevenlabs,
+  mimo,
+}
 
 String networkTtsKindDisplayName(NetworkTtsKind k) {
   switch (k) {
@@ -15,8 +24,16 @@ String networkTtsKindDisplayName(NetworkTtsKind k) {
       return 'Gemini';
     case NetworkTtsKind.minimax:
       return 'MiniMax';
+    case NetworkTtsKind.qwen:
+      return 'Qwen';
+    case NetworkTtsKind.groq:
+      return 'Groq';
+    case NetworkTtsKind.xai:
+      return 'xAI';
     case NetworkTtsKind.elevenlabs:
       return 'ElevenLabs';
+    case NetworkTtsKind.mimo:
+      return 'MiMo';
   }
 }
 
@@ -68,10 +85,41 @@ abstract class TtsServiceOptions {
           name: name.isEmpty ? 'MiniMax TTS' : name,
           apiKey: (json['apiKey'] ?? '').toString(),
           baseUrl: (json['baseUrl'] ?? 'https://api.minimaxi.com/v1').toString(),
-          model: (json['model'] ?? 'speech-2.5-hd-preview').toString(),
+          model: (json['model'] ?? 'speech-2.6-turbo').toString(),
           voiceId: (json['voiceId'] ?? 'female-shaonv').toString(),
           emotion: (json['emotion'] ?? 'calm').toString(),
           speed: _toDouble(json['speed'], 1.0),
+        );
+      case 'qwen':
+        return QwenTtsOptions(
+          id: id.isEmpty ? null : id,
+          enabled: enabled,
+          name: name.isEmpty ? 'Qwen TTS' : name,
+          apiKey: (json['apiKey'] ?? '').toString(),
+          baseUrl: (json['baseUrl'] ?? 'https://dashscope.aliyuncs.com/api/v1').toString(),
+          model: (json['model'] ?? 'qwen3-tts-flash').toString(),
+          voice: (json['voice'] ?? 'Cherry').toString(),
+          languageType: (json['languageType'] ?? 'Auto').toString(),
+        );
+      case 'groq':
+        return GroqTtsOptions(
+          id: id.isEmpty ? null : id,
+          enabled: enabled,
+          name: name.isEmpty ? 'Groq TTS' : name,
+          apiKey: (json['apiKey'] ?? '').toString(),
+          baseUrl: (json['baseUrl'] ?? 'https://api.groq.com/openai/v1').toString(),
+          model: (json['model'] ?? 'canopylabs/orpheus-v1-english').toString(),
+          voice: (json['voice'] ?? 'austin').toString(),
+        );
+      case 'xai':
+        return XaiTtsOptions(
+          id: id.isEmpty ? null : id,
+          enabled: enabled,
+          name: name.isEmpty ? 'xAI TTS' : name,
+          apiKey: (json['apiKey'] ?? '').toString(),
+          baseUrl: (json['baseUrl'] ?? 'https://api.x.ai/v1').toString(),
+          voiceId: (json['voiceId'] ?? 'eve').toString(),
+          language: (json['language'] ?? 'auto').toString(),
         );
       case 'elevenlabs':
         return ElevenLabsTtsOptions(
@@ -83,6 +131,16 @@ abstract class TtsServiceOptions {
           modelId: (json['modelId'] ?? 'eleven_multilingual_v2').toString(),
           voiceId: (json['voiceId'] ?? '').toString(),
           outputFormat: (json['outputFormat'] ?? 'mp3_44100_128').toString(),
+        );
+      case 'mimo':
+        return MimoTtsOptions(
+          id: id.isEmpty ? null : id,
+          enabled: enabled,
+          name: name.isEmpty ? 'MiMo TTS' : name,
+          apiKey: (json['apiKey'] ?? '').toString(),
+          baseUrl: (json['baseUrl'] ?? 'https://api.xiaomimimo.com/v1').toString(),
+          model: (json['model'] ?? 'mimo-v2-tts').toString(),
+          voice: (json['voice'] ?? 'mimo_default').toString(),
         );
       default:
         // Fallback to OpenAI shape to avoid crash if kind missing
@@ -195,6 +253,93 @@ class MiniMaxTtsOptions extends TtsServiceOptions {
       };
 }
 
+class QwenTtsOptions extends TtsServiceOptions {
+  final String apiKey;
+  final String baseUrl;
+  final String model;
+  final String voice;
+  final String languageType;
+  QwenTtsOptions({
+    super.id,
+    required super.enabled,
+    required super.name,
+    required this.apiKey,
+    required this.baseUrl,
+    required this.model,
+    required this.voice,
+    required this.languageType,
+  }) : super(kind: NetworkTtsKind.qwen);
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'enabled': enabled,
+        'name': name,
+        'kind': 'qwen',
+        'apiKey': apiKey,
+        'baseUrl': baseUrl,
+        'model': model,
+        'voice': voice,
+        'languageType': languageType,
+      };
+}
+
+class GroqTtsOptions extends TtsServiceOptions {
+  final String apiKey;
+  final String baseUrl;
+  final String model;
+  final String voice;
+  GroqTtsOptions({
+    super.id,
+    required super.enabled,
+    required super.name,
+    required this.apiKey,
+    required this.baseUrl,
+    required this.model,
+    required this.voice,
+  }) : super(kind: NetworkTtsKind.groq);
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'enabled': enabled,
+        'name': name,
+        'kind': 'groq',
+        'apiKey': apiKey,
+        'baseUrl': baseUrl,
+        'model': model,
+        'voice': voice,
+      };
+}
+
+class XaiTtsOptions extends TtsServiceOptions {
+  final String apiKey;
+  final String baseUrl;
+  final String voiceId;
+  final String language;
+  XaiTtsOptions({
+    super.id,
+    required super.enabled,
+    required super.name,
+    required this.apiKey,
+    required this.baseUrl,
+    required this.voiceId,
+    required this.language,
+  }) : super(kind: NetworkTtsKind.xai);
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'enabled': enabled,
+        'name': name,
+        'kind': 'xai',
+        'apiKey': apiKey,
+        'baseUrl': baseUrl,
+        'voiceId': voiceId,
+        'language': language,
+      };
+}
+
 class ElevenLabsTtsOptions extends TtsServiceOptions {
   final String apiKey;
   final String baseUrl;
@@ -227,6 +372,34 @@ class ElevenLabsTtsOptions extends TtsServiceOptions {
       };
 }
 
+class MimoTtsOptions extends TtsServiceOptions {
+  final String apiKey;
+  final String baseUrl;
+  final String model;
+  final String voice;
+  MimoTtsOptions({
+    super.id,
+    required super.enabled,
+    required super.name,
+    required this.apiKey,
+    required this.baseUrl,
+    required this.model,
+    required this.voice,
+  }) : super(kind: NetworkTtsKind.mimo);
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'enabled': enabled,
+        'name': name,
+        'kind': 'mimo',
+        'apiKey': apiKey,
+        'baseUrl': baseUrl,
+        'model': model,
+        'voice': voice,
+      };
+}
+
 class NetworkTtsResult {
   final Uint8List bytes;
   final String mime; // e.g. audio/mpeg or audio/wav
@@ -250,8 +423,16 @@ class NetworkTtsService {
           return _geminiSpeech(options as GeminiTtsOptions, text, c, cancelled);
         case NetworkTtsKind.minimax:
           return _miniMaxSpeech(options as MiniMaxTtsOptions, text, c, cancelled);
+        case NetworkTtsKind.qwen:
+          return _qwenSpeech(options as QwenTtsOptions, text, c, cancelled);
+        case NetworkTtsKind.groq:
+          return _groqSpeech(options as GroqTtsOptions, text, c, cancelled);
+        case NetworkTtsKind.xai:
+          return _xaiSpeech(options as XaiTtsOptions, text, c, cancelled);
         case NetworkTtsKind.elevenlabs:
           return _elevenLabsSpeech(options as ElevenLabsTtsOptions, text, c, cancelled);
+        case NetworkTtsKind.mimo:
+          return _mimoSpeech(options as MimoTtsOptions, text, c, cancelled);
       }
     } finally {
       if (client == null) {
@@ -443,6 +624,94 @@ class NetworkTtsService {
                 ? 'audio/ogg'
                 : 'application/octet-stream';
     return NetworkTtsResult(bytes: Uint8List.fromList(bytes), mime: mime);
+  }
+
+  static Future<NetworkTtsResult> _qwenSpeech(QwenTtsOptions opt, String text, http.Client c, FutureOr<bool> Function()? cancelled) async {
+    final uri = Uri.parse(opt.baseUrl.endsWith('/') ? '${opt.baseUrl}services/aigc/text-to-speech/synthesis' : '${opt.baseUrl}/services/aigc/text-to-speech/synthesis');
+    final body = jsonEncode({
+      'model': opt.model,
+      'input': {'text': text},
+      'parameters': {
+        'voice': opt.voice,
+        if (opt.languageType.isNotEmpty && opt.languageType != 'Auto') 'language_type': opt.languageType,
+      }
+    });
+    final req = http.Request('POST', uri)
+      ..headers['Authorization'] = 'Bearer ${opt.apiKey}'
+      ..headers['Content-Type'] = 'application/json'
+      ..body = body;
+    final resp = await c.send(req);
+    if (cancelled != null && await cancelled()) throw _Cancelled();
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      final txt = await resp.stream.bytesToString();
+      throw Exception('Qwen TTS failed: ${resp.statusCode} ${resp.reasonPhrase} $txt');
+    }
+    final bytes = await resp.stream.toBytes();
+    return NetworkTtsResult(bytes: Uint8List.fromList(bytes), mime: 'audio/mpeg');
+  }
+
+  static Future<NetworkTtsResult> _groqSpeech(GroqTtsOptions opt, String text, http.Client c, FutureOr<bool> Function()? cancelled) async {
+    final uri = Uri.parse(opt.baseUrl.endsWith('/') ? '${opt.baseUrl}audio/speech' : '${opt.baseUrl}/audio/speech');
+    final body = jsonEncode({
+      'model': opt.model,
+      'input': text,
+      'voice': opt.voice,
+      'response_format': 'mp3',
+    });
+    final req = http.Request('POST', uri)
+      ..headers['Authorization'] = 'Bearer ${opt.apiKey}'
+      ..headers['Content-Type'] = 'application/json'
+      ..body = body;
+    final resp = await c.send(req);
+    if (cancelled != null && await cancelled()) throw _Cancelled();
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      final txt = await resp.stream.bytesToString();
+      throw Exception('Groq TTS failed: ${resp.statusCode} ${resp.reasonPhrase} $txt');
+    }
+    final bytes = await resp.stream.toBytes();
+    return NetworkTtsResult(bytes: Uint8List.fromList(bytes), mime: 'audio/mpeg');
+  }
+
+  static Future<NetworkTtsResult> _xaiSpeech(XaiTtsOptions opt, String text, http.Client c, FutureOr<bool> Function()? cancelled) async {
+    final uri = Uri.parse(opt.baseUrl.endsWith('/') ? '${opt.baseUrl}audio/speech' : '${opt.baseUrl}/audio/speech');
+    final body = jsonEncode({
+      'input': text,
+      'voice': opt.voiceId,
+      if (opt.language.isNotEmpty && opt.language != 'auto') 'language': opt.language,
+    });
+    final req = http.Request('POST', uri)
+      ..headers['Authorization'] = 'Bearer ${opt.apiKey}'
+      ..headers['Content-Type'] = 'application/json'
+      ..body = body;
+    final resp = await c.send(req);
+    if (cancelled != null && await cancelled()) throw _Cancelled();
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      final txt = await resp.stream.bytesToString();
+      throw Exception('xAI TTS failed: ${resp.statusCode} ${resp.reasonPhrase} $txt');
+    }
+    final bytes = await resp.stream.toBytes();
+    return NetworkTtsResult(bytes: Uint8List.fromList(bytes), mime: 'audio/mpeg');
+  }
+
+  static Future<NetworkTtsResult> _mimoSpeech(MimoTtsOptions opt, String text, http.Client c, FutureOr<bool> Function()? cancelled) async {
+    final uri = Uri.parse(opt.baseUrl.endsWith('/') ? '${opt.baseUrl}audio/speech' : '${opt.baseUrl}/audio/speech');
+    final body = jsonEncode({
+      'model': opt.model,
+      'input': text,
+      'voice': opt.voice,
+    });
+    final req = http.Request('POST', uri)
+      ..headers['Authorization'] = 'Bearer ${opt.apiKey}'
+      ..headers['Content-Type'] = 'application/json'
+      ..body = body;
+    final resp = await c.send(req);
+    if (cancelled != null && await cancelled()) throw _Cancelled();
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      final txt = await resp.stream.bytesToString();
+      throw Exception('MiMo TTS failed: ${resp.statusCode} ${resp.reasonPhrase} $txt');
+    }
+    final bytes = await resp.stream.toBytes();
+    return NetworkTtsResult(bytes: Uint8List.fromList(bytes), mime: 'audio/mpeg');
   }
 }
 

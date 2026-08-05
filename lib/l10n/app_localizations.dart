@@ -4799,6 +4799,66 @@ abstract class AppLocalizations {
   /// **'TTS'**
   String get ttsServicesPageTitle;
 
+  /// No description provided for @ttsServicesPageSettingsTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get ttsServicesPageSettingsTooltip;
+
+  /// No description provided for @ttsSettingsPageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice Settings'**
+  String get ttsSettingsPageTitle;
+
+  /// No description provided for @ttsSettingsPlaybackSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback'**
+  String get ttsSettingsPlaybackSection;
+
+  /// No description provided for @ttsSettingsAutoPlayTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-play assistant replies'**
+  String get ttsSettingsAutoPlayTitle;
+
+  /// No description provided for @ttsSettingsAutoPlayDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatically speak when AI finishes responding'**
+  String get ttsSettingsAutoPlayDescription;
+
+  /// No description provided for @ttsSettingsTextSelectionSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Content Filter'**
+  String get ttsSettingsTextSelectionSection;
+
+  /// No description provided for @ttsSettingsTextSelectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Speech Content'**
+  String get ttsSettingsTextSelectionTitle;
+
+  /// No description provided for @ttsSettingsTextSelectionFullText.
+  ///
+  /// In en, this message translates to:
+  /// **'Full text'**
+  String get ttsSettingsTextSelectionFullText;
+
+  /// No description provided for @ttsSettingsTextSelectionOutsideParentheses.
+  ///
+  /// In en, this message translates to:
+  /// **'Text outside brackets'**
+  String get ttsSettingsTextSelectionOutsideParentheses;
+
+  /// No description provided for @ttsServicesFieldLanguageTypeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Language Type'**
+  String get ttsServicesFieldLanguageTypeLabel;
+
   /// No description provided for @ttsServicesPageAddTooltip.
   ///
   /// In en, this message translates to:

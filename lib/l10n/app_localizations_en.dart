@@ -2464,6 +2464,38 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ttsServicesPageTitle => 'TTS';
 
   @override
+  String get ttsServicesPageSettingsTooltip => 'Settings';
+
+  @override
+  String get ttsSettingsPageTitle => 'Voice Settings';
+
+  @override
+  String get ttsSettingsPlaybackSection => 'Playback';
+
+  @override
+  String get ttsSettingsAutoPlayTitle => 'Auto-play assistant replies';
+
+  @override
+  String get ttsSettingsAutoPlayDescription =>
+      'Automatically speak when AI finishes responding';
+
+  @override
+  String get ttsSettingsTextSelectionSection => 'Content Filter';
+
+  @override
+  String get ttsSettingsTextSelectionTitle => 'Speech Content';
+
+  @override
+  String get ttsSettingsTextSelectionFullText => 'Full text';
+
+  @override
+  String get ttsSettingsTextSelectionOutsideParentheses =>
+      'Text outside brackets';
+
+  @override
+  String get ttsServicesFieldLanguageTypeLabel => 'Language Type';
+
+  @override
   String get ttsServicesPageAddTooltip => 'Add';
 
   @override

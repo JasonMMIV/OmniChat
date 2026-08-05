@@ -10,6 +10,7 @@ import '../../core/providers/settings_provider.dart';
 import '../../core/services/tts/network_tts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../utils/brand_assets.dart';
+import '../../features/settings/pages/tts_settings_page.dart';
 
 /// Desktop: TTS (语音服务) right-side pane
 /// Adapts mobile TTS page to desktop with hoverable list card style
@@ -49,6 +50,14 @@ class _DesktopTtsServicesPaneState extends State<DesktopTtsServicesPane> {
                           ),
                         ),
                       ),
+                      Tooltip(
+                        message: l10n.ttsServicesPageSettingsTooltip,
+                        child: _SmallIconBtn(
+                          icon: lucide.Lucide.Settings2,
+                          onTap: () => _showTtsSettingsDialog(context),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
                       _SmallIconBtn(
                         icon: lucide.Lucide.Plus,
                         onTap: () async {
@@ -786,6 +795,56 @@ class _DialogOptionState extends State<_DialogOption> {
   }
 }
 
+Future<void> _showTtsSettingsDialog(BuildContext context) async {
+  final cs = Theme.of(context).colorScheme;
+  final l10n = AppLocalizations.of(context)!;
+  await showDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    builder: (ctx) {
+      return Dialog(
+        backgroundColor: cs.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        l10n.ttsSettingsPageTitle,
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    _SmallIconBtn(
+                      icon: lucide.Lucide.X,
+                      onTap: () => Navigator.of(ctx).maybePop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _deskDivider(context),
+                const SizedBox(height: 12),
+                const Flexible(
+                  child: SingleChildScrollView(
+                    child: TtsSettingsContent(padding: EdgeInsets.zero),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
 Future<TtsServiceOptions?> _showAddNetworkDialog(BuildContext context) => _showNetworkDialog(context, null);
 
 Future<TtsServiceOptions?> _showEditNetworkDialog(BuildContext context, TtsServiceOptions initial) => _showNetworkDialog(context, initial);
@@ -802,38 +861,70 @@ Future<TtsServiceOptions?> _showNetworkDialog(BuildContext context, TtsServiceOp
           ? initial.apiKey
           : (initial is MiniMaxTtsOptions)
               ? initial.apiKey
-              : (initial is ElevenLabsTtsOptions)
+              : (initial is QwenTtsOptions)
                   ? initial.apiKey
-                  : '');
+                  : (initial is GroqTtsOptions)
+                      ? initial.apiKey
+                      : (initial is XaiTtsOptions)
+                          ? initial.apiKey
+                          : (initial is ElevenLabsTtsOptions)
+                              ? initial.apiKey
+                              : (initial is MimoTtsOptions)
+                                  ? initial.apiKey
+                                  : '');
   final baseCtl = TextEditingController(text: (initial is OpenAiTtsOptions)
       ? initial.baseUrl
       : (initial is GeminiTtsOptions)
           ? initial.baseUrl
           : (initial is MiniMaxTtsOptions)
               ? initial.baseUrl
-              : (initial is ElevenLabsTtsOptions)
+              : (initial is QwenTtsOptions)
                   ? initial.baseUrl
-                  : '');
+                  : (initial is GroqTtsOptions)
+                      ? initial.baseUrl
+                      : (initial is XaiTtsOptions)
+                          ? initial.baseUrl
+                          : (initial is ElevenLabsTtsOptions)
+                              ? initial.baseUrl
+                              : (initial is MimoTtsOptions)
+                                  ? initial.baseUrl
+                                  : '');
   final modelCtl = TextEditingController(text: (initial is OpenAiTtsOptions)
       ? initial.model
       : (initial is GeminiTtsOptions)
           ? initial.model
           : (initial is MiniMaxTtsOptions)
               ? initial.model
-              : (initial is ElevenLabsTtsOptions)
-                  ? initial.modelId
-                  : '');
+              : (initial is QwenTtsOptions)
+                  ? initial.model
+                  : (initial is GroqTtsOptions)
+                      ? initial.model
+                      : (initial is ElevenLabsTtsOptions)
+                          ? initial.modelId
+                          : (initial is MimoTtsOptions)
+                              ? initial.model
+                              : '');
   final voiceCtl = TextEditingController(text: (initial is OpenAiTtsOptions)
       ? initial.voice
       : (initial is GeminiTtsOptions)
           ? initial.voiceName
           : (initial is MiniMaxTtsOptions)
               ? initial.voiceId
-              : (initial is ElevenLabsTtsOptions)
-                  ? initial.voiceId
-                  : '');
+              : (initial is QwenTtsOptions)
+                  ? initial.voice
+                  : (initial is GroqTtsOptions)
+                      ? initial.voice
+                      : (initial is XaiTtsOptions)
+                          ? initial.voiceId
+                          : (initial is ElevenLabsTtsOptions)
+                              ? initial.voiceId
+                              : (initial is MimoTtsOptions)
+                                  ? initial.voice
+                                  : '');
   final emotionCtl = TextEditingController(text: (initial is MiniMaxTtsOptions) ? initial.emotion : 'calm');
   final speedCtl = TextEditingController(text: (initial is MiniMaxTtsOptions) ? initial.speed.toString() : '1.0');
+  final languageTypeCtl = TextEditingController(text: (initial is QwenTtsOptions) ? initial.languageType : 'Auto');
+  final languageCtl = TextEditingController(text: (initial is XaiTtsOptions) ? initial.language : 'auto');
 
   TtsServiceOptions? result;
   await showDialog<void>(
@@ -871,18 +962,15 @@ Future<TtsServiceOptions?> _showNetworkDialog(BuildContext context, TtsServiceOp
                             _SelectRow(
                               label: l10n.ttsServicesDialogProviderType,
                               value: networkTtsKindDisplayName(kind),
-                              options: [
-                                networkTtsKindDisplayName(NetworkTtsKind.openai),
-                                networkTtsKindDisplayName(NetworkTtsKind.gemini),
-                                networkTtsKindDisplayName(NetworkTtsKind.minimax),
-                                networkTtsKindDisplayName(NetworkTtsKind.elevenlabs),
-                              ],
+                              options: NetworkTtsKind.values.map(networkTtsKindDisplayName).toList(),
                               onSelected: (picked) {
                                 setState(() {
-                                  if (picked == networkTtsKindDisplayName(NetworkTtsKind.openai)) kind = NetworkTtsKind.openai;
-                                  if (picked == networkTtsKindDisplayName(NetworkTtsKind.gemini)) kind = NetworkTtsKind.gemini;
-                                  if (picked == networkTtsKindDisplayName(NetworkTtsKind.minimax)) kind = NetworkTtsKind.minimax;
-                                  if (picked == networkTtsKindDisplayName(NetworkTtsKind.elevenlabs)) kind = NetworkTtsKind.elevenlabs;
+                                  for (final k in NetworkTtsKind.values) {
+                                    if (picked == networkTtsKindDisplayName(k)) {
+                                      kind = k;
+                                      break;
+                                    }
+                                  }
                                 });
                               },
                             ),
@@ -892,8 +980,10 @@ Future<TtsServiceOptions?> _showNetworkDialog(BuildContext context, TtsServiceOp
                             _InputRow(label: l10n.ttsServicesFieldApiKeyLabel, controller: apiKeyCtl, obscure: true),
                             const SizedBox(height: 6),
                             _InputRow(label: l10n.ttsServicesFieldBaseUrlLabel, controller: baseCtl, hint: _defaultBaseUrl(kind)),
-                            const SizedBox(height: 6),
-                            _InputRow(label: l10n.ttsServicesFieldModelLabel, controller: modelCtl, hint: _defaultModel(kind)),
+                            if (kind != NetworkTtsKind.xai) ...[
+                              const SizedBox(height: 6),
+                              _InputRow(label: l10n.ttsServicesFieldModelLabel, controller: modelCtl, hint: _defaultModel(kind)),
+                            ],
                             const SizedBox(height: 6),
                             _InputRow(label: _voiceLabelFor(kind, l10n), controller: voiceCtl, hint: _defaultVoice(kind)),
                             if (kind == NetworkTtsKind.minimax) ...[
@@ -901,6 +991,14 @@ Future<TtsServiceOptions?> _showNetworkDialog(BuildContext context, TtsServiceOp
                               _InputRow(label: l10n.ttsServicesFieldEmotionLabel, controller: emotionCtl, hint: 'calm'),
                               const SizedBox(height: 6),
                               _InputRow(label: l10n.ttsServicesFieldSpeedLabel, controller: speedCtl, hint: '1.0'),
+                            ],
+                            if (kind == NetworkTtsKind.qwen) ...[
+                              const SizedBox(height: 6),
+                              _InputRow(label: l10n.ttsServicesFieldLanguageTypeLabel, controller: languageTypeCtl, hint: 'Auto'),
+                            ],
+                            if (kind == NetworkTtsKind.xai) ...[
+                              const SizedBox(height: 6),
+                              _InputRow(label: l10n.ttsServicesFieldLanguageLabel, controller: languageCtl, hint: 'auto'),
                             ],
                             const SizedBox(height: 14),
                           ],
@@ -937,9 +1035,18 @@ Future<TtsServiceOptions?> _showNetworkDialog(BuildContext context, TtsServiceOp
                               } else if (kind == NetworkTtsKind.minimax) {
                                 final spd = double.tryParse(speedCtl.text.trim()) ?? 1.0;
                                 result = MiniMaxTtsOptions(enabled: true, name: name, apiKey: apiKey, baseUrl: base, model: model, voiceId: voice, emotion: emotionCtl.text.trim().isEmpty ? 'calm' : emotionCtl.text.trim(), speed: spd);
-                              } else {
-                                // ElevenLabs
+                              } else if (kind == NetworkTtsKind.qwen) {
+                                final langType = languageTypeCtl.text.trim().isEmpty ? 'Auto' : languageTypeCtl.text.trim();
+                                result = QwenTtsOptions(enabled: true, name: name, apiKey: apiKey, baseUrl: base, model: model, voice: voice, languageType: langType);
+                              } else if (kind == NetworkTtsKind.groq) {
+                                result = GroqTtsOptions(enabled: true, name: name, apiKey: apiKey, baseUrl: base, model: model, voice: voice);
+                              } else if (kind == NetworkTtsKind.xai) {
+                                final lang = languageCtl.text.trim().isEmpty ? 'auto' : languageCtl.text.trim();
+                                result = XaiTtsOptions(enabled: true, name: name, apiKey: apiKey, baseUrl: base, voiceId: voice, language: lang);
+                              } else if (kind == NetworkTtsKind.elevenlabs) {
                                 result = ElevenLabsTtsOptions(enabled: true, name: name, apiKey: apiKey, baseUrl: base, modelId: model.isEmpty ? _defaultModel(kind) : model, voiceId: voice);
+                              } else if (kind == NetworkTtsKind.mimo) {
+                                result = MimoTtsOptions(enabled: true, name: name, apiKey: apiKey, baseUrl: base, model: model, voice: voice);
                               }
                               Navigator.of(ctx).pop();
                             },

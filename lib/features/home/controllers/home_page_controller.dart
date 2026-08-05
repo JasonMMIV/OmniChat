@@ -14,6 +14,7 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/tts_provider.dart';
+import '../../../core/services/tts/tts_text_selection.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
@@ -392,6 +393,22 @@ class HomePageController extends ChangeNotifier {
     _viewModel.onStreamFinished = () {
       // Trigger UI update when streaming finishes
       notifyListeners();
+      try {
+        final sp = _context.read<SettingsProvider>();
+        if (sp.ttsAutoPlayAssistantReplies && messages.isNotEmpty) {
+          final lastMsg = messages.last;
+          if (lastMsg.role == 'assistant' && lastMsg.content.trim().isNotEmpty) {
+            final tts = _context.read<TtsProvider>();
+            final text = TtsTextSelection.apply(
+              lastMsg.content,
+              mode: sp.ttsTextSelectionMode,
+            );
+            if (text.isNotEmpty && !tts.isSpeaking) {
+              tts.speak(text);
+            }
+          }
+        }
+      } catch (_) {}
     };
   }
 
@@ -790,7 +807,12 @@ class HomePageController extends ChangeNotifier {
     }
     final tts = _context.read<TtsProvider>();
     if (!tts.isSpeaking) {
-      await tts.speak(message.content);
+      final sp = _context.read<SettingsProvider>();
+      final filteredText = TtsTextSelection.apply(
+        message.content,
+        mode: sp.ttsTextSelectionMode,
+      );
+      await tts.speak(filteredText);
     } else {
       await tts.stop();
     }

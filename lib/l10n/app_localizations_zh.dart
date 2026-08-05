@@ -2465,7 +2465,37 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ttsServicesPageTitle => '语音服务';
 
   @override
-  String get ttsServicesPageAddTooltip => '新增';
+  String get ttsServicesPageSettingsTooltip => '设置';
+
+  @override
+  String get ttsSettingsPageTitle => '语音设置';
+
+  @override
+  String get ttsSettingsPlaybackSection => '播放控制';
+
+  @override
+  String get ttsSettingsAutoPlayTitle => '自动播放助理回复';
+
+  @override
+  String get ttsSettingsAutoPlayDescription => '当 AI 完成回答时自动朗读内容';
+
+  @override
+  String get ttsSettingsTextSelectionSection => '内容筛选';
+
+  @override
+  String get ttsSettingsTextSelectionTitle => '朗读内容';
+
+  @override
+  String get ttsSettingsTextSelectionFullText => '全文';
+
+  @override
+  String get ttsSettingsTextSelectionOutsideParentheses => '括号外文字';
+
+  @override
+  String get ttsServicesFieldLanguageTypeLabel => '语言类型';
+
+  @override
+  String get ttsServicesPageAddTooltip => 'Add';
 
   @override
   String get ttsServicesPageSystemTtsTitle => '系统TTS';

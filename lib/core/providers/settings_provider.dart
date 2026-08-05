@@ -8,6 +8,7 @@ import 'dart:async';
 import 'dart:convert';
 import '../services/search/search_service.dart';
 import '../services/tts/network_tts.dart';
+import '../services/tts/tts_text_selection.dart';
 import '../services/network/request_logger.dart';
 import '../services/logging/flutter_logger.dart';
 import '../models/api_keys.dart';
@@ -179,9 +180,11 @@ class SettingsProvider extends ChangeNotifier {
   static const String _globalProxyPortKey = 'global_proxy_port_v1';
   static const String _globalProxyUsernameKey = 'global_proxy_username_v1';
   static const String _globalProxyPasswordKey = 'global_proxy_password_v1';
-  // TTS services (network)
+  // TTS services (network & settings)
   static const String _ttsServicesKey = 'tts_services_v1';
   static const String _ttsSelectedKey = 'tts_selected_v1';
+  static const String _ttsAutoPlayRepliesKey = 'tts_auto_play_replies_v1';
+  static const String _ttsTextSelectionModeKey = 'tts_text_selection_mode_v1';
   // Desktop UI
   static const String _desktopSidebarWidthKey = 'desktop_sidebar_width_v1';
   static const String _desktopSidebarOpenKey = 'desktop_sidebar_open_v1';
@@ -191,6 +194,9 @@ class SettingsProvider extends ChangeNotifier {
   // ===== Network TTS services =====
   List<TtsServiceOptions> _ttsServices = const <TtsServiceOptions>[];
   int _ttsServiceSelected = -1; // -1 => use System TTS
+  bool _ttsAutoPlayAssistantReplies = false;
+  TtsTextSelectionMode _ttsTextSelectionMode = TtsTextSelectionMode.fullText;
+
   List<TtsServiceOptions> get ttsServices => _ttsServices;
   int get ttsServiceSelected => _ttsServiceSelected;
   bool get usingSystemTts => _ttsServiceSelected < 0;
@@ -198,6 +204,8 @@ class SettingsProvider extends ChangeNotifier {
       (_ttsServiceSelected >= 0 && _ttsServiceSelected < _ttsServices.length)
       ? _ttsServices[_ttsServiceSelected]
       : null;
+  bool get ttsAutoPlayAssistantReplies => _ttsAutoPlayAssistantReplies;
+  TtsTextSelectionMode get ttsTextSelectionMode => _ttsTextSelectionMode;
 
   List<String> _providersOrder = const [];
   List<String> get providersOrder => _providersOrder;
@@ -739,6 +747,10 @@ class SettingsProvider extends ChangeNotifier {
       _ttsServiceSelected = _ttsServices.isEmpty ? -1 : 0;
       await prefs.setInt(_ttsSelectedKey, _ttsServiceSelected);
     }
+    _ttsAutoPlayAssistantReplies = prefs.getBool(_ttsAutoPlayRepliesKey) ?? false;
+    _ttsTextSelectionMode = TtsTextSelectionModeStorage.fromStorageValue(
+      prefs.getString(_ttsTextSelectionModeKey),
+    );
     // webdav config
     final webdavStr = prefs.getString(_webDavConfigKey);
     if (webdavStr != null && webdavStr.isNotEmpty) {
@@ -931,6 +943,22 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_ttsSelectedKey, _ttsServiceSelected);
+  }
+
+  Future<void> setTtsAutoPlayAssistantReplies(bool value) async {
+    if (_ttsAutoPlayAssistantReplies == value) return;
+    _ttsAutoPlayAssistantReplies = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_ttsAutoPlayRepliesKey, value);
+  }
+
+  Future<void> setTtsTextSelectionMode(TtsTextSelectionMode mode) async {
+    if (_ttsTextSelectionMode == mode) return;
+    _ttsTextSelectionMode = mode;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_ttsTextSelectionModeKey, mode.storageValue);
   }
 
   // ===== User Font Settings =====
