@@ -2399,6 +2399,18 @@ abstract class AppLocalizations {
   /// **'Grant'**
   String get voiceChatPermissionButton;
 
+  /// No description provided for @voiceChatPermissionOpenSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Settings'**
+  String get voiceChatPermissionOpenSettings;
+
+  /// No description provided for @voiceChatPermissionDeniedSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Microphone access was denied permanently. Open system settings to grant access.'**
+  String get voiceChatPermissionDeniedSubtitle;
+
   /// No description provided for @voiceChatListening.
   ///
   /// In en, this message translates to:
@@ -2416,6 +2428,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Talking'**
   String get voiceChatTalking;
+
+  /// No description provided for @voiceChatPaused.
+  ///
+  /// In en, this message translates to:
+  /// **'Paused'**
+  String get voiceChatPaused;
 
   /// No description provided for @defaultModelPagePromptLabel.
   ///

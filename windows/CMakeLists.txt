@@ -65,7 +65,13 @@ include(flutter/generated_plugins.cmake)
 # so that building and running from within Visual Studio will work.
 # Make the "install" step default, as it's required to run.
 set(CMAKE_VS_INCLUDE_INSTALL_TO_DEFAULT_BUILD 1)
-set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/runner/Release" CACHE PATH "..." FORCE)
+# Install into the per-configuration runner directory (Debug/Profile/Release) so
+# that `flutter run` (Debug) and `flutter build windows` (Release) both get a
+# complete bundle next to the executable.
+set(BUILD_BUNDLE_DIR "$<TARGET_FILE_DIR:${BINARY_NAME}>")
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  set(CMAKE_INSTALL_PREFIX "${BUILD_BUNDLE_DIR}" CACHE PATH "..." FORCE)
+endif()
 
 set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")
 set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}")

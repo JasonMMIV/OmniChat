@@ -1197,6 +1197,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get voiceChatPermissionButton => '授予权限';
 
   @override
+  String get voiceChatPermissionOpenSettings => '打开系统设置';
+
+  @override
+  String get voiceChatPermissionDeniedSubtitle => '麦克风权限已被永久拒绝。请前往系统设置开启权限。';
+
+  @override
   String get voiceChatListening => '正在聆听';
 
   @override
@@ -1204,6 +1210,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get voiceChatTalking => '正在说话';
+
+  @override
+  String get voiceChatPaused => '已暂停';
 
   @override
   String get defaultModelPagePromptLabel => '提示词';
@@ -5377,6 +5386,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get voiceChatPermissionButton => '授予权限';
 
   @override
+  String get voiceChatPermissionOpenSettings => '打开系统设置';
+
+  @override
+  String get voiceChatPermissionDeniedSubtitle => '麦克风权限已被永久拒绝。请前往系统设置开启权限。';
+
+  @override
   String get voiceChatListening => '正在聆听';
 
   @override
@@ -5384,6 +5399,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get voiceChatTalking => '正在说话';
+
+  @override
+  String get voiceChatPaused => '已暂停';
 
   @override
   String get defaultModelPagePromptLabel => '提示词';
@@ -9453,6 +9471,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get voiceChatPermissionButton => '授予權限';
 
   @override
+  String get voiceChatPermissionOpenSettings => '開啟系統設定';
+
+  @override
+  String get voiceChatPermissionDeniedSubtitle => '麥克風權限已永久拒絕。請前往系統設定開啟權限。';
+
+  @override
   String get voiceChatListening => '正在聆聽';
 
   @override
@@ -9460,6 +9484,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get voiceChatTalking => '正在說話';
+
+  @override
+  String get voiceChatPaused => '已暫停';
 
   @override
   String get defaultModelPagePromptLabel => '提示詞';

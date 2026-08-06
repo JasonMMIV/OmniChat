@@ -10,6 +10,7 @@
 #include <future>
 #include <sstream>
 #include <iomanip>
+#include <chrono>
 
 using namespace winrt;
 using namespace Windows::Media::SpeechRecognition;
@@ -476,6 +477,17 @@ fire_and_forget SpeechToTextWindowsPlugin::StartListeningAsync(
              co_return;
         }
 
+        // Apply the initial-silence timeout AFTER constraint compilation: compiling the
+        // dictation constraint can reset customized Timeouts values, so set them right
+        // before starting the session. 60s keeps pure silence from cutting off too early;
+        // end-of-speech is still detected quickly by the native EndSilenceTimeout.
+        try {
+            recognizer.Timeouts().InitialSilenceTimeout(std::chrono::seconds(60));
+            std::cout << "[OmniChat] InitialSilenceTimeout set to 60s" << std::endl;
+        } catch (hresult_error const& ex) {
+            std::cout << "[OmniChat] Failed to set InitialSilenceTimeout: " << ToUtf8(ex.message()) << std::endl;
+        }
+
         std::cout << "[OmniChat] Subscribing events..." << std::endl;
         m_hypothesisToken = recognizer.HypothesisGenerated([this](auto const&, auto const& args) {
              // std::cout << "[OmniChat] HypothesisGenerated" << std::endl;
@@ -487,8 +499,9 @@ fire_and_forget SpeechToTextWindowsPlugin::StartListeningAsync(
              SendTextRecognition(ToUtf8(args.Result().Text()), true);
         });
         
-        m_completedToken = recognizer.ContinuousRecognitionSession().Completed([this](auto const&, auto const&) {
-             std::cout << "[OmniChat] Session Completed" << std::endl;
+        m_completedToken = recognizer.ContinuousRecognitionSession().Completed([this](auto const&, auto const& args) {
+             // args.Status(): 0=Success, 1=NoMatch, 2=UserCanceled, 3=TimeoutExceeded, ...
+             std::cout << "[OmniChat] Session Completed, status: " << (int)args.Status() << std::endl;
              SendStatus("notListening");
              m_isListening = false;
         });

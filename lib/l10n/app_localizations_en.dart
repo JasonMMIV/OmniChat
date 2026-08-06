@@ -1204,6 +1204,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get voiceChatPermissionButton => 'Grant';
 
   @override
+  String get voiceChatPermissionOpenSettings => 'Open Settings';
+
+  @override
+  String get voiceChatPermissionDeniedSubtitle =>
+      'Microphone access was denied permanently. Open system settings to grant access.';
+
+  @override
   String get voiceChatListening => 'Listening';
 
   @override
@@ -1211,6 +1218,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get voiceChatTalking => 'Talking';
+
+  @override
+  String get voiceChatPaused => 'Paused';
 
   @override
   String get defaultModelPagePromptLabel => 'Prompt';

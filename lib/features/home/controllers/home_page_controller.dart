@@ -184,7 +184,14 @@ class HomePageController extends ChangeNotifier {
       }
     }
 
-    _speechToText = stt.SpeechToText();
+    // 使用專屬 SpeechToText 實例，而非 factory singleton：SpeechToText 的
+    // initialize() 只在首次成功時註冊 onStatus/onError，而 app 啟動時
+    // VoiceChatProvider 已用無 listener 的方式初始化過 singleton，若在此沿用
+    // 同一實例，initialize() 會早退且 listeners 不會被註冊；且語音對話畫面使用
+    // 完畢後平台事件導向會被該畫面實例持有，聽寫結果將無法送達此處。
+    // withMethodChannel() 建立獨立實例以確保每次聽寫都正確接收事件。
+    // ignore: invalid_use_of_visible_for_testing_member
+    _speechToText = stt.SpeechToText.withMethodChannel();
     final available = await _speechToText!.initialize(
       onError: (val) {
         debugPrint('[OmniChat Dictation] Speech recognition error: ${val.errorMsg}');
@@ -210,7 +217,8 @@ class HomePageController extends ChangeNotifier {
           }
         },
         cancelOnError: true,
-        pauseFor: const Duration(seconds: 7),
+        // 不傳 pauseFor（套件預設即 null）：原生引擎自行判斷語音結束（講完話立即送出），
+        // 60 秒 listenFor 作為安全網。
         listenFor: const Duration(seconds: 60),
       );
     } else {

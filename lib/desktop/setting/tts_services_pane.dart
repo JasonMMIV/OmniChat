@@ -238,16 +238,7 @@ class _NetworkServiceCardState extends State<_NetworkServiceCard> {
   }
 
   IconData _iconForKind(NetworkTtsKind k) {
-    switch (k) {
-      case NetworkTtsKind.openai:
-        return lucide.Lucide.Bot;
-      case NetworkTtsKind.gemini:
-        return lucide.Lucide.Bot;
-      case NetworkTtsKind.minimax:
-        return lucide.Lucide.Bot;
-      case NetworkTtsKind.elevenlabs:
-        return lucide.Lucide.Bot;
-    }
+    return lucide.Lucide.Bot;
   }
 }
 
@@ -1079,8 +1070,16 @@ String _defaultBaseUrl(NetworkTtsKind k) {
       return 'https://generativelanguage.googleapis.com/v1beta';
     case NetworkTtsKind.minimax:
       return 'https://api.minimaxi.com/v1';
+    case NetworkTtsKind.qwen:
+      return 'https://dashscope.aliyuncs.com/api/v1';
+    case NetworkTtsKind.groq:
+      return 'https://api.groq.com/openai/v1';
+    case NetworkTtsKind.xai:
+      return 'https://api.x.ai/v1';
     case NetworkTtsKind.elevenlabs:
       return 'https://api.elevenlabs.io';
+    case NetworkTtsKind.mimo:
+      return 'https://api.xiaomimimo.com/v1';
   }
 }
 
@@ -1091,9 +1090,17 @@ String _defaultModel(NetworkTtsKind k) {
     case NetworkTtsKind.gemini:
       return 'gemini-2.5-flash-preview-tts';
     case NetworkTtsKind.minimax:
-      return 'speech-2.5-hd-preview';
+      return 'speech-2.6-turbo';
+    case NetworkTtsKind.qwen:
+      return 'qwen3-tts-flash';
+    case NetworkTtsKind.groq:
+      return 'canopylabs/orpheus-v1-english';
+    case NetworkTtsKind.xai:
+      return '';
     case NetworkTtsKind.elevenlabs:
       return 'eleven_multilingual_v2';
+    case NetworkTtsKind.mimo:
+      return 'mimo-v2-tts';
   }
 }
 
@@ -1105,19 +1112,29 @@ String _defaultVoice(NetworkTtsKind k) {
       return 'Kore';
     case NetworkTtsKind.minimax:
       return 'female-shaonv';
+    case NetworkTtsKind.qwen:
+      return 'Cherry';
+    case NetworkTtsKind.groq:
+      return 'austin';
+    case NetworkTtsKind.xai:
+      return 'eve';
     case NetworkTtsKind.elevenlabs:
       return '';
+    case NetworkTtsKind.mimo:
+      return 'mimo_default';
   }
 }
 
 String _voiceLabelFor(NetworkTtsKind k, AppLocalizations l10n) {
   switch (k) {
     case NetworkTtsKind.openai:
-      return l10n.ttsServicesFieldVoiceLabel;
     case NetworkTtsKind.gemini:
-      return l10n.ttsServicesFieldVoiceLabel; // same label
+    case NetworkTtsKind.qwen:
+    case NetworkTtsKind.groq:
+    case NetworkTtsKind.mimo:
+      return l10n.ttsServicesFieldVoiceLabel;
     case NetworkTtsKind.minimax:
-      return l10n.ttsServicesFieldVoiceIdLabel;
+    case NetworkTtsKind.xai:
     case NetworkTtsKind.elevenlabs:
       return l10n.ttsServicesFieldVoiceIdLabel;
   }

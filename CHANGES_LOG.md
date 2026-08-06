@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-06 (v1.10.0)
+- **Last Updated**: 2026-08-06 (v1.10.1)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -481,9 +481,23 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
     - `lib/features/settings/pages/tts_services_page.dart` (mobile settings button & all 8 TTS providers UI)
     - `lib/desktop/setting/tts_services_pane.dart` (desktop settings button & dialog UI for 8 TTS providers)
     - `lib/features/home/controllers/home_page_controller.dart` (stream finished auto-play hook & speech text filtering)
-    - `lib/l10n/app_en.arb` / `app_zh.arb` (Voice settings & new TTS provider translations)
-    - `pubspec.yaml` (version bumped to `1.10.0+69`)
-    - `installer.iss` / `installers/omnichat_setup.iss` (installer version 1.10.0)
+    - `lib/l10n/app_en.arb` / `app_zh.arb` (Voice settings & new TTS provider translations)  - `pubspec.yaml` (version bumped to `1.10.0+69`)
+  - `installer.iss` / `installers/omnichat_setup.iss` (installer version 1.10.0)
+
+- **v1.10.1** (2026-08-06, entry #167):
+  - **Summary**: Voice chat stability fixes (Windows + Android) — fixed the silence dead-loop that made the UI auto-pause after ~5–7s of quiet and kept the tray mic icon lit, the `SpeechToText` singleton listener bug that froze the UI on "Listening", and the Windows CMake install-prefix bug that broke `flutter run`/debug builds (missing `flutter_windows.dll`); native `InitialSilenceTimeout` raised to 60s on Windows so pure silence no longer cuts off at ~7s; `pauseFor` fully removed on all platforms (package default is null) so native engines decide end-of-speech.
+  - **Files Changed**:
+    - `lib/features/voice_chat/pages/voice_chat_screen.dart` (dedicated `SpeechToText.withMethodChannel()` instance so `onStatus`/`onError` are actually registered; `_resumeLocked` guard suppressing resumes triggered by our own force-cancel; keep `_isListening` true on final result so `stop()` really stops the native mic during thinking/TTS; `pauseFor` removed; auto-pause now stops the native session too; duplicate-final re-entry guard)
+    - `lib/features/home/controllers/home_page_controller.dart` (dictation uses its own `SpeechToText` instance; `pauseFor` removed)
+    - `lib/core/utils/app_logger.dart` (NEW — `AppLog.d/i/e`, debug-only)
+    - `lib/l10n/app_en.arb` / `app_zh.arb` / `app_zh_Hans.arb` / `app_zh_Hant.arb` (+ regenerated `app_localizations*.dart`: `voiceChatPaused`, `voiceChatPermissionOpenSettings`, `voiceChatPermissionDeniedSubtitle`)
+    - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.cpp` (`InitialSilenceTimeout(60s)` set after constraint compilation; `Session Completed, status: N` diagnostics)
+    - `windows/CMakeLists.txt` (install prefix `runner/Release` → `$<TARGET_FILE_DIR:${BINARY_NAME}>` so Debug/Profile/Release each get a complete bundle)
+    - `lib/desktop/setting/tts_services_pane.dart` (unified provider icon)
+    - `pubspec.yaml` (version bumped to `1.10.1+70`)
+    - `installer.iss` / `installers/omnichat_setup.iss` (installer version 1.10.1)
+    - `CHANGES_LOG.md` (this entry)
+  - **Tests**: `flutter test` — full suite passes (99 tests); `flutter analyze` clean.
 
 ---
 
