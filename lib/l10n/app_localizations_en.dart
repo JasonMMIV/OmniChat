@@ -2496,6 +2496,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ttsServicesFieldLanguageTypeLabel => 'Language Type';
 
   @override
+  String get ttsServicesFieldLanguageLabel => 'Language';
+
+  @override
   String get ttsServicesPageAddTooltip => 'Add';
 
   @override

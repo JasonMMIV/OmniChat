@@ -1074,6 +1074,7 @@
   "ttsSettingsTextSelectionFullText": "Full text",
   "ttsSettingsTextSelectionOutsideParentheses": "Text outside brackets",
   "ttsServicesFieldLanguageTypeLabel": "Language Type",
+  "ttsServicesFieldLanguageLabel": "Language",
   "ttsServicesPageAddTooltip": "Add",
   "ttsServicesPageSystemTtsTitle": "System",
   "ttsServicesPageSystemTtsAvailableSubtitle": "Available",

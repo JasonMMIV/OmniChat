@@ -4859,6 +4859,12 @@ abstract class AppLocalizations {
   /// **'Language Type'**
   String get ttsServicesFieldLanguageTypeLabel;
 
+  /// No description provided for @ttsServicesFieldLanguageLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get ttsServicesFieldLanguageLabel;
+
   /// No description provided for @ttsServicesPageAddTooltip.
   ///
   /// In en, this message translates to:

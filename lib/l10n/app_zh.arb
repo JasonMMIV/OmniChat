@@ -990,6 +990,7 @@
   "ttsSettingsTextSelectionFullText": "全文",
   "ttsSettingsTextSelectionOutsideParentheses": "括号外文字",
   "ttsServicesFieldLanguageTypeLabel": "语言类型",
+  "ttsServicesFieldLanguageLabel": "语言",
   "ttsServicesPageAddNotImplemented": "新增 TTS 服务暂未实现",
   "ttsServicesPageSystemTtsTitle": "系统TTS",
   "ttsServicesPageSystemTtsAvailableSubtitle": "使用系统内置语音合成",

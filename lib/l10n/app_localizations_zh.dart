@@ -2495,6 +2495,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ttsServicesFieldLanguageTypeLabel => '语言类型';
 
   @override
+  String get ttsServicesFieldLanguageLabel => '语言';
+
+  @override
   String get ttsServicesPageAddTooltip => 'Add';
 
   @override
@@ -6633,6 +6636,39 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get ttsServicesPageTitle => '语音服务';
 
   @override
+  String get ttsServicesPageSettingsTooltip => '设置';
+
+  @override
+  String get ttsSettingsPageTitle => '语音设置';
+
+  @override
+  String get ttsSettingsPlaybackSection => '播放控制';
+
+  @override
+  String get ttsSettingsAutoPlayTitle => '自动播放助理回复';
+
+  @override
+  String get ttsSettingsAutoPlayDescription => '当 AI 完成回答时自动朗读内容';
+
+  @override
+  String get ttsSettingsTextSelectionSection => '内容筛选';
+
+  @override
+  String get ttsSettingsTextSelectionTitle => '朗读内容';
+
+  @override
+  String get ttsSettingsTextSelectionFullText => '全文';
+
+  @override
+  String get ttsSettingsTextSelectionOutsideParentheses => '括号外文字';
+
+  @override
+  String get ttsServicesFieldLanguageTypeLabel => '语言类型';
+
+  @override
+  String get ttsServicesFieldLanguageLabel => '语言';
+
+  @override
   String get ttsServicesPageAddTooltip => '新增';
 
   @override
@@ -10674,6 +10710,39 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get ttsServicesPageTitle => '語音服務';
+
+  @override
+  String get ttsServicesPageSettingsTooltip => '設定';
+
+  @override
+  String get ttsSettingsPageTitle => '語音設定';
+
+  @override
+  String get ttsSettingsPlaybackSection => '播放控制';
+
+  @override
+  String get ttsSettingsAutoPlayTitle => '自動播放助理回覆';
+
+  @override
+  String get ttsSettingsAutoPlayDescription => '當 AI 完成回答時自動朗讀內容';
+
+  @override
+  String get ttsSettingsTextSelectionSection => '內容篩選';
+
+  @override
+  String get ttsSettingsTextSelectionTitle => '朗讀內容';
+
+  @override
+  String get ttsSettingsTextSelectionFullText => '全文';
+
+  @override
+  String get ttsSettingsTextSelectionOutsideParentheses => '括號外文字';
+
+  @override
+  String get ttsServicesFieldLanguageTypeLabel => '語言類型';
+
+  @override
+  String get ttsServicesFieldLanguageLabel => '語言';
 
   @override
   String get ttsServicesPageAddTooltip => '新增';
