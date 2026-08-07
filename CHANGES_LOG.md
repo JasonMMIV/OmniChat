@@ -178,6 +178,35 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.11.1] - 2026-08-07: Inline Dictation Pause/Resume + Silence Watchdog Auto-Pause
+
+> 輸入列語音聽寫右側新增「暫停/播放」按鈕，並以「靜音看門狗」偵測系統語音引擎的靜默結束（Android/iOS 約 7 秒、Windows/macOS/Linux 約 60 秒無新辨識結果）自動切為暫停（icon 變「播放」）；按下播放重新開啟聆聽並續接既有文字。聽寫模式的送出按鈕 icon 由打勾改為向上箭頭，符合「送出」語意。背景：Android 的 timeout/status callbacks 不可靠（v1.5.14 曾因此 revert 自動暫停），因此採用純看門狗計時器，不依賴引擎通知。
+
+### 179. Dictation Send Icon → Up Arrow & Pause/Play Button Row
+
+- **Purpose**: 聽寫模式右側按鈕改為三顆：停止、暫停/播放、送出；送出 icon 由 `Lucide.Check` 改為 `Lucide.ArrowUp` 以符合「送出」語意。暫停時中間按鈕顯示「播放」、聆聽中顯示「暫停」（tooltip 本地化為「暫停聽寫」/「繼續聽寫」）。
+- **Files Modified**:
+  - `lib/features/home/widgets/chat_input_bar.dart` (dictating 分支改為三按鈕 Row；新增 `dictationPaused` / `onToggleDictationPause` 參數；右側寬度計算改 `normalButtonW*3 + spacing*2`；送出 icon → `Lucide.ArrowUp`)
+  - `lib/features/home/widgets/chat_input_section.dart` (新增參數傳遞)
+  - `lib/features/home/pages/home_page.dart` (接線 `dictationPaused` / `onToggleDictationPause`)
+  - `lib/l10n/app_en.arb` / `app_zh_Hant.arb` / `app_zh_Hans.arb` / `app_zh.arb` (+ regenerated `app_localizations*.dart`): `chatInputBarPauseDictationTooltip` / `chatInputBarResumeDictationTooltip`
+
+### 180. Silence Watchdog — Auto-Pause When Listening Ends Silently
+
+- **Purpose**: 系統語音引擎靜默結束聆聽（無 onStatus/onResult 通知）時，UI 不再卡在「聆聽中」；改用平台化靜音看門狗自動進入暫停狀態，按下播放可重新開啟聆聽。
+- **Files Modified**:
+  - `lib/features/home/controllers/home_page_controller.dart` (三態狀態 `_dictationPaused`；`_dictationWatchdogTimer` 每次收到辨識結果即重置，超過平台靜音上限無新結果 → `pauseDictation()`；提取 `_startDictationListening()` 供 start/resume 共用並啟用 `partialResults: true`；`pauseDictation()` 先捕捉目前文字作為 resume 接續基底再 `stop()`；`resumeDictation()` 重新 `listen()`；`stopDictation()`/`dispose()` 一律取消計時器並釋放麥克風)
+- **Key Points**:
+  - 平台靜音上限：行動（Android/iOS）7 秒、桌面（Windows/macOS/Linux）60 秒，以既有 `PlatformUtils.isDesktopTarget` 判斷。
+  - **重複追加防護**：暫停後 Android `stop()` 可能補送 final result，onResult 開頭以 `if (_dictationPaused) return;` 忽略，避免 `_preDictationText` 已含相同文字造成重複。
+  - **async gap 防護**：看門狗在 `listen()` 前一刻啟動；locale 解析 await 期間若已被暫停/結束則不再啟動聆聽。
+  - 暫停狀態下送出/停止按鈕維持可用（送出 = 停聽寫並送文字；停止 = 結束聽寫）。
+
+### 181. Version & Tests
+
+- **Files Modified**: `pubspec.yaml` (version `1.11.1+73`) / `installer.iss` (1.11.1, output `OmniChat_windows_v1.11.1_setup`) / `CHANGES_LOG.md` (this entry)
+- **Tests**: `flutter test` — full suite passes (122 tests); `flutter analyze` no new errors.
+
 ## [v1.11.0] - 2026-08-07: Voice Services Hub + STT Settings Architecture
 
 > 依「語音服務重構與語音辨識（STT）擴充計畫 v2」執行。建立「語音服務」中介頁面（行動/桌面兩層導覽一致）、系統 STT 語言覆寫設定（同時影響 Voice Chat 與 Dictation）、第三方 STT 服務的設定管理架構（OpenAI Whisper / Groq Whisper）；網路轉錄明確排除於本次，第三方服務僅儲存設定並標示「尚未支援轉錄」。

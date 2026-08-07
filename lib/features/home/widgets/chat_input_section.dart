@@ -64,8 +64,10 @@ class ChatInputSection extends StatelessWidget {
     this.onClearContext,
     this.onCompressContext,
     this.isDictating = false,
+    this.dictationPaused = false,
     this.onStartDictation,
     this.onStopDictation,
+    this.onToggleDictationPause,
     this.onConfirmDictation,
     this.isEditing = false,
     this.onCancelEdit,
@@ -107,8 +109,10 @@ class ChatInputSection extends StatelessWidget {
   final VoidCallback? onClearContext;
   final VoidCallback? onCompressContext;
   final bool isDictating;
+  final bool dictationPaused;
   final VoidCallback? onStartDictation;
   final VoidCallback? onStopDictation;
+  final VoidCallback? onToggleDictationPause;
   final VoidCallback? onConfirmDictation;
   final bool isEditing;
   final VoidCallback? onCancelEdit;
@@ -182,8 +186,10 @@ class ChatInputSection extends StatelessWidget {
       ocrActive: settings.ocrEnabled,
       onToggleOcr: onToggleOcr,
       isDictating: isDictating,
+      dictationPaused: dictationPaused,
       onStartDictation: onStartDictation,
       onStopDictation: onStopDictation,
+      onToggleDictationPause: onToggleDictationPause,
       // Tablet-specific parameters
       showMiniMapButton: false,
       onOpenMiniMap: null,

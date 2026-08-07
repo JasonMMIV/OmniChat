@@ -575,6 +575,8 @@
   "chatInputBarMoreTooltip": "更多",
   "chatInputBarDictationTooltip": "语音听写",
   "chatInputBarStopDictationTooltip": "停止听写",
+  "chatInputBarPauseDictationTooltip": "暂停听写",
+  "chatInputBarResumeDictationTooltip": "继续听写",
   "chatInputBarInsertNewline": "换行",
   "mcpPageBackTooltip": "返回",
   "mcpPageAddMcpTooltip": "添加 MCP",

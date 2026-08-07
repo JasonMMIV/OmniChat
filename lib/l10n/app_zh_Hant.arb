@@ -607,6 +607,8 @@
   "chatInputBarMoreTooltip": "更多",
   "chatInputBarDictationTooltip": "語音聽寫",
   "chatInputBarStopDictationTooltip": "停止聽寫",
+  "chatInputBarPauseDictationTooltip": "暫停聽寫",
+  "chatInputBarResumeDictationTooltip": "繼續聽寫",
   "chatInputBarInsertNewline": "換行",
   "chatInputBarExpand": "展開",
   "chatInputBarCollapse": "收起",

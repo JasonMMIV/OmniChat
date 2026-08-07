@@ -781,8 +781,10 @@ class _HomePageState extends State<HomePage>
       onClearContext: _controller.clearContext,
       onCompressContext: _handleDesktopCompressContext,
       isDictating: _controller.isDictating,
+      dictationPaused: _controller.dictationPaused,
       onStartDictation: _controller.startDictation,
       onStopDictation: _controller.stopDictation,
+      onToggleDictationPause: _controller.toggleDictationPause,
       isEditing: _controller.editingMessage != null,
       onCancelEdit: _controller.cancelEditingMessage,
     );

@@ -1109,6 +1109,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatInputBarStopDictationTooltip => 'Stop Dictation';
 
   @override
+  String get chatInputBarPauseDictationTooltip => 'Pause Dictation';
+
+  @override
+  String get chatInputBarResumeDictationTooltip => 'Resume Dictation';
+
+  @override
   String get miniMapTitle => 'Minimap';
 
   @override

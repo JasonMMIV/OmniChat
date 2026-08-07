@@ -156,6 +156,18 @@ class HomePageController extends ChangeNotifier {
   // Inline Dictation State
   bool _isDictating = false;
   bool get isDictating => _isDictating;
+  // 暫停狀態：系統語音引擎靜默結束聆聽（無新結果通知）時切為 true，
+  // UI 顯示「播放」按鈕，按下後 resumeDictation() 重新開啟聆聽。
+  bool _dictationPaused = false;
+  bool get dictationPaused => _dictationPaused;
+  // 靜音看門狗：每次收到辨識結果即重置；超過平台靜音上限仍無新結果
+  // 視為聆聽已靜默結束，自動進入暫停狀態。
+  Timer? _dictationWatchdogTimer;
+  // Android/iOS 約 7 秒、桌面（Windows/macOS/Linux）約 60 秒。
+  static const Duration _dictationSilenceTimeoutMobile =
+      Duration(seconds: 7);
+  static const Duration _dictationSilenceTimeoutDesktop =
+      Duration(seconds: 60);
   stt.SpeechToText? _speechToText;
   SttLocaleResolver? _dictationSttLocaleResolver;
   String _preDictationText = '';
@@ -211,31 +223,7 @@ class HomePageController extends ChangeNotifier {
       _isDictating = true;
       _preDictationText = _inputController.text;
       notifyListeners();
-      // 解析使用者設定的語音辨識語言（顯式指定 > 自動）；解析失敗時回 null
-      // （使用平台預設），不阻斷聽寫。
-      String? localeId;
-      try {
-        localeId = await _dictationSttLocaleResolver?.resolve();
-      } catch (_) {
-        localeId = null;
-      }
-      _speechToText!.listen(
-        onResult: (val) {
-          if (val.recognizedWords.isNotEmpty) {
-            final separator = (_preDictationText.isNotEmpty && !_preDictationText.endsWith(' ') && !_preDictationText.endsWith('\n')) ? ' ' : '';
-            final newText = _preDictationText + separator + val.recognizedWords;
-            _inputController.value = TextEditingValue(
-              text: newText,
-              selection: TextSelection.collapsed(offset: newText.length),
-            );
-          }
-        },
-        cancelOnError: true,
-        localeId: localeId,
-        // 不傳 pauseFor（套件預設即 null）：原生引擎自行判斷語音結束（講完話立即送出），
-        // 60 秒 listenFor 作為安全網。
-        listenFor: const Duration(seconds: 60),
-      );
+      await _startDictationListening();
     } else {
       if (_context.mounted) {
         ScaffoldMessenger.of(_context).showSnackBar(const SnackBar(content: Text('Speech recognition not available on this device.')));
@@ -243,10 +231,100 @@ class HomePageController extends ChangeNotifier {
     }
   }
 
+  /// 開啟（或重新開啟）聽寫聆聽，並啟動靜音看門狗。
+  Future<void> _startDictationListening() async {
+    if (_speechToText == null) return;
+    _dictationPaused = false;
+    // 解析使用者設定的語音辨識語言（顯式指定 > 自動）；解析失敗時回 null
+    // （使用平台預設），不阻斷聽寫。
+    String? localeId;
+    try {
+      localeId = await _dictationSttLocaleResolver?.resolve();
+    } catch (_) {
+      localeId = null;
+    }
+    // 若在解析期間（async gap）已被暫停或結束，不再啟動聆聽。
+    if (!_isDictating || _dictationPaused) return;
+    // 看門狗在 listen() 前一刻啟動，避免 async gap 期間誤觸發。
+    _restartDictationWatchdog();
+    _speechToText!.listen(
+      onResult: (val) {
+        // 暫停後引擎可能補送 final result（例如 Android stop() 觸發）；
+        // 此時文字已完整，忽略以避免重複追加。
+        if (_dictationPaused) return;
+        if (val.recognizedWords.isNotEmpty) {
+          final separator = (_preDictationText.isNotEmpty && !_preDictationText.endsWith(' ') && !_preDictationText.endsWith('\n')) ? ' ' : '';
+          final newText = _preDictationText + separator + val.recognizedWords;
+          _inputController.value = TextEditingValue(
+            text: newText,
+            selection: TextSelection.collapsed(offset: newText.length),
+          );
+        }
+        // 任何新結果（partial 或 final）代表使用者仍在說話，重置看門狗。
+        _restartDictationWatchdog();
+      },
+      cancelOnError: true,
+      localeId: localeId,
+      // partialResults 開啟：長篇聽寫時持續收到 interim 結果以重置看門狗，
+      // 避免講話途中被誤判為靜默結束。
+      partialResults: true,
+      // 不傳 pauseFor（套件預設即 null）：原生引擎自行判斷語音結束（講完話立即送出），
+      // 60 秒 listenFor 作為安全網。
+      listenFor: const Duration(seconds: 60),
+    );
+  }
+
+  /// 靜音看門狗：超過平台靜音上限無新結果，視為聆聽已靜默結束 → 自動暫停。
+  void _restartDictationWatchdog() {
+    _cancelDictationWatchdog();
+    if (!_isDictating || _dictationPaused) return;
+    final timeout = isDesktopPlatform
+        ? _dictationSilenceTimeoutDesktop
+        : _dictationSilenceTimeoutMobile;
+    _dictationWatchdogTimer = Timer(timeout, () {
+      _dictationWatchdogTimer = null;
+      if (!_isDictating || _dictationPaused) return;
+      pauseDictation();
+    });
+  }
+
+  void _cancelDictationWatchdog() {
+    _dictationWatchdogTimer?.cancel();
+    _dictationWatchdogTimer = null;
+  }
+
+  /// 暫停聽寫：停止收音（麥克風釋放），保留已辨識文字，UI 顯示「播放」。
+  void pauseDictation() {
+    if (!_isDictating || _dictationPaused) return;
+    _cancelDictationWatchdog();
+    // 捕捉目前文字作為 resume 後的接續基底，避免新語音覆蓋既有內容。
+    _preDictationText = _inputController.text;
+    _speechToText?.stop();
+    _dictationPaused = true;
+    notifyListeners();
+  }
+
+  /// 從暫停狀態重新開啟聆聽。
+  void resumeDictation() {
+    if (!_isDictating || !_dictationPaused) return;
+    _startDictationListening();
+    notifyListeners();
+  }
+
+  void toggleDictationPause() {
+    if (_dictationPaused) {
+      resumeDictation();
+    } else {
+      pauseDictation();
+    }
+  }
+
   void stopDictation() {
     if (!_isDictating) return;
+    _cancelDictationWatchdog();
     _speechToText?.stop();
     _isDictating = false;
+    _dictationPaused = false;
     notifyListeners();
   }
 
@@ -1308,6 +1386,9 @@ class HomePageController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _cancelDictationWatchdog();
+    // 若仍在聽寫（含暫停以外的聆聽中狀態），釋放麥克風。
+    _speechToText?.stop();
     _convoFadeController.dispose();
     _mcpProvider?.removeListener(_onMcpChanged);
     _scrollCtrl.dispose();
