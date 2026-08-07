@@ -63,10 +63,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPageSearchDescription => 'Configure search engines';
 
   @override
-  String get settingsPageTts => 'TTS Services';
+  String get settingsPageTts => 'Speech (TTS)';
 
   @override
   String get settingsPageTtsDescription => 'Text-to-Speech configuration';
+
+  @override
+  String get settingsPageVoiceServices => 'Voice Services';
+
+  @override
+  String get settingsPageVoiceServicesDescription =>
+      'Speech synthesis and recognition';
+
+  @override
+  String get settingsPageStt => 'Speech Recognition';
+
+  @override
+  String get settingsPageSttDescription => 'Speech-to-Text configuration';
 
   @override
   String get settingsPageMcp => 'MCP Server';
@@ -2593,6 +2606,72 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ttsServicesFieldVoiceIdLabel => 'ID';
+
+  @override
+  String get sttServicesPageBackButton => 'Back';
+
+  @override
+  String get sttServicesPageTitle => 'Speech Recognition';
+
+  @override
+  String get sttServicesPageAddTooltip => 'Add';
+
+  @override
+  String get sttServicesDialogAddTitle => 'Add Speech Recognition Service';
+
+  @override
+  String get sttServicesDialogEditTitle => 'Edit Speech Recognition Service';
+
+  @override
+  String get sttServicesDialogCancelButton => 'Cancel';
+
+  @override
+  String get sttServicesDialogAddButton => 'Add';
+
+  @override
+  String get sttServicesDialogSaveButton => 'Save';
+
+  @override
+  String get sttServicesDialogProviderType => 'Service Type';
+
+  @override
+  String get sttServicesFieldNameLabel => 'Name';
+
+  @override
+  String get sttServicesFieldApiKeyLabel => 'API Key';
+
+  @override
+  String get sttServicesFieldBaseUrlLabel => 'Base URL';
+
+  @override
+  String get sttServicesFieldModelLabel => 'Model';
+
+  @override
+  String get sttServicesPageSystemSttTitle => 'System STT';
+
+  @override
+  String get sttServicesPageSystemSttConfigureTooltip => 'Configure';
+
+  @override
+  String get sttServicesPageNoNetworkServices =>
+      'No speech recognition services yet';
+
+  @override
+  String get sttServicesPageNotImplementedBadge =>
+      'Transcription not yet supported';
+
+  @override
+  String get sttSystemProviderName => 'System STT';
+
+  @override
+  String get sttLanguageSettingsTitle => 'Speech Recognition Language';
+
+  @override
+  String get sttLanguageAuto => 'Auto (follow app language)';
+
+  @override
+  String get sttLanguageNoLocalesMessage =>
+      'Could not fetch the system language list; using Auto';
 
   @override
   String get backupPageImportFromCherryStudio => 'Cherry';

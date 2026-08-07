@@ -19,6 +19,7 @@ import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/haptics.dart';
+import '../../voice_chat/services/stt_locale_resolver.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../utils/platform_utils.dart';
@@ -156,6 +157,7 @@ class HomePageController extends ChangeNotifier {
   bool _isDictating = false;
   bool get isDictating => _isDictating;
   stt.SpeechToText? _speechToText;
+  SttLocaleResolver? _dictationSttLocaleResolver;
   String _preDictationText = '';
 
   // Input bar measurement
@@ -190,6 +192,12 @@ class HomePageController extends ChangeNotifier {
     // 導致 listeners 不註冊、或平台事件導向被另一畫面實例持有（X1 教訓）。
     // ignore: invalid_use_of_visible_for_testing_member
     _speechToText = stt.SpeechToText.withMethodChannel();
+    // X1 教訓：聽寫使用專屬 STT 實例，不可與 Voice Chat 共用；locale 解析器
+    // 同樣綁定此專屬實例（系統語言列表來自同一引擎）。
+    _dictationSttLocaleResolver = SttLocaleResolver(
+      speechToText: _speechToText!,
+      settings: _context.read<SettingsProvider>(),
+    );
     final available = await _speechToText!.initialize(
       onError: (val) {
         debugPrint('[OmniChat Dictation] Speech recognition error: ${val.errorMsg}');
@@ -203,6 +211,14 @@ class HomePageController extends ChangeNotifier {
       _isDictating = true;
       _preDictationText = _inputController.text;
       notifyListeners();
+      // 解析使用者設定的語音辨識語言（顯式指定 > 自動）；解析失敗時回 null
+      // （使用平台預設），不阻斷聽寫。
+      String? localeId;
+      try {
+        localeId = await _dictationSttLocaleResolver?.resolve();
+      } catch (_) {
+        localeId = null;
+      }
       _speechToText!.listen(
         onResult: (val) {
           if (val.recognizedWords.isNotEmpty) {
@@ -215,6 +231,7 @@ class HomePageController extends ChangeNotifier {
           }
         },
         cancelOnError: true,
+        localeId: localeId,
         // 不傳 pauseFor（套件預設即 null）：原生引擎自行判斷語音結束（講完話立即送出），
         // 60 秒 listenFor 作為安全網。
         listenFor: const Duration(seconds: 60),

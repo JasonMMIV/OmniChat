@@ -43,7 +43,7 @@ import '../shared/widgets/snackbar.dart';
 import 'setting/default_model_pane.dart';
 import 'setting/search_services_pane.dart';
 import 'setting/mcp_pane.dart';
-import 'setting/tts_services_pane.dart';
+import 'setting/voice_services_pane.dart';
 import 'setting/quick_phrases_pane.dart';
 import 'setting/instruction_injection_pane.dart';
 import 'setting/ai_team_pane.dart';
@@ -84,7 +84,7 @@ enum _SettingsMenuItem {
   quickPhrases,
   instructionInjection,
   aiTeam,
-  tts,
+  voiceServices,
   networkProxy,
   backup,
   hotkeys,
@@ -130,8 +130,8 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
           return l10n.settingsPageInstructionInjection;
         case _SettingsMenuItem.aiTeam:
           return l10n.settingsPageAiTeam;
-        case _SettingsMenuItem.tts:
-          return l10n.settingsPageTts;
+        case _SettingsMenuItem.voiceServices:
+          return l10n.settingsPageVoiceServices;
         case _SettingsMenuItem.networkProxy:
           return l10n.settingsPageNetworkProxy;
         case _SettingsMenuItem.backup:
@@ -232,8 +232,8 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
                           return const DesktopInstructionInjectionPane(key: ValueKey('instructionInjection'));
                         case _SettingsMenuItem.aiTeam:
                           return const DesktopAiTeamPane(key: ValueKey('aiTeam'));
-                        case _SettingsMenuItem.tts:
-                          return const DesktopTtsServicesPane(key: ValueKey('tts'));
+                        case _SettingsMenuItem.voiceServices:
+                          return const DesktopVoiceServicesPane(key: ValueKey('voiceServices'));
                         case _SettingsMenuItem.stats:
                           return const DesktopStatsPane(key: ValueKey('stats'));
                         case _SettingsMenuItem.about:
@@ -276,7 +276,7 @@ class _SettingsMenu extends StatelessWidget {
       (_SettingsMenuItem.quickPhrases, lucide.Lucide.Zap, l10n.settingsPageQuickPhrase),
       (_SettingsMenuItem.instructionInjection, lucide.Lucide.Layers, l10n.settingsPageInstructionInjection),
       (_SettingsMenuItem.aiTeam, lucide.Lucide.Users, l10n.settingsPageAiTeam),
-      (_SettingsMenuItem.tts, lucide.Lucide.Volume2, l10n.settingsPageTts),
+      (_SettingsMenuItem.voiceServices, lucide.Lucide.Mic, l10n.settingsPageVoiceServices),
       (_SettingsMenuItem.networkProxy, lucide.Lucide.EthernetPort, l10n.settingsPageNetworkProxy),
       (_SettingsMenuItem.backup, lucide.Lucide.Database, l10n.settingsPageBackup),
       (_SettingsMenuItem.hotkeys, lucide.Lucide.Keyboard, l10n.settingsPageHotkeys),

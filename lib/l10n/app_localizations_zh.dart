@@ -63,10 +63,23 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsPageSearchDescription => 'Configure search engines';
 
   @override
-  String get settingsPageTts => '语音服务';
+  String get settingsPageTts => '语音朗读';
 
   @override
   String get settingsPageTtsDescription => 'Text-to-Speech configuration';
+
+  @override
+  String get settingsPageVoiceServices => '语音服务';
+
+  @override
+  String get settingsPageVoiceServicesDescription =>
+      'Speech synthesis and recognition';
+
+  @override
+  String get settingsPageStt => '语音识别';
+
+  @override
+  String get settingsPageSttDescription => 'Speech-to-Text configuration';
 
   @override
   String get settingsPageMcp => 'MCP';
@@ -2593,6 +2606,69 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ttsServicesFieldVoiceIdLabel => '音色 ID';
 
   @override
+  String get sttServicesPageBackButton => '返回';
+
+  @override
+  String get sttServicesPageTitle => '语音识别';
+
+  @override
+  String get sttServicesPageAddTooltip => '新增';
+
+  @override
+  String get sttServicesDialogAddTitle => '新增语音识别服务';
+
+  @override
+  String get sttServicesDialogEditTitle => '编辑语音识别服务';
+
+  @override
+  String get sttServicesDialogCancelButton => '取消';
+
+  @override
+  String get sttServicesDialogAddButton => '新增';
+
+  @override
+  String get sttServicesDialogSaveButton => '保存';
+
+  @override
+  String get sttServicesDialogProviderType => '服务类型';
+
+  @override
+  String get sttServicesFieldNameLabel => '名称';
+
+  @override
+  String get sttServicesFieldApiKeyLabel => 'API 密钥';
+
+  @override
+  String get sttServicesFieldBaseUrlLabel => 'Base URL';
+
+  @override
+  String get sttServicesFieldModelLabel => '模型';
+
+  @override
+  String get sttServicesPageSystemSttTitle => '系统STT';
+
+  @override
+  String get sttServicesPageSystemSttConfigureTooltip => '配置';
+
+  @override
+  String get sttServicesPageNoNetworkServices => '尚未新增任何语音识别服务';
+
+  @override
+  String get sttServicesPageNotImplementedBadge => '尚未支持转录';
+
+  @override
+  String get sttSystemProviderName => '系统STT';
+
+  @override
+  String get sttLanguageSettingsTitle => '语音识别语言';
+
+  @override
+  String get sttLanguageAuto => '自动 (跟随 App 语言)';
+
+  @override
+  String get sttLanguageNoLocalesMessage => '无法取得系统支持的语言列表，已使用自动';
+
+  @override
   String get backupPageImportFromCherryStudio => '从 Cherry Studio 导入';
 
   @override
@@ -4333,7 +4409,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get settingsPageSearch => '搜索服务';
 
   @override
-  String get settingsPageTts => '语音服务';
+  String get settingsPageTts => '语音朗读';
+
+  @override
+  String get settingsPageVoiceServices => '语音服务';
+
+  @override
+  String get settingsPageStt => '语音识别';
 
   @override
   String get settingsPageMcp => 'MCP';
@@ -6773,6 +6855,69 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get ttsServicesFieldVoiceIdLabel => '音色 ID';
 
   @override
+  String get sttServicesPageBackButton => '返回';
+
+  @override
+  String get sttServicesPageTitle => '语音识别';
+
+  @override
+  String get sttServicesPageAddTooltip => '新增';
+
+  @override
+  String get sttServicesDialogAddTitle => '新增语音识别服务';
+
+  @override
+  String get sttServicesDialogEditTitle => '编辑语音识别服务';
+
+  @override
+  String get sttServicesDialogCancelButton => '取消';
+
+  @override
+  String get sttServicesDialogAddButton => '新增';
+
+  @override
+  String get sttServicesDialogSaveButton => '保存';
+
+  @override
+  String get sttServicesDialogProviderType => '服务类型';
+
+  @override
+  String get sttServicesFieldNameLabel => '名称';
+
+  @override
+  String get sttServicesFieldApiKeyLabel => 'API 密钥';
+
+  @override
+  String get sttServicesFieldBaseUrlLabel => 'Base URL';
+
+  @override
+  String get sttServicesFieldModelLabel => '模型';
+
+  @override
+  String get sttServicesPageSystemSttTitle => '系统STT';
+
+  @override
+  String get sttServicesPageSystemSttConfigureTooltip => '配置';
+
+  @override
+  String get sttServicesPageNoNetworkServices => '尚未新增任何语音识别服务';
+
+  @override
+  String get sttServicesPageNotImplementedBadge => '尚未支持转录';
+
+  @override
+  String get sttSystemProviderName => '系统STT';
+
+  @override
+  String get sttLanguageSettingsTitle => '语音识别语言';
+
+  @override
+  String get sttLanguageAuto => '自动 (跟随 App 语言)';
+
+  @override
+  String get sttLanguageNoLocalesMessage => '无法取得系统支持的语言列表，已使用自动';
+
+  @override
   String get backupPageImportFromCherryStudio => '从 Cherry Studio 导入';
 
   @override
@@ -8411,7 +8556,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get settingsPageSearch => '搜尋服務';
 
   @override
-  String get settingsPageTts => '語音服務';
+  String get settingsPageTts => '語音朗讀';
+
+  @override
+  String get settingsPageVoiceServices => '語音服務';
+
+  @override
+  String get settingsPageStt => '語音辨識';
 
   @override
   String get settingsPageMcp => 'MCP';
@@ -10856,6 +11007,69 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get ttsServicesFieldVoiceIdLabel => '音色 ID';
+
+  @override
+  String get sttServicesPageBackButton => '返回';
+
+  @override
+  String get sttServicesPageTitle => '語音辨識';
+
+  @override
+  String get sttServicesPageAddTooltip => '新增';
+
+  @override
+  String get sttServicesDialogAddTitle => '新增語音辨識服務';
+
+  @override
+  String get sttServicesDialogEditTitle => '編輯語音辨識服務';
+
+  @override
+  String get sttServicesDialogCancelButton => '取消';
+
+  @override
+  String get sttServicesDialogAddButton => '新增';
+
+  @override
+  String get sttServicesDialogSaveButton => '儲存';
+
+  @override
+  String get sttServicesDialogProviderType => '服務類型';
+
+  @override
+  String get sttServicesFieldNameLabel => '名稱';
+
+  @override
+  String get sttServicesFieldApiKeyLabel => 'API 金鑰';
+
+  @override
+  String get sttServicesFieldBaseUrlLabel => 'Base URL';
+
+  @override
+  String get sttServicesFieldModelLabel => '模型';
+
+  @override
+  String get sttServicesPageSystemSttTitle => '系統STT';
+
+  @override
+  String get sttServicesPageSystemSttConfigureTooltip => '設定';
+
+  @override
+  String get sttServicesPageNoNetworkServices => '尚未新增任何語音辨識服務';
+
+  @override
+  String get sttServicesPageNotImplementedBadge => '尚未支援轉錄';
+
+  @override
+  String get sttSystemProviderName => '系統STT';
+
+  @override
+  String get sttLanguageSettingsTitle => '語音辨識語言';
+
+  @override
+  String get sttLanguageAuto => '自動 (跟隨 App 語言)';
+
+  @override
+  String get sttLanguageNoLocalesMessage => '無法取得系統支援的語言列表，已使用自動';
 
   @override
   String get backupPageImportFromCherryStudio => '從 Cherry Studio 匯入';

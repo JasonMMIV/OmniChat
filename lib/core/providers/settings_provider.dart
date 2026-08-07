@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:convert';
 import '../services/search/search_service.dart';
+import '../services/stt/network_stt.dart';
 import '../services/tts/network_tts.dart';
 import '../services/tts/tts_text_selection.dart';
 import '../services/network/request_logger.dart';
@@ -185,6 +186,10 @@ class SettingsProvider extends ChangeNotifier {
   static const String _ttsSelectedKey = 'tts_selected_v1';
   static const String _ttsAutoPlayRepliesKey = 'tts_auto_play_replies_v1';
   static const String _ttsTextSelectionModeKey = 'tts_text_selection_mode_v1';
+  // STT services (network & settings)
+  static const String _sttServicesKey = 'stt_services_v1';
+  static const String _sttSelectedKey = 'stt_selected_v1';
+  static const String _sttSystemLocaleKey = 'stt_system_locale_v1';
   // Desktop UI
   static const String _desktopSidebarWidthKey = 'desktop_sidebar_width_v1';
   static const String _desktopSidebarOpenKey = 'desktop_sidebar_open_v1';
@@ -206,6 +211,20 @@ class SettingsProvider extends ChangeNotifier {
       : null;
   bool get ttsAutoPlayAssistantReplies => _ttsAutoPlayAssistantReplies;
   TtsTextSelectionMode get ttsTextSelectionMode => _ttsTextSelectionMode;
+
+  // ===== Network STT services =====
+  List<SttServiceOptions> _sttServices = const <SttServiceOptions>[];
+  int _sttServiceSelected = -1; // -1 => use System STT
+  String? _sttSystemLocaleId; // null => auto (follow app locale)
+
+  List<SttServiceOptions> get sttServices => _sttServices;
+  int get sttServiceSelected => _sttServiceSelected;
+  bool get usingSystemStt => _sttServiceSelected < 0;
+  SttServiceOptions? get selectedSttService =>
+      (_sttServiceSelected >= 0 && _sttServiceSelected < _sttServices.length)
+      ? _sttServices[_sttServiceSelected]
+      : null;
+  String? get sttSystemLocaleId => _sttSystemLocaleId;
 
   List<String> _providersOrder = const [];
   List<String> get providersOrder => _providersOrder;
@@ -751,6 +770,31 @@ class SettingsProvider extends ChangeNotifier {
     _ttsTextSelectionMode = TtsTextSelectionModeStorage.fromStorageValue(
       prefs.getString(_ttsTextSelectionModeKey),
     );
+
+    // load network STT services
+    try {
+      final sttStr = prefs.getString(_sttServicesKey) ?? '';
+      if (sttStr.isNotEmpty) {
+        final list = jsonDecode(sttStr) as List;
+        _sttServices = [
+          for (final e in list)
+            if (e is Map<String, dynamic>)
+              SttServiceOptions.fromJson(e)
+            else
+              SttServiceOptions.fromJson(Map<String, dynamic>.from(e as Map)),
+        ];
+      } else {
+        _sttServices = const <SttServiceOptions>[];
+      }
+    } catch (_) {
+      _sttServices = const <SttServiceOptions>[];
+    }
+    _sttServiceSelected = prefs.getInt(_sttSelectedKey) ?? -1;
+    if (_sttServiceSelected >= _sttServices.length) {
+      _sttServiceSelected = _sttServices.isEmpty ? -1 : 0;
+      await prefs.setInt(_sttSelectedKey, _sttServiceSelected);
+    }
+    _sttSystemLocaleId = prefs.getString(_sttSystemLocaleKey);
     // webdav config
     final webdavStr = prefs.getString(_webDavConfigKey);
     if (webdavStr != null && webdavStr.isNotEmpty) {
@@ -951,6 +995,38 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_ttsAutoPlayRepliesKey, value);
+  }
+
+  Future<void> setSttServices(List<SttServiceOptions> v) async {
+    _sttServices = List.unmodifiable(v);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    final list = v.map((e) => e.toJson()).toList();
+    await prefs.setString(_sttServicesKey, jsonEncode(list));
+    if (_sttServiceSelected >= _sttServices.length) {
+      _sttServiceSelected = _sttServices.isEmpty ? -1 : 0;
+      await prefs.setInt(_sttSelectedKey, _sttServiceSelected);
+    }
+  }
+
+  Future<void> setSttServiceSelected(int index) async {
+    _sttServiceSelected = index;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_sttSelectedKey, _sttServiceSelected);
+  }
+
+  Future<void> setSttSystemLocaleId(String? localeId) async {
+    final next = (localeId == null || localeId.trim().isEmpty) ? null : localeId.trim();
+    if (_sttSystemLocaleId == next) return;
+    _sttSystemLocaleId = next;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    if (_sttSystemLocaleId == null) {
+      await prefs.remove(_sttSystemLocaleKey);
+    } else {
+      await prefs.setString(_sttSystemLocaleKey, _sttSystemLocaleId!);
+    }
   }
 
   Future<void> setTtsTextSelectionMode(TtsTextSelectionMode mode) async {
