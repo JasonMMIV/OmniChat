@@ -179,6 +179,93 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 
 ## 📜 Version Changes Log
 
+## [v1.10.2] - 2026-08-07: Phase 3 Structural Refactor + Runtime Type Regression Fix
+
+> 依「OmniChat Voice Chat Mode 優化計畫 v2」執行 Phase 3（結構重構 3.1–3.3）。重構後實測發現 voice chat 卡在 listening 不回覆、結束對話卡住——根因是 `buildApiMessages` 的執行期型別錯誤（Phase 3 回歸，`flutter analyze` 與既有測試都抓不到），已修復並補上回歸測試；另依使用者要求移除除錯用 AppLog。對應底部 v1.10.2 摘要條目（#171–#173）。
+
+### 171. Phase 3 — Structure Refactor (3.1–3.3)
+
+- **Purpose**: Split the 1397-line `voice_chat_screen.dart` god class, remove the dead `VoiceChatProvider`, and extract a reusable LLM turn-sending service.
+- **Files Modified**:
+  - `lib/features/chat/voice_chat_provider.dart` (deleted, 68 lines)
+  - `lib/core/services/chat/chat_turn_service.dart` (new: context assembly, system prompt injection, search tool injection, `sendMessageStream` wrapper with cancel handle, 300ms streaming persist throttle)
+  - `lib/features/voice_chat/controllers/voice_chat_controller.dart` (new: state machine listening/thinking/talking, pause semantics, X1/X2 invariants)
+  - `lib/features/voice_chat/services/stt_locale_resolver.dart` (new: Task 2.8 locale resolution + cache)
+  - `lib/features/voice_chat/services/platform_audio_setup.dart` (new: audio session / background service / call mode)
+  - `lib/features/voice_chat/pages/voice_chat_screen.dart` (1397 → ~200 lines, UI only)
+  - `lib/main.dart`、`lib/features/home/pages/home_page.dart`（移除 provider 註冊）
+- **Key Points**: `VoiceChatState` enum 唯一來源移至新 controller；X1（專屬 `SpeechToText.withMethodChannel()` 實例）保留。
+
+### 172. Regression Fix — buildApiMessages Runtime Type Error (voice chat stuck at listening)
+
+- **Symptom**: Phase 3 後語音辨識收到但永不離開 listening、無回應；結束語音對話卡住。
+- **Root Cause**: `buildApiMessages` 宣告回傳 `List<Map<String, dynamic>>`，但 map literal 執行期被推斷為 `_Map<String, String>`；`prepareTurnRequest` 的 `apiMessages.insert(0, {'role': 'system', ...})` 因此拋出 `type '_Map<String, dynamic>' is not a subtype of type 'Map<String, String>' of 'element'`（純執行期錯誤，`flutter analyze` 無法攔截）。
+- **Fix**: map literal 明確標註 `<String, dynamic>{...}`。
+- **Files Modified**:
+  - `lib/core/services/chat/chat_turn_service.dart`
+
+### 173. Debug Cleanup & Regression Test
+
+- **AppLog removed**: `lib/core/utils/app_logger.dart` 刪除；4 個 voice-chat/chat-turn 檔案的 ~90 處 `AppLog.d/i/e` 與 import 全部移除（除錯用，依使用者要求）。
+- **New test** `test/chat_turn_service_test.dart`（4 案例）：
+  - `buildApiMessages` role 映射 + 空內容過濾、版本收斂（`_collapseVersions`）
+  - **回歸守門員**：`prepareTurnRequest` 注入 system prompt 於 index 0 且不拋型別錯誤（已驗證：還原型別註記時測試會以與 Phase 3 完全相同的錯誤訊息失敗）
+  - 無 system prompt 時訊息原樣傳遞
+- **Note**: 除錯期間加的臨時卡死防護（requestId cancel、3s timeout、turn handle 120s watchdog）已於根因修復後移除；TTS 120s watchdog（Task 2.6）為正式功能保留。
+
+## [v1.10.1] - 2026-08-06: Voice Chat Optimisation Plan — Phase 1/2 Completed + Out-of-Plan Fixes
+
+> 依「OmniChat Voice Chat Mode 優化計畫 v2」執行：Phase 1（1.1–1.6）與 Phase 2（2.1–2.8）全部按計畫落地，另有 4 項計畫外修復（X1–X4），均隨 v1.10.1 發布（commits `c82a8886` + `61139970`）。Phase 3（結構重構）尚未執行，追蹤於計畫文件。此處為逐項補記；對應底部 v1.10.1 摘要條目（#168–#170）。
+
+### 168. Phase 1 — Silence/Session Auto-Resume & Listening Loop Stability (1.1–1.6)
+
+- **Purpose**: Make the voice chat listening loop seamless — automatically resume listening after silence or native session end, without dead-loops or a frozen UI — and remove the now-redundant `pauseFor` on all platforms.
+- **Files Modified**:
+  - `lib/features/voice_chat/pages/voice_chat_screen.dart` (1.1–1.6: auto-resume, subtitle toggle, no-conversation branch, cleanup completeness, mounted guards, `pauseFor` removal)
+  - `lib/features/home/controllers/home_page_controller.dart` (1.6: dictation `listen()` no longer passes `pauseFor`)
+- **Details**:
+  - **1.1 Auto-resume**: `notListening`/`done` status (and benign timeout/no-match errors) now schedule `_resumeListening` via a 250ms debounce (`_scheduleResumeListening`). A `_consecutiveEmptyResumes` counter guards against mic/engine failure loops — after 5 consecutive empty resumes the UI auto-pauses instead of looping forever. `_manualStopInProgress` suppresses auto-resume after an explicit user stop.
+  - **1.2 Subtitle toggle**: the captions button now actually toggles the subtitle text (the block is retained to avoid layout jumps).
+  - **1.3 No-conversation branch**: the missing-active-conversation error path routes through `_startVoiceRecognitionAfterProcessing`, resetting `_isProcessingVoiceInput` so dictation never freezes permanently.
+  - **1.4 Cleanup completeness**: `_cleanup()` fully stops TTS, cancels the in-flight LLM stream subscription (`_streamSub`) and completes the `_streamDone` completer so the DB write-back (`isStreaming: false`) always runs.
+  - **1.5 Mounted guards**: every `setState` is preceded by a `mounted` check.
+  - **1.6 `pauseFor` removed**: both `listen()` calls (voice chat + dictation) drop `pauseFor` — the package default is `null`. Native engines on Windows and Android both detect end-of-speech themselves (Android measured to finish immediately as well), so the 7-second virtual timer was redundant on both platforms.
+- **Tests**: `flutter test` — full suite passes (99 tests); manual regression on Android + Windows (second-round silence no longer auto-pauses at 5–7s).
+
+### 169. Phase 2 — Pause Semantics, Permission Guidance & TTS Watchdog (2.1–2.8)
+
+- **Purpose**: Tighten pause/resume semantics, add proper localization, guide users out of permanently-denied microphone permission, and harden the TTS playback path.
+- **Files Modified**:
+  - `lib/features/voice_chat/pages/voice_chat_screen.dart` (2.1 pause semantics, 2.5 dead `_voiceStopTimer` removal, 2.6 TTS watchdog, 2.7 back-button cleanup, 2.8 STT locale caching)
+  - `lib/core/utils/app_logger.dart` (NEW — `AppLog.d/i/e`, debug-only) (2.4)
+  - `lib/l10n/app_en.arb` / `app_zh.arb` / `app_zh_Hans.arb` / `app_zh_Hant.arb` (+ regenerated `app_localizations*.dart`) (2.2, 2.3)
+- **Details**:
+  - **2.1 Pause semantics**: pausing now interrupts the running LLM stream (cancels the subscription and completes the stream-done completer) and stops TTS; resuming returns to `listening`, resets the empty-resume counter, and restarts recognition (unless voice input is still being processed).
+  - **2.2 Localization**: `voiceChatPaused` added to en / zh / zh-Hans / zh-Hant.
+  - **2.3 Permanently denied permission**: the microphone overlay now calls `openAppSettings()` and shows `voiceChatPermissionOpenSettings` / `voiceChatPermissionDeniedSubtitle` instead of retrying a denied permission endlessly.
+  - **2.4 AppLog**: new `lib/core/utils/app_logger.dart` (debug-only `AppLog.d/i/e`); speech engine init uses `debugLogging: kDebugMode`.
+  - **2.5 Dead code**: unused `_voiceStopTimer` field removed.
+  - **2.6 TTS watchdog**: `ttsProvider.speak()` is wrapped in a 120-second timeout; on timeout TTS is force-stopped and the loop returns to listening.
+  - **2.7 Top back button**: the app-bar ✕ now runs the full `_endVoiceChat` cleanup before popping, matching the center stop button.
+  - **2.8 Locale caching**: `_resolveSttLocale()` caches the resolved locale keyed by `appLocale` + `isFollowingSystemLocale`, so repeated listens no longer re-query the engine's locale list.
+
+### 170. Out-of-Plan Fixes (X1–X4)
+
+- **Purpose**: Fixes discovered while executing Phase 1/2, shipped with v1.10.1.
+- **Files Modified**:
+  - `lib/features/voice_chat/pages/voice_chat_screen.dart` (X1, X2)
+  - `lib/features/home/controllers/home_page_controller.dart` (X1 — dictation dedicated STT instance)
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.cpp` (X3)
+  - `windows/CMakeLists.txt` (X4)
+  - `installer.iss` / removed `installers/omnichat_setup.iss` (installer unification)
+- **Details**:
+  - **X1 Singleton listener bug**: `SpeechToText` is a singleton whose `initialize()` only registers `onStatus`/`onError` on the first successful call; at app start the `VoiceChatProvider` had grabbed that first registration without listeners, so the screen handlers never fired and the UI froze on "Listening" after silence. Voice chat and dictation now each use a dedicated `SpeechToText.withMethodChannel()` instance so events always route to the active screen.
+  - **X2 Cancel/resume dead loop**: `onResult` used to set `_isListening = false` early, which skipped `stop()` and kept the native mic hot during thinking/TTS (Windows tray mic stayed lit); forced cancels produced `notListening` events that triggered auto-resume → cancel → infinite loop (UI auto-paused after 5–7s of silence). Fixed by keeping `_isListening = true` so `stop()` actually executes, adding the `_resumeLocked` gate to ignore self-produced `notListening`, an empty-result gate, and an `onResult` re-entry guard. Auto-pause now also stops the native session so the UI state and mic state never diverge.
+  - **X3 Windows 60s silence timeout**: pure silence no longer interrupts at ~7s. `InitialSilenceTimeout` (60s) is set after `CompileConstraintsAsync` so dictation constraint compilation can't reset it; added `Session Completed, status: N` diagnostics.
+  - **X4 CMake install prefix**: hard-coded `runner/Release` replaced with `$<TARGET_FILE_DIR:${BINARY_NAME}>`, fixing debug builds / `flutter run` missing `flutter_windows.dll`.
+  - **Installer unification**: `installers/omnichat_setup.iss` deleted (root cause of 32-bit → Program Files (x86) installs); root `installer.iss` is now the single 64-bit source.
+- **Tests**: `flutter test` — full suite passes (99 tests); `flutter analyze` clean.
+
 ## [v1.9.0] - 2026-08-05: ZIP Extraction, Markdown Table Output & PDF Generation
 
 ### 164. `file_extract_zip` Workspace Tool
@@ -471,7 +558,7 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
   - **Tests (review fix)**: `test/widget_test.dart` rewritten as a deterministic `MyApp(enableUpdateCheck: false)` smoke test; `test/file_tool_service_test.dart` covers sandbox escapes, symlink rejection, byte limits, listing/search truncation, and CRUD operations. Full suite: 31 tests pass.
   - **Localization (review fix)**: workspace & file-card strings added across en / zh / zh_Hans / zh_Hant ARB files and wired to `AppLocalizations`.
 
-- **v1.10.0** (2026-08-06, entry #155):
+- **v1.10.0** (2026-08-06, entry #167):
   - **Summary**: Integrated upstream Kelivo voice service features — 4 new Network TTS providers (Qwen, Groq, xAI, MiMo), MiniMax default model upgrade to `speech-2.6-turbo`, Voice Settings page (`TtsSettingsPage`) with auto-play assistant replies and speech text content filter ("Full text" / "Text outside brackets"), and Settings button ⚙️ added to voice service headers on Mobile and Desktop.
   - **Files Changed**:
     - `lib/core/services/tts/tts_text_selection.dart` (new `TtsTextSelection` utility for regex bracket stripping)
@@ -484,7 +571,16 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
     - `lib/l10n/app_en.arb` / `app_zh.arb` (Voice settings & new TTS provider translations)  - `pubspec.yaml` (version bumped to `1.10.0+69`)
   - `installer.iss` / `installers/omnichat_setup.iss` (installer version 1.10.0)
 
-- **v1.10.1** (2026-08-06, entry #167):
+- **v1.10.2** (2026-08-07, entries #171–#173):
+  - **Summary**: Phase 3 structural refactor — removed the dead `VoiceChatProvider`; extracted `ChatTurnService` (shared LLM turn-sending with 300ms streaming persist throttle) and split the 1397-line `voice_chat_screen.dart` into a `VoiceChatController` + `SttLocaleResolver` + `PlatformAudioSetup` (~200 lines, UI-only). Fixed a Phase 3 regression where a runtime map-literal type mismatch in `buildApiMessages` (inserting a `Map<String, dynamic>` literal into a runtime `List<Map<String, String>>`) froze voice chat at "Listening" and made ending the session hang; added `test/chat_turn_service_test.dart` regression tests (verified to fail with the exact Phase 3 error when the fix is reverted); removed debug-only `AppLog` utility per user request. Version bumped to `1.10.2+71`.
+  - **Files Changed**:
+    - `lib/core/services/chat/chat_turn_service.dart` (NEW) / `lib/features/voice_chat/controllers/voice_chat_controller.dart` (NEW) / `lib/features/voice_chat/services/stt_locale_resolver.dart` (NEW) / `lib/features/voice_chat/services/platform_audio_setup.dart` (NEW)
+    - `lib/features/chat/voice_chat_provider.dart` (deleted) / `lib/core/utils/app_logger.dart` (deleted)
+    - `lib/features/voice_chat/pages/voice_chat_screen.dart` (1397 → ~200 lines) / `lib/main.dart` / `lib/features/home/pages/home_page.dart`
+    - `test/chat_turn_service_test.dart` (NEW, 4 regression tests)
+    - `pubspec.yaml` (version `1.10.2+71`) / `installer.iss` (1.10.2)
+
+- **v1.10.1** (2026-08-06, entries #168–#170):
   - **Summary**: Voice chat stability fixes (Windows + Android) — fixed the silence dead-loop that made the UI auto-pause after ~5–7s of quiet and kept the tray mic icon lit, the `SpeechToText` singleton listener bug that froze the UI on "Listening", and the Windows CMake install-prefix bug that broke `flutter run`/debug builds (missing `flutter_windows.dll`); native `InitialSilenceTimeout` raised to 60s on Windows so pure silence no longer cuts off at ~7s; `pauseFor` fully removed on all platforms (package default is null) so native engines decide end-of-speech.
   - **Files Changed**:
     - `lib/features/voice_chat/pages/voice_chat_screen.dart` (dedicated `SpeechToText.withMethodChannel()` instance so `onStatus`/`onError` are actually registered; `_resumeLocked` guard suppressing resumes triggered by our own force-cancel; keep `_isListening` true on final result so `stop()` really stops the native mic during thinking/TTS; `pauseFor` removed; auto-pause now stops the native session too; duplicate-final re-entry guard)
@@ -498,6 +594,7 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
     - `installer.iss` / `installers/omnichat_setup.iss` (installer version 1.10.1)
     - `CHANGES_LOG.md` (this entry)
   - **Tests**: `flutter test` — full suite passes (99 tests); `flutter analyze` clean.
+  - **Detailed records**: itemized Phase 1/2 and the out-of-plan fixes (X1–X4) are documented in entries #168–#170 at the top of the Version Changes Log.
 
 ---
 

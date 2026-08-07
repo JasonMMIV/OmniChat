@@ -15,7 +15,6 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/utils/reasoning_capabilities.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
-import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/services/android_process_text.dart';
 import '../../../utils/sandbox_path_resolver.dart';
@@ -60,9 +59,7 @@ import '../controllers/home_page_controller.dart';
 import 'home_mobile_layout.dart';
 import 'home_desktop_layout.dart';
 
-import '../../chat/voice_chat_provider.dart';
-import '../../../features/voice_chat/pages/voice_chat_screen.dart'
-    hide VoiceChatState;
+import '../../../features/voice_chat/pages/voice_chat_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -94,7 +91,6 @@ class _HomePageState extends State<HomePage>
   // ============================================================================
 
   late HomePageController _controller;
-  VoiceChatProvider? _voiceChatProvider;
 
   // ============================================================================
   // Lifecycle
@@ -126,9 +122,6 @@ class _HomePageState extends State<HomePage>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _controller.measureInputBar();
-      // Initialize voice chat provider listener
-      _voiceChatProvider = context.read<VoiceChatProvider>();
-      _voiceChatProvider?.addListener(_onVoiceChatStateChanged);
     });
   }
 
@@ -161,7 +154,6 @@ class _HomePageState extends State<HomePage>
     try {
       WidgetsBinding.instance.removeObserver(this);
     } catch (_) {}
-    _voiceChatProvider?.removeListener(_onVoiceChatStateChanged);
     _processTextSub?.cancel();
     _controller.removeListener(_onControllerChanged);
     _drawerController.removeListener(_onDrawerValueChanged);
@@ -228,16 +220,6 @@ class _HomePageState extends State<HomePage>
   }
 
   // Voice Chat Logic
-  void _onVoiceChatStateChanged() {
-    if (!mounted) return;
-    if (_voiceChatProvider!.state == VoiceChatState.idle &&
-        _voiceChatProvider!.lastWords.isNotEmpty) {
-      final lastWords = _voiceChatProvider!.lastWords;
-      _voiceChatProvider!.clearLastWords();
-      _controller.sendMessage(ChatInputData(text: lastWords));
-    }
-  }
-
   void _startVoiceChat() async {
     if (_controller.currentConversation == null) {
       await _controller.createNewConversationAnimated();

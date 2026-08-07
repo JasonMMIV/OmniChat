@@ -30,7 +30,6 @@ import 'core/providers/ai_team_provider.dart';
 import 'core/providers/memory_provider.dart';
 import 'core/providers/backup_provider.dart';
 import 'core/providers/hotkey_provider.dart';
-import 'features/chat/voice_chat_provider.dart';
 import 'core/services/chat/chat_service.dart';
 import 'core/services/mcp/mcp_tool_service.dart';
 import 'core/services/logging/flutter_logger.dart';
@@ -138,7 +137,6 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => InstructionInjectionProvider()),
         ChangeNotifierProvider(create: (_) => AiTeamProvider()),
         ChangeNotifierProvider(create: (_) => MemoryProvider()),
-        ChangeNotifierProvider(create: (_) => VoiceChatProvider()),
         // Desktop hotkeys provider
         ChangeNotifierProvider(create: (_) => HotkeyProvider()),
         ChangeNotifierProvider(
