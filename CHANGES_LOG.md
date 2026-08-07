@@ -178,6 +178,38 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.12.0] - 2026-08-08: Dictation Per-Utterance Session Restart (Windows/Android) + STT Plugin Hardening
+
+> 根治「聽寫只對第一句話產出文字」：Windows 與 Android 的連續辨識 session 在送出第一個非空 final 結果後，引擎便不再辨識後續語音（session 仍開啟、不送 notListening、麥克風持續被佔用——UI 顯示聆聽但後續講話沒有文字）。修法與 Voice Chat 每句話重啟的模式一致：每句話（非空 final result）後立即 `stop()` 並重開全新 session（先等 stop 真正完成再 `listen()`，避免 plugin 以「Already listening」忽略 Listen）。另修 Windows STT plugin 的事件 handler 洩漏（每次重啟重複註冊、事件倍數觸發）並新增檔案 log 以便診斷（OmniChat 為 GUI 應用，stdout 無 console 可依附、`std::cout` 全部遺失）。Windows 先以裝置實測驗證（Hello / Good morning / How are you / I'm fine / Thank you / You're welcome 逐句產出並接續），Android 實測確認相同問題後移除平台閘門、一併套用。
+
+### 182. Dictation Per-Utterance Session Restart (All Platforms)
+
+- **Purpose**: Windows 與 Android 的連續辨識 session 只對第一句話輸出結果：第一次非空 final 送出後引擎不再辨識。在 onResult 收到非空 final result 後，把本句併入接續基底（`_preDictationText = newText`，下一句才不會覆蓋前文），並立即 `stop()` + 重新 `listen()` 開全新 session，讓後續語句持續被辨識。
+- **Files Modified**:
+  - `lib/features/home/controllers/home_page_controller.dart` (onResult 對所有平台處理每句話重啟；新增 `_restartDictationAfterFinal()` / `_restartDictationAfterFinalAsync()` / `_stopDictationEngine()`；新增 `_dictationRestarting` / `_dictationStopFuture` / `_disposed` 旗標；`pauseDictation` / `stopDictation` / `dispose` / `resumeDictation` 改走共用 `_stopDictationEngine()`)
+- **Key Points**:
+  - **每句話重啟**：`_restartDictationAfterFinal()` 以 `_dictationRestarting` 重入旗標防重複重啟；重啟過渡期忽略舊 session 殘留的 partial（避免疊字），`finally` 復位。
+  - **先停完再聽**：`_stopDictationEngine()` 以 in-flight future 去重，暫停恢復與每句話重啟共用——一律等待 plugin 的 `m_isListening` 歸零再 `listen()`，修掉「暫停後快速恢復沒反應」的競態（log 中可見 Listen called 之後沒有 StartListeningAsync）。
+  - **dispose 防護**：`_disposed` 旗標擋下 dispose 後到達的異步回調，不再觸發 notifier。
+  - **套件層去重確認**：speech_to_text `_notifyResults` 送出第一個 final 後設 `_notifiedFinal`，後續所有結果（含 Android `stop()` 觸發的補送 final）直接丟棄，不會重複文字或重複重啟。
+  - **平台**：先僅桌面驗證（Windows 實測多句話逐句產出），Android 裝置實測確認相同「每 session 一句話」行為後移除 `isDesktopPlatform` 閘門、所有平台一致處理（iOS 沿用同一路徑，未另行驗證）。
+
+### 183. Windows STT Plugin — Event Handler Leak Fix & File Logging
+
+- **Purpose**: 每個 `StartListeningAsync` 都在同一個 recognizer / continuous session 上重新註冊事件 handler 卻從不撤銷舊 token，導致每次重啟（voice chat 與新的聽寫每句話重啟）handler 無限累積——`stt_plugin.log` 實測可見 `ResultGenerated` / `Session Completed` 重複次數隨句數成長（1→2→3→4→6→8），最終造成重複文字與效能劣化。另因 GUI 應用無 console，`std::cout` 輸出全部遺失，新增直接寫檔的診斷 log 讓行為可稽核。
+- **Files Modified**:
+  - `dependencies/speech_to_text_windows/windows/speech_to_text_windows_plugin.cpp` (新增 `OmniLog` / `OmniLogFilePath` / `NowStamp` 檔案 log 基礎設施與各事件點 log；`StartListeningAsync` 註冊 handler 前先撤銷舊 `EventRegistrationToken`（HypothesisGenerated / ResultGenerated / Completed，與解構子相同模式）)
+- **Key Points**:
+  - **Token 撤銷**：`if (m_xToken) recognizer.xxx(m_xToken); m_xToken = {};` 撤銷後清空成員，避免失效 token 殘留或重複撤銷；包 try/catch，撤銷失敗不阻斷聆聽。
+  - **檔案 log**：`OmniLog` 每次事件直接開檔、append、關檔（含 HH:MM:SS.mmm 時間戳），寫入 `%LOCALAPPDATA%\OmniChat\stt_plugin.log`（回退 TEMP）——不受 stream 緩衝與 console 有無影響，release 模式同樣可診斷。
+  - **兩條路徑一併受惠**：voice chat 與聽寫共用同一 plugin，handler 洩漏修復同時涵蓋兩者。
+
+### 184. Version & Tests
+
+- **Files Modified**: `pubspec.yaml` (version `1.12.0+74`) / `installer.iss` (1.12.0, output `OmniChat_windows_v1.12.0_setup`) / `CHANGES_LOG.md` (this entry)
+- **Tests**: `flutter analyze` — no new errors (15 pre-existing info only); `flutter test` — STT 相關套件全過 (stt_locale_resolver / settings_provider_stt / voice_chat_windows / network_stt, 20 tests)。
+
+
 ## [v1.11.1] - 2026-08-07: Inline Dictation Pause/Resume + Silence Watchdog Auto-Pause
 
 > 輸入列語音聽寫右側新增「暫停/播放」按鈕，並以「靜音看門狗」偵測系統語音引擎的靜默結束（Android/iOS 約 7 秒、Windows/macOS/Linux 約 60 秒無新辨識結果）自動切為暫停（icon 變「播放」）；按下播放重新開啟聆聽並續接既有文字。聽寫模式的送出按鈕 icon 由打勾改為向上箭頭，符合「送出」語意。背景：Android 的 timeout/status callbacks 不可靠（v1.5.14 曾因此 revert 自動暫停），因此採用純看門狗計時器，不依賴引擎通知。
