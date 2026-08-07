@@ -11,7 +11,7 @@ import '../../mcp/pages/mcp_page.dart';
 import '../../assistant/pages/assistant_settings_page.dart';
 import 'about_page.dart';
 import '../../stats/pages/stats_page.dart';
-import 'tts_services_page.dart';
+import 'voice_services_page.dart';
 import '../../search/pages/search_services_page.dart';
 import '../../backup/pages/backup_page.dart';
 import '../../quick_phrase/pages/quick_phrases_page.dart';
@@ -240,11 +240,13 @@ class SettingsPage extends StatelessWidget {
               _iosDivider(context),
               _iosNavRow(
                 context,
-                icon: Lucide.Volume2,
-                label: l10n.settingsPageTts,
+                icon: Lucide.Mic,
+                label: l10n.settingsPageVoiceServices,
                 onTap: () {
                   Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const TtsServicesPage()),
+                    MaterialPageRoute(
+                      builder: (_) => const VoiceServicesPage(),
+                    ),
                   );
                 },
               ),

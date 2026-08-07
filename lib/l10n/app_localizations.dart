@@ -211,7 +211,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsPageTts.
   ///
   /// In en, this message translates to:
-  /// **'TTS Services'**
+  /// **'Speech (TTS)'**
   String get settingsPageTts;
 
   /// No description provided for @settingsPageTtsDescription.
@@ -219,6 +219,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Text-to-Speech configuration'**
   String get settingsPageTtsDescription;
+
+  /// No description provided for @settingsPageVoiceServices.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice Services'**
+  String get settingsPageVoiceServices;
+
+  /// No description provided for @settingsPageVoiceServicesDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Speech synthesis and recognition'**
+  String get settingsPageVoiceServicesDescription;
+
+  /// No description provided for @settingsPageStt.
+  ///
+  /// In en, this message translates to:
+  /// **'Speech Recognition'**
+  String get settingsPageStt;
+
+  /// No description provided for @settingsPageSttDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Speech-to-Text configuration'**
+  String get settingsPageSttDescription;
 
   /// No description provided for @settingsPageMcp.
   ///
@@ -5050,6 +5074,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'ID'**
   String get ttsServicesFieldVoiceIdLabel;
+
+  /// No description provided for @sttServicesPageBackButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get sttServicesPageBackButton;
+
+  /// No description provided for @sttServicesPageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Speech Recognition'**
+  String get sttServicesPageTitle;
+
+  /// No description provided for @sttServicesPageAddTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get sttServicesPageAddTooltip;
+
+  /// No description provided for @sttServicesDialogAddTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Speech Recognition Service'**
+  String get sttServicesDialogAddTitle;
+
+  /// No description provided for @sttServicesDialogEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Speech Recognition Service'**
+  String get sttServicesDialogEditTitle;
+
+  /// No description provided for @sttServicesDialogCancelButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get sttServicesDialogCancelButton;
+
+  /// No description provided for @sttServicesDialogAddButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get sttServicesDialogAddButton;
+
+  /// No description provided for @sttServicesDialogSaveButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get sttServicesDialogSaveButton;
+
+  /// No description provided for @sttServicesDialogProviderType.
+  ///
+  /// In en, this message translates to:
+  /// **'Service Type'**
+  String get sttServicesDialogProviderType;
+
+  /// No description provided for @sttServicesFieldNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get sttServicesFieldNameLabel;
+
+  /// No description provided for @sttServicesFieldApiKeyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'API Key'**
+  String get sttServicesFieldApiKeyLabel;
+
+  /// No description provided for @sttServicesFieldBaseUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Base URL'**
+  String get sttServicesFieldBaseUrlLabel;
+
+  /// No description provided for @sttServicesFieldModelLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Model'**
+  String get sttServicesFieldModelLabel;
+
+  /// No description provided for @sttServicesPageSystemSttTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'System STT'**
+  String get sttServicesPageSystemSttTitle;
+
+  /// No description provided for @sttServicesPageSystemSttConfigureTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure'**
+  String get sttServicesPageSystemSttConfigureTooltip;
+
+  /// No description provided for @sttServicesPageNoNetworkServices.
+  ///
+  /// In en, this message translates to:
+  /// **'No speech recognition services yet'**
+  String get sttServicesPageNoNetworkServices;
+
+  /// No description provided for @sttServicesPageNotImplementedBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Transcription not yet supported'**
+  String get sttServicesPageNotImplementedBadge;
+
+  /// No description provided for @sttSystemProviderName.
+  ///
+  /// In en, this message translates to:
+  /// **'System STT'**
+  String get sttSystemProviderName;
+
+  /// No description provided for @sttLanguageSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Speech Recognition Language'**
+  String get sttLanguageSettingsTitle;
+
+  /// No description provided for @sttLanguageAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto (follow app language)'**
+  String get sttLanguageAuto;
+
+  /// No description provided for @sttLanguageNoLocalesMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not fetch the system language list; using Auto'**
+  String get sttLanguageNoLocalesMessage;
 
   /// No description provided for @backupPageImportFromCherryStudio.
   ///

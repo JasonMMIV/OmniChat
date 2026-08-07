@@ -178,6 +178,53 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.11.0] - 2026-08-07: Voice Services Hub + STT Settings Architecture
+
+> 依「語音服務重構與語音辨識（STT）擴充計畫 v2」執行。建立「語音服務」中介頁面（行動/桌面兩層導覽一致）、系統 STT 語言覆寫設定（同時影響 Voice Chat 與 Dictation）、第三方 STT 服務的設定管理架構（OpenAI Whisper / Groq Whisper）；網路轉錄明確排除於本次，第三方服務僅儲存設定並標示「尚未支援轉錄」。
+
+### 174. Voice Services Hub — Unified Two-Level Navigation (Mobile & Desktop)
+
+- **Purpose**: Introduce an intermediate "Voice Services" settings page on both platforms so TTS (語音朗讀) and STT (語音辨識) live under one roof, with identical UX on mobile and desktop.
+- **Files Modified**:
+  - `lib/features/settings/pages/voice_services_page.dart` (NEW — mobile two-entry page: 語音朗讀 → `TtsServicesPage`, 語音辨識 → `SttServicesPage`)
+  - `lib/features/settings/pages/settings_page.dart` (models & services card: TTS row replaced by 語音服務 row → `VoiceServicesPage`)
+  - `lib/desktop/setting/voice_services_pane.dart` (NEW — desktop intermediate pane: two hoverable cards that switch **in place** to `DesktopTtsServicesPane` / `DesktopSttServicesPane`, with a back affordance)
+  - `lib/desktop/desktop_settings_page.dart` (`_SettingsMenuItem.tts` renamed to `voiceServices`; sidebar icon `Volume2` → `Mic`; switch cases updated)
+- **Key Points**: 桌面版保留中介層（與行動版一致），以 pane 內切換呈現，而非砍掉中介層。
+
+### 175. STT Settings Pages (Mobile & Desktop)
+
+- **Purpose**: Speech recognition service management with the system STT entry (non-deletable) and third-party provider cards flagged as not-yet-implemented for transcription.
+- **Files Modified**:
+  - `lib/features/settings/pages/stt_services_page.dart` (NEW — mobile: system STT row + language config sheet, network service CRUD, selected/delete interactions)
+  - `lib/desktop/setting/stt_services_pane.dart` (NEW — desktop adaptation, hoverable card style aligned with `tts_services_pane.dart`)
+- **Key Points**: 系統STT 語言對話框透過 `speechToText.locales()` 取得系統語言列表（含「自動」選項）；**空列表防護**：`locales()` 回空（Windows WinRT 限制）或拋錯時，不顯示空對話框，直接視為「自動」並顯示 `sttLanguageNoLocalesMessage`。第三方卡片顯示「尚未支援轉錄」標示。
+
+### 176. STT Data Model & SettingsProvider Persistence
+
+- **Purpose**: Mirror the `TtsServiceOptions` hierarchy for STT configuration with SharedPreferences persistence.
+- **Files Modified**:
+  - `lib/core/services/stt/network_stt.dart` (NEW — `NetworkSttKind { openaiWhisper, groqWhisper }`, abstract `SttServiceOptions` with stable `id` / `enabled` / `name` / `kind` + `toJson`/`fromJson`, `OpenAiWhisperSttOptions` (base `https://api.openai.com/v1/audio/transcriptions`, model `whisper-1`), `GroqWhisperSttOptions` (base `https://api.groq.com/openai/v1/audio/transcriptions`, model `whisper-large-v3`))
+  - `lib/core/providers/settings_provider.dart` (prefs keys `stt_services_v1` / `stt_selected_v1` / `stt_system_locale_v1`; `_sttServices` / `_sttServiceSelected` (-1 = System STT) / `_sttSystemLocaleId` (null = auto); getters/setters, load & out-of-range convergence mirroring TTS)
+
+### 177. STT Locale Resolution Integration (Voice Chat + Dictation)
+
+- **Purpose**: Both voice chat and inline dictation now honor the user-configured speech recognition language.
+- **Files Modified**:
+  - `lib/features/voice_chat/services/stt_locale_resolver.dart` (explicit `sttSystemLocaleId` takes priority over auto matching; **cache key now includes `systemSttLocaleId`** so mid-session settings changes take effect; `locales()` exception path fixed to still run the forced fallback instead of returning null)
+  - `lib/features/home/controllers/home_page_controller.dart` (dictation creates its own `SttLocaleResolver` bound to its dedicated `SpeechToText.withMethodChannel()` instance per X1, and passes `localeId` to `listen()`; failure degrades to platform default)
+- **Key Points**: 語音對話路徑原先已在 `voice_chat_controller.dart` 使用 resolver；本次讓 Dictation 路徑也納入語言解析（原僅 Voice Chat）。
+
+### 178. Localization, Tests & Docs
+
+- **Files Modified**:
+  - `lib/l10n/app_en.arb` / `app_zh_Hant.arb` / `app_zh_Hans.arb` / `app_zh.arb` (+ regenerated `app_localizations*.dart`): `settingsPageTts` 改為「語音朗讀」；新增 `settingsPageVoiceServices`（語音服務）、`settingsPageStt`（語音辨識）與完整 `sttServices*` / `sttLanguage*` key 家族
+  - `test/network_stt_test.dart` (NEW — 8 tests: JSON round-trip per kind, unknown-kind fallback, kind defaults, display names, unique ids)
+  - `test/stt_locale_resolver_test.dart` (NEW — 7 tests: explicit > auto, override priority, auto matching, **cache invalidation on locale change**, empty-list fallback, zh-Hant fallback, `locales()` exception fallback)
+  - `test/settings_provider_stt_test.dart` (NEW — 5 tests: `stt_services_v1` / `stt_selected_v1` / `stt_system_locale_v1` persistence round-trips, out-of-range selection convergence, `selectedSttService` bounds)
+  - `pubspec.yaml` (version `1.11.0+72`) / `installer.iss` (1.11.0) / `CHANGES_LOG.md` (this entry; 隱私註記：本次未實作網路轉錄，無音訊外送)
+- **Tests**: `flutter test` — full suite passes (122 tests, +20 new); `flutter analyze` no new errors.
+
 
 ## [v1.10.2] - 2026-08-07: Phase 3 Structural Refactor + Runtime Type Regression Fix
 
