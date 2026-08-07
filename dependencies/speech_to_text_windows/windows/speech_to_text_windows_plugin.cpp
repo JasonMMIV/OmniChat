@@ -11,6 +11,9 @@
 #include <sstream>
 #include <iomanip>
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
 
 using namespace winrt;
 using namespace Windows::Media::SpeechRecognition;
@@ -18,6 +21,40 @@ using namespace Windows::Globalization;
 using namespace Windows::Foundation;
 
 namespace speech_to_text_windows {
+
+// --- Diagnostics: OmniChat is a GUI-subsystem app, so std::cout output is
+// invisible when the app is launched normally (no console attached). STT
+// events are written to a log file so behavior can always be inspected:
+//   %LOCALAPPDATA%\OmniChat\stt_plugin.log
+// Each call opens/appends/closes immediately, so writes are never lost to
+// stream buffering even if the app is killed.
+static std::string OmniLogFilePath() {
+    const char* base = getenv("LOCALAPPDATA");
+    if (!base || !*base) base = getenv("TEMP");
+    if (!base || !*base) return "";
+    std::string dir = std::string(base) + "\\OmniChat";
+    CreateDirectoryA(dir.c_str(), nullptr);  // "already exists" error is fine
+    return dir + "\\stt_plugin.log";
+}
+
+static std::string NowStamp() {
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%02u:%02u:%02u.%03u",
+             st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+    return buf;
+}
+
+static void OmniLog(const std::string& msg) {
+    std::string path = OmniLogFilePath();
+    if (path.empty()) return;
+    std::ofstream of(path, std::ios::app);
+    if (of) {
+        of << NowStamp() << " " << msg << std::endl;
+        of.close();
+    }
+}
 
 // Helper to escape JSON string
 static std::string EscapeJsonString(const std::string& s) {
@@ -61,6 +98,7 @@ void SpeechToTextWindowsPlugin::RegisterWithRegistrar(
 const LPCWSTR SpeechToTextWindowsPlugin::kMessageWindowClassName = L"OmniChatSpeechMessageWindow";
 
 SpeechToTextWindowsPlugin::SpeechToTextWindowsPlugin(flutter::PluginRegistrarWindows *registrar) {
+    OmniLog("[OmniChat] SpeechToTextWindowsPlugin created");
     std::cout << "[OmniChat] SpeechToTextWindowsPlugin created" << std::endl;
     m_mainThreadId = GetCurrentThreadId();
     CreateMessageWindow();
@@ -360,6 +398,7 @@ void SpeechToTextWindowsPlugin::Listen(
     const flutter::MethodCall<flutter::EncodableValue> &method_call,
     std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
     
+    OmniLog("[OmniChat] Listen called");
     std::cout << "[OmniChat] Listen called" << std::endl;
     if (m_isListening) {
         std::cout << "[OmniChat] Already listening, ignoring." << std::endl;
@@ -386,6 +425,7 @@ fire_and_forget SpeechToTextWindowsPlugin::StartListeningAsync(
     std::string localeId,
     std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
     
+    OmniLog("[OmniChat] StartListeningAsync begin");
     std::cout << "[OmniChat] StartListeningAsync begin" << std::endl;
     auto weak_result = result;
     
@@ -483,9 +523,35 @@ fire_and_forget SpeechToTextWindowsPlugin::StartListeningAsync(
         // end-of-speech is still detected quickly by the native EndSilenceTimeout.
         try {
             recognizer.Timeouts().InitialSilenceTimeout(std::chrono::seconds(60));
+            OmniLog("[OmniChat] InitialSilenceTimeout set to 60s");
             std::cout << "[OmniChat] InitialSilenceTimeout set to 60s" << std::endl;
         } catch (hresult_error const& ex) {
+            OmniLog("[OmniChat] Failed to set InitialSilenceTimeout: " + ToUtf8(ex.message()));
             std::cout << "[OmniChat] Failed to set InitialSilenceTimeout: " << ToUtf8(ex.message()) << std::endl;
+        }
+
+        // Each StartListeningAsync re-registers event handlers on the SAME
+        // recognizer / continuous session. Without revoking the previous tokens
+        // before re-registering, every restart (voice chat and the new
+        // per-utterance dictation restart) accumulates handlers - events fire
+        // multiple times and the count grows with each utterance (observed in
+        // stt_plugin.log). Same revoke-before-register pattern as the
+        // destructor.
+        try {
+            if (m_hypothesisToken) {
+                recognizer.HypothesisGenerated(m_hypothesisToken);
+                m_hypothesisToken = {};
+            }
+            if (m_resultToken) {
+                recognizer.ContinuousRecognitionSession().ResultGenerated(m_resultToken);
+                m_resultToken = {};
+            }
+            if (m_completedToken) {
+                recognizer.ContinuousRecognitionSession().Completed(m_completedToken);
+                m_completedToken = {};
+            }
+        } catch (...) {
+            OmniLog("[OmniChat] Failed to revoke previous event tokens");
         }
 
         std::cout << "[OmniChat] Subscribing events..." << std::endl;
@@ -495,19 +561,23 @@ fire_and_forget SpeechToTextWindowsPlugin::StartListeningAsync(
         });
 
         m_resultToken = recognizer.ContinuousRecognitionSession().ResultGenerated([this](auto const&, auto const& args) {
+             OmniLog("[OmniChat] ResultGenerated: " + ToUtf8(args.Result().Text()));
              std::cout << "[OmniChat] ResultGenerated" << std::endl;
              SendTextRecognition(ToUtf8(args.Result().Text()), true);
         });
         
         m_completedToken = recognizer.ContinuousRecognitionSession().Completed([this](auto const&, auto const& args) {
              // args.Status(): 0=Success, 1=NoMatch, 2=UserCanceled, 3=TimeoutExceeded, ...
+             OmniLog("[OmniChat] Session Completed, status: " + std::to_string((int)args.Status()));
              std::cout << "[OmniChat] Session Completed, status: " << (int)args.Status() << std::endl;
              SendStatus("notListening");
              m_isListening = false;
         });
 
+        OmniLog("[OmniChat] Starting continuous recognition...");
         std::cout << "[OmniChat] Starting continuous recognition..." << std::endl;
         co_await recognizer.ContinuousRecognitionSession().StartAsync();
+        OmniLog("[OmniChat] Started.");
         std::cout << "[OmniChat] Started." << std::endl;
         
         m_isListening = true;
@@ -531,6 +601,7 @@ fire_and_forget SpeechToTextWindowsPlugin::StartListeningAsync(
 }
 
 void SpeechToTextWindowsPlugin::Stop(std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+    OmniLog("[OmniChat] Stop called");
     std::cout << "[OmniChat] Stop called" << std::endl;
     StopListeningAsync(std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>>(std::move(result)));
 }
@@ -619,6 +690,7 @@ void SpeechToTextWindowsPlugin::SendError(const std::string& error) {
 }
 
 void SpeechToTextWindowsPlugin::SendStatus(const std::string& status) {
+  OmniLog("[OmniChat] Status: " + status);
   std::cout << "[OmniChat] Status: " << status << std::endl;
   RunOnMainThread([this, status]() {
       if (m_channel) m_channel->InvokeMethod("notifyStatus", std::make_unique<flutter::EncodableValue>(status));

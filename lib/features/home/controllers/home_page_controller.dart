@@ -171,6 +171,12 @@ class HomePageController extends ChangeNotifier {
   stt.SpeechToText? _speechToText;
   SttLocaleResolver? _dictationSttLocaleResolver;
   String _preDictationText = '';
+  // 每句話（final result）後重開 session 的進行中旗標（防止重入）。
+  bool _dictationRestarting = false;
+  // dispose 後到達的異步回調（如重啟中的 await）防護。
+  bool _disposed = false;
+  // 停止引擎的 in-flight future（去重，供暫停恢復/每句話重啟共用）。
+  Future<void>? _dictationStopFuture;
 
   // Input bar measurement
   double _inputBarHeight = 72;
@@ -251,7 +257,9 @@ class HomePageController extends ChangeNotifier {
       onResult: (val) {
         // 暫停後引擎可能補送 final result（例如 Android stop() 觸發）；
         // 此時文字已完整，忽略以避免重複追加。
-        if (_dictationPaused) return;
+        if (_disposed || _dictationPaused) return;
+        // 重開 session 的過渡期可能收到舊 session 殘留的 partial，忽略避免疊字。
+        if (_dictationRestarting && !val.finalResult) return;
         if (val.recognizedWords.isNotEmpty) {
           final separator = (_preDictationText.isNotEmpty && !_preDictationText.endsWith(' ') && !_preDictationText.endsWith('\n')) ? ' ' : '';
           final newText = _preDictationText + separator + val.recognizedWords;
@@ -259,6 +267,20 @@ class HomePageController extends ChangeNotifier {
             text: newText,
             selection: TextSelection.collapsed(offset: newText.length),
           );
+          // 所有平台處理「每句話重開 session」：Windows 與 Android 引擎皆
+          // 每個 session 只輸出第一句話的結果（Android 已裝置實測確認）。
+          if (val.finalResult) {
+            // 本句已確定：納入接續基底，下一句才不會覆蓋前文。
+            _preDictationText = newText;
+            // 引擎的連續辨識 session 只會對第一句話輸出結果：第一次 final
+            // 送出後引擎不再辨識（session 仍開啟、不送 notListening、麥克風
+            // 持續被佔用——所以 UI 顯示聆聽但後續講話沒有文字）。每次產出
+            // 文字後立即重開新 session（與 Voice Chat 每句話重啟的模式一致），
+            // 讓後續語句持續被辨識。套件在送出第一個 final 後會忽略後續所有
+            // 結果（_notifiedFinal），因此 Android stop() 補送的 final 不會
+            // 造成重複文字或重複重啟。
+            _restartDictationAfterFinal();
+          }
         }
         // 任何新結果（partial 或 final）代表使用者仍在說話，重置看門狗。
         _restartDictationWatchdog();
@@ -272,6 +294,47 @@ class HomePageController extends ChangeNotifier {
       // 60 秒 listenFor 作為安全網。
       listenFor: const Duration(seconds: 60),
     );
+  }
+
+  /// 每句話（非空 final result）結束後重開聆聽 session。
+  ///
+  /// 先 stop()（等待 plugin 的 m_isListening 歸零，否則 plugin 會以
+  /// 「Already listening」忽略接下來的 listen()），再重新 listen() 開啟
+  /// 全新 session，下一句話才能被辨識。重啟失敗不影響已產出的文字。
+  void _restartDictationAfterFinal() {
+    if (_disposed || _dictationRestarting || _dictationPaused || !_isDictating) {
+      return;
+    }
+    _dictationRestarting = true;
+    _restartDictationAfterFinalAsync();
+  }
+
+  Future<void> _restartDictationAfterFinalAsync() async {
+    try {
+      await _stopDictationEngine();
+      if (_disposed || _dictationPaused || !_isDictating) return;
+      await _startDictationListening();
+    } catch (_) {
+      // 重啟失敗：不影響已產出文字，看門狗仍會接管。
+    } finally {
+      _dictationRestarting = false;
+    }
+  }
+
+  /// 停止 STT 引擎（去重：多次呼叫共用同一個 in-flight future）。
+  ///
+  /// plugin 的 m_isListening 只有在 StopAsync 完成後才會歸零；若在停止完成
+  /// 前就呼叫 listen()，plugin 會以「Already listening」忽略（log 中可見
+  /// Listen called 之後沒有 StartListeningAsync——暫停後快速恢復的「沒反應」
+  /// 即由此而來）。所有「先停再聽」的路徑（暫停恢復、每句話重啟）都 await
+  /// 此 future，確保先停完再聽。
+  Future<void> _stopDictationEngine() {
+    final inFlight = _dictationStopFuture;
+    if (inFlight != null) return inFlight;
+    final fut = _speechToText?.stop();
+    if (fut == null) return Future.value();
+    _dictationStopFuture = fut.whenComplete(() => _dictationStopFuture = null);
+    return _dictationStopFuture!;
   }
 
   /// 靜音看門狗：超過平台靜音上限無新結果，視為聆聽已靜默結束 → 自動暫停。
@@ -299,7 +362,7 @@ class HomePageController extends ChangeNotifier {
     _cancelDictationWatchdog();
     // 捕捉目前文字作為 resume 後的接續基底，避免新語音覆蓋既有內容。
     _preDictationText = _inputController.text;
-    _speechToText?.stop();
+    _stopDictationEngine();
     _dictationPaused = true;
     notifyListeners();
   }
@@ -307,8 +370,22 @@ class HomePageController extends ChangeNotifier {
   /// 從暫停狀態重新開啟聆聽。
   void resumeDictation() {
     if (!_isDictating || !_dictationPaused) return;
-    _startDictationListening();
-    notifyListeners();
+    _resumeDictationAsync();
+  }
+
+  Future<void> _resumeDictationAsync() async {
+    try {
+      // 等上一個 stop() 真正完成（m_isListening 歸零）再 listen()，
+      // 避免 plugin 忽略 Listen（「暫停後馬上恢復沒反應」的成因）。
+      await _stopDictationEngine();
+      if (_disposed || !_isDictating || !_dictationPaused) return;
+      await _startDictationListening();
+      // 此處才通知 UI（_startDictationListening 已同步把 _dictationPaused
+      // 設為 false），避免輸入列按鈕停留在「播放/暫停」狀態。
+      notifyListeners();
+    } catch (_) {
+      // 恢復失敗：維持暫停狀態，使用者可再按播放重試。
+    }
   }
 
   void toggleDictationPause() {
@@ -322,7 +399,7 @@ class HomePageController extends ChangeNotifier {
   void stopDictation() {
     if (!_isDictating) return;
     _cancelDictationWatchdog();
-    _speechToText?.stop();
+    _stopDictationEngine();
     _isDictating = false;
     _dictationPaused = false;
     notifyListeners();
@@ -1386,9 +1463,10 @@ class HomePageController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _cancelDictationWatchdog();
     // 若仍在聽寫（含暫停以外的聆聽中狀態），釋放麥克風。
-    _speechToText?.stop();
+    _stopDictationEngine();
     _convoFadeController.dispose();
     _mcpProvider?.removeListener(_onMcpChanged);
     _scrollCtrl.dispose();
