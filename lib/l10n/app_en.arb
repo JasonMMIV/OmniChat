@@ -437,6 +437,8 @@
   "chatInputBarMoreTooltip": "More",
   "chatInputBarDictationTooltip": "Dictation",
   "chatInputBarStopDictationTooltip": "Stop Dictation",
+  "chatInputBarPauseDictationTooltip": "Pause Dictation",
+  "chatInputBarResumeDictationTooltip": "Resume Dictation",
   "miniMapTitle": "Minimap",
   "instructionInjectionSheetSubtitle": "Select prompt",
   "instructionInjectionEmptyMessage": "Empty",

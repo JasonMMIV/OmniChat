@@ -2231,6 +2231,18 @@ abstract class AppLocalizations {
   /// **'Stop Dictation'**
   String get chatInputBarStopDictationTooltip;
 
+  /// No description provided for @chatInputBarPauseDictationTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause Dictation'**
+  String get chatInputBarPauseDictationTooltip;
+
+  /// No description provided for @chatInputBarResumeDictationTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume Dictation'**
+  String get chatInputBarResumeDictationTooltip;
+
   /// No description provided for @miniMapTitle.
   ///
   /// In en, this message translates to:

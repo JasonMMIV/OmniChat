@@ -89,8 +89,10 @@ class ChatInputBar extends StatefulWidget {
     this.ocrActive = false,
     this.onToggleOcr,
     this.isDictating = false,
+    this.dictationPaused = false,
     this.onStartDictation,
     this.onStopDictation,
+    this.onToggleDictationPause,
     this.isEditing = false,
     this.onCancelEdit,
   });
@@ -137,8 +139,10 @@ class ChatInputBar extends StatefulWidget {
   final bool ocrActive;
   final VoidCallback? onToggleOcr;
   final bool isDictating;
+  final bool dictationPaused;
   final VoidCallback? onStartDictation;
   final VoidCallback? onStopDictation;
+  final VoidCallback? onToggleDictationPause;
   final bool isEditing;
   final VoidCallback? onCancelEdit;
 
@@ -794,8 +798,8 @@ class _ChatInputBarState extends State<ChatInputBar>
         // Calculate right side width to determine available left space
         double rightSideWidth = 0;
         if (widget.isDictating) {
-          rightSideWidth =
-              normalButtonW + spacing + normalButtonW; // stop + spacing + send
+          // stop + pause + send（3 顆按鈕）
+          rightSideWidth = normalButtonW * 3 + spacing * 2;
         } else {
           if (widget.showMoreButton)
             rightSideWidth += normalButtonW + spacing; // plus + spacing
@@ -1353,6 +1357,16 @@ class _ChatInputBarState extends State<ChatInputBar>
                         onTap: widget.onStopDictation,
                       ),
                       const SizedBox(width: 8),
+                      _CompactIconButton(
+                        tooltip: widget.dictationPaused
+                            ? l10n.chatInputBarResumeDictationTooltip
+                            : l10n.chatInputBarPauseDictationTooltip,
+                        icon: widget.dictationPaused
+                            ? Lucide.Play
+                            : Lucide.Pause,
+                        onTap: widget.onToggleDictationPause,
+                      ),
+                      const SizedBox(width: 8),
                       _CompactSendButton(
                         enabled: true,
                         onSend: () {
@@ -1360,7 +1374,7 @@ class _ChatInputBarState extends State<ChatInputBar>
                           _handleSend();
                         },
                         color: theme.colorScheme.primary,
-                        icon: Lucide.Check,
+                        icon: Lucide.ArrowUp,
                       ),
                     ]
                   : [
