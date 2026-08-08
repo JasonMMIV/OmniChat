@@ -76,6 +76,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Speech synthesis and recognition';
 
   @override
+  String get settingsPageVoiceCall => 'Voice Call';
+
+  @override
   String get settingsPageStt => 'Speech Recognition';
 
   @override
@@ -1171,6 +1174,82 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get homePageDefaultAssistant => 'Project';
+
+  @override
+  String get liveApiConfigTitle => 'Live API Configuration';
+
+  @override
+  String get liveApiBaseUrl => 'Base URL';
+
+  @override
+  String get liveApiKey => 'API Key';
+
+  @override
+  String get liveApiModel => 'Model';
+
+  @override
+  String get liveApiVoice => 'Voice';
+
+  @override
+  String get liveApiNotConfigured => 'Configure Live API first';
+
+  @override
+  String get liveApiKeyStorageNote =>
+      'The API key is stored locally on this device. For production use, consider Ephemeral tokens or a backend proxy.';
+
+  @override
+  String get liveApiModelSelectTitle => 'Select Live API model';
+
+  @override
+  String get liveApiModelRefresh => 'Refresh';
+
+  @override
+  String get liveApiModelFetchRetry => 'Retry';
+
+  @override
+  String get liveApiModelFetchError =>
+      'Failed to fetch the model list. Check the API key and your network, then retry.';
+
+  @override
+  String get liveApiModelFetchEmpty =>
+      'No Live API models found for this account.';
+
+  @override
+  String get liveApiModelManualInput => 'Enter model name manually…';
+
+  @override
+  String get liveApiCallNotConfiguredHint =>
+      'Complete the Live API setup in Voice Services before making a call.';
+
+  @override
+  String get liveCallTitle => 'Live Call';
+
+  @override
+  String get liveCallConnecting => 'Connecting…';
+
+  @override
+  String get liveCallActive => 'In call';
+
+  @override
+  String get liveCallMuted => 'Muted';
+
+  @override
+  String get liveCallError => 'Call error';
+
+  @override
+  String get liveCallRetry => 'Retry';
+
+  @override
+  String get voiceCallModeStandard => 'Standard Voice Mode';
+
+  @override
+  String get voiceCallModeLiveApi => 'Live API Mode';
+
+  @override
+  String get voiceCallSwitchedToStandard => 'Switched to Standard Voice Mode';
+
+  @override
+  String get voiceCallSwitchedToLiveApi => 'Switched to Live API Mode';
 
   @override
   String get voiceChatButtonTooltip => 'Voice Chat';

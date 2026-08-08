@@ -71,3 +71,7 @@ internationalization.md
 
 # Developer notes — not for public repo
 /CHANGES_LOG.md
+
+# Local tool state
+/.commandcode/
+/.freebuff/

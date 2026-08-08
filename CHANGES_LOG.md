@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-06 (v1.10.1)
+- **Last Updated**: 2026-08-08 (v1.13.1)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -178,6 +178,85 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.13.1] - 2026-08-08: Live API Phase B — Model Picker + Real-time Voice Call
+
+> 依「Implementation Plan Voice Services Reorganization & Live API Settings v3」執行 **Phase B**（Live API 通話引擎 + 模型名單）。測試回報兩項問題一併處理：(1) 模型名稱不再依賴手寫，改為從 Gemini REST `/v1beta/models` 抓取名單後於行動版 bottom sheet / 桌面版 dialog 選擇（含重新整理、手動輸入備援）；(2) 輸入列語音聊天按鈕改為跟隨 `voiceCallMode`：Live API 模式且已設定 → 進入新的即時語音通話畫面；未設定金鑰 → SnackBar 提示先完成設定；標準模式維持原 `VoiceChatScreen`。
+
+### 190. Live API Model Picker（行動版 + 桌面版）
+
+- **Purpose**: 新增 `LiveApiModelsService`：以 API Key 呼叫 REST `GET https://{host}/v1beta/models`（host 自 `liveApiBaseUrl` 推導、官方端點回退 `generativelanguage.googleapis.com`），以 `supportsLiveGeneration == true` 或名稱含 "live" 篩選，排序後回傳；記憶體快取 5 分鐘，`setLiveApiApiKey` 變更時清除。
+- **UI**: 行動版 Model 欄改為 `_ModelPickerRow`（bottom sheet：載入中 / 錯誤重試 / 清單選取 / 手動輸入）；桌面版改為 `_ModelSelectRow`（dialog 同功能）。
+- **Files Modified**: `lib/core/services/live/live_api_models_service.dart`（NEW）、`lib/features/settings/pages/voice_call_settings_page.dart`、`lib/desktop/setting/voice_call_pane.dart`、`lib/core/providers/settings_provider.dart`（`setLiveApiApiKey` 清除模型快取）
+- **New test** `test/live_api_models_service_test.dart`（9 案例：篩選邏輯、排序、錯誤回應、快取、自訂 host 推導）
+
+### 191c. Live API Model List Fix + API Key Show/Hide Toggle
+
+- **Purpose**: 修正模型清單抓取與「顯示/隱藏」API Key 按鈕：
+  1. **模型清單抓取失敗（root cause）**：以真實 API Key 實測 `GET /v1beta/models`，發現實際回應**沒有** `supportsLiveGeneration` 欄位，且 Live 模型的 `supportedGenerationMethods` 是 `bidiGenerateContent`（不是 `generateContent`），舊篩選邏輯把所有模型過濾掉 → 空清單誤報「無法取得模型清單」。修正：接受 `bidiGenerateContent` 方法宣告。
+  2. **分頁**：官方端點預設僅回傳 50 筆，全部 Live 模型在第 2 頁（`nextPageToken`）——原實作不翻頁。修正：`pageSize=100` + 依 `nextPageToken` 迴圈翻頁（上限 10 頁）。
+  3. **誤導性錯誤訊息**：抓取成功但無 Live 模型時，原 UI 顯示通用的「檢查 API Key 與網路」；改為顯示「未找到 Live 模型」專用訊息（行動版 bottom sheet 與桌面版 dialog 同步）。
+  4. **API Key 顯示切換**：行動版設定頁與桌面版 `voice_call_pane` 的 API Key 欄位加入眼睛圖示（`Eye`/`EyeOff`）切換明文/遮蔽。
+- **Files Modified**: `lib/core/services/live/live_api_models_service.dart`、`lib/features/settings/pages/voice_call_settings_page.dart`、`lib/desktop/setting/voice_call_pane.dart`、`test/live_api_models_service_test.dart`（+2 案例：bidiGenerateContent 真實回應形狀、nextPageToken 翻頁）
+- **Verification**: 以真實 API Key 端到端驗證 → 6 個 Live 模型（含 `gemini-3.1-flash-live-preview`、`gemini-3.5-live-translate-preview`）；`flutter test` — **150 tests passed**。
+
+### 191b. Review Fixes — Live API Phase B
+
+- **Purpose**: 審查 Phase B 實作發現並修正 7 項問題：
+  1. `LiveApiSession.start()`：麥克風啟動失敗後 `_closing` 被重設為 false、繼續監聽已關閉的 WS，導致 onDone 以通用錯誤覆寫特定 mic 錯誤 → 失敗後立即 return。
+  2. `_playNext()` onPlayerComplete：`_flushPlayback()` 已 dispose player 後，stop 觸發的 complete 事件會二次 dispose → 以 `_player != player` 防護（audioplayers 二次 dispose 會拋 StateError）。
+  3. `_flushPlayback()`：原本 dispose 後 complete 事件不再觸發、目前播放中的 WAV 暫存檔永不刪除 → 追蹤 `_currentPlaybackFile` 於 flush 時刪除；`p.stop()` 改為 try/catch。
+  4. `_onMicChunk()`：`setupComplete` 前即送出音訊（Gemini 協議要求先完成 setup）→ 改為 `_state == active` 才送。
+  5. `_cleanup()`：清除 `_micBuf` 殘留（重試時避免送出舊片段）。
+  6. `LiveCallScreen.dispose()`：goAway 自動關閉或返回鍵退出時未停用 audio session（Android 持續佔用音訊焦點）→ dispose 時 fire-and-forget `deactivateAudioSession()`。
+  7. `LiveApiModelsService`：內部建立的 `http.Client()` 未關閉（連線池洩漏）→ `finally` 中僅對自建 client 執行 `close()`。
+- **Files Modified**: `lib/core/services/live/live_api_session.dart`、`lib/features/voice_chat/pages/live_call_screen.dart`、`lib/core/services/live/live_api_models_service.dart`
+- **Tests**: `flutter analyze` — clean；`flutter test` — full suite passes (**148 tests**)。
+
+### 191. Live API Real-time Voice Call（Phase B 通話引擎）
+
+- **Purpose**: 新增 `LiveApiSession` 與 `LiveCallScreen`：
+  - **Session**：`IOWebSocketChannel` 連至 `resolvedLiveApiBaseUrl?key=`；setup 指定 model / prebuilt voice / `responseModalities: [AUDIO, TEXT]` / 24kHz PCM16 輸入輸出；麥克風 `record` 套件 `startStream`（pcm16bits 24kHz mono、echoCancel）每 100ms 累積為 `realtimeInput` 送出；`serverContent` 的 TEXT parts 累積字幕、AUDIO parts 封裝 WAV（暫存檔）依序播放；`interrupted` 清空播放佇列與未完成句子；`turnComplete` 提交句子；`goAway` / 錯誤 → 乾淨關閉。純函式解析（`extractText` / `extractAudio` / `buildSetupPayload` / `buildRealtimeInputPayload` / `pcm16ToWav` / `buildWebSocketUri`）獨立可測。
+  - **Screen**：沿用 `VoiceChatScreen` 視覺（灰黑漸層、狀態列、字幕區）；靜音切換（暫停送 mic）、結束鈕、錯誤重試、mic 權限覆蓋層。
+  - **Routing**：`home_page._startVoiceChat()` 依 `settings.usingLiveApi` 分流：standard → 原畫面；liveApi 且 `liveApiConfigured` → `LiveCallScreen`；liveApi 未設定 → warning SnackBar。
+- **Files Modified**: `lib/core/services/live/live_api_session.dart`（NEW）、`lib/features/voice_chat/pages/live_call_screen.dart`（NEW）、`lib/features/home/pages/home_page.dart`、`pubspec.yaml`（+`record: ^7.1.1`、+`web_socket_channel: ^3.0.1`；version `1.13.1+76`）、`installer.iss`（1.13.1）、`lib/l10n/app_en.arb` / `app_zh.arb` / `app_zh_Hans.arb` / `app_zh_Hant.arb`（+13 keys、已重新生成 `app_localizations*.dart`）
+- **New test** `test/live_api_session_test.dart`（11 案例：URI/query 合併、setup payload、realtimeInput base64、訊息解析、WAV header）
+- **Known limits**: 通話內容尚未寫入對話紀錄（留待下階段）；正式環境建議 Ephemeral token / 後端代理（金鑰目前僅本機儲存）。
+- **Tests**: `flutter analyze` — no new errors（僅既有 dependency example 2 errors 與既有 info）；`flutter test` — full suite passes (**148 tests**, +20 new)。
+
+## [v1.13.0] - 2026-08-08: Voice Call Phase A — Live API Settings Architecture (Voice Services Hub 3rd Entry)
+
+> 依「Implementation Plan Voice Services Reorganization & Live API Settings v3」執行 **Phase A**（§9 階段 A：5 鍵 + l10n + Hub 擴 3 項 + 設定頁，可獨立合併）。在「語音服務」中樞新增第三個子項「即時語音通話」，含雙模式（標準 / Live API）切換與 Live API 四欄組態（Base URL / API Key / Model / Voice）。所有 Live API 設定存為 `SettingsProvider` 直屬欄位（不寫入 `ProviderConfig`，與既有 TTS / STT 相同做法），故 `ModelProvider.getBalance()` 不會掃描 Live API。Phase B–E（`LiveApiService` / `LiveCallProvider` / 通話 UI / 視訊）需 Gemini API Key 與網路，依計畫暫緩。入口置灰決策：為避免死巷（無金鑰時連設定頁都進不去），Hub 入口與 Live API 模式選項保持可點，無金鑰狀態以桌面卡片 subtitle 與設定頁警示呈現「請先完成 Live API 設定」。
+
+### 186. Voice Call — 5 Keys Persistence (`SettingsProvider`)
+
+- **Purpose**: 新增 `voice_call_mode_v1` / `live_api_base_url_v1` / `live_api_key_v1` / `live_api_model_v1` / `live_api_voice_v1` 五鍵（`SharedPreferences`，後續可遷 `flutter_secure_storage`），並提供 `VoiceCallMode` enum（`standard` 預設 / `liveApi`）與 `VoiceCallDefaults`（官方 `wss://generativelanguage.googleapis.com/ws/...BidiGenerateContent` 端點、預設模型 `gemini-3.1-flash-live-preview`、預設音色 `Kore`、可選音色清單 Kore/Puck/Charon/Aoede/Fenrir/Leda/Orus/Zephyr）。
+- **Files Modified**: `lib/core/providers/settings_provider.dart`
+- **Key Points**:
+  - `liveApiConfigured`（金鑰與模型非空）供後續階段「Live API 入口置灰」判斷；`resolvedLiveApiBaseUrl` 於 Base URL 為空時回退官方端點。
+  - 所有 setter 空值清除鍵（`prefs.remove`），模式以 `mode.name` 存字串，`_load()` 對未知值回退 `standard`。
+
+### 187. Voice Call Settings Pages (Mobile & Desktop)
+
+- **Purpose**: 行動版 `VoiceCallSettingsPage` 與桌面版 `DesktopVoiceCallPane`（樣式分別對齊 `stt_services_page.dart` / `stt_services_pane.dart`）：模式選擇兩選項（切換即 `setVoiceCallMode` + SnackBar）；Live API 區僅於 `liveApi` 模式顯示——Base URL / API Key（`obscureText`）/ Model 三欄 + Voice 下拉選擇，`onChanged` debounce 300ms 寫回；金鑰為空顯示 `liveApiNotConfigured` 警示與金鑰本機儲存安全註記；切至 `liveApi` 若無金鑰自動聚焦 Key 欄位。
+- **Files Modified**: `lib/features/settings/pages/voice_call_settings_page.dart`（NEW）、`lib/desktop/setting/voice_call_pane.dart`（NEW）
+
+### 188. Voice Services Hub 3rd Entry + Localization
+
+- **Purpose**: 行動版 `VoiceServicesPage` 與桌面版 `voice_services_pane.dart` 各新增第三個入口「即時語音通話」（`Lucide.Phone`）；桌面卡片 subtitle 顯示目前模式（標準語音模式 / Live API 模式），Live API 且未設定金鑰時顯示「請先完成 Live API 設定」。新增 14 個 l10n key（en / zh-Hant / zh-Hans / zh）並重新生成 `app_localizations*.dart`。
+- **Files Modified**: `lib/features/settings/pages/voice_services_page.dart`、`lib/desktop/setting/voice_services_pane.dart`、`lib/l10n/app_en.arb` / `app_zh_Hant.arb` / `app_zh_Hans.arb` / `app_zh.arb`
+
+### 189b. Review Fix — Desktop Mode Card Badge Icon
+
+- **Purpose**: 審查發現桌面 `_ModeCard` 原寫法在「標準模式」被選中時 badge 也顯示 `Activity`（脈動）圖示，與 Live API 卡完全相同、造成兩個都是「live」的視覺混淆。修正後各卡保留自身圖示（標準 = `Circle` / Live API = `Activity`），選中狀態僅以 primary tint 區分。
+- **Files Modified**: `lib/desktop/setting/voice_call_pane.dart`
+- **Tests**: `flutter analyze` — no new errors (UI-only change)。
+
+### 189. Version & Tests
+
+- **Files Modified**: `pubspec.yaml` (version `1.13.0+75`) / `installer.iss` (1.13.0, output `OmniChat_windows_v1.13.0_setup`) / `CHANGES_LOG.md` (this entry)
+- **New test** `test/live_api_settings_test.dart`（6 案例：mode 預設與 round-trip、未知 mode 回退 standard、baseUrl/apiKey round-trip 與清空、model/voice 預設與 round-trip、`resolvedLiveApiBaseUrl` 回退官方端點、`liveApiConfigured` 金鑰判斷）
+- **Tests**: `flutter analyze` — no new errors (僅既有 dependency example 2 errors 與既有 info warnings)；`flutter test` — full suite passes (**128 tests**, +6 new)。
+
 ## [v1.12.0] - 2026-08-08: Dictation Per-Utterance Session Restart (Windows/Android) + STT Plugin Hardening
 
 > 根治「聽寫只對第一句話產出文字」：Windows 與 Android 的連續辨識 session 在送出第一個非空 final 結果後，引擎便不再辨識後續語音（session 仍開啟、不送 notListening、麥克風持續被佔用——UI 顯示聆聽但後續講話沒有文字）。修法與 Voice Chat 每句話重啟的模式一致：每句話（非空 final result）後立即 `stop()` 並重開全新 session（先等 stop 真正完成再 `listen()`，避免 plugin 以「Already listening」忽略 Listen）。另修 Windows STT plugin 的事件 handler 洩漏（每次重啟重複註冊、事件倍數觸發）並新增檔案 log 以便診斷（OmniChat 為 GUI 應用，stdout 無 console 可依附、`std::cout` 全部遺失）。Windows 先以裝置實測驗證（Hello / Good morning / How are you / I'm fine / Thank you / You're welcome 逐句產出並接續），Android 實測確認相同問題後移除平台閘門、一併套用。

@@ -10,6 +10,7 @@ import '../services/search/search_service.dart';
 import '../services/stt/network_stt.dart';
 import '../services/tts/network_tts.dart';
 import '../services/tts/tts_text_selection.dart';
+import '../services/live/live_api_models_service.dart';
 import '../services/network/request_logger.dart';
 import '../services/logging/flutter_logger.dart';
 import '../models/api_keys.dart';
@@ -23,6 +24,36 @@ import '../utils/reasoning_capabilities.dart';
 
 // Desktop: topic list position
 enum DesktopTopicPosition { left, right }
+
+// Voice Call mode: standard (STT → LLM → TTS) vs Gemini Live API.
+enum VoiceCallMode { standard, liveApi }
+
+/// Live API 官方預設與可選音色清單。
+class VoiceCallDefaults {
+  VoiceCallDefaults._();
+
+  /// 官方 WebSocket 端點（`liveApiBaseUrl` 為空時使用）。
+  static const String officialBaseUrl =
+      'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
+
+  /// 官方預設模型。
+  static const String defaultModel = 'gemini-3.1-flash-live-preview';
+
+  /// 官方預設音色。
+  static const String defaultVoice = 'Kore';
+
+  /// 可用音色清單（供設定頁選擇）。
+  static const List<String> voices = <String>[
+    'Kore',
+    'Puck',
+    'Charon',
+    'Aoede',
+    'Fenrir',
+    'Leda',
+    'Orus',
+    'Zephyr',
+  ];
+}
 
 class SettingsProvider extends ChangeNotifier {
   static const String _providersOrderKey = 'providers_order_v1';
@@ -190,6 +221,12 @@ class SettingsProvider extends ChangeNotifier {
   static const String _sttServicesKey = 'stt_services_v1';
   static const String _sttSelectedKey = 'stt_selected_v1';
   static const String _sttSystemLocaleKey = 'stt_system_locale_v1';
+  // Voice Call (Live API) settings — 直屬欄位，不寫入 ProviderConfig（與 TTS/STT 相同）
+  static const String _voiceCallModeKey = 'voice_call_mode_v1';
+  static const String _liveApiBaseUrlKey = 'live_api_base_url_v1';
+  static const String _liveApiApiKeyKey = 'live_api_key_v1';
+  static const String _liveApiModelKey = 'live_api_model_v1';
+  static const String _liveApiVoiceKey = 'live_api_voice_v1';
   // Desktop UI
   static const String _desktopSidebarWidthKey = 'desktop_sidebar_width_v1';
   static const String _desktopSidebarOpenKey = 'desktop_sidebar_open_v1';
@@ -225,6 +262,28 @@ class SettingsProvider extends ChangeNotifier {
       ? _sttServices[_sttServiceSelected]
       : null;
   String? get sttSystemLocaleId => _sttSystemLocaleId;
+
+  // ===== Voice Call (Live API) settings =====
+  VoiceCallMode _voiceCallMode = VoiceCallMode.standard;
+  String _liveApiBaseUrl = '';
+  String _liveApiApiKey = '';
+  String _liveApiModel = VoiceCallDefaults.defaultModel;
+  String _liveApiVoice = VoiceCallDefaults.defaultVoice;
+
+  VoiceCallMode get voiceCallMode => _voiceCallMode;
+  bool get usingLiveApi => _voiceCallMode == VoiceCallMode.liveApi;
+  String get liveApiBaseUrl => _liveApiBaseUrl;
+  String get liveApiApiKey => _liveApiApiKey;
+  String get liveApiModel => _liveApiModel;
+  String get liveApiVoice => _liveApiVoice;
+  /// Live API 是否已完成設定（金鑰非空）。空金鑰時 Live API 入口置灰。
+  bool get liveApiConfigured =>
+      _liveApiApiKey.trim().isNotEmpty && _liveApiModel.trim().isNotEmpty;
+  /// 空 Base URL 回退官方預設（`wss://generativelanguage.googleapis.com/ws/...`）。
+  String get resolvedLiveApiBaseUrl =>
+      _liveApiBaseUrl.trim().isEmpty
+          ? VoiceCallDefaults.officialBaseUrl
+          : _liveApiBaseUrl.trim();
 
   List<String> _providersOrder = const [];
   List<String> get providersOrder => _providersOrder;
@@ -795,6 +854,18 @@ class SettingsProvider extends ChangeNotifier {
       await prefs.setInt(_sttSelectedKey, _sttServiceSelected);
     }
     _sttSystemLocaleId = prefs.getString(_sttSystemLocaleKey);
+    // load voice call (Live API) settings
+    final vcMode = prefs.getString(_voiceCallModeKey);
+    _voiceCallMode = switch (vcMode) {
+      'liveApi' => VoiceCallMode.liveApi,
+      _ => VoiceCallMode.standard,
+    };
+    _liveApiBaseUrl = prefs.getString(_liveApiBaseUrlKey) ?? '';
+    _liveApiApiKey = prefs.getString(_liveApiApiKeyKey) ?? '';
+    _liveApiModel = (prefs.getString(_liveApiModelKey) ?? '').trim();
+    if (_liveApiModel.isEmpty) _liveApiModel = VoiceCallDefaults.defaultModel;
+    _liveApiVoice = (prefs.getString(_liveApiVoiceKey) ?? '').trim();
+    if (_liveApiVoice.isEmpty) _liveApiVoice = VoiceCallDefaults.defaultVoice;
     // webdav config
     final webdavStr = prefs.getString(_webDavConfigKey);
     if (webdavStr != null && webdavStr.isNotEmpty) {
@@ -1026,6 +1097,69 @@ class SettingsProvider extends ChangeNotifier {
       await prefs.remove(_sttSystemLocaleKey);
     } else {
       await prefs.setString(_sttSystemLocaleKey, _sttSystemLocaleId!);
+    }
+  }
+
+  // ===== Voice Call (Live API) setters =====
+
+  Future<void> setVoiceCallMode(VoiceCallMode mode) async {
+    if (_voiceCallMode == mode) return;
+    _voiceCallMode = mode;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_voiceCallModeKey, mode.name);
+  }
+
+  Future<void> setLiveApiBaseUrl(String value) async {
+    final next = value.trim();
+    if (_liveApiBaseUrl == next) return;
+    _liveApiBaseUrl = next;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    if (next.isEmpty) {
+      await prefs.remove(_liveApiBaseUrlKey);
+    } else {
+      await prefs.setString(_liveApiBaseUrlKey, next);
+    }
+  }
+
+  Future<void> setLiveApiApiKey(String value) async {
+    final next = value.trim();
+    if (_liveApiApiKey == next) return;
+    _liveApiApiKey = next;
+    LiveApiModelsService.invalidateCache();
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    if (next.isEmpty) {
+      await prefs.remove(_liveApiApiKeyKey);
+    } else {
+      await prefs.setString(_liveApiApiKeyKey, next);
+    }
+  }
+
+  Future<void> setLiveApiModel(String value) async {
+    final next = value.trim();
+    if (_liveApiModel == next) return;
+    _liveApiModel = next;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    if (next.isEmpty) {
+      await prefs.remove(_liveApiModelKey);
+    } else {
+      await prefs.setString(_liveApiModelKey, next);
+    }
+  }
+
+  Future<void> setLiveApiVoice(String value) async {
+    final next = value.trim();
+    if (_liveApiVoice == next) return;
+    _liveApiVoice = next;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    if (next.isEmpty) {
+      await prefs.remove(_liveApiVoiceKey);
+    } else {
+      await prefs.setString(_liveApiVoiceKey, next);
     }
   }
 
