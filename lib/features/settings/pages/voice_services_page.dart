@@ -6,10 +6,12 @@ import '../../../l10n/app_localizations.dart';
 import '../../../core/services/haptics.dart';
 import 'tts_services_page.dart';
 import 'stt_services_page.dart';
+import 'voice_call_settings_page.dart';
 
 /// 行動版「語音服務」中介頁面（兩層導覽，與桌面版一致）：
 /// 1. 語音朗讀（TTS）→ `TtsServicesPage`
 /// 2. 語音辨識（STT）→ `SttServicesPage`
+/// 3. 即時語音通話（Voice Call）→ `VoiceCallSettingsPage`
 class VoiceServicesPage extends StatelessWidget {
   const VoiceServicesPage({super.key});
 
@@ -55,6 +57,19 @@ class VoiceServicesPage extends StatelessWidget {
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SttServicesPage()),
+                  );
+                },
+              ),
+              _iosDivider(context),
+              _iosNavRow(
+                context,
+                icon: Lucide.Phone,
+                label: l10n.settingsPageVoiceCall,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const VoiceCallSettingsPage(),
+                    ),
                   );
                 },
               ),

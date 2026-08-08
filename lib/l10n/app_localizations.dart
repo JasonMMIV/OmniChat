@@ -232,6 +232,12 @@ abstract class AppLocalizations {
   /// **'Speech synthesis and recognition'**
   String get settingsPageVoiceServicesDescription;
 
+  /// No description provided for @settingsPageVoiceCall.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice Call'**
+  String get settingsPageVoiceCall;
+
   /// No description provided for @settingsPageStt.
   ///
   /// In en, this message translates to:
@@ -2350,6 +2356,150 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Project'**
   String get homePageDefaultAssistant;
+
+  /// No description provided for @liveApiConfigTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Live API Configuration'**
+  String get liveApiConfigTitle;
+
+  /// No description provided for @liveApiBaseUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Base URL'**
+  String get liveApiBaseUrl;
+
+  /// No description provided for @liveApiKey.
+  ///
+  /// In en, this message translates to:
+  /// **'API Key'**
+  String get liveApiKey;
+
+  /// No description provided for @liveApiModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Model'**
+  String get liveApiModel;
+
+  /// No description provided for @liveApiVoice.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice'**
+  String get liveApiVoice;
+
+  /// No description provided for @liveApiNotConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure Live API first'**
+  String get liveApiNotConfigured;
+
+  /// No description provided for @liveApiKeyStorageNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The API key is stored locally on this device. For production use, consider Ephemeral tokens or a backend proxy.'**
+  String get liveApiKeyStorageNote;
+
+  /// No description provided for @liveApiModelSelectTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Live API model'**
+  String get liveApiModelSelectTitle;
+
+  /// No description provided for @liveApiModelRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get liveApiModelRefresh;
+
+  /// No description provided for @liveApiModelFetchRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get liveApiModelFetchRetry;
+
+  /// No description provided for @liveApiModelFetchError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to fetch the model list. Check the API key and your network, then retry.'**
+  String get liveApiModelFetchError;
+
+  /// No description provided for @liveApiModelFetchEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No Live API models found for this account.'**
+  String get liveApiModelFetchEmpty;
+
+  /// No description provided for @liveApiModelManualInput.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter model name manually…'**
+  String get liveApiModelManualInput;
+
+  /// No description provided for @liveApiCallNotConfiguredHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Complete the Live API setup in Voice Services before making a call.'**
+  String get liveApiCallNotConfiguredHint;
+
+  /// No description provided for @liveCallTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Live Call'**
+  String get liveCallTitle;
+
+  /// No description provided for @liveCallConnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting…'**
+  String get liveCallConnecting;
+
+  /// No description provided for @liveCallActive.
+  ///
+  /// In en, this message translates to:
+  /// **'In call'**
+  String get liveCallActive;
+
+  /// No description provided for @liveCallMuted.
+  ///
+  /// In en, this message translates to:
+  /// **'Muted'**
+  String get liveCallMuted;
+
+  /// No description provided for @liveCallError.
+  ///
+  /// In en, this message translates to:
+  /// **'Call error'**
+  String get liveCallError;
+
+  /// No description provided for @liveCallRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get liveCallRetry;
+
+  /// No description provided for @voiceCallModeStandard.
+  ///
+  /// In en, this message translates to:
+  /// **'Standard Voice Mode'**
+  String get voiceCallModeStandard;
+
+  /// No description provided for @voiceCallModeLiveApi.
+  ///
+  /// In en, this message translates to:
+  /// **'Live API Mode'**
+  String get voiceCallModeLiveApi;
+
+  /// No description provided for @voiceCallSwitchedToStandard.
+  ///
+  /// In en, this message translates to:
+  /// **'Switched to Standard Voice Mode'**
+  String get voiceCallSwitchedToStandard;
+
+  /// No description provided for @voiceCallSwitchedToLiveApi.
+  ///
+  /// In en, this message translates to:
+  /// **'Switched to Live API Mode'**
+  String get voiceCallSwitchedToLiveApi;
 
   /// No description provided for @voiceChatButtonTooltip.
   ///

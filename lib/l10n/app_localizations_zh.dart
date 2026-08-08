@@ -76,6 +76,9 @@ class AppLocalizationsZh extends AppLocalizations {
       'Speech synthesis and recognition';
 
   @override
+  String get settingsPageVoiceCall => '即时语音通话';
+
+  @override
   String get settingsPageStt => '语音识别';
 
   @override
@@ -1164,6 +1167,79 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get homePageDefaultAssistant => '默认项目';
+
+  @override
+  String get liveApiConfigTitle => 'Live API 设置';
+
+  @override
+  String get liveApiBaseUrl => 'API 服务器地址';
+
+  @override
+  String get liveApiKey => 'API 密钥';
+
+  @override
+  String get liveApiModel => '模型名称';
+
+  @override
+  String get liveApiVoice => '语音音色';
+
+  @override
+  String get liveApiNotConfigured => '请先完成 Live API 设置';
+
+  @override
+  String get liveApiKeyStorageNote =>
+      '密钥仅存储在本机设备上。正式环境建议改用 Ephemeral token 或后端代理。';
+
+  @override
+  String get liveApiModelSelectTitle => '选择 Live API 模型';
+
+  @override
+  String get liveApiModelRefresh => '刷新';
+
+  @override
+  String get liveApiModelFetchRetry => '重试';
+
+  @override
+  String get liveApiModelFetchError => '无法获取模型列表。请检查 API Key 与网络后再试。';
+
+  @override
+  String get liveApiModelFetchEmpty => '此账号没有可用的 Live API 模型。';
+
+  @override
+  String get liveApiModelManualInput => '手动输入模型名称…';
+
+  @override
+  String get liveApiCallNotConfiguredHint => '通话前请先到「语音服务」完成 Live API 设置。';
+
+  @override
+  String get liveCallTitle => '实时语音通话';
+
+  @override
+  String get liveCallConnecting => '连接中…';
+
+  @override
+  String get liveCallActive => '通话中';
+
+  @override
+  String get liveCallMuted => '已静音';
+
+  @override
+  String get liveCallError => '通话错误';
+
+  @override
+  String get liveCallRetry => '重试';
+
+  @override
+  String get voiceCallModeStandard => '标准语音模式';
+
+  @override
+  String get voiceCallModeLiveApi => 'Live API 模式';
+
+  @override
+  String get voiceCallSwitchedToStandard => '已切换为标准语音模式';
+
+  @override
+  String get voiceCallSwitchedToLiveApi => '已切换为 Live API 模式';
 
   @override
   String get voiceChatButtonTooltip => '语音聊天';
@@ -4418,6 +4494,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get settingsPageVoiceServices => '语音服务';
 
   @override
+  String get settingsPageVoiceCall => '即时语音通话';
+
+  @override
   String get settingsPageStt => '语音识别';
 
   @override
@@ -5425,6 +5504,79 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get homePageDefaultAssistant => '默认项目';
+
+  @override
+  String get liveApiConfigTitle => 'Live API 设置';
+
+  @override
+  String get liveApiBaseUrl => 'API 服务器地址';
+
+  @override
+  String get liveApiKey => 'API 密钥';
+
+  @override
+  String get liveApiModel => '模型名称';
+
+  @override
+  String get liveApiVoice => '语音音色';
+
+  @override
+  String get liveApiNotConfigured => '请先完成 Live API 设置';
+
+  @override
+  String get liveApiKeyStorageNote =>
+      '密钥仅存储在本机设备上。正式环境建议改用 Ephemeral token 或后端代理。';
+
+  @override
+  String get liveApiModelSelectTitle => '选择 Live API 模型';
+
+  @override
+  String get liveApiModelRefresh => '刷新';
+
+  @override
+  String get liveApiModelFetchRetry => '重试';
+
+  @override
+  String get liveApiModelFetchError => '无法获取模型列表。请检查 API Key 与网络后再试。';
+
+  @override
+  String get liveApiModelFetchEmpty => '此账号没有可用的 Live API 模型。';
+
+  @override
+  String get liveApiModelManualInput => '手动输入模型名称…';
+
+  @override
+  String get liveApiCallNotConfiguredHint => '通话前请先到「语音服务」完成 Live API 设置。';
+
+  @override
+  String get liveCallTitle => '实时语音通话';
+
+  @override
+  String get liveCallConnecting => '连接中…';
+
+  @override
+  String get liveCallActive => '通话中';
+
+  @override
+  String get liveCallMuted => '已静音';
+
+  @override
+  String get liveCallError => '通话错误';
+
+  @override
+  String get liveCallRetry => '重试';
+
+  @override
+  String get voiceCallModeStandard => '标准语音模式';
+
+  @override
+  String get voiceCallModeLiveApi => 'Live API 模式';
+
+  @override
+  String get voiceCallSwitchedToStandard => '已切换为标准语音模式';
+
+  @override
+  String get voiceCallSwitchedToLiveApi => '已切换为 Live API 模式';
 
   @override
   String get voiceChatButtonTooltip => '语音聊天';
@@ -8568,6 +8720,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get settingsPageVoiceServices => '語音服務';
 
   @override
+  String get settingsPageVoiceCall => '即時語音通話';
+
+  @override
   String get settingsPageStt => '語音辨識';
 
   @override
@@ -9582,6 +9737,79 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get homePageDefaultAssistant => '預設專案';
+
+  @override
+  String get liveApiConfigTitle => 'Live API 設定';
+
+  @override
+  String get liveApiBaseUrl => 'API 伺服器位址';
+
+  @override
+  String get liveApiKey => 'API 金鑰';
+
+  @override
+  String get liveApiModel => '模型名稱';
+
+  @override
+  String get liveApiVoice => '語音音色';
+
+  @override
+  String get liveApiNotConfigured => '請先完成 Live API 設定';
+
+  @override
+  String get liveApiKeyStorageNote =>
+      '金鑰僅存於本機裝置。正式環境建議改用 Ephemeral token 或後端代理。';
+
+  @override
+  String get liveApiModelSelectTitle => '選擇 Live API 模型';
+
+  @override
+  String get liveApiModelRefresh => '重新整理';
+
+  @override
+  String get liveApiModelFetchRetry => '重試';
+
+  @override
+  String get liveApiModelFetchError => '無法取得模型清單。請檢查 API Key 與網路後再試。';
+
+  @override
+  String get liveApiModelFetchEmpty => '此帳號沒有可用的 Live API 模型。';
+
+  @override
+  String get liveApiModelManualInput => '手動輸入模型名稱…';
+
+  @override
+  String get liveApiCallNotConfiguredHint => '通話前請先至「語音服務」完成 Live API 設定。';
+
+  @override
+  String get liveCallTitle => '即時語音通話';
+
+  @override
+  String get liveCallConnecting => '連線中…';
+
+  @override
+  String get liveCallActive => '通話中';
+
+  @override
+  String get liveCallMuted => '已靜音';
+
+  @override
+  String get liveCallError => '通話錯誤';
+
+  @override
+  String get liveCallRetry => '重試';
+
+  @override
+  String get voiceCallModeStandard => '標準語音模式';
+
+  @override
+  String get voiceCallModeLiveApi => 'Live API 模式';
+
+  @override
+  String get voiceCallSwitchedToStandard => '已切換為標準語音模式';
+
+  @override
+  String get voiceCallSwitchedToLiveApi => '已切換為 Live API 模式';
 
   @override
   String get voiceChatButtonTooltip => '語音聊天';

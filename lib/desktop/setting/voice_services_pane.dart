@@ -6,12 +6,13 @@ import '../../l10n/app_localizations.dart';
 import '../../core/providers/settings_provider.dart';
 import 'tts_services_pane.dart';
 import 'stt_services_pane.dart';
+import 'voice_call_pane.dart';
 
-enum _VoiceSubPane { root, tts, stt }
+enum _VoiceSubPane { root, tts, stt, voiceCall }
 
 /// Desktop: 「語音服務」中介面板（兩層導覽，與行動版 `VoiceServicesPage` 一致）。
-/// 根層顯示「語音朗讀 / 語音辨識」兩個項目；點擊後**原地切換**為對應的
-/// TTS / STT pane（中介層保留於兩平台，僅以 pane 內切換呈現）。
+/// 根層顯示「語音朗讀 / 語音辨識 / 即時語音通話」三個項目；點擊後**原地切換**為
+/// 對應的 TTS / STT / Voice Call pane（中介層保留於兩平台，僅以 pane 內切換呈現）。
 class DesktopVoiceServicesPane extends StatefulWidget {
   const DesktopVoiceServicesPane({super.key});
   @override
@@ -39,6 +40,12 @@ class _DesktopVoiceServicesPaneState extends State<DesktopVoiceServicesPane> {
           title: l10n.settingsPageStt,
           onBack: () => setState(() => _sub = _VoiceSubPane.root),
           child: const DesktopSttServicesPane(),
+        );
+      case _VoiceSubPane.voiceCall:
+        return _SubPaneHost(
+          title: l10n.settingsPageVoiceCall,
+          onBack: () => setState(() => _sub = _VoiceSubPane.root),
+          child: const DesktopVoiceCallPane(),
         );
       case _VoiceSubPane.root:
         return Container(
@@ -83,6 +90,16 @@ class _DesktopVoiceServicesPaneState extends State<DesktopVoiceServicesPane> {
                       onTap: () => setState(() => _sub = _VoiceSubPane.stt),
                     ),
                   ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                  SliverToBoxAdapter(
+                    child: _VoiceServiceCard(
+                      icon: lucide.Lucide.Phone,
+                      title: l10n.settingsPageVoiceCall,
+                      subtitle: _voiceCallSubtitle(context),
+                      onTap: () =>
+                          setState(() => _sub = _VoiceSubPane.voiceCall),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -109,6 +126,17 @@ class _DesktopVoiceServicesPaneState extends State<DesktopVoiceServicesPane> {
     return selected?.name.isNotEmpty == true
         ? selected!.name
         : l10n.settingsPageStt;
+  }
+
+  String _voiceCallSubtitle(BuildContext context) {
+    final sp = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context)!;
+    if (sp.usingLiveApi && !sp.liveApiConfigured) {
+      return l10n.liveApiNotConfigured;
+    }
+    return sp.usingLiveApi
+        ? l10n.voiceCallModeLiveApi
+        : l10n.voiceCallModeStandard;
   }
 }
 

@@ -60,6 +60,7 @@ import 'home_mobile_layout.dart';
 import 'home_desktop_layout.dart';
 
 import '../../../features/voice_chat/pages/voice_chat_screen.dart';
+import '../../../features/voice_chat/pages/live_call_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -221,9 +222,30 @@ class _HomePageState extends State<HomePage>
 
   // Voice Chat Logic
   void _startVoiceChat() async {
+    final settings = context.read<SettingsProvider>();
+    if (settings.usingLiveApi) {
+      if (!settings.liveApiConfigured) {
+        showAppSnackBar(
+          context,
+          message: AppLocalizations.of(context)!.liveApiCallNotConfiguredHint,
+          type: NotificationType.warning,
+          duration: const Duration(seconds: 5),
+        );
+        return;
+      }
+      if (_controller.currentConversation == null) {
+        await _controller.createNewConversationAnimated();
+      }
+      if (!mounted) return;
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (context) => LiveCallScreen()));
+      return;
+    }
     if (_controller.currentConversation == null) {
       await _controller.createNewConversationAnimated();
     }
+    if (!mounted) return;
     // Navigate to the voice chat screen
     Navigator.of(
       context,
