@@ -10,7 +10,8 @@ import '../../core/services/stt/network_stt.dart';
 
 /// Desktop: 語音辨識（STT）右側面板。
 /// Adapt 行動版 `stt_services_page.dart`，樣式對齊 `tts_services_pane.dart`
-/// （hoverable card 列表、系統STT卡片、新增表單、選用/刪除互動）。
+/// （hoverable card 列表、系統STT卡片、編輯/刪除互動）。
+/// 註：第三方 STT 轉錄尚未實作，故不提供「新增」入口，避免使用者誤以為可用。
 class DesktopSttServicesPane extends StatefulWidget {
   const DesktopSttServicesPane({super.key});
   @override
@@ -34,39 +35,16 @@ class _DesktopSttServicesPaneState extends State<DesktopSttServicesPane> {
               SliverToBoxAdapter(
                 child: SizedBox(
                   height: 36,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            l10n.sttServicesPageTitle,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w400,
-                              color: cs.onSurface.withOpacity(0.9),
-                            ),
-                          ),
-                        ),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      l10n.sttServicesPageTitle,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                        color: cs.onSurface.withOpacity(0.9),
                       ),
-                      _SmallIconBtn(
-                        icon: lucide.Lucide.Plus,
-                        onTap: () async {
-                          final created = await _showAddNetworkDialog(context);
-                          if (!mounted) return;
-                          if (created != null) {
-                            final sp = context.read<SettingsProvider>();
-                            final list = List<SttServiceOptions>.from(
-                              sp.sttServices,
-                            )..add(created);
-                            await sp.setSttServices(list);
-                            if (sp.usingSystemStt) {
-                              await sp.setSttServiceSelected(list.length - 1);
-                            }
-                          }
-                        },
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -644,9 +622,6 @@ class _DialogOptionState extends State<_DialogOption> {
     );
   }
 }
-
-Future<SttServiceOptions?> _showAddNetworkDialog(BuildContext context) =>
-    _showNetworkDialog(context, null);
 
 Future<SttServiceOptions?> _showEditNetworkDialog(
   BuildContext context,

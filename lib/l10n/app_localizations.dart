@@ -5099,12 +5099,6 @@ abstract class AppLocalizations {
   /// **'Speech Recognition'**
   String get sttServicesPageTitle;
 
-  /// No description provided for @sttServicesPageAddTooltip.
-  ///
-  /// In en, this message translates to:
-  /// **'Add'**
-  String get sttServicesPageAddTooltip;
-
   /// No description provided for @sttServicesDialogAddTitle.
   ///
   /// In en, this message translates to:
@@ -5180,7 +5174,7 @@ abstract class AppLocalizations {
   /// No description provided for @sttServicesPageNoNetworkServices.
   ///
   /// In en, this message translates to:
-  /// **'No speech recognition services yet'**
+  /// **'Third-party speech recognition is not available yet'**
   String get sttServicesPageNoNetworkServices;
 
   /// No description provided for @sttServicesPageNotImplementedBadge.

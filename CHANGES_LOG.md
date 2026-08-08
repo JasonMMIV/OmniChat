@@ -209,6 +209,15 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 - **Files Modified**: `pubspec.yaml` (version `1.12.0+74`) / `installer.iss` (1.12.0, output `OmniChat_windows_v1.12.0_setup`) / `CHANGES_LOG.md` (this entry)
 - **Tests**: `flutter analyze` — no new errors (15 pre-existing info only); `flutter test` — STT 相關套件全過 (stt_locale_resolver / settings_provider_stt / voice_chat_windows / network_stt, 20 tests)。
 
+### 185. Remove "Add" Button from STT Settings Pages (Third-party not yet supported)
+
+- **Purpose**: 第三方 STT 轉錄尚未實作（目前僅設定管理架構：UI + 資料模型 + 持久化），為避免使用者誤以為可新增並使用第三方語音辨識服務，移除行動版與桌面版「語音辨識」頁面右上角的「+」新增按鈕；第三方區塊的空狀態文案由「尚未新增任何語音辨識服務」改為「第三方語音辨識尚未開放」，不再暗示可新增。已存在的第三方服務（舊版本留下的設定）仍可編輯/刪除/選用，但無新增入口。
+- **Files Modified**:
+  - `lib/features/settings/pages/stt_services_page.dart` (移除 AppBar 右上角「+」按鈕與 `_showAddNetworkSttSheet` 死碼)
+  - `lib/desktop/setting/stt_services_pane.dart` (移除標題列右側「+」按鈕與 `_showAddNetworkDialog` 死碼；標題列簡化；檔案註解更新)
+  - `lib/l10n/app_en.arb` / `app_zh_Hant.arb` / `app_zh_Hans.arb` / `app_zh.arb` (+ regenerated `app_localizations*.dart`): 移除不再使用的 `sttServicesPageAddTooltip`；`sttServicesPageNoNetworkServices` 改為「第三方語音辨識尚未開放」(en: "Third-party speech recognition is not available yet")
+- **Tests**: `flutter analyze` — no new errors (僅既有 dependency example 2 errors 與既有 info warnings)；`flutter test` — STT 相關套件全過 (network_stt / stt_locale_resolver / settings_provider_stt, 19 tests)。
+
 
 ## [v1.11.1] - 2026-08-07: Inline Dictation Pause/Resume + Silence Watchdog Auto-Pause
 

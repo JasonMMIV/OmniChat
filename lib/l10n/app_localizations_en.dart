@@ -2620,9 +2620,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sttServicesPageTitle => 'Speech Recognition';
 
   @override
-  String get sttServicesPageAddTooltip => 'Add';
-
-  @override
   String get sttServicesDialogAddTitle => 'Add Speech Recognition Service';
 
   @override
@@ -2660,7 +2657,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sttServicesPageNoNetworkServices =>
-      'No speech recognition services yet';
+      'Third-party speech recognition is not available yet';
 
   @override
   String get sttServicesPageNotImplementedBadge =>

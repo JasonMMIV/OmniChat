@@ -35,30 +35,6 @@ class SttServicesPage extends StatelessWidget {
           ),
         ),
         title: Text(l10n.sttServicesPageTitle),
-        actions: [
-          Tooltip(
-            message: l10n.sttServicesPageAddTooltip,
-            child: _TactileIconButton(
-              icon: Lucide.Plus,
-              color: cs.onSurface,
-              size: 22,
-              onTap: () async {
-                final created = await _showAddNetworkSttSheet(context);
-                if (!context.mounted) return;
-                if (created != null) {
-                  final sp = context.read<SettingsProvider>();
-                  final list = List<SttServiceOptions>.from(sp.sttServices)
-                    ..add(created);
-                  await sp.setSttServices(list);
-                  if (sp.usingSystemStt) {
-                    await sp.setSttServiceSelected(list.length - 1);
-                  }
-                }
-              },
-            ),
-          ),
-          const SizedBox(width: 12),
-        ],
       ),
       body: Consumer<SettingsProvider>(
         builder: (context, sp, _) {
@@ -598,10 +574,7 @@ class _NetworkSttRowMobileState extends State<_NetworkSttRowMobile> {
   }
 }
 
-// --- Add / Edit network STT sheet ---
-
-Future<SttServiceOptions?> _showAddNetworkSttSheet(BuildContext context) =>
-    _showNetworkSttSheet(context, null);
+// --- Edit network STT sheet ---
 
 Future<SttServiceOptions?> _showEditNetworkSttSheet(
   BuildContext context,
