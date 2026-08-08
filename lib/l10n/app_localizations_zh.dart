@@ -2618,9 +2618,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sttServicesPageTitle => '语音识别';
 
   @override
-  String get sttServicesPageAddTooltip => '新增';
-
-  @override
   String get sttServicesDialogAddTitle => '新增语音识别服务';
 
   @override
@@ -2657,7 +2654,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sttServicesPageSystemSttConfigureTooltip => '配置';
 
   @override
-  String get sttServicesPageNoNetworkServices => '尚未新增任何语音识别服务';
+  String get sttServicesPageNoNetworkServices => '第三方语音识别尚未开放';
 
   @override
   String get sttServicesPageNotImplementedBadge => '尚未支持转录';
@@ -6873,9 +6870,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get sttServicesPageTitle => '语音识别';
 
   @override
-  String get sttServicesPageAddTooltip => '新增';
-
-  @override
   String get sttServicesDialogAddTitle => '新增语音识别服务';
 
   @override
@@ -6912,7 +6906,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get sttServicesPageSystemSttConfigureTooltip => '配置';
 
   @override
-  String get sttServicesPageNoNetworkServices => '尚未新增任何语音识别服务';
+  String get sttServicesPageNoNetworkServices => '第三方语音识别尚未开放';
 
   @override
   String get sttServicesPageNotImplementedBadge => '尚未支持转录';
@@ -11033,9 +11027,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get sttServicesPageTitle => '語音辨識';
 
   @override
-  String get sttServicesPageAddTooltip => '新增';
-
-  @override
   String get sttServicesDialogAddTitle => '新增語音辨識服務';
 
   @override
@@ -11072,7 +11063,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get sttServicesPageSystemSttConfigureTooltip => '設定';
 
   @override
-  String get sttServicesPageNoNetworkServices => '尚未新增任何語音辨識服務';
+  String get sttServicesPageNoNetworkServices => '第三方語音辨識尚未開放';
 
   @override
   String get sttServicesPageNotImplementedBadge => '尚未支援轉錄';
