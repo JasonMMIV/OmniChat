@@ -75,3 +75,6 @@ internationalization.md
 # Local tool state
 /.commandcode/
 /.freebuff/
+
+# Internal implementation plan — not for public repo
+/Implementation Plan Voice Services Reorganization & Live API Settings v3.md
