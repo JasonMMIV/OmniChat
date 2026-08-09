@@ -99,6 +99,9 @@ class _LiveCallScreenState extends State<LiveCallScreen>
             tools: builtInLiveTools,
             toolHandler: (name, args) async =>
                 runBuiltInLiveTool(name, args, settings: settings),
+            // C1：播放器 audioFocus none（保留 call mode 路由），減少包間隙
+            playbackAudioContext:
+                await PlatformAudioSetup.playbackAudioContext(),
           );
     session.addListener(_onSessionChanged);
     _session = session;

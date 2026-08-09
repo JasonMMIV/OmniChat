@@ -61,12 +61,14 @@ class LiveApiSession extends ChangeNotifier {
     AudioPlayer Function(String playerId)? playerFactory,
     this.tools = const <Map<String, dynamic>>[],
     this.toolHandler,
+    this.playbackAudioContext,
     this.maxReconnectAttempts = 3,
     this.reconnectBackoffBase = const Duration(seconds: 1),
   })  : _channelFactory =
             channelFactory ?? ((uri) => IOWebSocketChannel.connect(uri)),
         _recorderFactory = recorderFactory ?? (() => AudioRecorder()),
-        _playerFactory = playerFactory ?? ((id) => AudioPlayer(playerId: id));
+        _playerFactory = playerFactory ??
+            ((id) => _createPlayerWithContext(id, playbackAudioContext));
 
   final String apiKey;
   final String model;
@@ -76,8 +78,29 @@ class LiveApiSession extends ChangeNotifier {
   final AudioRecorder Function() _recorderFactory;
   final AudioPlayer Function(String playerId) _playerFactory;
 
+  /// 建立播放器並套用 [playbackAudioContext]（若有）。
+  static AudioPlayer _createPlayerWithContext(
+    String playerId,
+    AudioContext? ctx,
+  ) {
+    final player = AudioPlayer(playerId: playerId);
+    if (ctx != null) {
+      // fire-and-forget：context 在 setSource（prepare）前套用即可
+      unawaited(player.setAudioContext(ctx).catchError((_) {}));
+    }
+    return player;
+  }
+
   /// Function calling：setup 宣告的 tools（`functionDeclarations`）清單。
   final List<Map<String, dynamic>> tools;
+
+  /// C1：播放器 [AudioContext]（Android）。
+  ///
+  /// 設 `audioFocus: none` 讓 audioplayers 不每包 request/abandon focus
+  /// （focus 由 call mode 集中管理，消除包間隙來源之一）；同時保留目前
+  /// call mode 的 mode/speakerphone 路由值，避免 audioplayers 全域覆寫
+  /// 破壞藍牙/喇叭輸出。null 表示不設定（維持 audioplayers 預設）。
+  final AudioContext? playbackAudioContext;
 
   /// 工具執行器（可為 null——此時工具呼叫回傳 `{'error': ...}`）。
   final LiveToolHandler? toolHandler;
@@ -597,9 +620,13 @@ class LiveApiSession extends ChangeNotifier {
     }
 
     // 轉錄（AUDIO 模式下的字幕來源）
+    // 與 input transcription 相同：實測 API 回傳 snake_case
+    // （`output_transcription`），官方文件寫 camelCase
+    // （`outputTranscription`）——兩種都解析以防 API 變動。
     final sc2 = serverContent(msg);
     if (sc2 != null) {
-      final outTrans = sc2['output_transcription'];
+      final outTrans =
+          sc2['output_transcription'] ?? sc2['outputTranscription'];
       if (outTrans is Map<String, dynamic> && outTrans['text'] is String) {
         final t = outTrans['text'] as String;
         if (t.isNotEmpty) {
