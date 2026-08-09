@@ -1233,6 +1233,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get liveCallReconnecting => '重新连接中…';
 
   @override
+  String get liveCallToolRunning => '正在呼叫工具…';
+
+  @override
   String get liveCallBackground => '已进入后台';
 
   @override
@@ -5576,6 +5579,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get liveCallReconnecting => '重新连接中…';
 
   @override
+  String get liveCallToolRunning => '正在呼叫工具…';
+
+  @override
   String get liveCallBackground => '已进入后台';
 
   @override
@@ -9813,6 +9819,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get liveCallReconnecting => '重新連線中…';
+
+  @override
+  String get liveCallToolRunning => '正在呼叫工具…';
 
   @override
   String get liveCallBackground => '已進入背景';

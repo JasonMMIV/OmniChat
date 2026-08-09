@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-09 (v1.14.0)
+- **Last Updated**: 2026-08-09 (v1.15.0)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -178,6 +178,17 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.15.0] - 2026-08-09: Live API 即時對話字幕、Function calling 與 gapless 連續播放
+
+> v1.14.0 之後新增三輪功能（191o、191p、191q）：補上使用者語音即時轉錄與字幕開關（通話紀錄前置步驟）、實作 Function calling（工具呼叫）與 gapless 雙槽連續播放管線。
+
+- **191o** Live API 即時對話字幕：解析 `serverContent.input_transcription`（使用者語音即時轉錄，取代語意；turnComplete 清除）→ `userPartial` 狀態；兩種 casing（snake/camel）都解析防 API 變動；通話頁面右下角新增字幕開關（`Lucide.Captions`/`CaptionsOff`，參考標準語音模式，關閉時保留字幕區塊避免跳動）；字幕優先序＝進行中的模型回覆 → 使用者轉錄 → 上一個完成的模型回合。
+- **191p** Function calling 與 gapless 連續播放：session 新增 `tools`（setup `functionDeclarations`）與 `toolHandler`；解析 `toolCall` → `pendingToolCalls`（UI 顯示「正在呼叫工具」）→ 執行 handler → `toolResponse`；`toolCallCancellation` 移除 pending；新增 `live_tools.dart` 內建 `get_current_datetime` 工具。播放管線改為雙槽預備播放（`setSource` 預先 prepare 下一個包、完成時 `resume` 切換不重建），並修兩個「目前槽失敗 × 預備槽進行中」的 race（提拔預備槽／預備槽接手），`interrupted`/stop/flush 以 `_playEpoch` 失效清理。
+- **191q** Live API 新增 `search_web` 工具：`builtInLiveTools` 宣告 `search_web`（`query` 必填 STRING）；`runBuiltInLiveTool` 改為 async 並傳入 `settings`，直接複用 `SearchToolService.executeSearch`——吃使用者在 LL 對話頁搜尋設定 sheet 選定的搜尋服務（`searchServiceSelected`，與標準聊天共用，不需另設 API key）；含注入 seam `searchExecutor` 供測試，錯誤（空 query／無 settings／executor 拋錯／非 JSON）都回 error map。
+- **Version**: pubspec `1.15.0+78`；installer.iss 1.15.0（`OmniChat_windows_v1.15.0_setup`）。
+- **Files Modified**: `lib/core/services/live/live_api_session.dart`、`lib/core/services/live/live_tools.dart`（新增）、`lib/features/voice_chat/pages/live_call_screen.dart`、`lib/l10n/*.arb`（+`liveCallToolRunning`）、`test/live_api_session_integration_test.dart`（+9）、`test/live_call_screen_test.dart`（+1）、`test/live_tools_test.dart`（新增，+9）。
+- **Tests**: `flutter test` full suite **220 tests passed**（v1.14.0 為 201 → +19）；修改檔案 `flutter analyze` **no issues**。
+
 ## [v1.14.0] - 2026-08-09: Live API 半雙工六輪修復（P0–P2）— Windows/Android 穩定化
 
 > 依「Implementation Plan Voice Services Reorganization & Live API Settings v5」§10 執行六輪修復迭代（191h–191m）與 Android 實機修復（191n）：修正輸入取樣率與 PCM 契約、實作可靠 VAD turn 結束、統一 Android/Windows 半雙工音訊初始化、修復播放佇列與資源清理、加入 lifecycle/斷網重連、API Key 遷移至 secure storage 並全面遮蔽診斷資訊、修復 Android 播放模式與音訊 focus。Windows 與 Android 實機測試均通過。`flutter test` 201 tests passed。
@@ -204,6 +215,29 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 - **UI**: 行動版 Model 欄改為 `_ModelPickerRow`（bottom sheet：載入中 / 錯誤重試 / 清單選取 / 手動輸入）；桌面版改為 `_ModelSelectRow`（dialog 同功能）。
 - **Files Modified**: `lib/core/services/live/live_api_models_service.dart`（NEW）、`lib/features/settings/pages/voice_call_settings_page.dart`、`lib/desktop/setting/voice_call_pane.dart`、`lib/core/providers/settings_provider.dart`（`setLiveApiApiKey` 清除模型快取）
 - **New test** `test/live_api_models_service_test.dart`（9 案例：篩選邏輯、排序、錯誤回應、快取、自訂 host 推導）
+
+### 191q. Live API 新增 search_web 工具（複用既有搜尋服務設定）
+
+> 使用者要求：Live API 語音通話加入 web search 工具。確認機制後實作——直接複用既有 `SearchToolService.executeSearch`，吃使用者已在 LL 對話頁搜尋設定 sheet 選定的搜尋服務（`searchServiceSelected`，Tavily/Brave/Zhipu/Ollama/Exa 之一），不需另設 API key。
+
+- **Purpose**:
+  - `live_tools.dart`：`builtInLiveTools` 新增 `search_web` 宣告（`query` 必填 STRING，schema 沿用 Gemini JSON enum 大寫風格）；`runBuiltInLiveTool` 改為 async，新增可選 `settings`（`SettingsProvider`）與注入 seam `searchExecutor`（`LiveSearchExecutor`，預設 `SearchToolService.executeSearch`）。執行流程：空 query / 無 settings → error map；executor 拋錯 → `{'error': 'search failed: ...'}`；非 JSON 回傳 → 原樣 error；成功 → 解析 `{'answer', 'items'}` 回傳給模型。
+  - `live_call_screen.dart`：`toolHandler` 傳入 `settings`（`context.read<SettingsProvider>()`），讓 search_web 能解析使用者選定的搜尋服務。
+- **Files Modified**: `lib/core/services/live/live_tools.dart`、`lib/features/voice_chat/pages/live_call_screen.dart`、`test/live_tools_test.dart`（新增，+9）
+- **Verification**: `flutter test` 220 passed（+9）；analyze no issues；改動檔案維持全 CRLF。
+- **Note**: 語音場景下模型會把搜尋結果「講」出來（Live API `toolResponse` 無標準聊天的 citation 渲染機制）。
+
+### 191p. Function calling（工具呼叫）與 gapless 連續播放管線
+
+> 使用者要求：開始實作 Function calling 與 gapless 連續播放（§3.3 待實作清單）。
+
+- **Purpose**:
+  - Function calling：`live_api_session.dart` 新增 `tools`（setup `tools.functionDeclarations`）與 `toolHandler`（`LiveToolHandler` typedef）注入；解析伺服器 `toolCall.functionCalls` → `pendingToolCalls` 狀態（供 UI 顯示）→ 非同步執行 handler → `buildToolResponsePayload` 送回 `toolResponse`（handler 拋錯或未註冊時回 `{'error': ...}`）；`toolCallCancellation` 移除 pending call。新增純函式 `extractToolCalls` / `extractCancelledToolIds` / `buildToolResponsePayload`。
+  - 內建工具：新增 `lib/core/services/live/live_tools.dart`——`builtInLiveTools`（`get_current_datetime` 宣告）與 `runBuiltInLiveTool`（執行器，未知工具回 error）。
+  - UI：`live_call_screen.dart` 接入 `builtInLiveTools` + handler；狀態列顯示「正在呼叫工具：<name>」（l10n `liveCallToolRunning`）。
+  - gapless：`_startSlot`/`_primeSlot`/`_switchTo` 雙槽播放管線取代「每包新建 player 並 play」——目前槽播放時以 `setSource` 預先 prepare 下一個槽，完成時直接 `resume` 切換（不重建、無包間隙）；`interrupted`/stop/flush 以 `_playEpoch` 讓 in-flight 操作失效並釋放所有槽。修兩個 edge case：目前槽在預備槽就緒後失敗 → 提拔預備槽；目前槽在預備期間失敗 → 預備槽接手成為目前槽（避免管線卡住）。
+- **Files Modified**: `lib/core/services/live/live_api_session.dart`、`lib/core/services/live/live_tools.dart`（新增）、`lib/features/voice_chat/pages/live_call_screen.dart`、`lib/l10n/*.arb`（+`liveCallToolRunning`）、`test/live_api_session_integration_test.dart`（+4 tool、改寫播放測試為 gapless 語意、+1 預備槽釋放）
+- **Verification**: `flutter test` 211 passed（+5）；analyze no issues；所有改動檔案維持全 CRLF。
 
 ### 191o. Live API 即時對話字幕 — 使用者語音轉錄顯示與字幕開關
 

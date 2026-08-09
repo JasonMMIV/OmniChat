@@ -2483,6 +2483,12 @@ abstract class AppLocalizations {
   /// **'Reconnecting…'**
   String get liveCallReconnecting;
 
+  /// No description provided for @liveCallToolRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Calling tool…'**
+  String get liveCallToolRunning;
+
   /// No description provided for @liveCallBackground.
   ///
   /// In en, this message translates to:

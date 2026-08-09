@@ -1265,6 +1265,7 @@
   "liveCallError": "通话错误",
   "liveCallRetry": "重试",
   "liveCallReconnecting": "重新连接中…",
+  "liveCallToolRunning": "正在呼叫工具…",
   "liveCallBackground": "已进入后台",
   "voiceCallModeStandard": "标准语音模式",
   "voiceCallModeLiveApi": "Live API 模式",

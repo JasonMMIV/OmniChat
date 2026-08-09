@@ -25,6 +25,26 @@ enum LiveCallState {
   ended,
 }
 
+/// 工具處理器：執行名為 [name] 的工具並回傳 JSON 可序列化結果。
+/// 回傳值會以 `toolResponse` 送回伺服器；拋錯時以 `{'error': ...}` 回傳。
+typedef LiveToolHandler = Future<Map<String, dynamic>> Function(
+  String name,
+  Map<String, dynamic> args,
+);
+
+/// 伺服器 `toolCall` 訊息中的單一 function call。
+class LiveFunctionCall {
+  const LiveFunctionCall({
+    required this.id,
+    required this.name,
+    required this.args,
+  });
+
+  final String id;
+  final String name;
+  final Map<String, dynamic> args;
+}
+
 /// Gemini Live API 雙向語音通話引擎。
 ///
 /// 以 WebSocket（BidiGenerateContent）建立 session：麥克風 PCM16 24kHz
@@ -39,6 +59,8 @@ class LiveApiSession extends ChangeNotifier {
     WebSocketChannel Function(Uri uri)? channelFactory,
     AudioRecorder Function()? recorderFactory,
     AudioPlayer Function(String playerId)? playerFactory,
+    this.tools = const <Map<String, dynamic>>[],
+    this.toolHandler,
     this.maxReconnectAttempts = 3,
     this.reconnectBackoffBase = const Duration(seconds: 1),
   })  : _channelFactory =
@@ -53,6 +75,12 @@ class LiveApiSession extends ChangeNotifier {
   final WebSocketChannel Function(Uri uri) _channelFactory;
   final AudioRecorder Function() _recorderFactory;
   final AudioPlayer Function(String playerId) _playerFactory;
+
+  /// Function calling：setup 宣告的 tools（`functionDeclarations`）清單。
+  final List<Map<String, dynamic>> tools;
+
+  /// 工具執行器（可為 null——此時工具呼叫回傳 `{'error': ...}`）。
+  final LiveToolHandler? toolHandler;
 
   /// 輸出（模型音訊）取樣率：16-bit PCM、mono、24 kHz。
   static const int outputSampleRate = 24000;
@@ -88,6 +116,10 @@ class LiveApiSession extends ChangeNotifier {
   final List<String> _turns = <String>[];
   List<String> get turns => List.unmodifiable(_turns);
 
+  /// 等待執行的 function calls（供 UI 顯示「正在呼叫工具」）。
+  List<LiveFunctionCall> get pendingToolCalls =>
+      List.unmodifiable(_pendingToolCalls);
+
   WebSocketChannel? _ws;
   AudioRecorder? _recorder;
   StreamSubscription<Uint8List>? _micSub;
@@ -99,11 +131,19 @@ class LiveApiSession extends ChangeNotifier {
   DateTime? _micStatsStart;
 
   final Queue<Uint8List> _playQueue = Queue<Uint8List>();
-  AudioPlayer? _player;
-  StreamSubscription<void>? _playSub;
+  /// gapless：目前播放中的槽與已 prepare、等待切換的槽。
+  _PlayerSlot? _current;
+  _PlayerSlot? _next;
   bool _playing = false;
+  /// setSource（prepare）進行中，避免並發預備。
+  bool _priming = false;
+  /// flush 時遞增，讓進行中的 async 播放操作自動失效。
+  int _playEpoch = 0;
   final BytesBuilder _playBuf = BytesBuilder(copy: false);
   int _audioSeq = 0;
+
+  /// 收到 `toolCall` 後、`toolResponse` 送出前的 function calls。
+  final List<LiveFunctionCall> _pendingToolCalls = <LiveFunctionCall>[];
 
   bool _disposed = false;
   bool _closing = false;
@@ -137,31 +177,33 @@ class LiveApiSession extends ChangeNotifier {
   static String buildSetupPayload({
     required String model,
     required String voice,
+    List<Map<String, dynamic>> tools = const <Map<String, dynamic>>[],
   }) {
-    final payload = <String, dynamic>{
-      'setup': <String, dynamic>{
-        'model': model.startsWith('models/') ? model : 'models/$model',
-        'generation_config': <String, dynamic>{
-          'response_modalities': <String>['AUDIO'],
-          'speech_config': <String, dynamic>{
-            'voice_config': <String, dynamic>{
-              'prebuilt_voice_config': <String, dynamic>{'voice_name': voice},
-            },
+    final setup = <String, dynamic>{
+      'model': model.startsWith('models/') ? model : 'models/$model',
+      'generation_config': <String, dynamic>{
+        'response_modalities': <String>['AUDIO'],
+        'speech_config': <String, dynamic>{
+          'voice_config': <String, dynamic>{
+            'prebuilt_voice_config': <String, dynamic>{'voice_name': voice},
           },
         },
-        'realtime_input_config': <String, dynamic>{
-          'automatic_activity_detection': <String, dynamic>{
-            'start_of_speech_sensitivity': 'START_SENSITIVITY_HIGH',
-            'end_of_speech_sensitivity': 'END_SENSITIVITY_HIGH',
-            'prefix_padding_ms': 100,
-            'silence_duration_ms': 500,
-          },
-        },
-        'input_audio_transcription': <String, dynamic>{},
-        'output_audio_transcription': <String, dynamic>{},
       },
+      'realtime_input_config': <String, dynamic>{
+        'automatic_activity_detection': <String, dynamic>{
+          'start_of_speech_sensitivity': 'START_SENSITIVITY_HIGH',
+          'end_of_speech_sensitivity': 'END_SENSITIVITY_HIGH',
+          'prefix_padding_ms': 100,
+          'silence_duration_ms': 500,
+        },
+      },
+      'input_audio_transcription': <String, dynamic>{},
+      'output_audio_transcription': <String, dynamic>{},
     };
-    return jsonEncode(payload);
+    if (tools.isNotEmpty) {
+      setup['tools'] = tools;
+    }
+    return jsonEncode(<String, dynamic>{'setup': setup});
   }
 
   /// 建立 realtimeInput 訊息（JSON 字串）。
@@ -184,6 +226,21 @@ class LiveApiSession extends ChangeNotifier {
     return jsonEncode(<String, dynamic>{
       'realtimeInput': <String, dynamic>{
         'audio_stream_end': <String, dynamic>{},
+      },
+    });
+  }
+
+  /// 建立 `toolResponse` 訊息（JSON 字串）：回覆伺服器的 function call。
+  static String buildToolResponsePayload({
+    required String id,
+    required String name,
+    required Map<String, dynamic> response,
+  }) {
+    return jsonEncode(<String, dynamic>{
+      'toolResponse': <String, dynamic>{
+        'functionResponses': <Map<String, dynamic>>[
+          <String, dynamic>{'id': id, 'name': name, 'response': response},
+        ],
       },
     });
   }
@@ -261,6 +318,37 @@ class LiveApiSession extends ChangeNotifier {
       }
     }
     return result;
+  }
+
+  /// 取出 `toolCall` 訊息中的 function calls。
+  static List<LiveFunctionCall> extractToolCalls(Map<String, dynamic> msg) {
+    final tc = msg['toolCall'];
+    if (tc is! Map<String, dynamic>) return const <LiveFunctionCall>[];
+    final calls = tc['functionCalls'];
+    if (calls is! List) return const <LiveFunctionCall>[];
+    final result = <LiveFunctionCall>[];
+    for (final c in calls) {
+      if (c is Map<String, dynamic> &&
+          c['id'] is String &&
+          c['name'] is String) {
+        final args = c['args'];
+        result.add(LiveFunctionCall(
+          id: c['id'] as String,
+          name: c['name'] as String,
+          args: args is Map<String, dynamic> ? args : const <String, dynamic>{},
+        ));
+      }
+    }
+    return result;
+  }
+
+  /// 取出 `toolCallCancellation` 訊息中要取消的 call id。
+  static List<String> extractCancelledToolIds(Map<String, dynamic> msg) {
+    final tcc = msg['toolCallCancellation'];
+    if (tcc is! Map<String, dynamic>) return const <String>[];
+    final ids = tcc['ids'];
+    if (ids is! List) return const <String>[];
+    return ids.whereType<String>().toList();
   }
 
   /// 提取 server error 訊息文字。
@@ -344,7 +432,7 @@ class LiveApiSession extends ChangeNotifier {
         onError: (Object e) => _onWsError(ws, e),
         onDone: () => _onServerDone(ws),
       );
-      ws.sink.add(buildSetupPayload(model: model, voice: voice));
+      ws.sink.add(buildSetupPayload(model: model, voice: voice, tools: tools));
       _setupTimeout?.cancel();
       _setupTimeout = Timer(const Duration(seconds: 15), () {
         if (_state == LiveCallState.connecting && !_disposed && !_closing) {
@@ -485,6 +573,18 @@ class LiveApiSession extends ChangeNotifier {
       _fail(maskApiKey(extractErrorMessage(msg), apiKey));
       return;
     }
+    if (msg['toolCall'] is Map<String, dynamic>) {
+      _handleToolCall(msg);
+      return;
+    }
+    if (msg['toolCallCancellation'] is Map<String, dynamic>) {
+      final ids = extractCancelledToolIds(msg);
+      if (ids.isNotEmpty) {
+        _pendingToolCalls.removeWhere((c) => ids.contains(c.id));
+        _notify();
+      }
+      return;
+    }
     if (serverContent(msg) == null) return;
 
     if (isInterrupted(msg)) {
@@ -546,6 +646,40 @@ class LiveApiSession extends ChangeNotifier {
       _userPartial = '';
       _notify();
     }
+  }
+
+  // ---- Function calling ----
+
+  void _handleToolCall(Map<String, dynamic> msg) {
+    final calls = extractToolCalls(msg);
+    if (calls.isEmpty) return;
+    _pendingToolCalls.addAll(calls);
+    _notify();
+    final handler = toolHandler;
+    for (final call in calls) {
+      unawaited(_runTool(call, handler));
+    }
+  }
+
+  Future<void> _runTool(LiveFunctionCall call, LiveToolHandler? handler) async {
+    Map<String, dynamic> result;
+    if (handler == null) {
+      result = <String, dynamic>{'error': 'no tool handler registered'};
+    } else {
+      try {
+        result = await handler(call.name, call.args);
+      } catch (e) {
+        result = <String, dynamic>{'error': '$e'};
+      }
+    }
+    if (_disposed || _closing) return;
+    _send(buildToolResponsePayload(
+      id: call.id,
+      name: call.name,
+      response: result,
+    ));
+    _pendingToolCalls.removeWhere((c) => c.id == call.id);
+    _notify();
   }
 
   void _onServerDone(WebSocketChannel ws) {
@@ -627,82 +761,186 @@ class LiveApiSession extends ChangeNotifier {
     }
   }
 
-  // ---- 播放佇列 ----
+  // ---- gapless 播放管線 ----
 
   void _enqueuePlayback(Uint8List pcm) {
     _playQueue.add(pcm16ToWav(pcm));
-    if (!_playing) {
-      unawaited(_playNext());
+    unawaited(_pumpPlayback());
+  }
+
+  /// gapless：目前槽播放時預先 prepare 下一個槽（`setSource`），完成時
+  /// 直接 `resume` 切換，避免每包重建 player 造成可聽間隙。
+  Future<void> _pumpPlayback() async {
+    if (_disposed || _closing) return;
+    if (_current == null) {
+      await _startSlot();
+    } else if (_next == null && !_priming) {
+      await _primeSlot();
     }
   }
 
-  /// §5.6：依序播放——下一個播放包只在上一個完成（或失敗）後啟動。
-  ///
-  /// - 播放失敗（如 Windows Media Foundation）會 dispose player 並記錄
-  ///   可診斷 log，再繼續佇列。
-  /// - setPlayerMode/play 等待期間若被 [flushPlayback]（interrupted、stop、
-  ///   錯誤、goAway）取代，直接放棄該 player，不重設狀態、不續播。
-  Future<void> _playNext() async {
-    if (_playing || _disposed || _closing) return;
-    if (_playQueue.isEmpty) return;
-    _playing = true;
-    final wav = _playQueue.removeFirst();
+  _PlayerSlot _createSlot() {
     final seq = _audioSeq++;
     final player = _playerFactory('live_$seq');
-    _player = player;
-    StreamSubscription<void>? sub;
+    final slot = _PlayerSlot(player, _playQueue.removeFirst());
+    slot.sub = player.onPlayerComplete.listen((_) => _onSlotComplete(slot));
+    return slot;
+  }
+
+  Future<void> _startSlot() async {
+    if (_disposed || _closing || _playing) return;
+    if (_playQueue.isEmpty) return;
+    final epoch = _playEpoch;
+    final slot = _createSlot();
+    _current = slot;
     try {
       // Android：必須用 mediaPlayer 模式——lowLatency 走 SoundPool，而
-      // SoundPool 不支援 BytesSource（setForSoundPool 直接 error），
-      // 導致模型語音在 Android 上完全無法播放。Windows 僅支援 mediaPlayer。
-      await player.setPlayerMode(PlayerMode.mediaPlayer);
-      FlutterLogger.log('play #$seq start (${wav.length} bytes)', tag: 'live-api');
-      if (_player != player) {
-        // 播放設定期間已被 flush/stop 取代
-        unawaited(player.dispose().catchError((_) {}));
+      // SoundPool 不支援 BytesSource（setForSoundPool 直接 error）。
+      await slot.player.setPlayerMode(PlayerMode.mediaPlayer);
+      if (epoch != _playEpoch) return;
+      await slot.player.setSource(BytesSource(slot.wav));
+      if (epoch != _playEpoch) {
+        _disposeSlot(slot);
         return;
       }
-      sub = player.onPlayerComplete.listen((_) {
-        if (_player != player) return; // 已被 flush/stop 清理
-        _player = null;
-        _playSub = null;
-        unawaited(sub?.cancel());
-        unawaited(player.dispose().catchError((_) {}));
-        _playing = false;
-        FlutterLogger.log('play #$seq done', tag: 'live-api');
-        unawaited(_playNext());
-      });
-      _playSub = sub;
-      await player.play(BytesSource(wav));
-    } catch (e) {
-      final isCurrent = _player == player;
-      if (isCurrent) {
-        _player = null;
-        _playSub = null;
-        _playing = false;
+      await slot.player.resume();
+      if (epoch != _playEpoch) {
+        _disposeSlot(slot);
+        return;
       }
-      unawaited(sub?.cancel());
-      unawaited(player.dispose().catchError((_) {}));
+      _playing = true;
+      _notify();
+      FlutterLogger.log(
+        'play #${_audioSeq - 1} start (${slot.wav.length} bytes)',
+        tag: 'live-api',
+      );
+    } catch (e) {
       FlutterLogger.log('live playback failed: $e', tag: 'live-api');
-      if (isCurrent && !_disposed && !_closing) {
-        unawaited(_playNext());
+      if (_current == slot) _current = null;
+      _disposeSlot(slot);
+      if (!_disposed && !_closing) {
+        final next = _next;
+        if (next != null) {
+          // 已有預備槽（在目前槽失敗前已 prepare）：直接提拔為目前槽，
+          // 避免管線卡住（佇列可能已被預備槽取空）。
+          _next = null;
+          _current = next;
+          await _switchTo(next);
+        } else {
+          await _startSlot();
+        }
+      }
+      return;
+    }
+    unawaited(_primeSlot());
+  }
+
+  /// 預先 prepare 下一個播放包（不播放）。
+  Future<void> _primeSlot() async {
+    if (_disposed || _closing || _priming) return;
+    if (_next != null || _current == null) return;
+    if (_playQueue.isEmpty) return;
+    _priming = true;
+    final epoch = _playEpoch;
+    final slot = _createSlot();
+    try {
+      await slot.player.setPlayerMode(PlayerMode.mediaPlayer);
+      if (epoch != _playEpoch) {
+        _disposeSlot(slot);
+        return;
+      }
+      await slot.player.setSource(BytesSource(slot.wav));
+      if (epoch != _playEpoch) {
+        _disposeSlot(slot);
+        return;
+      }
+      if (_next == null && !_disposed && !_closing) {
+        if (_current == null) {
+          // 目前槽在我預備期間失敗並清空佇列：直接接手成為目前槽，
+          // 避免管線卡住（_startSlot 遞迴時佇列已空）。
+          _current = slot;
+          await _switchTo(slot);
+        } else {
+          _next = slot;
+        }
+      } else {
+        _disposeSlot(slot); // 已被 flush 或取代
+      }
+    } catch (e) {
+      FlutterLogger.log('live playback prepare failed: $e', tag: 'live-api');
+      _disposeSlot(slot);
+      if (!_disposed && !_closing && _current != null) {
+        // 跳過失敗包，繼續預備下一個
+        unawaited(_primeSlot());
+      }
+    } finally {
+      _priming = false;
+    }
+  }
+
+  void _onSlotComplete(_PlayerSlot slot) {
+    if (_disposed || _closing) return;
+    if (_current != slot) return; // 已被取代
+    final next = _next;
+    _current = null;
+    _next = null;
+    _disposeSlot(slot);
+    if (next != null) {
+      _current = next;
+      unawaited(_switchTo(next));
+    } else {
+      _playing = false;
+      _notify();
+      if (_playQueue.isNotEmpty) unawaited(_startSlot());
+    }
+  }
+
+  /// 切換到已 prepare 的槽（gapless 的關鍵：只 resume，不重新建立）。
+  Future<void> _switchTo(_PlayerSlot slot) async {
+    final epoch = _playEpoch;
+    try {
+      await slot.player.resume();
+      if (epoch != _playEpoch) {
+        _disposeSlot(slot);
+        return;
+      }
+      if (_current == slot) {
+        _playing = true;
+        _notify();
+        unawaited(_primeSlot());
+      }
+    } catch (e) {
+      FlutterLogger.log('live playback resume failed: $e', tag: 'live-api');
+      if (_current == slot) _current = null;
+      _disposeSlot(slot);
+      if (!_disposed && !_closing) {
+        _playing = false;
+        _notify();
+        if (_playQueue.isNotEmpty) unawaited(_startSlot());
       }
     }
   }
 
-  /// 清空播放佇列並釋放目前 player（interrupted、stop、錯誤、goAway 共用）。
+  void _disposeSlot(_PlayerSlot? slot) {
+    if (slot == null) return;
+    unawaited(slot.sub?.cancel());
+    slot.sub = null;
+    unawaited(slot.player.stop().then((_) {}, onError: (_) {}));
+    unawaited(slot.player.dispose().catchError((_) {}));
+  }
+
+  /// 清空播放佇列並釋放所有播放槽（interrupted、stop、錯誤、goAway 共用）。
   void _flushPlayback() {
+    _playEpoch++; // 讓進行中的 async 播放操作自動失效
     _playQueue.clear();
     _playBuf.clear();
-    _playSub?.cancel();
-    _playSub = null;
-    final p = _player;
-    _player = null;
+    final c = _current;
+    final n = _next;
+    _current = null;
+    _next = null;
     _playing = false;
-    if (p != null) {
-      unawaited(p.stop().then((_) {}, onError: (_) {}));
-      unawaited(p.dispose().catchError((_) {}));
-    }
+    _disposeSlot(c);
+    _disposeSlot(n);
   }
 
   // ---- lifecycle（§5.7）----
@@ -799,4 +1037,13 @@ class LiveApiSession extends ChangeNotifier {
     unawaited(_cleanup());
     super.dispose();
   }
+}
+
+/// gapless 播放槽：一個 WAV 播放包 + 對應的 [AudioPlayer]。
+class _PlayerSlot {
+  _PlayerSlot(this.player, this.wav);
+
+  final AudioPlayer player;
+  final Uint8List wav;
+  StreamSubscription<void>? sub;
 }
