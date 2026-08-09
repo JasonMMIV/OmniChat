@@ -77,6 +77,13 @@ class LiveApiSession extends ChangeNotifier {
   String _assistantPartial = '';
   String get assistantPartial => _assistantPartial;
 
+  /// 目前使用者的語音即時轉錄（input transcription，串流中）。
+  ///
+  /// 與 [assistantPartial] 不同：同一句話的文字會持續遞增/修正，
+  /// 因此採「取代」語意；turnComplete 時清除（下一個語句重新填入）。
+  String _userPartial = '';
+  String get userPartial => _userPartial;
+
   /// 已完成的助理句子（`turnComplete` 後提交）。
   final List<String> _turns = <String>[];
   List<String> get turns => List.unmodifiable(_turns);
@@ -201,6 +208,21 @@ class LiveApiSession extends ChangeNotifier {
 
   static bool isTurnComplete(Map<String, dynamic> msg) =>
       serverContent(msg)?['turnComplete'] == true;
+
+  /// 取出 serverContent 中的使用者語音即時轉錄（input transcription）。
+  ///
+  /// Live API 實測回傳 snake_case（`input_transcription`，與既有
+  /// `output_transcription` 一致），但官方文件寫 camelCase
+  /// （`inputTranscription`）——兩種都解析以防 API 變動。
+  static String extractInputTranscription(Map<String, dynamic> msg) {
+    final content = serverContent(msg);
+    if (content == null) return '';
+    final t = content['input_transcription'] ?? content['inputTranscription'];
+    if (t is Map<String, dynamic> && t['text'] is String) {
+      return t['text'] as String;
+    }
+    return '';
+  }
 
   /// 取出 serverContent.modelTurn.parts 中的文字。
   static String extractText(Map<String, dynamic> msg) {
@@ -486,6 +508,12 @@ class LiveApiSession extends ChangeNotifier {
         }
       }
     }
+    // 使用者語音即時轉錄：取代語意（同一句話的遞增/修正文字）。
+    final inTrans = extractInputTranscription(msg);
+    if (inTrans.isNotEmpty && inTrans != _userPartial) {
+      _userPartial = inTrans;
+      _notify();
+    }
     final text = extractText(msg);
     if (text.isNotEmpty) {
       _assistantPartial += text;
@@ -514,6 +542,8 @@ class LiveApiSession extends ChangeNotifier {
         _turns.add(_assistantPartial.trim());
       }
       _assistantPartial = '';
+      // 本輪使用者語句已完成，清除即時轉錄；下一個語句的轉錄會重新填入。
+      _userPartial = '';
       _notify();
     }
   }
