@@ -216,6 +216,31 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 - **Files Modified**: `lib/core/services/live/live_api_models_service.dart`（NEW）、`lib/features/settings/pages/voice_call_settings_page.dart`、`lib/desktop/setting/voice_call_pane.dart`、`lib/core/providers/settings_provider.dart`（`setLiveApiApiKey` 清除模型快取）
 - **New test** `test/live_api_models_service_test.dart`（9 案例：篩選邏輯、排序、錯誤回應、快取、自訂 host 推導）
 
+### 191s. 修復：模型輸出字幕（output transcription）未顯示
+
+> 使用者回報：即時對話字幕只顯示聲音輸入的字幕，沒有顯示輸出的字幕。根因：`_onServerMessage` 只解析 snake_case `output_transcription`，而官方文件/server 實際以 camelCase `outputTranscription` 回傳——`assistantPartial` 永遠為空，字幕退回到 `userPartial`（輸入側在 191o 就有 camel fallback 所以正常）。此路徑先前零測試覆蓋。
+
+- **Purpose**:
+  - `live_api_session.dart`：output transcription 改為與 input 對稱的雙 casing 解析（`output_transcription` ?? `outputTranscription`），`assistantPartial` 正常累積。
+  - 測試補洞：整合測試 +4——snake 累積、**camelCase（本 bug 的實際路徑）**、空字串不累積、turnComplete 提交到 turns；widget 測試 +1——字幕優先序（模型回覆 > 使用者轉錄 > 上一個完成的模型回合）。
+- **Files Modified**: `lib/core/services/live/live_api_session.dart`、`test/live_api_session_integration_test.dart`（+4）、`test/live_call_screen_test.dart`（+1）
+- **Verification**: `flutter test` 229 passed（+5）；analyze no issues。
+- **Note**: 實機驗證（2026-08-09）：模型字幕正常顯示。
+
+### 191r. C 方案：Android 播放器 audioFocus NONE（移除每包 focus 交接，減少包間隙）
+
+> 使用者回報 Android 仍有輕微包間隙（Windows 無感）。調查後確認根因：每 0.5s WAV 包 = 獨立 MediaPlayer，完成時 release（含 abandon audio focus），下一個包要等 complete 事件串行觸發 resume → 重新 requestAudioFocus → MediaPlayer 冷啟動。C1 移除「每包 focus 交接」這個來源（冷啟動仍在，需 B 方案根治）。比較後確認 C 方案為 Android 專屬：Windows（Media Engine）無 focus 機制、加大包對 Windows 是負收益（首包延遲）。
+
+- **Purpose**:
+  - `MainActivity.kt`：`omnichat/call_mode` channel 新增 `getCallModeState`——回傳目前路由狀態（`bluetoothConnected`/`audioMode`/`isSpeakerphoneOn`）。
+  - `platform_audio_setup.dart`：新增純函式 `buildPlaybackAudioContext` 與查詢 `playbackAudioContext()`。關鍵設計：audioplayers 的 `setAudioContext` 在 Android 會**全域覆寫** `AudioManager.mode`/`isSpeakerphoneOn`，而 call mode 的路由是動態的（藍牙→`MODE_IN_COMMUNICATION`+speakerphone off；喇叭→`MODE_NORMAL`+speakerphone on）——因此 context 必須帶入目前路由值（`audioFocus: NONE` 只關 focus，mode/speakerphone/usage 與 call mode 一致），否則會弄壞藍牙 SCO 或喇叭輸出。未知 audioMode 值安全回退 normal（fromInt 對不到會拋錯）。
+  - `live_api_session.dart`：新增 `playbackAudioContext` 參數；預設 player factory 在建立播放器後 fire-and-forget 套用（`setAudioContext` 早於 `setSource` prepare）。測試注入的 fake player factory 不受影響。
+  - `live_call_screen.dart`：`startCallMode()` 後查詢並傳入 session。
+  - 計畫 §3.3：gapless 條目更新——**B 方案（單一連續 PCM 串流／ExoPlayer 串接）列為正式待實作**以根治；C1 為已實作的 Android 專屬止血。
+- **Files Modified**: `android/app/src/main/kotlin/com/psyche/omnichat/MainActivity.kt`、`lib/features/voice_chat/services/platform_audio_setup.dart`、`lib/core/services/live/live_api_session.dart`、`lib/features/voice_chat/pages/live_call_screen.dart`、`test/platform_audio_setup_test.dart`（新增，+4）、`IMPLEMENTATION_PLAN_LIVE_VOICE_V5.md`（§3.3）
+- **Verification**: `flutter test` 224 passed（+4）；analyze no issues。
+- **Note**: 實機驗證（2026-08-09）：Android speaker 路徑語音間隙明顯變小、路由正常；Bluetooth 路徑仍待驗證（§8.4 矩陣）。冷啟動來源仍在，根治需 B 方案。
+
 ### 191q. Live API 新增 search_web 工具（複用既有搜尋服務設定）
 
 > 使用者要求：Live API 語音通話加入 web search 工具。確認機制後實作——直接複用既有 `SearchToolService.executeSearch`，吃使用者已在 LL 對話頁搜尋設定 sheet 選定的搜尋服務（`searchServiceSelected`，Tavily/Brave/Zhipu/Ollama/Exa 之一），不需另設 API key。

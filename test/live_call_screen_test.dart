@@ -218,6 +218,53 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('字幕優先序：模型回覆 > 使用者轉錄 > 上一個完成的模型回合',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'voice_call_mode_v1': 'liveApi',
+      'live_api_key_v1': 'AIza-test',
+    });
+    final sp = SettingsProvider();
+    final recorder = _ChannelRecorder();
+    recorder.install();
+
+    Future<void> pumpWith(_FakeSession s) async {
+      await tester.pumpWidget(
+        ChangeNotifierProvider<SettingsProvider>.value(
+          value: sp,
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: LiveCallScreen(sessionFactory: (_) => s),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    // 模型回覆進行中 + 使用者轉錄同時存在 → 顯示模型回覆
+    final s1 = _FakeSession()
+      ..fakeAssistantPartial = '模型正在說'
+      ..fakeUserPartial = '使用者輸入';
+    await pumpWith(s1);
+    expect(find.text('模型正在說'), findsOneWidget);
+    expect(find.text('使用者輸入'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+
+    // 只有使用者轉錄 → 顯示使用者轉錄
+    final s2 = _FakeSession()..fakeUserPartial = '使用者輸入';
+    await pumpWith(s2);
+    expect(find.text('使用者輸入'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+
+    // 都空 → 顯示上一個完成的模型回合
+    final s3 = _FakeSession()..fakeTurns = <String>['上一回合內容'];
+    await pumpWith(s3);
+    expect(find.text('上一回合內容'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('lifecycle paused/resumed 接到 session.pause/resume',
       (tester) async {
     SharedPreferences.setMockInitialValues({

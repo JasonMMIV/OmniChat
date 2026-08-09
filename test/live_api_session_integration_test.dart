@@ -926,6 +926,93 @@ void main() {
     await h.pump();
   });
 
+  test('output transcription 累積 assistantPartial（snake_case）', () async {
+    final h = _Harness();
+    await h.activate();
+
+    h.ws.push(<String, dynamic>{
+      'serverContent': <String, dynamic>{
+        'output_transcription': <String, dynamic>{'text': '第一段'},
+      },
+    });
+    await h.pump();
+    expect(h.session.assistantPartial, '第一段');
+
+    // 累加語意（與 input 的取代語意不同）
+    h.ws.push(<String, dynamic>{
+      'serverContent': <String, dynamic>{
+        'output_transcription': <String, dynamic>{'text': '第二段'},
+      },
+    });
+    await h.pump();
+    expect(h.session.assistantPartial, '第一段第二段');
+
+    h.session.dispose();
+    await h.pump();
+  });
+
+  test('output transcription 支援 camelCase（outputTranscription）', () async {
+    final h = _Harness();
+    await h.activate();
+
+    // 官方文件為 camelCase；實測 server 可能以 camelCase 回傳
+    h.ws.push(<String, dynamic>{
+      'serverContent': <String, dynamic>{
+        'outputTranscription': <String, dynamic>{'text': '模型說的話'},
+      },
+    });
+    await h.pump();
+    expect(h.session.assistantPartial, '模型說的話');
+
+    h.session.dispose();
+    await h.pump();
+  });
+
+  test('output transcription 空字串不累積', () async {
+    final h = _Harness();
+    await h.activate();
+
+    h.ws.push(<String, dynamic>{
+      'serverContent': <String, dynamic>{
+        'output_transcription': <String, dynamic>{'text': '有內容'},
+      },
+    });
+    await h.pump();
+    expect(h.session.assistantPartial, '有內容');
+
+    h.ws.push(<String, dynamic>{
+      'serverContent': <String, dynamic>{
+        'output_transcription': <String, dynamic>{'text': ''},
+      },
+    });
+    await h.pump();
+    expect(h.session.assistantPartial, '有內容');
+
+    h.session.dispose();
+    await h.pump();
+  });
+
+  test('turnComplete 提交 assistantPartial 到 turns 並清除', () async {
+    final h = _Harness();
+    await h.activate();
+
+    h.ws.push(<String, dynamic>{
+      'serverContent': <String, dynamic>{
+        'output_transcription': <String, dynamic>{'text': '完整回合'},
+      },
+    });
+    await h.pump();
+    expect(h.session.assistantPartial, '完整回合');
+
+    h.pushTurnComplete();
+    await h.pump();
+    expect(h.session.assistantPartial, '');
+    expect(h.session.turns, <String>['完整回合']);
+
+    h.session.dispose();
+    await h.pump();
+  });
+
   // ---- Function calling ----
 
   test('setup 含 tools 宣告；未提供 tools 時不帶欄位', () async {

@@ -37,6 +37,19 @@ class MainActivity : FlutterActivity() {
                     stopCallMode()
                     result.success(true)
                 }
+                "getCallModeState" -> {
+                    // C1：回傳目前路由狀態，讓 Dart 端能建立與 call mode 一致的
+                    // 播放器 AudioContext（audioFocus NONE 但保留 mode/speakerphone），
+                    // 避免 audioplayers 全域覆寫破壞藍牙/喇叭路由。
+                    val am = ensureAudioManager()
+                    result.success(
+                        mapOf(
+                            "bluetoothConnected" to isBluetoothHeadsetConnected(),
+                            "audioMode" to am.mode,
+                            "isSpeakerphoneOn" to am.isSpeakerphoneOn,
+                        )
+                    )
+                }
                 else -> result.notImplemented()
             }
         }
