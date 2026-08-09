@@ -29,6 +29,9 @@ class _LiveCallScreenState extends State<LiveCallScreen>
   bool _permissionGranted = false;
   bool _checkingPermission = true;
 
+  /// 字幕開關（與標準語音模式一致）。
+  bool _showSubtitles = true;
+
   @override
   void initState() {
     super.initState();
@@ -117,6 +120,13 @@ class _LiveCallScreenState extends State<LiveCallScreen>
     if (!mounted) return;
     setState(() {});
     await _startSession();
+  }
+
+  /// 切換字幕顯示（關閉時保留字幕區塊避免 layout 跳動，與標準模式一致）。
+  void _toggleSubtitle() {
+    setState(() {
+      _showSubtitles = !_showSubtitles;
+    });
   }
 
   Future<void> _end() async {
@@ -223,7 +233,9 @@ class _LiveCallScreenState extends State<LiveCallScreen>
                             color: Colors.transparent,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: _buildSubtitle(context),
+                          child: _showSubtitles
+                              ? _buildSubtitle(context)
+                              : const SizedBox.shrink(),
                         ),
                       ),
                     ),
@@ -267,7 +279,19 @@ class _LiveCallScreenState extends State<LiveCallScreen>
                         ),
                       ),
                     ),
-                    const SizedBox(width: 60),
+                    // 右下角：字幕開關（與標準語音模式一致）
+                    GestureDetector(
+                      onTap: _toggleSubtitle,
+                      child: SizedBox(
+                        width: 60,
+                        height: 60,
+                        child: Icon(
+                          _showSubtitles ? Lucide.Captions : Lucide.CaptionsOff,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -409,13 +433,17 @@ class _LiveCallScreenState extends State<LiveCallScreen>
 
   Widget _buildSubtitle(BuildContext context) {
     final session = _session;
+    // 優先顯示進行中的模型回覆；其次使用者語音即時轉錄；
+    // 最後退回上一個完成的模型回合。
     final text = session == null
         ? ''
         : session.assistantPartial.trim().isNotEmpty
             ? session.assistantPartial
-            : session.turns.isEmpty
-                ? ''
-                : session.turns.last;
+            : session.userPartial.trim().isNotEmpty
+                ? session.userPartial
+                : session.turns.isEmpty
+                    ? ''
+                    : session.turns.last;
     if (text.isEmpty) {
       return const Icon(
         Lucide.AudioWaveform,

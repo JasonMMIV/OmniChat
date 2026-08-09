@@ -205,6 +205,17 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 - **Files Modified**: `lib/core/services/live/live_api_models_service.dart`（NEW）、`lib/features/settings/pages/voice_call_settings_page.dart`、`lib/desktop/setting/voice_call_pane.dart`、`lib/core/providers/settings_provider.dart`（`setLiveApiApiKey` 清除模型快取）
 - **New test** `test/live_api_models_service_test.dart`（9 案例：篩選邏輯、排序、錯誤回應、快取、自訂 host 推導）
 
+### 191o. Live API 即時對話字幕 — 使用者語音轉錄顯示與字幕開關
+
+> 使用者要求：Live API 支援即時顯示對話文字（官方 API 的 `inputAudioTranscription`/`outputAudioTranscription` 雙向轉錄），並在通話頁面右下角補上字幕開關（參考標準語音模式）。
+
+- **Purpose**:
+  - `live_api_session.dart`：解析 `serverContent.input_transcription`（使用者語音即時轉錄）→ 新增 `userPartial` 狀態。與模型側（`assistantPartial` 累加）不同，使用者轉錄是同一句話的遞增/修正文字，採**取代**語意；`turnComplete` 時清除，下一個語句重新填入。新增純函式 `extractInputTranscription`——實測 API 回傳 snake_case（`input_transcription`，與既有 `output_transcription` 一致），官方文件寫 camelCase（`inputTranscription`），兩種 casing 都解析以防 API 變動。空文字訊息不覆寫既有 partial。
+  - `live_call_screen.dart`：右下角（原對稱佔位 `SizedBox` 位置）新增字幕開關——`Lucide.Captions` / `Lucide.CaptionsOff` icon，與標準語音模式 `voice_chat_screen.dart` 同款（關閉時保留字幕區塊避免 layout 跳動）。字幕顯示優先序：進行中的模型回覆（`assistantPartial`）→ 使用者語音即時轉錄（`userPartial`）→ 上一個完成的模型回合（`turns.last`）。
+- **Files Modified**: `lib/core/services/live/live_api_session.dart`、`lib/features/voice_chat/pages/live_call_screen.dart`、`test/live_api_session_integration_test.dart`（+4）、`test/live_call_screen_test.dart`（+1）
+- **New tests**：input transcription 取代語意更新；camelCase `inputTranscription` 亦解析；turnComplete 清除 + 下一語句重新填入；空文字不覆寫；字幕開關切換顯示/隱藏（fake session 覆寫字幕 getter）。
+- **Tests**: `flutter test` full suite **206 tests passed**（+5）；修改檔案 `flutter analyze` **no issues**。
+- **備註**：使用者側即時轉錄同時是通話紀錄（待實作，§3.3）的前置步驟；若實機發現 input transcription 是 delta 而非完整 partial，將取代語意改為累加即可（已有註解標明）。
 ### 191n. Live API Android 實機修復 — 播放模式與音訊 focus（實機測試回報 → 已修復並驗證）
 
 > Android 實機測試回報：啟動語音聊天後麥克風 icon 出現、說話完 icon 消失且無任何回應。定位出兩個 Android 專屬根因並修正。

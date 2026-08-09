@@ -24,6 +24,20 @@ class _FakeSession extends LiveApiSession {
   int pauseCount = 0;
   int resumeCount = 0;
 
+  /// 測試用字幕內容（覆寫 session getter，避免真實轉錄狀態）。
+  String fakeAssistantPartial = '';
+  String fakeUserPartial = '';
+  List<String> fakeTurns = const <String>[];
+
+  @override
+  String get assistantPartial => fakeAssistantPartial;
+
+  @override
+  String get userPartial => fakeUserPartial;
+
+  @override
+  List<String> get turns => fakeTurns;
+
   @override
   Future<void> start() async {}
 
@@ -160,6 +174,48 @@ void main() {
 
     expect(recorder.callMode, contains('stopCallMode'));
     expect(find.byType(LiveCallScreen), findsNothing);
+  });
+
+  testWidgets('右下角字幕開關切換顯示/隱藏字幕', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'voice_call_mode_v1': 'liveApi',
+      'live_api_key_v1': 'AIza-test',
+    });
+    final sp = SettingsProvider();
+    final recorder = _ChannelRecorder();
+    recorder.install();
+    final fakeSession = _FakeSession()..fakeAssistantPartial = '模型字幕文字';
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<SettingsProvider>.value(
+        value: sp,
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: LiveCallScreen(sessionFactory: (_) => fakeSession),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // 字幕預設開啟（Captions icon + 字幕文字）
+    expect(find.byIcon(Lucide.Captions), findsOneWidget);
+    expect(find.text('模型字幕文字'), findsOneWidget);
+
+    // 關閉 → CaptionsOff + 字幕隱藏
+    await tester.tap(find.byIcon(Lucide.Captions));
+    await tester.pump();
+    expect(find.byIcon(Lucide.CaptionsOff), findsOneWidget);
+    expect(find.text('模型字幕文字'), findsNothing);
+
+    // 再開 → 恢復
+    await tester.tap(find.byIcon(Lucide.CaptionsOff));
+    await tester.pump();
+    expect(find.byIcon(Lucide.Captions), findsOneWidget);
+    expect(find.text('模型字幕文字'), findsOneWidget);
+
+    // 清理（dispose 路徑）
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('lifecycle paused/resumed 接到 session.pause/resume',

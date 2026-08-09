@@ -790,4 +790,100 @@ void main() {
     h.session.dispose();
     await h.pump();
   });
+
+  test('input transcription 即時更新 userPartial（取代語意）', () async {
+    final h = _Harness();
+    await h.activate();
+    expect(h.session.userPartial, '');
+
+    // 同一句話的遞增/修正文字：每個訊息都是完整 partial，取代而非累加
+    h.ws.push(<String, dynamic>{
+      'serverContent': <String, dynamic>{
+        'input_transcription': <String, dynamic>{'text': '今天'},
+      },
+    });
+    await h.pump();
+    expect(h.session.userPartial, '今天');
+
+    h.ws.push(<String, dynamic>{
+      'serverContent': <String, dynamic>{
+        'input_transcription': <String, dynamic>{'text': '今天天氣如何'},
+      },
+    });
+    await h.pump();
+    expect(h.session.userPartial, '今天天氣如何');
+
+    h.session.dispose();
+    await h.pump();
+  });
+
+  test('input transcription 支援 camelCase（inputTranscription）', () async {
+    final h = _Harness();
+    await h.activate();
+
+    h.ws.push(<String, dynamic>{
+      'serverContent': <String, dynamic>{
+        'inputTranscription': <String, dynamic>{'text': '明天呢'},
+      },
+    });
+    await h.pump();
+    expect(h.session.userPartial, '明天呢');
+
+    h.session.dispose();
+    await h.pump();
+  });
+
+  test('turnComplete 清除 userPartial；下一個語句重新填入', () async {
+    final h = _Harness();
+    await h.activate();
+
+    h.ws.push(<String, dynamic>{
+      'serverContent': <String, dynamic>{
+        'input_transcription': <String, dynamic>{'text': '幫我算 1+1'},
+      },
+    });
+    await h.pump();
+    expect(h.session.userPartial, '幫我算 1+1');
+
+    h.pushTurnComplete();
+    await h.pump();
+    expect(h.session.userPartial, '');
+
+    // 下一個語句的轉錄重新填入
+    h.ws.push(<String, dynamic>{
+      'serverContent': <String, dynamic>{
+        'input_transcription': <String, dynamic>{'text': '第二句'},
+      },
+    });
+    await h.pump();
+    expect(h.session.userPartial, '第二句');
+
+    h.session.dispose();
+    await h.pump();
+  });
+
+  test('input transcription 空字串不覆寫既有 userPartial', () async {
+    final h = _Harness();
+    await h.activate();
+
+    h.ws.push(<String, dynamic>{
+      'serverContent': <String, dynamic>{
+        'input_transcription': <String, dynamic>{'text': '一段話'},
+      },
+    });
+    await h.pump();
+    expect(h.session.userPartial, '一段話');
+
+    // 空文字訊息（部分實作會送）不應清掉目前的 partial
+    h.ws.push(<String, dynamic>{
+      'serverContent': <String, dynamic>{
+        'input_transcription': <String, dynamic>{'text': ''},
+      },
+    });
+    await h.pump();
+    expect(h.session.userPartial, '一段話');
+
+    h.session.dispose();
+    await h.pump();
+  });
 }
