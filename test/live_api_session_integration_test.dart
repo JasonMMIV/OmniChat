@@ -129,7 +129,10 @@ class _FakePlayer extends AudioPlayer {
   bool disposed = false;
   int playCount = 0;
 
-  /// 為 true 時 [play] 拋錯（模擬 Windows Media Foundation 播放失敗）。
+  /// [setSource] 已呼叫（gapless 預備播放：prepare 完成但尚未 resume）。
+  bool prepared = false;
+
+  /// 為 true 時 [setSource] 拋錯（模擬 Windows Media Foundation 播放失敗）。
   bool failPlay = false;
 
   @override
@@ -137,6 +140,18 @@ class _FakePlayer extends AudioPlayer {
 
   @override
   Future<void> setPlayerMode(PlayerMode mode) async {}
+
+  @override
+  Future<void> setSource(Source source) async {
+    lastSource = source;
+    prepared = true;
+    if (failPlay) throw Exception('Media Foundation playback failed');
+  }
+
+  @override
+  Future<void> resume() async {
+    playCount++;
+  }
 
   @override
   Future<void> play(
@@ -166,12 +181,14 @@ class _Harness {
   _Harness({
     this.maxReconnects = 3,
     this.failPlayForFirstN = 0,
+    this.toolHandler,
   }) {
     session = LiveApiSession(
       apiKey: 'AIza-test',
       model: 'gemini-3.1-flash-live-preview',
       voice: 'Kore',
       baseUrl: 'wss://example.com/ws',
+      toolHandler: toolHandler,
       maxReconnectAttempts: maxReconnects,
       // 測試用短退避（10ms 起、指數成長），避免測試等待真實秒級退避
       reconnectBackoffBase: const Duration(milliseconds: 10),
@@ -195,6 +212,8 @@ class _Harness {
       },
     );
   }
+
+  final LiveToolHandler? toolHandler;
 
   late final LiveApiSession session;
 
@@ -582,31 +601,51 @@ void main() {
     await h.pump();
   });
 
-  test('多個播放包依序播放：下一個只在上一個完成後啟動', () async {
+  test('gapless：下一個播放包先 prepare，完成後 resume 切換不重建', () async {
     final h = _Harness();
     await h.activate();
 
     h.pushModelAudio(24000);
     h.pushModelAudio(24000);
-    h.pushModelAudio(24000);
     await h.pump();
 
-    // 只有一個 player 在播（其餘在佇列等待）
-    expect(h.players.length, 1);
-    expect(h.players.single.playCount, 1);
+    // 第一個播放中；第二個已預先 prepare（setSource 完成、未 resume）
+    expect(h.players.length, 2);
+    expect(h.players[0].playCount, 1);
+    expect(h.players[0].disposed, isFalse);
+    expect(h.players[1].playCount, 0);
+    expect(h.players[1].prepared, isTrue);
+    expect(h.players[1].disposed, isFalse);
 
-    // 完成第一個 → 第二個啟動，第一個被 dispose
+    // 完成第一個 → 第二個直接 resume（不重新建立 player）
     h.players[0].emitComplete();
     await h.pump();
-    expect(h.players.length, 2);
     expect(h.players[0].disposed, isTrue);
     expect(h.players[1].playCount, 1);
+    expect(h.players[1].disposed, isFalse);
+    expect(h.players.length, 2);
 
-    // 完成第二個 → 第三個啟動
-    h.players[1].emitComplete();
+    h.session.dispose();
     await h.pump();
-    expect(h.players.length, 3);
-    expect(h.players[2].playCount, 1);
+  });
+
+  test('interrupted 釋放已 prepare 的預備槽與目前 player', () async {
+    final h = _Harness();
+    await h.activate();
+
+    h.pushModelAudio(24000);
+    h.pushModelAudio(24000);
+    await h.pump();
+    expect(h.players.length, 2);
+    expect(h.players[1].prepared, isTrue);
+    expect(h.players[1].disposed, isFalse);
+
+    h.ws.push(<String, dynamic>{
+      'serverContent': <String, dynamic>{'interrupted': true},
+    });
+    await h.pump();
+    expect(h.players[0].disposed, isTrue);
+    expect(h.players[1].disposed, isTrue);
 
     h.session.dispose();
     await h.pump();
@@ -883,6 +922,138 @@ void main() {
     await h.pump();
     expect(h.session.userPartial, '一段話');
 
+    h.session.dispose();
+    await h.pump();
+  });
+
+  // ---- Function calling ----
+
+  test('setup 含 tools 宣告；未提供 tools 時不帶欄位', () async {
+    final withTools = LiveApiSession.buildSetupPayload(
+      model: 'gemini-3.1-flash-live-preview',
+      voice: 'Kore',
+      tools: <Map<String, dynamic>>[
+        <String, dynamic>{
+          'functionDeclarations': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'name': 'get_current_datetime',
+              'description': '取得目前時間',
+            },
+          ],
+        },
+      ],
+    );
+    final decodedWith = jsonDecode(withTools) as Map<String, dynamic>;
+    final setup = decodedWith['setup'] as Map<String, dynamic>;
+    expect(setup['tools'], isA<List<dynamic>>());
+    expect(
+      (setup['tools'] as List).single,
+      containsPair('functionDeclarations', isA<List<dynamic>>()),
+    );
+
+    final withoutTools = LiveApiSession.buildSetupPayload(
+      model: 'gemini-3.1-flash-live-preview',
+      voice: 'Kore',
+    );
+    final decodedWithout = jsonDecode(withoutTools) as Map<String, dynamic>;
+    expect(
+      (decodedWithout['setup'] as Map<String, dynamic>).containsKey('tools'),
+      isFalse,
+    );
+  });
+
+  test('toolCall → 執行 handler → 送 toolResponse、pending 清除', () async {
+    final calls = <String>[];
+    final h = _Harness(
+      toolHandler: (name, args) async {
+        calls.add(name);
+        return <String, dynamic>{'now': '2026-08-09'};
+      },
+    );
+    await h.activate();
+
+    h.ws.push(<String, dynamic>{
+      'toolCall': <String, dynamic>{
+        'functionCalls': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'id': 'call-1',
+            'name': 'get_current_datetime',
+            'args': <String, dynamic>{'tz': 'Asia/Taipei'},
+          },
+        ],
+      },
+    });
+    await h.pump();
+    expect(calls, <String>['get_current_datetime']);
+    expect(h.session.pendingToolCalls, isEmpty);
+
+    final sent = h.ws.sent.cast<String>().toList();
+    final toolMsg = sent
+        .map(jsonDecode)
+        .whereType<Map<String, dynamic>>()
+        .lastWhere((m) => m.containsKey('toolResponse'));
+    final fn =
+        ((toolMsg['toolResponse'] as Map)['functionResponses'] as List).single
+            as Map;
+    expect(fn['id'], 'call-1');
+    expect(fn['name'], 'get_current_datetime');
+    expect((fn['response'] as Map)['now'], '2026-08-09');
+
+    h.session.dispose();
+    await h.pump();
+  });
+
+  test('無 handler 時回覆 error；handler 拋錯也回 error', () async {
+    final h = _Harness();
+    await h.activate();
+
+    h.ws.push(<String, dynamic>{
+      'toolCall': <String, dynamic>{
+        'functionCalls': <Map<String, dynamic>>[
+          <String, dynamic>{'id': 'c1', 'name': 'unknown_tool'},
+        ],
+      },
+    });
+    await h.pump();
+    expect(h.session.pendingToolCalls, isEmpty);
+    final sent = h.ws.sent.cast<String>().toList();
+    final toolMsg = sent
+        .map(jsonDecode)
+        .whereType<Map<String, dynamic>>()
+        .lastWhere((m) => m.containsKey('toolResponse'));
+    final fn =
+        ((toolMsg['toolResponse'] as Map)['functionResponses'] as List).single
+            as Map;
+    expect((fn['response'] as Map)['error'], contains('no tool handler'));
+
+    h.session.dispose();
+    await h.pump();
+  });
+
+  test('toolCallCancellation 移除 pending tool call', () async {
+    // 慢 handler：讓 call 停留在 pending 狀態
+    final gate = Completer<Map<String, dynamic>>();
+    final h = _Harness(toolHandler: (name, args) => gate.future);
+    await h.activate();
+
+    h.ws.push(<String, dynamic>{
+      'toolCall': <String, dynamic>{
+        'functionCalls': <Map<String, dynamic>>[
+          <String, dynamic>{'id': 'c1', 'name': 'slow_tool'},
+        ],
+      },
+    });
+    await h.pump();
+    expect(h.session.pendingToolCalls, hasLength(1));
+
+    h.ws.push(<String, dynamic>{
+      'toolCallCancellation': <String, dynamic>{'ids': <String>['c1']},
+    });
+    await h.pump();
+    expect(h.session.pendingToolCalls, isEmpty);
+
+    gate.complete(<String, dynamic>{'ok': true});
+    await h.pump();
     h.session.dispose();
     await h.pump();
   });

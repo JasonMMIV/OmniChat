@@ -1318,6 +1318,7 @@
   "liveCallError": "通話錯誤",
   "liveCallRetry": "重試",
   "liveCallReconnecting": "重新連線中…",
+  "liveCallToolRunning": "正在呼叫工具…",
   "liveCallBackground": "已進入背景",
   "voiceCallModeStandard": "標準語音模式",
   "voiceCallModeLiveApi": "Live API 模式",

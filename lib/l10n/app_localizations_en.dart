@@ -1243,6 +1243,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get liveCallReconnecting => 'Reconnecting…';
 
   @override
+  String get liveCallToolRunning => 'Calling tool…';
+
+  @override
   String get liveCallBackground => 'In background';
 
   @override

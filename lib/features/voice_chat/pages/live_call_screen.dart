@@ -8,6 +8,7 @@ import 'package:record/record.dart';
 
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/live/live_api_session.dart';
+import '../../../core/services/live/live_tools.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../services/platform_audio_setup.dart';
@@ -93,6 +94,11 @@ class _LiveCallScreenState extends State<LiveCallScreen>
             model: settings.liveApiModel,
             voice: settings.liveApiVoice,
             baseUrl: settings.resolvedLiveApiBaseUrl,
+            // Function calling：宣告內建工具並以本地執行器回應。
+            // search_web 需要 settings 解析使用者選定的搜尋服務。
+            tools: builtInLiveTools,
+            toolHandler: (name, args) async =>
+                runBuiltInLiveTool(name, args, settings: settings),
           );
     session.addListener(_onSessionChanged);
     _session = session;
@@ -388,15 +394,29 @@ class _LiveCallScreenState extends State<LiveCallScreen>
           ),
         );
       case LiveCallState.active:
-        return Text(
-          session.muted ? l10n.liveCallMuted : l10n.liveCallActive,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: session.muted
-                ? Colors.orange.shade300
-                : Colors.green.shade400,
-          ),
+        final pending = session.pendingToolCalls;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              session.muted ? l10n.liveCallMuted : l10n.liveCallActive,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: session.muted
+                    ? Colors.orange.shade300
+                    : Colors.green.shade400,
+              ),
+            ),
+            if (pending.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                '${l10n.liveCallToolRunning}：'
+                '${pending.map((c) => c.name).join(', ')}',
+                style: const TextStyle(fontSize: 12, color: Colors.amber),
+              ),
+            ],
+          ],
         );
       case LiveCallState.error:
         return Column(
