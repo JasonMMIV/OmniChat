@@ -1230,6 +1230,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get liveCallRetry => '重试';
 
   @override
+  String get liveCallReconnecting => '重新连接中…';
+
+  @override
+  String get liveCallBackground => '已进入后台';
+
+  @override
   String get voiceCallModeStandard => '标准语音模式';
 
   @override
@@ -5567,6 +5573,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get liveCallRetry => '重试';
 
   @override
+  String get liveCallReconnecting => '重新连接中…';
+
+  @override
+  String get liveCallBackground => '已进入后台';
+
+  @override
   String get voiceCallModeStandard => '标准语音模式';
 
   @override
@@ -9798,6 +9810,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get liveCallRetry => '重試';
+
+  @override
+  String get liveCallReconnecting => '重新連線中…';
+
+  @override
+  String get liveCallBackground => '已進入背景';
 
   @override
   String get voiceCallModeStandard => '標準語音模式';

@@ -2477,6 +2477,18 @@ abstract class AppLocalizations {
   /// **'Retry'**
   String get liveCallRetry;
 
+  /// No description provided for @liveCallReconnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnecting…'**
+  String get liveCallReconnecting;
+
+  /// No description provided for @liveCallBackground.
+  ///
+  /// In en, this message translates to:
+  /// **'In background'**
+  String get liveCallBackground;
+
   /// No description provided for @voiceCallModeStandard.
   ///
   /// In en, this message translates to:

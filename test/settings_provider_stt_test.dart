@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -45,6 +46,9 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    // SettingsProvider._load 會讀 secure storage；未 mock 的 platform
+    // channel 在測試中永不回傳（會卡住 _load）。
+    FlutterSecureStorage.setMockInitialValues({});
   });
 
   test('stt_services_v1 persists across provider instances', () async {

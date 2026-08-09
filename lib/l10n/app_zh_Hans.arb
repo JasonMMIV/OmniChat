@@ -1264,6 +1264,8 @@
   "liveCallMuted": "已静音",
   "liveCallError": "通话错误",
   "liveCallRetry": "重试",
+  "liveCallReconnecting": "重新连接中…",
+  "liveCallBackground": "已进入后台",
   "voiceCallModeStandard": "标准语音模式",
   "voiceCallModeLiveApi": "Live API 模式",
   "voiceCallSwitchedToStandard": "已切换为标准语音模式",

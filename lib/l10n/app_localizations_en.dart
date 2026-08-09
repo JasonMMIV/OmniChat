@@ -1240,6 +1240,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get liveCallRetry => 'Retry';
 
   @override
+  String get liveCallReconnecting => 'Reconnecting…';
+
+  @override
+  String get liveCallBackground => 'In background';
+
+  @override
   String get voiceCallModeStandard => 'Standard Voice Mode';
 
   @override

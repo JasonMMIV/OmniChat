@@ -737,6 +737,20 @@ class _ModelDialogState extends State<_ModelDialog> {
                           ),
                         ),
                       ),
+                      if ((result?.detail ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: SelectableText(
+                            result!.detail!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: cs.onSurface.withOpacity(0.5),
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       FilledButton.tonalIcon(
                         onPressed: _refresh,

@@ -11,6 +11,7 @@ import '../services/stt/network_stt.dart';
 import '../services/tts/network_tts.dart';
 import '../services/tts/tts_text_selection.dart';
 import '../services/live/live_api_models_service.dart';
+import '../services/live/live_api_key_store.dart';
 import '../services/network/request_logger.dart';
 import '../services/logging/flutter_logger.dart';
 import '../models/api_keys.dart';
@@ -221,10 +222,11 @@ class SettingsProvider extends ChangeNotifier {
   static const String _sttServicesKey = 'stt_services_v1';
   static const String _sttSelectedKey = 'stt_selected_v1';
   static const String _sttSystemLocaleKey = 'stt_system_locale_v1';
-  // Voice Call (Live API) settings — 直屬欄位，不寫入 ProviderConfig（與 TTS/STT 相同）
+  // Voice Call (Live API) settings — 直屬欄位，不寫入 ProviderConfig（與 TTS/STT 相同）。
+  // API Key 不在此列：§5.8 起存於 flutter_secure_storage（見 LiveApiKeyStore），
+  // 舊 SharedPreferences 位置（'live_api_key_v1'）僅作為遷移來源。
   static const String _voiceCallModeKey = 'voice_call_mode_v1';
   static const String _liveApiBaseUrlKey = 'live_api_base_url_v1';
-  static const String _liveApiApiKeyKey = 'live_api_key_v1';
   static const String _liveApiModelKey = 'live_api_model_v1';
   static const String _liveApiVoiceKey = 'live_api_voice_v1';
   // Desktop UI
@@ -391,7 +393,12 @@ class SettingsProvider extends ChangeNotifier {
   int _appLaunchCount = 0;
   int get appLaunchCount => _appLaunchCount;
 
-  SettingsProvider() {
+  /// §5.8：Live API Key 儲存（secure storage + legacy 遷移）。
+  /// 測試可注入 fake 以隔離 platform channel。
+  final LiveApiKeyStore _liveApiKeyStore;
+
+  SettingsProvider({LiveApiKeyStore? liveApiKeyStore})
+      : _liveApiKeyStore = liveApiKeyStore ?? LiveApiKeyStore() {
     _load();
   }
 
@@ -861,7 +868,7 @@ class SettingsProvider extends ChangeNotifier {
       _ => VoiceCallMode.standard,
     };
     _liveApiBaseUrl = prefs.getString(_liveApiBaseUrlKey) ?? '';
-    _liveApiApiKey = prefs.getString(_liveApiApiKeyKey) ?? '';
+    _liveApiApiKey = (await _liveApiKeyStore.read()) ?? '';
     _liveApiModel = (prefs.getString(_liveApiModelKey) ?? '').trim();
     if (_liveApiModel.isEmpty) _liveApiModel = VoiceCallDefaults.defaultModel;
     _liveApiVoice = (prefs.getString(_liveApiVoiceKey) ?? '').trim();
@@ -1114,6 +1121,8 @@ class SettingsProvider extends ChangeNotifier {
     final next = value.trim();
     if (_liveApiBaseUrl == next) return;
     _liveApiBaseUrl = next;
+    // Base URL 變更時清除模型快取，避免顯示舊 host 的清單。
+    LiveApiModelsService.invalidateCache();
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     if (next.isEmpty) {
@@ -1129,11 +1138,11 @@ class SettingsProvider extends ChangeNotifier {
     _liveApiApiKey = next;
     LiveApiModelsService.invalidateCache();
     notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
+    // §5.8：Key 寫入 secure storage（並清除舊 SharedPreferences 位置）。
     if (next.isEmpty) {
-      await prefs.remove(_liveApiApiKeyKey);
+      await _liveApiKeyStore.delete();
     } else {
-      await prefs.setString(_liveApiApiKeyKey, next);
+      await _liveApiKeyStore.write(next);
     }
   }
 

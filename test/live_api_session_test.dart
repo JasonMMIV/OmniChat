@@ -6,6 +6,37 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:OmniChat/core/services/live/live_api_session.dart';
 
 void main() {
+  group('LiveApiSession 音訊常數（P0 輸入/輸出取樣率分離）', () {
+    test('mic input is 16kHz and output is 24kHz, never shared', () {
+      expect(LiveApiSession.micSampleRate, 16000);
+      expect(LiveApiSession.outputSampleRate, 24000);
+      expect(
+        LiveApiSession.micSampleRate,
+        isNot(LiveApiSession.outputSampleRate),
+      );
+    });
+
+    test('realtimeInput mime rate matches micSampleRate', () {
+      final payload = jsonDecode(
+        LiveApiSession.buildRealtimeInputPayload(Uint8List.fromList([1, 2])),
+      ) as Map<String, dynamic>;
+      final audio =
+          (payload['realtimeInput'] as Map<String, dynamic>)['audio']
+              as Map<String, dynamic>;
+      expect(
+        audio['mimeType'],
+        'audio/pcm;rate=${LiveApiSession.micSampleRate}',
+      );
+    });
+
+    test('pcm16ToWav default header uses outputSampleRate (24kHz)', () {
+      final pcm = Uint8List.fromList(List.generate(8, (i) => i));
+      final wav = LiveApiSession.pcm16ToWav(pcm);
+      final bd = ByteData.sublistView(wav);
+      expect(bd.getUint32(24, Endian.little), LiveApiSession.outputSampleRate);
+    });
+  });
+
   group('LiveApiSession.buildWebSocketUri', () {
     test('appends key query to official endpoint', () {
       final uri = LiveApiSession.buildWebSocketUri(
@@ -29,7 +60,7 @@ void main() {
   });
 
   group('LiveApiSession.buildSetupPayload', () {
-    test('includes model, voice and audio formats', () {
+    test('includes model, voice and modalities (snake_case per proto)', () {
       final payload = jsonDecode(
         LiveApiSession.buildSetupPayload(
           model: 'gemini-3.1-flash-live-preview',
@@ -38,23 +69,18 @@ void main() {
       ) as Map<String, dynamic>;
       final setup = payload['setup'] as Map<String, dynamic>;
       expect(setup['model'], 'models/gemini-3.1-flash-live-preview');
-      final gen = setup['generationConfig'] as Map<String, dynamic>;
-      expect(gen['responseModalities'], ['AUDIO', 'TEXT']);
-      final speech = gen['speechConfig'] as Map<String, dynamic>;
+      final gen = setup['generation_config'] as Map<String, dynamic>;
+      expect(gen['response_modalities'], ['AUDIO']);
+      final speech = gen['speech_config'] as Map<String, dynamic>;
       final voiceConfig =
-          speech['voiceConfig'] as Map<String, dynamic>;
+          speech['voice_config'] as Map<String, dynamic>;
       expect(
-        (voiceConfig['prebuiltVoiceConfig'] as Map<String, dynamic>)['voiceName'],
+        (voiceConfig['prebuilt_voice_config'] as Map<String, dynamic>)['voice_name'],
         'Kore',
       );
-      expect(
-        (gen['outputAudioFormat'] as Map<String, dynamic>)['pcmFormat'],
-        {'sampleRate': 24000},
-      );
-      expect(
-        (setup['audioInputConfig'] as Map<String, dynamic>)['pcmFormat'],
-        {'sampleRate': 24000},
-      );
+      // v1beta BidiGenerateContentSetup 無 output_audio_format/audio_input_config
+      expect(gen.containsKey('output_audio_format'), isFalse);
+      expect(setup.containsKey('audio_input_config'), isFalse);
     });
 
     test('does not duplicate models/ prefix', () {
@@ -78,9 +104,21 @@ void main() {
         LiveApiSession.buildRealtimeInputPayload(bytes),
       ) as Map<String, dynamic>;
       final ri = payload['realtimeInput'] as Map<String, dynamic>;
-      final chunk = (ri['mediaChunks'] as List).first as Map<String, dynamic>;
-      expect(chunk['mimeType'], 'audio/pcm;rate=24000');
-      expect(base64Decode(chunk['data'] as String), [1, 2, 3, 4]);
+      final audio = ri['audio'] as Map<String, dynamic>;
+      expect(audio['mimeType'], 'audio/pcm;rate=16000');
+      expect(base64Decode(audio['data'] as String), [1, 2, 3, 4]);
+      expect(ri.containsKey('mediaChunks'), isFalse);
+    });
+  });
+
+  group('LiveApiSession.buildAudioStreamEndPayload', () {
+    test('emits realtimeInput.audio_stream_end empty message', () {
+      final payload = jsonDecode(
+        LiveApiSession.buildAudioStreamEndPayload(),
+      ) as Map<String, dynamic>;
+      final ri = payload['realtimeInput'] as Map<String, dynamic>;
+      expect(ri['audio_stream_end'], <String, dynamic>{});
+      expect(ri.containsKey('audio'), isFalse);
     });
   });
 
