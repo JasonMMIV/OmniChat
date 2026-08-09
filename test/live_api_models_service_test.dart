@@ -7,6 +7,48 @@ import 'package:http/testing.dart';
 import 'package:OmniChat/core/services/live/live_api_models_service.dart';
 
 void main() {
+  group('LiveApiModelsService.modelsUri', () {
+    test('official host uses root path without port', () {
+      expect(
+        LiveApiModelsService.modelsUri(null).toString(),
+        'https://generativelanguage.googleapis.com/v1beta/models',
+      );
+      expect(
+        LiveApiModelsService.modelsUri(
+          'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent',
+        ).toString(),
+        'https://generativelanguage.googleapis.com/v1beta/models',
+      );
+    });
+
+    test('custom endpoint preserves port and strips /ws/ path', () {
+      final uri = LiveApiModelsService.modelsUri(
+        'wss://live.example.com:8443/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent',
+      );
+      expect(uri.scheme, 'https');
+      expect(uri.host, 'live.example.com');
+      expect(uri.port, 8443);
+      expect(uri.path, '/v1beta/models');
+    });
+
+    test('custom endpoint keeps non-ws path prefix', () {
+      final uri = LiveApiModelsService.modelsUri('wss://gw.example.com/v1/live');
+      expect(uri.host, 'gw.example.com');
+      expect(uri.path, '/v1/live/v1beta/models');
+    });
+
+    test('invalid baseUrl falls back to official endpoint', () {
+      expect(
+        LiveApiModelsService.modelsUri('not-a-url').toString(),
+        'https://generativelanguage.googleapis.com/v1beta/models',
+      );
+      expect(
+        LiveApiModelsService.modelsUri('http://insecure.example.com/ws').toString(),
+        'https://generativelanguage.googleapis.com/v1beta/models',
+      );
+    });
+  });
+
   group('LiveApiModelsService.parseModels', () {
     test('keeps models with supportsLiveGeneration=true', () {
       final body = jsonEncode({
@@ -107,6 +149,26 @@ void main() {
     });
   });
 
+  group('maskApiKey（§5.8 診斷遮蔽）', () {
+    test('redacts the key anywhere it appears', () {
+      const msg =
+          "WebSocketException: Connection to 'wss://example.com/ws?key=AIza-secret123' was not upgraded";
+      final masked = maskApiKey(msg, 'AIza-secret123');
+      expect(masked, isNot(contains('AIza-secret123')));
+      expect(masked, contains('***'));
+    });
+
+    test('leaves messages without the key untouched', () {
+      const msg = 'socket closed: no key here';
+      expect(maskApiKey(msg, 'AIza-secret123'), msg);
+    });
+
+    test('empty key returns message as-is', () {
+      const msg = 'connection reset by peer';
+      expect(maskApiKey(msg, '   '), msg);
+    });
+  });
+
   group('LiveApiModelsService.fetchLiveModels', () {
     test('returns emptyKey error without network call', () async {
       final result = await LiveApiModelsService.fetchLiveModels(apiKey: '  ');
@@ -145,6 +207,23 @@ void main() {
       expect(second.models, ['gemini-3.1-flash-live-preview']);
       expect(calls, 1);
       LiveApiModelsService.invalidateCache();
+    });
+
+    test('network error detail masks the api key from the request uri',
+        () async {
+      final client = MockClient((request) async {
+        throw http.ClientException(
+          'Connection failed',
+          request.url, // uri 含 `?key=...`
+        );
+      });
+      final result = await LiveApiModelsService.fetchLiveModels(
+        apiKey: 'AIza-leak-check',
+        client: client,
+      );
+      expect(result.hasError, isTrue);
+      expect(result.error, LiveApiModelsError.network);
+      expect(result.detail, isNot(contains('AIza-leak-check')));
     });
 
     test('follows nextPageToken to collect all live models', () async {
@@ -190,6 +269,7 @@ void main() {
       final client = MockClient((request) async {
         expect(request.url.host, 'live.example.com');
         expect(request.url.path, '/v1beta/models');
+        expect(request.url.port, 443);
         return http.Response(
           jsonEncode({
             'models': [
@@ -207,6 +287,121 @@ void main() {
       );
       expect(result.hasError, isFalse);
       expect(result.models, ['gemini-3.1-flash-live-preview']);
+      LiveApiModelsService.invalidateCache();
+    });
+
+    test('cache is scoped per api key', () async {
+      var calls = 0;
+      final client = MockClient((request) async {
+        calls++;
+        return http.Response(
+          jsonEncode({
+            'models': [{'name': 'models/gemini-3.1-flash-live-preview'}],
+          }),
+          200,
+        );
+      });
+      LiveApiModelsService.invalidateCache();
+      await LiveApiModelsService.fetchLiveModels(
+        apiKey: 'AIza-key-a',
+        client: client,
+      );
+      await LiveApiModelsService.fetchLiveModels(
+        apiKey: 'AIza-key-b',
+        client: client,
+      );
+      // 不同 key 不得共用快取 → 兩次都打到網路
+      expect(calls, 2);
+      LiveApiModelsService.invalidateCache();
+    });
+
+    test('cache is scoped per baseUrl host', () async {
+      var calls = 0;
+      final client = MockClient((request) async {
+        calls++;
+        return http.Response(
+          jsonEncode({
+            'models': [{'name': 'models/gemini-3.1-flash-live-preview'}],
+          }),
+          200,
+        );
+      });
+      LiveApiModelsService.invalidateCache();
+      await LiveApiModelsService.fetchLiveModels(
+        apiKey: 'AIza-shared',
+        client: client,
+      );
+      await LiveApiModelsService.fetchLiveModels(
+        apiKey: 'AIza-shared',
+        baseUrl: 'wss://other.example.com/ws',
+        client: client,
+      );
+      // 不同 host 不得共用快取
+      expect(calls, 2);
+      LiveApiModelsService.invalidateCache();
+    });
+
+    test('same key and endpoint reuse cache (single network call)', () async {
+      var calls = 0;
+      final client = MockClient((request) async {
+        calls++;
+        return http.Response(
+          jsonEncode({
+            'models': [{'name': 'models/gemini-3.1-flash-live-preview'}],
+          }),
+          200,
+        );
+      });
+      LiveApiModelsService.invalidateCache();
+      await LiveApiModelsService.fetchLiveModels(
+        apiKey: 'AIza-reuse',
+        baseUrl: 'wss://gw.example.com/ws',
+        client: client,
+      );
+      await LiveApiModelsService.fetchLiveModels(
+        apiKey: 'AIza-reuse',
+        baseUrl: 'wss://gw.example.com/ws',
+        client: client,
+      );
+      expect(calls, 1);
+      LiveApiModelsService.invalidateCache();
+    });
+
+    test('invalidateCache clears all scoped entries', () async {
+      var calls = 0;
+      final client = MockClient((request) async {
+        calls++;
+        return http.Response(
+          jsonEncode({
+            'models': [{'name': 'models/gemini-3.1-flash-live-preview'}],
+          }),
+          200,
+        );
+      });
+      LiveApiModelsService.invalidateCache();
+      await LiveApiModelsService.fetchLiveModels(
+        apiKey: 'AIza-clear',
+        client: client,
+      );
+      LiveApiModelsService.invalidateCache();
+      await LiveApiModelsService.fetchLiveModels(
+        apiKey: 'AIza-clear',
+        client: client,
+      );
+      expect(calls, 2);
+      LiveApiModelsService.invalidateCache();
+    });
+
+    test('http error detail does not leak the api key', () async {
+      final client = MockClient((request) async => http.Response('{}', 401));
+      LiveApiModelsService.invalidateCache();
+      final result = await LiveApiModelsService.fetchLiveModels(
+        apiKey: 'AIza-super-secret-key',
+        client: client,
+      );
+      expect(result.error, LiveApiModelsError.http);
+      expect(result.detail, isNotNull);
+      expect(result.detail, isNot(contains('AIza-super-secret-key')));
       LiveApiModelsService.invalidateCache();
     });
   });

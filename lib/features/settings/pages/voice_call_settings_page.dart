@@ -636,8 +636,8 @@ Future<void> _showModelPicker(
 }) async {
   final sp = context.read<SettingsProvider>();
   final cs = Theme.of(context).colorScheme;
-  String? picked;
-  await showModalBottomSheet<String>(
+  // P1：bottom sheet 的回傳值必須接住，否則清單選取與手動輸入都不會保存。
+  final picked = await showModalBottomSheet<String>(
     context: context,
     backgroundColor: cs.surface,
     isScrollControlled: true,
@@ -817,6 +817,21 @@ class _ModelPickerSheetState extends State<_ModelPickerSheet> {
                               ),
                             ),
                           ),
+                          if ((result?.detail ?? '').isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 24),
+                              child: SelectableText(
+                                result!.detail!,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: cs.onSurface.withOpacity(0.5),
+                                ),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 12),
                           FilledButton.tonalIcon(
                             onPressed: _refresh,

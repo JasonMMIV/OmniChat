@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:record/record.dart';
@@ -12,13 +14,17 @@ import '../services/platform_audio_setup.dart';
 
 /// Gemini Live API 即時語音通話畫面。
 class LiveCallScreen extends StatefulWidget {
-  const LiveCallScreen({super.key});
+  const LiveCallScreen({super.key, this.sessionFactory});
+
+  /// 測試 seam：注入 session 建構方式（預設依 [SettingsProvider] 建立）。
+  final LiveApiSession Function(SettingsProvider settings)? sessionFactory;
 
   @override
   State<LiveCallScreen> createState() => _LiveCallScreenState();
 }
 
-class _LiveCallScreenState extends State<LiveCallScreen> {
+class _LiveCallScreenState extends State<LiveCallScreen>
+    with WidgetsBindingObserver {
   LiveApiSession? _session;
   bool _permissionGranted = false;
   bool _checkingPermission = true;
@@ -26,7 +32,26 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _init();
+  }
+
+  /// §5.7 lifecycle：背景/前景切換接到 session 的 pause/resume
+  /// （背景停止 mic + stream end，前景重啟 mic；不會重複建立資源）。
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final s = _session;
+    if (s == null) return;
+    switch (state) {
+      case AppLifecycleState.resumed:
+        unawaited(s.resume());
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        break; // 短暫轉場/終結：不動作，避免 mic 反覆重啟
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+        unawaited(s.pause());
+    }
   }
 
   Future<void> _init() async {
@@ -46,17 +71,26 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
       _checkingPermission = false;
     });
     if (!ok) return;
+    // §5.4：與標準語音流程共用 call mode（audio focus / Bluetooth SCO /
+    // speaker 路由 / mic unmute）；權限通過後才啟動。
+    // 用 defaultTargetPlatform（而非 Platform.isAndroid）以便測試可覆寫。
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      await PlatformAudioSetup.startCallMode();
+    }
     await _startSession();
   }
 
   Future<void> _startSession() async {
     final settings = context.read<SettingsProvider>();
-    final session = LiveApiSession(
-      apiKey: settings.liveApiApiKey,
-      model: settings.liveApiModel,
-      voice: settings.liveApiVoice,
-      baseUrl: settings.resolvedLiveApiBaseUrl,
-    );
+    final factory = widget.sessionFactory;
+    final session = factory != null
+        ? factory(settings)
+        : LiveApiSession(
+            apiKey: settings.liveApiApiKey,
+            model: settings.liveApiModel,
+            voice: settings.liveApiVoice,
+            baseUrl: settings.resolvedLiveApiBaseUrl,
+          );
     session.addListener(_onSessionChanged);
     _session = session;
     unawaited(session.start());
@@ -93,7 +127,11 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
       await s.stop();
       s.dispose();
     }
+    // §5.4：結束通話釋放 audio focus 與 call mode（與 startCallMode 對稱）。
     await PlatformAudioSetup.deactivateAudioSession();
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      await PlatformAudioSetup.stopCallMode();
+    }
     if (mounted) {
       Navigator.of(context).pop();
     }
@@ -101,9 +139,15 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _session?.removeListener(_onSessionChanged);
     _session?.dispose();
+    // §5.4：所有退出路徑（返回鍵、goAway 自動關閉、錯誤後離開）都必須
+    // 釋放 audio focus 與 call mode，避免通話結束後持續佔用音訊資源。
     unawaited(PlatformAudioSetup.deactivateAudioSession());
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      unawaited(PlatformAudioSetup.stopCallMode());
+    }
     super.dispose();
   }
 
@@ -287,6 +331,36 @@ class _LiveCallScreenState extends State<LiveCallScreen> {
             fontSize: 16,
             fontWeight: FontWeight.w600,
             color: Colors.white,
+          ),
+        );
+      case LiveCallState.reconnecting:
+        return Column(
+          children: [
+            Text(
+              l10n.liveCallReconnecting,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.orange.shade300,
+              ),
+            ),
+            if (session.errorMessage.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                session.errorMessage,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: Colors.white70),
+              ),
+            ],
+          ],
+        );
+      case LiveCallState.background:
+        return Text(
+          l10n.liveCallBackground,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.white54,
           ),
         );
       case LiveCallState.active:

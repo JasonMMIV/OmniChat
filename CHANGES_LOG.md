@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-08 (v1.13.1)
+- **Last Updated**: 2026-08-09 (v1.14.0)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -178,6 +178,22 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.14.0] - 2026-08-09: Live API 半雙工六輪修復（P0–P2）— Windows/Android 穩定化
+
+> 依「Implementation Plan Voice Services Reorganization & Live API Settings v5」§10 執行六輪修復迭代（191h–191m）與 Android 實機修復（191n）：修正輸入取樣率與 PCM 契約、實作可靠 VAD turn 結束、統一 Android/Windows 半雙工音訊初始化、修復播放佇列與資源清理、加入 lifecycle/斷網重連、API Key 遷移至 secure storage 並全面遮蔽診斷資訊、修復 Android 播放模式與音訊 focus。Windows 與 Android 實機測試均通過。`flutter test` 201 tests passed。
+
+- **191h** P0/P1/P2：`RecordConfig.sampleRate` 改為 micSampleRate（16 kHz）並與輸出 24 kHz 分離、PCM frame 對齊與實際格式診斷；行動版 model picker 接住 bottom sheet 回傳值；模型快取以 API Key + endpoint 為 key、Base URL 變更清除、自訂 endpoint 保留 port/path、錯誤訊息遮蔽 API Key。
+- **191i** P1：`audio_stream_end`（mute/stop/dispose 依序送出，setupComplete 前不送）；unmute 清空 buffer 不重送舊 PCM；模型播放中不送 mic（半雙工契約）；playerFactory 測試 seam + 10 案例整合測試。
+- **191j** P2：LiveCall 與標準語音流程共用 `startCallMode`/`stopCallMode`（audio focus / SCO / speaker 路由）；所有退出路徑（返回/錯誤/重試/goAway/dispose）對稱釋放；`Platform.isAndroid` → `defaultTargetPlatform`。
+- **191k** P2：播放佇列——下一個播放包只在上一個完成/失敗後啟動、失敗 dispose player 並記診斷、`_flushPlayback` 二次 dispose 防護、interrupted/stop 清理安全。
+- **191l** P2：lifecycle（背景停 mic/前景重啟、背景不播放）與有限次數退避重連（`maxReconnectAttempts`=3、重試前完整 cleanup、`setupComplete` 重設計數）；`LiveCallScreen` 實作 `WidgetsBindingObserver` + reconnecting/background 狀態 UI；新增 `liveCallReconnecting`/`liveCallBackground` l10n。
+- **191m** P2：API Key 自 SharedPreferences 遷移至 `flutter_secure_storage`（`LiveApiKeyStore`，舊值自動遷移並清除）；共用 `maskApiKey` 遮蔽 `http.ClientException`/`WebSocketException`/server error；`pubspec.yaml` +`flutter_secure_storage: ^10.3.1`；widget 測試環境需 `FlutterSecureStorage.setMockInitialValues`（未 mock 的 platform channel 永不回傳）。
+- **191n** Android 實機修復：`PlayerMode.lowLatency`（SoundPool）不支援 `BytesSource`（`setForSoundPool` 直接 error）→ 改用 `mediaPlayer` 修復模型語音播放；mic `RecordConfig` 設 `audioInterruption: none` 防止 record 在 focus loss 時永久暫停錄音（audioplayers 預設請求 `AUDIOFOCUS_GAIN`）；`--split-per-abi` 產出單一 ABI arm64 APK（`OmniChat_android_v1.14.0_arm64.apk`）。
+- **Version**: pubspec `1.14.0+77`；installer.iss 1.14.0（`OmniChat_windows_v1.14.0_setup`）。
+- **Files Modified**: 見各 191h–191m 條目；`test/live_api_session_integration_test.dart`（+18）、`test/live_call_screen_test.dart`（+3）、`test/live_call_settings_mobile_test.dart`（+3）、`test/live_api_key_store_test.dart`（+6）、`test/live_api_settings_test.dart`（+3）、`test/live_api_models_service_test.dart`（+4）、`test/live_api_session_test.dart`（+3）。
+- **Tests**: `flutter test` full suite **201 tests passed**（v1.13.1 為 165 → +36）；修改檔案 `flutter analyze` **no issues**。Windows 實機測試通過；Android speaker 路徑實機測試通過（Bluetooth 依 §8.4 矩陣仍待驗證）。
+
+## [v1.13.1] - 2026-08-08: Live API Phase B — Model Picker + Real-time Voice Call
 ## [v1.13.1] - 2026-08-08: Live API Phase B — Model Picker + Real-time Voice Call
 
 > 依「Implementation Plan Voice Services Reorganization & Live API Settings v3」執行 **Phase B**（Live API 通話引擎 + 模型名單）。測試回報兩項問題一併處理：(1) 模型名稱不再依賴手寫，改為從 Gemini REST `/v1beta/models` 抓取名單後於行動版 bottom sheet / 桌面版 dialog 選擇（含重新整理、手動輸入備援）；(2) 輸入列語音聊天按鈕改為跟隨 `voiceCallMode`：Live API 模式且已設定 → 進入新的即時語音通話畫面；未設定金鑰 → SnackBar 提示先完成設定；標準模式維持原 `VoiceChatScreen`。
@@ -188,6 +204,134 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 - **UI**: 行動版 Model 欄改為 `_ModelPickerRow`（bottom sheet：載入中 / 錯誤重試 / 清單選取 / 手動輸入）；桌面版改為 `_ModelSelectRow`（dialog 同功能）。
 - **Files Modified**: `lib/core/services/live/live_api_models_service.dart`（NEW）、`lib/features/settings/pages/voice_call_settings_page.dart`、`lib/desktop/setting/voice_call_pane.dart`、`lib/core/providers/settings_provider.dart`（`setLiveApiApiKey` 清除模型快取）
 - **New test** `test/live_api_models_service_test.dart`（9 案例：篩選邏輯、排序、錯誤回應、快取、自訂 host 推導）
+
+### 191n. Live API Android 實機修復 — 播放模式與音訊 focus（實機測試回報 → 已修復並驗證）
+
+> Android 實機測試回報：啟動語音聊天後麥克風 icon 出現、說話完 icon 消失且無任何回應。定位出兩個 Android 專屬根因並修正。
+
+- **Root causes**（均在 Android 專屬路徑，Windows 不受影響，故 Windows 測試正常）：
+  - **播放全滅**：`_playNext` 使用 `PlayerMode.lowLatency`——audioplayers 在 Android 的 lowLatency 走 `SoundPoolPlayer`，而 `BytesSource.setForSoundPool()` 直接 `error("Bytes sources are not supported on LOW_LATENCY mode yet.")` → 每個播放包都在 `player.play()` 拋錯 → 模型語音在 Android 上**完全無法播放**（`_playNext` catch 後 dispose 續播，但每個包都失敗，靜默無聲）。
+  - **麥克風被暫停**：`record` 套件 Android 的 `AudioSessionManager` 在 `audioInterruption != NONE`（預設 `PAUSE`）時自行 `requestAudioFocus(GAIN)`，且 `onFocusLoss` 會 `pauseRecording()`——而預設 `PAUSE` 中斷模式在 focus 回來時**不會恢復**（只有 `PAUSE_RESUME` 才恢復）→ 播放一旦開始（audioplayers 預設也請求 `AUDIOFOCUS_GAIN`）搶走 focus，mic 就被永久暫停（Android 麥克風使用中 icon 消失）。
+- **Fixes**（`lib/core/services/live/live_api_session.dart`）：
+  - `_playNext`：改用 `PlayerMode.mediaPlayer`（Android 走 MediaPlayer，支援 BytesSource；Windows 僅支援 mediaPlayer，行為不變）。補播放 start/done 診斷 log（tag `live-api`）。
+  - mic `RecordConfig`：設 `audioInterruption: AudioInterruptionMode.none`——錄音器對 audio focus 變化免疫，由 call mode（`startCallMode`/audio_session）集中管理 focus，避免播放模型語音時 mic 被暫停。刻意**不**用 audioplayers 的 `setAudioContext(AudioFocus.none)`：其在 Android 會全域覆寫 `AudioManager.mode` 與 `isSpeakerphoneOn`（`WrappedPlayer.updateAudioContext` / plugin global handler），會破壞 call mode 的 speaker/SCO 路由。
+  - mic stream 加 `onDone` 診斷 log（平台側自行結束串流時記錄）。
+- **New tests**: 整合測試 `RecordConfig` 案例補 `audioInterruption == AudioInterruptionMode.none` 斷言（防回歸）。
+- **Tests**: `flutter test` full suite **201 tests passed**；`flutter analyze` 修改檔案 **no issues**。
+- **Artifacts**: `flutter build apk --release --split-per-abi --target-platform android-arm64` → `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`（52.8 MB，複製為根目錄 `OmniChat_android_v1.14.0_arm64.apk`）。已驗證：aapt2 `native-code: 'arm64-v8a'`（單一 ABI）、apksigner OmniChat 憑證簽署、versionName 1.14.0 (77)。註：一般 `--target-platform android-arm64`（無 split）產出的 APK 第三方 native lib 仍含全 ABI（flutter 自己的 libapp/libflutter 正確 arm64-only）——需 `--split-per-abi` 才有真正單一 ABI 產物。
+- **實機驗證**：2026-08-09 Android arm64 實機測試通過——說話後可聽到模型語音、麥克風 icon 全程顯示、連續多輪對話正常。若仍有異常，Log Viewer（tag `live-api`）的 mic stats / play start-done / reconnect 原因可定位下一層問題。
+### 191m. Live API 第六輪修復 — P2 API Key 安全儲存與診斷遮蔽（§5.8）
+
+> 依「Implementation Plan Voice Services Reorganization & Live API Settings v5」§10 第六輪（§5.8）：API Key 自 SharedPreferences 遷移至 flutter_secure_storage（含舊值自動遷移），並確認所有診斷 log/UI 遮蔽 API Key。
+
+- **Purpose**:
+  - 新增 `LiveApiKeyStore`（`lib/core/services/live/live_api_key_store.dart`）：正式值存 `flutter_secure_storage`（Android Keystore / Windows DPAPI，key `live_api_key_secure_v1`）；`read()` 在 secure 無值時自動從舊 SharedPreferences 位置（`live_api_key_v1`）遷移（寫入 secure + 刪除舊值，不留明文殘留）；secure 有值時優先並順手清除殘留 legacy。平台異常（如測試環境未註冊 channel）會 catch 並退回 legacy/null，不中斷設定載入。
+  - `SettingsProvider`：`_load()` 與 `setLiveApiApiKey()` 改走 `LiveApiKeyStore`（可注入 fake 供測試）；移除 `_liveApiApiKeyKey` 常數（舊位置僅由 store 作為遷移來源引用）。既有測試僅需在 setUp 加 `FlutterSecureStorage.setMockInitialValues({})`。
+  - 診斷遮蔽補洞（共用 `maskApiKey(message, apiKey)`，位於 `live_api_models_service.dart`）：`http.ClientException` 訊息含 request uri（含 `?key=...`）→ models service network catch 先遮蔽；dart:io `WebSocketException` 訊息含完整 uri → session `_connect` catch 與 `_onWsError` 先遮蔽；server error 訊息也過遮蔽層（防回顯）。HTTP 非 200 的 `detail` 沿用既有 `_uriWithoutKey`。
+  - 確認無其他洩漏管道：`RequestLogger` 只攔 Dio 流量，Live API models 走 plain `http.Client()` 不會被記錄；UI 輸入框已 `obscureText`；session 診斷 log（mic stats / playback failed / odd frame）不含 key。
+- **Files Modified**: `pubspec.yaml`（+`flutter_secure_storage: ^10.3.1`）、`lib/core/services/live/live_api_key_store.dart`（新增）、`lib/core/providers/settings_provider.dart`、`lib/core/services/live/live_api_models_service.dart`、`lib/core/services/live/live_api_session.dart`、`test/live_api_key_store_test.dart`（新增 6 案例）、`test/live_api_settings_test.dart`（+3 案例）、`test/live_api_models_service_test.dart`（+4 案例）、`test/live_api_session_integration_test.dart`（+1 案例）、`test/live_call_settings_mobile_test.dart` / `live_call_screen_test.dart` / `settings_provider_stt_test.dart` / `widget_test.dart`（setUp 加 secure storage mock）
+- **New tests**：store 讀寫 round-trip、legacy 遷移（舊值寫入 secure 並清除）、secure 優先於 legacy、write/delete 清除 legacy；provider 層遷移與優先權；`maskApiKey` 遮蔽／無 key 原樣／空 key 原樣；network error detail 不含 key；ws error 訊息不含 key（整合測試，WebSocketException 含完整 uri）。
+- **Tests**: `flutter test` full suite **201 tests passed**（+14）；`flutter analyze` 修改檔案 **no issues**。注意：widget 測試環境下未 mock 的 platform channel 呼叫**永不回傳**（非拋錯），`SettingsProvider._load` 現在會 await secure read——所有直接建 provider 的測試 setUp 都需 `FlutterSecureStorage.setMockInitialValues({})`，否則整檔測試卡死。
+
+### 191l. Live API 第五輪修復 — P2 lifecycle、斷網處理與重連（§5.7）
+
+> 依「Implementation Plan Voice Services Reorganization & Live API Settings v5」§10 第五輪（§5.7）：實作 foreground/background/reconnecting/error 狀態機、有限次數退避重連、重試前完整資源清理，背景/前景切換不重複建立資源。
+
+- **Purpose**:
+  - `LiveCallState` 新增 `background`、`reconnecting` 兩狀態；`_connect()` 自 `start()` 抽出——`start()`（含錯誤後手動重試）重置重連計數，重連流程呼叫 `_connect()` 不重置。
+  - 重連：`_onServerDone`（非預期斷線）/ ws stream error / setup timeout → `_scheduleReconnect()`；server error 訊息維持直接 `error`（auth 類錯誤不重試）。有限次數（`maxReconnectAttempts`，預設 3）+ 指數退避（`reconnectBackoffBase`，預設 1s；`1 << (attempt-1)`）；超過次數進入 `error` 並帶明確訊息（「已重連 N 次仍失敗，請檢查網路後重試」），UI 提供手動重試。`setupComplete` 成功時重設計數，避免多次短暫斷線累加耗盡。
+  - 資源安全：`_scheduleReconnect` 與重連 timer 都先 `await _cleanup()` 才建立新連線；`_cleanup()` 改為並發去重（`_pendingCleanup`）且**立即**清空 `_ws` 再關閉舊連線，避免舊 cleanup 誤關新連線；`_onServerMessage`/`_onServerDone`/`_onWsError` 加 `_closing`/`_ws != ws` 防護——不並存多個 recorder/ws/player。
+  - lifecycle：`pause()`（進入背景）送 stream end → 停 mic（`_stopMic()`）→ 清播放佇列，**保留 WebSocket**；`resume()` 直接重啟 mic 回 `active`（不需重連）。背景期間伺服器推來的音訊不播放（只累積轉錄）；背景中斷線仍會自動重連。
+  - `LiveCallScreen` 實作 `WidgetsBindingObserver`：`paused`/`hidden` → `session.pause()`，`resumed` → `session.resume()`，`inactive`/`detached` 不動作（避免 mic 反覆重啟）；狀態 UI 新增 `reconnecting`（橘色 + 原因文字）與 `background` 顯示。新增 `sessionFactory` 測試 seam。
+- **Files Modified**: `lib/core/services/live/live_api_session.dart`、`lib/features/voice_chat/pages/live_call_screen.dart`、`lib/l10n/app_en.arb`、`app_zh.arb`、`app_zh_Hans.arb`、`app_zh_Hant.arb`（+`liveCallReconnecting`/`liveCallBackground`，`flutter gen-l10n` 重新生成）、`test/live_api_session_integration_test.dart`（+5 案例）、`test/live_call_screen_test.dart`（+1 案例）
+- **New tests**：斷線後自動重連（新 ws/recorder、舊資源已 close/dispose、新 buffer 不含舊 PCM）；重連次數耗盡進 error 且手動 `start()` 重試成功；server error 不觸發重連；`pause()` 停 mic/送 stream end/背景不播放 + `resume()` 重啟 mic；背景中斷線自動 reconnecting；widget 測試驗證 lifecycle paused/resumed 接到 `session.pause/resume`（`inactive` 不觸發）。
+- **Tests**: `flutter test` full suite **187 tests passed**（+6）；`flutter analyze` 修改檔案 **no issues**。
+
+### 191k. Live API 第四輪修復 — P2 播放佇列與資源清理（§5.6）
+
+> 依「Implementation Plan Voice Services Reorganization & Live API Settings v5」§10 第四輪（§5.6）：播放佇列依序播放、播放失敗續播、interrupted/stop/dispose/錯誤的播放清理順序安全。
+
+- **Purpose**:
+  - `_playNext()`：下一個播放包只在上一個**完成或失敗**後啟動（`_playing` 旗標 + 完成事件續播）；播放失敗（如 Windows Media Foundation）時 dispose 該 player、以 `live-api` tag 記可診斷 log，再繼續佇列；`setPlayerMode`/`play` 等待期間若被 `flushPlayback` 取代（interrupted/stop/錯誤/goAway），直接放棄該 player，不重設狀態、不續播。
+  - 追蹤 `onPlayerComplete` 的 subscription（`_playSub`），flush 時取消；`_flushPlayback()` 對目前 player 依序 `stop()` → `dispose()`，並防護二次 dispose（`_player` 先清 null）。
+  - 播放完成事件內 dispose player 後才把 `_playing` 設回 false 並續播——完成與失敗都只會啟動下一個播放包。
+- **Files Modified**: `lib/core/services/live/live_api_session.dart`、`test/live_api_session_integration_test.dart`（+4 案例）
+- **New tests**（`test/live_api_session_integration_test.dart`）：播放失敗時 dispose 失敗的 player 並由下一個播放包接手；`interrupted` 清空佇列、釋放目前 player，之後新音訊建立全新 player；播放中 `stop()` 釋放 player 且不 crash（stop 後再推音訊也安全）；三個播放包依序播放——每個時刻只有一個 player，前一個 dispose 後才啟動下一個。
+- **Tests**: `flutter test` full suite **181 tests passed**（+4）；`flutter analyze` 修改檔案 **no issues**。
+
+### 191j. Live API 第三輪修復 — P2 統一 LiveCall 半雙工音訊初始化（Call Mode 對稱）
+
+> 依「Implementation Plan Voice Services Reorganization & Live API Settings v5」§10 第三輪（§5.4）：明確決定 LiveCall 與標準語音流程**共用** `startCallMode()` / `stopCallMode()`（audio focus、Bluetooth SCO、speaker 路由、mic unmute），開始與所有退出路徑對稱。
+
+- **Purpose**:
+  - `LiveCallScreen._init()`：麥克風權限通過後、建立 session 前呼叫 `startCallMode()`（與 `voice_chat_controller.startUp` 的順序一致）。
+  - `_end()`（結束鈕 / X）：session stop/dispose → `deactivateAudioSession()` → `stopCallMode()` → pop。
+  - `dispose()`（系統返回、goAway 自動關閉、錯誤後離開）：fire-and-forget `deactivateAudioSession()` + `stopCallMode()`——所有退出路徑都釋放 audio focus 與 call mode，通話結束後不再佔用麥克風或音訊焦點。
+  - 平台判斷改用 `defaultTargetPlatform == TargetPlatform.android`（取代 `Platform.isAndroid`）：實機行為相同，且 widget 測試可覆寫平台。
+- **Files Modified**: `lib/features/voice_chat/pages/live_call_screen.dart`、`test/live_call_screen_test.dart`（NEW，2 案例）
+- **New test** `test/live_call_screen_test.dart`：mock `omnichat/call_mode`、`com.llfbandit.record/messages`、`com.ryanheise.audio_session` 三 channel——通話啟動後 `startCallMode` 被呼叫且 audio session 完成 `setConfiguration`；結束鈕觸發 `stopCallMode` 並 pop 畫面；route dispose（替換 widget，等同返回）也觸發 `stopCallMode`。註：`audio_session.setActive` 在非 iOS/Android 主機為 no-op、無法從 channel 觀察，以「釋放路徑完成並 pop」代表 `_end`/`dispose` 的清理有執行。
+- **Tests**: `flutter test` full suite **177 tests passed**；`flutter analyze` 修改檔案 **no issues**。
+
+### 191i. Live API 第二輪修復 — P1 `audio_stream_end` 與可靠 VAD Turn 結束
+
+> 依「Implementation Plan Voice Services Reorganization & Live API Settings v5」§10 第二輪（§5.3）執行，並依 §8.2 建立 fake WebSocket / fake recorder / fake player 的 session 整合測試。
+
+- **Purpose**:
+  - 新增純函式 `buildAudioStreamEndPayload()`（`realtimeInput.audio_stream_end` 空訊息），通知伺服器輸入串流結束以完成目前 turn 的 VAD 判斷。
+  - `setMuted(true)` 送出 stream end；`setMuted(false)` 清空 `_micBuf`（不重送停頓前的舊 PCM）並重新開始音訊串流。
+  - `stop()`（`_closeGracefully`）在 `clientClose` 之前先送 stream end。
+  - `_sendStreamEnd()` 僅在 `state == active`（setupComplete 後）且連線存在時送出；setupComplete 前、mute、error、ended 都不會誤送。
+  - 半雙工輸入抑制維持既有行為（`_playing` 期間 mic chunk 丟棄、播放完成後恢復），本輪以整合測試鎖定契約。
+  - 新增 `playerFactory` 測試 seam（與既有 `channelFactory` / `recorderFactory` 對稱），供 fake player 注入。
+- **Files Modified**: `lib/core/services/live/live_api_session.dart`、`test/live_api_session_test.dart`（+1 stream_end payload 案例）、`test/live_api_session_integration_test.dart`（NEW，10 案例）、`pubspec.yaml`（dev_dependencies 新增 `stream_channel: ^2.1.2`）
+- **New test** `test/live_api_session_integration_test.dart`：以 fake WebSocketChannel（`extends StreamChannelMixin implements WebSocketChannel`）、fake recorder（`extends AudioRecorder`）、fake player（`extends AudioPlayer`）覆蓋——setupComplete 前不送音訊或 stream end、setupComplete 後 audio 送出（mime `audio/pcm;rate=16000`、長度正確）、mute 送 stream end 且 unmute 清 buffer 不重送舊 PCM、模型播放中不送 mic 且播放完成後恢復、`stop()` 依序送 stream end → `clientClose` 並清理 recorder/ws、retry 不重用舊 buffer（重連前清空 mic 暫存）、recorder 啟動失敗保留原始 mic 錯誤、dispose 後不再通知 listener、RecordConfig 為 16 kHz mono PCM16。
+- **Tests**: `flutter test` full suite **175 tests passed**；`flutter analyze` 修改檔案 **no issues**。
+
+### 191h. Live API 第一輪修復 — P0 輸入取樣率 / P1 Mobile Model Picker / P2 模型快取 Scope
+
+> 依「Implementation Plan Voice Services Reorganization & Live API Settings v5」第一個修復迭代（§10：輸入取樣率 → 模型 picker → 模型快取）執行，未引入新的播放引擎或任何全雙工行為。
+
+- **Purpose**:
+  - **P0（§5.1）**：`_startMic()` 的 `RecordConfig.sampleRate` 原沿用輸出用的 24 kHz，與 mimeType 宣告的 16 kHz 不符（1008/無回應根因之一）。修正為 `micSampleRate`（16 kHz），並將輸出常數更名 `outputSampleRate`（24 kHz），輸入/輸出取樣率明確分離、不再共用 `sampleRate`。
+  - **P0 診斷（§5.1 #3/#5）**：`_onMicChunk` 統計實際 mic chunk 長度、每秒 chunk 數、推估取樣率與位元深度，tag `live-api` 寫入 `FlutterLogger`（Settings → Log Viewer）；送出前若 frame 長度為奇數會丟棄 1 byte 維持 PCM16 偶數對齊並記錄。重採樣依計畫「必要時」才加入——待實機 log 確認 plugin 實際輸出 rate 偏離 16 kHz 再評估。
+  - **P1（§5.2）**：行動版 `_showModelPicker()` 呼叫 `showModalBottomSheet` 後沒有把回傳值賦給 `picked`（該變數從未被賦值），清單選取與手動輸入都不會保存——改為 `final picked = await ...` 並於 trim 後 `setLiveApiModel()`。
+  - **P2（§5.5）**：模型清單快取由「全域單一清單」改為「標準化 API Key + endpoint（scheme/host/port/path）」為 key 的 map；`setLiveApiBaseUrl` 變更時一併清除快取（與 `setLiveApiApiKey` 對稱）；`modelsUri` 保留自訂 endpoint 的 port 與 `/ws/` 之前的 path prefix（官方主機維持根路徑）；HTTP 錯誤訊息改用不含 `key` query 的 URI 顯示，API Key 不再進入 log/UI。
+- **Files Modified**: `lib/core/services/live/live_api_session.dart`（RecordConfig→`micSampleRate`、`outputSampleRate`、mic 診斷、frame 對齊、移除未使用 `dart:io` import）、`lib/features/settings/pages/voice_call_settings_page.dart`（picker 回傳值）、`lib/core/services/live/live_api_models_service.dart`（cache scope、`modelsUri`、key 遮蔽、`clientFactory` 測試 hook）、`lib/core/providers/settings_provider.dart`（`setLiveApiBaseUrl` 清除快取）
+- **New test** `test/live_call_settings_mobile_test.dart`（3 案例：bottom sheet 清單選取保存、手動輸入保存、重開設定頁後仍顯示已存模型）
+- **Tests**: `test/live_api_session_test.dart`（+3：輸入 16k/輸出 24k 分離、mime rate 對齊常數、WAV header 用輸出取樣率）；`test/live_api_models_service_test.dart`（+6：modelsUri 官方/自訂 port/`/ws/` prefix/無效回退、快取按 key 與 host 分開、同 key+endpoint 重用、invalidateCache 全清、HTTP 錯誤 detail 不含 API Key）——`flutter test` full suite **165 tests passed**；`flutter analyze` 上述檔案 **no issues**。
+
+### 191g. Mic Input 16kHz Fix — 1008 "The operation was aborted" Root Cause
+
+- **Purpose**: 通話建立後送出麥克風音訊即被伺服器中止（close 1008 "The operation was aborted"）。分析：
+  - 1008 + "aborted" 是 Windows 底層 socket 被 RST 的特徵（ERROR_OPERATION_ABORTED），非伺服器正常 close frame。
+  - probe 實測：合成音訊（16k/24k 均宣告正確 rate）完全正常——伺服器只中止**宣告 rate 與實際資料不符**的輸入。
+  - `record_windows` 的 `PcmEncoder::Feed` 直接輸出 MF 產生的 buffer；若裝置原生 rate ≠ 宣告值（App 原宣告 24kHz，Windows 裝置常見 44.1k/48k），伺服器解碼違規 → RST。
+  - **修正**：麥克風改錄官方原生 **16kHz**（`micSampleRate`），mimeType 宣告 `audio/pcm;rate=16000`；輸出播放維持 24kHz 不變。
+- **Verification**: probe 16kHz 合成音訊通過（setupComplete、無 close）；`flutter test` — **150 tests passed**；installer 已重建。
+- **Files Modified**: `lib/core/services/live/live_api_session.dart`（`micSampleRate=16000`、`_micChunkBytes=3200`、mimeType、RecordConfig）、`test/live_api_session_test.dart`（rate 斷言 16000）
+- **Note**: 若 16kHz 仍 1008，錯誤訊息現在會附註「本機 WebSocket 被中止」提示；下一步需 log 實際 mic 輸出 rate 驗證。
+
+### 191f. RealtimeInput audio Field Fix — 1008 "The operation was aborted"
+
+- **Purpose**: 修正通話建立後送音訊即斷線。以真實 Key probe 實測：
+  - 送舊欄位 `realtimeInput.mediaChunks` → 伺服器 1007 拒絕：
+    `realtime_input.media_chunks is deprecated. Use audio, video, or text instead.`
+  - v1beta `BidiGenerateContentRealtimeInput` 已將音訊欄位改為 **`audio`（Blob：`mimeType`/`data`）**，`media_chunks` 標記 DEPRECATED。
+  - `buildRealtimeInputPayload` 改送 `realtimeInput.audio`；`audio_stream_end` 欄位亦已存在（`audio_stream_end`，供後續麥克風暫停使用）。
+- **Verification**: probe 實測 `audio` 欄位（24kHz 與 16kHz）均被接受（closeCode=null，無 1008/1007）；合成音訊未觸發伺服器 VAD 屬預期（非語音）。`flutter test` — **150 tests passed**；installer 已重建。
+- **Files Modified**: `lib/core/services/live/live_api_session.dart`、`test/live_api_session_test.dart`（`realtimeInput.audio` 斷言）
+
+### 191e. Live API Setup Payload Fix — "connection closed" Root Cause
+
+- **Purpose**: 修復通話啟動即斷線（"connection closed"）。以真實 Key 重現後，伺服器 close code 1007 回報：
+  `Unknown name "outputAudioFormat" at 'setup.generation_config': Cannot find field.`
+  對照 v1beta `BidiGenerateContentSetup` proto 後修正 `buildSetupPayload`：
+  1. **欄位名改 snake_case**：`generation_config` / `response_modalities` / `speech_config` / `voice_config` / `prebuilt_voice_config` / `voice_name`（原 camelCase 全數被拒）。
+  2. **移除不存在的欄位**：`output_audio_format`、`audio_input_config` 在 v1beta setup 中不存在（輸出固定 24kHz PCM；輸入格式由 `mediaChunks.mimeType` 宣告）。
+  3. **`response_modalities` 改為僅 `["AUDIO"]`**：實測 `gemini-3.1-flash-live-preview` 拒絕 AUDIO+TEXT 組合（1007）。
+  4. `_onServerDone` 現在顯示 close code/reason（如 `connection closed (code: 1007, ...)`），不再只顯示泛用訊息。
+- **Verification**: 真實 Key 端到端實測：`setupComplete` → 送文字 prompt → **39 個音訊 chunks** → `turnComplete` → 正常關閉（closeCode=null）。`flutter test` — **150 tests passed**；Windows installer 已重建。
+- **Files Modified**: `lib/core/services/live/live_api_session.dart`、`test/live_api_session_test.dart`（snake_case payload 斷言）
 
 ### 191c. Live API Model List Fix + API Key Show/Hide Toggle
 

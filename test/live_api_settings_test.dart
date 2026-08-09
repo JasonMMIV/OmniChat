@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:OmniChat/core/providers/settings_provider.dart';
+import 'package:OmniChat/core/services/live/live_api_key_store.dart';
 
 /// 與 `settings_provider_stt_test.dart` 相同的載入輔助：
 /// 等待 SettingsProvider 的 `_load()` 完成（載入完成會 notifyListeners）。
@@ -25,6 +27,7 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
   });
 
   test('voice_call_mode_v1 defaults to standard and round-trips', () async {
@@ -108,5 +111,57 @@ void main() {
 
     await sp.setLiveApiApiKey('AIza-valid');
     expect(sp.liveApiConfigured, isTrue);
+  });
+
+  test('setLiveApiApiKey stores to secure storage and clears legacy',
+      () async {
+    // 模擬舊版殘留的 SharedPreferences key
+    SharedPreferences.setMockInitialValues({
+      LiveApiKeyStore.legacyPrefsKey: 'AIza-legacy',
+    });
+    final sp = await _loadedProvider();
+    await sp.setLiveApiApiKey('AIza-new');
+
+    const storage = FlutterSecureStorage();
+    expect(
+      await storage.read(key: LiveApiKeyStore.secureKey),
+      'AIza-new',
+    );
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString(LiveApiKeyStore.legacyPrefsKey), isNull);
+  });
+
+  test('legacy live_api_key_v1 migrates to secure storage on load',
+      () async {
+    SharedPreferences.setMockInitialValues({
+      LiveApiKeyStore.legacyPrefsKey: 'AIza-legacy-key',
+    });
+    final sp = await _loadedProvider();
+    expect(sp.liveApiApiKey, 'AIza-legacy-key');
+    expect(sp.liveApiConfigured, isTrue);
+
+    // 舊位置已清除、新位置已寫入
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString(LiveApiKeyStore.legacyPrefsKey), isNull);
+    const storage = FlutterSecureStorage();
+    expect(
+      await storage.read(key: LiveApiKeyStore.secureKey),
+      'AIza-legacy-key',
+    );
+  });
+
+  test('secure storage value takes precedence over legacy on load',
+      () async {
+    SharedPreferences.setMockInitialValues({
+      LiveApiKeyStore.legacyPrefsKey: 'AIza-legacy',
+    });
+    FlutterSecureStorage.setMockInitialValues({
+      LiveApiKeyStore.secureKey: 'AIza-secure',
+    });
+    final sp = await _loadedProvider();
+    expect(sp.liveApiApiKey, 'AIza-secure');
+    // 殘留的 legacy 副本被清除
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString(LiveApiKeyStore.legacyPrefsKey), isNull);
   });
 }

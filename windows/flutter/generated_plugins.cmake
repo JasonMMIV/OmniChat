@@ -8,6 +8,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   dynamic_color
   file_selector_windows
   flutter_js
+  flutter_secure_storage_windows
   flutter_tts
   hotkey_manager_windows
   irondash_engine_context
