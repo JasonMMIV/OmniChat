@@ -182,6 +182,8 @@ class _Harness {
     this.maxReconnects = 3,
     this.failPlayForFirstN = 0,
     this.toolHandler,
+    this.enableTimedPreStart = false,
+    this.w0HandoffLead = const Duration(milliseconds: 80),
   }) {
     session = LiveApiSession(
       apiKey: 'AIza-test',
@@ -190,6 +192,8 @@ class _Harness {
       baseUrl: 'wss://example.com/ws',
       toolHandler: toolHandler,
       maxReconnectAttempts: maxReconnects,
+      enableTimedPreStart: enableTimedPreStart,
+      w0HandoffLead: w0HandoffLead,
       // 測試用短退避（10ms 起、指數成長），避免測試等待真實秒級退避
       reconnectBackoffBase: const Duration(milliseconds: 10),
       channelFactory: (_) {
@@ -226,6 +230,12 @@ class _Harness {
 
   /// 前 N 個建立的 player 會播放失敗（測播放失敗續播）。
   final int failPlayForFirstN;
+
+  /// W0 計時預啟動開關（預設 false 維持既有測試語意；W0 測試顯式開啟）。
+  final bool enableTimedPreStart;
+
+  /// W0 交接提前量（lead）。
+  final Duration w0HandoffLead;
 
   _FakeWebSocketChannel get ws => wsList.last;
   _FakeRecorder get recorder => recorders.last;
@@ -624,6 +634,42 @@ void main() {
     expect(h.players[1].playCount, 1);
     expect(h.players[1].disposed, isFalse);
     expect(h.players.length, 2);
+
+    h.session.dispose();
+    await h.pump();
+  });
+
+  test('W0 計時預啟動：預備槽在目前槽完成前提前 resume，完成事件僅釋放',
+      () async {
+    final h = _Harness(
+      enableTimedPreStart: true,
+      w0HandoffLead: const Duration(milliseconds: 50),
+    );
+    await h.activate();
+
+    // 兩個 0.5 s 包（24000 bytes @ 24 kHz mono 16-bit）
+    h.pushModelAudio(24000);
+    h.pushModelAudio(24000);
+    await h.pump();
+
+    // 第一個播放中；第二個已預先 prepare（尚未 resume）
+    expect(h.players.length, 2);
+    expect(h.players[0].playCount, 1);
+    expect(h.players[1].prepared, isTrue);
+    expect(h.players[1].playCount, 0);
+
+    // 等待超過「duration − lead = 450 ms」：預備槽應已提前 resume，
+    // 目前槽尚未 emitComplete（仍在播放，不得被 dispose）
+    await Future<void>.delayed(const Duration(milliseconds: 550));
+    await h.pump();
+    expect(h.players[1].playCount, 1);
+    expect(h.players[0].disposed, isFalse);
+
+    // 目前槽完成 → 僅釋放資源（_prev 路徑），不重複 resume
+    h.players[0].emitComplete();
+    await h.pump();
+    expect(h.players[0].disposed, isTrue);
+    expect(h.players[1].playCount, 1);
 
     h.session.dispose();
     await h.pump();
