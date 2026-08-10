@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-09 (v1.15.0)
+- **Last Updated**: 2026-08-10 (v1.16.0)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -178,6 +178,21 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.16.0] - 2026-08-10: Live API gapless 播放 W0 計時預啟動（timed pre-start）
+
+> 依「IMPLEMENTATION_PLAN_GAPLESS_B」§3.1 執行低成本 workaround（W0）：殘餘包間隙的本質是「player 交接延遲」而非「資料斷供」，W0 以計時預啟動縮短交接，不引入 sink 抽象、不新增 native 程式碼。維持 191p 雙槽架構，目前槽 resume 後依 WAV duration 排定預備槽 resume 於「預期完成時間 − lead」提前觸發；`onPlayerComplete` 保留為保險。Windows 播放行為不變。
+
+- **191t** W0 計時預啟動（`live_api_session.dart`）：
+  - `_schedulePreStart`：目前槽 resume 成功後依 `wavDuration`（data bytes ÷ byte rate）排定 timer，於「預期完成時間 − `w0HandoffLead`」提前觸發；包太短（duration ≤ lead）或預備槽未就緒時不排程，回退既有 `onPlayerComplete` 路徑。
+  - `_firePreStart`：timer 觸發時沿用 `_switchTo` 與 `_playEpoch` 防護提前 resume 預備槽；目前槽保留為新欄位 `_prev`，其 `onPlayerComplete` 到達時僅釋放資源（`_onSlotComplete` 的 `_prev` 分支），避免提前切換後舊 player 洩漏。
+  - 平台旗標：constructor 新增 `enableTimedPreStart`（預設 `defaultTargetPlatform == android`，Windows 維持現況）與 `w0HandoffLead`（實機微調定案 20 ms：80 ms 實測無間隙但輕微重疊 → 逐次下修 50→40→30→20 ms，20 ms 最順暢）。
+  - 診斷 log（tag `live-api`）：`play #N start（含 ms 時長）`、`switch #N resume`、`complete #N`、`pre-start #N -> #M fire（lead）`——供實機量測交接延遲（量測點 A/B）。
+  - 資源防護：`_flushPlayback`/dispose 取消 timer 並釋放 `_prev`；預啟動 resume 失敗時恢復舊槽為目前槽（避免雙播放或管線卡住）。
+- **Status**: W0 完成——**實機測試（2026-08-10，speaker 路徑）20 秒連續語音完全無間隙 ✓；`w0HandoffLead` 逐次下修（80→50→40→30→20 ms）後 20 ms 為最順暢（無間隙、無重疊）→ W0 Gate 達成，不需 B2**；M1–M5（B2 單一連續 PCM 管線）不再啟動。
+- **Version**: pubspec `1.16.0+79`；installer.iss 1.16.0（`OmniChat_windows_v1.16.0_setup`）。
+- **Files Modified**: `lib/core/services/live/live_api_session.dart`、`test/live_api_session_integration_test.dart`（+1）、`IMPLEMENTATION_PLAN_GAPLESS_B.md`（狀態更新）、`pubspec.yaml`、`installer.iss`。
+- **Tests**: `flutter test` full suite **230 tests passed**（v1.15.0 為 229 → +1）；修改檔案 `flutter analyze` **no issues**（全專案 2 個 error 為既有 vendored `speech_to_text_windows` example，與本次無關）。
+
 ## [v1.15.0] - 2026-08-09: Live API 即時對話字幕、Function calling 與 gapless 連續播放
 
 > v1.14.0 之後新增三輪功能（191o、191p、191q）：補上使用者語音即時轉錄與字幕開關（通話紀錄前置步驟）、實作 Function calling（工具呼叫）與 gapless 雙槽連續播放管線。

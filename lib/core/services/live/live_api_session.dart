@@ -64,7 +64,21 @@ class LiveApiSession extends ChangeNotifier {
     this.playbackAudioContext,
     this.maxReconnectAttempts = 3,
     this.reconnectBackoffBase = const Duration(seconds: 1),
-  })  : _channelFactory =
+
+    /// W0（計時預啟動）開關：預設僅 Android 啟用（Windows 維持現況，
+    /// 見 IMPLEMENTATION_PLAN_GAPLESS_B §3.1）。測試可顯式傳入覆寫。
+    bool? enableTimedPreStart,
+
+    /// W0 交接提前量（lead）：目前槽 resume 後，預備槽 resume 於
+    /// 「預期完成時間 − 此值」提前觸發。初始值為估計值，需以計畫
+    /// §9.4 量測點 B 的 logcat（tag `live-api`）實測微調。
+    /// 實機微調紀錄：80 ms 無間隙但輕微重疊（lead > 實際 resume→輸出
+    /// 延遲），逐次下修至 20 ms（2026-08-10 實機調校；30 ms 已很接近）。
+    this.w0HandoffLead = const Duration(milliseconds: 20),
+  })  : _enableTimedPreStart =
+            enableTimedPreStart ??
+                defaultTargetPlatform == TargetPlatform.android,
+        _channelFactory =
             channelFactory ?? ((uri) => IOWebSocketChannel.connect(uri)),
         _recorderFactory = recorderFactory ?? (() => AudioRecorder()),
         _playerFactory = playerFactory ??
@@ -77,6 +91,12 @@ class LiveApiSession extends ChangeNotifier {
   final WebSocketChannel Function(Uri uri) _channelFactory;
   final AudioRecorder Function() _recorderFactory;
   final AudioPlayer Function(String playerId) _playerFactory;
+
+  /// W0：計時預啟動是否啟用（預設 Android；測試可覆寫）。
+  final bool _enableTimedPreStart;
+
+  /// W0 交接提前量（見 constructor 文件）。
+  final Duration w0HandoffLead;
 
   /// 建立播放器並套用 [playbackAudioContext]（若有）。
   static AudioPlayer _createPlayerWithContext(
@@ -164,6 +184,13 @@ class LiveApiSession extends ChangeNotifier {
   int _playEpoch = 0;
   final BytesBuilder _playBuf = BytesBuilder(copy: false);
   int _audioSeq = 0;
+
+  /// W0：計時預啟動的排定 timer（每次目前槽 resume 時重排）。
+  Timer? _preStartTimer;
+
+  /// W0：已被計時預啟動切換取代、但仍播放中（等待其 `onPlayerComplete`
+  /// 完成後釋放）的槽。
+  _PlayerSlot? _prev;
 
   /// 收到 `toolCall` 後、`toolResponse` 送出前的 function calls。
   final List<LiveFunctionCall> _pendingToolCalls = <LiveFunctionCall>[];
@@ -419,6 +446,20 @@ class LiveApiSession extends ChangeNotifier {
     bytes.add(header.buffer.asUint8List());
     bytes.add(pcm);
     return bytes.toBytes();
+  }
+
+  /// WAV 播放時長（data bytes ÷ byte rate；44-byte header）。
+  ///
+  /// 播放契約固定為 PCM16 mono [outputSampleRate] Hz，故 duration 即
+  /// MediaPlayer 的實際播放時長——W0 計時預啟動的排程依據。
+  static Duration wavDuration(
+    Uint8List wav, {
+    int sampleRate = outputSampleRate,
+    int channels = 1,
+  }) {
+    final dataLen = wav.length - 44;
+    final byteRate = sampleRate * channels * 2;
+    return Duration(milliseconds: (dataLen * 1000 / byteRate).round());
   }
 
   // ---- Session 生命週期 ----
@@ -809,7 +850,7 @@ class LiveApiSession extends ChangeNotifier {
   _PlayerSlot _createSlot() {
     final seq = _audioSeq++;
     final player = _playerFactory('live_$seq');
-    final slot = _PlayerSlot(player, _playQueue.removeFirst());
+    final slot = _PlayerSlot(player, _playQueue.removeFirst(), seq);
     slot.sub = player.onPlayerComplete.listen((_) => _onSlotComplete(slot));
     return slot;
   }
@@ -838,9 +879,11 @@ class LiveApiSession extends ChangeNotifier {
       _playing = true;
       _notify();
       FlutterLogger.log(
-        'play #${_audioSeq - 1} start (${slot.wav.length} bytes)',
+        'play #${slot.seq} start (${slot.wav.length} bytes, '
+        '${wavDuration(slot.wav).inMilliseconds} ms)',
         tag: 'live-api',
       );
+      _schedulePreStart(slot);
     } catch (e) {
       FlutterLogger.log('live playback failed: $e', tag: 'live-api');
       if (_current == slot) _current = null;
@@ -907,7 +950,15 @@ class LiveApiSession extends ChangeNotifier {
 
   void _onSlotComplete(_PlayerSlot slot) {
     if (_disposed || _closing) return;
-    if (_current != slot) return; // 已被取代
+    FlutterLogger.log('complete #${slot.seq}', tag: 'live-api');
+    if (_current != slot) {
+      // 已被計時預啟動切換取代：僅釋放資源（播放早已完成）。
+      if (_prev == slot) {
+        _prev = null;
+        _disposeSlot(slot);
+      }
+      return;
+    }
     final next = _next;
     _current = null;
     _next = null;
@@ -931,21 +982,79 @@ class LiveApiSession extends ChangeNotifier {
         _disposeSlot(slot);
         return;
       }
+      FlutterLogger.log(
+        'switch #${slot.seq} resume (${wavDuration(slot.wav).inMilliseconds} ms)',
+        tag: 'live-api',
+      );
       if (_current == slot) {
         _playing = true;
         _notify();
         unawaited(_primeSlot());
+        _schedulePreStart(slot);
       }
     } catch (e) {
       FlutterLogger.log('live playback resume failed: $e', tag: 'live-api');
       if (_current == slot) _current = null;
       _disposeSlot(slot);
+      // W0：計時預啟動的 resume 失敗時，恢復舊槽為目前槽，讓其完成
+      // 事件走正常交接（避免雙播放或管線卡住）。
+      if (!_disposed && !_closing && _prev != null && _current == null) {
+        _current = _prev;
+        _prev = null;
+      }
       if (!_disposed && !_closing) {
+        if (_current != null) {
+          // 舊槽仍在播放：維持 playing 狀態，等其完成事件接手。
+          _playing = true;
+          _notify();
+          return;
+        }
         _playing = false;
         _notify();
         if (_playQueue.isNotEmpty) unawaited(_startSlot());
       }
     }
+  }
+
+  /// W0（計時預啟動）：目前槽 [slot] resume 成功後，依其 WAV duration
+  /// 排定預備槽 resume 於「預期完成時間 − [w0HandoffLead]」提前觸發，
+  /// 縮短交接延遲；[onPlayerComplete] 保留為保險（未提前啟動時才切換）。
+  ///
+  /// 僅 [_enableTimedPreStart] 為真時啟用（預設 Android）。包太短
+  /// （duration ≤ lead）或預備槽未就緒時不排程，回退既有路徑。
+  void _schedulePreStart(_PlayerSlot slot) {
+    if (!_enableTimedPreStart) return;
+    if (_disposed || _closing) return;
+    if (_current != slot) return;
+    final duration = wavDuration(slot.wav);
+    if (duration <= w0HandoffLead) return;
+    final epoch = _playEpoch;
+    _preStartTimer?.cancel();
+    _preStartTimer = Timer(duration - w0HandoffLead, () {
+      _preStartTimer = null;
+      if (_playEpoch != epoch) return;
+      if (_disposed || _closing) return;
+      if (_current != slot || _next == null) return;
+      _firePreStart(slot);
+    });
+  }
+
+  /// W0：計時預啟動觸發——提前 resume 預備槽（沿用 [_switchTo] 與
+  /// epoch 防護）；目前槽保留為 [_prev]，待其 `onPlayerComplete` 釋放。
+  void _firePreStart(_PlayerSlot slot) {
+    if (_disposed || _closing) return;
+    if (_current != slot) return;
+    final next = _next;
+    if (next == null) return;
+    _prev = slot;
+    _current = next;
+    _next = null;
+    FlutterLogger.log(
+      'pre-start #${slot.seq} -> #${next.seq} fire '
+      '(lead ${w0HandoffLead.inMilliseconds} ms)',
+      tag: 'live-api',
+    );
+    unawaited(_switchTo(next));
   }
 
   void _disposeSlot(_PlayerSlot? slot) {
@@ -959,15 +1068,20 @@ class LiveApiSession extends ChangeNotifier {
   /// 清空播放佇列並釋放所有播放槽（interrupted、stop、錯誤、goAway 共用）。
   void _flushPlayback() {
     _playEpoch++; // 讓進行中的 async 播放操作自動失效
+    _preStartTimer?.cancel();
+    _preStartTimer = null;
     _playQueue.clear();
     _playBuf.clear();
     final c = _current;
     final n = _next;
+    final p = _prev;
     _current = null;
     _next = null;
+    _prev = null;
     _playing = false;
     _disposeSlot(c);
     _disposeSlot(n);
+    _disposeSlot(p);
   }
 
   // ---- lifecycle（§5.7）----
@@ -1068,9 +1182,12 @@ class LiveApiSession extends ChangeNotifier {
 
 /// gapless 播放槽：一個 WAV 播放包 + 對應的 [AudioPlayer]。
 class _PlayerSlot {
-  _PlayerSlot(this.player, this.wav);
+  _PlayerSlot(this.player, this.wav, this.seq);
 
   final AudioPlayer player;
   final Uint8List wav;
+
+  /// 播放序號（對應 playerId `live_$seq`，供診斷 log 對照）。
+  final int seq;
   StreamSubscription<void>? sub;
 }
