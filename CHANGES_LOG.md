@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-10 (v1.16.0)
+- **Last Updated**: 2026-08-11 (v1.16.0)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -193,11 +193,16 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 - **Files Modified**: `lib/core/services/live/live_api_session.dart`、`test/live_api_session_integration_test.dart`（+1）、`IMPLEMENTATION_PLAN_GAPLESS_B.md`（狀態更新）、`pubspec.yaml`、`installer.iss`。
 - **Tests**: `flutter test` full suite **230 tests passed**（v1.15.0 為 229 → +1）；修改檔案 `flutter analyze` **no issues**（全專案 2 個 error 為既有 vendored `speech_to_text_windows` example，與本次無關）。
 
-## [v1.15.0] - 2026-08-09: Live API 即時對話字幕、Function calling 與 gapless 連續播放
+### 192. Windows AppId 隔離與 CI 品牌統一（OmniChat 品牌化）
 
-> v1.14.0 之後新增三輪功能（191o、191p、191q）：補上使用者語音即時轉錄與字幕開關（通話紀錄前置步驟）、實作 Function calling（工具呼叫）與 gapless 雙槽連續播放管線。
+> 上游 Kelivo 與 OmniChat 共用同一個 Inno Setup AppId `{A7B8C9D0-E1F2-4A5B-8C9D-0E1F2A3B4C5D}`，導致 Windows 上後安裝的產品覆蓋前者。CI workflow 也沿用 Kelivo 品牌，跨平台產物（APK/IPA/DMG/AppImage/deb/rpm）皆命名為 Kelivo。本次進行全平台品牌一致化。
 
-- **191o** Live API 即時對話字幕：解析 `serverContent.input_transcription`（使用者語音即時轉錄，取代語意；turnComplete 清除）→ `userPartial` 狀態；兩種 casing（snake/camel）都解析防 API 變動；通話頁面右下角新增字幕開關（`Lucide.Captions`/`CaptionsOff`，參考標準語音模式，關閉時保留字幕區塊避免跳動）；字幕優先序＝進行中的模型回覆 → 使用者轉錄 → 上一個完成的模型回合。
+- **192a** Windows Inno Setup AppId 更換：`installer.iss` 與 CI workflow 中的 AppId 統一換為新 GUID `{40F08C97-A646-4522-A280-D8DD72F4760C}`，與上游 Kelivo 隔離，兩者可共存。
+- **192b** CI Windows 安裝程式品牌改為 OmniChat：`MyAppName`、`MyAppExeName`、`OutputBaseFilename`、ZIP 檔名、Release/artifact 路徑全面改為 OmniChat。並修復舊腳本寫死 `kelivo.exe` 而本 repo 實際建置 `OmniChat.exe` 的 bug。
+- **192c** CI 跨平台產物品牌改為 OmniChat：Android（`OmniChat_android_*.apk`）、iOS（`OmniChat_ios_*.ipa`）、macOS（`OmniChat.app`、`OmniChat_macos_*.dmg`、volname "OmniChat"）、Linux（`OmniChat_linux_*`、`Name=OmniChat`、`Exec=omnichat`、`Package: omnichat`、`/opt/omnichat`）。
+- **Version**: pubspec `1.16.0+80`；installer.iss 1.16.0（`OmniChat_windows_v1.16.0_setup`）。
+- **Files Modified**: `installer.iss`、`.github/workflows/build-stable.yml`、`.github/workflows/build-stable-38.yml`、`.github/workflows/build.yml`、`.github/workflows/build-linux-arm64.yml`、`CHANGES_LOG.md`、`pubspec.yaml`。
+
 - **191p** Function calling 與 gapless 連續播放：session 新增 `tools`（setup `functionDeclarations`）與 `toolHandler`；解析 `toolCall` → `pendingToolCalls`（UI 顯示「正在呼叫工具」）→ 執行 handler → `toolResponse`；`toolCallCancellation` 移除 pending；新增 `live_tools.dart` 內建 `get_current_datetime` 工具。播放管線改為雙槽預備播放（`setSource` 預先 prepare 下一個包、完成時 `resume` 切換不重建），並修兩個「目前槽失敗 × 預備槽進行中」的 race（提拔預備槽／預備槽接手），`interrupted`/stop/flush 以 `_playEpoch` 失效清理。
 - **191q** Live API 新增 `search_web` 工具：`builtInLiveTools` 宣告 `search_web`（`query` 必填 STRING）；`runBuiltInLiveTool` 改為 async 並傳入 `settings`，直接複用 `SearchToolService.executeSearch`——吃使用者在 LL 對話頁搜尋設定 sheet 選定的搜尋服務（`searchServiceSelected`，與標準聊天共用，不需另設 API key）；含注入 seam `searchExecutor` 供測試，錯誤（空 query／無 settings／executor 拋錯／非 JSON）都回 error map。
 - **Version**: pubspec `1.15.0+78`；installer.iss 1.15.0（`OmniChat_windows_v1.15.0_setup`）。

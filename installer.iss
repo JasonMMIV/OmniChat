@@ -4,7 +4,7 @@
 #define MyAppExeName "OmniChat.exe"
 
 [Setup]
-AppId={{A7B8C9D0-E1F2-4A5B-8C9D-0E1F2A3B4C5D}}
+AppId={{40F08C97-A646-4522-A280-D8DD72F4760C}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
