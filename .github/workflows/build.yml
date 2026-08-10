@@ -116,7 +116,7 @@ jobs:
           cd build/app/outputs/flutter-apk
           for file in app-*-release.apk; do
             abi=$(echo "$file" | sed -E 's/app-(.*)-release\.apk/\1/')
-            mv "$file" "Kelivo_android_${VERSION}_${abi}.apk"
+            mv "$file" "OmniChat_android_${VERSION}_${abi}.apk"
           done
 
       - name: 🚀 发布到 Release
@@ -125,25 +125,25 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.release_tag }}
           name: ${{ github.event.inputs.release_tag }}
-          files: build/app/outputs/flutter-apk/Kelivo_android_*.apk
+          files: build/app/outputs/flutter-apk/OmniChat_android_*.apk
 
       - name: 📤 上传构建产物 (arm64-v8a)
         uses: actions/upload-artifact@v4
         with:
           name: Android-arm64-v8a
-          path: build/app/outputs/flutter-apk/Kelivo_android_*_arm64-v8a.apk
+          path: build/app/outputs/flutter-apk/OmniChat_android_*_arm64-v8a.apk
 
       - name: 📤 上传构建产物 (armeabi-v7a)
         uses: actions/upload-artifact@v4
         with:
           name: Android-armeabi-v7a
-          path: build/app/outputs/flutter-apk/Kelivo_android_*_armeabi-v7a.apk
+          path: build/app/outputs/flutter-apk/OmniChat_android_*_armeabi-v7a.apk
 
       - name: 📤 上传构建产物 (x86_64)
         uses: actions/upload-artifact@v4
         with:
           name: Android-x86_64
-          path: build/app/outputs/flutter-apk/Kelivo_android_*_x86_64.apk
+          path: build/app/outputs/flutter-apk/OmniChat_android_*_x86_64.apk
 
   # iOS 构建
   ios:
@@ -185,7 +185,7 @@ jobs:
           cd build/ios/iphoneos
           mkdir Payload
           cp -r Runner.app Payload/
-          zip -r ../../../Kelivo_ios_${VERSION}.ipa Payload
+          zip -r ../../../OmniChat_ios_${VERSION}.ipa Payload
 
       - name: 🚀 发布到 Release
         if: ${{ github.event.inputs.publish_release == 'true' && github.event.inputs.release_tag != '' }}
@@ -193,13 +193,13 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.release_tag }}
           name: ${{ github.event.inputs.release_tag }}
-          files: Kelivo_ios_*.ipa
+          files: OmniChat_ios_*.ipa
 
       - name: 📤 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: iOS-IPA
-          path: Kelivo_ios_*.ipa
+          path: OmniChat_ios_*.ipa
 
   # macOS 构建
   macos:
@@ -240,16 +240,16 @@ jobs:
         run: |
           brew install create-dmg
           create-dmg \
-            --volname "Kelivo" \
+            --volname "OmniChat" \
             --window-pos 200 120 \
             --window-size 800 400 \
             --icon-size 100 \
             --app-drop-link 600 185 \
-            "Kelivo_macos_${VERSION}.dmg" \
-            "build/macos/Build/Products/Release/kelivo.app" || true
+            "OmniChat_macos_${VERSION}.dmg" \
+            "build/macos/Build/Products/Release/OmniChat.app" || true
           # 如果 create-dmg 失败，使用简单方式
-          if [ ! -f "Kelivo_macos_${VERSION}.dmg" ]; then
-            hdiutil create -volname Kelivo -srcfolder build/macos/Build/Products/Release/kelivo.app -ov -format UDZO Kelivo_macos_${VERSION}.dmg
+          if [ ! -f "OmniChat_macos_${VERSION}.dmg" ]; then
+            hdiutil create -volname OmniChat -srcfolder build/macos/Build/Products/Release/OmniChat.app -ov -format UDZO OmniChat_macos_${VERSION}.dmg
           fi
 
       - name: 🚀 发布到 Release
@@ -258,13 +258,13 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.release_tag }}
           name: ${{ github.event.inputs.release_tag }}
-          files: Kelivo_macos_*.dmg
+          files: OmniChat_macos_*.dmg
 
       - name: 📤 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: macOS-DMG
-          path: Kelivo_macos_*.dmg
+          path: OmniChat_macos_*.dmg
 
   # Windows 构建
   windows:
@@ -320,7 +320,7 @@ jobs:
       - name: 📦 打包 ZIP
         shell: pwsh
         run: |
-          Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "Kelivo_windows_$env:VERSION.zip"
+          Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "OmniChat_windows_$env:VERSION.zip"
 
       - name: 🔧 安装 Inno Setup
         run: choco install innosetup -y
@@ -370,20 +370,20 @@ jobs:
 
           # 创建 Inno Setup 脚本
           $issContent = @"
-          #define MyAppName "Kelivo"
+          #define MyAppName "OmniChat"
           #define MyAppVersion "$env:VERSION"
           #define MyAppPublisher "Psyche"
-          #define MyAppExeName "kelivo.exe"
+          #define MyAppExeName "OmniChat.exe"
 
           [Setup]
-          AppId={{A7B8C9D0-E1F2-4A5B-8C9D-0E1F2A3B4C5D}}
+          AppId={{40F08C97-A646-4522-A280-D8DD72F4760C}}
           AppName={#MyAppName}
           AppVersion={#MyAppVersion}
           AppPublisher={#MyAppPublisher}
           DefaultDirName={autopf}\{#MyAppName}
           DefaultGroupName={#MyAppName}
           OutputDir=.
-          OutputBaseFilename=Kelivo_windows_{#MyAppVersion}_setup
+          OutputBaseFilename=OmniChat_windows_{#MyAppVersion}_setup
           Compression=lzma2
           SolidCompression=yes
           WizardStyle=modern
@@ -421,20 +421,20 @@ jobs:
           tag_name: ${{ github.event.inputs.release_tag }}
           name: ${{ github.event.inputs.release_tag }}
           files: |
-            Kelivo_windows_*.zip
-            Kelivo_windows_*_setup.exe
+            OmniChat_windows_*.zip
+            OmniChat_windows_*_setup.exe
 
       - name: 📤 上传构建产物 (ZIP)
         uses: actions/upload-artifact@v4
         with:
           name: Windows-ZIP
-          path: Kelivo_windows_*.zip
+          path: OmniChat_windows_*.zip
 
       - name: 📤 上传构建产物 (Installer)
         uses: actions/upload-artifact@v4
         with:
           name: Windows-Installer
-          path: Kelivo_windows_*_setup.exe
+          path: OmniChat_windows_*_setup.exe
 
   # Linux 构建
   linux:
@@ -485,7 +485,7 @@ jobs:
       - name: 📦 打包 tar.gz
         run: |
           cd build/linux/x64/release/bundle
-          tar -czf ../../../../../Kelivo_linux_${VERSION}.tar.gz .
+          tar -czf ../../../../../OmniChat_linux_${VERSION}.tar.gz .
 
       - name: 📦 创建 AppImage
         run: |
@@ -506,21 +506,21 @@ jobs:
           HERE=${SELF%/*}
           export PATH="${HERE}/usr/bin:${PATH}"
           export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
-          exec "${HERE}/usr/bin/kelivo" "$@"
+          exec "${HERE}/usr/bin/omnichat" "$@"
           EOF
           chmod +x AppDir/AppRun
           
           # 创建 desktop 文件
-          cat > AppDir/kelivo.desktop << EOF
+          cat > AppDir/omnichat.desktop << EOF
           [Desktop Entry]
-          Name=Kelivo
-          Exec=kelivo
-          Icon=kelivo
+          Name=OmniChat
+          Exec=omnichat
+          Icon=omnichat
           Type=Application
           Categories=Utility;
           EOF
           
-          ICON_SOURCE="linux/kelivo.png"
+          ICON_SOURCE="linux/omnichat.png"
           if [ ! -f "$ICON_SOURCE" ]; then
             ICON_SOURCE="assets/app_icon.png"
           fi
@@ -528,51 +528,51 @@ jobs:
             echo "❌ Icon source not found"
             exit 1
           fi
-          install -Dm644 "$ICON_SOURCE" AppDir/kelivo.png
-          install -Dm644 "$ICON_SOURCE" "AppDir/usr/share/icons/hicolor/256x256/apps/kelivo.png"
+          install -Dm644 "$ICON_SOURCE" AppDir/omnichat.png
+          install -Dm644 "$ICON_SOURCE" "AppDir/usr/share/icons/hicolor/256x256/apps/omnichat.png"
           
           # 构建 AppImage
-          ARCH=x86_64 ./appimagetool AppDir Kelivo_linux_${VERSION}.AppImage
+          ARCH=x86_64 ./appimagetool AppDir OmniChat_linux_${VERSION}.AppImage
 
       - name: 📦 创建 DEB 包
         run: |
           # 创建 DEB 目录结构
           mkdir -p deb/DEBIAN
-          mkdir -p deb/opt/kelivo
+          mkdir -p deb/opt/omnichat
           mkdir -p deb/usr/share/applications
           mkdir -p deb/usr/share/icons/hicolor/256x256/apps
           
           # 复制文件
-          cp -r build/linux/x64/release/bundle/* deb/opt/kelivo/
+          cp -r build/linux/x64/release/bundle/* deb/opt/omnichat/
           
           # 创建 /usr/bin 软链接
           mkdir -p deb/usr/bin
-          ln -s /opt/kelivo/kelivo deb/usr/bin/kelivo
+          ln -s /opt/omnichat/omnichat deb/usr/bin/omnichat
           
           # 创建 control 文件
           cat > deb/DEBIAN/control << EOF
-          Package: kelivo
+          Package: omnichat
           Version: ${VERSION_NUMBER}
           Section: utils
           Priority: optional
           Architecture: amd64
           Maintainer: Psyche <your@email.com>
           Depends: libgtk-3-0, libstdc++6, libglu1-mesa, libgstreamer1.0-0, libgstreamer-plugins-base1.0-0, libglib2.0-0, libc6
-          Description: Kelivo Application
+          Description: OmniChat Application
            A Flutter application for Linux
           EOF
           
           # 创建 desktop 文件
-          cat > deb/usr/share/applications/kelivo.desktop << EOF
+          cat > deb/usr/share/applications/omnichat.desktop << EOF
           [Desktop Entry]
-          Name=Kelivo
-          Exec=/opt/kelivo/kelivo
-          Icon=kelivo
+          Name=OmniChat
+          Exec=/opt/omnichat/omnichat
+          Icon=omnichat
           Type=Application
           Categories=Utility;
           EOF
 
-          ICON_SOURCE="linux/kelivo.png"
+          ICON_SOURCE="linux/omnichat.png"
           if [ ! -f "$ICON_SOURCE" ]; then
             ICON_SOURCE="assets/app_icon.png"
           fi
@@ -580,27 +580,27 @@ jobs:
             echo "❌ Icon source not found"
             exit 1
           fi
-          install -Dm644 "$ICON_SOURCE" deb/usr/share/icons/hicolor/256x256/apps/kelivo.png
+          install -Dm644 "$ICON_SOURCE" deb/usr/share/icons/hicolor/256x256/apps/omnichat.png
           
           # 创建启动脚本
-          cat > deb/opt/kelivo/kelivo.sh << 'EOF'
+          cat > deb/opt/omnichat/omnichat.sh << 'EOF'
           #!/bin/bash
           cd "$(dirname "$0")"
-          ./kelivo "$@"
+          ./omnichat "$@"
           EOF
-          chmod +x deb/opt/kelivo/kelivo.sh
+          chmod +x deb/opt/omnichat/omnichat.sh
           
           # 构建 DEB 包
-          dpkg-deb --build deb Kelivo_linux_${VERSION}_amd64.deb
+          dpkg-deb --build deb OmniChat_linux_${VERSION}_amd64.deb
       - name: 📦 创建 RPM 包
         run: |
           # 创建 RPM 构建目录
           mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
           
           # 创建源码目录
-          mkdir -p kelivo-${VERSION_NUMBER}
-          cp -r build/linux/x64/release/bundle/* kelivo-${VERSION_NUMBER}/
-          ICON_SOURCE="linux/kelivo.png"
+          mkdir -p omnichat-${VERSION_NUMBER}
+          cp -r build/linux/x64/release/bundle/* omnichat-${VERSION_NUMBER}/
+          ICON_SOURCE="linux/omnichat.png"
           if [ ! -f "$ICON_SOURCE" ]; then
             ICON_SOURCE="assets/app_icon.png"
           fi
@@ -608,15 +608,15 @@ jobs:
             echo "❌ Icon source not found"
             exit 1
           fi
-          cp "$ICON_SOURCE" kelivo-${VERSION_NUMBER}/kelivo.png
-          tar -czf ~/rpmbuild/SOURCES/kelivo-${VERSION_NUMBER}.tar.gz kelivo-${VERSION_NUMBER}
+          cp "$ICON_SOURCE" omnichat-${VERSION_NUMBER}/omnichat.png
+          tar -czf ~/rpmbuild/SOURCES/omnichat-${VERSION_NUMBER}.tar.gz omnichat-${VERSION_NUMBER}
           
           # 创建 spec 文件
-          cat > ~/rpmbuild/SPECS/kelivo.spec << EOF
-          Name:           kelivo
+          cat > ~/rpmbuild/SPECS/omnichat.spec << EOF
+          Name:           omnichat
           Version:        ${VERSION_NUMBER}
           Release:        1%{?dist}
-          Summary:        Kelivo Application
+          Summary:        OmniChat Application
           License:        MIT
           Source0:        %{name}-%{version}.tar.gz
           BuildArch:      x86_64
@@ -629,30 +629,30 @@ jobs:
           %setup -q
           
           %install
-          mkdir -p %{buildroot}/opt/kelivo
-          cp -r * %{buildroot}/opt/kelivo/
+          mkdir -p %{buildroot}/opt/omnichat
+          cp -r * %{buildroot}/opt/omnichat/
           
           mkdir -p %{buildroot}/usr/bin
-          ln -s /opt/kelivo/kelivo %{buildroot}/usr/bin/kelivo
+          ln -s /opt/omnichat/omnichat %{buildroot}/usr/bin/omnichat
           
           mkdir -p %{buildroot}/usr/share/applications
-          cat > %{buildroot}/usr/share/applications/kelivo.desktop << 'DESKTOPEOF'
+          cat > %{buildroot}/usr/share/applications/omnichat.desktop << 'DESKTOPEOF'
           [Desktop Entry]
-          Name=Kelivo
-          Exec=/opt/kelivo/kelivo
-          Icon=kelivo
+          Name=OmniChat
+          Exec=/opt/omnichat/omnichat
+          Icon=omnichat
           Type=Application
           Categories=Utility;
           DESKTOPEOF
 
           mkdir -p %{buildroot}/usr/share/icons/hicolor/256x256/apps
-          cp kelivo.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/kelivo.png
+          cp omnichat.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/omnichat.png
           
           %files
-          /opt/kelivo/*
-          /usr/bin/kelivo
-          /usr/share/applications/kelivo.desktop
-          /usr/share/icons/hicolor/256x256/apps/kelivo.png
+          /opt/omnichat/*
+          /usr/bin/omnichat
+          /usr/share/applications/omnichat.desktop
+          /usr/share/icons/hicolor/256x256/apps/omnichat.png
           
           %changelog
           * $(date "+%a %b %d %Y") Psyche <your@email.com> - ${VERSION_NUMBER}-1
@@ -660,15 +660,15 @@ jobs:
           EOF
           
           # 构建 RPM
-          rpmbuild -bb ~/rpmbuild/SPECS/kelivo.spec
-          cp ~/rpmbuild/RPMS/x86_64/kelivo-${VERSION_NUMBER}-1.*.rpm Kelivo_linux_${VERSION}.rpm
+          rpmbuild -bb ~/rpmbuild/SPECS/omnichat.spec
+          cp ~/rpmbuild/RPMS/x86_64/omnichat-${VERSION_NUMBER}-1.*.rpm OmniChat_linux_${VERSION}.rpm
       - name: 🔍 RPM 元数据（调试）
         shell: bash
         run: |
           set -euxo pipefail
-          RPM_FILE="Kelivo_linux_${VERSION}.rpm"
+          RPM_FILE="OmniChat_linux_${VERSION}.rpm"
           echo "RPM file: ${RPM_FILE}"
-          cp -f ~/rpmbuild/SPECS/kelivo.spec rpm-spec.spec
+          cp -f ~/rpmbuild/SPECS/omnichat.spec rpm-spec.spec
           rpm -qp --info "${RPM_FILE}" | tee rpm-info.txt
           rpm -qp --requires "${RPM_FILE}" | tee rpm-requires.txt
           rpm -qp --provides "${RPM_FILE}" | tee rpm-provides.txt
@@ -685,7 +685,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          RPM_FILE="Kelivo_linux_${VERSION}.rpm"
+          RPM_FILE="OmniChat_linux_${VERSION}.rpm"
           docker run --rm -v "${PWD}:/work" -w /work fedora:43 bash -lc "dnf -y install ./${RPM_FILE}"
       - name: 🚀 发布到 Release
         if: ${{ github.event.inputs.publish_release == 'true' && github.event.inputs.release_tag != '' }}
@@ -695,30 +695,30 @@ jobs:
           name: ${{ github.event.inputs.release_tag }}
           prerelease: ${{ github.event.inputs.prerelease }}
           files: |
-            Kelivo_linux_*.tar.gz
-            Kelivo_linux_*.AppImage
-            Kelivo_linux_*_amd64.deb
-            Kelivo_linux_*.rpm
+            OmniChat_linux_*.tar.gz
+            OmniChat_linux_*.AppImage
+            OmniChat_linux_*_amd64.deb
+            OmniChat_linux_*.rpm
       - name: 📤 上传构建产物 (tar.gz)
         uses: actions/upload-artifact@v4
         with:
           name: Linux-tar.gz
-          path: Kelivo_linux_*.tar.gz
+          path: OmniChat_linux_*.tar.gz
 
       - name: 📤 上传构建产物 (AppImage)
         uses: actions/upload-artifact@v4
         with:
           name: Linux-AppImage
-          path: Kelivo_linux_*.AppImage
+          path: OmniChat_linux_*.AppImage
 
       - name: 📤 上传构建产物 (DEB)
         uses: actions/upload-artifact@v4
         with:
           name: Linux-DEB
-          path: Kelivo_linux_*_amd64.deb
+          path: OmniChat_linux_*_amd64.deb
 
       - name: 📤 上传构建产物 (RPM)
         uses: actions/upload-artifact@v4
         with:
           name: Linux-RPM
-          path: Kelivo_linux_*.rpm
+          path: OmniChat_linux_*.rpm
