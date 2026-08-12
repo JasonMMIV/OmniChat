@@ -2251,6 +2251,20 @@ class _ImageRatioPopover extends StatelessWidget {
       8.0,
       screen.width - panelWidth - 8.0,
     );
+    // The input bar sits at the bottom of the window, so the panel usually has
+    // no room below the anchor: open upward (above the button) whenever the
+    // space below is smaller than the estimated panel height.
+    const double gap = 6.0;
+    final double panelHeight = options.length * 40.0 + 12.0;
+    final double spaceBelow = screen.height - anchorRect.bottom;
+    final bool openUp = spaceBelow < panelHeight + gap;
+    final double maxTop = screen.height - panelHeight - 8.0;
+    final double top = openUp
+        ? (anchorRect.top - gap - panelHeight).clamp(
+            8.0,
+            maxTop < 8.0 ? 8.0 : maxTop,
+          )
+        : anchorRect.bottom + gap;
 
     return Stack(
       children: [
@@ -2262,7 +2276,7 @@ class _ImageRatioPopover extends StatelessWidget {
         ),
         Positioned(
           left: left,
-          top: anchorRect.bottom + 6,
+          top: top,
           width: panelWidth,
           child: Material(
             color: Colors.transparent,
