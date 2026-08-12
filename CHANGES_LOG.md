@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-11 (v1.16.0)
+- **Last Updated**: 2026-08-12 (v1.17.0)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -178,6 +178,25 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.17.0] - 2026-08-12: OpenAI Images API 支援（kelivo 移植）＋圖片比例選擇器
+
+> 依「導入 kelivo 圖片生成模型支援」計畫執行。從 kelivo 上游 commit `e1c20378`（feat: support Images API generations and edits）外科手術式 backport `openai_images.dart` 為 `ChatApiService` 的 static 方法：圖片生成模型（`dall-e-2/3`、`gpt-image-*`、`chatgpt-image-*`、`agnes-image-*`、`sensenova-u1-fast`，以及透過 `useImagesApi` 覆寫開關手動啟用的 SiliconFlow FLUX/Kolors 等）改走獨立 `/images/generations` 與 `/images/edits` 端點，而非聊天補全。無輸入圖→生成；有輸入圖（含引用上一張生成圖的疊代編輯）→ `/images/edits`（multipart 上傳，經既有 `DioHttpClient.send`）。Phase 2 另加圖片比例選擇器（全域 `imageAspectRatio` 設定 + 輸入列按鈕 + `size`/`aspect_ratio` 轉換）。
+
+- **193a** Images API 移植（`chat_api_service.dart`）：
+  - `sendMessageStream` 新增 `String? imageAspectRatio` 參數，並在 `kind == ProviderKind.openai` 分支前插入最早路由分支 `shouldUseOpenAIImagesApi(config, modelId)`（白名單 OR per-model `useImagesApi` 覆寫；`_apiKind` 使 neuralwatt 亦走此路）。
+  - 移植 24 個 static 方法 + `_OpenAIImagesInput`：`shouldUseOpenAIImagesApi`（公開，路由與比例按鈕共用）、白名單 `_supportsOpenAIImageGenerations`（`gpt-image-`/`chatgpt-image-`/`agnes-image-`/`sensenova-u1-fast`/`dall-e-2`/`dall-e-3`）與編輯白名單（不含 dall-e-3）、`_sendOpenAIImagesStream`（單一 `ChatStreamChunk`，`isDone: true`、null-safe usage——dall-e 無 token usage → 0）、生成/編輯 JSON/multipart 三條請求路徑、輸入解析（`userImagePaths` → `_parseTextAndImages` → `_lastAssistantImageBefore` 疊代回退）、custom headers/body 合併（`_parseOverrideValue`）、base64 存檔（沿用 `_saveInlineImageToFile`/`_extFromMime`）、`output_format` mime 推導、`MediaType` 校驗（+`http_parser: ^4.1.2` 依賴）。
+  - `generateText` 防誤用守護（圖片模型回 `''`）；OCR（`ocr_service.dart`）與翻譯（`translation_service.dart`）呼叫 `sendMessageStream` 前套用同一守護（圖片模型時回空文字/回原文），避免誤出圖。
+  - 比例轉換 `_imageApiSizeParam`：custom body（`size`/`image_size`/`aspect_ratio`）優先 → `useAspectRatioParam` 覆寫直傳 `aspect_ratio` 字串 → 白名單 `size` 表格（1:1→1024x1024、3:4→1024x1360、4:3→1360x1024、16:9→1792x1024、9:16→1024x1792）→ 預設 size；dall-e-3 3:4/4:3 回退最接近合法值（1024x1792/1792x1024）並在回覆 markdown 附加附註（service 無 BuildContext，不經 SnackBar）。
+- **193b** 模型設定 UI（mobile `model_detail_sheet.dart` + desktop `model_edit_dialog.dart` 兩份獨立實作）：工具分頁新增「使用 Images API」（`useImagesApi`）與「使用 aspect_ratio 參數」（`useAspectRatioParam`）開關，initState 讀回、`_save` 寫入 override；`ModelRegistry.infer` 擴充既有 `contains('image')` 區塊（`dall-e-|sensenova-u1-fast` regex），模型挑選器顯示為圖片模型。
+- **193c** 圖片比例選擇器（Phase 2）：
+  - `SettingsProvider` 新增全域 `imageAspectRatio`（鍵 `image_aspect_ratio_v1`，預設 `1:1`），由呼叫端讀取後經 `sendMessageStream(..., imageAspectRatio:)` thread 進 service（`ChatApiService` 為純 static，不直讀 provider）。
+  - `lucide_adapter.dart` 新增 `Lucide.Ratio = lucide.LucideIcons.frame`（套件無 ratio 圖示）；`chat_input_button_catalog.dart` 在 `model` 之後新增 `imageRatio` 規格與預設順序（`chatInputButtonEffectiveOrder([])` 必須等於 default order 的測試不變量）。
+  - `chat_input_bar.dart`：僅當 `ChatApiService.shouldUseOpenAIImagesApi` 為 true（與路由共用單一判斷來源）顯示比例按鈕（`Lucide.Ratio` 圖示 + tooltip 顯示目前比例）；行動版 bottom sheet、桌面版 anchored popover（等比例預覽方框），overflow 進 `+` 選單時回退居中 dialog；Gemini 內嵌出圖不顯示。
+- **Status**: 全部完成——`flutter test` full suite **251 tests passed**（v1.16.0 為 230 → +21：`openai_images_api_test.dart` 14、`settings_provider_image_ratio_test.dart` 3）；`flutter analyze` 修改檔案 **no new errors**（全專案僅既有 vendored `speech_to_text_windows` example 2 個 error）。實機端到端（文生圖/圖生圖/疊代編輯/比例轉換）尚未驗證。
+- **Version**: pubspec `1.17.0+81`；installer.iss 1.17.0（`OmniChat_windows_v1.17.0_setup`）。
+- **Files Modified**: `lib/core/services/api/chat_api_service.dart`、`lib/features/model/widgets/model_detail_sheet.dart`、`lib/desktop/model_edit_dialog.dart`、`lib/core/providers/model_provider.dart`、`lib/core/providers/settings_provider.dart`、`lib/icons/lucide_adapter.dart`、`lib/features/home/utils/chat_input_button_catalog.dart`、`lib/features/home/widgets/chat_input_bar.dart`、`lib/core/services/chat/chat_turn_service.dart`、`lib/features/home/controllers/chat_actions.dart`、`lib/features/home/services/ocr_service.dart`、`lib/features/home/services/translation_service.dart`、`lib/l10n/*.arb`（+10 keys × 4 語系，`flutter gen-l10n` 重新生成）、`pubspec.yaml`（+`http_parser: ^4.1.2`、version `1.17.0+81`）、`installer.iss`、`CHANGES_LOG.md`、`導入 kelivo 圖片生成模型支援.md`（計畫文件同步實作細節）。
+- **Tests**: `test/openai_images_api_test.dart`（NEW，14 案例：白名單/覆寫路由、生成/編輯 multipart、jpeg content-type、結構化輸入、dall-e-3 編輯拒絕、base64 存檔/失敗、疊代編輯、非 2xx、size 注入、custom body 優先、dall-e-3 回退附註、`aspect_ratio` 直傳）、`test/settings_provider_image_ratio_test.dart`（NEW，3 案例：預設/round-trip/notify）。
+
 ## [v1.16.0] - 2026-08-10: Live API gapless 播放 W0 計時預啟動（timed pre-start）
 
 > 依「IMPLEMENTATION_PLAN_GAPLESS_B」§3.1 執行低成本 workaround（W0）：殘餘包間隙的本質是「player 交接延遲」而非「資料斷供」，W0 以計時預啟動縮短交接，不引入 sink 抽象、不新增 native 程式碼。維持 191p 雙槽架構，目前槽 resume 後依 WAV duration 排定預備槽 resume 於「預期完成時間 − lead」提前觸發；`onPlayerComplete` 保留為保險。Windows 播放行為不變。

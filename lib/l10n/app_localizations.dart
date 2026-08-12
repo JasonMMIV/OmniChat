@@ -3251,6 +3251,30 @@ abstract class AppLocalizations {
   /// **'DALL-E'**
   String get modelDetailSheetOpenaiImageGenerationToolDescription;
 
+  /// No description provided for @modelDetailSheetUseImagesApiTool.
+  ///
+  /// In en, this message translates to:
+  /// **'Use Images API'**
+  String get modelDetailSheetUseImagesApiTool;
+
+  /// No description provided for @modelDetailSheetUseImagesApiToolDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Route this model to /images/generations and /images/edits instead of chat completions (dall-e, gpt-image, FLUX, etc.)'**
+  String get modelDetailSheetUseImagesApiToolDescription;
+
+  /// No description provided for @modelDetailSheetUseAspectRatioParamTool.
+  ///
+  /// In en, this message translates to:
+  /// **'Use aspect_ratio param'**
+  String get modelDetailSheetUseAspectRatioParamTool;
+
+  /// No description provided for @modelDetailSheetUseAspectRatioParamToolDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Send the selected ratio as the aspect_ratio field for providers that support it natively (e.g. Nano Banana 2), instead of converting to size'**
+  String get modelDetailSheetUseAspectRatioParamToolDescription;
+
   /// No description provided for @modelDetailSheetBuiltinToolsUnsupportedHint.
   ///
   /// In en, this message translates to:
@@ -6937,6 +6961,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'AI Team'**
   String get chatInputBarAiTeamTooltip;
+
+  /// No description provided for @chatInputBarImageRatioTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Image Ratio'**
+  String get chatInputBarImageRatioTooltip;
+
+  /// No description provided for @imageRatioOption1x1.
+  ///
+  /// In en, this message translates to:
+  /// **'1:1 Square'**
+  String get imageRatioOption1x1;
+
+  /// No description provided for @imageRatioOption3x4.
+  ///
+  /// In en, this message translates to:
+  /// **'3:4 Portrait'**
+  String get imageRatioOption3x4;
+
+  /// No description provided for @imageRatioOption4x3.
+  ///
+  /// In en, this message translates to:
+  /// **'4:3 Landscape'**
+  String get imageRatioOption4x3;
+
+  /// No description provided for @imageRatioOption16x9.
+  ///
+  /// In en, this message translates to:
+  /// **'16:9 Widescreen'**
+  String get imageRatioOption16x9;
+
+  /// No description provided for @imageRatioOption9x16.
+  ///
+  /// In en, this message translates to:
+  /// **'9:16 Vertical'**
+  String get imageRatioOption9x16;
 
   /// No description provided for @aiTeamTitle.
   ///

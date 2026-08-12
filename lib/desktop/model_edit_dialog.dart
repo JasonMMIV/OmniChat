@@ -71,6 +71,13 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody> with SingleT
   bool _openaiCodeInterpreterTool = false;
   bool _openaiImageGenerationTool = false;
 
+  // Route this model through the standalone OpenAI Images API
+  // (/images/generations + /images/edits) instead of chat completions.
+  bool _useImagesApi = false;
+  // Pass the aspect-ratio string directly as `aspect_ratio` for providers
+  // that natively support it (e.g. Nano Banana 2) instead of `size`.
+  bool _useAspectRatioParam = false;
+
   @override
   void initState() {
     super.initState();
@@ -146,6 +153,8 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody> with SingleT
         // OpenAI tools
         _openaiCodeInterpreterTool = builtInSet.contains(BuiltInToolNames.codeInterpreter);
         _openaiImageGenerationTool = builtInSet.contains(BuiltInToolNames.imageGeneration);
+        _useImagesApi = (ov['useImagesApi'] == true);
+        _useAspectRatioParam = (ov['useAspectRatioParam'] == true);
       }
     }
   }
@@ -527,6 +536,20 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody> with SingleT
         ),
       ] else if (_providerKind == ProviderKind.openai) ...[
         _ToolTile(
+          title: l10n.modelDetailSheetUseImagesApiTool,
+          desc: l10n.modelDetailSheetUseImagesApiToolDescription,
+          value: _useImagesApi,
+          onChanged: (v) => setState(() => _useImagesApi = v),
+        ),
+        const SizedBox(height: 8),
+        _ToolTile(
+          title: l10n.modelDetailSheetUseAspectRatioParamTool,
+          desc: l10n.modelDetailSheetUseAspectRatioParamToolDescription,
+          value: _useAspectRatioParam,
+          onChanged: (v) => setState(() => _useAspectRatioParam = v),
+        ),
+        const SizedBox(height: 8),
+        _ToolTile(
           title: l10n.modelDetailSheetOpenaiCodeInterpreterTool,
           desc: l10n.modelDetailSheetOpenaiCodeInterpreterToolDescription,
           value: _openaiCodeInterpreterTool,
@@ -597,6 +620,8 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody> with SingleT
       'abilities': _abilities.map((e) => e == ModelAbility.reasoning ? 'reasoning' : 'tool').toList(),
       'headers': headers,
       'body': bodies,
+      'useImagesApi': _useImagesApi,
+      'useAspectRatioParam': _useAspectRatioParam,
       'builtInTools': builtInTools,
     };
 

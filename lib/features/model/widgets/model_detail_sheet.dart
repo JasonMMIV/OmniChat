@@ -89,6 +89,13 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
   bool _openaiCodeInterpreterTool = false;
   bool _openaiImageGenerationTool = false;
 
+  // Route this model through the standalone OpenAI Images API
+  // (/images/generations + /images/edits) instead of chat completions.
+  bool _useImagesApi = false;
+  // Pass the aspect-ratio string directly as `aspect_ratio` for providers
+  // that natively support it (e.g. Nano Banana 2) instead of `size`.
+  bool _useAspectRatioParam = false;
+
   @override
   void initState() {
     super.initState();
@@ -171,6 +178,8 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
             _bodies.add(kv);
           }
         }
+        _useImagesApi = (ov['useImagesApi'] == true);
+        _useAspectRatioParam = (ov['useAspectRatioParam'] == true);
         // Built-in tools toggles
         final builtInSet = BuiltInToolNames.parseAndNormalize(ov['builtInTools']);
 
@@ -556,6 +565,24 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
           ),
         ),
       ] else if (_providerKind == ProviderKind.openai || _providerKind == ProviderKind.neuralwatt) ...[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+          child: _ToolTile(
+            title: l10n.modelDetailSheetUseImagesApiTool,
+            desc: l10n.modelDetailSheetUseImagesApiToolDescription,
+            value: _useImagesApi,
+            onChanged: (v) => setState(() => _useImagesApi = v),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: _ToolTile(
+            title: l10n.modelDetailSheetUseAspectRatioParamTool,
+            desc: l10n.modelDetailSheetUseAspectRatioParamToolDescription,
+            value: _useAspectRatioParam,
+            onChanged: (v) => setState(() => _useAspectRatioParam = v),
+          ),
+        ),
         if (cfg.useResponseApi != true)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
@@ -692,6 +719,8 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
       'abilities': _abilities.map((e) => e == ModelAbility.reasoning ? 'reasoning' : 'tool').toList(),
       'headers': headers,
       'body': bodies,
+      'useImagesApi': _useImagesApi,
+      'useAspectRatioParam': _useAspectRatioParam,
       if (builtInTools.isNotEmpty) 'builtInTools': builtInTools,
     };
 

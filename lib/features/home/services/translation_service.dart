@@ -114,6 +114,16 @@ class TranslationService {
       // 创建翻译请求
       final provider = settings.getProviderConfig(translateProvider);
 
+      // 图片模型无法做文字翻译（Images API 只出图），直接返回原文（F11）
+      if (ChatApiService.shouldUseOpenAIImagesApi(provider, translateModelId)) {
+        onTranslationUpdate(textToTranslate);
+        await chatService.updateMessage(
+          message.id,
+          translation: textToTranslate,
+        );
+        return TranslationResult(type: TranslationResultType.success);
+      }
+
       final translationStream = ChatApiService.sendMessageStream(
         config: provider,
         modelId: translateModelId,

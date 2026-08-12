@@ -153,6 +153,8 @@ class SettingsProvider extends ChangeNotifier {
   // Chat input bar button order / visibility
   static const String _chatInputButtonOrderKey = 'chat_input_button_order_v1';
   static const String _chatInputButtonHiddenKey = 'chat_input_button_hidden_v1';
+  // Image generation aspect ratio (global, shared across image models)
+  static const String _imageAspectRatioKey = 'image_aspect_ratio_v1';
   // Network request logging (debug)
   static const String _requestLogEnabledKey = 'request_log_enabled_v1';
   // Flutter runtime logging (debug)
@@ -296,6 +298,10 @@ class SettingsProvider extends ChangeNotifier {
   // Chat input bar buttons hidden by the user (button ids)
   List<String> _chatInputButtonHidden = const [];
   List<String> get chatInputButtonHidden => _chatInputButtonHidden;
+
+  // Aspect ratio for image generation models ('1:1' | '3:4' | '4:3' | '16:9' | '9:16')
+  String _imageAspectRatio = '1:1';
+  String get imageAspectRatio => _imageAspectRatio;
 
   ThemeMode _themeMode = ThemeMode.system;
   ThemeMode get themeMode => _themeMode;
@@ -446,6 +452,7 @@ class SettingsProvider extends ChangeNotifier {
         prefs.getStringList(_chatInputButtonOrderKey) ?? const [];
     _chatInputButtonHidden =
         prefs.getStringList(_chatInputButtonHiddenKey) ?? const [];
+    _imageAspectRatio = prefs.getString(_imageAspectRatioKey) ?? '1:1';
     final m = prefs.getString(_themeModeKey);
     switch (m) {
       case 'light':
@@ -1589,6 +1596,13 @@ class SettingsProvider extends ChangeNotifier {
       _chatInputButtonHiddenKey,
       _chatInputButtonHidden,
     );
+  }
+
+  Future<void> setImageAspectRatio(String ratio) async {
+    _imageAspectRatio = ratio;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_imageAspectRatioKey, _imageAspectRatio);
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
