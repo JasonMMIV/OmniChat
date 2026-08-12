@@ -853,6 +853,7 @@ class ChatApiService {
           extraHeaders: extraHeaders,
           extraBody: extraBody,
           stream: stream,
+          imageAspectRatio: imageAspectRatio,
         );
       } else if (kind == ProviderKind.claude) {
         yield* _sendClaudeStream(
@@ -915,7 +916,7 @@ class ChatApiService {
     final safePrompt = UnicodeSanitizer.sanitize(prompt);
     try {
       if (kind == ProviderKind.openai) {
-        if (shouldUseOpenAIImagesApi(config, modelId)) return '';
+        if (isOpenAIImageOutputModel(config, modelId)) return '';
         final base = config.baseUrl.endsWith('/')
             ? config.baseUrl.substring(0, config.baseUrl.length - 1)
             : config.baseUrl;
@@ -1573,6 +1574,7 @@ class ChatApiService {
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     bool stream = true,
+    String? imageAspectRatio,
   }) async* {
     final upstreamModelId = _apiModelId(config, modelId);
     final base = config.baseUrl.endsWith('/')
@@ -2157,6 +2159,15 @@ class ChatApiService {
             ? _parseOverrideValue(v)
             : v;
       });
+    }
+    // Image-output models on the chat-completions path ("Use Images API" toggle
+    // off) still emit images via responseModalities; apply the selected ratio
+    // as `size`/`aspect_ratio` there too (custom body keys still win).
+    if (wantsImageOutput &&
+        config.useResponseApi != true &&
+        imageAspectRatio != null &&
+        imageAspectRatio.isNotEmpty) {
+      _applyOpenAIImagesSize(body, config, modelId, imageAspectRatio);
     }
     request.body = jsonEncode(body);
 
@@ -7334,29 +7345,40 @@ class ChatApiService {
   // ============================================================================
   // OpenAI Images API (ported from kelivo upstream `providers/openai_images.dart`)
   //
-  // Routes image-family models (dall-e, gpt-image, agnes-image, sensenova-u1-fast,
-  // or any model with the `useImagesApi` override) to the standalone
-  // /images/generations and /images/edits endpoints instead of chat completions.
+  // Routes image-output models (effective output modality includes image, set in
+  // the model basic-settings page) on OpenAI-compatible providers to the
+  // standalone /images/generations and /images/edits endpoints instead of chat
+  // completions.
   // ============================================================================
 
-  /// Route decision shared by [sendMessageStream] and the input-bar ratio button.
-  /// Whitelist match OR per-model `useImagesApi` override.
-  static bool shouldUseOpenAIImagesApi(ProviderConfig cfg, String modelId) {
-    final ov = _modelOverride(cfg, modelId);
-    if (ov['useImagesApi'] == true) return true;
-    return _supportsOpenAIImageGenerations(
-      _apiModelId(cfg, modelId).toLowerCase(),
-    );
+  /// Whether the model is an **image-output model** on an OpenAI-compatible
+  /// provider (kind openai, including neuralwatt): effective output modality
+  /// includes image (configured in the model basic-settings page; falls back to
+  /// [ModelRegistry.infer]). This is the single judgment standard for
+  /// "is this an image model" — used by the input-bar ratio button and the
+  /// generateText/OCR/translation misuse guards. It is independent of the
+  /// "Use Images API" toggle: an image-output model with the toggle off still
+  /// produces images (via chat completions) and still shows the ratio button.
+  static bool isOpenAIImageOutputModel(ProviderConfig cfg, String modelId) {
+    if (_apiKind(cfg) != ProviderKind.openai) return false;
+    return _effectiveModelInfo(cfg, modelId).output.contains(Modality.image);
   }
 
-  static bool _supportsOpenAIImageGenerations(String modelId) {
-    final normalized = modelId.toLowerCase();
-    return normalized.startsWith('gpt-image-') ||
-        normalized.startsWith('chatgpt-image-') ||
-        normalized.startsWith('agnes-image-') ||
-        normalized == 'sensenova-u1-fast' ||
-        normalized == 'dall-e-2' ||
-        normalized == 'dall-e-3';
+  /// Route decision shared by [sendMessageStream]: whether to send the request
+  /// to the standalone OpenAI Images API (/images/generations + /images/edits)
+  /// instead of chat completions.
+  ///
+  /// Image-output models (see [isOpenAIImageOutputModel]) **default to the
+  /// Images API**, unless the tools-page "Use Images API" toggle (visible only
+  /// for image-output models) is turned off (`useImagesApi == false`) — e.g.
+  /// hybrid models or providers that serve image output through chat
+  /// completions. Non-image-output models never route via the Images API (no
+  /// opt-in), and non-OpenAI providers (e.g. Gemini embedded image generation)
+  /// never do either.
+  static bool shouldUseOpenAIImagesApi(ProviderConfig cfg, String modelId) {
+    if (!isOpenAIImageOutputModel(cfg, modelId)) return false;
+    final ov = _modelOverride(cfg, modelId);
+    return ov['useImagesApi'] != false;
   }
 
   static bool _supportsOpenAIImageEdits(String modelId) {

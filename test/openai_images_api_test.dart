@@ -57,7 +57,7 @@ class _FakePathProviderPlatform extends PathProviderPlatform {
 
 void main() {
   group('ChatApiService.shouldUseOpenAIImagesApi', () {
-    test('whitelists OpenAI image model ids', () {
+    test('routes image-output model ids (inferred from id)', () {
       final cfg = _openAiConfig('http://127.0.0.1:9/v1');
       for (final id in [
         'gpt-image-1',
@@ -84,27 +84,128 @@ void main() {
       );
     });
 
-    test('useImagesApi override routes non-whitelist models', () {
+    test('output-modality override routes non-whitelist models', () {
+      // Model basic-settings page marks output as image -> route via Images API.
       final cfg = _openAiConfig(
         'http://127.0.0.1:9/v1',
         modelOverrides: const {
-          'flux-1': {'useImagesApi': true},
+          'flux-1': {'output': ['image']},
         },
       );
       expect(
         ChatApiService.shouldUseOpenAIImagesApi(cfg, 'flux-1'),
         isTrue,
       );
-      // A different override map without the flag stays off.
+      // A model whose output is text-only stays off.
       final cfg2 = _openAiConfig(
         'http://127.0.0.1:9/v1',
         modelOverrides: const {
-          'flux-1': {'useImagesApi': false},
+          'flux-1': {'output': ['text']},
         },
       );
       expect(
         ChatApiService.shouldUseOpenAIImagesApi(cfg2, 'flux-1'),
         isFalse,
+      );
+    });
+
+    test('useImagesApi: false turns off routing for an image-output model', () {
+      // Image-output model (e.g. hybrid, or provider serving images via chat
+      // completions): user switches the "Use Images API" toggle off.
+      final cfg = _openAiConfig(
+        'http://127.0.0.1:9/v1',
+        modelOverrides: const {
+          'gpt-image-1': {'useImagesApi': false},
+        },
+      );
+      expect(
+        ChatApiService.shouldUseOpenAIImagesApi(cfg, 'gpt-image-1'),
+        isFalse,
+      );
+    });
+
+    test('image-output model defaults ON without an explicit toggle', () {
+      final cfg = _openAiConfig(
+        'http://127.0.0.1:9/v1',
+        modelOverrides: const {
+          'gpt-image-1': {'output': ['image']},
+        },
+      );
+      expect(
+        ChatApiService.shouldUseOpenAIImagesApi(cfg, 'gpt-image-1'),
+        isTrue,
+      );
+    });
+
+    test('non-image models cannot opt in via useImagesApi', () {
+      // The toggle only exists for image-output models, so there is no opt-in.
+      final cfg = _openAiConfig(
+        'http://127.0.0.1:9/v1',
+        modelOverrides: const {
+          'gpt-4o': {'useImagesApi': true},
+        },
+      );
+      expect(
+        ChatApiService.shouldUseOpenAIImagesApi(cfg, 'gpt-4o'),
+        isFalse,
+      );
+    });
+
+    test('non-OpenAI providers never route via Images API', () {
+      final cfg = ProviderConfig(
+        id: 'GoogleTest',
+        enabled: true,
+        name: 'GoogleTest',
+        apiKey: 'test-key',
+        baseUrl: 'http://127.0.0.1:9/v1',
+        providerType: ProviderKind.google,
+        modelOverrides: const {
+          'gemini-3-pro-image-preview': {'output': ['image']},
+        },
+      );
+      expect(
+        ChatApiService.shouldUseOpenAIImagesApi(
+          cfg,
+          'gemini-3-pro-image-preview',
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('ChatApiService.isOpenAIImageOutputModel', () {
+    test('image-output model ids are image models', () {
+      final cfg = _openAiConfig('http://127.0.0.1:9/v1');
+      for (final id in ['gpt-image-1', 'dall-e-3', 'GPT-IMAGE-1']) {
+        expect(
+          ChatApiService.isOpenAIImageOutputModel(cfg, id),
+          isTrue,
+          reason: '$id should be an image-output model',
+        );
+      }
+    });
+
+    test('plain chat models are not image models', () {
+      final cfg = _openAiConfig('http://127.0.0.1:9/v1');
+      expect(
+        ChatApiService.isOpenAIImageOutputModel(cfg, 'gpt-4o'),
+        isFalse,
+      );
+    });
+
+    test('independent of the useImagesApi toggle', () {
+      // The ratio button / guards judge by output modality, not by the route:
+      // even with the toggle off the model may still emit images via chat
+      // completions.
+      final cfg = _openAiConfig(
+        'http://127.0.0.1:9/v1',
+        modelOverrides: const {
+          'gpt-image-1': {'useImagesApi': false},
+        },
+      );
+      expect(
+        ChatApiService.isOpenAIImageOutputModel(cfg, 'gpt-image-1'),
+        isTrue,
       );
     });
   });
@@ -200,7 +301,7 @@ void main() {
       },
     );
 
-    test('useImagesApi override routes a non-whitelist model', () async {
+    test('output-modality override routes a non-whitelist model', () async {
       late Uri requestUri;
       late Map<String, dynamic> requestBody;
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -229,7 +330,7 @@ void main() {
         config: _openAiConfig(
           _baseUrl(server),
           modelOverrides: const {
-            'flux-1': {'useImagesApi': true},
+            'flux-1': {'output': ['image']},
           },
         ),
         modelId: 'flux-1',
@@ -378,7 +479,10 @@ void main() {
         config: _openAiConfig(
           _baseUrl(server),
           modelOverrides: const {
-            'nano-banana-2': {'useImagesApi': true, 'useAspectRatioParam': true},
+            'nano-banana-2': {
+              'output': ['image'],
+              'useAspectRatioParam': true,
+            },
           },
         ),
         modelId: 'nano-banana-2',
@@ -390,6 +494,59 @@ void main() {
 
       expect(requestBody['aspect_ratio'], '9:16');
       expect(requestBody.containsKey('size'), isFalse);
+    });
+
+    test('toggle off routes image model to chat completions with size',
+        () async {
+      // "Use Images API" turned off: the model still outputs images via chat
+      // completions, so the selected ratio is injected as `size` there too.
+      late Uri requestUri;
+      late Map<String, dynamic> requestBody;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() async {
+        await server.close(force: true);
+      });
+
+      server.listen((request) async {
+        requestUri = request.uri;
+        requestBody =
+            jsonDecode(await utf8.decoder.bind(request).join())
+                as Map<String, dynamic>;
+        request.response.statusCode = HttpStatus.ok;
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(
+          jsonEncode({
+            'choices': [
+              {
+                'message': {
+                  'role': 'assistant',
+                  'content': 'text reply',
+                },
+              },
+            ],
+          }),
+        );
+        await request.response.close();
+      });
+
+      final chunks = await ChatApiService.sendMessageStream(
+        config: _openAiConfig(
+          _baseUrl(server),
+          modelOverrides: const {
+            'gpt-image-1': {'useImagesApi': false},
+          },
+        ),
+        modelId: 'gpt-image-1',
+        messages: const [
+          {'role': 'user', 'content': 'hi'},
+        ],
+        stream: false,
+        imageAspectRatio: '16:9',
+      ).toList();
+
+      expect(requestUri.path, '/v1/chat/completions');
+      expect(requestBody['size'], '1792x1024');
+      expect(chunks.map((c) => c.content).join(), contains('text reply'));
     });
 
     test('routes image model with input image to edits multipart', () async {

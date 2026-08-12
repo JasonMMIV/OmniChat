@@ -844,13 +844,14 @@ class _ChatInputBarState extends State<ChatInputBar>
               ? settings.getProviderConfig(currentProviderKey)
               : null;
 
-          // Image ratio button (only for models routed via the standalone
-          // OpenAI Images API). Shares the same routing decision as
-          // sendMessageStream via ChatApiService.shouldUseOpenAIImagesApi.
+          // Image ratio button for image-output models (output modality
+          // includes image). Judgment is independent of the "Use Images API"
+          // toggle: even with the toggle off the model may still emit images
+          // via chat completions, so the ratio stays applicable.
           final imageRatio = settings.imageAspectRatio;
           if (cfg != null &&
               currentModelId != null &&
-              ChatApiService.shouldUseOpenAIImagesApi(cfg, currentModelId)) {
+              ChatApiService.isOpenAIImageOutputModel(cfg, currentModelId)) {
             actions.add(
               _OverflowAction(
                 id: 'imageRatio',
