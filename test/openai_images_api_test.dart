@@ -210,6 +210,76 @@ void main() {
     });
   });
 
+  group('ChatApiService.isOpenAIImageEditModel', () {
+    test('input+output image models are edit-capable', () {
+      final cfg = _openAiConfig('http://127.0.0.1:9/v1');
+      for (final id in ['gpt-image-1', 'chatgpt-image-1', 'dall-e-2']) {
+        expect(
+          ChatApiService.isOpenAIImageEditModel(cfg, id),
+          isTrue,
+          reason: '$id should support image edits',
+        );
+      }
+    });
+
+    test('text-to-image-only models are not edit-capable', () {
+      final cfg = _openAiConfig('http://127.0.0.1:9/v1');
+      for (final id in ['dall-e-3', 'sensenova-u1-fast']) {
+        expect(
+          ChatApiService.isOpenAIImageEditModel(cfg, id),
+          isFalse,
+          reason: '$id is text-to-image only',
+        );
+      }
+    });
+
+    test('plain chat models are not edit-capable', () {
+      final cfg = _openAiConfig('http://127.0.0.1:9/v1');
+      expect(
+        ChatApiService.isOpenAIImageEditModel(cfg, 'gpt-4o'),
+        isFalse,
+      );
+    });
+
+    test('user-configured image input overrides inference', () {
+      // User explicitly marks dall-e-3 as image-input capable -> edits allowed.
+      final cfg = _openAiConfig(
+        'http://127.0.0.1:9/v1',
+        modelOverrides: const {
+          'dall-e-3': {'input': ['image']},
+        },
+      );
+      expect(
+        ChatApiService.isOpenAIImageEditModel(cfg, 'dall-e-3'),
+        isTrue,
+      );
+    });
+
+    test('non-OpenAI providers are never edit-capable', () {
+      final cfg = ProviderConfig(
+        id: 'GoogleTest',
+        enabled: true,
+        name: 'GoogleTest',
+        apiKey: 'test-key',
+        baseUrl: 'http://127.0.0.1:9/v1',
+        providerType: ProviderKind.google,
+        modelOverrides: const {
+          'gemini-3-pro-image-preview': {
+            'input': ['image'],
+            'output': ['image'],
+          },
+        },
+      );
+      expect(
+        ChatApiService.isOpenAIImageEditModel(
+          cfg,
+          'gemini-3-pro-image-preview',
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('OpenAI Images API', () {
     test('routes image model without input images to generations', () async {
       late Uri requestUri;

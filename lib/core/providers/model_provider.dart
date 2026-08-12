@@ -89,12 +89,20 @@ class ModelRegistry {
     final ab = <ModelAbility>[...base.abilities];
     // If model id contains 'image' (or matches image-family ids like
     // dall-e-* / sensenova-u1-fast), treat it as an image model:
-    // - Input and output both include image
+    // - Output includes image
+    // - Input includes image EXCEPT for known text-to-image-only models
+    //   (dall-e-3, sensenova-u1-fast): no image input -> not edit-capable
+    //   via /images/edits. dall-e-2 keeps image input (OpenAI supports its
+    //   edits endpoint).
     // - No tool or reasoning abilities
     if (id.contains('image') ||
         RegExp(r'(dall-e-|sensenova-u1-fast)').hasMatch(id)) {
-      if (!inMods.contains(Modality.image)) inMods.add(Modality.image);
+      final textToImageOnly = id.contains('dall-e-3') ||
+          id.contains('sensenova-u1-fast');
       if (!outMods.contains(Modality.image)) outMods.add(Modality.image);
+      if (!textToImageOnly && !inMods.contains(Modality.image)) {
+        inMods.add(Modality.image);
+      }
       ab.removeWhere(
         (x) => x == ModelAbility.tool || x == ModelAbility.reasoning,
       );
