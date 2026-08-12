@@ -91,9 +91,14 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
 
   // Route this model through the standalone OpenAI Images API
   // (/images/generations + /images/edits) instead of chat completions.
-  bool _useImagesApi = false;
+  // Defaults ON for image-output models (the only models that see the toggle);
+  // stored as `useImagesApi: false` only when explicitly turned off.
+  bool _useImagesApi = true;
+
   // Pass the aspect-ratio string directly as `aspect_ratio` for providers
   // that natively support it (e.g. Nano Banana 2) instead of `size`.
+  // Whether the model is an image model is decided by the output modality
+  // (basic tab), so this toggle only shows for image-output models.
   bool _useAspectRatioParam = false;
 
   @override
@@ -178,7 +183,8 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
             _bodies.add(kv);
           }
         }
-        _useImagesApi = (ov['useImagesApi'] == true);
+        final imApi = ov['useImagesApi'];
+        _useImagesApi = imApi is bool ? imApi : true;
         _useAspectRatioParam = (ov['useAspectRatioParam'] == true);
         // Built-in tools toggles
         final builtInSet = BuiltInToolNames.parseAndNormalize(ov['builtInTools']);
@@ -565,24 +571,26 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
           ),
         ),
       ] else if (_providerKind == ProviderKind.openai || _providerKind == ProviderKind.neuralwatt) ...[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-          child: _ToolTile(
-            title: l10n.modelDetailSheetUseImagesApiTool,
-            desc: l10n.modelDetailSheetUseImagesApiToolDescription,
-            value: _useImagesApi,
-            onChanged: (v) => setState(() => _useImagesApi = v),
+        if (_output.contains(Modality.image))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            child: _ToolTile(
+              title: l10n.modelDetailSheetUseImagesApiTool,
+              desc: l10n.modelDetailSheetUseImagesApiToolDescription,
+              value: _useImagesApi,
+              onChanged: (v) => setState(() => _useImagesApi = v),
+            ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: _ToolTile(
-            title: l10n.modelDetailSheetUseAspectRatioParamTool,
-            desc: l10n.modelDetailSheetUseAspectRatioParamToolDescription,
-            value: _useAspectRatioParam,
-            onChanged: (v) => setState(() => _useAspectRatioParam = v),
+        if (_output.contains(Modality.image))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: _ToolTile(
+              title: l10n.modelDetailSheetUseAspectRatioParamTool,
+              desc: l10n.modelDetailSheetUseAspectRatioParamToolDescription,
+              value: _useAspectRatioParam,
+              onChanged: (v) => setState(() => _useAspectRatioParam = v),
+            ),
           ),
-        ),
         if (cfg.useResponseApi != true)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
@@ -719,7 +727,7 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
       'abilities': _abilities.map((e) => e == ModelAbility.reasoning ? 'reasoning' : 'tool').toList(),
       'headers': headers,
       'body': bodies,
-      'useImagesApi': _useImagesApi,
+      if (!_useImagesApi) 'useImagesApi': false,
       'useAspectRatioParam': _useAspectRatioParam,
       if (builtInTools.isNotEmpty) 'builtInTools': builtInTools,
     };

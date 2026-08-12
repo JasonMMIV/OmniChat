@@ -73,7 +73,10 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody> with SingleT
 
   // Route this model through the standalone OpenAI Images API
   // (/images/generations + /images/edits) instead of chat completions.
-  bool _useImagesApi = false;
+  // Defaults ON for image-output models (the only models that see the toggle);
+  // stored as `useImagesApi: false` only when explicitly turned off.
+  bool _useImagesApi = true;
+
   // Pass the aspect-ratio string directly as `aspect_ratio` for providers
   // that natively support it (e.g. Nano Banana 2) instead of `size`.
   bool _useAspectRatioParam = false;
@@ -153,7 +156,8 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody> with SingleT
         // OpenAI tools
         _openaiCodeInterpreterTool = builtInSet.contains(BuiltInToolNames.codeInterpreter);
         _openaiImageGenerationTool = builtInSet.contains(BuiltInToolNames.imageGeneration);
-        _useImagesApi = (ov['useImagesApi'] == true);
+        final imApi = ov['useImagesApi'];
+        _useImagesApi = imApi is bool ? imApi : true;
         _useAspectRatioParam = (ov['useAspectRatioParam'] == true);
       }
     }
@@ -535,20 +539,21 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody> with SingleT
           onChanged: (v) => setState(() => _googleYoutubeTool = v),
         ),
       ] else if (_providerKind == ProviderKind.openai) ...[
-        _ToolTile(
-          title: l10n.modelDetailSheetUseImagesApiTool,
-          desc: l10n.modelDetailSheetUseImagesApiToolDescription,
-          value: _useImagesApi,
-          onChanged: (v) => setState(() => _useImagesApi = v),
-        ),
-        const SizedBox(height: 8),
-        _ToolTile(
-          title: l10n.modelDetailSheetUseAspectRatioParamTool,
-          desc: l10n.modelDetailSheetUseAspectRatioParamToolDescription,
-          value: _useAspectRatioParam,
-          onChanged: (v) => setState(() => _useAspectRatioParam = v),
-        ),
-        const SizedBox(height: 8),
+        if (_output.contains(Modality.image))
+          _ToolTile(
+            title: l10n.modelDetailSheetUseImagesApiTool,
+            desc: l10n.modelDetailSheetUseImagesApiToolDescription,
+            value: _useImagesApi,
+            onChanged: (v) => setState(() => _useImagesApi = v),
+          ),
+        if (_output.contains(Modality.image))
+          _ToolTile(
+            title: l10n.modelDetailSheetUseAspectRatioParamTool,
+            desc: l10n.modelDetailSheetUseAspectRatioParamToolDescription,
+            value: _useAspectRatioParam,
+            onChanged: (v) => setState(() => _useAspectRatioParam = v),
+          ),
+        if (_output.contains(Modality.image)) const SizedBox(height: 8),
         _ToolTile(
           title: l10n.modelDetailSheetOpenaiCodeInterpreterTool,
           desc: l10n.modelDetailSheetOpenaiCodeInterpreterToolDescription,
@@ -620,7 +625,7 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody> with SingleT
       'abilities': _abilities.map((e) => e == ModelAbility.reasoning ? 'reasoning' : 'tool').toList(),
       'headers': headers,
       'body': bodies,
-      'useImagesApi': _useImagesApi,
+      if (!_useImagesApi) 'useImagesApi': false,
       'useAspectRatioParam': _useAspectRatioParam,
       'builtInTools': builtInTools,
     };

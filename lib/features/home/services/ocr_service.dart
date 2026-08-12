@@ -56,8 +56,8 @@ class OcrService {
 
     final cfg = settings.getProviderConfig(prov);
 
-    // 图片模型无法做 OCR（Images API 只出图），直接返回空文本（F11）
-    if (ChatApiService.shouldUseOpenAIImagesApi(cfg, model)) return '';
+    // 图片模型无法做 OCR（输出的是图片，无论走 Images API 还是聊天补全），直接返回空文本（F11）
+    if (ChatApiService.isOpenAIImageOutputModel(cfg, model)) return '';
 
     final messages = <Map<String, dynamic>>[
       {
