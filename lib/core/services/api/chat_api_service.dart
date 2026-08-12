@@ -7381,11 +7381,19 @@ class ChatApiService {
     return ov['useImagesApi'] != false;
   }
 
-  static bool _supportsOpenAIImageEdits(String modelId) {
-    final normalized = modelId.toLowerCase();
-    return normalized.startsWith('gpt-image-') ||
-        normalized.startsWith('chatgpt-image-') ||
-        normalized == 'dall-e-2';
+  /// Whether the model supports image-to-image editing via /images/edits:
+  /// effective input **and** output modality both include image (configured in
+  /// the model basic-settings page; falls back to [ModelRegistry.infer]).
+  ///
+  /// Text-to-image-only models (e.g. dall-e-3, sensenova-u1-fast) have a
+  /// text-only input, so they fail fast instead of sending an unsupported
+  /// edit request. No id whitelist — the user-configured modalities are the
+  /// single source of truth.
+  static bool isOpenAIImageEditModel(ProviderConfig cfg, String modelId) {
+    if (_apiKind(cfg) != ProviderKind.openai) return false;
+    final info = _effectiveModelInfo(cfg, modelId);
+    return info.input.contains(Modality.image) &&
+        info.output.contains(Modality.image);
   }
 
   static Uri _openAIImagesUrl(ProviderConfig config, String path) {
@@ -7409,9 +7417,9 @@ class ChatApiService {
     final outputMime = _openAIImagesOutputMime(config, modelId, extraBody);
     final upstreamModelId = _apiModelId(config, modelId);
     if (input.imageRefs.isNotEmpty &&
-        !_supportsOpenAIImageEdits(upstreamModelId)) {
+        !isOpenAIImageEditModel(config, modelId)) {
       throw UnsupportedError(
-        'OpenAI Images API model $upstreamModelId does not support image edits with input images.',
+        'OpenAI Images API model $upstreamModelId does not support image edits with input images (its input modality is text-only).',
       );
     }
     final response = input.imageRefs.isEmpty

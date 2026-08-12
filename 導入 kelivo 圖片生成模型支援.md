@@ -81,7 +81,7 @@ if (kind == ProviderKind.openai &&
 | `_ImageRef`（kelivo 自帶 `mime` 欄位） | 不另定義，沿用 OmniChat `_ImageRef`（`:7320`，有 `.kind`/`.src`）。需要 mime 時以 `_mimeFromPath(ref.src)`/`_mimeFromDataUrl(ref.src)` 推導，避免改動 `_ImageRef` |
 | `http.Client client` | 沿用 `_clientFor` 回傳的 `http.Client`（`:773`）。**`DioHttpClient.send(BaseRequest)` 已實作**（`request.finalize().toBytes()` 全量緩衝後走 Dio，`RequestLogger` 相容），`client.post` / `client.send(MultipartRequest)` 皆相容，**不需獨立 `http.Client()` fallback**（獨立 client 反而會繞過 proxy 設定）。註記：multipart body 全量 in-memory，一般圖片（數 MB）可接受（F10） |
 
-需移植的方法清單（全改為 `static`，貼進 `ChatApiService`）： **`shouldUseOpenAIImagesApi`**（公開，F2）、`_supportsOpenAIImageEdits`、`_openAIImagesUrl`、`_sendOpenAIImagesStream`、`_sendOpenAIImageGeneration`、`_sendOpenAIImageEdit`、`_lastOpenAIImagePrompt`、`_openAIImagesInput`、`_lastAssistantImageBefore`、`_extractOpenAIImageRefs`、`_addOpenAIStructuredImageRefs`、`_addOpenAIStructuredImageData`、`_imageRefFromSource`、`_tryOpenAIImageMultipartFile`、`_openAIImageMediaType`、`_openAIImagesJsonHeaders`、`_openAIImagesMultipartHeaders`、`_applyOpenAIImagesExtraBody`、`_openAIImagesOutputMime`、`_decodeOpenAIImagesResponse`、`_openAIImagesResponseToMarkdown`、`_openAIImagesUsage`、**`_imageApiSizeParam`**（步驟 7d），以及小類別 `_OpenAIImagesInput`。（生成白名單 `_supportsOpenAIImageGenerations` 已刪除——不再以 id 白名單路由，改由輸出模式判斷。）
+需移植的方法清單（全改為 `static`，貼進 `ChatApiService`）： **`shouldUseOpenAIImagesApi`**（公開，F2）、**`isOpenAIImageEditModel`**（公開，`2026-08-13`：**編輯 id 白名單已移除**，改以「有效 input 與 output 皆含圖片」判斷）、`_openAIImagesUrl`、`_sendOpenAIImagesStream`、`_sendOpenAIImageGeneration`、`_sendOpenAIImageEdit`、`_lastOpenAIImagePrompt`、`_openAIImagesInput`、`_lastAssistantImageBefore`、`_extractOpenAIImageRefs`、`_addOpenAIStructuredImageRefs`、`_addOpenAIStructuredImageData`、`_imageRefFromSource`、`_tryOpenAIImageMultipartFile`、`_openAIImageMediaType`、`_openAIImagesJsonHeaders`、`_openAIImagesMultipartHeaders`、`_applyOpenAIImagesExtraBody`、`_openAIImagesOutputMime`、`_decodeOpenAIImagesResponse`、`_openAIImagesResponseToMarkdown`、`_openAIImagesUsage`、**`_imageApiSizeParam`**（步驟 7d），以及小類別 `_OpenAIImagesInput`。（生成白名單 `_supportsOpenAIImageGenerations` 已刪除；編輯白名單 `_supportsOpenAIImageEdits` 亦已刪除——都不再以 id 白名單決定，改由模式判斷。）
 
 **兩個公開函式實作**（F2；`2026-08-13 最終定案`）：
 
@@ -100,7 +100,7 @@ static bool shouldUseOpenAIImagesApi(ProviderConfig cfg, String modelId) {
 }
 ```
 
-`_effectiveModelInfo`（既有，`:340`）＝ per-model override 的 `type`/`input`/`output`/`abilities` 覆蓋 `ModelRegistry.infer` 推斷結果——即**模型基本設定頁勾選的輸出模式**優先，未設定時由 `ModelRegistry.infer` 依 id 推斷（`dall-e-*`/`sensenova-u1-fast` 及含 `image` 的 id → 輸出含圖片）。編輯白名單 `_supportsOpenAIImageEdits`：`gpt-image-` / `chatgpt-image-` / `dall-e-2`（不含 dall-e-3）。
+`_effectiveModelInfo`（既有，`:340`）＝ per-model override 的 `type`/`input`/`output`/`abilities` 覆蓋 `ModelRegistry.infer` 推斷結果——即**模型基本設定頁勾選的模式**優先，未設定時由 `ModelRegistry.infer` 依 id 推斷。**`isOpenAIImageEditModel`**（公開）＝ `_apiKind(cfg) == openai` 且有效 input **與** output 皆含圖片——輸入含圖片（且輸出含圖片）→ 送 `/images/edits`；否則 **送前快速失敗**（保留 `UnsupportedError` 清晰訊息，`2026-08-13`：不做 4xx 自動降級，錯誤原因很多不能僅憑狀態碼判定）。**infer 修正（`2026-08-13`）**：`dall-e-3`/`sensenova-u1-fast` 改為**僅輸出含圖片**（input 純文字 → 非編輯模型），`dall-e-2` 維持 input+output（OpenAI 支援其 edits 端點）；使用者顯式勾選 input 圖片可覆寫推論。
 
 **收尾 chunk 契約（F12）**：`_sendOpenAIImagesStream` 回傳單一 `ChatStreamChunk`（`content`＝`![image](path)` markdown、`isDone: true`、`totalTokens`＝`_openAIImagesUsage` 提供；消費端 `_handleStreamData`/`_handleStreamDone` 依賴此契約）。`_openAIImagesUsage` 必須 **null 安全**：dall-e 系列不回傳 token usage（→ `totalTokens: 0`、`usage: null`）；gpt-image-1 有 `usage.input_tokens`/`output_tokens`/`total_tokens`（含 images tokens），有則映射、無則 0。
 
@@ -215,7 +215,7 @@ if (id.contains('image') ||
 
 1. **custom body 優先**：`_applyOpenAIImagesExtraBody` 之後，若 body 已含 `size`／`image_size`／`aspect_ratio` 任一鍵 → 回傳空 map，不注入（使用者進階分頁的自訂 key-value 覆蓋自動轉換；與風險章節一致）。
 2. **`useAspectRatioParam == true`（per-model 覆寫旗標，設計決策 5）** → 回傳 `{'aspect_ratio': ratio}`（原生支援 `aspect_ratio` 的供應商，如 Nano Banana 2）。
-3. **其他走 Images API 的模型**（輸出含圖片，含依 id 推斷的白名單族系）→ 依表格回傳 `{'size': ...}`：
+3. **其他走 Images API 的模型**（輸出含圖片，含依 id 推斷的圖片家族）→ 依表格回傳 `{'size': ...}`：
 
 | 比例 | `size` 值 | 備註 |
 |------|----------|------|
@@ -251,7 +251,7 @@ if (id.contains('image') ||
 | `lib/icons/lucide_adapter.dart` | 步驟 7c（新增 `Lucide.Ratio = frame` 映射，F1） |
 | `lib/features/home/utils/chat_input_button_catalog.dart` | 步驟 7c（新增 `imageRatio` 規格 + **default order 插入 model 之後，F9**） |
 | `lib/features/home/widgets/chat_input_bar.dart` | 步驟 7c（圖片模型判斷、比例按鈕渲染、選項 sheet/popover；按鈕以 `Lucide.Ratio` 圖示＋tooltip 顯示目前比例，overflow 到 `+` 選單時回退居中 dialog） |
-| `test/openai_images_api_test.dart` | 新增（移植 kelivo 案例 + `isOpenAIImageOutputModel`（含開關關閉仍為圖片模型）/shouldUseOpenAIImagesApi（id 推斷/override output 覆寫/`useImagesApi: false` 關閉/預設開啟/非圖片模型不可 opt-in/非 OpenAI kind 拒絕）/開關關閉走 `/chat/completions` 且注入 size/比例 size 注入/dall-e-3 回退附註/useAspectRatioParam/custom body 優先，共 26 案例） |
+| `test/openai_images_api_test.dart` | 新增（移植 kelivo 案例 + `isOpenAIImageOutputModel`（含開關關閉仍為圖片模型）/`isOpenAIImageEditModel`（input+output 為編輯模型、dall-e-3/sensenova 非編輯、override 覆寫、非 OpenAI kind 拒絕）/shouldUseOpenAIImagesApi（id 推斷/override output 覆寫/`useImagesApi: false` 關閉/預設開啟/非圖片模型不可 opt-in/非 OpenAI kind 拒絕）/開關關閉走 `/chat/completions` 且注入 size/比例 size 注入/dall-e-3 回退附註/useAspectRatioParam/custom body 優先，共 31 案例） |
 | `test/settings_provider_image_ratio_test.dart` | 新增（`imageAspectRatio` 預設/round-trip/notify，3 案例） |
 | `lib/core/services/chat/chat_turn_service.dart` | 步驟 1（傳 `imageAspectRatio`，F3） |
 | `lib/features/home/controllers/chat_actions.dart` | 步驟 1（兩處傳 `imageAspectRatio`，F3） |
