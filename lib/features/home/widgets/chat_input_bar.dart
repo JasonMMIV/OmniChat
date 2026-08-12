@@ -20,6 +20,7 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/services/search/search_service.dart';
 import '../../../core/services/api/builtin_tools.dart';
+import '../../../core/services/api/chat_api_service.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../utils/app_directories.dart';
@@ -164,6 +165,7 @@ class _ChatInputBarState extends State<ChatInputBar>
   static const Duration _repeatInitialDelay = Duration(milliseconds: 300);
   static const Duration _repeatPeriod = Duration(milliseconds: 35);
   // Anchor for the responsive overflow menu on the left action bar
+  final GlobalKey _imageRatioAnchorKey = GlobalKey();
   final GlobalKey _leftOverflowAnchorKey = GlobalKey(
     debugLabel: 'left-overflow-anchor',
   );
@@ -841,6 +843,49 @@ class _ChatInputBarState extends State<ChatInputBar>
           final cfg = (currentProviderKey != null)
               ? settings.getProviderConfig(currentProviderKey)
               : null;
+
+          // Image ratio button (only for models routed via the standalone
+          // OpenAI Images API). Shares the same routing decision as
+          // sendMessageStream via ChatApiService.shouldUseOpenAIImagesApi.
+          final imageRatio = settings.imageAspectRatio;
+          if (cfg != null &&
+              currentModelId != null &&
+              ChatApiService.shouldUseOpenAIImagesApi(cfg, currentModelId)) {
+            actions.add(
+              _OverflowAction(
+                id: 'imageRatio',
+                width: normalButtonW,
+                builder: () => _CompactIconButton(
+                  key: _imageRatioAnchorKey,
+                  tooltip:
+                      '${l10n.chatInputBarImageRatioTooltip}: $imageRatio',
+                  icon: Lucide.Ratio,
+                  active: imageRatio != '1:1',
+                  onTap: () => _showImageRatioPicker(
+                    context,
+                    current: imageRatio,
+                    onSelected: (r) {
+                      final s = context.read<SettingsProvider>();
+                      unawaited(s.setImageAspectRatio(r));
+                    },
+                  ),
+                ),
+                menu: DesktopContextMenuItem(
+                  icon: Lucide.Ratio,
+                  label: l10n.chatInputBarImageRatioTooltip,
+                  onTap: () => _showImageRatioPicker(
+                    context,
+                    current: imageRatio,
+                    onSelected: (r) {
+                      final s = context.read<SettingsProvider>();
+                      unawaited(s.setImageAspectRatio(r));
+                    },
+                  ),
+                ),
+              ),
+            );
+          }
+
           // Check built-in tools state using helper
           final toolsState = BuiltInToolsHelper.getActiveTools(
             cfg: cfg,
@@ -1429,6 +1474,89 @@ class _ChatInputBarState extends State<ChatInputBar>
     );
   }
 
+  // Opens the image aspect-ratio picker: bottom sheet on mobile, anchored
+  // popover on desktop. Writes the selection via SettingsProvider.
+  Future<void> _showImageRatioPicker(
+    BuildContext context, {
+    required String current,
+    required ValueChanged<String> onSelected,
+  }) async {
+    final isDesktop =
+        Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+    if (!isDesktop) {
+      await showModalBottomSheet<void>(
+        context: context,
+        builder: (ctx) => _ImageRatioOptionsSheet(
+          current: current,
+          onSelected: onSelected,
+        ),
+      );
+      return;
+    }
+    final shown = await _showImageRatioPopover(
+      context,
+      current: current,
+      onSelected: onSelected,
+    );
+    // Overflowed (button hidden behind the `+` menu) -> anchored popover has no
+    // anchor, fall back to a centered dialog.
+    if (shown || !mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        child: _ImageRatioOptionsSheet(
+          current: current,
+          onSelected: onSelected,
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _showImageRatioPopover(
+    BuildContext context, {
+    required String current,
+    required ValueChanged<String> onSelected,
+  }) async {
+    final overlay = Overlay.of(context);
+    if (overlay == null) return false;
+    final keyContext = _imageRatioAnchorKey.currentContext;
+    if (keyContext == null) return false;
+    final box = keyContext.findRenderObject() as RenderBox?;
+    if (box == null) return false;
+    final offset = box.localToGlobal(Offset.zero);
+    final size = box.size;
+    final anchorRect = Rect.fromLTWH(
+      offset.dx,
+      offset.dy,
+      size.width,
+      size.height,
+    );
+    final completer = Completer<void>();
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (ctx) => _ImageRatioPopover(
+        anchorRect: anchorRect,
+        current: current,
+        onSelect: (r) {
+          try {
+            entry.remove();
+          } catch (_) {}
+          if (!completer.isCompleted) completer.complete();
+          onSelected(r);
+        },
+        onClose: () {
+          try {
+            entry.remove();
+          } catch (_) {}
+          if (!completer.isCompleted) completer.complete();
+        },
+      ),
+    );
+    overlay.insert(entry);
+    await completer.future;
+    return true;
+  }
+
   String _inferMimeByExtension(String name) {
     final lower = name.toLowerCase();
     // Video
@@ -1981,6 +2109,196 @@ class _ChatInputBarState extends State<ChatInputBar>
   }
 }
 
+// ============================================================================
+// Image aspect-ratio picker (bottom sheet / anchored popover)
+// ============================================================================
+
+class _ImageRatioOption {
+  const _ImageRatioOption(this.ratio, this.aspect, this.label);
+
+  final String ratio; // e.g. '16:9'
+  final double aspect; // width / height
+  final String label;
+}
+
+List<_ImageRatioOption> _imageRatioOptions(AppLocalizations l10n) => [
+  _ImageRatioOption('1:1', 1.0, l10n.imageRatioOption1x1),
+  _ImageRatioOption('3:4', 3 / 4, l10n.imageRatioOption3x4),
+  _ImageRatioOption('4:3', 4 / 3, l10n.imageRatioOption4x3),
+  _ImageRatioOption('16:9', 16 / 9, l10n.imageRatioOption16x9),
+  _ImageRatioOption('9:16', 9 / 16, l10n.imageRatioOption9x16),
+];
+
+class _ImageRatioPreviewBox extends StatelessWidget {
+  const _ImageRatioPreviewBox({required this.aspect});
+
+  final double aspect;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    const double height = 16;
+    return Container(
+      width: math.max(height * aspect, 8),
+      height: height,
+      decoration: BoxDecoration(
+        border: Border.all(color: cs.onSurface.withOpacity(0.4), width: 1),
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
+}
+
+class _ImageRatioOptionRow extends StatelessWidget {
+  const _ImageRatioOptionRow({
+    required this.option,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _ImageRatioOption option;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            _ImageRatioPreviewBox(aspect: option.aspect),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                option.label,
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+            if (selected)
+              Icon(Lucide.Check, size: 18, color: cs.primary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ImageRatioOptionsSheet extends StatelessWidget {
+  const _ImageRatioOptionsSheet({
+    required this.current,
+    required this.onSelected,
+  });
+
+  final String current;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final options = _imageRatioOptions(l10n);
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text(
+              l10n.chatInputBarImageRatioTooltip,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ),
+          for (final o in options)
+            _ImageRatioOptionRow(
+              option: o,
+              selected: o.ratio == current,
+              onTap: () {
+                Navigator.of(context).pop();
+                onSelected(o.ratio);
+              },
+            ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+class _ImageRatioPopover extends StatelessWidget {
+  const _ImageRatioPopover({
+    required this.anchorRect,
+    required this.current,
+    required this.onSelect,
+    required this.onClose,
+  });
+
+  final Rect anchorRect;
+  final String current;
+  final ValueChanged<String> onSelect;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final options = _imageRatioOptions(l10n);
+    final screen = MediaQuery.of(context).size;
+    const double panelWidth = 220;
+    final double left = (anchorRect.center.dx - panelWidth / 2).clamp(
+      8.0,
+      screen.width - panelWidth - 8.0,
+    );
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: onClose,
+          ),
+        ),
+        Positioned(
+          left: left,
+          top: anchorRect.bottom + 6,
+          width: panelWidth,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              decoration: BoxDecoration(
+                color: cs.surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: cs.outlineVariant.withOpacity(0.5)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.18),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final o in options)
+                    _ImageRatioOptionRow(
+                      option: o,
+                      selected: o.ratio == current,
+                      onTap: () => onSelect(o.ratio),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 // Internal data model for responsive overflow actions on desktop
 class _OverflowAction {
   final String id;
@@ -1998,6 +2316,7 @@ class _OverflowAction {
 // New compact button for the integrated input bar
 class _CompactIconButton extends StatelessWidget {
   const _CompactIconButton({
+    super.key,
     required this.icon,
     this.onTap,
     this.onLongPress,

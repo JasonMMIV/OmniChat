@@ -1630,6 +1630,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelDetailSheetOpenaiImageGenerationToolDescription => '启用图像生成工具';
 
   @override
+  String get modelDetailSheetUseImagesApiTool => '使用 Images API';
+
+  @override
+  String get modelDetailSheetUseImagesApiToolDescription =>
+      '改走 /images/generations 与 /images/edits 端点而非聊天补全（dall-e、gpt-image、FLUX 等）';
+
+  @override
+  String get modelDetailSheetUseAspectRatioParamTool => '使用 aspect_ratio 参数';
+
+  @override
+  String get modelDetailSheetUseAspectRatioParamToolDescription =>
+      '对原生支持 aspect_ratio 的供应商（如 Nano Banana 2）直接传所选比例字符串，而不是转换为 size';
+
+  @override
   String get modelDetailSheetBuiltinToolsUnsupportedHint => '当前供应商不支持这些内置工具。';
 
   @override
@@ -3570,6 +3584,24 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatInputBarAiTeamTooltip => 'AI 团队';
+
+  @override
+  String get chatInputBarImageRatioTooltip => '图片比例';
+
+  @override
+  String get imageRatioOption1x1 => '1:1 正方形';
+
+  @override
+  String get imageRatioOption3x4 => '3:4 竖幅';
+
+  @override
+  String get imageRatioOption4x3 => '4:3 横幅';
+
+  @override
+  String get imageRatioOption16x9 => '16:9 宽屏';
+
+  @override
+  String get imageRatioOption9x16 => '9:16 竖式';
 
   @override
   String get aiTeamTitle => 'AI 团队';
@@ -5976,6 +6008,20 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get modelDetailSheetOpenaiImageGenerationToolDescription => '启用图像生成工具';
 
   @override
+  String get modelDetailSheetUseImagesApiTool => '使用 Images API';
+
+  @override
+  String get modelDetailSheetUseImagesApiToolDescription =>
+      '改走 /images/generations 与 /images/edits 端点而非聊天补全（dall-e、gpt-image、FLUX 等）';
+
+  @override
+  String get modelDetailSheetUseAspectRatioParamTool => '使用 aspect_ratio 参数';
+
+  @override
+  String get modelDetailSheetUseAspectRatioParamToolDescription =>
+      '对原生支持 aspect_ratio 的供应商（如 Nano Banana 2）直接传所选比例字符串，而不是转换为 size';
+
+  @override
   String get modelDetailSheetBuiltinToolsUnsupportedHint => '当前供应商不支持这些内置工具。';
 
   @override
@@ -7892,6 +7938,24 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get chatInputBarAiTeamTooltip => 'AI 团队';
+
+  @override
+  String get chatInputBarImageRatioTooltip => '图片比例';
+
+  @override
+  String get imageRatioOption1x1 => '1:1 正方形';
+
+  @override
+  String get imageRatioOption3x4 => '3:4 竖幅';
+
+  @override
+  String get imageRatioOption4x3 => '4:3 横幅';
+
+  @override
+  String get imageRatioOption16x9 => '16:9 宽屏';
+
+  @override
+  String get imageRatioOption9x16 => '9:16 竖式';
 
   @override
   String get aiTeamTitle => 'AI 团队';
@@ -10218,6 +10282,20 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get modelDetailSheetOpenaiImageGenerationToolDescription => '啟用圖像生成工具';
 
   @override
+  String get modelDetailSheetUseImagesApiTool => '使用 Images API';
+
+  @override
+  String get modelDetailSheetUseImagesApiToolDescription =>
+      '改走 /images/generations 與 /images/edits 端點而非聊天補全（dall-e、gpt-image、FLUX 等）';
+
+  @override
+  String get modelDetailSheetUseAspectRatioParamTool => '使用 aspect_ratio 參數';
+
+  @override
+  String get modelDetailSheetUseAspectRatioParamToolDescription =>
+      '對原生支援 aspect_ratio 的供應商（如 Nano Banana 2）直接傳所選比例字串，而不是轉換為 size';
+
+  @override
   String get modelDetailSheetBuiltinToolsUnsupportedHint => '目前供應商不支援這些內建工具。';
 
   @override
@@ -12150,6 +12228,24 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatInputBarAiTeamTooltip => 'AI 團隊';
+
+  @override
+  String get chatInputBarImageRatioTooltip => '圖片比例';
+
+  @override
+  String get imageRatioOption1x1 => '1:1 正方形';
+
+  @override
+  String get imageRatioOption3x4 => '3:4 直幅';
+
+  @override
+  String get imageRatioOption4x3 => '4:3 橫幅';
+
+  @override
+  String get imageRatioOption16x9 => '16:9 寬螢幕';
+
+  @override
+  String get imageRatioOption9x16 => '9:16 直式';
 
   @override
   String get aiTeamTitle => 'AI 團隊';

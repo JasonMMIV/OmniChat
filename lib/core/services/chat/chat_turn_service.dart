@@ -275,6 +275,7 @@ class ChatTurnService {
       extraHeaders: null,
       extraBody: null,
       stream: true,
+      imageAspectRatio: null,
     );
     handle._sub = stream.listen(
       (chunk) {

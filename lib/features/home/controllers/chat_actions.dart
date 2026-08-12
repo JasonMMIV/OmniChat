@@ -603,6 +603,7 @@ class ChatActions {
         extraBody: ctx.extraBody,
         stream: ctx.streamOutput,
         requestId: conversationId,
+        imageAspectRatio: ctx.settings.imageAspectRatio,
       );
 
       await _conversationStreams[conversationId]?.cancel();
@@ -933,6 +934,7 @@ class ChatActions {
       extraBody: extraBody,
       stream: streamOutput,
       requestId: '${conversationId}_proposer',
+      imageAspectRatio: null,
     );
 
     final proposerSub = stream.listen(

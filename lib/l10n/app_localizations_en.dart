@@ -1643,6 +1643,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelDetailSheetOpenaiImageGenerationToolDescription => 'DALL-E';
 
   @override
+  String get modelDetailSheetUseImagesApiTool => 'Use Images API';
+
+  @override
+  String get modelDetailSheetUseImagesApiToolDescription =>
+      'Route this model to /images/generations and /images/edits instead of chat completions (dall-e, gpt-image, FLUX, etc.)';
+
+  @override
+  String get modelDetailSheetUseAspectRatioParamTool =>
+      'Use aspect_ratio param';
+
+  @override
+  String get modelDetailSheetUseAspectRatioParamToolDescription =>
+      'Send the selected ratio as the aspect_ratio field for providers that support it natively (e.g. Nano Banana 2), instead of converting to size';
+
+  @override
   String get modelDetailSheetBuiltinToolsUnsupportedHint => 'Unsupported';
 
   @override
@@ -3580,6 +3595,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatInputBarAiTeamTooltip => 'AI Team';
+
+  @override
+  String get chatInputBarImageRatioTooltip => 'Image Ratio';
+
+  @override
+  String get imageRatioOption1x1 => '1:1 Square';
+
+  @override
+  String get imageRatioOption3x4 => '3:4 Portrait';
+
+  @override
+  String get imageRatioOption4x3 => '4:3 Landscape';
+
+  @override
+  String get imageRatioOption16x9 => '16:9 Widescreen';
+
+  @override
+  String get imageRatioOption9x16 => '9:16 Vertical';
 
   @override
   String get aiTeamTitle => 'AI Team';

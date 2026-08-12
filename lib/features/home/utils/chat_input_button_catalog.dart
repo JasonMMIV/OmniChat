@@ -25,6 +25,11 @@ const List<ChatInputButtonSpec> chatInputButtonCatalog = [
     label: _modelLabel,
   ),
   ChatInputButtonSpec(
+    id: 'imageRatio',
+    icon: Lucide.Ratio,
+    label: _imageRatioLabel,
+  ),
+  ChatInputButtonSpec(
     id: 'search',
     icon: Lucide.Globe,
     label: _searchLabel,
@@ -94,6 +99,7 @@ const List<ChatInputButtonSpec> chatInputButtonCatalog = [
 /// Default order matches the original fixed layout of the input bar.
 const List<String> chatInputButtonDefaultOrder = [
   'model',
+  'imageRatio',
   'search',
   'mcp',
   'quickPhrase',
@@ -149,3 +155,5 @@ String _instructionLabel(AppLocalizations l10n) =>
 String _voiceLabel(AppLocalizations l10n) => l10n.voiceChatButtonTooltip;
 String _contextLabel(AppLocalizations l10n) => l10n.contextManagement;
 String _ocrLabel(AppLocalizations l10n) => l10n.chatInputBarOcrTooltip;
+String _imageRatioLabel(AppLocalizations l10n) =>
+    l10n.chatInputBarImageRatioTooltip;
