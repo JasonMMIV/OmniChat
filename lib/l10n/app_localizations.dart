@@ -6998,6 +6998,24 @@ abstract class AppLocalizations {
   /// **'9:16 Vertical'**
   String get imageRatioOption9x16;
 
+  /// No description provided for @imageRatioOption2x3.
+  ///
+  /// In en, this message translates to:
+  /// **'2:3 Portrait'**
+  String get imageRatioOption2x3;
+
+  /// No description provided for @imageRatioOption3x2.
+  ///
+  /// In en, this message translates to:
+  /// **'3:2 Landscape'**
+  String get imageRatioOption3x2;
+
+  /// No description provided for @imageRatioOptionAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto (follow source)'**
+  String get imageRatioOptionAuto;
+
   /// No description provided for @aiTeamTitle.
   ///
   /// In en, this message translates to:

@@ -3604,6 +3604,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get imageRatioOption9x16 => '9:16 竖式';
 
   @override
+  String get imageRatioOption2x3 => '2:3 竖幅';
+
+  @override
+  String get imageRatioOption3x2 => '3:2 横幅';
+
+  @override
+  String get imageRatioOptionAuto => '自动（依来源）';
+
+  @override
   String get aiTeamTitle => 'AI 团队';
 
   @override
@@ -7958,6 +7967,15 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get imageRatioOption9x16 => '9:16 竖式';
 
   @override
+  String get imageRatioOption2x3 => '2:3 竖幅';
+
+  @override
+  String get imageRatioOption3x2 => '3:2 横幅';
+
+  @override
+  String get imageRatioOptionAuto => '自动（依来源）';
+
+  @override
   String get aiTeamTitle => 'AI 团队';
 
   @override
@@ -12246,6 +12264,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get imageRatioOption9x16 => '9:16 直式';
+
+  @override
+  String get imageRatioOption2x3 => '2:3 直幅';
+
+  @override
+  String get imageRatioOption3x2 => '3:2 橫幅';
+
+  @override
+  String get imageRatioOptionAuto => '自動（依來源）';
 
   @override
   String get aiTeamTitle => 'AI 團隊';

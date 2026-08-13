@@ -522,6 +522,170 @@ void main() {
       expect(chunks.single.content, contains('dall-e-3 does not support 3:4'));
     });
 
+    test('dall-e-3 falls back 2:3 to 1024x1792 and notes the reply',
+        () async {
+      late Map<String, dynamic> requestBody;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() async {
+        await server.close(force: true);
+      });
+
+      server.listen((request) async {
+        requestBody =
+            jsonDecode(await utf8.decoder.bind(request).join())
+                as Map<String, dynamic>;
+        request.response.statusCode = HttpStatus.ok;
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(
+          jsonEncode({
+            'data': [
+              {'url': 'https://example.com/dalle-23.png'},
+            ],
+          }),
+        );
+        await request.response.close();
+      });
+
+      final chunks = await ChatApiService.sendMessageStream(
+        config: _openAiConfig(_baseUrl(server)),
+        modelId: 'dall-e-3',
+        messages: const [
+          {'role': 'user', 'content': 'a portrait'},
+        ],
+        imageAspectRatio: '2:3',
+      ).toList();
+
+      expect(requestBody['size'], '1024x1792');
+      expect(chunks.single.content, contains('dall-e-3 does not support 2:3'));
+    });
+
+    test('maps 2:3 and 3:2 to gpt-image sizes', () async {
+      late List<Map<String, dynamic>> bodies;
+      bodies = [];
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() async {
+        await server.close(force: true);
+      });
+
+      server.listen((request) async {
+        bodies.add(jsonDecode(await utf8.decoder.bind(request).join())
+            as Map<String, dynamic>);
+        request.response.statusCode = HttpStatus.ok;
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(
+          jsonEncode({
+            'data': [
+              {'url': 'https://example.com/size.png'},
+            ],
+          }),
+        );
+        await request.response.close();
+      });
+
+      await ChatApiService.sendMessageStream(
+        config: _openAiConfig(_baseUrl(server)),
+        modelId: 'gpt-image-1',
+        messages: const [
+          {'role': 'user', 'content': 'a cat'},
+        ],
+        imageAspectRatio: '2:3',
+      ).toList();
+      await ChatApiService.sendMessageStream(
+        config: _openAiConfig(_baseUrl(server)),
+        modelId: 'gpt-image-1',
+        messages: const [
+          {'role': 'user', 'content': 'a cat'},
+        ],
+        imageAspectRatio: '3:2',
+      ).toList();
+
+      expect(bodies, hasLength(2));
+      expect(bodies[0]['size'], '1024x1536');
+      expect(bodies[1]['size'], '1536x1024');
+    });
+
+    test('auto ratio sends size auto for gpt-image models', () async {
+      late Map<String, dynamic> requestBody;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() async {
+        await server.close(force: true);
+      });
+
+      server.listen((request) async {
+        requestBody =
+            jsonDecode(await utf8.decoder.bind(request).join())
+                as Map<String, dynamic>;
+        request.response.statusCode = HttpStatus.ok;
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(
+          jsonEncode({
+            'data': [
+              {'url': 'https://example.com/auto-gpt.png'},
+            ],
+          }),
+        );
+        await request.response.close();
+      });
+
+      await ChatApiService.sendMessageStream(
+        config: _openAiConfig(
+          _baseUrl(server),
+          modelOverrides: const {
+            'gpt-image-1': {'useAspectRatioParam': true},
+          },
+        ),
+        modelId: 'gpt-image-1',
+        messages: const [
+          {'role': 'user', 'content': 'edit to match the source'},
+        ],
+        imageAspectRatio: 'auto',
+      ).toList();
+
+      expect(requestBody['size'], 'auto');
+      expect(requestBody.containsKey('aspect_ratio'), isFalse);
+    });
+
+    test('auto ratio omits size for non-gpt-image models', () async {
+      late Map<String, dynamic> requestBody;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() async {
+        await server.close(force: true);
+      });
+
+      server.listen((request) async {
+        requestBody =
+            jsonDecode(await utf8.decoder.bind(request).join())
+                as Map<String, dynamic>;
+        request.response.statusCode = HttpStatus.ok;
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(
+          jsonEncode({
+            'data': [
+              {'url': 'https://example.com/auto-dalle.png'},
+            ],
+          }),
+        );
+        await request.response.close();
+      });
+
+      await ChatApiService.sendMessageStream(
+        config: _openAiConfig(
+          _baseUrl(server),
+          modelOverrides: const {
+            'dall-e-3': {'useAspectRatioParam': true},
+          },
+        ),
+        modelId: 'dall-e-3',
+        messages: const [
+          {'role': 'user', 'content': 'a cat'},
+        ],
+        imageAspectRatio: 'auto',
+      ).toList();
+
+      expect(requestBody.containsKey('size'), isFalse);
+      expect(requestBody.containsKey('aspect_ratio'), isFalse);
+    });
+
     test('useAspectRatioParam override passes aspect_ratio through', () async {
       late Map<String, dynamic> requestBody;
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
