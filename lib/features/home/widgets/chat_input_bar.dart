@@ -1487,6 +1487,7 @@ class _ChatInputBarState extends State<ChatInputBar>
     if (!isDesktop) {
       await showModalBottomSheet<void>(
         context: context,
+        isScrollControlled: true,
         builder: (ctx) => _ImageRatioOptionsSheet(
           current: current,
           onSelected: onSelected,
@@ -2234,27 +2235,39 @@ class _ImageRatioOptionsSheet extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final options = _imageRatioOptions(l10n);
     return SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(
-              l10n.chatInputBarImageRatioTooltip,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
+      top: false,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.8,
+        ),
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Text(
+                  l10n.chatInputBarImageRatioTooltip,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              for (final o in options)
+                _ImageRatioOptionRow(
+                  option: o,
+                  selected: o.ratio == current,
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    onSelected(o.ratio);
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
           ),
-          for (final o in options)
-            _ImageRatioOptionRow(
-              option: o,
-              selected: o.ratio == current,
-              onTap: () {
-                Navigator.of(context).pop();
-                onSelected(o.ratio);
-              },
-            ),
-          const SizedBox(height: 8),
-        ],
+        ),
       ),
     );
   }
