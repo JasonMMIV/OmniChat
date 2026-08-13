@@ -131,7 +131,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     final l10n = AppLocalizations.of(context)!;
     bool _isUserAdded(String key) {
       const fixed = {
-        'KelivoIN', 'OpenAI', 'Gemini', 'SiliconFlow', 'OpenRouter',
+        'OpenAI', 'Gemini', 'SiliconFlow', 'OpenRouter',
         'DeepSeek', 'Tensdaq', 'AIhubmix', 'Aliyun', 'Zhipu AI', 'Claude', 'Grok', 'ByteDance',
       };
       return !fixed.contains(key);
@@ -426,44 +426,6 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       children: [
-        if (widget.keyName.toLowerCase() == 'kelivoin') ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: cs.primary.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: cs.primary.withOpacity(0.35)),
-            ),
-            child: Text.rich(
-              TextSpan(
-                text: 'Powered by ',
-                style: TextStyle(color: cs.onSurface.withOpacity(0.8)),
-                children: [
-                  TextSpan(
-                    text: 'Pollinations AI',
-                    style: TextStyle(
-                      color: cs.primary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    recognizer: TapGestureRecognizer()
-                      ..onTap = () async {
-                        final uri = Uri.parse('https://pollinations.ai');
-                        try {
-                          final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-                          if (!ok) {
-                            await launchUrl(uri);
-                          }
-                        } catch (_) {
-                          await launchUrl(uri);
-                        }
-                      },
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
         if (widget.keyName.toLowerCase() == 'tensdaq') ...[
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -561,7 +523,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         const SizedBox(height: 6),
         // Top iOS-style section card for key settings
         _iosSectionCard(children: [
-          if (widget.keyName.toLowerCase() != 'kelivoin') _providerKindRow(context),
+          _providerKindRow(context),
           _iosRow(
             context,
             label: l10n.providerDetailPageEnabledTitle,
@@ -707,12 +669,11 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           label: l10n.providerDetailPageNameLabel,
           controller: _nameCtrl,
           hint: widget.displayName,
-          enabled: widget.keyName.toLowerCase() != 'kelivoin',
           onChanged: (_) => _save(),
         ),
         const SizedBox(height: 12),
         if (!(_kind == ProviderKind.google && _vertexAI)) ...[
-          if (widget.keyName.toLowerCase() != 'kelivoin' && !_multiKeyEnabled) ...[
+          if (!_multiKeyEnabled) ...[
             _inputRow(
               context,
               label: l10n.multiKeyPageKey,
@@ -733,11 +694,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
             label: l10n.providerDetailPageApiBaseUrlLabel,
             controller: _baseCtrl,
             hint: ProviderConfig.defaultsFor(widget.keyName, displayName: widget.displayName).baseUrl,
-            enabled: widget.keyName.toLowerCase() != 'kelivoin',
             onChanged: (_) => _save(),
           ),
         ],
-        if ((_kind == ProviderKind.openai || _kind == ProviderKind.neuralwatt) && widget.keyName.toLowerCase() != 'kelivoin' && !_useResp) ...[
+        if ((_kind == ProviderKind.openai || _kind == ProviderKind.neuralwatt) && !_useResp) ...[
           const SizedBox(height: 12),
           _inputRow(
             context,
