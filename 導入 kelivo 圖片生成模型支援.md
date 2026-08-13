@@ -22,7 +22,7 @@ OmniChat 是 kelivo 的較舊 fork。它已經有「聊天模型內嵌出圖」�
 ## 設計決策（已與使用者確認；本版依 review 修正）
 
 1. **判斷拆兩層**（`2026-08-13 最終定案`）：不再使用 model-id 白名單。① **`isOpenAIImageOutputModel(cfg, modelId)`**——「是否圖片模型」的單一標準：`_apiKind(cfg) == openai`（neuralwatt 亦屬之）且**模型基本設定頁輸出模式勾選「圖片」**（未設定時回退 `ModelRegistry.infer` 依 id 推斷，如 `dall-e-*`/`gpt-image-*`/`sensenova-u1-fast`）。**與開關無關**——供輸入列比例按鈕與 `generateText`/OCR/翻譯守護使用（關掉開關後模型仍可能經聊天補全出圖，按鈕/守護照常生效）。② **`shouldUseOpenAIImagesApi(cfg, modelId)`**——「是否走 Images API」的路由決策：＝① 且 `useImagesApi != false`（工具頁「使用 Images API」開關僅對圖片輸出模型顯示、預設開啟；關閉表示「輸出雖是圖片但走聊天補全」，混合模型/供應商以聊天補全出圖；非圖片輸出模型看不到開關、不可 opt-in），僅供 `sendMessageStream` 分支使用。
-2. **生成 ＋ 編輯都要**：無輸入圖→`/images/generations`；有輸入圖（含引用上一張生成圖）→`/images/edits`（image-to-image / 疊代編輯）。
+2. **生成 ＋ 編輯都要**：無輸入圖→`/images/generations`；有輸入圖（含引用上一張生成圖）→`/images/edits`（image-to-image / 疊代編輯）。**Agnes 例外（`2026-08-13`）**：`baseUrl` 含 `agnes` 的供應商無 `/images/edits` 端點，圖生圖改走 `/images/generations` ＋ `extra_body.image`。
 3. **公開路由判斷函式（F2）**：路由分支與輸入列比例按鈕**共用同一個公開函式** `ChatApiService.shouldUseOpenAIImagesApi(cfg, modelId)`（無底線、public static）——`chat_input_bar.dart` 與 `chat_api_service.dart` 屬不同 library，private 方法不可跨檔呼叫，且共用單一判斷來源才能保證「按鈕顯示 ⇔ 實際走 Images API」一致。
 4. **比例參數由呼叫端 thread 進 service（F3）**：`ChatApiService` 為純 static、無 `SettingsProvider` 存取（已確認 `chat_api_service.dart` 內無任何 `SettingsProvider.` 引用、無 singleton）。`sendMessageStream` 新增 `String? imageAspectRatio` named param，由呼叫端讀取全域設定傳入。
 5. **`aspect_ratio` 直傳需 per-model 覆寫旗標（F4）**：`_sendOpenAIImagesStream` 的進入條件保證 `kind == ProviderKind.openai`（`_apiKind` 把 neuralwatt 也映射為 openai），因此「非 OpenAI 系」不可能從 kind 判別。新增 `useAspectRatioParam` 覆寫旗標（僅在輸出模式含「圖片」時顯示於工具分頁），供原生支援 `aspect_ratio` 的供應商（如 Nano Banana 2）使用；SiliconFlow FLUX 走 `size`/`image_size`，不開此旗標。
@@ -81,7 +81,7 @@ if (kind == ProviderKind.openai &&
 | `_ImageRef`（kelivo 自帶 `mime` 欄位） | 不另定義，沿用 OmniChat `_ImageRef`（`:7320`，有 `.kind`/`.src`）。需要 mime 時以 `_mimeFromPath(ref.src)`/`_mimeFromDataUrl(ref.src)` 推導，避免改動 `_ImageRef` |
 | `http.Client client` | 沿用 `_clientFor` 回傳的 `http.Client`（`:773`）。**`DioHttpClient.send(BaseRequest)` 已實作**（`request.finalize().toBytes()` 全量緩衝後走 Dio，`RequestLogger` 相容），`client.post` / `client.send(MultipartRequest)` 皆相容，**不需獨立 `http.Client()` fallback**（獨立 client 反而會繞過 proxy 設定）。註記：multipart body 全量 in-memory，一般圖片（數 MB）可接受（F10） |
 
-需移植的方法清單（全改為 `static`，貼進 `ChatApiService`）： **`shouldUseOpenAIImagesApi`**（公開，F2）、**`isOpenAIImageEditModel`**（公開，`2026-08-13`：**編輯 id 白名單已移除**，改以「有效 input 與 output 皆含圖片」判斷）、`_openAIImagesUrl`、`_sendOpenAIImagesStream`、`_sendOpenAIImageGeneration`、`_sendOpenAIImageEdit`、`_lastOpenAIImagePrompt`、`_openAIImagesInput`、`_lastAssistantImageBefore`、`_extractOpenAIImageRefs`、`_addOpenAIStructuredImageRefs`、`_addOpenAIStructuredImageData`、`_imageRefFromSource`、`_tryOpenAIImageMultipartFile`、`_openAIImageMediaType`、`_openAIImagesJsonHeaders`、`_openAIImagesMultipartHeaders`、`_applyOpenAIImagesExtraBody`、`_openAIImagesOutputMime`、`_decodeOpenAIImagesResponse`、`_openAIImagesResponseToMarkdown`、`_openAIImagesUsage`、**`_imageApiSizeParam`**（步驟 7d），以及小類別 `_OpenAIImagesInput`。（生成白名單 `_supportsOpenAIImageGenerations` 已刪除；編輯白名單 `_supportsOpenAIImageEdits` 亦已刪除——都不再以 id 白名單決定，改由模式判斷。）
+需移植的方法清單（全改為 `static`，貼進 `ChatApiService`）： **`shouldUseOpenAIImagesApi`**（公開，F2）、**`isOpenAIImageEditModel`**（公開，`2026-08-13`：**編輯 id 白名單已移除**，改以「有效 input 與 output 皆含圖片」判斷）、`_openAIImagesUrl`、`_sendOpenAIImagesStream`、`_sendOpenAIImageGeneration`、`_sendOpenAIImageEdit`、**`_sendAgnesImageEdit`**＋**`_isAgnesHost`**＋**`_imageRefToAgnesImage`**（`2026-08-13`：Agnes 圖生圖改走 generations ＋ `extra_body.image`）、`_lastOpenAIImagePrompt`、`_openAIImagesInput`、`_lastAssistantImageBefore`、`_extractOpenAIImageRefs`、`_addOpenAIStructuredImageRefs`、`_addOpenAIStructuredImageData`、`_imageRefFromSource`、`_tryOpenAIImageMultipartFile`、`_openAIImageMediaType`、`_openAIImagesJsonHeaders`、`_openAIImagesMultipartHeaders`、`_applyOpenAIImagesExtraBody`、`_openAIImagesOutputMime`、`_decodeOpenAIImagesResponse`、`_openAIImagesResponseToMarkdown`、`_openAIImagesUsage`、**`_imageApiSizeParam`**（步驟 7d），以及小類別 `_OpenAIImagesInput`。（生成白名單 `_supportsOpenAIImageGenerations` 已刪除；編輯白名單 `_supportsOpenAIImageEdits` 亦已刪除——都不再以 id 白名單決定，改由模式判斷。）
 
 **兩個公開函式實作**（F2；`2026-08-13 最終定案`）：
 
@@ -100,7 +100,7 @@ static bool shouldUseOpenAIImagesApi(ProviderConfig cfg, String modelId) {
 }
 ```
 
-`_effectiveModelInfo`（既有，`:340`）＝ per-model override 的 `type`/`input`/`output`/`abilities` 覆蓋 `ModelRegistry.infer` 推斷結果——即**模型基本設定頁勾選的模式**優先，未設定時由 `ModelRegistry.infer` 依 id 推斷。**`isOpenAIImageEditModel`**（公開）＝ `_apiKind(cfg) == openai` 且有效 input **與** output 皆含圖片——輸入含圖片（且輸出含圖片）→ 送 `/images/edits`；否則 **送前快速失敗**（保留 `UnsupportedError` 清晰訊息，`2026-08-13`：不做 4xx 自動降級，錯誤原因很多不能僅憑狀態碼判定）。**infer 修正（`2026-08-13`）**：`dall-e-3`/`sensenova-u1-fast` 改為**僅輸出含圖片**（input 純文字 → 非編輯模型），`dall-e-2` 維持 input+output（OpenAI 支援其 edits 端點）；使用者顯式勾選 input 圖片可覆寫推論。
+`_effectiveModelInfo`（既有，`:340`）＝ per-model override 的 `type`/`input`/`output`/`abilities` 覆蓋 `ModelRegistry.infer` 推斷結果——即**模型基本設定頁勾選的模式**優先，未設定時由 `ModelRegistry.infer` 依 id 推斷。**`isOpenAIImageEditModel`**（公開）＝ `_apiKind(cfg) == openai` 且有效 input **與** output 皆含圖片——輸入含圖片（且輸出含圖片）→ 送 `/images/edits`；否則 **送前快速失敗**（保留 `UnsupportedError` 清晰訊息，`2026-08-13`：不做 4xx 自動降級，錯誤原因很多不能僅憑狀態碼判定）。**infer 修正（`2026-08-13`）**：`dall-e-3`/`sensenova-u1-fast` 改為**僅輸出含圖片**（input 純文字 → 非編輯模型），`dall-e-2` 維持 input+output（OpenAI 支援其 edits 端點）；使用者顯式勾選 input 圖片可覆寫推論。**Agnes host 自動偵測（`2026-08-13`）**：官方文件確認 Agnes Image 2.1 Flash 支援圖生圖，但端點只有 `/images/generations`（圖放 `extra_body.image`，URL 或 Data URI 字串、JSON body 非 multipart）；實機測試原送 multipart `/images/edits` 收到 503，故 `baseUrl` 含 `agnes` 的供應商圖生圖改送 generations（本機圖轉 Data URI、遠端 URL 直傳；custom `extra_body.image` 仍優先；比例沿用預設 `size` 注入——實測取消勾選「使用 aspect_ratio 參數」生成正常）。
 
 **收尾 chunk 契約（F12）**：`_sendOpenAIImagesStream` 回傳單一 `ChatStreamChunk`（`content`＝`![image](path)` markdown、`isDone: true`、`totalTokens`＝`_openAIImagesUsage` 提供；消費端 `_handleStreamData`/`_handleStreamDone` 依賴此契約）。`_openAIImagesUsage` 必須 **null 安全**：dall-e 系列不回傳 token usage（→ `totalTokens: 0`、`usage: null`）；gpt-image-1 有 `usage.input_tokens`/`output_tokens`/`total_tokens`（含 images tokens），有則映射、無則 0。
 
@@ -251,7 +251,7 @@ if (id.contains('image') ||
 | `lib/icons/lucide_adapter.dart` | 步驟 7c（新增 `Lucide.Ratio = frame` 映射，F1） |
 | `lib/features/home/utils/chat_input_button_catalog.dart` | 步驟 7c（新增 `imageRatio` 規格 + **default order 插入 model 之後，F9**） |
 | `lib/features/home/widgets/chat_input_bar.dart` | 步驟 7c（圖片模型判斷、比例按鈕渲染、選項 sheet/popover；按鈕以 `Lucide.Ratio` 圖示＋tooltip 顯示目前比例，overflow 到 `+` 選單時回退居中 dialog） |
-| `test/openai_images_api_test.dart` | 新增（移植 kelivo 案例 + `isOpenAIImageOutputModel`（含開關關閉仍為圖片模型）/`isOpenAIImageEditModel`（input+output 為編輯模型、dall-e-3/sensenova 非編輯、override 覆寫、非 OpenAI kind 拒絕）/shouldUseOpenAIImagesApi（id 推斷/override output 覆寫/`useImagesApi: false` 關閉/預設開啟/非圖片模型不可 opt-in/非 OpenAI kind 拒絕）/開關關閉走 `/chat/completions` 且注入 size/比例 size 注入/dall-e-3 回退附註/useAspectRatioParam/custom body 優先，共 31 案例） |
+| `test/openai_images_api_test.dart` | 新增（移植 kelivo 案例 + `isOpenAIImageOutputModel`（含開關關閉仍為圖片模型）/`isOpenAIImageEditModel`（input+output 為編輯模型、dall-e-3/sensenova 非編輯、override 覆寫、非 OpenAI kind 拒絕）/shouldUseOpenAIImagesApi（id 推斷/override output 覆寫/`useImagesApi: false` 關閉/預設開啟/非圖片模型不可 opt-in/非 OpenAI kind 拒絕）/開關關閉走 `/chat/completions` 且注入 size/比例 size 注入/dall-e-3 回退附註/useAspectRatioParam/custom body 優先，＋ Agnes host 圖生圖走 generations（本地檔→Data URI、遠端 URL 直傳），共 33 案例） |
 | `test/settings_provider_image_ratio_test.dart` | 新增（`imageAspectRatio` 預設/round-trip/notify，3 案例） |
 | `lib/core/services/chat/chat_turn_service.dart` | 步驟 1（傳 `imageAspectRatio`，F3） |
 | `lib/features/home/controllers/chat_actions.dart` | 步驟 1（兩處傳 `imageAspectRatio`，F3） |
@@ -263,7 +263,7 @@ if (id.contains('image') ||
 
 1. 文生圖：在某 OpenAI 相容供應商新增 `dall-e-3` 模型，送「一隻貓」，預期回覆含 `![image](本地路徑)`，圖片渲染、點擊開啟 `ImageViewerPage`。
 2. 輸出模式路由＋預設開啟：在 SiliconFlow 新增 FLUX 模型、於基本設定頁勾選輸出「圖片」，工具頁「使用 Images API」開關預設開啟，送 prompt，預期圖片產出；關閉開關後同模型改走聊天補全（驗證開關語意）。
-3. 圖生圖/編輯：對 `gpt-image-1` 模型附一張圖＋prompt，預期走 `/images/edits` 並回傳編輯後圖片。
+3. 圖生圖/編輯：對 `gpt-image-1` 模型附一張圖＋prompt，預期走 `/images/edits` 並回傳編輯後圖片。**Agnes（`2026-08-13` 實機確認）**：對 Agnes Image 2.1 Flash 附圖，預期走 `/images/generations`（body 含 `extra_body.image` Data URI）成功編輯；Gemini 3.1 Flash Lite Image 於關閉 Images API 開關後可編輯（聊天補全圖進圖出）。
 4. 疊代編輯：在同一對話延續，只送文字 prompt（不附圖），預期 `_lastAssistantImageBefore` 回退抓上一張生成圖做 `/images/edits`。
 5. 回歸：一般聊天模型（如 `gpt-4o`，輸出僅文字）→ 仍走聊天補全，不受影響。
 6. 誤用守護：把圖片模型設為標題/摘要模型，觸發標題生成 → 不崩潰（`generateText` 回 `''`）；**設為聊天模型後觸發 OCR/翻譯 → 回傳空文字/原文，不出圖（F11）**。
@@ -304,3 +304,4 @@ if (id.contains('image') ||
 | F11 | 守護只蓋 `generateText` | 步驟 3b：OCR/翻譯同步守護 |
 | F12 | 收尾 chunk 契約未定義 | 步驟 2：`isDone: true` + null-safe usage |
 | F13 | 範圍過大 | 設計決策 6：分 Phase 1（步驟 1–6）與 Phase 2（步驟 7） |
+| F14 | Agnes 無 `/images/edits` 端點（實機 503） | 設計決策 2、步驟 2、驗證 3（`2026-08-13`）：`_isAgnesHost` 自動偵測，圖生圖改走 `/images/generations` ＋ `extra_body.image`（Data URI/URL，JSON body 非 multipart） |

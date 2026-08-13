@@ -676,6 +676,122 @@ void main() {
       expect(chunks.single.content, '![image](https://example.com/edited.png)');
     });
 
+    test('routes Agnes host image input to generations with extra_body.image',
+        () async {
+      late Uri requestUri;
+      late String contentType;
+      late Map<String, dynamic> requestBody;
+      final tempDir = await Directory.systemTemp.createTemp(
+        'kelivo_agnes_edit_',
+      );
+      addTearDown(() async {
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+      final inputImage = File('${tempDir.path}/source.png');
+      await inputImage.writeAsBytes(const [1, 2, 3, 4]);
+
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() async {
+        await server.close(force: true);
+      });
+
+      server.listen((request) async {
+        requestUri = request.uri;
+        contentType = request.headers.contentType?.mimeType ?? '';
+        requestBody = jsonDecode(await utf8.decoder.bind(request).join())
+            as Map<String, dynamic>;
+        request.response.statusCode = HttpStatus.ok;
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(
+          jsonEncode({
+            'data': [
+              {'url': 'https://example.com/agnes-edited.png'},
+            ],
+          }),
+        );
+        await request.response.close();
+      });
+
+      final chunks = await ChatApiService.sendMessageStream(
+        config: _openAiConfig(
+          'http://127.0.0.1:${server.port}/agnes/v1',
+        ),
+        modelId: 'gpt-image-2',
+        messages: const [
+          {'role': 'user', 'content': 'make the background blue'},
+        ],
+        userImagePaths: [inputImage.path],
+      ).toList();
+
+      expect(requestUri.path, '/agnes/v1/images/generations');
+      expect(contentType, 'application/json');
+      expect(requestBody['model'], 'gpt-image-2');
+      expect(requestBody['prompt'], 'make the background blue');
+      expect(
+        requestBody['extra_body'],
+        {
+          'image': ['data:image/png;base64,AQIDBA=='],
+        },
+      );
+      expect(
+        chunks.single.content,
+        '![image](https://example.com/agnes-edited.png)',
+      );
+    });
+
+    test('passes remote URL images through Agnes extra_body.image', () async {
+      late Map<String, dynamic> requestBody;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() async {
+        await server.close(force: true);
+      });
+
+      server.listen((request) async {
+        requestBody = jsonDecode(await utf8.decoder.bind(request).join())
+            as Map<String, dynamic>;
+        request.response.statusCode = HttpStatus.ok;
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(
+          jsonEncode({
+            'data': [
+              {'url': 'https://example.com/agnes-url-edit.png'},
+            ],
+          }),
+        );
+        await request.response.close();
+      });
+
+      await ChatApiService.sendMessageStream(
+        config: _openAiConfig(
+          'http://127.0.0.1:${server.port}/agnes/v1',
+        ),
+        modelId: 'gpt-image-2',
+        messages: const [
+          {
+            'role': 'user',
+            'content': [
+              {'type': 'input_text', 'text': 'restyle this'},
+              {
+                'type': 'image_url',
+                'image_url': {
+                  'url': 'https://example.com/source.png',
+                },
+              },
+            ],
+          },
+        ],
+      ).toList();
+
+      expect(
+        requestBody['extra_body'],
+        {
+          'image': ['https://example.com/source.png'],
+        },
+      );
+    });
+
     test('sets jpeg content type for jpg image edit uploads', () async {
       late String requestBody;
       final tempDir = await Directory.systemTemp.createTemp(

@@ -7403,6 +7403,22 @@ class ChatApiService {
     return Uri.parse('$rawBase$path');
   }
 
+  /// Whether the provider is an Agnes (agnes-ai.com) gateway.
+  ///
+  /// Agnes has no `/images/edits` endpoint: image-to-image goes through
+  /// `/images/generations` with the input images placed in `extra_body.image`
+  /// (URL or Data URI strings in the JSON body, not multipart).
+  static bool _isAgnesHost(ProviderConfig cfg) {
+    return cfg.baseUrl.toLowerCase().contains('agnes');
+  }
+
+  /// Convert an input image to the string form Agnes' `extra_body.image` accepts
+  /// (remote URL / Data URI pass through; local files become Data URIs).
+  static Future<String> _imageRefToAgnesImage(_ImageRef ref) async {
+    if (ref.kind == 'url' || ref.kind == 'data') return ref.src;
+    return _encodeBase64File(ref.src, withPrefix: true);
+  }
+
   static Stream<ChatStreamChunk> _sendOpenAIImagesStream(
     http.Client client,
     ProviderConfig config,
@@ -7432,16 +7448,27 @@ class ChatApiService {
             extraBody: extraBody,
             imageAspectRatio: imageAspectRatio,
           )
-        : await _sendOpenAIImageEdit(
-            client,
-            config,
-            modelId,
-            input.prompt,
-            input.imageRefs,
-            extraHeaders: extraHeaders,
-            extraBody: extraBody,
-            imageAspectRatio: imageAspectRatio,
-          );
+        : _isAgnesHost(config)
+            ? await _sendAgnesImageEdit(
+                client,
+                config,
+                modelId,
+                input.prompt,
+                input.imageRefs,
+                extraHeaders: extraHeaders,
+                extraBody: extraBody,
+                imageAspectRatio: imageAspectRatio,
+              )
+            : await _sendOpenAIImageEdit(
+                client,
+                config,
+                modelId,
+                input.prompt,
+                input.imageRefs,
+                extraHeaders: extraHeaders,
+                extraBody: extraBody,
+                imageAspectRatio: imageAspectRatio,
+              );
     var markdown = await _openAIImagesResponseToMarkdown(
       response,
       outputMime: outputMime,
@@ -7549,6 +7576,46 @@ class ChatApiService {
     }
     final streamed = await client.send(request);
     final response = await http.Response.fromStream(streamed);
+    return _decodeOpenAIImagesResponse(response);
+  }
+
+  /// Agnes image-to-image: no `/images/edits` endpoint, so input images are
+  /// attached to `/images/generations` as `extra_body.image` (Data URI/URL
+  /// strings). A custom `extra_body.image` from the model config still wins.
+  static Future<Map<String, dynamic>> _sendAgnesImageEdit(
+    http.Client client,
+    ProviderConfig config,
+    String modelId,
+    String prompt,
+    List<_ImageRef> imageRefs, {
+    Map<String, String>? extraHeaders,
+    Map<String, dynamic>? extraBody,
+    String? imageAspectRatio,
+  }) async {
+    final body = <String, dynamic>{
+      'model': _apiModelId(config, modelId),
+      'prompt': prompt,
+    };
+    _applyOpenAIImagesExtraBody(body, config, modelId, extraBody);
+    _applyOpenAIImagesSize(body, config, modelId, imageAspectRatio);
+    if (body['extra_body'] is! Map) {
+      body['extra_body'] = <String, dynamic>{};
+    }
+    final extra = body['extra_body'] as Map<String, dynamic>;
+    if (!extra.containsKey('image')) {
+      extra['image'] = [
+        for (final ref in imageRefs) await _imageRefToAgnesImage(ref),
+      ];
+    }
+    final response = await client.post(
+      _openAIImagesUrl(config, '/images/generations'),
+      headers: _openAIImagesJsonHeaders(
+        config,
+        modelId,
+        extraHeaders: extraHeaders,
+      ),
+      body: jsonEncode(body),
+    );
     return _decodeOpenAIImagesResponse(response);
   }
 
