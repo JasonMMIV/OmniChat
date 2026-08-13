@@ -858,8 +858,8 @@ class _ChatInputBarState extends State<ChatInputBar>
                 width: normalButtonW,
                 builder: () => _CompactIconButton(
                   key: _imageRatioAnchorKey,
-                  tooltip:
-                      '${l10n.chatInputBarImageRatioTooltip}: $imageRatio',
+                  tooltip: '${l10n.chatInputBarImageRatioTooltip}: '
+                      '${_imageRatioDisplayLabel(l10n, imageRatio)}',
                   icon: Lucide.Ratio,
                   active: imageRatio != '1:1',
                   onTap: () => _showImageRatioPicker(
@@ -2123,12 +2123,24 @@ class _ImageRatioOption {
 }
 
 List<_ImageRatioOption> _imageRatioOptions(AppLocalizations l10n) => [
+  _ImageRatioOption('auto', 0, l10n.imageRatioOptionAuto),
   _ImageRatioOption('1:1', 1.0, l10n.imageRatioOption1x1),
   _ImageRatioOption('3:4', 3 / 4, l10n.imageRatioOption3x4),
   _ImageRatioOption('4:3', 4 / 3, l10n.imageRatioOption4x3),
+  _ImageRatioOption('2:3', 2 / 3, l10n.imageRatioOption2x3),
+  _ImageRatioOption('3:2', 3 / 2, l10n.imageRatioOption3x2),
   _ImageRatioOption('16:9', 16 / 9, l10n.imageRatioOption16x9),
   _ImageRatioOption('9:16', 9 / 16, l10n.imageRatioOption9x16),
 ];
+
+/// Localized display label for a ratio value (e.g. 'auto' -> "Auto (follow
+/// source)"); falls back to the raw value when unknown.
+String _imageRatioDisplayLabel(AppLocalizations l10n, String ratio) {
+  for (final o in _imageRatioOptions(l10n)) {
+    if (o.ratio == ratio) return o.label;
+  }
+  return ratio;
+}
 
 class _ImageRatioPreviewBox extends StatelessWidget {
   const _ImageRatioPreviewBox({required this.aspect});
@@ -2139,6 +2151,26 @@ class _ImageRatioPreviewBox extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     const double height = 16;
+    if (aspect <= 0) {
+      // "Auto (follow source)" — square box with an "A" hint.
+      return Container(
+        width: height,
+        height: height,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          border: Border.all(color: cs.onSurface.withOpacity(0.4), width: 1),
+          borderRadius: BorderRadius.circular(2),
+        ),
+        child: Text(
+          'A',
+          style: TextStyle(
+            fontSize: 10,
+            height: 1,
+            color: cs.onSurface.withOpacity(0.6),
+          ),
+        ),
+      );
+    }
     return Container(
       width: math.max(height * aspect, 8),
       height: height,

@@ -202,7 +202,7 @@ if (id.contains('image') ||
 - 在 `_buildResponsiveBottomRow`（`:783`）的 `actions` 清單中，當 `_shouldShowImageRatioButton()` 為 true 時插入 `imageRatio` 的 `_OverflowAction`（id 與 catalog 一致；排序/隱藏由既有 `hiddenIds` + `chatInputButtonEffectiveOrder` 機制處理，`:1257`–`:1265`）。
 - `_shouldShowImageRatioButton()` 判斷邏輯（**單一來源，F2**）：讀取目前 provider config 與 modelId（`currentProviderKey`/`currentModelId`/`cfg`，`:847`–`:855` 既有邏輯），直接呼叫 **`ChatApiService.isOpenAIImageOutputModel(cfg, modelId)`**（「是否圖片模型」的標準，**與開關無關**——關閉 Images API 後模型仍可能出圖，按鈕不消失；不要複製白名單或覆寫判斷）。
 - 按鈕 icon 動態顯示目前選中的比例文字（如 `16:9`），或在空間不足時顯示 `Lucide.Ratio`。
-- 點擊後在行動版彈出 bottom sheet，桌面版彈出 anchored popover，列出五個比例選項（含視覺預覽方框）。選中後寫入 `SettingsProvider.imageAspectRatio`。
+- 點擊後在行動版彈出 bottom sheet，桌面版彈出 anchored popover，列出比例選項（含視覺預覽方框；`auto` 為方框＋A 提示）。選中後寫入 `SettingsProvider.imageAspectRatio`。比例選項（`2026-08-13` 起）：**自動（依來源）**、1:1、3:4、4:3、2:3、3:2、16:9、9:16（`auto`/`2:3`/`3:2` 為新增；不加 21:9）。按鈕 tooltip 顯示目前比例的在地化標籤（`auto` → "自動（依來源）"）。
 - Gemini 系內嵌出圖（`responseModalities: ['TEXT','IMAGE']`）**不顯示**此按鈕——`shouldUseOpenAIImagesApi` 對 Gemini 一律 false，天然滿足（與步驟 1 路由一致）。
 
 #### 7d. 比例到 API 參數的轉換
@@ -214,19 +214,22 @@ if (id.contains('image') ||
 **`_imageApiSizeParam(String ratio, String modelId, ProviderConfig cfg)` 決策規則（F4）**——注意 `_sendOpenAIImagesStream` 的進入條件保證 kind 永遠是 `openai`，**不能用 kind 區分供應商**：
 
 1. **custom body 優先**：`_applyOpenAIImagesExtraBody` 之後，若 body 已含 `size`／`image_size`／`aspect_ratio` 任一鍵 → 回傳空 map，不注入（使用者進階分頁的自訂 key-value 覆蓋自動轉換；與風險章節一致）。
-2. **`useAspectRatioParam == true`（per-model 覆寫旗標，設計決策 5）** → 回傳 `{'aspect_ratio': ratio}`（原生支援 `aspect_ratio` 的供應商，如 Nano Banana 2）。
-3. **其他走 Images API 的模型**（輸出含圖片，含依 id 推斷的圖片家族）→ 依表格回傳 `{'size': ...}`：
+2. **`auto`（依來源，`2026-08-13`）** → gpt-image 家族（id 開頭 `gpt-image-`/`chatgpt-image-`）回傳 `{'size': 'auto'}`（API 依輸入圖比例挑最接近的合法尺寸，近似跟隨來源）；**其餘一律省略注入**（回傳空 map）——Gemini/Nano Banana 編輯時自動保持來源比例（官方設計），dall-e/Agnes 落回供應商預設（方形）。`auto` 優先於 `useAspectRatioParam`（"auto" 不是合法 ratio 字串）。
+3. **`useAspectRatioParam == true`（per-model 覆寫旗標，設計決策 5）** → 回傳 `{'aspect_ratio': ratio}`（原生支援 `aspect_ratio` 的供應商，如 Nano Banana 2）。
+4. **其他走 Images API 的模型**（輸出含圖片，含依 id 推斷的圖片家族）→ 依表格回傳 `{'size': ...}`：
 
 | 比例 | `size` 值 | 備註 |
 |------|----------|------|
 | 1:1  | `1024x1024` | 所有模型通用 |
 | 3:4  | `1024x1360` | 1360 ÷ 16 = 85 ✓（gpt-image-2 任意解析度） |
 | 4:3  | `1360x1024` | 同上 |
+| 2:3  | `1024x1536` | gpt-image 家族標準尺寸（`2026-08-13`） |
+| 3:2  | `1536x1024` | 同上 |
 | 16:9 | `1792x1024` | dall-e-3 / gpt-image-2 均支援 |
 | 9:16 | `1024x1792` | 同上 |
 
-   **dall-e-3 回退**：僅支援 `1024x1024`、`1792x1024`、`1024x1792` 三種，3:4 / 4:3 不支援——3:4 → `1024x1792`、4:3 → `1792x1024`。回退發生時**不顯示 SnackBar**（service 無 BuildContext，F5），改在 `_sendOpenAIImagesStream` 把附註附加於回覆 markdown 之後：`![image](path)\n\n> Note: dall-e-3 does not support 3:4/4:3; used <size>.`（固定英文短句，避免把 locale 也 thread 進 service）。
-4. **依 id 推斷的輸出含圖片模型（如 SiliconFlow FLUX，於基本設定頁勾選輸出「圖片」）** → 回傳 `{'size': 表格值}`；供應商 API 若用不同參數名（如 SiliconFlow 的 `image_size`），以自訂 body key-value 設定（規則 1 覆蓋）。不開 `useAspectRatioParam` 就**不會**送 `aspect_ratio`。
+   **dall-e-3 回退**：僅支援 `1024x1024`、`1792x1024`、`1024x1792` 三種，3:4 / 2:3 → `1024x1792`、4:3 / 3:2 → `1792x1024`。回退發生時**不顯示 SnackBar**（service 無 BuildContext，F5），改在 `_sendOpenAIImagesStream` 把附註附加於回覆 markdown 之後：`![image](path)\n\n> Note: dall-e-3 does not support 3:4/2:3/4:3/3:2; used <size>.`（固定英文短句，避免把 locale 也 thread 進 service）。
+5. **依 id 推斷的輸出含圖片模型（如 SiliconFlow FLUX，於基本設定頁勾選輸出「圖片」）** → 回傳 `{'size': 表格值}`；供應商 API 若用不同參數名（如 SiliconFlow 的 `image_size`），以自訂 body key-value 設定（規則 1 覆蓋）。不開 `useAspectRatioParam` 就**不會**送 `aspect_ratio`。
 
 #### 7e. 本地化字串
 
@@ -238,6 +241,9 @@ if (id.contains('image') ||
 - `imageRatioOption4x3`："4:3 Landscape" / "4:3 橫幅"
 - `imageRatioOption16x9`："16:9 Widescreen" / "16:9 寬螢幕"
 - `imageRatioOption9x16`："9:16 Vertical" / "9:16 直式"
+- `imageRatioOption2x3`："2:3 Portrait" / "2:3 直幅"（`2026-08-13`）
+- `imageRatioOption3x2`："3:2 Landscape" / "3:2 橫幅"（`2026-08-13`）
+- `imageRatioOptionAuto`："Auto (follow source)" / "自動（依來源）"（`2026-08-13`）
 
 ## 修改檔案總表
 
@@ -248,10 +254,10 @@ if (id.contains('image') ||
 | `lib/desktop/model_edit_dialog.dart` | 步驟 4（**desktop，F6**：狀態/initState/tools 開關/save，`useImagesApi`（預設開啟）＋`useAspectRatioParam`，皆輸出含圖片才顯示） |
 | `lib/core/providers/model_provider.dart` | 步驟 6（擴充既有 `contains('image')` 區塊，F8） |
 | `lib/core/providers/settings_provider.dart` | 步驟 7b（`imageAspectRatio` getter/setter + 持久化） |
-| `lib/icons/lucide_adapter.dart` | 步驟 7c（新增 `Lucide.Ratio = frame` 映射，F1） |
+| `lib/icons/lucide_adapter.dart` | 步驟 7c（新增 `Lucide.Ratio` 映射，F1——`2026-08-13` 由 `frame` 改為套件內建 `ratio` 交叉矩形） |
 | `lib/features/home/utils/chat_input_button_catalog.dart` | 步驟 7c（新增 `imageRatio` 規格 + **default order 插入 model 之後，F9**） |
 | `lib/features/home/widgets/chat_input_bar.dart` | 步驟 7c（圖片模型判斷、比例按鈕渲染、選項 sheet/popover；按鈕以 `Lucide.Ratio` 圖示＋tooltip 顯示目前比例，overflow 到 `+` 選單時回退居中 dialog） |
-| `test/openai_images_api_test.dart` | 新增（移植 kelivo 案例 + `isOpenAIImageOutputModel`（含開關關閉仍為圖片模型）/`isOpenAIImageEditModel`（input+output 為編輯模型、dall-e-3/sensenova 非編輯、override 覆寫、非 OpenAI kind 拒絕）/shouldUseOpenAIImagesApi（id 推斷/override output 覆寫/`useImagesApi: false` 關閉/預設開啟/非圖片模型不可 opt-in/非 OpenAI kind 拒絕）/開關關閉走 `/chat/completions` 且注入 size/比例 size 注入/dall-e-3 回退附註/useAspectRatioParam/custom body 優先，＋ Agnes host 圖生圖走 generations（本地檔→Data URI、遠端 URL 直傳），共 33 案例） |
+| `test/openai_images_api_test.dart` | 新增（移植 kelivo 案例 + `isOpenAIImageOutputModel`（含開關關閉仍為圖片模型）/`isOpenAIImageEditModel`（input+output 為編輯模型、dall-e-3/sensenova 非編輯、override 覆寫、非 OpenAI kind 拒絕）/shouldUseOpenAIImagesApi（id 推斷/override output 覆寫/`useImagesApi: false` 關閉/預設開啟/非圖片模型不可 opt-in/非 OpenAI kind 拒絕）/開關關閉走 `/chat/completions` 且注入 size/比例 size 注入/dall-e-3 回退附註/useAspectRatioParam/custom body 優先，＋ Agnes host 圖生圖走 generations（本地檔→Data URI、遠端 URL 直傳），＋ auto（gpt-image 送 `size: "auto"` / 非 gpt-image 省略注入，含 useAspectRatioParam 併存）、2:3/3:2 換算（1024x1536/1536x1024）、dall-e-3 2:3 回退附註，共 37 案例） |
 | `test/settings_provider_image_ratio_test.dart` | 新增（`imageAspectRatio` 預設/round-trip/notify，3 案例） |
 | `lib/core/services/chat/chat_turn_service.dart` | 步驟 1（傳 `imageAspectRatio`，F3） |
 | `lib/features/home/controllers/chat_actions.dart` | 步驟 1（兩處傳 `imageAspectRatio`，F3） |
@@ -291,7 +297,7 @@ if (id.contains('image') ||
 
 | # | 問題 | 修正落點 |
 |---|---|---|
-| F1 | `Lucide.RatioIcon` 不存在 | 7c：adapter 新增 `Lucide.Ratio = lucide.LucideIcons.frame` |
+| F1 | `Lucide.RatioIcon` 不存在 | 7c：adapter 新增 `Lucide.Ratio`（`2026-08-13` 由 `frame` 改為套件 3.1.15 內建的 `ratio` 交叉矩形符號） |
 | F2 | private `_shouldUseOpenAIImagesApi` 跨檔不可見 | 設計決策 3、步驟 2、7c：公開 `isOpenAIImageOutputModel`（按鈕/守護，與開關無關）與 `shouldUseOpenAIImagesApi`（路由）兩層函式（最終定案） |
 | F3 | static 讀不到 `SettingsProvider` | 設計決策 4、步驟 1、7d：`sendMessageStream` 新增參數 + 4 個 call site |
 | F4 | `kind` 永遠是 openai，aspect_ratio 直傳判別失效 | 設計決策 5、7d：`useAspectRatioParam` 覆寫旗標 |

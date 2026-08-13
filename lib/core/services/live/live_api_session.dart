@@ -65,8 +65,8 @@ class LiveApiSession extends ChangeNotifier {
     this.maxReconnectAttempts = 3,
     this.reconnectBackoffBase = const Duration(seconds: 1),
 
-    /// W0（計時預啟動）開關：預設僅 Android 啟用（Windows 維持現況，
-    /// 見 IMPLEMENTATION_PLAN_GAPLESS_B §3.1）。測試可顯式傳入覆寫。
+    /// W0（計時預啟動）開關：預設僅 Android 啟用（Windows 維持現況）。
+    /// 測試可顯式傳入覆寫。
     bool? enableTimedPreStart,
 
     /// W0 交接提前量（lead）：目前槽 resume 後，預備槽 resume 於

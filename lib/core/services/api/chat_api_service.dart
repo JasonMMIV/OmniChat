@@ -7886,9 +7886,10 @@ class ChatApiService {
   /// Inject the aspect-ratio selector value into the request body.
   ///
   /// Priority (per plan 7d): custom body keys (`size`/`image_size`/`aspect_ratio`)
-  /// win over the automatic conversion; `useAspectRatioParam` override passes the
-  /// ratio string through; otherwise the OpenAI size table is used (with the
-  /// dall-e-3 3:4/4:3 fallback handled inside [_imageApiSizeParam]).
+  /// win over the automatic conversion; `auto` (follow source) either sends
+  /// `size: "auto"` (gpt-image-*) or omits injection entirely; `useAspectRatioParam`
+  /// override passes the ratio string through; otherwise the OpenAI size table
+  /// is used (with the dall-e-3 fallback handled inside [_imageApiSizeParam]).
   static void _applyOpenAIImagesSize(
     Map<String, dynamic> body,
     ProviderConfig cfg,
@@ -7905,14 +7906,25 @@ class ChatApiService {
 
   /// Map a user-chosen aspect ratio to Images API params.
   ///
-  /// `useAspectRatioParam` override -> `aspect_ratio` string pass-through.
-  /// Otherwise -> `size` param; dall-e-3 falls back 3:4 -> 1024x1792 and
-  /// 4:3 -> 1792x1024 to its supported fixed sizes.
+  /// `auto` (follow the source image): gpt-image-* models send `size: "auto"`
+  /// (the API picks the allowed size closest to the input); every other model
+  /// omits size/ratio entirely so the provider applies its own default — for
+  /// Gemini / Nano Banana image editing this preserves the input's ratio.
+  /// Otherwise `useAspectRatioParam` override -> `aspect_ratio` pass-through,
+  /// and the default -> `size` table (dall-e-3 falls back 3:4/2:3 -> 1024x1792
+  /// and 4:3/3:2 -> 1792x1024 to its supported fixed sizes).
   static Map<String, String> _imageApiSizeParam(
     String ratio,
     String modelId,
     ProviderConfig cfg,
   ) {
+    if (ratio == 'auto') {
+      final upstream = _apiModelId(cfg, modelId).toLowerCase();
+      final isGptImage = upstream.startsWith('gpt-image-') ||
+          upstream.startsWith('chatgpt-image-');
+      if (isGptImage) return {'size': 'auto'};
+      return const <String, String>{};
+    }
     final ov = _modelOverride(cfg, modelId);
     if (ov['useAspectRatioParam'] == true) {
       return {'aspect_ratio': ratio};
@@ -7925,6 +7937,12 @@ class ChatApiService {
         break;
       case '4:3':
         size = upstream == 'dall-e-3' ? '1792x1024' : '1360x1024';
+        break;
+      case '2:3':
+        size = upstream == 'dall-e-3' ? '1024x1792' : '1024x1536';
+        break;
+      case '3:2':
+        size = upstream == 'dall-e-3' ? '1792x1024' : '1536x1024';
         break;
       case '16:9':
         size = '1792x1024';
@@ -7946,7 +7964,12 @@ class ChatApiService {
     Map<String, dynamic>? extraBody,
     String? imageAspectRatio,
   ) {
-    if (imageAspectRatio != '3:4' && imageAspectRatio != '4:3') return null;
+    if (imageAspectRatio != '3:4' &&
+        imageAspectRatio != '4:3' &&
+        imageAspectRatio != '2:3' &&
+        imageAspectRatio != '3:2') {
+      return null;
+    }
     if (_apiModelId(cfg, modelId).toLowerCase() != 'dall-e-3') return null;
     final manual = <String>['size', 'image_size', 'aspect_ratio'].any(
       (key) =>
@@ -7956,7 +7979,8 @@ class ChatApiService {
     if (manual) return null;
     final ov = _modelOverride(cfg, modelId);
     if (ov['useAspectRatioParam'] == true) return null;
-    final size = imageAspectRatio == '3:4' ? '1024x1792' : '1792x1024';
+    final portrait = imageAspectRatio == '3:4' || imageAspectRatio == '2:3';
+    final size = portrait ? '1024x1792' : '1792x1024';
     return '> Note: dall-e-3 does not support $imageAspectRatio; used $size.';
   }
 

@@ -3615,6 +3615,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get imageRatioOption9x16 => '9:16 Vertical';
 
   @override
+  String get imageRatioOption2x3 => '2:3 Portrait';
+
+  @override
+  String get imageRatioOption3x2 => '3:2 Landscape';
+
+  @override
+  String get imageRatioOptionAuto => 'Auto (follow source)';
+
+  @override
   String get aiTeamTitle => 'AI Team';
 
   @override
