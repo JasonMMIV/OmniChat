@@ -40,7 +40,10 @@ import '../../../utils/avatar_cache.dart';
 import 'chat_message_widget.dart' show ToolUIPart;
 
 // Regular expression to extract thinking content from message
-final RegExp thinkingRegex = RegExp(r"<think>([\s\S]*?)(?:</think>|$)", dotAll: true);
+final RegExp thinkingRegex = RegExp(
+  r"<(?:think|thought)>([\s\S]*?)(?:</(?:think|thought)>|$)",
+  dotAll: true,
+);
 
 // Shared helpers
 String _guessImageMime(String path) {
