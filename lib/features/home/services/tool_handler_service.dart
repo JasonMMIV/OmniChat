@@ -378,27 +378,48 @@ class ToolHandlerService {
         }
       }
 
-      // Search tool
-      if (name == SearchToolService.toolName && settings.searchEnabled) {
-        final q = (args['query'] ?? '').toString();
-        return await SearchToolService.executeSearch(q, settings);
-      }
+      try {
+        // Search tool
+        if (name == SearchToolService.toolName && settings.searchEnabled) {
+          final q = (args['query'] ?? '').toString();
+          return await SearchToolService.executeSearch(q, settings);
+        }
 
-      // Memory tools
-      final memoryResult = await _handleMemoryToolCall(name, args, assistant);
-      if (memoryResult != null) {
-        return memoryResult;
-      }
+        // Memory tools
+        final memoryResult = await _handleMemoryToolCall(
+          name,
+          args,
+          assistant,
+        );
+        if (memoryResult != null) {
+          return memoryResult;
+        }
 
-      // MCP tools
-      final text = await toolSvc.callToolTextForAssistant(
-        mcp,
-        assistantProvider,
-        assistantId: assistant?.id,
-        toolName: name,
-        arguments: args,
-      );
-      return text;
+        // MCP tools
+        final text = await toolSvc.callToolTextForAssistant(
+          mcp,
+          assistantProvider,
+          assistantId: assistant?.id,
+          toolName: name,
+          arguments: args,
+        );
+        return text;
+      } catch (e) {
+        // Catch unexpected exceptions and return error JSON to the LLM.
+        // This prevents tool execution failures from terminating the chat flow.
+        FlutterLogger.log(
+          'Tool "$name" failed unexpectedly: $e',
+          tag: 'tool-handler',
+        );
+        return jsonEncode({
+          'type': 'tool_error',
+          'error': 'execution_error',
+          'message': e.toString(),
+          'tool': name,
+          'instruction':
+              'The tool execution failed unexpectedly. You may try again with different parameters or inform the user about the issue.',
+        });
+      }
     };
   }
 

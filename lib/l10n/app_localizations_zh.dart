@@ -4146,6 +4146,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchSettingsSheetBuiltinSearchDescription => '是否启用模型内置的搜索功能';
 
   @override
+  String get searchSettingsSheetClaudeDynamicSearchTitle => '模型内置搜索(新)';
+
+  @override
+  String get searchSettingsSheetClaudeDynamicSearchDescription =>
+      '在支持的 Claude 官方模型上使用 `web_search_20260209`，支持动态过滤能力。';
+
+  @override
   String get searchSettingsSheetWebSearchDescription => '是否启用网页搜索';
 
   @override
@@ -8420,6 +8427,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get searchSettingsSheetBuiltinSearchDescription => '是否启用模型内置的搜索功能';
+
+  @override
+  String get searchSettingsSheetClaudeDynamicSearchTitle => '模型内置搜索(新)';
+
+  @override
+  String get searchSettingsSheetClaudeDynamicSearchDescription =>
+      '在支持的 Claude 官方模型上使用 `web_search_20260209`，支持动态过滤能力。';
 
   @override
   String get searchSettingsSheetWebSearchDescription => '是否启用网页搜索';
@@ -12803,6 +12817,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get searchSettingsSheetBuiltinSearchDescription => '是否啟用模型內建的搜尋功能';
+
+  @override
+  String get searchSettingsSheetClaudeDynamicSearchTitle => '模型內建搜尋（新）';
+
+  @override
+  String get searchSettingsSheetClaudeDynamicSearchDescription =>
+      '在支援的 Claude 官方模型上使用 `web_search_20260209`，支援動態過濾能力。';
 
   @override
   String get searchSettingsSheetWebSearchDescription => '是否啟用網頁搜尋';

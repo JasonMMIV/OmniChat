@@ -4162,6 +4162,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchSettingsSheetBuiltinSearchDescription => '是否启用模型内置的搜索功能';
 
   @override
+  String get searchSettingsSheetClaudeDynamicSearchTitle =>
+      'Built-in Search (New)';
+
+  @override
+  String get searchSettingsSheetClaudeDynamicSearchDescription =>
+      'Use `web_search_20260209` with dynamic filtering on supported official Claude models.';
+
+  @override
   String get searchSettingsSheetWebSearchDescription => '是否启用网页搜索';
 
   @override

@@ -48,6 +48,24 @@ abstract class BuiltInToolNames {
     return out;
   }
 
+  /// Resolve the upstream/vendor model id for a given logical model key
+  /// (mirrors ChatApiService._apiModelId).
+  static String effectiveModelId({
+    required ProviderConfig? cfg,
+    required String modelId,
+  }) {
+    try {
+      final ov = cfg?.modelOverrides[modelId];
+      if (ov is Map<String, dynamic>) {
+        final raw = (ov['apiModelId'] ?? ov['api_model_id'])
+            ?.toString()
+            .trim();
+        if (raw != null && raw.isNotEmpty) return raw;
+      }
+    } catch (_) {}
+    return modelId;
+  }
+
   /// Stable ordering for persisting tool lists (keeps UI diffs minimal).
   static List<String> orderedForStorage(Iterable<String> tools) {
     final remaining = Set<String>.from(tools);
@@ -93,6 +111,70 @@ abstract class BuiltInToolsHelper {
         if (modelId != null && modelId.toLowerCase().contains('grok')) return true;
         return false;
     }
+  }
+
+  static String _normalizedModelId(String? modelId) =>
+      (modelId ?? '').trim().toLowerCase();
+
+  /// Whether the official Claude model supports the new dynamic web search
+  /// tool version (`web_search_20260209` with dynamic filtering).
+  static bool isClaudeDynamicWebSearchSupportedModel(String? modelId) {
+    final normalized = _normalizedModelId(modelId);
+    return normalized.contains('mythos') ||
+        normalized == 'claude-opus-4-7' ||
+        normalized == 'claude-opus-4-6' ||
+        normalized == 'claude-sonnet-4-6';
+  }
+
+  /// Whether the provider/model combination supports Claude dynamic web search.
+  static bool supportsClaudeDynamicWebSearchForModel({
+    required ProviderConfig? cfg,
+    required String? modelId,
+  }) {
+    if (cfg == null || (modelId ?? '').trim().isEmpty) return false;
+    final kind = ProviderConfig.classify(
+      cfg.id,
+      explicitType: cfg.providerType,
+    );
+    if (kind != ProviderKind.claude) return false;
+    final upstreamModelId = BuiltInToolNames.effectiveModelId(
+      cfg: cfg,
+      modelId: modelId!,
+    );
+    return isClaudeDynamicWebSearchSupportedModel(upstreamModelId);
+  }
+
+  /// Whether Claude dynamic web search is enabled for the model, i.e. the
+  /// per-model override sets `webSearch.toolVersion = web_search_20260209`.
+  static bool isClaudeDynamicWebSearchEnabled({
+    required ProviderConfig? cfg,
+    required String? modelId,
+  }) {
+    if (!supportsClaudeDynamicWebSearchForModel(cfg: cfg, modelId: modelId)) {
+      return false;
+    }
+    if (cfg == null || modelId == null || modelId.trim().isEmpty) {
+      return false;
+    }
+    final rawOv = cfg.modelOverrides[modelId];
+    final ov = rawOv is Map ? rawOv : null;
+    final rawWs = ov?['webSearch'];
+    if (rawWs is! Map) return false;
+    final ws = rawWs.cast<String, dynamic>();
+    return ws['toolVersion'] == 'web_search_20260209' ||
+        ws['tool_version'] == 'web_search_20260209';
+  }
+
+  /// The Claude built-in search server tool type to use: the new dynamic
+  /// version (`web_search_20260209`) when enabled, otherwise the legacy
+  /// `web_search_20250305`.
+  static String claudeBuiltInSearchToolType({
+    required ProviderConfig? cfg,
+    required String? modelId,
+  }) {
+    return isClaudeDynamicWebSearchEnabled(cfg: cfg, modelId: modelId)
+        ? 'web_search_20260209'
+        : 'web_search_20250305';
   }
 
   /// Get active built-in tools from model overrides.

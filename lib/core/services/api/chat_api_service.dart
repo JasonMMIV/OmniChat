@@ -5500,10 +5500,22 @@ class ChatApiService {
           ws = (ov['webSearch'] as Map).cast<String, dynamic>();
         }
       } catch (_) {}
+      final searchToolType = BuiltInToolsHelper.claudeBuiltInSearchToolType(
+        cfg: config,
+        modelId: modelId,
+      );
       final entry = <String, dynamic>{
-        'type': 'web_search_20250305',
+        'type': searchToolType,
         'name': 'web_search',
       };
+      // The new dynamic web search (web_search_20260209) requires the
+      // code_execution companion server tool on supported official models.
+      if (searchToolType == 'web_search_20260209') {
+        allTools.add(<String, dynamic>{
+          'type': 'code_execution_20250825',
+          'name': 'code_execution',
+        });
+      }
       if (ws['max_uses'] is int && (ws['max_uses'] as int) > 0)
         entry['max_uses'] = ws['max_uses'];
       if (ws['allowed_domains'] is List)
@@ -5833,13 +5845,16 @@ class ChatApiService {
                 }
               } else if (cb is Map && (cb['type'] == 'server_tool_use')) {
                 final id = (cb['id'] ?? '').toString();
+                final name = (cb['name'] ?? '').toString();
                 final idx2 = idx ?? -1;
                 if (id.isNotEmpty && idx2 >= 0) {
                   _srvIndexToId[idx2] = id;
                   _srvArgsStr[id] = '';
                 }
-                // Emit placeholder for server tool to show card (e.g., built-in web_search)
-                if (id.isNotEmpty) {
+                // Emit placeholder for server tool to show card (e.g., built-in
+                // web_search); skip the code_execution companion tool which has
+                // no dedicated UI card.
+                if (id.isNotEmpty && name == 'web_search') {
                   yield ChatStreamChunk(
                     content: '',
                     isDone: false,
