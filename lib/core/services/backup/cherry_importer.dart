@@ -328,7 +328,12 @@ class CherryImporter {
       final models = <String>[];
       final mlist = (p['models'] as List?) ?? const <dynamic>[];
       for (final m in mlist) {
-        if (m is Map && m['id'] != null) models.add(m['id'].toString());
+        if (m is Map && m['id'] != null) {
+          final mid = m['id'].toString();
+          // Skip duplicates: repeated model IDs break the models tab and
+          // batch model detection (duplicate widget keys).
+          if (!models.contains(mid)) models.add(mid);
+        }
       }
 
       // Normalize baseUrl following Cherry Studio semantics:

@@ -164,7 +164,9 @@ class ChatboxImporter {
         for (final m in rawModels) {
           if (m is! Map) continue;
           final mid = (m['modelId'] ?? '').toString().trim();
-          if (mid.isNotEmpty) models.add(mid);
+          // Skip duplicates: repeated model IDs break the models tab and
+          // batch model detection (duplicate widget keys).
+          if (mid.isNotEmpty && !models.contains(mid)) models.add(mid);
         }
       }
 
