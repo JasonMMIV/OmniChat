@@ -1025,6 +1025,12 @@ class ChatApiService {
           body as Map<String, dynamic>,
           upstreamModelId,
         );
+        _normalizeMoonshotKimiChatBody(
+          body as Map<String, dynamic>,
+          upstreamModelId: upstreamModelId,
+          isReasoning: isReasoning,
+          thinkingBudget: thinkingBudget,
+        );
         // Vendor-specific reasoning knobs for chat-completions compatible hosts (non-streaming)
         if (config.useResponseApi != true) {
           final off = _isOff(thinkingBudget);
@@ -1301,6 +1307,47 @@ class ChatApiService {
     if (!_isKimiK3Model(modelId)) return;
     body.remove('temperature');
     body.remove('top_p');
+  }
+
+  static bool _isKimiK25Model(String modelId) =>
+      modelId.toLowerCase().contains('kimi-k2.5');
+
+  static bool _isKimiThinkingModel(String modelId) {
+    final lower = modelId.toLowerCase();
+    return lower.contains('kimi-k2-thinking') || lower.contains('kimi-k2.5');
+  }
+
+  /// Normalize the chat-completions body for Moonshot Kimi thinking models
+  /// (kimi-k2-thinking / kimi-k2.5). k2.5 uses `thinking: {type: enabled|disabled}`
+  /// and rejects sampling params while thinking; other Kimi thinking models
+  /// fall back to the vendor default by omitting `thinking`.
+  static void _normalizeMoonshotKimiChatBody(
+    Map<String, dynamic> body, {
+    required String upstreamModelId,
+    required bool isReasoning,
+    int? thinkingBudget,
+  }) {
+    if (!_isKimiThinkingModel(upstreamModelId)) return;
+
+    body.remove('reasoning_effort');
+    if (!isReasoning) {
+      body.remove('thinking');
+      return;
+    }
+
+    if (_isKimiK25Model(upstreamModelId)) {
+      body['thinking'] = {
+        'type': _isOff(thinkingBudget) ? 'disabled' : 'enabled',
+      };
+      body.remove('temperature');
+      body.remove('top_p');
+      body.remove('n');
+      body.remove('presence_penalty');
+      body.remove('frequency_penalty');
+      return;
+    }
+
+    body.remove('thinking');
   }
 
   static void _applyDeepSeekThinkingKnob(
@@ -1603,7 +1650,8 @@ class ChatApiService {
     final bool needsReasoningEcho =
         (host.contains('deepseek') ||
             modelLower.contains('deepseek') ||
-            isMimo) &&
+            isMimo ||
+            _isKimiThinkingModel(upstreamModelId)) &&
         isReasoning;
     // OpenRouter reasoning models require preserving `reasoning_details` across tool-calling turns.
     final bool preserveReasoningDetails =
@@ -2014,6 +2062,12 @@ class ChatApiService {
       };
       _setMaxTokens(body);
       _removeKimiK3SamplingParams(body, upstreamModelId);
+      _normalizeMoonshotKimiChatBody(
+        body,
+        upstreamModelId: upstreamModelId,
+        isReasoning: isReasoning,
+        thinkingBudget: thinkingBudget,
+      );
     }
 
     // Vendor-specific reasoning knobs for chat-completions compatible hosts
@@ -2638,6 +2692,12 @@ class ChatApiService {
               };
               _setMaxTokens(body2);
               _removeKimiK3SamplingParams(body2, upstreamModelId);
+              _normalizeMoonshotKimiChatBody(
+                body2,
+                upstreamModelId: upstreamModelId,
+                isReasoning: isReasoning,
+                thinkingBudget: thinkingBudget,
+              );
 
               // Apply the same vendor-specific reasoning settings as the original request
               final off = _isOff(thinkingBudget);
@@ -4053,6 +4113,12 @@ class ChatApiService {
               };
               _setMaxTokens(body2);
               _removeKimiK3SamplingParams(body2, upstreamModelId);
+              _normalizeMoonshotKimiChatBody(
+                body2,
+                upstreamModelId: upstreamModelId,
+                isReasoning: isReasoning,
+                thinkingBudget: thinkingBudget,
+              );
               final off = _isOff(thinkingBudget);
               if (host.contains('openrouter.ai')) {
                 if (isReasoning) {
@@ -4644,6 +4710,12 @@ class ChatApiService {
                   };
                   _setMaxTokens(body2);
                   _removeKimiK3SamplingParams(body2, upstreamModelId);
+                  _normalizeMoonshotKimiChatBody(
+                    body2,
+                    upstreamModelId: upstreamModelId,
+                    isReasoning: isReasoning,
+                    thinkingBudget: thinkingBudget,
+                  );
                   final off = _isOff(thinkingBudget);
                   if (host.contains('openrouter.ai')) {
                     if (isReasoning) {

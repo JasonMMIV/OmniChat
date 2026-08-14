@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-12 (v1.17.0)
+- **Last Updated**: 2026-08-14 (v1.17.2)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -178,6 +178,24 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.17.2] - 2026-08-14: Moonshot Kimi 思考支援（kimi-k2.5 推理回顯＋thinking body 正規化）＋ `<thought>` 標籤（kelivo 移植）
+
+> 依 kelivo v1.1.9/v1.1.11 移植評估結論，實作兩項真實功能缺口。① **Kimi 思考**：`needsReasoningEcho` 加入 `kimi-k2.5`（推理回顯），並移植 upstream `_normalizeMoonshotKimiChatBody`——kimi-k2-thinking/kimi-k2.5 的 chat-completions body 移除 `reasoning_effort`、k2.5 改以 `thinking: {type: enabled|disabled}` 控制思考並在思考啟用時剝離採樣參數（temperature/top_p/n/presence_penalty/frequency_penalty），使 k2.5 的思考檔位真正生效（採 kelivo commit `e7079cd7`、`0147dbd1`）。② **`<thought>` 標籤**：推理區塊 regex 由 `<think>` 擴充為 `<(?:think|thought)>`，涵蓋上游 v1.1.11 時間軸渲染所接受的新標籤格式（採 kelivo commit `24efccf5`）。
+
+- **195a** Kimi 思考支援（`chat_api_service.dart`）：
+  - 新增 `_isKimiK25Model`（`kimi-k2.5`）與 `_isKimiThinkingModel`（`kimi-k2-thinking`｜`kimi-k2.5`）；`needsReasoningEcho` 條件加入 `_isKimiThinkingModel(upstreamModelId)`（與 upstream 語意一致）——k2.5 的 `reasoning_content` 在工具呼叫輪次間得以保留回顯。
+  - 移植 `_normalizeMoonshotKimiChatBody`（static，與 upstream v1.1.11 `openai_common.dart` 逐行一致）：非 Kimi thinking 模型直接 no-op；`reasoning_effort` 一律移除；`!isReasoning` 時移除 `thinking` 回退供應商預設；k2.5 且推理中→注入 `thinking: {'type': off ? 'disabled' : 'enabled'}` 並移除 5 個採樣參數（Moonshot 於 thinking 模式拒絕採樣參數）；其餘 kimi-k2-thinking→移除 `thinking` 走供應商預設。
+  - 掛接點：在既有 `_removeKimiK3SamplingParams` 之後、vendor reasoning knobs 之前，共 **5 處**——`generateText`（non-streaming）1 處、`sendMessageStream` 主 body 1 處、body2 重試建構 3 處（與 upstream 5 個呼叫點對齊），無新增 request 建構分支。
+- **195b** `<thought>` 標籤支援（4 個 regex 點，均為「取一段」或「剝除」語意）：
+  - `chat_message_widget.dart`：`THINKING_REGEX` 改為 `<(?:think|thought)>([\s\S]*?)(?:</(?:think|thought)>|$)`——行內推理區塊同時接受 `<think>` 與 `<thought>`。
+  - `message_export_sheet.dart`：匯出用 `thinkingRegex` 同式擴充。
+  - `mini_map_sheet.dart` 與 `mini_map_popover.dart`：mini map 單行預覽的剝除 regex 改為 `<(?:think|thought)>[\s\S]*?</(?:think|thought)>`（`caseSensitive: false`）。
+  - 兩個 importer（chatbox/cherry）僅「寫入」`<think>` 標籤，與上游一致不動。
+- **Status**: 完成——`flutter test` full suite **293 tests passed**（v1.17.1 為 282 → +11：`thinking_tag_regex_test.dart` 10、`reasoning_budget_api_test.dart` +1）；`flutter analyze` 修改檔案 **no errors**（全專案僅既有 vendored `speech_to_text_windows` example 2 個 error 與既有 `withOpacity` deprecation infos）。
+- **Version**: pubspec `1.17.2+83`；installer.iss 1.17.2（`OmniChat_windows_v1.17.2_setup`）。
+- **Files Modified**: `lib/core/services/api/chat_api_service.dart`、`lib/features/chat/widgets/chat_message_widget.dart`、`lib/features/chat/widgets/message_export_sheet.dart`、`lib/features/home/widgets/mini_map_sheet.dart`、`lib/desktop/mini_map_popover.dart`、`test/thinking_tag_regex_test.dart`（NEW）、`test/reasoning_budget_api_test.dart`（+1）、`pubspec.yaml`、`installer.iss`、`CHANGES_LOG.md`。
+- **Tests**: `test/thinking_tag_regex_test.dart`（NEW，10 案例：capturing regex 於 `<think>`／`<thought>`／混合／未閉合時取至結尾／多行／純文字無匹配；stripping regex 剝除 `<think>`／`<thought>`／多區塊／無匹配時原樣保留）。`test/reasoning_budget_api_test.dart`（+1：kimi-k2.5 thinking enabled→`{'type':'enabled'}`、off→`{'type':'disabled'}`、`reasoning_effort` 移除、5 個採樣參數移除）。
+
 ## [v1.17.1] - 2026-08-14: 行內程式碼 `$` 誤判 LaTeX 修復 ＋ 重複模型 ID 去重加固（kelivo 移植評估）
 
 > 依 kelivo v1.1.6/v1.1.7 移植評估結論，實作兩項真實缺口。① **行內程式碼 `$` 誤判 LaTeX**：`preprocessFences` 在 LaTeX 前處理前，先將行內程式碼（`` `...` ``）與 fenced code block 內的 `$` 遮罩為 `___CODE_DOLLAR_MASK___`，並在三個程式碼渲染路徑（`highlightBuilder`、`codeBuilder`、`FencedCodeBlockMd`）以 `unmaskCodeDollars` 延遲還原——修復 `` `a $b$ c` ``、單行 fenced code 中的 `$x$` 被誤改寫成 `\(...\)` 破壞程式碼顯示的問題（採 kelivo commit `6a93f903` 同源「延遲解除遮罩」策略）。② **重複模型 ID**：`ProviderConfig` 新增 `uniqueModels`（保留首次出現順序），`fromJson`/`copyWith`/`setProviderConfig` 三處統一去重，Chatbox 與 Cherry 兩支匯入器建構模型清單時亦跳過重複 ID——避免 `provider_detail_page` 的 `ValueKey('model-$id')` 觸發 Flutter「Duplicate keys」使整個模型頁（含批次檢測）無法渲染。

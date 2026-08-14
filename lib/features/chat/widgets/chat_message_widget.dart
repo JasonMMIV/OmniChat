@@ -152,9 +152,9 @@ class ChatMessageWidget extends StatefulWidget {
 }
 
 class _ChatMessageWidgetState extends State<ChatMessageWidget> {
-  // Match vendor inline thinking blocks: <think>...</think> (or until end)
+  // Match vendor inline thinking blocks: <think>...</think> or <thought>...</thought> (or until end)
   static final RegExp THINKING_REGEX = RegExp(
-    r"<think>([\s\S]*?)(?:</think>|$)",
+    r"<(?:think|thought)>([\s\S]*?)(?:</(?:think|thought)>|$)",
     dotAll: true,
   );
   final DateFormat _dateFormat = DateFormat('yyyy-MM-dd HH:mm:ss');

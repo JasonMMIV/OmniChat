@@ -148,6 +148,43 @@ void main() {
     },
   );
 
+  test('normalizes Kimi K2.5 thinking body and strips sampling params', () async {
+    final enabledBody = await _captureRequest(
+      config: ProviderConfig(
+        id: 'OpenAI',
+        enabled: true,
+        name: 'OpenAI',
+        apiKey: '',
+        baseUrl: '',
+        providerType: ProviderKind.openai,
+      ),
+      modelId: 'moonshotai/kimi-k2.5',
+      thinkingBudget: ReasoningBudget.medium,
+    );
+    final offBody = await _captureRequest(
+      config: ProviderConfig(
+        id: 'OpenAI',
+        enabled: true,
+        name: 'OpenAI',
+        apiKey: '',
+        baseUrl: '',
+        providerType: ProviderKind.openai,
+      ),
+      modelId: 'moonshotai/kimi-k2.5',
+      thinkingBudget: ReasoningBudget.off,
+    );
+
+    expect(enabledBody['thinking'], {'type': 'enabled'});
+    expect(offBody['thinking'], {'type': 'disabled'});
+    expect(enabledBody.containsKey('reasoning_effort'), isFalse);
+    expect(offBody.containsKey('reasoning_effort'), isFalse);
+    expect(enabledBody.containsKey('temperature'), isFalse);
+    expect(enabledBody.containsKey('top_p'), isFalse);
+    expect(enabledBody.containsKey('n'), isFalse);
+    expect(enabledBody.containsKey('presence_penalty'), isFalse);
+    expect(enabledBody.containsKey('frequency_penalty'), isFalse);
+  });
+
   test('maps DeepSeek thinking mode and effort for chat completions', () async {
     final enabledBody = await _captureRequest(
       config: ProviderConfig(

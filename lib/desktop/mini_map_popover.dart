@@ -236,7 +236,13 @@ class _MiniMapList extends StatelessWidget {
 
   String _oneLine(String s) {
     var t = s
-        .replaceAll(RegExp(r'<think>[\s\S]*?<\/think>', caseSensitive: false), '')
+        .replaceAll(
+          RegExp(
+            r'<(?:think|thought)>[\s\S]*?<\/(?:think|thought)>',
+            caseSensitive: false,
+          ),
+          '',
+        )
         .replaceAll(RegExp(r"\[image:[^\]]+\]"), "")
         .replaceAll(RegExp(r"\[file:[^\]]+\]"), "")
         .replaceAll('\n', ' ')

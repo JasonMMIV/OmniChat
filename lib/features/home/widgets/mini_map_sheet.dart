@@ -277,7 +277,13 @@ class _MiniMapRow extends StatelessWidget {
     // Strip inline embed markers used in user messages to avoid noise
     var t = s
         // remove vendor inline reasoning blocks if present
-        .replaceAll(RegExp(r'<think>[\s\S]*?<\/think>', caseSensitive: false), '')
+        .replaceAll(
+          RegExp(
+            r'<(?:think|thought)>[\s\S]*?<\/(?:think|thought)>',
+            caseSensitive: false,
+          ),
+          '',
+        )
         .replaceAll(RegExp(r"\[image:[^\]]+\]"), "")
         .replaceAll(RegExp(r"\[file:[^\]]+\]"), "")
         .replaceAll('\n', ' ')
