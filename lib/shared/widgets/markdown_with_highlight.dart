@@ -66,7 +66,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final sanitizedText = _sanitizeImageLinks(text);
     final imageUrls = _extractImageUrls(sanitizedText);
-    final normalized = _preprocessFences(
+    final normalized = preprocessFences(
       sanitizedText,
       enableMath: settings.enableMathRendering,
       enableDollarLatex: settings.enableDollarLatex,
@@ -579,7 +579,8 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       },
       // Inline `code` styling via highlightBuilder in gpt_markdown
       highlightBuilder: (ctx, inline, style) {
-        String softened = _softBreakInline(inline);
+        // Restore $ masked by preprocessFences so code content renders literally.
+        String softened = _softBreakInline(unmaskCodeDollars(inline));
         final bool isDarkCtx = Theme.of(ctx).brightness == Brightness.dark;
         final csCtx = Theme.of(ctx).colorScheme;
         final bg = isDarkCtx ? Colors.white12 : const Color(0xFFF1F3F5);
@@ -604,6 +605,8 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       },
       // Fenced code block styling via codeBuilder (with collapse/expand)
       codeBuilder: (ctx, name, code, closed) {
+        // Restore $ masked by preprocessFences so code content renders literally.
+        final codeText = unmaskCodeDollars(code);
         final lang = name.trim();
         final langLower = lang.toLowerCase();
         // While the owning message is actively streaming, defer native-backed
@@ -613,14 +616,14 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
         // corruption observed on Windows). When isStreaming flips to false, the
         // parent rebuild swaps in the real WebView2 renderer.
         if ((langLower == 'mermaid' || langLower == 'plantuml') && isStreaming) {
-          return _CollapsibleCodeBlock(language: lang, code: code);
+          return _CollapsibleCodeBlock(language: lang, code: codeText);
         }
         if (langLower == 'mermaid') {
-          return _MermaidBlock(code: code);
+          return _MermaidBlock(code: codeText);
         } else if (langLower == 'plantuml') {
-          return PlantUMLBlock(code: code);
+          return PlantUMLBlock(code: codeText);
         }
-        return _CollapsibleCodeBlock(language: lang, code: code);
+        return _CollapsibleCodeBlock(language: lang, code: codeText);
       },
     );
 
@@ -712,7 +715,66 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     }
   }
 
-  static String _preprocessFences(
+  /// Placeholder used to shield `$` characters inside inline code spans and
+  /// fenced code blocks from the LaTeX preprocessing ([preprocessFences]).
+  /// Restored by [unmaskCodeDollars] in the code render paths
+  /// ([highlightBuilder], [codeBuilder] and [FencedCodeBlockMd]).
+  /// Mirrors kelivo's "delayed unmask" strategy for the same bug.
+  static const String codeDollarMask = '___CODE_DOLLAR_MASK___';
+
+  /// Restores `$` characters that were masked by [codeDollarMask].
+  static String unmaskCodeDollars(String s) =>
+      s.replaceAll(codeDollarMask, r'$');
+
+  /// Replaces every `$` that appears inside an inline code span (`` `...` ``)
+  /// or a fenced code block (``` ... ```) with [codeDollarMask] so that
+  /// [preprocessFences] never misparses code content as LaTeX math.
+  static String _maskDollarsInCode(String input) {
+    const dollar = 0x24; // '$'
+    final n = input.length;
+    final inCode = List<bool>.filled(n, false);
+
+    // 1) Fenced code blocks: a line starting with ``` (optionally after
+    //    whitespace / a list marker) opens or closes a region; an unclosed
+    //    region extends to EOF. Mirrors the fence patterns normalized later
+    //    in preprocessFences (plain, indented, and list-item fences).
+    final fenceLine = RegExp(r'^\s*(?:[*+-]|\d+\.)?\s*```');
+    var lineStart = 0;
+    var inFence = false;
+    for (final line in input.split('\n')) {
+      if (fenceLine.hasMatch(line)) inFence = !inFence;
+      if (inFence) {
+        for (var j = lineStart; j < lineStart + line.length && j < n; j++) {
+          if (input.codeUnitAt(j) == dollar) inCode[j] = true;
+        }
+      }
+      lineStart += line.length + 1; // +1 for the '\n' separator
+    }
+
+    // 2) Inline code spans (single backtick, mirroring gpt_markdown's
+    //    HighlightedText). Mask `$` between the delimiting backticks.
+    final inlineCodeRe = RegExp(r"`(?!`)(.+?)(?<!`)`(?!`)");
+    for (final m in inlineCodeRe.allMatches(input)) {
+      final start = m.start + 1; // skip opening backtick
+      final end = m.end - 1; // exclude closing backtick
+      for (var j = start; j < end; j++) {
+        if (input.codeUnitAt(j) == dollar) inCode[j] = true;
+      }
+    }
+
+    if (!inCode.contains(true)) return input;
+    final buf = StringBuffer();
+    for (var i = 0; i < n; i++) {
+      if (inCode[i]) {
+        buf.write(codeDollarMask);
+      } else {
+        buf.write(input[i]);
+      }
+    }
+    return buf.toString();
+  }
+
+  static String preprocessFences(
     String input, {
     required bool enableMath,
     required bool enableDollarLatex,
@@ -730,6 +792,12 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       final url = match.group(2);
       return '[$text]($url)';
     });
+
+    // Shield `$` inside inline code spans / fenced code blocks from the LaTeX
+    // conversions below. Runs unconditionally (also protects the $$ display-math
+    // normalization that follows) and is restored at render time via
+    // unmaskCodeDollars in the code render paths.
+    out = _maskDollarsInCode(out);
 
     // Normalize inline $...$ math into \( ... \) so it always matches the LaTeX
     // renderer (even when vendors emit single-dollar math mixed with prose).
@@ -2354,7 +2422,8 @@ class FencedCodeBlockMd extends BlockMd {
     final m = exp.firstMatch(text);
     if (m == null) return const SizedBox.shrink();
     final lang = (m.group(1) ?? '').trim();
-    final code = (m.group(2) ?? '');
+    // Restore $ masked by preprocessFences so code content renders literally.
+    final code = MarkdownWithCodeHighlight.unmaskCodeDollars(m.group(2) ?? '');
     final langLower = lang.toLowerCase();
     if ((langLower == 'mermaid' || langLower == 'plantuml') && isStreaming) {
       return _CollapsibleCodeBlock(language: lang, code: code);

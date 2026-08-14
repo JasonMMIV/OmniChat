@@ -178,6 +178,22 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.17.1] - 2026-08-14: 行內程式碼 `$` 誤判 LaTeX 修復 ＋ 重複模型 ID 去重加固（kelivo 移植評估）
+
+> 依 kelivo v1.1.6/v1.1.7 移植評估結論，實作兩項真實缺口。① **行內程式碼 `$` 誤判 LaTeX**：`preprocessFences` 在 LaTeX 前處理前，先將行內程式碼（`` `...` ``）與 fenced code block 內的 `$` 遮罩為 `___CODE_DOLLAR_MASK___`，並在三個程式碼渲染路徑（`highlightBuilder`、`codeBuilder`、`FencedCodeBlockMd`）以 `unmaskCodeDollars` 延遲還原——修復 `` `a $b$ c` ``、單行 fenced code 中的 `$x$` 被誤改寫成 `\(...\)` 破壞程式碼顯示的問題（採 kelivo commit `6a93f903` 同源「延遲解除遮罩」策略）。② **重複模型 ID**：`ProviderConfig` 新增 `uniqueModels`（保留首次出現順序），`fromJson`/`copyWith`/`setProviderConfig` 三處統一去重，Chatbox 與 Cherry 兩支匯入器建構模型清單時亦跳過重複 ID——避免 `provider_detail_page` 的 `ValueKey('model-$id')` 觸發 Flutter「Duplicate keys」使整個模型頁（含批次檢測）無法渲染。
+
+- **194a** 行內程式碼 `$` 遮罩（`markdown_with_highlight.dart`）：
+  - 新增 `codeDollarMask` 常數、`unmaskCodeDollars`（還原）、`_maskDollarsInCode`（遮罩）。遮罩邏輯分兩段：① fenced code block——逐行以 `^\s*(?:[*+-]|\d+\.)?\s*```` 開關偵測（與 `preprocessFences` 稍後正規化的 plain / indented / list-item fence 模式一致），未閉合區段延伸至 EOF；② 行內 code span——以 `` `(?!`)(.+?)(?<!`)`(?!`) `` 匹配單一反引號 span（對齊 gpt_markdown `HighlightedText` 語意）。無 `$` 時原樣回傳不重建字串。
+  - 遮罩在 `_maskDollarsInCode` 中於 `preprocessFences` 內部執行（亦保護 `$$` display-math 正規化），不影響 markdown link 預處理；還原點：`highlightBuilder`（行內 code 樣式）、`codeBuilder`（fenced code block 樣式，含 mermaid/plantuml 與 streaming 分支）、`FencedCodeBlockMd`（mermaid/plantuml block 渲染）。HTML 預覽（`markdown_preview_html.dart`）不受影響（不經此前處理）。
+- **194b** 重複模型 ID 去重：
+  - `ProviderConfig`：新增 static `uniqueModels(Iterable<String>)`（`LinkedHashSet` 語意保留首次出現順序）；`fromJson` 與 `copyWith` 的 `models` 皆經 `uniqueModels`；`SettingsProvider.setProviderConfig` 以 `config.copyWith(models: config.models)` 正規化後才寫入與持久化。
+  - `chatbox_importer.dart`：`modelId` 非空時先查 `models.contains(mid)` 再加入。
+  - `cherry_importer.dart`：`m['id']` 非空時先查 `models.contains(mid)` 再加入。
+- **Status**: 完成——`flutter test` full suite **282 tests passed**（v1.17.0 為 270 → +12：`markdown_latex_code_mask_test.dart` 8、`settings_provider_models_dedup_test.dart` 4）；`flutter analyze` 修改檔案 **no new errors/warnings**（全專案僅既有 vendored `speech_to_text_windows` example 2 個 error）。
+- **Version**: pubspec `1.17.1+82`；installer.iss 1.17.1（`OmniChat_windows_v1.17.1_setup`）。
+- **Files Modified**: `lib/shared/widgets/markdown_with_highlight.dart`、`lib/core/providers/settings_provider.dart`、`lib/core/services/backup/chatbox_importer.dart`、`lib/core/services/backup/cherry_importer.dart`、`test/markdown_latex_code_mask_test.dart`（NEW）、`test/settings_provider_models_dedup_test.dart`（NEW）、`pubspec.yaml`、`installer.iss`、`CHANGES_LOG.md`。
+- **Tests**: `test/markdown_latex_code_mask_test.dart`（NEW，8 案例：prose `$...$` 照常轉 \(...\) 而 inline code 內 `$` 保持遮罩／fenced code 內 `$` 遮罩／code 內 `$$` 不當 display-math block／math 開關關閉時遮罩仍執行／純 prose 不遮罩／widget 層驗證 inline code 渲染 `$` 字面值且 prose math 不外洩／widget 層驗證 fenced code 渲染 `$` 字面值／math 關閉時 inline code 渲染 `$` 字面值）。`test/settings_provider_models_dedup_test.dart`（NEW，4 案例：`uniqueModels` 保留首次出現順序並去重／fromJson 去重／copyWith 去重（含 explicit 與既有 models）／setProviderConfig 持久化後 reload 仍去重）。
+
 ## [v1.17.0] - 2026-08-12: OpenAI Images API 支援（kelivo 移植）＋圖片比例選擇器
 
 > 依「導入 kelivo 圖片生成模型支援」計畫執行。從 kelivo 上游 commit `e1c20378`（feat: support Images API generations and edits）外科手術式 backport `openai_images.dart` 為 `ChatApiService` 的 static 方法：**輸出模式含「圖片」的模型**（於模型基本設定頁勾選輸出圖片；未設定時由 `ModelRegistry.infer` 依 id 推斷，如 `dall-e-*`、`gpt-image-*`、`sensenova-u1-fast`）**預設**改走獨立 `/images/generations` 與 `/images/edits` 端點，而非聊天補全；工具頁「使用 Images API」開關（僅圖片輸出模型可見）預設開啟，混合模型或供應商以聊天補全出圖者可手動關閉——關閉後仍走聊天補全出圖，比例參數照常注入。無輸入圖→生成；有輸入圖（含引用上一張生成圖的疊代編輯）→ `/images/edits`（multipart 上傳，經既有 `DioHttpClient.send`）；**Agnes 閘道（`baseUrl` 含 `agnes`）無 `/images/edits` 端點**，圖生圖改走 `/images/generations` ＋ `extra_body.image`（Data URI/URL 字串，JSON body 非 multipart，`2026-08-13`）。Phase 2 另加圖片比例選擇器（全域 `imageAspectRatio` 設定 + 輸入列按鈕 + `size`/`aspect_ratio` 轉換）。

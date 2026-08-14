@@ -1703,7 +1703,9 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> followSystem() => setThemeMode(ThemeMode.system);
 
   Future<void> setProviderConfig(String key, ProviderConfig config) async {
-    _providerConfigs[key] = config;
+    // Normalize duplicates so the models tab / batch detection never sees
+    // repeated IDs (duplicate widget keys would break rendering).
+    _providerConfigs[key] = config.copyWith(models: config.models);
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     final map = _providerConfigs.map((k, v) => MapEntry(k, v.toJson()));
@@ -3403,7 +3405,9 @@ class ProviderConfig {
     location: location ?? this.location,
     projectId: projectId ?? this.projectId,
     serviceAccountJson: serviceAccountJson ?? this.serviceAccountJson,
-    models: models ?? this.models,
+    models: models != null
+        ? uniqueModels(models)
+        : uniqueModels(this.models),
     modelOverrides: modelOverrides ?? this.modelOverrides,
     proxyEnabled: proxyEnabled ?? this.proxyEnabled,
     proxyHost: proxyHost ?? this.proxyHost,
@@ -3457,6 +3461,17 @@ class ProviderConfig {
     'balanceResultKey': balanceResultKey,
   };
 
+  /// Returns [ids] with duplicates removed, preserving first-occurrence order.
+  /// Duplicate model IDs break the models tab (duplicate widget keys) and
+  /// batch detection; callers normalize (trim) IDs before they reach here.
+  static List<String> uniqueModels(Iterable<String> ids) {
+    final seen = <String>{};
+    return [
+      for (final id in ids)
+        if (seen.add(id)) id,
+    ];
+  }
+
   factory ProviderConfig.fromJson(Map<String, dynamic> json) => ProviderConfig(
     id: json['id'] as String? ?? (json['name'] as String? ?? ''),
     enabled: json['enabled'] as bool? ?? true,
@@ -3475,9 +3490,9 @@ class ProviderConfig {
     location: json['location'] as String?,
     projectId: json['projectId'] as String?,
     serviceAccountJson: json['serviceAccountJson'] as String?,
-    models:
-        (json['models'] as List?)?.map((e) => e.toString()).toList() ??
-        const [],
+    models: uniqueModels(
+      (json['models'] as List?)?.map((e) => e.toString()) ?? const [],
+    ),
     modelOverrides:
         (json['modelOverrides'] as Map?)?.map(
           (k, v) => MapEntry(k.toString(), v),
