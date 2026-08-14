@@ -178,6 +178,27 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.17.3] - 2026-08-14: kelivo v1.1.12 移植（Claude 動態網頁搜尋＋MCP 失敗防中斷＋字型縮放排除同步）
+
+> 依 kelivo v1.1.12 移植評估結論，實作三項真實功能缺口（對應 upstream commit `a68b9b87`、`6c64cafe`、`3f728904`）。① **Claude 動態網頁搜尋**：Claude 4.7/4.6/Mythos 官方模型可選用新版 server 工具 `web_search_20260209`（動態過濾），啟用時自動附加配套 `code_execution_20250825`；內建搜尋白名單（mobile/desktop）補上 4-6/4-7 家族，並新增「Built-in Search (New)」toggle。Claude 4.7 thinking 支援則經評估為**已存在**（OmniChat 的 `ReasoningCapabilities` 已涵蓋 4-7/4-8/mythos，且超前上游內聯 regex 實作），不重複導入。② **MCP 工具失敗防中斷**：`ToolHandlerService` 的 search/memory/MCP 呼叫路徑包 try/catch，意外例外回傳 error JSON 給 LLM（含 retry/告知用戶 instruction），不再中斷整個聊天流程。③ **字型縮放排除同步**：`data_sync.dart` 的 `_localOnlyKeys` 加入 `display_chat_font_scale_v1`，跨裝置同步不再互相覆蓋字型大小。
+
+- **196a** Claude 動態網頁搜尋（`builtin_tools.dart`＋`chat_api_service.dart`）：
+  - `BuiltInToolNames.effectiveModelId`（新增，鏡像 `ChatApiService._apiModelId` 的 `apiModelId`/`api_model_id` override 解析）。
+  - `BuiltInToolsHelper` 新增 4 個函式：`isClaudeDynamicWebSearchSupportedModel`（`claude-opus-4-7`｜`claude-opus-4-6`｜`claude-sonnet-4-6`｜含 `mythos`，case/空白不敏感）、`supportsClaudeDynamicWebSearchForModel`（kind == claude 且 effectiveModelId 受支援）、`isClaudeDynamicWebSearchEnabled`（per-model `webSearch.toolVersion`/`tool_version` == `web_search_20260209`）、`claudeBuiltInSearchToolType`（動態啟用→`web_search_20260209`，否則既有 `web_search_20250305`）。
+  - `_sendClaudeStream`：內建搜尋工具型別改由 `claudeBuiltInSearchToolType` 決定；啟用動態版時向 `allTools` 附加 `{'type': 'code_execution_20250825', 'name': 'code_execution'}` 配套工具。
+  - `server_tool_use` placeholder 卡片：僅在 `name == 'web_search'` 時發送（`code_execution` 無專用卡片，不再誤發 search_web 卡）。
+- **196b** 動態搜尋 UI（mobile `search_settings_sheet.dart`＋desktop `search_provider_popover.dart`）：
+  - 兩處「Claude 支援模型」白名單補上 `claude-opus-4-7`／`claude-opus-4-6`／`claude-sonnet-4-6`（4-6/4-7 用戶原先連內建搜尋都無法啟用）。
+  - Mobile：內建搜尋卡片下方新增「模型內建搜尋（新）」toggle 卡（`_setClaudeDynamicWebSearchEnabled` 寫入/移除 `webSearch.toolVersion`）；僅 `supportsClaudeDynamicWebSearchForModel` 為 true 時顯示。
+  - Desktop：搜尋 popover 內建搜尋選項旁新增「Built-in Search (New)」選項（`_enableBuiltInSearch` 增 `useClaudeDynamicWebSearch` 參數，同時寫入 `builtInTools.search` 與 `toolVersion`）；選中狀態互斥標示。
+  - l10n：新增 `searchSettingsSheetClaudeDynamicSearchTitle`／`searchSettingsSheetClaudeDynamicSearchDescription` 2 keys × 4 語系（en/zh/zh-Hans/zh-Hant），`flutter gen-l10n` 重新生成。
+- **196c** MCP 失敗防中斷（`tool_handler_service.dart`）：search/memory/MCP 三條路徑包進 try/catch（file tool 既有獨立防護不變）；catch 回傳 `{'type':'tool_error','error':'execution_error','message','tool','instruction'}` JSON 並以 `FlutterLogger` 記錄，LLM 收到錯誤可重試或告知用戶，對話流程不再被工具例外中斷。
+- **196d** 字型縮放排除同步（`data_sync.dart`）：`SharedPreferencesAsync._localOnlyKeys` 加入 `display_chat_font_scale_v1`（與 upstream 一致），snapshot/restore/restoreSingle 三路徑皆跳過。
+- **Status**: 完成——`flutter test` full suite **318 tests passed**（v1.17.2 為 293 → +25：`builtin_tools_claude_dynamic_search_test.dart` 16、`claude_dynamic_web_search_test.dart` 4、`tool_handler_mcp_failure_test.dart` 2、`data_sync_local_only_keys_test.dart` 3）；`flutter analyze` 修改檔案與新測試 **no new errors/warnings**（6 個 lib 檔案合計 293 issues 與 HEAD 完全相同，皆為既有 withOpacity/unnecessary-null-assertion 等）。
+- **Version**: pubspec `1.17.3+84`；installer.iss 1.17.3（`OmniChat_windows_v1.17.3_setup`）。
+- **Files Modified**: `lib/core/services/api/builtin_tools.dart`、`lib/core/services/api/chat_api_service.dart`、`lib/features/home/services/tool_handler_service.dart`、`lib/core/services/backup/data_sync.dart`、`lib/features/search/widgets/search_settings_sheet.dart`、`lib/desktop/search_provider_popover.dart`、`lib/l10n/*.arb`（+2 keys × 4 語系）、`pubspec.yaml`、`installer.iss`、`CHANGES_LOG.md`。
+- **Tests**: `test/builtin_tools_claude_dynamic_search_test.dart`（NEW，16 案例）、`test/claude_dynamic_web_search_test.dart`（NEW，4 案例，HttpServer 端到端驗證 tools 注入）、`test/tool_handler_mcp_failure_test.dart`（NEW，2 案例）、`test/data_sync_local_only_keys_test.dart`（NEW，3 案例）。
+
 ## [v1.17.2] - 2026-08-14: Moonshot Kimi 思考支援（kimi-k2.5 推理回顯＋thinking body 正規化）＋ `<thought>` 標籤（kelivo 移植）
 
 > 依 kelivo v1.1.9/v1.1.11 移植評估結論，實作兩項真實功能缺口。① **Kimi 思考**：`needsReasoningEcho` 加入 `kimi-k2.5`（推理回顯），並移植 upstream `_normalizeMoonshotKimiChatBody`——kimi-k2-thinking/kimi-k2.5 的 chat-completions body 移除 `reasoning_effort`、k2.5 改以 `thinking: {type: enabled|disabled}` 控制思考並在思考啟用時剝離採樣參數（temperature/top_p/n/presence_penalty/frequency_penalty），使 k2.5 的思考檔位真正生效（採 kelivo commit `e7079cd7`、`0147dbd1`）。② **`<thought>` 標籤**：推理區塊 regex 由 `<think>` 擴充為 `<(?:think|thought)>`，涵蓋上游 v1.1.11 時間軸渲染所接受的新標籤格式（採 kelivo commit `24efccf5`）。

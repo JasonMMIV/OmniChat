@@ -8042,6 +8042,18 @@ abstract class AppLocalizations {
   /// **'是否启用模型内置的搜索功能'**
   String get searchSettingsSheetBuiltinSearchDescription;
 
+  /// No description provided for @searchSettingsSheetClaudeDynamicSearchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in Search (New)'**
+  String get searchSettingsSheetClaudeDynamicSearchTitle;
+
+  /// No description provided for @searchSettingsSheetClaudeDynamicSearchDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Use `web_search_20260209` with dynamic filtering on supported official Claude models.'**
+  String get searchSettingsSheetClaudeDynamicSearchDescription;
+
   /// No description provided for @searchSettingsSheetWebSearchDescription.
   ///
   /// In en, this message translates to:

@@ -198,6 +198,9 @@ class _SearchContent extends StatelessWidget {
     if (isGrok) return true; // All Grok models assumed to support search
     if (isClaude) {
       const supported = <String>{
+        'claude-opus-4-7',
+        'claude-opus-4-6',
+        'claude-sonnet-4-6',
         'claude-opus-4-1-20250805',
         'claude-opus-4-20250514',
         'claude-sonnet-4-20250514',
@@ -246,7 +249,40 @@ class _SearchContent extends StatelessWidget {
     return tools.contains(BuiltInToolNames.search);
   }
 
-  Future<void> _enableBuiltInSearch(BuildContext context) async {
+  bool _supportsClaudeDynamicWebSearch(
+    SettingsProvider settings,
+    AssistantProvider ap,
+  ) {
+    final a = ap.currentAssistant;
+    final providerKey = a?.chatModelProvider ?? settings.currentModelProvider;
+    final modelId = a?.chatModelId ?? settings.currentModelId;
+    if (providerKey == null || (modelId ?? '').isEmpty) return false;
+    final cfg = settings.getProviderConfig(providerKey);
+    return BuiltInToolsHelper.supportsClaudeDynamicWebSearchForModel(
+      cfg: cfg,
+      modelId: modelId,
+    );
+  }
+
+  bool _hasClaudeDynamicWebSearchEnabled(
+    SettingsProvider settings,
+    AssistantProvider ap,
+  ) {
+    final a = ap.currentAssistant;
+    final providerKey = a?.chatModelProvider ?? settings.currentModelProvider;
+    final modelId = a?.chatModelId ?? settings.currentModelId;
+    if (providerKey == null || (modelId ?? '').isEmpty) return false;
+    final cfg = settings.getProviderConfig(providerKey);
+    return BuiltInToolsHelper.isClaudeDynamicWebSearchEnabled(
+      cfg: cfg,
+      modelId: modelId,
+    );
+  }
+
+  Future<void> _enableBuiltInSearch(
+    BuildContext context, {
+    bool useClaudeDynamicWebSearch = false,
+  }) async {
     final sp = context.read<SettingsProvider>();
     final ap = context.read<AssistantProvider>();
     final a = ap.currentAssistant;
@@ -261,6 +297,23 @@ class _SearchContent extends StatelessWidget {
 
     final tools = BuiltInToolNames.parseAndNormalize(mo['builtInTools'])..add(BuiltInToolNames.search);
     mo['builtInTools'] = BuiltInToolNames.orderedForStorage(tools);
+    final rawWs = mo['webSearch'];
+    final ws = Map<String, dynamic>.from(
+      rawWs is Map
+          ? rawWs.map((k, v) => MapEntry(k.toString(), v))
+          : const <String, dynamic>{},
+    );
+    if (useClaudeDynamicWebSearch) {
+      ws['toolVersion'] = 'web_search_20260209';
+    } else {
+      ws.remove('toolVersion');
+      ws.remove('tool_version');
+    }
+    if (ws.isEmpty) {
+      mo.remove('webSearch');
+    } else {
+      mo['webSearch'] = ws;
+    }
     overrides[modelId] = mo;
     await sp.setProviderConfig(providerKey, cfg.copyWith(modelOverrides: overrides));
     await sp.setSearchEnabled(false);
@@ -302,6 +355,14 @@ class _SearchContent extends StatelessWidget {
     final supportsBuiltIn = _supportsBuiltInSearch(sp, ap);
     final builtInEnabled = _hasBuiltInSearchEnabled(sp, ap);
     final hasUrlContext = _hasUrlContextEnabled(sp, ap);
+    final supportsClaudeDynamicWebSearch = _supportsClaudeDynamicWebSearch(
+      sp,
+      ap,
+    );
+    final claudeDynamicWebSearchEnabled = _hasClaudeDynamicWebSearchEnabled(
+      sp,
+      ap,
+    );
     // When url_context is active, treat as built-in mode (hide external search options)
     final builtInMode = builtInEnabled || hasUrlContext;
 
@@ -324,12 +385,27 @@ class _SearchContent extends StatelessWidget {
       rows.add(_RowItem(
         leading: Icon(Lucide.Search, size: 16, color: cs.onSurface),
         label: l10n.searchSettingsSheetBuiltinSearchTitle,
-        selected: builtInEnabled,
+        selected: builtInEnabled && !claudeDynamicWebSearchEnabled,
         onTap: () async {
           await _enableBuiltInSearch(context);
           onDone();
         },
       ));
+      // 2b) Claude dynamic web search (new tool version, official 4.7/4.6/mythos)
+      if (supportsClaudeDynamicWebSearch) {
+        rows.add(_RowItem(
+          leading: Icon(Lucide.Search, size: 16, color: cs.onSurface),
+          label: l10n.searchSettingsSheetClaudeDynamicSearchTitle,
+          selected: builtInEnabled && claudeDynamicWebSearchEnabled,
+          onTap: () async {
+            await _enableBuiltInSearch(
+              context,
+              useClaudeDynamicWebSearch: true,
+            );
+            onDone();
+          },
+        ));
+      }
     }
 
     // 3) External services list (hidden when url_context is active)
