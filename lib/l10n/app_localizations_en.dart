@@ -2150,6 +2150,42 @@ class AppLocalizationsEn extends AppLocalizations {
       'Search the live web with Tinyfish Search API.';
 
   @override
+  String get searchServiceNameQuerit => 'Querit';
+
+  @override
+  String get searchProviderQueritDescription =>
+      'Querit Search API for LLM applications. Returns real-time web results with site, time, country, and language filters.';
+
+  @override
+  String get searchServicesDialogSitesIncludeOptional =>
+      'Include sites (optional)';
+
+  @override
+  String get searchServicesDialogSitesExcludeOptional =>
+      'Exclude sites (optional)';
+
+  @override
+  String get searchServicesDialogTimeRangeOptional => 'Time range (optional)';
+
+  @override
+  String get searchServicesDialogCountriesOptional => 'Countries (optional)';
+
+  @override
+  String get searchServicesDialogLanguagesOptional => 'Languages (optional)';
+
+  @override
+  String get searchServicesDialogSitesHint => 'example.com, docs.example.com';
+
+  @override
+  String get searchServicesDialogTimeRangeHint => 'd7';
+
+  @override
+  String get searchServicesDialogCountriesHint => 'united states, japan';
+
+  @override
+  String get searchServicesDialogLanguagesHint => 'english, japanese';
+
+  @override
   String get searchProviderArxivDescription =>
       'arXiv preprint repository for physics, math, computer science and more. No API key required.';
 

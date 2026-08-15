@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-15 (v1.17.5)
+- **Last Updated**: 2026-08-15 (v1.17.7)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -65,9 +65,10 @@ Refined visual identity and improved accessibility.
 Provides configurable external web search providers for tool-enabled text chat.
 
 - **Provider Registry**: Search providers are represented by typed `SearchServiceOptions` and resolved through `SearchService.getService`.
-- **Supported Providers**: Bing Local, DuckDuckGo, Tavily, Exa, Zhipu, SearXNG, LinkUp, Brave, Google, Metaso, Jina, Ollama, Perplexity, Bocha, and **Tinyfish (v1.5.15)**.
+- **Supported Providers**: Bing Local, DuckDuckGo, Tavily, Exa, Zhipu, SearXNG, LinkUp, Brave, Google, Metaso, Jina, Ollama, Perplexity, Bocha, **Tinyfish (v1.5.15)**, and **Querit (v1.17.7)**.
 - **Google Search API**: Uses Google Custom Search JSON API with `apiKey` and Programmable Search Engine ID (`cx`). Per-request result count is capped to Google's `num <= 10` API limit.
 - **Tinyfish Search API (v1.5.15)**: Uses the official `GET https://api.search.tinyfish.ai` REST endpoint with `X-API-Key` header. Maps response `results[]` — `title`, `url`, `snippet` — to `SearchResultItem`. Supports `resultSize` limit and `timeout` control. REST API only; MCP integration is deferred.
+- **Querit Search API (v1.17.7)**: Uses the official `POST https://api.querit.ai/v1/search` REST endpoint with `Authorization: Bearer <apiKey>`. Supports `count` limit and optional `filters` — site include/exclude、時間範圍（如 `d7`）、國家（geo）與語言。Maps response `results.result[]` — `title`/`url`/`snippet`，並把 `snippets`/`sentence` 合併為 `text` — 至 `SearchResultItem`。REST API only; MCP integration is deferred.
 - **UI Coverage**: Both mobile search service sheets and desktop settings panes support provider creation, editing, selection, status display, and brand icons.
 
 #### 5. Local Code Execution (MCP) (Integrated)
@@ -178,6 +179,35 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.17.7] - 2026-08-15: kelivo v1.1.16 Querit 搜尋服務商支援（移植）
+
+> 依 kelivo v1.1.16 移植需求，導入上游 commit `c669222d`（feat: add Querit search provider support）：新增 **Querit** 搜尋服務商——官方 `POST https://api.querit.ai/v1/search` REST 端點（`Authorization: Bearer`），支援 `count` 上限與 site include/exclude、時間範圍、國家、語言等選用 filters；行動版（`search_services_page.dart`）與桌面版（`search_services_pane.dart`）的搜尋服務設定 UI（新增/編輯表單）、品牌圖示（`querit-color.svg`）、`BrandAssets` 映射與狀態顯示全數接上。
+
+- **199a** 服務實作（`lib/core/services/search/providers/querit_search_service.dart` NEW，upstream 逐行移植）：
+  - `QueritSearchService.search`：apiKey 空值先驗（不發 request）→ body `{query, count}` ＋ 選用 `filters` → `POST` endpoint（`Bearer` auth、`Content-Type: application/json`、`.timeout(commonOptions.timeout)`）。
+  - 非 200 或 body `error_code != 200` 拋錯；`results.result[]` 以 `resultSize` 截斷後映射——`title`/`url`/`snippet`，並把 `snippets` 或 `sentence` 合併進 `text`（`\n\n` 串接、去重 snippet）。
+  - `_buildFilters`：`sites.include/exclude`（逗號/換行分隔）、`timeRange.date`（如 `d7`）、`geo.countries.include`、`languages.include`，全空時省略 filters。
+- **199b** 註冊與選項（`lib/core/services/search/search_service.dart`）：`QueritOptions`（apiKey＋5 個選用欄位：sitesInclude/sitesExclude/timeRange/countries/languages）新增於 `TinyfishOptions` 之後；`SearchService.getService` 與 `SearchServiceOptions.fromJson` 各加 `querit` case。
+- **199c** 品牌（`assets/icons/querit-color.svg` NEW＋`lib/utils/brand_assets.dart`）：`RegExp(r'querit')` → `querit-color.svg`（與 tinyfish 同區塊）。
+- **199d** 行動版 UI（`lib/features/search/pages/search_services_page.dart`）：新增服務清單＋`_getServiceName` case；新增表單 apiKey（必填）＋ 5 個選用欄位（含 hint）；編輯表單同結構；`_BrandBadge._nameForService`／`_getServiceIcon`／`_getServiceStatus`（apiKey 空→需金鑰狀態）／`_ServiceIcon._getMatchName` 皆接上 `QueritOptions`。
+- **199e** 桌面版 UI（`lib/desktop/setting/search_services_pane.dart`）：`_ServiceTypeChipsState._types` 加 querit 型別；新增/編輯 dialog 各自 6 個欄位與 controller 初始化、`_createService`/`_updateService` 建構；`_BrandBadge._nameForService` 接上。（API Key 欄沿用既有桌面 hardcoded `'API Key'` 慣例；上游的 `searchServicesDialogApiKey` key 不存在於 OmniChat，未導入。）
+- **199f** l10n：`searchServiceNameQuerit`／`searchProviderQueritDescription`／`searchServicesDialogSitesIncludeOptional`／`searchServicesDialogSitesExcludeOptional`／`searchServicesDialogTimeRangeOptional`／`searchServicesDialogCountriesOptional`／`searchServicesDialogLanguagesOptional`／`searchServicesDialogSitesHint`／`searchServicesDialogTimeRangeHint`／`searchServicesDialogCountriesHint`／`searchServicesDialogLanguagesHint` 共 11 keys × 4 語系（en/zh/zh-Hans/zh-Hant，譯文採 upstream），`flutter gen-l10n` 重新生成。
+- **Status**: 完成——`flutter test` full suite **381 tests passed**（v1.17.6 為 374 → +7：`querit_search_service_test.dart` 7）；`flutter analyze` 修改檔案 **no new errors/warnings**（新檔案 0 issues；既有檔案僅既有 withOpacity/deprecation infos 與 duplicate-import/unused-element 等既有 warnings，與 HEAD 相同）。
+- **Version**: pubspec `1.17.7+88`；installer.iss 1.17.7（`OmniChat_windows_v1.17.7_setup`）。
+- **Files Modified**: `lib/core/services/search/providers/querit_search_service.dart`（NEW）、`lib/core/services/search/search_service.dart`、`assets/icons/querit-color.svg`（NEW）、`lib/utils/brand_assets.dart`、`lib/features/search/pages/search_services_page.dart`、`lib/desktop/setting/search_services_pane.dart`、`lib/l10n/*.arb`（+11 keys × 4 語系）＋ `app_localizations*.dart`（gen-l10n 重新生成）、`pubspec.yaml`、`installer.iss`、`CHANGES_LOG.md`。
+- **Tests**: `test/core/services/search/querit_search_service_test.dart`（NEW，7 案例：序列化與 factory/icon 映射（`BrandAssets.assetForName('querit')`）／filters 建構與結果解析（含 snippets 合併、resultSize 截斷）／空選用欄位省略 filters／snippet 缺席時解析 sentence／空 apiKey 不發 request／非 200 拋錯／body error_code 拋錯）。
+
+## [v1.17.6] - 2026-08-15: kelivo v1.1.17 桌面版文字選取捲動修復（keyboardDismissBehavior 移植）
+
+> 依 kelivo v1.1.17 移植評估結論，導入上游 commit `97912775`（fix: preserve desktop text selection on scroll）：桌面版（macOS/Windows/Linux）訊息列表的 `keyboardDismissBehavior` 由 `onDrag` 改為 `manual`——`onDrag` 會在捲動開始時觸發 keyboard-dismiss（unfocus primary focus），而 unfocus 會一併清除作用中的 `SelectionArea` 文字選取，導致桌面版滑鼠選取文字後一捲動選取就消失；改 `manual` 後桌面捲動不再清除選取。行動版維持 `onDrag`（捲動收起鍵盤，行動版無此問題且需保留收鍵盤行為）。
+
+- **198a** `MessageListView`（`lib/features/home/widgets/message_list_view.dart`）：`ListView.builder` 的 `keyboardDismissBehavior` 由硬編碼 `onDrag` 改為依 `PlatformUtils.isDesktopTarget`（`defaultTargetPlatform` 為 macOS/windows/linux）決定：桌面→`manual`、行動→`onDrag`。`PlatformUtils.isDesktopTarget` 與 upstream `_isDesktopPlatform` 語意一致（`defaultTargetPlatform` 判斷，測試可經 `debugDefaultTargetPlatformOverride` 覆寫）。
+- **198b** 測試（`test/features/home/widgets/message_list_view_keyboard_dismiss_test.dart` NEW，4 案例，對應 upstream `message_list_view_padding_test.dart` 新增的兩案例並補齊三桌面平台）：以 `debugDefaultTargetPlatformOverride` 依序切換 macOS/Windows/Linux → 讀取 `ListView.keyboardDismissBehavior` 為 `manual`；Android → 仍為 `onDrag`。測試以真實 `SettingsProvider`/`AssistantProvider`/`UserProvider`/`ChatService`（`SharedPreferences`/`FlutterSecureStorage` mock + `.value` 注入，`tester.pump(Duration)` 推進 fake time 讓非同步 `_load` 在 tree 存活期間完成）渲染含一則 user 訊息的 `MessageListView`；`debugDefaultTargetPlatformOverride` 於測試 body 內重置（framework invariant check 於 teardown 前執行）。
+- **Status**: 完成——`flutter test` full suite **374 tests passed**（v1.17.5 為 370 → +4：`message_list_view_keyboard_dismiss_test.dart` 4）；`flutter analyze` 修改檔案 **no new errors/warnings**（`message_list_view.dart` 僅既有 withOpacity/textScaleFactor deprecation infos，與 HEAD 相同；新測試 0 issues）。
+- **Version**: pubspec `1.17.6+87`；installer.iss 1.17.6（`OmniChat_windows_v1.17.6_setup`）。
+- **Files Modified**: `lib/features/home/widgets/message_list_view.dart`、`test/features/home/widgets/message_list_view_keyboard_dismiss_test.dart`（NEW）、`pubspec.yaml`、`installer.iss`、`CHANGES_LOG.md`。
+- **Tests**: `test/features/home/widgets/message_list_view_keyboard_dismiss_test.dart`（NEW，4 案例：macOS／Windows／Linux 捲動不主動清除文字選取焦點（manual）＋ Android 捲動仍然收起鍵盤（onDrag））。
+
 ## [v1.17.5] - 2026-08-15: kelivo v1.1.16 語音朗讀（TTS）懸浮播放器移植
 
 > 依 kelivo v1.1.16 移植需求，導入「互動式懸浮播放器」（interactive floating TTS player）及其底層播放管線重構（對應 upstream commits `b37daef9`、`badb4314`、`3ad0440b`）。`TtsProvider` 由「簡易 chunk 順序播放」重寫為 upstream v1.1.16 的「系統＋網路 TTS 協調器」：文字切 chunk（`TtsTextChunker`）→ 播放時間軸模型（`TtsPlaybackTimeline`／`TtsPlaybackState`）→ 網路 TTS 預取佇列（prefetch 3 chunks）＋ seek/replay/倍速控制；所有播放狀態經 `playbackState` 暴露，由全螢幕懸浮播放器（可拖曳、可展開收合控制列）呈現。

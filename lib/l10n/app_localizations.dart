@@ -4211,6 +4211,72 @@ abstract class AppLocalizations {
   /// **'Search the live web with Tinyfish Search API.'**
   String get searchProviderTinyfishDescription;
 
+  /// No description provided for @searchServiceNameQuerit.
+  ///
+  /// In en, this message translates to:
+  /// **'Querit'**
+  String get searchServiceNameQuerit;
+
+  /// No description provided for @searchProviderQueritDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Querit Search API for LLM applications. Returns real-time web results with site, time, country, and language filters.'**
+  String get searchProviderQueritDescription;
+
+  /// No description provided for @searchServicesDialogSitesIncludeOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Include sites (optional)'**
+  String get searchServicesDialogSitesIncludeOptional;
+
+  /// No description provided for @searchServicesDialogSitesExcludeOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Exclude sites (optional)'**
+  String get searchServicesDialogSitesExcludeOptional;
+
+  /// No description provided for @searchServicesDialogTimeRangeOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Time range (optional)'**
+  String get searchServicesDialogTimeRangeOptional;
+
+  /// No description provided for @searchServicesDialogCountriesOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Countries (optional)'**
+  String get searchServicesDialogCountriesOptional;
+
+  /// No description provided for @searchServicesDialogLanguagesOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Languages (optional)'**
+  String get searchServicesDialogLanguagesOptional;
+
+  /// No description provided for @searchServicesDialogSitesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'example.com, docs.example.com'**
+  String get searchServicesDialogSitesHint;
+
+  /// No description provided for @searchServicesDialogTimeRangeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'d7'**
+  String get searchServicesDialogTimeRangeHint;
+
+  /// No description provided for @searchServicesDialogCountriesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'united states, japan'**
+  String get searchServicesDialogCountriesHint;
+
+  /// No description provided for @searchServicesDialogLanguagesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'english, japanese'**
+  String get searchServicesDialogLanguagesHint;
+
   /// No description provided for @searchProviderArxivDescription.
   ///
   /// In en, this message translates to:
