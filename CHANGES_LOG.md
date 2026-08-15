@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-15 (v1.17.4)
+- **Last Updated**: 2026-08-15 (v1.17.5)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -178,6 +178,35 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.17.5] - 2026-08-15: kelivo v1.1.16 語音朗讀（TTS）懸浮播放器移植
+
+> 依 kelivo v1.1.16 移植需求，導入「互動式懸浮播放器」（interactive floating TTS player）及其底層播放管線重構（對應 upstream commits `b37daef9`、`badb4314`、`3ad0440b`）。`TtsProvider` 由「簡易 chunk 順序播放」重寫為 upstream v1.1.16 的「系統＋網路 TTS 協調器」：文字切 chunk（`TtsTextChunker`）→ 播放時間軸模型（`TtsPlaybackTimeline`／`TtsPlaybackState`）→ 網路 TTS 預取佇列（prefetch 3 chunks）＋ seek/replay/倍速控制；所有播放狀態經 `playbackState` 暴露，由全螢幕懸浮播放器（可拖曳、可展開收合控制列）呈現。
+
+- **197a** 播放管線模型（`lib/core/services/tts/tts_playback_models.dart` NEW＋`tts_text_chunker.dart` NEW，upstream 逐行移植）：
+  - `TtsTextChunk`（index/text/startOffset）＋ `TtsTextChunker.split`：正規化空白、依句子邊界（。！？；!?;.）分段、`_joinForSpeech` 合併（ASCII 邊界補空格）、超長硬切不丟字元。
+  - `TtsPlaybackTimeline`：以「字元數 × 200ms（clamp 1s–60s）」估算每 chunk 時長；`positionForChunkProgress` 把「目前 chunk 內位置」映射為全時間軸位置；`seekTarget` 跨 chunk 計算 15 秒 seek 目標；`TtsPlaybackSpeed`（0.8/1.0/1.2/1.5/2.0）循環與系統 rate 換算（÷2）。
+  - `TtsPlaybackState`：status（idle/buffering/playing/paused/ended/error）、position/duration/progress、`isActive`（buffering|playing|paused）、`isPlayerVisible`（isActive|ended——播放結束後播放器仍顯示供 Replay）。
+- **197b** `TtsProvider` 重寫（`lib/core/providers/tts_provider.dart`，upstream v1.1.16）：
+  - `speak`/`speakSystem`/`speakWithNetworkService` 統一走 `_speakQueued`：flush 舊播放 → 切 chunk → 建時間軸 → 回傳 `playbackFuture`（沿用呼叫端 `.timeout()` 相容）。
+  - 系統 TTS：chunk 依 completion handler 順序播放、progress handler 估算 chunk 內位置；`_trySpeak` 失敗重試 5 次 → `_recreateEngine` 再重試 5 次。
+  - 網路 TTS：`_runNetworkQueue` 依 chunk 依序播放、`_prefetchNetworkChunks` 預取後 3 個 chunk、`_networkCache` 以 index 快取 Future；`cancelled: () => session != _sessionId` 支援取消；播放走臨時檔（`DeviceFileSource`）＋ `onPlayerComplete`/`onPositionChanged`/`onDurationChanged` 同步狀態。
+  - 控制：`pause`/`resume`/`togglePause`（ended 時改 Replay）、`replay`（記住 `_lastReplayContent`＋`_lastReplayNetworkService`）、`seekBackward`/`seekForward`（±15s，`_seekStep`）、`seekTo`、`cyclePlaybackSpeed`/`setPlaybackSpeed`（網路 `setPlaybackRate`、系統 `toSystemRate`＋`_restartSystemAt` 保留目前位置）、`stop`（session 失效＋引擎停止＋狀態重置）。
+  - 既有 public API（`speak`/`speakSystem`/`speakWithNetworkService`/`testNetworkService`/`listEngines`/`listLanguages`/`setEngineId`/`setLanguageTag`/`setSpeechRate`/`setPitch`/`isAvailable`/`isSpeaking`/`error`）簽名不變，TTS 設定頁與語音對話頁零修改相容；`dispose` 取消 4 個 stream subscription 後釋放播放資源。
+- **197c** 懸浮播放器（`lib/shared/widgets/tts_floating_player.dart` NEW，570 行）：
+  - 全螢幕 overlay 常駐（`AppOverlays` 內 Stack 第二層 `Material`＋`TtsFloatingPlayer`），`Consumer<TtsProvider>` 依 `playbackState.isPlayerVisible` 顯示／淡出；`IgnorePointer`＋`AnimatedOpacity` 隱藏時不擋操作。
+  - 圓形進度環（外環＝總進度、內環＝chunk 進度）、播放/暫停/重新播放、關閉、±15 秒、倍速（x0.8–x2.0）、展開/收合（120px ⇄ 232px，`TweenAnimationBuilder` 220ms）；可垂直拖曳（水平位置鎖定於左側，`_clampPosition` clamp 邊界，含 status bar padding）。
+  - 含 upstream 後續兩個修正：fallback 位置改 top-left（`badb4314`，`_initialTopOffset = 68`）＋水平拖曳鎖定（`3ad0440b`）。
+- **197d** 掛接（`lib/shared/widgets/app_overlays.dart` NEW＋`lib/main.dart`）：`AppOverlays`＝`Overlay.wrap(Stack[AppSnackBarOverlay, TtsFloatingPlayer])`，`main.dart` 兩處 `AppSnackBarOverlay` 取代為 `AppOverlays`（有效字型分支共用同一實例），provider tree 不變。
+- **197e** 呼叫端對齊（`home_page_controller.dart`＋`chat_message_widget.dart`）：
+  - `speakMessage` 重構為 `_speakAssistantMessage(message, autoPlay:)`：非 autoPlay 且 `playbackState.isActive` → `stop()` 返回（保留 toggle 語意）；桌面檢查改 `sp.selectedTtsService != null` 且 `!hasNetworkTts && !tts.isAvailable` 才提示「請新增 provider」（系統 TTS 可用時不再誤擋）；`TtsTextSelection.apply` 過濾後 `tts.speak`（新 provider flush 處理重播）。
+  - 訊息 speak 按鈕改以 `tts.playbackState.isActive` 切換 stop/speak 圖示（覆蓋 buffering 期間）。既有 auto-play（`onStreamFinished`）不變。
+- **197f** `IosCardPress` 防呆（`lib/shared/widgets/ios_tactile.dart`）：haptics 讀取改為「`widget.haptics` 為 true 才 `context.read<SettingsProvider>()`」（與 upstream 一致）——播放器按鈕皆 `haptics: false`，無 SettingsProvider 的測試情境不再拋 ProviderNotFoundException。
+- **197g** l10n：`ttsFloatingPlayerLabel`／`ttsFloatingPauseTooltip`／`ttsFloatingResumeTooltip`／`ttsFloatingReplayTooltip`／`ttsFloatingRewind15Tooltip`／`ttsFloatingForward15Tooltip`／`ttsFloatingSpeedTooltip`／`ttsFloatingCloseTooltip`／`ttsFloatingExpandTooltip`／`ttsFloatingCollapseTooltip` 共 10 keys × 4 語系（en/zh/zh-Hans/zh-Hant），`flutter gen-l10n` 重新生成。
+- **Status**: 完成——`flutter test` full suite **370 tests passed**（v1.17.4 為 359 → +11：`tts_text_chunker_test.dart` 3、`tts_playback_timeline_test.dart` 4、`tts_provider_test.dart` 2、`tts_floating_player_test.dart` 2）；`flutter analyze` 修改檔案 **no new errors/warnings**（新檔案 0 issues；全專案僅既有 vendored `speech_to_text_windows` example 2 個 error）。
+- **Version**: pubspec `1.17.5+86`；installer.iss 1.17.5（`OmniChat_windows_v1.17.5_setup`）。
+- **Files Modified**: `lib/core/providers/tts_provider.dart`（重寫）、`lib/core/services/tts/tts_playback_models.dart`（NEW）、`lib/core/services/tts/tts_text_chunker.dart`（NEW）、`lib/shared/widgets/tts_floating_player.dart`（NEW）、`lib/shared/widgets/app_overlays.dart`（NEW）、`lib/main.dart`、`lib/features/home/controllers/home_page_controller.dart`、`lib/features/chat/widgets/chat_message_widget.dart`、`lib/shared/widgets/ios_tactile.dart`、`lib/l10n/*.arb`（+10 keys × 4 語系）＋ `app_localizations*.dart`（gen-l10n 重新生成）、`pubspec.yaml`、`installer.iss`、`CHANGES_LOG.md`。
+- **Tests**: `test/core/services/tts/tts_text_chunker_test.dart`（NEW，3 案例）、`test/core/services/tts/tts_playback_timeline_test.dart`（NEW，4 案例）、`test/core/providers/tts_provider_test.dart`（NEW，2 案例：改倍速保留播放位置／結束後可由播放器 Replay）、`test/shared/widgets/tts_floating_player_test.dart`（NEW，2 案例：播放器 overlay 渲染＋拖曳/展開/控制呼叫／ended 狀態顯示 Replay）。
+
 ## [v1.17.3] - 2026-08-14: kelivo v1.1.12 移植（Claude 動態網頁搜尋＋MCP 失敗防中斷＋字型縮放排除同步）
 
 > 依 kelivo v1.1.12 移植評估結論，實作三項真實功能缺口（對應 upstream commit `a68b9b87`、`6c64cafe`、`3f728904`）。① **Claude 動態網頁搜尋**：Claude 4.7/4.6/Mythos 官方模型可選用新版 server 工具 `web_search_20260209`（動態過濾），啟用時自動附加配套 `code_execution_20250825`；內建搜尋白名單（mobile/desktop）補上 4-6/4-7 家族，並新增「Built-in Search (New)」toggle。Claude 4.7 thinking 支援則經評估為**已存在**（OmniChat 的 `ReasoningCapabilities` 已涵蓋 4-7/4-8/mythos，且超前上游內聯 regex 實作），不重複導入。② **MCP 工具失敗防中斷**：`ToolHandlerService` 的 search/memory/MCP 呼叫路徑包 try/catch，意外例外回傳 error JSON 給 LLM（含 retry/告知用戶 instruction），不再中斷整個聊天流程。③ **字型縮放排除同步**：`data_sync.dart` 的 `_localOnlyKeys` 加入 `display_chat_font_scale_v1`，跨裝置同步不再互相覆蓋字型大小。

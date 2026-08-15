@@ -968,13 +968,23 @@ class HomePageController extends ChangeNotifier {
   }
 
   Future<void> speakMessage(ChatMessage message) async {
+    await _speakAssistantMessage(message, autoPlay: false);
+  }
+
+  Future<void> _speakAssistantMessage(
+    ChatMessage message, {
+    required bool autoPlay,
+  }) async {
+    final tts = _context.read<TtsProvider>();
+    if (!autoPlay && tts.playbackState.isActive) {
+      await tts.stop();
+      return;
+    }
+
     if (PlatformUtils.isDesktopTarget) {
       final sp = _context.read<SettingsProvider>();
-      // Allow if System TTS is selected (index < 0) OR if a valid network service is selected
-      final isSystem = sp.usingSystemTts;
-      final hasNetworkTts = sp.ttsServiceSelected >= 0 && sp.ttsServices.isNotEmpty;
-      
-      if (!isSystem && !hasNetworkTts) {
+      final hasNetworkTts = sp.selectedTtsService != null;
+      if (!hasNetworkTts && !tts.isAvailable) {
         showAppSnackBar(
           _context,
           message: AppLocalizations.of(_context)!.desktopTtsPleaseAddProvider,
@@ -983,17 +993,14 @@ class HomePageController extends ChangeNotifier {
         return;
       }
     }
-    final tts = _context.read<TtsProvider>();
-    if (!tts.isSpeaking) {
-      final sp = _context.read<SettingsProvider>();
-      final filteredText = TtsTextSelection.apply(
-        message.content,
-        mode: sp.ttsTextSelectionMode,
-      );
-      await tts.speak(filteredText);
-    } else {
-      await tts.stop();
-    }
+
+    final sp = _context.read<SettingsProvider>();
+    final text = TtsTextSelection.apply(
+      message.content,
+      mode: sp.ttsTextSelectionMode,
+    );
+    if (text.trim().isEmpty) return;
+    await tts.speak(text);
   }
 
   void shareMessage(int messageIndex, List<ChatMessage> messageList) {
