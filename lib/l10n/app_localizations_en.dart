@@ -2625,6 +2625,36 @@ class AppLocalizationsEn extends AppLocalizations {
       'Text outside brackets';
 
   @override
+  String get ttsFloatingPlayerLabel => 'TTS player';
+
+  @override
+  String get ttsFloatingPauseTooltip => 'Pause';
+
+  @override
+  String get ttsFloatingResumeTooltip => 'Resume';
+
+  @override
+  String get ttsFloatingReplayTooltip => 'Replay';
+
+  @override
+  String get ttsFloatingRewind15Tooltip => 'Back 15 seconds';
+
+  @override
+  String get ttsFloatingForward15Tooltip => 'Forward 15 seconds';
+
+  @override
+  String get ttsFloatingSpeedTooltip => 'Playback speed';
+
+  @override
+  String get ttsFloatingCloseTooltip => 'Close player';
+
+  @override
+  String get ttsFloatingExpandTooltip => 'Expand playback controls';
+
+  @override
+  String get ttsFloatingCollapseTooltip => 'Collapse playback controls';
+
+  @override
   String get ttsServicesFieldLanguageTypeLabel => 'Language Type';
 
   @override

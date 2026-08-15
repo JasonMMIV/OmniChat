@@ -34,7 +34,7 @@ import 'core/services/chat/chat_service.dart';
 import 'core/services/mcp/mcp_tool_service.dart';
 import 'core/services/logging/flutter_logger.dart';
 import 'utils/sandbox_path_resolver.dart';
-import 'shared/widgets/snackbar.dart';
+import 'shared/widgets/app_overlays.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:system_fonts/system_fonts.dart';
 import 'package:flutter/painting.dart' show PaintingBinding;
@@ -420,17 +420,16 @@ class MyApp extends StatelessWidget {
                   }
 
                   // Enforce app font as a default across the tree for Texts without explicit family
+                  final appWithOverlays = AppOverlays(
+                    child: child ?? const SizedBox.shrink(),
+                  );
                   return AnnotatedRegion<SystemUiOverlayStyle>(
                     value: overlay,
                     child: effectiveAppFont == null
-                        ? AppSnackBarOverlay(
-                            child: child ?? const SizedBox.shrink(),
-                          )
+                        ? appWithOverlays
                         : DefaultTextStyle.merge(
                             style: TextStyle(fontFamily: effectiveAppFont),
-                            child: AppSnackBarOverlay(
-                              child: child ?? const SizedBox.shrink(),
-                            ),
+                            child: appWithOverlays,
                           ),
                   );
                 },
