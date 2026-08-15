@@ -6,6 +6,7 @@ import '../../../core/models/conversation.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../utils/platform_utils.dart';
 import '../../../shared/widgets/ios_checkbox.dart';
 import '../../chat/widgets/chat_message_widget.dart';
 import '../../chat/widgets/message_more_sheet.dart';
@@ -229,7 +230,11 @@ class MessageListView extends StatelessWidget {
             isPinnedIndicatorActive ? 28 : 16,
           ),
           itemCount: collapsedMessages.length,
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          // 桌面版以 manual 避免捲動時觸發 keyboard-dismiss（unfocus）
+          // 導致文字選取消失；行動版維持 onDrag 捲動收起鍵盤。
+          keyboardDismissBehavior: PlatformUtils.isDesktopTarget
+              ? ScrollViewKeyboardDismissBehavior.manual
+              : ScrollViewKeyboardDismissBehavior.onDrag,
           itemBuilder: (context, index) {
             if (index < 0 || index >= collapsedMessages.length) {
               return const SizedBox.shrink();
