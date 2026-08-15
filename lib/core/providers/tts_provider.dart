@@ -230,15 +230,27 @@ class TtsProvider extends ChangeNotifier {
         }
       }
     } catch (_) {}
-    try {
-      await _tts.awaitSpeakCompletion(true);
-    } catch (_) {}
-    try {
-      await _tts.awaitSynthCompletion(true);
-    } catch (_) {}
-    try {
-      await _tts.setQueueMode(1);
-    } catch (_) {}
+    // NOTE: awaitSpeakCompletion must stay OFF on Windows. The pub flutter_tts
+    // SAPI implementation stores `speakResult` and resolves it from a
+    // threadpool callback (`setResult` via RegisterWaitForSingleObject); a new
+    // speak() moves/destroys the previous result while its callback is still
+    // pending, causing a use-after-free native crash (0xc0000005 in
+    // flutter_tts_plugin.dll) on chunk boundaries. With it off, Windows
+    // sequences chunks via the completion handler (speak.onComplete), exactly
+    // like the pre-v1.17.5 provider.
+    if (io.Platform.isAndroid || io.Platform.isIOS) {
+      try {
+        await _tts.awaitSpeakCompletion(true);
+      } catch (_) {}
+      try {
+        await _tts.awaitSynthCompletion(true);
+      } catch (_) {}
+    }
+    if (io.Platform.isAndroid) {
+      try {
+        await _tts.setQueueMode(1);
+      } catch (_) {}
+    }
   }
 
   Future<void> _recreateEngine() async {

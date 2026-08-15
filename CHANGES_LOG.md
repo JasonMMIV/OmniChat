@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-15 (v1.17.7)
+- **Last Updated**: 2026-08-15 (v1.17.8)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -179,6 +179,15 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.17.8] - 2026-08-15: Windows 版 TTS 朗讀閃退修復（awaitSpeakCompletion 平台守衛還原）
+
+> Windows 版點擊訊息播放語音按鈕後立即閃退（Event Log：`flutter_tts_plugin.dll` `0xc0000005` access violation）。根因是 v1.17.5 移植的 `TtsProvider` 在 `_applyConfig` **無條件**啟用 `awaitSpeakCompletion(true)`（上游 kelivo 為 Android/iOS 專案，其 vendored flutter_tts 無 Windows 實作，未涵蓋此平台）。pub `flutter_tts 4.2.5` 的 Windows SAPI 原生分支收到 `awaitSpeakCompletion(true)` 後會把 `speakResult` 以 unique_ptr 保存、並以 `RegisterWaitForSingleObject` 註冊 `setResult` 回呼——該回呼在**執行緒集區**延遲解參考 `speakResult.get()`；而 `speak.onComplete` → `_advanceSystemChunkOrFinish` → 下一 chunk 的 `speak()` 會 `speakResult = std::move(result)` 銷毀上一個 MethodResult 物件，尚未執行的 `setResult` 回呼因此解參考**已釋放指標**（use-after-free）→ 原生崩潰。
+
+- **200a** `_applyConfig`（`lib/core/providers/tts_provider.dart`）：還原舊版平台守衛——`awaitSpeakCompletion(true)`／`awaitSynthCompletion(true)` 僅在 Android/iOS 呼叫（Windows 改由 completion handler `speak.onComplete` 驅動 chunk 順序，與 v1.17.5 前相同）；`setQueueMode(1)` 僅 Android。附註解說明崩潰機制。Android/iOS 行為與上游一致，不受影響。
+- **Status**: 待實機驗證（Windows 需重新建置 1.17.8 後點擊朗讀確認不再閃退）；`flutter test` TTS 相關（`tts_provider_test`＋`tts_text_chunker_test`＋`tts_playback_timeline_test`）**9 tests passed**；`flutter analyze` 修改檔案 **no issues**。
+- **Version**: pubspec `1.17.8+89`；installer.iss 1.17.8（`OmniChat_windows_v1.17.8_setup`）。
+- **Files Modified**: `lib/core/providers/tts_provider.dart`、`pubspec.yaml`、`installer.iss`、`CHANGES_LOG.md`。
+
 ## [v1.17.7] - 2026-08-15: kelivo v1.1.16 Querit 搜尋服務商支援（移植）
 
 > 依 kelivo v1.1.16 移植需求，導入上游 commit `c669222d`（feat: add Querit search provider support）：新增 **Querit** 搜尋服務商——官方 `POST https://api.querit.ai/v1/search` REST 端點（`Authorization: Bearer`），支援 `count` 上限與 site include/exclude、時間範圍、國家、語言等選用 filters；行動版（`search_services_page.dart`）與桌面版（`search_services_pane.dart`）的搜尋服務設定 UI（新增/編輯表單）、品牌圖示（`querit-color.svg`）、`BrandAssets` 映射與狀態顯示全數接上。
