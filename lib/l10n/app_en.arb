@@ -1901,5 +1901,9 @@
   "chatMessageWidgetShowInFolder": "Show in folder",
   "chatMessageWidgetOpenExternally": "Open externally",
   "chatMessageWidgetDownload": "Download",
-  "chatMessageWidgetFileActions": "File actions"
+  "chatMessageWidgetFileActions": "File actions",
+  "markdownTableLabel": "Table",
+  "markdownTableExportMarkdownButton": "Export Markdown",
+  "mermaidImageTab": "Image",
+  "mermaidCodeTab": "Code"
 }

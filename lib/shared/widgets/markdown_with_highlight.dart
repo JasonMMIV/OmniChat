@@ -10,9 +10,13 @@ import 'package:flutter_highlight/themes/atom-one-dark-reasonable.dart';
 import 'package:highlight/highlight.dart' show highlight, Node;
 import '../../icons/lucide_adapter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import '../../utils/sandbox_path_resolver.dart';
 import '../../utils/markdown_preview_html.dart';
@@ -22,9 +26,11 @@ import 'code_block_download_button.dart';
 import 'snackbar.dart';
 import 'mermaid_bridge.dart';
 import 'export_capture_scope.dart';
+import 'ios_tactile.dart';
 import 'mermaid_image_cache.dart';
 import 'plantuml_block.dart';
 import '../../l10n/app_localizations.dart';
+import '../../theme/app_font_weights.dart';
 import '../../theme/theme_factory.dart' show getPlatformFontFallback;
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -93,6 +99,10 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     if (cbIdx != -1) components[cbIdx] = ModernCheckBoxMd();
     final rbIdx = components.indexWhere((c) => c is RadioButtonMd);
     if (rbIdx != -1) components[rbIdx] = ModernRadioMd();
+    // Escape/math-aware table cell splitting so `|` inside $...$ / \(...\) / \|
+    // spans is not treated as a column separator (kelivo v1.1.16 port).
+    final tableIdx = components.indexWhere((c) => c is TableMd);
+    if (tableIdx != -1) components[tableIdx] = EscapeAwareTableMd();
     // Prepend custom renderers in priority order (fence first)
     // Temporarily disable custom bold label line transformer to avoid
     // interfering with block parsing for complex documents.
@@ -117,6 +127,10 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     // Ensure fenced code blocks take precedence over headings and other blocks
     // so lines like "# comment" inside code fences are not parsed as headings.
     components.insert(0, FencedCodeBlockMd(isStreaming: isStreaming));
+    // HTML <details>/<summary> collapsible blocks (kelivo v1.1.13 port).
+    // Registered ahead of fences; fenced-code content is protected by the
+    // <details>/<summary> tag-start mask applied in preprocessFences.
+    components.insert(0, DetailsHtmlMd());
     // Inline components: keep defaults but make link parsing line-scoped
     final inlineComponents = List<MarkdownComponent>.from(
       MarkdownComponent.inlineComponents,
@@ -125,6 +139,8 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     if (linkIdxInline != -1) {
       inlineComponents[linkIdxInline] = LineSafeLinkMd();
     }
+    // Raw HTML <a href> anchors (kelivo v1.1.13 port).
+    inlineComponents.insert(0, HtmlAnchorMd());
     // codeBuilder handles rendering. A custom BlockMd for fences can
     // interfere with block segmentation in some cases.
     // Resolve user preferred code font family (default to monospace)
@@ -174,7 +190,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       onLinkTap: (url, title) => _handleLinkTap(context, url),
       components: components,
       inlineComponents: inlineComponents,
-      imageBuilder: (ctx, url) {
+      imageBuilder: (ctx, url, width, height) {
         final imgs = (imageUrls ?? const <String>[]).isNotEmpty
             ? imageUrls!
             : <String>[url];
@@ -472,11 +488,15 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
             ],
           );
 
-          return SelectionContainer.disabled(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              primary: false,
-              child: ClipRRect(
+          return _wrapTableWithToolbar(
+            ctx,
+            rows,
+            headerBg,
+            SelectionContainer.disabled(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                primary: false,
+                child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   decoration: BoxDecoration(
@@ -496,16 +516,21 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
                 ),
               ),
             ),
+            ),
           );
         }
 
         // Desktop: fit within available width and wrap cell content.
         // Do NOT add an inner SelectionArea here to allow selection to span
         // across the entire message-level SelectionArea wrapper.
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            // Use equal flex for all columns so table width == available width.
-            final Map<int, TableColumnWidth> columnWidths = {
+        return _wrapTableWithToolbar(
+          ctx,
+          rows,
+          headerBg,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              // Use equal flex for all columns so table width == available width.
+              final Map<int, TableColumnWidth> columnWidths = {
               for (int i = 0; i < maxCol; i++) i: const FlexColumnWidth(),
             };
 
@@ -574,7 +599,8 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
                 ),
               ),
             );
-          },
+            },
+          ),
         );
       },
       // Inline `code` styling via highlightBuilder in gpt_markdown
@@ -605,8 +631,9 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       },
       // Fenced code block styling via codeBuilder (with collapse/expand)
       codeBuilder: (ctx, name, code, closed) {
-        // Restore $ masked by preprocessFences so code content renders literally.
-        final codeText = unmaskCodeDollars(code);
+        // Restore $ and <details>/<summary masks from preprocessFences so code
+        // content renders literally.
+        final codeText = unmaskFencedHtmlTagStarts(unmaskCodeDollars(code));
         final lang = name.trim();
         final langLower = lang.toLowerCase();
         // While the owning message is actively streaming, defer native-backed
@@ -726,6 +753,39 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
   static String unmaskCodeDollars(String s) =>
       s.replaceAll(codeDollarMask, r'$');
 
+  /// Single-char placeholder used to shield `<details` / `</details` /
+  /// `<summary` / `</summary` tag starts inside fenced code blocks from the
+  /// block-level [DetailsHtmlMd] pattern (kelivo v1.1.17 port).
+  static const String fencedHtmlTagStartMask = '\uE002';
+
+  /// True when [input] at [i] begins a `<details` / `</details` / `<summary` /
+  /// `</summary` tag (case-insensitive, word-boundary terminated).
+  static bool _isFencedHtmlTagStart(String input, int i) {
+    if (i >= input.length || input.codeUnitAt(i) != 0x3C /* '<' */) {
+      return false;
+    }
+    var j = i + 1;
+    if (j < input.length && input.codeUnitAt(j) == 0x2F /* '/' */) j++;
+    final lower = input.substring(j).toLowerCase();
+    if (lower.startsWith('details')) {
+      j += 'details'.length;
+    } else if (lower.startsWith('summary')) {
+      j += 'summary'.length;
+    } else {
+      return false;
+    }
+    // Word boundary: next char must not continue the tag name.
+    if (j < input.length) {
+      final c = input.codeUnitAt(j);
+      if (_isAsciiLetterOrDigit(c) || c == 0x5F /* '_' */) return false;
+    }
+    return true;
+  }
+
+  /// Restores `<` masked by [fencedHtmlTagStartMask].
+  static String unmaskFencedHtmlTagStarts(String s) =>
+      s.replaceAll(fencedHtmlTagStartMask, '<');
+
   /// Replaces every `$` that appears inside an inline code span (`` `...` ``)
   /// or a fenced code block (``` ... ```) with [codeDollarMask] so that
   /// [preprocessFences] never misparses code content as LaTeX math.
@@ -733,6 +793,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     const dollar = 0x24; // '$'
     final n = input.length;
     final inCode = List<bool>.filled(n, false);
+    final inFencePos = List<bool>.filled(n, false);
 
     // 1) Fenced code blocks: a line starting with ``` (optionally after
     //    whitespace / a list marker) opens or closes a region; an unclosed
@@ -740,12 +801,13 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     //    in preprocessFences (plain, indented, and list-item fences).
     final fenceLine = RegExp(r'^\s*(?:[*+-]|\d+\.)?\s*```');
     var lineStart = 0;
-    var inFence = false;
+    var insideFence = false;
     for (final line in input.split('\n')) {
-      if (fenceLine.hasMatch(line)) inFence = !inFence;
-      if (inFence) {
+      if (fenceLine.hasMatch(line)) insideFence = !insideFence;
+      if (insideFence) {
         for (var j = lineStart; j < lineStart + line.length && j < n; j++) {
           if (input.codeUnitAt(j) == dollar) inCode[j] = true;
+          inFencePos[j] = true;
         }
       }
       lineStart += line.length + 1; // +1 for the '\n' separator
@@ -762,11 +824,15 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       }
     }
 
-    if (!inCode.contains(true)) return input;
+    if (!inCode.contains(true) && !inFencePos.contains(true)) return input;
     final buf = StringBuffer();
     for (var i = 0; i < n; i++) {
       if (inCode[i]) {
         buf.write(codeDollarMask);
+      } else if (inFencePos[i] && _isFencedHtmlTagStart(input, i)) {
+        // Shield <details>/<summary tag starts from DetailsHtmlMd block parsing
+        // (kelivo v1.1.17 port); single-char mask preserves string lengths.
+        buf.write(fencedHtmlTagStartMask);
       } else {
         buf.write(input[i]);
       }
@@ -801,10 +867,14 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
 
     // Normalize inline $...$ math into \( ... \) so it always matches the LaTeX
     // renderer (even when vendors emit single-dollar math mixed with prose).
-    // Skips $$...$$ blocks, which are handled separately.
+    // Skips $$...$$ blocks, which are handled separately. Uses a boundary-aware
+    // scanner (kelivo v1.1.15/v1.1.16 port) instead of a plain regex so that
+    //   - "Price is $5 and total is $10" is NOT parsed as math (closing boundary)
+    //   - table rows keep $...$ math intact across cell pipes (per-cell handled)
+    //   - CJK/full-width punctuation adjacency works while `abc$x$` stays literal
+    //   - body length is capped to avoid UI-thread stalls
     if (enableMath && enableDollarLatex) {
-      final inlineDollar = RegExp(r"(?<!\$)\$([^\$\n]+?)\$(?!\$)");
-      out = out.replaceAllMapped(inlineDollar, (m) => "\\(${m[1]}\\)");
+      out = _replaceInlineDollarMath(out);
     }
 
     // Ensure display-math blocks stay as standalone blocks even when generated inline.
@@ -1040,6 +1110,18 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
   }
 }
 
+/// Stable content-addressed key (language + first 16 chars of normalized
+/// code) used to remember manual expand/collapse choices across rebuilds
+/// (kelivo v1.1.13 port).
+String _codeBlockStateKey(String language, String code) {
+  final normalizedLanguage = language.trim().toLowerCase();
+  final normalizedCode = code.trimLeft().replaceAll(RegExp(r'\s+'), ' ');
+  final anchor = normalizedCode.length <= 16
+      ? normalizedCode
+      : normalizedCode.substring(0, 16);
+  return '$normalizedLanguage|$anchor';
+}
+
 class _CollapsibleCodeBlock extends StatefulWidget {
   final String language;
   final String code;
@@ -1051,22 +1133,43 @@ class _CollapsibleCodeBlock extends StatefulWidget {
 }
 
 class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
+  // Content-addressed memory of the user's manual expand/collapse choice
+  // (kelivo v1.1.13 port). Survives streaming content changes and widget
+  // re-creation (e.g. scroll virtualization) for blocks that were toggled.
+  static final Map<String, bool> _manualExpansionByCodeKey = <String, bool>{};
+  static const int _maxStoredManualExpansionStates = 80;
+
   bool _expanded = true;
   bool _manuallyToggled = false;
+  late String _stateKey;
 
   @override
   void initState() {
     super.initState();
+    _stateKey = _codeBlockStateKey(widget.language, widget.code);
     _applyInitialAutoCollapse();
   }
 
   @override
   void didUpdateWidget(covariant _CollapsibleCodeBlock oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncStateKeyForStreamingUpdate();
+    _applyAutoCollapseIfNeeded();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     _applyAutoCollapseIfNeeded();
   }
 
   void _applyInitialAutoCollapse() {
+    final stored = _manualExpansionByCodeKey[_stateKey];
+    if (stored != null) {
+      _expanded = stored;
+      _manuallyToggled = true;
+      return;
+    }
     final sp = context.read<SettingsProvider>();
     if (!sp.autoCollapseCodeBlock) return;
     final threshold = sp.autoCollapseCodeBlockLines;
@@ -1085,6 +1188,35 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
     if (_exceedsLineThreshold(widget.code, threshold)) {
       setState(() => _expanded = false);
     }
+  }
+
+  // If the content this widget renders changed identity (different language or
+  // a different 16-char code prefix, e.g. during streaming), persist the
+  // user's manual choice under the old key and adopt any stored choice for the
+  // new key.
+  void _syncStateKeyForStreamingUpdate() {
+    final nextKey = _codeBlockStateKey(widget.language, widget.code);
+    if (nextKey == _stateKey) return;
+
+    if (_manuallyToggled) {
+      _stateKey = nextKey;
+      _rememberManualExpansionState();
+      return;
+    }
+
+    _stateKey = nextKey;
+    final stored = _manualExpansionByCodeKey[_stateKey];
+    if (stored == null) return;
+    _expanded = stored;
+    _manuallyToggled = true;
+  }
+
+  void _rememberManualExpansionState() {
+    _manualExpansionByCodeKey[_stateKey] = _expanded;
+    if (_manualExpansionByCodeKey.length <= _maxStoredManualExpansionStates) {
+      return;
+    }
+    _manualExpansionByCodeKey.remove(_manualExpansionByCodeKey.keys.first);
   }
 
   @override
@@ -1143,6 +1275,7 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
               onTap: () => setState(() {
                 _manuallyToggled = true;
                 _expanded = !_expanded;
+                _rememberManualExpansionState();
               }),
               splashColor: Platform.isIOS ? Colors.transparent : null,
               highlightColor: Platform.isIOS ? Colors.transparent : null,
@@ -1905,6 +2038,45 @@ String _escapeHtml(String s) => s
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 
+enum _MermaidTab { image, code }
+
+String _mermaidCacheKey(
+  String code,
+  bool isDark,
+  Map<String, String> themeVars,
+) {
+  final entries = themeVars.entries.toList()
+    ..sort((a, b) => a.key.compareTo(b.key));
+  final themeSig = entries.map((e) => '${e.key}=${e.value}').join('&');
+  return '${isDark ? 'dark' : 'light'}|$themeSig|$code';
+}
+
+enum MermaidBitmapRenderStatus { success, failed, unsupported }
+
+class MermaidBitmapRenderResult {
+  const MermaidBitmapRenderResult._(this.status, [this.bytes]);
+
+  factory MermaidBitmapRenderResult.success(Uint8List bytes) {
+    return MermaidBitmapRenderResult._(
+      MermaidBitmapRenderStatus.success,
+      bytes,
+    );
+  }
+
+  factory MermaidBitmapRenderResult.failed() {
+    return const MermaidBitmapRenderResult._(MermaidBitmapRenderStatus.failed);
+  }
+
+  factory MermaidBitmapRenderResult.unsupported() {
+    return const MermaidBitmapRenderResult._(
+      MermaidBitmapRenderStatus.unsupported,
+    );
+  }
+
+  final MermaidBitmapRenderStatus status;
+  final Uint8List? bytes;
+}
+
 class _MermaidBlock extends StatefulWidget {
   final String code;
   const _MermaidBlock({required this.code});
@@ -1914,24 +2086,78 @@ class _MermaidBlock extends StatefulWidget {
 }
 
 class _MermaidBlockState extends State<_MermaidBlock> {
+  static const Duration _settledBitmapRenderDelay = Duration(
+    milliseconds: 220,
+  );
+  static const double _previewHeight = 406;
+
   bool _expanded = true;
-  // Stable key to avoid frequent WebView recreation across rebuilds
-  final GlobalKey _mermaidViewKey = GlobalKey();
+  _MermaidTab _selectedTab = _MermaidTab.image;
   late final ScrollController _vMermaidScrollController;
+  OverlayEntry? _renderOverlayEntry;
+  bool _renderQueued = false;
+  bool _renderingBitmap = false;
+  String? _renderKey;
+  Uint8List? _lastRenderedBytes;
+  Timer? _renderDebounce;
+  bool _bitmapRenderingUnsupported = false;
+  bool _suppressBitmapLoading = false;
+  final Set<String> _failedBitmapRenderKeys = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _vMermaidScrollController = ScrollController();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MermaidBlock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.code != widget.code) {
+      _renderDebounce?.cancel();
+      _renderQueued = false;
+      _renderingBitmap = false;
+      _removeRenderOverlay();
+      _renderKey = null;
+      _lastRenderedBytes = null;
+      _suppressBitmapLoading = false;
+      _bitmapRenderingUnsupported = false;
+      _failedBitmapRenderKeys.clear();
+      _selectedTab = _MermaidTab.image;
+    }
+  }
+
+  @override
+  void dispose() {
+    _renderDebounce?.cancel();
+    _removeRenderOverlay();
+    _vMermaidScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context)!;
 
     // Use theme-tinted surfaces so headers follow the current theme color.
     final Color bodyBg = Color.alphaBlend(
-      cs.primary.withOpacity(isDark ? 0.06 : 0.03),
+      cs.primary.withValues(alpha: isDark ? 0.06 : 0.03),
       cs.surface,
     );
     final Color headerBg = Color.alphaBlend(
-      cs.primary.withOpacity(isDark ? 0.16 : 0.10),
+      cs.primary.withValues(alpha: isDark ? 0.16 : 0.10),
       cs.surface,
+    );
+    final palette = _MermaidTabPalette(
+      track: Color.alphaBlend(
+        cs.primary.withValues(alpha: isDark ? 0.10 : 0.06),
+        cs.surface,
+      ),
+      selected: cs.surface,
+      textPrimary: cs.onSurface,
+      textSecondary: cs.onSurface.withValues(alpha: 0.6),
     );
 
     // Build theme variables mapping for Mermaid from Material ColorScheme
@@ -1980,25 +2206,40 @@ class _MermaidBlockState extends State<_MermaidBlock> {
     };
 
     final exporting = ExportCaptureScope.of(context);
-    final handle = exporting
-        ? null
-        : createMermaidView(
-            widget.code,
-            isDark,
-            themeVars: themeVars,
-            viewKey: _mermaidViewKey,
-          );
-    final Widget? mermaidView = () {
-      if (exporting) {
-        final bytes = MermaidImageCache.get(widget.code);
-        if (bytes != null && bytes.isNotEmpty) {
-          return Image.memory(bytes, fit: BoxFit.contain);
-        }
-        return null;
-      } else {
-        return handle?.widget;
-      }
-    }();
+    final cacheKey = _mermaidCacheKey(widget.code, isDark, themeVars);
+    final themedCachedBytes = MermaidImageCache.get(cacheKey);
+    final legacyCachedBytes = MermaidImageCache.get(widget.code);
+    final exactCachedBytes = themedCachedBytes ?? legacyCachedBytes;
+    final cachedBytes = exactCachedBytes;
+    final displayBytes = cachedBytes ?? _lastRenderedBytes;
+    final actionBytes = cachedBytes ?? displayBytes;
+    final renderFailedForCurrentCode = _failedBitmapRenderKeys.contains(
+      cacheKey,
+    );
+    final hasRenderableCode = widget.code.trim().isNotEmpty;
+    if (!exporting &&
+        _expanded &&
+        hasRenderableCode &&
+        exactCachedBytes == null &&
+        !_bitmapRenderingUnsupported &&
+        !renderFailedForCurrentCode) {
+      _scheduleBitmapRender(
+        isDark: isDark,
+        themeVars: themeVars,
+      );
+    }
+    final hasImage = displayBytes != null && displayBytes.isNotEmpty;
+    final showLoading =
+        !hasImage &&
+        !_suppressBitmapLoading &&
+        !_bitmapRenderingUnsupported &&
+        !renderFailedForCurrentCode &&
+        (_renderQueued || _renderingBitmap);
+    final showError =
+        !hasImage &&
+        !_bitmapRenderingUnsupported &&
+        renderFailedForCurrentCode &&
+        _selectedTab == _MermaidTab.image;
 
     return Container(
       width: double.infinity,
@@ -2007,81 +2248,146 @@ class _MermaidBlockState extends State<_MermaidBlock> {
       clipBehavior: Clip.antiAlias,
       foregroundDecoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header: left label (mermaid), right actions (copy label + export + chevron)
+          // Header: image/code tabs (left) + actions (right)
           Material(
             color: headerBg,
             elevation: 0,
             shadowColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
-            child: InkWell(
-              onTap: () => setState(() => _expanded = !_expanded),
-              splashColor: Platform.isIOS ? Colors.transparent : null,
-              highlightColor: Platform.isIOS ? Colors.transparent : null,
-              hoverColor: Platform.isIOS ? Colors.transparent : null,
-              overlayColor: Platform.isIOS
-                  ? const MaterialStatePropertyAll(Colors.transparent)
-                  : null,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: _expanded
+                      ? BorderSide(
+                          color: cs.outlineVariant.withValues(alpha: 0.28),
+                          width: 1.0,
+                        )
+                      : BorderSide.none,
                 ),
-                decoration: BoxDecoration(
-                  border: Border(
-                    // Show divider only when expanded
-                    bottom: _expanded
-                        ? BorderSide(
-                            color: cs.outlineVariant.withOpacity(0.28),
-                            width: 1.0,
-                          )
-                        : BorderSide.none,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 2),
-                    Text(
-                      'mermaid',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: cs.onSurface,
-                        height: 1.0,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.only(
+                        start: 12,
+                        end: 10,
+                      ),
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: palette.track,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(2),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _MermaidTabButton(
+                                  label: l10n.mermaidImageTab,
+                                  selected:
+                                      _selectedTab == _MermaidTab.image,
+                                  palette: palette,
+                                  onTap: () => setState(
+                                    () => _selectedTab = _MermaidTab.image,
+                                  ),
+                                ),
+                                _MermaidTabButton(
+                                  label: l10n.mermaidCodeTab,
+                                  selected: _selectedTab == _MermaidTab.code,
+                                  palette: palette,
+                                  onTap: () => setState(
+                                    () => _selectedTab = _MermaidTab.code,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                    const Spacer(),
-                    if (!ExportCaptureScope.of(context)) ...[
-                      // Copy action
-                      InkWell(
-                        onTap: () async {
-                          await Clipboard.setData(
-                            ClipboardData(text: widget.code),
-                          );
-                          if (mounted) {
-                            showAppSnackBar(
+                  ),
+                  if (!exporting) ...[
+                    // Copy action
+                    InkWell(
+                      onTap: () async {
+                        await Clipboard.setData(
+                          ClipboardData(text: widget.code),
+                        );
+                        if (mounted) {
+                          showAppSnackBar(
+                            context,
+                            message: AppLocalizations.of(
                               context,
-                              message: AppLocalizations.of(
-                                context,
-                              )!.chatMessageWidgetCopiedToClipboard,
-                              type: NotificationType.success,
-                            );
-                          }
-                        },
-                        splashColor: Platform.isIOS ? Colors.transparent : null,
-                        highlightColor: Platform.isIOS
-                            ? Colors.transparent
-                            : null,
-                        hoverColor: Platform.isIOS ? Colors.transparent : null,
-                        overlayColor: Platform.isIOS
-                            ? const MaterialStatePropertyAll(Colors.transparent)
-                            : null,
-                        borderRadius: BorderRadius.circular(6),
+                            )!.chatMessageWidgetCopiedToClipboard,
+                            type: NotificationType.success,
+                          );
+                        }
+                      },
+                      splashColor: Platform.isIOS ? Colors.transparent : null,
+                      highlightColor: Platform.isIOS
+                          ? Colors.transparent
+                          : null,
+                      hoverColor: Platform.isIOS ? Colors.transparent : null,
+                      overlayColor: Platform.isIOS
+                          ? const MaterialStatePropertyAll(Colors.transparent)
+                          : null,
+                      borderRadius: BorderRadius.circular(6),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 6,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Lucide.Copy,
+                              size: 14,
+                              color: cs.onSurface.withValues(alpha: 0.6),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              l10n.shareProviderSheetCopyButton,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: cs.onSurface.withValues(alpha: 0.6),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Download PNG action (from the cached bitmap)
+                    InkWell(
+                      onTap:
+                          actionBytes == null || actionBytes.isEmpty
+                              ? null
+                              : () => _saveMermaidBytes(context, actionBytes),
+                      splashColor: Platform.isIOS ? Colors.transparent : null,
+                      highlightColor: Platform.isIOS
+                          ? Colors.transparent
+                          : null,
+                      hoverColor: Platform.isIOS ? Colors.transparent : null,
+                      overlayColor: Platform.isIOS
+                          ? const MaterialStatePropertyAll(Colors.transparent)
+                          : null,
+                      borderRadius: BorderRadius.circular(6),
+                      child: Opacity(
+                        opacity:
+                            actionBytes == null || actionBytes.isEmpty
+                            ? 0.4
+                            : 1.0,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 6,
@@ -2090,18 +2396,16 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                           child: Row(
                             children: [
                               Icon(
-                                Lucide.Copy,
+                                Lucide.Download,
                                 size: 14,
-                                color: cs.onSurface.withOpacity(0.6),
+                                color: cs.onSurface.withValues(alpha: 0.6),
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                AppLocalizations.of(
-                                  context,
-                                )!.shareProviderSheetCopyButton,
+                                l10n.codeBlockDownloadButton,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: cs.onSurface.withOpacity(0.6),
+                                  color: cs.onSurface.withValues(alpha: 0.6),
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -2109,73 +2413,41 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                           ),
                         ),
                       ),
-                      // Download action: save the .mmd diagram source
-                      CodeBlockDownloadButton(onTap: _downloadCode),
-                      if (handle != null) ...[
-                        const SizedBox(width: 6),
-                        InkWell(
-                          onTap: () async {
-                            final ok = await handle.exportPng();
-                            if (!mounted) return;
-                            if (!ok) {
-                              final l10n = AppLocalizations.of(context)!;
-                              showAppSnackBar(
-                                context,
-                                message: l10n.mermaidExportFailed,
-                                type: NotificationType.error,
-                              );
-                            } else if (Platform.isAndroid || Platform.isIOS) {
-                              showAppSnackBar(
-                                context,
-                                message: AppLocalizations.of(
-                                  context,
-                                )!.imageViewerPageSaveSuccess,
-                                type: NotificationType.success,
-                              );
-                            }
-                          },
-                          splashColor: Platform.isIOS
-                              ? Colors.transparent
-                              : null,
-                          highlightColor: Platform.isIOS
-                              ? Colors.transparent
-                              : null,
-                          hoverColor: Platform.isIOS
-                              ? Colors.transparent
-                              : null,
-                          overlayColor: Platform.isIOS
-                              ? const MaterialStatePropertyAll(
-                                  Colors.transparent,
-                                )
-                              : null,
-                          borderRadius: BorderRadius.circular(6),
-                          child: Padding(
-                            padding: const EdgeInsets.all(6),
-                            child: Icon(
-                              Lucide.Download,
-                              size: 14,
-                              color: cs.onSurface.withOpacity(0.6),
-                            ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Collapse toggle
+                    InkWell(
+                      onTap: () => setState(() => _expanded = !_expanded),
+                      splashColor: Platform.isIOS ? Colors.transparent : null,
+                      highlightColor: Platform.isIOS
+                          ? Colors.transparent
+                          : null,
+                      hoverColor: Platform.isIOS ? Colors.transparent : null,
+                      overlayColor: Platform.isIOS
+                          ? const MaterialStatePropertyAll(Colors.transparent)
+                          : null,
+                      borderRadius: BorderRadius.circular(6),
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: AnimatedRotation(
+                          turns: _expanded ? 0.25 : 0.0,
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOutCubic,
+                          child: Icon(
+                            Lucide.ChevronRight,
+                            size: 16,
+                            color: cs.onSurface.withValues(alpha: 0.7),
                           ),
                         ),
-                      ],
-                      const SizedBox(width: 6),
-                      AnimatedRotation(
-                        turns: _expanded ? 0.25 : 0.0,
-                        duration: const Duration(milliseconds: 180),
-                        curve: Curves.easeOutCubic,
-                        child: Icon(
-                          Lucide.ChevronRight,
-                          size: 16,
-                          color: cs.onSurface.withOpacity(0.7),
-                        ),
                       ),
-                    ],
+                    ),
+                    const SizedBox(width: 6),
                   ],
-                ),
+                ],
               ),
             ),
           ),
+          // Content
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 220),
             switchInCurve: Curves.easeOutCubic,
@@ -2184,7 +2456,7 @@ class _MermaidBlockState extends State<_MermaidBlock> {
               opacity: anim,
               child: SizeTransition(
                 sizeFactor: anim,
-                axisAlignment: -1.0,
+                alignment: Alignment.topCenter,
                 child: child,
               ),
             ),
@@ -2193,110 +2465,29 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                     key: const ValueKey('mermaid-expanded'),
                     width: double.infinity,
                     color: bodyBg,
-                    padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (mermaidView != null) ...[
-                          SizedBox(width: double.infinity, child: mermaidView),
-                        ] else ...[
-                          // Fallback: show raw code and a preview button (opens browser)
-                          () {
-                            final bool isDesktop =
-                                Platform.isMacOS ||
-                                Platform.isWindows ||
-                                Platform.isLinux;
-                            if (!isDesktop) {
-                              return SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: SelectableHighlightView(
-                                  widget.code,
-                                  language: 'plaintext',
-                                  theme:
-                                      MarkdownWithCodeHighlight._transparentBgTheme(
-                                        Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? atomOneDarkReasonableTheme
-                                            : githubTheme,
-                                      ),
-                                  padding: EdgeInsets.zero,
-                                  textStyle: const TextStyle(
-                                    fontFamily: 'monospace',
-                                    fontSize: 13,
-                                    height: 1.5,
-                                  ),
-                                ),
-                              );
-                            }
-                            final screenH = MediaQuery.of(context).size.height;
-                            final maxH = math.min(420.0, screenH * 0.55);
-                            return ConstrainedBox(
-                              constraints: BoxConstraints(maxHeight: maxH),
-                              child: ScrollConfiguration(
-                                behavior: ScrollConfiguration.of(context)
-                                    .copyWith(
-                                      dragDevices: {
-                                        ui.PointerDeviceKind.touch,
-                                        ui.PointerDeviceKind.mouse,
-                                        ui.PointerDeviceKind.stylus,
-                                        ui.PointerDeviceKind.unknown,
-                                      },
-                                    ),
-                                child: Scrollbar(
-                                  controller: _vMermaidScrollController,
-                                  thumbVisibility: true,
-                                  interactive: true,
-                                  notificationPredicate: (notif) =>
-                                      notif.metrics.axis == Axis.vertical,
-                                  child: SingleChildScrollView(
-                                    controller: _vMermaidScrollController,
-                                    child: SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: SelectableHighlightView(
-                                        widget.code,
-                                        language: 'plaintext',
-                                        theme:
-                                            MarkdownWithCodeHighlight._transparentBgTheme(
-                                              Theme.of(context).brightness ==
-                                                      Brightness.dark
-                                                  ? atomOneDarkReasonableTheme
-                                                  : githubTheme,
-                                            ),
-                                        padding: EdgeInsets.zero,
-                                        textStyle: const TextStyle(
-                                          fontFamily: 'monospace',
-                                          fontSize: 13,
-                                          height: 1.5,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }(),
-                          if (!ExportCaptureScope.of(context)) ...[
-                            const SizedBox(height: 8),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton.icon(
-                                onPressed: () => _openMermaidPreviewInBrowser(
-                                  context,
-                                  widget.code,
-                                  Theme.of(context).brightness ==
-                                      Brightness.dark,
-                                ),
-                                icon: Icon(Lucide.Eye, size: 16),
-                                label: Text(
-                                  AppLocalizations.of(
-                                    context,
-                                  )!.mermaidPreviewOpen,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ],
+                    child: SizedBox(
+                      key: const ValueKey('mermaid-preview-body'),
+                      width: double.infinity,
+                      height: _previewHeight,
+                      child: ColoredBox(
+                        color: bodyBg,
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 180),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          layoutBuilder: (currentChild, previousChildren) {
+                            return currentChild ?? const SizedBox.shrink();
+                          },
+                          child: _buildMermaidBody(
+                            context: context,
+                            palette: palette,
+                            displayBytes: displayBytes,
+                            cacheKey: cacheKey,
+                            showLoading: showLoading,
+                            showError: showError,
+                          ),
+                        ),
+                      ),
                     ),
                   )
                 : const SizedBox.shrink(key: ValueKey('mermaid-collapsed')),
@@ -2306,80 +2497,443 @@ class _MermaidBlockState extends State<_MermaidBlock> {
     );
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _vMermaidScrollController = ScrollController();
+  Widget _buildMermaidBody({
+    required BuildContext context,
+    required _MermaidTabPalette palette,
+    required Uint8List? displayBytes,
+    required String cacheKey,
+    required bool showLoading,
+    required bool showError,
+  }) {
+    if (_selectedTab == _MermaidTab.code ||
+        _bitmapRenderingUnsupported ||
+        widget.code.trim().isEmpty) {
+      return _buildMermaidCodeView(context);
+    }
+
+    if (displayBytes != null && displayBytes.isNotEmpty) {
+      return Padding(
+        key: ValueKey<String>('mermaid-image-$cacheKey'),
+        padding: const EdgeInsets.all(8),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _openMermaidImageViewer(context, displayBytes),
+            child: Image(
+              image: MemoryImage(displayBytes),
+              fit: BoxFit.contain,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (showLoading) {
+      return _MermaidLoadingView(
+        key: const ValueKey('mermaid-loading-body'),
+        color: palette.textSecondary,
+      );
+    }
+
+    if (showError) {
+      return _MermaidErrorView(
+        key: const ValueKey('mermaid-error-body'),
+        color: palette.textSecondary,
+      );
+    }
+
+    return _buildMermaidCodeView(context);
   }
 
-  @override
-  void dispose() {
-    _vMermaidScrollController.dispose();
-    super.dispose();
-  }
-
-  // Save the diagram source as a .mmd file.
-  Future<void> _downloadCode() =>
-      saveCodeBlockToFile(context, widget.code, 'mmd');
-
-  Future<void> _openMermaidPreviewInBrowser(
-    BuildContext context,
-    String code,
-    bool dark,
-  ) async {
-    final htmlStr = _buildMermaidHtml(code, dark);
-    final uri = Uri.dataFromString(
-      htmlStr,
-      mimeType: 'text/html',
-      encoding: utf8,
+  Widget _buildMermaidCodeView(BuildContext context) {
+    return Padding(
+      key: const ValueKey('mermaid-code-body'),
+      padding: const EdgeInsets.all(12),
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(
+          dragDevices: {
+            ui.PointerDeviceKind.touch,
+            ui.PointerDeviceKind.mouse,
+            ui.PointerDeviceKind.stylus,
+            ui.PointerDeviceKind.unknown,
+          },
+        ),
+        child: Scrollbar(
+          controller: _vMermaidScrollController,
+          thumbVisibility: true,
+          interactive: true,
+          notificationPredicate: (notif) => notif.metrics.axis == Axis.vertical,
+          child: SingleChildScrollView(
+            controller: _vMermaidScrollController,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SelectableHighlightView(
+                widget.code,
+                language: 'plaintext',
+                theme: MarkdownWithCodeHighlight._transparentBgTheme(
+                  Theme.of(context).brightness == Brightness.dark
+                      ? atomOneDarkReasonableTheme
+                      : githubTheme,
+                ),
+                padding: EdgeInsets.zero,
+                textStyle: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 13,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
-    try {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (_) {
+  }
+
+  void _scheduleBitmapRender({
+    required bool isDark,
+    required Map<String, String> themeVars,
+  }) {
+    if (_renderQueued || _renderingBitmap) return;
+    _renderQueued = true;
+    _renderDebounce?.cancel();
+    _renderDebounce = Timer(_settledBitmapRenderDelay, () {
+      _renderQueued = false;
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context)!;
+      _renderBitmap(isDark: isDark, themeVars: themeVars);
+    });
+  }
+
+  Future<void> _renderBitmap({
+    required bool isDark,
+    required Map<String, String> themeVars,
+  }) async {
+    final code = widget.code;
+    final cacheKey = _mermaidCacheKey(code, isDark, themeVars);
+    if (MermaidImageCache.get(cacheKey) != null) return;
+    final overlay = Overlay.maybeOf(context);
+    if (overlay == null) {
+      _markBitmapRenderingUnsupported(cacheKey);
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _renderKey = cacheKey;
+      _renderingBitmap = true;
+    });
+
+    MermaidBitmapRenderResult result = MermaidBitmapRenderResult.failed();
+    try {
+      result = await _renderMermaidBitmapWithOverlay(
+        overlay,
+        code,
+        isDark,
+        themeVars,
+      );
+      if (!mounted || _renderKey != cacheKey) return;
+      final bytes = result.bytes;
+      if (result.status == MermaidBitmapRenderStatus.success &&
+          bytes != null &&
+          bytes.isNotEmpty) {
+        MermaidImageCache.put(cacheKey, bytes);
+        // Also keep the raw-code entry so export paths keyed by code find it.
+        MermaidImageCache.put(code, bytes);
+        _failedBitmapRenderKeys.remove(cacheKey);
+      }
+    } catch (e, st) {
+      debugPrint('Mermaid bitmap render failed: $e\n$st');
+    } finally {
+      if (mounted && _renderKey == cacheKey) {
+        _removeRenderOverlay();
+        setState(() {
+          if (result.status == MermaidBitmapRenderStatus.success &&
+              result.bytes != null &&
+              result.bytes!.isNotEmpty) {
+            _lastRenderedBytes = result.bytes;
+          } else if (result.status == MermaidBitmapRenderStatus.unsupported) {
+            _bitmapRenderingUnsupported = true;
+            _suppressBitmapLoading = true;
+          } else {
+            _failedBitmapRenderKeys.add(cacheKey);
+            _suppressBitmapLoading = true;
+          }
+          _renderingBitmap = false;
+        });
+      }
+    }
+  }
+
+  Future<MermaidBitmapRenderResult> _renderMermaidBitmapWithOverlay(
+    OverlayState overlay,
+    String code,
+    bool isDark,
+    Map<String, String> themeVars,
+  ) async {
+    _removeRenderOverlay();
+    final renderKey = GlobalKey();
+    final handle = createMermaidView(
+      code,
+      isDark,
+      themeVars: themeVars,
+      viewKey: renderKey,
+    );
+    if (handle == null) return MermaidBitmapRenderResult.unsupported();
+
+    _renderOverlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        left: -10000,
+        top: -10000,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints.tightFor(width: 720, height: 600),
+          child: Material(color: Colors.transparent, child: handle.widget),
+        ),
+      ),
+    );
+    overlay.insert(_renderOverlayEntry!);
+
+    return _captureMermaidBitmap(handle);
+  }
+
+  Future<MermaidBitmapRenderResult> _captureMermaidBitmap(
+    MermaidViewHandle handle,
+  ) async {
+    final exportBytes = handle.exportPngBytes;
+    if (exportBytes == null) return MermaidBitmapRenderResult.unsupported();
+    await WidgetsBinding.instance.endOfFrame;
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    for (var i = 0; i < 4; i++) {
+      try {
+        final bytes = await exportBytes().timeout(
+          const Duration(milliseconds: 900),
+          onTimeout: () => null,
+        );
+        if (bytes != null && bytes.isNotEmpty) {
+          return MermaidBitmapRenderResult.success(bytes);
+        }
+      } catch (e) {
+        if (e is UnsupportedError) {
+          return MermaidBitmapRenderResult.unsupported();
+        }
+        // Mermaid/WebView can report readiness before pixel capture is available.
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+    }
+    return MermaidBitmapRenderResult.failed();
+  }
+
+  void _markBitmapRenderingUnsupported(String cacheKey) {
+    if (!mounted) return;
+    _renderDebounce?.cancel();
+    _removeRenderOverlay();
+    setState(() {
+      if (_renderKey == null || _renderKey == cacheKey) {
+        _renderKey = null;
+        _renderQueued = false;
+        _renderingBitmap = false;
+      }
+      _bitmapRenderingUnsupported = true;
+    });
+  }
+
+  void _removeRenderOverlay() {
+    try {
+      _renderOverlayEntry?.remove();
+    } catch (_) {}
+    _renderOverlayEntry = null;
+  }
+
+  void _openMermaidImageViewer(BuildContext context, Uint8List bytes) {
+    final src = 'data:image/png;base64,${base64Encode(bytes)}';
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => ImageViewerPage(images: [src]),
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 240),
+        transitionsBuilder: (context, anim, sec, child) {
+          final curved = CurvedAnimation(
+            parent: anim,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          );
+          return FadeTransition(opacity: curved, child: child);
+        },
+      ),
+    );
+  }
+
+  Future<void> _saveMermaidBytes(BuildContext context, Uint8List bytes) async {
+    final l10n = AppLocalizations.of(context)!;
+    final ok = await _saveMermaidPngToDisk(bytes);
+    if (!context.mounted) return;
+    if (!ok) {
       showAppSnackBar(
         context,
-        message: l10n.mermaidPreviewOpenFailed,
+        message: l10n.mermaidExportFailed,
         type: NotificationType.error,
+      );
+    } else if (Platform.isAndroid || Platform.isIOS) {
+      showAppSnackBar(
+        context,
+        message: l10n.imageViewerPageSaveSuccess,
+        type: NotificationType.success,
       );
     }
   }
 
-  String _buildMermaidHtml(String code, bool dark) {
-    final bg = dark ? '#111111' : '#ffffff';
-    final fg = dark ? '#eaeaea' : '#222222';
-    final escaped = code
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;');
-    return '''
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, maximum-scale=5.0">
-    <title>Mermaid Preview</title>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-    <style>
-      body{ margin:0; padding:12px; background:${bg}; color:${fg}; }
-      .wrap{ max-width: 1000px; margin: 0 auto; }
-      .mermaid{ text-align:center; }
-    </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <div class="mermaid">${escaped}</div>
-    </div>
-    <script>
-      mermaid.initialize({ startOnLoad:false, theme: '${dark ? 'dark' : 'default'}', securityLevel:'loose' });
-      mermaid.run({ querySelector: '.mermaid' });
-    </script>
-  </body>
-</html>
-''';
+  Future<bool> _saveMermaidPngToDisk(Uint8List bytes) async {
+    try {
+      final l10n = AppLocalizations.of(context)!;
+      final suggested = 'mermaid_${DateTime.now().millisecondsSinceEpoch}.png';
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        final savePath = await FilePicker.platform.saveFile(
+          dialogTitle: l10n.backupPageExportToFile,
+          fileName: suggested,
+          type: FileType.custom,
+          allowedExtensions: const ['png'],
+        );
+        if (savePath == null || savePath.isEmpty) return false;
+        await File(savePath).parent.create(recursive: true);
+        await File(savePath).writeAsBytes(bytes);
+        return true;
+      }
+      final result = await ImageGallerySaverPlus.saveImage(
+        bytes,
+        quality: 100,
+        name: 'mermaid-${DateTime.now().millisecondsSinceEpoch}',
+      );
+      if (result is Map) {
+        final isSuccess = result['isSuccess'] == true || result['isSuccess'] == 1;
+        final filePath = result['filePath'] ?? result['file_path'];
+        return isSuccess || (filePath is String && filePath.isNotEmpty);
+      }
+    } catch (_) {}
+    return false;
   }
 }
+
+class _MermaidTabPalette {
+  const _MermaidTabPalette({
+    required this.track,
+    required this.selected,
+    required this.textPrimary,
+    required this.textSecondary,
+  });
+
+  final Color track;
+  final Color selected;
+  final Color textPrimary;
+  final Color textSecondary;
+}
+
+class _MermaidTabButton extends StatefulWidget {
+  const _MermaidTabButton({
+    required this.label,
+    required this.selected,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final _MermaidTabPalette palette;
+  final VoidCallback onTap;
+
+  @override
+  State<_MermaidTabButton> createState() => _MermaidTabButtonState();
+}
+
+class _MermaidTabButtonState extends State<_MermaidTabButton> {
+  bool _pressed = false;
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final baseColor = widget.selected
+        ? widget.palette.selected
+        : Colors.transparent;
+    final hoverColor = Color.alphaBlend(
+      widget.palette.textPrimary.withValues(alpha: _pressed ? 0.10 : 0.06),
+      baseColor,
+    );
+    final bg = widget.selected || _pressed || _hovered
+        ? hoverColor
+        : Colors.transparent;
+
+    return Semantics(
+      button: true,
+      selected: widget.selected,
+      label: widget.label,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() {
+          _hovered = false;
+          _pressed = false;
+        }),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapCancel: () => setState(() => _pressed = false),
+          onTapUp: (_) => setState(() => _pressed = false),
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: SelectionContainer.disabled(
+              child: Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.35,
+                  fontWeight: widget.selected
+                      ? AppFontWeights.semibold
+                      : AppFontWeights.medium,
+                  color: widget.selected
+                      ? widget.palette.textPrimary
+                      : widget.palette.textSecondary,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MermaidLoadingView extends StatelessWidget {
+  const _MermaidLoadingView({super.key, required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(strokeWidth: 2, color: color),
+      ),
+    );
+  }
+}
+
+class _MermaidErrorView extends StatelessWidget {
+  const _MermaidErrorView({super.key, required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(child: Icon(Lucide.ImageOff, size: 48, color: color));
+  }
+}
+
 
 // Full-width horizontal rule with softer color
 class SoftHrLine extends BlockMd {
@@ -2405,6 +2959,574 @@ class SoftHrLine extends BlockMd {
 }
 
 // Robust fenced code block that takes precedence over other blocks
+// ---------------------------------------------------------------------------
+// Boundary-aware inline dollar math scanning + escape-aware table splitting
+// (kelivo v1.1.15/v1.1.16 port)
+// ---------------------------------------------------------------------------
+
+/// Hard cap on inline math body length: scanning for the closing `$` is
+/// bounded so pathological long `$...$` spans never stall the UI thread.
+const int _maxInlineMathBodyLength = 512;
+
+/// Converts inline `$...$` math into `\(...\)` with boundary-aware scanning:
+/// `$` may open only next to whitespace / ASCII punctuation / Unicode
+/// punctuation / CJK text, closes only at a valid boundary, never crosses a
+/// newline, respects backslash escapes, skips `$$...$$`, and leaves
+/// pipe-containing bodies alone outside table rows (those are handled
+/// per-cell by [EscapeAwareTableMd]).
+String _replaceInlineDollarMath(String input) {
+  final buf = StringBuffer();
+  var i = 0;
+  var previousDollarWasInlineClose = false;
+  while (i < input.length) {
+    if (input.codeUnitAt(i) == 0x24 && // '$'
+        !_isEscaped(input, i) &&
+        _canOpenDollarMath(
+          input,
+          i,
+          allowAdjacentOpen: previousDollarWasInlineClose,
+        )) {
+      final close = _findClosingDollarMath(input, i + 1);
+      if (close != -1) {
+        final body = input.substring(i + 1, close);
+        buf
+          ..write(r'\(')
+          ..write(body)
+          ..write(r'\)');
+        i = close + 1;
+        previousDollarWasInlineClose = true;
+        continue;
+      }
+    }
+    buf.writeCharCode(input.codeUnitAt(i));
+    previousDollarWasInlineClose = false;
+    i++;
+  }
+  return buf.toString();
+}
+
+int _findClosingDollarMath(String input, int start) {
+  final end = math.min(input.length, start + _maxInlineMathBodyLength + 1);
+  final allowUnescapedPipes = !_isDollarMathOnMarkdownTableRow(
+    input,
+    start - 1,
+  );
+  for (var i = start; i < end; i++) {
+    final ch = input.codeUnitAt(i);
+    if (ch == 0x0A) return -1;
+    if (ch == 0x5C) {
+      i++;
+      continue;
+    }
+    if (ch != 0x24) continue;
+
+    final body = input.substring(start, i);
+    if (_isValidDollarMathBody(
+          body,
+          allowUnescapedPipes: allowUnescapedPipes,
+        ) &&
+        _canCloseDollarMath(input, i)) {
+      return i;
+    }
+    return -1;
+  }
+  return -1;
+}
+
+bool _isValidDollarMathBody(String body, {bool allowUnescapedPipes = false}) {
+  if (body.isEmpty) return false;
+  if (body.length > _maxInlineMathBodyLength) return false;
+  if (_isWhitespaceCodeUnit(body.codeUnitAt(0))) return false;
+  if (_isWhitespaceCodeUnit(body.codeUnitAt(body.length - 1))) return false;
+  return allowUnescapedPipes || !_containsUnescapedPipe(body);
+}
+
+bool _isDollarMathOnMarkdownTableRow(String input, int dollarIndex) {
+  final lineStart = input.lastIndexOf('\n', dollarIndex);
+  final lineEnd = input.indexOf('\n', dollarIndex);
+  final start = lineStart == -1 ? 0 : lineStart + 1;
+  final end = lineEnd == -1 ? input.length : lineEnd;
+  return _looksLikeTableRowStart(input.substring(start, end));
+}
+
+bool _looksLikeTableRowStart(String line) {
+  return line.trimLeft().startsWith('|');
+}
+
+bool _containsUnescapedPipe(String input) {
+  for (var i = 0; i < input.length; i++) {
+    final ch = input.codeUnitAt(i);
+    if (ch == 0x5C) {
+      i++;
+      continue;
+    }
+    if (ch == 0x7C) return true;
+  }
+  return false;
+}
+
+bool _canOpenDollarMath(
+  String input,
+  int index, {
+  bool allowAdjacentOpen = false,
+}) {
+  if (index + 1 >= input.length) return false;
+  final next = input.codeUnitAt(index + 1);
+  if (!_canStartDollarMathBody(next)) return false;
+  if (index == 0) return true;
+  final prev = input.codeUnitAt(index - 1);
+  if (prev == 0x24) {
+    return allowAdjacentOpen && _canStartAdjacentDollarMathBody(next);
+  }
+  return _isWhitespaceCodeUnit(prev) || _isDollarMathBoundary(prev);
+}
+
+bool _canCloseDollarMath(String input, int index) {
+  if (index == 0 || _isWhitespaceCodeUnit(input.codeUnitAt(index - 1))) {
+    return false;
+  }
+  final nextIndex = index + 1;
+  if (nextIndex >= input.length) return true;
+  final next = input.codeUnitAt(nextIndex);
+  if (next == 0x24) return true;
+  return next != 0x24 &&
+      (_isWhitespaceCodeUnit(next) || _isDollarMathBoundary(next));
+}
+
+bool _isDollarMathBoundary(int codeUnit) {
+  return _isAsciiPunctuation(codeUnit) ||
+      _isUnicodePunctuation(codeUnit) ||
+      _isCjkCodeUnit(codeUnit);
+}
+
+bool _canStartDollarMathBody(int codeUnit) {
+  if (_isWhitespaceCodeUnit(codeUnit) || codeUnit == 0x24) return false;
+  if (_isAsciiLetterOrDigit(codeUnit) || codeUnit == 0x5C) return true;
+  if (codeUnit == 0x28 || codeUnit == 0x5B || codeUnit == 0x7B) return true;
+  if (codeUnit == 0x2B || codeUnit == 0x2D) return true;
+  if (codeUnit == 0x7C) return true; // |
+  return !_isClosingOrSentencePunctuation(codeUnit);
+}
+
+bool _canStartAdjacentDollarMathBody(int codeUnit) {
+  if (_isAsciiLetterOrDigit(codeUnit) || codeUnit == 0x5C) return true;
+  if (codeUnit == 0x28 || codeUnit == 0x5B || codeUnit == 0x7B) return true;
+  return codeUnit == 0x2B ||
+      codeUnit == 0x2D ||
+      codeUnit == 0x2A ||
+      codeUnit == 0x2F ||
+      codeUnit == 0x3C ||
+      codeUnit == 0x3D ||
+      codeUnit == 0x3E ||
+      codeUnit == 0x5E ||
+      codeUnit == 0x5F ||
+      codeUnit == 0x7C;
+}
+
+bool _isEscaped(String input, int index) {
+  var backslashes = 0;
+  for (var i = index - 1; i >= 0 && input.codeUnitAt(i) == 0x5C; i--) {
+    backslashes++;
+  }
+  return backslashes.isOdd;
+}
+
+bool _isWhitespaceCodeUnit(int codeUnit) {
+  return codeUnit == 0x20 ||
+      codeUnit == 0x09 ||
+      codeUnit == 0x0A ||
+      codeUnit == 0x0D;
+}
+
+bool _isAsciiDigit(int codeUnit) {
+  return codeUnit >= 0x30 && codeUnit <= 0x39;
+}
+
+bool _isAsciiLetterOrDigit(int codeUnit) {
+  return _isAsciiDigit(codeUnit) ||
+      (codeUnit >= 0x41 && codeUnit <= 0x5A) ||
+      (codeUnit >= 0x61 && codeUnit <= 0x7A);
+}
+
+bool _isAsciiPunctuation(int codeUnit) {
+  return (codeUnit >= 0x21 && codeUnit <= 0x2F) ||
+      (codeUnit >= 0x3A && codeUnit <= 0x40) ||
+      (codeUnit >= 0x5B && codeUnit <= 0x60) ||
+      (codeUnit >= 0x7B && codeUnit <= 0x7E);
+}
+
+bool _isUnicodePunctuation(int codeUnit) {
+  return (codeUnit >= 0x2000 && codeUnit <= 0x206F) ||
+      (codeUnit >= 0x3000 && codeUnit <= 0x303F) ||
+      (codeUnit >= 0xFE10 && codeUnit <= 0xFE1F) ||
+      (codeUnit >= 0xFE30 && codeUnit <= 0xFE4F) ||
+      (codeUnit >= 0xFF01 && codeUnit <= 0xFF0F) ||
+      (codeUnit >= 0xFF1A && codeUnit <= 0xFF20) ||
+      (codeUnit >= 0xFF3B && codeUnit <= 0xFF40) ||
+      (codeUnit >= 0xFF5B && codeUnit <= 0xFF65);
+}
+
+bool _isCjkCodeUnit(int codeUnit) {
+  return (codeUnit >= 0x3400 && codeUnit <= 0x4DBF) ||
+      (codeUnit >= 0x4E00 && codeUnit <= 0x9FFF) ||
+      (codeUnit >= 0xF900 && codeUnit <= 0xFAFF);
+}
+
+bool _isClosingOrSentencePunctuation(int codeUnit) {
+  return codeUnit == 0x21 ||
+      codeUnit == 0x22 ||
+      codeUnit == 0x27 ||
+      codeUnit == 0x29 ||
+      codeUnit == 0x2C ||
+      codeUnit == 0x2E ||
+      codeUnit == 0x3A ||
+      codeUnit == 0x3B ||
+      codeUnit == 0x3F ||
+      codeUnit == 0x5D ||
+      codeUnit == 0x7D ||
+      _isUnicodePunctuation(codeUnit);
+}
+
+// ---------------------------------------------------------------------------
+// Markdown table toolbar (kelivo v1.1.13 port, styled to match code block
+// headers; desktop and mobile both show it, unlike kelivo's compact-only)
+// ---------------------------------------------------------------------------
+
+/// Wraps a rendered markdown table with its toolbar (label + copy/export
+/// actions), matching the code block header style.
+Widget _wrapTableWithToolbar(
+  BuildContext ctx,
+  List<CustomTableRow> rows,
+  Color headerBg,
+  Widget table,
+) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      _MarkdownTableToolbar(
+        backgroundColor: headerBg,
+        onCopy: () => _copyTableMarkdown(ctx, rows),
+        onExport: () => _exportTableMarkdown(ctx, rows),
+      ),
+      table,
+    ],
+  );
+}
+
+class _MarkdownTableToolbar extends StatelessWidget {
+  const _MarkdownTableToolbar({
+    required this.backgroundColor,
+    required this.onCopy,
+    required this.onExport,
+  });
+
+  final Color backgroundColor;
+  final VoidCallback onCopy;
+  final VoidCallback onExport;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context)!;
+
+    Widget action({
+      required IconData icon,
+      required String label,
+      required VoidCallback onTap,
+    }) {
+      return InkWell(
+        onTap: onTap,
+        splashColor: Platform.isIOS ? Colors.transparent : null,
+        highlightColor: Platform.isIOS ? Colors.transparent : null,
+        hoverColor: Platform.isIOS ? Colors.transparent : null,
+        overlayColor: Platform.isIOS
+            ? const MaterialStatePropertyAll(Colors.transparent)
+            : null,
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: cs.onSurface.withOpacity(0.6)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: cs.onSurface.withOpacity(0.6),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        border: Border(
+          bottom: BorderSide(
+            color: cs.outlineVariant.withOpacity(isDark ? 0.22 : 0.28),
+            width: 1.0,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 2),
+          Text(
+            l10n.markdownTableLabel,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+              height: 1.0,
+            ),
+          ),
+          const Spacer(),
+          action(
+            icon: Lucide.Copy,
+            label: l10n.shareProviderSheetCopyButton,
+            onTap: onCopy,
+          ),
+          action(
+            icon: Lucide.Download,
+            label: l10n.markdownTableExportMarkdownButton,
+            onTap: onExport,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Rebuilds a markdown table (including the `---` separator row) from the
+/// parsed rows so it can be copied or exported as a `.md` file.
+String _rowsToMarkdown(List<CustomTableRow> rows) {
+  if (rows.isEmpty) return '';
+  var columnCount = 0;
+  for (final r in rows) {
+    if (r.fields.length > columnCount) columnCount = r.fields.length;
+  }
+  if (columnCount == 0) return '';
+
+  String cellText(String value) => value
+      .trim()
+      .replaceAll('\\', r'\\')
+      .replaceAll('|', r'\|')
+      .replaceAll('\r\n', '<br>')
+      .replaceAll('\n', '<br>')
+      .replaceAll('\r', '<br>');
+
+  String line(List<String> cells) => '| ${cells.join(' | ')} |';
+
+  final buffer = StringBuffer();
+  buffer.writeln(
+    line(
+      List.generate(
+        columnCount,
+        (i) => i < rows.first.fields.length
+            ? cellText(rows.first.fields[i].data)
+            : '',
+      ),
+    ),
+  );
+  buffer.writeln(line(List.filled(columnCount, '---')));
+  for (final r in rows.skip(1)) {
+    buffer.writeln(
+      line(
+        List.generate(
+          columnCount,
+          (i) =>
+              i < r.fields.length ? cellText(r.fields[i].data) : '',
+        ),
+      ),
+    );
+  }
+  return buffer.toString().trimRight();
+}
+
+Future<void> _copyTableMarkdown(
+  BuildContext ctx,
+  List<CustomTableRow> rows,
+) async {
+  await Clipboard.setData(ClipboardData(text: _rowsToMarkdown(rows)));
+  if (!ctx.mounted) return;
+  showAppSnackBar(
+    ctx,
+    message: AppLocalizations.of(ctx)!.chatMessageWidgetCopiedToClipboard,
+    type: NotificationType.success,
+  );
+}
+
+Future<void> _exportTableMarkdown(
+  BuildContext ctx,
+  List<CustomTableRow> rows,
+) async {
+  await saveCodeBlockToFile(
+    ctx,
+    _rowsToMarkdown(rows),
+    'md',
+    filename: 'omnichat-table-${DateTime.now().millisecondsSinceEpoch}.md',
+  );
+}
+
+/// Table block that splits cells with math/escape awareness so `|` inside
+/// `$...$`, `\(...\)` or `\|` spans is not treated as a column separator.
+class EscapeAwareTableMd extends TableMd {
+  @override
+  Widget build(BuildContext context, String text, GptMarkdownConfig config) {
+    final value = text
+        .trim()
+        .split('\n')
+        .where((line) => line.trim().isNotEmpty)
+        .map<Map<int, String>>(
+          (line) => _splitMarkdownTableLine(line.trim()).asMap(),
+        )
+        .toList();
+
+    if (value.isEmpty) return Text('', style: config.style);
+
+    final hasHeader = value.length >= 2;
+    final columnAlignments = <TextAlign>[];
+
+    if (hasHeader) {
+      final separatorRow = value[1];
+      for (var index = 0; index < separatorRow.length; index++) {
+        final separator = (separatorRow[index] ?? '').trim();
+        final hasLeftColon = separator.startsWith(':');
+        final hasRightColon = separator.endsWith(':');
+
+        if (hasLeftColon && hasRightColon) {
+          columnAlignments.add(TextAlign.center);
+        } else if (hasRightColon) {
+          columnAlignments.add(TextAlign.right);
+        } else {
+          columnAlignments.add(TextAlign.left);
+        }
+      }
+    }
+
+    var maxCol = 0;
+    for (final row in value) {
+      if (maxCol < row.length) maxCol = row.length;
+    }
+    if (maxCol == 0) return Text('', style: config.style);
+
+    while (columnAlignments.length < maxCol) {
+      columnAlignments.add(TextAlign.left);
+    }
+
+    final tableBuilder = config.tableBuilder;
+    if (tableBuilder == null) {
+      return super.build(context, text, config);
+    }
+
+    final customTable = List<CustomTableRow?>.generate(value.length, (
+      rowIndex,
+    ) {
+      if (hasHeader && rowIndex == 1) return null;
+      final row = value[rowIndex];
+      if (row.isEmpty) return null;
+
+      final fields = List<CustomTableField>.generate(maxCol, (fieldIndex) {
+        return CustomTableField(
+          data: row[fieldIndex] ?? '',
+          alignment: columnAlignments[fieldIndex],
+        );
+      });
+      return CustomTableRow(isHeader: rowIndex == 0, fields: fields);
+    }).nonNulls.toList();
+
+    return tableBuilder(
+      context,
+      customTable,
+      config.style ?? const TextStyle(),
+      config,
+    );
+  }
+}
+
+List<String> _splitMarkdownTableLine(String line) {
+  var trimmed = line.trim();
+  if (trimmed.startsWith('|')) trimmed = trimmed.substring(1);
+  if (trimmed.endsWith('|') && !_isEscaped(trimmed, trimmed.length - 1)) {
+    trimmed = trimmed.substring(0, trimmed.length - 1);
+  }
+
+  final cells = <String>[];
+  final cell = StringBuffer();
+  var dollarMathEnd = -1;
+  var parenMathEnd = -1;
+
+  for (var i = 0; i < trimmed.length; i++) {
+    final ch = trimmed.codeUnitAt(i);
+
+    if (i > dollarMathEnd && i > parenMathEnd) {
+      if (ch == 0x24 && !_isEscaped(trimmed, i)) {
+        final close = _findClosingDollarMathInTableCell(trimmed, i + 1);
+        if (close != -1) dollarMathEnd = close;
+      } else if (ch == 0x5C && i + 1 < trimmed.length) {
+        final next = trimmed.codeUnitAt(i + 1);
+        if (next == 0x28) {
+          final close = _findClosingParenMathInTableCell(trimmed, i + 2);
+          if (close != -1) parenMathEnd = close + 1;
+        }
+      }
+    }
+
+    if (ch == 0x7C && // '|'
+        !_isEscaped(trimmed, i) &&
+        i > dollarMathEnd &&
+        i > parenMathEnd) {
+      cells.add(cell.toString());
+      cell.clear();
+      continue;
+    }
+
+    cell.writeCharCode(ch);
+  }
+  cells.add(cell.toString());
+  return cells;
+}
+
+int _findClosingDollarMathInTableCell(String input, int start) {
+  final end = math.min(input.length, start + _maxInlineMathBodyLength + 1);
+  for (var i = start; i < end; i++) {
+    final ch = input.codeUnitAt(i);
+    if (ch == 0x0A) return -1;
+    if (ch == 0x5C) {
+      i++;
+      continue;
+    }
+    if (ch != 0x24) continue;
+
+    final body = input.substring(start, i);
+    if (_isValidDollarMathBody(body, allowUnescapedPipes: true) &&
+        _canCloseDollarMath(input, i)) {
+      return i;
+    }
+    return -1;
+  }
+  return -1;
+}
+
+int _findClosingParenMathInTableCell(String input, int start) {
+  final end = math.min(input.length, start + _maxInlineMathBodyLength + 2);
+  for (var i = start; i < end - 1; i++) {
+    final ch = input.codeUnitAt(i);
+    if (ch == 0x0A) return -1;
+    if (ch == 0x5C && input.codeUnitAt(i + 1) == 0x29) return i;
+  }
+  return -1;
+}
+
 class FencedCodeBlockMd extends BlockMd {
   FencedCodeBlockMd({this.isStreaming = false});
 
@@ -2422,8 +3544,11 @@ class FencedCodeBlockMd extends BlockMd {
     final m = exp.firstMatch(text);
     if (m == null) return const SizedBox.shrink();
     final lang = (m.group(1) ?? '').trim();
-    // Restore $ masked by preprocessFences so code content renders literally.
-    final code = MarkdownWithCodeHighlight.unmaskCodeDollars(m.group(2) ?? '');
+    // Restore $ and <details>/<summary masks from preprocessFences so code
+    // content renders literally.
+    final code = MarkdownWithCodeHighlight.unmaskFencedHtmlTagStarts(
+      MarkdownWithCodeHighlight.unmaskCodeDollars(m.group(2) ?? ''),
+    );
     final langLower = lang.toLowerCase();
     if ((langLower == 'mermaid' || langLower == 'plantuml') && isStreaming) {
       return _CollapsibleCodeBlock(language: lang, code: code);
@@ -2523,15 +3648,36 @@ class InlineLatexScrollableMd extends InlineMd {
 
 /// Inline LaTeX for dollar delimiters only: `$...$`
 class InlineLatexDollarScrollableMd extends InlineMd {
+  // Boundary-aware render-time fallback (kelivo v1.1.16 port): `$` must be
+  // preceded by start/space/tab/newline/(, be unescaped, have a body capped at
+  // 512 chars, and close before a non-alphanumeric boundary. This prevents
+  // currency spans like "$5 and total is $10" and "abc$x$" from being parsed
+  // as math even when the preprocess scanner left them untouched. Raw `|` is
+  // allowed in the body so table-cell math (split by EscapeAwareTableMd) still
+  // renders.
   @override
-  RegExp get exp => RegExp(r"(?:(?<!\$)\$([^\$\n]+?)\$(?!\$))");
+  RegExp get exp => RegExp(
+    r"(^|[ \t\r\n(])(?<!\\)(?<!\$)\$((?:\\.|[^\$\\\n]){1,"
+    "$_maxInlineMathBodyLength"
+    r"})\$(?!\$)(?![A-Za-z0-9])",
+  );
 
   @override
   InlineSpan span(BuildContext context, String text, GptMarkdownConfig config) {
     final m = exp.firstMatch(text);
     if (m == null) return TextSpan(text: text, style: config.style);
-    final body = (m.group(1) ?? '').trim();
+    final prefix = m.group(1) ?? '';
+    final body = (m.group(2) ?? '').trim();
     if (body.isEmpty) return TextSpan(text: text, style: config.style);
+    // Reject empty / over-length / edge-whitespace bodies (regex already caps
+    // length; this adds leading/trailing whitespace checks). Pipes are allowed
+    // so per-cell table math keeps working.
+    if (!_isValidDollarMathBody(
+      m.group(2) ?? '',
+      allowUnescapedPipes: true,
+    )) {
+      return TextSpan(text: text, style: config.style);
+    }
     final math = MarkdownWithCodeHighlight._renderMath(
       body,
       mathStyle: MathStyle.text,
@@ -2552,10 +3698,16 @@ class InlineLatexDollarScrollableMd extends InlineMd {
         );
       },
     );
-    return WidgetSpan(
-      alignment: PlaceholderAlignment.baseline,
-      baseline: TextBaseline.alphabetic,
-      child: w,
+    return TextSpan(
+      style: config.style,
+      children: [
+        if (prefix.isNotEmpty) TextSpan(text: prefix, style: config.style),
+        WidgetSpan(
+          alignment: PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: w,
+        ),
+      ],
     );
   }
 }
@@ -2563,7 +3715,11 @@ class InlineLatexDollarScrollableMd extends InlineMd {
 /// Inline LaTeX for parenthesis delimiters only: `\(...\)`
 class InlineLatexParenScrollableMd extends InlineMd {
   @override
-  RegExp get exp => RegExp(r"(?:\\\(([^\n]+?)\\\))");
+  RegExp get exp => RegExp(
+    r"(?:\\\(([^\n]{1,"
+    "$_maxInlineMathBodyLength"
+    r"}?)\\\))",
+  );
 
   @override
   InlineSpan span(BuildContext context, String text, GptMarkdownConfig config) {
@@ -2600,6 +3756,244 @@ class InlineLatexParenScrollableMd extends InlineMd {
 }
 
 // Balanced ATX-style headings (#, ##, ###, …) with consistent spacing and typography
+/// Block renderer for HTML `<details>/<summary>` collapsible sections, with
+/// nested details support (depth 6) and `open` attribute handling (kelivo
+/// v1.1.13 port).
+class DetailsHtmlMd extends BlockMd {
+  @override
+  RegExp get exp => RegExp(
+    r'^\ *?(?:' + expString + r")$",
+    dotAll: true,
+    multiLine: true,
+    caseSensitive: false,
+  );
+
+  @override
+  String get expString => _detailsPattern(6);
+
+  @override
+  Widget build(BuildContext context, String text, GptMarkdownConfig config) {
+    final match = RegExp(
+      r"^<details(?<attrs>[^>]*)>\s*<summary(?:\s+[^>]*)?>(?<summary>[\s\S]*?)<\/summary>(?<body>[\s\S]*)<\/details>$",
+      caseSensitive: false,
+      dotAll: true,
+    ).firstMatch(text.trim());
+
+    if (match == null) {
+      return config.getRich(TextSpan(text: text, style: config.style));
+    }
+
+    final attrs = match.namedGroup('attrs') ?? '';
+    final summary = _plainHtmlText(match.namedGroup('summary') ?? '').trim();
+    final body = (match.namedGroup('body') ?? '').trim();
+    final initiallyExpanded = RegExp(
+      r"(?:^|\s)open(?:\s|$|=)",
+      caseSensitive: false,
+    ).hasMatch(attrs);
+
+    return _DetailsHtmlBlock(
+      summary: summary,
+      body: body,
+      initiallyExpanded: initiallyExpanded,
+      config: config,
+    );
+  }
+
+  static String _detailsPattern(int depth) {
+    final open = r"<details(?:\s+[^>]*)?>";
+    final summary = r"\s*<summary(?:\s+[^>]*)?>[\s\S]*?<\/summary>";
+    if (depth <= 1) {
+      return '$open$summary(?:(?!<details\\b|<\\/details>)[\\s\\S])*<\\/details>';
+    }
+    final nested = _detailsPattern(depth - 1);
+    return '$open$summary(?:(?!<details\\b|<\\/details>)[\\s\\S]|$nested)*<\\/details>';
+  }
+
+  static String _plainHtmlText(String input) {
+    return input
+        .replaceAll(RegExp(r"<br\s*/?>", caseSensitive: false), '\n')
+        .replaceAll(RegExp(r"<[^>]+>"), '')
+        .trim();
+  }
+}
+
+class _DetailsHtmlBlock extends StatefulWidget {
+  const _DetailsHtmlBlock({
+    required this.summary,
+    required this.body,
+    required this.initiallyExpanded,
+    required this.config,
+  });
+
+  final String summary;
+  final String body;
+  final bool initiallyExpanded;
+  final GptMarkdownConfig config;
+
+  @override
+  State<_DetailsHtmlBlock> createState() => _DetailsHtmlBlockState();
+}
+
+class _DetailsHtmlBlockState extends State<_DetailsHtmlBlock> {
+  late bool _expanded = widget.initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Color.alphaBlend(
+      cs.onSurface.withValues(alpha: isDark ? 0.05 : 0.025),
+      cs.surface,
+    );
+    final borderColor = cs.outlineVariant.withValues(
+      alpha: isDark ? 0.18 : 0.30,
+    );
+    final summaryStyle = (widget.config.style ?? const TextStyle()).copyWith(
+      color: cs.onSurface,
+      fontWeight: FontWeight.w500,
+    );
+    final bodyStyle = (widget.config.style ?? const TextStyle()).copyWith(
+      color: cs.onSurface,
+    );
+    final bodyConfig = widget.config.copyWith(style: bodyStyle);
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor, width: 0.8),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IosCardPress(
+            onTap: () => setState(() => _expanded = !_expanded),
+            baseColor: Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            haptics: false,
+            child: Row(
+              children: [
+                AnimatedRotation(
+                  turns: _expanded ? 0.25 : 0.0,
+                  duration: const Duration(milliseconds: 160),
+                  curve: Curves.easeOutCubic,
+                  child: Icon(
+                    Lucide.ChevronRight,
+                    size: 15,
+                    color: cs.onSurfaceVariant.withValues(alpha: 0.78),
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    widget.summary,
+                    style: summaryStyle,
+                    softWrap: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            layoutBuilder: (currentChild, previousChildren) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ...previousChildren,
+                  if (currentChild != null) currentChild,
+                ],
+              );
+            },
+            transitionBuilder: (child, animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: SizeTransition(
+                  sizeFactor: animation,
+                  alignment: Alignment.topCenter,
+                  child: child,
+                ),
+              );
+            },
+            child: _expanded && widget.body.isNotEmpty
+                ? Container(
+                    key: const ValueKey('details-expanded'),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: borderColor, width: 0.8),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                      child: widget.config.getRich(
+                        TextSpan(
+                          style: bodyStyle,
+                          children: MarkdownComponent.generate(
+                            context,
+                            widget.body,
+                            bodyConfig,
+                            true,
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                : const SizedBox.shrink(key: ValueKey('details-collapsed')),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Inline renderer for raw HTML `<a href="...">text</a>` anchors (kelivo
+/// v1.1.13 port).
+class HtmlAnchorMd extends InlineMd {
+  @override
+  RegExp get exp => RegExp(
+    r'''<a\s+[^>]*href\s*=\s*(['"])(.*?)\1[^>]*>([\s\S]*?)<\/a>''',
+    caseSensitive: false,
+    dotAll: true,
+  );
+
+  @override
+  InlineSpan span(BuildContext context, String text, GptMarkdownConfig config) {
+    final match = exp.firstMatch(text);
+    if (match == null) return TextSpan(text: text, style: config.style);
+
+    final url = (match.group(2) ?? '').trim();
+    final linkText = _stripTags(match.group(3) ?? '');
+    final cs = Theme.of(context).colorScheme;
+
+    return WidgetSpan(
+      baseline: TextBaseline.alphabetic,
+      alignment: PlaceholderAlignment.baseline,
+      child: GestureDetector(
+        onTap: url.isEmpty ? null : () => config.onLinkTap?.call(url, linkText),
+        child: Text(
+          linkText,
+          style: (config.style ?? const TextStyle()).copyWith(
+            color: cs.primary,
+            decoration: TextDecoration.none,
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _stripTags(String input) =>
+      input.replaceAll(RegExp(r"<[^>]+>"), '').trim();
+}
+
 class AtxHeadingMd extends BlockMd {
   @override
   // Restrict heading content to a single line to avoid swallowing
