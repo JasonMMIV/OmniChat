@@ -582,6 +582,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     if (service is PerplexityOptions) return Lucide.Search;
     if (service is BochaOptions) return Lucide.Search;
     if (service is TinyfishOptions) return Lucide.Search;
+    if (service is QueritOptions) return Lucide.Search;
     if (service is ArxivOptions) return Lucide.BookOpen;
     if (service is PubMedOptions) return Lucide.Activity;
     if (service is SemanticScholarOptions) return Lucide.Brain;
@@ -641,6 +642,10 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
       return service.apiKey.isNotEmpty
           ? l10n.searchServicesPageConfiguredStatus
           : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (service is QueritOptions)
+      return service.apiKey.isNotEmpty
+          ? l10n.searchServicesPageConfiguredStatus
+          : l10n.searchServicesPageApiKeyRequiredStatus;
     if (service is ArxivOptions) return l10n.searchServicesPageConfiguredStatus;
     if (service is PubMedOptions)
       return service.apiKey.isNotEmpty
@@ -685,6 +690,7 @@ class _BrandBadge extends StatelessWidget {
     if (s is PerplexityOptions) return 'perplexity';
     if (s is BochaOptions) return 'bocha';
     if (s is TinyfishOptions) return 'tinyfish';
+    if (s is QueritOptions) return 'querit';
     if (s is ArxivOptions) return 'arxiv';
     if (s is PubMedOptions) return 'pubmed';
     if (s is SemanticScholarOptions) return 'semanticscholar';
@@ -862,6 +868,7 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
       {'type': 'perplexity', 'name': l10n.searchServiceNamePerplexity},
       {'type': 'bocha', 'name': l10n.searchServiceNameBocha},
       {'type': 'tinyfish', 'name': l10n.searchServiceNameTinyfish},
+      {'type': 'querit', 'name': l10n.searchServiceNameQuerit},
       {'type': 'arxiv', 'name': l10n.searchServiceNameArxiv},
       {'type': 'pubmed', 'name': l10n.searchServiceNamePubMed},
       {
@@ -932,6 +939,8 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
         return l10n.searchServiceNameBocha;
       case 'tinyfish':
         return l10n.searchServiceNameTinyfish;
+      case 'querit':
+        return l10n.searchServiceNameQuerit;
       case 'arxiv':
         return l10n.searchServiceNameArxiv;
       case 'pubmed':
@@ -1099,6 +1108,49 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
             ),
           ],
         ];
+      case 'querit':
+        return [
+          _buildTextField(
+            key: 'apiKey',
+            label: 'API Key',
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return l10n.searchServicesAddDialogApiKeyRequired;
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'sitesInclude',
+            label: l10n.searchServicesDialogSitesIncludeOptional,
+            hint: l10n.searchServicesDialogSitesHint,
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'sitesExclude',
+            label: l10n.searchServicesDialogSitesExcludeOptional,
+            hint: l10n.searchServicesDialogSitesHint,
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'timeRange',
+            label: l10n.searchServicesDialogTimeRangeOptional,
+            hint: l10n.searchServicesDialogTimeRangeHint,
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'countries',
+            label: l10n.searchServicesDialogCountriesOptional,
+            hint: l10n.searchServicesDialogCountriesHint,
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'languages',
+            label: l10n.searchServicesDialogLanguagesOptional,
+            hint: l10n.searchServicesDialogLanguagesHint,
+          ),
+        ];
       case 'searxng':
         return [
           _buildTextField(
@@ -1243,6 +1295,16 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
         return BochaOptions(id: id, apiKey: _controllers['apiKey']!.text);
       case 'tinyfish':
         return TinyfishOptions(id: id, apiKey: _controllers['apiKey']!.text);
+      case 'querit':
+        return QueritOptions(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+          sitesInclude: (_controllers['sitesInclude']?.text ?? '').trim(),
+          sitesExclude: (_controllers['sitesExclude']?.text ?? '').trim(),
+          timeRange: (_controllers['timeRange']?.text ?? '').trim(),
+          countries: (_controllers['countries']?.text ?? '').trim(),
+          languages: (_controllers['languages']?.text ?? '').trim(),
+        );
       case 'arxiv':
         return ArxivOptions(id: id);
       case 'pubmed':
@@ -1319,6 +1381,17 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
     } else if (service is TinyfishOptions) {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+    } else if (service is QueritOptions) {
+      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['sitesInclude'] = TextEditingController(
+        text: service.sitesInclude,
+      );
+      _controllers['sitesExclude'] = TextEditingController(
+        text: service.sitesExclude,
+      );
+      _controllers['timeRange'] = TextEditingController(text: service.timeRange);
+      _controllers['countries'] = TextEditingController(text: service.countries);
+      _controllers['languages'] = TextEditingController(text: service.languages);
     } else if (service is PubMedOptions) {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
       _controllers['tool'] = TextEditingController(text: service.tool);
@@ -1504,6 +1577,49 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
           ),
         ],
       ];
+    } else if (service is QueritOptions) {
+      return [
+        _buildTextField(
+          key: 'apiKey',
+          label: 'API Key',
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return l10n.searchServicesEditDialogApiKeyRequired;
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'sitesInclude',
+          label: l10n.searchServicesDialogSitesIncludeOptional,
+          hint: l10n.searchServicesDialogSitesHint,
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'sitesExclude',
+          label: l10n.searchServicesDialogSitesExcludeOptional,
+          hint: l10n.searchServicesDialogSitesHint,
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'timeRange',
+          label: l10n.searchServicesDialogTimeRangeOptional,
+          hint: l10n.searchServicesDialogTimeRangeHint,
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'countries',
+          label: l10n.searchServicesDialogCountriesOptional,
+          hint: l10n.searchServicesDialogCountriesHint,
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'languages',
+          label: l10n.searchServicesDialogLanguagesOptional,
+          hint: l10n.searchServicesDialogLanguagesHint,
+        ),
+      ];
     } else if (service is SearXNGOptions) {
       return [
         _buildTextField(
@@ -1649,6 +1765,16 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
         id: service.id,
         apiKey: _controllers['apiKey']!.text,
       );
+    } else if (service is QueritOptions) {
+      return QueritOptions(
+        id: service.id,
+        apiKey: _controllers['apiKey']!.text,
+        sitesInclude: (_controllers['sitesInclude']?.text ?? '').trim(),
+        sitesExclude: (_controllers['sitesExclude']?.text ?? '').trim(),
+        timeRange: (_controllers['timeRange']?.text ?? '').trim(),
+        countries: (_controllers['countries']?.text ?? '').trim(),
+        languages: (_controllers['languages']?.text ?? '').trim(),
+      );
     } else if (service is PubMedOptions) {
       return PubMedOptions(
         id: service.id,
@@ -1759,6 +1885,8 @@ class _ServiceIcon extends StatelessWidget {
         return 'bocha';
       case 'tinyfish':
         return 'tinyfish';
+      case 'querit':
+        return 'querit';
       case 'arxiv':
         return 'arxiv';
       case 'pubmed':

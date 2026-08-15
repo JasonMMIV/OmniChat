@@ -602,6 +602,7 @@ class _BrandBadge extends StatelessWidget {
     if (s is PerplexityOptions) return 'perplexity';
     if (s is BochaOptions) return 'bocha';
     if (s is TinyfishOptions) return 'tinyfish';
+    if (s is QueritOptions) return 'querit';
     if (s is ArxivOptions) return 'arxiv';
     if (s is PubMedOptions) return 'pubmed';
     if (s is SemanticScholarOptions) return 'semanticscholar';
@@ -777,6 +778,11 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
     'searchEngineId': TextEditingController(),
     'tool': TextEditingController(),
     'email': TextEditingController(),
+    'sitesInclude': TextEditingController(),
+    'sitesExclude': TextEditingController(),
+    'timeRange': TextEditingController(),
+    'countries': TextEditingController(),
+    'languages': TextEditingController(),
   };
 
   @override
@@ -887,6 +893,38 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
               decoration: deco('Search Engine ID (cx)'),
             ),
           ],
+        ];
+      case 'querit':
+        return [
+          TextField(
+            controller: _controllers['apiKey'],
+            decoration: deco('API Key'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controllers['sitesInclude'],
+            decoration: deco(l10n.searchServicesDialogSitesIncludeOptional),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controllers['sitesExclude'],
+            decoration: deco(l10n.searchServicesDialogSitesExcludeOptional),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controllers['timeRange'],
+            decoration: deco(l10n.searchServicesDialogTimeRangeOptional),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controllers['countries'],
+            decoration: deco(l10n.searchServicesDialogCountriesOptional),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controllers['languages'],
+            decoration: deco(l10n.searchServicesDialogLanguagesOptional),
+          ),
         ];
       case 'searxng':
         return [
@@ -1002,6 +1040,16 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
         return BochaOptions(id: id, apiKey: _controllers['apiKey']!.text);
       case 'tinyfish':
         return TinyfishOptions(id: id, apiKey: _controllers['apiKey']!.text);
+      case 'querit':
+        return QueritOptions(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+          sitesInclude: _controllers['sitesInclude']!.text.trim(),
+          sitesExclude: _controllers['sitesExclude']!.text.trim(),
+          timeRange: _controllers['timeRange']!.text.trim(),
+          countries: _controllers['countries']!.text.trim(),
+          languages: _controllers['languages']!.text.trim(),
+        );
       case 'arxiv':
         return ArxivOptions(id: id);
       case 'pubmed':
@@ -1075,6 +1123,17 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
       _controllers['apiKey'] = TextEditingController(text: s.apiKey);
     } else if (s is TinyfishOptions) {
       _controllers['apiKey'] = TextEditingController(text: s.apiKey);
+    } else if (s is QueritOptions) {
+      _controllers['apiKey'] = TextEditingController(text: s.apiKey);
+      _controllers['sitesInclude'] = TextEditingController(
+        text: s.sitesInclude,
+      );
+      _controllers['sitesExclude'] = TextEditingController(
+        text: s.sitesExclude,
+      );
+      _controllers['timeRange'] = TextEditingController(text: s.timeRange);
+      _controllers['countries'] = TextEditingController(text: s.countries);
+      _controllers['languages'] = TextEditingController(text: s.languages);
     } else if (s is PubMedOptions) {
       _controllers['apiKey'] = TextEditingController(text: s.apiKey);
       _controllers['tool'] = TextEditingController(text: s.tool);
@@ -1179,6 +1238,38 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
             decoration: deco('Search Engine ID (cx)'),
           ),
         ],
+      ];
+    } else if (s is QueritOptions) {
+      return [
+        TextField(
+          controller: _controllers['apiKey'],
+          decoration: deco('API Key'),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _controllers['sitesInclude'],
+          decoration: deco(l10n.searchServicesDialogSitesIncludeOptional),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _controllers['sitesExclude'],
+          decoration: deco(l10n.searchServicesDialogSitesExcludeOptional),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _controllers['timeRange'],
+          decoration: deco(l10n.searchServicesDialogTimeRangeOptional),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _controllers['countries'],
+          decoration: deco(l10n.searchServicesDialogCountriesOptional),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _controllers['languages'],
+          decoration: deco(l10n.searchServicesDialogLanguagesOptional),
+        ),
       ];
     } else if (s is DuckDuckGoOptions) {
       return [
@@ -1291,6 +1382,16 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
       return BochaOptions(id: s.id, apiKey: _controllers['apiKey']!.text);
     if (s is TinyfishOptions)
       return TinyfishOptions(id: s.id, apiKey: _controllers['apiKey']!.text);
+    if (s is QueritOptions)
+      return QueritOptions(
+        id: s.id,
+        apiKey: _controllers['apiKey']!.text,
+        sitesInclude: (_controllers['sitesInclude']?.text ?? '').trim(),
+        sitesExclude: (_controllers['sitesExclude']?.text ?? '').trim(),
+        timeRange: (_controllers['timeRange']?.text ?? '').trim(),
+        countries: (_controllers['countries']?.text ?? '').trim(),
+        languages: (_controllers['languages']?.text ?? '').trim(),
+      );
     if (s is PubMedOptions)
       return PubMedOptions(
         id: s.id,
@@ -1335,6 +1436,7 @@ class _ServiceTypeChipsState extends State<_ServiceTypeChips> {
     (type: 'perplexity', name: 'Perplexity', brand: 'perplexity'),
     (type: 'bocha', name: 'Bocha', brand: 'bocha'),
     (type: 'tinyfish', name: 'Tinyfish', brand: 'tinyfish'),
+    (type: 'querit', name: 'Querit', brand: 'querit'),
     (type: 'arxiv', name: 'arXiv', brand: 'arxiv'),
     (type: 'pubmed', name: 'PubMed', brand: 'pubmed'),
     (type: 'semantic_scholar', name: 'Semantic Scholar', brand: 'semanticscholar'),

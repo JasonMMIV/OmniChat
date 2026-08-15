@@ -15,6 +15,7 @@ import 'providers/perplexity_search_service.dart';
 import 'providers/duckduckgo_search_service.dart';
 import 'providers/google_search_service.dart';
 import 'providers/tinyfish_search_service.dart';
+import 'providers/querit_search_service.dart';
 import 'providers/arxiv_search_service.dart';
 import 'providers/pubmed_search_service.dart';
 import 'providers/semantic_scholar_search_service.dart';
@@ -64,6 +65,8 @@ abstract class SearchService<T extends SearchServiceOptions> {
         return GoogleSearchService() as SearchService;
       case TinyfishOptions:
         return TinyfishSearchService() as SearchService;
+      case QueritOptions:
+        return QueritSearchService() as SearchService;
       case ArxivOptions:
         return ArxivSearchService() as SearchService;
       case PubMedOptions:
@@ -189,6 +192,8 @@ abstract class SearchServiceOptions {
         return GoogleOptions.fromJson(json);
       case 'tinyfish':
         return TinyfishOptions.fromJson(json);
+      case 'querit':
+        return QueritOptions.fromJson(json);
       case 'arxiv':
         return ArxivOptions.fromJson(json);
       case 'pubmed':
@@ -514,6 +519,47 @@ class TinyfishOptions extends SearchServiceOptions {
   factory TinyfishOptions.fromJson(Map<String, dynamic> json) => TinyfishOptions(
     id: json['id'],
     apiKey: json['apiKey'] ?? '',
+  );
+}
+
+class QueritOptions extends SearchServiceOptions {
+  final String apiKey;
+  final String sitesInclude;
+  final String sitesExclude;
+  final String timeRange;
+  final String countries;
+  final String languages;
+
+  QueritOptions({
+    required super.id,
+    required this.apiKey,
+    this.sitesInclude = '',
+    this.sitesExclude = '',
+    this.timeRange = '',
+    this.countries = '',
+    this.languages = '',
+  });
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'querit',
+    'id': id,
+    'apiKey': apiKey,
+    'sitesInclude': sitesInclude.trim(),
+    'sitesExclude': sitesExclude.trim(),
+    'timeRange': timeRange.trim(),
+    'countries': countries.trim(),
+    'languages': languages.trim(),
+  };
+
+  factory QueritOptions.fromJson(Map<String, dynamic> json) => QueritOptions(
+    id: json['id'],
+    apiKey: json['apiKey'] ?? '',
+    sitesInclude: json['sitesInclude'] ?? '',
+    sitesExclude: json['sitesExclude'] ?? '',
+    timeRange: json['timeRange'] ?? '',
+    countries: json['countries'] ?? '',
+    languages: json['languages'] ?? '',
   );
 }
 
