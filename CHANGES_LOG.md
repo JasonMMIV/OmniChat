@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-14 (v1.17.2)
+- **Last Updated**: 2026-08-15 (v1.17.4)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -774,6 +774,25 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
   - **X4 CMake install prefix**: hard-coded `runner/Release` replaced with `$<TARGET_FILE_DIR:${BINARY_NAME}>`, fixing debug builds / `flutter run` missing `flutter_windows.dll`.
   - **Installer unification**: `installers/omnichat_setup.iss` deleted (root cause of 32-bit → Program Files (x86) installs); root `installer.iss` is now the single 64-bit source.
 - **Tests**: `flutter test` — full suite passes (99 tests); `flutter analyze` clean.
+
+### 171. Markdown Rendering Port — kelivo v1.1.13–v1.1.17 (details/summary, Inline Math, Table/Code/Mermaid/PlantUML UX)
+
+- **Purpose**: Port the Markdown rendering improvements from upstream kelivo v1.1.13–v1.1.17 (all app-layer; the vendored `gpt_markdown` fork was 1.1.7 with zero cross-version diffs, so no fork is needed) plus a safe `gpt_markdown` 1.1.4 → 1.1.8 upgrade. Executes every recommendation in `導入 kelivo v1.1.13-v1.1.17 Markdown 渲染評估.md` (P0 ×2, P1 ×2, P2 ×3; the TeX `#` escape fix is N/A because OmniChat never escaped `#`).
+- **Files Modified**:
+  - `pubspec.yaml` / `pubspec.lock` (gpt_markdown `^1.1.4` → `^1.1.8`; the 1.1.7+ `imageBuilder` typedef gained `(width, height)` params, fixed at the single call site)
+  - `lib/shared/widgets/markdown_with_highlight.dart` (all core ports below)
+  - `lib/shared/widgets/plantuml_block.dart` (image/code tabs + theme palette + fixed 406 px preview height; collapse/download/open actions retained)
+  - `lib/shared/widgets/code_block_download_button.dart` (`saveCodeBlockToFile` gained an optional `fileName` so table export can suggest a `.md` filename)
+  - `lib/l10n/app_en.arb` / `app_zh.arb` / `app_zh_Hans.arb` / `app_zh_Hant.arb` + generated `app_localizations*.dart` (new keys `markdownTableLabel`, `markdownTableExportMarkdownButton`, `mermaidImageTab`, `mermaidCodeTab`)
+  - New tests: `test/inline_math_boundary_test.dart`, `test/details_summary_html_test.dart`, `test/code_block_state_retention_test.dart`, `test/markdown_table_toolbar_test.dart`, `test/plantuml_tabs_test.dart`, `test/mermaid_bitmap_tabs_test.dart`
+- **Details**:
+  - **Inline math hardening (P0)**: replaced the naive `\$([^\$\n]+?)\$` regex with a boundary-aware scanner (`_findClosingDollarMathInTableCell` / `_findClosingParenMathInTableCell`) — closing `$` must be a CJK/whitespace/punctuation boundary (kills the "Price is $5 and total is $10" → `\(5 and total is \)` currency bug), 512-char lookahead cap, CJK-adjacent math (`中文$x$` renders, `abc$x$` stays literal), table-row `$` never opens math, and math inside table cells keeps unescaped `|` via the registered `EscapeAwareTableMd` (table `| $P(A|B)$ |` no longer splits cells). The render-time dollar component regex also gained the same boundary checks so un-preprocessed currency survives rendering.
+  - **`<details>/<summary>` + raw `<a href>` + fenced-code mask (P0)**: new `DetailsHtmlMd` (nested up to depth 6, `open` attribute) and `HtmlAnchorMd` (raw `<a href>` → tappable link, `IosCardPress`); `_maskHtmlTagStartsInsideFencedCode` masks `<` with `\uE002` inside fenced code so the details pattern can never swallow code content, unmasked in the code builders.
+  - **Code block state retention (P1)**: `_codeBlockStateKey` (language + normalized first 16 chars) + static LRU map (`_manualExpansionByCodeKey`, 80 entries) so manual expand/collapse survives streaming rebuilds and `ListView.builder` recycling; `_toggleExpanded` persists the choice, `didUpdateWidget` restores it when the same block reappears.
+  - **Table toolbar (P1)**: markdown tables now render a code-block-style header bar — label + Copy (rebuilds the table as Markdown via `toMarkdown()`) + Export Markdown (saves a `.md` file, reusing `saveCodeBlockToFile`) — shown on desktop AND mobile (kelivo only shows it in compact mode, which is why its Windows build appears to lack it). No Preview button (tables render inline). Mobile tables sit inside `SelectionContainer.disabled`, so the toolbar is the only way to copy table data there.
+  - **PlantUML tabs (P2)**: `_PlantUMLTab { image, code }` segmented control replaces the bare label; Code tab shows scrollable selectable source; theme-tinted palette and 406 px preview height; collapse/download/open retained.
+  - **Mermaid bitmap-first (P2)**: `_MermaidBlock` no longer keeps a resident inline WebView2 — it renders once through a transient offscreen `Overlay` WebView2 (`_renderMermaidBitmapWithOverlay` + `_captureMermaidBitmap` via `exportPngBytes`), caches the PNG in `MermaidImageCache` under both the themed key (code+theme signature) and the raw code (so the export path still hits), and displays `Image.memory` with image/code tabs; failures degrade to the Code tab. Tapping the image opens the full-screen `ImageViewerPage` (pinch/pan/save). The toolbar was pre-adjusted (`.mmd` download removed; PNG download now carries the localized "Download" label and saves the cached bitmap via FilePicker / gallery).
+- **Tests**: `flutter test` — full suite passes (359 tests) including the 6 new suites (22 new cases); `flutter analyze` — 0 errors in changed files, no new issues beyond the pre-existing baseline patterns.
 
 ## [v1.9.0] - 2026-08-05: ZIP Extraction, Markdown Table Output & PDF Generation
 

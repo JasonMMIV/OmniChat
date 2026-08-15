@@ -13,17 +13,19 @@ import 'snackbar.dart';
 Future<void> saveCodeBlockToFile(
   BuildContext context,
   String code,
-  String extension,
-) async {
+  String extension, {
+  String? filename,
+}) async {
   final l10n = AppLocalizations.of(context)!;
-  final filename =
+  final name =
+      filename ??
       'omnichat-block-${DateTime.now().millisecondsSinceEpoch}.$extension';
   try {
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       // Desktop: choose save location, then write the file.
       final savePath = await FilePicker.platform.saveFile(
         dialogTitle: l10n.backupPageExportToFile,
-        fileName: filename,
+        fileName: name,
         type: FileType.custom,
         allowedExtensions: <String>[extension],
       );
@@ -40,7 +42,7 @@ Future<void> saveCodeBlockToFile(
       // Mobile: FilePicker writes the file itself via the bytes param.
       final savePath = await FilePicker.platform.saveFile(
         dialogTitle: l10n.backupPageExportToFile,
-        fileName: filename,
+        fileName: name,
         type: FileType.custom,
         allowedExtensions: <String>[extension],
         bytes: utf8.encode(code),

@@ -4520,4 +4520,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatMessageWidgetFileActions => 'File actions';
+
+  @override
+  String get markdownTableLabel => 'Table';
+
+  @override
+  String get markdownTableExportMarkdownButton => 'Export Markdown';
+
+  @override
+  String get mermaidImageTab => 'Image';
+
+  @override
+  String get mermaidCodeTab => 'Code';
 }

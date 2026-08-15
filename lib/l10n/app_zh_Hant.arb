@@ -1539,6 +1539,10 @@
   "chatMessageWidgetShowInFolder": "顯示所在資料夾",
   "chatMessageWidgetOpenExternally": "外部開啟",
   "chatMessageWidgetDownload": "下載",
-  "chatMessageWidgetFileActions": "檔案操作"
+  "chatMessageWidgetFileActions": "檔案操作",
+  "markdownTableLabel": "表格",
+  "markdownTableExportMarkdownButton": "匯出 Markdown",
+  "mermaidImageTab": "圖形",
+  "mermaidCodeTab": "程式碼"
 }
 

@@ -4502,6 +4502,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatMessageWidgetFileActions => '文件操作';
+
+  @override
+  String get markdownTableLabel => '表格';
+
+  @override
+  String get markdownTableExportMarkdownButton => '导出 Markdown';
+
+  @override
+  String get mermaidImageTab => '图形';
+
+  @override
+  String get mermaidCodeTab => '代码';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -8785,6 +8797,18 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get chatMessageWidgetFileActions => '文件操作';
+
+  @override
+  String get markdownTableLabel => '表格';
+
+  @override
+  String get markdownTableExportMarkdownButton => '导出 Markdown';
+
+  @override
+  String get mermaidImageTab => '图形';
+
+  @override
+  String get mermaidCodeTab => '代码';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -13175,4 +13199,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatMessageWidgetFileActions => '檔案操作';
+
+  @override
+  String get markdownTableLabel => '表格';
+
+  @override
+  String get markdownTableExportMarkdownButton => '匯出 Markdown';
+
+  @override
+  String get mermaidImageTab => '圖形';
+
+  @override
+  String get mermaidCodeTab => '程式碼';
 }

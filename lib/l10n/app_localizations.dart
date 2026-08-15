@@ -8731,6 +8731,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'File actions'**
   String get chatMessageWidgetFileActions;
+
+  /// No description provided for @markdownTableLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Table'**
+  String get markdownTableLabel;
+
+  /// No description provided for @markdownTableExportMarkdownButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Export Markdown'**
+  String get markdownTableExportMarkdownButton;
+
+  /// No description provided for @mermaidImageTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Image'**
+  String get mermaidImageTab;
+
+  /// No description provided for @mermaidCodeTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Code'**
+  String get mermaidCodeTab;
 }
 
 class _AppLocalizationsDelegate
