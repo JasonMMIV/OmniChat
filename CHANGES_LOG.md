@@ -179,6 +179,15 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.18.3-rev3] - 2026-08-16: README 補上 Kelivo fork 出處與版權聲明（AGPL-3.0 合規歸屬）
+
+> 依 AGPL-3.0 §5 之歸屬義務，於 `README.md`（英文）與 `README_ZH_TW.MD`（繁中）簡介後新增「License & Acknowledgements / 授權與聲明」區段：聲明 OmniChat 為 [Kelivo](https://github.com/Chevey339/kelivo)（Chevey339，AGPL-3.0）之 fork、UI 設計靈感來自 RikkaHub，並聲明依 AGPL-3.0 保留上游原始版權。已查證 Kelivo 原始檔無 per-file 版權標頭、LICENSE 為標準 AGPL-3.0 全文，OmniChat 無剝離標頭情事；此變更支援 Windows Store 與 F-Droid 上架之授權合規審查。
+
+- **README.md**：新增 `## 📄 License & Acknowledgements` 區段（Kelivo fork 出處＋AGPL-3.0 授權聲明）。
+- **README_ZH_TW.MD**：新增 `## 📄 授權與聲明` 區段（對應繁中內容）。
+- **Status**: 文件變更，無程式碼影響；`flutter test` / `flutter analyze` 不受影響。
+- **Files Modified**: `README.md`、`README_ZH_TW.MD`、`CHANGES_LOG.md`。
+
 ## [v1.18.3-rev2] - 2026-08-16: Windows 上架前置修復（W-C05 CFG 啟用、W-C04 WebView2 降級）＋隱私/AI 內容政策文稿
 
 > 依 STORE_REVIEW_PLAN.md Phase 2/3 執行：① `windows/CMakeLists.txt` 啟用 Control Flow Guard（`/guard:cf`），dumpbin 驗證 `0xC160`（W-C05）；② WebView2 初始化/載入降級處理——HTML 預覽與 WebView 頁在 WebView2 Runtime 缺失時顯示安裝提示並可降級外部瀏覽器（W-C04）；③ About 頁（行動＋桌面）加入隱私權政策入口；④ 草擬雙語隱私權政策與 AI 內容政策文稿（docs/）。
