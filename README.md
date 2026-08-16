@@ -12,6 +12,12 @@ English | [繁體中文](README_ZH_TW.MD)
 
 OmniChat is a modern, feature-rich AI chat application designed for text file editing,  deep research, multi-agent collaboration, seamless voice interaction, and a unified cross-platform experience.
 
+## 📄 License & Acknowledgements
+
+OmniChat is a fork of [Kelivo](https://github.com/Chevey339/kelivo) — an AGPL-3.0-licensed Flutter LLM chat client by [Chevey339](https://github.com/Chevey339), with UI design inspired by RikkaHub.
+
+OmniChat is distributed under the [GNU Affero General Public License v3.0](LICENSE), the same license as its upstream project. In accordance with the AGPL-3.0, the original copyright of the upstream code is retained.
+
 ---
 
 ## ✨ Key Features
