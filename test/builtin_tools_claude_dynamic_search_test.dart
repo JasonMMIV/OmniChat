@@ -77,6 +77,21 @@ void main() {
       );
     });
 
+    test('supports Claude Opus 4.8 and Fable 5 models', () {
+      expect(
+        BuiltInToolsHelper.isClaudeDynamicWebSearchSupportedModel(
+          'claude-opus-4-8',
+        ),
+        isTrue,
+      );
+      expect(
+        BuiltInToolsHelper.isClaudeDynamicWebSearchSupportedModel(
+          'claude-fable-5',
+        ),
+        isTrue,
+      );
+    });
+
     test('is case and whitespace insensitive', () {
       expect(
         BuiltInToolsHelper.isClaudeDynamicWebSearchSupportedModel(
@@ -132,6 +147,38 @@ void main() {
         ),
         isTrue,
       );
+      expect(
+        BuiltInToolsHelper.supportsClaudeDynamicWebSearchForModel(
+          cfg: cfg,
+          modelId: 'claude-opus-4-8',
+        ),
+        isTrue,
+      );
+      expect(
+        BuiltInToolsHelper.supportsClaudeDynamicWebSearchForModel(
+          cfg: cfg,
+          modelId: 'claude-fable-5',
+        ),
+        isTrue,
+      );
+    });
+
+    test('false for DeepSeek providers (legacy search tool only)', () {
+      final cfg = ProviderConfig(
+        id: 'deepseek-anthropic',
+        enabled: true,
+        name: 'DeepSeek',
+        apiKey: 'test-key',
+        baseUrl: 'https://api.deepseek.com/anthropic',
+        providerType: ProviderKind.claude,
+      );
+      expect(
+        BuiltInToolsHelper.supportsClaudeDynamicWebSearchForModel(
+          cfg: cfg,
+          modelId: 'deepseek-chat',
+        ),
+        isFalse,
+      );
     });
 
     test('resolves via apiModelId override', () {
@@ -163,6 +210,150 @@ void main() {
         ),
         isFalse,
       );
+    });
+
+    group('isOpenRouterProvider', () {
+      test('detects OpenRouter by baseUrl host or provider id', () {
+        expect(
+          BuiltInToolsHelper.isOpenRouterProvider(
+            ProviderConfig(
+              id: 'router',
+              enabled: true,
+              name: 'Router',
+              apiKey: 'k',
+              baseUrl: 'https://openrouter.ai/api/v1',
+              providerType: ProviderKind.openai,
+            ),
+          ),
+          isTrue,
+        );
+        expect(
+          BuiltInToolsHelper.isOpenRouterProvider(
+            ProviderConfig(
+              id: 'openrouter-proxy',
+              enabled: true,
+              name: 'Proxy',
+              apiKey: 'k',
+              baseUrl: 'https://proxy.example.com',
+              providerType: ProviderKind.openai,
+            ),
+          ),
+          isTrue,
+        );
+        expect(
+          BuiltInToolsHelper.isOpenRouterProvider(null),
+          isFalse,
+        );
+        expect(
+          BuiltInToolsHelper.isOpenRouterProvider(
+            ProviderConfig(
+              id: 'openai',
+              enabled: true,
+              name: 'OpenAI',
+              apiKey: 'k',
+              baseUrl: 'https://api.openai.com',
+              providerType: ProviderKind.openai,
+            ),
+          ),
+          isFalse,
+        );
+      });
+    });
+
+    group('isDeepSeekProvider', () {
+      test('detects DeepSeek by baseUrl host, id, or name', () {
+        expect(
+          BuiltInToolsHelper.isDeepSeekProvider(
+            ProviderConfig(
+              id: 'deepseek',
+              enabled: true,
+              name: 'DeepSeek',
+              apiKey: 'k',
+              baseUrl: 'https://api.deepseek.com',
+              providerType: ProviderKind.openai,
+            ),
+          ),
+          isTrue,
+        );
+        expect(
+          BuiltInToolsHelper.isDeepSeekProvider(
+            ProviderConfig(
+              id: 'ds-claude',
+              enabled: true,
+              name: 'DeepSeek-Anthropic',
+              apiKey: 'k',
+              baseUrl: 'https://api.deepseek.com/anthropic',
+              providerType: ProviderKind.claude,
+            ),
+          ),
+          isTrue,
+        );
+        expect(
+          BuiltInToolsHelper.isDeepSeekProvider(null),
+          isFalse,
+        );
+        expect(
+          BuiltInToolsHelper.isDeepSeekProvider(
+            ProviderConfig(
+              id: 'anthropic',
+              enabled: true,
+              name: 'Anthropic',
+              apiKey: 'k',
+              baseUrl: 'https://api.anthropic.com',
+              providerType: ProviderKind.claude,
+            ),
+          ),
+          isFalse,
+        );
+      });
+    });
+
+    group('supportsBuiltInSearchForModel', () {
+      ProviderConfig _openRouter() => ProviderConfig(
+        id: 'openrouter',
+        enabled: true,
+        name: 'OpenRouter',
+        apiKey: 'k',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        providerType: ProviderKind.openai,
+      );
+
+      test('enables web search for OpenRouter chat-completions models', () {
+        expect(
+          BuiltInToolsHelper.supportsBuiltInSearchForModel(
+            cfg: _openRouter(),
+            modelId: 'deepseek/deepseek-chat',
+          ),
+          isTrue,
+        );
+      });
+
+      test('keeps OpenRouter Responses path unsupported', () {
+        expect(
+          BuiltInToolsHelper.supportsBuiltInSearchForModel(
+            cfg: _openRouter().copyWith(useResponseApi: true),
+            modelId: 'deepseek/deepseek-chat',
+          ),
+          isFalse,
+        );
+      });
+
+      test('enables web search for DeepSeek Claude-compatible providers', () {
+        expect(
+          BuiltInToolsHelper.supportsBuiltInSearchForModel(
+            cfg: ProviderConfig(
+              id: 'deepseek',
+              enabled: true,
+              name: 'DeepSeek',
+              apiKey: 'k',
+              baseUrl: 'https://api.deepseek.com/anthropic',
+              providerType: ProviderKind.claude,
+            ),
+            modelId: 'deepseek-chat',
+          ),
+          isTrue,
+        );
+      });
     });
 
     test('false for unsupported models and null inputs', () {

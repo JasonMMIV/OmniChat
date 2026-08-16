@@ -163,6 +163,10 @@ class _SearchSettingsSheet extends StatelessWidget {
         cfg != null &&
         cfg.providerType == ProviderKind.openai &&
         (cfg.useResponseApi == true);
+    final isOpenRouter =
+        cfg != null &&
+        cfg.providerType == ProviderKind.openai &&
+        BuiltInToolsHelper.isOpenRouterProvider(cfg);
     final isGrok =
         cfg != null &&
         cfg.providerType == ProviderKind.openai &&
@@ -195,6 +199,8 @@ class _SearchSettingsSheet extends StatelessWidget {
         );
     // Claude supported models per Anthropic docs
     final claudeSupportedModels = <String>{
+      'claude-fable-5',
+      'claude-opus-4-8',
       'claude-opus-4-7',
       'claude-opus-4-6',
       'claude-sonnet-4-6',
@@ -209,7 +215,8 @@ class _SearchSettingsSheet extends StatelessWidget {
     final isClaudeSupportedModel =
         isClaude &&
         (modelId != null) &&
-        claudeSupportedModels.contains(modelId.toLowerCase());
+        (claudeSupportedModels.contains(modelId.toLowerCase()) ||
+            BuiltInToolsHelper.isDeepSeekProvider(cfg));
     // OpenAI Responses supported models for web_search tool
     bool _isOpenAIResponsesSupportedModel(String id) {
       final m = id.toLowerCase();
@@ -265,6 +272,7 @@ class _SearchSettingsSheet extends StatelessWidget {
                 if ((isGeminiProvider ||
                         isClaudeSupportedModel ||
                         isOpenAIResponsesSupportedModel ||
+                        isOpenRouter ||
                         isGrok) &&
                     (providerKey != null) &&
                     (modelId ?? '').isNotEmpty) ...[
@@ -727,6 +735,8 @@ class _BrandBadge extends StatelessWidget {
     if (s is JinaOptions) return 'jina';
     if (s is PerplexityOptions) return 'perplexity';
     if (s is BochaOptions) return 'bocha';
+    if (s is SerperOptions) return 'serper';
+    if (s is GrokOptions) return 'grok';
     if (s is ArxivOptions) return 'arxiv';
     if (s is PubMedOptions) return 'pubmed';
     if (s is SemanticScholarOptions) return 'semanticscholar';

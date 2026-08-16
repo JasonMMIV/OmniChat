@@ -98,6 +98,7 @@ abstract class BuiltInToolsHelper {
     required ProviderKind kind,
     required bool useResponseApi,
     String? modelId,
+    ProviderConfig? cfg,
   }) {
     switch (kind) {
       case ProviderKind.google:
@@ -107,10 +108,78 @@ abstract class BuiltInToolsHelper {
       case ProviderKind.neuralwatt:
       case ProviderKind.openai:
         // OpenAI requires Responses API, or Grok models
+        if (isOpenRouterProvider(cfg)) return cfg?.useResponseApi != true;
         if (useResponseApi) return true;
         if (modelId != null && modelId.toLowerCase().contains('grok')) return true;
         return false;
     }
+  }
+
+  /// Whether the provider/baseUrl is an OpenRouter endpoint.
+  static bool isOpenRouterProvider(ProviderConfig? cfg) {
+    if (cfg == null) return false;
+    final host = Uri.tryParse(cfg.baseUrl)?.host.toLowerCase() ?? '';
+    final providerId = cfg.id.toLowerCase();
+    return host.contains('openrouter.ai') || providerId.contains('openrouter');
+  }
+
+  /// Whether the provider/baseUrl is a DeepSeek endpoint (including
+  /// DeepSeek-Anthropic Claude-compatible providers).
+  static bool isDeepSeekProvider(ProviderConfig? cfg) {
+    if (cfg == null) return false;
+    final host = Uri.tryParse(cfg.baseUrl)?.host.toLowerCase() ?? '';
+    final providerId = cfg.id.toLowerCase();
+    final providerName = cfg.name.toLowerCase();
+    return host.contains('deepseek.com') ||
+        providerId.contains('deepseek') ||
+        providerName.contains('deepseek');
+  }
+
+  /// Whether the provider/model combination supports built-in web search,
+  /// based on the provider kind plus provider-level (OpenRouter/DeepSeek)
+  /// and model-level (Grok / Responses API) heuristics.
+  static bool supportsBuiltInSearchForModel({
+    required ProviderConfig? cfg,
+    required String? modelId,
+  }) {
+    if (cfg == null || (modelId ?? '').trim().isEmpty) return false;
+    final kind = ProviderConfig.classify(
+      cfg.id,
+      explicitType: cfg.providerType,
+    );
+    final upstreamModelId = BuiltInToolNames.effectiveModelId(
+      cfg: cfg,
+      modelId: modelId!,
+    );
+    switch (kind) {
+      case ProviderKind.google:
+        return true;
+      case ProviderKind.claude:
+        if (isDeepSeekProvider(cfg)) return true;
+        return true;
+      case ProviderKind.neuralwatt:
+      case ProviderKind.openai:
+        if (isOpenRouterProvider(cfg)) {
+          return cfg.useResponseApi != true;
+        }
+        if (upstreamModelId.toLowerCase().contains('grok')) return true;
+        if (cfg.useResponseApi == true) {
+          return _isOpenAIResponsesBuiltInSearchSupportedModel(
+            upstreamModelId,
+          );
+        }
+        return false;
+    }
+  }
+
+  static bool _isOpenAIResponsesBuiltInSearchSupportedModel(String? modelId) {
+    final m = _normalizedModelId(modelId);
+    return m.startsWith('gpt-4o') ||
+        m.startsWith('gpt-4.1') ||
+        m.startsWith('o4-mini') ||
+        m == 'o3' ||
+        m.startsWith('o3-') ||
+        m.startsWith('gpt-5');
   }
 
   static String _normalizedModelId(String? modelId) =>
@@ -121,6 +190,8 @@ abstract class BuiltInToolsHelper {
   static bool isClaudeDynamicWebSearchSupportedModel(String? modelId) {
     final normalized = _normalizedModelId(modelId);
     return normalized.contains('mythos') ||
+        normalized == 'claude-fable-5' ||
+        normalized == 'claude-opus-4-8' ||
         normalized == 'claude-opus-4-7' ||
         normalized == 'claude-opus-4-6' ||
         normalized == 'claude-sonnet-4-6';
@@ -141,7 +212,8 @@ abstract class BuiltInToolsHelper {
       cfg: cfg,
       modelId: modelId!,
     );
-    return isClaudeDynamicWebSearchSupportedModel(upstreamModelId);
+    return !isDeepSeekProvider(cfg) &&
+        isClaudeDynamicWebSearchSupportedModel(upstreamModelId);
   }
 
   /// Whether Claude dynamic web search is enabled for the model, i.e. the

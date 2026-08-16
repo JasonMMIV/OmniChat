@@ -155,6 +155,60 @@ void main() {
       ]));
     });
 
+    test(
+      'DeepSeek Claude-compatible provider gets legacy web_search_20250305 '
+      'without code_execution companion',
+      () async {
+        late List<dynamic> tools;
+        final server = await _startServer((uri, body) {
+          tools = body['tools'] as List<dynamic>;
+        });
+
+        final cfg = ProviderConfig(
+          id: 'deepseek-anthropic',
+          enabled: true,
+          name: 'DeepSeek Claude',
+          apiKey: 'test-key',
+          baseUrl: 'https://api.deepseek.com/anthropic',
+          providerType: ProviderKind.claude,
+          modelOverrides: {
+            'deepseek-chat': {
+              'builtInTools': ['search'],
+              'webSearch': {'toolVersion': 'web_search_20260209'},
+            },
+          },
+        ).copyWith(baseUrl: _baseUrl(server));
+
+        await ChatApiService.sendMessageStream(
+          config: cfg,
+          modelId: 'deepseek-chat',
+          messages: const [
+            {'role': 'user', 'content': 'search'},
+          ],
+          stream: false,
+        ).toList();
+
+        expect(tools, containsAll(<Map<String, dynamic>>[
+          {'type': 'web_search_20250305', 'name': 'web_search'},
+        ]));
+        expect(
+          tools.where(
+            (t) => t is Map && t['type'] == 'web_search_20260209',
+          ),
+          isEmpty,
+        );
+        expect(
+          tools.where(
+            (t) =>
+                t is Map &&
+                (t['type'] == 'code_execution_20250825' ||
+                    t['type'] == 'code_execution'),
+          ),
+          isEmpty,
+        );
+      },
+    );
+
     test('unsupported models never get the dynamic tool version', () async {
       late List<dynamic> tools;
       final server = await _startServer((uri, body) {
