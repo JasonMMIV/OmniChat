@@ -4650,6 +4650,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get webView2InstallAction => '安装 WebView2 Runtime';
+
+  @override
+  String get aboutPageAiContentPolicy => 'AI 内容政策';
+
+  @override
+  String get aiContentPolicyDisclaimer =>
+      '回复由 AI 生成，可能不准确、过时、有偏见或不适当。在依赖重要信息前请务必自行查证。';
+
+  @override
+  String get aiContentPolicyReportAction => '打开 GitHub Issues';
+
+  @override
+  String get aiContentPolicyReportHint => '如需回报有害或不当内容，请到 GitHub 创建 Issue。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -9081,6 +9094,19 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get webView2InstallAction => '安装 WebView2 Runtime';
+
+  @override
+  String get aboutPageAiContentPolicy => 'AI 内容政策';
+
+  @override
+  String get aiContentPolicyDisclaimer =>
+      '回复由 AI 生成，可能不准确、过时、有偏见或不适当。在依赖重要信息前请务必自行查证。';
+
+  @override
+  String get aiContentPolicyReportAction => '打开 GitHub Issues';
+
+  @override
+  String get aiContentPolicyReportHint => '如需回报有害或不当内容，请到 GitHub 创建 Issue。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -13619,4 +13645,17 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get webView2InstallAction => '安裝 WebView2 Runtime';
+
+  @override
+  String get aboutPageAiContentPolicy => 'AI 內容政策';
+
+  @override
+  String get aiContentPolicyDisclaimer =>
+      '回覆由 AI 生成，可能不準確、過時、有偏見或不當。在依賴重要資訊前請務必自行查證。';
+
+  @override
+  String get aiContentPolicyReportAction => '開啟 GitHub Issues';
+
+  @override
+  String get aiContentPolicyReportHint => '如需回報有害或不當內容，請至 GitHub 建立 Issue。';
 }

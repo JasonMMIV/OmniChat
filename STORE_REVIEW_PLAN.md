@@ -10,7 +10,7 @@
 | :--- | :--- | :---: | :--- |
 | **Phase 0** | **準備與靜態基線掃描** | ✅ **已完成 (已修復)** | 排除 vendored 範例測試錯誤，靜態分析錯誤歸零 (`0 errors`)；移出 `nuget.exe` 追蹤。 |
 | **Phase 1** | **F-Droid 合規性與開源授權專項** | ✅ **已完成 (決策：方案 A 優先，精簡版為備援)** | 識別 Syncfusion 非 FOSS 授權阻礙與 `MANAGE_EXTERNAL_STORAGE` 權限問題；**決策：主版本維持現狀並先以現狀送審（方案 A），僅在送審失敗時另建 F-Droid 精簡版（方案 C 備援）**；**已修復：C-F03（移除 `BLUETOOTH_ADVERTISE`）、W-F01（network security config 公網 HTTPS-only）、W-F02/W-F03（F-Droid Metadata 宣告）**。 |
-| **Phase 2** | **Windows Store 規範與 MSIX 專項** | 🔍 **審查完成（W-C04/W-C05 已修復；W-C01/W-C02/W-C03 待辦）** | 無 MSIX 封裝（最大阻礙，方案已定）；隱私權政策與 AI 內容政策文稿已草擬待發布；WebView2 降級已實作；CFG 已啟用；ASLR/DEP/UAC/桌面體驗已達標。 |
+| **Phase 2** | **Windows Store 規範與 MSIX 專項** | 🔍 **審查完成（W-C01/W-C03/W-C04/W-C05 已修復；W-C02 待啟用 Pages）** | MSIX 已封裝簽章並本機安裝＋**WACK OVERALL PASS**；AI 內容政策 App 內入口已實作；隱私權政策文稿已草擬、About 入口已接，**僅剩 GitHub Pages 啟用**（使用者操作）使 URL 生效。 |
 | **Phase 3** | **深度安全性與 MCP 架構** | 🔍 **審查完成（2 項高危待修復）** | **C-S01**：per-provider API Key 明文存 SharedPreferences 且隨備份匯出（高危）；**C-S02**：mark.html 未消毒 HTML 渲染（XSS，高危）；MCP JS 沙箱/無 shell spawn 已達標；無硬編碼金鑰。 |
 | **Phase 4** | **跨平台穩定性與程式碼品質** | ⏳ 待啟動 | 原生插件跨平台隔離調用、Dispose 生命週期、檔案路徑相容性。 |
 | **Phase 5** | **上架元數據與發布就緒確認** | ⏳ 待啟動 | 第三方開源授權聲明、雙語隱私權政策、商店多尺寸 Icon、F-Droid Recipe。 |
@@ -124,10 +124,11 @@
 - **採用 `msix` Dart 套件**（`flutter pub run msix:create`）：不需 Visual Studio、純 CLI 可寫入 build script/CI；設定於 `pubspec.yaml` 的 `msix_config`。VS Packaging Project 僅在需要進階 AppxManifest 功能（多架構 bundle、特殊 extension）時才考慮，目前無此需求。
 - **簽章策略**：① 送 Windows Store **不需購買憑證**——Partner Center 收件後以微軟商店憑證重新簽署，提交未簽章或開發憑證簽章的 `.msix` 皆可；② 本機 WACK 測試／側載用**免費自簽憑證**（`New-SelfSignedCertificate` 產生 .pfx，安裝至 Trusted People）；③ 僅商店外發佈（官網下載避免 SmartScreen 警告）才需向 CA 購買（DigiCert/Sectigo 等，約 $100–300/年）。Android 的 `upload-keystore.jks` 與 Windows 無關。
 - **執行順序**：產生自簽憑證 → 加 `msix` dev 依賴＋`msix_config` → `flutter build windows --release` → `flutter pub run msix:create` → 本機安裝＋WACK 測試。
+- **實作（2026-08-16）**：✅ 完成——`msix:create` 產出 `build/windows/x64/runner/Release/OmniChat.msix`（Identity `com.psyche.omnichat` `1.18.3.0`、Capabilities `internetClient`＋`microphone`＋`runFullTrust`）；自簽憑證（`windows/certs/`，gitignored）以 SignTool 簽章（`AppxSignature.p7x`）；匯入 `LocalMachine\TrustedPeople` 後 `Add-AppxPackage` **本機安裝成功**；WACK（Windows App Certification Kit）**OVERALL_RESULT=PASS**（21 PASS；3 項無訊息 FAIL：App resources／Blocked executables／Archive files usage，為未部署情境之資訊性項目）。注意：此 SDK 版 WACK 參數為 `/apptype`、`/appxPackagePath`、`/reportoutputpath`（包裝腳本 `tool/run_wack.ps1`）；`msix:create` 每次全量重建（>6 分鐘），簽章亦可用同套 SignTool 流程。
 
 ##### W-C02 / W-C03 進度（2026-08-16）：
-- **W-C02**：✅ 文稿已草擬（`docs/privacy_policy_en.md`、`docs/privacy_policy_zh_TW.md`）；About 頁（行動版＋桌面版）已加入隱私權政策入口（`aboutPagePrivacyPolicy`，指向 GitHub Pages URL）。⏳ **待辦**：啟用 GitHub Pages 發布（URL `https://jasonmmiv.github.io/OmniChat/docs/privacy_policy_en.html` 與 `.../privacy_policy_zh_TW.html`），並於商店頁面填入該 URL。
-- **W-C03**：✅ 文稿已草擬（`docs/ai_content_policy_en.md`、`docs/ai_content_policy_zh_TW.md`，含免責聲明＋回報管道）。⏳ **待辦**：於 App 內（如設定/關於頁）加入 AI 免責聲明與回報入口（目前僅有匯出浮水印）。
+- **W-C02**：✅ 文稿已草擬（`docs/privacy_policy_en.md`、`docs/privacy_policy_zh_TW.md`）；About 頁（行動版＋桌面版）已加入隱私權政策入口（`aboutPagePrivacyPolicy`，指向 GitHub Pages URL）。⏳ **待辦（需使用者於 GitHub Settings 操作）**：repo Settings → Pages → Source: main branch `/docs` 啟用後 URL 即生效（repo 為 public；API 確認 Pages 目前未啟用，URL 回 404）。並於商店頁面填入該 URL。
+- **W-C03**：✅ 文稿已草擬（`docs/ai_content_policy_en.md`、`docs/ai_content_policy_zh_TW.md`，含免責聲明＋回報管道）。✅ **App 內入口已實作（2026-08-16）**：About 頁（行動＋桌面）新增「AI 內容政策」列（`aboutPageAiContentPolicy`）→ 免責聲明對話框＋「開啟 GitHub Issues」回報按鈕（l10n ×4 語系）。
 
 1. **MSIX 封裝與應用程式識別**：
    - 審查 Windows 打包配置（Package Identity、Publisher 名稱、Version 格式 `x.x.x.0`）。

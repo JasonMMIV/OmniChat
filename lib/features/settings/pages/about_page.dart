@@ -66,6 +66,45 @@ class _AboutPageState extends State<AboutPage> {
     }
   }
 
+  /// W-C03: in-app AI-generated content disclaimer + report channel dialog.
+  Future<void> _showAiContentPolicyDialog(BuildContext context) async {
+    final l10n = AppLocalizations.of(context)!;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.aboutPageAiContentPolicy),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.aiContentPolicyDisclaimer),
+              const SizedBox(height: 12),
+              Text(
+                l10n.aiContentPolicyReportHint,
+                style: TextStyle(color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(l10n.mcpPageClose),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _openUrl('https://github.com/JasonMMIV/OmniChat/issues');
+            },
+            icon: const Icon(Icons.flag, size: 18),
+            label: Text(l10n.aiContentPolicyReportAction),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _onVersionTap() {
     final now = DateTime.now();
     // Reset the counter if taps are spaced too far apart
@@ -555,6 +594,14 @@ class _AboutPageState extends State<AboutPage> {
               label: l10n.aboutPagePrivacyPolicy,
               // W-C02: 隱私權政策公開 URL（GitHub Pages 發布後生效）
               onTap: () => _openUrl('https://jasonmmiv.github.io/OmniChat/docs/privacy_policy_en.html'),
+            ),
+            _iosDivider(context),
+            _iosNavRow(
+              context,
+              icon: Lucide.Sparkles,
+              label: l10n.aboutPageAiContentPolicy,
+              // W-C03: App 內 AI 內容免責聲明與回報管道
+              onTap: () => _showAiContentPolicyDialog(context),
             ),
           ]),
 

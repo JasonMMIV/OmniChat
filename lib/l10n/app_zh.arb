@@ -1541,5 +1541,9 @@
   "mermaidCodeTab": "代码",
   "webView2NotAvailableTitle": "WebView2 不可用",
   "webView2NotAvailableMessage": "系统缺少 Microsoft Edge WebView2 Runtime，无法在此显示内容。请安装 WebView2 Runtime 后重试，或改用外部浏览器打开。",
-  "webView2InstallAction": "安装 WebView2 Runtime"
+  "webView2InstallAction": "安装 WebView2 Runtime",
+  "aboutPageAiContentPolicy": "AI 内容政策",
+  "aiContentPolicyDisclaimer": "回复由 AI 生成，可能不准确、过时、有偏见或不适当。在依赖重要信息前请务必自行查证。",
+  "aiContentPolicyReportAction": "打开 GitHub Issues",
+  "aiContentPolicyReportHint": "如需回报有害或不当内容，请到 GitHub 创建 Issue。"
 }

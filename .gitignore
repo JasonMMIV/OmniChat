@@ -77,3 +77,6 @@ internationalization.md
 
 # Internal implementation plan — not for public repo
 /Implementation Plan Voice Services Reorganization & Live API Settings v3.md
+
+# MSIX dev signing certificate (DO NOT COMMIT)
+/windows/certs/
