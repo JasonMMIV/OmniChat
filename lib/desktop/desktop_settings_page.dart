@@ -2186,6 +2186,16 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
               final proxyEnabledNow = cfgNow.proxyEnabled ?? false;
               final aihubmixAppCodeEnabled = cfgNow.aihubmixAppCodeEnabled ?? false;
               final balanceEnabledNow = cfgNow.balanceEnabled ?? false;
+              final supportsClaudePromptCaching = _supportsClaudePromptCaching(
+                cfgNow,
+                kindNow,
+              );
+              final claudePromptCachingEnabled =
+                  cfgNow.claudePromptCachingEnabled ?? false;
+              final claudePromptCachingTtl =
+                  ProviderConfig.resolveClaudePromptCachingTtl(
+                    cfgNow.claudePromptCachingTtl,
+                  );
               Widget row(String label, Widget trailing) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(children: [
@@ -2371,6 +2381,93 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
                           ),
                         ),
                       const SizedBox(height: 4),
+                      if (supportsClaudePromptCaching) ...[
+                        row(
+                          l10n.providerDetailPageClaudePromptCachingTitle,
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Tooltip(
+                                message: l10n
+                                    .providerDetailPageClaudePromptCachingHelp,
+                                child: Icon(
+                                  Icons.help_outline,
+                                  size: 16,
+                                  color: cs.onSurface.withOpacity(0.6),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              IosSwitch(
+                                value: claudePromptCachingEnabled,
+                                semanticLabel: l10n
+                                    .providerDetailPageClaudePromptCachingTitle,
+                                onChanged: (v) async {
+                                  final old = spWatch.getProviderConfig(
+                                    widget.providerKey,
+                                    defaultName: widget.displayName,
+                                  );
+                                  await spWatch.setProviderConfig(
+                                    widget.providerKey,
+                                    old.copyWith(
+                                      claudePromptCachingEnabled: v,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        AnimatedCrossFade(
+                          firstChild: const SizedBox.shrink(),
+                          secondChild: Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: row(
+                              l10n
+                                  .providerDetailPageClaudePromptCachingTtlTitle,
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  Tooltip(
+                                    message: l10n
+                                        .providerDetailPageClaudePromptCachingTtlHelp,
+                                    child: Icon(
+                                      Icons.help_outline,
+                                      size: 16,
+                                      color: cs.onSurface.withOpacity(0.6),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _PromptCachingTtlDropdown(
+                                    value: claudePromptCachingTtl,
+                                    fiveMinuteLabel: l10n
+                                        .providerDetailPageClaudePromptCachingTtl5m,
+                                    oneHourLabel: l10n
+                                        .providerDetailPageClaudePromptCachingTtl1h,
+                                    onSelected: (value) async {
+                                      final old = spWatch.getProviderConfig(
+                                        widget.providerKey,
+                                        defaultName: widget.displayName,
+                                      );
+                                      await spWatch.setProviderConfig(
+                                        widget.providerKey,
+                                        old.copyWith(
+                                          claudePromptCachingTtl: value,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          crossFadeState: claudePromptCachingEnabled
+                              ? CrossFadeState.showSecond
+                              : CrossFadeState.showFirst,
+                          duration: const Duration(milliseconds: 180),
+                          sizeCurve: Curves.easeOutCubic,
+                        ),
+                        const SizedBox(height: 4),
+                      ],
                       // 5) Network proxy inline
                       row(l10n.providerDetailPageNetworkTab, Align(alignment: Alignment.centerRight, child: IosSwitch(value: proxyEnabledNow, onChanged: (v) async {
                         final old = spWatch.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
@@ -2578,6 +2675,17 @@ class _DesktopProviderDetailPaneState extends State<_DesktopProviderDetailPane> 
     final base = cfg.baseUrl.toLowerCase();
     final key = cfg.id.toLowerCase();
     return key.contains('aihubmix') || base.contains('aihubmix.com');
+  }
+
+  bool _isOpenRouter(ProviderConfig cfg) {
+    final base = cfg.baseUrl.toLowerCase();
+    final key = cfg.id.toLowerCase();
+    return key.contains('openrouter') || base.contains('openrouter');
+  }
+
+  bool _supportsClaudePromptCaching(ProviderConfig cfg, ProviderKind kind) {
+    return kind == ProviderKind.claude ||
+        (kind == ProviderKind.openai && _isOpenRouter(cfg));
   }
 
   Future<void> _showNetworkDialog(BuildContext context) async {
@@ -3585,6 +3693,139 @@ class _StrategyDropdownState extends State<_StrategyDropdown> {
         label: label,
         fontSize: 14,
         verticalPadding: 10,
+        borderRadius: 10,
+        rightAlignArrow: true,
+        onHover: (v) => setState(() => _hover = v),
+        onTap: () => _open ? _close() : _openMenu(),
+      ),
+    );
+  }
+}
+
+class _PromptCachingTtlDropdown extends StatefulWidget {
+  const _PromptCachingTtlDropdown({
+    required this.value,
+    required this.fiveMinuteLabel,
+    required this.oneHourLabel,
+    required this.onSelected,
+  });
+
+  final String value;
+  final String fiveMinuteLabel;
+  final String oneHourLabel;
+  final ValueChanged<String> onSelected;
+
+  @override
+  State<_PromptCachingTtlDropdown> createState() =>
+      _PromptCachingTtlDropdownState();
+}
+
+class _PromptCachingTtlDropdownState extends State<_PromptCachingTtlDropdown> {
+  bool _hover = false;
+  bool _open = false;
+  final GlobalKey _key = GlobalKey();
+  final LayerLink _link = LayerLink();
+  OverlayEntry? _entry;
+
+  void _close() {
+    _entry?.remove();
+    _entry = null;
+    if (mounted) setState(() => _open = false);
+  }
+
+  void _openMenu() {
+    if (_entry != null) return;
+    final rb = _key.currentContext?.findRenderObject() as RenderBox?;
+    if (rb == null) return;
+    final size = rb.size;
+    final triggerW = size.width;
+    final entries = [
+      ProviderConfig.claudePromptCachingTtl5m,
+      ProviderConfig.claudePromptCachingTtl1h,
+    ];
+    String labelFor(String v) => v == ProviderConfig.claudePromptCachingTtl1h
+        ? widget.oneHourLabel
+        : widget.fiveMinuteLabel;
+    _entry = OverlayEntry(builder: (ctx) {
+      final cs = Theme.of(ctx).colorScheme;
+      final isDark = Theme.of(ctx).brightness == Brightness.dark;
+      return Stack(children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: _close,
+            child: const SizedBox.expand(),
+          ),
+        ),
+        CompositedTransformFollower(
+          link: _link,
+          showWhenUnlinked: false,
+          offset: Offset(0, size.height + 6),
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              constraints: BoxConstraints(
+                minWidth: triggerW,
+                maxWidth: triggerW,
+              ),
+              decoration: BoxDecoration(
+                color: (Provider.of<SettingsProvider>(ctx, listen: false)
+                        .usePureBackground)
+                    ? (isDark ? Colors.black : Colors.white)
+                    : (isDark ? const Color(0xFF1C1C1E) : Colors.white),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: cs.outlineVariant.withOpacity(0.12),
+                  width: 0.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 12,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                shrinkWrap: true,
+                itemCount: entries.length,
+                itemBuilder: (c, i) {
+                  final v = entries[i];
+                  return _OverlayMenuItem(
+                    label: labelFor(v),
+                    selected: widget.value == v,
+                    onTap: () {
+                      widget.onSelected(v);
+                      _close();
+                    },
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ]);
+    });
+    Overlay.of(context).insert(_entry!);
+    setState(() => _open = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label =
+        widget.value == ProviderConfig.claudePromptCachingTtl1h
+        ? widget.oneHourLabel
+        : widget.fiveMinuteLabel;
+    return CompositedTransformTarget(
+      link: _link,
+      child: _HoverDropdownButton(
+        key: _key,
+        hovered: _hover,
+        open: _open,
+        label: label,
+        fontSize: 13,
+        verticalPadding: 8,
         borderRadius: 10,
         rightAlignArrow: true,
         onHover: (v) => setState(() => _hover = v),

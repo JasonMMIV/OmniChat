@@ -3328,6 +3328,30 @@ class ProviderConfig {
   final bool? balanceEnabled;
   final String? balanceApiPath;
   final String? balanceResultKey;
+  // Anthropic/OpenRouter Claude prompt caching for stable system prompts.
+  final bool? claudePromptCachingEnabled;
+  final String? claudePromptCachingTtl;
+
+  static const String claudePromptCachingTtl5m = '5m';
+  static const String claudePromptCachingTtl1h = '1h';
+
+  static String resolveClaudePromptCachingTtl(String? value) {
+    switch (value?.trim().toLowerCase()) {
+      case claudePromptCachingTtl1h:
+        return claudePromptCachingTtl1h;
+      case claudePromptCachingTtl5m:
+      default:
+        return claudePromptCachingTtl5m;
+    }
+  }
+
+  static Map<String, dynamic> claudePromptCacheControl(String? ttl) {
+    final cacheControl = <String, dynamic>{'type': 'ephemeral'};
+    if (resolveClaudePromptCachingTtl(ttl) == claudePromptCachingTtl1h) {
+      cacheControl['ttl'] = claudePromptCachingTtl1h;
+    }
+    return cacheControl;
+  }
 
   ProviderConfig({
     required this.id,
@@ -3358,6 +3382,8 @@ class ProviderConfig {
     this.balanceEnabled,
     this.balanceApiPath,
     this.balanceResultKey,
+    this.claudePromptCachingEnabled = false,
+    this.claudePromptCachingTtl = claudePromptCachingTtl5m,
   });
 
   // Sentinel for copyWith nullability control (allow explicit null set)
@@ -3392,6 +3418,8 @@ class ProviderConfig {
     bool? balanceEnabled,
     String? balanceApiPath,
     String? balanceResultKey,
+    bool? claudePromptCachingEnabled,
+    String? claudePromptCachingTtl,
   }) => ProviderConfig(
     id: id ?? this.id,
     enabled: enabled ?? this.enabled,
@@ -3428,6 +3456,10 @@ class ProviderConfig {
     balanceEnabled: balanceEnabled ?? this.balanceEnabled,
     balanceApiPath: balanceApiPath ?? this.balanceApiPath,
     balanceResultKey: balanceResultKey ?? this.balanceResultKey,
+    claudePromptCachingEnabled:
+        claudePromptCachingEnabled ?? this.claudePromptCachingEnabled,
+    claudePromptCachingTtl:
+        claudePromptCachingTtl ?? this.claudePromptCachingTtl,
   );
 
   Map<String, dynamic> toJson() => {
@@ -3459,6 +3491,10 @@ class ProviderConfig {
     'balanceEnabled': balanceEnabled,
     'balanceApiPath': balanceApiPath,
     'balanceResultKey': balanceResultKey,
+    'claudePromptCachingEnabled': claudePromptCachingEnabled,
+    'claudePromptCachingTtl': resolveClaudePromptCachingTtl(
+      claudePromptCachingTtl,
+    ),
   };
 
   /// Returns [ids] with duplicates removed, preserving first-occurrence order.
@@ -3517,6 +3553,11 @@ class ProviderConfig {
     balanceEnabled: json['balanceEnabled'] as bool?,
     balanceApiPath: json['balanceApiPath'] as String?,
     balanceResultKey: json['balanceResultKey'] as String?,
+    claudePromptCachingEnabled:
+        json['claudePromptCachingEnabled'] as bool? ?? false,
+    claudePromptCachingTtl: resolveClaudePromptCachingTtl(
+      json['claudePromptCachingTtl'] as String?,
+    ),
   );
 
   static ProviderKind classify(String key, {ProviderKind? explicitType}) {
@@ -3597,6 +3638,7 @@ class ProviderConfig {
           balanceEnabled: false,
           balanceApiPath: '/user/info',
           balanceResultKey: 'data.totalBalance',
+          claudePromptCachingEnabled: false,
         );
       case ProviderKind.claude:
         return ProviderConfig(
@@ -3620,6 +3662,7 @@ class ProviderConfig {
           balanceEnabled: false,
           balanceApiPath: '',
           balanceResultKey: '',
+          claudePromptCachingEnabled: false,
         );
       case ProviderKind.neuralwatt:
         return ProviderConfig(
@@ -3645,6 +3688,7 @@ class ProviderConfig {
           balanceEnabled: true,
           balanceApiPath: '/quota',
           balanceResultKey: 'balance.credits_remaining_usd',
+          claudePromptCachingEnabled: false,
         );
       case ProviderKind.openai:
       default:
@@ -3686,6 +3730,7 @@ class ProviderConfig {
             balanceEnabled: true,
             balanceApiPath: '/user/info',
             balanceResultKey: 'data.totalBalance',
+            claudePromptCachingEnabled: false,
           );
         }
         return ProviderConfig(
@@ -3725,6 +3770,7 @@ class ProviderConfig {
               : (lowerKey.contains('aihubmix') || lowerKey.contains('deepseek')
                     ? 'balance_infos[0].total_balance'
                     : 'data.available_balance'),
+          claudePromptCachingEnabled: false,
         );
     }
   }

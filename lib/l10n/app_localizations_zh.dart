@@ -3226,6 +3226,27 @@ class AppLocalizationsZh extends AppLocalizations {
       '为请求附加 APP-Code，可享 10% 优惠，仅对 AIhubmix 生效。';
 
   @override
+  String get providerDetailPageClaudePromptCachingTitle =>
+      'Claude Prompt Caching';
+
+  @override
+  String get providerDetailPageClaudePromptCachingHelp =>
+      '通过 Claude 官方或 OpenRouter 调用 Claude 时附加 cache_control。';
+
+  @override
+  String get providerDetailPageClaudePromptCachingTtlTitle => '缓存 TTL';
+
+  @override
+  String get providerDetailPageClaudePromptCachingTtlHelp =>
+      '5 分钟为默认值。1 小时写入成本更高，但长对话中可减少重复重建缓存。';
+
+  @override
+  String get providerDetailPageClaudePromptCachingTtl5m => '5 分钟';
+
+  @override
+  String get providerDetailPageClaudePromptCachingTtl1h => '1 小时';
+
+  @override
   String get providerDetailPageProviderTypeTitle => '供应商类型';
 
   @override
@@ -7728,6 +7749,27 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
       '为请求附加 APP-Code，可享 10% 优惠，仅对 AIhubmix 生效。';
 
   @override
+  String get providerDetailPageClaudePromptCachingTitle =>
+      'Claude Prompt Caching';
+
+  @override
+  String get providerDetailPageClaudePromptCachingHelp =>
+      '通过 Claude 官方或 OpenRouter 调用 Claude 时附加 cache_control。';
+
+  @override
+  String get providerDetailPageClaudePromptCachingTtlTitle => '缓存 TTL';
+
+  @override
+  String get providerDetailPageClaudePromptCachingTtlHelp =>
+      '5 分钟为默认值。1 小时写入成本更高，但长对话中可减少重复重建缓存。';
+
+  @override
+  String get providerDetailPageClaudePromptCachingTtl5m => '5 分钟';
+
+  @override
+  String get providerDetailPageClaudePromptCachingTtl1h => '1 小时';
+
+  @override
   String get providerDetailPageProviderTypeTitle => '供应商类型';
 
   @override
@@ -12133,6 +12175,27 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get providerDetailPageAihubmixAppCodeHelp =>
       '為請求附加 APP-Code，可享 10% 優惠，僅對 AIhubmix 生效。';
+
+  @override
+  String get providerDetailPageClaudePromptCachingTitle =>
+      'Claude Prompt Caching';
+
+  @override
+  String get providerDetailPageClaudePromptCachingHelp =>
+      '透過 Claude 官方或 OpenRouter 呼叫 Claude 時附加 cache_control。';
+
+  @override
+  String get providerDetailPageClaudePromptCachingTtlTitle => '快取 TTL';
+
+  @override
+  String get providerDetailPageClaudePromptCachingTtlHelp =>
+      '5 分鐘為預設值。1 小時寫入成本更高，但長對話中可減少重複重建快取。';
+
+  @override
+  String get providerDetailPageClaudePromptCachingTtl5m => '5 分鐘';
+
+  @override
+  String get providerDetailPageClaudePromptCachingTtl1h => '1 小時';
 
   @override
   String get providerDetailPageProviderTypeTitle => '供應商類型';
