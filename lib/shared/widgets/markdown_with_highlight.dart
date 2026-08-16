@@ -496,26 +496,12 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 primary: false,
-                child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(ctx).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  // Draw border on top so header row background won't cover top corners
-                  foregroundDecoration: BoxDecoration(
-                    border: Border.all(color: borderColor, width: 0.8),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: DefaultTextStyle.merge(
-                    // Ensure any nested spans fallback to current onSurface instead of stale defaults
-                    style: TextStyle(color: cs.onSurface),
-                    child: table,
-                  ),
+                child: DefaultTextStyle.merge(
+                  // Ensure any nested spans fallback to current onSurface instead of stale defaults
+                  style: TextStyle(color: cs.onSurface),
+                  child: table,
                 ),
               ),
-            ),
             ),
           );
         }
@@ -580,25 +566,10 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
               ],
             );
 
-            return ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                width: double.infinity,
-                constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                decoration: BoxDecoration(
-                  color: Theme.of(ctx).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                foregroundDecoration: BoxDecoration(
-                  border: Border.all(color: borderColor, width: 0.8),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: DefaultTextStyle.merge(
-                  style: TextStyle(color: cs.onSurface),
-                  child: table,
-                ),
-              ),
-            );
+              return DefaultTextStyle.merge(
+                style: TextStyle(color: cs.onSurface),
+                child: table,
+              );
             },
           ),
         );
@@ -3188,29 +3159,43 @@ bool _isClosingOrSentencePunctuation(int codeUnit) {
 }
 
 // ---------------------------------------------------------------------------
-// Markdown table toolbar (kelivo v1.1.13 port, styled to match code block
-// headers; desktop and mobile both show it, unlike kelivo's compact-only)
+// Markdown table toolbar (styled to match code block headers; desktop and
+// mobile both show it, with CSV download and copy actions)
 // ---------------------------------------------------------------------------
 
-/// Wraps a rendered markdown table with its toolbar (label + copy/export
-/// actions), matching the code block header style.
+/// Wraps a rendered markdown table with its toolbar (copy/download CSV
+/// actions), matching the code block header and container style.
 Widget _wrapTableWithToolbar(
   BuildContext ctx,
   List<CustomTableRow> rows,
   Color headerBg,
   Widget table,
 ) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      _MarkdownTableToolbar(
-        backgroundColor: headerBg,
-        onCopy: () => _copyTableMarkdown(ctx, rows),
-        onExport: () => _exportTableMarkdown(ctx, rows),
-      ),
-      table,
-    ],
+  final cs = Theme.of(ctx).colorScheme;
+  return Container(
+    width: double.infinity,
+    margin: const EdgeInsets.symmetric(vertical: 6),
+    decoration: BoxDecoration(
+      color: cs.surface,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    clipBehavior: Clip.antiAlias,
+    foregroundDecoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _MarkdownTableToolbar(
+          backgroundColor: headerBg,
+          onCopy: () => _copyTableMarkdown(ctx, rows),
+          onExport: () => _exportTableCsv(ctx, rows),
+        ),
+        table,
+      ],
+    ),
   );
 }
 
@@ -3231,76 +3216,60 @@ class _MarkdownTableToolbar extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
 
-    Widget action({
-      required IconData icon,
-      required String label,
-      required VoidCallback onTap,
-    }) {
-      return InkWell(
-        onTap: onTap,
-        splashColor: Platform.isIOS ? Colors.transparent : null,
-        highlightColor: Platform.isIOS ? Colors.transparent : null,
-        hoverColor: Platform.isIOS ? Colors.transparent : null,
-        overlayColor: Platform.isIOS
-            ? const MaterialStatePropertyAll(Colors.transparent)
-            : null,
-        borderRadius: BorderRadius.circular(6),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 14, color: cs.onSurface.withOpacity(0.6)),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: cs.onSurface.withOpacity(0.6),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        border: Border(
-          bottom: BorderSide(
-            color: cs.outlineVariant.withOpacity(isDark ? 0.22 : 0.28),
-            width: 1.0,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          const SizedBox(width: 2),
-          Text(
-            l10n.markdownTableLabel,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: cs.onSurface,
-              height: 1.0,
+    return Material(
+      color: backgroundColor,
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: cs.outlineVariant.withOpacity(isDark ? 0.22 : 0.28),
+              width: 1.0,
             ),
           ),
-          const Spacer(),
-          action(
-            icon: Lucide.Copy,
-            label: l10n.shareProviderSheetCopyButton,
-            onTap: onCopy,
-          ),
-          action(
-            icon: Lucide.Download,
-            label: l10n.markdownTableExportMarkdownButton,
-            onTap: onExport,
-          ),
-        ],
+        ),
+        child: Row(
+          children: [
+            const Spacer(),
+            CodeBlockDownloadButton(onTap: onExport),
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: onCopy,
+              splashColor: Platform.isIOS ? Colors.transparent : null,
+              highlightColor: Platform.isIOS ? Colors.transparent : null,
+              hoverColor: Platform.isIOS ? Colors.transparent : null,
+              overlayColor: Platform.isIOS
+                  ? const MaterialStatePropertyAll(Colors.transparent)
+                  : null,
+              borderRadius: BorderRadius.circular(6),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Lucide.Copy,
+                      size: 14,
+                      color: cs.onSurface.withOpacity(0.6),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      l10n.shareProviderSheetCopyButton,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurface.withOpacity(0.6),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -3365,16 +3334,48 @@ Future<void> _copyTableMarkdown(
   );
 }
 
-Future<void> _exportTableMarkdown(
+Future<void> _exportTableCsv(
   BuildContext ctx,
   List<CustomTableRow> rows,
 ) async {
   await saveCodeBlockToFile(
     ctx,
-    _rowsToMarkdown(rows),
-    'md',
-    filename: 'omnichat-table-${DateTime.now().millisecondsSinceEpoch}.md',
+    _rowsToCsv(rows),
+    'csv',
+    filename: 'omnichat-table-${DateTime.now().millisecondsSinceEpoch}.csv',
   );
+}
+
+/// Converts parsed table rows to standard RFC 4180 CSV format.
+String _rowsToCsv(List<CustomTableRow> rows) {
+  if (rows.isEmpty) return '';
+  var columnCount = 0;
+  for (final r in rows) {
+    if (r.fields.length > columnCount) columnCount = r.fields.length;
+  }
+  if (columnCount == 0) return '';
+
+  String escapeCsvCell(String value) {
+    var text = value.trim();
+    text = text.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n');
+    if (text.contains('"') ||
+        text.contains(',') ||
+        text.contains('\n') ||
+        text.contains('\r')) {
+      return '"${text.replaceAll('"', '""')}"';
+    }
+    return text;
+  }
+
+  final buffer = StringBuffer();
+  for (final r in rows) {
+    final cells = List.generate(
+      columnCount,
+      (i) => i < r.fields.length ? escapeCsvCell(r.fields[i].data) : '',
+    );
+    buffer.writeln(cells.join(','));
+  }
+  return buffer.toString().trimRight();
 }
 
 /// Table block that splits cells with math/escape awareness so `|` inside

@@ -2,7 +2,6 @@ import 'dart:ui' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_font_weights.dart';
 import '../../utils/plantuml_encoder.dart';
 import '../../icons/lucide_adapter.dart';
@@ -61,26 +60,6 @@ class _PlantUMLBlockState extends State<PlantUMLBlock> {
   // Save the diagram source as a .puml file.
   Future<void> _downloadCode() =>
       saveCodeBlockToFile(context, widget.code, 'puml');
-
-  Future<void> _openPlantUMLPreview(BuildContext context) async {
-    final failedMessage = AppLocalizations.of(
-      context,
-    )!.mermaidPreviewOpenFailed;
-    try {
-      final ok = await launchUrl(
-        Uri.parse(_imageUrl),
-        mode: LaunchMode.externalApplication,
-      );
-      if (ok || !context.mounted) return;
-    } catch (_) {
-      if (!context.mounted) return;
-    }
-    showAppSnackBar(
-      context,
-      message: failedMessage,
-      type: NotificationType.error,
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -235,28 +214,6 @@ class _PlantUMLBlockState extends State<PlantUMLBlock> {
                     ),
                     // Download action: save the .puml source
                     CodeBlockDownloadButton(onTap: _downloadCode),
-                    const SizedBox(width: 6),
-                    // Open in browser
-                    InkWell(
-                      onTap: () => _openPlantUMLPreview(context),
-                      splashColor: Platform.isIOS ? Colors.transparent : null,
-                      highlightColor: Platform.isIOS
-                          ? Colors.transparent
-                          : null,
-                      hoverColor: Platform.isIOS ? Colors.transparent : null,
-                      overlayColor: Platform.isIOS
-                          ? const MaterialStatePropertyAll(Colors.transparent)
-                          : null,
-                      borderRadius: BorderRadius.circular(6),
-                      child: Padding(
-                        padding: const EdgeInsets.all(6),
-                        child: Icon(
-                          Lucide.Link,
-                          size: 14,
-                          color: cs.onSurface.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ),
                     const SizedBox(width: 6),
                     // Collapse toggle
                     InkWell(
