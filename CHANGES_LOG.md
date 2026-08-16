@@ -179,6 +179,18 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.18.3-rev0] - 2026-08-16: Windows Store & F-Droid 上架前置審查基線治理（Phase 0 靜態分析錯誤歸零與倉庫二進制清理）
+
+> 針對 Windows Store 與 F-Droid 上架合規要求進行專案基線治理：① 更新 `analysis_options.yaml` 排除 vendored 依賴套件內部範例測試，消除未定義符號錯誤，達成全專案靜態分析 0 compile errors；② 自 Git 追蹤中移除預編譯二進制 `windows/nuget.exe`，滿足 F-Droid 零二進制 Blob (Binary Blobs) 規範。
+
+- **靜態分析配置優化（`analysis_options.yaml`）**：
+  - 新增 `analyzer.exclude` 規則，排除 `dependencies/**/example/**`、`build/**` 及 `**/*.g.dart`。
+  - 解決 `speech_to_text_windows` 範例測試造成的 URI does not exist 錯誤，使 `flutter analyze` 錯誤數降為 0。
+- **倉庫乾淨度與二進制清理（`windows/nuget.exe`）**：
+  - 將 8.48 MB 的 `windows/nuget.exe` 自 Git 追蹤中移除（保留本機檔案並受 `.gitignore` 保護），消除 F-Droid 機器掃描阻礙。
+- **Status**: 完成——`flutter analyze` **0 compile errors**。
+- **Files Modified**: `analysis_options.yaml`、`CHANGES_LOG.md`。
+
 ## [v1.18.3] - 2026-08-16: PlantUML 與 Markdown 表格工具列體驗優化（移除外跳按鈕、表格 UI 程式碼區塊風格統一、CSV 格式下載）
 
 > 優化圖表與 Markdown 表格的頂部工具列交互與樣式：① 移除 PlantUML 圖表頂部最右側的「在瀏覽器中開啟」外跳按鈕與相關代碼；② 重構 Markdown 表格頂部工具列與外層卡片容器，風格完全對齊程式碼區塊（`_HighlightCodeBlock`）；③ 移除表格左側「表格」字樣並保持空白；④ 將原「匯出 Markdown」按鈕替換為標準「下載」（`CodeBlockDownloadButton`），匯出格式全面改為標準 RFC 4180 CSV（`.csv`）。
