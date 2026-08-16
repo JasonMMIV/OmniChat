@@ -179,6 +179,15 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.18.3-rev4] - 2026-08-16: W-C01 MSIX 封裝＋本機安裝＋WACK PASS、W-C03 App 內 AI 內容政策入口
+
+> 依 STORE_REVIEW_PLAN.md Phase 2 實作：① **W-C01**——加入 `msix` dev 依賴與 `msix_config`，自簽憑證（gitignored）以 SignTool 簽章，產出 `OmniChat.msix`（Identity `com.psyche.omnichat` 1.18.3.0、最小權限 `internetClient`/`microphone`/`runFullTrust`），匯入 `LocalMachine\TrustedPeople` 後本機安裝成功，WACK（Windows App Certification Kit）**OVERALL_RESULT=PASS**；② **W-C03**——About 頁（行動＋桌面）新增「AI 內容政策」入口（免責聲明對話＋GitHub Issues 回報按鈕，l10n ×4）。W-C02 文稿與 About 入口先前已完成，僅剩 GitHub Pages 啟用（需使用者於 repo Settings 操作）。
+
+- **W-C01**（`pubspec.yaml`、`.gitignore`、`windows/certs/`（gitignored）、`tool/run_wack.ps1` NEW）：`msix_config`（display_name/publisher/identity `com.psyche.omnichat`/version `1.18.3.0`/logo/capabilities/certificate_path）；自簽 CodeSigningCert（CN=OmniChat Dev）匯出 pfx；`flutter pub run msix:create --certificate-password <pw>` 產出 `.msix` 後以 SignTool（Windows SDK 10.0.26100）簽章；匯入 `LocalMachine\TrustedPeople` 後 `Add-AppxPackage` 安裝成功（`Get-AppxPackage` 確認 1.18.3.0）；WACK 以 `/apptype appx /appxPackagePath /reportoutputpath` 執行，**OVERALL_RESULT=PASS**（21 PASS；3 項無訊息 FAIL 為未部署情境資訊性項目）。注意：`msix:create` 每次全量重建（>6 分鐘），簽章可直接用 `tool/run_wack.ps1` 同套 SignTool 流程。
+- **W-C03**（`lib/features/settings/pages/about_page.dart`、`lib/desktop/setting/about_pane.dart`、`lib/l10n/*.arb` +4 keys ×4 語系）：About 頁新增「AI 內容政策」列（`aboutPageAiContentPolicy`）→ 免責聲明對話框（`aiContentPolicyDisclaimer`/`aiContentPolicyReportHint`）＋「開啟 GitHub Issues」回報按鈕（`aiContentPolicyReportAction`）。
+- **Status**: 完成——`flutter test` full suite **439 tests passed**；`flutter analyze` 修改檔案無新增 error/warning；MSIX 本機安裝＋WACK PASS 已驗證。
+- **Files Modified**: `pubspec.yaml`、`.gitignore`、`tool/run_wack.ps1`（NEW）、`lib/features/settings/pages/about_page.dart`、`lib/desktop/setting/about_pane.dart`、`lib/l10n/*.arb`（+4 keys × 4 語系）＋ `app_localizations*.dart`（gen-l10n 重新生成）、`STORE_REVIEW_PLAN.md`、`CHANGES_LOG.md`。
+
 ## [v1.18.3-rev3] - 2026-08-16: README 補上 Kelivo fork 出處與版權聲明（AGPL-3.0 合規歸屬）
 
 > 依 AGPL-3.0 §5 之歸屬義務，於 `README.md`（英文）與 `README_ZH_TW.MD`（繁中）簡介後新增「License & Acknowledgements / 授權與聲明」區段：聲明 OmniChat 為 [Kelivo](https://github.com/Chevey339/kelivo)（Chevey339，AGPL-3.0）之 fork、UI 設計靈感來自 RikkaHub，並聲明依 AGPL-3.0 保留上游原始版權。已查證 Kelivo 原始檔無 per-file 版權標頭、LICENSE 為標準 AGPL-3.0 全文，OmniChat 無剝離標頭情事；此變更支援 Windows Store 與 F-Droid 上架之授權合規審查。

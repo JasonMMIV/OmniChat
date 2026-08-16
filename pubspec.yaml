@@ -122,6 +122,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  msix: ^3.18.0
 
 dependency_overrides:
   # Prevent the location from being accessed continuously on Windows
@@ -214,3 +215,17 @@ flutter_native_splash:
     color_dark: "#000000"
     image: assets/start.png
     image_dark: assets/start.png
+
+# Windows Store (MSIX) packaging — W-C01
+# Dev signing certificate lives in windows/certs/ (gitignored); its password
+# is passed via --certificate-password (NOT stored here). For actual Store
+# submission the package is re-signed by Partner Center, so no purchased
+# certificate is required.
+msix_config:
+  display_name: OmniChat
+  publisher_display_name: Psyche
+  identity_name: com.psyche.omnichat
+  msix_version: 1.18.3.0
+  logo_path: android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+  capabilities: "internetClient, microphone"
+  certificate_path: windows/certs/omnichat_dev.pfx
