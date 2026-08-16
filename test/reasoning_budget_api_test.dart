@@ -278,4 +278,125 @@ void main() {
     });
     expect(body.containsKey('output_config'), isFalse);
   });
+
+  test('GPT-5.5 strips sampling params when reasoning is enabled, preserves when off, and Pro preserves', () async {
+    final enabledBody = await _captureRequest(
+      config: ProviderConfig(
+        id: 'OpenAI',
+        enabled: true,
+        name: 'OpenAI',
+        apiKey: '',
+        baseUrl: '',
+        providerType: ProviderKind.openai,
+      ),
+      modelId: 'openai/gpt-5.5',
+      thinkingBudget: ReasoningBudget.medium,
+    );
+    final offBody = await _captureRequest(
+      config: ProviderConfig(
+        id: 'OpenAI',
+        enabled: true,
+        name: 'OpenAI',
+        apiKey: '',
+        baseUrl: '',
+        providerType: ProviderKind.openai,
+      ),
+      modelId: 'openai/gpt-5.5',
+      thinkingBudget: ReasoningBudget.off,
+    );
+    final proBody = await _captureRequest(
+      config: ProviderConfig(
+        id: 'OpenAI',
+        enabled: true,
+        name: 'OpenAI',
+        apiKey: '',
+        baseUrl: '',
+        providerType: ProviderKind.openai,
+      ),
+      modelId: 'gpt-5.5-pro',
+      thinkingBudget: ReasoningBudget.medium,
+    );
+
+    expect(enabledBody['reasoning_effort'], 'medium');
+    expect(enabledBody.containsKey('temperature'), isFalse);
+    expect(enabledBody.containsKey('top_p'), isFalse);
+
+    expect(offBody.containsKey('reasoning_effort'), isFalse);
+    expect(offBody['temperature'], 0.3);
+
+    expect(proBody['reasoning_effort'], 'medium');
+    expect(proBody['temperature'], 0.3);
+  });
+
+  test('normalizes Kimi K2.7 thinking body and strips sampling params', () async {
+    final enabledBody = await _captureRequest(
+      config: ProviderConfig(
+        id: 'OpenAI',
+        enabled: true,
+        name: 'OpenAI',
+        apiKey: '',
+        baseUrl: '',
+        providerType: ProviderKind.openai,
+      ),
+      modelId: 'moonshotai/kimi-k2.7',
+      thinkingBudget: ReasoningBudget.medium,
+    );
+    final offBody = await _captureRequest(
+      config: ProviderConfig(
+        id: 'OpenAI',
+        enabled: true,
+        name: 'OpenAI',
+        apiKey: '',
+        baseUrl: '',
+        providerType: ProviderKind.openai,
+      ),
+      modelId: 'moonshotai/kimi-k2.7',
+      thinkingBudget: ReasoningBudget.off,
+    );
+
+    expect(enabledBody['thinking'], {'type': 'enabled'});
+    expect(offBody['thinking'], {'type': 'disabled'});
+    expect(enabledBody.containsKey('reasoning_effort'), isFalse);
+    expect(offBody.containsKey('reasoning_effort'), isFalse);
+    expect(enabledBody.containsKey('temperature'), isFalse);
+    expect(enabledBody.containsKey('top_p'), isFalse);
+    expect(enabledBody.containsKey('n'), isFalse);
+    expect(enabledBody.containsKey('presence_penalty'), isFalse);
+    expect(enabledBody.containsKey('frequency_penalty'), isFalse);
+    expect(offBody.containsKey('temperature'), isFalse);
+    expect(offBody.containsKey('top_p'), isFalse);
+  });
+
+  test('normalizes GLM 5.x and Zhipu-like provider thinking knob', () async {
+    final glmBody = await _captureRequest(
+      config: ProviderConfig(
+        id: 'GenericOpenAI',
+        enabled: true,
+        name: 'GenericOpenAI',
+        apiKey: '',
+        baseUrl: 'https://api.example.com/v1',
+        providerType: ProviderKind.openai,
+      ),
+      modelId: 'glm-5.2',
+      thinkingBudget: ReasoningBudget.medium,
+    );
+    final zaiBody = await _captureRequest(
+      config: ProviderConfig(
+        id: 'Zhipu',
+        enabled: true,
+        name: 'Zhipu',
+        apiKey: '',
+        baseUrl: 'https://api.z.ai/v1',
+        providerType: ProviderKind.openai,
+      ),
+      modelId: 'glm-4.6',
+      thinkingBudget: ReasoningBudget.medium,
+    );
+
+    expect(glmBody['thinking'], {'type': 'enabled'});
+    expect(glmBody.containsKey('reasoning_effort'), isFalse);
+
+    expect(zaiBody['thinking'], {'type': 'enabled'});
+    expect(zaiBody.containsKey('reasoning_effort'), isFalse);
+  });
 }

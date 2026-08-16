@@ -1,5 +1,5 @@
 #define MyAppName "OmniChat"
-#define MyAppVersion "1.18.1"
+#define MyAppVersion "1.18.2"
 #define MyAppPublisher "Psyche"
 #define MyAppExeName "OmniChat.exe"
 
@@ -12,7 +12,7 @@ DefaultDirName={autopf}\{#MyAppName}
 UsePreviousAppDir=no
 DefaultGroupName={#MyAppName}
 OutputDir=.
-OutputBaseFilename=OmniChat_windows_v1.18.1_setup
+OutputBaseFilename=OmniChat_windows_v1.18.2_setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

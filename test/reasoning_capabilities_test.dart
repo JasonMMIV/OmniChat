@@ -41,6 +41,39 @@ void main() {
       expect(gpt56.supportsMax, isTrue);
     });
 
+    test('supports GPT-5.5 and requires sampling none except for Pro', () {
+      final gpt55 = ReasoningCapabilities.forModel(
+        ReasoningTransport.openAi,
+        'openai/gpt-5.5',
+      );
+      final gpt55Pro = ReasoningCapabilities.forModel(
+        ReasoningTransport.openAi,
+        'gpt-5.5-pro',
+      );
+      final gpt55Codex = ReasoningCapabilities.forModel(
+        ReasoningTransport.openAi,
+        'gpt-5.5-codex',
+      );
+      final gpt55Chat = ReasoningCapabilities.forModel(
+        ReasoningTransport.openAi,
+        'gpt-5.5-chat-latest',
+      );
+
+      expect(gpt55.supportsXhigh, isTrue);
+      expect(gpt55.supportsMax, isFalse);
+      expect(gpt55.samplingRequiresNone, isTrue);
+
+      expect(gpt55Pro.supportsXhigh, isTrue);
+      expect(gpt55Pro.supportsMax, isFalse);
+      expect(gpt55Pro.samplingRequiresNone, isFalse);
+
+      expect(gpt55Codex.supportsXhigh, isFalse);
+      expect(gpt55Codex.samplingRequiresNone, isFalse);
+
+      expect(gpt55Chat.supportsXhigh, isFalse);
+      expect(gpt55Chat.samplingRequiresNone, isFalse);
+    });
+
     test('normalizes Kimi K3 to its supported effort levels', () {
       final kimi = ReasoningCapabilities.forModel(
         ReasoningTransport.openAi,
