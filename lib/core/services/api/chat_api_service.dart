@@ -2202,6 +2202,29 @@ class ChatApiService {
       }
     }
 
+    // Inject OpenRouter built-in search (chat-completions path only) as a
+    // `plugins: [{'id': 'web'}]` body key, merged with any existing plugins.
+    if (BuiltInToolsHelper.isOpenRouterProvider(config) &&
+        config.useResponseApi != true &&
+        _builtInTools(config, modelId).contains(BuiltInToolNames.search)) {
+      final plugins = <Map<String, dynamic>>[];
+      final existingPlugins = body['plugins'];
+      if (existingPlugins is List) {
+        for (final plugin in existingPlugins) {
+          if (plugin is Map) {
+            plugins.add(plugin.cast<String, dynamic>());
+          }
+        }
+      }
+      final hasWebPlugin = plugins.any(
+        (plugin) => (plugin['id'] ?? '').toString() == 'web',
+      );
+      if (!hasWebPlugin) {
+        plugins.add({'id': 'web'});
+      }
+      body['plugins'] = plugins;
+    }
+
     // Merge custom body keys (override takes precedence)
     final extraBodyCfg = _customBody(config, modelId);
     if (extraBodyCfg.isNotEmpty) {

@@ -583,6 +583,8 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     if (service is BochaOptions) return Lucide.Search;
     if (service is TinyfishOptions) return Lucide.Search;
     if (service is QueritOptions) return Lucide.Search;
+    if (service is SerperOptions) return Lucide.Search;
+    if (service is GrokOptions) return Lucide.Search;
     if (service is ArxivOptions) return Lucide.BookOpen;
     if (service is PubMedOptions) return Lucide.Activity;
     if (service is SemanticScholarOptions) return Lucide.Brain;
@@ -646,6 +648,14 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
       return service.apiKey.isNotEmpty
           ? l10n.searchServicesPageConfiguredStatus
           : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (service is SerperOptions)
+      return service.apiKey.isNotEmpty
+          ? l10n.searchServicesPageConfiguredStatus
+          : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (service is GrokOptions)
+      return service.apiKey.isNotEmpty
+          ? l10n.searchServicesPageConfiguredStatus
+          : l10n.searchServicesPageApiKeyRequiredStatus;
     if (service is ArxivOptions) return l10n.searchServicesPageConfiguredStatus;
     if (service is PubMedOptions)
       return service.apiKey.isNotEmpty
@@ -691,6 +701,8 @@ class _BrandBadge extends StatelessWidget {
     if (s is BochaOptions) return 'bocha';
     if (s is TinyfishOptions) return 'tinyfish';
     if (s is QueritOptions) return 'querit';
+    if (s is SerperOptions) return 'serper';
+    if (s is GrokOptions) return 'grok';
     if (s is ArxivOptions) return 'arxiv';
     if (s is PubMedOptions) return 'pubmed';
     if (s is SemanticScholarOptions) return 'semanticscholar';
@@ -869,6 +881,8 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
       {'type': 'bocha', 'name': l10n.searchServiceNameBocha},
       {'type': 'tinyfish', 'name': l10n.searchServiceNameTinyfish},
       {'type': 'querit', 'name': l10n.searchServiceNameQuerit},
+      {'type': 'serper', 'name': l10n.searchServiceNameSerper},
+      {'type': 'grok', 'name': l10n.searchServiceNameGrok},
       {'type': 'arxiv', 'name': l10n.searchServiceNameArxiv},
       {'type': 'pubmed', 'name': l10n.searchServiceNamePubMed},
       {
@@ -941,6 +955,10 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
         return l10n.searchServiceNameTinyfish;
       case 'querit':
         return l10n.searchServiceNameQuerit;
+      case 'serper':
+        return l10n.searchServiceNameSerper;
+      case 'grok':
+        return l10n.searchServiceNameGrok;
       case 'arxiv':
         return l10n.searchServiceNameArxiv;
       case 'pubmed':
@@ -1151,6 +1169,85 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
             hint: l10n.searchServicesDialogLanguagesHint,
           ),
         ];
+      case 'serper':
+        return [
+          _buildTextField(
+            key: 'apiKey',
+            label: 'API Key',
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return l10n.searchServicesAddDialogApiKeyRequired;
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'gl',
+            label: l10n.searchServicesDialogCountryOptional,
+            hint: 'cn',
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'hl',
+            label: l10n.searchServicesDialogLanguageOptional,
+            hint: 'zh-cn',
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'tbs',
+            label: l10n.searchServicesDialogTimeFilterOptional,
+            hint: 'qdr:d',
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'page',
+            label: l10n.searchServicesDialogPageOptional,
+            hint: '1',
+            validator: (value) {
+              final text = value?.trim() ?? '';
+              if (text.isEmpty) return null;
+              final page = int.tryParse(text);
+              if (page == null || page < 1) {
+                return l10n.searchServicesDialogPageInvalid;
+              }
+              return null;
+            },
+          ),
+        ];
+      case 'grok':
+        return [
+          _buildTextField(
+            key: 'apiKey',
+            label: 'API Key',
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return l10n.searchServicesAddDialogApiKeyRequired;
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'model',
+            label: l10n.searchServicesDialogModel,
+            hint: GrokOptions.defaultModel,
+            initialValue: GrokOptions.defaultModel,
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'customUrl',
+            label: l10n.searchServicesFieldCustomUrlOptional,
+            hint: GrokOptions.defaultUrl,
+            initialValue: GrokOptions.defaultUrl,
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'systemPrompt',
+            label: l10n.searchServicesDialogSystemPrompt,
+            initialValue: GrokOptions.defaultSystemPrompt,
+          ),
+        ];
       case 'searxng':
         return [
           _buildTextField(
@@ -1305,6 +1402,24 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
           countries: (_controllers['countries']?.text ?? '').trim(),
           languages: (_controllers['languages']?.text ?? '').trim(),
         );
+      case 'serper':
+        final pageText = (_controllers['page']?.text ?? '').trim();
+        return SerperOptions(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+          gl: (_controllers['gl']?.text ?? '').trim(),
+          hl: (_controllers['hl']?.text ?? '').trim(),
+          tbs: (_controllers['tbs']?.text ?? '').trim(),
+          page: pageText.isEmpty ? 1 : int.parse(pageText),
+        );
+      case 'grok':
+        return GrokOptions(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+          model: _controllers['model']!.text.trim(),
+          customUrl: _controllers['customUrl']!.text.trim(),
+          systemPrompt: _controllers['systemPrompt']!.text,
+        );
       case 'arxiv':
         return ArxivOptions(id: id);
       case 'pubmed':
@@ -1392,6 +1507,23 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
       _controllers['timeRange'] = TextEditingController(text: service.timeRange);
       _controllers['countries'] = TextEditingController(text: service.countries);
       _controllers['languages'] = TextEditingController(text: service.languages);
+    } else if (service is SerperOptions) {
+      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['gl'] = TextEditingController(text: service.gl);
+      _controllers['hl'] = TextEditingController(text: service.hl);
+      _controllers['tbs'] = TextEditingController(text: service.tbs);
+      _controllers['page'] = TextEditingController(
+        text: service.page == 1 ? '' : service.page.toString(),
+      );
+    } else if (service is GrokOptions) {
+      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['model'] = TextEditingController(text: service.model);
+      _controllers['customUrl'] = TextEditingController(
+        text: service.customUrl,
+      );
+      _controllers['systemPrompt'] = TextEditingController(
+        text: service.systemPrompt,
+      );
     } else if (service is PubMedOptions) {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
       _controllers['tool'] = TextEditingController(text: service.tool);
@@ -1620,6 +1752,82 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
           hint: l10n.searchServicesDialogLanguagesHint,
         ),
       ];
+    } else if (service is SerperOptions) {
+      return [
+        _buildTextField(
+          key: 'apiKey',
+          label: 'API Key',
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return l10n.searchServicesEditDialogApiKeyRequired;
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'gl',
+          label: l10n.searchServicesDialogCountryOptional,
+          hint: 'cn',
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'hl',
+          label: l10n.searchServicesDialogLanguageOptional,
+          hint: 'zh-cn',
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'tbs',
+          label: l10n.searchServicesDialogTimeFilterOptional,
+          hint: 'qdr:d',
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'page',
+          label: l10n.searchServicesDialogPageOptional,
+          hint: '1',
+          validator: (value) {
+            final text = value?.trim() ?? '';
+            if (text.isEmpty) return null;
+            final page = int.tryParse(text);
+            if (page == null || page < 1) {
+              return l10n.searchServicesDialogPageInvalid;
+            }
+            return null;
+          },
+        ),
+      ];
+    } else if (service is GrokOptions) {
+      return [
+        _buildTextField(
+          key: 'apiKey',
+          label: 'API Key',
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return l10n.searchServicesEditDialogApiKeyRequired;
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'model',
+          label: l10n.searchServicesDialogModel,
+          hint: GrokOptions.defaultModel,
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'customUrl',
+          label: l10n.searchServicesFieldCustomUrlOptional,
+          hint: GrokOptions.defaultUrl,
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'systemPrompt',
+          label: l10n.searchServicesDialogSystemPrompt,
+        ),
+      ];
     } else if (service is SearXNGOptions) {
       return [
         _buildTextField(
@@ -1775,6 +1983,24 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
         countries: (_controllers['countries']?.text ?? '').trim(),
         languages: (_controllers['languages']?.text ?? '').trim(),
       );
+    } else if (service is SerperOptions) {
+      final pageText = (_controllers['page']?.text ?? '').trim();
+      return SerperOptions(
+        id: service.id,
+        apiKey: _controllers['apiKey']!.text,
+        gl: (_controllers['gl']?.text ?? '').trim(),
+        hl: (_controllers['hl']?.text ?? '').trim(),
+        tbs: (_controllers['tbs']?.text ?? '').trim(),
+        page: pageText.isEmpty ? 1 : int.parse(pageText),
+      );
+    } else if (service is GrokOptions) {
+      return GrokOptions(
+        id: service.id,
+        apiKey: _controllers['apiKey']!.text,
+        model: _controllers['model']!.text.trim(),
+        customUrl: _controllers['customUrl']!.text.trim(),
+        systemPrompt: _controllers['systemPrompt']!.text,
+      );
     } else if (service is PubMedOptions) {
       return PubMedOptions(
         id: service.id,
@@ -1887,6 +2113,10 @@ class _ServiceIcon extends StatelessWidget {
         return 'tinyfish';
       case 'querit':
         return 'querit';
+      case 'serper':
+        return 'serper';
+      case 'grok':
+        return 'grok';
       case 'arxiv':
         return 'arxiv';
       case 'pubmed':

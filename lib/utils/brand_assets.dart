@@ -78,6 +78,7 @@ class BrandAssets {
     MapEntry(RegExp(r'neuralwatt'), 'neuralwatt-color.svg'),
     MapEntry(RegExp(r'tinyfish'), 'tinyfish.png'),
     MapEntry(RegExp(r'querit'), 'querit-color.svg'),
+    MapEntry(RegExp(r'serper'), 'serper.svg'),
     MapEntry(RegExp(r'arxiv'), 'arxiv-color.svg'),
     MapEntry(RegExp(r'pubmed'), 'pubmed-color.svg'),
     MapEntry(RegExp(r'semanticscholar|semantic scholar'), 'semanticscholar-color.svg'),

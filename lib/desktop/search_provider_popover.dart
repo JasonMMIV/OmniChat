@@ -192,12 +192,16 @@ class _SearchContent extends StatelessWidget {
     final isOfficialGemini = cfg.providerType == ProviderKind.google && (cfg.vertexAI != true);
     final isClaude = cfg.providerType == ProviderKind.claude;
     final isOpenAIResponses = cfg.providerType == ProviderKind.openai && (cfg.useResponseApi == true);
+    final isOpenRouter = cfg.providerType == ProviderKind.openai && BuiltInToolsHelper.isOpenRouterProvider(cfg);
     final isGrok = cfg.providerType == ProviderKind.openai && (modelId ?? '').toLowerCase().contains('grok');
-    if (!(isOfficialGemini || isClaude || isOpenAIResponses || isGrok)) return false;
+    if (!(isOfficialGemini || isClaude || isOpenAIResponses || isOpenRouter || isGrok)) return false;
     final mid = modelId!.toLowerCase();
     if (isGrok) return true; // All Grok models assumed to support search
     if (isClaude) {
+      if (BuiltInToolsHelper.isDeepSeekProvider(cfg)) return true;
       const supported = <String>{
+        'claude-fable-5',
+        'claude-opus-4-8',
         'claude-opus-4-7',
         'claude-opus-4-6',
         'claude-sonnet-4-6',

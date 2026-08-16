@@ -1444,6 +1444,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchServicesAddDialogApiKeyRequired => 'Key required';
 
   @override
+  String get searchServicesFieldCustomUrlOptional => 'Custom URL (optional)';
+
+  @override
+  String get searchServicesDialogApiKey => 'API Key';
+
+  @override
+  String get searchServicesDialogModel => 'Model';
+
+  @override
+  String get searchServicesDialogSystemPrompt => 'System Prompt';
+
+  @override
   String get searchServicesAddDialogApiKeyOptional => 'API Key (Optional)';
 
   @override
@@ -2155,6 +2167,36 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get searchProviderQueritDescription =>
       'Querit Search API for LLM applications. Returns real-time web results with site, time, country, and language filters.';
+
+  @override
+  String get searchServiceNameSerper => 'Serper';
+
+  @override
+  String get searchProviderSerperDescription =>
+      'Serper Google Search API. Fast web results with optional country, language, time, and page filters.';
+
+  @override
+  String get searchServiceNameGrok => 'Grok';
+
+  @override
+  String get searchProviderGrokDescription =>
+      'Grok search via xAI Responses API. Uses web and X search tools and returns cited sources.';
+
+  @override
+  String get searchServicesDialogCountryOptional => 'Country/region (optional)';
+
+  @override
+  String get searchServicesDialogLanguageOptional => 'Language (optional)';
+
+  @override
+  String get searchServicesDialogTimeFilterOptional => 'Time filter (optional)';
+
+  @override
+  String get searchServicesDialogPageOptional => 'Page (optional)';
+
+  @override
+  String get searchServicesDialogPageInvalid =>
+      'Page must be a positive integer.';
 
   @override
   String get searchServicesDialogSitesIncludeOptional =>

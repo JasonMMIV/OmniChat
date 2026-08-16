@@ -2867,6 +2867,30 @@ abstract class AppLocalizations {
   /// **'Key required'**
   String get searchServicesAddDialogApiKeyRequired;
 
+  /// No description provided for @searchServicesFieldCustomUrlOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom URL (optional)'**
+  String get searchServicesFieldCustomUrlOptional;
+
+  /// No description provided for @searchServicesDialogApiKey.
+  ///
+  /// In en, this message translates to:
+  /// **'API Key'**
+  String get searchServicesDialogApiKey;
+
+  /// No description provided for @searchServicesDialogModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Model'**
+  String get searchServicesDialogModel;
+
+  /// No description provided for @searchServicesDialogSystemPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'System Prompt'**
+  String get searchServicesDialogSystemPrompt;
+
   /// No description provided for @searchServicesAddDialogApiKeyOptional.
   ///
   /// In en, this message translates to:
@@ -4222,6 +4246,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Querit Search API for LLM applications. Returns real-time web results with site, time, country, and language filters.'**
   String get searchProviderQueritDescription;
+
+  /// No description provided for @searchServiceNameSerper.
+  ///
+  /// In en, this message translates to:
+  /// **'Serper'**
+  String get searchServiceNameSerper;
+
+  /// No description provided for @searchProviderSerperDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Serper Google Search API. Fast web results with optional country, language, time, and page filters.'**
+  String get searchProviderSerperDescription;
+
+  /// No description provided for @searchServiceNameGrok.
+  ///
+  /// In en, this message translates to:
+  /// **'Grok'**
+  String get searchServiceNameGrok;
+
+  /// No description provided for @searchProviderGrokDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Grok search via xAI Responses API. Uses web and X search tools and returns cited sources.'**
+  String get searchProviderGrokDescription;
+
+  /// No description provided for @searchServicesDialogCountryOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Country/region (optional)'**
+  String get searchServicesDialogCountryOptional;
+
+  /// No description provided for @searchServicesDialogLanguageOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Language (optional)'**
+  String get searchServicesDialogLanguageOptional;
+
+  /// No description provided for @searchServicesDialogTimeFilterOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Time filter (optional)'**
+  String get searchServicesDialogTimeFilterOptional;
+
+  /// No description provided for @searchServicesDialogPageOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Page (optional)'**
+  String get searchServicesDialogPageOptional;
+
+  /// No description provided for @searchServicesDialogPageInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Page must be a positive integer.'**
+  String get searchServicesDialogPageInvalid;
 
   /// No description provided for @searchServicesDialogSitesIncludeOptional.
   ///

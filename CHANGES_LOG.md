@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-15 (v1.17.8)
+- **Last Updated**: 2026-08-16 (v1.18.0)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -65,7 +65,7 @@ Refined visual identity and improved accessibility.
 Provides configurable external web search providers for tool-enabled text chat.
 
 - **Provider Registry**: Search providers are represented by typed `SearchServiceOptions` and resolved through `SearchService.getService`.
-- **Supported Providers**: Bing Local, DuckDuckGo, Tavily, Exa, Zhipu, SearXNG, LinkUp, Brave, Google, Metaso, Jina, Ollama, Perplexity, Bocha, **Tinyfish (v1.5.15)**, and **Querit (v1.17.7)**.
+- **Supported Providers**: Bing Local, DuckDuckGo, Tavily, Exa, Zhipu, SearXNG, LinkUp, Brave, Google, Metaso, Jina, Ollama, Perplexity, Bocha, **Tinyfish (v1.5.15)**, **Querit (v1.17.7)**, **Serper (v1.18.0)**, and **Grok (v1.18.0)**.
 - **Google Search API**: Uses Google Custom Search JSON API with `apiKey` and Programmable Search Engine ID (`cx`). Per-request result count is capped to Google's `num <= 10` API limit.
 - **Tinyfish Search API (v1.5.15)**: Uses the official `GET https://api.search.tinyfish.ai` REST endpoint with `X-API-Key` header. Maps response `results[]` — `title`, `url`, `snippet` — to `SearchResultItem`. Supports `resultSize` limit and `timeout` control. REST API only; MCP integration is deferred.
 - **Querit Search API (v1.17.7)**: Uses the official `POST https://api.querit.ai/v1/search` REST endpoint with `Authorization: Bearer <apiKey>`. Supports `count` limit and optional `filters` — site include/exclude、時間範圍（如 `d7`）、國家（geo）與語言。Maps response `results.result[]` — `title`/`url`/`snippet`，並把 `snippets`/`sentence` 合併為 `text` — 至 `SearchResultItem`。REST API only; MCP integration is deferred.
@@ -179,6 +179,32 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.18.0] - 2026-08-16: kelivo v1.1.13/v1.1.16 搜尋家族移植（Serper/Grok 搜尋服務商＋OpenRouter/DeepSeek 內建搜尋＋Claude 4.8/Fable 5 動態搜尋白名單）
+
+> 依 Session A 導入計畫（`import_plans/IMPORT_PLAN_SESSION_A_SEARCH.md`），導入 kelivo 上游搜尋相關功能五項：① **Serper** 搜尋服務商（commit `dcf4ca63`）；② **Grok** 搜尋服務商（xAI Responses API，commits `67eb8bce`＋`9fec9444`＋`5e62d5d9`，取最終版）；③ **OpenRouter 內建搜尋**（`9b579073`，chat-completions 路徑注入 `plugins: [{'id': 'web'}]`）；④ **DeepSeek 內建搜尋**（Claude 格式，`d2b909a3` 僅取 `isDeepSeekProvider` 判斷與 UI 白名單）；⑤ **Claude Opus 4.8 / Fable 5 動態搜尋白名單**（`316c343a` 僅白名單部分）。
+
+- **200a** Serper 服務實作（`lib/core/services/search/providers/serper_search_service.dart` NEW，upstream 逐行移植）：
+  - `SerperSearchService.search`：body `{q, gl?, hl?, tbs?, page?}`（country/language/time-filter/page 皆可選、空白省略、page>1 才送）→ `POST https://google.serper.dev/search`（`X-API-KEY` header、`Content-Type: application/json`、`.timeout(commonOptions.timeout)`）。
+  - 非 200 拋錯；解析 `data.organic[]` — `title`/`link`/`snippet` — 至 `SearchResultItem`，`resultSize` 截斷。
+- **200b** Grok 服務實作（`lib/core/services/search/providers/grok_search_service.dart` NEW，upstream 最終版）：
+  - `GrokSearchService.search`：apiKey 空值先驗（不發 request）→ body `{model, input: [system + user], tools: [{type:'web_search'},{type:'x_search'}], store: false, stream: false}` → `POST {customUrl}`（預設 `https://api.x.ai/v1/responses`，`Authorization: Bearer`）。
+  - 預設 model `grok-4.3` 且未改 model 時附 `reasoning: {effort: 'none'}`；解析 `data.output[]` 找 `type=='message' && role=='assistant'` → `content[]` 的 `output_text`（作為 `SearchResult.answer`），citations 依 `data['citations']` 優先、`textContent.annotations[]` 的 `url_citation`（`url`/`title`）補足，去重 URL、`resultSize` 截斷。
+- **200c** 註冊與選項（`lib/core/services/search/search_service.dart`）：`SerperOptions`（apiKey＋gl/hl/tbs/page 可選、有預設值）與 `GrokOptions`（apiKey＋model/customUrl/systemPrompt 可選、有預設、含 `resolvedUrl`/`resolvedModel`/`resolvedReasoningEffort`/`resolvedSystemPrompt` getter）新增於 `QueritOptions` 之後；`SearchService.getService` 與 `SearchServiceOptions.fromJson` 各加 `serper`/`grok` case。
+- **200d** 品牌（`assets/icons/serper.svg` NEW＋`lib/utils/brand_assets.dart`）：`RegExp(r'serper')` → `serper.svg`（上游原檔）；Grok 沿用既有 `grok.svg`＋`RegExp(r'grok')` 映射（上游未新增 icon，勿重複）。
+- **200e** 行動版 UI（`lib/features/search/pages/search_services_page.dart`）：服務清單＋`_getServiceName` case；新增表單 serper（apiKey 必填＋gl/hl/tbs/page 4 可選，page 正整數驗證）／grok（apiKey 必填＋model/customUrl/systemPrompt 3 欄含預設值）；編輯表單同結構；`_BrandBadge._nameForService`／`_getServiceIcon`／`_getServiceStatus`（apiKey 空→需金鑰）／`_ServiceIcon._getMatchName` 皆接上 `SerperOptions`/`GrokOptions`。
+- **200f** 桌面版 UI（`lib/desktop/setting/search_services_pane.dart`）：`_ServiceTypeChipsState._types` 加 serper/grok 型別；新增/編輯 dialog 各自 5（serper）/4（grok）欄位與 controller 初始化、`_createService`/`_updateService` 建構（page 空或 <1 → 1）；`_BrandBadge._nameForService` 接上；既有兩個共用 API Key 欄位改用新 l10n key `searchServicesDialogApiKey`（與上游一致）。
+- **200g** OpenRouter 內建搜尋（`builtin_tools.dart`＋`chat_api_service.dart`）：
+  - `BuiltInToolsHelper.isOpenRouterProvider(cfg)`（baseUrl host 含 `openrouter.ai` 或 id 含 `openrouter`）；`supportsSearch`（openai 分支）與新增 `supportsBuiltInSearchForModel` 的 openai 分支加 OpenRouter 判斷（`useResponseApi != true` 才支援）。
+  - `chat_api_service.dart` OpenAI chat-completions body 建構處（Grok `search_parameters` 注入點旁，主 body 1 處）：OpenRouter 且含 search built-in 時合併既有 `plugins` ＋ `{'id': 'web'}`（去重）寫入 body；Responses 路徑明確排除。
+- **200h** DeepSeek 內建搜尋（`builtin_tools.dart`）：新增 `isDeepSeekProvider(cfg)`（host 含 `deepseek.com` 或 id/name 含 deepseek）；`supportsClaudeDynamicWebSearchForModel` 加 `!isDeepSeekProvider(cfg) &&`——DeepSeek-Anthropic provider 一律用舊版 `web_search_20250305`，不掛 `code_execution` 配套；`supportsBuiltInSearchForModel` 的 claude 分支對 DeepSeek 直接 true。
+- **200i** Claude 4.8 / Fable 5 白名單（`builtin_tools.dart`）：`isClaudeDynamicWebSearchSupportedModel` 加入 `claude-fable-5`、`claude-opus-4-8`。
+- **200j** UI 白名單（`search_settings_sheet.dart`＋`search_provider_popover.dart`）：兩處內建搜尋 toggle 顯示條件加 `isOpenRouter`（openai kind＋`isOpenRouterProvider`）；`isClaude` 分支加 `isDeepSeekProvider(cfg)` 允許 DeepSeek-Anthropic 開啟內建搜尋；Claude 支援模型 set 各補 `claude-fable-5`／`claude-opus-4-8`（行動版 `claudeSupportedModels`、桌面版 `supported`）。
+- **200k** l10n：`searchServiceNameSerper`／`searchProviderSerperDescription`／`searchServicesDialogCountryOptional`／`searchServicesDialogLanguageOptional`／`searchServicesDialogTimeFilterOptional`／`searchServicesDialogPageOptional`／`searchServicesDialogPageInvalid`／`searchServiceNameGrok`／`searchProviderGrokDescription`／`searchServicesDialogApiKey`／`searchServicesDialogModel`／`searchServicesDialogSystemPrompt`／`searchServicesFieldCustomUrlOptional` 共 13 keys × 4 語系（en/zh/zh-Hans/zh-Hant，譯文採 upstream），`flutter gen-l10n` 重新生成。
+- **Status**: 完成——`flutter test` full suite **404 tests passed**（新增 24：`serper_search_service_test.dart` 4、`grok_search_service_test.dart` 7、`openrouter_builtin_search_test.dart` 4、`builtin_tools_claude_dynamic_search_test.dart` +8、`claude_dynamic_web_search_test.dart` +1）；`flutter analyze` 修改檔案 **no new errors/warnings**（chat_api_service.dart 114 條與 HEAD 相同；其餘僅既有 withOpacity/deprecation infos）。
+- **Version**: pubspec `1.18.0+90`；installer.iss 1.18.0（`OmniChat_windows_v1.18.0_setup`）。
+- **Files Modified**: `lib/core/services/search/providers/serper_search_service.dart`（NEW）、`lib/core/services/search/providers/grok_search_service.dart`（NEW）、`lib/core/services/search/search_service.dart`、`assets/icons/serper.svg`（NEW）、`lib/utils/brand_assets.dart`、`lib/features/search/pages/search_services_page.dart`、`lib/desktop/setting/search_services_pane.dart`、`lib/features/search/widgets/search_settings_sheet.dart`、`lib/desktop/search_provider_popover.dart`、`lib/core/services/api/builtin_tools.dart`、`lib/core/services/api/chat_api_service.dart`、`lib/l10n/*.arb`（+13 keys × 4 語系）＋ `app_localizations*.dart`（gen-l10n 重新生成）、`pubspec.yaml`、`installer.iss`、`CHANGES_LOG.md`。
+- **Tests**: `test/core/services/search/serper_search_service_test.dart`（NEW，4 案例：序列化與 factory/icon 映射（`BrandAssets.assetForName('serper')`）／body 建構與結果解析（resultSize 截斷）／可選欄位省略＋空 organic／非 200 拋錯）。`test/core/services/search/grok_search_service_test.dart`（NEW，7 案例：序列化與 factory/icon 映射（`BrandAssets.assetForName('grok')`）／responses body 建構＋annotations url_citation 去重＋answer 解析／顯式 model 不附 reasoning／預設 model 附 `reasoning: {effort: 'none'}`／top-level citations 解析／空 apiKey 不發 request／非 200 拋錯）。`test/openrouter_builtin_search_test.dart`（NEW，4 案例：support matrix 啟用／Responses 路徑不支援／chat-completions 注入 `plugins` web plugin（HttpServer 端到端）／停用時無 plugins）。`test/builtin_tools_claude_dynamic_search_test.dart`（+8：fable-5/opus-4-8 支援、DeepSeek provider 動態搜尋 false、`isOpenRouterProvider`、`isDeepSeekProvider`、`supportsBuiltInSearchForModel` 3 案例）。`test/claude_dynamic_web_search_test.dart`（+1：DeepSeek-Anthropic provider 啟用內建搜尋 → tools 含 `web_search_20250305`、不含 code_execution 與 `web_search_20260209`）。
+
 ## [v1.17.8] - 2026-08-15: Windows 版 TTS 朗讀閃退修復（awaitSpeakCompletion 平台守衛還原）
 
 > Windows 版點擊訊息播放語音按鈕後立即閃退（Event Log：`flutter_tts_plugin.dll` `0xc0000005` access violation）。根因是 v1.17.5 移植的 `TtsProvider` 在 `_applyConfig` **無條件**啟用 `awaitSpeakCompletion(true)`（上游 kelivo 為 Android/iOS 專案，其 vendored flutter_tts 無 Windows 實作，未涵蓋此平台）。pub `flutter_tts 4.2.5` 的 Windows SAPI 原生分支收到 `awaitSpeakCompletion(true)` 後會把 `speakResult` 以 unique_ptr 保存、並以 `RegisterWaitForSingleObject` 註冊 `setResult` 回呼——該回呼在**執行緒集區**延遲解參考 `speakResult.get()`；而 `speak.onComplete` → `_advanceSystemChunkOrFinish` → 下一 chunk 的 `speak()` 會 `speakResult = std::move(result)` 銷毀上一個 MethodResult 物件，尚未執行的 `setResult` 回呼因此解參考**已釋放指標**（use-after-free）→ 原生崩潰。
