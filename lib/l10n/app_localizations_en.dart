@@ -3237,6 +3237,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get providerDetailPageAihubmixAppCodeHelp => 'Discount code';
 
   @override
+  String get providerDetailPageClaudePromptCachingTitle =>
+      'Claude Prompt Caching';
+
+  @override
+  String get providerDetailPageClaudePromptCachingHelp =>
+      'Adds cache_control to Claude requests through Anthropic or OpenRouter.';
+
+  @override
+  String get providerDetailPageClaudePromptCachingTtlTitle => 'Cache TTL';
+
+  @override
+  String get providerDetailPageClaudePromptCachingTtlHelp =>
+      '5 minutes is the default. 1 hour costs more to write but can reduce rebuilds in long conversations.';
+
+  @override
+  String get providerDetailPageClaudePromptCachingTtl5m => '5 min';
+
+  @override
+  String get providerDetailPageClaudePromptCachingTtl1h => '1 hour';
+
+  @override
   String get providerDetailPageProviderTypeTitle => 'Type';
 
   @override

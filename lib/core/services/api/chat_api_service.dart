@@ -1025,6 +1025,11 @@ class ChatApiService {
           body as Map<String, dynamic>,
           upstreamModelId,
         );
+        _applyOpenRouterClaudePromptCaching(
+          body,
+          config: config,
+          upstreamModelId: upstreamModelId,
+        );
         _normalizeMoonshotKimiChatBody(
           body as Map<String, dynamic>,
           upstreamModelId: upstreamModelId,
@@ -1120,10 +1125,18 @@ class ChatApiService {
           modelId,
         ).abilities.contains(ModelAbility.reasoning);
         final thinking = isReasoning
-            ? _claudeThinkingConfig(upstreamModelId, thinkingBudget)
+            ? _claudeThinkingConfig(
+                upstreamModelId,
+                thinkingBudget,
+                config: config,
+              )
             : null;
         final outputConfig = isReasoning
-            ? _claudeOutputConfig(upstreamModelId, thinkingBudget)
+            ? _claudeOutputConfig(
+                upstreamModelId,
+                thinkingBudget,
+                config: config,
+              )
             : null;
         final usesAdaptive =
             isReasoning &&
@@ -1135,6 +1148,10 @@ class ChatApiService {
           'messages': [
             {'role': 'user', 'content': safePrompt},
           ],
+          if (config.claudePromptCachingEnabled == true)
+            'cache_control': ProviderConfig.claudePromptCacheControl(
+              config.claudePromptCachingTtl,
+            ),
           if (thinking != null) 'thinking': thinking,
           if (outputConfig != null) 'output_config': outputConfig,
         };
@@ -1309,6 +1326,31 @@ class ChatApiService {
     body.remove('top_p');
   }
 
+  static bool _isClaudeModelId(String modelId) {
+    final normalized = modelId.trim().toLowerCase();
+    return normalized.contains('claude') || normalized.contains('anthropic/');
+  }
+
+  static bool _shouldCacheClaudeSystemPrompt(
+    ProviderConfig config,
+    String upstreamModelId,
+  ) {
+    return config.claudePromptCachingEnabled == true &&
+        BuiltInToolsHelper.isOpenRouterProvider(config) &&
+        _isClaudeModelId(upstreamModelId);
+  }
+
+  static void _applyOpenRouterClaudePromptCaching(
+    Map<String, dynamic> body, {
+    required ProviderConfig config,
+    required String upstreamModelId,
+  }) {
+    if (!_shouldCacheClaudeSystemPrompt(config, upstreamModelId)) return;
+    body['cache_control'] = ProviderConfig.claudePromptCacheControl(
+      config.claudePromptCachingTtl,
+    );
+  }
+
   static bool _isKimiK25Model(String modelId) =>
       modelId.toLowerCase().contains('kimi-k2.5');
 
@@ -1429,10 +1471,26 @@ class ChatApiService {
     return requested;
   }
 
+  static bool _isDeepSeekClaudeCompatible(
+    String modelId, {
+    ProviderConfig? config,
+  }) {
+    final lowerModelId = modelId.trim().toLowerCase();
+    if (lowerModelId.contains('deepseek')) return true;
+    if (config == null) return false;
+    final baseUrl = config.baseUrl.trim().toLowerCase();
+    final providerId = config.id.trim().toLowerCase();
+    final providerName = config.name.trim().toLowerCase();
+    return baseUrl.contains('api.deepseek.com') ||
+        providerId.contains('deepseek') ||
+        providerName.contains('deepseek');
+  }
+
   static Map<String, dynamic>? _claudeThinkingConfig(
     String modelId,
-    int? budget,
-  ) {
+    int? budget, {
+    ProviderConfig? config,
+  }) {
     final capabilities = ReasoningCapabilities.forModel(
       ReasoningTransport.claude,
       modelId,
@@ -1440,7 +1498,7 @@ class ChatApiService {
     if (budget == 0 && !capabilities.thinkingAlwaysOn) {
       return {'type': 'disabled'};
     }
-    if (modelId.toLowerCase().contains('deepseek')) {
+    if (_isDeepSeekClaudeCompatible(modelId, config: config)) {
       return {'type': 'enabled'};
     }
     if (capabilities.thinkingAlwaysOn ||
@@ -1462,15 +1520,16 @@ class ChatApiService {
 
   static Map<String, dynamic>? _claudeOutputConfig(
     String modelId,
-    int? budget,
-  ) {
+    int? budget, {
+    ProviderConfig? config,
+  }) {
     final effort = _claudeEffortForBudget(budget, modelId);
     if (effort == 'auto' || effort == 'off') return null;
     final capabilities = ReasoningCapabilities.forModel(
       ReasoningTransport.claude,
       modelId,
     );
-    if (modelId.toLowerCase().contains('deepseek')) {
+    if (_isDeepSeekClaudeCompatible(modelId, config: config)) {
       return {'effort': effort == 'xhigh' || effort == 'max' ? 'max' : 'high'};
     }
     if (!capabilities.supportsAdaptiveThinking) return null;
@@ -2062,6 +2121,11 @@ class ChatApiService {
       };
       _setMaxTokens(body);
       _removeKimiK3SamplingParams(body, upstreamModelId);
+      _applyOpenRouterClaudePromptCaching(
+        body,
+        config: config,
+        upstreamModelId: upstreamModelId,
+      );
       _normalizeMoonshotKimiChatBody(
         body,
         upstreamModelId: upstreamModelId,
@@ -2715,6 +2779,11 @@ class ChatApiService {
               };
               _setMaxTokens(body2);
               _removeKimiK3SamplingParams(body2, upstreamModelId);
+              _applyOpenRouterClaudePromptCaching(
+                body2,
+                config: config,
+                upstreamModelId: upstreamModelId,
+              );
               _normalizeMoonshotKimiChatBody(
                 body2,
                 upstreamModelId: upstreamModelId,
@@ -4136,6 +4205,11 @@ class ChatApiService {
               };
               _setMaxTokens(body2);
               _removeKimiK3SamplingParams(body2, upstreamModelId);
+              _applyOpenRouterClaudePromptCaching(
+                body2,
+                config: config,
+                upstreamModelId: upstreamModelId,
+              );
               _normalizeMoonshotKimiChatBody(
                 body2,
                 upstreamModelId: upstreamModelId,
@@ -4733,6 +4807,11 @@ class ChatApiService {
                   };
                   _setMaxTokens(body2);
                   _removeKimiK3SamplingParams(body2, upstreamModelId);
+                  _applyOpenRouterClaudePromptCaching(
+                    body2,
+                    config: config,
+                    upstreamModelId: upstreamModelId,
+                  );
                   _normalizeMoonshotKimiChatBody(
                     body2,
                     upstreamModelId: upstreamModelId,
@@ -5578,10 +5657,18 @@ class ChatApiService {
     while (true) {
       // Prepare request body per round
       final thinking = isReasoning
-          ? _claudeThinkingConfig(upstreamModelId, thinkingBudget)
+          ? _claudeThinkingConfig(
+              upstreamModelId,
+              thinkingBudget,
+              config: config,
+            )
           : null;
       final outputConfig = isReasoning
-          ? _claudeOutputConfig(upstreamModelId, thinkingBudget)
+          ? _claudeOutputConfig(
+              upstreamModelId,
+              thinkingBudget,
+              config: config,
+            )
           : null;
       final body = <String, dynamic>{
         'model': upstreamModelId,
@@ -5589,6 +5676,10 @@ class ChatApiService {
         'messages': convo,
         'stream': stream,
         if (systemPrompt.isNotEmpty) 'system': systemPrompt,
+        if (config.claudePromptCachingEnabled == true)
+          'cache_control': ProviderConfig.claudePromptCacheControl(
+            config.claudePromptCachingTtl,
+          ),
         if (!usesAdaptive && temperature != null) 'temperature': temperature,
         if (!usesAdaptive && topP != null) 'top_p': topP,
         if (allTools.isNotEmpty) 'tools': allTools,
