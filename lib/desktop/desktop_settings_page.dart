@@ -6116,7 +6116,7 @@ class _AppLanguageRowState extends State<_AppLanguageRow> {
         final labels = <String>[
           '🖥️ ${AppLocalizations.of(ctx)!.settingsPageSystemMode}',
           '🇨🇳 ${AppLocalizations.of(ctx)!.displaySettingsPageLanguageChineseLabel}',
-          '🇨🇳 ${AppLocalizations.of(ctx)!.languageDisplayTraditionalChinese}',
+          '🇹🇼 ${AppLocalizations.of(ctx)!.languageDisplayTraditionalChinese}',
           '🇺🇸 ${AppLocalizations.of(ctx)!.displaySettingsPageLanguageEnglishLabel}',
         ];
         double maxText = 0;
@@ -6399,7 +6399,7 @@ class _LanguageDropdownState extends State<_LanguageDropdown> {
     final items = <(_LangItem, bool)>[
       (_LangItem(flag: '🖥️', label: l10n.settingsPageSystemMode, tag: 'system'), sp.isFollowingSystemLocale),
       (_LangItem(flag: '🇨🇳', label: l10n.displaySettingsPageLanguageChineseLabel, tag: 'zh_CN'), (!sp.isFollowingSystemLocale && sp.appLocale.languageCode == 'zh' && (sp.appLocale.scriptCode ?? '').isEmpty)),
-      (_LangItem(flag: '🇨🇳', label: l10n.languageDisplayTraditionalChinese, tag: 'zh_Hant'), (!sp.isFollowingSystemLocale && sp.appLocale.languageCode == 'zh' && (sp.appLocale.scriptCode ?? '').toLowerCase() == 'hant')),
+      (_LangItem(flag: '🇹🇼', label: l10n.languageDisplayTraditionalChinese, tag: 'zh_Hant'), (!sp.isFollowingSystemLocale && sp.appLocale.languageCode == 'zh' && (sp.appLocale.scriptCode ?? '').toLowerCase() == 'hant')),
       (_LangItem(flag: '🇺🇸', label: l10n.displaySettingsPageLanguageEnglishLabel, tag: 'en_US'), (!sp.isFollowingSystemLocale && sp.appLocale.languageCode == 'en')),
     ];
     final maxH = MediaQuery.of(context).size.height * 0.5;
