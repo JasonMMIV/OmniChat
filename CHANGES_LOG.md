@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-16 (v1.18.2)
+- **Last Updated**: 2026-08-16 (v1.18.3)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -179,6 +179,23 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.18.3] - 2026-08-16: PlantUML 與 Markdown 表格工具列體驗優化（移除外跳按鈕、表格 UI 程式碼區塊風格統一、CSV 格式下載）
+
+> 優化圖表與 Markdown 表格的頂部工具列交互與樣式：① 移除 PlantUML 圖表頂部最右側的「在瀏覽器中開啟」外跳按鈕與相關代碼；② 重構 Markdown 表格頂部工具列與外層卡片容器，風格完全對齊程式碼區塊（`_HighlightCodeBlock`）；③ 移除表格左側「表格」字樣並保持空白；④ 將原「匯出 Markdown」按鈕替換為標準「下載」（`CodeBlockDownloadButton`），匯出格式全面改為標準 RFC 4180 CSV（`.csv`）。
+
+- **203a** PlantUML 外跳按鈕移除（`lib/shared/widgets/plantuml_block.dart`）：
+  - 移除頂部工具列最右側的 `Lucide.Link` 外跳按鈕及其點擊回呼。
+  - 清理 `_openPlantUMLPreview` 函式以及未使用的 `package:url_launcher/url_launcher.dart` 引用。
+- **203b** Markdown 表格容器與工具列 UI 風格統一（`lib/shared/widgets/markdown_with_highlight.dart`）：
+  - `_wrapTableWithToolbar` 外層改為統一圓角卡片包裝（`borderRadius: 12`、邊框 `outlineVariant`、`clipBehavior: Clip.antiAlias`），消除行動版與桌面版內部重複巢狀邊框與圓角。
+  - 頂部工具列改用 `Material`（`headerBg` 底色）與底部分隔線，風格與程式碼區塊標頭完全一致。
+  - 移除標頭左側「表格」文字標籤，保持空白（`Spacer`）。
+- **203c** Markdown 表格下載改為 `.csv` 格式（`lib/shared/widgets/markdown_with_highlight.dart`）：
+  - 匯出按鈕採用與程式碼區塊相同的標準 `CodeBlockDownloadButton`（圖示 `Lucide.Download`，文字多語系「下載」/「Download」）。
+  - 新增 `_rowsToCsv` 函式將表格資料轉換為標準 RFC 4180 CSV 格式（支援引號、逗號、換行等特殊字元轉義），並透過 `_exportTableCsv` 儲存為 `.csv` 檔案。
+- **Status**: 完成——`flutter test` full suite **439 tests passed**。
+- **Version**: pubspec `1.18.3+93`；installer.iss 1.18.3（`OmniChat_windows_v1.18.3_setup`）。
+- **Files Modified**: `lib/shared/widgets/plantuml_block.dart`、`lib/shared/widgets/markdown_with_highlight.dart`、`test/markdown_table_toolbar_test.dart`、`pubspec.yaml`、`installer.iss`、`changes_log.md`。
 ## [v1.18.0] - 2026-08-16: kelivo v1.1.13/v1.1.16 搜尋家族移植（Serper/Grok 搜尋服務商＋OpenRouter/DeepSeek 內建搜尋＋Claude 4.8/Fable 5 動態搜尋白名單）
 
 > 依 Session A 導入計畫（`import_plans/IMPORT_PLAN_SESSION_A_SEARCH.md`），導入 kelivo 上游搜尋相關功能五項：① **Serper** 搜尋服務商（commit `dcf4ca63`）；② **Grok** 搜尋服務商（xAI Responses API，commits `67eb8bce`＋`9fec9444`＋`5e62d5d9`，取最終版）；③ **OpenRouter 內建搜尋**（`9b579073`，chat-completions 路徑注入 `plugins: [{'id': 'web'}]`）；④ **DeepSeek 內建搜尋**（Claude 格式，`d2b909a3` 僅取 `isDeepSeekProvider` 判斷與 UI 白名單）；⑤ **Claude Opus 4.8 / Fable 5 動態搜尋白名單**（`316c343a` 僅白名單部分）。

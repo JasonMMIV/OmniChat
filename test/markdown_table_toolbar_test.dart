@@ -65,15 +65,15 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('renders a toolbar with label, copy and export actions', (tester) async {
+  testWidgets('renders a toolbar with download and copy actions and no label', (tester) async {
     final sp = await _loadedProvider();
     await _pumpMd(tester, sp, _tableMd);
 
-    // Toolbar label (en locale).
-    expect(find.text('Table'), findsOneWidget);
-    // Copy and export actions.
+    // Toolbar label is removed (empty).
+    expect(find.text('Table'), findsNothing);
+    // Copy and download actions.
     expect(find.text('Copy'), findsOneWidget);
-    expect(find.text('Export Markdown'), findsOneWidget);
+    expect(find.text('Download'), findsOneWidget);
   });
 
   testWidgets('copy button writes the rebuilt markdown table to the clipboard', (tester) async {
