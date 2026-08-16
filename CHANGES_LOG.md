@@ -6,7 +6,7 @@
 
 - **Project Name**: OmniChat (A fork of Kelivo, inspired by Rikkahub)
 - **Status**: Active Development / Feature Integration
-- **Last Updated**: 2026-08-16 (v1.18.1)
+- **Last Updated**: 2026-08-16 (v1.18.2)
 - **Platforms**: Android (ARM64 v8a), Windows
 
 ---
@@ -204,6 +204,27 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 - **Version**: pubspec `1.18.0+90`；installer.iss 1.18.0（`OmniChat_windows_v1.18.0_setup`）。
 - **Files Modified**: `lib/core/services/search/providers/serper_search_service.dart`（NEW）、`lib/core/services/search/providers/grok_search_service.dart`（NEW）、`lib/core/services/search/search_service.dart`、`assets/icons/serper.svg`（NEW）、`lib/utils/brand_assets.dart`、`lib/features/search/pages/search_services_page.dart`、`lib/desktop/setting/search_services_pane.dart`、`lib/features/search/widgets/search_settings_sheet.dart`、`lib/desktop/search_provider_popover.dart`、`lib/core/services/api/builtin_tools.dart`、`lib/core/services/api/chat_api_service.dart`、`lib/l10n/*.arb`（+13 keys × 4 語系）＋ `app_localizations*.dart`（gen-l10n 重新生成）、`pubspec.yaml`、`installer.iss`、`CHANGES_LOG.md`。
 - **Tests**: `test/core/services/search/serper_search_service_test.dart`（NEW，4 案例：序列化與 factory/icon 映射（`BrandAssets.assetForName('serper')`）／body 建構與結果解析（resultSize 截斷）／可選欄位省略＋空 organic／非 200 拋錯）。`test/core/services/search/grok_search_service_test.dart`（NEW，7 案例：序列化與 factory/icon 映射（`BrandAssets.assetForName('grok')`）／responses body 建構＋annotations url_citation 去重＋answer 解析／顯式 model 不附 reasoning／預設 model 附 `reasoning: {effort: 'none'}`／top-level citations 解析／空 apiKey 不發 request／非 200 拋錯）。`test/openrouter_builtin_search_test.dart`（NEW，4 案例：support matrix 啟用／Responses 路徑不支援／chat-completions 注入 `plugins` web plugin（HttpServer 端到端）／停用時無 plugins）。`test/builtin_tools_claude_dynamic_search_test.dart`（+8：fable-5/opus-4-8 支援、DeepSeek provider 動態搜尋 false、`isOpenRouterProvider`、`isDeepSeekProvider`、`supportsBuiltInSearchForModel` 3 案例）。`test/claude_dynamic_web_search_test.dart`（+1：DeepSeek-Anthropic provider 啟用內建搜尋 → tools 含 `web_search_20250305`、不含 code_execution 與 `web_search_20260209`）。
+
+## [v1.18.2] - 2026-08-16: 推理與模型支援移植（Session C：OpenAI Responses 工具接續修復、GPT-5.5 取樣參數剝離、Kimi K2.7 與 GLM 5.x 支援）
+
+> 依 Session C 導入計畫（`import_plans/IMPORT_PLAN_SESSION_C_REASONING_MODELS.md`），導入上游 kelivo 推理與模型支援系列（commits `8c5270d5`（Responses tool continuation 容錯）、`3a23b18a`（GPT-5.5 取樣參數剝離）、`c5dcd472`（Kimi K2.7 支援＋GLM 5.2 與多輪工具呼叫推理內容回顯））。
+
+- **202a** OpenAI Responses 工具接續修復（`lib/core/services/api/chat_api_service.dart`）：新增 `_withResponsesFunctionCallItems` 輔助函式。在 Responses 串流因故結束但 `response.completed` 未帶回完整 `output` items 時，依已解析的 `ToolCallInfo` 依序將缺失的 `function_call` item 按 `call_id` 補齊至 follow-up 的 `input` 陣列（置於對應 `function_call_output` 之前），解決 OpenAI Responses API 回傳 400 錯誤。
+- **202b** GPT-5.5 取樣參數剝離（`lib/core/utils/reasoning_capabilities.dart`＋`lib/core/services/api/chat_api_service.dart`）：
+  - `ReasoningCapabilities` 新增 `samplingRequiresNone`（預設 `false`）。`_openAiCapabilities` 針對 `gpt-5.5`（非 codex/chat-latest 且非 pro）標記 `samplingRequiresNone: true`，`gpt-5.5-pro` 維持 `false`。
+  - `chat_api_service.dart` 新增 `_applyGpt55SamplingParams`，在推理啟用且非 off 時自動自 request body 移除 `temperature` 與 `top_p`（掛接於非串流 `generateText`、串流主 body、Responses initial body 及多處 follow-up `body2`）。
+- **202c** Kimi K2.7 支援（`lib/core/providers/model_provider.dart`＋`lib/core/services/api/chat_api_service.dart`）：
+  - `ModelRegistry.vision` 正則納入 `kimi-k2([-.])(?:5|6|7)`。
+  - `_isKimiOmitsSamplingParamsModel` 與 `_removeMoonshotKimiUnsupportedSamplingParams`：針對 `kimi-k2.5` 與 `kimi-k2.7` 剝離 5 項不支援取樣參數（`temperature`、`top_p`、`n`、`presence_penalty`、`frequency_penalty`）。
+  - `_isKimiThinkingModel` 更新納入 `kimi-k2.7`，正規化 `thinking: {type: enabled|disabled}` 並移除 `reasoning_effort`。
+- **202d** GLM 5.x 支援與推理回顯（`lib/core/providers/model_provider.dart`＋`lib/core/services/api/chat_api_service.dart`）：
+  - `ModelRegistry.tool` 與 `ModelRegistry.reasoning` 正則擴充為 `glm-4([-.])(?:5|6|7)|glm-5`，自動推論 GLM 5.x 系列的 tool 與 reasoning 能力。
+  - 新增 `_isZhipuLikeProvider` 廣義化判定（providerId 包含 `zhipu`/`智谱`、host 包含 `open.bigmodel.cn`/`bigmodel`/`api.z.ai`、或模型名稱前綴 `glm-`）。
+  - 多輪工具呼叫（`_sendOpenAIStream`）的 `needsReasoningEcho` 判定納入 `isZhipu`，確保智譜在多輪工具呼叫時於 assistant message 中保留回顯 `reasoning_content`。
+- **Status**: 完成——`flutter test` full suite **439 tests passed**（v1.18.1 為 432 → +7：`reasoning_capabilities_test.dart` +1、`reasoning_budget_api_test.dart` +3、`session_c_reasoning_models_test.dart` +3）；`flutter analyze` 修改檔案 **no new errors/warnings**。
+- **Version**: pubspec `1.18.2+92`；installer.iss 1.18.2（`OmniChat_windows_v1.18.2_setup`）。
+- **Files Modified**: `lib/core/utils/reasoning_capabilities.dart`、`lib/core/providers/model_provider.dart`、`lib/core/services/api/chat_api_service.dart`、`test/reasoning_capabilities_test.dart`、`test/reasoning_budget_api_test.dart`、`test/session_c_reasoning_models_test.dart`（NEW）、`pubspec.yaml`、`installer.iss`、`CHANGES_LOG.md`。
+- **Tests**: `test/reasoning_capabilities_test.dart`（新增 GPT-5.5 `samplingRequiresNone` 與 Pro/Codex/Chat-latest 行為驗證）。`test/reasoning_budget_api_test.dart`（新增 GPT-5.5 取樣參數剝離、Kimi K2.7 thinking 物件與 5 項取樣參數剝離、GLM 5.x / Zhipu thinking mode 驗證）。`test/session_c_reasoning_models_test.dart`（NEW，3 案例：GLM-5.2 與 Kimi-K2.7-Code 能力推論／Responses tool continuation 在 completed output 為空時自動補齊 `function_call`／GLM-5.2 在多輪工具呼叫中完整保留 `reasoning_content` 與 `thinking: {type: enabled}`）。
 
 ## [v1.18.1] - 2026-08-16: kelivo v1.1.13–v1.1.16 Claude 提示快取（Prompt Caching）移植（Anthropic + OpenRouter，TTL 可調）＋DeepSeek Claude 相容 provider 偵測補強
 

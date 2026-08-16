@@ -931,11 +931,17 @@ class ChatApiService {
         );
         final effort = _openAIEffortForBudget(thinkingBudget, upstreamModelId);
         final host = Uri.tryParse(config.baseUrl)?.host.toLowerCase() ?? '';
+        final providerId = config.id.toLowerCase();
         final modelLower = upstreamModelId.toLowerCase();
         final bool isMimo =
             host.contains('xiaomimimo') ||
             modelLower.startsWith('mimo-') ||
             modelLower.contains('/mimo-');
+        final bool isZhipu = _isZhipuLikeProvider(
+          providerId: providerId,
+          host: host,
+          upstreamModelId: upstreamModelId,
+        );
         if (config.useResponseApi == true) {
           // Inject built-in web_search tool when enabled and supported
           final toolsList = <Map<String, dynamic>>[];
@@ -1025,6 +1031,12 @@ class ChatApiService {
           body as Map<String, dynamic>,
           upstreamModelId,
         );
+        _applyGpt55SamplingParams(
+          body as Map<String, dynamic>,
+          upstreamModelId: upstreamModelId,
+          isReasoning: isReasoning,
+          thinkingBudget: thinkingBudget,
+        );
         _applyOpenRouterClaudePromptCaching(
           body,
           config: config,
@@ -1039,9 +1051,7 @@ class ChatApiService {
         // Vendor-specific reasoning knobs for chat-completions compatible hosts (non-streaming)
         if (config.useResponseApi != true) {
           final off = _isOff(thinkingBudget);
-          if (host.contains('open.bigmodel.cn') ||
-              host.contains('bigmodel') ||
-              isMimo) {
+          if (isZhipu || isMimo) {
             // Zhipu BigModel / Xiaomi MiMo: thinking: { type: enabled|disabled }
             if (isReasoning) {
               (body as Map<String, dynamic>)['thinking'] = {
@@ -1351,17 +1361,99 @@ class ChatApiService {
     );
   }
 
+  static List<Map<String, dynamic>> _withResponsesFunctionCallItems(
+    List<Map<String, dynamic>> outputItems,
+    Iterable<ToolCallInfo> calls,
+  ) {
+    final replayItems = <Map<String, dynamic>>[
+      for (final item in outputItems) Map<String, dynamic>.from(item),
+    ];
+    final presentCallIds = replayItems
+        .where((item) => item['type'] == 'function_call')
+        .map((item) => (item['call_id'] ?? '').toString())
+        .where((callId) => callId.isNotEmpty)
+        .toSet();
+
+    for (final call in calls) {
+      if (call.id.isEmpty || presentCallIds.contains(call.id)) continue;
+      var argumentsJson = '{}';
+      try {
+        argumentsJson = jsonEncode(call.arguments);
+      } catch (_) {}
+      replayItems.add({
+        'type': 'function_call',
+        'call_id': call.id,
+        'name': call.name,
+        'arguments': argumentsJson,
+      });
+      presentCallIds.add(call.id);
+    }
+
+    return replayItems;
+  }
+
+  static void _applyGpt55SamplingParams(
+    Map<String, dynamic> body, {
+    required String upstreamModelId,
+    required bool isReasoning,
+    int? thinkingBudget,
+  }) {
+    if (!isReasoning || _isOff(thinkingBudget)) return;
+    final caps = ReasoningCapabilities.forModel(
+      ReasoningTransport.openAi,
+      upstreamModelId,
+    );
+    if (caps.samplingRequiresNone) {
+      body.remove('temperature');
+      body.remove('top_p');
+    }
+  }
+
   static bool _isKimiK25Model(String modelId) =>
       modelId.toLowerCase().contains('kimi-k2.5');
 
+  static bool _isKimiOmitsSamplingParamsModel(String upstreamModelId) {
+    final lower = upstreamModelId.toLowerCase();
+    return lower.contains('kimi-k2.5') || lower.contains('kimi-k2.7');
+  }
+
   static bool _isKimiThinkingModel(String modelId) {
     final lower = modelId.toLowerCase();
-    return lower.contains('kimi-k2-thinking') || lower.contains('kimi-k2.5');
+    return lower.contains('kimi-k2-thinking') ||
+        lower.contains('kimi-k2.5') ||
+        lower.contains('kimi-k2.6') ||
+        lower.contains('kimi-k2.7');
+  }
+
+  static void _removeMoonshotKimiUnsupportedSamplingParams(
+    Map<String, dynamic> body,
+  ) {
+    body.remove('temperature');
+    body.remove('top_p');
+    body.remove('n');
+    body.remove('presence_penalty');
+    body.remove('frequency_penalty');
+  }
+
+  static bool _isZhipuLikeProvider({
+    required String providerId,
+    required String host,
+    required String upstreamModelId,
+  }) {
+    final pid = providerId.toLowerCase();
+    final h = host.toLowerCase();
+    final modelLower = upstreamModelId.toLowerCase();
+    return pid.contains('zhipu') ||
+        pid.contains('智谱') ||
+        h.contains('open.bigmodel.cn') ||
+        h.contains('bigmodel') ||
+        h == 'api.z.ai' ||
+        modelLower.startsWith('glm-');
   }
 
   /// Normalize the chat-completions body for Moonshot Kimi thinking models
-  /// (kimi-k2-thinking / kimi-k2.5). k2.5 uses `thinking: {type: enabled|disabled}`
-  /// and rejects sampling params while thinking; other Kimi thinking models
+  /// (kimi-k2-thinking / kimi-k2.5 / kimi-k2.7). k2.5/k2.7 use `thinking: {type: enabled|disabled}`
+  /// and reject sampling params while thinking; other Kimi thinking models
   /// fall back to the vendor default by omitting `thinking`.
   static void _normalizeMoonshotKimiChatBody(
     Map<String, dynamic> body, {
@@ -1374,22 +1466,24 @@ class ChatApiService {
     body.remove('reasoning_effort');
     if (!isReasoning) {
       body.remove('thinking');
+      if (_isKimiOmitsSamplingParamsModel(upstreamModelId)) {
+        _removeMoonshotKimiUnsupportedSamplingParams(body);
+      }
       return;
     }
 
-    if (_isKimiK25Model(upstreamModelId)) {
+    if (_isKimiOmitsSamplingParamsModel(upstreamModelId)) {
       body['thinking'] = {
         'type': _isOff(thinkingBudget) ? 'disabled' : 'enabled',
       };
-      body.remove('temperature');
-      body.remove('top_p');
-      body.remove('n');
-      body.remove('presence_penalty');
-      body.remove('frequency_penalty');
+      _removeMoonshotKimiUnsupportedSamplingParams(body);
       return;
     }
 
     body.remove('thinking');
+    if (_isKimiOmitsSamplingParamsModel(upstreamModelId)) {
+      _removeMoonshotKimiUnsupportedSamplingParams(body);
+    }
   }
 
   static void _applyDeepSeekThinkingKnob(
@@ -1700,16 +1794,23 @@ class ChatApiService {
 
     final effort = _openAIEffortForBudget(thinkingBudget, upstreamModelId);
     final host = Uri.tryParse(config.baseUrl)?.host.toLowerCase() ?? '';
+    final providerId = config.id.toLowerCase();
     final modelLower = upstreamModelId.toLowerCase();
     final bool isAzureOpenAI = host.contains('openai.azure.com');
     final bool isMimoHost = host.contains('xiaomimimo');
     final bool isMimoModel =
         modelLower.startsWith('mimo-') || modelLower.contains('/mimo-');
     final bool isMimo = isMimoHost || isMimoModel;
+    final bool isZhipu = _isZhipuLikeProvider(
+      providerId: providerId,
+      host: host,
+      upstreamModelId: upstreamModelId,
+    );
     final bool needsReasoningEcho =
         (host.contains('deepseek') ||
             modelLower.contains('deepseek') ||
             isMimo ||
+            isZhipu ||
             _isKimiThinkingModel(upstreamModelId)) &&
         isReasoning;
     // OpenRouter reasoning models require preserving `reasoning_details` across tool-calling turns.
@@ -1962,6 +2063,12 @@ class ChatApiService {
             if (effort != 'auto') 'effort': effort,
           },
       };
+      _applyGpt55SamplingParams(
+        body as Map<String, dynamic>,
+        upstreamModelId: upstreamModelId,
+        isReasoning: isReasoning,
+        thinkingBudget: thinkingBudget,
+      );
       // Append include parameter if we opted into sources via overrides
       try {
         final ov = config.modelOverrides[modelId];
@@ -2121,6 +2228,12 @@ class ChatApiService {
       };
       _setMaxTokens(body);
       _removeKimiK3SamplingParams(body, upstreamModelId);
+      _applyGpt55SamplingParams(
+        body,
+        upstreamModelId: upstreamModelId,
+        isReasoning: isReasoning,
+        thinkingBudget: thinkingBudget,
+      );
       _applyOpenRouterClaudePromptCaching(
         body,
         config: config,
@@ -2167,9 +2280,7 @@ class ChatApiService {
           (body as Map<String, dynamic>).remove('thinking_budget');
         }
         (body as Map<String, dynamic>).remove('reasoning_effort');
-      } else if (host.contains('open.bigmodel.cn') ||
-          host.contains('bigmodel') ||
-          isMimo) {
+      } else if (isZhipu || isMimo) {
         // Zhipu (BigModel) / Xiaomi MiMo: thinking.type enabled/disabled
         if (isReasoning) {
           (body as Map<String, dynamic>)['thinking'] = {
@@ -2779,6 +2890,12 @@ class ChatApiService {
               };
               _setMaxTokens(body2);
               _removeKimiK3SamplingParams(body2, upstreamModelId);
+              _applyGpt55SamplingParams(
+                body2,
+                upstreamModelId: upstreamModelId,
+                isReasoning: isReasoning,
+                thinkingBudget: thinkingBudget,
+              );
               _applyOpenRouterClaudePromptCaching(
                 body2,
                 config: config,
@@ -2822,9 +2939,7 @@ class ChatApiService {
                   body2.remove('thinking_budget');
                 }
                 body2.remove('reasoning_effort');
-              } else if (host.contains('open.bigmodel.cn') ||
-                  host.contains('bigmodel') ||
-                  isMimo) {
+              } else if (isZhipu || isMimo) {
                 if (isReasoning) {
                   body2['thinking'] = {'type': off ? 'disabled' : 'enabled'};
                 } else {
@@ -3530,10 +3645,15 @@ class ChatApiService {
                 }
 
                 // Build follow-up Responses request input
+                final responseOutputItems = _withResponsesFunctionCallItems(
+                  lastResponseOutputItems,
+                  callInfos,
+                );
                 List<Map<String, dynamic>> currentInput =
                     <Map<String, dynamic>>[...responsesInitialInput];
-                if (lastResponseOutputItems.isNotEmpty)
-                  currentInput.addAll(lastResponseOutputItems);
+                if (responseOutputItems.isNotEmpty) {
+                  currentInput.addAll(responseOutputItems);
+                }
                 currentInput.addAll(followUpOutputs);
 
                 // Iteratively request until no more tool calls
@@ -3558,6 +3678,12 @@ class ChatApiService {
                     if (responsesIncludeParam != null)
                       'include': responsesIncludeParam,
                   };
+                  _applyGpt55SamplingParams(
+                    body2,
+                    upstreamModelId: upstreamModelId,
+                    isReasoning: isReasoning,
+                    thinkingBudget: thinkingBudget,
+                  );
 
                   // Apply overrides
                   final extraCfg = _customBody(config, modelId);
@@ -3778,8 +3904,14 @@ class ChatApiService {
                       toolResults: resultsInfo2,
                     );
                   }
+                  final responseOutputItems2 = _withResponsesFunctionCallItems(
+                    outItems2,
+                    callInfos2,
+                  );
                   // Extend current input with this round's model output and our outputs
-                  if (outItems2.isNotEmpty) currentInput.addAll(outItems2);
+                  if (responseOutputItems2.isNotEmpty) {
+                    currentInput.addAll(responseOutputItems2);
+                  }
                   currentInput.addAll(followUpOutputs2);
                 }
 
@@ -4205,6 +4337,12 @@ class ChatApiService {
               };
               _setMaxTokens(body2);
               _removeKimiK3SamplingParams(body2, upstreamModelId);
+              _applyGpt55SamplingParams(
+                body2,
+                upstreamModelId: upstreamModelId,
+                isReasoning: isReasoning,
+                thinkingBudget: thinkingBudget,
+              );
               _applyOpenRouterClaudePromptCaching(
                 body2,
                 config: config,
@@ -4246,9 +4384,7 @@ class ChatApiService {
                   body2.remove('thinking_budget');
                 }
                 body2.remove('reasoning_effort');
-              } else if (host.contains('open.bigmodel.cn') ||
-                  host.contains('bigmodel') ||
-                  isMimo) {
+              } else if (isZhipu || isMimo) {
                 if (isReasoning) {
                   body2['thinking'] = {'type': off ? 'disabled' : 'enabled'};
                 } else {
@@ -4807,6 +4943,12 @@ class ChatApiService {
                   };
                   _setMaxTokens(body2);
                   _removeKimiK3SamplingParams(body2, upstreamModelId);
+                  _applyGpt55SamplingParams(
+                    body2,
+                    upstreamModelId: upstreamModelId,
+                    isReasoning: isReasoning,
+                    thinkingBudget: thinkingBudget,
+                  );
                   _applyOpenRouterClaudePromptCaching(
                     body2,
                     config: config,
@@ -4853,6 +4995,7 @@ class ChatApiService {
                   } else if (host.contains('ark.cn-beijing.volces.com') ||
                       host.contains('volc') ||
                       host.contains('ark') ||
+                      isZhipu ||
                       isMimo) {
                     if (isReasoning) {
                       body2['thinking'] = {

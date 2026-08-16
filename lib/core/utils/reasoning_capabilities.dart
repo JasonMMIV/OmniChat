@@ -42,6 +42,7 @@ class ReasoningCapabilities {
     this.supportsMax = false,
     this.supportsAdaptiveThinking = false,
     this.thinkingAlwaysOn = false,
+    this.samplingRequiresNone = false,
     this.openAiEfforts = const <String>{},
     this.openAiOffFallback,
   });
@@ -50,6 +51,7 @@ class ReasoningCapabilities {
   final bool supportsMax;
   final bool supportsAdaptiveThinking;
   final bool thinkingAlwaysOn;
+  final bool samplingRequiresNone;
   final Set<String> openAiEfforts;
   final String? openAiOffFallback;
 
@@ -127,9 +129,20 @@ class ReasoningCapabilities {
     if (minor == 3 && isCodexOrChat) {
       return const ReasoningCapabilities(supportsXhigh: true);
     }
-    if (minor == 4 || minor == 5) {
+    if (minor == 4) {
       if (isCodexOrChat) return unsupported;
       return const ReasoningCapabilities(supportsXhigh: true);
+    }
+    if (minor == 5) {
+      if (isCodexOrChat) return unsupported;
+      final isPro = _containsModel(id, r'gpt-5\.5-pro(?:$|[-.:@])');
+      if (isPro) {
+        return const ReasoningCapabilities(supportsXhigh: true);
+      }
+      return const ReasoningCapabilities(
+        supportsXhigh: true,
+        samplingRequiresNone: true,
+      );
     }
     if (minor == 6) {
       return const ReasoningCapabilities(
