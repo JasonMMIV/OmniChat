@@ -4640,6 +4640,16 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mermaidCodeTab => '代码';
+
+  @override
+  String get webView2NotAvailableTitle => 'WebView2 不可用';
+
+  @override
+  String get webView2NotAvailableMessage =>
+      '系统缺少 Microsoft Edge WebView2 Runtime，无法在此显示内容。请安装 WebView2 Runtime 后重试，或改用外部浏览器打开。';
+
+  @override
+  String get webView2InstallAction => '安装 WebView2 Runtime';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -9061,6 +9071,16 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get mermaidCodeTab => '代码';
+
+  @override
+  String get webView2NotAvailableTitle => 'WebView2 不可用';
+
+  @override
+  String get webView2NotAvailableMessage =>
+      '系统缺少 Microsoft Edge WebView2 Runtime，无法在此显示内容。请安装 WebView2 Runtime 后重试，或改用外部浏览器打开。';
+
+  @override
+  String get webView2InstallAction => '安装 WebView2 Runtime';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -13589,4 +13609,14 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get mermaidCodeTab => '程式碼';
+
+  @override
+  String get webView2NotAvailableTitle => 'WebView2 不可用';
+
+  @override
+  String get webView2NotAvailableMessage =>
+      '系統缺少 Microsoft Edge WebView2 Runtime，無法在此顯示內容。請安裝 WebView2 Runtime 後重試，或改用外部瀏覽器開啟。';
+
+  @override
+  String get webView2InstallAction => '安裝 WebView2 Runtime';
 }

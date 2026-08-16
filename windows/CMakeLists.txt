@@ -42,6 +42,11 @@ function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_features(${TARGET} PUBLIC cxx_std_17)
   target_compile_options(${TARGET} PRIVATE /W4 /WX /wd"4100")
   target_compile_options(${TARGET} PRIVATE /EHsc)
+  # WACK binary-hardening: enable Control Flow Guard (W-C05).
+  # ASLR (/DYNAMICBASE + High Entropy VA) and DEP (/NXCOMPAT) are MSVC
+  # defaults; /guard:cf must be requested explicitly for both compile and link.
+  target_compile_options(${TARGET} PRIVATE /guard:cf)
+  target_link_options(${TARGET} PRIVATE /guard:cf)
   target_compile_definitions(${TARGET} PRIVATE "_HAS_EXCEPTIONS=0")
   target_compile_definitions(${TARGET} PRIVATE "$<$<CONFIG:Debug>:_DEBUG>")
 endfunction()

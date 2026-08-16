@@ -1538,5 +1538,8 @@
   "markdownTableLabel": "表格",
   "markdownTableExportMarkdownButton": "导出 Markdown",
   "mermaidImageTab": "图形",
-  "mermaidCodeTab": "代码"
+  "mermaidCodeTab": "代码",
+  "webView2NotAvailableTitle": "WebView2 不可用",
+  "webView2NotAvailableMessage": "系统缺少 Microsoft Edge WebView2 Runtime，无法在此显示内容。请安装 WebView2 Runtime 后重试，或改用外部浏览器打开。",
+  "webView2InstallAction": "安装 WebView2 Runtime"
 }

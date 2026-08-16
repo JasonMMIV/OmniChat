@@ -179,6 +179,28 @@ Provides a comprehensive context control flow aligned with upstream (Kelivo)'s d
 ---
 
 ## 📜 Version Changes Log
+## [v1.18.3-rev2] - 2026-08-16: Windows 上架前置修復（W-C05 CFG 啟用、W-C04 WebView2 降級）＋隱私/AI 內容政策文稿
+
+> 依 STORE_REVIEW_PLAN.md Phase 2/3 執行：① `windows/CMakeLists.txt` 啟用 Control Flow Guard（`/guard:cf`），dumpbin 驗證 `0xC160`（W-C05）；② WebView2 初始化/載入降級處理——HTML 預覽與 WebView 頁在 WebView2 Runtime 缺失時顯示安裝提示並可降級外部瀏覽器（W-C04）；③ About 頁（行動＋桌面）加入隱私權政策入口；④ 草擬雙語隱私權政策與 AI 內容政策文稿（docs/）。
+
+- **W-C05**（`windows/CMakeLists.txt`）：`APPLY_STANDARD_SETTINGS` 加入 `/guard:cf`（compile＋link）；重建後 `OmniChat.exe` DLL characteristics `0x8160 → 0xC160`（含 Control Flow Guard；ASLR/DEP 原已達標）。
+- **W-C04**（`lib/desktop/html_preview_dialog.dart`、`lib/shared/pages/webview_page.dart`）：WebView2 初始化/載入包 try/catch；失敗時顯示錯誤 UI（新 l10n key `webView2NotAvailableTitle`/`webView2NotAvailableMessage`/`webView2InstallAction` × 4 語系）＋「安裝 WebView2 Runtime」按鈕＋「用外部瀏覽器開啟」降級；URL 模式自動降級外部瀏覽器。
+- **W-C02**（`lib/features/settings/pages/about_page.dart`、`lib/desktop/setting/about_pane.dart`、`docs/privacy_policy_en.md` NEW、`docs/privacy_policy_zh_TW.md` NEW）：About 頁加入隱私權政策入口（`aboutPagePrivacyPolicy`，GitHub Pages URL）；雙語隱私權政策文稿。
+- **W-C03**（`docs/ai_content_policy_en.md` NEW、`docs/ai_content_policy_zh_TW.md` NEW）：AI 生成內容政策（免責聲明＋回報管道）雙語文稿。
+- **Status**: 完成——`flutter test` full suite **439 tests passed**；`flutter analyze` 修改檔案無新增 error/warning（新增行無任何警告，其餘為既有 deprecated/unused 等與 HEAD 相同）。
+- **Files Modified**: `windows/CMakeLists.txt`、`lib/desktop/html_preview_dialog.dart`、`lib/shared/pages/webview_page.dart`、`lib/features/settings/pages/about_page.dart`、`lib/desktop/setting/about_pane.dart`、`lib/l10n/*.arb`（+3 keys × 4 語系）＋ `app_localizations*.dart`（gen-l10n 重新生成）、`docs/privacy_policy_en.md`（NEW）、`docs/privacy_policy_zh_TW.md`（NEW）、`docs/ai_content_policy_en.md`（NEW）、`docs/ai_content_policy_zh_TW.md`（NEW）、`STORE_REVIEW_PLAN.md`、`CHANGES_LOG.md`。
+
+## [v1.18.3-rev1] - 2026-08-16: Android 上架前置修復（C-F03 冗餘權限移除、W-F01 明文傳輸收緊、W-F02/W-F03 F-Droid Metadata 宣告）
+
+> 依 `STORE_REVIEW_PLAN.md` Phase 1 執行上架前置修復：① 自 `AndroidManifest.xml` 移除冗餘的 `BLUETOOTH_ADVERTISE` 權限（C-F03）；② 新增 `res/xml/network_security_config.xml` 收緊明文傳輸——公網強制 HTTPS、僅放行 loopback 與模擬器主機，Manifest 改 `usesCleartextTraffic="false"` 並掛接 networkSecurityConfig（W-F01）；③ 建立 `metadata/com.psyche.omnichat.yml`，宣告 `AntiFeatures: [NonFreeNet]` 並說明字型下載行為（W-F02/W-F03）。
+
+- **C-F03**（`android/app/src/main/AndroidManifest.xml`）：移除 `BLUETOOTH_ADVERTISE`，保留 `BLUETOOTH_CONNECT` 與 `MODIFY_AUDIO_SETTINGS`（語音聊天 Bluetooth SCO 路由所需）；manifest merger 已確認無 plugin 依賴此權限。
+- **W-F01**（`android/app/src/main/res/xml/network_security_config.xml` NEW）：`base-config cleartextTrafficPermitted="false"`（公網 HTTPS-only），`domain-config` 僅放行 `localhost`/`127.0.0.1`/`::1`（OAuth loopback redirect、本機 MCP/LLM 端點）與 `10.0.2.2`（模擬器主機）；Manifest `usesCleartextTraffic="false"`。
+  - **已知限制**：Android network security config 不支援 IP 網段/CIDR，且新版 Flutter 已無 Dart 層 `NetworkSecurityPolicy` 覆寫機制；LAN Private IP 明文端點（自訂 provider / MCP 走 `http://192.168.x.x`）在 Android 上將被擋下，需改用 HTTPS 或逐筆白名單。
+- **W-F02/W-F03**（`metadata/com.psyche.omnichat.yml` NEW）：宣告 `AntiFeatures: [NonFreeNet]`（雲端商業模型 API 依賴）並於 Description 說明字型動態下載行為；預設字型為系統字型、離線可用（`appFontFamily` 預設空 → 系統字型）。
+- **Status**: 完成——`flutter build apk --debug` 建置成功；以 aapt 驗證 APK 內 manifest（無 `BLUETOOTH_ADVERTISE`、`usesCleartextTraffic="false"`、`networkSecurityConfig` 掛接 `@0x7f120004`）與 `res/xml/network_security_config.xml` 已打包。
+- **Files Modified**: `android/app/src/main/AndroidManifest.xml`、`android/app/src/main/res/xml/network_security_config.xml`（NEW）、`metadata/com.psyche.omnichat.yml`（NEW）、`STORE_REVIEW_PLAN.md`、`CHANGES_LOG.md`。
+
 ## [v1.18.3-rev0] - 2026-08-16: Windows Store & F-Droid 上架前置審查基線治理（Phase 0 靜態分析錯誤歸零與倉庫二進制清理）
 
 > 針對 Windows Store 與 F-Droid 上架合規要求進行專案基線治理：① 更新 `analysis_options.yaml` 排除 vendored 依賴套件內部範例測試，消除未定義符號錯誤，達成全專案靜態分析 0 compile errors；② 自 Git 追蹤中移除預編譯二進制 `windows/nuget.exe`，滿足 F-Droid 零二進制 Blob (Binary Blobs) 規範。

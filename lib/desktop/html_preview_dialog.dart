@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_windows/webview_windows.dart' as winweb;
 import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:io' as io;
 import '../l10n/app_localizations.dart';
 import '../icons/lucide_adapter.dart';
@@ -65,10 +66,21 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
     _init();
   }
 
+  String? _initError;
+
   Future<void> _init() async {
     if (Platform.isWindows) {
       final c = winweb.WebviewController();
-      await c.initialize();
+      try {
+        await c.initialize();
+      } catch (e) {
+        // WebView2 Runtime missing / init failure (W-C04): degrade to a
+        // readable error UI with install/browser fallbacks instead of crashing.
+        if (_disposed || !mounted) return;
+        _initError = '$e';
+        setState(() {});
+        return;
+      }
       // After this await, dispose() may have already run; bail before touching
       // any COM surface to avoid racing the disposal path.
       if (_disposed) return;
@@ -135,6 +147,24 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
     final file = io.File('${dir.path}/preview_${DateTime.now().millisecondsSinceEpoch}$extension');
     await file.writeAsString(content, flush: true);
     return file.path;
+  }
+
+  void _openInBrowser() {
+    final ext = widget.isXml ? '.xml' : '.html';
+    _writeTempFile(widget.html, ext).then((path) async {
+      if (!mounted) return;
+      final ok = await launchUrl(Uri.file(path), mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        showAppSnackBar(context,
+            message: AppLocalizations.of(context)!.webView2NotAvailableMessage,
+            type: NotificationType.error);
+      }
+    });
+  }
+
+  void _openWebView2Download() {
+    launchUrl(Uri.parse('https://developer.microsoft.com/microsoft-edge/webview2/'),
+        mode: LaunchMode.externalApplication);
   }
 
   Future<void> _loadWithTheme() async {
@@ -222,6 +252,44 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
                       borderRadius: BorderRadius.circular(12),
                       child: Builder(
                         builder: (context) {
+                          if (_initError != null) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.warning_amber_rounded, size: 36, color: cs.error),
+                                    const SizedBox(height: 12),
+                                    Text(l10n.webView2NotAvailableTitle,
+                                        style: Theme.of(context).textTheme.titleMedium),
+                                    const SizedBox(height: 8),
+                                    Text(l10n.webView2NotAvailableMessage,
+                                        textAlign: TextAlign.center,
+                                        style: Theme.of(context).textTheme.bodyMedium),
+                                    const SizedBox(height: 16),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      alignment: WrapAlignment.center,
+                                      children: [
+                                        FilledButton.icon(
+                                          onPressed: _openWebView2Download,
+                                          icon: const Icon(Icons.download, size: 18),
+                                          label: Text(l10n.webView2InstallAction),
+                                        ),
+                                        OutlinedButton.icon(
+                                          onPressed: _openInBrowser,
+                                          icon: const Icon(Icons.open_in_new, size: 18),
+                                          label: Text(l10n.messageWebViewOpenInBrowser),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
                           if (Platform.isWindows) {
                             final c = _winCtrl;
                             if (c == null) return const SizedBox.shrink();

@@ -8995,6 +8995,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Code'**
   String get mermaidCodeTab;
+
+  /// No description provided for @webView2NotAvailableTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'WebView2 unavailable'**
+  String get webView2NotAvailableTitle;
+
+  /// No description provided for @webView2NotAvailableMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Microsoft Edge WebView2 Runtime is missing, so this content cannot be displayed here. Install the WebView2 Runtime and try again, or open it in your external browser.'**
+  String get webView2NotAvailableMessage;
+
+  /// No description provided for @webView2InstallAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Install WebView2 Runtime'**
+  String get webView2InstallAction;
 }
 
 class _AppLocalizationsDelegate

@@ -1583,6 +1583,9 @@
   "markdownTableLabel": "表格",
   "markdownTableExportMarkdownButton": "匯出 Markdown",
   "mermaidImageTab": "圖形",
-  "mermaidCodeTab": "程式碼"
+  "mermaidCodeTab": "程式碼",
+  "webView2NotAvailableTitle": "WebView2 不可用",
+  "webView2NotAvailableMessage": "系統缺少 Microsoft Edge WebView2 Runtime，無法在此顯示內容。請安裝 WebView2 Runtime 後重試，或改用外部瀏覽器開啟。",
+  "webView2InstallAction": "安裝 WebView2 Runtime"
 }
 

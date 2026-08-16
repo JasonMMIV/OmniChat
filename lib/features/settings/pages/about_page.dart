@@ -548,6 +548,14 @@ class _AboutPageState extends State<AboutPage> {
             label: l10n.aboutPageLicense,
             onTap: () => _openUrl('https://github.com/JasonMMIV/OmniChat/blob/master/LICENSE'),
           ),
+            _iosDivider(context),
+            _iosNavRow(
+              context,
+              icon: Lucide.Shield,
+              label: l10n.aboutPagePrivacyPolicy,
+              // W-C02: 隱私權政策公開 URL（GitHub Pages 發布後生效）
+              onTap: () => _openUrl('https://jasonmmiv.github.io/OmniChat/docs/privacy_policy_en.html'),
+            ),
           ]),
 
           const SizedBox(height: 24),
