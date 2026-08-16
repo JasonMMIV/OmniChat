@@ -1945,5 +1945,8 @@
   "markdownTableLabel": "Table",
   "markdownTableExportMarkdownButton": "Export Markdown",
   "mermaidImageTab": "Image",
-  "mermaidCodeTab": "Code"
+  "mermaidCodeTab": "Code",
+  "webView2NotAvailableTitle": "WebView2 unavailable",
+  "webView2NotAvailableMessage": "Microsoft Edge WebView2 Runtime is missing, so this content cannot be displayed here. Install the WebView2 Runtime and try again, or open it in your external browser.",
+  "webView2InstallAction": "Install WebView2 Runtime"
 }

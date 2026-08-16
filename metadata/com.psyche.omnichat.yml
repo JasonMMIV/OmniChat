@@ -1,0 +1,36 @@
+# OmniChat F-Droid metadata
+# Application ID: com.psyche.omnichat
+#
+# W-F02: AntiFeatures: [NonFreeNet] declared below with justification.
+# W-F03: Font download behavior documented in the Description below.
+
+AntiFeatures:
+  - NonFreeNet
+Categories:
+  - Internet
+License: AGPL-3.0
+WebSite: https://github.com/JasonMMIV/OmniChat
+SourceCode: https://github.com/JasonMMIV/OmniChat
+IssueTracker: https://github.com/JasonMMIV/OmniChat/issues
+Changelog: https://github.com/JasonMMIV/OmniChat/blob/master/CHANGES_LOG.md
+Summary: Cross-platform LLM chat client with voice, search and AI Team
+Description: |
+  OmniChat is a cross-platform LLM (AI chat) client offering text chat,
+  voice chat with inline dictation, web search, Mixture-of-Agents
+  (AI Team), document workspace tools, PDF/Markdown export, and a local
+  code-execution (MCP) sandbox. Chat history and settings are stored
+  locally on the device; requests are sent directly to the model
+  providers you configure. No account is required to use the app.
+
+  AntiFeature: NonFreeNet
+  OmniChat connects to cloud-based commercial LLM APIs (OpenAI, Google
+  Gemini, Anthropic Claude, DeepSeek, OpenRouter, Moonshot, Neuralwatt
+  and others). Using these services requires an internet connection and,
+  for most providers, a paid API key. The app itself is fully open source
+  (AGPL-3.0); no model provider or API key is bundled or required.
+
+  Fonts
+  The default UI font is the device system font and works fully offline.
+  When you select a Google Font in the font picker, the font is fetched
+  at runtime from Google's font servers (google_fonts package). If the
+  network is unavailable, the system font is used instead.

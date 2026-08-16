@@ -4661,4 +4661,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mermaidCodeTab => 'Code';
+
+  @override
+  String get webView2NotAvailableTitle => 'WebView2 unavailable';
+
+  @override
+  String get webView2NotAvailableMessage =>
+      'Microsoft Edge WebView2 Runtime is missing, so this content cannot be displayed here. Install the WebView2 Runtime and try again, or open it in your external browser.';
+
+  @override
+  String get webView2InstallAction => 'Install WebView2 Runtime';
 }

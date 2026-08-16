@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  OmniChat network security configuration (STORE_REVIEW_PLAN W-F01).
+
+  - Public internet: cleartext (HTTP) is DISABLED -> HTTPS only.
+  - Cleartext is explicitly whitelisted only for local development /
+    self-hosted endpoints on the device itself:
+      localhost, 127.0.0.1, ::1  -> loopback (OAuth callback, local MCP/LLM)
+      10.0.2.2                   -> Android emulator host loopback alias
+
+  Known limitation: Android network security config cannot express
+  private-IP ranges / CIDR (e.g. 192.168.x.x), and modern Flutter no longer
+  exposes a Dart-level NetworkSecurityPolicy override. LAN self-hosted
+  endpoints reached by raw IP (Ollama, MCP servers, custom providers using
+  http://<lan-ip>:port) are therefore blocked on Android; use HTTPS for
+  those, or add the specific host below.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">::1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

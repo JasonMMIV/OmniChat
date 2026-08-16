@@ -128,6 +128,13 @@ class _DesktopAboutPaneState extends State<DesktopAboutPane> {
                     label: l10n.aboutPageLicense,
                     onTap: () => _openUrl('https://github.com/JasonMMIV/OmniChat/blob/master/LICENSE'),
                   ),
+                  const _DeskRowDivider(),
+                  _DeskNavRow(
+                    icon: lucide.Lucide.Shield,
+                    label: l10n.aboutPagePrivacyPolicy,
+                    // W-C02: 隱私權政策公開 URL（GitHub Pages 發布後生效）
+                    onTap: () => _openUrl('https://jasonmmiv.github.io/OmniChat/docs/privacy_policy_en.html'),
+                  ),
                 ],
               ),
             ],

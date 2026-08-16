@@ -68,12 +68,30 @@ class _WebViewPageState extends State<WebViewPage> {
       return;
     }
     final url = widget.url?.trim() ?? '';
-    if (url.isNotEmpty) {
-      await _controller.loadRequest(Uri.parse(url));
-    } else {
-      final data = widget.contentBase64 ?? '';
-      final html = data.isEmpty ? '<!doctype html><html><body></body></html>' : utf8.decode(base64Decode(data));
-      await _controller.loadHtmlString(html);
+    try {
+      if (url.isNotEmpty) {
+        await _controller.loadRequest(Uri.parse(url));
+      } else {
+        final data = widget.contentBase64 ?? '';
+        final html = data.isEmpty ? '<!doctype html><html><body></body></html>' : utf8.decode(base64Decode(data));
+        await _controller.loadHtmlString(html);
+      }
+    } catch (_) {
+      // WebView2 Runtime missing / load failure (W-C04): inform the user and
+      // fall back to opening the URL in the external browser when possible.
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(l10n.webView2NotAvailableMessage)));
+      if (url.isNotEmpty) {
+        final uri = Uri.tryParse(url);
+        if (uri != null) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      }
+      if (!mounted) return;
+      Navigator.of(context).maybePop();
+      return;
     }
   }
 
