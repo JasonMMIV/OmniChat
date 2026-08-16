@@ -21,6 +21,8 @@ Description: |
   code-execution (MCP) sandbox. Chat history and settings are stored
   locally on the device; requests are sent directly to the model
   providers you configure. No account is required to use the app.
+  OmniChat is a fork of Kelivo (https://github.com/Chevey339/kelivo),
+  distributed under the AGPL-3.0 license.
 
   AntiFeature: NonFreeNet
   OmniChat connects to cloud-based commercial LLM APIs (OpenAI, Google
