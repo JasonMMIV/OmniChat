@@ -127,7 +127,7 @@
 - **實作（2026-08-16）**：✅ 完成——`msix:create` 產出 `build/windows/x64/runner/Release/OmniChat.msix`（Identity `com.psyche.omnichat` `1.18.3.0`、Capabilities `internetClient`＋`microphone`＋`runFullTrust`）；自簽憑證（`windows/certs/`，gitignored）以 SignTool 簽章（`AppxSignature.p7x`）；匯入 `LocalMachine\TrustedPeople` 後 `Add-AppxPackage` **本機安裝成功**；WACK（Windows App Certification Kit）**OVERALL_RESULT=PASS**（21 PASS；3 項無訊息 FAIL：App resources／Blocked executables／Archive files usage，為未部署情境之資訊性項目）。注意：此 SDK 版 WACK 參數為 `/apptype`、`/appxPackagePath`、`/reportoutputpath`（包裝腳本 `tool/run_wack.ps1`）；`msix:create` 每次全量重建（>6 分鐘），簽章亦可用同套 SignTool 流程。
 
 ##### W-C02 / W-C03 進度（2026-08-16）：
-- **W-C02**：✅ 文稿已草擬（`docs/privacy_policy_en.md`、`docs/privacy_policy_zh_TW.md`）；About 頁（行動版＋桌面版）已加入隱私權政策入口（`aboutPagePrivacyPolicy`，指向 GitHub Pages URL）。⏳ **待辦（需使用者於 GitHub Settings 操作）**：repo Settings → Pages → Source: main branch `/docs` 啟用後 URL 即生效（repo 為 public；API 確認 Pages 目前未啟用，URL 回 404）。並於商店頁面填入該 URL。
+- **W-C02**：✅ 文稿已草擬（`docs/privacy_policy_en.md`、`docs/privacy_policy_zh_TW.md`）；About 頁（行動版＋桌面版）已加入隱私權政策入口（`aboutPagePrivacyPolicy`，指向 GitHub Pages URL）。⏳ **Pages 已啟用（使用者 2026-08-16 操作），待佈建完成**：Source: main branch `/docs`；API 檢查於當日仍回 404（佈建中），生效後應驗證 `https://jasonmmiv.github.io/OmniChat/docs/privacy_policy_en.html`（Jekyll 渲染 .md → .html）可存取，再於商店頁面填入該 URL。
 - **W-C03**：✅ 文稿已草擬（`docs/ai_content_policy_en.md`、`docs/ai_content_policy_zh_TW.md`，含免責聲明＋回報管道）。✅ **App 內入口已實作（2026-08-16）**：About 頁（行動＋桌面）新增「AI 內容政策」列（`aboutPageAiContentPolicy`）→ 免責聲明對話框＋「開啟 GitHub Issues」回報按鈕（l10n ×4 語系）。
 
 1. **MSIX 封裝與應用程式識別**：
