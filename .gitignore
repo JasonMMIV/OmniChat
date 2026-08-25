@@ -80,3 +80,7 @@ internationalization.md
 
 # MSIX dev signing certificate (DO NOT COMMIT)
 /windows/certs/
+
+# Project documentation & manual — not for public repo
+/OmniChat 專案開發與維護手冊.md
+
