@@ -149,6 +149,19 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
     return file.path;
   }
 
+  /// C-S04: preview_*.html/.xml temp files used to accumulate forever.
+  /// Delete the previous render's temp file whenever we write a new one
+  /// (e.g. theme toggle), and on dispose.
+  void _deleteOldTempFile() {
+    final old = _tempFilePath;
+    _tempFilePath = null;
+    if (old == null || old.isEmpty) return;
+    try {
+      final f = io.File(old);
+      if (f.existsSync()) f.deleteSync();
+    } catch (_) {/* file may still be held briefly by the webview; ignore */}
+  }
+
   void _openInBrowser() {
     final ext = widget.isXml ? '.xml' : '.html';
     _writeTempFile(widget.html, ext).then((path) async {
@@ -173,6 +186,7 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
       // Native XML document view: no theme dependence, load once.
       if (_xmlLoaded) return;
       final path = await _writeTempFile(widget.html, '.xml');
+      _deleteOldTempFile(); // C-S04
       _tempFilePath = path;
       if (Platform.isWindows) {
         await _winCtrl?.loadUrl(Uri.file(path).toString());
@@ -189,6 +203,7 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
     final html = _wrapWithTheme(widget.html, isDark: isDark);
     if (Platform.isWindows) {
       final path = await _writeTempFile(html, '.html');
+      _deleteOldTempFile(); // C-S04
       _tempFilePath = path;
       await _winCtrl?.loadUrl(Uri.file(path).toString());
     } else {
@@ -317,6 +332,10 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
     // its next await, observes the flag and exits without touching COM.
     _disposed = true;
     try { _msgSub?.cancel(); } catch (_) {}
+    // C-S04: clean up the preview_*.html/.xml temp file backing this dialog.
+    // Note: files opened via _openInBrowser are deliberately NOT tracked/deleted
+    // since the external browser may still read them.
+    try { _deleteOldTempFile(); } catch (_) {}
     // Only synchronously dispose the native controller when initialize() has
     // already completed. Disposing while initialize() is still pending races
     // the COM heap (source of 0xc0000374 ntdll crashes traced in v1.5.29).
