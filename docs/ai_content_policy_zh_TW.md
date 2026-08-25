@@ -1,3 +1,8 @@
+---
+layout: default
+title: OmniChat AI 生成內容政策
+---
+
 # OmniChat AI 生成內容政策
 
 _最後更新：2026-08-16_

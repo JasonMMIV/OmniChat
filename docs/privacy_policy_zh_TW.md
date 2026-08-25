@@ -1,3 +1,8 @@
+---
+layout: default
+title: OmniChat 隱私權政策
+---
+
 # OmniChat 隱私權政策
 
 _最後更新：2026-08-16_
