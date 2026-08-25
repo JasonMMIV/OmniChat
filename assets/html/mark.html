@@ -100,6 +100,7 @@
         import hljs from 'https://esm.sh/highlight.js@11.9.0';
         import mermaid from 'https://esm.sh/mermaid@10.6.1';
         import { Base64 } from 'https://esm.sh/js-base64@3.7.5';
+        import DOMPurify from 'https://esm.sh/dompurify@3.2.4';
 
         const md = new MarkdownIt({
             html: true, xhtmlOut: false, breaks: false, langPrefix: 'language-', linkify: true, typographer: true, quotes: '“”‘’',
@@ -121,7 +122,9 @@
             const info = token.info ? md.utils.unescapeAll(token.info).trim() : '';
             if (info === 'mermaid') {
                 const id = 'mermaid-' + Math.random().toString(36).substr(2, 9);
-                return `<div class="mermaid" id="${id}">${token.content.trim()}</div>\n`;
+                // C-S02: escape mermaid source so raw HTML inside a ```mermaid fence can never execute;
+                // mermaid.run() reads textContent, where entities are already decoded.
+                return `<div class="mermaid" id="${id}">${md.utils.escapeHtml(token.content.trim())}</div>\n`;
             }
             return defaultFenceRenderer(tokens, idx, options, env, renderer);
         };
@@ -133,9 +136,19 @@
         markdownContent = markdownContent.replace(/\\\[([\s\S]*?)\\\]/g, (match, content) => { return '\n$$\n' + content.trim() + '\n$$\n'; });
         markdownContent = markdownContent.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
 
+        // C-S02: sanitize rendered HTML before injecting. markdown-it runs with html:true,
+        // so LLM output could carry <script>/onerror payloads; DOMPurify strips them while
+        // keeping KaTeX (MathML), SVG and task-list markup intact.
+        function sanitizeRenderedHtml(dirtyHtml) {
+            return DOMPurify.sanitize(dirtyHtml, {
+                USE_PROFILES: { html: true, svg: true, mathml: true },
+                ADD_ATTR: ['target', 'rel']
+            });
+        }
+
         async function renderMarkdown() {
             try {
-                const html = md.render(markdownContent);
+                const html = sanitizeRenderedHtml(md.render(markdownContent));
                 document.getElementById('content').innerHTML = html;
                 const mermaidElements = document.querySelectorAll('.mermaid');
                 if (mermaidElements.length > 0) { await mermaid.run({ nodes: mermaidElements }); }
@@ -144,7 +157,9 @@
                 document.querySelectorAll('a[href^="http"]').forEach(link => { link.target = '_blank'; link.rel = 'noopener noreferrer'; });
             } catch (error) {
                 console.error('Error rendering markdown:', error);
-                document.getElementById('content').innerHTML = '<p>Error rendering markdown content: ' + error.message + '</p>';
+                const errEl = document.createElement('p');
+                errEl.textContent = 'Error rendering markdown content: ' + error.message; // C-S02: no innerHTML for untrusted message
+                document.getElementById('content').appendChild(errEl);
             }
         }
         renderMarkdown();
