@@ -1,3 +1,8 @@
+---
+layout: default
+title: OmniChat AI-Generated Content Policy
+---
+
 # OmniChat AI-Generated Content Policy
 
 _Last updated: 2026-08-16_

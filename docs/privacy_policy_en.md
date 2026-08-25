@@ -1,3 +1,8 @@
+---
+layout: default
+title: OmniChat Privacy Policy
+---
+
 # OmniChat Privacy Policy
 
 _Last updated: 2026-08-16_

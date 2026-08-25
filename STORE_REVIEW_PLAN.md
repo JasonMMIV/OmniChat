@@ -11,7 +11,7 @@
 | **Phase 0** | **準備與靜態基線掃描** | ✅ **已完成 (已修復)** | 排除 vendored 範例測試錯誤，靜態分析錯誤歸零 (`0 errors`)；移出 `nuget.exe` 追蹤。 |
 | **Phase 1** | **F-Droid 合規性與開源授權專項** | ✅ **已完成 (決策：方案 A 優先，精簡版為備援)** | 識別 Syncfusion 非 FOSS 授權阻礙與 `MANAGE_EXTERNAL_STORAGE` 權限問題；**決策：主版本維持現狀並先以現狀送審（方案 A），僅在送審失敗時另建 F-Droid 精簡版（方案 C 備援）**；**已修復：C-F03（移除 `BLUETOOTH_ADVERTISE`）、W-F01（network security config 公網 HTTPS-only）、W-F02/W-F03（F-Droid Metadata 宣告）**。 |
 | **Phase 2** | **Windows Store 規範與 MSIX 專項** | 🔍 **審查完成（W-C01/W-C03/W-C04/W-C05 已修復；W-C02 待啟用 Pages）** | MSIX 已封裝簽章並本機安裝＋**WACK OVERALL PASS**；AI 內容政策 App 內入口已實作；隱私權政策文稿已草擬、About 入口已接，**僅剩 GitHub Pages 啟用**（使用者操作）使 URL 生效。 |
-| **Phase 3** | **深度安全性與 MCP 架構** | 🔍 **審查完成（2 項高危待修復）** | **C-S01**：per-provider API Key 明文存 SharedPreferences 且隨備份匯出（高危）；**C-S02**：mark.html 未消毒 HTML 渲染（XSS，高危）；MCP JS 沙箱/無 shell spawn 已達標；無硬編碼金鑰。 |
+| **Phase 3** | **深度安全性與 MCP 架構** | 🔍 **審查完成（C-S02 待修復；C-S01 降級長線改善）** | **C-S01**：per-provider API Key 明文存 SharedPreferences 且隨備份匯出——**不阻塞送審，改採備份加密路線（2026-08-25 決策，見下）**；**C-S02**：mark.html 未消毒 HTML 渲染（XSS，高危待修復）；MCP JS 沙箱/無 shell spawn 已達標；無硬編碼金鑰。 |
 | **Phase 4** | **跨平台穩定性與程式碼品質** | ⏳ 待啟動 | 原生插件跨平台隔離調用、Dispose 生命週期、檔案路徑相容性。 |
 | **Phase 5** | **上架元數據與發布就緒確認** | ⏳ 待啟動 | 第三方開源授權聲明、雙語隱私權政策、商店多尺寸 Icon、F-Droid Recipe。 |
 
@@ -148,15 +148,19 @@
 
 ### 階段 3：深度安全性、隱私保護與 MCP 架構審查 (Security & Architecture Audit)
 **目標**：防止金鑰洩漏、命令注入與不安全的數據儲存。
-**狀態**：🔍 **審查完成（2026-08-16）——2 項高危待修復**
+**狀態**：🔍 **審查完成（2026-08-16）——C-S02 待修復；C-S01 已降級為長線改善（2026-08-25）**
 
 #### 審查發現總覽 (Findings)：
 
-##### 🔴 高危 (Critical)：
+##### 🟡 長線改善 (Long-term Improvement)：
 1. **【C-S01】per-provider API Key 明文儲存且隨備份匯出**
    - **現況**：`ProviderConfig.toJson()` 含 `apiKey`/`apiKeys`（明文）；`setProviderConfig()` 將其序列化寫入 **SharedPreferences**（`provider_configs_v1`）——多數金鑰**非**存於 `flutter_secure_storage`（`LiveApiKeyStore` 僅覆蓋 live key）。備份匯出（`data_sync.dart` `_exportSettingsJson()` → `prefs.snapshot()`）會將**全部 SharedPreferences（含所有 API Key）**打包進備份 ZIP（可上傳 Dropbox/WebDAV）。
    - **影響**：本機明文＋備份洩漏雙重風險；備份雲端同步時金鑰可能外洩。
-   - **修復方案**：仿照 `LiveApiKeyStore` 將 per-provider 金鑰遷移至 `flutter_secure_storage`（toJson 以遮罩/引用取代明文），匯出前對金鑰欄位消毒或排除。
+   - **上架影響評估（2026-08-25）**：Windows Store 與 F-Droid 均**不審查 App 內部金鑰儲存實作**——微軟關注 WACK／隱私權政策 URL／AI 內容揭露；F-Droid 審查 FOSS 授權、權限清單與 Anti-Features。**本項不阻塞雙平台送審**。
+   - **決策（2026-08-25）：降級為長線改善，改採「備份加密」兩全解法**
+     - 原「遷移至 `flutter_secure_storage`」方案會導致備份不再攜帶金鑰，跨裝置還原後須重新輸入所有 API Key，UX 成本過高，予以否決（副作用詳見《OmniChat 專案開發與維護手冊》§7.3）。
+     - 真正風險點是「備份 ZIP 攜明文金鑰上傳 Dropbox/WebDAV」，而非本機明文儲存（root 裝置方可觸及）。解法：於備份匯出加入**選用的密碼加密**（如 AES-GCM，可僅加密 settings JSON 的金鑰欄位或整包 ZIP），還原時輸入一次密碼即可完整攜帶所有金鑰跨裝置遷移。
+     - 已確認 `data_sync.dart` 目前無任何加密邏輯，此為新增功能而非改動既有機制；建議做成「設定密碼才加密、不設定維持現狀」的漸進式設計。
 2. **【C-S02】mark.html 未消毒 HTML 渲染（XSS）**
    - **現況**：`assets/html/mark.html` 以 markdown-it `html: true` 渲染 LLM 輸出，**無 DOMPurify/消毒**，`innerHTML` 注入；WebView 以 `JavaScriptMode.unrestricted` 執行。LLM 輸出若含 `<script>`/`onerror`（prompt injection 來源），於「以網頁檢視」/桌面 HTML 預覽中會**執行 JS**。
    - **影響**：Prompt Injection → WebView 內 XSS（可向攻擊者伺服器發送請求、讀取頁面內容）。
