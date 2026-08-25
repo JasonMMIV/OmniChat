@@ -941,6 +941,7 @@
   "aboutPageVersion": "版本",
   "aboutPageSystem": "系統",
   "aboutPageLicense": "授權",
+  "aboutPageOpenSourceLicenses": "開源授權聲明",
   "displaySettingsPageShowUserAvatarTitle": "顯示使用者頭像",
   "displaySettingsPageShowUserAvatarSubtitle": "是否在聊天訊息中顯示使用者頭像",
   "displaySettingsPageShowUserNameTimestampTitle": "顯示使用者名稱與時間戳",

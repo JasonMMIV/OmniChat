@@ -478,6 +478,12 @@ abstract class AppLocalizations {
   /// **'License'**
   String get aboutPageLicense;
 
+  /// No description provided for @aboutPageOpenSourceLicenses.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Source Licenses'**
+  String get aboutPageOpenSourceLicenses;
+
   /// No description provided for @aboutPagePrivacyPolicy.
   ///
   /// In en, this message translates to:

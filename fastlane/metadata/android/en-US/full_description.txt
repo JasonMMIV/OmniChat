@@ -1,0 +1,22 @@
+OmniChat is a local-first, cross-platform AI chat client for Android and desktop.
+
+<b>Bring your own models</b>
+Connect directly to the providers you already use — OpenAI, Google Gemini, Anthropic Claude, DeepSeek, OpenRouter, Moonshot and any OpenAI-compatible endpoint. Your API keys stay on your device and requests go straight from your device to the provider.
+
+<b>Privacy by design</b>
+There is no OmniChat server and no OmniChat account. Chat history, settings and credentials are stored locally on your device. No analytics, telemetry or crash reporting is collected.
+
+<b>Features</b>
+• Multi-conversation workspace with assistants, tags and regex rules
+• AI Team (mixture of agents): combine several models in one conversation
+• Real-time voice chat and dictation (speech-to-text / text-to-speech)
+• Web search and academic search built in
+• Local MCP tools: file read/write and JavaScript sandbox scripting
+• Markdown rendering with LaTeX math, Mermaid diagrams and code highlighting
+• Image attachments, OCR and PDF documents
+• Backup & restore (local file, Dropbox, WebDAV)
+
+<b>Open source</b>
+OmniChat is free software licensed under AGPL-3.0, based on the Kelivo project (https://github.com/Chevey339/kelivo). Source code: https://github.com/JasonMMIV/OmniChat
+
+Note: this app itself contains no ads, tracking or paid features. You must supply your own API keys or local model endpoints.

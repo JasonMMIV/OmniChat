@@ -1,0 +1,22 @@
+OmniChat 是一款本地優先（local-first）的跨平台 AI 聊天用戶端，支援 Android 與桌面平台。
+
+<b>自帶模型</b>
+直接連線你已在使用的供應商——OpenAI、Google Gemini、Anthropic Claude、DeepSeek、OpenRouter、Moonshot 以及任何 OpenAI 相容端點。API 金鑰只存在你的裝置上，請求由裝置直連供應商。
+
+<b>隱私優先設計</b>
+沒有 OmniChat 伺服器，也沒有 OmniChat 帳號。對話紀錄、設定與憑證全部儲存在本地裝置；不收集任何分析、遙測或崩潰報告。
+
+<b>功能特色</b>
+• 多對話工作區：助手、標籤與正規化規則
+• AI 團隊（混合智能體）：多個模型在同一對話協作
+• 即時語音通話與聽寫（語音辨識／語音合成）
+• 內建網頁搜尋與學術搜尋
+• 本地 MCP 工具：檔案讀寫與 JavaScript 沙箱腳本
+• Markdown 渲染：LaTeX 數學式、Mermaid 圖表與程式碼高亮
+• 圖片附件、OCR 與 PDF 文件
+• 備份與還原（本機檔案、Dropbox、WebDAV）
+
+<b>開源軟體</b>
+OmniChat 以 AGPL-3.0 授權釋出，基於 Kelivo 專案（https://github.com/Chevey339/kelivo）修改。原始碼：https://github.com/JasonMMIV/OmniChat
+
+注意：本 App 本身不含廣告、追蹤或付費功能；你需要自行提供 API 金鑰或本地模型端點。

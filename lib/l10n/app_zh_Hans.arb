@@ -904,6 +904,7 @@
   "aboutPageVersion": "版本",
   "aboutPageSystem": "系统",
   "aboutPageLicense": "许可协议",
+  "aboutPageOpenSourceLicenses": "开源软件许可",
   "aboutPagePrivacyPolicy": "隐私政策",
   "displaySettingsPageShowUserAvatarTitle": "显示用户头像",
   "displaySettingsPageShowUserAvatarSubtitle": "是否在聊天消息中显示用户头像",

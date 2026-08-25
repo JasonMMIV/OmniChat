@@ -201,6 +201,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aboutPageLicense => '许可证';
 
   @override
+  String get aboutPageOpenSourceLicenses => '开源软件许可';
+
+  @override
   String get aboutPagePrivacyPolicy => 'Privacy Policy';
 
   @override
@@ -4783,6 +4786,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get aboutPageLicense => '许可协议';
 
   @override
+  String get aboutPageOpenSourceLicenses => '开源软件许可';
+
+  @override
   String get aboutPagePrivacyPolicy => '隐私政策';
 
   @override
@@ -9225,6 +9231,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get aboutPageLicense => '授權';
+
+  @override
+  String get aboutPageOpenSourceLicenses => '開源授權聲明';
 
   @override
   String get aboutPageEasterEggButton => '好的';
