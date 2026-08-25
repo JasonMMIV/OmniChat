@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
@@ -109,7 +110,7 @@ class _LogViewerPageState extends State<LogViewerPage> {
                   itemBuilder: (context, index) {
                     final file = _logFiles[index] as File;
                     final stat = file.statSync();
-                    final fileName = file.path.split('/').last;
+                    final fileName = p.basename(file.path); // Phase 4: split('/') breaks on Windows backslash paths
                     final isCurrentLog = fileName == 'logs.txt';
 
                     return Card(
@@ -184,7 +185,7 @@ class _LogContentPageState extends State<_LogContentPage> {
     try {
       await Share.shareXFiles(
         [XFile(widget.file.path)],
-        subject: widget.file.path.split('/').last,
+        subject: p.basename(widget.file.path),
       );
     } catch (e) {
       if (mounted) {
@@ -199,7 +200,7 @@ class _LogContentPageState extends State<_LogContentPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    final fileName = widget.file.path.split('/').last;
+    final fileName = p.basename(widget.file.path);
 
     return Scaffold(
       appBar: AppBar(
