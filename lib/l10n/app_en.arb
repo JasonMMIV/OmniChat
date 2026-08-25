@@ -73,6 +73,7 @@
   "aboutPageSystem": "System",
   "aboutPageAppDescription": "A cross-platform, multi-provider AI chat client.",
   "aboutPageLicense": "License",
+  "aboutPageOpenSourceLicenses": "Open Source Licenses",
   "aboutPagePrivacyPolicy": "Privacy Policy",
   "aboutPageTermsOfService": "Terms of Service",
   "aboutPageEasterEggButton": "Close",

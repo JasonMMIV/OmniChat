@@ -927,6 +927,7 @@
   "aboutPageVersion": "版本",
   "aboutPageSystem": "系统",
   "aboutPageLicense": "许可证",
+  "aboutPageOpenSourceLicenses": "开源软件许可",
   "displaySettingsPageShowUserAvatarTitle": "显示用户头像",
   "displaySettingsPageShowUserAvatarSubtitle": "是否在聊天消息中显示用户头像",
   "displaySettingsPageShowUserNameTimestampTitle": "显示用户名称和时间戳",

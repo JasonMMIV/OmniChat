@@ -169,6 +169,17 @@ class _DesktopAboutPaneState extends State<DesktopAboutPane> {
                   ),
                   const _DeskRowDivider(),
                   _DeskNavRow(
+                    icon: lucide.Lucide.BookOpen,
+                    label: l10n.aboutPageOpenSourceLicenses,
+                    // Phase 5: 第三方開源授權聲明（Flutter 自動彙整 pubspec 依賴套件授權）
+                    onTap: () => showLicensePage(
+                      context,
+                      applicationName: 'OmniChat',
+                      applicationVersion: _version.isEmpty ? null : _version,
+                    ),
+                  ),
+                  const _DeskRowDivider(),
+                  _DeskNavRow(
                     icon: lucide.Lucide.Shield,
                     label: l10n.aboutPagePrivacyPolicy,
                     // W-C02: 隱私權政策公開 URL（GitHub Pages 發布後生效）
