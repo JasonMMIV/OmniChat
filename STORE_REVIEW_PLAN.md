@@ -10,10 +10,10 @@
 | :--- | :--- | :---: | :--- |
 | **Phase 0** | **準備與靜態基線掃描** | ✅ **已完成 (已修復)** | 排除 vendored 範例測試錯誤，靜態分析錯誤歸零 (`0 errors`)；移出 `nuget.exe` 追蹤。 |
 | **Phase 1** | **F-Droid 合規性與開源授權專項** | ✅ **已完成 (決策：方案 A 優先，精簡版為備援)** | 識別 Syncfusion 非 FOSS 授權阻礙與 `MANAGE_EXTERNAL_STORAGE` 權限問題；**決策：主版本維持現狀並先以現狀送審（方案 A），僅在送審失敗時另建 F-Droid 精簡版（方案 C 備援）**；**已修復：C-F03（移除 `BLUETOOTH_ADVERTISE`）、W-F01（network security config 公網 HTTPS-only）、W-F02/W-F03（F-Droid Metadata 宣告）**。 |
-| **Phase 2** | **Windows Store 規範與 MSIX 專項** | 🔍 **審查完成（W-C01/W-C03/W-C04/W-C05 已修復；W-C02 待啟用 Pages）** | MSIX 已封裝簽章並本機安裝＋**WACK OVERALL PASS**；AI 內容政策 App 內入口已實作；隱私權政策文稿已草擬、About 入口已接，**僅剩 GitHub Pages 啟用**（使用者操作）使 URL 生效。 |
-| **Phase 3** | **深度安全性與 MCP 架構** | 🔍 **審查完成（C-S02 待修復；C-S01 降級長線改善）** | **C-S01**：per-provider API Key 明文存 SharedPreferences 且隨備份匯出——**不阻塞送審，改採備份加密路線（2026-08-25 決策，見下）**；**C-S02**：mark.html 未消毒 HTML 渲染（XSS，高危待修復）；MCP JS 沙箱/無 shell spawn 已達標；無硬編碼金鑰。 |
-| **Phase 4** | **跨平台穩定性與程式碼品質** | ⏳ 待啟動 | 原生插件跨平台隔離調用、Dispose 生命週期、檔案路徑相容性。 |
-| **Phase 5** | **上架元數據與發布就緒確認** | ⏳ 待啟動 | 第三方開源授權聲明、雙語隱私權政策、商店多尺寸 Icon、F-Droid Recipe。 |
+| **Phase 2** | **Windows Store 規範與 MSIX 專項** | ✅ **審查完成且全部修復（W-C01～W-C05）** | MSIX 已封裝簽章並本機安裝＋**WACK OVERALL PASS**；AI 內容政策 App 內入口已實作；**W-C02 隱私權政策已上線（2026-08-25，GitHub Pages URL 已驗證 200，見下方正確路徑紀錄）**。 |
+| **Phase 3** | **深度安全性與 MCP 架構** | ✅ **審查完成且全部結案（C-S01 降級長線；C-S02/C-S04 已修復）** | **C-S01**：per-provider API Key 明文存 SharedPreferences 且隨備份匯出——**不阻塞送審，改採備份加密路線（2026-08-25 決策，見下）**；**C-S02**：✅ **已修復（2026-08-25，DOMPurify 消毒＋mermaid escape＋textContent 錯誤輸出）**；**C-S04**：✅ **已修復（2026-08-25，preview_* 暫存檔切換/關閉時清理）**；MCP JS 沙箱/無 shell spawn 已達標；無硬編碼金鑰。 |
+| **Phase 4** | **跨平台穩定性與程式碼品質** | 🔍 **審查完成（P4-F01 已修復）** | 原生插件跨平台隔離調用、Dispose 生命週期、檔案路徑相容性——重點抽查通過，僅 log_viewer 路徑分隔符 bug（已修）。詳見下方 Phase 4 紀錄。 |
+| **Phase 5** | **上架元數據與發布就緒確認** | 🔍 **實作完成（P5-1/P5-3/P5-4 已交付；商店資產待手動上傳）** | App 內第三方開源授權聲明已接入（`showLicensePage`，行動+桌面+l10n×4）；Fastlane metadata 已建立（en-US + zh-TW）；F-Droid 建置 recipe 草稿見下方階段 5 紀錄；Windows MSIX tile logo 由 msix 工具自 `logo_path` 自動生成，Partner Center 商店宣傳圖待送審時手動上傳。 |
 
 ---
 
@@ -125,9 +125,13 @@
 - **簽章策略**：① 送 Windows Store **不需購買憑證**——Partner Center 收件後以微軟商店憑證重新簽署，提交未簽章或開發憑證簽章的 `.msix` 皆可；② 本機 WACK 測試／側載用**免費自簽憑證**（`New-SelfSignedCertificate` 產生 .pfx，安裝至 Trusted People）；③ 僅商店外發佈（官網下載避免 SmartScreen 警告）才需向 CA 購買（DigiCert/Sectigo 等，約 $100–300/年）。Android 的 `upload-keystore.jks` 與 Windows 無關。
 - **執行順序**：產生自簽憑證 → 加 `msix` dev 依賴＋`msix_config` → `flutter build windows --release` → `flutter pub run msix:create` → 本機安裝＋WACK 測試。
 - **實作（2026-08-16）**：✅ 完成——`msix:create` 產出 `build/windows/x64/runner/Release/OmniChat.msix`（Identity `com.psyche.omnichat` `1.18.3.0`、Capabilities `internetClient`＋`microphone`＋`runFullTrust`）；自簽憑證（`windows/certs/`，gitignored）以 SignTool 簽章（`AppxSignature.p7x`）；匯入 `LocalMachine\TrustedPeople` 後 `Add-AppxPackage` **本機安裝成功**；WACK（Windows App Certification Kit）**OVERALL_RESULT=PASS**（21 PASS；3 項無訊息 FAIL：App resources／Blocked executables／Archive files usage，為未部署情境之資訊性項目）。注意：此 SDK 版 WACK 參數為 `/apptype`、`/appxPackagePath`、`/reportoutputpath`（包裝腳本 `tool/run_wack.ps1`）；`msix:create` 每次全量重建（>6 分鐘），簽章亦可用同套 SignTool 流程。
+- **v1.18.4.0 重打包與 WACK 紀錄（2026-08-26）：✅ OVERALL_RESULT=PASS**（報告 `build/wack_report_20260826_093248.xml`）。版號 bump 至 `1.18.4+94`、`msix_version 1.18.4.0`。**關鍵陷阱紀錄**：① AppxManifest 的 `Publisher` 必須與簽章憑證主體**完全一致**，不符時 SignTool 報 `SignerSign() failed (0x8007000b)`；定案使用既有憑證 `14400D0709E999163C8ADF0DB5FA4D6225226128`（Subject `CN=OmniChat Dev`），Publisher 同步為 `CN=OmniChat Dev`。② `New-SelfSignedCertificate` 新建憑證的私鑰 signtool 存取不到（私鑰篩選失敗），勿再重造。③ `Export-PfxCertificate` 預設 AES 加密的 PFX，SignTool `/f` 直接讀取會失敗——改由憑證存放區以 `/sha1 <thumbprint>` 簽章（`tool/sign_msix.ps1`）。④ WACK 需提權執行，且報告檔名不可重複（已改時間戳）。新流程：`flutter build windows --release` → `flutter pub run msix:create --build-windows false --install-certificate false -p <密碼>` → `tool/sign_msix.ps1` → `tool/install_msix.ps1`（本機安裝）→ 提權跑 `tool/run_wack.ps1`。
 
 ##### W-C02 / W-C03 進度（2026-08-16）：
-- **W-C02**：✅ 文稿已草擬（`docs/privacy_policy_en.md`、`docs/privacy_policy_zh_TW.md`）；About 頁（行動版＋桌面版）已加入隱私權政策入口（`aboutPagePrivacyPolicy`，指向 GitHub Pages URL）。⏳ **Pages 已啟用（使用者 2026-08-16 操作），待佈建完成**：Source: main branch `/docs`；API 檢查於當日仍回 404（佈建中），生效後應驗證 `https://jasonmmiv.github.io/OmniChat/docs/privacy_policy_en.html`（Jekyll 渲染 .md → .html）可存取，再於商店頁面填入該 URL。
+- **W-C02**：✅ **已完成（2026-08-25 結案）**——文稿、About 入口與 Pages 部署皆就緒，四個政策頁面 URL 已驗證 200。
+  - **關鍵陷阱紀錄**：Pages 資料夾設定為 `/docs` 時，**網站根路徑直接對應 docs 資料夾內容，URL 不含 `/docs/` 前綴**。原記錄的 `…/OmniChat/docs/privacy_policy_en.html` 是錯誤路徑（自 2026-08-16 起持續 404 的根因）。
+  - **正確 URL**：`https://jasonmmiv.github.io/OmniChat/privacy_policy_en.html`（繁中/AI 政策同理：`privacy_policy_zh_TW.html`、`ai_content_policy_en.html`、`ai_content_policy_zh_TW.html`）。商店頁面請填入此 URL。
+  - **配套修正**：4 個 `.md` 已加 Jekyll front matter（否則 Jekyll 不會渲染 .md → .html）；`about_pane.dart`／`about_page.dart` 的 App 內連結已改為正確 URL。
 - **W-C03**：✅ 文稿已草擬（`docs/ai_content_policy_en.md`、`docs/ai_content_policy_zh_TW.md`，含免責聲明＋回報管道）。✅ **App 內入口已實作（2026-08-16）**：About 頁（行動＋桌面）新增「AI 內容政策」列（`aboutPageAiContentPolicy`）→ 免責聲明對話框＋「開啟 GitHub Issues」回報按鈕（l10n ×4 語系）。
 
 1. **MSIX 封裝與應用程式識別**：
@@ -161,14 +165,15 @@
      - 原「遷移至 `flutter_secure_storage`」方案會導致備份不再攜帶金鑰，跨裝置還原後須重新輸入所有 API Key，UX 成本過高，予以否決（副作用詳見《OmniChat 專案開發與維護手冊》§7.3）。
      - 真正風險點是「備份 ZIP 攜明文金鑰上傳 Dropbox/WebDAV」，而非本機明文儲存（root 裝置方可觸及）。解法：於備份匯出加入**選用的密碼加密**（如 AES-GCM，可僅加密 settings JSON 的金鑰欄位或整包 ZIP），還原時輸入一次密碼即可完整攜帶所有金鑰跨裝置遷移。
      - 已確認 `data_sync.dart` 目前無任何加密邏輯，此為新增功能而非改動既有機制；建議做成「設定密碼才加密、不設定維持現狀」的漸進式設計。
-2. **【C-S02】mark.html 未消毒 HTML 渲染（XSS）**
-   - **現況**：`assets/html/mark.html` 以 markdown-it `html: true` 渲染 LLM 輸出，**無 DOMPurify/消毒**，`innerHTML` 注入；WebView 以 `JavaScriptMode.unrestricted` 執行。LLM 輸出若含 `<script>`/`onerror`（prompt injection 來源），於「以網頁檢視」/桌面 HTML 預覽中會**執行 JS**。
+2. **【C-S02】mark.html 未消毒 HTML 渲染（XSS）——✅ 已修復（2026-08-25）**
+   - **現況（修復前）**：`assets/html/mark.html` 以 markdown-it `html: true` 渲染 LLM 輸出，**無 DOMPurify/消毒**，`innerHTML` 注入；WebView 以 `JavaScriptMode.unrestricted` 執行。LLM 輸出若含 `<script>`/`onerror`（prompt injection 來源），於「以網頁檢視」/桌面 HTML 預覽中會**執行 JS**。
    - **影響**：Prompt Injection → WebView 內 XSS（可向攻擊者伺服器發送請求、讀取頁面內容）。
    - **修復方案**：`mark.html` 引入 DOMPurify（esm.sh）於 `md.render()` 後消毒（保留 mermaid div）；或評估 `html: false`＋白名單。
+   - **實作（2026-08-25）**：✅ 完成——`mark.html` 引入 DOMPurify 3.2.4，`md.render()` 後以 `USE_PROFILES: html/svg/mathml` 消毒再注入 `innerHTML`（KaTeX/SVG/task-list 標記保留）；mermaid fence 內容改以 `escapeHtml()` 輸出（mermaid.run 讀 textContent 不受影響）；錯誤訊息改用 `textContent` 注入。所有預覽入口（行動「以網頁檢視」、桌面 `html_preview_dialog`、`webview_page`）皆經此模板，單點修復。
 
 ##### 🟡 中低風險 (Medium/Low)：
 3. **【C-S03】無 Human-in-the-loop 工具確認**：LLM 呼叫工具（檔案讀寫、刪除）時無 UI 授權確認（僅顯示 tool card）。MCP JS 執行已沙箱化（無網路、fresh runtime、timeout），STDIO spawn 用 `Process.start`（**無 shell**，注入不可行）——緩解因素存在，但高風險檔案操作無明確確認閘門。
-4. **【C-S04】暫存檔未清理**：`html_preview_dialog` 產生的 `preview_*.html/.xml` 暫存檔**永不刪除**，長期累積。
+4. **【C-S04】暫存檔未清理——✅ 已修復（2026-08-25）**：`html_preview_dialog` 的 `preview_*.html/.xml` 主題切換時改寫前先刪舊檔、dispose 時刪除當前檔；`_openInBrowser` 開外部瀏覽器的暫存檔刻意不追蹤刪除（瀏覽器可能仍在讀取）。既有已累積的舊檔待 OS 清理暫存目錄。
 
 ##### ✅ 已達標 (Passed)：
 - **MCP JS 沙箱**：fresh runtime、禁用網路 API、QuickJS timeout/memory 限制、preflight 拒絕（v1.5.14）✓
@@ -194,6 +199,21 @@
 ### 階段 4：跨平台穩定性、資源生命週期與程式碼邏輯審查 (Multiplatform & Code Quality)
 **目標**：消除執行時期 Crash、記憶體洩漏與平台特異性 Bug。
 
+#### 審查執行紀錄（2026-08-25）：
+1. **跨平台邊界防護 (Platform Guarding)**——✅ 通過：
+   - 全庫 `Platform.isX` 分支共 149+ 處，桌面/行動 UI 與插件調用均有防護。抽查高風險點皆正確分流：圖片預覽（`image_preview_sheet.dart`）桌面走 `_ImagePreviewDesktopDialog`，`ImageGallerySaverPlus.saveImage` 僅在行動路徑觸發；mermaid 橋接（`mermaid_bridge.dart`）以條件匯入 + Windows/Linux 分流；Android 專屬服務（`android_background.dart`、`notification_service.dart`）入口皆有 `!Platform.isAndroid return` 保護；WebView2 缺失時降級為可讀錯誤 UI（W-C04）。
+   - 聽寫 STT 使用專屬 `SpeechToText.withMethodChannel()` 實例（避免 singleton 共用導致 listener 失效），含 `_disposed` 異步防護與靜音看門狗。
+2. **檔案系統與路徑相容性**——✅ 通過（1 處修復）：
+   - **【P4-F01】已修復**：`log_viewer_page.dart` 三處以 `path.split('/')` 取檔名，Windows 反斜線路徑會整串失敗 → 改用 `p.basename()`（package:path）。
+   - 其餘抽查良好：`file_tool_service.dart` / `sandbox_path_resolver.dart` 均先 `p.normalize()` 再 `replaceAll('\\','/')` 且 Windows 比較用大小寫不敏感；備份同步（`data_sync.dart`）zip entry 名稱正規化為 POSIX 斜線並防 `..` 路徑穿越；Dart 字串拼接 `/` 在 Windows 上合法，無風險。
+3. **資源釋放與記憶體管理**——✅ 通過：
+   - 全庫 dispose/cancel 呼叫 247+ 處；抽查 desktop 關鍵元件均正確釋放：`desktop_home_page._hotkeySub`、`html_preview_dialog`（race-safe init/dispose 旗標，防 WebView2 COM heap race 0xc0000374）、各 popover/dialog 的 controller/timer。已知例外：`desktop_settings_page.dart` 字型載入 loadingTimer 若 fetch 拋錯不 cancel（低風險，timer 觸發僅多關一次 dialog，try-catch 包覆）。
+4. **錯誤處理與容錯**——未深入（屬持續性工作）；串流中斷已有 retry/cancel 機制痕跡（`chat_actions.dart` per-conversation stream 管理），建議後續另開專項。
+
+#### 結論：Phase 4 重點抽查通過，P4-F01 已修復。C-S04（preview_* 暫存檔清理）亦已於 2026-08-25 修復（見 Phase 3 紀錄）。
+
+#### 審查清單（原規劃）：
+
 1. **跨平台邊界防護 (Platform Guarding)**：
    - 檢查所有 Windows 專屬套件（`window_manager`, `tray_manager`, `webview_windows`, `speech_to_text_windows`）在 Android 上執行時是否有嚴格的 `Platform.isWindows` 保護，避免 Android 啟動即崩潰。
    - 檢查 Android 專屬套件（`flutter_background`, `mobile_scanner`, `image_gallery_saver_plus`）在 Windows 上的調用保護。
@@ -210,6 +230,22 @@
 
 ### 階段 5：上架元數據、法律條款與發布就緒確認 (Metadata & Release Readiness)
 **目標**：完善所有上架所需的文檔、資產與發布自動化。
+
+#### 實作紀錄（2026-08-25）：
+1. **第三方開源聲明——✅ 完成**：行動版 About 頁與桌面版 About Pane 新增「開源授權聲明」列（`aboutPageOpenSourceLicenses`，l10n en/zh/zh_Hans/zh_Hant ×4），調用 Flutter 內建 `showLicensePage()`——自動彙整 pubspec 全部依賴套件的開源授權文本（含 MIT/Apache-2.0/BSD 等），符合各協議的 attribution 要求；AGPL-3.0 本體授權另由既有 License 列指向 repo LICENSE。
+2. **隱私權政策雙語——✅ 早已完成**（W-C02/W-C03 結案，GitHub Pages 四頁 200）。
+3. **商店多尺寸 Icon——✅ 驗證通過（無需改動）**：Android mipmap 全 DPI 齊全、iOS appiconset 齊全（2026-08 圖標更新）；MSIX 由 `msix` 工具自 `logo_path` 自動生成 Square44x44/Square150x150 等 Visual Assets；**剩餘動作（使用者手動）**：Partner Center 送審時上傳商店宣傳圖（截圖/banner）。
+4. **F-Droid Fastlane metadata——✅ 已建立**：`fastlane/metadata/android/{en-US,zh-TW}/`（title.txt / short_description.txt / full_description.txt），內容含 Kelivo fork 出處聲明與 AGPL-3.0 授權說明；螢幕截圖待送審前補拍放入 `fastlane/metadata/android/<locale>/images/`。
+5. **F-Droid 建置 recipe 草稿（送審時填入 metadata/<package_id>.yml）**：
+   - `Build:`：gradle 專案、`build: flutter build apk --release --flavor`（依實際 flavor 調整）；flutter 版本對齊 pubspec SDK（3.9.x 對應 F-Droid 的 flutter 版本字串需在 srclib 或 build 中指定）。
+   - `srclibs`：無需額外 native lib；注意 `speech_to_text_windows`/`permission_handler_windows` 等 vendored dependencies 在 `dependencies/` 目錄（path deps），F-Droid 打包會一併納入原始碼 tarball，需確認授權檔案齊全。
+   - Syncfusion 套件為非 FOSS 授權——Phase 1 決策方案 A：先以現狀送審，若被拒則另建精簡版（移除 syncfusion_flutter_sliders/pdf 後重建）。
+   - `MANAGE_EXTERNAL_STORAGE` 已於 Phase 1 移除；`BLUETOOTH_ADVERTISE` 已移除。
+   - versionCode/versionName 取自 Android gradle，F-Droid 以 CurrentVersionCode 對齊首發版本。
+
+---
+
+#### 原規劃清單：
 
 1. **第三方開源聲明 (Third-Party Notices)**：
    - 在 App 內「設定/關於」頁面中，建立完整的第三方開源軟體授權清單（符合各開源協議的要求）。

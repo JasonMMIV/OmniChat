@@ -5,7 +5,8 @@ $ErrorActionPreference = 'Continue'
 $appcert = 'C:\Program Files (x86)\Windows Kits\10\App Certification Kit\appcert.exe'
 $root    = Split-Path -Parent $PSScriptRoot
 $msix    = Join-Path $root 'build\windows\x64\runner\Release\OmniChat.msix'
-$report  = Join-Path $root 'build\wack_report.xml'
+$stamp   = Get-Date -Format 'yyyyMMdd_HHmmss'
+$report  = Join-Path $root ("build\wack_report_$stamp.xml")
 
 if (-not (Test-Path $msix)) {
     Write-Host "MSIX not found: $msix"
