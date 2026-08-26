@@ -594,7 +594,7 @@ class _AboutPageState extends State<AboutPage> {
               label: l10n.aboutPageOpenSourceLicenses,
               // Phase 5: 第三方開源授權聲明（Flutter 自動彙整 pubspec 依賴套件授權）
               onTap: () => showLicensePage(
-                context,
+                context: context,
                 applicationName: 'OmniChat',
                 applicationVersion: _version.isEmpty ? null : _version,
               ),
