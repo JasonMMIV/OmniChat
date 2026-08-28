@@ -548,6 +548,31 @@ class HomePageController extends ChangeNotifier {
       final l10n = AppLocalizations.of(_context)!;
       showAppSnackBar(_context, message: '${l10n.generationInterrupted}: $error', type: NotificationType.error);
     };
+    _viewModel.onRetry =
+        (attempt, maxAttempts, errorKind, conversationId) {
+      // L1 retry in progress. Show a brief info snackbar so the user
+      // knows we are reconnecting instead of silently failing.
+      //
+      // Guard: ignore retries for conversations the user has since
+      // navigated away from. The retry chunk may still be in flight
+      // after a conversation switch, and we don't want stale snackbars
+      // to pop over the new conversation's content.
+      if (conversationId.isNotEmpty &&
+          currentConversation?.id != conversationId) {
+        return;
+      }
+      final l10n = AppLocalizations.of(_context)!;
+      final isSilent = errorKind == 'silent_interrupt_retry';
+      final message = isSilent
+          ? l10n.streamRetrySilentInProgress(attempt, maxAttempts)
+          : l10n.streamRetryInProgress(attempt, maxAttempts);
+      showAppSnackBar(
+        _context,
+        message: message,
+        type: NotificationType.info,
+        duration: const Duration(seconds: 2),
+      );
+    };
     _viewModel.onWarning = (warning) {
       final l10n = AppLocalizations.of(_context)!;
       if (warning == 'no_model') {

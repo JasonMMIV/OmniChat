@@ -1148,6 +1148,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get generationInterrupted => 'Interrupted';
 
   @override
+  String streamRetryInProgress(Object attempt, Object max) {
+    return 'Network issue — retrying $attempt of $max…';
+  }
+
+  @override
+  String streamRetrySilentInProgress(Object attempt, Object max) {
+    return 'Connection lost — retrying $attempt of $max…';
+  }
+
+  @override
+  String streamInterruptedNote(Object retries) {
+    return 'Connection interrupted after $retries retries';
+  }
+
+  @override
   String get homePagePleaseSelectModel => 'Select model';
 
   @override

@@ -417,6 +417,21 @@ class StreamController {
     _pendingStreamContent[messageId] = content;
   }
 
+  /// Cancel the throttle timer for a message without disposing the
+  /// streaming notifier or the inline-image sanitiser. The next call to
+  /// [scheduleThrottledUpdate] for the same id will recreate the timer.
+  ///
+  /// Used by the L1 retry path: when a `transient_retry` /
+  /// `silent_interrupt_retry` status chunk arrives, the previous
+  /// attempt's throttle timer must not race with the new attempt's
+  /// content writes.
+  void cancelThrottleTimer(String messageId) {
+    _streamThrottleTimers[messageId]?.cancel();
+    _streamThrottleTimers.remove(messageId);
+    _pendingStreamContent.remove(messageId);
+    _pendingTotalTokens.remove(messageId);
+  }
+
   /// Clean up stream throttle timers for a message.
   void _cleanupStreamTimers(String messageId) {
     _streamThrottleTimers[messageId]?.cancel();
