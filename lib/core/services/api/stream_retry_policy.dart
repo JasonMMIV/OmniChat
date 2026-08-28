@@ -10,9 +10,11 @@ import 'transient_stream_error.dart';
 /// L1 stream retry policy — ported from AnyBuff (sdk/src/retry-config.ts,
 /// sdk/src/error-utils.ts, common/src/util/error.ts).
 ///
-/// L1 retries apply to a single LLM HTTP call (or stream). The caller is
-/// responsible for the "zero-output gate" — once any content/reasoning/tool
-/// chunk has been yielded, retries are suppressed to avoid duplicate output.
+/// L1 retries apply to a single LLM HTTP call (or stream). The retry loop
+/// in `ChatApiService.sendMessageStream` reissues the same request on any
+/// transient failure; the yielded-flag tracking on
+/// [StreamAttemptFlags] only feeds [classifyStreamEndRecovery] so a clean
+/// finish after visible output is not mistaken for a silent interruption.
 ///
 /// OmniChat does NOT adopt L2 failover (no backup model switch) or L3 whole-run
 /// resume. See docs/STREAM_RETRY_RECOVERY.md for the full design.

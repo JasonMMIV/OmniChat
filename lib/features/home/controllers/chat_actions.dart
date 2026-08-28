@@ -94,9 +94,18 @@ class ChatActions {
   /// transient network failure or silent stream interruption. The UI uses
   /// this to display a "正在重試 X/3…" info snackbar.
   ///
+  /// [conversationId] identifies the conversation the retry belongs to,
+  /// so the UI can ignore retries for conversations the user has since
+  /// navigated away from.
+  ///
   /// [errorKind] is one of `'transient_retry'` (network-level failure) or
   /// `'silent_interrupt_retry'` (SSE body ended without a finish marker).
-  void Function(int attempt, int maxAttempts, String errorKind)?
+  void Function(
+    int attempt,
+    int maxAttempts,
+    String errorKind,
+    String conversationId,
+  )?
       onStreamRetry;
 
   /// Called when stream finishes and title may need to be generated.
@@ -1275,6 +1284,7 @@ class ChatActions {
         chunk.attempt!,
         chunk.maxAttempts ?? 3,
         chunk.errorKind!,
+        state.conversationId,
       );
       _resetStreamForRetry(state);
       return;

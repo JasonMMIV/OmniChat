@@ -1028,7 +1028,7 @@ class StreamingState {
   /// Retry status for the L1 retry loop. `null` means the stream is
   /// in its first attempt; `1`, `2`, `3` mean we are about to
   /// reissue the request for the Nth retry. Reset to `null` after
-  /// each successful attempt (see [_resetStreamForRetry]).
+  /// each successful attempt (see [ChatActions._resetStreamForRetry]).
   int? retryAttempt;
 
   /// `true` if the L1 retry budget is exhausted. Set by

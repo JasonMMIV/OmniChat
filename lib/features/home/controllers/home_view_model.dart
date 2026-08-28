@@ -217,13 +217,13 @@ class HomeViewModel extends ChangeNotifier {
     onError?.call(error);
   }
 
-  void _onStreamRetry(int attempt, int maxAttempts, String errorKind) {
-    onRetry?.call(
-      attempt,
-      maxAttempts,
-      errorKind,
-      currentConversation?.id ?? '',
-    );
+  void _onStreamRetry(
+    int attempt,
+    int maxAttempts,
+    String errorKind,
+    String conversationId,
+  ) {
+    onRetry?.call(attempt, maxAttempts, errorKind, conversationId);
   }
 
   void _onMaybeGenerateTitle(String conversationId) {

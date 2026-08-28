@@ -26,10 +26,10 @@ class ChatApiService {
   static const String _aihubmixAppCode = 'ZKRT3588';
 
   /// Per-requestId tracking of "has the parser yielded any visible chunk
-  /// yet?" Used by [sendMessageStream]'s L1 retry loop to enforce the
-  /// zero-output gate — once any content / reasoning / tool chunk has
-  /// been yielded, the loop must not retry (doing so would duplicate
-  /// already-emitted output and burn tokens on the upstream provider).
+  /// yet?" The L1 retry loop no longer gates retries on this flag (the
+  /// zero-output gate was removed — see the retry loop in
+  /// [sendMessageStream]); the map is kept as a test hook
+  /// ([debugHasYielded]) and for observability.
   ///
   /// Entries are cleared in the `finally` of [sendMessageStream] so the
   /// map cannot grow unbounded across requests.
@@ -46,10 +46,10 @@ class ChatApiService {
 
   /// Wraps a parser stream so that any visible chunk (content / reasoning
   /// / tool call / tool result) marks the request as "yielded" before
-  /// being forwarded to the caller. This drives the zero-output gate
-  /// in [sendMessageStream]: once anything visible has been emitted,
-  /// the L1 retry loop must not retry (doing so would duplicate output
-  /// and burn tokens upstream).
+  /// being forwarded to the caller. The yielded markers feed
+  /// [classifyStreamEndRecovery] (via [StreamAttemptFlags]) so the L1
+  /// retry loop can distinguish a "clean finish after visible output"
+  /// (e.g. `length` stop — normal completion) from a silent interruption.
   ///
   /// Status / retry chunks (those with [ChatStreamChunk.errorKind] set)
   /// do NOT flip the yielded flag — they are emitted by the retry loop
@@ -57,24 +57,26 @@ class ChatApiService {
   static Stream<ChatStreamChunk> _trackYielded(
     Stream<ChatStreamChunk> source,
     String rid,
+    StreamAttemptFlags flags,
   ) async* {
     await for (final chunk in source) {
-      if (chunk.errorKind == null && _isVisibleChunk(chunk)) {
-        _markYielded(rid);
+      if (chunk.errorKind == null) {
+        if (chunk.content.isNotEmpty) {
+          _markYielded(rid);
+          flags.yieldedText = true;
+        }
+        if ((chunk.reasoning ?? '').isNotEmpty) {
+          _markYielded(rid);
+          flags.receivedReasoning = true;
+        }
+        if ((chunk.toolCalls ?? const []).isNotEmpty ||
+            (chunk.toolResults ?? const []).isNotEmpty) {
+          _markYielded(rid);
+          flags.yieldedToolCall = true;
+        }
       }
       yield chunk;
     }
-  }
-
-  /// True for chunks that contain user-visible content (text deltas,
-  /// reasoning, tool calls, tool results). Internal-only chunks like
-  /// [ChatStreamChunk] that just signal "done" are not visible.
-  static bool _isVisibleChunk(ChatStreamChunk chunk) {
-    if (chunk.content.isNotEmpty) return true;
-    if ((chunk.reasoning ?? '').isNotEmpty) return true;
-    if ((chunk.toolCalls ?? const []).isNotEmpty) return true;
-    if ((chunk.toolResults ?? const []).isNotEmpty) return true;
-    return false;
   }
 
   /// Test hook — read whether the given request has yielded anything.
@@ -893,8 +895,7 @@ class ChatApiService {
     // After the budget is spent, the last error is wrapped in a
     // [TransientStreamError] and propagated to the chat-action layer,
     // which preserves the partial content and surfaces the error to the
-    // UI. The chat-action layer is responsible for the "zero-output
-    // gate" UX (deciding whether to flush partial content on retry).
+    // UI (appending a "Connection interrupted after N retries" note).
     int attempt = 0;
     try {
       while (true) {
@@ -912,7 +913,7 @@ class ChatApiService {
               extraBody: extraBody,
               imageAspectRatio: imageAspectRatio,
               flags: flags,
-            ), rid)) {
+            ), rid, flags)) {
               yield chunk;
             }
           } else if (kind == ProviderKind.openai) {
@@ -933,7 +934,7 @@ class ChatApiService {
               stream: stream,
               imageAspectRatio: imageAspectRatio,
               flags: flags,
-            ), rid)) {
+            ), rid, flags)) {
               yield chunk;
             }
           } else if (kind == ProviderKind.claude) {
@@ -953,7 +954,7 @@ class ChatApiService {
               extraBody: extraBody,
               stream: stream,
               flags: flags,
-            ), rid)) {
+            ), rid, flags)) {
               yield chunk;
             }
           } else if (kind == ProviderKind.google) {
@@ -973,7 +974,7 @@ class ChatApiService {
               extraBody: extraBody,
               stream: stream,
               flags: flags,
-            ), rid)) {
+            ), rid, flags)) {
               yield chunk;
             }
           }
@@ -986,11 +987,11 @@ class ChatApiService {
             aborted: cancelToken.isCancelled,
             finishReason: flags.finishReason,
             hasUsage: flags.hasUsage,
-            receivedReasoning: false,
-            yieldedText: false,
-            yieldedToolCall: false,
+            receivedReasoning: flags.receivedReasoning,
+            yieldedText: flags.yieldedText,
+            yieldedToolCall: flags.yieldedToolCall,
           );
-          if (recovery != null) {
+          if (recovery != null && recovery.source == 'stream-interrupted') {
             // A silent interruption is treated as a transient error
             // for the purpose of the retry budget. The recovery hint
             // is preserved on the wrapper so the chat-action layer can
@@ -1003,6 +1004,12 @@ class ChatApiService {
               finishReason: flags.finishReason,
             );
           }
+          // Any other recovery (`output-limit` / `reasoning-only`) is a
+          // COMPLETE, billed response — the model spent its budget (e.g.
+          // on reasoning) and finished. Retrying would duplicate the
+          // billed output, so treat it as a normal completion. The
+          // recovery hint itself is intentionally not surfaced here;
+          // the partial (possibly empty) content is kept as-is.
           return;
         } catch (e) {
           // User cancelled — always rethrow immediately. Don't sleep,
@@ -1021,7 +1028,10 @@ class ChatApiService {
           // (provider may or may not have charged). Retrying is the
           // better UX trade-off — see §3.10 of the project handbook
           // for the full rationale. The 30-second "卡住" problem
-          // for in-flight connections is fixed.
+          // for in-flight connections is fixed. The yielded flags on
+          // [StreamAttemptFlags] still track what was emitted so
+          // [classifyStreamEndRecovery] can distinguish a "clean
+          // finish after visible output" from a silent interruption.
           final eIsSilentInterrupt =
               e is TransientStreamError && e.isSilentInterrupt;
 
@@ -8734,16 +8744,22 @@ class ChatStreamChunk {
 /// Mutable flags accumulated during a single LLM stream attempt. Used by
 /// the L1 retry loop in [ChatApiService.sendMessageStream] to detect
 /// silent stream interruptions: the parser fills in [finishReason] /
-/// [hasUsage] as it consumes SSE, and the loop calls
+/// [hasUsage] as it consumes SSE, and `_trackYielded` fills in the
+/// yielded flags as visible chunks pass through. The loop calls
 /// [classifyStreamEndRecovery] after the parser returns.
 ///
 /// Ported from AnyBuff's [StreamAttemptFlags] in sdk/src/impl/llm.ts.
-/// OmniChat's chat-action layer handles the "zero-output gate" UX (e.g.
-/// flushing partial content on retry) via its own `onStreamRetry`
-/// callback, so we don't track per-chunk yielded flags here.
 class StreamAttemptFlags {
   String? finishReason;
   bool hasUsage = false;
+
+  /// Whether the parser has yielded any visible text / reasoning / tool
+  /// output during this attempt. Fed to [classifyStreamEndRecovery] so
+  /// a `length` stop after visible output is treated as a normal
+  /// completion ("the answer ran long") instead of a silent interrupt.
+  bool yieldedText = false;
+  bool yieldedToolCall = false;
+  bool receivedReasoning = false;
 }
 
 class ToolCallInfo {
