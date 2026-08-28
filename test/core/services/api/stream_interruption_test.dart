@@ -104,5 +104,55 @@ void main() {
       );
       expect(r, isNull);
     });
+
+    test("UPPERCASE 'STOP' with visible output → null (Gemini-style)", () {
+      final r = classifyStreamEndRecovery(
+        aborted: false,
+        finishReason: 'STOP',
+        hasUsage: true,
+        receivedReasoning: false,
+        yieldedText: true,
+        yieldedToolCall: false,
+      );
+      expect(r, isNull);
+    });
+
+    test("UPPERCASE 'MAX_TOKENS' with no visible output → outputLimitRecovery", () {
+      final r = classifyStreamEndRecovery(
+        aborted: false,
+        finishReason: 'MAX_TOKENS',
+        hasUsage: true,
+        receivedReasoning: false,
+        yieldedText: false,
+        yieldedToolCall: false,
+      );
+      expect(r, isNotNull);
+      expect(r!.source, 'output-limit');
+    });
+
+    test("UPPERCASE 'UNKNOWN' + no usage → streamInterruptedRecovery", () {
+      final r = classifyStreamEndRecovery(
+        aborted: false,
+        finishReason: 'UNKNOWN',
+        hasUsage: false,
+        receivedReasoning: false,
+        yieldedText: false,
+        yieldedToolCall: false,
+      );
+      expect(r, isNotNull);
+      expect(r!.source, 'stream-interrupted');
+    });
+
+    test("UPPERCASE 'UNKNOWN' + usage → null (provider quirk, not interrupted)", () {
+      final r = classifyStreamEndRecovery(
+        aborted: false,
+        finishReason: 'UNKNOWN',
+        hasUsage: true,
+        receivedReasoning: false,
+        yieldedText: false,
+        yieldedToolCall: false,
+      );
+      expect(r, isNull);
+    });
   });
 }

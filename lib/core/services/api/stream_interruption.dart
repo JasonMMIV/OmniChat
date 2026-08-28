@@ -86,6 +86,11 @@ StreamRecovery? classifyStreamEndRecovery({
 }) {
   if (aborted) return null;
 
+  // Normalise the finish reason so providers that report upper-case
+  // values (Gemini: `STOP` / `MAX_TOKENS` / `SAFETY`, OpenAI-compatible
+  // hosts, etc.) are classified identically to their lower-case forms.
+  final normalized = finishReason?.toLowerCase();
+
   // Silent interruption: no finish part arrived at all, or `finish_reason`
   // was the uninformative `'unknown'` and no usage block was delivered.
   // AnyBuff notes: "unknown" alone is not proof, because providers also
@@ -93,7 +98,7 @@ StreamRecovery? classifyStreamEndRecovery({
   // `hasUsage` — usage always arrives in the final chunk, so an "unknown"
   // finish_reason with no usage means the tail was never received.
   final interrupted =
-      finishReason == null || (finishReason == 'unknown' && !hasUsage);
+      normalized == null || (normalized == 'unknown' && !hasUsage);
   if (interrupted) return streamInterruptedRecovery;
 
   // If the user has already seen any text or a tool call, the stream
@@ -102,7 +107,14 @@ StreamRecovery? classifyStreamEndRecovery({
   // shown. Treat as a normal completion.
   if (yieldedText || yieldedToolCall) return null;
 
-  if (finishReason == 'length') return outputLimitRecovery;
+  // Output-budget exhausted with no visible output: OpenAI-compatible
+  // hosts report `length`, Gemini reports `MAX_TOKENS`. Both mean the
+  // model spent its budget (often on reasoning) — the response is
+  // complete and billed, so it must NOT be treated as a retryable
+  // interruption.
+  if (normalized == 'length' || normalized == 'max_tokens') {
+    return outputLimitRecovery;
+  }
 
   // Whatever finish reason the provider reported (`stop`, anything else
   // we don't recognise): if reasoning was produced but no visible answer
