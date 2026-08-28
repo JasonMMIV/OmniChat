@@ -240,12 +240,13 @@ class ChatTurnService {
     required String assistantMessageId,
     void Function(String fullContent)? onChunk,
     void Function(String error)? onError,
+    void Function(int attempt, int maxAttempts, String errorKind)? onRetry,
   }) {
     final handle = ChatTurnHandle._(assistantMessageId, this);
     // 安全網：若 _run 因任何原因失敗（理論上不會），確保 handle.done 仍會完成，
     // 避免呼叫端（voice chat 的 _sendToLLM）卡在 await handle.done。
     unawaited(
-      _run(handle, request, onChunk, onError).catchError((Object e) async {
+      _run(handle, request, onChunk, onError, onRetry).catchError((Object e) async {
         onError?.call(e.toString());
         await handle._finish();
       }),
@@ -258,6 +259,7 @@ class ChatTurnService {
     ChatTurnRequest request,
     void Function(String fullContent)? onChunk,
     void Function(String error)? onError,
+    void Function(int attempt, int maxAttempts, String errorKind)? onRetry,
   ) async {
     // sendMessageStream 是 async*：呼叫本身不會同步丟錯，錯誤皆由 stream
     // onError 處理，因此不需 try/catch 包覆。
@@ -279,6 +281,18 @@ class ChatTurnService {
     );
     handle._sub = stream.listen(
       (chunk) {
+        // Forward L1 retry / silent-interrupt status chunks so the
+        // voice-chat UI can show "正在重試 X/3…" feedback if it wants
+        // to. The current voice controller doesn't pass an [onRetry]
+        // hook, so this is a no-op there.
+        if (chunk.errorKind != null && chunk.attempt != null) {
+          onRetry?.call(
+            chunk.attempt!,
+            chunk.maxAttempts ?? 3,
+            chunk.errorKind!,
+          );
+          return;
+        }
         handle._appendChunk(chunk.content);
         onChunk?.call(handle.fullContent);
         handle._schedulePersist();

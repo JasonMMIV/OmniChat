@@ -2309,6 +2309,24 @@ abstract class AppLocalizations {
   /// **'Interrupted'**
   String get generationInterrupted;
 
+  /// No description provided for @streamRetryInProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Network issue — retrying {attempt} of {max}…'**
+  String streamRetryInProgress(Object attempt, Object max);
+
+  /// No description provided for @streamRetrySilentInProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection lost — retrying {attempt} of {max}…'**
+  String streamRetrySilentInProgress(Object attempt, Object max);
+
+  /// No description provided for @streamInterruptedNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection interrupted after {retries} retries'**
+  String streamInterruptedNote(Object retries);
+
   /// No description provided for @homePagePleaseSelectModel.
   ///
   /// In en, this message translates to:

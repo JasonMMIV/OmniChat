@@ -11,6 +11,7 @@ import '../../../core/providers/ai_team_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
+import '../../../core/services/api/transient_stream_error.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/assistant_regex.dart';
@@ -88,6 +89,15 @@ class ChatActions {
 
   /// Called when an error occurs during streaming.
   void Function(String error)? onStreamError;
+
+  /// Called when the L1 retry loop is about to reissue a request after a
+  /// transient network failure or silent stream interruption. The UI uses
+  /// this to display a "正在重試 X/3…" info snackbar.
+  ///
+  /// [errorKind] is one of `'transient_retry'` (network-level failure) or
+  /// `'silent_interrupt_retry'` (SSE body ended without a finish marker).
+  void Function(int attempt, int maxAttempts, String errorKind)?
+      onStreamRetry;
 
   /// Called when stream finishes and title may need to be generated.
   void Function(String conversationId)? onMaybeGenerateTitle;
@@ -1236,6 +1246,21 @@ class ChatActions {
     ChatStreamChunk chunk,
     stream_ctrl.StreamingState state,
   ) async {
+    // Retry / silent-interrupt status chunk. Surfaces a "正在重試 1/3…"
+    // snackbar to the user, and clears any partial content the previous
+    // attempt had pushed to the UI so the new attempt's content starts
+    // from a blank slate (avoids the "double text" visual glitch when
+    // the second attempt streams overlapping content).
+    if (chunk.errorKind != null && chunk.attempt != null) {
+      onStreamRetry?.call(
+        chunk.attempt!,
+        chunk.maxAttempts ?? 3,
+        chunk.errorKind!,
+      );
+      _resetStreamForRetry(state);
+      return;
+    }
+
     final chunkContent = chunk.content.isNotEmpty
         ? streamController.captureGeminiThoughtSignature(
             chunk.content,
@@ -1264,6 +1289,33 @@ class ChatActions {
     } else {
       await _handleContentChunk(chunk, state, chunkContent);
     }
+  }
+
+  /// Reset the streaming UI / throttle state in preparation for a fresh
+  /// L1 retry attempt. Called when a `transient_retry` /
+  /// `silent_interrupt_retry` status chunk arrives so the next attempt's
+  /// content appears on a blank bubble instead of being appended to the
+  /// already-streamed text (which would look like duplicated output).
+  ///
+  /// Does NOT touch reasoning / tool state — those are scoped to a
+  /// single attempt's response and will be re-emitted by the new
+  /// attempt if the model decides to use them again.
+  void _resetStreamForRetry(stream_ctrl.StreamingState state) {
+    final messageId = state.messageId;
+    state.fullContentRaw = '';
+    state.totalTokens = 0;
+    state.usage = null;
+    // Cancel the throttle timer for this message so the next attempt
+    // re-creates it. Leaving the old timer running would race with the
+    // new attempt's content writes.
+    streamController.cancelThrottleTimer(messageId);
+    // Push the empty state to the UI immediately so the bubble clears
+    // before the new attempt's chunks start arriving.
+    streamController.streamingContentNotifier.updateContent(
+      messageId,
+      '',
+      0,
+    );
   }
 
   /// Handle reasoning chunk from stream.
@@ -1610,6 +1662,14 @@ class ChatActions {
   }
 
   /// Handle stream error.
+  ///
+  /// Preserves the partial content the user has already seen when a
+  /// transient / silent-interrupt error has exhausted its retry budget:
+  /// instead of overwriting the assistant bubble with the raw error
+  /// string, we keep [StreamingState.fullContentRaw] and append a short
+  /// note explaining why the stream stopped. For terminal (4xx, auth,
+  /// parse) errors with no prior content, the legacy behaviour of
+  /// showing the raw error text is preserved.
   Future<void> _handleStreamError(
     dynamic e,
     stream_ctrl.StreamingState state,
@@ -1617,17 +1677,39 @@ class ChatActions {
     final messageId = state.messageId;
     final conversationId = state.conversationId;
     final errorText = e.toString();
+    final isRetriesExhausted =
+        e is TransientStreamError && e.isRetriesExhausted;
 
     // Mark streaming as ended to allow UI rebuilds again
     streamController.markStreamingEnded(messageId);
 
     streamController.cleanupTimers(messageId);
-    final rawContent = state.fullContentRaw.isNotEmpty
-        ? state.fullContentRaw
-        : errorText;
-    final processed = _transformAssistantContent(state, rawContent);
-    // Let UI provide the localized error message
-    final displayContent = processed.isNotEmpty ? processed : errorText;
+
+    // Decide what to write into the message bubble. When the L1 retry
+    // budget was spent and we have partial content, keep it; otherwise
+    // fall back to the legacy behaviour (rawContent or errorText).
+    final String displayContent;
+    if (state.fullContentRaw.isNotEmpty && isRetriesExhausted) {
+      // When retries are exhausted, the error is guaranteed to be a
+      // [TransientStreamError] (the only path that flips
+      // [isRetriesExhausted] to true).
+      final attempts = (e as TransientStreamError).attempts;
+      // Localised note via the ARB key. Fall back to a hard-coded
+      // string if the ARB lookup fails (e.g. context has been
+      // disposed by the time the error fires).
+      final l10n = AppLocalizations.of(contextProvider);
+      final note = l10n != null
+          ? '\n\n${l10n.streamInterruptedNote(attempts)}'
+          : '\n\n(Connection interrupted after $attempts retries)';
+      displayContent = state.fullContentRaw + note;
+    } else {
+      final rawContent = state.fullContentRaw.isNotEmpty
+          ? state.fullContentRaw
+          : errorText;
+      final processed = _transformAssistantContent(state, rawContent);
+      displayContent = processed.isNotEmpty ? processed : errorText;
+    }
+
     // R2: Persist pending AI Team proposals on error
     final pendingProposals = _aiTeamPendingProposals.remove(messageId);
     await chatService.updateMessage(

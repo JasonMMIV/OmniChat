@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../../providers/settings_provider.dart';
@@ -17,9 +18,68 @@ import '../../../utils/markdown_media_sanitizer.dart';
 import '../../../utils/unicode_sanitizer.dart';
 import '../../utils/reasoning_capabilities.dart';
 import 'builtin_tools.dart';
+import 'stream_interruption.dart';
+import 'stream_retry_policy.dart';
+import 'transient_stream_error.dart';
 
 class ChatApiService {
   static const String _aihubmixAppCode = 'ZKRT3588';
+
+  /// Per-requestId tracking of "has the parser yielded any visible chunk
+  /// yet?" Used by [sendMessageStream]'s L1 retry loop to enforce the
+  /// zero-output gate — once any content / reasoning / tool chunk has
+  /// been yielded, the loop must not retry (doing so would duplicate
+  /// already-emitted output and burn tokens on the upstream provider).
+  ///
+  /// Entries are cleared in the `finally` of [sendMessageStream] so the
+  /// map cannot grow unbounded across requests.
+  static final Map<String, bool> _requestYieldedAnything =
+      <String, bool>{};
+
+  /// Mark a request as having yielded at least one visible chunk. Safe
+  /// to call from any parser with the current request id; a missing /
+  /// empty id is a no-op.
+  static void _markYielded(String rid) {
+    if (rid.isEmpty) return;
+    _requestYieldedAnything[rid] = true;
+  }
+
+  /// Wraps a parser stream so that any visible chunk (content / reasoning
+  /// / tool call / tool result) marks the request as "yielded" before
+  /// being forwarded to the caller. This drives the zero-output gate
+  /// in [sendMessageStream]: once anything visible has been emitted,
+  /// the L1 retry loop must not retry (doing so would duplicate output
+  /// and burn tokens upstream).
+  ///
+  /// Status / retry chunks (those with [ChatStreamChunk.errorKind] set)
+  /// do NOT flip the yielded flag — they are emitted by the retry loop
+  /// itself and do not represent provider progress.
+  static Stream<ChatStreamChunk> _trackYielded(
+    Stream<ChatStreamChunk> source,
+    String rid,
+  ) async* {
+    await for (final chunk in source) {
+      if (chunk.errorKind == null && _isVisibleChunk(chunk)) {
+        _markYielded(rid);
+      }
+      yield chunk;
+    }
+  }
+
+  /// True for chunks that contain user-visible content (text deltas,
+  /// reasoning, tool calls, tool results). Internal-only chunks like
+  /// [ChatStreamChunk] that just signal "done" are not visible.
+  static bool _isVisibleChunk(ChatStreamChunk chunk) {
+    if (chunk.content.isNotEmpty) return true;
+    if ((chunk.reasoning ?? '').isNotEmpty) return true;
+    if ((chunk.toolCalls ?? const []).isNotEmpty) return true;
+    if ((chunk.toolResults ?? const []).isNotEmpty) return true;
+    return false;
+  }
+
+  /// Test hook — read whether the given request has yielded anything.
+  @visibleForTesting
+  static bool debugHasYielded(String rid) => _requestYieldedAnything[rid] ?? false;
   static final Map<String, CancelToken> _activeCancelTokens =
       <String, CancelToken>{};
 
@@ -824,71 +884,186 @@ class ChatApiService {
     final truncatedMessages = _truncateToolResultsInMessages(safeMessages);
     final client = _clientFor(config, cancelToken);
 
+    // === L1 retry loop =====================================================
+    // Wraps a single LLM HTTP request. Up to [StreamRetryConfig.maxRetriesPerMessage]
+    // retries are issued after a backoff sleep when:
+    //   - the request throws a transient network / 408 / 429 / 5xx error
+    //   - the SSE body closed prematurely without a finish marker (silent
+    //     interruption, see `stream_interruption.dart`)
+    // After the budget is spent, the last error is wrapped in a
+    // [TransientStreamError] and propagated to the chat-action layer,
+    // which preserves the partial content and surfaces the error to the
+    // UI. The chat-action layer is responsible for the "zero-output
+    // gate" UX (deciding whether to flush partial content on retry).
+    int attempt = 0;
     try {
-      if (kind == ProviderKind.openai &&
-          shouldUseOpenAIImagesApi(config, modelId)) {
-        yield* _sendOpenAIImagesStream(
-          client,
-          config,
-          modelId,
-          truncatedMessages,
-          userImagePaths: userImagePaths,
-          extraHeaders: extraHeaders,
-          extraBody: extraBody,
-          imageAspectRatio: imageAspectRatio,
-        );
-      } else if (kind == ProviderKind.openai) {
-        yield* _sendOpenAIStream(
-          client,
-          config,
-          modelId,
-          truncatedMessages,
-          userImagePaths: userImagePaths,
-          thinkingBudget: thinkingBudget,
-          temperature: temperature,
-          topP: topP,
-          maxTokens: maxTokens,
-          tools: tools,
-          onToolCall: onToolCall,
-          extraHeaders: extraHeaders,
-          extraBody: extraBody,
-          stream: stream,
-          imageAspectRatio: imageAspectRatio,
-        );
-      } else if (kind == ProviderKind.claude) {
-        yield* _sendClaudeStream(
-          client,
-          config,
-          modelId,
-          truncatedMessages,
-          userImagePaths: userImagePaths,
-          thinkingBudget: thinkingBudget,
-          temperature: temperature,
-          topP: topP,
-          maxTokens: maxTokens,
-          tools: tools,
-          onToolCall: onToolCall,
-          extraHeaders: extraHeaders,
-          extraBody: extraBody,
-          stream: stream,
-        );
-      } else if (kind == ProviderKind.google) {
-        yield* _sendGoogleStream(
-          client,
-          config,
-          modelId,
-          truncatedMessages,
-          userImagePaths: userImagePaths,
-          thinkingBudget: thinkingBudget,
-          temperature: temperature,
-          topP: topP,
-          maxTokens: maxTokens,
-          tools: tools,
-          onToolCall: onToolCall,
-          extraHeaders: extraHeaders,
-          extraBody: extraBody,
-          stream: stream,
-        );
+      while (true) {
+        final flags = StreamAttemptFlags();
+        try {
+          if (kind == ProviderKind.openai &&
+              shouldUseOpenAIImagesApi(config, modelId)) {
+            await for (final chunk in _trackYielded(_sendOpenAIImagesStream(
+              client,
+              config,
+              modelId,
+              truncatedMessages,
+              userImagePaths: userImagePaths,
+              extraHeaders: extraHeaders,
+              extraBody: extraBody,
+              imageAspectRatio: imageAspectRatio,
+              flags: flags,
+            ), rid)) {
+              yield chunk;
+            }
+          } else if (kind == ProviderKind.openai) {
+            await for (final chunk in _trackYielded(_sendOpenAIStream(
+              client,
+              config,
+              modelId,
+              truncatedMessages,
+              userImagePaths: userImagePaths,
+              thinkingBudget: thinkingBudget,
+              temperature: temperature,
+              topP: topP,
+              maxTokens: maxTokens,
+              tools: tools,
+              onToolCall: onToolCall,
+              extraHeaders: extraHeaders,
+              extraBody: extraBody,
+              stream: stream,
+              imageAspectRatio: imageAspectRatio,
+              flags: flags,
+            ), rid)) {
+              yield chunk;
+            }
+          } else if (kind == ProviderKind.claude) {
+            await for (final chunk in _trackYielded(_sendClaudeStream(
+              client,
+              config,
+              modelId,
+              truncatedMessages,
+              userImagePaths: userImagePaths,
+              thinkingBudget: thinkingBudget,
+              temperature: temperature,
+              topP: topP,
+              maxTokens: maxTokens,
+              tools: tools,
+              onToolCall: onToolCall,
+              extraHeaders: extraHeaders,
+              extraBody: extraBody,
+              stream: stream,
+              flags: flags,
+            ), rid)) {
+              yield chunk;
+            }
+          } else if (kind == ProviderKind.google) {
+            await for (final chunk in _trackYielded(_sendGoogleStream(
+              client,
+              config,
+              modelId,
+              truncatedMessages,
+              userImagePaths: userImagePaths,
+              thinkingBudget: thinkingBudget,
+              temperature: temperature,
+              topP: topP,
+              maxTokens: maxTokens,
+              tools: tools,
+              onToolCall: onToolCall,
+              extraHeaders: extraHeaders,
+              extraBody: extraBody,
+              stream: stream,
+              flags: flags,
+            ), rid)) {
+              yield chunk;
+            }
+          }
+
+          // Parser returned normally. Check for silent interruption before
+          // declaring success — a graceful-looking return that is missing
+          // the finish marker should be retried just like a thrown
+          // transient error.
+          final recovery = classifyStreamEndRecovery(
+            aborted: cancelToken.isCancelled,
+            finishReason: flags.finishReason,
+            hasUsage: flags.hasUsage,
+            receivedReasoning: false,
+            yieldedText: false,
+            yieldedToolCall: false,
+          );
+          if (recovery != null) {
+            // A silent interruption is treated as a transient error
+            // for the purpose of the retry budget. The recovery hint
+            // is preserved on the wrapper so the chat-action layer can
+            // disambiguate the UI copy.
+            throw TransientStreamError(
+              errorKind: 'silent_interrupt',
+              attempts: attempt + 1,
+              originalMessage:
+                  'SSE closed without finish marker; recovery: ${recovery.source}',
+              finishReason: flags.finishReason,
+            );
+          }
+          return;
+        } catch (e) {
+          // User cancelled — always rethrow immediately. Don't sleep,
+          // don't count against the retry budget.
+          if (cancelToken.isCancelled) {
+            rethrow;
+          }
+
+          // Zero-output gate: if the parser already emitted at least
+          // one visible chunk before the exception, retrying would
+          // duplicate the partial output and burn tokens upstream
+          // (the provider charges per request, not per delivered
+          // chunk). Surface the original error instead.
+          if (_requestYieldedAnything[rid] ?? false) {
+            rethrow;
+          }
+
+          final isTransient = classify(e) == RetryDecision.retryableTransient;
+          final isSilentInterrupt =
+              e is TransientStreamError && e.errorKind == 'silent_interrupt';
+
+          if (!isTransient && !isSilentInterrupt) {
+            rethrow; // terminal — 4xx other than 408/429, auth, parse…
+          }
+
+          if (attempt >= StreamRetryConfig.maxRetriesPerMessage) {
+            // Budget spent. Wrap the original error so the chat-action
+            // layer can decide what to do (preserve partial content,
+            // show a "connection interrupted after 3 retries" note).
+            throw TransientStreamError(
+              errorKind: 'retries_exhausted',
+              attempts: attempt + 1,
+              originalMessage: e is TransientStreamError
+                  ? e.originalMessage
+                  : e.toString(),
+            );
+          }
+
+          attempt++;
+          final delayMs =
+              StreamRetryConfig.computeBackoffDelayMs(attempt - 1);
+
+          // Tell the caller we are about to retry. Downstream code in
+          // [chat_actions] and [chat_turn_service] surfaces this as a
+          // snackbar; the chunk is otherwise a no-op for content.
+          yield ChatStreamChunk(
+            content: '',
+            isDone: false,
+            totalTokens: 0,
+            errorKind: isSilentInterrupt
+                ? 'silent_interrupt_retry'
+                : 'transient_retry',
+            attempt: attempt,
+            maxAttempts: StreamRetryConfig.maxRetriesPerMessage,
+            nextRetryInMs: delayMs,
+          );
+
+          await Future<void>.delayed(Duration(milliseconds: delayMs));
+          if (cancelToken.isCancelled) rethrow;
+          continue;
+        }
       }
     } finally {
       client.close();
@@ -897,6 +1072,8 @@ class ChatApiService {
         if (identical(cur, cancelToken)) {
           _activeCancelTokens.remove(rid);
         }
+        // Clear the yielded tracker so the map cannot grow unbounded.
+        _requestYieldedAnything.remove(rid);
       }
     }
   }
@@ -1775,6 +1952,7 @@ class ChatApiService {
     Map<String, dynamic>? extraBody,
     bool stream = true,
     String? imageAspectRatio,
+    StreamAttemptFlags? flags,
   }) async* {
     final upstreamModelId = _apiModelId(config, modelId);
     final base = config.baseUrl.endsWith('/')
@@ -2432,6 +2610,11 @@ class ChatApiService {
     // Non-streaming path: parse one-shot JSON and optionally follow tool calls.
     if (!stream) {
       final txt = await response.stream.bytesToString();
+      // A non-streaming response is by definition a complete turn —
+      // sync the L1 retry loop's silent-interruption detector.
+      if (flags != null) {
+        flags.finishReason = 'stop';
+      }
       try {
         final obj = jsonDecode(txt);
         // Responses API non-stream
@@ -3461,6 +3644,11 @@ class ChatApiService {
                 );
                 totalTokens = usage!.totalTokens;
               }
+              // Sync the L1 retry loop's silent-interruption detector.
+              if (flags != null) {
+                flags.finishReason = 'completed';
+                flags.hasUsage = u != null;
+              }
               // Extract web search citations from final output (Responses API)
               try {
                 final output = json['response']?['output'];
@@ -3963,6 +4151,7 @@ class ChatApiService {
             if (choices != null && choices.isNotEmpty) {
               final c0 = choices[0];
               finishReason = c0['finish_reason'] as String?;
+              flags?.finishReason = finishReason;
               // if (finishReason != null) {
               //   print('[ChatApi] Received finishReason from choices: $finishReason');
               // }
@@ -4175,6 +4364,7 @@ class ChatApiService {
               if (rootToolCalls.isNotEmpty) {
                 // print('[ChatApi/XinLiu] Overriding finishReason from "$finishReason" to "tool_calls"');
                 finishReason = 'tool_calls';
+                flags?.finishReason = finishReason;
               }
             }
             final u = json['usage'];
@@ -5612,7 +5802,13 @@ class ChatApiService {
       }
     }
 
-    // Fallback: provider closed SSE without sending [DONE]
+    // Fallback: provider closed SSE without sending [DONE].
+    // If [finishReason] is still null at this point, the L1 retry loop
+    // will detect a silent interruption and reissue the request.
+    if (flags != null) {
+      flags.finishReason = finishReason;
+      flags.hasUsage = usage != null;
+    }
     final approxTotal =
         usage?.totalTokens ??
         (approxPromptTokens + _approxTokensFromChars(approxCompletionChars));
@@ -5639,6 +5835,7 @@ class ChatApiService {
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     bool stream = true,
+    StreamAttemptFlags? flags,
   }) async* {
     final upstreamModelId = _apiModelId(config, modelId);
     // Endpoint and headers (constant across rounds)
@@ -5855,6 +6052,14 @@ class ChatApiService {
       if (!stream) {
         final txt = await response.stream.bytesToString();
         final obj = jsonDecode(txt) as Map;
+        // Sync the L1 retry loop's silent-interruption detector with the
+        // non-streaming response. A non-streaming JSON response is by
+        // definition a complete turn, so fill in a non-null finishReason
+        // and mark usage as present whenever usage was sent.
+        if (flags != null) {
+          flags.finishReason = 'end_turn';
+          flags.hasUsage = (obj['usage'] as Map?) != null;
+        }
         // Usage
         try {
           final u = (obj['usage'] as Map?)?.cast<String, dynamic>();
@@ -6376,6 +6581,7 @@ class ChatApiService {
                     : null;
                 if (sr is String && sr.isNotEmpty) {
                   _lastStopReason = sr;
+                  flags?.finishReason = sr;
                 }
               } catch (_) {}
             } else if (type == 'message_stop') {
@@ -6415,11 +6621,21 @@ class ChatApiService {
           // Loop to next round
           continue;
         } else {
+          // Surface the stop reason to the L1 retry loop for silent
+          // interruption detection. Claude always sends `message_stop`,
+          // so [finishReason] will normally be set here — the retry loop
+          // only fires on a truly dropped connection.
+          if (flags != null) {
+            flags.finishReason = _lastStopReason;
+            flags.hasUsage = (totalUsage ?? usage) != null;
+          }
           yield ChatStreamChunk(
             content: '',
             isDone: true,
             totalTokens: (totalUsage?.totalTokens ?? roundTokens),
             usage: totalUsage ?? usage,
+            finishReason: _lastStopReason,
+            hasUsage: (totalUsage ?? usage) != null,
           );
           return;
         }
@@ -6474,6 +6690,7 @@ class ChatApiService {
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     bool stream = true,
+    StreamAttemptFlags? flags,
   }) async* {
     final bool _persistGeminiThoughtSigs = modelId.toLowerCase().contains(
       'gemini-3',
@@ -6482,6 +6699,11 @@ class ChatApiService {
     final enableYoutube = builtIns.contains(BuiltInToolNames.youtube);
     // Non-streaming path: use generateContent
     if (!stream) {
+      // A non-streaming response is by definition a complete turn —
+      // sync the L1 retry loop's silent-interruption detector.
+      if (flags != null) {
+        flags.finishReason = 'STOP';
+      }
       final isVertex = config.vertexAI == true;
       final base = config.baseUrl.endsWith('/')
           ? config.baseUrl.substring(0, config.baseUrl.length - 1)
@@ -7442,7 +7664,10 @@ class ChatApiService {
                 }
                 // Capture explicit finish reason if present
                 final fr = cand['finishReason'];
-                if (fr is String && fr.isNotEmpty) finishReason = fr;
+                if (fr is String && fr.isNotEmpty) {
+                  finishReason = fr;
+                  flags?.finishReason = fr;
+                }
 
                 // Parse grounding metadata for citations if present
                 final gm =
@@ -7586,11 +7811,18 @@ class ChatApiService {
             );
           }
         }
+        // Surface the usage presence to the L1 retry loop. [finishReason]
+        // is synced inline at the capture site (Gemini's `fr` is declared
+        // inside the per-chunk scope, not visible here).
+        if (flags != null) {
+          flags.hasUsage = usage != null;
+        }
         yield ChatStreamChunk(
           content: '',
           isDone: true,
           totalTokens: totalTokens,
           usage: usage,
+          hasUsage: usage != null,
         );
         return;
       }
@@ -7772,6 +8004,7 @@ class ChatApiService {
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     String? imageAspectRatio,
+    StreamAttemptFlags? flags,
   }) async* {
     final input = await _openAIImagesInput(messages, userImagePaths);
     final outputMime = _openAIImagesOutputMime(config, modelId, extraBody);
@@ -7825,6 +8058,12 @@ class ChatApiService {
     );
     if (ratioNote != null) markdown = '$markdown\n\n$ratioNote';
     final usage = _openAIImagesUsage(response);
+    // A successful single-shot image response is by definition a complete
+    // turn — sync the L1 retry loop's silent-interruption detector.
+    if (flags != null) {
+      flags.finishReason = 'stop';
+      flags.hasUsage = usage != null;
+    }
     yield ChatStreamChunk(
       content: markdown,
       isDone: true,
@@ -8455,6 +8694,23 @@ class ChatStreamChunk {
   final List<ToolCallInfo>? toolCalls;
   final List<ToolResultInfo>? toolResults;
 
+  // --- L1 retry / silent-interrupt recovery metadata ---
+  // These three fields are populated by [sendMessageStream] when it is
+  // about to reissue the same request after a transient or silent failure.
+  // Downstream consumers ([chat_actions] and [chat_turn_service]) route
+  // them to a UI hook so the user sees "正在重試 1/3…" snackbars.
+  final String? errorKind;        // null | 'transient_retry' | 'silent_interrupt_retry'
+  final int? attempt;             // 1-based upcoming attempt number
+  final int? maxAttempts;         // total attempts allowed (1 + retries)
+  final int? nextRetryInMs;       // ms to sleep before the next attempt
+
+  // --- Provider finish metadata ---
+  // Captured at the parser level so the L1 retry loop can detect silent
+  // interruptions (SSE body that closes without [DONE] / `message_stop` /
+  // explicit Gemini `finishReason`). See `stream_interruption.dart`.
+  final String? finishReason;
+  final bool hasUsage;
+
   ChatStreamChunk({
     required this.content,
     this.reasoning,
@@ -8463,7 +8719,28 @@ class ChatStreamChunk {
     this.usage,
     this.toolCalls,
     this.toolResults,
+    this.errorKind,
+    this.attempt,
+    this.maxAttempts,
+    this.nextRetryInMs,
+    this.finishReason,
+    this.hasUsage = false,
   });
+}
+
+/// Mutable flags accumulated during a single LLM stream attempt. Used by
+/// the L1 retry loop in [ChatApiService.sendMessageStream] to detect
+/// silent stream interruptions: the parser fills in [finishReason] /
+/// [hasUsage] as it consumes SSE, and the loop calls
+/// [classifyStreamEndRecovery] after the parser returns.
+///
+/// Ported from AnyBuff's [StreamAttemptFlags] in sdk/src/impl/llm.ts.
+/// OmniChat's chat-action layer handles the "zero-output gate" UX (e.g.
+/// flushing partial content on retry) via its own `onStreamRetry`
+/// callback, so we don't track per-chunk yielded flags here.
+class StreamAttemptFlags {
+  String? finishReason;
+  bool hasUsage = false;
 }
 
 class ToolCallInfo {

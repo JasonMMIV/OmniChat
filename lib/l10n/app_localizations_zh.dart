@@ -1141,6 +1141,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get generationInterrupted => '生成已中断';
 
   @override
+  String streamRetryInProgress(Object attempt, Object max) {
+    return '网络问题，正在重试 $attempt/$max…';
+  }
+
+  @override
+  String streamRetrySilentInProgress(Object attempt, Object max) {
+    return '连线中断，正在重试 $attempt/$max…';
+  }
+
+  @override
+  String streamInterruptedNote(Object retries) {
+    return '因连线问题中断，已重试 $retries 次仍失败';
+  }
+
+  @override
   String get homePagePleaseSelectModel => '请先选择模型';
 
   @override
@@ -5699,6 +5714,21 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get generationInterrupted => '生成已中断';
 
   @override
+  String streamRetryInProgress(Object attempt, Object max) {
+    return '网络问题，正在重试 $attempt/$max…';
+  }
+
+  @override
+  String streamRetrySilentInProgress(Object attempt, Object max) {
+    return '连线中断，正在重试 $attempt/$max…';
+  }
+
+  @override
+  String streamInterruptedNote(Object retries) {
+    return '因连线问题中断，已重试 $retries 次仍失败';
+  }
+
+  @override
   String get homePagePleaseSelectModel => '请先选择模型';
 
   @override
@@ -10151,6 +10181,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get generationInterrupted => '生成已中斷';
+
+  @override
+  String streamRetryInProgress(Object attempt, Object max) {
+    return '網路問題，正在重試 $attempt/$max…';
+  }
+
+  @override
+  String streamRetrySilentInProgress(Object attempt, Object max) {
+    return '連線中斷，正在重試 $attempt/$max…';
+  }
+
+  @override
+  String streamInterruptedNote(Object retries) {
+    return '因連線問題中斷，已重試 $retries 次仍失敗';
+  }
 
   @override
   String get homePagePleaseSelectModel => '請先選擇模型';

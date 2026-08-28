@@ -96,6 +96,7 @@ class HomeViewModel extends ChangeNotifier {
     _chatActions.onLoadingChanged = _onLoadingChanged;
     _chatActions.onContentUpdated = _onContentUpdated;
     _chatActions.onStreamError = _onStreamError;
+    _chatActions.onStreamRetry = _onStreamRetry;
     _chatActions.onMaybeGenerateTitle = _onMaybeGenerateTitle;
     _chatActions.onMaybeGenerateSummary = _onMaybeGenerateSummary;
     _chatActions.onStreamFinished = _onStreamFinished;
@@ -125,6 +126,24 @@ class HomeViewModel extends ChangeNotifier {
 
   /// Called when an error occurs (UI should show snackbar).
   void Function(String error)? onError;
+
+  /// Called when the L1 retry loop is about to reissue a request after a
+  /// transient or silent-interrupt failure. The UI should show a brief
+  /// info snackbar so the user knows the connection is being retried
+  /// instead of silently failing.
+  ///
+  /// [conversationId] identifies which conversation the retry belongs
+  /// to, so the UI can ignore retries for conversations the user has
+  /// since navigated away from.
+  ///
+  /// [errorKind] is one of `'transient_retry'` or `'silent_interrupt_retry'`.
+  void Function(
+    int attempt,
+    int maxAttempts,
+    String errorKind,
+    String conversationId,
+  )?
+      onRetry;
 
   /// Called when a warning occurs (UI should show snackbar).
   void Function(String warning)? onWarning;
@@ -196,6 +215,15 @@ class HomeViewModel extends ChangeNotifier {
 
   void _onStreamError(String error) {
     onError?.call(error);
+  }
+
+  void _onStreamRetry(int attempt, int maxAttempts, String errorKind) {
+    onRetry?.call(
+      attempt,
+      maxAttempts,
+      errorKind,
+      currentConversation?.id ?? '',
+    );
   }
 
   void _onMaybeGenerateTitle(String conversationId) {
