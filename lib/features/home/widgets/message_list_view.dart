@@ -393,6 +393,7 @@ class MessageListView extends StatelessWidget {
         // Use streaming content if available, otherwise fall back to message content
         final displayContent = data.content.isNotEmpty ? data.content : message.content;
         final displayTokens = data.totalTokens > 0 ? data.totalTokens : message.totalTokens;
+        final retry = data.retryStatus;
 
         // Create a modified message with streaming content
         final streamingMessage = message.copyWith(
@@ -426,22 +427,33 @@ class MessageListView extends StatelessWidget {
 
         // Wrap in RepaintBoundary to isolate repaints from affecting other widgets
         return RepaintBoundary(
-          child: _buildChatMessageWidget(
-            context,
-            message: streamingMessage,
-            index: index,
-            messages: messages,
-            byGroup: byGroup,
-            r: streamingReasoning,
-            t: t,
-            useAssist: useAssist,
-            assistant: assistant,
-            showMsgNav: showMsgNav,
-            gid: gid,
-            selectedIdx: selectedIdx,
-            total: total,
-            effectiveIndex: effectiveIndex,
-            effectiveTotal: effectiveTotal,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (retry != null)
+                _RetryIndicator(
+                  attempt: retry.attempt,
+                  maxAttempts: retry.maxAttempts,
+                  isSilentInterrupt: retry.isSilentInterrupt,
+                ),
+              _buildChatMessageWidget(
+                context,
+                message: streamingMessage,
+                index: index,
+                messages: messages,
+                byGroup: byGroup,
+                r: streamingReasoning,
+                t: t,
+                useAssist: useAssist,
+                assistant: assistant,
+                showMsgNav: showMsgNav,
+                gid: gid,
+                selectedIdx: selectedIdx,
+                total: total,
+                effectiveIndex: effectiveIndex,
+                effectiveTotal: effectiveTotal,
+              ),
+            ],
           ),
         );
       },
@@ -541,6 +553,64 @@ class MessageListView extends StatelessWidget {
                   .toList();
             })()
           : null,
+    );
+  }
+}
+
+/// Inline retry indicator rendered above the streaming message bubble
+/// while the L1 retry loop is in flight. Designed to survive snackbar
+/// queue churn (terminal error snackbars fire ~7 s after retries
+/// begin, visually replacing the retry toast) so the user can always
+/// see that the system is working on a fix.
+class _RetryIndicator extends StatelessWidget {
+  const _RetryIndicator({
+    required this.attempt,
+    required this.maxAttempts,
+    required this.isSilentInterrupt,
+  });
+
+  final int attempt;
+  final int maxAttempts;
+  final bool isSilentInterrupt;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    // A muted info-color pill — sits above the bubble but doesn't
+    // dominate the visual hierarchy.
+    final color = theme.colorScheme.primary;
+    return Container(
+      margin: const EdgeInsets.only(left: 12, bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            isSilentInterrupt
+                ? l10n.streamRetrySilentInProgress(attempt, maxAttempts)
+                : l10n.streamRetryInProgress(attempt, maxAttempts),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

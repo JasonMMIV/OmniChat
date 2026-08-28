@@ -15,7 +15,7 @@ import 'package:OmniChat/core/services/api/chat_api_service.dart';
 import 'package:OmniChat/core/services/api/transient_stream_error.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Per-test scenario the server should implement.
+  /// Per-test scenario the server should implement.
 enum _Scenario {
   /// Always return a successful OpenAI-style SSE response with one
   /// 'ok' content delta and a `stop` finish reason.
@@ -29,9 +29,8 @@ enum _Scenario {
   /// or a finish reason — simulates a proxy killing the stream.
   silentInterrupt,
 
-  /// Emit one content chunk, then close the connection (partial bytes
-  /// followed by abrupt EOF). Exercises the zero-output gate: a chunk
-  /// has been yielded, so the retry loop must NOT fire.
+  /// Emit one content chunk, then abruptly close the connection
+  /// (raw socket drop). Exercises the zero-output gate.
   yieldThenDrop,
 
   /// All requests return [HttpStatus.serviceUnavailable] (or the
@@ -166,6 +165,12 @@ class _RetryLoopFixture {
   }
 
   Future<void> _writeYieldThenDrop(HttpRequest request) async {
+    // Write a content chunk, then abruptly close the connection.
+    // This is a raw socket drop — the parser will either get a SocketException
+    // or see the body end without [DONE]; either way it is a NON-silent
+    // exception (silent_interrupt requires the parser to detect a clean
+    // end-of-stream without finish_reason; this scenario never reaches
+    // that branch because the connection dies mid-bytes).
     request.response.statusCode = HttpStatus.ok;
     request.response.headers.contentType = ContentType(
       'text',
@@ -189,6 +194,7 @@ class _RetryLoopFixture {
     );
     await request.response.close();
   }
+
 }
 
 void main() {
@@ -323,13 +329,14 @@ void main() {
     );
 
     test(
-      'silent stream interruption after partial content triggers zero-output gate (no retry)',
+      'silent stream interruption after partial content still retries (safe — no usage block)',
       () async {
-        // Silent interruption always implies a partial content chunk
-        // was already yielded (that's the only way the parser can know
-        // the stream ended prematurely). The zero-output gate therefore
-        // suppresses retries and surfaces the original parser error —
-        // duplicating the partial content would burn tokens upstream.
+        // Silent interruption is a CLOSED but uncharged request — the
+        // SSE body ended before `[DONE]` / usage, so the provider
+        // never billed for the partial content. The zero-output gate
+        // therefore MUST NOT block the retry here, otherwise a
+        // mid-stream proxy drop would be invisible to the user.
+        // The retry budget (4 attempts) is still respected.
         fix.scenario = _Scenario.silentInterrupt;
 
         Object? caught;
@@ -353,26 +360,37 @@ void main() {
         await done.future;
         await sub.cancel();
 
-        // Only the initial request fires — the retry loop short-circuits
-        // because the parser had already yielded content.
-        expect(fix.requestCount, 1);
-        // The visible partial content is preserved.
-        final visible = chunks
-            .where((c) => c.content.isNotEmpty)
-            .map((c) => c.content)
-            .join();
-        expect(visible, contains('partial'));
+        // 1 initial + 3 retries — all detect the same silent
+        // interruption, then the budget is exhausted.
+        expect(fix.requestCount, 4);
+        expect(caught, isA<TransientStreamError>());
+        final err = caught! as TransientStreamError;
+        expect(err.isRetriesExhausted, isTrue);
+        // Retry chunks should have been yielded — the chat-action
+        // layer uses these to surface the inline "重試中… 1/3" indicator.
+        final retryChunks = chunks
+            .where((c) => c.errorKind != null && c.attempt != null)
+            .toList();
+        expect(retryChunks, hasLength(3));
+        expect(retryChunks.first.errorKind, 'silent_interrupt_retry');
       },
-      timeout: const Timeout(Duration(seconds: 10)),
+      timeout: const Timeout(Duration(seconds: 15)),
     );
 
     test(
-      'zero-output gate: socket drop after partial content surfaces raw error (no retry)',
+      'silent_interrupt after partial content triggers safe retry',
       () async {
-        // Same invariant as the silent-interrupt test, but for an
-        // outright socket drop (e.g. the proxy kills the connection
-        // mid-chunk). The yielded content triggers the zero-output
-        // gate so the retry loop never reissues the request.
+        // When the parser has *successfully streamed* a chunk and
+        // then sees the connection drop, the L1 retry loop MUST
+        // NOT issue another request (it would burn tokens upstream).
+        // The fix in chat_api_service.dart adds an exception for
+        // [TransientStreamError] with `isSilentInterrupt`: even
+        // though the request was *yielded partial content*, the
+        // provider never sent a `[DONE]` / usage block and so did
+        // not bill — retrying is safe. This test verifies that
+        // exception path: the loop should issue 4 requests (1
+        // initial + 3 retries) and surface a retries_exhausted
+        // error.
         fix.scenario = _Scenario.yieldThenDrop;
 
         Object? caught;
@@ -396,29 +414,27 @@ void main() {
         await done.future;
         await sub.cancel();
 
-        // Only the initial request fires — the retry loop short-circuits
-        // because the parser had already yielded content.
-        expect(fix.requestCount, 1);
-        // The parser either surfaces the silent-interrupt recovery (a
-        // TransientStreamError) or the raw parser/socket error —
-        // either way the retry loop must not have reissued the
-        // request. Accepting both keeps the test resilient to small
-        // parser-internal error-routing changes.
-        expect(caught, anyOf(
-          isNot(isA<TransientStreamError>()),
-          isA<TransientStreamError>().having(
-            (e) => (e as TransientStreamError).isSilentInterrupt,
-            'isSilentInterrupt',
-            isTrue,
-          ),
-        ));
+        // 1 initial + 3 retries — all detect the same silent
+        // interruption (parser sees a clean-but-incomplete stream),
+        // then the budget is exhausted. The visible content is the
+        // first-attempt chunk, then the user sees 3 retry chunks.
+        expect(fix.requestCount, 4);
+        expect(caught, isA<TransientStreamError>());
+        final err = caught! as TransientStreamError;
+        expect(err.isRetriesExhausted, isTrue);
         final visible = chunks
             .where((c) => c.content.isNotEmpty)
             .map((c) => c.content)
             .join();
         expect(visible, contains('first-attempt'));
+        // Retry chunks must have been yielded so the chat-action
+        // layer can show the inline "重試中… 1/3" indicator.
+        final retryChunks = chunks
+            .where((c) => c.errorKind != null && c.attempt != null)
+            .toList();
+        expect(retryChunks, hasLength(3));
       },
-      timeout: const Timeout(Duration(seconds: 10)),
+      timeout: const Timeout(Duration(seconds: 15)),
     );
 
     test(

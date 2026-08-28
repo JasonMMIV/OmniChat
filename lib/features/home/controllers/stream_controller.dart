@@ -1025,6 +1025,19 @@ class StreamingState {
   bool finishHandled = false;
   bool titleQueued = false;
 
+  /// Retry status for the L1 retry loop. `null` means the stream is
+  /// in its first attempt; `1`, `2`, `3` mean we are about to
+  /// reissue the request for the Nth retry. Reset to `null` after
+  /// each successful attempt (see [_resetStreamForRetry]).
+  int? retryAttempt;
+
+  /// `true` if the L1 retry budget is exhausted. Set by
+  /// [ChatActions._handleStreamError] when a
+  /// `TransientStreamError(isRetriesExhausted: true)` is observed;
+  /// the message bubble reads this to render the "已重試 N 次仍失敗"
+  /// footnote.
+  bool retriesExhausted = false;
+
   String get messageId => ctx.assistantMessage.id;
   String get conversationId => ctx.assistantMessage.conversationId;
 }

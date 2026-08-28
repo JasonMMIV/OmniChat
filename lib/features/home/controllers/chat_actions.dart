@@ -1252,6 +1252,25 @@ class ChatActions {
     // from a blank slate (avoids the "double text" visual glitch when
     // the second attempt streams overlapping content).
     if (chunk.errorKind != null && chunk.attempt != null) {
+      // Stash the retry attempt on StreamingState so the message
+      // bubble can render a live "重試中… 1/3" indicator alongside
+      // (or in lieu of) the snackbar. Snackbars are easy to miss
+      // when the terminal error replaces them within seconds.
+      state.retryAttempt = chunk.attempt;
+      state.retriesExhausted = false;
+      // Push the retry status to the streaming notifier *before*
+      // clearing the partial content, so the message bubble can
+      // briefly show the indicator plus a faint preview of the
+      // previous attempt's content (this is intentional — it makes
+      // it obvious to the user that the system already tried once).
+      streamController.streamingContentNotifier.updateRetryStatus(
+        state.messageId,
+        stream_ctrl.RetryStatus(
+          attempt: chunk.attempt!,
+          maxAttempts: chunk.maxAttempts ?? 3,
+          isSilentInterrupt: chunk.errorKind == 'silent_interrupt_retry',
+        ),
+      );
       onStreamRetry?.call(
         chunk.attempt!,
         chunk.maxAttempts ?? 3,
@@ -1405,6 +1424,16 @@ class ChatActions {
     final conversationId = state.conversationId;
 
     state.fullContentRaw += chunkContent;
+    // Clear the retry indicator as soon as the new attempt starts
+    // streaming real content. Otherwise the "重試中… 1/3" badge would
+    // persist on top of the response, confusing the user.
+    if (state.retryAttempt != null) {
+      state.retryAttempt = null;
+      streamController.streamingContentNotifier.updateRetryStatus(
+        messageId,
+        null,
+      );
+    }
     if (chunk.totalTokens > 0) {
       state.totalTokens = chunk.totalTokens;
     }

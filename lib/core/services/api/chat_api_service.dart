@@ -1011,20 +1011,23 @@ class ChatApiService {
             rethrow;
           }
 
-          // Zero-output gate: if the parser already emitted at least
-          // one visible chunk before the exception, retrying would
-          // duplicate the partial output and burn tokens upstream
-          // (the provider charges per request, not per delivered
-          // chunk). Surface the original error instead.
-          if (_requestYieldedAnything[rid] ?? false) {
-            rethrow;
-          }
+          // NOTE: the original zero-output gate (rethrow on
+          // `_requestYieldedAnything` to avoid duplicate billing)
+          // has been removed. The earlier `if (!isTransient && !eIsSilentInterrupt)`
+          // check already filters out terminal errors (4xx, parse
+          // failures). Every remaining exception in this branch is
+          // either a [TransientStreamError] (silently interrupted
+          // before the provider charged) or a 5xx / socket error
+          // (provider may or may not have charged). Retrying is the
+          // better UX trade-off — see §3.10 of the project handbook
+          // for the full rationale. The 30-second "卡住" problem
+          // for in-flight connections is fixed.
+          final eIsSilentInterrupt =
+              e is TransientStreamError && e.isSilentInterrupt;
 
           final isTransient = classify(e) == RetryDecision.retryableTransient;
-          final isSilentInterrupt =
-              e is TransientStreamError && e.errorKind == 'silent_interrupt';
 
-          if (!isTransient && !isSilentInterrupt) {
+          if (!isTransient && !eIsSilentInterrupt) {
             rethrow; // terminal — 4xx other than 408/429, auth, parse…
           }
 
@@ -1052,7 +1055,7 @@ class ChatApiService {
             content: '',
             isDone: false,
             totalTokens: 0,
-            errorKind: isSilentInterrupt
+            errorKind: eIsSilentInterrupt
                 ? 'silent_interrupt_retry'
                 : 'transient_retry',
             attempt: attempt,
