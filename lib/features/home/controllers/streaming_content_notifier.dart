@@ -45,6 +45,34 @@ class StreamingContentNotifier {
         toolPartsVersion: current.toolPartsVersion,
         uiVersion: current.uiVersion,
         aiTeamProposalsJson: current.aiTeamProposalsJson,
+        retryStatus: current.retryStatus,
+      );
+    }
+  }
+
+  /// Update the L1 retry status indicator. The bubble reads
+  /// [StreamingContentData.retryStatus] and renders an inline
+  /// "重試中… 1/3" placeholder above the streamed content so the
+  /// user can see retries are happening — relying on top snackbars
+  /// alone is fragile because the terminal error snackbar fires
+  /// ~7 seconds later and visually replaces the retry toast.
+  ///
+  /// Pass `null` to clear the indicator once the new attempt starts
+  /// streaming real content.
+  void updateRetryStatus(String messageId, RetryStatus? status) {
+    final notifier = _notifiers[messageId];
+    if (notifier != null) {
+      final current = notifier.value;
+      notifier.value = StreamingContentData(
+        content: current.content,
+        totalTokens: current.totalTokens,
+        reasoningText: current.reasoningText,
+        reasoningStartAt: current.reasoningStartAt,
+        reasoningFinishedAt: current.reasoningFinishedAt,
+        toolPartsVersion: current.toolPartsVersion,
+        uiVersion: current.uiVersion,
+        aiTeamProposalsJson: current.aiTeamProposalsJson,
+        retryStatus: status,
       );
     }
   }
@@ -67,6 +95,7 @@ class StreamingContentNotifier {
         toolPartsVersion: current.toolPartsVersion,
         uiVersion: current.uiVersion,
         aiTeamProposalsJson: current.aiTeamProposalsJson,
+        retryStatus: current.retryStatus,
       );
     }
   }
@@ -86,6 +115,7 @@ class StreamingContentNotifier {
         toolPartsVersion: current.toolPartsVersion + 1,
         uiVersion: current.uiVersion,
         aiTeamProposalsJson: current.aiTeamProposalsJson,
+        retryStatus: current.retryStatus,
       );
     }
   }
@@ -105,6 +135,7 @@ class StreamingContentNotifier {
         toolPartsVersion: current.toolPartsVersion,
         uiVersion: current.uiVersion + 1,
         aiTeamProposalsJson: current.aiTeamProposalsJson,
+        retryStatus: current.retryStatus,
       );
     }
   }
@@ -124,6 +155,7 @@ class StreamingContentNotifier {
         toolPartsVersion: current.toolPartsVersion,
         uiVersion: current.uiVersion,
         aiTeamProposalsJson: proposalsJson,
+        retryStatus: current.retryStatus,
       );
     }
   }
@@ -148,6 +180,29 @@ class StreamingContentNotifier {
   }
 }
 
+/// Status of the L1 retry loop, surfaced to the streaming message
+/// bubble so the user can see when a retry is in flight. The bubble
+/// reads this via [StreamingContentData.retryStatus].
+@immutable
+class RetryStatus {
+  const RetryStatus({
+    required this.attempt,
+    required this.maxAttempts,
+    required this.isSilentInterrupt,
+  });
+
+  /// 1-based retry number (1 = first retry, 2 = second, etc.).
+  final int attempt;
+
+  /// Total allowed retries (== [StreamRetryConfig.maxRetriesPerMessage]).
+  final int maxAttempts;
+
+  /// `true` if the retry was triggered by a silent stream
+  /// interruption (proxy killed the SSE body), `false` for
+  /// transient network / 5xx / 408 / 429 errors.
+  final bool isSilentInterrupt;
+}
+
 /// Data class for streaming content.
 @immutable
 class StreamingContentData {
@@ -160,6 +215,7 @@ class StreamingContentData {
     this.toolPartsVersion = 0,
     this.uiVersion = 0,
     this.aiTeamProposalsJson,
+    this.retryStatus,
   });
 
   final String content;
@@ -173,6 +229,9 @@ class StreamingContentData {
   final int uiVersion;
   /// AI Team proposals JSON for real-time display during proposal phase.
   final String? aiTeamProposalsJson;
+  /// L1 retry status; `null` when no retry is in flight (first
+  /// attempt, or post-retry success).
+  final RetryStatus? retryStatus;
 
   @override
   bool operator ==(Object other) =>
@@ -186,7 +245,8 @@ class StreamingContentData {
           reasoningFinishedAt == other.reasoningFinishedAt &&
           toolPartsVersion == other.toolPartsVersion &&
           uiVersion == other.uiVersion &&
-          aiTeamProposalsJson == other.aiTeamProposalsJson;
+          aiTeamProposalsJson == other.aiTeamProposalsJson &&
+          retryStatus == other.retryStatus;
 
   @override
   int get hashCode =>
@@ -197,5 +257,6 @@ class StreamingContentData {
       reasoningFinishedAt.hashCode ^
       toolPartsVersion.hashCode ^
       uiVersion.hashCode ^
-      aiTeamProposalsJson.hashCode;
+      aiTeamProposalsJson.hashCode ^
+      retryStatus.hashCode;
 }
