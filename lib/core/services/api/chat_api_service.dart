@@ -264,6 +264,99 @@ class ChatApiService {
     }).toList();
   }
 
+  /// Rebuild a message list for an OpenAI follow-up request while preserving
+  /// replayed tool structure (role:'tool' messages and assistant tool_calls).
+  ///
+  /// The generic `{role, content}` shape is kept for plain messages; tool
+  /// messages pass through untouched so `tool_call_id`/`tool_calls` survive
+  /// multi-round tool loops.
+  static List<Map<String, dynamic>> _preserveToolStructuredMessages(
+    List<Map<String, dynamic>> messages,
+  ) {
+    final out = <Map<String, dynamic>>[];
+    for (final m in messages) {
+      final role = (m['role'] ?? 'user').toString();
+      final isToolRole = role == 'tool';
+      final hasToolCalls =
+          role == 'assistant' && m['tool_calls'] is List &&
+          (m['tool_calls'] as List).isNotEmpty;
+      if (isToolRole || hasToolCalls) {
+        out.add(Map<String, dynamic>.from(m));
+      } else {
+        out.add({
+          'role': role,
+          'content': m['content'] ?? '',
+        });
+      }
+    }
+    return out;
+  }
+
+  /// Anthropic rejects empty text in tool_result content, so substitute a
+  /// placeholder when a replayed tool result is empty.
+  static String claudeToolResultContent(String result) =>
+      result.trim().isEmpty ? '(no output)' : result;
+
+  /// Convert a replayed OpenAI-format tool call entry to an Anthropic
+  /// `tool_use` block.
+  static Map<String, dynamic>? _claudeToolUseBlockFromToolCall(Map? tc) {
+    if (tc == null) return null;
+    final id = (tc['id'] ?? '').toString();
+    final fn = tc['function'];
+    if (id.isEmpty || fn is! Map) return null;
+    Map<String, dynamic> input = const <String, dynamic>{};
+    try {
+      input = (jsonDecode((fn['arguments'] ?? '{}').toString()) as Map)
+          .cast<String, dynamic>();
+    } catch (_) {}
+    return {
+      'type': 'tool_use',
+      'id': id,
+      'name': (fn['name'] ?? '').toString(),
+      'input': input,
+    };
+  }
+
+  /// Convert a replayed OpenAI-format tool call entry to a Gemini
+  /// `functionCall` part.
+  static Map<String, dynamic>? _googleFunctionCallPartFromToolCall(Map? tc) {
+    if (tc == null) return null;
+    final id = (tc['id'] ?? '').toString();
+    final fn = tc['function'];
+    if (id.isEmpty || fn is! Map) return null;
+    final name = (fn['name'] ?? '').toString();
+    if (name.isEmpty) return null;
+    Map<String, dynamic> args = const <String, dynamic>{};
+    try {
+      args = (jsonDecode((fn['arguments'] ?? '{}').toString()) as Map)
+          .cast<String, dynamic>();
+    } catch (_) {}
+    return {
+      'functionCall': {'name': name, 'args': args},
+      if (id.isNotEmpty) 'id': id,
+    };
+  }
+
+  /// Gemini 3 validates that the first functionCall part of a replayed model
+  /// turn carries a thought signature; a missing one fails the whole request
+  /// with "Function call is missing a thought_signature in functionCall parts".
+  /// The replayed events do not carry the original signature, so fall back to
+  /// the documented placeholder (same value used for inline-data fallback).
+  static void _ensureGeminiFunctionCallThoughtSig(
+    List<Map<String, dynamic>> parts,
+  ) {
+    for (final part in parts) {
+      if (part['functionCall'] is! Map) continue;
+      final hasSig =
+          part.containsKey('thoughtSignature') ||
+          part.containsKey('thought_signature');
+      if (!hasSig) {
+        part['thoughtSignature'] = 'context_engineering_is_the_way_to_go';
+      }
+      return; // Only the first functionCall part is validated.
+    }
+  }
+
   /// Treat Neuralwatt as OpenAI-compatible for chat API request format.
   static ProviderKind _apiKind(ProviderConfig config) {
     final kind = ProviderConfig.classify(
@@ -2127,7 +2220,44 @@ class ChatApiService {
           continue;
         }
 
+        // Handle replayed tool result messages (role: 'tool') → function_call_output
+        if (roleRaw == 'tool') {
+          final toolCallId = (m['tool_call_id'] ?? '').toString();
+          final content = (m['content'] ?? '').toString();
+          if (toolCallId.isNotEmpty) {
+            input.add({
+              'type': 'function_call_output',
+              'call_id': toolCallId,
+              'output': content,
+            });
+          }
+          continue;
+        }
+
         final isAssistant = roleRaw == 'assistant';
+
+        // Handle replayed assistant messages carrying tool_calls → function_call items
+        if (isAssistant && m['tool_calls'] is List) {
+          final toolCalls = m['tool_calls'] as List;
+          for (final tc in toolCalls) {
+            if (tc is! Map) continue;
+            final callId = (tc['id'] ?? '').toString();
+            final fn = tc['function'];
+            if (fn is! Map) continue;
+            final name = (fn['name'] ?? '').toString();
+            final arguments = (fn['arguments'] ?? '{}').toString();
+            if (callId.isNotEmpty && name.isNotEmpty) {
+              input.add({
+                'type': 'function_call',
+                'call_id': callId,
+                'name': name,
+                'arguments': arguments,
+              });
+            }
+          }
+          // Skip adding the assistant message content if it only contains tool calls
+          if (raw.trim().isEmpty || raw.trim() == '\n\n') continue;
+        }
 
         // Only parse images if there are images to process
         final hasMarkdownImages = raw.contains('![') && raw.contains('](');
@@ -2314,6 +2444,14 @@ class ChatApiService {
         // System 消息保持为纯文本，不解析为图片
         if (role == 'system') {
           mm.add({'role': role, 'content': raw});
+          continue;
+        }
+
+        // Preserve replayed tool result messages and assistant tool_calls as-is.
+        if (role == 'tool' ||
+            (role == 'assistant' && m['tool_calls'] is List &&
+                (m['tool_calls'] as List).isNotEmpty)) {
+          mm.add(Map<String, dynamic>.from(m));
           continue;
         }
 
@@ -2828,13 +2966,7 @@ class ChatApiService {
               headers2.addAll(extraHeaders);
             req.headers.addAll(headers2);
             messages = _truncateToolResultsInMessages(messages);
-            final next = <Map<String, dynamic>>[];
-            for (final m in messages) {
-              next.add({
-                'role': m['role'] ?? 'user',
-                'content': m['content'] ?? '',
-              });
-            }
+            final next = _preserveToolStructuredMessages(messages);
             final assistantToolCallMsg = <String, dynamic>{
               'role': 'assistant',
               'content': '\n\n',
@@ -3031,13 +3163,7 @@ class ChatApiService {
 
             // Build follow-up messages
             messages = _truncateToolResultsInMessages(messages);
-            final mm2 = <Map<String, dynamic>>[];
-            for (final m in messages) {
-              mm2.add({
-                'role': m['role'] ?? 'user',
-                'content': m['content'] ?? '',
-              });
-            }
+            final mm2 = _preserveToolStructuredMessages(messages);
             final assistantToolCallMsg = <String, dynamic>{
               'role': 'assistant',
               'content': '\n\n',
@@ -4486,13 +4612,7 @@ class ChatApiService {
             }
             // Build follow-up messages
             messages = _truncateToolResultsInMessages(messages);
-            final mm2 = <Map<String, dynamic>>[];
-            for (final m in messages) {
-              mm2.add({
-                'role': m['role'] ?? 'user',
-                'content': m['content'] ?? '',
-              });
-            }
+            final mm2 = _preserveToolStructuredMessages(messages);
             final assistantToolCallMsg = <String, dynamic>{
               'role': 'assistant',
               'content': '\n\n',
@@ -5091,13 +5211,7 @@ class ChatApiService {
                 }
                 // Build follow-up messages
                 messages = _truncateToolResultsInMessages(messages);
-                final mm2 = <Map<String, dynamic>>[];
-                for (final m in messages) {
-                  mm2.add({
-                    'role': m['role'] ?? 'user',
-                    'content': m['content'] ?? '',
-                  });
-                }
+                final mm2 = _preserveToolStructuredMessages(messages);
                 final assistantToolCallMsg = <String, dynamic>{
                   'role': 'assistant',
                   'content': '\n\n',
@@ -5693,13 +5807,7 @@ class ChatApiService {
             }
 
             // Follow-up request with assistant tool_calls + tool messages
-            final mm2 = <Map<String, dynamic>>[];
-            for (final m in messages) {
-              mm2.add({
-                'role': m['role'] ?? 'user',
-                'content': m['content'] ?? '',
-              });
-            }
+            final mm2 = _preserveToolStructuredMessages(messages);
             final assistantToolCallMsg = <String, dynamic>{
               'role': 'assistant',
               'content': '\n\n',
@@ -5874,6 +5982,42 @@ class ChatApiService {
         }
         continue;
       }
+      // Convert replayed OpenAI-format tool messages to Anthropic blocks.
+      if (role == 'tool') {
+        final id = (m['tool_call_id'] ?? '').toString();
+        if (id.isNotEmpty) {
+          nonSystemMessages.add({
+            'role': 'user',
+            'content': [
+              {
+                'type': 'tool_result',
+                'tool_use_id': id,
+                'content': claudeToolResultContent(
+                  (m['content'] ?? '').toString(),
+                ),
+              },
+            ],
+          });
+        }
+        continue;
+      }
+      // Convert replayed assistant tool_calls to Anthropic tool_use blocks.
+      if (role == 'assistant' && m['tool_calls'] is List) {
+        final toolCalls = m['tool_calls'] as List;
+        final blocks = <Map<String, dynamic>>[];
+        final text = (m['content'] ?? '').toString();
+        if (text.trim().isNotEmpty && text.trim() != '\n\n') {
+          blocks.add({'type': 'text', 'text': text});
+        }
+        for (final tc in toolCalls.whereType<Map>()) {
+          final block = _claudeToolUseBlockFromToolCall(tc);
+          if (block != null) blocks.add(block);
+        }
+        if (blocks.isNotEmpty) {
+          nonSystemMessages.add({'role': 'assistant', 'content': blocks});
+        }
+        continue;
+      }
       nonSystemMessages.add({
         'role': role.isEmpty ? 'user' : role,
         'content': m['content'] ?? '',
@@ -5885,9 +6029,13 @@ class ChatApiService {
     for (int i = 0; i < nonSystemMessages.length; i++) {
       final m = nonSystemMessages[i];
       final isLast = i == nonSystemMessages.length - 1;
+      // Only string-content user messages can be image-transformed. Replayed
+      // tool_result messages carry List content (blocks) — never run them
+      // through the image pipeline or their blocks get replaced.
       if (isLast &&
           (userImagePaths?.isNotEmpty == true) &&
-          (m['role'] == 'user')) {
+          (m['role'] == 'user') &&
+          (m['content'] is String)) {
         final parts = <Map<String, dynamic>>[];
         final text = (m['content'] ?? '').toString();
         if (text.isNotEmpty) parts.add({'type': 'text', 'text': text});
@@ -6735,7 +6883,48 @@ class ChatApiService {
       final contents = <Map<String, dynamic>>[];
       for (int i = 0; i < messages.length; i++) {
         final msg = messages[i];
-        final role = msg['role'] == 'assistant' ? 'model' : 'user';
+        final role0 = (msg['role'] ?? 'user').toString();
+        // Convert replayed OpenAI-format tool messages to Gemini functionResponse.
+        if (role0 == 'tool') {
+          final name = (msg['name'] ?? '').toString();
+          final content = (msg['content'] ?? '').toString();
+          if (name.isNotEmpty) {
+            Map<String, dynamic> response;
+            try {
+              response = (jsonDecode(content) as Map).cast<String, dynamic>();
+            } catch (_) {
+              response = {'result': content};
+            }
+            contents.add({
+              'role': 'user',
+              'parts': [
+                {'functionResponse': {'name': name, 'response': response}},
+              ],
+            });
+          }
+          continue;
+        }
+        // Convert replayed assistant tool_calls to Gemini functionCall parts.
+        if (role0 == 'assistant' && msg['tool_calls'] is List) {
+          final toolCalls = msg['tool_calls'] as List;
+          final parts = <Map<String, dynamic>>[];
+          final text = (msg['content'] ?? '').toString();
+          if (text.trim().isNotEmpty && text.trim() != '\n\n') {
+            parts.add({'text': text});
+          }
+          for (final tc in toolCalls.whereType<Map>()) {
+            final part = _googleFunctionCallPartFromToolCall(tc);
+            if (part != null) parts.add(part);
+          }
+          if (_persistGeminiThoughtSigs) {
+            _ensureGeminiFunctionCallThoughtSig(parts);
+          }
+          if (parts.isNotEmpty) {
+            contents.add({'role': 'model', 'parts': parts});
+          }
+          continue;
+        }
+        final role = role0 == 'assistant' ? 'model' : 'user';
         final isLast = i == messages.length - 1;
         final parts = <Map<String, dynamic>>[];
         final meta = _extractGeminiThoughtMeta(
@@ -7059,7 +7248,45 @@ class ChatApiService {
     final contents = <Map<String, dynamic>>[];
     for (int i = 0; i < messages.length; i++) {
       final msg = messages[i];
-      final role = msg['role'] == 'assistant' ? 'model' : 'user';
+      final role0 = (msg['role'] ?? 'user').toString();
+      // Convert replayed OpenAI-format tool messages to Gemini functionResponse.
+      if (role0 == 'tool') {
+        final name = (msg['name'] ?? '').toString();
+        final content = (msg['content'] ?? '').toString();
+        if (name.isNotEmpty) {
+          Map<String, dynamic> response;
+          try {
+            response = (jsonDecode(content) as Map).cast<String, dynamic>();
+          } catch (_) {
+            response = {'result': content};
+          }
+          contents.add({
+            'role': 'user',
+            'parts': [
+              {'functionResponse': {'name': name, 'response': response}},
+            ],
+          });
+        }
+        continue;
+      }
+      // Convert replayed assistant tool_calls to Gemini functionCall parts.
+      if (role0 == 'assistant' && msg['tool_calls'] is List) {
+        final toolCalls = msg['tool_calls'] as List;
+        final parts = <Map<String, dynamic>>[];
+        final text = (msg['content'] ?? '').toString();
+        if (text.trim().isNotEmpty && text.trim() != '\n\n') {
+          parts.add({'text': text});
+        }
+        for (final tc in toolCalls.whereType<Map>()) {
+          final part = _googleFunctionCallPartFromToolCall(tc);
+          if (part != null) parts.add(part);
+        }
+        if (parts.isNotEmpty) {
+          contents.add({'role': 'model', 'parts': parts});
+        }
+        continue;
+      }
+      final role = role0 == 'assistant' ? 'model' : 'user';
       final isLast = i == messages.length - 1;
       final parts = <Map<String, dynamic>>[];
       final meta = _extractGeminiThoughtMeta((msg['content'] ?? '').toString());

@@ -2629,6 +2629,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Collapse Thinking';
 
   @override
+  String get displaySettingsPageReplayToolResultsTitle => 'Replay Tool Results';
+
+  @override
   String get displaySettingsPageShowUpdatesTitle => 'Updates';
 
   @override
@@ -4346,6 +4349,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get displaySettingsPageAutoCollapseThinkingSubtitle =>
       '思考完成后自动折叠，保持界面简洁';
+
+  @override
+  String get displaySettingsPageReplayToolResultsSubtitle =>
+      '将上一轮的工具调用与结果随历史一并发送给模型，让模型记住工具执行结果';
 
   @override
   String get displaySettingsPageShowChatListDateSubtitle => '在左侧对话列表中显示日期分组标签';

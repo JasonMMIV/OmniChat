@@ -89,6 +89,8 @@ class SettingsProvider extends ChangeNotifier {
       'display_show_user_message_actions_v1';
   static const String _displayAutoCollapseThinkingKey =
       'display_auto_collapse_thinking_v1';
+  static const String _displayReplayToolResultsKey =
+      'display_replay_tool_results_v1';
   static const String _displayShowMessageNavKey = 'display_show_message_nav_v1';
   static const String _displayShowProviderInModelCapsuleKey =
       'display_show_provider_in_model_capsule_v1';
@@ -630,6 +632,8 @@ class SettingsProvider extends ChangeNotifier {
         prefs.getBool(_displayShowUserMessageActionsKey) ?? true;
     _autoCollapseThinking =
         prefs.getBool(_displayAutoCollapseThinkingKey) ?? true;
+    _replayToolResults =
+        prefs.getBool(_displayReplayToolResultsKey) ?? true;
     _showMessageNavButtons = prefs.getBool(_displayShowMessageNavKey) ?? true;
     _showProviderInModelCapsule =
         prefs.getBool(_displayShowProviderInModelCapsuleKey) ?? true;
@@ -2682,6 +2686,17 @@ Synthesize your reasoning and research into a final response. The structure shou
   // Display: auto-collapse reasoning/thinking section
   bool _autoCollapseThinking = true;
   bool get autoCollapseThinking => _autoCollapseThinking;
+
+  // Behavior: replay tool results across turns (includeToolMessages)
+  bool _replayToolResults = true;
+  bool get replayToolResults => _replayToolResults;
+  Future<void> setReplayToolResults(bool v) async {
+    if (_replayToolResults == v) return;
+    _replayToolResults = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_displayReplayToolResultsKey, v);
+  }
   Future<void> setAutoCollapseThinking(bool v) async {
     if (_autoCollapseThinking == v) return;
     _autoCollapseThinking = v;
@@ -3188,6 +3203,7 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._showUserNameTimestamp = _showUserNameTimestamp;
     copy._showUserMessageActions = _showUserMessageActions;
     copy._autoCollapseThinking = _autoCollapseThinking;
+    copy._replayToolResults = _replayToolResults;
     copy._showMessageNavButtons = _showMessageNavButtons;
     copy._showProviderInModelCapsule = _showProviderInModelCapsule;
     copy._hapticsOnGenerate = _hapticsOnGenerate;

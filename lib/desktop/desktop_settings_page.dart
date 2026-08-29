@@ -5007,6 +5007,8 @@ class _DisplaySettingsBody extends StatelessWidget {
                   _RowDivider(),
                   _ToggleRowAutoCollapseThinking(),
                   _RowDivider(),
+                  _ToggleRowReplayToolResults(),
+                  _RowDivider(),
                   _ToggleRowShowUpdates(),
                   _RowDivider(),
                   _ToggleRowMsgNavButtons(),
@@ -7216,6 +7218,20 @@ class _ToggleRowAutoCollapseThinking extends StatelessWidget {
       label: l10n.displaySettingsPageAutoCollapseThinkingTitle,
       value: sp.autoCollapseThinking,
       onChanged: (v) => context.read<SettingsProvider>().setAutoCollapseThinking(v),
+    );
+  }
+}
+
+class _ToggleRowReplayToolResults extends StatelessWidget {
+  const _ToggleRowReplayToolResults();
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final sp = context.watch<SettingsProvider>();
+    return _ToggleRow(
+      label: l10n.displaySettingsPageReplayToolResultsTitle,
+      value: sp.replayToolResults,
+      onChanged: (v) => context.read<SettingsProvider>().setReplayToolResults(v),
     );
   }
 }

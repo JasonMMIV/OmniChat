@@ -22,6 +22,9 @@ class TestSettingsProvider extends ChangeNotifier implements SettingsProvider {
   bool get searchEnabled => false;
 
   @override
+  bool get replayToolResults => false;
+
+  @override
   int? get thinkingBudget => null;
 
   @override

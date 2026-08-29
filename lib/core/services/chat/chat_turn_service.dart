@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 
@@ -122,10 +123,14 @@ class ChatTurnService {
   final ChatService chatService;
 
   /// 3.2-1：Context 組裝 — truncateIndex 裁切 → 版本收斂 → 過濾空內容 → API messages。
+  ///
+  /// [includeToolMessages] 為 true 時，將已完成的 assistant 工具事件以
+  /// OpenAI 中立格式（tool_calls + role:'tool'）重放，讓模型跨輪記住工具結果。
   List<Map<String, dynamic>> buildApiMessages({
     required Conversation conversation,
     required List<ChatMessage> messages,
     required Map<String, int> versionSelections,
+    bool includeToolMessages = false,
   }) {
     final tIndex = conversation.truncateIndex;
     final List<ChatMessage> sourceAll = (tIndex >= 0 &&
@@ -144,13 +149,62 @@ class ChatTurnService {
     // dynamic>> 被推斷為 _Map<String, dynamic>，insert 時拋出
     // 「'_Map<String, dynamic>' is not a subtype of 'Map<String, String>'」的
     // 執行期型別錯誤（Phase 3 回歸，v1.10.1 的 var 推斷不會觸發）。
-    return source
-        .where((m) => m.content.isNotEmpty)
-        .map((m) => <String, dynamic>{
-          'role': m.role == 'assistant' ? 'assistant' : 'user',
-          'content': m.content,
-        })
-        .toList();
+    final out = <Map<String, dynamic>>[];
+    for (final m in source) {
+      if (includeToolMessages && m.role == 'assistant') {
+        final events = chatService.getToolEvents(m.id);
+        if (events.isNotEmpty) {
+          final hasPendingToolEvent = events.any((e) => e['content'] == null);
+          if (!hasPendingToolEvent) {
+            final calls = <Map<String, dynamic>>[];
+            final toolMessages = <Map<String, dynamic>>[];
+            for (int i = 0; i < events.length; i++) {
+              final e = events[i];
+              final name = (e['name'] ?? '').toString().trim();
+              if (name.isEmpty) continue;
+              final rawId = (e['id'] ?? '').toString().trim();
+              final id = rawId.isNotEmpty
+                  ? rawId
+                  : 'call_${m.id.substring(0, m.id.length < 8 ? m.id.length : 8)}_$i';
+              Map<String, dynamic> args = const <String, dynamic>{};
+              final a = e['arguments'];
+              if (a is Map) {
+                args = a.map((k, v) => MapEntry(k.toString(), v));
+              }
+              String argumentsJson = '{}';
+              try {
+                argumentsJson = jsonEncode(args);
+              } catch (_) {}
+              calls.add({
+                'id': id,
+                'type': 'function',
+                'function': {'name': name, 'arguments': argumentsJson},
+              });
+              toolMessages.add({
+                'role': 'tool',
+                'name': name,
+                'tool_call_id': id,
+                'content': e['content']?.toString() ?? '',
+              });
+            }
+            if (calls.isNotEmpty) {
+              out.add(<String, dynamic>{
+                'role': 'assistant',
+                'content': '\n\n',
+                'tool_calls': calls,
+              });
+              out.addAll(toolMessages);
+            }
+          }
+        }
+      }
+      if (m.content.isEmpty) continue;
+      out.add(<String, dynamic>{
+        'role': m.role == 'assistant' ? 'assistant' : 'user',
+        'content': m.content,
+      });
+    }
+    return out;
   }
 
   /// 3.2-2/3：組裝完整請求（system prompt 注入 + search tool 注入）。
@@ -169,6 +223,7 @@ class ChatTurnService {
       conversation: conversation,
       messages: messages,
       versionSelections: versionSelections,
+      includeToolMessages: settings.replayToolResults,
     );
 
     // 注入 system prompt（placeholder 替換）
