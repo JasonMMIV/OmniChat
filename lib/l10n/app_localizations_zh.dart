@@ -2622,6 +2622,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get displaySettingsPageAutoCollapseThinkingTitle => '自动折叠思考';
 
   @override
+  String get displaySettingsPageReplayToolResultsTitle => '跨轮重放工具结果';
+
+  @override
   String get displaySettingsPageShowUpdatesTitle => '显示更新';
 
   @override
@@ -4326,6 +4329,10 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get displaySettingsPageAutoCollapseThinkingSubtitle =>
       '思考完成后自动折叠，保持界面简洁';
+
+  @override
+  String get displaySettingsPageReplayToolResultsSubtitle =>
+      '将上一轮的工具调用与结果随历史一并发送给模型，让模型记住工具执行结果';
 
   @override
   String get displaySettingsPageShowChatListDateSubtitle => '在左侧对话列表中显示日期分组标签';
@@ -7186,6 +7193,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get displaySettingsPageAutoCollapseThinkingTitle => '自动折叠思考';
 
   @override
+  String get displaySettingsPageReplayToolResultsTitle => '跨轮重放工具结果';
+
+  @override
   String get displaySettingsPageShowUpdatesTitle => '显示更新';
 
   @override
@@ -8788,6 +8798,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   @override
   String get displaySettingsPageAutoCollapseThinkingSubtitle =>
       '思考完成后自动折叠，保持界面简洁';
+
+  @override
+  String get displaySettingsPageReplayToolResultsSubtitle =>
+      '将上一轮的工具调用与结果随历史一并发送给模型，让模型记住工具执行结果';
 
   @override
   String get displaySettingsPageShowChatListDateSubtitle => '在左侧对话列表中显示日期分组标签';
@@ -11655,6 +11669,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get displaySettingsPageAutoCollapseThinkingTitle => '自動折疊思考';
 
   @override
+  String get displaySettingsPageReplayToolResultsTitle => '跨輪重放工具結果';
+
+  @override
   String get displaySettingsPageShowUpdatesTitle => '顯示更新';
 
   @override
@@ -13357,6 +13374,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get displaySettingsPageAutoCollapseThinkingSubtitle =>
       '思考完成後自動折疊，保持介面簡潔';
+
+  @override
+  String get displaySettingsPageReplayToolResultsSubtitle =>
+      '將上一輪的工具呼叫與結果隨歷史一併傳送給模型，讓模型記住工具執行結果';
 
   @override
   String get displaySettingsPageShowChatListDateSubtitle => '在左側對話列表中顯示日期分組標籤';

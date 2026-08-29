@@ -5093,6 +5093,12 @@ abstract class AppLocalizations {
   /// **'Collapse Thinking'**
   String get displaySettingsPageAutoCollapseThinkingTitle;
 
+  /// No description provided for @displaySettingsPageReplayToolResultsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Replay Tool Results'**
+  String get displaySettingsPageReplayToolResultsTitle;
+
   /// No description provided for @displaySettingsPageShowUpdatesTitle.
   ///
   /// In en, this message translates to:
@@ -8371,6 +8377,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'思考完成后自动折叠，保持界面简洁'**
   String get displaySettingsPageAutoCollapseThinkingSubtitle;
+
+  /// No description provided for @displaySettingsPageReplayToolResultsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'将上一轮的工具调用与结果随历史一并发送给模型，让模型记住工具执行结果'**
+  String get displaySettingsPageReplayToolResultsSubtitle;
 
   /// No description provided for @displaySettingsPageShowChatListDateSubtitle.
   ///

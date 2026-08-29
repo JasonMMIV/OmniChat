@@ -956,6 +956,8 @@
   "displaySettingsPageShowTokenStatsSubtitle": "顯示 token 用量與訊息數量",
   "displaySettingsPageAutoCollapseThinkingTitle": "自動折疊思考",
   "displaySettingsPageAutoCollapseThinkingSubtitle": "思考完成後自動折疊，保持介面簡潔",
+  "displaySettingsPageReplayToolResultsTitle": "跨輪重放工具結果",
+  "displaySettingsPageReplayToolResultsSubtitle": "將上一輪的工具呼叫與結果隨歷史一併傳送給模型，讓模型記住工具執行結果",
   "displaySettingsPageShowChatListDateTitle": "顯示對話列表日期",
   "displaySettingsPageShowChatListDateSubtitle": "在左側對話列表中顯示日期分組標籤",
   "displaySettingsPageKeepSidebarOpenOnAssistantTapTitle": "點選專案時不自動關閉側邊欄",

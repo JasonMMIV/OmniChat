@@ -1181,6 +1181,8 @@ class BehaviorStartupSettingsPage extends StatelessWidget {
         _iosSectionCard(children: [
           _iosSwitchRow(context, icon: Lucide.Brain, label: l10n.displaySettingsPageAutoCollapseThinkingTitle, value: sp.autoCollapseThinking, onChanged: (v) => context.read<SettingsProvider>().setAutoCollapseThinking(v)),
           _iosDivider(context),
+          _iosSwitchRow(context, icon: Lucide.Wrench, label: l10n.displaySettingsPageReplayToolResultsTitle, value: sp.replayToolResults, onChanged: (v) => context.read<SettingsProvider>().setReplayToolResults(v)),
+          _iosDivider(context),
           _iosSwitchRow(context, icon: Lucide.BadgeInfo, label: l10n.displaySettingsPageShowUpdatesTitle, value: sp.showAppUpdates, onChanged: (v) => context.read<SettingsProvider>().setShowAppUpdates(v)),
           _iosDivider(context),
           _iosSwitchRow(context, icon: Lucide.ChevronRight, label: l10n.displaySettingsPageMessageNavButtonsTitle, value: sp.showMessageNavButtons, onChanged: (v) => context.read<SettingsProvider>().setShowMessageNavButtons(v)),

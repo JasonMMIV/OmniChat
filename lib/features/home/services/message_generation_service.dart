@@ -95,6 +95,7 @@ class MessageGenerationService {
       messages: messages,
       versionSelections: versionSelections,
       currentConversation: currentConversation,
+      includeToolMessages: settings.replayToolResults,
     );
 
     // Process user messages (documents, OCR, templates)
