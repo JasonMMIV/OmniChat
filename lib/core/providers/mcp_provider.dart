@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:mcp_client/mcp_client.dart' as mcp;
 import '../services/mcp/kelivo_fetch/kelivo_fetch_server.dart';
 import '../services/mcp/kelivo_js/kelivo_js_server.dart';
+import '../services/mcp/academic/academic_server.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
@@ -266,6 +267,8 @@ class McpProvider extends ChangeNotifier {
     _ensureBuiltinFetchServerPresent();
     // Ensure built-in run-javascript is present by default
     _ensureBuiltinJsServerPresent();
+    // Ensure built-in academic (PubMed / arXiv / Semantic Scholar) is present by default
+    _ensureBuiltinAcademicServerPresent();
     // initialize statuses
     for (final s in _servers) {
       _status[s.id] = McpStatus.idle;
@@ -300,6 +303,27 @@ class McpProvider extends ChangeNotifier {
       id: 'run_js',
       enabled: true,
       name: 'run-javascript',
+      transport: McpTransportType.inmemory,
+      tools: const <McpToolConfig>[], // will refresh on connect
+    );
+    _servers = [..._servers, cfg];
+  }
+
+  /// Built-in academic search server (academic) exposing PubMed / arXiv /
+  /// Semantic Scholar as MCP tools. In-memory transport, works on every platform
+  /// including Android. It reuses the search services configured in the Search
+  /// Settings page, so it starts enabled but with no tools until connected.
+  static const String builtinAcademicServerId = 'academic';
+
+  void _ensureBuiltinAcademicServerPresent() {
+    final exists = _servers.any(
+      (s) => s.id == builtinAcademicServerId || s.name == 'academic',
+    );
+    if (exists) return;
+    final cfg = McpServerConfig(
+      id: builtinAcademicServerId,
+      enabled: true,
+      name: 'academic',
       transport: McpTransportType.inmemory,
       tools: const <McpToolConfig>[], // will refresh on connect
     );
@@ -403,6 +427,7 @@ class McpProvider extends ChangeNotifier {
             builtinEnabled = (cfg['isActive'] as bool?) ?? true;
             return;
           }
+
           final hasStdioShape = cfg.containsKey('command') || cfg.containsKey('args') || cfg.containsKey('env') || (cfg['type']?.toString().toLowerCase() == 'stdio');
           if (hasStdioShape) {
             if (!isDesktop) {
@@ -475,6 +500,31 @@ class McpProvider extends ChangeNotifier {
             id: 'run_js',
             enabled: builtinEnabled, // Assuming same enabled state for simplicity or could be split
             name: 'run-javascript',
+            transport: McpTransportType.inmemory,
+          ));
+          // Academic server: default enabled, but honor its own isActive flag
+          // when the imported JSON explicitly toggled it (matched by id, or by
+          // the legacy id/name containing 'academic').
+          bool? academicEnabled;
+          serversFromMap.forEach((eid, eValue) {
+            if (academicEnabled != null) return;
+            if (eValue is! Map) return;
+            final eMap = eValue.cast<String, dynamic>();
+            final eType = (eMap['type'] ?? '').toString().toLowerCase();
+            final eName = (eMap['name'] ?? '').toString().toLowerCase();
+            final isAcademic =
+                eType == 'inmemory' &&
+                (eid == builtinAcademicServerId ||
+                    eid.contains('academic') ||
+                    eName.contains('academic'));
+            if (isAcademic) {
+              academicEnabled = (eMap['isActive'] as bool?) ?? true;
+            }
+          });
+          next.add(McpServerConfig(
+            id: builtinAcademicServerId,
+            enabled: academicEnabled ?? true,
+            name: 'academic',
             transport: McpTransportType.inmemory,
           ));
         }
@@ -679,6 +729,10 @@ class McpProvider extends ChangeNotifier {
         } else if (server.id == 'run_js' || server.name == 'run-javascript') {
           final engine = JsMcpServerEngine();
           transport = JsInMemoryClientTransport(engine);
+        } else if (server.id == builtinAcademicServerId ||
+            server.name == 'academic') {
+          final engine = AcademicMcpServerEngine();
+          transport = AcademicInMemoryClientTransport(engine);
         } else {
           throw StateError('Unknown in-memory server id: ${server.id}');
         }

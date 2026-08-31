@@ -32,6 +32,7 @@ import 'core/providers/backup_provider.dart';
 import 'core/providers/hotkey_provider.dart';
 import 'core/services/chat/chat_service.dart';
 import 'core/services/mcp/mcp_tool_service.dart';
+import 'core/services/mcp/academic/academic_server.dart';
 import 'core/services/logging/flutter_logger.dart';
 import 'utils/sandbox_path_resolver.dart';
 import 'shared/widgets/app_overlays.dart';
@@ -128,7 +129,16 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProvider(create: (_) => ChatService()),
         ChangeNotifierProvider(create: (_) => McpToolService()),
-        ChangeNotifierProvider(create: (_) => McpProvider()),
+        // Attach the settings-backed search-options resolver used by the
+        // built-in academic MCP server (PubMed / arXiv / Semantic Scholar)
+        // so it can reuse the user's configured search services.
+        ChangeNotifierProvider(
+          create: (ctx) {
+            final settings = ctx.read<SettingsProvider>();
+            AcademicSearchOptionsResolver.attach(settings);
+            return McpProvider();
+          },
+        ),
         ChangeNotifierProvider(create: (_) => AssistantProvider()),
         ChangeNotifierProvider(create: (_) => TagProvider()),
         ChangeNotifierProvider(create: (_) => TtsProvider()),
