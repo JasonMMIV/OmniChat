@@ -100,7 +100,7 @@ String renderAcademicSearchResult(String source, SearchResult result) {
 class AcademicMcpServerEngine {
   bool _closed = false;
 
-  static const String serverName = 'academic';
+  static const String serverName = 'Academic_Search';
 
   Future<dynamic> handleMessage(dynamic message) async {
     if (_closed) return null;
