@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.18.6+96
+version: 1.18.7+97
 
 environment:
   sdk: ^3.9.0
@@ -225,7 +225,7 @@ msix_config:
   display_name: OmniChat
   publisher_display_name: Psyche
   identity_name: com.psyche.omnichat
-  msix_version: 1.18.6.0
+  msix_version: 1.18.7.0
   logo_path: android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
   capabilities: "internetClient, microphone"
   certificate_path: windows/certs/omnichat_dev.pfx
