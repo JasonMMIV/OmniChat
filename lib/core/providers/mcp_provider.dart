@@ -263,6 +263,27 @@ class McpProvider extends ChangeNotifier {
       _persist(); // flush renamed entry so old cached names never return
     }
 
+    // --- Migration: rename old academic server (id/name 'academic' or
+    // 'kelivo_academic') to 'academic_search' id + 'Academic_Search' display
+    // name, preserving enabled state and tool toggles ---
+    bool academicMigrated = false;
+    _servers = _servers.map((s) {
+      final isOldAcademic =
+          s.id == 'academic' ||
+          s.id == 'kelivo_academic' ||
+          s.name == 'academic' ||
+          s.name == '@kelivo/academic';
+      if (isOldAcademic &&
+          (s.id != builtinAcademicServerId || s.name != 'Academic_Search')) {
+        academicMigrated = true;
+        return s.copyWith(id: builtinAcademicServerId, name: 'Academic_Search');
+      }
+      return s;
+    }).toList();
+    if (academicMigrated) {
+      _persist(); // flush renamed entry so old cached names never return
+    }
+
     // Ensure built-in @kelivo/fetch is present by default
     _ensureBuiltinFetchServerPresent();
     // Ensure built-in run-javascript is present by default
@@ -309,21 +330,21 @@ class McpProvider extends ChangeNotifier {
     _servers = [..._servers, cfg];
   }
 
-  /// Built-in academic search server (academic) exposing PubMed / arXiv /
+  /// Built-in academic search server (Academic_Search) exposing PubMed / arXiv /
   /// Semantic Scholar as MCP tools. In-memory transport, works on every platform
   /// including Android. It reuses the search services configured in the Search
   /// Settings page, so it starts enabled but with no tools until connected.
-  static const String builtinAcademicServerId = 'academic';
+  static const String builtinAcademicServerId = 'academic_search';
 
   void _ensureBuiltinAcademicServerPresent() {
     final exists = _servers.any(
-      (s) => s.id == builtinAcademicServerId || s.name == 'academic',
+      (s) => s.id == builtinAcademicServerId || s.name == 'Academic_Search',
     );
     if (exists) return;
     final cfg = McpServerConfig(
       id: builtinAcademicServerId,
       enabled: true,
-      name: 'academic',
+      name: 'Academic_Search',
       transport: McpTransportType.inmemory,
       tools: const <McpToolConfig>[], // will refresh on connect
     );
@@ -524,7 +545,7 @@ class McpProvider extends ChangeNotifier {
           next.add(McpServerConfig(
             id: builtinAcademicServerId,
             enabled: academicEnabled ?? true,
-            name: 'academic',
+            name: 'Academic_Search',
             transport: McpTransportType.inmemory,
           ));
         }
@@ -730,7 +751,7 @@ class McpProvider extends ChangeNotifier {
           final engine = JsMcpServerEngine();
           transport = JsInMemoryClientTransport(engine);
         } else if (server.id == builtinAcademicServerId ||
-            server.name == 'academic') {
+            server.name == 'Academic_Search') {
           final engine = AcademicMcpServerEngine();
           transport = AcademicInMemoryClientTransport(engine);
         } else {

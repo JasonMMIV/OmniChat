@@ -42,7 +42,7 @@ void main() {
       final result = (map['result'] as Map).cast<String, dynamic>();
       expect(
         (result['serverInfo'] as Map)['name'],
-        'academic',
+        'Academic_Search',
       );
       expect(
         (result['capabilities'] as Map).containsKey('tools'),
