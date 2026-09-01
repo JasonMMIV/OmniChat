@@ -883,12 +883,6 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
       {'type': 'querit', 'name': l10n.searchServiceNameQuerit},
       {'type': 'serper', 'name': l10n.searchServiceNameSerper},
       {'type': 'grok', 'name': l10n.searchServiceNameGrok},
-      {'type': 'arxiv', 'name': l10n.searchServiceNameArxiv},
-      {'type': 'pubmed', 'name': l10n.searchServiceNamePubMed},
-      {
-        'type': 'semantic_scholar',
-        'name': l10n.searchServiceNameSemanticScholar,
-      },
     ];
     return ListView.builder(
       key: const ValueKey('service_list'),
@@ -959,12 +953,6 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
         return l10n.searchServiceNameSerper;
       case 'grok':
         return l10n.searchServiceNameGrok;
-      case 'arxiv':
-        return l10n.searchServiceNameArxiv;
-      case 'pubmed':
-        return l10n.searchServiceNamePubMed;
-      case 'semantic_scholar':
-        return l10n.searchServiceNameSemanticScholar;
       default:
         return '';
     }
@@ -1284,59 +1272,6 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
             obscureText: true,
           ),
         ];
-      case 'arxiv':
-        return [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: cs.surfaceVariant.withOpacity(isDark ? 0.18 : 0.5),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Lucide.BookOpen, size: 20, color: cs.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    l10n.searchServicesAddDialogNoKeyRequiredHint,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: cs.onSurface.withOpacity(0.8),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ];
-      case 'pubmed':
-        return [
-          _buildTextField(
-            key: 'apiKey',
-            label: l10n.searchServicesAddDialogApiKeyOptional,
-            hint: l10n.searchServicesAddDialogApiKeyOptionalHint,
-          ),
-          const SizedBox(height: 12),
-          _buildTextField(
-            key: 'tool',
-            label: l10n.searchServicesAddDialogToolOptional,
-            hint: 'OmniChat',
-          ),
-          const SizedBox(height: 12),
-          _buildTextField(
-            key: 'email',
-            label: l10n.searchServicesAddDialogEmailOptional,
-            hint: 'you@example.com',
-          ),
-        ];
-      case 'semantic_scholar':
-        return [
-          _buildTextField(
-            key: 'apiKey',
-            label: l10n.searchServicesAddDialogApiKeyOptional,
-            hint: l10n.searchServicesAddDialogApiKeyOptionalHint,
-          ),
-        ];
       default:
         return [];
     }
@@ -1419,20 +1354,6 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
           model: _controllers['model']!.text.trim(),
           customUrl: _controllers['customUrl']!.text.trim(),
           systemPrompt: _controllers['systemPrompt']!.text,
-        );
-      case 'arxiv':
-        return ArxivOptions(id: id);
-      case 'pubmed':
-        return PubMedOptions(
-          id: id,
-          apiKey: _controllers['apiKey']?.text ?? '',
-          tool: _controllers['tool']?.text ?? '',
-          email: _controllers['email']?.text ?? '',
-        );
-      case 'semantic_scholar':
-        return SemanticScholarOptions(
-          id: id,
-          apiKey: _controllers['apiKey']?.text ?? '',
         );
       default:
         return BingLocalOptions(id: id);
@@ -1524,12 +1445,6 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
       _controllers['systemPrompt'] = TextEditingController(
         text: service.systemPrompt,
       );
-    } else if (service is PubMedOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
-      _controllers['tool'] = TextEditingController(text: service.tool);
-      _controllers['email'] = TextEditingController(text: service.email);
-    } else if (service is SemanticScholarOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
     }
   }
 
@@ -1864,38 +1779,7 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
           obscureText: true,
         ),
       ];
-    } else if (service is PubMedOptions) {
-      return [
-        _buildTextField(
-          key: 'apiKey',
-          label: l10n.searchServicesEditDialogApiKeyOptional,
-          hint: l10n.searchServicesEditDialogApiKeyOptionalHint,
-        ),
-        const SizedBox(height: 12),
-        _buildTextField(
-          key: 'tool',
-          label: l10n.searchServicesEditDialogToolOptional,
-          hint: 'OmniChat',
-        ),
-        const SizedBox(height: 12),
-        _buildTextField(
-          key: 'email',
-          label: l10n.searchServicesEditDialogEmailOptional,
-          hint: 'you@example.com',
-        ),
-      ];
-    } else if (service is SemanticScholarOptions) {
-      return [
-        _buildTextField(
-          key: 'apiKey',
-          label: l10n.searchServicesEditDialogApiKeyOptional,
-          hint: l10n.searchServicesEditDialogApiKeyOptionalHint,
-        ),
-      ];
-    } else if (service is ArxivOptions) {
-      return [Text(l10n.searchServicesEditDialogNoConfigRequired)];
     }
-
     return [];
   }
 
@@ -2000,18 +1884,6 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
         model: _controllers['model']!.text.trim(),
         customUrl: _controllers['customUrl']!.text.trim(),
         systemPrompt: _controllers['systemPrompt']!.text,
-      );
-    } else if (service is PubMedOptions) {
-      return PubMedOptions(
-        id: service.id,
-        apiKey: _controllers['apiKey']?.text ?? '',
-        tool: _controllers['tool']?.text ?? '',
-        email: _controllers['email']?.text ?? '',
-      );
-    } else if (service is SemanticScholarOptions) {
-      return SemanticScholarOptions(
-        id: service.id,
-        apiKey: _controllers['apiKey']?.text ?? '',
       );
     }
 

@@ -207,6 +207,9 @@ class SettingsProvider extends ChangeNotifier {
   static const String _searchEnabledKey = 'search_enabled_v1';
   static const String _searchAutoTestOnLaunchKey =
       'search_auto_test_on_launch_v1';
+  // Standalone academic MCP config (PubMed / Semantic Scholar API keys),
+  // independent from the web search services list.
+  static const String _academicConfigKey = 'academic_search_config_v1';
   static const String _webDavConfigKey = 'webdav_config_v1';
   static const String _dropboxConfigKey = 'dropbox_config_v1';
   // Global network proxy
@@ -365,6 +368,11 @@ class SettingsProvider extends ChangeNotifier {
   ];
   List<SearchServiceOptions> get searchServices =>
       List.unmodifiable(_searchServices);
+  // Standalone academic MCP settings (PubMed / Semantic Scholar keys).
+  // These live in their own namespace and do NOT depend on the web search
+  // services list — the built-in Academic_Search MCP server reads them.
+  AcademicMcpConfig _academicConfig = const AcademicMcpConfig();
+  AcademicMcpConfig get academicConfig => _academicConfig;
   SearchCommonOptions _searchCommonOptions = const SearchCommonOptions();
   SearchCommonOptions get searchCommonOptions => _searchCommonOptions;
   int _searchServiceSelected = 0;
@@ -811,6 +819,66 @@ class SettingsProvider extends ChangeNotifier {
     _searchEnabled = prefs.getBool(_searchEnabledKey) ?? false;
     _searchAutoTestOnLaunch =
         prefs.getBool(_searchAutoTestOnLaunchKey) ?? false;
+
+    // Load standalone academic MCP config, then migrate any legacy PubMed /
+    // Semantic Scholar / arXiv entries out of the search services list into
+    // the academic config (keys / tool / email are preserved).
+    final academicStr = prefs.getString(_academicConfigKey);
+    if (academicStr != null && academicStr.isNotEmpty) {
+      try {
+        _academicConfig = AcademicMcpConfig.fromJson(
+          jsonDecode(academicStr) as Map<String, dynamic>,
+        );
+      } catch (_) {}
+    }
+    bool academicMigrated = false;
+    final migratedServices = <SearchServiceOptions>[];
+    for (final s in _searchServices) {
+      if (s is PubMedOptions) {
+        if (_academicConfig.pubmedApiKey.isEmpty && s.apiKey.isNotEmpty) {
+          _academicConfig = _academicConfig.copyWith(pubmedApiKey: s.apiKey);
+        }
+        if (_academicConfig.pubmedTool.isEmpty && s.tool.isNotEmpty) {
+          _academicConfig = _academicConfig.copyWith(pubmedTool: s.tool);
+        }
+        if (_academicConfig.pubmedEmail.isEmpty && s.email.isNotEmpty) {
+          _academicConfig = _academicConfig.copyWith(pubmedEmail: s.email);
+        }
+        academicMigrated = true; // drop from web search list
+        continue;
+      }
+      if (s is SemanticScholarOptions) {
+        if (_academicConfig.semanticScholarApiKey.isEmpty &&
+            s.apiKey.isNotEmpty) {
+          _academicConfig = _academicConfig.copyWith(
+            semanticScholarApiKey: s.apiKey,
+          );
+        }
+        academicMigrated = true; // drop from web search list
+        continue;
+      }
+      if (s is ArxivOptions) {
+        academicMigrated = true; // arXiv has no key; drop from web search list
+        continue;
+      }
+      migratedServices.add(s);
+    }
+    if (academicMigrated) {
+      _searchServices = migratedServices.isEmpty
+          ? [SearchServiceOptions.defaultOption]
+          : migratedServices;
+      if (_searchServiceSelected >= _searchServices.length) {
+        _searchServiceSelected = _searchServices.isEmpty
+            ? 0
+            : _searchServices.length - 1;
+      }
+      await prefs.setString(
+        _searchServicesKey,
+        jsonEncode(_searchServices.map((e) => e.toJson()).toList()),
+      );
+      await prefs.setInt(_searchSelectedKey, _searchServiceSelected);
+      await prefs.setString(_academicConfigKey, jsonEncode(_academicConfig.toJson()));
+    }
 
     // load global proxy
     _globalProxyEnabled = prefs.getBool(_globalProxyEnabledKey) ?? false;
@@ -3142,8 +3210,23 @@ Synthesize your reasoning and research into a final response. The structure shou
     await prefs.setBool(_searchAutoTestOnLaunchKey, enabled);
   }
 
+  /// Save the standalone academic MCP configuration (PubMed / Semantic
+  /// Scholar API keys). Independent from the web search services list.
+  Future<void> setAcademicConfig(AcademicMcpConfig config) async {
+    _academicConfig = config;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _academicConfigKey,
+      jsonEncode(config.toJson()),
+    );
+  }
+
   // Combined update for settings
   Future<void> updateSettings(SettingsProvider newSettings) async {
+    if (_academicConfig != newSettings._academicConfig) {
+      await setAcademicConfig(newSettings._academicConfig);
+    }
     if (!listEquals(_searchServices, newSettings._searchServices)) {
       await setSearchServices(newSettings._searchServices);
     }
@@ -3162,6 +3245,7 @@ Synthesize your reasoning and research into a final response. The structure shou
   }
 
   SettingsProvider copyWith({
+    AcademicMcpConfig? academicConfig,
     List<SearchServiceOptions>? searchServices,
     SearchCommonOptions? searchCommonOptions,
     int? searchServiceSelected,
@@ -3169,6 +3253,7 @@ Synthesize your reasoning and research into a final response. The structure shou
     bool? searchAutoTestOnLaunch,
   }) {
     final copy = SettingsProvider();
+    copy._academicConfig = academicConfig ?? _academicConfig;
     copy._searchServices = searchServices ?? _searchServices;
     copy._searchCommonOptions = searchCommonOptions ?? _searchCommonOptions;
     copy._searchServiceSelected =
@@ -3239,6 +3324,70 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._chatMessageBackgroundStyle = _chatMessageBackgroundStyle;
     return copy;
   }
+}
+
+/// Standalone configuration for the built-in Academic_Search MCP server.
+///
+/// Kept fully independent from the web-search services list: API keys are
+/// entered in the MCP server settings (Basic tab) and persisted here.
+class AcademicMcpConfig {
+  final String pubmedApiKey;
+  final String pubmedTool;
+  final String pubmedEmail;
+  final String semanticScholarApiKey;
+
+  const AcademicMcpConfig({
+    this.pubmedApiKey = '',
+    this.pubmedTool = '',
+    this.pubmedEmail = '',
+    this.semanticScholarApiKey = '',
+  });
+
+  bool get hasPubMedKey => pubmedApiKey.trim().isNotEmpty;
+  bool get hasSemanticScholarKey => semanticScholarApiKey.trim().isNotEmpty;
+
+  AcademicMcpConfig copyWith({
+    String? pubmedApiKey,
+    String? pubmedTool,
+    String? pubmedEmail,
+    String? semanticScholarApiKey,
+  }) => AcademicMcpConfig(
+    pubmedApiKey: pubmedApiKey ?? this.pubmedApiKey,
+    pubmedTool: pubmedTool ?? this.pubmedTool,
+    pubmedEmail: pubmedEmail ?? this.pubmedEmail,
+    semanticScholarApiKey: semanticScholarApiKey ?? this.semanticScholarApiKey,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'pubmedApiKey': pubmedApiKey,
+    'pubmedTool': pubmedTool,
+    'pubmedEmail': pubmedEmail,
+    'semanticScholarApiKey': semanticScholarApiKey,
+  };
+
+  factory AcademicMcpConfig.fromJson(Map<String, dynamic> json) =>
+      AcademicMcpConfig(
+        pubmedApiKey: json['pubmedApiKey'] ?? '',
+        pubmedTool: json['pubmedTool'] ?? '',
+        pubmedEmail: json['pubmedEmail'] ?? '',
+        semanticScholarApiKey: json['semanticScholarApiKey'] ?? '',
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is AcademicMcpConfig &&
+      other.pubmedApiKey == pubmedApiKey &&
+      other.pubmedTool == pubmedTool &&
+      other.pubmedEmail == pubmedEmail &&
+      other.semanticScholarApiKey == semanticScholarApiKey;
+
+  @override
+  int get hashCode => Object.hash(
+    pubmedApiKey,
+    pubmedTool,
+    pubmedEmail,
+    semanticScholarApiKey,
+  );
 }
 
 class _ProxyHttpOverrides extends HttpOverrides {

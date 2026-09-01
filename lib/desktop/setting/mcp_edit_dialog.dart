@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../icons/lucide_adapter.dart' as lucide;
 import '../../l10n/app_localizations.dart';
+import '../../core/providers/settings_provider.dart';
 import '../../core/providers/mcp_provider.dart';
 import '../../shared/widgets/snackbar.dart';
 import '../../shared/widgets/ios_switch.dart';
@@ -44,6 +45,17 @@ class _DesktopMcpEditDialogState extends State<_DesktopMcpEditDialog> with Singl
   McpTransportType _transport = McpTransportType.http;
   final _urlCtrl = TextEditingController();
   final List<_HeaderEntry> _headers = [];
+  // Academic_Search built-in server: standalone API-key fields
+  final _pubmedApiKeyCtrl = TextEditingController();
+  final _pubmedToolCtrl = TextEditingController();
+  final _pubmedEmailCtrl = TextEditingController();
+  final _s2ApiKeyCtrl = TextEditingController();
+
+  bool get _isAcademicBuiltin {
+    if (!isEdit) return false;
+    final s = context.read<McpProvider>().getById(widget.serverId!);
+    return s != null && s.id == McpProvider.builtinAcademicServerId;
+  }
   // STDIO fields (desktop only)
   final _cmdCtrl = TextEditingController();
   final _argsCtrl = TextEditingController(); // space-separated args
@@ -70,6 +82,13 @@ class _DesktopMcpEditDialogState extends State<_DesktopMcpEditDialog> with Singl
           _env.add(_HeaderEntry(TextEditingController(text: k), TextEditingController(text: v)));
         });
       }
+      if (_isAcademicBuiltin) {
+        final cfg = context.read<SettingsProvider>().academicConfig;
+        _pubmedApiKeyCtrl.text = cfg.pubmedApiKey;
+        _pubmedToolCtrl.text = cfg.pubmedTool;
+        _pubmedEmailCtrl.text = cfg.pubmedEmail;
+        _s2ApiKeyCtrl.text = cfg.semanticScholarApiKey;
+      }
     }
   }
 
@@ -78,6 +97,10 @@ class _DesktopMcpEditDialogState extends State<_DesktopMcpEditDialog> with Singl
     _tab?.dispose();
     _nameCtrl.dispose();
     _urlCtrl.dispose();
+    _pubmedApiKeyCtrl.dispose();
+    _pubmedToolCtrl.dispose();
+    _pubmedEmailCtrl.dispose();
+    _s2ApiKeyCtrl.dispose();
     for (final h in _headers) { h.dispose(); }
     _cmdCtrl.dispose();
     _argsCtrl.dispose();
@@ -93,6 +116,17 @@ class _DesktopMcpEditDialogState extends State<_DesktopMcpEditDialog> with Singl
     if (isEdit && _transport == McpTransportType.inmemory) {
       final old = mcp.getById(widget.serverId!)!;
       await mcp.updateServer(old.copyWith(enabled: _enabled));
+      if (_isAcademicBuiltin) {
+        final sp = context.read<SettingsProvider>();
+        await sp.setAcademicConfig(
+          AcademicMcpConfig(
+            pubmedApiKey: _pubmedApiKeyCtrl.text.trim(),
+            pubmedTool: _pubmedToolCtrl.text.trim(),
+            pubmedEmail: _pubmedEmailCtrl.text.trim(),
+            semanticScholarApiKey: _s2ApiKeyCtrl.text.trim(),
+          ),
+        );
+      }
       if (mounted) Navigator.of(context).maybePop();
       return;
     }
@@ -250,6 +284,19 @@ class _DesktopMcpEditDialogState extends State<_DesktopMcpEditDialog> with Singl
               },
             );
           }),
+        ],
+        // Academic_Search built-in: standalone API keys (PubMed / Semantic Scholar)
+        if (_isAcademicBuiltin) ...[
+          const SizedBox(height: 14),
+          Text(l10n.mcpAcademicSettingsTitle, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          _labeledField(label: 'PubMed — ${l10n.searchServicesAddDialogApiKeyOptional}', controller: _pubmedApiKeyCtrl, hint: l10n.searchServicesAddDialogApiKeyOptionalHint, bold: false),
+          const SizedBox(height: 10),
+          _labeledField(label: 'PubMed — ${l10n.searchServicesAddDialogToolOptional}', controller: _pubmedToolCtrl, hint: 'OmniChat', bold: false),
+          const SizedBox(height: 10),
+          _labeledField(label: 'PubMed — ${l10n.searchServicesAddDialogEmailOptional}', controller: _pubmedEmailCtrl, hint: 'you@example.com', bold: false),
+          const SizedBox(height: 14),
+          _labeledField(label: 'Semantic Scholar — ${l10n.searchServicesAddDialogApiKeyOptional}', controller: _s2ApiKeyCtrl, hint: l10n.searchServicesAddDialogApiKeyOptionalHint, bold: false),
         ],
         const SizedBox(height: 10),
         if (!isBuiltin && _transport == McpTransportType.sse)
