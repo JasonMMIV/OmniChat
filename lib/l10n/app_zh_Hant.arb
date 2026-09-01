@@ -658,6 +658,7 @@
   "mcpServerEditSheetTabBasic": "基礎設定",
   "mcpServerEditSheetTabTools": "工具",
   "mcpServerEditSheetNoToolsHint": "暫無工具，點擊上方同步",
+  "mcpAcademicSettingsTitle": "學術搜尋 API 金鑰",
   "mcpServerEditSheetCancel": "取消",
   "mcpServerEditSheetSave": "儲存",
   "mcpServerEditSheetUrlRequired": "請輸入伺服器地址",

@@ -1878,6 +1878,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mcpServerEditSheetNoToolsHint => '暂无工具，点击上方同步';
 
   @override
+  String get mcpAcademicSettingsTitle => '学术搜索 API 密钥';
+
+  @override
   String get mcpServerEditSheetSave => '保存';
 
   @override
@@ -6458,6 +6461,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get mcpServerEditSheetNoToolsHint => '暂无工具，点击上方同步';
 
   @override
+  String get mcpAcademicSettingsTitle => '学术搜索 API 密钥';
+
+  @override
   String get mcpServerEditSheetSave => '保存';
 
   @override
@@ -10932,6 +10938,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get mcpServerEditSheetNoToolsHint => '暫無工具，點擊上方同步';
+
+  @override
+  String get mcpAcademicSettingsTitle => '學術搜尋 API 金鑰';
 
   @override
   String get mcpServerEditSheetSave => '儲存';

@@ -52,6 +52,18 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet> with SingleTic
   McpTransportType _transport = McpTransportType.http;
   final _urlCtrl = TextEditingController();
   final List<_HeaderEntry> _headers = [];
+  // Academic_Search built-in server: standalone API-key fields
+  final _pubmedApiKeyCtrl = TextEditingController();
+  final _pubmedToolCtrl = TextEditingController();
+  final _pubmedEmailCtrl = TextEditingController();
+  final _s2ApiKeyCtrl = TextEditingController();
+
+  bool get _isAcademicBuiltin {
+    if (!isEdit) return false;
+    final s = context.read<McpProvider>().getById(widget.serverId!);
+    return s != null &&
+        s.id == McpProvider.builtinAcademicServerId;
+  }
 
   @override
   void initState() {
@@ -67,6 +79,13 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet> with SingleTic
       server.headers.forEach((k, v) {
         _headers.add(_HeaderEntry(TextEditingController(text: k), TextEditingController(text: v)));
       });
+      if (_isAcademicBuiltin) {
+        final cfg = context.read<SettingsProvider>().academicConfig;
+        _pubmedApiKeyCtrl.text = cfg.pubmedApiKey;
+        _pubmedToolCtrl.text = cfg.pubmedTool;
+        _pubmedEmailCtrl.text = cfg.pubmedEmail;
+        _s2ApiKeyCtrl.text = cfg.semanticScholarApiKey;
+      }
     }
   }
 
@@ -80,6 +99,10 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet> with SingleTic
     _tab?.dispose();
     _nameCtrl.dispose();
     _urlCtrl.dispose();
+    _pubmedApiKeyCtrl.dispose();
+    _pubmedToolCtrl.dispose();
+    _pubmedEmailCtrl.dispose();
+    _s2ApiKeyCtrl.dispose();
     for (final h in _headers) {
       h.dispose();
     }
@@ -209,9 +232,69 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet> with SingleTic
           const SizedBox(height: 8),
           _headersEditor(),
         ],
+        // Academic_Search built-in: standalone API keys (PubMed / Semantic Scholar)
+        if (_isAcademicBuiltin) ...[
+          const SizedBox(height: 10),
+          _academicConfigSection(l10n),
+        ],
       ],
     );
   }
+
+  Widget _academicConfigSection(AppLocalizations l10n) {
+    final cs = Theme.of(context).colorScheme;
+    return _iosCard(
+      children: [
+        Row(
+          children: [
+            Icon(Lucide.BookOpen, size: 18, color: cs.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                l10n.mcpAcademicSettingsTitle,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'PubMed',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.7)),
+        ),
+        const SizedBox(height: 6),
+        _inputRow(
+          label: l10n.searchServicesAddDialogApiKeyOptional,
+          controller: _pubmedApiKeyCtrl,
+          hint: l10n.searchServicesAddDialogApiKeyOptionalHint,
+        ),
+        const SizedBox(height: 10),
+        _inputRow(
+          label: l10n.searchServicesAddDialogToolOptional,
+          controller: _pubmedToolCtrl,
+          hint: 'OmniChat',
+        ),
+        const SizedBox(height: 10),
+        _inputRow(
+          label: l10n.searchServicesAddDialogEmailOptional,
+          controller: _pubmedEmailCtrl,
+          hint: 'you@example.com',
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'Semantic Scholar',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.7)),
+        ),
+        const SizedBox(height: 6),
+        _inputRow(
+          label: l10n.searchServicesAddDialogApiKeyOptional,
+          controller: _s2ApiKeyCtrl,
+          hint: l10n.searchServicesAddDialogApiKeyOptionalHint,
+        ),
+      ],
+    );
+  }
+
 
   Widget _headersEditor() {
     final cs = Theme.of(context).colorScheme;
@@ -263,10 +346,21 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet> with SingleTic
 
   Future<void> _onSave() async {
     final mcp = context.read<McpProvider>();
-    // Built-in: only toggle enabled
+    // Built-in: only toggle enabled (plus academic API keys for Academic_Search)
     if (isEdit && _transport == McpTransportType.inmemory) {
       final old = mcp.getById(widget.serverId!)!;
       await mcp.updateServer(old.copyWith(enabled: _enabled));
+      if (_isAcademicBuiltin) {
+        final sp = context.read<SettingsProvider>();
+        await sp.setAcademicConfig(
+          AcademicMcpConfig(
+            pubmedApiKey: _pubmedApiKeyCtrl.text.trim(),
+            pubmedTool: _pubmedToolCtrl.text.trim(),
+            pubmedEmail: _pubmedEmailCtrl.text.trim(),
+            semanticScholarApiKey: _s2ApiKeyCtrl.text.trim(),
+          ),
+        );
+      }
       if (mounted) Navigator.of(context).pop();
       return;
     }

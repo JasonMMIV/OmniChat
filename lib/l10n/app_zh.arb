@@ -642,6 +642,7 @@
   "mcpServerEditSheetTabBasic": "基础设置",
   "mcpServerEditSheetTabTools": "工具",
   "mcpServerEditSheetNoToolsHint": "暂无工具，点击上方同步",
+  "mcpAcademicSettingsTitle": "学术搜索 API 密钥",
   "mcpServerEditSheetCancel": "取消",
   "mcpServerEditSheetSave": "保存",
   "mcpServerEditSheetUrlRequired": "请输入服务器地址",

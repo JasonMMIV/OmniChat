@@ -3731,6 +3731,12 @@ abstract class AppLocalizations {
   /// **'No tools'**
   String get mcpServerEditSheetNoToolsHint;
 
+  /// No description provided for @mcpAcademicSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Academic Search API Keys'**
+  String get mcpAcademicSettingsTitle;
+
   /// No description provided for @mcpServerEditSheetSave.
   ///
   /// In en, this message translates to:

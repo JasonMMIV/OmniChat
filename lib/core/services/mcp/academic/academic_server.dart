@@ -9,48 +9,41 @@ import '../../search/providers/arxiv_search_service.dart';
 import '../../search/providers/semantic_scholar_search_service.dart';
 
 /// Runtime bridge so the pure-Dart academic MCP server can read the user's
-/// configured search services (API keys / tool / email) without a
+/// standalone academic config (PubMed / Semantic Scholar API keys) without a
 /// BuildContext — [McpProvider] is a plain ChangeNotifier with no context.
 ///
 /// Attached once from `MyApp` after the provider tree is ready; lookups read
-/// `settings.searchServices` lazily at each tool call, so edits made later in
-/// the Search Services page are picked up automatically.
+/// `settings.academicConfig` lazily at each tool call, so edits made later in
+/// the Academic_Search MCP server settings are picked up automatically.
 class AcademicSearchOptionsResolver {
-  static SearchServiceOptions? Function(String type)? _lookup;
-  static int _timeoutMs = 15000;
+  static SettingsProvider? _settings;
 
-  /// Wire the resolver to the app's [SettingsProvider].
-  static void attach(SettingsProvider settings) {
-    _lookup = (type) {
-      try {
-        for (final s in settings.searchServices) {
-          if (type == 'pubmed' && s is PubMedOptions) return s;
-          if (type == 'arxiv' && s is ArxivOptions) return s;
-          if (type == 'semantic_scholar' && s is SemanticScholarOptions) {
-            return s;
-          }
-        }
-      } catch (_) {}
-      return null;
-    };
-    try {
-      _timeoutMs = settings.searchCommonOptions.timeout;
-    } catch (_) {}
+  /// Wire the resolver to the app's [SettingsProvider]. Pass null to detach
+  /// (used by tests to reset the static reference between cases).
+  static void attach(SettingsProvider? settings) {
+    _settings = settings;
   }
 
-  /// Return the configured options for [type] (pubmed | arxiv |
-  /// semantic_scholar), or null when none are configured (callers then use
-  /// key-less defaults, which still work for all three providers).
-  static SearchServiceOptions? lookup(String type) {
+  /// Return the standalone academic config, or a default (all-empty) config
+  /// when not attached (callers then use key-less mode, which still works for
+  /// all three providers).
+  static AcademicMcpConfig config() {
     try {
-      return _lookup?.call(type);
+      return _settings?.academicConfig ?? const AcademicMcpConfig();
     } catch (_) {
-      return null;
+      return const AcademicMcpConfig();
     }
   }
 
-  /// The user's configured search timeout (ms), falling back to 15s.
-  static int get timeoutMs => _timeoutMs;
+  /// The configured timeout (ms) for academic searches, falling back to 15s.
+  /// Reuses the global web-search timeout from [SettingsProvider].
+  static int get timeoutMs {
+    try {
+      return _settings?.searchCommonOptions.timeout ?? 15000;
+    } catch (_) {
+      return 15000;
+    }
+  }
 }
 
 /// Clamp the `max_results` tool argument to a safe range (1-15, default 10).
@@ -231,10 +224,13 @@ class AcademicMcpServerEngine {
       final query = _query(args);
       if (query.isEmpty) return _errResult('Error: query is required.');
       final svc = PubmedSearchService();
-      final configured = AcademicSearchOptionsResolver.lookup('pubmed');
-      final opts = configured is PubMedOptions
-          ? configured
-          : PubMedOptions(id: 'default');
+      final cfg = AcademicSearchOptionsResolver.config();
+      final opts = PubMedOptions(
+        id: 'default',
+        apiKey: cfg.pubmedApiKey,
+        tool: cfg.pubmedTool,
+        email: cfg.pubmedEmail,
+      );
       final result = await svc.search(
         query: query,
         commonOptions: SearchCommonOptions(
@@ -254,10 +250,7 @@ class AcademicMcpServerEngine {
       final query = _query(args);
       if (query.isEmpty) return _errResult('Error: query is required.');
       final svc = ArxivSearchService();
-      final configured = AcademicSearchOptionsResolver.lookup('arxiv');
-      final opts = configured is ArxivOptions
-          ? configured
-          : ArxivOptions(id: 'default');
+      final opts = ArxivOptions(id: 'default');
       final result = await svc.search(
         query: query,
         commonOptions: SearchCommonOptions(
@@ -279,12 +272,11 @@ class AcademicMcpServerEngine {
       final query = _query(args);
       if (query.isEmpty) return _errResult('Error: query is required.');
       final svc = SemanticScholarSearchService();
-      final configured = AcademicSearchOptionsResolver.lookup(
-        'semantic_scholar',
+      final cfg = AcademicSearchOptionsResolver.config();
+      final opts = SemanticScholarOptions(
+        id: 'default',
+        apiKey: cfg.semanticScholarApiKey,
       );
-      final opts = configured is SemanticScholarOptions
-          ? configured
-          : SemanticScholarOptions(id: 'default');
       final result = await svc.search(
         query: query,
         commonOptions: SearchCommonOptions(

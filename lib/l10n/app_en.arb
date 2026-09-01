@@ -732,6 +732,7 @@
   "mcpServerEditSheetTabBasic": "Basic",
   "mcpServerEditSheetTabTools": "Tools",
   "mcpServerEditSheetNoToolsHint": "No tools",
+  "mcpAcademicSettingsTitle": "Academic Search API Keys",
   "mcpServerEditSheetSave": "Save",
   "mcpJsonEditParseFailed": "Invalid JSON",
   "mcpJsonEditSavedApplied": "Applied",

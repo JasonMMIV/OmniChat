@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mcp_client/mcp_client.dart' as mcp;
@@ -6,13 +7,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:OmniChat/core/providers/settings_provider.dart';
 import 'package:OmniChat/core/services/mcp/academic/academic_server.dart';
-import 'package:OmniChat/core/services/search/search_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+  });
+
+  tearDown(() {
+    // Reset the static resolver so tests don't leak settings across cases.
+    AcademicSearchOptionsResolver.attach(null);
   });
 
   group('academic in-memory MCP server', () {
@@ -124,39 +129,82 @@ void main() {
   });
 
   group('AcademicSearchOptionsResolver', () {
-    test('lookup returns null when not attached', () {
-      expect(AcademicSearchOptionsResolver.lookup('pubmed'), isNull);
+    test('config returns defaults when not attached', () {
+      expect(
+        AcademicSearchOptionsResolver.config().pubmedApiKey,
+        isEmpty,
+      );
+      expect(
+        AcademicSearchOptionsResolver.config().semanticScholarApiKey,
+        isEmpty,
+      );
+      expect(AcademicSearchOptionsResolver.timeoutMs, 15000);
     });
 
-    test('attach + lookup finds configured options by type', () async {
-      // Build a real SettingsProvider with mocked prefs, then configure
-      // the three academic search services.
+    test('attach + config reads standalone academic config', () async {
+      // Build a real SettingsProvider with mocked prefs, then configure the
+      // standalone academic MCP config (independent from web search).
       final sp = await _loadedProvider();
-      await sp.updateSettings(
-        sp.copyWith(
-          searchServices: [
-            PubMedOptions(id: 'p1', apiKey: 'key'),
-            ArxivOptions(id: 'a1'),
-            SemanticScholarOptions(id: 's1', apiKey: 'sk'),
-          ],
+      await sp.setAcademicConfig(
+        const AcademicMcpConfig(
+          pubmedApiKey: 'key',
+          pubmedTool: 'OmniChat',
+          pubmedEmail: 'dev@example.com',
+          semanticScholarApiKey: 'sk',
         ),
       );
       AcademicSearchOptionsResolver.attach(sp);
 
-      final p = AcademicSearchOptionsResolver.lookup('pubmed');
-      expect(p, isA<PubMedOptions>());
-      expect((p as PubMedOptions).apiKey, 'key');
+      final cfg = AcademicSearchOptionsResolver.config();
+      expect(cfg.pubmedApiKey, 'key');
+      expect(cfg.pubmedTool, 'OmniChat');
+      expect(cfg.pubmedEmail, 'dev@example.com');
+      expect(cfg.semanticScholarApiKey, 'sk');
+      expect(cfg.hasPubMedKey, isTrue);
+      expect(cfg.hasSemanticScholarKey, isTrue);
+    });
 
-      expect(
-        AcademicSearchOptionsResolver.lookup('arxiv'),
-        isA<ArxivOptions>(),
+    test('setAcademicConfig persists and loads back', () async {
+      final sp = await _loadedProvider();
+      await sp.setAcademicConfig(
+        const AcademicMcpConfig(pubmedApiKey: 'pk', semanticScholarApiKey: 's2k'),
       );
+      // A fresh provider should read the persisted config.
+      final sp2 = await _loadedProvider();
+      expect(sp2.academicConfig.pubmedApiKey, 'pk');
+      expect(sp2.academicConfig.semanticScholarApiKey, 's2k');
+    });
+
+    test('legacy search-service academic entries migrate into config', () async {
+      // Seed prefs with legacy web-search entries containing academic providers.
+      SharedPreferences.setMockInitialValues({
+        'search_services_v1': jsonEncode([
+          {'type': 'bing_local', 'id': 'b1', 'acceptLanguage': 'en-US'},
+          {
+            'type': 'pubmed',
+            'id': 'p1',
+            'apiKey': 'pmk',
+            'tool': 'MyTool',
+            'email': 'me@x.com',
+          },
+          {'type': 'semantic_scholar', 'id': 's1', 'apiKey': 's2k'},
+          {'type': 'arxiv', 'id': 'a1'},
+        ]),
+      });
+      final sp = await _loadedProvider();
+      // Academic providers are stripped from the web search list.
+      final webTypes = sp.searchServices
+          .map((e) => e.runtimeType.toString())
+          .toList();
       expect(
-        AcademicSearchOptionsResolver.lookup('semantic_scholar'),
-        isA<SemanticScholarOptions>(),
+        webTypes.any((t) => t.contains('PubMed')),
+        isFalse,
       );
-      // Unknown types resolve to null
-      expect(AcademicSearchOptionsResolver.lookup('bogus'), isNull);
+      // Keys were moved into the standalone academic config.
+      expect(sp.academicConfig.pubmedApiKey, 'pmk');
+      expect(sp.academicConfig.pubmedTool, 'MyTool');
+      expect(sp.academicConfig.pubmedEmail, 'me@x.com');
+      expect(sp.academicConfig.semanticScholarApiKey, 's2k');
     });
   });
 

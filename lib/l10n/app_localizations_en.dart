@@ -1892,6 +1892,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mcpServerEditSheetNoToolsHint => 'No tools';
 
   @override
+  String get mcpAcademicSettingsTitle => 'Academic Search API Keys';
+
+  @override
   String get mcpServerEditSheetSave => 'Save';
 
   @override
