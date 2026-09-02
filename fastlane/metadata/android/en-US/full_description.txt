@@ -1,4 +1,4 @@
-OmniChat is a local-first, cross-platform AI chat client for Android and desktop.
+OmniChat is a cross-platform AI chat client for Android and desktop.
 
 <b>Bring your own models</b>
 Connect directly to the providers you already use — OpenAI, Google Gemini, Anthropic Claude, DeepSeek, OpenRouter, Moonshot and any OpenAI-compatible endpoint. Your API keys stay on your device and requests go straight from your device to the provider.

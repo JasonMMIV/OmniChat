@@ -1,4 +1,4 @@
-OmniChat 是一款本地優先（local-first）的跨平台 AI 聊天用戶端，支援 Android 與桌面平台。
+OmniChat 是一款跨平台 AI 聊天用戶端，支援 Android 與桌面平台。
 
 <b>自帶模型</b>
 直接連線你已在使用的供應商——OpenAI、Google Gemini、Anthropic Claude、DeepSeek、OpenRouter、Moonshot 以及任何 OpenAI 相容端點。API 金鑰只存在你的裝置上，請求由裝置直連供應商。
