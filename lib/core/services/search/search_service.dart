@@ -21,6 +21,9 @@ import 'providers/grok_search_service.dart';
 import 'providers/arxiv_search_service.dart';
 import 'providers/pubmed_search_service.dart';
 import 'providers/semantic_scholar_search_service.dart';
+import 'providers/firecrawl_search_service.dart';
+import 'providers/doubao_search_service.dart';
+import 'providers/stepfun_search_service.dart';
 
 // Base interface for all search services
 abstract class SearchService<T extends SearchServiceOptions> {
@@ -79,6 +82,12 @@ abstract class SearchService<T extends SearchServiceOptions> {
         return PubmedSearchService() as SearchService;
       case SemanticScholarOptions:
         return SemanticScholarSearchService() as SearchService;
+      case FirecrawlOptions:
+        return FirecrawlSearchService() as SearchService;
+      case DoubaoOptions:
+        return DoubaoSearchService() as SearchService;
+      case StepFunOptions:
+        return StepFunSearchService() as SearchService;
       default:
         return BingSearchService() as SearchService;
     }
@@ -210,6 +219,12 @@ abstract class SearchServiceOptions {
         return PubMedOptions.fromJson(json);
       case 'semantic_scholar':
         return SemanticScholarOptions.fromJson(json);
+      case 'firecrawl':
+        return FirecrawlOptions.fromJson(json);
+      case 'doubao':
+        return DoubaoOptions.fromJson(json);
+      case 'stepfun':
+        return StepFunOptions.fromJson(json);
       default:
         return BingLocalOptions(id: json['id']);
     }
@@ -726,4 +741,117 @@ class SemanticScholarOptions extends SearchServiceOptions {
 
   factory SemanticScholarOptions.fromJson(Map<String, dynamic> json) =>
       SemanticScholarOptions(id: json['id'], apiKey: json['apiKey'] ?? '');
+}
+
+class StepFunOptions extends SearchServiceOptions {
+  static const String defaultUrl = 'https://api.stepfun.com/v1/search';
+
+  final String apiKey;
+  final String url;
+  final String category;
+
+  StepFunOptions({
+    required super.id,
+    required this.apiKey,
+    this.url = '',
+    this.category = '',
+  });
+
+  String get resolvedUrl {
+    final trimmed = url.trim();
+    return trimmed.isEmpty ? defaultUrl : trimmed;
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'stepfun',
+    'id': id,
+    'apiKey': apiKey,
+    'url': url.trim(),
+    'category': category.trim(),
+  };
+
+  factory StepFunOptions.fromJson(Map<String, dynamic> json) => StepFunOptions(
+    id: json['id'],
+    apiKey: json['apiKey'] ?? '',
+    url: json['url'] ?? '',
+    category: json['category'] ?? '',
+  );
+}
+
+class FirecrawlOptions extends SearchServiceOptions {
+  static const String defaultUrl = 'https://api.firecrawl.dev/v2/search';
+
+  final String apiKey;
+  final String url;
+  final List<String> sources;
+  final List<String> categories;
+  final String country;
+  final String location;
+
+  FirecrawlOptions({
+    required super.id,
+    required this.apiKey,
+    this.url = '',
+    this.sources = const <String>['web'],
+    this.categories = const <String>[],
+    this.country = '',
+    this.location = '',
+  });
+
+  String get resolvedUrl {
+    final trimmed = url.trim();
+    return trimmed.isEmpty ? defaultUrl : trimmed;
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'firecrawl',
+    'id': id,
+    'apiKey': apiKey,
+    'url': url.trim(),
+    'sources': sources,
+    'categories': categories,
+    'country': country.trim(),
+    'location': location.trim(),
+  };
+
+  factory FirecrawlOptions.fromJson(Map<String, dynamic> json) =>
+      FirecrawlOptions(
+        id: json['id'],
+        apiKey: json['apiKey'] ?? '',
+        url: json['url'] ?? '',
+        sources:
+            (json['sources'] as List?)
+                ?.map((e) => e.toString())
+                .where((e) => e.isNotEmpty)
+                .toList() ??
+            const <String>['web'],
+        categories:
+            (json['categories'] as List?)
+                ?.map((e) => e.toString())
+                .where((e) => e.isNotEmpty)
+                .toList() ??
+            const <String>[],
+        country: json['country'] ?? '',
+        location: json['location'] ?? '',
+      );
+}
+
+class DoubaoOptions extends SearchServiceOptions {
+  final String apiKey;
+
+  DoubaoOptions({required String id, required this.apiKey}) : super(id: id);
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'doubao',
+    'id': id,
+    'apiKey': apiKey,
+  };
+
+  factory DoubaoOptions.fromJson(Map<String, dynamic> json) => DoubaoOptions(
+    id: json['id'],
+    apiKey: json['apiKey'] ?? '',
+  );
 }

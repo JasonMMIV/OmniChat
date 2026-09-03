@@ -352,10 +352,28 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sideDrawerNewProject => '新增项目';
 
   @override
+  String get sideDrawerMenuSelect => '选择';
+
+  @override
   String get sideDrawerMenuRename => '重命名';
 
   @override
   String get sideDrawerMenuPin => '置顶';
+
+  @override
+  String sideDrawerSelectionCount(int count) {
+    return '已选 $count 个';
+  }
+
+  @override
+  String sideDrawerSelectionDeleteConfirmContent(int count) {
+    return '确定删除这 $count 个对话？此操作无法撤销。';
+  }
+
+  @override
+  String sideDrawerSelectionDeleteSnackbar(int count) {
+    return '已删除 $count 个对话';
+  }
 
   @override
   String get sideDrawerMenuUnpin => '取消置顶';
@@ -1433,6 +1451,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchServiceNameTinyfish => 'Tinyfish';
 
   @override
+  String get searchServiceNameDoubao => '豆包';
+
+  @override
+  String get searchServiceNameStepFun => 'StepFun';
+
+  @override
+  String get searchServiceNameFirecrawl => 'Firecrawl';
+
+  @override
   String get searchServiceNameArxiv => 'arXiv';
 
   @override
@@ -2179,6 +2206,17 @@ class AppLocalizationsZh extends AppLocalizations {
       '使用 Tinyfish Search API 搜索即时网页结果。';
 
   @override
+  String get searchProviderDoubaoDescription => '火山引擎豆包网页搜索 API。';
+
+  @override
+  String get searchProviderStepFunDescription =>
+      '通过 StepFun POST /v1/search 进行网页搜索。';
+
+  @override
+  String get searchProviderFirecrawlDescription =>
+      'Firecrawl Search API v2。API Key 可选。此处不支持 Scrape。';
+
+  @override
   String get searchServiceNameQuerit => 'Querit';
 
   @override
@@ -2240,6 +2278,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get searchServicesDialogLanguagesHint => 'english, japanese';
+
+  @override
+  String get searchServicesDialogCategoryOptional => '分类（可选）';
+
+  @override
+  String get searchServicesDialogLocationOptional => '位置（可选）';
 
   @override
   String get searchProviderArxivDescription =>
@@ -2622,6 +2666,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get displaySettingsPageAutoCollapseCodeBlockLinesUnit => '行';
 
   @override
+  String get displaySettingsPageShowThinkingCardsTitle => '显示思考卡片';
+
+  @override
+  String get displaySettingsPageShowThinkingCardsSubtitle =>
+      '关闭后，聊天中不再显示思考过程卡片';
+
+  @override
+  String get displaySettingsPageShowToolCardsTitle => '显示工具卡片';
+
+  @override
+  String get displaySettingsPageShowToolCardsSubtitle => '关闭后，聊天中不再显示工具调用卡片';
+
+  @override
   String get displaySettingsPageAutoCollapseThinkingTitle => '自动折叠思考';
 
   @override
@@ -2674,6 +2731,14 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get displaySettingsPageHapticsOnGenerateTitle => '消息生成触觉反馈';
+
+  @override
+  String get displaySettingsPageKeepScreenOnDuringGenerationTitle =>
+      '生成时保持屏幕常亮';
+
+  @override
+  String get displaySettingsPageKeepScreenOnDuringGenerationSubtitle =>
+      '防止锁屏中断较长的移动端回复生成';
 
   @override
   String get assistantSettingsPageTitle => '项目设置';
@@ -4941,10 +5006,28 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get sideDrawerNewProject => '新增项目';
 
   @override
+  String get sideDrawerMenuSelect => '选择';
+
+  @override
   String get sideDrawerMenuRename => '重命名';
 
   @override
   String get sideDrawerMenuPin => '置顶';
+
+  @override
+  String sideDrawerSelectionCount(int count) {
+    return '已选 $count 个';
+  }
+
+  @override
+  String sideDrawerSelectionDeleteConfirmContent(int count) {
+    return '确定删除这 $count 个对话？此操作无法撤销。';
+  }
+
+  @override
+  String sideDrawerSelectionDeleteSnackbar(int count) {
+    return '已删除 $count 个对话';
+  }
 
   @override
   String get sideDrawerMenuUnpin => '取消置顶';
@@ -6016,6 +6099,15 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get searchServiceNameTinyfish => 'Tinyfish';
 
   @override
+  String get searchServiceNameDoubao => '豆包';
+
+  @override
+  String get searchServiceNameStepFun => 'StepFun';
+
+  @override
+  String get searchServiceNameFirecrawl => 'Firecrawl';
+
+  @override
   String get searchServiceNameArxiv => 'arXiv';
 
   @override
@@ -6756,6 +6848,17 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
       '使用 Tinyfish Search API 搜索即时网页结果。';
 
   @override
+  String get searchProviderDoubaoDescription => '火山引擎豆包网页搜索 API。';
+
+  @override
+  String get searchProviderStepFunDescription =>
+      '通过 StepFun POST /v1/search 进行网页搜索。';
+
+  @override
+  String get searchProviderFirecrawlDescription =>
+      'Firecrawl Search API v2。API Key 可选。此处不支持 Scrape。';
+
+  @override
   String get searchServiceNameQuerit => 'Querit';
 
   @override
@@ -6817,6 +6920,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get searchServicesDialogLanguagesHint => 'english, japanese';
+
+  @override
+  String get searchServicesDialogCategoryOptional => '分类（可选）';
+
+  @override
+  String get searchServicesDialogLocationOptional => '位置（可选）';
 
   @override
   String get searchProviderArxivDescription =>
@@ -7196,6 +7305,19 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get displaySettingsPageAutoCollapseCodeBlockLinesUnit => '行';
 
   @override
+  String get displaySettingsPageShowThinkingCardsTitle => '显示思考卡片';
+
+  @override
+  String get displaySettingsPageShowThinkingCardsSubtitle =>
+      '关闭后，聊天中不再显示思考过程卡片';
+
+  @override
+  String get displaySettingsPageShowToolCardsTitle => '显示工具卡片';
+
+  @override
+  String get displaySettingsPageShowToolCardsSubtitle => '关闭后，聊天中不再显示工具调用卡片';
+
+  @override
   String get displaySettingsPageAutoCollapseThinkingTitle => '自动折叠思考';
 
   @override
@@ -7248,6 +7370,14 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get displaySettingsPageHapticsOnGenerateTitle => '消息生成触觉反馈';
+
+  @override
+  String get displaySettingsPageKeepScreenOnDuringGenerationTitle =>
+      '生成时保持屏幕常亮';
+
+  @override
+  String get displaySettingsPageKeepScreenOnDuringGenerationSubtitle =>
+      '防止锁屏中断较长的移动端回复生成';
 
   @override
   String get assistantSettingsPageTitle => '项目设置';
@@ -9419,10 +9549,28 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get sideDrawerNewProject => '新增專案';
 
   @override
+  String get sideDrawerMenuSelect => '選擇';
+
+  @override
   String get sideDrawerMenuRename => '重新命名';
 
   @override
   String get sideDrawerMenuPin => '置頂';
+
+  @override
+  String sideDrawerSelectionCount(int count) {
+    return '已選取 $count 個';
+  }
+
+  @override
+  String sideDrawerSelectionDeleteConfirmContent(int count) {
+    return '確定刪除這 $count 個對話？此操作無法復原。';
+  }
+
+  @override
+  String sideDrawerSelectionDeleteSnackbar(int count) {
+    return '已刪除 $count 個對話';
+  }
 
   @override
   String get sideDrawerMenuUnpin => '取消置頂';
@@ -10495,6 +10643,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get searchServiceNameTinyfish => 'Tinyfish';
 
   @override
+  String get searchServiceNameDoubao => '豆包';
+
+  @override
+  String get searchServiceNameStepFun => 'StepFun';
+
+  @override
+  String get searchServiceNameFirecrawl => 'Firecrawl';
+
+  @override
   String get searchServiceNameArxiv => 'arXiv';
 
   @override
@@ -11235,6 +11392,17 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
       '使用 Tinyfish Search API 搜尋即時網頁結果。';
 
   @override
+  String get searchProviderDoubaoDescription => '火山引擎豆包網頁搜尋 API。';
+
+  @override
+  String get searchProviderStepFunDescription =>
+      '透過 StepFun POST /v1/search 進行網頁搜尋。';
+
+  @override
+  String get searchProviderFirecrawlDescription =>
+      'Firecrawl Search API v2。API Key 可選。此處不支援 Scrape。';
+
+  @override
   String get searchServiceNameQuerit => 'Querit';
 
   @override
@@ -11296,6 +11464,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get searchServicesDialogLanguagesHint => 'english, japanese';
+
+  @override
+  String get searchServicesDialogCategoryOptional => '分類（選填）';
+
+  @override
+  String get searchServicesDialogLocationOptional => '位置（選填）';
 
   @override
   String get searchProviderArxivDescription =>
@@ -11675,6 +11849,19 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get displaySettingsPageAutoCollapseCodeBlockLinesUnit => '行';
 
   @override
+  String get displaySettingsPageShowThinkingCardsTitle => '顯示思考卡片';
+
+  @override
+  String get displaySettingsPageShowThinkingCardsSubtitle =>
+      '關閉後，聊天中不再顯示思考過程卡片';
+
+  @override
+  String get displaySettingsPageShowToolCardsTitle => '顯示工具卡片';
+
+  @override
+  String get displaySettingsPageShowToolCardsSubtitle => '關閉後，聊天中不再顯示工具呼叫卡片';
+
+  @override
   String get displaySettingsPageAutoCollapseThinkingTitle => '自動折疊思考';
 
   @override
@@ -11727,6 +11914,14 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get displaySettingsPageHapticsOnGenerateTitle => '訊息生成觸覺回饋';
+
+  @override
+  String get displaySettingsPageKeepScreenOnDuringGenerationTitle =>
+      '生成時保持螢幕常亮';
+
+  @override
+  String get displaySettingsPageKeepScreenOnDuringGenerationSubtitle =>
+      '防止鎖定畫面中斷較長的回覆生成';
 
   @override
   String get assistantSettingsPageTitle => '專案設定';

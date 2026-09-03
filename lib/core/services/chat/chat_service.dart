@@ -172,7 +172,37 @@ class ChatService extends ChangeNotifier {
 
   Future<void> deleteConversation(String id) async {
     if (!_initialized) return;
+    if (await _deleteConversationInternal(id)) {
+      notifyListeners();
+    }
+  }
 
+  /// Deletes each id once. Returns the number of conversations actually
+  /// removed; notifies at most once after orphaned-file cleanup.
+  Future<int> deleteConversations(Iterable<String> ids) async {
+    if (!_initialized) await init();
+
+    var count = 0;
+    final seen = <String>{};
+    for (final id in ids) {
+      if (id.isEmpty || !seen.add(id)) continue;
+      if (await _deleteConversationInternal(id, cleanup: false)) {
+        count++;
+      }
+    }
+    if (count == 0) return 0;
+    await _cleanupOrphanUploads();
+    notifyListeners();
+    return count;
+  }
+
+  /// Core delete logic for a single conversation. When [cleanup] is false the
+  /// caller owns [_cleanupOrphanUploads] (so a batch can run it exactly once).
+  /// Returns whether a conversation was actually removed.
+  Future<bool> _deleteConversationInternal(
+    String id, {
+    bool cleanup = true,
+  }) async {
     // If it's a draft and never persisted, just drop it.
     if (_draftConversations.containsKey(id)) {
       _draftConversations.remove(id);
@@ -181,12 +211,11 @@ class ChatService extends ChangeNotifier {
       if (_currentConversationId == id) {
         _currentConversationId = null;
       }
-      notifyListeners();
-      return;
+      return true;
     }
 
     final conversation = _conversationsBox.get(id);
-    if (conversation == null) return;
+    if (conversation == null) return false;
 
     // Collect local file paths referenced by messages in this conversation
     final Set<String> pathsToMaybeDelete = <String>{};
@@ -245,13 +274,15 @@ class ChatService extends ChangeNotifier {
     _messagesCache.remove(id);
 
     // Delete orphaned files (not referenced by any remaining conversation)
-    await _cleanupOrphanUploads();
+    if (cleanup) {
+      await _cleanupOrphanUploads();
+    }
 
     if (_currentConversationId == id) {
       _currentConversationId = null;
     }
 
-    notifyListeners();
+    return true;
   }
 
   Set<String> _extractAttachmentPaths(String content) {
@@ -626,6 +657,37 @@ class ChatService extends ChangeNotifier {
     conversation.isPinned = !conversation.isPinned;
     await conversation.save();
     notifyListeners();
+  }
+
+  /// Sets pin state to [pinned] for each id. Returns how many conversations
+  /// changed. Notifies at most once.
+  Future<int> setConversationsPinned(
+    Iterable<String> ids,
+    bool pinned,
+  ) async {
+    if (!_initialized) await init();
+
+    var changed = 0;
+    final seen = <String>{};
+    for (final id in ids) {
+      if (id.isEmpty || !seen.add(id)) continue;
+      if (_draftConversations.containsKey(id)) {
+        final draft = _draftConversations[id]!;
+        if (draft.isPinned == pinned) continue;
+        draft.isPinned = pinned;
+        changed++;
+        continue;
+      }
+      final conversation = _conversationsBox.get(id);
+      if (conversation == null) continue;
+      if (conversation.isPinned == pinned) continue;
+      conversation.isPinned = pinned;
+      await conversation.save();
+      changed++;
+    }
+    if (changed == 0) return 0;
+    notifyListeners();
+    return changed;
   }
 
   Future<ChatMessage> addMessage({
@@ -1276,6 +1338,49 @@ class ChatService extends ChangeNotifier {
     c.updatedAt = DateTime.now();
     await c.save();
     notifyListeners();
+  }
+
+  /// Moves each conversation to [assistantId]. Items already on that assistant
+  /// are skipped. Returns how many actually moved. Notifies at most once.
+  Future<int> moveConversationsToAssistant({
+    required Iterable<String> conversationIds,
+    required String assistantId,
+  }) async {
+    if (!_initialized) await init();
+
+    var n = 0;
+    final seen = <String>{};
+    for (final id in conversationIds) {
+      if (id.isEmpty || !seen.add(id)) continue;
+      if (await _moveConversationCore(id, assistantId)) {
+        n++;
+      }
+    }
+    if (n == 0) return 0;
+    notifyListeners();
+    return n;
+  }
+
+  /// Applies a single conversation's assistant change without notifying.
+  /// Returns false when the conversation is missing or already there.
+  Future<bool> _moveConversationCore(
+    String conversationId,
+    String assistantId,
+  ) async {
+    if (_draftConversations.containsKey(conversationId)) {
+      final draft = _draftConversations[conversationId]!;
+      if (draft.assistantId == assistantId) return false;
+      draft.assistantId = assistantId;
+      draft.updatedAt = DateTime.now();
+      return true;
+    }
+    final c = _conversationsBox.get(conversationId);
+    if (c == null) return false;
+    if (c.assistantId == assistantId) return false;
+    c.assistantId = assistantId;
+    c.updatedAt = DateTime.now();
+    await c.save();
+    return true;
   }
 }
 

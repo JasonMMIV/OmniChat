@@ -534,36 +534,40 @@ Future<TtsServiceOptions?> _showNetworkTtsSheet(BuildContext context, TtsService
       ? initial.apiKey
       : (initial is GeminiTtsOptions)
           ? initial.apiKey
-          : (initial is MiniMaxTtsOptions)
+          : (initial is AzureTtsOptions)
               ? initial.apiKey
-              : (initial is QwenTtsOptions)
+              : (initial is MiniMaxTtsOptions)
                   ? initial.apiKey
-                  : (initial is GroqTtsOptions)
+                  : (initial is QwenTtsOptions)
                       ? initial.apiKey
-                      : (initial is XaiTtsOptions)
+                      : (initial is GroqTtsOptions)
                           ? initial.apiKey
-                          : (initial is ElevenLabsTtsOptions)
+                          : (initial is XaiTtsOptions)
                               ? initial.apiKey
-                              : (initial is MimoTtsOptions)
+                              : (initial is ElevenLabsTtsOptions)
                                   ? initial.apiKey
-                                  : '');
+                                  : (initial is MimoTtsOptions)
+                                      ? initial.apiKey
+                                      : '');
   final baseCtl = TextEditingController(text: (initial is OpenAiTtsOptions)
       ? initial.baseUrl
       : (initial is GeminiTtsOptions)
           ? initial.baseUrl
-          : (initial is MiniMaxTtsOptions)
+          : (initial is AzureTtsOptions)
               ? initial.baseUrl
-              : (initial is QwenTtsOptions)
+              : (initial is MiniMaxTtsOptions)
                   ? initial.baseUrl
-                  : (initial is GroqTtsOptions)
+                  : (initial is QwenTtsOptions)
                       ? initial.baseUrl
-                      : (initial is XaiTtsOptions)
+                      : (initial is GroqTtsOptions)
                           ? initial.baseUrl
-                          : (initial is ElevenLabsTtsOptions)
+                          : (initial is XaiTtsOptions)
                               ? initial.baseUrl
-                              : (initial is MimoTtsOptions)
+                              : (initial is ElevenLabsTtsOptions)
                                   ? initial.baseUrl
-                                  : '');
+                                  : (initial is MimoTtsOptions)
+                                      ? initial.baseUrl
+                                      : '');
   final modelCtl = TextEditingController(text: (initial is OpenAiTtsOptions)
       ? initial.model
       : (initial is GeminiTtsOptions)
@@ -583,10 +587,12 @@ Future<TtsServiceOptions?> _showNetworkTtsSheet(BuildContext context, TtsService
       ? initial.voice
       : (initial is GeminiTtsOptions)
           ? initial.voiceName
-          : (initial is MiniMaxTtsOptions)
-              ? initial.voiceId
-              : (initial is QwenTtsOptions)
-                  ? initial.voice
+          : (initial is AzureTtsOptions)
+              ? initial.voice
+              : (initial is MiniMaxTtsOptions)
+                  ? initial.voiceId
+                  : (initial is QwenTtsOptions)
+                      ? initial.voice
                   : (initial is GroqTtsOptions)
                       ? initial.voice
                       : (initial is XaiTtsOptions)
@@ -599,7 +605,11 @@ Future<TtsServiceOptions?> _showNetworkTtsSheet(BuildContext context, TtsService
   final emotionCtl = TextEditingController(text: (initial is MiniMaxTtsOptions) ? initial.emotion : 'calm');
   final speedCtl = TextEditingController(text: (initial is MiniMaxTtsOptions) ? initial.speed.toString() : '1.0');
   final languageTypeCtl = TextEditingController(text: (initial is QwenTtsOptions) ? initial.languageType : 'Auto');
-  final languageCtl = TextEditingController(text: (initial is XaiTtsOptions) ? initial.language : 'auto');
+  final languageCtl = TextEditingController(text: initial is XaiTtsOptions
+      ? initial.language
+      : initial is AzureTtsOptions
+          ? initial.language
+          : 'auto');
 
   TtsServiceOptions? result;
   await showModalBottomSheet<void>(
@@ -635,11 +645,27 @@ Future<TtsServiceOptions?> _showNetworkTtsSheet(BuildContext context, TtsService
                       final base = baseCtl.text.trim().isEmpty ? _defaultBaseUrl(kind) : baseCtl.text.trim();
                       final model = modelCtl.text.trim().isEmpty ? _defaultModel(kind) : modelCtl.text.trim();
                       final voice = voiceCtl.text.trim().isEmpty ? _defaultVoice(kind) : voiceCtl.text.trim();
-                      if (apiKey.isEmpty) { Navigator.of(ctx).maybePop(); return; }
+                      if (apiKey.isEmpty ||
+                          (kind == NetworkTtsKind.azure && base.isEmpty)) {
+                        Navigator.of(ctx).maybePop();
+                        return;
+                      }
                       if (kind == NetworkTtsKind.openai) {
                         result = OpenAiTtsOptions(enabled: true, name: name, apiKey: apiKey, baseUrl: base, model: model, voice: voice);
                       } else if (kind == NetworkTtsKind.gemini) {
                         result = GeminiTtsOptions(enabled: true, name: name, apiKey: apiKey, baseUrl: base, model: model, voiceName: voice);
+                      } else if (kind == NetworkTtsKind.azure) {
+                        result = AzureTtsOptions(
+                          id: initial?.id,
+                          enabled: true,
+                          name: name,
+                          apiKey: apiKey,
+                          baseUrl: base,
+                          language: languageCtl.text.trim().isEmpty
+                              ? 'zh-CN'
+                              : languageCtl.text.trim(),
+                          voice: voice,
+                        );
                       } else if (kind == NetworkTtsKind.minimax) {
                         final spd = double.tryParse(speedCtl.text.trim()) ?? 1.0;
                         result = MiniMaxTtsOptions(enabled: true, name: name, apiKey: apiKey, baseUrl: base, model: model, voiceId: voice, emotion: emotionCtl.text.trim().isEmpty ? 'calm' : emotionCtl.text.trim(), speed: spd);
@@ -691,8 +717,8 @@ Future<TtsServiceOptions?> _showNetworkTtsSheet(BuildContext context, TtsService
                       const SizedBox(height: 6),
                       _inputRowMobile(context, label: l10n.ttsServicesFieldApiKeyLabel, controller: apiKeyCtl, obscure: true),
                       const SizedBox(height: 6),
-                      _inputRowMobile(context, label: l10n.ttsServicesFieldBaseUrlLabel, controller: baseCtl, hint: _defaultBaseUrl(kind)),
-                      if (kind != NetworkTtsKind.xai) ...[
+                      _inputRowMobile(context, label: l10n.ttsServicesFieldBaseUrlLabel, controller: baseCtl, hint: kind == NetworkTtsKind.azure ? 'https://<region>.tts.speech.microsoft.com' : _defaultBaseUrl(kind)),
+                      if (kind != NetworkTtsKind.xai && kind != NetworkTtsKind.azure) ...[
                         const SizedBox(height: 6),
                         _inputRowMobile(context, label: l10n.ttsServicesFieldModelLabel, controller: modelCtl, hint: _defaultModel(kind)),
                       ],
@@ -708,9 +734,9 @@ Future<TtsServiceOptions?> _showNetworkTtsSheet(BuildContext context, TtsService
                         const SizedBox(height: 6),
                         _inputRowMobile(context, label: l10n.ttsServicesFieldLanguageTypeLabel, controller: languageTypeCtl, hint: 'Auto'),
                       ],
-                      if (kind == NetworkTtsKind.xai) ...[
+                      if (kind == NetworkTtsKind.xai || kind == NetworkTtsKind.azure) ...[
                         const SizedBox(height: 6),
-                        _inputRowMobile(context, label: l10n.ttsServicesFieldLanguageLabel, controller: languageCtl, hint: 'auto'),
+                        _inputRowMobile(context, label: l10n.ttsServicesFieldLanguageLabel, controller: languageCtl, hint: kind == NetworkTtsKind.azure ? 'zh-CN' : 'auto'),
                       ],
                     ],
                   );
@@ -973,6 +999,8 @@ String _defaultBaseUrl(NetworkTtsKind k) {
       return 'https://api.openai.com/v1';
     case NetworkTtsKind.gemini:
       return 'https://generativelanguage.googleapis.com/v1beta';
+    case NetworkTtsKind.azure:
+      return '';
     case NetworkTtsKind.minimax:
       return 'https://api.minimaxi.com/v1';
     case NetworkTtsKind.qwen:
@@ -994,6 +1022,8 @@ String _defaultModel(NetworkTtsKind k) {
       return 'gpt-4o-mini-tts';
     case NetworkTtsKind.gemini:
       return 'gemini-2.5-flash-preview-tts';
+    case NetworkTtsKind.azure:
+      return '';
     case NetworkTtsKind.minimax:
       return 'speech-2.6-turbo';
     case NetworkTtsKind.qwen:
@@ -1015,6 +1045,8 @@ String _defaultVoice(NetworkTtsKind k) {
       return 'alloy';
     case NetworkTtsKind.gemini:
       return 'Kore';
+    case NetworkTtsKind.azure:
+      return 'zh-CN-XiaoxiaoNeural';
     case NetworkTtsKind.minimax:
       return 'female-shaonv';
     case NetworkTtsKind.qwen:
@@ -1034,6 +1066,7 @@ String _voiceLabelFor(NetworkTtsKind k, AppLocalizations l10n) {
   switch (k) {
     case NetworkTtsKind.openai:
     case NetworkTtsKind.gemini:
+    case NetworkTtsKind.azure:
     case NetworkTtsKind.qwen:
     case NetworkTtsKind.groq:
     case NetworkTtsKind.mimo:

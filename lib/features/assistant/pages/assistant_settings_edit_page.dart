@@ -53,7 +53,7 @@ import '../../../desktop/desktop_context_menu.dart';
 import 'dart:io' show File, Platform;
 
 const int _contextMessageMin = 1;
-const int _contextMessageMax = 256;
+const int _contextMessageMax = 4096;
 
 int _clampContextMessages(num value) =>
     value.clamp(_contextMessageMin, _contextMessageMax).toInt();
@@ -2613,6 +2613,8 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                           64.0,
                           128.0,
                           256.0,
+                          2048.0,
+                          4096.0,
                         ],
                         onLabelTap: () async {
                           final chosen = await _showContextMessageInputDialog(
@@ -7518,6 +7520,8 @@ class _DesktopAssistantBasicPaneState
                           64.0,
                           128.0,
                           256.0,
+                          2048.0,
+                          4096.0,
                         ],
                         onLabelTap: a.limitContextMessages
                             ? () async {

@@ -82,6 +82,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   final ScrollController _listController = ScrollController();
   final Set<String> _expandedAssistantIds = {};
   final Set<String> _collapsedTags = {};
+  bool _selectionMode = false;
+  final Set<String> _selectedConversationIds = <String>{};
 
 
   @override
@@ -119,6 +121,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         context,
         globalPosition: pos,
         items: [
+          DesktopContextMenuItem(
+            icon: Lucide.ListChecks,
+            label: l10n.sideDrawerMenuSelect,
+            onTap: () => _enterSelectionMode(chat.id),
+          ),
           DesktopContextMenuItem(
             icon: Lucide.Edit,
             label: l10n.sideDrawerMenuRename,
@@ -309,6 +316,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                       },
                     ),
                     row(
+                      icon: Lucide.ListChecks,
+                      label: l10n.sideDrawerMenuSelect,
+                      action: () async { _enterSelectionMode(chat.id); },
+                    ),
+                    row(
                       icon: Lucide.Trash,
                       label: l10n.sideDrawerMenuDelete,
                       color: Colors.redAccent,
@@ -337,6 +349,227 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         );
       },
     );
+  }
+
+  // ============================================================================
+  // Conversation multi-select (selection mode)
+  // ============================================================================
+
+  void _enterSelectionMode(String conversationId) {
+    setState(() {
+      _selectionMode = true;
+      _selectedConversationIds
+        ..clear()
+        ..add(conversationId);
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _selectionMode = false;
+      _selectedConversationIds.clear();
+    });
+  }
+
+  void _toggleConversationSelected(String id) {
+    setState(() {
+      if (!_selectedConversationIds.add(id)) {
+        _selectedConversationIds.remove(id);
+      }
+      if (_selectedConversationIds.isEmpty) {
+        _selectionMode = false;
+      }
+    });
+  }
+
+  Widget _buildSelectionHeader(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final count = _selectedConversationIds.length;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            l10n.sideDrawerSelectionCount(count),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
+          ),
+        ),
+        SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(
+            child: IosIconButton(
+              size: 22,
+              color: cs.onSurface,
+              icon: Lucide.X,
+              padding: const EdgeInsets.all(6),
+              onTap: _exitSelectionMode,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSelectionActionBar(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final chatService = context.read<ChatService>();
+    var allPinned = _selectedConversationIds.isNotEmpty;
+    for (final id in _selectedConversationIds) {
+      if (!(chatService.getConversation(id)?.isPinned ?? false)) {
+        allPinned = false;
+        break;
+      }
+    }
+    return Row(
+      children: [
+        _selectionActionChip(
+          context,
+          icon: allPinned ? Lucide.PinOff : Lucide.Pin,
+          label: allPinned ? l10n.sideDrawerMenuUnpin : l10n.sideDrawerMenuPin,
+          onTap: () => _batchPinSelection(context, pinned: !allPinned),
+        ),
+        const SizedBox(width: 8),
+        _selectionActionChip(
+          context,
+          icon: Lucide.Shuffle,
+          label: l10n.sideDrawerMenuMoveTo,
+          onTap: () => _batchMoveSelection(context),
+        ),
+        const SizedBox(width: 8),
+        _selectionActionChip(
+          context,
+          icon: Lucide.Trash2,
+          label: l10n.sideDrawerMenuDelete,
+          color: cs.error,
+          onTap: () => _batchDeleteSelection(context),
+        ),
+      ],
+    );
+  }
+
+  Widget _selectionActionChip(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    Color? color,
+    required VoidCallback onTap,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return Expanded(
+      child: IosCardPress(
+        borderRadius: BorderRadius.circular(12),
+        baseColor: cs.surfaceContainerHighest.withOpacity(0.6),
+        onTap: onTap,
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 17, color: color ?? cs.onSurface),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13, color: color ?? cs.onSurface),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _batchPinSelection(
+    BuildContext context, {
+    required bool pinned,
+  }) async {
+    final chatService = context.read<ChatService>();
+    await chatService.setConversationsPinned(_selectedConversationIds, pinned);
+    _exitSelectionMode();
+  }
+
+  Future<void> _batchMoveSelection(BuildContext context) async {
+    final chatService = context.read<ChatService>();
+    final targetId = await showAssistantMoveSelector(context);
+    if (targetId == null) return;
+    await chatService.moveConversationsToAssistant(
+      conversationIds: _selectedConversationIds,
+      assistantId: targetId,
+    );
+    _exitSelectionMode();
+  }
+
+  Future<void> _batchDeleteSelection(BuildContext context) async {
+    final l10n = AppLocalizations.of(context)!;
+    final chatService = context.read<ChatService>();
+    final ids = List<String>.of(_selectedConversationIds);
+    final deletingCurrent =
+        chatService.currentConversationId != null &&
+        ids.contains(chatService.currentConversationId);
+
+    // Pre-compute the next recent conversation on the current assistant that
+    // survives the batch delete.
+    String? nextId;
+    try {
+      final ap = context.read<AssistantProvider>();
+      final currentAid = ap.currentAssistantId;
+      if (currentAid != null) {
+        final candidates = chatService
+            .getAllConversations()
+            .where((c) => c.assistantId == currentAid && !ids.contains(c.id))
+            .toList()
+          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        if (candidates.isNotEmpty) nextId = candidates.first.id;
+      }
+    } catch (_) {}
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.sideDrawerDeleteConfirmTitle),
+        content: Text(l10n.sideDrawerSelectionDeleteConfirmContent(ids.length)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.chatMessageWidgetRegenerateConfirmCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              l10n.chatMessageWidgetDeleteConfirmDelete,
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    final deleted = await chatService.deleteConversations(ids);
+    if (deleted > 0) {
+      showAppSnackBar(
+        context,
+        message: l10n.sideDrawerSelectionDeleteSnackbar(deleted),
+        type: NotificationType.success,
+        duration: const Duration(seconds: 3),
+      );
+    }
+    _exitSelectionMode();
+    _handlePostDeleteNavigation(
+      chatService: chatService,
+      deletingCurrent: deletingCurrent,
+      nextConversationId: nextId,
+    );
+    Navigator.of(context).maybePop();
   }
 
   String? _nextRecentConversation(ChatService chatService, String excludeId) {
@@ -669,8 +902,10 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 1. 搜索框 + 历史按钮（固定头部）
-                  if (_isDesktop)
+                  // 1. Selection header (multi-select) or 搜索框 + 历史按钮
+                  if (_selectionMode)
+                    _buildSelectionHeader(context)
+                  else if (_isDesktop)
                     // 桌面端
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -810,6 +1045,10 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                       ],
                     ),
 
+                  if (_selectionMode) ...[
+                    const SizedBox(height: 10),
+                    _buildSelectionActionBar(context),
+                  ],
                   SizedBox(height: _isDesktop ? 8 : 12),
                 ],
               ),
@@ -1784,17 +2023,30 @@ extension on _SideDrawerState {
       final filteredConvos = hasQuery ? convos.where((c) => c.title.toLowerCase().contains(q)).toList() : convos;
 
       Widget _buildChatTile(ChatItem chatItem) {
+        final inSelection = _selectionMode;
+        final checked = _selectedConversationIds.contains(chatItem.id);
         return _ChatTile(
           chat: chatItem,
           loading: widget.loadingConversationIds.contains(chatItem.id),
-          selected: chatService.currentConversationId == chatItem.id,
+          selected: !inSelection &&
+              chatService.currentConversationId == chatItem.id,
+          selectionMode: inSelection,
+          checked: checked,
           onTap: () {
+            if (inSelection) {
+              _toggleConversationSelected(chatItem.id);
+              return;
+            }
             final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
             ap.setCurrentAssistant(a.id);
             widget.onSelectConversation?.call(chatItem.id, closeDrawer: closeDrawer);
           },
-          onLongPress: () => _showChatMenu(context, chatItem),
-          onSecondaryTap: (pos) => _showChatMenu(context, chatItem, anchor: pos),
+          onLongPress: inSelection
+              ? () => _toggleConversationSelected(chatItem.id)
+              : () => _showChatMenu(context, chatItem),
+          onSecondaryTap: inSelection
+              ? (pos) => _toggleConversationSelected(chatItem.id)
+              : (pos) => _showChatMenu(context, chatItem, anchor: pos),
           textColor: textBase,
         );
       }
@@ -1930,6 +2182,8 @@ class _ChatTile extends StatefulWidget {
     this.onSecondaryTap,
     this.selected = false,
     this.loading = false,
+    this.selectionMode = false,
+    this.checked = false,
   });
 
   final ChatItem chat;
@@ -1939,6 +2193,8 @@ class _ChatTile extends StatefulWidget {
   final void Function(Offset globalPosition)? onSecondaryTap;
   final bool selected;
   final bool loading;
+  final bool selectionMode;
+  final bool checked;
 
   @override
   State<_ChatTile> createState() => _ChatTileState();
@@ -1952,14 +2208,17 @@ class _ChatTileState extends State<_ChatTile> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final embedded = context.findAncestorWidgetOfExactType<SideDrawer>()?.embedded ?? false;
+    final effectiveSelected = widget.selectionMode
+        ? widget.checked
+        : widget.selected;
     final Color tileColor;
     if (embedded) {
       // In tablet embedded mode, keep selected highlight, others transparent
-      tileColor = widget.selected ? cs.primary.withOpacity(0.16) : Colors.transparent;
+      tileColor = effectiveSelected ? cs.primary.withOpacity(0.16) : Colors.transparent;
     } else {
-      tileColor = widget.selected ? cs.primary.withOpacity(0.12) : cs.surface;
+      tileColor = effectiveSelected ? cs.primary.withOpacity(0.12) : cs.surface;
     }
-    final base = _isDesktop && !widget.selected && _hovered
+    final base = _isDesktop && !effectiveSelected && _hovered
         ? (embedded ? cs.primary.withOpacity(0.08) : cs.surface.withOpacity(0.9))
         : tileColor;
     final double _vGap = _sideDrawerTileGap;
@@ -1988,6 +2247,10 @@ class _ChatTileState extends State<_ChatTile> {
           padding: EdgeInsets.fromLTRB(_isDesktop ? 14 : 14, _isDesktop ? 9 : 10, 8, _isDesktop ? 9 : 10),
           child: Row(
               children: [
+                if (widget.selectionMode) ...[
+                  _SelectionCheckbox(checked: widget.checked),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(
                   child: Text(
                     widget.chat.title,
@@ -2009,6 +2272,32 @@ class _ChatTileState extends State<_ChatTile> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SelectionCheckbox extends StatelessWidget {
+  const _SelectionCheckbox({required this.checked});
+
+  final bool checked;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        color: checked ? cs.primary : Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: checked ? cs.primary : cs.onSurface.withOpacity(0.5),
+          width: 1.6,
+        ),
+      ),
+      child: checked
+          ? Icon(Lucide.Check, size: 14, color: cs.onPrimary)
+          : null,
     );
   }
 }

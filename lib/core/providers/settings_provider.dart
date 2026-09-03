@@ -18,6 +18,7 @@ import '../models/api_keys.dart';
 import '../models/backup.dart';
 import '../models/workspace_config.dart';
 import '../services/haptics.dart';
+import '../services/screen_wakelock.dart';
 import '../../utils/app_directories.dart';
 import '../../utils/sandbox_path_resolver.dart';
 import '../../utils/avatar_cache.dart';
@@ -87,6 +88,9 @@ class SettingsProvider extends ChangeNotifier {
       'display_show_user_name_timestamp_v1';
   static const String _displayShowUserMessageActionsKey =
       'display_show_user_message_actions_v1';
+  static const String _displayShowThinkingCardsKey =
+      'display_show_thinking_cards_v1';
+  static const String _displayShowToolCardsKey = 'display_show_tool_cards_v1';
   static const String _displayAutoCollapseThinkingKey =
       'display_auto_collapse_thinking_v1';
   static const String _displayReplayToolResultsKey =
@@ -106,6 +110,8 @@ class SettingsProvider extends ChangeNotifier {
       'display_haptics_on_list_item_tap_v1';
   static const String _displayHapticsOnCardTapKey =
       'display_haptics_on_card_tap_v1';
+  static const String _displayKeepScreenOnDuringGenerationKey =
+      'display_keep_screen_on_during_generation_v1';
   static const String _displayShowAppUpdatesKey = 'display_show_app_updates_v1';
   static const String _displayKeepSidebarOpenOnAssistantTapKey =
       'display_keep_sidebar_open_on_assistant_tap_v1';
@@ -638,6 +644,9 @@ class SettingsProvider extends ChangeNotifier {
         prefs.getBool(_displayShowUserNameTimestampKey) ?? true;
     _showUserMessageActions =
         prefs.getBool(_displayShowUserMessageActionsKey) ?? true;
+    _showThinkingCards =
+        prefs.getBool(_displayShowThinkingCardsKey) ?? true;
+    _showToolCards = prefs.getBool(_displayShowToolCardsKey) ?? true;
     _autoCollapseThinking =
         prefs.getBool(_displayAutoCollapseThinkingKey) ?? true;
     _replayToolResults =
@@ -655,6 +664,9 @@ class SettingsProvider extends ChangeNotifier {
     _hapticsOnCardTap = prefs.getBool(_displayHapticsOnCardTapKey) ?? true;
     // Apply global haptics to service layer
     Haptics.setEnabled(_hapticsGlobalEnabled);
+    _keepScreenOnDuringGeneration =
+        prefs.getBool(_displayKeepScreenOnDuringGenerationKey) ?? false;
+    ScreenWakelock.setEnabled(_keepScreenOnDuringGeneration);
     _showAppUpdates = prefs.getBool(_displayShowAppUpdatesKey) ?? true;
     _keepSidebarOpenOnAssistantTap =
         prefs.getBool(_displayKeepSidebarOpenOnAssistantTapKey) ?? false;
@@ -2755,6 +2767,28 @@ Synthesize your reasoning and research into a final response. The structure shou
   bool _autoCollapseThinking = true;
   bool get autoCollapseThinking => _autoCollapseThinking;
 
+  // Display: show thinking-process cards in chat (default on)
+  bool _showThinkingCards = true;
+  bool get showThinkingCards => _showThinkingCards;
+  Future<void> setShowThinkingCards(bool v) async {
+    if (_showThinkingCards == v) return;
+    _showThinkingCards = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_displayShowThinkingCardsKey, v);
+  }
+
+  // Display: show tool-use cards in chat (default on)
+  bool _showToolCards = true;
+  bool get showToolCards => _showToolCards;
+  Future<void> setShowToolCards(bool v) async {
+    if (_showToolCards == v) return;
+    _showToolCards = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_displayShowToolCardsKey, v);
+  }
+
   // Behavior: replay tool results across turns (includeToolMessages)
   bool _replayToolResults = true;
   bool get replayToolResults => _replayToolResults;
@@ -3025,6 +3059,18 @@ Synthesize your reasoning and research into a final response. The structure shou
     await prefs.setBool(_displayHapticsOnGenerateKey, v);
   }
 
+  // Display: keep screen on while a conversation is generating
+  bool _keepScreenOnDuringGeneration = false;
+  bool get keepScreenOnDuringGeneration => _keepScreenOnDuringGeneration;
+  Future<void> setKeepScreenOnDuringGeneration(bool v) async {
+    if (_keepScreenOnDuringGeneration == v) return;
+    _keepScreenOnDuringGeneration = v;
+    ScreenWakelock.setEnabled(v);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_displayKeepScreenOnDuringGenerationKey, v);
+  }
+
   // Display: haptics on drawer open/close
   bool _hapticsOnDrawer = true;
   bool get hapticsOnDrawer => _hapticsOnDrawer;
@@ -3287,11 +3333,14 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._showTokenStats = _showTokenStats;
     copy._showUserNameTimestamp = _showUserNameTimestamp;
     copy._showUserMessageActions = _showUserMessageActions;
+    copy._showThinkingCards = _showThinkingCards;
+    copy._showToolCards = _showToolCards;
     copy._autoCollapseThinking = _autoCollapseThinking;
     copy._replayToolResults = _replayToolResults;
     copy._showMessageNavButtons = _showMessageNavButtons;
     copy._showProviderInModelCapsule = _showProviderInModelCapsule;
     copy._hapticsOnGenerate = _hapticsOnGenerate;
+    copy._keepScreenOnDuringGeneration = _keepScreenOnDuringGeneration;
     copy._hapticsOnDrawer = _hapticsOnDrawer;
     copy._hapticsGlobalEnabled = _hapticsGlobalEnabled;
     copy._hapticsIosSwitch = _hapticsIosSwitch;

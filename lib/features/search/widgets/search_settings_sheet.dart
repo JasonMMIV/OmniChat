@@ -85,6 +85,15 @@ class _SearchSettingsSheet extends StatelessWidget {
       return s.apiKey.isNotEmpty
           ? l10n.searchServicesPageConfiguredStatus
           : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (s is DoubaoOptions)
+      return s.apiKey.isNotEmpty
+          ? l10n.searchServicesPageConfiguredStatus
+          : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (s is StepFunOptions)
+      return s.apiKey.isNotEmpty
+          ? l10n.searchServicesPageConfiguredStatus
+          : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (s is FirecrawlOptions) return l10n.searchServicesPageConfiguredStatus;
     if (s is ArxivOptions) return l10n.searchServicesPageConfiguredStatus;
     if (s is PubMedOptions)
       return s.apiKey.isNotEmpty

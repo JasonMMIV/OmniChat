@@ -123,8 +123,33 @@
   "sideDrawerOK": "OK",
   "sideDrawerSave": "Save",
   "sideDrawerNewProject": "New Project",
+  "sideDrawerMenuSelect": "Select",
   "sideDrawerMenuRename": "Rename",
   "sideDrawerMenuPin": "Pin",
+  "sideDrawerSelectionCount": "{count} selected",
+  "@sideDrawerSelectionCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sideDrawerSelectionDeleteConfirmContent": "Delete {count} conversations? This cannot be undone.",
+  "@sideDrawerSelectionDeleteConfirmContent": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sideDrawerSelectionDeleteSnackbar": "Deleted {count} conversations",
+  "@sideDrawerSelectionDeleteSnackbar": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "sideDrawerMenuUnpin": "Unpin",
   "sideDrawerMenuRegenerateTitle": "Regenerate Title",
   "sideDrawerMenuMoveTo": "Move to...",
@@ -586,6 +611,9 @@
   "searchServiceNamePerplexity": "Perplexity",
   "searchServiceNameBocha": "Bocha",
   "searchServiceNameTinyfish": "Tinyfish",
+  "searchServiceNameDoubao": "Doubao",
+  "searchServiceNameStepFun": "StepFun",
+  "searchServiceNameFirecrawl": "Firecrawl",
   "searchServiceNameArxiv": "arXiv",
   "searchServiceNamePubMed": "PubMed",
   "searchServiceNameSemanticScholar": "Semantic Scholar",
@@ -898,6 +926,9 @@
   "searchProviderPerplexityDescription": "Perplexity search",
   "searchProviderDuckDuckGoDescription": "DuckDuckGo search",
   "searchProviderTinyfishDescription": "Search the live web with Tinyfish Search API.",
+  "searchProviderDoubaoDescription": "Doubao web search API by Volcano Engine.",
+  "searchProviderStepFunDescription": "StepFun web search via POST /v1/search.",
+  "searchProviderFirecrawlDescription": "Firecrawl Search API v2. API key is optional. Scrape is not supported here.",
   "searchServiceNameQuerit": "Querit",
   "searchProviderQueritDescription": "Querit Search API for LLM applications. Returns real-time web results with site, time, country, and language filters.",
   "searchServiceNameSerper": "Serper",
@@ -918,6 +949,8 @@
   "searchServicesDialogTimeRangeHint": "d7",
   "searchServicesDialogCountriesHint": "united states, japan",
   "searchServicesDialogLanguagesHint": "english, japanese",
+  "searchServicesDialogCategoryOptional": "Category (optional)",
+  "searchServicesDialogLocationOptional": "Location (optional)",
   "searchProviderArxivDescription": "arXiv preprint repository for physics, math, computer science and more. No API key required.",
   "searchProviderPubMedDescription": "PubMed biomedical literature search with abstracts from the U.S. National Library of Medicine. No API key required (an optional key raises the rate limit).",
   "searchProviderSemanticScholarDescription": "Semantic Scholar academic search with citations and AI summaries. API key optional.",
@@ -1113,6 +1146,10 @@
   "displaySettingsPageMobileCodeBlockWrapTitle": "Wrap",
   "displaySettingsPageAutoCollapseCodeBlockLinesTitle": "Lines",
   "displaySettingsPageAutoCollapseCodeBlockLinesUnit": "lines",
+  "displaySettingsPageShowThinkingCardsTitle": "Show Thinking Cards",
+  "displaySettingsPageShowThinkingCardsSubtitle": "When off, thinking-process cards are hidden in chat.",
+  "displaySettingsPageShowToolCardsTitle": "Show Tool Cards",
+  "displaySettingsPageShowToolCardsSubtitle": "When off, tool-use cards are hidden in chat.",
   "displaySettingsPageAutoCollapseThinkingTitle": "Collapse Thinking",
   "displaySettingsPageReplayToolResultsTitle": "Replay Tool Results",
   "displaySettingsPageShowUpdatesTitle": "Updates",
@@ -1130,6 +1167,8 @@
   "displaySettingsPageHapticsOnListItemTapTitle": "List",
   "displaySettingsPageHapticsOnCardTapTitle": "Card",
   "displaySettingsPageHapticsOnGenerateTitle": "Generate",
+  "displaySettingsPageKeepScreenOnDuringGenerationTitle": "Keep screen on during generation",
+  "displaySettingsPageKeepScreenOnDuringGenerationSubtitle": "Prevent the lock screen from interrupting long mobile replies.",
   "assistantSettingsPageTitle": "Projects",
   "assistantSettingsCopyButton": "Copy",
   "assistantSettingsDeleteButton": "Delete",

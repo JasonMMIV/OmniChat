@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/screen_wakelock.dart';
 
 /// Controller for managing conversation state in the home page.
 ///
@@ -273,6 +274,11 @@ class ChatController extends ChangeNotifier {
     }
     if (prev != loading) {
       notifyListeners();
+      if (loading && _loadingConversationIds.length == 1) {
+        ScreenWakelock.acquire();
+      } else if (!loading && _loadingConversationIds.isEmpty) {
+        ScreenWakelock.release();
+      }
     }
   }
 
@@ -364,6 +370,7 @@ class ChatController extends ChangeNotifier {
   @override
   void dispose() {
     cancelAllStreams();
+    ScreenWakelock.releaseNow();
     super.dispose();
   }
 }

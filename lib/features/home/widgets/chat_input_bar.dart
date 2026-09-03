@@ -178,6 +178,47 @@ class _ChatInputBarState extends State<ChatInputBar>
   // Instance method for onChanged to avoid recreating the callback on every build
   void _onTextChanged(String _) => setState(() {});
 
+  /// Receives images inserted by the soft keyboard (e.g. Gboard).
+  void _handleInsertedContent(KeyboardInsertedContent content) {
+    final format = switch (content.mimeType.toLowerCase()) {
+      'image/png' => 'png',
+      'image/jpeg' || 'image/jpg' => 'jpeg',
+      'image/gif' => 'gif',
+      'image/webp' => 'webp',
+      _ => null,
+    };
+    final bytes = content.data;
+    if (!mounted || format == null || bytes == null || bytes.isEmpty) return;
+    unawaited(_saveKeyboardImage(format, bytes));
+  }
+
+  Future<void> _saveKeyboardImage(String format, Uint8List bytes) async {
+    try {
+      final dir = await AppDirectories.getUploadDirectory();
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final ext = format.toLowerCase();
+      final fileExt = ext == 'jpeg' ? 'jpg' : ext;
+      String name = 'paste_$ts.$fileExt';
+      String destPath = p.join(dir.path, name);
+      if (await File(destPath).exists()) {
+        name =
+            'paste_${ts}_${DateTime.now().microsecondsSinceEpoch}.$fileExt';
+        destPath = p.join(dir.path, name);
+      }
+      await File(destPath).writeAsBytes(bytes, flush: true);
+      if (!mounted) {
+        try {
+          await File(destPath).delete();
+        } catch (_) {}
+        return;
+      }
+      _addImages([destPath]);
+    } catch (_) {}
+  }
+
   void _addImages(List<String> paths) {
     if (paths.isEmpty) return;
     setState(() => _images.addAll(paths));
@@ -2016,6 +2057,18 @@ class _ChatInputBarState extends State<ChatInputBar>
                                         controller: _controller,
                                         focusNode: widget.focusNode,
                                         onChanged: _onTextChanged,
+                                        contentInsertionConfiguration:
+                                            ContentInsertionConfiguration(
+                                              onContentInserted:
+                                                  _handleInsertedContent,
+                                              allowedMimeTypes: const [
+                                                'image/png',
+                                                'image/jpeg',
+                                                'image/jpg',
+                                                'image/gif',
+                                                'image/webp',
+                                              ],
+                                            ),
                                         minLines: 1,
                                         maxLines: _isExpanded ? 25 : 5,
                                         // On iOS, show "Send" on the return key and submit on tap.
