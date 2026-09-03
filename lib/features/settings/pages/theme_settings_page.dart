@@ -68,10 +68,20 @@ class ThemeSettingsPage extends StatelessWidget {
             ),
           ]),
           const SizedBox(height: 12),
-          // header(l10n.themeSettingsPageColorPalettesSection),
           _iosSectionCard(children: [
             for (int i = 0; i < ThemePalettes.all.length; i++) ...[
-              _paletteRow(context, palette: ThemePalettes.all[i], selected: settings.themePaletteId == ThemePalettes.all[i].id, onTap: () => context.read<SettingsProvider>().setThemePalette(ThemePalettes.all[i].id)),
+              _paletteRow(
+                context,
+                palette: ThemePalettes.all[i],
+                selected: settings.themePaletteId == ThemePalettes.all[i].id,
+                onTap: () {
+                  final sp = context.read<SettingsProvider>();
+                  if (sp.useDynamicColor) {
+                    sp.setUseDynamicColor(false);
+                  }
+                  sp.setThemePalette(ThemePalettes.all[i].id);
+                },
+              ),
               if (i != ThemePalettes.all.length - 1) _iosDivider(context),
             ],
           ]),
@@ -215,7 +225,7 @@ Widget _iosSwitchRow(BuildContext context, {required IconData icon, required Str
 
 Widget _paletteRow(BuildContext context, {required ThemePalette palette, required bool selected, required VoidCallback onTap}) {
   final cs = Theme.of(context).colorScheme;
-  final title = Localizations.localeOf(context).languageCode == 'zh' ? palette.displayNameZh : palette.displayNameEn;
+  final title = palette.localizedName(context);
   final color = palette.light.primary;
   return _TactileRow(
     onTap: onTap,

@@ -38,7 +38,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     String _paletteName() {
       final settings = context.read<SettingsProvider>();
       final palette = ThemePalettes.byId(settings.themePaletteId);
-      return Localizations.localeOf(context).languageCode == 'zh' ? palette.displayNameZh : palette.displayNameEn;
+      return palette.localizedName(context);
     }
 
     Widget header(String text) => Padding(
