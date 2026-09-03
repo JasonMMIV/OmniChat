@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,6 +6,7 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../shared/widgets/markdown_with_highlight.dart';
+import '../../../shared/widgets/ios_tactile.dart';
 
 class AiTeamProposalsSection extends StatefulWidget {
   const AiTeamProposalsSection({
@@ -61,66 +61,64 @@ class _AiTeamProposalsSectionState extends State<AiTeamProposalsSection> {
     }
 
     final l10n = AppLocalizations.of(context)!;
-    final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    final bg = colorScheme.primaryContainer.withOpacity(isDark ? 0.25 : 0.30);
-    final border = colorScheme.outlineVariant.withOpacity(isDark ? 0.3 : 0.5);
+    final cardTextColor =
+        isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
 
     return Container(
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: border, width: 0.8),
+      decoration: const BoxDecoration(
+        color: Colors.transparent,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           // Header / Toggle bar
-          InkWell(
+          IosCardPress(
             borderRadius: BorderRadius.circular(10),
+            baseColor: Colors.transparent,
+            pressedScale: 1.0,
+            duration: const Duration(milliseconds: 220),
             onTap: () => setState(() => _expanded = !_expanded),
+            padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
               child: Row(
                 children: [
                   Icon(
                     Lucide.Users,
-                    size: 14,
-                    color: colorScheme.primary,
+                    size: 18,
+                    color: cardTextColor,
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   Text(
                     l10n.aiTeamFinalAnswerLabel,
                     style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: colorScheme.primary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.normal,
+                      color: cardTextColor,
                     ),
                   ),
                   const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: colorScheme.primary.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '${visibleProposals.length}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.primary,
-                      ),
+                  Text(
+                    '(${visibleProposals.length})',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.normal,
+                      color: cardTextColor.withValues(alpha: 0.9),
                     ),
                   ),
                   const Spacer(),
-                  Icon(
-                    _expanded ? Lucide.ChevronUp : Lucide.ChevronDown,
-                    size: 14,
-                    color: colorScheme.onSurfaceVariant,
+                  AnimatedRotation(
+                    turns: _expanded ? 0.25 : 0.0,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeInOutCubic,
+                    child: Icon(
+                      Lucide.ChevronRight,
+                      size: 18,
+                      color: cardTextColor,
+                    ),
                   ),
                 ],
               ),
@@ -132,14 +130,19 @@ class _AiTeamProposalsSectionState extends State<AiTeamProposalsSection> {
             crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
             firstChild: const SizedBox(height: 0),
             secondChild: Padding(
-              padding: const EdgeInsets.only(top: 2, left: 2, right: 2, bottom: 8),
+              padding: const EdgeInsets.fromLTRB(4, 2, 4, 4),
               child: Builder(builder: (context) {
                 final content = RepaintBoundary(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       for (int i = 0; i < visibleProposals.length; i++) ...[
-                        if (i > 0) const Divider(height: 16),
+                        if (i > 0)
+                          Divider(
+                            height: 12,
+                            thickness: 0.5,
+                            color: isDark ? const Color(0x22FFFFFF) : const Color(0x1A000000),
+                          ),
                         _buildProposalBlock(context, i, visibleProposals[i]),
                       ],
                     ],
@@ -206,10 +209,18 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardTextColor =
+        isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
     final l10n = AppLocalizations.of(context)!;
     final hasReasoning = widget.reasoning.trim().isNotEmpty;
     final hasToolCalls = widget.toolCalls.isNotEmpty;
+
+    final TextStyle baseStyle = TextStyle(
+      fontSize: 12.5,
+      height: 1.32,
+      color: cardTextColor,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -219,8 +230,8 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
           '${widget.label} (${widget.subtitle})',
           style: TextStyle(
             fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: cs.onSurface.withOpacity(0.6),
+            fontWeight: FontWeight.normal,
+            color: cardTextColor,
           ),
         ),
         const SizedBox(height: 4),
@@ -233,7 +244,12 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
             label: l10n.aiTeamThinkingLabel,
             expanded: _thinkingExpanded,
             onToggle: () => setState(() => _thinkingExpanded = !_thinkingExpanded),
-            child: MarkdownWithCodeHighlight(text: widget.reasoning, isStreaming: widget.isStreaming),
+            cardTextColor: cardTextColor,
+            child: MarkdownWithCodeHighlight(
+              text: widget.reasoning,
+              baseStyle: baseStyle,
+              isStreaming: widget.isStreaming,
+            ),
           ),
           const SizedBox(height: 4),
         ],
@@ -246,12 +262,13 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
             label: l10n.aiTeamToolCallsLabel,
             expanded: _toolsExpanded,
             onToggle: () => setState(() => _toolsExpanded = !_toolsExpanded),
+            cardTextColor: cardTextColor,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (final tc in widget.toolCalls) ...[
-                  _buildToolCallItem(context, tc),
-                  if (tc != widget.toolCalls.last) const SizedBox(height: 6),
+                  _buildToolCallItem(context, tc, cardTextColor),
+                  if (tc != widget.toolCalls.last) const SizedBox(height: 4),
                 ],
               ],
             ),
@@ -260,7 +277,11 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
         ],
 
         // Final answer (always visible)
-        MarkdownWithCodeHighlight(text: widget.content, isStreaming: widget.isStreaming),
+        MarkdownWithCodeHighlight(
+          text: widget.content,
+          baseStyle: baseStyle,
+          isStreaming: widget.isStreaming,
+        ),
       ],
     );
   }
@@ -271,15 +292,12 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
     required String label,
     required bool expanded,
     required VoidCallback onToggle,
+    required Color cardTextColor,
     required Widget child,
   }) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
-      decoration: BoxDecoration(
-        color: cs.surface.withOpacity(isDark ? 0.5 : 0.7),
-        borderRadius: BorderRadius.circular(10),
+      decoration: const BoxDecoration(
+        color: Colors.transparent,
       ),
       margin: const EdgeInsets.only(bottom: 2),
       child: Column(
@@ -289,24 +307,24 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
             behavior: HitTestBehavior.opaque,
             onTap: onToggle,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
               child: Row(
                 children: [
-                  Icon(icon, size: 13, color: cs.onSurface.withOpacity(0.5)),
+                  Icon(icon, size: 14, color: cardTextColor),
                   const SizedBox(width: 6),
                   Text(
                     label,
                     style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: cs.onSurface.withOpacity(0.5),
+                      fontSize: 12,
+                      fontWeight: FontWeight.normal,
+                      color: cardTextColor,
                     ),
                   ),
                   const Spacer(),
                   AnimatedRotation(
                     turns: expanded ? 0.25 : 0,
                     duration: const Duration(milliseconds: 150),
-                    child: Icon(Lucide.ChevronRight, size: 14, color: cs.onSurface.withOpacity(0.4)),
+                    child: Icon(Lucide.ChevronRight, size: 14, color: cardTextColor),
                   ),
                 ],
               ),
@@ -314,7 +332,7 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
           ),
           if (expanded)
             Padding(
-              padding: const EdgeInsets.only(left: 8, right: 8, bottom: 8, top: 2),
+              padding: const EdgeInsets.only(left: 4, right: 4, bottom: 4, top: 2),
               child: child,
             ),
         ],
@@ -322,8 +340,11 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
     );
   }
 
-  Widget _buildToolCallItem(BuildContext context, Map<String, dynamic> tc) {
-    final cs = Theme.of(context).colorScheme;
+  Widget _buildToolCallItem(
+    BuildContext context,
+    Map<String, dynamic> tc,
+    Color cardTextColor,
+  ) {
     final name = tc['name'] as String? ?? '';
     final arguments = tc['arguments'];
     final result = tc['result'] as String?;
@@ -333,59 +354,50 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
         : (arguments is Map ? jsonEncode(arguments) : arguments.toString());
 
     return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: cs.surfaceVariant.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(8),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      decoration: const BoxDecoration(
+        color: Colors.transparent,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Lucide.Terminal, size: 12, color: cs.primary),
-              const SizedBox(width: 4),
+              Icon(Lucide.Terminal, size: 14, color: cardTextColor),
+              const SizedBox(width: 6),
               Text(
                 name,
                 style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: cs.primary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.normal,
+                  color: cardTextColor,
                 ),
               ),
             ],
           ),
           if (argsStr.trim().isNotEmpty) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               argsStr,
               maxLines: 5,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 11,
                 fontFamily: 'monospace',
-                color: cs.onSurface.withOpacity(0.6),
+                color: cardTextColor.withValues(alpha: 0.8),
               ),
             ),
           ],
           if (result != null && result.trim().isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: cs.surface,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                result,
-                maxLines: 8,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontFamily: 'monospace',
-                  color: cs.onSurface.withOpacity(0.5),
-                ),
+            const SizedBox(height: 2),
+            Text(
+              result,
+              maxLines: 8,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontFamily: 'monospace',
+                color: cardTextColor.withValues(alpha: 0.7),
               ),
             ),
           ],
