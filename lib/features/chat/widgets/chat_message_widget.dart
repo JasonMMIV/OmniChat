@@ -1854,7 +1854,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               data: widget.message.aiTeamProposalsJson!,
               isStreaming: widget.message.isStreaming,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
           ],
           // Mixed reasoning and tool sections
           if (widget.reasoningSegments != null &&
@@ -1994,11 +1994,13 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               ),
               const SizedBox(height: 10),
             ] else ...[
-              if (settings.showThinkingCards &&
-                  ((widget.reasoningText != null &&
-                          widget.reasoningText!.isNotEmpty) ||
-                      widget.reasoningLoading ||
-                      extractedThinking.isNotEmpty))
+              if ((settings.showThinkingCards &&
+                      ((widget.reasoningText != null &&
+                              widget.reasoningText!.isNotEmpty) ||
+                          widget.reasoningLoading ||
+                          extractedThinking.isNotEmpty)) ||
+                  (widget.message.aiTeamProposalsJson != null &&
+                      widget.message.aiTeamProposalsJson!.isNotEmpty))
                 const SizedBox(height: 10),
             ],
           ],
