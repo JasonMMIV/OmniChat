@@ -1873,7 +1873,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 if (settings.showThinkingCards && seg.text.isNotEmpty) {
                   mixedContent.add(
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.only(bottom: 4),
                       child: _ReasoningSection(
                         text: seg.text,
                         expanded: seg.expanded,
@@ -1905,11 +1905,15 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                   if (!settings.showToolCards) continue;
                   mixedContent.add(
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.only(bottom: 4),
                       child: _ToolCallItem(part: tools[k]),
                     ),
                   );
                 }
+              }
+
+              if (mixedContent.isNotEmpty) {
+                mixedContent.add(const SizedBox(height: 10));
               }
 
               return mixedContent;
@@ -1968,7 +1972,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                         })
                       : widget.onToggleReasoning,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
               ];
             }(),
             // Tool call placeholders before content 隐藏内置搜索工具卡片
@@ -1982,13 +1986,20 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                     .where((p) => p.toolName != 'builtin_search') // 隐藏内置搜索工具卡片
                     .map(
                       (p) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.only(bottom: 4),
                         child: _ToolCallItem(part: p),
                       ),
                     )
                     .toList(),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
+            ] else ...[
+              if (settings.showThinkingCards &&
+                  ((widget.reasoningText != null &&
+                          widget.reasoningText!.isNotEmpty) ||
+                      widget.reasoningLoading ||
+                      extractedThinking.isNotEmpty))
+                const SizedBox(height: 10),
             ],
           ],
           // Message content with markdown support (fill available width)
@@ -3138,18 +3149,17 @@ class _ToolCallItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = cs.primaryContainer.withOpacity(isDark ? 0.25 : 0.30);
-    final fg = cs.onPrimaryContainer;
+    final cardTextColor =
+        isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
 
     return IosCardPress(
-      borderRadius: BorderRadius.circular(16),
-      baseColor: bg,
+      borderRadius: BorderRadius.circular(10),
+      baseColor: Colors.transparent,
       pressedScale: 1.0,
       duration: const Duration(milliseconds: 260),
       onTap: () => _showDetail(context),
-      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -3159,7 +3169,7 @@ class _ToolCallItem extends StatelessWidget {
                   height: 18,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+                    valueColor: AlwaysStoppedAnimation<Color>(cardTextColor),
                   ),
                 )
               : SizedBox(
@@ -3169,11 +3179,11 @@ class _ToolCallItem extends StatelessWidget {
                     child: Icon(
                       _iconFor(part.toolName),
                       size: 18,
-                      color: cs.secondary,
+                      color: cardTextColor,
                     ),
                   ),
                 ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -3187,8 +3197,8 @@ class _ToolCallItem extends StatelessWidget {
                   ),
                   style: TextStyle(
                     fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: cs.secondary,
+                    fontWeight: FontWeight.normal,
+                    color: cardTextColor,
                   ),
                 ),
               ],
@@ -3919,35 +3929,32 @@ class _ReasoningSectionState extends State<_ReasoningSection>
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
     final settings = context.watch<SettingsProvider>();
     final loading = widget.loading;
-
-    // Android-like surface style
-    final bg = cs.primaryContainer.withOpacity(isDark ? 0.25 : 0.30);
-    final fg = cs.onPrimaryContainer;
+    final cardTextColor =
+        isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
 
     final curve = const Cubic(0.2, 0.8, 0.2, 1);
 
     // Build a compact header with optional scrolling preview when loading
     Widget header = IosCardPress(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(10),
       baseColor: Colors.transparent,
       pressedScale: 1.0,
       duration: const Duration(milliseconds: 220),
       onTap: widget.onToggle,
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         child: Row(
           children: [
             SvgPicture.asset(
               'assets/icons/deepthink.svg',
               width: 18,
               height: 18,
-              colorFilter: ColorFilter.mode(cs.secondary, BlendMode.srcIn),
+              colorFilter: ColorFilter.mode(cardTextColor, BlendMode.srcIn),
             ),
             const SizedBox(width: 8),
             _Shimmer(
@@ -3956,8 +3963,8 @@ class _ReasoningSectionState extends State<_ReasoningSection>
                 l10n.chatMessageWidgetDeepThinking,
                 style: TextStyle(
                   fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: cs.secondary,
+                  fontWeight: FontWeight.normal,
+                  color: cardTextColor,
                 ),
               ),
             ),
@@ -3971,7 +3978,7 @@ class _ReasoningSectionState extends State<_ReasoningSection>
                     _elapsed(),
                     style: TextStyle(
                       fontSize: 13,
-                      color: cs.secondary.withOpacity(0.9),
+                      color: cardTextColor.withValues(alpha: 0.9),
                     ),
                   ),
                 ),
@@ -3982,7 +3989,7 @@ class _ReasoningSectionState extends State<_ReasoningSection>
               turns: widget.expanded ? 0.25 : 0.0, // right -> down
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeInOutCubic,
-              child: Icon(Lucide.ChevronRight, size: 18, color: cs.secondary),
+              child: Icon(Lucide.ChevronRight, size: 18, color: cardTextColor),
             ),
           ],
         ),
@@ -3992,7 +3999,7 @@ class _ReasoningSectionState extends State<_ReasoningSection>
     // 抽公共样式，继承当前 DefaultTextStyle（从而继承正确的颜色）
     final TextStyle baseStyle = DefaultTextStyle.of(
       context,
-    ).style.copyWith(fontSize: 12.5, height: 1.32);
+    ).style.copyWith(fontSize: 12.5, height: 1.32, color: cardTextColor);
 
     const StrutStyle baseStrut = StrutStyle(
       forceStrutHeight: true,
@@ -4046,13 +4053,13 @@ class _ReasoningSectionState extends State<_ReasoningSection>
     }
 
     Widget body = Padding(
-      padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
+      padding: const EdgeInsets.fromLTRB(4, 2, 4, 4),
       child: _reasoningContent(display),
     );
 
     if (isLoading && !widget.expanded) {
       body = Padding(
-        padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
+        padding: const EdgeInsets.fromLTRB(4, 2, 4, 4),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 80),
           child: _hasOverflow
@@ -4108,12 +4115,11 @@ class _ReasoningSectionState extends State<_ReasoningSection>
       alignment: Alignment.topCenter,
       child: Container(
         width: double.infinity,
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(16),
+        decoration: const BoxDecoration(
+          color: Colors.transparent,
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [header, if (widget.expanded || isLoading) body],

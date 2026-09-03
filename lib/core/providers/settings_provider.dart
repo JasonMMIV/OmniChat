@@ -321,7 +321,7 @@ class SettingsProvider extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
   ThemeMode get themeMode => _themeMode;
   // Theme palette & dynamic color
-  String _themePaletteId = 'default';
+  String _themePaletteId = 'blue';
   String get themePaletteId => _themePaletteId;
   bool _useDynamicColor = true; // when supported on Android
   bool get useDynamicColor => _useDynamicColor;
@@ -484,7 +484,7 @@ class SettingsProvider extends ChangeNotifier {
       default:
         _themeMode = ThemeMode.system;
     }
-    _themePaletteId = prefs.getString(_themePaletteKey) ?? 'default';
+    _themePaletteId = prefs.getString(_themePaletteKey) ?? 'blue';
     _useDynamicColor = prefs.getBool(_useDynamicColorKey) ?? true;
     final savedConfig = prefs.getString(_defaultWorkspaceConfigKey);
     if (savedConfig != null && savedConfig.isNotEmpty) {

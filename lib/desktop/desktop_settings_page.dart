@@ -5443,10 +5443,13 @@ class _ThemeDots extends StatelessWidget {
       runSpacing: 10,
       children: [
         for (final p in ThemePalettes.all)
-          _ThemeDot(
-            color: p.light.primary,
-            selected: selected == p.id,
-            onTap: () => context.read<SettingsProvider>().setThemePalette(p.id),
+          Tooltip(
+            message: p.localizedName(context),
+            child: _ThemeDot(
+              color: p.light.primary,
+              selected: selected == p.id,
+              onTap: () => context.read<SettingsProvider>().setThemePalette(p.id),
+            ),
           ),
       ],
     );

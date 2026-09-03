@@ -1056,15 +1056,12 @@ class _ChatInputBarState extends State<ChatInputBar>
                             asset,
                             width: 24,
                             height: 24,
-                            colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
                           );
                         } else {
                           return Image.asset(
                             asset,
                             width: 24,
                             height: 24,
-                            color: c,
-                            colorBlendMode: BlendMode.srcIn,
                           );
                         }
                       } else {
