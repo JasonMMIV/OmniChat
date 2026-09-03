@@ -5024,6 +5024,8 @@ class _DisplaySettingsBody extends StatelessWidget {
                   _ToggleRowNewChatAfterDelete(),
                   _RowDivider(),
                   _ToggleRowNewChatOnLaunch(),
+                  _RowDivider(),
+                  _LongPasteAsFileSection(),
                 ],
               ),
               const SizedBox(height: 16),
@@ -7222,6 +7224,112 @@ class _ToggleRowAutoCollapseThinking extends StatelessWidget {
       label: l10n.displaySettingsPageAutoCollapseThinkingTitle,
       value: sp.autoCollapseThinking,
       onChanged: (v) => context.read<SettingsProvider>().setAutoCollapseThinking(v),
+    );
+  }
+}
+
+class _LongPasteAsFileSection extends StatelessWidget {
+  const _LongPasteAsFileSection();
+  @override
+  Widget build(BuildContext context) {
+    final sp = context.watch<SettingsProvider>();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const _ToggleRowLongPasteAsFile(),
+        if (sp.longPasteAsFile) ...[
+          const _RowDivider(),
+          const _LongPasteAsFileThresholdRow(),
+        ],
+      ],
+    );
+  }
+}
+
+class _ToggleRowLongPasteAsFile extends StatelessWidget {
+  const _ToggleRowLongPasteAsFile();
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final sp = context.watch<SettingsProvider>();
+    return _ToggleRow(
+      label: l10n.displaySettingsPageLongPasteAsFileTitle,
+      value: sp.longPasteAsFile,
+      onChanged: (v) => context.read<SettingsProvider>().setLongPasteAsFile(v),
+    );
+  }
+}
+
+class _LongPasteAsFileThresholdRow extends StatefulWidget {
+  const _LongPasteAsFileThresholdRow();
+  @override
+  State<_LongPasteAsFileThresholdRow> createState() =>
+      _LongPasteAsFileThresholdRowState();
+}
+
+class _LongPasteAsFileThresholdRowState
+    extends State<_LongPasteAsFileThresholdRow> {
+  late final SettingsProvider _settings;
+  late final TextEditingController _controller;
+  @override
+  void initState() {
+    super.initState();
+    _settings = context.read<SettingsProvider>();
+    _controller = TextEditingController(
+      text: '${_settings.longPasteAsFileThreshold}',
+    );
+  }
+
+  @override
+  void dispose() {
+    _commit(_controller.text);
+    super.dispose();
+    _controller.dispose();
+  }
+
+  void _commit(String text) {
+    final next = SettingsProvider.resolveLongPasteAsFileThreshold(
+      text,
+      fallback: _settings.longPasteAsFileThreshold,
+    );
+    _settings.setLongPasteAsFileThreshold(next);
+    final nextText = '$next';
+    if (_controller.text != nextText) {
+      _controller.text = nextText;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return _LabeledRow(
+      label: l10n.displaySettingsPageLongPasteAsFileThresholdTitle,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IntrinsicWidth(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 48, maxWidth: 88),
+              child: _BorderInput(
+                controller: _controller,
+                onSubmitted: _commit,
+                onFocusLost: _commit,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            l10n.displaySettingsPageLongPasteAsFileThresholdUnit,
+            style: TextStyle(
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withOpacity(0.7),
+              fontSize: 14,
+              decoration: TextDecoration.none,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

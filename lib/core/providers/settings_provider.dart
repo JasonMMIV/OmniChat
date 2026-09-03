@@ -112,6 +112,10 @@ class SettingsProvider extends ChangeNotifier {
       'display_haptics_on_card_tap_v1';
   static const String _displayKeepScreenOnDuringGenerationKey =
       'display_keep_screen_on_during_generation_v1';
+  static const String _displayLongPasteAsFileKey =
+      'display_long_paste_as_file_v1';
+  static const String _displayLongPasteAsFileThresholdKey =
+      'display_long_paste_as_file_threshold_v1';
   static const String _displayShowAppUpdatesKey = 'display_show_app_updates_v1';
   static const String _displayKeepSidebarOpenOnAssistantTapKey =
       'display_keep_sidebar_open_on_assistant_tap_v1';
@@ -667,6 +671,11 @@ class SettingsProvider extends ChangeNotifier {
     _keepScreenOnDuringGeneration =
         prefs.getBool(_displayKeepScreenOnDuringGenerationKey) ?? false;
     ScreenWakelock.setEnabled(_keepScreenOnDuringGeneration);
+    _longPasteAsFile = prefs.getBool(_displayLongPasteAsFileKey) ?? true;
+    _longPasteAsFileThreshold =
+        (prefs.getInt(_displayLongPasteAsFileThresholdKey) ??
+                defaultLongPasteAsFileThreshold)
+            .clamp(minLongPasteAsFileThreshold, maxLongPasteAsFileThreshold);
     _showAppUpdates = prefs.getBool(_displayShowAppUpdatesKey) ?? true;
     _keepSidebarOpenOnAssistantTap =
         prefs.getBool(_displayKeepSidebarOpenOnAssistantTapKey) ?? false;
@@ -3071,6 +3080,47 @@ Synthesize your reasoning and research into a final response. The structure shou
     await prefs.setBool(_displayKeepScreenOnDuringGenerationKey, v);
   }
 
+  // Display: convert long pasted text into a file attachment
+  static const int defaultLongPasteAsFileThreshold = 5000;
+  static const int minLongPasteAsFileThreshold = 1;
+  static const int maxLongPasteAsFileThreshold = 999999;
+
+  static int resolveLongPasteAsFileThreshold(
+    String raw, {
+    required int fallback,
+  }) {
+    final parsed = int.tryParse(raw.trim());
+    if (parsed == null) return fallback;
+    return parsed.clamp(
+      minLongPasteAsFileThreshold,
+      maxLongPasteAsFileThreshold,
+    );
+  }
+
+  bool _longPasteAsFile = true;
+  bool get longPasteAsFile => _longPasteAsFile;
+  Future<void> setLongPasteAsFile(bool v) async {
+    if (_longPasteAsFile == v) return;
+    _longPasteAsFile = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_displayLongPasteAsFileKey, v);
+  }
+
+  int _longPasteAsFileThreshold = defaultLongPasteAsFileThreshold;
+  int get longPasteAsFileThreshold => _longPasteAsFileThreshold;
+  Future<void> setLongPasteAsFileThreshold(int v) async {
+    final next = v.clamp(
+      minLongPasteAsFileThreshold,
+      maxLongPasteAsFileThreshold,
+    );
+    if (_longPasteAsFileThreshold == next) return;
+    _longPasteAsFileThreshold = next;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_displayLongPasteAsFileThresholdKey, next);
+  }
+
   // Display: haptics on drawer open/close
   bool _hapticsOnDrawer = true;
   bool get hapticsOnDrawer => _hapticsOnDrawer;
@@ -3346,6 +3396,8 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._hapticsIosSwitch = _hapticsIosSwitch;
     copy._hapticsOnListItemTap = _hapticsOnListItemTap;
     copy._hapticsOnCardTap = _hapticsOnCardTap;
+    copy._longPasteAsFile = _longPasteAsFile;
+    copy._longPasteAsFileThreshold = _longPasteAsFileThreshold;
     copy._showAppUpdates = _showAppUpdates;
     copy._keepSidebarOpenOnAssistantTap = _keepSidebarOpenOnAssistantTap;
     copy._keepSidebarOpenOnTopicTap = _keepSidebarOpenOnTopicTap;

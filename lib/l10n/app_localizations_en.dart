@@ -2750,6 +2750,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Prevent the lock screen from interrupting long mobile replies.';
 
   @override
+  String get displaySettingsPageLongPasteAsFileTitle =>
+      'Paste long text as file';
+
+  @override
+  String get displaySettingsPageLongPasteAsFileThresholdTitle =>
+      'Conversion threshold';
+
+  @override
+  String get displaySettingsPageLongPasteAsFileThresholdUnit => 'characters';
+
+  @override
   String get assistantSettingsPageTitle => 'Projects';
 
   @override

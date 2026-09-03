@@ -478,8 +478,19 @@ class _ChatInputBarState extends State<ChatInputBar>
       );
     }
 
-    // Other platforms: keep default behavior.
-    final items = <ContextMenuButtonItem>[...state.contextMenuButtonItems];
+    // Other platforms: keep default behavior, but route the Paste button
+    // through our handler so long pastes become file attachments.
+    final items = state.contextMenuButtonItems
+        .map((item) {
+          if (item.type != ContextMenuButtonType.paste) return item;
+          return item.copyWith(
+            onPressed: () {
+              unawaited(_handlePasteFromClipboard());
+              state.hideToolbar();
+            },
+          );
+        })
+        .toList(growable: false);
     return AdaptiveTextSelectionToolbar.buttonItems(
       anchors: state.contextMenuAnchors,
       buttonItems: items,
@@ -699,26 +710,7 @@ class _ChatInputBarState extends State<ChatInputBar>
           try {
             final String? text = await reader.readValue(Formats.plainText);
             if (text != null && text.isNotEmpty) {
-              final value = _controller.value;
-              final sel = value.selection;
-              if (!sel.isValid) {
-                _controller.text = value.text + text;
-                _controller.selection = TextSelection.collapsed(
-                  offset: _controller.text.length,
-                );
-              } else {
-                final start = sel.start;
-                final end = sel.end;
-                final newText = value.text.replaceRange(start, end, text);
-                _controller.value = value.copyWith(
-                  text: newText,
-                  selection: TextSelection.collapsed(
-                    offset: start + text.length,
-                  ),
-                  composing: TextRange.empty,
-                );
-              }
-              setState(() {});
+              await _handlePastedText(text);
               return;
             }
           } catch (_) {}
@@ -756,25 +748,92 @@ class _ChatInputBarState extends State<ChatInputBar>
       final data = await Clipboard.getData(Clipboard.kTextPlain);
       final text = data?.text ?? '';
       if (text.isEmpty) return;
-      final value = _controller.value;
-      final sel = value.selection;
-      if (!sel.isValid) {
-        _controller.text = value.text + text;
-        _controller.selection = TextSelection.collapsed(
-          offset: _controller.text.length,
-        );
-      } else {
-        final start = sel.start;
-        final end = sel.end;
-        final newText = value.text.replaceRange(start, end, text);
-        _controller.value = value.copyWith(
-          text: newText,
-          selection: TextSelection.collapsed(offset: start + text.length),
-          composing: TextRange.empty,
-        );
-      }
-      setState(() {});
+      await _handlePastedText(text);
     } catch (_) {}
+  }
+
+  /// Pastes [text] into the composer, or saves it as a `.txt` attachment when
+  /// it exceeds the user-configured threshold and “long paste as file” is on.
+  Future<void> _handlePastedText(String text) async {
+    if (!mounted) return;
+    final settings = context.read<SettingsProvider>();
+    final threshold = settings.longPasteAsFileThreshold;
+    final isLongPaste =
+        settings.longPasteAsFile &&
+        text.characters.take(threshold + 1).length > threshold;
+    if (!isLongPaste) {
+      _insertPastedText(text);
+      return;
+    }
+
+    File? file;
+    try {
+      final dir = await AppDirectories.getUploadDirectory();
+      await dir.create(recursive: true);
+      file = await _reservePastedTextFile(dir);
+      await file.writeAsString(text, flush: true);
+      if (!mounted) {
+        await _deleteUnclaimedPastedText(file);
+        return;
+      }
+      _addFiles([
+        DocumentAttachment(
+          path: file.path,
+          fileName: p.basename(file.path),
+          mime: 'text/plain',
+        ),
+      ]);
+    } catch (_) {
+      await _deleteUnclaimedPastedText(file);
+    }
+  }
+
+  void _insertPastedText(String text) {
+    if (!mounted) return;
+    final value = _controller.value;
+    final selection = value.selection;
+    if (!selection.isValid) {
+      _controller.text = value.text + text;
+      _controller.selection = TextSelection.collapsed(
+        offset: _controller.text.length,
+      );
+    } else {
+      final start = selection.start;
+      final end = selection.end;
+      final newText = value.text.replaceRange(start, end, text);
+      _controller.value = value.copyWith(
+        text: newText,
+        selection: TextSelection.collapsed(offset: start + text.length),
+        composing: TextRange.empty,
+      );
+    }
+    setState(() {});
+  }
+
+  Future<File> _reservePastedTextFile(Directory dir) async {
+    final baseName = 'pasted_${DateTime.now().millisecondsSinceEpoch}';
+    var counter = 0;
+    while (true) {
+      final suffix = counter == 0 ? '' : '($counter)';
+      final file = File(p.join(dir.path, '$baseName$suffix.txt'));
+      try {
+        return await file.create(exclusive: true);
+      } on FileSystemException {
+        if (!await file.exists()) rethrow;
+        counter++;
+      }
+    }
+  }
+
+  Future<void> _deleteUnclaimedPastedText(File? file) async {
+    if (file == null) return;
+    try {
+      if (await file.exists()) await file.delete();
+    } catch (error) {
+      debugPrint(
+        '[ChatInputBar] Failed to delete unclaimed pasted text ${file.path}: $error',
+      );
+    }
   }
 
   // Copy arbitrary files to upload directory (without deleting the source),

@@ -2741,6 +2741,15 @@ class AppLocalizationsZh extends AppLocalizations {
       '防止锁屏中断较长的移动端回复生成';
 
   @override
+  String get displaySettingsPageLongPasteAsFileTitle => '超长粘贴转为文件';
+
+  @override
+  String get displaySettingsPageLongPasteAsFileThresholdTitle => '转换阈值';
+
+  @override
+  String get displaySettingsPageLongPasteAsFileThresholdUnit => '字符';
+
+  @override
   String get assistantSettingsPageTitle => '项目设置';
 
   @override
@@ -7380,6 +7389,15 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
       '防止锁屏中断较长的移动端回复生成';
 
   @override
+  String get displaySettingsPageLongPasteAsFileTitle => '超长粘贴转为文件';
+
+  @override
+  String get displaySettingsPageLongPasteAsFileThresholdTitle => '转换阈值';
+
+  @override
+  String get displaySettingsPageLongPasteAsFileThresholdUnit => '字符';
+
+  @override
   String get assistantSettingsPageTitle => '项目设置';
 
   @override
@@ -11922,6 +11940,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get displaySettingsPageKeepScreenOnDuringGenerationSubtitle =>
       '防止鎖定畫面中斷較長的回覆生成';
+
+  @override
+  String get displaySettingsPageLongPasteAsFileTitle => '超長貼上轉為檔案';
+
+  @override
+  String get displaySettingsPageLongPasteAsFileThresholdTitle => '轉換門檻';
+
+  @override
+  String get displaySettingsPageLongPasteAsFileThresholdUnit => '字元';
 
   @override
   String get assistantSettingsPageTitle => '專案設定';
