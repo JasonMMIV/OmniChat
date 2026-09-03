@@ -1114,7 +1114,7 @@ class _HomePageState extends State<HomePage>
     final options = await showDialog<CompressContextOptions>(
       context: context,
       barrierDismissible: true,
-      builder: (_) => const _CompressContextOptionsDialog(),
+      builder: (_) => const CompressContextOptionsDialog(),
     );
     if (options == null || !mounted) return;
 
@@ -1158,16 +1158,16 @@ String _compressContextErrorMessage(AppLocalizations l10n, String error) {
   };
 }
 
-class _CompressContextOptionsDialog extends StatefulWidget {
-  const _CompressContextOptionsDialog();
+class CompressContextOptionsDialog extends StatefulWidget {
+  const CompressContextOptionsDialog({super.key});
 
   @override
-  State<_CompressContextOptionsDialog> createState() =>
+  State<CompressContextOptionsDialog> createState() =>
       _CompressContextOptionsDialogState();
 }
 
 class _CompressContextOptionsDialogState
-    extends State<_CompressContextOptionsDialog> {
+    extends State<CompressContextOptionsDialog> {
   CompressContextLimitMode _mode = CompressContextLimitMode.start;
   late final TextEditingController _maxCharsController;
   String? _error;
@@ -1209,104 +1209,104 @@ class _CompressContextOptionsDialogState
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final panelColor = isDark ? const Color(0xFF1C1C1E) : cs.surface;
-    final constrainedWidth = MediaQuery.of(
-      context,
-    ).size.width.clamp(0.0, 420.0).toDouble();
 
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       backgroundColor: Colors.transparent,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: constrainedWidth),
-        child: Material(
-          color: panelColor,
-          borderRadius: BorderRadius.circular(18),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Icon(Lucide.package2, size: 20, color: cs.primary),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        l10n.compressContextOptionsTitle,
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: AppFontWeights.emphasis,
-                          color: cs.onSurface,
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: SizedBox(
+          width: double.infinity,
+          child: Material(
+            color: panelColor,
+            borderRadius: BorderRadius.circular(18),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Lucide.package2, size: 20, color: cs.primary),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          l10n.compressContextOptionsTitle,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: AppFontWeights.emphasis,
+                            color: cs.onSurface,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  l10n.compressContextOptionsDesc,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.35,
-                    color: cs.onSurface.withValues(alpha: 0.62),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 16),
-                _CompressModeSegmented(
-                  mode: _mode,
-                  onChanged: (mode) {
-                    setState(() {
-                      _mode = mode;
-                      _error = null;
-                    });
-                  },
-                ),
-                if (_mode != CompressContextLimitMode.unlimited) ...[
-                  const SizedBox(height: 10),
-                  IosFormTextField(
-                    label: l10n.compressContextMaxCharsLabel,
-                    controller: _maxCharsController,
-                    keyboardType: TextInputType.number,
-                    textInputAction: TextInputAction.done,
-                    selectAllOnFocus: true,
-                    fieldWidth: 120,
-                    onChanged: (_) {
-                      if (_error != null) setState(() => _error = null);
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.compressContextOptionsDesc,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.35,
+                      color: cs.onSurface.withValues(alpha: 0.62),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _CompressModeSegmented(
+                    mode: _mode,
+                    onChanged: (mode) {
+                      setState(() {
+                        _mode = mode;
+                        _error = null;
+                      });
                     },
                   ),
-                ],
-                if (_error != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    _error!,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: cs.error,
-                      fontWeight: AppFontWeights.medium,
+                  if (_mode != CompressContextLimitMode.unlimited) ...[
+                    const SizedBox(height: 10),
+                    IosFormTextField(
+                      label: l10n.compressContextMaxCharsLabel,
+                      controller: _maxCharsController,
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.done,
+                      selectAllOnFocus: true,
+                      fieldWidth: 120,
+                      onChanged: (_) {
+                        if (_error != null) setState(() => _error = null);
+                      },
                     ),
-                  ),
-                ],
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _DialogActionButton(
-                        label: l10n.homePageCancel,
-                        onTap: () => Navigator.of(context).maybePop(),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _DialogActionButton(
-                        label: l10n.compressContextStartButton,
-                        primary: true,
-                        onTap: _submit,
+                  ],
+                  if (_error != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      _error!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.error,
+                        fontWeight: AppFontWeights.medium,
                       ),
                     ),
                   ],
-                ),
-              ],
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _DialogActionButton(
+                          label: l10n.homePageCancel,
+                          onTap: () => Navigator.of(context).maybePop(),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _DialogActionButton(
+                          label: l10n.compressContextStartButton,
+                          primary: true,
+                          onTap: _submit,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1380,16 +1380,19 @@ class _SegmentButton extends StatelessWidget {
       pressedScale: 0.98,
       onTap: onTap,
       haptics: false,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
       child: Center(
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: AppFontWeights.emphasis,
-            color: selected ? cs.primary : cs.onSurface.withValues(alpha: 0.78),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            maxLines: 1,
+            softWrap: false,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: AppFontWeights.emphasis,
+              color: selected ? cs.primary : cs.onSurface.withValues(alpha: 0.78),
+            ),
           ),
         ),
       ),
@@ -1422,16 +1425,19 @@ class _DialogActionButton extends StatelessWidget {
       pressedScale: 0.98,
       onTap: onTap,
       haptics: false,
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       child: Center(
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: AppFontWeights.emphasis,
-            color: primary ? cs.onPrimary : cs.onSurface,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            maxLines: 1,
+            softWrap: false,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: AppFontWeights.emphasis,
+              color: primary ? cs.onPrimary : cs.onSurface,
+            ),
           ),
         ),
       ),
