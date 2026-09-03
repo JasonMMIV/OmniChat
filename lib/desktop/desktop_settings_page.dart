@@ -5009,6 +5009,10 @@ class _DisplaySettingsBody extends StatelessWidget {
                   _RowDivider(),
                   _ToggleRowReplayToolResults(),
                   _RowDivider(),
+                  _ToggleRowShowThinkingCards(),
+                  _RowDivider(),
+                  _ToggleRowShowToolCards(),
+                  _RowDivider(),
                   _ToggleRowShowUpdates(),
                   _RowDivider(),
                   _ToggleRowMsgNavButtons(),
@@ -7232,6 +7236,34 @@ class _ToggleRowReplayToolResults extends StatelessWidget {
       label: l10n.displaySettingsPageReplayToolResultsTitle,
       value: sp.replayToolResults,
       onChanged: (v) => context.read<SettingsProvider>().setReplayToolResults(v),
+    );
+  }
+}
+
+class _ToggleRowShowThinkingCards extends StatelessWidget {
+  const _ToggleRowShowThinkingCards();
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final sp = context.watch<SettingsProvider>();
+    return _ToggleRow(
+      label: l10n.displaySettingsPageShowThinkingCardsTitle,
+      value: sp.showThinkingCards,
+      onChanged: (v) => context.read<SettingsProvider>().setShowThinkingCards(v),
+    );
+  }
+}
+
+class _ToggleRowShowToolCards extends StatelessWidget {
+  const _ToggleRowShowToolCards();
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final sp = context.watch<SettingsProvider>();
+    return _ToggleRow(
+      label: l10n.displaySettingsPageShowToolCardsTitle,
+      value: sp.showToolCards,
+      onChanged: (v) => context.read<SettingsProvider>().setShowToolCards(v),
     );
   }
 }

@@ -539,8 +539,33 @@
     }
   },
   "sideDrawerNewProject": "新增项目",
+  "sideDrawerMenuSelect": "选择",
   "sideDrawerMenuRename": "重命名",
   "sideDrawerMenuPin": "置顶",
+  "sideDrawerSelectionCount": "已选 {count} 个",
+  "@sideDrawerSelectionCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sideDrawerSelectionDeleteConfirmContent": "确定删除这 {count} 个对话？此操作无法撤销。",
+  "@sideDrawerSelectionDeleteConfirmContent": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sideDrawerSelectionDeleteSnackbar": "已删除 {count} 个对话",
+  "@sideDrawerSelectionDeleteSnackbar": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "sideDrawerMenuUnpin": "取消置顶",
   "sideDrawerMenuRegenerateTitle": "重新生成标题",
   "sideDrawerMenuMoveTo": "移动到",
@@ -941,6 +966,10 @@
   "displaySettingsPageChatModelIconSubtitle": "是否在聊天消息中显示模型图标",
   "displaySettingsPageShowTokenStatsTitle": "显示Token和上下文统计",
   "displaySettingsPageShowTokenStatsSubtitle": "显示 token 用量与消息数量",
+  "displaySettingsPageShowThinkingCardsTitle": "显示思考卡片",
+  "displaySettingsPageShowThinkingCardsSubtitle": "关闭后，聊天中不再显示思考过程卡片",
+  "displaySettingsPageShowToolCardsTitle": "显示工具卡片",
+  "displaySettingsPageShowToolCardsSubtitle": "关闭后，聊天中不再显示工具调用卡片",
   "displaySettingsPageAutoCollapseThinkingTitle": "自动折叠思考",
   "displaySettingsPageAutoCollapseThinkingSubtitle": "思考完成后自动折叠，保持界面简洁",
   "displaySettingsPageReplayToolResultsTitle": "跨轮重放工具结果",
@@ -962,6 +991,8 @@
   "displaySettingsPageHapticsOnCardTapTitle": "卡片触觉反馈",
   "displaySettingsPageHapticsOnGenerateTitle": "消息生成触觉反馈",
   "displaySettingsPageHapticsOnGenerateSubtitle": "生成消息时启用触觉反馈",
+  "displaySettingsPageKeepScreenOnDuringGenerationTitle": "生成时保持屏幕常亮",
+  "displaySettingsPageKeepScreenOnDuringGenerationSubtitle": "防止锁屏中断较长的移动端回复生成",
   "displaySettingsPageNewChatAfterDeleteTitle": "删除话题后新建对话",
   "displaySettingsPageNewChatOnAssistantSwitchTitle": "切换项目时新建对话",
   "displaySettingsPageNewChatOnLaunchTitle": "启动时新建对话",
@@ -1124,10 +1155,16 @@
   "searchServiceNameBocha": "博查",
   "searchProviderBochaDescription": "博查 AI 全网网页搜索，支持时间范围与摘要，更适合 AI 使用。",
   "searchServiceNameTinyfish": "Tinyfish",
+  "searchServiceNameDoubao": "豆包",
+  "searchServiceNameStepFun": "StepFun",
+  "searchServiceNameFirecrawl": "Firecrawl",
   "searchServiceNameArxiv": "arXiv",
   "searchServiceNamePubMed": "PubMed",
   "searchServiceNameSemanticScholar": "Semantic Scholar",
   "searchProviderTinyfishDescription": "使用 Tinyfish Search API 搜索即时网页结果。",
+  "searchProviderDoubaoDescription": "火山引擎豆包网页搜索 API。",
+  "searchProviderStepFunDescription": "通过 StepFun POST /v1/search 进行网页搜索。",
+  "searchProviderFirecrawlDescription": "Firecrawl Search API v2。API Key 可选。此处不支持 Scrape。",
   "searchServiceNameQuerit": "Querit",
   "searchProviderQueritDescription": "面向 LLM 应用的 Querit 搜索 API。返回实时网页结果，并支持站点、时间、国家和语言过滤。",
   "searchServiceNameSerper": "Serper",
@@ -1148,6 +1185,8 @@
   "searchServicesDialogTimeRangeHint": "d7",
   "searchServicesDialogCountriesHint": "united states, japan",
   "searchServicesDialogLanguagesHint": "english, japanese",
+  "searchServicesDialogCategoryOptional": "分类（可选）",
+  "searchServicesDialogLocationOptional": "位置（可选）",
   "searchProviderArxivDescription": "arXiv 预印本库，涵盖物理、数学、计算机科学等领域。无需 API 密钥。",
   "searchProviderPubMedDescription": "PubMed 生物医学文献检索，返回摘要。无需 API 密钥（填写密钥可提高速率限制）。",
   "searchProviderSemanticScholarDescription": "Semantic Scholar 学术搜索，包含引用数与 AI 摘要。API 密钥可选。",

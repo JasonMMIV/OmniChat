@@ -355,10 +355,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sideDrawerNewProject => 'New Project';
 
   @override
+  String get sideDrawerMenuSelect => 'Select';
+
+  @override
   String get sideDrawerMenuRename => 'Rename';
 
   @override
   String get sideDrawerMenuPin => 'Pin';
+
+  @override
+  String sideDrawerSelectionCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String sideDrawerSelectionDeleteConfirmContent(int count) {
+    return 'Delete $count conversations? This cannot be undone.';
+  }
+
+  @override
+  String sideDrawerSelectionDeleteSnackbar(int count) {
+    return 'Deleted $count conversations';
+  }
 
   @override
   String get sideDrawerMenuUnpin => 'Unpin';
@@ -1444,6 +1462,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchServiceNameTinyfish => 'Tinyfish';
 
   @override
+  String get searchServiceNameDoubao => 'Doubao';
+
+  @override
+  String get searchServiceNameStepFun => 'StepFun';
+
+  @override
+  String get searchServiceNameFirecrawl => 'Firecrawl';
+
+  @override
   String get searchServiceNameArxiv => 'arXiv';
 
   @override
@@ -2183,6 +2210,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Search the live web with Tinyfish Search API.';
 
   @override
+  String get searchProviderDoubaoDescription =>
+      'Doubao web search API by Volcano Engine.';
+
+  @override
+  String get searchProviderStepFunDescription =>
+      'StepFun web search via POST /v1/search.';
+
+  @override
+  String get searchProviderFirecrawlDescription =>
+      'Firecrawl Search API v2. API key is optional. Scrape is not supported here.';
+
+  @override
   String get searchServiceNameQuerit => 'Querit';
 
   @override
@@ -2247,6 +2286,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchServicesDialogLanguagesHint => 'english, japanese';
+
+  @override
+  String get searchServicesDialogCategoryOptional => 'Category (optional)';
+
+  @override
+  String get searchServicesDialogLocationOptional => 'Location (optional)';
 
   @override
   String get searchProviderArxivDescription =>
@@ -2628,6 +2673,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get displaySettingsPageAutoCollapseCodeBlockLinesUnit => 'lines';
 
   @override
+  String get displaySettingsPageShowThinkingCardsTitle => 'Show Thinking Cards';
+
+  @override
+  String get displaySettingsPageShowThinkingCardsSubtitle =>
+      'When off, thinking-process cards are hidden in chat.';
+
+  @override
+  String get displaySettingsPageShowToolCardsTitle => 'Show Tool Cards';
+
+  @override
+  String get displaySettingsPageShowToolCardsSubtitle =>
+      'When off, tool-use cards are hidden in chat.';
+
+  @override
   String get displaySettingsPageAutoCollapseThinkingTitle =>
       'Collapse Thinking';
 
@@ -2681,6 +2740,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get displaySettingsPageHapticsOnGenerateTitle => 'Generate';
+
+  @override
+  String get displaySettingsPageKeepScreenOnDuringGenerationTitle =>
+      'Keep screen on during generation';
+
+  @override
+  String get displaySettingsPageKeepScreenOnDuringGenerationSubtitle =>
+      'Prevent the lock screen from interrupting long mobile replies.';
 
   @override
   String get assistantSettingsPageTitle => 'Projects';

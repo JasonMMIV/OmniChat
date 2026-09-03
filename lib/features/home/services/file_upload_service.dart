@@ -35,16 +35,51 @@ class FileUploadService {
   ///
   /// [files] 要复制的文件列表
   /// 返回复制后的文件路径列表
+  ///
+  /// 防止重复附件：同一批次里（相同文件名 + 相同大小）只保留一份；
+  /// 文件名冲突时追加序号，避免静默覆盖不同内容。
   Future<List<String>> copyPickedFiles(List<XFile> files) async {
     final dir = await AppDirectories.getUploadDirectory();
     if (!await dir.exists()) {
       await dir.create(recursive: true);
     }
     final out = <String>[];
+    // “原始名|长度” → 已在本批处理过（内容去重）
+    final seenKeys = <String>{};
+    // 目标目录内已占用的文件名（防止覆盖）
+    final usedNames = <String>{};
     for (final f in files) {
       try {
-        final name = f.name.isNotEmpty ? f.name : DateTime.now().millisecondsSinceEpoch.toString();
-        final dest = File("${dir.path}/$name");
+        final rawName = f.name.isNotEmpty
+            ? f.name
+            : (f.path.split(Platform.pathSeparator).last);
+        final name = rawName.split(RegExp(r'[/\\]')).last;
+        if (name.isEmpty) continue;
+        // 内容去重：同批同文件名且大小一致视为同一附件
+        int? length;
+        try {
+          length = await f.length();
+        } catch (_) {
+          length = null;
+        }
+        if (length != null) {
+          final key = '$name|$length';
+          if (!seenKeys.add(key)) continue;
+        }
+        // 文件名冲突：追加 (n) 后缀而不是覆盖
+        var destName = name;
+        if (usedNames.contains(destName)) {
+          final dot = destName.lastIndexOf('.');
+          final stem = dot > 0 ? destName.substring(0, dot) : destName;
+          final ext = dot > 0 ? destName.substring(dot) : '';
+          var n = 1;
+          do {
+            destName = '$stem ($n)$ext';
+            n++;
+          } while (usedNames.contains(destName));
+        }
+        usedNames.add(destName);
+        final dest = File('${dir.path}/$destName');
         await dest.writeAsBytes(await f.readAsBytes());
         out.add(dest.path);
       } catch (_) {}

@@ -1868,8 +1868,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               for (int i = 0; i < segments.length; i++) {
                 final seg = segments[i];
 
-                // Add the reasoning segment (if any text)
-                if (seg.text.isNotEmpty) {
+                // Add the reasoning segment (if any text) — hidden when
+                // “Show Thinking Cards” is off
+                if (settings.showThinkingCards && seg.text.isNotEmpty) {
                   mixedContent.add(
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
@@ -1900,6 +1901,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 for (int k = start; k < clampedEnd; k++) {
                   // Hide builtin_search tool cards; citations still appear via bottom summary card 隐藏内置搜索工具卡片
                   if (tools[k].toolName == 'builtin_search') continue;
+                  // “Show Tool Cards” off hides tool-use cards
+                  if (!settings.showToolCards) continue;
                   mixedContent.add(
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
@@ -1926,7 +1929,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                   : extractedThinking;
               final shouldShowReasoning =
                   hasProvidedReasoning || effectiveReasoningText.isNotEmpty;
-              if (!shouldShowReasoning) return const <Widget>[];
+              if (!settings.showThinkingCards ||
+                  !shouldShowReasoning) {
+                return const <Widget>[];
+              }
 
               // If using inline <think>, expand by default and treat as loading when streaming until </think> appears
               final usingInlineThink =
@@ -1966,9 +1972,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               ];
             }(),
             // Tool call placeholders before content 隐藏内置搜索工具卡片
-            if ((widget.toolParts ?? const <ToolUIPart>[])
-                .where((p) => p.toolName != 'builtin_search')
-                .isNotEmpty) ...[
+            if (settings.showToolCards &&
+                (widget.toolParts ?? const <ToolUIPart>[])
+                    .where((p) => p.toolName != 'builtin_search')
+                    .isNotEmpty) ...[
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: widget.toolParts!
@@ -2793,8 +2800,13 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
     if (widget.message.role == 'user') return _buildUserMessage();
-    if (widget.message.role == 'tool') return _buildToolMessage();
+    if (widget.message.role == 'tool') {
+      return settings.showToolCards
+          ? _buildToolMessage()
+          : const SizedBox.shrink();
+    }
     return _buildAssistantMessage();
   }
 }

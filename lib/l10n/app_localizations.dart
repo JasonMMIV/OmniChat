@@ -778,6 +778,12 @@ abstract class AppLocalizations {
   /// **'New Project'**
   String get sideDrawerNewProject;
 
+  /// No description provided for @sideDrawerMenuSelect.
+  ///
+  /// In en, this message translates to:
+  /// **'Select'**
+  String get sideDrawerMenuSelect;
+
   /// No description provided for @sideDrawerMenuRename.
   ///
   /// In en, this message translates to:
@@ -789,6 +795,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pin'**
   String get sideDrawerMenuPin;
+
+  /// No description provided for @sideDrawerSelectionCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} selected'**
+  String sideDrawerSelectionCount(int count);
+
+  /// No description provided for @sideDrawerSelectionDeleteConfirmContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {count} conversations? This cannot be undone.'**
+  String sideDrawerSelectionDeleteConfirmContent(int count);
+
+  /// No description provided for @sideDrawerSelectionDeleteSnackbar.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted {count} conversations'**
+  String sideDrawerSelectionDeleteSnackbar(int count);
 
   /// No description provided for @sideDrawerMenuUnpin.
   ///
@@ -2855,6 +2879,24 @@ abstract class AppLocalizations {
   /// **'Tinyfish'**
   String get searchServiceNameTinyfish;
 
+  /// No description provided for @searchServiceNameDoubao.
+  ///
+  /// In en, this message translates to:
+  /// **'Doubao'**
+  String get searchServiceNameDoubao;
+
+  /// No description provided for @searchServiceNameStepFun.
+  ///
+  /// In en, this message translates to:
+  /// **'StepFun'**
+  String get searchServiceNameStepFun;
+
+  /// No description provided for @searchServiceNameFirecrawl.
+  ///
+  /// In en, this message translates to:
+  /// **'Firecrawl'**
+  String get searchServiceNameFirecrawl;
+
   /// No description provided for @searchServiceNameArxiv.
   ///
   /// In en, this message translates to:
@@ -4265,6 +4307,24 @@ abstract class AppLocalizations {
   /// **'Search the live web with Tinyfish Search API.'**
   String get searchProviderTinyfishDescription;
 
+  /// No description provided for @searchProviderDoubaoDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Doubao web search API by Volcano Engine.'**
+  String get searchProviderDoubaoDescription;
+
+  /// No description provided for @searchProviderStepFunDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'StepFun web search via POST /v1/search.'**
+  String get searchProviderStepFunDescription;
+
+  /// No description provided for @searchProviderFirecrawlDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Firecrawl Search API v2. API key is optional. Scrape is not supported here.'**
+  String get searchProviderFirecrawlDescription;
+
   /// No description provided for @searchServiceNameQuerit.
   ///
   /// In en, this message translates to:
@@ -4384,6 +4444,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'english, japanese'**
   String get searchServicesDialogLanguagesHint;
+
+  /// No description provided for @searchServicesDialogCategoryOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Category (optional)'**
+  String get searchServicesDialogCategoryOptional;
+
+  /// No description provided for @searchServicesDialogLocationOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Location (optional)'**
+  String get searchServicesDialogLocationOptional;
 
   /// No description provided for @searchProviderArxivDescription.
   ///
@@ -5093,6 +5165,30 @@ abstract class AppLocalizations {
   /// **'lines'**
   String get displaySettingsPageAutoCollapseCodeBlockLinesUnit;
 
+  /// No description provided for @displaySettingsPageShowThinkingCardsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Thinking Cards'**
+  String get displaySettingsPageShowThinkingCardsTitle;
+
+  /// No description provided for @displaySettingsPageShowThinkingCardsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'When off, thinking-process cards are hidden in chat.'**
+  String get displaySettingsPageShowThinkingCardsSubtitle;
+
+  /// No description provided for @displaySettingsPageShowToolCardsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Tool Cards'**
+  String get displaySettingsPageShowToolCardsTitle;
+
+  /// No description provided for @displaySettingsPageShowToolCardsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'When off, tool-use cards are hidden in chat.'**
+  String get displaySettingsPageShowToolCardsSubtitle;
+
   /// No description provided for @displaySettingsPageAutoCollapseThinkingTitle.
   ///
   /// In en, this message translates to:
@@ -5194,6 +5290,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Generate'**
   String get displaySettingsPageHapticsOnGenerateTitle;
+
+  /// No description provided for @displaySettingsPageKeepScreenOnDuringGenerationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep screen on during generation'**
+  String get displaySettingsPageKeepScreenOnDuringGenerationTitle;
+
+  /// No description provided for @displaySettingsPageKeepScreenOnDuringGenerationSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Prevent the lock screen from interrupting long mobile replies.'**
+  String get displaySettingsPageKeepScreenOnDuringGenerationSubtitle;
 
   /// No description provided for @assistantSettingsPageTitle.
   ///

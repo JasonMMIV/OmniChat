@@ -582,6 +582,9 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     if (service is PerplexityOptions) return Lucide.Search;
     if (service is BochaOptions) return Lucide.Search;
     if (service is TinyfishOptions) return Lucide.Search;
+    if (service is DoubaoOptions) return Lucide.Search;
+    if (service is StepFunOptions) return Lucide.Search;
+    if (service is FirecrawlOptions) return Lucide.Search;
     if (service is QueritOptions) return Lucide.Search;
     if (service is SerperOptions) return Lucide.Search;
     if (service is GrokOptions) return Lucide.Search;
@@ -644,6 +647,16 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
       return service.apiKey.isNotEmpty
           ? l10n.searchServicesPageConfiguredStatus
           : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (service is DoubaoOptions)
+      return service.apiKey.isNotEmpty
+          ? l10n.searchServicesPageConfiguredStatus
+          : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (service is StepFunOptions)
+      return service.apiKey.isNotEmpty
+          ? l10n.searchServicesPageConfiguredStatus
+          : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (service is FirecrawlOptions)
+      return l10n.searchServicesPageConfiguredStatus;
     if (service is QueritOptions)
       return service.apiKey.isNotEmpty
           ? l10n.searchServicesPageConfiguredStatus
@@ -700,6 +713,9 @@ class _BrandBadge extends StatelessWidget {
     if (s is PerplexityOptions) return 'perplexity';
     if (s is BochaOptions) return 'bocha';
     if (s is TinyfishOptions) return 'tinyfish';
+    if (s is DoubaoOptions) return 'doubao';
+    if (s is StepFunOptions) return 'stepfun';
+    if (s is FirecrawlOptions) return 'firecrawl';
     if (s is QueritOptions) return 'querit';
     if (s is SerperOptions) return 'serper';
     if (s is GrokOptions) return 'grok';
@@ -880,6 +896,9 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
       {'type': 'perplexity', 'name': l10n.searchServiceNamePerplexity},
       {'type': 'bocha', 'name': l10n.searchServiceNameBocha},
       {'type': 'tinyfish', 'name': l10n.searchServiceNameTinyfish},
+      {'type': 'doubao', 'name': l10n.searchServiceNameDoubao},
+      {'type': 'stepfun', 'name': l10n.searchServiceNameStepFun},
+      {'type': 'firecrawl', 'name': l10n.searchServiceNameFirecrawl},
       {'type': 'querit', 'name': l10n.searchServiceNameQuerit},
       {'type': 'serper', 'name': l10n.searchServiceNameSerper},
       {'type': 'grok', 'name': l10n.searchServiceNameGrok},
@@ -947,6 +966,12 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
         return l10n.searchServiceNameBocha;
       case 'tinyfish':
         return l10n.searchServiceNameTinyfish;
+      case 'doubao':
+        return l10n.searchServiceNameDoubao;
+      case 'stepfun':
+        return l10n.searchServiceNameStepFun;
+      case 'firecrawl':
+        return l10n.searchServiceNameFirecrawl;
       case 'querit':
         return l10n.searchServiceNameQuerit;
       case 'serper':
@@ -1089,6 +1114,7 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
       case 'perplexity':
       case 'bocha':
       case 'tinyfish':
+      case 'doubao':
         return [
           _buildTextField(
             key: 'apiKey',
@@ -1113,6 +1139,58 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
               },
             ),
           ],
+        ];
+      case 'stepfun':
+        return [
+          _buildTextField(
+            key: 'apiKey',
+            label: 'API Key',
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return l10n.searchServicesAddDialogApiKeyRequired;
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'url',
+            label: l10n.searchServicesFieldCustomUrlOptional,
+            hint: StepFunOptions.defaultUrl,
+            initialValue: StepFunOptions.defaultUrl,
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'category',
+            label: l10n.searchServicesDialogCategoryOptional,
+            hint: 'general',
+          ),
+        ];
+      case 'firecrawl':
+        return [
+          _buildTextField(
+            key: 'apiKey',
+            label: 'API Key (Optional)',
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'url',
+            label: l10n.searchServicesFieldCustomUrlOptional,
+            hint: FirecrawlOptions.defaultUrl,
+            initialValue: FirecrawlOptions.defaultUrl,
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'country',
+            label: l10n.searchServicesDialogCountryOptional,
+            hint: 'US',
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'location',
+            label: l10n.searchServicesDialogLocationOptional,
+            hint: 'San Francisco',
+          ),
         ];
       case 'querit':
         return [
@@ -1327,6 +1405,23 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
         return BochaOptions(id: id, apiKey: _controllers['apiKey']!.text);
       case 'tinyfish':
         return TinyfishOptions(id: id, apiKey: _controllers['apiKey']!.text);
+      case 'doubao':
+        return DoubaoOptions(id: id, apiKey: _controllers['apiKey']!.text);
+      case 'stepfun':
+        return StepFunOptions(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+          url: (_controllers['url']?.text ?? '').trim(),
+          category: (_controllers['category']?.text ?? '').trim(),
+        );
+      case 'firecrawl':
+        return FirecrawlOptions(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+          url: (_controllers['url']?.text ?? '').trim(),
+          country: (_controllers['country']?.text ?? '').trim(),
+          location: (_controllers['location']?.text ?? '').trim(),
+        );
       case 'querit':
         return QueritOptions(
           id: id,
@@ -1417,6 +1512,17 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
     } else if (service is TinyfishOptions) {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+    } else if (service is DoubaoOptions) {
+      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+    } else if (service is StepFunOptions) {
+      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['url'] = TextEditingController(text: service.url);
+      _controllers['category'] = TextEditingController(text: service.category);
+    } else if (service is FirecrawlOptions) {
+      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['url'] = TextEditingController(text: service.url);
+      _controllers['country'] = TextEditingController(text: service.country);
+      _controllers['location'] = TextEditingController(text: service.location);
     } else if (service is QueritOptions) {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
       _controllers['sitesInclude'] = TextEditingController(
@@ -1598,7 +1704,8 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
         service is OllamaOptions ||
         service is JinaOptions ||
         service is BochaOptions ||
-        service is TinyfishOptions) {
+        service is TinyfishOptions ||
+        service is DoubaoOptions) {
       return [
         _buildTextField(
           key: 'apiKey',
@@ -1623,6 +1730,56 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
             },
           ),
         ],
+      ];
+    } else if (service is StepFunOptions) {
+      return [
+        _buildTextField(
+          key: 'apiKey',
+          label: 'API Key',
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return l10n.searchServicesEditDialogApiKeyRequired;
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'url',
+          label: l10n.searchServicesFieldCustomUrlOptional,
+          hint: StepFunOptions.defaultUrl,
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'category',
+          label: l10n.searchServicesDialogCategoryOptional,
+          hint: 'general',
+        ),
+      ];
+    } else if (service is FirecrawlOptions) {
+      return [
+        _buildTextField(
+          key: 'apiKey',
+          label: 'API Key (Optional)',
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'url',
+          label: l10n.searchServicesFieldCustomUrlOptional,
+          hint: FirecrawlOptions.defaultUrl,
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'country',
+          label: l10n.searchServicesDialogCountryOptional,
+          hint: 'US',
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'location',
+          label: l10n.searchServicesDialogLocationOptional,
+          hint: 'San Francisco',
+        ),
       ];
     } else if (service is QueritOptions) {
       return [
@@ -1857,6 +2014,26 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
         id: service.id,
         apiKey: _controllers['apiKey']!.text,
       );
+    } else if (service is DoubaoOptions) {
+      return DoubaoOptions(
+        id: service.id,
+        apiKey: _controllers['apiKey']!.text,
+      );
+    } else if (service is StepFunOptions) {
+      return StepFunOptions(
+        id: service.id,
+        apiKey: _controllers['apiKey']!.text,
+        url: (_controllers['url']?.text ?? '').trim(),
+        category: (_controllers['category']?.text ?? '').trim(),
+      );
+    } else if (service is FirecrawlOptions) {
+      return FirecrawlOptions(
+        id: service.id,
+        apiKey: _controllers['apiKey']!.text,
+        url: (_controllers['url']?.text ?? '').trim(),
+        country: (_controllers['country']?.text ?? '').trim(),
+        location: (_controllers['location']?.text ?? '').trim(),
+      );
     } else if (service is QueritOptions) {
       return QueritOptions(
         id: service.id,
@@ -1983,6 +2160,12 @@ class _ServiceIcon extends StatelessWidget {
         return 'bocha';
       case 'tinyfish':
         return 'tinyfish';
+      case 'doubao':
+        return 'doubao';
+      case 'stepfun':
+        return 'stepfun';
+      case 'firecrawl':
+        return 'firecrawl';
       case 'querit':
         return 'querit';
       case 'serper':

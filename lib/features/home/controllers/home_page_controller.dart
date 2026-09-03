@@ -19,6 +19,7 @@ import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/haptics.dart';
+import '../../../core/services/screen_wakelock.dart';
 import '../../voice_chat/services/stt_locale_resolver.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
@@ -1392,6 +1393,9 @@ class HomePageController extends ChangeNotifier {
 
   void onAppLifecycleStateChanged(AppLifecycleState state) {
     _appInForeground = (state == AppLifecycleState.resumed);
+    if (state == AppLifecycleState.resumed) {
+      ScreenWakelock.reassert();
+    }
   }
 
   void onDidPopNext() {

@@ -332,8 +332,13 @@ class ChatApiService {
           .cast<String, dynamic>();
     } catch (_) {}
     return {
-      'functionCall': {'name': name, 'args': args},
-      if (id.isNotEmpty) 'id': id,
+      'functionCall': {
+        'name': name,
+        'args': args,
+        // Keep the call id inside functionCall so Gemini can match the
+        // follow-up functionResponse to this function call.
+        if (id.isNotEmpty) 'id': id,
+      },
     };
   }
 
@@ -7843,7 +7848,13 @@ class ChatApiService {
                             .cast<String, dynamic>();
                       } catch (_) {}
                     }
-                    final id = 'call_${DateTime.now().microsecondsSinceEpoch}';
+                    // Prefer the API-provided functionCall id so multi-round
+                    // tool loops stay stable; fall back to a synthetic id.
+                    final vendorCallId =
+                        (fc['id'] ?? '').toString().trim();
+                    final id = vendorCallId.isNotEmpty
+                        ? vendorCallId
+                        : 'call_${DateTime.now().microsecondsSinceEpoch}';
 
                     // Capture thought signature (Gemini 3 Pro requirement)
                     // Preserve exact key/value as received
@@ -8077,9 +8088,15 @@ class ChatApiService {
         final thoughtSigKey = c['thoughtSigKey'] as String?;
         final thoughtSigVal = c['thoughtSigVal'];
 
-        // Add the model's functionCall turn
+        // Add the model's functionCall turn. Keep the call id inside the
+        // functionCall part so later rounds can match functionResponse to it.
+        final callId = (c['id'] ?? '').toString().trim();
         final part = <String, dynamic>{
-          'functionCall': {'name': name, 'args': args},
+          'functionCall': {
+            'name': name,
+            'args': args,
+            if (callId.isNotEmpty) 'id': callId,
+          },
         };
         if (thoughtSigKey != null && thoughtSigVal != null) {
           part[thoughtSigKey] = thoughtSigVal;
@@ -8097,12 +8114,16 @@ class ChatApiService {
           // Wrap plain text result
           responseObj = {'result': resText};
         }
-        // Add user's functionResponse turn
+        // Add user's functionResponse turn, echoing the call id it answers.
         convo.add({
           'role': 'user',
           'parts': [
             {
-              'functionResponse': {'name': name, 'response': responseObj},
+              'functionResponse': {
+                'name': name,
+                'response': responseObj,
+                if (callId.isNotEmpty) 'id': callId,
+              },
             },
           ],
         });

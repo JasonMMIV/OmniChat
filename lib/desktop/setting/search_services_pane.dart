@@ -602,6 +602,9 @@ class _BrandBadge extends StatelessWidget {
     if (s is PerplexityOptions) return 'perplexity';
     if (s is BochaOptions) return 'bocha';
     if (s is TinyfishOptions) return 'tinyfish';
+    if (s is DoubaoOptions) return 'doubao';
+    if (s is StepFunOptions) return 'stepfun';
+    if (s is FirecrawlOptions) return 'firecrawl';
     if (s is QueritOptions) return 'querit';
     if (s is SerperOptions) return 'serper';
     if (s is GrokOptions) return 'grok';
@@ -785,6 +788,8 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
     'timeRange': TextEditingController(),
     'countries': TextEditingController(),
     'languages': TextEditingController(),
+    'category': TextEditingController(),
+    'location': TextEditingController(),
     'gl': TextEditingController(),
     'hl': TextEditingController(),
     'tbs': TextEditingController(),
@@ -892,6 +897,7 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
       case 'perplexity':
       case 'bocha':
       case 'tinyfish':
+      case 'doubao':
         return [
           TextField(
             controller: _controllers['apiKey'],
@@ -904,6 +910,51 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
               decoration: deco('Search Engine ID (cx)'),
             ),
           ],
+        ];
+      case 'stepfun':
+        return [
+          TextField(
+            controller: _controllers['apiKey'],
+            decoration: deco(l10n.searchServicesDialogApiKey),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controllers['url'],
+            decoration: _deskInputDecoration(context).copyWith(
+              labelText: l10n.searchServicesFieldCustomUrlOptional,
+              hintText: StepFunOptions.defaultUrl,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controllers['category'],
+            decoration: deco(l10n.searchServicesDialogCategoryOptional),
+          ),
+        ];
+      case 'firecrawl':
+        return [
+          TextField(
+            controller: _controllers['apiKey'],
+            decoration: deco(l10n.searchServicesAddDialogApiKeyOptional),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controllers['url'],
+            decoration: _deskInputDecoration(context).copyWith(
+              labelText: l10n.searchServicesFieldCustomUrlOptional,
+              hintText: FirecrawlOptions.defaultUrl,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controllers['country'],
+            decoration: deco(l10n.searchServicesDialogCountryOptional),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controllers['location'],
+            decoration: deco(l10n.searchServicesDialogLocationOptional),
+          ),
         ];
       case 'serper':
         return [
@@ -1075,6 +1126,23 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
         return BochaOptions(id: id, apiKey: _controllers['apiKey']!.text);
       case 'tinyfish':
         return TinyfishOptions(id: id, apiKey: _controllers['apiKey']!.text);
+      case 'doubao':
+        return DoubaoOptions(id: id, apiKey: _controllers['apiKey']!.text);
+      case 'stepfun':
+        return StepFunOptions(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+          url: (_controllers['url']?.text ?? '').trim(),
+          category: (_controllers['category']?.text ?? '').trim(),
+        );
+      case 'firecrawl':
+        return FirecrawlOptions(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+          url: (_controllers['url']?.text ?? '').trim(),
+          country: (_controllers['country']?.text ?? '').trim(),
+          location: (_controllers['location']?.text ?? '').trim(),
+        );
       case 'serper':
         final page = int.tryParse(_controllers['page']!.text.trim());
         return SerperOptions(
@@ -1162,6 +1230,17 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
       _controllers['apiKey'] = TextEditingController(text: s.apiKey);
     } else if (s is TinyfishOptions) {
       _controllers['apiKey'] = TextEditingController(text: s.apiKey);
+    } else if (s is DoubaoOptions) {
+      _controllers['apiKey'] = TextEditingController(text: s.apiKey);
+    } else if (s is StepFunOptions) {
+      _controllers['apiKey'] = TextEditingController(text: s.apiKey);
+      _controllers['url'] = TextEditingController(text: s.url);
+      _controllers['category'] = TextEditingController(text: s.category);
+    } else if (s is FirecrawlOptions) {
+      _controllers['apiKey'] = TextEditingController(text: s.apiKey);
+      _controllers['url'] = TextEditingController(text: s.url);
+      _controllers['country'] = TextEditingController(text: s.country);
+      _controllers['location'] = TextEditingController(text: s.location);
     } else if (s is QueritOptions) {
       _controllers['apiKey'] = TextEditingController(text: s.apiKey);
       _controllers['sitesInclude'] = TextEditingController(
@@ -1273,7 +1352,8 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
         s is OllamaOptions ||
         s is PerplexityOptions ||
         s is BochaOptions ||
-        s is TinyfishOptions) {
+        s is TinyfishOptions ||
+        s is DoubaoOptions) {
       return [
         TextField(
           controller: _controllers['apiKey'],
@@ -1286,6 +1366,51 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
             decoration: deco('Search Engine ID (cx)'),
           ),
         ],
+      ];
+    } else if (s is StepFunOptions) {
+      return [
+        TextField(
+          controller: _controllers['apiKey'],
+          decoration: deco('API Key'),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _controllers['url'],
+          decoration: _deskInputDecoration(context).copyWith(
+            labelText: l10n.searchServicesFieldCustomUrlOptional,
+            hintText: StepFunOptions.defaultUrl,
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _controllers['category'],
+          decoration: deco(l10n.searchServicesDialogCategoryOptional),
+        ),
+      ];
+    } else if (s is FirecrawlOptions) {
+      return [
+        TextField(
+          controller: _controllers['apiKey'],
+          decoration: deco(l10n.searchServicesAddDialogApiKeyOptional),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _controllers['url'],
+          decoration: _deskInputDecoration(context).copyWith(
+            labelText: l10n.searchServicesFieldCustomUrlOptional,
+            hintText: FirecrawlOptions.defaultUrl,
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _controllers['country'],
+          decoration: deco(l10n.searchServicesDialogCountryOptional),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _controllers['location'],
+          decoration: deco(l10n.searchServicesDialogLocationOptional),
+        ),
       ];
     } else if (s is SerperOptions) {
       return [
@@ -1462,6 +1587,23 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
       return BochaOptions(id: s.id, apiKey: _controllers['apiKey']!.text);
     if (s is TinyfishOptions)
       return TinyfishOptions(id: s.id, apiKey: _controllers['apiKey']!.text);
+    if (s is DoubaoOptions)
+      return DoubaoOptions(id: s.id, apiKey: _controllers['apiKey']!.text);
+    if (s is StepFunOptions)
+      return StepFunOptions(
+        id: s.id,
+        apiKey: _controllers['apiKey']!.text,
+        url: (_controllers['url']?.text ?? '').trim(),
+        category: (_controllers['category']?.text ?? '').trim(),
+      );
+    if (s is FirecrawlOptions)
+      return FirecrawlOptions(
+        id: s.id,
+        apiKey: _controllers['apiKey']!.text,
+        url: (_controllers['url']?.text ?? '').trim(),
+        country: (_controllers['country']?.text ?? '').trim(),
+        location: (_controllers['location']?.text ?? '').trim(),
+      );
     if (s is SerperOptions) {
       final page = int.tryParse(_controllers['page']!.text.trim());
       return SerperOptions(
@@ -1523,6 +1665,9 @@ class _ServiceTypeChipsState extends State<_ServiceTypeChips> {
     (type: 'perplexity', name: 'Perplexity', brand: 'perplexity'),
     (type: 'bocha', name: 'Bocha', brand: 'bocha'),
     (type: 'tinyfish', name: 'Tinyfish', brand: 'tinyfish'),
+    (type: 'doubao', name: 'Doubao', brand: 'doubao'),
+    (type: 'stepfun', name: 'StepFun', brand: 'stepfun'),
+    (type: 'firecrawl', name: 'Firecrawl', brand: 'firecrawl'),
     (type: 'querit', name: 'Querit', brand: 'querit'),
     (type: 'serper', name: 'Serper', brand: 'serper'),
     (type: 'grok', name: 'Grok', brand: 'grok'),
