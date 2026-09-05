@@ -6,6 +6,7 @@ import 'package:mcp_client/mcp_client.dart' as mcp;
 import '../services/mcp/kelivo_fetch/kelivo_fetch_server.dart';
 import '../services/mcp/kelivo_js/kelivo_js_server.dart';
 import '../services/mcp/academic/academic_server.dart';
+import '../services/mcp/image_search/image_search_server.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
@@ -290,6 +291,8 @@ class McpProvider extends ChangeNotifier {
     _ensureBuiltinJsServerPresent();
     // Ensure built-in academic (PubMed / arXiv / Semantic Scholar) is present by default
     _ensureBuiltinAcademicServerPresent();
+    // Ensure built-in Image_Search is present by default (real-photo search)
+    _ensureBuiltinImageSearchServerPresent();
     // initialize statuses
     for (final s in _servers) {
       _status[s.id] = McpStatus.idle;
@@ -345,6 +348,27 @@ class McpProvider extends ChangeNotifier {
       id: builtinAcademicServerId,
       enabled: true,
       name: 'Academic_Search',
+      transport: McpTransportType.inmemory,
+      tools: const <McpToolConfig>[], // will refresh on connect
+    );
+    _servers = [..._servers, cfg];
+  }
+
+  /// Built-in image search server (Image_Search) exposing an `image_search`
+  /// tool for real-photo image search (DuckDuckGo images + Wikimedia Commons
+  /// fallback). In-memory transport, works on every platform including Android.
+  /// No configuration / API keys required; free backends only.
+  static const String builtinImageSearchServerId = 'image_search';
+
+  void _ensureBuiltinImageSearchServerPresent() {
+    final exists = _servers.any(
+      (s) => s.id == builtinImageSearchServerId || s.name == 'Image_Search',
+    );
+    if (exists) return;
+    final cfg = McpServerConfig(
+      id: builtinImageSearchServerId,
+      enabled: true,
+      name: 'Image_Search',
       transport: McpTransportType.inmemory,
       tools: const <McpToolConfig>[], // will refresh on connect
     );
@@ -546,6 +570,30 @@ class McpProvider extends ChangeNotifier {
             id: builtinAcademicServerId,
             enabled: academicEnabled ?? true,
             name: 'Academic_Search',
+            transport: McpTransportType.inmemory,
+          ));
+          // Image_Search built-in: default enabled, honor its own isActive
+          // when the imported JSON explicitly toggled it.
+          bool? imageSearchEnabled;
+          serversFromMap.forEach((eid2, eValue2) {
+            if (imageSearchEnabled != null) return;
+            if (eValue2 is! Map) return;
+            final eMap2 = eValue2.cast<String, dynamic>();
+            final eType2 = (eMap2['type'] ?? '').toString().toLowerCase();
+            final eName2 = (eMap2['name'] ?? '').toString().toLowerCase();
+            final isImageSearch =
+                eType2 == 'inmemory' &&
+                (eid2 == builtinImageSearchServerId ||
+                    eName2.contains('image_search') ||
+                    eName2.contains('image search'));
+            if (isImageSearch) {
+              imageSearchEnabled = (eMap2['isActive'] as bool?) ?? true;
+            }
+          });
+          next.add(McpServerConfig(
+            id: builtinImageSearchServerId,
+            enabled: imageSearchEnabled ?? true,
+            name: 'Image_Search',
             transport: McpTransportType.inmemory,
           ));
         }
@@ -754,6 +802,10 @@ class McpProvider extends ChangeNotifier {
             server.name == 'Academic_Search') {
           final engine = AcademicMcpServerEngine();
           transport = AcademicInMemoryClientTransport(engine);
+        } else if (server.id == builtinImageSearchServerId ||
+            server.name == 'Image_Search') {
+          final engine = ImageSearchMcpServerEngine();
+          transport = ImageSearchInMemoryClientTransport(engine);
         } else {
           throw StateError('Unknown in-memory server id: ${server.id}');
         }
