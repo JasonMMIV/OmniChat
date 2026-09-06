@@ -21,6 +21,8 @@ import 'builtin_tools.dart';
 import 'stream_interruption.dart';
 import 'stream_retry_policy.dart';
 import 'transient_stream_error.dart';
+import 'chat_stream_chunk.dart';
+export 'chat_stream_chunk.dart' show ChatStreamChunk, ToolCallInfo, ToolResultInfo;
 
 class ChatApiService {
   static const String _aihubmixAppCode = 'ZKRT3588';
@@ -969,6 +971,12 @@ class ChatApiService {
     bool stream = true,
     String? requestId,
     String? imageAspectRatio,
+    // P0-3 single-round mode: when true the transport executes exactly one
+    // request per call, surfaces any collected tool calls as a `toolCalls`
+    // chunk and returns WITHOUT running them or issuing follow-up requests.
+    // The agent-loop kernel / driver owns execution and follow-up assembly.
+    // Default false = legacy multi-round transport loop, byte-identical.
+    bool exposeToolCallsOnly = false,
   }) async* {
     final kind = _apiKind(config);
     final cancelToken = CancelToken();
@@ -1032,6 +1040,7 @@ class ChatApiService {
               stream: stream,
               imageAspectRatio: imageAspectRatio,
               flags: flags,
+              exposeToolCallsOnly: exposeToolCallsOnly,
             ), rid, flags)) {
               yield chunk;
             }
@@ -1052,6 +1061,7 @@ class ChatApiService {
               extraBody: extraBody,
               stream: stream,
               flags: flags,
+              exposeToolCallsOnly: exposeToolCallsOnly,
             ), rid, flags)) {
               yield chunk;
             }
@@ -1072,6 +1082,7 @@ class ChatApiService {
               extraBody: extraBody,
               stream: stream,
               flags: flags,
+              exposeToolCallsOnly: exposeToolCallsOnly,
             ), rid, flags)) {
               yield chunk;
             }
@@ -2059,6 +2070,7 @@ class ChatApiService {
     int? maxTokens,
     List<Map<String, dynamic>>? tools,
     Future<String> Function(String, Map<String, dynamic>)? onToolCall,
+    bool exposeToolCallsOnly = false,
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     bool stream = true,
@@ -2244,20 +2256,61 @@ class ChatApiService {
         // Handle replayed assistant messages carrying tool_calls → function_call items
         if (isAssistant && m['tool_calls'] is List) {
           final toolCalls = m['tool_calls'] as List;
-          for (final tc in toolCalls) {
-            if (tc is! Map) continue;
-            final callId = (tc['id'] ?? '').toString();
-            final fn = tc['function'];
-            if (fn is! Map) continue;
-            final name = (fn['name'] ?? '').toString();
-            final arguments = (fn['arguments'] ?? '{}').toString();
-            if (callId.isNotEmpty && name.isNotEmpty) {
-              input.add({
-                'type': 'function_call',
-                'call_id': callId,
-                'name': name,
-                'arguments': arguments,
-              });
+          // Kernel path: the round's raw output items are carried on the
+          // neutral assistant message via `assistantExtras`; replay them
+          // verbatim (message item included) and append any function_call
+          // items missing from the raw set — exactly what the legacy loop's
+          // `_withResponsesFunctionCallItems` does for its continuation.
+          final rawOutputItems = m['responses_output_items'];
+          if (rawOutputItems is List && rawOutputItems.isNotEmpty) {
+            final callInfos = <ToolCallInfo>[
+              for (final tc in toolCalls)
+                if (tc is Map)
+                  ToolCallInfo(
+                    id: (tc['id'] ?? '').toString(),
+                    name: ((tc['function'] is Map)
+                            ? (tc['function'] as Map)['name']
+                            : null)
+                        ?.toString() ??
+                        '',
+                    arguments: () {
+                      final argumentsStr = (tc['function'] is Map)
+                          ? ((tc['function'] as Map)['arguments'] ?? '{}')
+                              .toString()
+                          : '{}';
+                      try {
+                        return (jsonDecode(argumentsStr) as Map)
+                            .cast<String, dynamic>();
+                      } catch (_) {
+                        return <String, dynamic>{};
+                      }
+                    }(),
+                  ),
+            ];
+            input.addAll(
+              _withResponsesFunctionCallItems(
+                rawOutputItems
+                    .map((e) => (e as Map).cast<String, dynamic>())
+                    .toList(),
+                callInfos,
+              ),
+            );
+          } else {
+            for (final tc in toolCalls) {
+              if (tc is! Map) continue;
+              final callId = (tc['id'] ?? '').toString();
+              final fn = tc['function'];
+              if (fn is! Map) continue;
+              final name = (fn['name'] ?? '').toString();
+              final arguments = (fn['arguments'] ?? '{}').toString();
+              if (callId.isNotEmpty && name.isNotEmpty) {
+                input.add({
+                  'type': 'function_call',
+                  'call_id': callId,
+                  'name': name,
+                  'arguments': arguments,
+                });
+              }
             }
           }
           // Skip adding the assistant message content if it only contains tool calls
@@ -2903,7 +2956,7 @@ class ChatApiService {
               (msg['reasoning_content'] ?? msg['reasoning'])?.toString() ?? '';
           final reasoningDetailsForTools = msg['reasoning_details'];
           final tcs = (msg['tool_calls'] as List?) ?? const <dynamic>[];
-          if (tcs.isNotEmpty && onToolCall != null) {
+          if (tcs.isNotEmpty && (onToolCall != null || exposeToolCallsOnly)) {
             final calls = <Map<String, dynamic>>[];
             final callInfos = <ToolCallInfo>[];
             for (int i = 0; i < tcs.length; i++) {
@@ -2934,12 +2987,28 @@ class ChatApiService {
                 totalTokens: aggUsage?.totalTokens ?? 0,
                 usage: aggUsage,
                 toolCalls: callInfos,
+                // Transport-owned echo policy: the agent-loop kernel merges
+                // these onto the follow-up assistant message (P0-2), matching
+                // the legacy loop's `assistantToolCallMsg` assembly below.
+                assistantExtras: <String, dynamic>{
+                  if (needsReasoningEcho)
+                    'reasoning_content': reasoningForTools,
+                  if (preserveReasoningDetails &&
+                      reasoningDetailsForTools is List &&
+                      reasoningDetailsForTools.isNotEmpty)
+                    'reasoning_details': reasoningDetailsForTools,
+                },
               );
+            }
+            if (exposeToolCallsOnly) {
+              // Single-round mode: surface the tool calls and stop; the
+              // agent-loop kernel executes them and composes the follow-up.
+              return;
             }
             final results = <Map<String, dynamic>>[];
             final resultsInfo = <ToolResultInfo>[];
             for (final c in callInfos) {
-              final res = await onToolCall(c.name, c.arguments) ?? '';
+              final res = await onToolCall!(c.name, c.arguments) ?? '';
               results.add({'tool_call_id': c.id, 'content': res});
               resultsInfo.add(
                 ToolResultInfo(
@@ -3102,7 +3171,7 @@ class ChatApiService {
         if (data == '[DONE]') {
           // If model streamed tool_calls but didn't include finish_reason on prior chunks,
           // execute tool flow now and start follow-up request.
-          if (onToolCall != null && toolAcc.isNotEmpty) {
+          if ((onToolCall != null || exposeToolCallsOnly) && toolAcc.isNotEmpty) {
             final calls = <Map<String, dynamic>>[];
             final callInfos = <ToolCallInfo>[];
             final toolMsgs = <Map<String, dynamic>>[];
@@ -3135,9 +3204,24 @@ class ChatApiService {
                 totalTokens: usage?.totalTokens ?? approxTotal,
                 usage: usage,
                 toolCalls: callInfos,
+                // Transport-owned echo policy (P0-2): same fields the legacy
+                // loop writes onto `assistantToolCallMsg` below; the kernel
+                // forwards them onto its follow-up assistant message.
+                assistantExtras: <String, dynamic>{
+                  if (needsReasoningEcho)
+                    'reasoning_content': reasoningBuffer,
+                  if (preserveReasoningDetails &&
+                      reasoningDetailsBuffer is List &&
+                      reasoningDetailsBuffer.isNotEmpty)
+                    'reasoning_details': reasoningDetailsBuffer,
+                },
               );
             }
 
+            if (exposeToolCallsOnly) {
+              // Single-round expose mode: surface the tool calls and stop.
+              return;
+            }
             // Execute tools and emit results
             final results = <Map<String, dynamic>>[];
             final resultsInfo = <ToolResultInfo>[];
@@ -3145,7 +3229,7 @@ class ChatApiService {
               final name = m['__name'] as String;
               final id = m['__id'] as String;
               final args = (m['__args'] as Map<String, dynamic>);
-              final res = await onToolCall(name, args) ?? '';
+              final res = await onToolCall!(name, args) ?? '';
               results.add({'tool_call_id': id, 'content': res});
               resultsInfo.add(
                 ToolResultInfo(
@@ -3571,7 +3655,7 @@ class ChatApiService {
 
               // After this follow-up round finishes: if tool calls again, execute and loop
               if ((finishReason2 == 'tool_calls' || toolAcc2.isNotEmpty) &&
-                  onToolCall != null) {
+                  (onToolCall != null || exposeToolCallsOnly)) {
                 final calls2 = <Map<String, dynamic>>[];
                 final callInfos2 = <ToolCallInfo>[];
                 final toolMsgs2 = <Map<String, dynamic>>[];
@@ -3604,13 +3688,17 @@ class ChatApiService {
                     toolCalls: callInfos2,
                   );
                 }
+                if (exposeToolCallsOnly) {
+                  // Single-round expose mode: surface the tool calls and stop.
+                  return;
+                }
                 final results2 = <Map<String, dynamic>>[];
                 final resultsInfo2 = <ToolResultInfo>[];
                 for (final m in toolMsgs2) {
                   final name = m['__name'] as String;
                   final id = m['__id'] as String;
                   final args = (m['__args'] as Map<String, dynamic>);
-                  final res = await onToolCall(name, args) ?? '';
+                  final res = await onToolCall!(name, args) ?? '';
                   results2.add({'tool_call_id': id, 'content': res});
                   resultsInfo2.add(
                     ToolResultInfo(
@@ -3876,7 +3964,7 @@ class ChatApiService {
               // Responses tool calling follow-up handling
               final bool hasRespCalls =
                   respToolCallsByIndex.isNotEmpty || toolAccResp.isNotEmpty;
-              if (onToolCall != null && hasRespCalls) {
+              if ((onToolCall != null || exposeToolCallsOnly) && hasRespCalls) {
                 // Prefer the indexed calls (with call_id); fallback to toolAccResp
                 final calls = <Map<String, dynamic>>[];
                 final callInfos = <ToolCallInfo>[];
@@ -3943,7 +4031,20 @@ class ChatApiService {
                     totalTokens: usage?.totalTokens ?? approxTotal,
                     usage: usage,
                     toolCalls: callInfos,
+                    // Carry the round's raw output items (assistant `message`
+                    // item included) so the kernel's follow-up can replay them
+                    // verbatim, matching the legacy loop's
+                    // `_withResponsesFunctionCallItems` continuation.
+                    assistantExtras: lastResponseOutputItems.isEmpty
+                        ? null
+                        : <String, dynamic>{
+                            'responses_output_items': lastResponseOutputItems,
+                          },
                   );
+                }
+                if (exposeToolCallsOnly) {
+                  // Single-round expose mode: surface the tool calls and stop.
+                  return;
                 }
                 final resultsInfo = <ToolResultInfo>[];
                 final followUpOutputs = <Map<String, dynamic>>[];
@@ -3951,7 +4052,7 @@ class ChatApiService {
                   final nm = m['__name'] as String;
                   final id2 = m['__id'] as String;
                   final args = (m['__args'] as Map<String, dynamic>);
-                  final res = await onToolCall(nm, args) ?? '';
+                  final res = await onToolCall!(nm, args) ?? '';
                   resultsInfo.add(
                     ToolResultInfo(
                       id: id2,
@@ -4212,7 +4313,7 @@ class ChatApiService {
                     final nm = m['__name'] as String;
                     final id2 = m['__id'] as String;
                     final args2 = (m['__args'] as Map<String, dynamic>);
-                    final res2 = await onToolCall(nm, args2) ?? '';
+                    final res2 = await onToolCall!(nm, args2) ?? '';
                     resultsInfo2.add(
                       ToolResultInfo(
                         id: id2,
@@ -4551,7 +4652,7 @@ class ChatApiService {
           if (config.useResponseApi != true &&
               finishReason == 'tool_calls' &&
               toolAcc.isNotEmpty &&
-              onToolCall != null) {
+              (onToolCall != null || exposeToolCallsOnly)) {
             // print('[ChatApi/XinLiu] Executing tools immediately (finishReason=tool_calls, toolAcc.size=${toolAcc.length})');
             // Some providers (like XinLiu) return tool_calls with finish_reason='tool_calls' but no [DONE]
             // Execute tools immediately in this case
@@ -4588,6 +4689,10 @@ class ChatApiService {
                 toolCalls: callInfos,
               );
             }
+            if (exposeToolCallsOnly) {
+              // Single-round expose mode: surface the tool calls and stop.
+              return;
+            }
             // Execute tools and emit results
             final results = <Map<String, dynamic>>[];
             final resultsInfo = <ToolResultInfo>[];
@@ -4595,7 +4700,7 @@ class ChatApiService {
               final name = m['__name'] as String;
               final id = m['__id'] as String;
               final args = (m['__args'] as Map<String, dynamic>);
-              final res = await onToolCall(name, args) ?? '';
+              final res = await onToolCall!(name, args) ?? '';
               results.add({'tool_call_id': id, 'content': res});
               resultsInfo.add(
                 ToolResultInfo(
@@ -5033,7 +5138,7 @@ class ChatApiService {
                 }
               }
               if ((finishReason2 == 'tool_calls' || toolAcc2.isNotEmpty) &&
-                  onToolCall != null) {
+                  (onToolCall != null || exposeToolCallsOnly)) {
                 final calls2 = <Map<String, dynamic>>[];
                 final callInfos2 = <ToolCallInfo>[];
                 final toolMsgs2 = <Map<String, dynamic>>[];
@@ -5066,13 +5171,17 @@ class ChatApiService {
                     toolCalls: callInfos2,
                   );
                 }
+                if (exposeToolCallsOnly) {
+                  // Single-round expose mode: surface the tool calls and stop.
+                  return;
+                }
                 final results2 = <Map<String, dynamic>>[];
                 final resultsInfo2 = <ToolResultInfo>[];
                 for (final m in toolMsgs2) {
                   final name = m['__name'] as String;
                   final id = m['__id'] as String;
                   final args = (m['__args'] as Map<String, dynamic>);
-                  final res = await onToolCall(name, args) ?? '';
+                  final res = await onToolCall!(name, args) ?? '';
                   results2.add({'tool_call_id': id, 'content': res});
                   resultsInfo2.add(
                     ToolResultInfo(
@@ -5151,7 +5260,7 @@ class ChatApiService {
             if (hasPendingToolCalls) {
               // Some providers (like XinLiu/iflow.cn) may return tool_calls with finish_reason='stop'
               // and may not send a [DONE] marker. Execute tools immediately in this case.
-              if (onToolCall != null && toolAcc.isNotEmpty) {
+              if ((onToolCall != null || exposeToolCallsOnly) && toolAcc.isNotEmpty) {
                 final calls = <Map<String, dynamic>>[];
                 final callInfos = <ToolCallInfo>[];
                 final toolMsgs = <Map<String, dynamic>>[];
@@ -5185,7 +5294,21 @@ class ChatApiService {
                     totalTokens: usage?.totalTokens ?? approxTotal,
                     usage: usage,
                     toolCalls: callInfos,
+                    // Transport-owned echo policy (P0-2): mirror the legacy
+                    // `assistantToolCallMsg` fields (no-DONE vendor fallback).
+                    assistantExtras: <String, dynamic>{
+                      if (needsReasoningEcho)
+                        'reasoning_content': reasoningBuffer,
+                      if (preserveReasoningDetails &&
+                          reasoningDetailsBuffer is List &&
+                          reasoningDetailsBuffer.isNotEmpty)
+                        'reasoning_details': reasoningDetailsBuffer,
+                    },
                   );
+                }
+                if (exposeToolCallsOnly) {
+                  // Single-round mode: surfaced above, stop before execution.
+                  return;
                 }
                 // Execute tools and emit results
                 final results = <Map<String, dynamic>>[];
@@ -5194,7 +5317,7 @@ class ChatApiService {
                   final name = m['__name'] as String;
                   final id = m['__id'] as String;
                   final args = (m['__args'] as Map<String, dynamic>);
-                  final res = await onToolCall(name, args) ?? '';
+                  final res = await onToolCall!(name, args) ?? '';
                   results.add({'tool_call_id': id, 'content': res});
                   resultsInfo.add(
                     ToolResultInfo(
@@ -5958,6 +6081,7 @@ class ChatApiService {
     int? maxTokens,
     List<Map<String, dynamic>>? tools,
     Future<String> Function(String, Map<String, dynamic>)? onToolCall,
+    bool exposeToolCallsOnly = false,
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     bool stream = true,
@@ -6005,14 +6129,27 @@ class ChatApiService {
           });
         }
         continue;
-      }
-      // Convert replayed assistant tool_calls to Anthropic tool_use blocks.
+      }        // Convert replayed assistant tool_calls to Anthropic tool_use blocks.
       if (role == 'assistant' && m['tool_calls'] is List) {
         final toolCalls = m['tool_calls'] as List;
         final blocks = <Map<String, dynamic>>[];
         final text = (m['content'] ?? '').toString();
         if (text.trim().isNotEmpty && text.trim() != '\n\n') {
           blocks.add({'type': 'text', 'text': text});
+        }
+        // P0-3: re-attach thinking blocks preserved by the expose-mode round
+        // (carried on the neutral assistant message via `assistantExtras`).
+        // Anthropic requires the thinking block (with its signature) to be
+        // echoed when thinking is enabled, exactly as the legacy loop's
+        // `assistantBlocks` did.
+        final thinking = m['claude_thinking_blocks'];
+        if (thinking is List) {
+          for (final tb in thinking.whereType<Map>()) {
+            final type = (tb['type'] ?? '').toString();
+            if (type == 'thinking' || type == 'redacted_thinking') {
+              blocks.add(Map<String, dynamic>.from(tb));
+            }
+          }
         }
         for (final tc in toolCalls.whereType<Map>()) {
           final block = _claudeToolUseBlockFromToolCall(tc);
@@ -6282,7 +6419,7 @@ class ChatApiService {
             }
           }
         }
-        if (toolUses.isNotEmpty && onToolCall != null) {
+        if (toolUses.isNotEmpty && (onToolCall != null || exposeToolCallsOnly)) {
           final callInfos = <ToolCallInfo>[];
           for (final e in toolUses.entries) {
             callInfos.add(
@@ -6293,19 +6430,36 @@ class ChatApiService {
               ),
             );
           }
+          // P0-3: carry this round's thinking blocks (with signatures) so the
+          // agent-loop kernel can echo them on the follow-up assistant
+          // message — Anthropic rejects tool-continuation requests that drop
+          // the thinking block when thinking is enabled.
+          final claudeThinkingExtras = <String, dynamic>{
+            'claude_thinking_blocks': <Map<String, dynamic>>[
+              for (final b in assistantBlocks)
+                if (b['type'] == 'thinking' ||
+                    b['type'] == 'redacted_thinking')
+                  Map<String, dynamic>.from(b),
+            ],
+          };
           yield ChatStreamChunk(
             content: '',
             isDone: false,
             totalTokens: (totalUsage?.totalTokens ?? 0),
             usage: totalUsage,
             toolCalls: callInfos,
+            assistantExtras: claudeThinkingExtras,
           );
+          if (exposeToolCallsOnly) {
+            // Single-round expose mode: surface the tool calls and stop.
+            return;
+          }
           final results = <Map<String, dynamic>>[];
           final resultsInfo = <ToolResultInfo>[];
           for (final e in toolUses.entries) {
             final name = (e.value['name'] ?? '').toString();
             final args = (e.value['args'] as Map<String, dynamic>);
-            final res = await onToolCall(name, args) ?? '';
+            final res = await onToolCall!(name, args) ?? '';
             results.add({
               'type': 'tool_result',
               'tool_use_id': e.key,
@@ -6456,20 +6610,24 @@ class ChatApiService {
                     'input': {},
                   });
                   if (idx2 >= 0) _cliIndexToId[idx2] = id;
-                  // Emit placeholder tool-call card immediately
-                  yield ChatStreamChunk(
-                    content: '',
-                    isDone: false,
-                    totalTokens: roundTokens,
-                    usage: usage,
-                    toolCalls: [
-                      ToolCallInfo(
-                        id: id,
-                        name: name,
-                        arguments: const <String, dynamic>{},
-                      ),
-                    ],
-                  );
+                  // Emit placeholder tool-call card immediately. Skipped in
+                  // single-round expose mode: the round-end surface yields
+                  // one chunk with the fully-assembled arguments instead.
+                  if (!exposeToolCallsOnly) {
+                    yield ChatStreamChunk(
+                      content: '',
+                      isDone: false,
+                      totalTokens: roundTokens,
+                      usage: usage,
+                      toolCalls: [
+                        ToolCallInfo(
+                          id: id,
+                          name: name,
+                          arguments: const <String, dynamic>{},
+                        ),
+                      ],
+                    );
+                  }
                 }
               } else if (cb is Map && (cb['type'] == 'server_tool_use')) {
                 final id = (cb['id'] ?? '').toString();
@@ -6481,8 +6639,9 @@ class ChatApiService {
                 }
                 // Emit placeholder for server tool to show card (e.g., built-in
                 // web_search); skip the code_execution companion tool which has
-                // no dedicated UI card.
-                if (id.isNotEmpty && name == 'web_search') {
+                // no dedicated UI card. Skipped in expose mode — the round-end
+                // surface owns tool-call emission there.
+                if (id.isNotEmpty && name == 'web_search' && !exposeToolCallsOnly) {
                   yield ChatStreamChunk(
                     content: '',
                     isDone: false,
@@ -6684,8 +6843,10 @@ class ChatApiService {
                     break;
                   }
                 }
-                // Emit tool result to UI (placeholder was emitted at start)
-                if (onToolCall != null) {
+                // Emit tool result to UI (placeholder was emitted at start).
+                // In expose mode we skip execution here; all calls are
+                // surfaced once after the round (see below).
+                if (onToolCall != null && !exposeToolCallsOnly) {
                   final res = await onToolCall(name, args) ?? '';
                   _toolResultsContent[id] = res;
                   yield ChatStreamChunk(
@@ -6704,7 +6865,9 @@ class ChatApiService {
                   );
                 }
               } else {
-                if (idx != null && _srvIndexToId.containsKey(idx)) {
+                if (idx != null &&
+                    _srvIndexToId.containsKey(idx) &&
+                    !exposeToolCallsOnly) {
                   final sid = _srvIndexToId[idx]!;
                   Map<String, dynamic> args;
                   try {
@@ -6807,6 +6970,51 @@ class ChatApiService {
         }
       }
 
+      // Single-round expose mode: surface every collected tool call once and
+      // stop without executing them or building the follow-up request.
+      if (exposeToolCallsOnly) {
+        final exposed = <ToolCallInfo>[];
+        for (final entry in _anthToolUse.entries) {
+          final name = (entry.value['name'] ?? '').toString();
+          Map<String, dynamic> args;
+          try {
+            args =
+                (jsonDecode((entry.value['args'] ?? '{}') as String) as Map)
+                    .cast<String, dynamic>();
+          } catch (_) {
+            args = <String, dynamic>{};
+          }
+          exposed.add(ToolCallInfo(id: entry.key, name: name, arguments: args));
+        }
+        if (exposed.isNotEmpty) {
+          // P0-3: carry this round's thinking blocks (with signatures) so the
+          // agent-loop kernel can echo them on the follow-up assistant
+          // message — Anthropic rejects tool-continuation requests that drop
+          // the thinking block when thinking is enabled.
+          final thinkingBlocks = <Map<String, dynamic>>[
+            for (final b in assistantBlocks)
+              if (b is Map &&
+                  (b['type'] == 'thinking' ||
+                      b['type'] == 'redacted_thinking'))
+                Map<String, dynamic>.from(b),
+          ];
+          yield ChatStreamChunk(
+            content: '',
+            isDone: false,
+            totalTokens: (totalUsage?.totalTokens ?? roundTokens),
+            usage: totalUsage ?? usage,
+            toolCalls: exposed,
+            assistantExtras: thinkingBlocks.isEmpty
+                ? null
+                : <String, dynamic>{
+                    'claude_thinking_blocks': thinkingBlocks,
+                  },
+          );
+        }
+        return;
+      }
+
+
       // Build tool_result blocks in a single user message (parallel-safe)
       final toolResultsBlocks = <Map<String, dynamic>>[];
       for (final entry in _anthToolUse.entries) {
@@ -6853,6 +7061,7 @@ class ChatApiService {
     int? maxTokens,
     List<Map<String, dynamic>>? tools,
     Future<String> Function(String, Map<String, dynamic>)? onToolCall,
+    bool exposeToolCallsOnly = false,
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     bool stream = true,
@@ -6917,9 +7126,24 @@ class ChatApiService {
           if (text.trim().isNotEmpty && text.trim() != '\n\n') {
             parts.add({'text': text});
           }
+          final thoughtSigs = msg['gemini_thought_sigs'];
           for (final tc in toolCalls.whereType<Map>()) {
             final part = _googleFunctionCallPartFromToolCall(tc);
-            if (part != null) parts.add(part);
+            if (part != null) {
+              // P0-3: re-attach the per-call thought signature carried via
+              // `assistantExtras`, matching the legacy loop's
+              // `part[thoughtSigKey] = thoughtSigVal`.
+              final callId = (tc['id'] ?? '').toString();
+              if (thoughtSigs is Map && thoughtSigs[callId] is Map) {
+                final sig =
+                    (thoughtSigs[callId] as Map).cast<String, dynamic>();
+                final key = (sig['key'] ?? '').toString();
+                if (key.isNotEmpty && sig.containsKey('value')) {
+                  part[key] = sig['value'];
+                }
+              }
+              parts.add(part);
+            }
           }
           if (_persistGeminiThoughtSigs) {
             _ensureGeminiFunctionCallThoughtSig(parts);
@@ -7160,20 +7384,53 @@ class ChatApiService {
           (e) => (e is Map) && e.containsKey('functionCall'),
           orElse: () => null,
         );
-        if (fc is Map && fc['functionCall'] is Map && onToolCall != null) {
+        if (fc is Map &&
+            fc['functionCall'] is Map &&
+            (onToolCall != null || exposeToolCallsOnly)) {
           final call = (fc['functionCall'] as Map).cast<String, dynamic>();
           final name = (call['name'] ?? '').toString();
           final args =
               (call['args'] as Map?)?.cast<String, dynamic>() ??
               const <String, dynamic>{};
+          // Prefer the API-provided functionCall id (the legacy loop keeps
+          // the raw response `parts` verbatim, so the kernel path must match
+          // the vendor id to keep the follow-up byte-identical).
+          final vendorCallId = (call['id'] ?? '').toString().trim();
+          final callId = vendorCallId.isNotEmpty ? vendorCallId : 'fn_0';
+          // Capture the raw part's thought signature (Gemini 3): the legacy
+          // follow-up preserves the response `parts` verbatim, so the kernel
+          // path must carry the same sig via `assistantExtras`.
+          String? sigKey;
+          dynamic sigVal;
+          if (fc.containsKey('thoughtSignature')) {
+            sigKey = 'thoughtSignature';
+            sigVal = fc['thoughtSignature'];
+          } else if (fc.containsKey('thought_signature')) {
+            sigKey = 'thought_signature';
+            sigVal = fc['thought_signature'];
+          }
           yield ChatStreamChunk(
             content: '',
             isDone: false,
             totalTokens: totalUsage?.totalTokens ?? 0,
             usage: totalUsage,
-            toolCalls: [ToolCallInfo(id: 'fn_0', name: name, arguments: args)],
+            toolCalls: [ToolCallInfo(id: callId, name: name, arguments: args)],
+            assistantExtras: sigKey == null
+                ? null
+                : <String, dynamic>{
+                    'gemini_thought_sigs': <String, dynamic>{
+                      callId: <String, dynamic>{
+                        'key': sigKey,
+                        'value': sigVal,
+                      },
+                    },
+                  },
           );
-          final res = await onToolCall(name, args) ?? '';
+          if (exposeToolCallsOnly) {
+            // Single-round expose mode: surface the tool calls and stop.
+            return;
+          }
+          final res = await onToolCall!(name, args) ?? '';
           yield ChatStreamChunk(
             content: '',
             isDone: false,
@@ -7181,7 +7438,7 @@ class ChatApiService {
             usage: totalUsage,
             toolResults: [
               ToolResultInfo(
-                id: 'fn_0',
+                id: callId,
                 name: name,
                 arguments: args,
                 content: res,
@@ -7282,9 +7539,23 @@ class ChatApiService {
         if (text.trim().isNotEmpty && text.trim() != '\n\n') {
           parts.add({'text': text});
         }
+        final thoughtSigs = msg['gemini_thought_sigs'];
         for (final tc in toolCalls.whereType<Map>()) {
           final part = _googleFunctionCallPartFromToolCall(tc);
-          if (part != null) parts.add(part);
+          if (part != null) {
+            // P0-3: re-attach the per-call thought signature carried via
+            // `assistantExtras`, matching the legacy loop's
+            // `part[thoughtSigKey] = thoughtSigVal`.
+            final callId = (tc['id'] ?? '').toString();
+            if (thoughtSigs is Map && thoughtSigs[callId] is Map) {
+              final sig = (thoughtSigs[callId] as Map).cast<String, dynamic>();
+              final key = (sig['key'] ?? '').toString();
+              if (key.isNotEmpty && sig.containsKey('value')) {
+                part[key] = sig['value'];
+              }
+            }
+            parts.add(part);
+          }
         }
         if (parts.isNotEmpty) {
           contents.add({'role': 'model', 'parts': parts});
@@ -7609,6 +7880,10 @@ class ChatApiService {
       // Collect any function calls in this round
       final List<Map<String, dynamic>> calls =
           <Map<String, dynamic>>[]; // {id,name,args,res}
+      // True when expose mode surfaced a tool call: the round must then end
+      // WITHOUT a trailing isDone chunk (the kernel / driver synthesizes the
+      // terminal chunk), matching the other providers' expose contract.
+      bool exposeSurfacedCalls = false;
 
       // Track thought signature across chunks (Gemini 3 requirement)
       String? persistentThoughtSigKey;
@@ -7884,9 +8159,23 @@ class ChatApiService {
                       toolCalls: [
                         ToolCallInfo(id: id, name: name, arguments: args),
                       ],
+                      // P0-3: carry the per-call thought signature (Gemini 3)
+                      // so the kernel can echo it on the follow-up
+                      // functionCall part, matching the legacy loop's
+                      // `part[thoughtSigKey] = thoughtSigVal`.
+                      assistantExtras: thoughtSigKey == null
+                          ? null
+                          : <String, dynamic>{
+                              'gemini_thought_sigs': <String, dynamic>{
+                                id: <String, dynamic>{
+                                  'key': thoughtSigKey,
+                                  'value': thoughtSigVal,
+                                },
+                              },
+                            },
                     );
                     String resText = '';
-                    if (onToolCall != null) {
+                    if (onToolCall != null && !exposeToolCallsOnly) {
                       resText = await onToolCall(name, args) ?? '';
                       yield ChatStreamChunk(
                         content: '',
@@ -7903,14 +8192,21 @@ class ChatApiService {
                         ],
                       );
                     }
-                    calls.add({
-                      'id': id,
-                      'name': name,
-                      'args': args,
-                      'result': resText,
-                      'thoughtSigKey': thoughtSigKey,
-                      'thoughtSigVal': thoughtSigVal,
-                    });
+                    // In expose mode the tool call was already surfaced as a
+                    // chunk above; leave `calls` empty so the round finalizes
+                    // instead of issuing a follow-up request.
+                    if (!exposeToolCallsOnly) {
+                      calls.add({
+                        'id': id,
+                        'name': name,
+                        'args': args,
+                        'result': resText,
+                        'thoughtSigKey': thoughtSigKey,
+                        'thoughtSigVal': thoughtSigVal,
+                      });
+                    } else {
+                      exposeSurfacedCalls = true;
+                    }
                   }
                 }
                 // Capture explicit finish reason if present
@@ -7981,9 +8277,12 @@ class ChatApiService {
                 );
               }
 
-              // If server signaled finish, end stream immediately
+              // If server signaled finish, end stream immediately (unless
+              // expose mode already surfaced tool calls — the kernel owns
+              // the terminal chunk there).
               if (finishReason != null &&
                   calls.isEmpty &&
+                  !exposeSurfacedCalls &&
                   (!_expectImage || _receivedImage)) {
                 // Emit final citations if any not emitted
                 if (_builtinCitations.isNotEmpty) {
@@ -8046,6 +8345,12 @@ class ChatApiService {
       }
 
       if (calls.isEmpty) {
+        if (exposeSurfacedCalls) {
+          // Single-round expose mode: the tool calls were already surfaced
+          // as chunks above; end the round without a terminal chunk (the
+          // kernel / driver synthesizes it) and without looping.
+          return;
+        }
         // No tool calls; this round finished
         if (_persistGeminiThoughtSigs) {
           final metaComment = _buildGeminiThoughtSigComment(
@@ -8945,49 +9250,6 @@ class _GeminiSignatureMeta {
   bool get hasAny => hasText || hasImages;
 }
 
-class ChatStreamChunk {
-  final String content;
-  // Optional reasoning delta (when model supports reasoning)
-  final String? reasoning;
-  final bool isDone;
-  final int totalTokens;
-  final TokenUsage? usage;
-  final List<ToolCallInfo>? toolCalls;
-  final List<ToolResultInfo>? toolResults;
-
-  // --- L1 retry / silent-interrupt recovery metadata ---
-  // These three fields are populated by [sendMessageStream] when it is
-  // about to reissue the same request after a transient or silent failure.
-  // Downstream consumers ([chat_actions] and [chat_turn_service]) route
-  // them to a UI hook so the user sees "正在重試 1/3…" snackbars.
-  final String? errorKind;        // null | 'transient_retry' | 'silent_interrupt_retry'
-  final int? attempt;             // 1-based upcoming attempt number
-  final int? maxAttempts;         // total attempts allowed (1 + retries)
-  final int? nextRetryInMs;       // ms to sleep before the next attempt
-
-  // --- Provider finish metadata ---
-  // Captured at the parser level so the L1 retry loop can detect silent
-  // interruptions (SSE body that closes without [DONE] / `message_stop` /
-  // explicit Gemini `finishReason`). See `stream_interruption.dart`.
-  final String? finishReason;
-  final bool hasUsage;
-
-  ChatStreamChunk({
-    required this.content,
-    this.reasoning,
-    required this.isDone,
-    required this.totalTokens,
-    this.usage,
-    this.toolCalls,
-    this.toolResults,
-    this.errorKind,
-    this.attempt,
-    this.maxAttempts,
-    this.nextRetryInMs,
-    this.finishReason,
-    this.hasUsage = false,
-  });
-}
 
 /// Mutable flags accumulated during a single LLM stream attempt. Used by
 /// the L1 retry loop in [ChatApiService.sendMessageStream] to detect
@@ -9010,22 +9272,3 @@ class StreamAttemptFlags {
   bool receivedReasoning = false;
 }
 
-class ToolCallInfo {
-  final String id;
-  final String name;
-  final Map<String, dynamic> arguments;
-  ToolCallInfo({required this.id, required this.name, required this.arguments});
-}
-
-class ToolResultInfo {
-  final String id;
-  final String name;
-  final Map<String, dynamic> arguments;
-  final String content;
-  ToolResultInfo({
-    required this.id,
-    required this.name,
-    required this.arguments,
-    required this.content,
-  });
-}

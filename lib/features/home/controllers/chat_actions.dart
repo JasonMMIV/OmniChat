@@ -17,6 +17,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant_regex.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
+import '../services/agent_orchestrator.dart';
 import '../services/message_generation_service.dart';
 import 'chat_controller.dart';
 import 'generation_controller.dart';
@@ -73,6 +74,10 @@ class ChatActions {
   final MessageGenerationService messageGenerationService;
   final BuildContext contextProvider;
 
+  /// P0-2 agent-loop driver (kernel path behind the `agent_loop_v1`
+  /// kill-switch). Stateless per run.
+  final AgentOrchestrator _agentOrchestrator = AgentOrchestrator();
+
   // ============================================================================
   // Callbacks for UI updates (set by HomeViewModel)
   // ============================================================================
@@ -106,7 +111,7 @@ class ChatActions {
     String errorKind,
     String conversationId,
   )?
-      onStreamRetry;
+  onStreamRetry;
 
   /// Called when stream finishes and title may need to be generated.
   void Function(String conversationId)? onMaybeGenerateTitle;
@@ -606,24 +611,50 @@ class ChatActions {
     streamController.markStreamingStarted(state.messageId);
 
     try {
-      final stream = ChatApiService.sendMessageStream(
-        config: ctx.config,
-        modelId: ctx.modelId,
-        messages: ctx.apiMessages,
-        userImagePaths: ctx.userImagePaths,
-        thinkingBudget:
-            assistant?.thinkingBudget ?? ctx.settings.thinkingBudget,
-        temperature: assistant?.temperature,
-        topP: assistant?.topP,
-        maxTokens: assistant?.maxTokens,
-        tools: ctx.toolDefs.isEmpty ? null : ctx.toolDefs,
-        onToolCall: ctx.onToolCall,
-        extraHeaders: ctx.extraHeaders,
-        extraBody: ctx.extraBody,
-        stream: ctx.streamOutput,
-        requestId: conversationId,
-        imageAspectRatio: ctx.settings.imageAspectRatio,
-      );
+      // P0-2 kill-switch: `agent_loop_v1` (default true) routes generation
+      // through the agent-loop kernel driver; `false` (or providers without
+      // kernel-path parity yet) keeps the legacy transport-level loop.
+      final useAgentLoop =
+          ctx.settings.agentLoopV1 &&
+          AgentOrchestrator.supportsKernelPath(ctx.config) &&
+          ctx.onToolCall != null;
+      final stream = useAgentLoop
+          ? _agentOrchestrator.run(
+              config: ctx.config,
+              modelId: ctx.modelId,
+              messages: ctx.apiMessages,
+              userImagePaths: ctx.userImagePaths,
+              thinkingBudget:
+                  assistant?.thinkingBudget ?? ctx.settings.thinkingBudget,
+              temperature: assistant?.temperature,
+              topP: assistant?.topP,
+              maxTokens: assistant?.maxTokens,
+              tools: ctx.toolDefs.isEmpty ? null : ctx.toolDefs,
+              onToolCall: ctx.onToolCall,
+              extraHeaders: ctx.extraHeaders,
+              extraBody: ctx.extraBody,
+              streamOutput: ctx.streamOutput,
+              requestId: conversationId,
+              imageAspectRatio: ctx.settings.imageAspectRatio,
+            )
+          : ChatApiService.sendMessageStream(
+              config: ctx.config,
+              modelId: ctx.modelId,
+              messages: ctx.apiMessages,
+              userImagePaths: ctx.userImagePaths,
+              thinkingBudget:
+                  assistant?.thinkingBudget ?? ctx.settings.thinkingBudget,
+              temperature: assistant?.temperature,
+              topP: assistant?.topP,
+              maxTokens: assistant?.maxTokens,
+              tools: ctx.toolDefs.isEmpty ? null : ctx.toolDefs,
+              onToolCall: ctx.onToolCall,
+              extraHeaders: ctx.extraHeaders,
+              extraBody: ctx.extraBody,
+              stream: ctx.streamOutput,
+              requestId: conversationId,
+              imageAspectRatio: ctx.settings.imageAspectRatio,
+            );
 
       await _conversationStreams[conversationId]?.cancel();
       late final StreamSubscription<ChatStreamChunk> sub;
@@ -1340,11 +1371,7 @@ class ChatActions {
     streamController.cancelThrottleTimer(messageId);
     // Push the empty state to the UI immediately so the bubble clears
     // before the new attempt's chunks start arriving.
-    streamController.streamingContentNotifier.updateContent(
-      messageId,
-      '',
-      0,
-    );
+    streamController.streamingContentNotifier.updateContent(messageId, '', 0);
   }
 
   /// Handle reasoning chunk from stream.

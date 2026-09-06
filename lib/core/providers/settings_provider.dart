@@ -91,6 +91,13 @@ class SettingsProvider extends ChangeNotifier {
   static const String _displayShowThinkingCardsKey =
       'display_show_thinking_cards_v1';
   static const String _displayShowToolCardsKey = 'display_show_tool_cards_v1';
+
+  /// Kill-switch for the agent-loop v1 kernel path (IMPORT_PLAN_COWORK.md
+  /// P0-2). Default `true` = the new kernel loop drives generation;
+  /// `false` = the legacy transport-level multi-round loop. During the
+  /// strangler migration both paths coexist; the legacy path is removed
+  /// after one soak release.
+  static const String _agentLoopV1Key = 'agent_loop_v1';
   static const String _displayAutoCollapseThinkingKey =
       'display_auto_collapse_thinking_v1';
   static const String _displayReplayToolResultsKey =
@@ -295,14 +302,15 @@ class SettingsProvider extends ChangeNotifier {
   String get liveApiApiKey => _liveApiApiKey;
   String get liveApiModel => _liveApiModel;
   String get liveApiVoice => _liveApiVoice;
+
   /// Live API 是否已完成設定（金鑰非空）。空金鑰時 Live API 入口置灰。
   bool get liveApiConfigured =>
       _liveApiApiKey.trim().isNotEmpty && _liveApiModel.trim().isNotEmpty;
+
   /// 空 Base URL 回退官方預設（`wss://generativelanguage.googleapis.com/ws/...`）。
-  String get resolvedLiveApiBaseUrl =>
-      _liveApiBaseUrl.trim().isEmpty
-          ? VoiceCallDefaults.officialBaseUrl
-          : _liveApiBaseUrl.trim();
+  String get resolvedLiveApiBaseUrl => _liveApiBaseUrl.trim().isEmpty
+      ? VoiceCallDefaults.officialBaseUrl
+      : _liveApiBaseUrl.trim();
 
   List<String> _providersOrder = const [];
   List<String> get providersOrder => _providersOrder;
@@ -424,7 +432,7 @@ class SettingsProvider extends ChangeNotifier {
   final LiveApiKeyStore _liveApiKeyStore;
 
   SettingsProvider({LiveApiKeyStore? liveApiKeyStore})
-      : _liveApiKeyStore = liveApiKeyStore ?? LiveApiKeyStore() {
+    : _liveApiKeyStore = liveApiKeyStore ?? LiveApiKeyStore() {
     _load();
   }
 
@@ -648,13 +656,12 @@ class SettingsProvider extends ChangeNotifier {
         prefs.getBool(_displayShowUserNameTimestampKey) ?? true;
     _showUserMessageActions =
         prefs.getBool(_displayShowUserMessageActionsKey) ?? true;
-    _showThinkingCards =
-        prefs.getBool(_displayShowThinkingCardsKey) ?? true;
+    _showThinkingCards = prefs.getBool(_displayShowThinkingCardsKey) ?? true;
     _showToolCards = prefs.getBool(_displayShowToolCardsKey) ?? true;
+    _agentLoopV1 = prefs.getBool(_agentLoopV1Key) ?? true;
     _autoCollapseThinking =
         prefs.getBool(_displayAutoCollapseThinkingKey) ?? true;
-    _replayToolResults =
-        prefs.getBool(_displayReplayToolResultsKey) ?? true;
+    _replayToolResults = prefs.getBool(_displayReplayToolResultsKey) ?? true;
     _showMessageNavButtons = prefs.getBool(_displayShowMessageNavKey) ?? true;
     _showProviderInModelCapsule =
         prefs.getBool(_displayShowProviderInModelCapsuleKey) ?? true;
@@ -898,7 +905,10 @@ class SettingsProvider extends ChangeNotifier {
         jsonEncode(_searchServices.map((e) => e.toJson()).toList()),
       );
       await prefs.setInt(_searchSelectedKey, _searchServiceSelected);
-      await prefs.setString(_academicConfigKey, jsonEncode(_academicConfig.toJson()));
+      await prefs.setString(
+        _academicConfigKey,
+        jsonEncode(_academicConfig.toJson()),
+      );
     }
 
     // load global proxy
@@ -932,7 +942,8 @@ class SettingsProvider extends ChangeNotifier {
       _ttsServiceSelected = _ttsServices.isEmpty ? -1 : 0;
       await prefs.setInt(_ttsSelectedKey, _ttsServiceSelected);
     }
-    _ttsAutoPlayAssistantReplies = prefs.getBool(_ttsAutoPlayRepliesKey) ?? false;
+    _ttsAutoPlayAssistantReplies =
+        prefs.getBool(_ttsAutoPlayRepliesKey) ?? false;
     _ttsTextSelectionMode = TtsTextSelectionModeStorage.fromStorageValue(
       prefs.getString(_ttsTextSelectionModeKey),
     );
@@ -1194,7 +1205,9 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<void> setSttSystemLocaleId(String? localeId) async {
-    final next = (localeId == null || localeId.trim().isEmpty) ? null : localeId.trim();
+    final next = (localeId == null || localeId.trim().isEmpty)
+        ? null
+        : localeId.trim();
     if (_sttSystemLocaleId == next) return;
     _sttSystemLocaleId = next;
     notifyListeners();
@@ -2808,6 +2821,18 @@ Synthesize your reasoning and research into a final response. The structure shou
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_displayReplayToolResultsKey, v);
   }
+
+  // Kernel: agent-loop v1 kill-switch (default on; false = legacy loop)
+  bool _agentLoopV1 = true;
+  bool get agentLoopV1 => _agentLoopV1;
+  Future<void> setAgentLoopV1(bool v) async {
+    if (_agentLoopV1 == v) return;
+    _agentLoopV1 = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_agentLoopV1Key, v);
+  }
+
   Future<void> setAutoCollapseThinking(bool v) async {
     if (_autoCollapseThinking == v) return;
     _autoCollapseThinking = v;
@@ -3312,10 +3337,7 @@ Synthesize your reasoning and research into a final response. The structure shou
     _academicConfig = config;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _academicConfigKey,
-      jsonEncode(config.toJson()),
-    );
+    await prefs.setString(_academicConfigKey, jsonEncode(config.toJson()));
   }
 
   // Combined update for settings
@@ -3387,6 +3409,7 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._showToolCards = _showToolCards;
     copy._autoCollapseThinking = _autoCollapseThinking;
     copy._replayToolResults = _replayToolResults;
+    copy._agentLoopV1 = _agentLoopV1;
     copy._showMessageNavButtons = _showMessageNavButtons;
     copy._showProviderInModelCapsule = _showProviderInModelCapsule;
     copy._hapticsOnGenerate = _hapticsOnGenerate;
@@ -3483,12 +3506,8 @@ class AcademicMcpConfig {
       other.semanticScholarApiKey == semanticScholarApiKey;
 
   @override
-  int get hashCode => Object.hash(
-    pubmedApiKey,
-    pubmedTool,
-    pubmedEmail,
-    semanticScholarApiKey,
-  );
+  int get hashCode =>
+      Object.hash(pubmedApiKey, pubmedTool, pubmedEmail, semanticScholarApiKey);
 }
 
 class _ProxyHttpOverrides extends HttpOverrides {
@@ -3699,9 +3718,7 @@ class ProviderConfig {
     location: location ?? this.location,
     projectId: projectId ?? this.projectId,
     serviceAccountJson: serviceAccountJson ?? this.serviceAccountJson,
-    models: models != null
-        ? uniqueModels(models)
-        : uniqueModels(this.models),
+    models: models != null ? uniqueModels(models) : uniqueModels(this.models),
     modelOverrides: modelOverrides ?? this.modelOverrides,
     proxyEnabled: proxyEnabled ?? this.proxyEnabled,
     proxyHost: proxyHost ?? this.proxyHost,
