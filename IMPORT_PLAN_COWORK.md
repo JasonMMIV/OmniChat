@@ -1,6 +1,7 @@
 # 導入計畫：OmniChat Cowork 轉型總計畫（Agent Runtime + 工作區協作）
 
-> **版本**：v1.1（2026-09-04）
+> **版本**：v1.2（2026-09-06）
+> **v1.2 變更**：吸收《OmniChat CLI 工具整合計畫 — Windows + Android (proot) v4》（2026-08-05，下稱 CLI v4）的執行工程契約——① P1-6 補 process 執行契約（`Process.start`＋collectors-first drain、Job Object FFI tree-kill、cp950 編碼、環境/secret 政策、readiness 四態）並新增 ADR-A9 記錄政策取捨；② P1-1 補 ask 逾時、永久允許 override、審批快照、AI Team slot 繼承；③ P1-4 補「單一截斷路徑」原則；④ P1-5 補 FileRecord 界限；⑤ P1-7 補 shell 測試矩陣；⑥ P2-5 改以 CLI v4 §七為藍圖；⑦ 附A/附B/風險表同步
 > **v1.1 變更**：① P1-6 `shell_run` 自「一律審批」改為「allowlist 內免審批」；② P1-3 依使用者指示對照上游 kelivo `ask_user_input_v0`，補評估與採納清單（見 P1-3 評估表）
 > **性質**：跨多版本的路線圖 + 實作計畫。**各 Phase 開工前應再出一份該 Phase 的細部執行計畫**（比照 `IMPORT_PLAN_CROSS_TURN_TOOL_RESULTS.md` 的粒度：逐檔案、逐測試）。
 > **調查基礎**（2026-09-02 實際 clone / 讀碼）：
@@ -9,6 +10,7 @@
 > - **RikkaHub** @ `08c2648`（`GenerationHandler.kt` agent loop）
 > - **AnyBuff**（本機 `C:\Users\w2bn1\Documents\GitHub\AnyBuff`；OmniChat §3.10 串流容錯層的移植來源）
 > - **deepseek-harness**（github.com/deepseek-ai/deepseek-harness）
+> - **OmniChat CLI 工具整合計畫 — Windows + Android (proot) v4**（本機 repo 根目錄，2026-08-05；v1.2 起為 P1-6 執行契約與 P2-5 的藍圖來源）
 
 ---
 
@@ -94,6 +96,7 @@
 | ADR-A6 | **壓縮 = 確定性機械優先，LLM 摘要其後** | 零 LLM 成本、可重放、無散文失真（AnyBuff 論證）；組裝期投影（assembly-time projection）**不改寫 Hive 歷史**——OmniChat 的歷史是可編輯/重生成的資產，壓縮必須非破壞性 |
 | ADR-A7 | **Checkpoint = durable-before-dispatch（Hive 版）** | 模型請求前綴未落地，不得發下一動作；三邊界（round 前、工具結果落地後、step 完成後）。§3.10「不做 L3 整輪恢復」的 ADR 隨此**翻案**為「L3 = agent run 恢復」 |
 | ADR-A8 | **政策分級：沙盒模式 vs 桌面開發者模式** | FileToolService 危險副檔名黑名單與 512KB/24KB 上限**維持為預設**（商店合規敘事不變）；桌面開發者模式（opt-in）才放寬：允許工作區內腳本、提高寫入上限、啟用 allowlist shell。**allowlist 內 `shell_run` 免審批**（2026-09-04 決策：dev-mode opt-in＋allowlist 比對即使用者明示同意閘，偏離 RikkaHub「一律 needsApproval」政策） |
+| ADR-A9 | **Shell 授權模型：allowlist 為唯一同意閘；CLI v4 機制元素以 pause/resume 語意吸收** | CLI v4 的 per-tool `ask/allow/deny`＋blocking 確認框**不採**（與 ADR-A8 的 2026-09-04 allowlist 決策衝突）；採其機制元素——ask 逾時→approval-required error、per-tool「永遠允許」override 持久化、審批政策 generation 快照（進行中不變）、AI Team slot 同快照——全部以 ADR-A5 暫停/resume 語意表述。CLI v4 成文於 agent kernel 之前，其檔案清單僅作 contract 層參考，不照搬 |
 
 ---
 
@@ -194,6 +197,7 @@ for (step in 0..maxSteps):
 
 - **資料**：tool event record 增加 `approvalState`（`tool_events_v1` 為版本化 box，加欄位安全）；狀態機 `Auto → Pending → Approved/Denied/Answered`
 - **政策**：`ToolHandlerService.buildToolDefinitions` 加 per-tool `needsApproval` 回呼——檔案工具（沙盒內）免審、路徑出界升級審批、`shell_run` **免審批**（allowlist 內；allowlist 外直接拒絕、不彈審批，見 P1-6）
+- **審批機制細節（CLI v4 §三.3/§四.2，以 ADR-A5 語意表述）**：Pending 卡逾時（建議 5 分鐘）→ 回傳 approval-required 錯誤 JSON、**不執行工具**；卡片提供「永遠允許此工具」→ 寫入 per-tool override 持久化（與 allowlist 同一儲存）；審批政策於 generation 準備時**一次快照**，generation 進行中 UI 變更不影響已建立的 handler；AI Team slot（proposer/critic/aggregator）繼承同一快照，serial 執行保證不會同時彈出多個 Pending 卡
 - **Driver**：遇 `needsApproval` → 標記 Pending → 持久化 → **break**（ADR-A5 語意）；使用者批准/拒絕/答覆 → `resumeRun` 從斷點續跑
 - **UI**：工具卡片加審批列（Approve / Deny / 自由文字 Answer；Answer 卡即 `ask_user` 問答卡，見 P1-3 評估）；`file_edit` 未執行時以 `old_text`/`new_text` 參數生成**預覽 diff**，執行後由 metadata 帶**全檔 diff**（RikkaHub `WorkspaceToolUIs.diffOf` 模式）——diff 渲染可先以 unified diff 文字塊呈現，Phase 3 再升級專屬 viewer
 - **l10n** ×4 語系 + `flutter gen-l10n`
@@ -236,29 +240,44 @@ for (step in 0..maxSteps):
 ### P1-4 長輸出外部化（抄 RikkaHub `maybeTruncateToolOutput`）
 
 - 超過 32KB 的工具輸出 → 寫入 workspace `.omnichat/tool_outputs/{toolCallId}.txt` → 回傳 4KB preview + 明確取回指引：「完整輸出於 `X`，用 `file_read` 讀取 / 搜尋關鍵字」
+- **「單一截斷路徑」原則（CLI v4 §五.3）**：外部化是唯一截斷機制——避免與 `_truncateToolResultsInMessages` 的 32KB 歷史截斷疊加成「雙重截斷」；`shell_run` 等高機率超限工具（build log 等）**優先接入**本機制，CLI v4 的 24KB stdout / 6KB stderr cap 僅作外部化前的 fallback；序列化回傳總長 ≤32,768 字元
 - 位置：`ToolHandlerService` 的執行包裝層；**不依賴 Phase 0，可先行**
 
 ### P1-5 工作區快照 + 一鍵回滾（自建）
 
 - **快照**：agent run 啟動時（workspace 啟用）以 `archive`（既有依賴，備份管線已用）對工作區做 zip 快照至 `.omnichat/snapshots/{runId}.zip`；保留最近 5 份 + 總量守衛（防 workspace 巨大時暴衝，沿用 §5.4 記憶體教義：串流寫入）
 - **回滾**：對話頁「本次任務改動 N 檔案 → 還原」入口 + run 結束卡片上的還原鈕；還原 = 快照覆寫 + FileRecord 卡片標記
+- **FileRecord 界限（CLI v4 §九.2）**：shell 產生的檔案不自動建立 FileRecord → 「本次任務改動 N 檔案」清單對 shell mutation **不完整**；zip 快照是 shell 改動的唯一完整回滾保障（卡片與還原文案需據此表述）
 - **同步**：快照屬裝置本地 → 加入 `_localOnlyKeys` 排除集合（§5.7 審查）
 
 ### P1-6 桌面開發者模式 + Allowlist Shell
 
+> **藍圖**：《CLI 工具整合計畫 v4》§三~§六、§八（2026-08-05）。其 per-tool `ask/allow/deny`＋blocking 確認框**不採**（ADR-A9）；**執行工程契約逐項採納**如下。命名維持 `shell_run`；CLI v4 的 `shell_exec`/`shell_script`/`shell_job_*` 命名待未來引入 background/job 工具時再統一。
+
 - **設定**：`developer_mode_v1`（桌面限定、預設 `false`）+ allowlist（預設 `git, node, npm, npx, python, pip, pandoc, ffmpeg`，可增刪）
-- **新工具 `shell_run`**：`Process.run` 於 workspace cwd；**免審批（2026-09-04 決策）**——allowlist 精確比對（第一個 token）是唯一閘門：dev-mode opt-in＋allowlist 成員身分即使用者明示同意，逐次審批只會打斷高頻 shell 工作流；**allowlist 外不彈審批、直接回傳錯誤**。硬逾時看門狗；輸出 32KB head/tail + stdout/stderr 分流；環境變數最小化
+- **新工具 `shell_run`**：workspace cwd；**免審批（2026-09-04 決策）**——allowlist 精確比對（第一個 token）是唯一閘門：dev-mode opt-in＋allowlist 成員身分即使用者明示同意，逐次審批只會打斷高頻 shell 工作流；**allowlist 外不彈審批、直接回傳錯誤**
+- **Process 執行契約（CLI v4 §五.1/§五.2；修正本計畫原 `Process.run` 草案）**：
+  - 一律 `Process.start()`，**禁止 `Process.run().timeout()`**——pipes 未讀 → 大輸出 pipe deadlock；Future timeout 不殺子程序
+  - process 啟動後**立即**建立 stdout/stderr collectors 並持續 drain；超過 cap 後仍讀取並丟棄（防 pipe deadlock）、設 `truncated=true`
+  - timeout / cancel / app 結束必須**終止整個 process tree**：Windows Job Object（純 Dart FFI，`win32`+`ffi` 直接相依；`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`＋`AssignProcessToJobObject`＋`TerminateJobObject`），`taskkill /T` 僅作 fallback——`Process.kill()` 對 `cmd.exe` 子樹無效
+  - `CliProcessSupervisor` 統一生命週期：`start / awaitResult / cancel / collectOutput / cleanup`（形狀對齊 kernel 可測性哲學）
+  - foreground 併發：每 generation 1 個（FIFO，沿用 `_withFetchQueue()` 慣例）
+- **Windows 編碼與引導模板（CLI v4 §五.5/§六.1）**：cmd 前綴 `chcp 65001 >nul &`＋`cmd.exe /d /s /c`；PowerShell 前綴 `[Console]::OutputEncoding=UTF8`＋`-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass`；Dart 端 UTF-8 `allowMalformed: true` 解碼。zh-TW 系統 console 預設 cp950——不做此事 agent 會讀到亂碼並可能誤判重試循環
+- **環境與 secret 政策（CLI v4 §五.4/§八.4）**：`includeParentEnvironment: false` + allowlist（`SystemRoot`/`ComSpec`/`TEMP`/`PATH` 等必要項）；stdout/stderr 可能含秘密 → tool event cap＋敏感值遮蔽；log 不保存完整 command 與完整輸出
+- **輸出預算**：接 P1-4 長輸出外部化（shell 超限輸出是常態而非例外，build log 為典型）；24KB stdout / 6KB stderr cap 為外部化前 fallback；序列化總長 ≤32,768 字元
+- **Readiness 四態（CLI v4 §三.2）**：`disabled / installing / ready / broken`＋availability 閘（function calling ∧ workspace ∧ shell enabled ∧ **allowlist 成員實際存在於 PATH 的 probe**）；UI 顯示狀態與可理解錯誤
+- **ShellConfig 快照**：generation 準備時一次捕獲（cwd、dialect、allowlist、審批政策）；generation 進行中 UI 變更不修改已建立 handler（與 File Tools 同一份 snapshot）
 - **§5.1 教義延伸**：外部程序一律串行（與 `npm install` 等長命令互斥）、輸出截斷、never-parallel 守衛
 - **政策分級**（ADR-A8）：開發者模式內允許在工作區建 `.sh/.ps1` 等腳本檔（黑名單例外僅桌面+opt-in），執行時把直譯器（`bash`、`python` 等）加入 allowlist 即可用 `shell_run` 執行；Android 維持全黑名單、不提供 `shell_run`
-- **合規**：更新 `STORE_REVIEW_PLAN.md`——MSIX/WACK 重跑（shell 能力敘述）、F-Droid metadata（Android 不受影響，敘事簡單）
+- **合規**：更新 `STORE_REVIEW_PLAN.md`——MSIX/WACK 重跑（shell 能力敘述）、F-Droid metadata（Android 不受影響，敘事簡單；CLI v4 §十五的 F-Droid/PRoot 義務**僅於 P2-5 落地時適用**，屆時先對照發行計畫現況）
 
 ### P1-7 測試（Phase 1 驗收）
 
 - L0/L1 壓壓縮：參考實作移植的 **parity 測試**（固定歷史 → 期望摘要快照）；**配對安全性質測試**（隨機產生含工具呼叫歷史 → 斷言所有切點 balanced）；觸發條件（usage 閾值 / cache_expiry）單元測試
-- 審批：斷點續跑（Pending → resume → 迴圈從正確步繼續）、Denied → error JSON 進 body、五態 UI 快照測試
+- 審批：斷點續跑（Pending → resume → 迴圈從正確步繼續）、**Pending 逾時 → approval-required error JSON、不執行工具**（CLI v4 §三.3）、「永遠允許」override 持久化、Denied → error JSON 進 body、五態 UI 快照測試
 - todo/ask_user：整表寫入冪等、注入位置穩定（cache 前綴不變）、**log-only 排除（不進 §3.11 重放）**、作答 JSON/取消語意/事後補答 resume（移植 kelivo `ask_user_interaction_service_test.dart`）
 - 快照：建立/回滾/上限輪替；`.omnichat/` 排除於備份
-- shell：allowlist 精確比對（成員直接執行；非成員**即時拒絕且不觸發審批 UI**）、逾時殺進程、輸出截斷、dev-mode 關閉時工具不注入/呼叫被拒
+- shell：allowlist 精確比對（成員直接執行；非成員**即時拒絕且不觸發審批 UI**）、dev-mode 關閉時工具不注入/呼叫被拒；**process 契約（CLI v4 §十三.1 移植）**：collectors 先於 wait 建立、超 cap 持續 drain、timeout 終止整個 process tree（Job Object）、cancellation 不被吞且子程序與 collectors 皆回收、parent environment 不完整繼承、tool exception 不中斷 stream（error JSON 透傳）、cwd 限縮 workspace 內、CJK/cp950 編碼、foreground FIFO 排隊、secret 遮蔽；AI Team slot 繼承 shell tools（deny/非成員回傳 result 不中斷流程）
 - 全域：`flutter analyze --no-pub` 0 errors；既有回歸 + 新測試全綠
 
 ---
@@ -273,7 +292,7 @@ for (step in 0..maxSteps):
 | P2-2 | **背景長任務** | 桌面：關窗縮托盤續跑（`desktop_tray_controller` 現成）+ 完成托盤通知；Android：`AndroidBackgroundManager` 前景服務（現成）+ 通知 | 既有基建 + P2-1 |
 | P2-3 | **子代理** | 泛化 AI Team 串行調度（ADR 延續 §5.1）：`spawn_subagent` 工具——子代理全新 context、角色 prompt、回傳摘要；主對話不收原始工具軌跡。候選用途：檔案批量摘要、平行翻譯、research fan-out | AnyBuff `agents/`（file-picker/researcher/thinker 等 template 模式）+ `AiTeamController` |
 | P2-4 | **Mini dev server + Live 預覽** | 127.0.0.1 隨機埠靜態伺服 workspace；`html_preview_dialog` 升級為分頁面板；檔案變更自動重整（watch + 注入 reload bridge）；console 捕獲（注入 bridge）→ 工具 `get_console_errors` | 既有 `html_preview_*` + 新 `dev_server_service.dart` |
-| P2-5 | **Proot on Android**（stretch） | rootfs 下載/安裝/patch + `ProotShellRunner` → 手機端 `shell_run`；先做可行性評估（rootfs 體積、F-Droid 政策、效能）再決定 | RikkaHub `workspace/` 模組 |
+| P2-5 | **Proot on Android**（stretch） | **《CLI 工具整合計畫 v4》§七即為可行性結論與實作藍圖**（2026-08-05 已完成設計）：jniLibs `.so` 打包（API 29+ assets 壓縮無 exec 權限）、五階段 rootfs pipeline（download/stage/validate/activate/cleanup＋lock＋atomic rename＋hash pinning、不接受 LLM 指定 URL）、rootfs patcher（DNS/hosts/`LANG=C.UTF-8`/tmp/groups）、FUSE noexec 限制、`MANAGE_EXTERNAL_STORAGE` 策略、phantom process/OEM 風險、前景單次 `shell_exec` 契約；**`WorkspaceMountTable` 為單一事實來源**——host↔guest `/workspace` 映射會波及 File Tools（非僅 shell）；F-Droid 條款（PRoot GPL source offer）見 CLI v4 §十五 | CLI v4 §七/§十五 + RikkaHub `workspace/` 模組 |
 | P2-6 | **L2/L3 壓縮** | L2：LLM 摘要壓縮（deepseek `compaction-basic`，用 `generateText` 既有方法）供 L1 機械摘要不足時；L3：**工作區檔案地圖**——組裝期注入 workspace 樹 + per-file 一行描述（來自 FileRecord/mtime），模型需詳情再 `file_read` 指定範圍 | deepseek `compaction-basic` + AnyBuff `truncate-file-tree` 概念 |
 | P2-7 | **（可選）kelivo 資料模型對齊** | `message.parts` 遷移 + sealed StreamChunk 事件模型 + trace 錄製回放測試——**僅在需要持續吸收上游 decoder 修補時才做**，否則維持 `tool_events_v1` 投影 | kelivo `a43b79f` + `docs/ai-stream.md` |
 
@@ -298,7 +317,7 @@ for (step in 0..maxSteps):
 | **Reasoning echo 回歸**（P0 最大風險）：中立格式 follow-up 若丟失 `reasoning_content`/`reasoning_details`/Gemini thought sig，DeepSeek/Kimi/OpenRouter 多輪工具會降智或報錯 | kernel 中立訊息擴充可選承載欄位 + body 逐位元組對照測試鎖死（kelivo `0f44150`「fix(deepseek): echo reasoning for tool continuations」為前車之鑑） |
 | **壓縮 × prompt cache 互咬**：每輪壓一點 = cache 永遠冷 | `cache_expiry` 觸發 + 成批壓縮 + 注入位置穩定；L1 摘要放系統區尾、todo 注入固定槽位 |
 | **兩把 token 尺**：預算用 `chars/3`、閾值用 usage 實測——混用會誤判 | 觸發一律以 usage 實測為準；chars 估算僅作 L1 內部預算；下限 floor 取保守值 |
-| **Windows 穩定性（§5.1）**：外部程序是新的記憶體/並發風險源 | shell 串行、輸出截斷、看門狗；§5 手冊補一節「外部程序治理」 |
+| **Windows 穩定性（§5.1）**：外部程序是新的記憶體/並發風險源（pipe deadlock、孤兒子程序樹、cp950 亂碼） | shell 串行、collectors-first drain、Job Object tree-kill、環境 allowlist、secret 遮蔽（CLI v4 §五/§六）；§5 手冊補一節「外部程序治理」（附B 條目已擴充） |
 | **商店合規**：shell/腳本能力改變 MSIX/F-Droid 審查敘事 | ADR-A8 政策分級：預設路徑能力不變（黑名單照舊）；`STORE_REVIEW_PLAN.md` 隨 P1-6 更新；WACK 重跑 |
 | **同步（§5.7）**：新鍵值分類 | `developer_mode_v1`、shell allowlist、審批政策 = 全域偏好（同步）；快照、agent_runs、tool_outputs = 裝置本地（排除）；todo 隨對話資料 |
 | **Dart `async*`**：`yield*` 於 try/catch 的例外穿透限制 | kernel/driver 一律 `await for` + `yield`；手冊 §3.10 守則標注適用範圍擴及 `agent/` |
@@ -328,8 +347,9 @@ flutter test                    # 新增測試 + 既有回歸（重點清單見�
 | **RikkaHub** `08c2648`（`/tmp/rikkahub`） | `app/.../data/ai/GenerationHandler.kt`（598 行）；`ai/core/Tool.kt`（`needsApproval`）；`app/.../tools/WorkspaceTools.kt`；`ui/.../WorkspaceToolUIs.kt`（`diffOf`）；`ai/ui/Message.kt`（`limitContext` hysteresis、`alignContextStart`）；`workspace/`（Proot） | P0 driver 語意（maxSteps/審批=暫停/resume/單步 retry 快照重合併）、P1-1 審批五態+diff、P1-4 長輸出外部化、P2-5 Proot |
 | **AnyBuff**（本機） | `packages/agent-runtime/src/compact-history.ts`（機械壓縮 + cache_expiry + 預算）；`tools/handlers/tool/proposed-content-store.ts`（提案→審批→套用）；`write-todos.ts`；`agents/`（子代理 template）；`sdk/src/impl/llm.ts`（§3.10 移植源） | P1-2 L1 壓縮、P1-1 提案式審批補充、P1-3 工具介面、P2-3 子代理 |
 | **deepseek-harness**（`/tmp/deepseek-harness`） | `packages/compaction/compaction/src/{tool-pairing,checkpoint,index}.ts`；`compaction-tool-result-pruner/src/config.ts`（8192/4096/1024）；`session/session-checkpoint-policy/src/index.ts`（durable-before-dispatch）；`session/session-persistence/src/{coordinator,write-behind}.ts`；`todo/tool-todo/src/types.ts`（三態整表模型）；`plan/plan-mode` | P1-2 L0+切點安全+觸發詞彙、P2-1 checkpoint、P1-3 todo 資料模型、P3-5 Plan Mode |
+| **CLI 工具整合計畫 v4**（本機 repo 根目錄，2026-08-05） | §三.3（審批機制元素）、§四.2（generation snapshot）、§五（執行/編碼/環境/secret 規則）、§六（Windows Job Object FFI）、§七（Android PRoot 藍圖）、§九（tool events/backup）、§十三（測試矩陣） | P1-1 審批機制、P1-6 執行契約、P1-7 shell 測試、P2-5 藍圖 |
 
-> 移植須知：RikkaHub 為 Kotlin/Compose——**抄決策與語意，不抄代碼**；kelivo 為 Dart 可近逐行參考但資料模型已分岔（§3.11）；AnyBuff 為 TypeScript——`compact-history.ts` 自帶完整設計註釋與 parity test 模式，價值最高。
+> 移植須知：RikkaHub 為 Kotlin/Compose——**抄決策與語意，不抄代碼**；kelivo 為 Dart 可近逐行參考但資料模型已分岔（§3.11）；AnyBuff 為 TypeScript——`compact-history.ts` 自帶完整設計註釋與 parity test 模式，價值最高；CLI v4 為本專案計畫書——執行工程契約可直接採納，但其 per-tool `ask/allow/deny` 政策已被 ADR-A8/A9 取代，且成文於 agent kernel 之前（檔案清單僅供 contract 層參考）。
 
 ---
 
@@ -339,9 +359,10 @@ flutter test                    # 新增測試 + 既有回歸（重點清單見�
 |---|---|---|
 | §3.10 串流容錯層 | 補記：retry 粒度自「整鏈」改為「單輪」；L1 迴圈範圍重定義；`await for` 守則擴及 `agent/` | Phase 0 |
 | §3.11 跨輪重放 | 補記：L0/L1 壓縮插入點與配對安全（tool-pairing）互動 | Phase 1 |
+| §3.8 資料持久化/Backup | 補記：backup 版本隨新持久化區段升版並保持向後相容（CLI v4 §九.3 的 v3→v4 模式）——todo_v1（P1-3）、agent_runs_v1（P2-1）、shell tool events（P1-6）皆需入備份；restore 不自動 replay shell command | Phase 1 / 2 |
 | 新增 §3.13 Agent Runtime | kernel/driver 分層、maxSteps、審批=暫停、resume、checkpoint | Phase 0/2 |
-| §4 ADR 表 | 新增 ADR-A1~A8（見本文 §2）；翻案「不做 L3 整輪恢復」 | Phase 0 / 2 |
-| §5.1 Windows 穩定性 | 新增子節「外部程序治理」（shell 串行/截斷/看門狗） | Phase 1（P1-6） |
+| §4 ADR 表 | 新增 ADR-A1~A9（見本文 §2）；翻案「不做 L3 整輪恢復」 | Phase 0 / 2 |
+| §5.1 Windows 穩定性 | 新增子節「外部程序治理」——`Process.start`＋collectors 先於 wait、超 cap 持續 drain、Job Object tree-kill（`Process.kill()` 不足）、環境 allowlist（不繼承 parent env）、cp950/`chcp 65001` 編碼、secret 遮蔽（CLI v4 §五） | Phase 1（P1-6） |
 | §5.7 `_localOnlyKeys` | 新鍵值歸類審查（快照/agent_runs 本地；dev mode/審批政策同步） | Phase 1 |
 | §7 現狀與待辦 | 各 Phase 完成後更新 roadmap | 每版本 |
 | `STORE_REVIEW_PLAN.md` | P1-6 合規敘事更新 + WACK 重跑記錄 | Phase 1 |
@@ -357,17 +378,17 @@ flutter test                    # 新增測試 + 既有回歸（重點清單見�
 | P0-3 | `ChatApiService` 單輪化 + kill-switch | kelivo providers 分層 | 🟡 exposeToolCallsOnly 已入且各家 expose 測試 8 案全綠；Claude/Gemini/Responses follow-up echo 已貫通（3 parity 案全綠）；待：舊迴圈移除（kill-switch 後） |
 | P0-4 | reasoning echo 承載 + body 對照測試 | kelivo `0f44150` 教訓 | ✅ 2026-09-04（assistantExtras 貫通＋kernel/legacy 逐位元組 parity 2 案綠） |
 | P0-5 | maxSteps + 軟預算 | RikkaHub + ADR-A4 | 🟡 kernel 內建（maxStepsReached/tokenBudgetReached 事件）；driver 已透傳 options（早停合成 isDone 測試綠）；使用者可見的軟閘 UX 待 Phase 1 |
-| P1-1 | 審批五態 + diff + resume | RikkaHub | ⬜ |
+| P1-1 | 審批五態 + diff + resume | RikkaHub + CLI v4 §三.3（逾時/override/快照） | ⬜ |
 | P1-2 | 壓縮 L0/L1 + 觸發 + 配對安全 | deepseek + AnyBuff | ⬜ |
 | P1-3 | TODO 物件 + 注入 + UI + ask_user 決策卡 | deepseek + kelivo（評估值採納） | ⬜ |
-| P1-4 | 長輸出外部化（**可先行**） | RikkaHub | ⬜ |
+| P1-4 | 長輸出外部化（**可先行**） | RikkaHub + CLI v4 §五.3（單一截斷路徑） | 🟡 2026-09-06 已落地：`lib/core/services/tools/tool_output_externalizer.dart`（純 Dart）＋`ToolHandlerService` file/search/MCP 三分支接線；>32KB → `.omnichat/tool_outputs/{tool}-{name}.txt`、4KB preview＋取回指引（file_read offset/limit、file_search）、retention sweep（20 檔/7 天）、workspace disabled/IO 失敗回退原結果（transport 截斷為後盾）；9 tests 綠。待：P1-1 引入 id-aware handler 契約時改用 toolCallId 命名 |
 | P1-5 | 工作區 zip 快照 + 回滾 | 自建 | ⬜ |
-| P1-6 | 開發者模式 + allowlist shell（allowlist 內免審） | ADR-A8（allowlist 為閘） | ⬜ |
+| P1-6 | 開發者模式 + allowlist shell（allowlist 內免審） | ADR-A8/A9 + CLI v4 §五/§六（process 契約） | ⬜ |
 | P2-1 | Checkpoint 持久化（durable-before-dispatch） | deepseek | ⬜ |
 | P2-2 | 背景長任務 | 既有基建 | ⬜ |
 | P2-3 | 子代理 | AnyBuff agents/ | ⬜ |
 | P2-4 | Dev server + live 預覽 | 既有 html_preview | ⬜ |
-| P2-5 | Proot on Android（stretch） | RikkaHub workspace/ | ⬜ |
+| P2-5 | Proot on Android（stretch） | CLI v4 §七（藍圖已備）+ RikkaHub workspace/ | ⬜ |
 | P2-6 | L2/L3 壓縮（LLM 摘要 + 檔案地圖） | deepseek + AnyBuff | ⬜ |
 | P2-7 | （可選）kelivo parts 資料模型對齊 | kelivo `a43b79f` | ⬜ |
 | P3-1 | 瀏覽器 QA 工具 | MCP + Playwright | ⬜ |
