@@ -12,6 +12,7 @@ import '../../../core/services/search/search_tool_service.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/file/file_tool_service.dart';
 import '../../../core/services/logging/flutter_logger.dart';
+import '../../../core/services/tools/tool_output_externalizer.dart';
 import '../../../core/models/file_record.dart';
 
 /// 工具调用处理服务
@@ -367,7 +368,14 @@ class ToolHandlerService {
               );
             }
           }
-          return result.text;
+          // P1-4 long-output externalization: oversized results are written
+          // to {workspace}/.omnichat/tool_outputs/ and the model gets a
+          // preview + retrieval guidance (single truncation path).
+          return await ToolOutputExternalizer.maybeExternalize(
+            toolName: name,
+            result: result.text,
+            workspacePath: workspacePath,
+          );
         } catch (e, st) {
           // Never let an unexpected file-tool failure break the conversation.
           FlutterLogger.log(
@@ -382,7 +390,11 @@ class ToolHandlerService {
         // Search tool
         if (name == SearchToolService.toolName && settings.searchEnabled) {
           final q = (args['query'] ?? '').toString();
-          return await SearchToolService.executeSearch(q, settings);
+          return await ToolOutputExternalizer.maybeExternalize(
+            toolName: name,
+            result: await SearchToolService.executeSearch(q, settings),
+            workspacePath: workspacePath,
+          );
         }
 
         // Memory tools
@@ -403,7 +415,13 @@ class ToolHandlerService {
           toolName: name,
           arguments: args,
         );
-        return text;
+        // P1-4 long-output externalization (workspace may be null → the
+        // externalizer returns the result unchanged).
+        return await ToolOutputExternalizer.maybeExternalize(
+          toolName: name,
+          result: text,
+          workspacePath: workspacePath,
+        );
       } catch (e) {
         // Catch unexpected exceptions and return error JSON to the LLM.
         // This prevents tool execution failures from terminating the chat flow.
