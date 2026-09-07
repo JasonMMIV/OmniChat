@@ -98,6 +98,12 @@ class SettingsProvider extends ChangeNotifier {
   /// strangler migration both paths coexist; the legacy path is removed
   /// after one soak release.
   static const String _agentLoopV1Key = 'agent_loop_v1';
+
+  /// Kill-switch for P1-2 auto-compaction (L0 tool-result pruning + L1
+  /// mechanical history compaction + the usage trigger). Default `true`.
+  /// R0 (overflow trim-retry) intentionally has NO toggle — it is a
+  /// failure-path-only safety net.
+  static const String _autoCompactionV1Key = 'auto_compaction_v1';
   static const String _displayAutoCollapseThinkingKey =
       'display_auto_collapse_thinking_v1';
   static const String _displayReplayToolResultsKey =
@@ -659,6 +665,7 @@ class SettingsProvider extends ChangeNotifier {
     _showThinkingCards = prefs.getBool(_displayShowThinkingCardsKey) ?? true;
     _showToolCards = prefs.getBool(_displayShowToolCardsKey) ?? true;
     _agentLoopV1 = prefs.getBool(_agentLoopV1Key) ?? true;
+    _autoCompactionV1 = prefs.getBool(_autoCompactionV1Key) ?? true;
     _autoCollapseThinking =
         prefs.getBool(_displayAutoCollapseThinkingKey) ?? true;
     _replayToolResults = prefs.getBool(_displayReplayToolResultsKey) ?? true;
@@ -2833,6 +2840,17 @@ Synthesize your reasoning and research into a final response. The structure shou
     await prefs.setBool(_agentLoopV1Key, v);
   }
 
+  // Behavior: P1-2 auto-compaction kill-switch (default on)
+  bool _autoCompactionV1 = true;
+  bool get autoCompactionV1 => _autoCompactionV1;
+  Future<void> setAutoCompactionV1(bool v) async {
+    if (_autoCompactionV1 == v) return;
+    _autoCompactionV1 = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_autoCompactionV1Key, v);
+  }
+
   Future<void> setAutoCollapseThinking(bool v) async {
     if (_autoCollapseThinking == v) return;
     _autoCollapseThinking = v;
@@ -3410,6 +3428,7 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._autoCollapseThinking = _autoCollapseThinking;
     copy._replayToolResults = _replayToolResults;
     copy._agentLoopV1 = _agentLoopV1;
+    copy._autoCompactionV1 = _autoCompactionV1;
     copy._showMessageNavButtons = _showMessageNavButtons;
     copy._showProviderInModelCapsule = _showProviderInModelCapsule;
     copy._hapticsOnGenerate = _hapticsOnGenerate;

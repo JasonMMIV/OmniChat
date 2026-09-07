@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/services/agent/compaction/compaction_trigger.dart';
+import '../../../core/services/agent/compaction/context_trim.dart';
+import '../../../core/services/api/learned_context_windows.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../utils/assistant_regex.dart';
@@ -78,6 +82,22 @@ class MessageGenerationService {
     return budget >= 1024;
   }
 
+  /// P1-2: rough chars/3 token estimate of a raw message INCLUDING its tool
+  /// events (args + result bodies) — the tail budget in the trigger walk
+  /// must account for what the replayed neutral messages will weigh.
+  int _estimateRawMessageTokens(ChatMessage m) {
+    var chars = m.content.length;
+    try {
+      for (final e in chatService.getToolEvents(m.id)) {
+        try {
+          chars += jsonEncode(e['arguments'] ?? <String, dynamic>{}).length;
+        } catch (_) {}
+        chars += (e['content'] ?? '').toString().length;
+      }
+    } catch (_) {}
+    return (chars / charsPerToken).ceil();
+  }
+
   /// Prepare API messages with all injections applied.
   Future<PreparedGeneration> prepareApiMessagesWithInjections({
     required List<ChatMessage> messages,
@@ -90,12 +110,50 @@ class MessageGenerationService {
     required String providerKey,
     required String modelId,
   }) async {
+    // P1-2 trigger evaluation (assembly-time projection, ADR-A6): if the
+    // measured usage of the last completed assistant turn is over the
+    // model's trigger(W), move the compaction marker so the older history
+    // becomes a deterministic mechanical summary at assembly time.
+    var conversation = currentConversation;
+    if (settings.autoCompactionV1 && conversation != null) {
+      final conv = conversation;
+      int? measured;
+      for (var i = messages.length - 1; i >= 0; i--) {
+        final m = messages[i];
+        if (m.role == 'assistant' && (m.promptTokens ?? 0) > 0) {
+          measured = m.promptTokens;
+          break;
+        }
+      }
+      final learned = await LearnedContextWindows.lookup(
+        providerKey,
+        modelId,
+      );
+      final trigger = evaluateCompactionTrigger(
+        messages: messages,
+        measuredPromptTokens: measured,
+        modelId: modelId,
+        learnedWindowTokens: learned,
+        estimateMessageTokens: _estimateRawMessageTokens,
+        hasToolEvents: (m) => chatService.getToolEvents(m.id).isNotEmpty,
+      );
+      if (trigger.overTrigger &&
+          trigger.boundaryIndex > conv.compactBeforeIndex) {
+        await chatService.setCompactBeforeIndex(
+          conv.id,
+          trigger.boundaryIndex,
+        );
+        conversation = conv.copyWith(compactBeforeIndex: trigger.boundaryIndex);
+      }
+    }
+
     // Build API messages
     final apiMessages = messageBuilderService.buildApiMessages(
       messages: messages,
       versionSelections: versionSelections,
-      currentConversation: currentConversation,
+      currentConversation: conversation,
       includeToolMessages: settings.replayToolResults,
+      enableAutoCompaction: settings.autoCompactionV1,
     );
 
     // Process user messages (documents, OCR, templates)

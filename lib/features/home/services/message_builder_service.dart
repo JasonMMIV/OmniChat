@@ -16,6 +16,9 @@ import '../../../core/services/instruction_injection_store.dart';
 import '../../../core/services/search/search_tool_service.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/services/api/builtin_tools.dart';
+import '../../../core/services/agent/compaction/context_trim.dart';
+import '../../../core/services/agent/compaction/history_compactor.dart';
+import '../../../core/services/agent/compaction/tool_result_pruner.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
 
 /// Normalize a stored tool result for model consumption.
@@ -108,22 +111,75 @@ class MessageBuilderService {
   /// results are replayed as OpenAI-format `tool_calls` / `role:'tool'` messages
   /// right before that assistant's reply text. This lets the model "remember"
   /// what tools did in earlier turns (matches upstream kelivo behavior).
+  ///
+  /// P1-2 auto-compaction (when [enableAutoCompaction] is true):
+  /// - L1: raw messages before `currentConversation.compactBeforeIndex` are
+  ///   mechanically rewritten into one deterministic `<conversation_summary>`
+  ///   user message at the front (non-destructive — Hive history is never
+  ///   rewritten; the summary is recomputed at every assembly).
+  /// - L0: every `role:'tool'` result is middle-pruned above the 8192-char
+  ///   threshold (4096 head / 1024 tail).
   List<Map<String, dynamic>> buildApiMessages({
     required List<ChatMessage> messages,
     required Map<String, int> versionSelections,
     required Conversation? currentConversation,
     bool includeToolMessages = false,
+    bool enableAutoCompaction = false,
   }) {
     final tIndex = currentConversation?.truncateIndex ?? -1;
     final List<ChatMessage> sourceAll =
         (tIndex >= 0 && tIndex <= messages.length)
         ? messages.sublist(tIndex)
         : List.of(messages);
-    final List<ChatMessage> source = collapseVersions(
-      sourceAll,
-      versionSelections,
-    );
 
+    // P1-2 L1 split: [0, compactSplit) of the post-truncate list is the
+    // compacted range; the rest stays live. compactBeforeIndex lives in the
+    // same raw-index space as truncateIndex.
+    List<ChatMessage>? headSource;
+    List<ChatMessage> tailSource;
+    if (enableAutoCompaction && currentConversation != null) {
+      final cIndex = currentConversation.compactBeforeIndex;
+      final rawStart = (tIndex >= 0 && tIndex <= messages.length) ? tIndex : 0;
+      final compactSplit = cIndex - rawStart;
+      if (cIndex > 0 &&
+          compactSplit > 0 &&
+          compactSplit < sourceAll.length) {
+        headSource = collapseVersions(
+          sourceAll.sublist(0, compactSplit),
+          versionSelections,
+        );
+        tailSource = collapseVersions(
+          sourceAll.sublist(compactSplit),
+          versionSelections,
+        );
+      } else {
+        tailSource = collapseVersions(sourceAll, versionSelections);
+      }
+    } else {
+      tailSource = collapseVersions(sourceAll, versionSelections);
+    }
+
+    final out = <Map<String, dynamic>>[];
+    if (headSource != null && headSource.isNotEmpty) {
+      final headApi = neutralMessagesFor(headSource, includeToolMessages);
+      final summary = compactHistoryMessages(headApi);
+      if (summary != null) out.add(summary);
+    }
+    out.addAll(neutralMessagesFor(tailSource, includeToolMessages));
+
+    if (enableAutoCompaction) {
+      applyToolResultMiddlePrune(out);
+    }
+    return out;
+  }
+
+  /// Build the neutral OpenAI-format message list for a slice of raw chat
+  /// messages, replaying resolved tool events before each assistant reply
+  /// when [includeToolMessages] is set.
+  List<Map<String, dynamic>> neutralMessagesFor(
+    List<ChatMessage> source,
+    bool includeToolMessages,
+  ) {
     final out = <Map<String, dynamic>>[];
     for (final m in source) {
       if (includeToolMessages && m.role == 'assistant') {
@@ -558,6 +614,10 @@ file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPT
   }
 
   /// Apply context message limit based on assistant settings.
+  ///
+  /// The P1-2 `<conversation_summary>` message (if present right after the
+  /// system area) is exempt: dropping the summary while keeping the newer
+  /// live messages would strand the compaction marker's memory.
   void applyContextLimit(
     List<Map<String, dynamic>> apiMessages,
     Assistant? assistant,
@@ -568,6 +628,12 @@ file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPT
       int startIdx = 0;
       if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
         startIdx = 1;
+      }
+      if (startIdx < apiMessages.length &&
+          (apiMessages[startIdx]['content'] ?? '')
+              .toString()
+              .startsWith(summaryContentPrefix)) {
+        startIdx++;
       }
       final tail = apiMessages.sublist(startIdx);
       if (tail.length > keep) {
@@ -583,6 +649,9 @@ file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPT
   Future<void> inlineLocalImages(List<Map<String, dynamic>> apiMessages) async {
     for (int i = 0; i < apiMessages.length; i++) {
       final s = (apiMessages[i]['content'] ?? '').toString();
+      // Skip the P1-2 summary: its text quotes old history and must never
+      // have stale image references re-inlined as base64 blobs.
+      if (s.startsWith(summaryContentPrefix)) continue;
       if (s.isNotEmpty) {
         apiMessages[i]['content'] =
             await MarkdownMediaSanitizer.inlineLocalImagesToBase64(s);

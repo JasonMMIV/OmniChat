@@ -47,6 +47,12 @@ class Conversation extends HiveObject {
   @HiveField(11)
   int lastSummarizedMessageCount;
 
+  // P1-2 auto-compaction marker: messages with raw index < this value are
+  // compacted into a mechanical summary at assembly time (non-destructive;
+  // semantics mirror truncateIndex — -1 means no compaction).
+  @HiveField(12)
+  int compactBeforeIndex;
+
   Conversation({
     String? id,
     required this.title,
@@ -60,6 +66,7 @@ class Conversation extends HiveObject {
     Map<String, int>? versionSelections,
     this.summary,
     int? lastSummarizedMessageCount,
+    int? compactBeforeIndex,
   })  : id = id ?? const Uuid().v4(),
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now(),
@@ -68,7 +75,8 @@ class Conversation extends HiveObject {
         assistantId = assistantId,
         truncateIndex = truncateIndex ?? -1,
         versionSelections = versionSelections ?? <String, int>{},
-        lastSummarizedMessageCount = lastSummarizedMessageCount ?? 0;
+        lastSummarizedMessageCount = lastSummarizedMessageCount ?? 0,
+        compactBeforeIndex = compactBeforeIndex ?? -1;
 
   Conversation copyWith({
     String? id,
@@ -83,6 +91,7 @@ class Conversation extends HiveObject {
     Map<String, int>? versionSelections,
     String? summary,
     int? lastSummarizedMessageCount,
+    int? compactBeforeIndex,
     bool clearSummary = false,
   }) {
     return Conversation(
@@ -99,6 +108,7 @@ class Conversation extends HiveObject {
       summary: clearSummary ? null : (summary ?? this.summary),
       lastSummarizedMessageCount:
           lastSummarizedMessageCount ?? this.lastSummarizedMessageCount,
+      compactBeforeIndex: compactBeforeIndex ?? this.compactBeforeIndex,
     );
   }
 
@@ -116,6 +126,7 @@ class Conversation extends HiveObject {
       'versionSelections': versionSelections,
       'summary': summary,
       'lastSummarizedMessageCount': lastSummarizedMessageCount,
+      'compactBeforeIndex': compactBeforeIndex,
     };
   }
 
@@ -133,6 +144,7 @@ class Conversation extends HiveObject {
       versionSelections: (json['versionSelections'] as Map?)?.map((k, v) => MapEntry(k.toString(), (v as num).toInt())) ?? <String, int>{},
       summary: json['summary'] as String?,
       lastSummarizedMessageCount: json['lastSummarizedMessageCount'] as int? ?? 0,
+      compactBeforeIndex: json['compactBeforeIndex'] as int? ?? -1,
     );
   }
 }

@@ -1246,6 +1246,7 @@ class SharedPreferencesAsync {
   static SharedPreferencesAsync? _inst;
   // Local-only UI state stays on device and is excluded from backups/restores.
   static const _localOnlyKeys = {
+    'learned_context_windows_v1',
     'window_width_v1',
     'window_height_v1',
     'window_pos_x_v1',
