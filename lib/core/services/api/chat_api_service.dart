@@ -22,6 +22,9 @@ import 'stream_interruption.dart';
 import 'stream_retry_policy.dart';
 import 'transient_stream_error.dart';
 import 'chat_stream_chunk.dart';
+import 'context_overflow.dart';
+import 'learned_context_windows.dart';
+import '../agent/compaction/context_trim.dart';
 export 'chat_stream_chunk.dart' show ChatStreamChunk, ToolCallInfo, ToolResultInfo;
 
 class ChatApiService {
@@ -989,7 +992,9 @@ class ChatApiService {
       _activeCancelTokens[rid] = cancelToken;
     }
     final safeMessages = _sanitizeMessages(messages);
-    final truncatedMessages = _truncateToolResultsInMessages(safeMessages);
+    // Non-final: the R0 context-overflow trim-retry (below) may replace the
+    // list with a mechanically trimmed one before retrying exactly once.
+    var truncatedMessages = _truncateToolResultsInMessages(safeMessages);
     final client = _clientFor(config, cancelToken);
 
     // === L1 retry loop =====================================================
@@ -1003,6 +1008,9 @@ class ChatApiService {
     // which preserves the partial content and surfaces the error to the
     // UI (appending a "Connection interrupted after N retries" note).
     int attempt = 0;
+    // R0 (P1-2): guard so the overflow trim-retry fires at most once per
+    // request. No settings toggle — this is failure-path-only.
+    var contextTrimTried = false;
     try {
       while (true) {
         final flags = StreamAttemptFlags();
@@ -1147,6 +1155,50 @@ class ChatApiService {
           final isTransient = classify(e) == RetryDecision.retryableTransient;
 
           if (!isTransient && !eIsSilentInterrupt) {
+            // R0 reactive layer (P1-2): a context-overflow 400 is terminal
+            // as-is, but gets one mechanical trim-retry when nothing has
+            // been yielded yet (overflow fires at request start) and the
+            // provider's real window can be resolved. A second failure
+            // falls through to the terminal path below.
+            final yieldedAnything =
+                flags.yieldedText ||
+                flags.yieldedToolCall ||
+                (rid.isNotEmpty && _requestYieldedAnything[rid] == true);
+            if (!contextTrimTried && !yieldedAnything) {
+              final statusCode = extractStatusCode(e);
+              if (statusCode == 400 &&
+                  isContextOverflowMessage(overflowErrorText(e))) {
+                final declared = resolveContextWindowTokens(
+                  modelId,
+                  learned:
+                      await LearnedContextWindows.lookup(config.id, modelId),
+                );
+                final plan = planContextOverflowTrim(
+                  error: e,
+                  messages: truncatedMessages,
+                  alreadyTrimmed: false,
+                  statusCode: statusCode,
+                  estimateTokens: estimateApiMessagesTokens,
+                  declaredWindowTokens: declared,
+                );
+                final learnedWindow = plan?.learnedWindowTokens;
+                if (learnedWindow != null) {
+                  await LearnedContextWindows.record(
+                    config.id,
+                    modelId,
+                    learnedWindow,
+                  );
+                }
+                if (plan != null) {
+                  contextTrimTried = true;
+                  truncatedMessages = plan.messages;
+                  // Retry immediately — same model, trimmed request. No
+                  // backoff (the failure is deterministic, not transient)
+                  // and no consumption of the L1 transient retry budget.
+                  continue;
+                }
+              }
+            }
             rethrow; // terminal — 4xx other than 408/429, auth, parse…
           }
 

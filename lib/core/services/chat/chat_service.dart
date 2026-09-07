@@ -410,6 +410,7 @@ class ChatService extends ChangeNotifier {
       truncateIndex: conversation.truncateIndex,
       assistantId: conversation.assistantId,
       versionSelections: Map<String, int>.from(conversation.versionSelections),
+      compactBeforeIndex: conversation.compactBeforeIndex,
     );
     await _conversationsBox.put(restored.id, restored);
 
@@ -1189,6 +1190,28 @@ class ChatService extends ChangeNotifier {
     await c.save();
     notifyListeners();
     return c;
+  }
+
+  /// P1-2: persist the auto-compaction marker (raw message index; messages
+  /// before it are compacted at assembly time). Mirrors the
+  /// [toggleTruncateAtTail] draft/persisted split.
+  Future<void> setCompactBeforeIndex(String conversationId, int index) async {
+    if (!_initialized) await init();
+    if (_draftConversations.containsKey(conversationId)) {
+      final draft = _draftConversations[conversationId]!;
+      if (draft.compactBeforeIndex == index) return;
+      draft.compactBeforeIndex = index;
+      draft.updatedAt = DateTime.now();
+      notifyListeners();
+      return;
+    }
+    final c = _conversationsBox.get(conversationId);
+    if (c == null) return;
+    if (c.compactBeforeIndex == index) return;
+    c.compactBeforeIndex = index;
+    c.updatedAt = DateTime.now();
+    await c.save();
+    notifyListeners();
   }
 
   Future<void> deleteMessage(String messageId) async {

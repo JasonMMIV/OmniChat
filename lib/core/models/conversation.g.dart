@@ -29,13 +29,14 @@ class ConversationAdapter extends TypeAdapter<Conversation> {
       versionSelections: (fields[9] as Map?)?.cast<String, int>(),
       summary: fields[10] as String?,
       lastSummarizedMessageCount: fields[11] as int?,
+      compactBeforeIndex: fields[12] as int?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Conversation obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(13)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -59,7 +60,9 @@ class ConversationAdapter extends TypeAdapter<Conversation> {
       ..writeByte(10)
       ..write(obj.summary)
       ..writeByte(11)
-      ..write(obj.lastSummarizedMessageCount);
+      ..write(obj.lastSummarizedMessageCount)
+      ..writeByte(12)
+      ..write(obj.compactBeforeIndex);
   }
 
   @override
