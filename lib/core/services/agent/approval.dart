@@ -258,3 +258,56 @@ String normalizeApprovalState(Object? raw) {
       return approvalStateAuto;
   }
 }
+
+/// The kind of a persisted "always allow" override key.
+enum ApprovalOverrideKind { mcpTool, mcpServer, workspaceOut }
+
+/// A decoded "always allow" override key, for the settings UI list.
+class ApprovalOverrideKey {
+  const ApprovalOverrideKey({
+    required this.kind,
+    required this.rawKey,
+    this.serverId,
+    this.toolName,
+    this.resolvedPath,
+  });
+
+  final ApprovalOverrideKind kind;
+  final String rawKey;
+  final String? serverId;
+  final String? toolName;
+  final String? resolvedPath;
+}
+
+/// Decode a persisted "always allow" override key back into its parts.
+/// Unknown shapes return null (forward compatibility: new key kinds added by
+/// later policy sources — e.g. shell allowlist — surface as unknown and are
+/// skipped by the settings list rather than crashing it).
+ApprovalOverrideKey? decodeApprovalOverrideKey(String key) {
+  if (key.startsWith('mcp:')) {
+    final rest = key.substring(4);
+    final sep = rest.indexOf(':');
+    if (sep < 0) return null;
+    return ApprovalOverrideKey(
+      kind: ApprovalOverrideKind.mcpTool,
+      rawKey: key,
+      serverId: rest.substring(0, sep),
+      toolName: rest.substring(sep + 1),
+    );
+  }
+  if (key.startsWith('mcp-server:')) {
+    return ApprovalOverrideKey(
+      kind: ApprovalOverrideKind.mcpServer,
+      rawKey: key,
+      serverId: key.substring(11),
+    );
+  }
+  if (key.startsWith('workspace-out:')) {
+    return ApprovalOverrideKey(
+      kind: ApprovalOverrideKind.workspaceOut,
+      rawKey: key,
+      resolvedPath: key.substring(14),
+    );
+  }
+  return null;
+}

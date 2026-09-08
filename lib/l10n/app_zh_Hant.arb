@@ -25,6 +25,8 @@
   "settingsPageInstructionInjection": "指令注入",
   "settingsPageAiTeam": "AI 團隊",
   "settingsPageAiTeamDescription": "Mixture of Agents",
+  "settingsPageApproval": "審批與安全",
+  "settingsPageApprovalDescription": "工具審批政策",
   "settingsPageDataSection": "資料設定",
   "settingsPageBackup": "資料備份",
   "settingsPageHotkeys": "快捷鍵",
@@ -578,6 +580,37 @@
   "approvalApprove": "批准",
   "approvalAlwaysAllow": "永遠允許",
   "approvalDeny": "拒絕",
+  "approvalSettingsTitle": "工具審批政策",
+  "approvalStrictModeTitle": "嚴格模式",
+  "approvalStrictModeSubtitle": "原本會詢問審批的工具呼叫一律拒絕，不顯示審批提示。",
+  "approvalOverridesTitle": "永遠允許",
+  "approvalOverridesSubtitle": "此清單中的工具呼叫跳過審批提示，可在審批卡上新增。",
+  "approvalOverridesEmpty": "還沒有永遠允許的項目。",
+  "approvalOverrideRemove": "移除",
+  "approvalOverrideMcpTool": "MCP 工具：{tool}",
+  "@approvalOverrideMcpTool": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalOverrideMcpServer": "MCP 伺服器：{server}",
+  "@approvalOverrideMcpServer": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalOverridePath": "路徑：{path}",
+  "@approvalOverridePath": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "chatMessageWidgetEditMemory": "編輯記憶",
   "chatMessageWidgetDeleteMemory": "刪除記憶",
   "chatMessageWidgetWebSearch": "聯網檢索: {query}",

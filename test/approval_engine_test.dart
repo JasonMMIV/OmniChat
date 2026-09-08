@@ -239,6 +239,38 @@ void main() {
     });
   });
 
+  group('always-allow override key decoding', () {
+    test('mcp tool key decodes server + tool', () {
+      final d = decodeApprovalOverrideKey('mcp:github:read_file');
+      expect(d, isNotNull);
+      expect(d!.kind, equals(ApprovalOverrideKind.mcpTool));
+      expect(d!.serverId, equals('github'));
+      expect(d!.toolName, equals('read_file'));
+    });
+
+    test('mcp server key decodes server', () {
+      final d = decodeApprovalOverrideKey('mcp-server:github');
+      expect(d, isNotNull);
+      expect(d!.kind, equals(ApprovalOverrideKind.mcpServer));
+      expect(d!.serverId, equals('github'));
+      expect(d!.toolName, isNull);
+    });
+
+    test('workspace-out key decodes resolved path', () {
+      final d = decodeApprovalOverrideKey('workspace-out:D:/Reports/q3.docx');
+      expect(d, isNotNull);
+      expect(d!.kind, equals(ApprovalOverrideKind.workspaceOut));
+      expect(d!.resolvedPath, equals('D:/Reports/q3.docx'));
+    });
+
+    test('unknown shapes return null (forward compatible)', () {
+      expect(decodeApprovalOverrideKey('shell:git'), isNull);
+      expect(decodeApprovalOverrideKey('mcp:no-colon'), isNull);
+      expect(decodeApprovalOverrideKey(''), isNull);
+      expect(decodeApprovalOverrideKey('random'), isNull);
+    });
+  });
+
   group('approvalState normalization', () {
     test('valid values round-trip', () {
       expect(normalizeApprovalState(approvalStatePending),

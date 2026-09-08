@@ -33,6 +33,8 @@
   "settingsPageInstructionInjectionDescription": "System prompts",
   "settingsPageAiTeam": "AI Team",
   "settingsPageAiTeamDescription": "Mixture of Agents",
+  "settingsPageApproval": "Approval & Safety",
+  "settingsPageApprovalDescription": "Tool approval policy",
   "settingsPageNetworkProxy": "Network Proxy",
   "settingsPageNetworkProxyDescription": "Proxy configuration",
   "settingsPageDataSection": "Data",
@@ -902,6 +904,37 @@
   "approvalApprove": "Approve",
   "approvalAlwaysAllow": "Always allow",
   "approvalDeny": "Deny",
+  "approvalSettingsTitle": "Tool approval policy",
+  "approvalStrictModeTitle": "Strict mode",
+  "approvalStrictModeSubtitle": "Deny every tool call that would otherwise ask for approval, instead of showing a prompt.",
+  "approvalOverridesTitle": "Always allow",
+  "approvalOverridesSubtitle": "Tool calls on this list skip the approval prompt. Added from an approval card.",
+  "approvalOverridesEmpty": "No always-allow overrides yet.",
+  "approvalOverrideRemove": "Remove",
+  "approvalOverrideMcpTool": "MCP tool: {tool}",
+  "@approvalOverrideMcpTool": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalOverrideMcpServer": "MCP server: {server}",
+  "@approvalOverrideMcpServer": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalOverridePath": "Path: {path}",
+  "@approvalOverridePath": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "chatMessageWidgetEditMemory": "Edit",
   "chatMessageWidgetDeleteMemory": "Forget",
   "chatMessageWidgetWebSearch": "Search: {query}",
