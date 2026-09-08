@@ -298,6 +298,18 @@ abstract class AppLocalizations {
   /// **'Mixture of Agents'**
   String get settingsPageAiTeamDescription;
 
+  /// No description provided for @settingsPageApproval.
+  ///
+  /// In en, this message translates to:
+  /// **'Approval & Safety'**
+  String get settingsPageApproval;
+
+  /// No description provided for @settingsPageApprovalDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Tool approval policy'**
+  String get settingsPageApprovalDescription;
+
   /// No description provided for @settingsPageNetworkProxy.
   ///
   /// In en, this message translates to:
@@ -4120,6 +4132,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Deny'**
   String get approvalDeny;
+
+  /// No description provided for @approvalSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tool approval policy'**
+  String get approvalSettingsTitle;
+
+  /// No description provided for @approvalStrictModeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Strict mode'**
+  String get approvalStrictModeTitle;
+
+  /// No description provided for @approvalStrictModeSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Deny every tool call that would otherwise ask for approval, instead of showing a prompt.'**
+  String get approvalStrictModeSubtitle;
+
+  /// No description provided for @approvalOverridesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Always allow'**
+  String get approvalOverridesTitle;
+
+  /// No description provided for @approvalOverridesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tool calls on this list skip the approval prompt. Added from an approval card.'**
+  String get approvalOverridesSubtitle;
+
+  /// No description provided for @approvalOverridesEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No always-allow overrides yet.'**
+  String get approvalOverridesEmpty;
+
+  /// No description provided for @approvalOverrideRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get approvalOverrideRemove;
+
+  /// No description provided for @approvalOverrideMcpTool.
+  ///
+  /// In en, this message translates to:
+  /// **'MCP tool: {tool}'**
+  String approvalOverrideMcpTool(String tool);
+
+  /// No description provided for @approvalOverrideMcpServer.
+  ///
+  /// In en, this message translates to:
+  /// **'MCP server: {server}'**
+  String approvalOverrideMcpServer(String server);
+
+  /// No description provided for @approvalOverridePath.
+  ///
+  /// In en, this message translates to:
+  /// **'Path: {path}'**
+  String approvalOverridePath(String path);
 
   /// No description provided for @chatMessageWidgetEditMemory.
   ///

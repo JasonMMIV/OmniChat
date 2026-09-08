@@ -109,6 +109,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsPageAiTeamDescription => 'Mixture of Agents';
 
   @override
+  String get settingsPageApproval => '审批与安全';
+
+  @override
+  String get settingsPageApprovalDescription => '工具审批政策';
+
+  @override
   String get settingsPageNetworkProxy => '网络代理';
 
   @override
@@ -2105,6 +2111,42 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get approvalDeny => '拒绝';
+
+  @override
+  String get approvalSettingsTitle => '工具审批政策';
+
+  @override
+  String get approvalStrictModeTitle => '严格模式';
+
+  @override
+  String get approvalStrictModeSubtitle => '原本会询问审批的工具调用一律拒绝，不显示审批提示。';
+
+  @override
+  String get approvalOverridesTitle => '总是允许';
+
+  @override
+  String get approvalOverridesSubtitle => '此列表中的工具调用跳过审批提示，可在审批卡上添加。';
+
+  @override
+  String get approvalOverridesEmpty => '还没有总是允许的项目。';
+
+  @override
+  String get approvalOverrideRemove => '移除';
+
+  @override
+  String approvalOverrideMcpTool(String tool) {
+    return 'MCP 工具：$tool';
+  }
+
+  @override
+  String approvalOverrideMcpServer(String server) {
+    return 'MCP 服务器：$server';
+  }
+
+  @override
+  String approvalOverridePath(String path) {
+    return '路径：$path';
+  }
 
   @override
   String get chatMessageWidgetEditMemory => '编辑记忆';
@@ -4907,6 +4949,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get settingsPageAiTeamDescription => 'Mixture of Agents';
 
   @override
+  String get settingsPageApproval => '审批与安全';
+
+  @override
+  String get settingsPageApprovalDescription => '工具审批政策';
+
+  @override
   String get settingsPageNetworkProxy => '网络代理';
 
   @override
@@ -6834,6 +6882,42 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get approvalDeny => '拒绝';
+
+  @override
+  String get approvalSettingsTitle => '工具审批政策';
+
+  @override
+  String get approvalStrictModeTitle => '严格模式';
+
+  @override
+  String get approvalStrictModeSubtitle => '原本会询问审批的工具调用一律拒绝，不显示审批提示。';
+
+  @override
+  String get approvalOverridesTitle => '总是允许';
+
+  @override
+  String get approvalOverridesSubtitle => '此列表中的工具调用跳过审批提示，可在审批卡上添加。';
+
+  @override
+  String get approvalOverridesEmpty => '还没有总是允许的项目。';
+
+  @override
+  String get approvalOverrideRemove => '移除';
+
+  @override
+  String approvalOverrideMcpTool(String tool) {
+    return 'MCP 工具：$tool';
+  }
+
+  @override
+  String approvalOverrideMcpServer(String server) {
+    return 'MCP 服务器：$server';
+  }
+
+  @override
+  String approvalOverridePath(String path) {
+    return '路径：$path';
+  }
 
   @override
   String get chatMessageWidgetEditMemory => '编辑记忆';
@@ -9525,6 +9609,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get settingsPageAiTeamDescription => 'Mixture of Agents';
 
   @override
+  String get settingsPageApproval => '審批與安全';
+
+  @override
+  String get settingsPageApprovalDescription => '工具審批政策';
+
+  @override
   String get settingsPageNetworkProxy => '網絡代理';
 
   @override
@@ -11458,6 +11548,42 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get approvalDeny => '拒絕';
+
+  @override
+  String get approvalSettingsTitle => '工具審批政策';
+
+  @override
+  String get approvalStrictModeTitle => '嚴格模式';
+
+  @override
+  String get approvalStrictModeSubtitle => '原本會詢問審批的工具呼叫一律拒絕，不顯示審批提示。';
+
+  @override
+  String get approvalOverridesTitle => '永遠允許';
+
+  @override
+  String get approvalOverridesSubtitle => '此清單中的工具呼叫跳過審批提示，可在審批卡上新增。';
+
+  @override
+  String get approvalOverridesEmpty => '還沒有永遠允許的項目。';
+
+  @override
+  String get approvalOverrideRemove => '移除';
+
+  @override
+  String approvalOverrideMcpTool(String tool) {
+    return 'MCP 工具：$tool';
+  }
+
+  @override
+  String approvalOverrideMcpServer(String server) {
+    return 'MCP 伺服器：$server';
+  }
+
+  @override
+  String approvalOverridePath(String path) {
+    return '路徑：$path';
+  }
 
   @override
   String get chatMessageWidgetEditMemory => '編輯記憶';

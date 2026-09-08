@@ -25,6 +25,8 @@
   "settingsPageInstructionInjection": "指令注入",
   "settingsPageAiTeam": "AI 团队",
   "settingsPageAiTeamDescription": "Mixture of Agents",
+  "settingsPageApproval": "审批与安全",
+  "settingsPageApprovalDescription": "工具审批政策",
   "settingsPageDataSection": "数据设置",
   "settingsPageBackup": "数据备份",
   "settingsPageHotkeys": "快捷键",
@@ -554,6 +556,37 @@
   "approvalApprove": "批准",
   "approvalAlwaysAllow": "总是允许",
   "approvalDeny": "拒绝",
+  "approvalSettingsTitle": "工具审批政策",
+  "approvalStrictModeTitle": "严格模式",
+  "approvalStrictModeSubtitle": "原本会询问审批的工具调用一律拒绝，不显示审批提示。",
+  "approvalOverridesTitle": "总是允许",
+  "approvalOverridesSubtitle": "此列表中的工具调用跳过审批提示，可在审批卡上添加。",
+  "approvalOverridesEmpty": "还没有总是允许的项目。",
+  "approvalOverrideRemove": "移除",
+  "approvalOverrideMcpTool": "MCP 工具：{tool}",
+  "@approvalOverrideMcpTool": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalOverrideMcpServer": "MCP 服务器：{server}",
+  "@approvalOverrideMcpServer": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalOverridePath": "路径：{path}",
+  "@approvalOverridePath": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "chatMessageWidgetEditMemory": "编辑记忆",
   "chatMessageWidgetDeleteMemory": "删除记忆",
   "chatMessageWidgetWebSearch": "联网检索: {query}",

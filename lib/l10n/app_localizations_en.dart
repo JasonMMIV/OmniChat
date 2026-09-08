@@ -109,6 +109,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPageAiTeamDescription => 'Mixture of Agents';
 
   @override
+  String get settingsPageApproval => 'Approval & Safety';
+
+  @override
+  String get settingsPageApprovalDescription => 'Tool approval policy';
+
+  @override
   String get settingsPageNetworkProxy => 'Network Proxy';
 
   @override
@@ -2117,6 +2123,44 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get approvalDeny => 'Deny';
+
+  @override
+  String get approvalSettingsTitle => 'Tool approval policy';
+
+  @override
+  String get approvalStrictModeTitle => 'Strict mode';
+
+  @override
+  String get approvalStrictModeSubtitle =>
+      'Deny every tool call that would otherwise ask for approval, instead of showing a prompt.';
+
+  @override
+  String get approvalOverridesTitle => 'Always allow';
+
+  @override
+  String get approvalOverridesSubtitle =>
+      'Tool calls on this list skip the approval prompt. Added from an approval card.';
+
+  @override
+  String get approvalOverridesEmpty => 'No always-allow overrides yet.';
+
+  @override
+  String get approvalOverrideRemove => 'Remove';
+
+  @override
+  String approvalOverrideMcpTool(String tool) {
+    return 'MCP tool: $tool';
+  }
+
+  @override
+  String approvalOverrideMcpServer(String server) {
+    return 'MCP server: $server';
+  }
+
+  @override
+  String approvalOverridePath(String path) {
+    return 'Path: $path';
+  }
 
   @override
   String get chatMessageWidgetEditMemory => 'Edit';
