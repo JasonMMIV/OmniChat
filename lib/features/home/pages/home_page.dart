@@ -709,6 +709,7 @@ class _HomePageState extends State<HomePage>
           alwaysAllow: alwaysAllow,
         );
       },
+      onRestoreRunSnapshot: (runId) => _controller.restoreRunSnapshot(runId),
     );
   }
 

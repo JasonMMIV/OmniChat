@@ -2163,6 +2163,40 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get snapshotCardTitle => 'Workspace snapshot';
+
+  @override
+  String get snapshotCardRestoredTitle => 'Workspace restored';
+
+  @override
+  String snapshotCardChangesTitle(int count) {
+    return 'This task changed $count files — restore to the run-start snapshot?';
+  }
+
+  @override
+  String snapshotCardRestoredPill(int count) {
+    return '$count files restored';
+  }
+
+  @override
+  String get snapshotCardRestoredShort => 'Restored';
+
+  @override
+  String get snapshotCardDisclaimer =>
+      'Restore rolls the whole workspace back to its state when this task started. The list of changed files is incomplete for shell commands — the snapshot is the complete rollback guarantee.';
+
+  @override
+  String snapshotCardTakenAt(String time) {
+    return 'Snapshot taken: $time';
+  }
+
+  @override
+  String get snapshotCardFailed => 'Restore failed. Try again.';
+
+  @override
+  String get snapshotCardRestoreButton => 'Restore';
+
+  @override
   String get chatMessageWidgetEditMemory => 'Edit';
 
   @override

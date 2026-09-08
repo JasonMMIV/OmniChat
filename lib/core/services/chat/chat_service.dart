@@ -18,6 +18,10 @@ class ChatService extends ChangeNotifier {
   static const String _conversationWorkspaceBindingsBoxName =
       'conversation_workspace_bindings_v2';
   static const String _messageFileRecordsBoxName = 'message_file_records_v1';
+  /// P1-5: workspace run snapshots (key = assistantMessageId, value = JSON
+  /// map). Device-local by design (the zip lives on this machine's disk) —
+  /// never exported into backups.
+  static const String _messageSnapshotsBoxName = 'message_snapshots_v1';
   static const int maxPersistedFileReadResultChars = 8192;
 
   late Box<Conversation> _conversationsBox;
@@ -30,6 +34,8 @@ class ChatService extends ChangeNotifier {
   _conversationWorkspaceBindingsBox; // key: conversationId, value: WorkspaceConfig JSON
   late Box
   _messageFileRecordsBox; // key: messageId, value: List<Map<String,dynamic>>
+  late Box
+  _messageSnapshotsBox; // P1-5: key = messageId, value: JSON map
   String _sigKey(String id) => 'sig_$id';
 
   String? _currentConversationId;
@@ -73,6 +79,7 @@ class ChatService extends ChangeNotifier {
       _conversationWorkspaceBindingsBoxName,
     );
     _messageFileRecordsBox = await Hive.openBox(_messageFileRecordsBoxName);
+    _messageSnapshotsBox = await Hive.openBox(_messageSnapshotsBoxName);
 
     await _migrateConversationWorkspaceBindings();
 
@@ -260,6 +267,12 @@ class ChatService extends ChangeNotifier {
       }
       try {
         await _messageFileRecordsBox.delete(messageId);
+      } catch (_) {}
+      // P1-5: drop the snapshot record with the conversation. The zip itself
+      // lives in the workspace's .omnichat/snapshots/ and is swept by
+      // retention (kept — other conversations may share the workspace).
+      try {
+        await _messageSnapshotsBox.delete(messageId);
       } catch (_) {}
       await _messagesBox.delete(messageId);
     }
@@ -517,6 +530,37 @@ class ChatService extends ChangeNotifier {
       messageId,
       records.map((item) => item.toJson()).toList(),
     );
+    notifyListeners();
+  }
+
+  // ===========================================================================
+  // P1-5: workspace run snapshot records (device-local, never backed up)
+  // ===========================================================================
+
+  /// Snapshot record for an assistant message, or null.
+  Map<String, dynamic>? getMessageSnapshot(String messageId) {
+    if (!_initialized) return null;
+    final v = _messageSnapshotsBox.get(messageId);
+    if (v is! Map) return null;
+    try {
+      return Map<String, dynamic>.from(v);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> setMessageSnapshot(
+    String messageId,
+    Map<String, dynamic> snapshot,
+  ) async {
+    if (!_initialized) await init();
+    await _messageSnapshotsBox.put(messageId, snapshot);
+    notifyListeners();
+  }
+
+  Future<void> clearMessageSnapshot(String messageId) async {
+    if (!_initialized) return;
+    await _messageSnapshotsBox.delete(messageId);
     notifyListeners();
   }
 
@@ -1065,6 +1109,9 @@ class ChatService extends ChangeNotifier {
           records.map((record) => record.toJson()).toList(),
         );
       }
+      // P1-5: do NOT copy snapshot records on fork — the snapshot belongs
+      // to the original run; forked conversations roll back via their own
+      // run snapshots only.
       ids.add(clone.id);
     }
     // Attach to conversation in storage
@@ -1307,6 +1354,10 @@ class ChatService extends ChangeNotifier {
     try {
       await _messageFileRecordsBox.delete(messageId);
     } catch (_) {}
+    // P1-5: drop the snapshot record for a deleted message (single delete).
+    try {
+      await _messageSnapshotsBox.delete(messageId);
+    } catch (_) {}
 
     // Update cache: clear this conversation so that next getMessages()
     // reloads messages in the updated order from conversation.messageIds.
@@ -1332,6 +1383,9 @@ class ChatService extends ChangeNotifier {
     await _conversationWorkspacesBox.clear();
     await _conversationWorkspaceBindingsBox.clear();
     await _messageFileRecordsBox.clear();
+    try {
+      await _messageSnapshotsBox.clear();
+    } catch (_) {}
     _messagesCache.clear();
     _draftConversations.clear();
     _currentConversationId = null;

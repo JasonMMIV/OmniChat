@@ -587,6 +587,36 @@
       }
     }
   },
+  "snapshotCardTitle": "工作区快照",
+  "snapshotCardRestoredTitle": "工作区已还原",
+  "snapshotCardChangesTitle": "本次任务改动 {count} 个文件 — 还原到任务开始时的快照？",
+  "@snapshotCardChangesTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "snapshotCardRestoredPill": "已还原 {count} 个文件",
+  "@snapshotCardRestoredPill": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "snapshotCardRestoredShort": "已还原",
+  "snapshotCardDisclaimer": "还原会把整个工作区回滚到本任务开始时的状态。对 shell 命令而言，改动文件列表并不完整——快照才是完整的回滚保障。",
+  "snapshotCardTakenAt": "快照时间：{time}",
+  "@snapshotCardTakenAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "snapshotCardFailed": "还原失败，请重试。",
+  "snapshotCardRestoreButton": "还原",
   "chatMessageWidgetEditMemory": "编辑记忆",
   "chatMessageWidgetDeleteMemory": "删除记忆",
   "chatMessageWidgetWebSearch": "联网检索: {query}",

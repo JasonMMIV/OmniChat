@@ -935,6 +935,36 @@
       }
     }
   },
+  "snapshotCardTitle": "Workspace snapshot",
+  "snapshotCardRestoredTitle": "Workspace restored",
+  "snapshotCardChangesTitle": "This task changed {count} files — restore to the run-start snapshot?",
+  "@snapshotCardChangesTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "snapshotCardRestoredPill": "{count} files restored",
+  "@snapshotCardRestoredPill": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "snapshotCardRestoredShort": "Restored",
+  "snapshotCardDisclaimer": "Restore rolls the whole workspace back to its state when this task started. The list of changed files is incomplete for shell commands — the snapshot is the complete rollback guarantee.",
+  "snapshotCardTakenAt": "Snapshot taken: {time}",
+  "@snapshotCardTakenAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "snapshotCardFailed": "Restore failed. Try again.",
+  "snapshotCardRestoreButton": "Restore",
   "chatMessageWidgetEditMemory": "Edit",
   "chatMessageWidgetDeleteMemory": "Forget",
   "chatMessageWidgetWebSearch": "Search: {query}",
