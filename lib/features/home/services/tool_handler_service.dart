@@ -685,6 +685,7 @@ class ToolHandlerService {
               resolvedPath: pathProbe.resolvedPath,
               outsideWorkspace: !pathProbe.inside,
               arguments: args,
+              previewDiff: buildEditPreviewDiff(args),
             )
           : buildApprovalDeniedContent(toolName: name);
       return _PendingDecision(
