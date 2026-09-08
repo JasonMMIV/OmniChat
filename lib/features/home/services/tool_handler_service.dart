@@ -13,6 +13,7 @@ import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/file/file_tool_service.dart';
+import '../../../core/services/agent/approval.dart';
 import '../../../core/services/logging/flutter_logger.dart';
 import '../../../core/services/tools/tool_output_externalizer.dart';
 import '../../../core/models/file_record.dart';
@@ -33,6 +34,10 @@ class ToolHandlerService {
   /// Build context (used for accessing providers)
   final BuildContext contextProvider;
   final ChatService chatService;
+
+  /// P1-1: persisted "always allow" override keys (policy snapshot, taken
+  /// when the handler is built). Mutated via [allowAlways].
+  final Set<String> _approvalAlwaysAllowed = <String>{};
 
   // ============================================================================
   // Tool Schema Sanitization
@@ -425,10 +430,52 @@ class ToolHandlerService {
     final assistantProvider = contextProvider.read<AssistantProvider>();
 
     return (name, args) async {
+      // P1-1: workspace tools execute under a per-conversation cwd; resolve
+      // the sandbox root the same way FileToolService does so the approval
+      // policy classifies the same path the executor will use.
+      String? effectiveWorkspace;
       if (name.startsWith('file_')) {
         if (workspacePath == null || workspacePath.trim().isEmpty) {
           return 'Error: Workspace is disabled for this conversation.';
         }
+        try {
+          effectiveWorkspace = await FileToolService.prepareWorkspaceFor(
+            workspacePath,
+          );
+        } catch (_) {
+          effectiveWorkspace = null;
+        }
+      }
+
+      // P1-1: approval gate (ADR-A5) — classify BEFORE execution; an `ask`
+      // decision returns the approval_required JSON without running the tool
+      // and marks the event Pending so the card offers Approve / Deny.
+      final decision = _classifyApproval(
+        name,
+        args,
+        workspacePath: effectiveWorkspace,
+        assistant: assistant,
+      );
+      if (decision.state == ApprovalDecision.ask ||
+          decision.state == ApprovalDecision.deny) {
+        if (messageId != null && conversationId != null) {
+          try {
+            await chatService.upsertToolEvent(
+              messageId,
+              id: decision.toolCallId,
+              name: name,
+              arguments: args,
+              content: decision.content,
+              approvalState: decision.state == ApprovalDecision.ask
+                  ? approvalStatePending
+                  : approvalStateDenied,
+            );
+          } catch (_) {}
+        }
+        return decision.content;
+      }
+
+      if (name.startsWith('file_')) {
         try {
           final result = await FileToolService.execute(
             name,
@@ -580,6 +627,133 @@ class ToolHandlerService {
     };
   }
 
+  // ==========================================================================
+  // P1-1 Approval policy (ADR-A5/A8/A9)
+  // ==========================================================================
+
+  /// Classify one tool call against the P1-1 policy engine. The generation
+  /// policy snapshot was taken in [buildToolCallHandler]; only [name],
+  /// [args] and the resolved workspace are consulted here.
+  _PendingDecision _classifyApproval(
+    String name,
+    Map<String, dynamic> args, {
+    String? workspacePath,
+    Assistant? assistant,
+  }) {
+    // Non-callable decision tools and in-sandbox flows skip the engine.
+    if (name == askUserToolName || name == todoToolName) {
+      return _PendingDecision.allow();
+    }
+
+    final settings = _safeReadSettings();
+    final alwaysAllowed = _approvalAlwaysAllowed;
+    final strict = settings?.approvalStrictModeV1 ?? false;
+
+    // --- Workspace (file_*) tools: sandbox boundary → ask (ADR-A8 v1.5) ---
+    if (name.startsWith('file_')) {
+      if (workspacePath == null || workspacePath.trim().isEmpty) {
+        // No workspace → the executor will refuse anyway; treat as deny so
+        // no Pending card is raised for a call that cannot run.
+        return _PendingDecision(
+          state: ApprovalDecision.deny,
+          toolCallId: _approvalCallId(name),
+          content: jsonEncode(<String, dynamic>{
+            'type': 'tool_error',
+            'error': 'workspace_disabled',
+            'message': 'Workspace is disabled for this conversation.',
+            'tool': name,
+          }),
+        );
+      }
+      final pathProbe = FileToolService.probePathSafety(
+        (args['path'] ?? args['source'] ?? '').toString(),
+        workspacePath,
+      );
+      final decision = decideApproval(
+        ApprovalContext(
+          isWorkspaceTool: true,
+          pathInsideWorkspace: pathProbe.inside,
+          resolvedPath: pathProbe.resolvedPath,
+          alwaysAllowedKeys: alwaysAllowed,
+          strictMode: strict,
+        ),
+      );
+      if (decision == ApprovalDecision.allow) return _PendingDecision.allow();
+      final content = decision == ApprovalDecision.ask
+          ? buildApprovalPendingContent(
+              toolName: name,
+              resolvedPath: pathProbe.resolvedPath,
+              outsideWorkspace: !pathProbe.inside,
+              arguments: args,
+            )
+          : buildApprovalDeniedContent(toolName: name);
+      return _PendingDecision(
+        state: decision,
+        toolCallId: _approvalCallId(name),
+        content: content,
+      );
+    }
+
+    // --- MCP tools: black-box capability → ask by default (v1.5) ---
+    final mcpProbe = _mcpToolProbe(name, assistant);
+    if (mcpProbe != null) {
+      final decision = decideApproval(
+        ApprovalContext(
+          isMcpTool: true,
+          mcpServerId: mcpProbe.$1,
+          mcpToolName: name,
+          alwaysAllowedKeys: alwaysAllowed,
+          strictMode: strict,
+        ),
+      );
+      if (decision == ApprovalDecision.allow) return _PendingDecision.allow();
+      final content = decision == ApprovalDecision.ask
+          ? buildApprovalPendingContent(
+              toolName: name,
+              serverName: mcpProbe.$2,
+              arguments: args,
+            )
+          : buildApprovalDeniedContent(toolName: name);
+      return _PendingDecision(
+        state: decision,
+        toolCallId: _approvalCallId(name),
+        content: content,
+      );
+    }
+
+    return _PendingDecision.allow();
+  }
+
+  /// Stable per-call id used to persist the Pending tool event before the
+  /// provider's own call id is known (the kernel path executes tools with
+  /// the provider id; the event is later matched/upserted by name when the
+  /// provider id arrives, or resumed by this id).
+  String _approvalCallId(String name) => 'approval_$name';
+
+  /// Look up the MCP server that owns [name] for the given assistant.
+  /// Returns `(serverId, serverName)` or null when [name] is not an MCP
+  /// tool for this assistant.
+  (String, String)? _mcpToolProbe(String name, Assistant? assistant) {
+    try {
+      final mcp = contextProvider.read<McpProvider>();
+      final selected = (assistant?.mcpServerIds ?? const <String>[]).toSet();
+      for (final s in mcp.connectedServers) {
+        if (!selected.contains(s.id)) continue;
+        final has = s.tools.any((t) => t.enabled && t.name == name);
+        if (has) return (s.id, s.name);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  SettingsProvider? _safeReadSettings() {
+    try {
+      return contextProvider.read<SettingsProvider>();
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Handle memory tool calls (create/edit/delete).
   ///
   /// Returns null if the tool is not a memory tool or memory is not enabled.
@@ -616,4 +790,29 @@ class ToolHandlerService {
 
     return null;
   }
+
+  /// P1-1: record a per-tool/per-server/per-path "always allow" override
+  /// (policy snapshot mutation — takes effect for the rest of this
+  /// generation and is persisted by the resume layer).
+  void allowAlways(String key) {
+    _approvalAlwaysAllowed.add(key);
+  }
+}
+
+/// The outcome of the P1-1 approval classification for one tool call.
+class _PendingDecision {
+  const _PendingDecision({
+    required this.state,
+    this.toolCallId = '',
+    this.content = '',
+  });
+
+  const _PendingDecision.allow()
+    : state = ApprovalDecision.allow,
+      toolCallId = '',
+      content = '';
+
+  final ApprovalDecision state;
+  final String toolCallId;
+  final String content;
 }

@@ -2070,6 +2070,43 @@ class AppLocalizationsZh extends AppLocalizations {
   String get askUserPending => '等待你作答';
 
   @override
+  String approvalPendingTitle(String tool) {
+    return '等待审批：$tool';
+  }
+
+  @override
+  String approvalDeniedTitle(String tool) {
+    return '已拒绝：$tool';
+  }
+
+  @override
+  String approvalTimeoutTitle(String tool) {
+    return '审批超时：$tool';
+  }
+
+  @override
+  String get approvalPendingPill => '待审批';
+
+  @override
+  String approvalOutsideWorkspace(String path) {
+    return '工作区之外：$path';
+  }
+
+  @override
+  String approvalServerLabel(String server) {
+    return 'MCP 服务器：$server';
+  }
+
+  @override
+  String get approvalApprove => '批准';
+
+  @override
+  String get approvalAlwaysAllow => '总是允许';
+
+  @override
+  String get approvalDeny => '拒绝';
+
+  @override
   String get chatMessageWidgetEditMemory => '编辑记忆';
 
   @override
@@ -6762,6 +6799,43 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get askUserPending => '等待你作答';
 
   @override
+  String approvalPendingTitle(String tool) {
+    return '等待审批：$tool';
+  }
+
+  @override
+  String approvalDeniedTitle(String tool) {
+    return '已拒绝：$tool';
+  }
+
+  @override
+  String approvalTimeoutTitle(String tool) {
+    return '审批超时：$tool';
+  }
+
+  @override
+  String get approvalPendingPill => '待审批';
+
+  @override
+  String approvalOutsideWorkspace(String path) {
+    return '工作区之外：$path';
+  }
+
+  @override
+  String approvalServerLabel(String server) {
+    return 'MCP 服务器：$server';
+  }
+
+  @override
+  String get approvalApprove => '批准';
+
+  @override
+  String get approvalAlwaysAllow => '总是允许';
+
+  @override
+  String get approvalDeny => '拒绝';
+
+  @override
   String get chatMessageWidgetEditMemory => '编辑记忆';
 
   @override
@@ -11347,6 +11421,43 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get askUserPending => '等待你作答';
+
+  @override
+  String approvalPendingTitle(String tool) {
+    return '等待審批：$tool';
+  }
+
+  @override
+  String approvalDeniedTitle(String tool) {
+    return '已拒絕：$tool';
+  }
+
+  @override
+  String approvalTimeoutTitle(String tool) {
+    return '審批逾時：$tool';
+  }
+
+  @override
+  String get approvalPendingPill => '待審批';
+
+  @override
+  String approvalOutsideWorkspace(String path) {
+    return '工作區之外：$path';
+  }
+
+  @override
+  String approvalServerLabel(String server) {
+    return 'MCP 伺服器：$server';
+  }
+
+  @override
+  String get approvalApprove => '批准';
+
+  @override
+  String get approvalAlwaysAllow => '永遠允許';
+
+  @override
+  String get approvalDeny => '拒絕';
 
   @override
   String get chatMessageWidgetEditMemory => '編輯記憶';

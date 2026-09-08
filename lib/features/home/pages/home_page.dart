@@ -700,6 +700,15 @@ class _HomePageState extends State<HomePage>
           payload,
         );
       },
+      onResolveApproval: (assistantMessageId, toolCallId,
+          {required approve, alwaysAllow = false}) async {
+        await _controller.resolveApproval(
+          assistantMessageId,
+          toolCallId,
+          approve: approve,
+          alwaysAllow: alwaysAllow,
+        );
+      },
     );
   }
 

@@ -104,6 +104,15 @@ class SettingsProvider extends ChangeNotifier {
   /// R0 (overflow trim-retry) intentionally has NO toggle — it is a
   /// failure-path-only safety net.
   static const String _autoCompactionV1Key = 'auto_compaction_v1';
+
+  /// P1-1 (v1.5): strict approval mode — every would-be `ask` degrades to
+  /// `deny` (for users who prefer hard blocks over per-call approval).
+  static const String _approvalStrictModeV1Key = 'approval_strict_mode_v1';
+
+  /// P1-1: persisted "always allow" override keys (per MCP tool / MCP
+  /// server / out-of-workspace absolute path). Not in `_localOnlyKeys`:
+  /// approval grants are user intent and sync across devices.
+  static const String _approvalAlwaysAllowedKey = 'approval_always_allowed_v1';
   static const String _displayAutoCollapseThinkingKey =
       'display_auto_collapse_thinking_v1';
   static const String _displayReplayToolResultsKey =
@@ -666,6 +675,10 @@ class SettingsProvider extends ChangeNotifier {
     _showToolCards = prefs.getBool(_displayShowToolCardsKey) ?? true;
     _agentLoopV1 = prefs.getBool(_agentLoopV1Key) ?? true;
     _autoCompactionV1 = prefs.getBool(_autoCompactionV1Key) ?? true;
+    _approvalStrictModeV1 = prefs.getBool(_approvalStrictModeV1Key) ?? false;
+    _approvalAlwaysAllowed = (
+      prefs.getStringList(_approvalAlwaysAllowedKey) ?? const <String>[]
+    ).toSet();
     _autoCollapseThinking =
         prefs.getBool(_displayAutoCollapseThinkingKey) ?? true;
     _replayToolResults = prefs.getBool(_displayReplayToolResultsKey) ?? true;
@@ -2849,6 +2862,40 @@ Synthesize your reasoning and research into a final response. The structure shou
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_autoCompactionV1Key, v);
+  }
+
+  // P1-1: strict approval mode (default off — ask instead of deny)
+  bool _approvalStrictModeV1 = false;
+  bool get approvalStrictModeV1 => _approvalStrictModeV1;
+  Future<void> setApprovalStrictModeV1(bool v) async {
+    if (_approvalStrictModeV1 == v) return;
+    _approvalStrictModeV1 = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_approvalStrictModeV1Key, v);
+  }
+
+  // P1-1: persisted "always allow" overrides
+  Set<String> _approvalAlwaysAllowed = <String>{};
+  Set<String> get approvalAlwaysAllowed => _approvalAlwaysAllowed;
+  Future<void> addApprovalAlwaysAllowed(String key) async {
+    if (!_approvalAlwaysAllowed.add(key)) return;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _approvalAlwaysAllowedKey,
+      _approvalAlwaysAllowed.toList(),
+    );
+  }
+
+  Future<void> removeApprovalAlwaysAllowed(String key) async {
+    if (!_approvalAlwaysAllowed.remove(key)) return;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _approvalAlwaysAllowedKey,
+      _approvalAlwaysAllowed.toList(),
+    );
   }
 
   Future<void> setAutoCollapseThinking(bool v) async {

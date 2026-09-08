@@ -383,6 +383,52 @@ class FileToolService {
     return resolved;
   }
 
+  /// P1-1: non-throwing path classification for the approval engine.
+  /// Reports whether [relativePath] resolves inside [workspaceRoot] and the
+  /// resolved absolute path (shown on the approval card — ADR-A8: the user
+  /// approves a concrete absolute path, not a relative string). A failure to
+  /// resolve (invalid path, missing root) is reported as inside=true so the
+  /// executor's own error path stays authoritative for malformed input.
+  static ({bool inside, String? resolvedPath}) probePathSafety(
+    String relativePath,
+    String workspaceRoot,
+  ) {
+    try {
+      final resolved = resolveSafePath(relativePath, workspaceRoot);
+      return (inside: true, resolvedPath: resolved);
+    } on FileToolSecurityException catch (e) {
+      // Only the boundary message means out-of-workspace; other security
+      // errors (invalid character / absolute path) go through the normal
+      // executor error path.
+      final msg = e.message.toLowerCase();
+      final isBoundary = msg.contains('out of workspace') ||
+          msg.contains('boundary') ||
+          msg.contains('must be relative');
+      if (!isBoundary) {
+        return (inside: true, resolvedPath: null);
+      }
+      // Best-effort absolute path for the card display.
+      String? display;
+      try {
+        display = p.isAbsolute(relativePath)
+            ? p.normalize(relativePath)
+            : p.normalize(p.join(workspaceRoot, relativePath));
+      } catch (_) {
+        display = relativePath;
+      }
+      return (inside: false, resolvedPath: display);
+    } catch (_) {
+      return (inside: true, resolvedPath: null);
+    }
+  }
+
+  /// P1-1: resolve and validate the workspace root without executing
+  /// anything. Used by the approval gate so it classifies the same root the
+  /// executor will use.
+  static Future<String> prepareWorkspaceFor(String? workspacePath) async {
+    return _prepareWorkspace(workspacePath);
+  }
+
   static Future<String> _prepareWorkspace(String? workspacePath) async {
     final raw = workspacePath?.trim();
     final directory = (raw == null || raw.isEmpty)

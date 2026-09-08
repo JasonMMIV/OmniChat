@@ -899,6 +899,7 @@ class ChatService extends ChangeNotifier {
     required String name,
     required Map<String, dynamic> arguments,
     String? content,
+    String? approvalState,
   }) async {
     if (!_initialized) await init();
     final list = List<Map<String, dynamic>>.of(
@@ -926,6 +927,7 @@ class ChatService extends ChangeNotifier {
       'name': name,
       'arguments': arguments,
       'content': _boundToolResultForPersistence(name, content),
+      if (approvalState != null) 'approvalState': approvalState,
     };
     if (idx >= 0) {
       list[idx] = record;
@@ -934,6 +936,36 @@ class ChatService extends ChangeNotifier {
     }
     await _toolEventsBox.put(assistantMessageId, list);
     notifyListeners();
+  }
+
+  /// P1-1: update only the `approvalState` (and optionally the content) of
+  /// an existing tool event, preserving id/name/arguments. No-op when the
+  /// event does not exist. Used by the approval resume path (approve / deny
+  /// / answer) and by the timeout sweeper.
+  Future<bool> setToolEventApprovalState(
+    String assistantMessageId, {
+    required String id,
+    required String approvalState,
+    String? content,
+  }) async {
+    if (!_initialized) await init();
+    final list = List<Map<String, dynamic>>.of(
+      getToolEvents(assistantMessageId),
+    );
+    final idx = list.indexWhere((e) => (e['id']?.toString() ?? '') == id);
+    if (idx < 0) return false;
+    final updated = Map<String, dynamic>.of(list[idx]);
+    updated['approvalState'] = approvalState;
+    if (content != null) {
+      updated['content'] = _boundToolResultForPersistence(
+        updated['name']?.toString() ?? '',
+        content,
+      );
+    }
+    list[idx] = updated;
+    await _toolEventsBox.put(assistantMessageId, list);
+    notifyListeners();
+    return true;
   }
 
   Map<String, dynamic> _boundToolEventForPersistence(

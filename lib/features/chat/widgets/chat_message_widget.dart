@@ -27,6 +27,7 @@ import '../../../core/providers/user_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/todo_service.dart';
+import '../../../core/services/agent/approval.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../core/providers/assistant_provider.dart';
 import 'package:intl/intl.dart';
@@ -117,6 +118,9 @@ class ChatMessageWidget extends StatefulWidget {
   // P1-3: submit an ask_user answer (resumes generation)
   final void Function(String assistantMessageId, String toolCallId,
       Map<String, dynamic> answerPayload)? onSubmitAskUserAnswer;
+  // P1-1: resolve an approval-pending tool call (approve/deny, resumes)
+  final Future<void> Function(String assistantMessageId, String toolCallId,
+      {required bool approve, bool alwaysAllow})? onResolveApproval;
 
   const ChatMessageWidget({
     super.key,
@@ -152,6 +156,7 @@ class ChatMessageWidget extends StatefulWidget {
     this.toolParts,
     this.hideStreamingIndicator = false,
     this.onSubmitAskUserAnswer,
+    this.onResolveApproval,
   });
 
   @override
@@ -712,6 +717,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
         part: part,
         assistantMessageId: widget.message.id,
         onSubmitAskUserAnswer: widget.onSubmitAskUserAnswer,
+        onResolveApproval: widget.onResolveApproval,
       ),
     );
   }
@@ -1921,6 +1927,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                         part: tools[k],
                         assistantMessageId: widget.message.id,
                         onSubmitAskUserAnswer: widget.onSubmitAskUserAnswer,
+                        onResolveApproval: widget.onResolveApproval,
                       ),
                     ),
                   );
@@ -2006,6 +2013,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                           part: p,
                           assistantMessageId: widget.message.id,
                           onSubmitAskUserAnswer: widget.onSubmitAskUserAnswer,
+                          onResolveApproval: widget.onResolveApproval,
                         ),
                       ),
                     )
@@ -3126,6 +3134,7 @@ class _ToolCallItem extends StatelessWidget {
     required this.part,
     this.assistantMessageId,
     this.onSubmitAskUserAnswer,
+    this.onResolveApproval,
   });
   final ToolUIPart part;
 
@@ -3136,6 +3145,10 @@ class _ToolCallItem extends StatelessWidget {
   /// P1-3: submit an ask_user answer (resumes generation).
   final void Function(String assistantMessageId, String toolCallId,
       Map<String, dynamic> answerPayload)? onSubmitAskUserAnswer;
+
+  /// P1-1: resolve an approval-pending call (approve/deny, resumes).
+  final Future<void> Function(String assistantMessageId, String toolCallId,
+      {required bool approve, bool alwaysAllow})? onResolveApproval;
 
   IconData _iconFor(String name) {
     switch (name) {
@@ -3207,6 +3220,28 @@ class _ToolCallItem extends StatelessWidget {
       );
     }
 
+    // P1-1: approval-pending card — Approve / Deny / Always-allow row
+    // rendered from the approval_required tool-event content.
+    final approval = _approvalStateOf(part);
+    if (approval != null) {
+      return ApprovalToolCard(
+        part: part,
+        approval: approval,
+        canResume: assistantMessageId != null && onResolveApproval != null,
+        onApprove: (alwaysAllow) => onResolveApproval!(
+          assistantMessageId!,
+          part.id,
+          approve: true,
+          alwaysAllow: alwaysAllow,
+        ),
+        onDeny: () => onResolveApproval!(
+          assistantMessageId!,
+          part.id,
+          approve: false,
+        ),
+      );
+    }
+
     return IosCardPress(
       borderRadius: BorderRadius.circular(10),
       baseColor: Colors.transparent,
@@ -3261,6 +3296,14 @@ class _ToolCallItem extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// P1-1: parse the approval protocol content on this tool part. Returns
+  /// the parsed payload when the call is awaiting (or recorded) approval.
+  Map<String, dynamic>? _approvalStateOf(ToolUIPart part) {
+    final parsed = parseApprovalContent(part.content);
+    if (parsed != null) return parsed;
+    return null;
   }
 
   void _showDetail(BuildContext context) {

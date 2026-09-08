@@ -4067,6 +4067,60 @@ abstract class AppLocalizations {
   /// **'Waiting for your answer'**
   String get askUserPending;
 
+  /// No description provided for @approvalPendingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Approval needed: {tool}'**
+  String approvalPendingTitle(String tool);
+
+  /// No description provided for @approvalDeniedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Denied: {tool}'**
+  String approvalDeniedTitle(String tool);
+
+  /// No description provided for @approvalTimeoutTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Approval timed out: {tool}'**
+  String approvalTimeoutTitle(String tool);
+
+  /// No description provided for @approvalPendingPill.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending'**
+  String get approvalPendingPill;
+
+  /// No description provided for @approvalOutsideWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Outside workspace: {path}'**
+  String approvalOutsideWorkspace(String path);
+
+  /// No description provided for @approvalServerLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'MCP server: {server}'**
+  String approvalServerLabel(String server);
+
+  /// No description provided for @approvalApprove.
+  ///
+  /// In en, this message translates to:
+  /// **'Approve'**
+  String get approvalApprove;
+
+  /// No description provided for @approvalAlwaysAllow.
+  ///
+  /// In en, this message translates to:
+  /// **'Always allow'**
+  String get approvalAlwaysAllow;
+
+  /// No description provided for @approvalDeny.
+  ///
+  /// In en, this message translates to:
+  /// **'Deny'**
+  String get approvalDeny;
+
   /// No description provided for @chatMessageWidgetEditMemory.
   ///
   /// In en, this message translates to:

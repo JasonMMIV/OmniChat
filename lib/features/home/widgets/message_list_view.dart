@@ -94,6 +94,7 @@ class MessageListView extends StatelessWidget {
     this.onToggleReasoningSegment,
     this.buildPinnedStreamingIndicator,
     this.onSubmitAskUserAnswer,
+    this.onResolveApproval,
   });
 
   final ScrollController scrollController;
@@ -135,6 +136,10 @@ class MessageListView extends StatelessWidget {
   /// P1-3: submit an ask_user answer (resumes generation).
   final void Function(String assistantMessageId, String toolCallId,
       Map<String, dynamic> answerPayload)? onSubmitAskUserAnswer;
+
+  /// P1-1: resolve an approval-pending tool call (approve/deny, resumes).
+  final Future<void> Function(String assistantMessageId, String toolCallId,
+      {required bool approve, bool alwaysAllow})? onResolveApproval;
 
   /// Collapse message versions to show only selected version per group.
   List<ChatMessage> _collapseVersions(List<ChatMessage> items) {
@@ -540,6 +545,7 @@ class MessageListView extends StatelessWidget {
       },
       toolParts: message.role == 'assistant' ? toolParts[message.id] : null,
       onSubmitAskUserAnswer: onSubmitAskUserAnswer,
+      onResolveApproval: onResolveApproval,
       reasoningSegments: message.role == 'assistant'
           ? (() {
               final segments = reasoningSegments[message.id];

@@ -510,6 +510,50 @@
   "askUserSkipped": "已跳过",
   "askUserNoAnswer": "（未作答）",
   "askUserPending": "等待你作答",
+  "approvalPendingTitle": "等待审批：{tool}",
+  "@approvalPendingTitle": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalDeniedTitle": "已拒绝：{tool}",
+  "@approvalDeniedTitle": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalTimeoutTitle": "审批超时：{tool}",
+  "@approvalTimeoutTitle": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalPendingPill": "待审批",
+  "approvalOutsideWorkspace": "工作区之外：{path}",
+  "@approvalOutsideWorkspace": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalServerLabel": "MCP 服务器：{server}",
+  "@approvalServerLabel": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalApprove": "批准",
+  "approvalAlwaysAllow": "总是允许",
+  "approvalDeny": "拒绝",
   "chatMessageWidgetEditMemory": "编辑记忆",
   "chatMessageWidgetDeleteMemory": "删除记忆",
   "chatMessageWidgetWebSearch": "联网检索: {query}",

@@ -858,6 +858,50 @@
   "askUserSkipped": "Skipped",
   "askUserNoAnswer": "(no answer)",
   "askUserPending": "Waiting for your answer",
+  "approvalPendingTitle": "Approval needed: {tool}",
+  "@approvalPendingTitle": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalDeniedTitle": "Denied: {tool}",
+  "@approvalDeniedTitle": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalTimeoutTitle": "Approval timed out: {tool}",
+  "@approvalTimeoutTitle": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalPendingPill": "Pending",
+  "approvalOutsideWorkspace": "Outside workspace: {path}",
+  "@approvalOutsideWorkspace": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalServerLabel": "MCP server: {server}",
+  "@approvalServerLabel": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalApprove": "Approve",
+  "approvalAlwaysAllow": "Always allow",
+  "approvalDeny": "Deny",
   "chatMessageWidgetEditMemory": "Edit",
   "chatMessageWidgetDeleteMemory": "Forget",
   "chatMessageWidgetWebSearch": "Search: {query}",
