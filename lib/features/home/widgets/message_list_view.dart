@@ -93,6 +93,7 @@ class MessageListView extends StatelessWidget {
     this.onToggleTranslation,
     this.onToggleReasoningSegment,
     this.buildPinnedStreamingIndicator,
+    this.onSubmitAskUserAnswer,
   });
 
   final ScrollController scrollController;
@@ -130,6 +131,10 @@ class MessageListView extends StatelessWidget {
   final void Function(String messageId)? onToggleTranslation;
   final void Function(String messageId, int segmentIndex)? onToggleReasoningSegment;
   final Widget Function()? buildPinnedStreamingIndicator;
+
+  /// P1-3: submit an ask_user answer (resumes generation).
+  final void Function(String assistantMessageId, String toolCallId,
+      Map<String, dynamic> answerPayload)? onSubmitAskUserAnswer;
 
   /// Collapse message versions to show only selected version per group.
   List<ChatMessage> _collapseVersions(List<ChatMessage> items) {
@@ -534,6 +539,7 @@ class MessageListView extends StatelessWidget {
 
       },
       toolParts: message.role == 'assistant' ? toolParts[message.id] : null,
+      onSubmitAskUserAnswer: onSubmitAskUserAnswer,
       reasoningSegments: message.role == 'assistant'
           ? (() {
               final segments = reasoningSegments[message.id];

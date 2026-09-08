@@ -2035,6 +2035,41 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatMessageWidgetCreateMemory => '创建记忆';
 
   @override
+  String get todoCardTitle => '计划';
+
+  @override
+  String todoCardCompleted(Object completed, Object total) {
+    return '已完成 $completed/$total';
+  }
+
+  @override
+  String get todoCardWaiting => '正在写计划…';
+
+  @override
+  String get askUserCardTitle => '问题';
+
+  @override
+  String get askUserOther => '其他…';
+
+  @override
+  String get askUserSkip => '跳过';
+
+  @override
+  String get askUserSubmit => '提交';
+
+  @override
+  String get askUserAnswered => '已回答';
+
+  @override
+  String get askUserSkipped => '已跳过';
+
+  @override
+  String get askUserNoAnswer => '（未作答）';
+
+  @override
+  String get askUserPending => '等待你作答';
+
+  @override
   String get chatMessageWidgetEditMemory => '编辑记忆';
 
   @override
@@ -6692,6 +6727,41 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatMessageWidgetCreateMemory => '创建记忆';
 
   @override
+  String get todoCardTitle => '计划';
+
+  @override
+  String todoCardCompleted(Object completed, Object total) {
+    return '已完成 $completed/$total';
+  }
+
+  @override
+  String get todoCardWaiting => '正在写计划…';
+
+  @override
+  String get askUserCardTitle => '问题';
+
+  @override
+  String get askUserOther => '其他…';
+
+  @override
+  String get askUserSkip => '跳过';
+
+  @override
+  String get askUserSubmit => '提交';
+
+  @override
+  String get askUserAnswered => '已回答';
+
+  @override
+  String get askUserSkipped => '已跳过';
+
+  @override
+  String get askUserNoAnswer => '（未作答）';
+
+  @override
+  String get askUserPending => '等待你作答';
+
+  @override
   String get chatMessageWidgetEditMemory => '编辑记忆';
 
   @override
@@ -11242,6 +11312,41 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatMessageWidgetCreateMemory => '建立記憶';
+
+  @override
+  String get todoCardTitle => '計畫';
+
+  @override
+  String todoCardCompleted(Object completed, Object total) {
+    return '已完成 $completed/$total';
+  }
+
+  @override
+  String get todoCardWaiting => '正在寫計畫…';
+
+  @override
+  String get askUserCardTitle => '問題';
+
+  @override
+  String get askUserOther => '其他…';
+
+  @override
+  String get askUserSkip => '略過';
+
+  @override
+  String get askUserSubmit => '送出';
+
+  @override
+  String get askUserAnswered => '已回答';
+
+  @override
+  String get askUserSkipped => '已略過';
+
+  @override
+  String get askUserNoAnswer => '（未作答）';
+
+  @override
+  String get askUserPending => '等待你作答';
 
   @override
   String get chatMessageWidgetEditMemory => '編輯記憶';

@@ -117,6 +117,9 @@ class HomeViewModel extends ChangeNotifier {
   final BuildContext _contextProvider;
   late final ChatActions _chatActions;
 
+  /// P1-3: expose ChatActions for the ask_user resume path.
+  ChatActions get chatActions => _chatActions;
+
   /// Function to get localized title
   final String Function(BuildContext context) getTitleForLocale;
 

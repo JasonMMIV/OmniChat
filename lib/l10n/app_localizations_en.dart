@@ -2047,6 +2047,41 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatMessageWidgetCreateMemory => 'Remember';
 
   @override
+  String get todoCardTitle => 'Plan';
+
+  @override
+  String todoCardCompleted(Object completed, Object total) {
+    return '$completed/$total completed';
+  }
+
+  @override
+  String get todoCardWaiting => 'Writing plan…';
+
+  @override
+  String get askUserCardTitle => 'Questions';
+
+  @override
+  String get askUserOther => 'Other…';
+
+  @override
+  String get askUserSkip => 'Skip';
+
+  @override
+  String get askUserSubmit => 'Submit';
+
+  @override
+  String get askUserAnswered => 'Answered';
+
+  @override
+  String get askUserSkipped => 'Skipped';
+
+  @override
+  String get askUserNoAnswer => '(no answer)';
+
+  @override
+  String get askUserPending => 'Waiting for your answer';
+
+  @override
   String get chatMessageWidgetEditMemory => 'Edit';
 
   @override

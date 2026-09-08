@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/widgets.dart';
+import 'package:provider/provider.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
@@ -10,6 +11,7 @@ import '../../../core/services/agent/compaction/compaction_trigger.dart';
 import '../../../core/services/agent/compaction/context_trim.dart';
 import '../../../core/services/api/learned_context_windows.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant_regex.dart';
@@ -115,6 +117,24 @@ class MessageGenerationService {
     // model's trigger(W), move the compaction marker so the older history
     // becomes a deterministic mechanical summary at assembly time.
     var conversation = currentConversation;
+
+    // P1-3: fetch the current todo snapshot early — its first incomplete
+    // item feeds the compaction knowledge block (Next Action).
+    List<TodoItem> currentTodos = const <TodoItem>[];
+    try {
+      if (conversation != null) {
+        currentTodos =
+            await contextProvider.read<TodoService>().getTodos(conversation.id);
+      }
+    } catch (_) {}
+    String? todoNextAction;
+    for (final t in currentTodos) {
+      if (!t.isCompleted) {
+        todoNextAction = t.content;
+        break;
+      }
+    }
+
     if (settings.autoCompactionV1 && conversation != null) {
       final conv = conversation;
       int? measured;
@@ -154,6 +174,7 @@ class MessageGenerationService {
       currentConversation: conversation,
       includeToolMessages: settings.replayToolResults,
       enableAutoCompaction: settings.autoCompactionV1,
+      compactionNextAction: todoNextAction,
     );
 
     // Process user messages (documents, OCR, templates)
@@ -198,6 +219,15 @@ class MessageGenerationService {
       apiMessages,
       assistantId,
     );
+
+    // P1-3: inject the current todo snapshot at the system-prompt tail
+    // (log-only UI state — never added as conversation history).
+    try {
+      messageBuilderService.injectTodoSnapshot(
+        apiMessages,
+        renderTodoSnapshot(currentTodos),
+      );
+    } catch (_) {}
 
     // Apply context limit and inline images
     messageBuilderService.applyContextLimit(apiMessages, assistant);

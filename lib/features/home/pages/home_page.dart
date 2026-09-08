@@ -693,6 +693,13 @@ class _HomePageState extends State<HomePage>
       onToggleReasoningSegment: (messageId, segmentIndex) {
         _controller.toggleReasoningSegment(messageId, segmentIndex);
       },
+      onSubmitAskUserAnswer: (assistantMessageId, toolCallId, payload) {
+        _controller.submitAskUserAnswer(
+          assistantMessageId,
+          toolCallId,
+          payload,
+        );
+      },
     );
   }
 
