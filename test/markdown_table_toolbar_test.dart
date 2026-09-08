@@ -65,7 +65,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('renders a toolbar with download and copy actions and no label', (tester) async {
+  testWidgets('renders download and copy actions below the table without a top bar', (tester) async {
     final sp = await _loadedProvider();
     await _pumpMd(tester, sp, _tableMd);
 
@@ -74,6 +74,13 @@ void main() {
     // Copy and download actions.
     expect(find.text('Copy'), findsOneWidget);
     expect(find.text('Download'), findsOneWidget);
+
+    // Verify actions are placed below the Table
+    final tableBottom = tester.getBottomLeft(find.byType(Table)).dy;
+    final copyTop = tester.getTopLeft(find.text('Copy')).dy;
+    final downloadTop = tester.getTopLeft(find.text('Download')).dy;
+    expect(copyTop, greaterThanOrEqualTo(tableBottom));
+    expect(downloadTop, greaterThanOrEqualTo(tableBottom));
   });
 
   testWidgets('copy button writes the rebuilt markdown table to the clipboard', (tester) async {
