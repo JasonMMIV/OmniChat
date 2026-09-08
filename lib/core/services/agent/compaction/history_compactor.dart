@@ -370,7 +370,12 @@ String renderSummaryText(List<_SummaryEntry> entries) =>
 /// Deterministic Goal/Files/Edits/Next block, pinned verbatim ahead of the
 /// historical memory. Everything comes from the replayed messages being
 /// compacted — no heuristics beyond the short-reply noise filter.
-String buildKnowledgeBlock(List<Map<String, dynamic>> messages) {
+/// [nextActionOverride] (the P1-3 current todo snapshot's first incomplete
+/// item, or any caller-supplied hint) wins over the assistant-tail fallback.
+String buildKnowledgeBlock(
+  List<Map<String, dynamic>> messages, {
+  String? nextActionOverride,
+}) {
   String? goal;
   final inspected = <String>[];
   final edited = <String>[];
@@ -431,6 +436,8 @@ String buildKnowledgeBlock(List<Map<String, dynamic>> messages) {
       'Edits Made:\n${edited.take(knowledgeListCap).map((p) => '- $p').join('\n')}',
     );
   }
+  final override = nextActionOverride?.trim() ?? '';
+  if (override.isNotEmpty) nextAction = override;
   if (nextAction != null) {
     lines.add('Next Action: $nextAction');
   }
@@ -472,8 +479,9 @@ Map<String, dynamic> buildSummaryMessage(
 /// `null` when the range produces no usable summary (empty input or nothing
 /// survives the per-entry filters).
 Map<String, dynamic>? compactHistoryMessages(
-  List<Map<String, dynamic>> messages,
-) {
+  List<Map<String, dynamic>> messages, {
+  String? nextActionOverride,
+}) {
   if (messages.isEmpty) return null;
   final entries = summarizeMessagesIntoEntries(messages);
   if (entries.isEmpty) return null;
@@ -481,6 +489,7 @@ Map<String, dynamic>? compactHistoryMessages(
   if (selected.isEmpty) return null;
   final summaryText = renderSummaryText(selected);
   if (summaryText.trim().isEmpty) return null;
-  final knowledgeBlock = buildKnowledgeBlock(messages);
+  final knowledgeBlock =
+      buildKnowledgeBlock(messages, nextActionOverride: nextActionOverride);
   return buildSummaryMessage(summaryText, knowledgeBlock);
 }

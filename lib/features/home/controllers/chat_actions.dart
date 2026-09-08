@@ -12,6 +12,7 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/services/api/transient_stream_error.dart';
+import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/assistant_regex.dart';
@@ -19,6 +20,7 @@ import '../../../core/models/assistant_regex.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
 import '../services/agent_orchestrator.dart';
 import '../services/message_generation_service.dart';
+import '../../chat/widgets/chat_message_widget.dart';
 import 'chat_controller.dart';
 import 'generation_controller.dart';
 import 'stream_controller.dart' as stream_ctrl;
@@ -309,6 +311,145 @@ class ChatActions {
       await _executeGeneration(ctx);
     }
     return ChatActionResult.success(assistantMessage);
+  }
+
+  // ============================================================================
+  // P1-3 ask_user Resume (kelivo `ask_user_input_v0` semantics)
+  // ============================================================================
+
+  /// Resume generation after the user answers (or skips) an `ask_user`
+  /// decision card. The pending tool event (call + arguments persisted,
+  /// content only carrying the pending marker) is the natural checkpoint:
+  /// resume = upsert the answer JSON as the event content, then start a new
+  /// assistant message whose context replays the answered tool result.
+  ///
+  /// Returns the new assistant message, or null when the event is missing,
+  /// already answered, or the conversation/model is unavailable.
+  Future<ChatMessage?> resumeAfterAskUserAnswer(
+    String conversationId,
+    String assistantMessageId,
+    String toolCallId,
+    Map<String, dynamic> answerPayload,
+  ) async {
+    final conv = _currentConversation;
+    if (conv == null || conv.id != conversationId) return null;
+    final settings = contextProvider.read<SettingsProvider>();
+    final assistantProvider = contextProvider.read<AssistantProvider>();
+    final assistant = conv.assistantId == null
+        ? assistantProvider.currentAssistant
+        : assistantProvider.getById(conv.assistantId!);
+    final modelConfig = messageGenerationService.getModelConfig(
+      settings,
+      assistant,
+    );
+    if (modelConfig.providerKey == null || modelConfig.modelId == null) {
+      return null;
+    }
+
+    // 1. Persist the answer as the tool event content (checkpoint complete).
+    //    Preserve the original arguments (the questions) from the event.
+    final answerJson = jsonEncode(answerPayload);
+    Map<String, dynamic> originalArgs = const <String, dynamic>{};
+    try {
+      for (final e in chatService.getToolEvents(assistantMessageId)) {
+        if ((e['id']?.toString() ?? '') == toolCallId) {
+          final a = e['arguments'];
+          if (a is Map) {
+            originalArgs = a.map((k, v) => MapEntry(k.toString(), v));
+          }
+          break;
+        }
+      }
+    } catch (_) {}
+    try {
+      await chatService.upsertToolEvent(
+        assistantMessageId,
+        id: toolCallId,
+        name: askUserToolName,
+        arguments: originalArgs,
+        content: answerJson,
+      );
+    } catch (_) {
+      return null;
+    }
+
+    // 2. Refresh the in-memory tool part so the card flips to Answered.
+    final parts = List<ToolUIPart>.of(
+      streamController.toolParts[assistantMessageId] ?? const [],
+    );
+    final pIdx = parts.indexWhere((p) => p.id == toolCallId);
+    if (pIdx >= 0) {
+      parts[pIdx] = ToolUIPart(
+        id: parts[pIdx].id,
+        toolName: parts[pIdx].toolName,
+        arguments: parts[pIdx].arguments,
+        content: answerJson,
+        loading: false,
+      );
+      streamController.toolParts[assistantMessageId] = parts;
+      streamController.streamingContentNotifier
+          .notifyToolPartsUpdated(assistantMessageId);
+    }
+
+    // 3. Continue with a new assistant message (kelivo semantics: the
+    // answered tool result replays into the next turn's context).
+    final assistantMessage = await messageGenerationService
+        .createAssistantPlaceholder(
+      conversationId: conversationId,
+      modelId: modelConfig.modelId!,
+      providerKey: modelConfig.providerKey!,
+    );
+    streamController.markStreamingStarted(assistantMessage.id);
+    _messages.add(assistantMessage);
+    onMessagesChanged?.call();
+    _setConversationLoading(conversationId, true);
+
+    final supportsReasoning =
+        _isReasoningModel(modelConfig.providerKey!, modelConfig.modelId!);
+    final enableReasoning =
+        supportsReasoning &&
+        _isReasoningEnabled(
+          assistant?.thinkingBudget ?? settings.thinkingBudget,
+        );
+    await messageGenerationService.initializeReasoningState(
+      messageId: assistantMessage.id,
+      enableReasoning: enableReasoning,
+    );
+
+    final prepared = await messageGenerationService
+        .prepareApiMessagesWithInjections(
+      messages: _messages,
+      assistantMessageId: assistantMessage.id,
+      versionSelections: _versionSelections,
+      currentConversation: conv,
+      settings: settings,
+      assistant: assistant,
+      assistantId: assistant?.id,
+      providerKey: modelConfig.providerKey!,
+      modelId: modelConfig.modelId!,
+    );
+
+    final userImagePaths = messageGenerationService.buildUserImagePaths(
+      input: null,
+      lastUserImagePaths: prepared.lastUserImagePaths,
+      settings: settings,
+    );
+
+    final ctx = messageGenerationService.buildGenerationContext(
+      assistantMessage: assistantMessage,
+      prepared: prepared,
+      userImagePaths: userImagePaths,
+      providerKey: modelConfig.providerKey!,
+      modelId: modelConfig.modelId!,
+      assistant: assistant,
+      settings: settings,
+      supportsReasoning: supportsReasoning,
+      enableReasoning: enableReasoning,
+      generateTitleOnFinish: false,
+    );
+
+    await _executeGeneration(ctx);
+    return assistantMessage;
   }
 
   // ============================================================================

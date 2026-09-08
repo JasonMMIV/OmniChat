@@ -25,6 +25,8 @@ import '../../../icons/lucide_adapter.dart';
 // import '../../../theme/design_tokens.dart';
 import '../../../core/providers/user_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/chat/ask_user_models.dart';
+import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../core/providers/assistant_provider.dart';
 import 'package:intl/intl.dart';
@@ -36,6 +38,7 @@ import '../../../core/providers/tts_provider.dart';
 import '../../../shared/widgets/markdown_with_highlight.dart';
 import '../../../shared/widgets/snackbar.dart';
 import 'ai_team_proposals_section.dart';
+import 'cowork_tool_cards.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/providers/settings_provider.dart';
@@ -111,6 +114,9 @@ class ChatMessageWidget extends StatefulWidget {
   final List<ToolUIPart>? toolParts;
   // Hide streaming dots when pinned globally
   final bool hideStreamingIndicator;
+  // P1-3: submit an ask_user answer (resumes generation)
+  final void Function(String assistantMessageId, String toolCallId,
+      Map<String, dynamic> answerPayload)? onSubmitAskUserAnswer;
 
   const ChatMessageWidget({
     super.key,
@@ -145,6 +151,7 @@ class ChatMessageWidget extends StatefulWidget {
     this.onToggleTranslation,
     this.toolParts,
     this.hideStreamingIndicator = false,
+    this.onSubmitAskUserAnswer,
   });
 
   @override
@@ -701,7 +708,11 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     );
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: _ToolCallItem(part: part),
+      child: _ToolCallItem(
+        part: part,
+        assistantMessageId: widget.message.id,
+        onSubmitAskUserAnswer: widget.onSubmitAskUserAnswer,
+      ),
     );
   }
 
@@ -1906,7 +1917,11 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                   mixedContent.add(
                     Padding(
                       padding: const EdgeInsets.only(bottom: 4),
-                      child: _ToolCallItem(part: tools[k]),
+                      child: _ToolCallItem(
+                        part: tools[k],
+                        assistantMessageId: widget.message.id,
+                        onSubmitAskUserAnswer: widget.onSubmitAskUserAnswer,
+                      ),
                     ),
                   );
                 }
@@ -1987,7 +2002,11 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                     .map(
                       (p) => Padding(
                         padding: const EdgeInsets.only(bottom: 4),
-                        child: _ToolCallItem(part: p),
+                        child: _ToolCallItem(
+                          part: p,
+                          assistantMessageId: widget.message.id,
+                          onSubmitAskUserAnswer: widget.onSubmitAskUserAnswer,
+                        ),
                       ),
                     )
                     .toList(),
@@ -3103,8 +3122,20 @@ class ReasoningSegment {
 }
 
 class _ToolCallItem extends StatelessWidget {
-  const _ToolCallItem({required this.part});
+  const _ToolCallItem({
+    required this.part,
+    this.assistantMessageId,
+    this.onSubmitAskUserAnswer,
+  });
   final ToolUIPart part;
+
+  /// Owning assistant message id — used by the P1-3 ask_user card to
+  /// resume generation after the user answers.
+  final String? assistantMessageId;
+
+  /// P1-3: submit an ask_user answer (resumes generation).
+  final void Function(String assistantMessageId, String toolCallId,
+      Map<String, dynamic> answerPayload)? onSubmitAskUserAnswer;
 
   IconData _iconFor(String name) {
     switch (name) {
@@ -3154,6 +3185,27 @@ class _ToolCallItem extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardTextColor =
         isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
+
+    // P1-3: cowork tools render as dedicated interactive cards instead of the
+    // generic tool row (plan card / ask_user answer card).
+    if (part.toolName == todoToolName) {
+      return TodoPlanCard(arguments: part.arguments, content: part.content);
+    }
+    if (part.toolName == askUserToolName) {
+      final submit = onSubmitAskUserAnswer;
+      final canResume = assistantMessageId != null && submit != null;
+      return AskUserCard(
+        arguments: part.arguments,
+        content: part.content,
+        onAnswer: canResume
+            ? (payload) => submit!(
+                  assistantMessageId!,
+                  part.id,
+                  payload,
+                )
+            : null,
+      );
+    }
 
     return IosCardPress(
       borderRadius: BorderRadius.circular(10),

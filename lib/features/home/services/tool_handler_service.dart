@@ -10,6 +10,8 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/mcp/mcp_tool_service.dart';
 import '../../../core/services/search/search_tool_service.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/chat/todo_service.dart';
+import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/file/file_tool_service.dart';
 import '../../../core/services/logging/flutter_logger.dart';
 import '../../../core/services/tools/tool_output_externalizer.dart';
@@ -177,6 +179,11 @@ class ToolHandlerService {
       toolDefs.addAll(_buildMemoryToolDefinitions());
     }
 
+    // P1-3: plan/TODO + ask_user decision tools (no approval needed).
+    if (supportsTools) {
+      toolDefs.addAll(_buildCoworkToolDefinitions());
+    }
+
     // MCP tools
     final mcpTools = _buildMcpToolDefinitions(
       settings: settings,
@@ -192,6 +199,87 @@ class ToolHandlerService {
     }
 
     return toolDefs;
+  }
+
+  /// P1-3 Cowork tools: write_todos (log-only plan snapshot) and ask_user
+  /// (decision card). Neither mutates anything dangerous — no approval.
+  List<Map<String, dynamic>> _buildCoworkToolDefinitions() {
+    return [
+      {
+        'type': 'function',
+        'function': {
+          'name': todoToolName,
+          'description':
+              'Write the plan/todo list for the current task. Send the COMPLETE list every call (last write wins) — statuses: pending, in_progress, completed. Keep exactly one item in_progress while working. Log-only UI state: the list is shown to the user as a plan card and injected into your context; it is never stored as conversation history.',
+          'parameters': {
+            'type': 'object',
+            'properties': {
+              'todos': {
+                'type': 'array',
+                'description': 'The full todo list snapshot.',
+                'items': {
+                  'type': 'object',
+                  'properties': {
+                    'content': {
+                      'type': 'string',
+                      'description': 'The task description.',
+                    },
+                    'status': {
+                      'type': 'string',
+                      'enum': [
+                        todoStatusPending,
+                        todoStatusInProgress,
+                        todoStatusCompleted,
+                      ],
+                    },
+                  },
+                  'required': ['content', 'status'],
+                },
+              },
+            },
+            'required': ['todos'],
+          },
+        },
+      },
+      {
+        'type': 'function',
+        'function': {
+          'name': askUserToolName,
+          'description':
+              'Ask the user one or multiple-choice questions when a decision is needed (direction, trade-offs, plan confirmation). The UI shows interactive answer cards and automatically provides an Other free-text field and Skip — do NOT add those options yourself. Max 4 questions, max 4 options each. End your turn after calling this; the answers arrive as the next user input.',
+          'parameters': {
+            'type': 'object',
+            'properties': {
+              'questions': {
+                'type': 'array',
+                'items': {
+                  'type': 'object',
+                  'properties': {
+                    'question': {
+                      'type': 'string',
+                      'description': 'The question text.',
+                    },
+                    'kind': {
+                      'type': 'string',
+                      'enum': ['single', 'multi'],
+                      'description':
+                          'single = one choice (radio), multi = several choices (checkboxes).',
+                    },
+                    'options': {
+                      'type': 'array',
+                      'items': {'type': 'string'},
+                      'description': 'The selectable option labels.',
+                    },
+                  },
+                  'required': ['question', 'kind', 'options'],
+                },
+              },
+            },
+            'required': ['questions'],
+          },
+        },
+      },
+    ];
   }
 
   /// Build memory tool definitions (create/edit/delete).
@@ -387,6 +475,57 @@ class ToolHandlerService {
       }
 
       try {
+        // P1-3: write_todos — log-only plan snapshot (whole-list rewrite).
+        if (name == todoToolName) {
+          if (conversationId == null || conversationId.isEmpty) {
+            return jsonEncode({
+              'type': 'tool_error',
+              'error': 'no_conversation',
+              'message': 'write_todos requires an active conversation.',
+              'tool': name,
+            });
+          }
+          try {
+            final todoService = contextProvider.read<TodoService>();
+            final todos = normalizeTodoItems(args['todos']);
+            await todoService.setTodos(conversationId, todos);
+            final inProgress = todos.where((t) => t.isInProgress).length;
+            final completed = todos.where((t) => t.isCompleted).length;
+            return 'Todo list updated: ${todos.length} items '
+                '($inProgress in progress, $completed completed).';
+          } catch (e) {
+            return jsonEncode({
+              'type': 'tool_error',
+              'error': 'todo_store_failed',
+              'message': e.toString(),
+              'tool': name,
+            });
+          }
+        }
+
+        // P1-3: ask_user — surface the interactive answer card and end the
+        // turn (Pending → answer → resume). The returned JSON is persisted
+        // as the tool event content: the card renders from it, and resume
+        // replaces it with the structured answer JSON.
+        if (name == askUserToolName) {
+          final questions = normalizeAskUserQuestions(args['questions']);
+          if (questions.isEmpty) {
+            return jsonEncode({
+              'type': 'tool_error',
+              'error': 'invalid_questions',
+              'message':
+                  'ask_user requires at least one question with non-empty text and options.',
+              'tool': name,
+            });
+          }
+          return jsonEncode({
+            'type': askUserPendingType,
+            'questions': [for (final q in questions) q.toJson()],
+            'instruction':
+                'These questions are now shown to the user as interactive answer cards. End your turn now and wait — the structured answers will arrive with the user next input. Do not invent or assume answers.',
+          });
+        }
+
         // Search tool
         if (name == SearchToolService.toolName && settings.searchEnabled) {
           final q = (args['query'] ?? '').toString();

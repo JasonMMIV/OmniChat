@@ -16,6 +16,7 @@ import '../../../core/services/instruction_injection_store.dart';
 import '../../../core/services/search/search_tool_service.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/services/api/builtin_tools.dart';
+import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/agent/compaction/context_trim.dart';
 import '../../../core/services/agent/compaction/history_compactor.dart';
 import '../../../core/services/agent/compaction/tool_result_pruner.dart';
@@ -125,6 +126,7 @@ class MessageBuilderService {
     required Conversation? currentConversation,
     bool includeToolMessages = false,
     bool enableAutoCompaction = false,
+    String? compactionNextAction,
   }) {
     final tIndex = currentConversation?.truncateIndex ?? -1;
     final List<ChatMessage> sourceAll =
@@ -162,7 +164,10 @@ class MessageBuilderService {
     final out = <Map<String, dynamic>>[];
     if (headSource != null && headSource.isNotEmpty) {
       final headApi = neutralMessagesFor(headSource, includeToolMessages);
-      final summary = compactHistoryMessages(headApi);
+      final summary = compactHistoryMessages(
+        headApi,
+        nextActionOverride: compactionNextAction,
+      );
       if (summary != null) out.add(summary);
     }
     out.addAll(neutralMessagesFor(tailSource, includeToolMessages));
@@ -195,6 +200,14 @@ class MessageBuilderService {
               final e = events[i];
               final name = (e['name'] ?? '').toString().trim();
               if (name.isEmpty) continue;
+              // P1-3: write_todos is a log-only tool — its snapshot is
+              // injected at the system-prompt tail, never replayed as
+              // history (avoids pushing the whole plan into every turn).
+              if (name == todoToolName) continue;
+              // P1-3: ask_user DOES replay — the answered JSON is the
+              // model-facing record of what the user chose (ADR-A5
+              // "Answered → answer as tool result"), so the resumed turn's
+              // context carries question + answer via §3.11.
               final rawId = (e['id'] ?? '').toString().trim();
               final id = rawId.isNotEmpty
                   ? rawId
@@ -520,7 +533,7 @@ file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPT
 相似或相关的记忆应合并为一条记录，而不要重复记录，过时记录应删除。
 你可以在和用户闲聊的时候暗示用户你能记住东西。
 ''');
-        _appendToSystemMessage(apiMessages, buf.toString());
+        appendToSystemMessage(apiMessages, buf.toString());
       }
       if (assistant?.enableRecentChatsReference == true) {
         final chats = chatService.getAllConversations();
@@ -551,7 +564,7 @@ file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPT
             sb.writeln('</conversation>');
           }
           sb.writeln('</recent_chats>');
-          _appendToSystemMessage(apiMessages, sb.toString());
+          appendToSystemMessage(apiMessages, sb.toString());
         }
       }
     } catch (_) {}
@@ -565,7 +578,7 @@ file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPT
   ) {
     if (settings.searchEnabled && !hasBuiltInSearch) {
       final prompt = SearchToolService.getSystemPrompt();
-      _appendToSystemMessage(apiMessages, prompt);
+      appendToSystemMessage(apiMessages, prompt);
     }
   }
 
@@ -595,13 +608,24 @@ file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPT
           .toList(growable: false);
       if (prompts.isNotEmpty) {
         final lp = prompts.join('\n\n');
-        _appendToSystemMessage(apiMessages, lp);
+        appendToSystemMessage(apiMessages, lp);
       }
     } catch (_) {}
   }
 
+  /// Inject the P1-3 current todo snapshot at the system-prompt tail
+  /// (stable position, cache-prefix friendly). No-op when [snapshotText]
+  /// is empty. Log-only UI state — never added as conversation history.
+  void injectTodoSnapshot(
+    List<Map<String, dynamic>> apiMessages,
+    String snapshotText,
+  ) {
+    if (snapshotText.trim().isEmpty) return;
+    appendToSystemMessage(apiMessages, snapshotText);
+  }
+
   /// Helper to append content to the system message (or create one if missing).
-  void _appendToSystemMessage(
+  void appendToSystemMessage(
     List<Map<String, dynamic>> apiMessages,
     String content,
   ) {

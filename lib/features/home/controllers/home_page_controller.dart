@@ -446,6 +446,23 @@ class HomePageController extends ChangeNotifier {
   Map<String, List<stream_ctrl.ReasoningSegmentData>> get reasoningSegments => _streamController.reasoningSegments;
   Map<String, List<ToolUIPart>> get toolParts => _streamController.toolParts;
 
+  /// P1-3: resume generation after the user answers an `ask_user` decision
+  /// card (upsert answer JSON into the pending tool event + continue).
+  Future<void> submitAskUserAnswer(
+    String assistantMessageId,
+    String toolCallId,
+    Map<String, dynamic> answerPayload,
+  ) async {
+    final conv = currentConversation;
+    if (conv == null) return;
+    await _viewModel.chatActions.resumeAfterAskUserAnswer(
+      conv.id,
+      assistantMessageId,
+      toolCallId,
+      answerPayload,
+    );
+  }
+
   /// Lightweight notifier for streaming content updates.
   /// Use this with ValueListenableBuilder in MessageListView to avoid full page rebuilds.
   stream_ctrl.StreamingContentNotifier get streamingContentNotifier =>

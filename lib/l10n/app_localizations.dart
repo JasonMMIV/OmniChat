@@ -4001,6 +4001,72 @@ abstract class AppLocalizations {
   /// **'Remember'**
   String get chatMessageWidgetCreateMemory;
 
+  /// No description provided for @todoCardTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan'**
+  String get todoCardTitle;
+
+  /// No description provided for @todoCardCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'{completed}/{total} completed'**
+  String todoCardCompleted(Object completed, Object total);
+
+  /// No description provided for @todoCardWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Writing plan…'**
+  String get todoCardWaiting;
+
+  /// No description provided for @askUserCardTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Questions'**
+  String get askUserCardTitle;
+
+  /// No description provided for @askUserOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other…'**
+  String get askUserOther;
+
+  /// No description provided for @askUserSkip.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get askUserSkip;
+
+  /// No description provided for @askUserSubmit.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit'**
+  String get askUserSubmit;
+
+  /// No description provided for @askUserAnswered.
+  ///
+  /// In en, this message translates to:
+  /// **'Answered'**
+  String get askUserAnswered;
+
+  /// No description provided for @askUserSkipped.
+  ///
+  /// In en, this message translates to:
+  /// **'Skipped'**
+  String get askUserSkipped;
+
+  /// No description provided for @askUserNoAnswer.
+  ///
+  /// In en, this message translates to:
+  /// **'(no answer)'**
+  String get askUserNoAnswer;
+
+  /// No description provided for @askUserPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for your answer'**
+  String get askUserPending;
+
   /// No description provided for @chatMessageWidgetEditMemory.
   ///
   /// In en, this message translates to:
