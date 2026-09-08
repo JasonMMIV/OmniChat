@@ -169,6 +169,76 @@ void main() {
     });
   });
 
+  group('edit preview diff', () {
+    test('builds a line-based unified diff from old_text/new_text', () {
+      final diff = buildEditPreviewDiff(const {
+        'old_text': 'line1\nline2\nline3',
+        'new_text': 'line1\nline2 changed\nline4',
+      });
+      expect(diff, isNotNull);
+      expect(diff!, startsWith('--- a/old\n+++ b/new'));
+      expect(diff!, contains('\n-line1\n-line2\n-line3'));
+      expect(diff!, contains('\n+line1\n+line2 changed\n+line4'));
+    });
+
+    test('single-line replacement renders both sides', () {
+      final diff = buildEditPreviewDiff(
+          const {'old_text': 'foo', 'new_text': 'bar'});
+      expect(diff, isNotNull);
+      expect(diff!, contains('\n-foo\n+bar'));
+    });
+
+    test('null when empty or unchanged', () {
+      expect(buildEditPreviewDiff(const {}), isNull);
+      expect(
+          buildEditPreviewDiff(const {'old_text': '', 'new_text': ''}), isNull);
+      expect(buildEditPreviewDiff(
+          const {'old_text': 'same', 'new_text': 'same'}), isNull);
+    });
+
+    test('pending content embeds preview_diff when provided', () {
+      final json = buildApprovalPendingContent(
+        toolName: 'file_edit',
+        arguments: const {'old_text': 'a', 'new_text': 'b'},
+        previewDiff: buildEditPreviewDiff(
+            const {'old_text': 'a', 'new_text': 'b'}),
+      );
+      final parsed = parseApprovalContent(json);
+      expect(parsed!['preview_diff'], isNotNull);
+      expect(parsed['preview_diff'].toString(), contains('\n-a\n+b'));
+    });
+  });
+
+  group('approval timeout', () {
+    test('fresh pending never times out', () {
+      expect(isApprovalTimedOut(DateTime.now().millisecondsSinceEpoch),
+          isFalse);
+    });
+
+    test('old pending times out against the default window', () {
+      final old = DateTime.now()
+          .subtract(const Duration(minutes: 10))
+          .millisecondsSinceEpoch;
+      expect(isApprovalTimedOut(old), isTrue);
+    });
+
+    test('custom window is honored', () {
+      final old = DateTime.now()
+          .subtract(const Duration(seconds: 30))
+          .millisecondsSinceEpoch;
+      expect(isApprovalTimedOut(old, timeout: const Duration(minutes: 1)),
+          isFalse);
+      expect(isApprovalTimedOut(old, timeout: const Duration(seconds: 10)),
+          isTrue);
+    });
+
+    test('null/invalid timestamps never time out (legacy events)', () {
+      expect(isApprovalTimedOut(null), isFalse);
+      expect(isApprovalTimedOut(0), isFalse);
+      expect(isApprovalTimedOut('nope'), isFalse);
+    });
+  });
+
   group('approvalState normalization', () {
     test('valid values round-trip', () {
       expect(normalizeApprovalState(approvalStatePending),

@@ -350,6 +350,31 @@ class ApprovalToolCard extends StatelessWidget {
                 style: TextStyle(fontSize: 12, color: cardTextColor),
               ),
             ),
+          // P1-1: unified-diff preview for file_edit calls (before execution).
+          if ((approval['preview_diff'] ?? '').toString().trim().isNotEmpty &&
+              !_isDenied &&
+              !_isTimeout) ...[
+            const SizedBox(height: 2),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0x14000000)
+                    : const Color(0x0A000000),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                (approval['preview_diff'] ?? '').toString(),
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontFamily: 'monospace',
+                  height: 1.35,
+                  color: cardTextColor,
+                ),
+              ),
+            ),
+          ],
           if (!_isDenied && !_isTimeout && canResume) ...[
             const SizedBox(height: 4),
             Row(

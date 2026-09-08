@@ -16,7 +16,6 @@ import '../../../core/services/api/transient_stream_error.dart';
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/chat_service.dart';
-import '../../../core/services/file/file_tool_service.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/assistant_regex.dart';
@@ -492,6 +491,25 @@ class ChatActions {
     final args = argsRaw is Map
         ? argsRaw.map((k, v) => MapEntry(k.toString(), v))
         : <String, dynamic>{};
+
+    // P1-1 timeout (CLI v4 §三.3): a Pending card older than the 5-minute
+    // window resolves to the approval_timeout JSON — the tool is NOT
+    // executed even on a late approve; the model must ask again.
+    final pendingPayload = parseApprovalContent(event['content']?.toString());
+    if (isApprovalTimedOut(pendingPayload?['requested_at'])) {
+      final timeoutJson = buildApprovalTimeoutContent(toolName: name);
+      await chatService.setToolEventApprovalState(
+        assistantMessageId,
+        id: toolCallId,
+        approvalState: approvalStateDenied,
+        content: timeoutJson,
+      );
+      _refreshToolPart(assistantMessageId, toolCallId, content: timeoutJson);
+      return _continueAfterApproval(
+        conv: conv,
+        answeredAssistantMessageId: assistantMessageId,
+      );
+    }
 
     // "Always allow": persist the override key derived from the pending
     // payload (MCP tool / server, or out-of-workspace absolute path).

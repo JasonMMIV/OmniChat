@@ -139,13 +139,16 @@ String _workspaceOutKey(String? resolvedPath) =>
     'workspace-out:${resolvedPath ?? '*'}';
 
 /// Build the structured tool-result JSON persisted while a decision is
-/// pending. The approval card renders from this payload.
+/// pending. The approval card renders from this payload; `requested_at`
+/// (epoch ms) drives the lazy timeout check at resume time.
 String buildApprovalPendingContent({
   required String toolName,
   String? resolvedPath,
   bool outsideWorkspace = false,
   String? serverName,
   Map<String, dynamic> arguments = const {},
+  DateTime? requestedAt,
+  String? previewDiff,
 }) {
   return jsonEncode(<String, dynamic>{
     'type': approvalRequiredType,
@@ -154,7 +157,45 @@ String buildApprovalPendingContent({
     'outside_workspace': outsideWorkspace,
     if (serverName != null) 'server': serverName,
     'arguments': arguments,
+    'requested_at': (requestedAt ?? DateTime.now()).millisecondsSinceEpoch,
+    if (previewDiff != null && previewDiff.isNotEmpty)
+      'preview_diff': previewDiff,
   });
+}
+
+/// Whether a pending approval has exceeded [timeout] since [requestedAtMs]
+/// (epoch ms stored on the pending payload). Null/invalid timestamps never
+/// time out (legacy events stay resolvable).
+bool isApprovalTimedOut(Object? requestedAtMs, {Duration? timeout}) {
+  final ms = requestedAtMs is num ? requestedAtMs.toInt() : null;
+  if (ms == null || ms <= 0) return false;
+  final requested = DateTime.fromMillisecondsSinceEpoch(ms);
+  return DateTime.now().difference(requested) >
+      (timeout ?? approvalPendingTimeout);
+}
+
+/// Build a minimal unified diff from the `file_edit` argument shape
+/// (`old_text` → `new_text`). Rendered on the approval card before the call
+/// executes (RikkaHub `WorkspaceToolUIs.diffOf` preview mode). Deterministic
+/// line-based LCS-free form: header + `-` old lines + `+` new lines —
+/// enough for a human to judge the change without a full diff algorithm.
+String? buildEditPreviewDiff(Map<String, dynamic> args) {
+  final oldText = (args['old_text'] ?? '').toString();
+  final newText = (args['new_text'] ?? '').toString();
+  if (oldText.isEmpty && newText.isEmpty) return null;
+  if (oldText == newText) return null;
+  final oldLines = oldText.split('\n');
+  final newLines = newText.split('\n');
+  final buf = StringBuffer()
+    ..writeln('--- a/old')
+    ..writeln('+++ b/new');
+  for (final l in oldLines) {
+    buf.writeln('-$l');
+  }
+  for (final l in newLines) {
+    buf.writeln('+$l');
+  }
+  return buf.toString().trimRight();
 }
 
 /// Build the structured tool-result JSON returned to the model when the user
