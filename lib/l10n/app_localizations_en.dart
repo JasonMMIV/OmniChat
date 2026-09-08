@@ -2082,6 +2082,43 @@ class AppLocalizationsEn extends AppLocalizations {
   String get askUserPending => 'Waiting for your answer';
 
   @override
+  String approvalPendingTitle(String tool) {
+    return 'Approval needed: $tool';
+  }
+
+  @override
+  String approvalDeniedTitle(String tool) {
+    return 'Denied: $tool';
+  }
+
+  @override
+  String approvalTimeoutTitle(String tool) {
+    return 'Approval timed out: $tool';
+  }
+
+  @override
+  String get approvalPendingPill => 'Pending';
+
+  @override
+  String approvalOutsideWorkspace(String path) {
+    return 'Outside workspace: $path';
+  }
+
+  @override
+  String approvalServerLabel(String server) {
+    return 'MCP server: $server';
+  }
+
+  @override
+  String get approvalApprove => 'Approve';
+
+  @override
+  String get approvalAlwaysAllow => 'Always allow';
+
+  @override
+  String get approvalDeny => 'Deny';
+
+  @override
   String get chatMessageWidgetEditMemory => 'Edit';
 
   @override

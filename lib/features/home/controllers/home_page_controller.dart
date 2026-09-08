@@ -463,6 +463,25 @@ class HomePageController extends ChangeNotifier {
     );
   }
 
+  /// P1-1: resolve an approval-pending tool call (approve/deny) and resume
+  /// generation from the pending checkpoint.
+  Future<void> resolveApproval(
+    String assistantMessageId,
+    String toolCallId, {
+    required bool approve,
+    bool alwaysAllow = false,
+  }) async {
+    final conv = currentConversation;
+    if (conv == null) return;
+    await _viewModel.chatActions.resolveApproval(
+      conv.id,
+      assistantMessageId,
+      toolCallId,
+      approve: approve,
+      alwaysAllow: alwaysAllow,
+    );
+  }
+
   /// Lightweight notifier for streaming content updates.
   /// Use this with ValueListenableBuilder in MessageListView to avoid full page rebuilds.
   stream_ctrl.StreamingContentNotifier get streamingContentNotifier =>

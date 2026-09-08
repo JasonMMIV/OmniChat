@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/ai_team_config.dart';
+import '../../../core/models/assistant.dart';
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/conversation.dart';
@@ -12,8 +13,11 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/services/api/transient_stream_error.dart';
+import '../../../core/services/agent/approval.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/file/file_tool_service.dart';
+import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant_regex.dart';
@@ -450,6 +454,244 @@ class ChatActions {
 
     await _executeGeneration(ctx);
     return assistantMessage;
+  }
+
+  // ============================================================================
+  // P1-1 Approval Resume (ADR-A5: approval = loop pause, not blocking)
+  // ==========================================================================
+
+  /// Resolve an approval decision and continue the run.
+  ///
+  /// [approve] = execute the pending call once and feed its real result to
+  /// the model; deny = feed the structured denial JSON; answer = feed the
+  /// user's answer JSON (ask_user mode). [alwaysAllow] additionally records
+  /// the per-tool/per-server/per-path override so future calls skip the
+  /// card (persisted, not in _localOnlyKeys).
+  Future<ChatMessage?> resolveApproval(
+    String conversationId,
+    String assistantMessageId,
+    String toolCallId, {
+    required bool approve,
+    Map<String, dynamic>? answerPayload,
+    bool alwaysAllow = false,
+  }) async {
+    final conv = _currentConversation;
+    if (conv == null || conv.id != conversationId) return null;
+
+    // Locate the pending event.
+    Map<String, dynamic>? event;
+    for (final e in chatService.getToolEvents(assistantMessageId)) {
+      if ((e['id']?.toString() ?? '') == toolCallId) {
+        event = e;
+        break;
+      }
+    }
+    if (event == null) return null;
+    final name = (event['name'] ?? '').toString();
+    final argsRaw = event['arguments'];
+    final args = argsRaw is Map
+        ? argsRaw.map((k, v) => MapEntry(k.toString(), v))
+        : <String, dynamic>{};
+
+    // "Always allow": persist the override key derived from the pending
+    // payload (MCP tool / server, or out-of-workspace absolute path).
+    if (alwaysAllow && approve) {
+      final pending = parseApprovalContent(event['content']?.toString());
+      final resolvedPath = pending?['resolved_path']?.toString();
+      final serverName = pending?['server']?.toString();
+      String key;
+      if (name.startsWith('file_')) {
+        key = 'workspace-out:${resolvedPath ?? '*'}';
+      } else if (serverName != null) {
+        key = 'mcp-server:$serverName';
+      } else {
+        key = 'mcp:*:$name';
+      }
+      try {
+        await contextProvider
+            .read<SettingsProvider>()
+            .addApprovalAlwaysAllowed(key);
+      } catch (_) {}
+    }
+
+    // Deny: record the denial and continue with the denial JSON as the
+    // tool result (the model can adjust course instead of blindly retrying).
+    if (!approve) {
+      final denialJson = buildApprovalDeniedContent(toolName: name);
+      await chatService.setToolEventApprovalState(
+        assistantMessageId,
+        id: toolCallId,
+        approvalState: approvalStateDenied,
+        content: denialJson,
+      );
+      _refreshToolPart(
+        assistantMessageId,
+        toolCallId,
+        content: denialJson,
+      );
+      return _continueAfterApproval(
+        conv: conv,
+        answeredAssistantMessageId: assistantMessageId,
+      );
+    }
+
+    // Approve: execute the tool once (the checkpoint was the pending event;
+    // the side effect happens exactly here), then persist the real result.
+    final handler = generationController.buildToolCallHandler(
+      contextProvider.read<SettingsProvider>(),
+      _assistantForConversation(conv),
+      conversationId: conversationId,
+      messageId: assistantMessageId,
+      workspacePath: await _workspacePathFor(conv),
+    );
+    String result;
+    try {
+      result = await handler?.call(name, args) ??
+          jsonEncode(<String, dynamic>{
+            'type': 'tool_error',
+            'error': 'execution_error',
+            'message': 'Tool handler unavailable.',
+            'tool': name,
+          });
+    } catch (e) {
+      result = jsonEncode(<String, dynamic>{
+        'type': 'tool_error',
+        'error': 'execution_error',
+        'message': e.toString(),
+        'tool': name,
+      });
+    }
+    await chatService.setToolEventApprovalState(
+      assistantMessageId,
+      id: toolCallId,
+      approvalState: approvalStateApproved,
+      content: result,
+    );
+    _refreshToolPart(assistantMessageId, toolCallId, content: result);
+    return _continueAfterApproval(
+      conv: conv,
+      answeredAssistantMessageId: assistantMessageId,
+    );
+  }
+
+  /// Shared continuation after an approval decision: create a new assistant
+  /// message whose context replays the resolved tool event (same mechanism
+  /// as the P1-3 ask_user resume).
+  Future<ChatMessage?> _continueAfterApproval({
+    required Conversation conv,
+    required String answeredAssistantMessageId,
+  }) async {
+    final settings = contextProvider.read<SettingsProvider>();
+    final assistant = _assistantForConversation(conv);
+    final modelConfig = messageGenerationService.getModelConfig(
+      settings,
+      assistant,
+    );
+    if (modelConfig.providerKey == null || modelConfig.modelId == null) {
+      return null;
+    }
+    final assistantMessage = await messageGenerationService
+        .createAssistantPlaceholder(
+      conversationId: conv.id,
+      modelId: modelConfig.modelId!,
+      providerKey: modelConfig.providerKey!,
+    );
+    streamController.markStreamingStarted(assistantMessage.id);
+    _messages.add(assistantMessage);
+    onMessagesChanged?.call();
+    _setConversationLoading(conv.id, true);
+
+    final supportsReasoning =
+        _isReasoningModel(modelConfig.providerKey!, modelConfig.modelId!);
+    final enableReasoning =
+        supportsReasoning &&
+        _isReasoningEnabled(
+          assistant?.thinkingBudget ?? settings.thinkingBudget,
+        );
+    await messageGenerationService.initializeReasoningState(
+      messageId: assistantMessage.id,
+      enableReasoning: enableReasoning,
+    );
+
+    final prepared = await messageGenerationService
+        .prepareApiMessagesWithInjections(
+      messages: _messages,
+      assistantMessageId: assistantMessage.id,
+      versionSelections: _versionSelections,
+      currentConversation: conv,
+      settings: settings,
+      assistant: assistant,
+      assistantId: assistant?.id,
+      providerKey: modelConfig.providerKey!,
+      modelId: modelConfig.modelId!,
+    );
+
+    final userImagePaths = messageGenerationService.buildUserImagePaths(
+      input: null,
+      lastUserImagePaths: prepared.lastUserImagePaths,
+      settings: settings,
+    );
+
+    final ctx = messageGenerationService.buildGenerationContext(
+      assistantMessage: assistantMessage,
+      prepared: prepared,
+      userImagePaths: userImagePaths,
+      providerKey: modelConfig.providerKey!,
+      modelId: modelConfig.modelId!,
+      assistant: assistant,
+      settings: settings,
+      supportsReasoning: supportsReasoning,
+      enableReasoning: enableReasoning,
+      generateTitleOnFinish: false,
+    );
+
+    await _executeGeneration(ctx);
+    return assistantMessage;
+  }
+
+  void _refreshToolPart(
+    String messageId,
+    String toolCallId, {
+    required String content,
+  }) {
+    final parts = List<ToolUIPart>.of(
+      streamController.toolParts[messageId] ?? const [],
+    );
+    final idx = parts.indexWhere((p) => p.id == toolCallId);
+    if (idx < 0) return;
+    parts[idx] = ToolUIPart(
+      id: parts[idx].id,
+      toolName: parts[idx].toolName,
+      arguments: parts[idx].arguments,
+      content: content,
+      loading: false,
+    );
+    streamController.toolParts[messageId] = parts;
+    streamController.streamingContentNotifier
+        .notifyToolPartsUpdated(messageId);
+  }
+
+  Assistant? _assistantForConversation(Conversation conv) {
+    final assistantProvider = contextProvider.read<AssistantProvider>();
+    return conv.assistantId == null
+        ? assistantProvider.currentAssistant
+        : assistantProvider.getById(conv.assistantId!);
+  }
+
+  Future<String?> _workspacePathFor(Conversation conv) async {
+    try {
+      final settings = contextProvider.read<SettingsProvider>();
+      final assistant = _assistantForConversation(conv);
+      final resolved = await WorkspaceResolver.resolve(
+        conversation: conv,
+        project: assistant,
+        conversationConfig: chatService.getConversationWorkspaceConfig(conv.id),
+        defaultConfig: settings.defaultWorkspaceConfig,
+      );
+      return resolved.enabled ? resolved.path : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   // ============================================================================

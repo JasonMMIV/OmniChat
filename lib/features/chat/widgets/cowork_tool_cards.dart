@@ -16,11 +16,13 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/services/agent/approval.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/todo_service.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
+import 'chat_message_widget.dart' show ToolUIPart;
 
 /// Parsed todo arguments shared by the plan card.
 List<TodoItem> todosFromArguments(Map<String, dynamic> arguments) =>
@@ -206,6 +208,179 @@ class _TodoPlanCardState extends State<TodoPlanCard> {
                 style: TextStyle(fontSize: 12, color: cardTextColor),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// ApprovalToolCard (P1-1)
+// ============================================================================
+
+/// Approval card for a tool call classified as `ask` by the P1-1 policy
+/// engine. Shows the parsed absolute path (with an out-of-workspace marker
+/// when applicable) or the MCP server, plus Approve / Always-allow / Deny.
+/// After a decision the card renders the recorded state (approved/denied).
+class ApprovalToolCard extends StatelessWidget {
+  final ToolUIPart part;
+  final Map<String, dynamic> approval;
+  final bool canResume;
+  final Future<void> Function(bool alwaysAllow) onApprove;
+  final VoidCallback onDeny;
+
+  const ApprovalToolCard({
+    super.key,
+    required this.part,
+    required this.approval,
+    required this.canResume,
+    required this.onApprove,
+    required this.onDeny,
+  });
+
+  bool get _isDenied => approval['type'] == approvalDeniedType;
+  bool get _isTimeout =>
+      (approval['error'] ?? '').toString() == 'approval_timeout';
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardTextColor =
+        isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
+
+    final toolName = (approval['tool'] ?? part.toolName).toString();
+    final resolvedPath = (approval['resolved_path'] ?? '').toString();
+    final outside = approval['outside_workspace'] == true;
+    final server = (approval['server'] ?? '').toString();
+
+    return IosCardPress(
+      borderRadius: BorderRadius.circular(10),
+      baseColor: Colors.transparent,
+      pressedScale: 1.0,
+      duration: const Duration(milliseconds: 260),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: Center(
+                  child: Icon(
+                    _isDenied ? Lucide.XCircle : Lucide.Shield,
+                    size: 18,
+                    color: cardTextColor,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _isDenied
+                      ? l10n.approvalDeniedTitle(toolName)
+                      : _isTimeout
+                          ? l10n.approvalTimeoutTitle(toolName)
+                          : l10n.approvalPendingTitle(toolName),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.normal,
+                    color: cardTextColor,
+                  ),
+                ),
+              ),
+              if (!_isDenied && !_isTimeout)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: cs.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    l10n.approvalPendingPill,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: cs.primary,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (resolvedPath.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    outside ? Lucide.ExternalLink : Lucide.FileText,
+                    size: 14,
+                    color: outside ? Colors.orange : cardTextColor,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      outside
+                          ? l10n.approvalOutsideWorkspace(resolvedPath)
+                          : resolvedPath,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                        color: cardTextColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (server.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                l10n.approvalServerLabel(server),
+                style: TextStyle(fontSize: 12, color: cardTextColor),
+              ),
+            ),
+          if (!_isDenied && !_isTimeout && canResume) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: onDeny,
+                  child: Text(
+                    l10n.approvalDeny,
+                    style: TextStyle(fontSize: 13, color: cardTextColor),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: () => onApprove(true),
+                  child: Text(
+                    l10n.approvalAlwaysAllow,
+                    style: TextStyle(fontSize: 13, color: cardTextColor),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: () => onApprove(false),
+                  child: Text(
+                    l10n.approvalApprove,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
