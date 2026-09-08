@@ -17,6 +17,7 @@ import '../../../core/services/search/search_tool_service.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/services/api/builtin_tools.dart';
 import '../../../core/services/chat/todo_service.dart';
+import '../../../core/services/workspace/workspace_snapshot.dart';
 import '../../../core/services/agent/compaction/context_trim.dart';
 import '../../../core/services/agent/compaction/history_compactor.dart';
 import '../../../core/services/agent/compaction/tool_result_pruner.dart';
@@ -204,6 +205,10 @@ class MessageBuilderService {
               // injected at the system-prompt tail, never replayed as
               // history (avoids pushing the whole plan into every turn).
               if (name == todoToolName) continue;
+              // P1-5: workspace_snapshot is a UI-only rollback affordance —
+              // the record's file counts must not cost model context, and
+              // the snapshot zip is never model-visible.
+              if (name == workspaceSnapshotToolName) continue;
               // P1-3: ask_user DOES replay — the answered JSON is the
               // model-facing record of what the user chose (ADR-A5
               // "Answered → answer as tool result"), so the resumed turn's

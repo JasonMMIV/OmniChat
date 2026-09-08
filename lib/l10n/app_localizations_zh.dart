@@ -2149,6 +2149,40 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get snapshotCardTitle => '工作区快照';
+
+  @override
+  String get snapshotCardRestoredTitle => '工作区已还原';
+
+  @override
+  String snapshotCardChangesTitle(int count) {
+    return '本次任务改动 $count 个文件 — 还原到任务开始时的快照？';
+  }
+
+  @override
+  String snapshotCardRestoredPill(int count) {
+    return '已还原 $count 个文件';
+  }
+
+  @override
+  String get snapshotCardRestoredShort => '已还原';
+
+  @override
+  String get snapshotCardDisclaimer =>
+      '还原会把整个工作区回滚到本任务开始时的状态。对 shell 命令而言，改动文件列表并不完整——快照才是完整的回滚保障。';
+
+  @override
+  String snapshotCardTakenAt(String time) {
+    return '快照时间：$time';
+  }
+
+  @override
+  String get snapshotCardFailed => '还原失败，请重试。';
+
+  @override
+  String get snapshotCardRestoreButton => '还原';
+
+  @override
   String get chatMessageWidgetEditMemory => '编辑记忆';
 
   @override
@@ -6920,6 +6954,40 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
+  String get snapshotCardTitle => '工作区快照';
+
+  @override
+  String get snapshotCardRestoredTitle => '工作区已还原';
+
+  @override
+  String snapshotCardChangesTitle(int count) {
+    return '本次任务改动 $count 个文件 — 还原到任务开始时的快照？';
+  }
+
+  @override
+  String snapshotCardRestoredPill(int count) {
+    return '已还原 $count 个文件';
+  }
+
+  @override
+  String get snapshotCardRestoredShort => '已还原';
+
+  @override
+  String get snapshotCardDisclaimer =>
+      '还原会把整个工作区回滚到本任务开始时的状态。对 shell 命令而言，改动文件列表并不完整——快照才是完整的回滚保障。';
+
+  @override
+  String snapshotCardTakenAt(String time) {
+    return '快照时间：$time';
+  }
+
+  @override
+  String get snapshotCardFailed => '还原失败，请重试。';
+
+  @override
+  String get snapshotCardRestoreButton => '还原';
+
+  @override
   String get chatMessageWidgetEditMemory => '编辑记忆';
 
   @override
@@ -11584,6 +11652,40 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String approvalOverridePath(String path) {
     return '路徑：$path';
   }
+
+  @override
+  String get snapshotCardTitle => '工作區快照';
+
+  @override
+  String get snapshotCardRestoredTitle => '工作區已還原';
+
+  @override
+  String snapshotCardChangesTitle(int count) {
+    return '本次任務改動 $count 個檔案 — 還原到任務開始時的快照？';
+  }
+
+  @override
+  String snapshotCardRestoredPill(int count) {
+    return '已還原 $count 個檔案';
+  }
+
+  @override
+  String get snapshotCardRestoredShort => '已還原';
+
+  @override
+  String get snapshotCardDisclaimer =>
+      '還原會把整個工作區回滾到本任務開始時的狀態。對 shell 命令而言，改動檔案清單並不完整——快照才是完整的回滾保障。';
+
+  @override
+  String snapshotCardTakenAt(String time) {
+    return '快照時間：$time';
+  }
+
+  @override
+  String get snapshotCardFailed => '還原失敗，請重試。';
+
+  @override
+  String get snapshotCardRestoreButton => '還原';
 
   @override
   String get chatMessageWidgetEditMemory => '編輯記憶';

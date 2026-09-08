@@ -4193,6 +4193,60 @@ abstract class AppLocalizations {
   /// **'Path: {path}'**
   String approvalOverridePath(String path);
 
+  /// No description provided for @snapshotCardTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace snapshot'**
+  String get snapshotCardTitle;
+
+  /// No description provided for @snapshotCardRestoredTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace restored'**
+  String get snapshotCardRestoredTitle;
+
+  /// No description provided for @snapshotCardChangesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This task changed {count} files — restore to the run-start snapshot?'**
+  String snapshotCardChangesTitle(int count);
+
+  /// No description provided for @snapshotCardRestoredPill.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} files restored'**
+  String snapshotCardRestoredPill(int count);
+
+  /// No description provided for @snapshotCardRestoredShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Restored'**
+  String get snapshotCardRestoredShort;
+
+  /// No description provided for @snapshotCardDisclaimer.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore rolls the whole workspace back to its state when this task started. The list of changed files is incomplete for shell commands — the snapshot is the complete rollback guarantee.'**
+  String get snapshotCardDisclaimer;
+
+  /// No description provided for @snapshotCardTakenAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Snapshot taken: {time}'**
+  String snapshotCardTakenAt(String time);
+
+  /// No description provided for @snapshotCardFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore failed. Try again.'**
+  String get snapshotCardFailed;
+
+  /// No description provided for @snapshotCardRestoreButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore'**
+  String get snapshotCardRestoreButton;
+
   /// No description provided for @chatMessageWidgetEditMemory.
   ///
   /// In en, this message translates to:

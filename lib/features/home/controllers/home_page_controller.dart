@@ -482,6 +482,14 @@ class HomePageController extends ChangeNotifier {
     );
   }
 
+  /// P1-5: restore the run's workspace snapshot (one-click rollback).
+  /// Returns null on success, an error code otherwise.
+  Future<String?> restoreRunSnapshot(String runId) async {
+    final conv = currentConversation;
+    if (conv == null) return 'no_conversation';
+    return _viewModel.chatActions.restoreRunSnapshot(conv.id, runId);
+  }
+
   /// Lightweight notifier for streaming content updates.
   /// Use this with ValueListenableBuilder in MessageListView to avoid full page rebuilds.
   stream_ctrl.StreamingContentNotifier get streamingContentNotifier =>

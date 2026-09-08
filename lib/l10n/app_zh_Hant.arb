@@ -611,6 +611,36 @@
       }
     }
   },
+  "snapshotCardTitle": "工作區快照",
+  "snapshotCardRestoredTitle": "工作區已還原",
+  "snapshotCardChangesTitle": "本次任務改動 {count} 個檔案 — 還原到任務開始時的快照？",
+  "@snapshotCardChangesTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "snapshotCardRestoredPill": "已還原 {count} 個檔案",
+  "@snapshotCardRestoredPill": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "snapshotCardRestoredShort": "已還原",
+  "snapshotCardDisclaimer": "還原會把整個工作區回滾到本任務開始時的狀態。對 shell 命令而言，改動檔案清單並不完整——快照才是完整的回滾保障。",
+  "snapshotCardTakenAt": "快照時間：{time}",
+  "@snapshotCardTakenAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "snapshotCardFailed": "還原失敗，請重試。",
+  "snapshotCardRestoreButton": "還原",
   "chatMessageWidgetEditMemory": "編輯記憶",
   "chatMessageWidgetDeleteMemory": "刪除記憶",
   "chatMessageWidgetWebSearch": "聯網檢索: {query}",
