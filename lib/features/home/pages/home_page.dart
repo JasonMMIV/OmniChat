@@ -23,6 +23,7 @@ import '../../../desktop/search_provider_popover.dart';
 import '../../../desktop/reasoning_budget_popover.dart';
 import '../../../desktop/mcp_servers_popover.dart';
 import '../../../desktop/mini_map_popover.dart';
+import '../../../desktop/workspace_popover.dart';
 import '../../../desktop/quick_phrase_popover.dart';
 import '../../../desktop/instruction_injection_popover.dart';
 import '../../../desktop/desktop_context_menu.dart';
@@ -85,6 +86,7 @@ class _HomePageState extends State<HomePage>
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _inputBarKey = GlobalKey();
   final GlobalKey _topMiniMapKey = GlobalKey();
+  final GlobalKey _topWorkspaceKey = GlobalKey();
   StreamSubscription<String>? _processTextSub;
 
   // ============================================================================
@@ -258,7 +260,15 @@ class _HomePageState extends State<HomePage>
     }
     final conversationId = _controller.currentConversation?.id;
     if (conversationId == null || !mounted) return;
-    await showWorkspaceSheet(context, conversationId: conversationId);
+    if (PlatformUtils.isDesktop) {
+      await showDesktopWorkspacePopover(
+        context,
+        anchorKey: _topWorkspaceKey,
+        conversationId: conversationId,
+      );
+    } else {
+      await showWorkspaceSheet(context, conversationId: conversationId);
+    }
   }
 
   // ============================================================================
@@ -415,6 +425,7 @@ class _HomePageState extends State<HomePage>
     return HomeDesktopScaffold(
       scaffoldKey: _scaffoldKey,
       miniMapKey: _topMiniMapKey,
+      workspaceKey: _topWorkspaceKey,
       assistantPickerCloseTick: _assistantPickerCloseTick,
       loadingConversationIds: _controller.loadingConversationIds,
       title: title,

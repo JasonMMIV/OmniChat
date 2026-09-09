@@ -166,6 +166,10 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop =
+        defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux;
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final resolution = _resolution;
@@ -184,17 +188,19 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Center(
-                    child: Container(
-                      width: 38,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: cs.onSurface.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(99),
+                  if (!isDesktop) ...[
+                    Center(
+                      child: Container(
+                        width: 38,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: cs.onSurface.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
+                  ],
                   Text(
                     l10n.workspaceTitle,
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
@@ -266,7 +272,9 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
 
     return Material(
       color: cs.surface,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+      borderRadius: isDesktop
+          ? BorderRadius.circular(16)
+          : const BorderRadius.vertical(top: Radius.circular(22)),
       child: content,
     );
   }

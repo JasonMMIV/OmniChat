@@ -26,6 +26,7 @@ class HomeDesktopScaffold extends StatelessWidget {
     super.key,
     required this.scaffoldKey,
     this.miniMapKey,
+    this.workspaceKey,
     required this.assistantPickerCloseTick,
     required this.loadingConversationIds,
     required this.title,
@@ -54,6 +55,7 @@ class HomeDesktopScaffold extends StatelessWidget {
 
   final GlobalKey<ScaffoldState> scaffoldKey;
   final GlobalKey? miniMapKey;
+  final GlobalKey? workspaceKey;
   final ValueNotifier<int> assistantPickerCloseTick;
   final Set<String> loadingConversationIds;
   final String title;
@@ -340,6 +342,7 @@ class HomeDesktopScaffold extends StatelessWidget {
         ),
       if (onOpenWorkspace != null)
         IosIconButton(
+          key: workspaceKey,
           size: 28,
           padding: const EdgeInsets.all(8),
           minSize: 48,
