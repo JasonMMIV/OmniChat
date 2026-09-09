@@ -158,7 +158,7 @@ void main() {
         ],
         stream: false,
         requestId: 'req-echo',
-        onToolCall: (name, args) async {
+        onToolCall: (name, args, {String? toolCallId}) async {
           executed.add('$name:${args['path']}');
           return 'FILE_BODY_42';
         },
@@ -235,7 +235,7 @@ void main() {
         ],
         stream: false,
         requestId: 'req-legacy',
-        onToolCall: (name, args) async {
+        onToolCall: (name, args, {String? toolCallId}) async {
           legacyExecuted++;
           return 'FILE_BODY_42';
         },

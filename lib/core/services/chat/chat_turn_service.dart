@@ -35,8 +35,7 @@ class ChatTurnRequest {
   final double? topP;
   final int? maxTokens;
   final List<Map<String, dynamic>> toolDefs;
-  final Future<String> Function(String name, Map<String, dynamic> args)?
-      onToolCall;
+  final ToolCallHandler? onToolCall;
 }
 
 /// 進行中 LLM turn 的控制 handle。
@@ -246,7 +245,7 @@ class ChatTurnService {
     final hasBuiltInSearch = _hasBuiltInSearch(providerKey, modelId);
 
     final List<Map<String, dynamic>> toolDefs = <Map<String, dynamic>>[];
-    Future<String> Function(String, Map<String, dynamic>)? onToolCall;
+    ToolCallHandler? onToolCall;
 
     if (settings.searchEnabled && !hasBuiltInSearch) {
       final prompt = SearchToolService.getSystemPrompt();
@@ -263,7 +262,7 @@ class ChatTurnService {
     }
 
     if (toolDefs.isNotEmpty) {
-      onToolCall = (name, args) async {
+      onToolCall = (name, args, {String? toolCallId}) async {
         if (name == SearchToolService.toolName && settings.searchEnabled) {
           final q = (args['query'] ?? '').toString();
           return await SearchToolService.executeSearch(q, settings);

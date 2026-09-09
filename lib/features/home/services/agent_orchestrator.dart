@@ -30,6 +30,7 @@ import 'dart:convert';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/agent/agent_loop.dart';
 import '../../../core/services/api/chat_api_service.dart';
+import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
 
 /// Loop driver: owns the kernel instance, the transport binding and the tool
 /// execution adapter. Stateless per run — a fresh [run] call drives a fresh
@@ -78,7 +79,7 @@ class AgentOrchestrator {
     double? topP,
     int? maxTokens,
     List<Map<String, dynamic>>? tools,
-    Future<String> Function(String name, Map<String, dynamic> args)? onToolCall,
+    ToolCallHandler? onToolCall,
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     required bool streamOutput,
@@ -113,7 +114,11 @@ class AgentOrchestrator {
     await for (final event in runAgentLoop(
       messages: messages,
       sendRound: round,
-      onToolCall: (call) => toolHandler(call.name, call.arguments),
+      // P1-4 id-aware contract: the kernel's AgentToolCall carries the
+      // provider call id; handlers key per-call side effects off it
+      // (externalized filenames, approval event ids).
+      onToolCall: (call) =>
+          toolHandler(call.name, call.arguments, toolCallId: call.toolCallId),
       options: options,
       hooks: hooks,
     )) {
@@ -135,10 +140,19 @@ class AgentOrchestrator {
             // the final round, so synthesize one so the UI finalizes the
             // message exactly as on normal completion. `finished` already
             // delivered its own isDone chunk through the transport.
+            // P0-5: max-steps / token-budget stops are surfaced to the user
+            // via a localized footnote (ADR-A4 soft-gate semantics); hook
+            // vetoes (approval pause) carry no reason — the approval card
+            // is the user-facing surface for those.
             yield ChatStreamChunk(
               content: '',
               isDone: true,
               totalTokens: tokensUsed,
+              softStopReason: switch (reason) {
+                AgentRunStopReason.maxStepsReached => 'max_steps',
+                AgentRunStopReason.tokenBudgetReached => 'token_budget',
+                _ => null,
+              },
             );
           }
           return;
@@ -189,8 +203,9 @@ class AgentOrchestrator {
 /// structured error to the model instead of crashing the run.
 Future<String> noopToolHandler(
   String name,
-  Map<String, dynamic> args,
-) async => jsonEncode(<String, dynamic>{
+  Map<String, dynamic> args, {
+  String? toolCallId,
+}) async => jsonEncode(<String, dynamic>{
   'type': 'tool_error',
   'error': 'execution_error',
   'message': 'Tool "$name" is not available in this context.',

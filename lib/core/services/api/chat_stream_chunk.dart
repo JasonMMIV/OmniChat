@@ -1,5 +1,24 @@
 import '../../models/token_usage.dart';
 
+/// Tool execution handler contract.
+///
+/// [toolCallId] carries the provider tool-call id when it is known at
+/// execution time (the agent-loop kernel path always provides it; the
+/// legacy transport loop provides it at every internal call site too).
+/// Handlers use it to key per-call side effects — most importantly P1-4
+/// long-output externalization, where the persisted filename becomes
+/// `{tool}-{callId}.txt` instead of a timestamp token, so a re-run of the
+/// same call round-trips to the same file.
+///
+/// Closures with fewer parameters (`(name, args) async => ...`) remain
+/// assignable — the named parameter is optional.
+typedef ToolCallHandler =
+    Future<String> Function(
+      String name,
+      Map<String, dynamic> args, {
+      String? toolCallId,
+    });
+
 /// A single unit of streamed output emitted by [ChatApiService.sendMessageStream].
 ///
 /// Kept in its own pure-Dart file (no Flutter imports) so the agent-loop
@@ -43,6 +62,16 @@ class ChatStreamChunk {
   // stays byte-identical to the legacy loop. UI consumers ignore this field.
   final Map<String, dynamic>? assistantExtras;
 
+  // --- P0-5 soft-stop reason ---
+  // Set ONLY on the synthesized terminal chunk the agent-loop driver emits
+  // when the kernel stops early at a soft gate (`max_steps` = maxSteps
+  // reached, `token_budget` = tokenBudget reached). The UI appends a
+  // localized footnote so the user understands the run stopped by policy
+  // and can continue with another message (ADR-A4 soft-gate semantics).
+  // Hook-veto stops (approval pause) intentionally carry NO reason — the
+  // approval card is the user-facing surface for those.
+  final String? softStopReason;
+
   ChatStreamChunk({
     required this.content,
     this.reasoning,
@@ -58,6 +87,7 @@ class ChatStreamChunk {
     this.finishReason,
     this.hasUsage = false,
     this.assistantExtras,
+    this.softStopReason,
   });
 }
 

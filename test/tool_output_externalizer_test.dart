@@ -77,6 +77,45 @@ void main() {
       expect(persisted, endsWith('TAIL_MARKER'));
     });
 
+    test('P1-4 id-aware contract: toolCallId names the persisted file and '
+        'is idempotent across re-runs', () async {
+      final big = 'z' * 40000;
+      final out = await ToolOutputExternalizer.maybeExternalize(
+        toolName: 'file_read',
+        result: big,
+        workspacePath: tempRoot.path,
+        toolCallId: 'call_xyz-01',
+      );
+      expect(out, contains('file_read-call_xyz-01.txt'));
+
+      // Re-running the same call id with the same workspace state lands on
+      // the same file (overwrite, not a disambiguated copy).
+      final out2 = await ToolOutputExternalizer.maybeExternalize(
+        toolName: 'file_read',
+        result: big,
+        workspacePath: tempRoot.path,
+        toolCallId: 'call_xyz-01',
+      );
+      expect(out2, out);
+      final dir = Directory(
+        p.join(tempRoot.path, ToolOutputExternalizer.toolOutputsDirRelative),
+      );
+      expect(await dir.list().toList(), hasLength(1));
+
+      // A hostile id is sanitized to a safe filename charset — no path
+      // separators survive, so the referenced path stays inside the
+      // tool_outputs directory.
+      final out3 = await ToolOutputExternalizer.maybeExternalize(
+        toolName: 'file_read',
+        result: big,
+        workspacePath: tempRoot.path,
+        toolCallId: r'..\..\evil',
+      );
+      final name3 =
+          RegExp(r'Full output saved to: (\S+)').firstMatch(out3)!.group(1)!;
+      expect(p.basename(name3), isNot(contains('..')));
+    });
+
     test('null/empty workspace returns the result unchanged (backstop)',
         () async {
       final big = 'y' * 40000;
@@ -116,7 +155,12 @@ void main() {
       expect(p.basename(name), matches(RegExp(r'^[\w-]+\.txt$')));
     });
 
-    test('same id twice does not overwrite (collision fallback)', () async {
+    test('same id twice overwrites in place (deterministic round-trip)',
+        () async {
+      // P1-4 id-aware contract: tools execute at most once per run
+      // (ADR-A3), so an id collision only happens across resume/retry —
+      // and then the LATEST result must win at the SAME path, not spawn a
+      // suffixed copy that would invalidate the preview's retrieval path.
       final big = 'w' * 40000;
       await ToolOutputExternalizer.maybeExternalize(
         toolName: 'shell_run',
@@ -136,20 +180,15 @@ void main() {
       final names = (await dir.list().toList())
           .map((e) => p.basename(e.path))
           .toList();
-      expect(names, hasLength(2));
+      expect(names, hasLength(1));
       expect(names, contains('shell_run-call_1.txt'));
-      expect(names, contains('shell_run-call_1-2.txt'));
-      // Second result references its own (suffixed) file.
+      // Second result references the same deterministic path.
       final secondName =
           RegExp(r'Full output saved to: (\S+)').firstMatch(out2)!.group(1)!;
-      expect(p.basename(secondName), 'shell_run-call_1-2.txt');
-      // First write intact; second write lives only in the suffixed file.
-      final first = await File(
-        p.join(dir.path, 'shell_run-call_1.txt'),
-      ).readAsString();
-      expect(first, isNot(contains('second')));
+      expect(p.basename(secondName), 'shell_run-call_1.txt');
+      // The overwrite carries the latest bytes.
       final second = await File(
-        p.join(dir.path, 'shell_run-call_1-2.txt'),
+        p.join(dir.path, 'shell_run-call_1.txt'),
       ).readAsString();
       expect(second, contains('second'));
     });

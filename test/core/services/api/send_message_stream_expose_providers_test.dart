@@ -115,7 +115,7 @@ void main() {
           stream: false,
           requestId: 'expose-claude-ns',
           exposeToolCallsOnly: true,
-          onToolCall: (name, args) async {
+          onToolCall: (name, args, {String? toolCallId}) async {
             executed++;
             return 'BODY';
           },
@@ -204,7 +204,7 @@ void main() {
           stream: true,
           requestId: 'expose-claude-st',
           exposeToolCallsOnly: true,
-          onToolCall: (name, args) async {
+          onToolCall: (name, args, {String? toolCallId}) async {
             executed++;
             return 'BODY';
           },
@@ -289,7 +289,7 @@ void main() {
           stream: false,
           requestId: 'expose-gemini-ns',
           exposeToolCallsOnly: true,
-          onToolCall: (name, args) async {
+          onToolCall: (name, args, {String? toolCallId}) async {
             executed++;
             return 'BODY';
           },
@@ -350,7 +350,7 @@ void main() {
         stream: true,
         requestId: 'expose-gemini-st',
         exposeToolCallsOnly: true,
-        onToolCall: (name, args) async {
+        onToolCall: (name, args, {String? toolCallId}) async {
           executed++;
           return 'BODY';
         },

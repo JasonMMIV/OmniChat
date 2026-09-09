@@ -593,6 +593,10 @@ class HomePageController extends ChangeNotifier {
       final l10n = AppLocalizations.of(_context)!;
       showAppSnackBar(_context, message: '${l10n.generationInterrupted}: $error', type: NotificationType.error);
     };
+    _viewModel.onNotice = (message) {
+      // Non-fatal informational notice (e.g. P1-5 snapshot restored).
+      showAppSnackBar(_context, message: message, type: NotificationType.info);
+    };
     _viewModel.onRetry =
         (attempt, maxAttempts, errorKind, conversationId) {
       // L1 retry in progress. Show a brief info snackbar so the user

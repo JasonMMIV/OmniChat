@@ -96,6 +96,7 @@ class HomeViewModel extends ChangeNotifier {
     _chatActions.onLoadingChanged = _onLoadingChanged;
     _chatActions.onContentUpdated = _onContentUpdated;
     _chatActions.onStreamError = _onStreamError;
+    _chatActions.onNotice = _onNotice;
     _chatActions.onStreamRetry = _onStreamRetry;
     _chatActions.onMaybeGenerateTitle = _onMaybeGenerateTitle;
     _chatActions.onMaybeGenerateSummary = _onMaybeGenerateSummary;
@@ -129,6 +130,9 @@ class HomeViewModel extends ChangeNotifier {
 
   /// Called when an error occurs (UI should show snackbar).
   void Function(String error)? onError;
+
+  /// Non-fatal informational notices (snapshot restored, …).
+  void Function(String message)? onNotice;
 
   /// Called when the L1 retry loop is about to reissue a request after a
   /// transient or silent-interrupt failure. The UI should show a brief
@@ -218,6 +222,11 @@ class HomeViewModel extends ChangeNotifier {
 
   void _onStreamError(String error) {
     onError?.call(error);
+  }
+
+  /// Non-fatal user notices (P1-5 snapshot restore result, …).
+  void _onNotice(String message) {
+    onNotice?.call(message);
   }
 
   void _onStreamRetry(

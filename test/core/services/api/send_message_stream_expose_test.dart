@@ -225,7 +225,7 @@ void main() {
         stream: false,
         requestId: 'expose-ns',
         exposeToolCallsOnly: true,
-        onToolCall: (name, args) async {
+        onToolCall: (name, args, {String? toolCallId}) async {
           executed++;
           return 'BODY';
         },
@@ -261,7 +261,7 @@ void main() {
       stream: true,
       requestId: 'expose-st',
       exposeToolCallsOnly: true,
-      onToolCall: (name, args) async {
+      onToolCall: (name, args, {String? toolCallId}) async {
         executed++;
         return 'BODY';
       },
@@ -297,7 +297,7 @@ void main() {
       stream: true,
       requestId: 'expose-nd',
       exposeToolCallsOnly: true,
-      onToolCall: (name, args) async {
+      onToolCall: (name, args, {String? toolCallId}) async {
         executed++;
         return 'BODY';
       },
@@ -334,7 +334,7 @@ void main() {
         stream: true,
         requestId: 'expose-resp',
         exposeToolCallsOnly: true,
-        onToolCall: (name, args) async {
+        onToolCall: (name, args, {String? toolCallId}) async {
           executed++;
           return 'BODY';
         },

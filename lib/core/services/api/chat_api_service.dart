@@ -25,7 +25,8 @@ import 'chat_stream_chunk.dart';
 import 'context_overflow.dart';
 import 'learned_context_windows.dart';
 import '../agent/compaction/context_trim.dart';
-export 'chat_stream_chunk.dart' show ChatStreamChunk, ToolCallInfo, ToolResultInfo;
+export 'chat_stream_chunk.dart'
+    show ChatStreamChunk, ToolCallInfo, ToolResultInfo, ToolCallHandler;
 
 class ChatApiService {
   static const String _aihubmixAppCode = 'ZKRT3588';
@@ -968,7 +969,7 @@ class ChatApiService {
     double? topP,
     int? maxTokens,
     List<Map<String, dynamic>>? tools,
-    Future<String> Function(String name, Map<String, dynamic> args)? onToolCall,
+    ToolCallHandler? onToolCall,
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     bool stream = true,
@@ -2121,7 +2122,7 @@ class ChatApiService {
     double? topP,
     int? maxTokens,
     List<Map<String, dynamic>>? tools,
-    Future<String> Function(String, Map<String, dynamic>)? onToolCall,
+    ToolCallHandler? onToolCall,
     bool exposeToolCallsOnly = false,
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
@@ -3060,7 +3061,9 @@ class ChatApiService {
             final results = <Map<String, dynamic>>[];
             final resultsInfo = <ToolResultInfo>[];
             for (final c in callInfos) {
-              final res = await onToolCall!(c.name, c.arguments) ?? '';
+              final res =
+                  await onToolCall!(c.name, c.arguments, toolCallId: c.id) ??
+                  '';
               results.add({'tool_call_id': c.id, 'content': res});
               resultsInfo.add(
                 ToolResultInfo(
@@ -3281,7 +3284,8 @@ class ChatApiService {
               final name = m['__name'] as String;
               final id = m['__id'] as String;
               final args = (m['__args'] as Map<String, dynamic>);
-              final res = await onToolCall!(name, args) ?? '';
+              final res =
+                  await onToolCall!(name, args, toolCallId: id) ?? '';
               results.add({'tool_call_id': id, 'content': res});
               resultsInfo.add(
                 ToolResultInfo(
@@ -3750,7 +3754,8 @@ class ChatApiService {
                   final name = m['__name'] as String;
                   final id = m['__id'] as String;
                   final args = (m['__args'] as Map<String, dynamic>);
-                  final res = await onToolCall!(name, args) ?? '';
+                  final res =
+                      await onToolCall!(name, args, toolCallId: id) ?? '';
                   results2.add({'tool_call_id': id, 'content': res});
                   resultsInfo2.add(
                     ToolResultInfo(
@@ -4104,7 +4109,8 @@ class ChatApiService {
                   final nm = m['__name'] as String;
                   final id2 = m['__id'] as String;
                   final args = (m['__args'] as Map<String, dynamic>);
-                  final res = await onToolCall!(nm, args) ?? '';
+                  final res =
+                      await onToolCall!(nm, args, toolCallId: id2) ?? '';
                   resultsInfo.add(
                     ToolResultInfo(
                       id: id2,
@@ -4365,7 +4371,8 @@ class ChatApiService {
                     final nm = m['__name'] as String;
                     final id2 = m['__id'] as String;
                     final args2 = (m['__args'] as Map<String, dynamic>);
-                    final res2 = await onToolCall!(nm, args2) ?? '';
+                    final res2 =
+                        await onToolCall!(nm, args2, toolCallId: id2) ?? '';
                     resultsInfo2.add(
                       ToolResultInfo(
                         id: id2,
@@ -4752,7 +4759,8 @@ class ChatApiService {
               final name = m['__name'] as String;
               final id = m['__id'] as String;
               final args = (m['__args'] as Map<String, dynamic>);
-              final res = await onToolCall!(name, args) ?? '';
+              final res =
+                  await onToolCall!(name, args, toolCallId: id) ?? '';
               results.add({'tool_call_id': id, 'content': res});
               resultsInfo.add(
                 ToolResultInfo(
@@ -5233,7 +5241,8 @@ class ChatApiService {
                   final name = m['__name'] as String;
                   final id = m['__id'] as String;
                   final args = (m['__args'] as Map<String, dynamic>);
-                  final res = await onToolCall!(name, args) ?? '';
+                  final res =
+                      await onToolCall!(name, args, toolCallId: id) ?? '';
                   results2.add({'tool_call_id': id, 'content': res});
                   resultsInfo2.add(
                     ToolResultInfo(
@@ -5369,7 +5378,8 @@ class ChatApiService {
                   final name = m['__name'] as String;
                   final id = m['__id'] as String;
                   final args = (m['__args'] as Map<String, dynamic>);
-                  final res = await onToolCall!(name, args) ?? '';
+                  final res =
+                      await onToolCall!(name, args, toolCallId: id) ?? '';
                   results.add({'tool_call_id': id, 'content': res});
                   resultsInfo.add(
                     ToolResultInfo(
@@ -6132,7 +6142,7 @@ class ChatApiService {
     double? topP,
     int? maxTokens,
     List<Map<String, dynamic>>? tools,
-    Future<String> Function(String, Map<String, dynamic>)? onToolCall,
+    ToolCallHandler? onToolCall,
     bool exposeToolCallsOnly = false,
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
@@ -6511,7 +6521,8 @@ class ChatApiService {
           for (final e in toolUses.entries) {
             final name = (e.value['name'] ?? '').toString();
             final args = (e.value['args'] as Map<String, dynamic>);
-            final res = await onToolCall!(name, args) ?? '';
+            final res =
+                await onToolCall!(name, args, toolCallId: e.key) ?? '';
             results.add({
               'type': 'tool_result',
               'tool_use_id': e.key,
@@ -7112,7 +7123,7 @@ class ChatApiService {
     double? topP,
     int? maxTokens,
     List<Map<String, dynamic>>? tools,
-    Future<String> Function(String, Map<String, dynamic>)? onToolCall,
+    ToolCallHandler? onToolCall,
     bool exposeToolCallsOnly = false,
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
@@ -7482,7 +7493,8 @@ class ChatApiService {
             // Single-round expose mode: surface the tool calls and stop.
             return;
           }
-          final res = await onToolCall!(name, args) ?? '';
+          final res =
+              await onToolCall!(name, args, toolCallId: callId) ?? '';
           yield ChatStreamChunk(
             content: '',
             isDone: false,

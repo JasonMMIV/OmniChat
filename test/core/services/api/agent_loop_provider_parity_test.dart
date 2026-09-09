@@ -141,7 +141,7 @@ void main() {
           ],
           stream: false,
           requestId: 'legacy-claude',
-          onToolCall: (name, args) async => 'FILE_BODY_42',
+          onToolCall: (name, args, {String? toolCallId}) async => 'FILE_BODY_42',
         ).toList();
         expect(fix.bodies, hasLength(2));
         final legacyFollowUp = fix.bodies[1];
@@ -269,7 +269,7 @@ void main() {
           ],
           stream: false,
           requestId: 'legacy-gemini',
-          onToolCall: (name, args) async => 'FILE_BODY_42',
+          onToolCall: (name, args, {String? toolCallId}) async => 'FILE_BODY_42',
         ).toList();
         expect(fix.bodies, hasLength(2));
         final legacyFollowUp = fix.bodies[1];
@@ -388,7 +388,7 @@ void main() {
           ],
           stream: true,
           requestId: 'legacy-responses',
-          onToolCall: (name, args) async => 'FILE_BODY_42',
+          onToolCall: (name, args, {String? toolCallId}) async => 'FILE_BODY_42',
         ).toList();
         expect(fix.bodies, hasLength(2));
         final legacyFollowUp = fix.bodies[1];

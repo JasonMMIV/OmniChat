@@ -137,15 +137,22 @@ class ToolOutputExternalizer {
       toolName: toolName,
       toolCallId: toolCallId,
     );
-    var file = File(p.join(dir.path, '$base.txt'));
+    final file = File(p.join(dir.path, '$base.txt'));
+    // P1-4 id-aware contract: an id-bearing name is DETERMINISTIC — a
+    // re-run of the same call (resume after approval, retry round)
+    // overwrites the same file instead of spawning `-2`/`-3` copies, so
+    // the preview's retrieval path stays valid across replays.
+    if (toolCallId != null && toolCallId.trim().isNotEmpty) {
+      return file.writeAsString(content, flush: true);
+    }
     if (!await file.exists()) {
       return file.writeAsString(content, flush: true);
     }
-    // Id-bearing (or id-less unique) collision fallback: disambiguate.
+    // Id-less (timestamp) collision fallback: disambiguate.
     for (var i = 2;; i++) {
-      file = File(p.join(dir.path, '$base-$i.txt'));
-      if (!await file.exists()) {
-        return file.writeAsString(content, flush: true);
+      final next = File(p.join(dir.path, '$base-$i.txt'));
+      if (!await next.exists()) {
+        return next.writeAsString(content, flush: true);
       }
     }
   }

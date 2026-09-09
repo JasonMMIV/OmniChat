@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
+import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
 import '../../../core/models/assistant.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/providers/model_provider.dart';
@@ -138,8 +139,10 @@ class GenerationController {
   }
 
   /// Build tool call handler function.
-  /// Delegates to ToolHandlerService.buildToolCallHandler.
-  Future<String> Function(String, Map<String, dynamic>)? buildToolCallHandler(
+  /// Delegates to ToolHandlerService.buildToolCallHandler (P1-4 id-aware
+  /// contract: the returned handler accepts the optional provider
+  /// `toolCallId`).
+  ToolCallHandler? buildToolCallHandler(
     SettingsProvider settings,
     Assistant? assistant, {
     String? conversationId,
@@ -214,7 +217,7 @@ class GenerationController {
     required SettingsProvider settings,
     required ProviderConfig config,
     required List<Map<String, dynamic>> toolDefs,
-    Future<String> Function(String, Map<String, dynamic>)? onToolCall,
+    ToolCallHandler? onToolCall,
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     required bool supportsReasoning,

@@ -14,6 +14,7 @@ import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/file/file_tool_service.dart';
 import '../../../core/services/agent/approval.dart';
+import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
 import '../../../core/services/logging/flutter_logger.dart';
 import '../../../core/services/tools/tool_output_externalizer.dart';
 import '../../../core/models/file_record.dart';
@@ -416,7 +417,13 @@ class ToolHandlerService {
   /// - Search tool calls
   /// - Memory tool calls (create/edit/delete)
   /// - MCP tool calls
-  Future<String> Function(String, Map<String, dynamic>)? buildToolCallHandler(
+  ///
+  /// P1-4 id-aware contract: the optional [ToolCallHandler.toolCallId]
+  /// parameter carries the provider call id when known — it keys the
+  /// approval Pending event id (kernel path) and the externalized output
+  /// filename. Closures of the legacy `(name, args)` shape remain
+  /// assignable.
+  ToolCallHandler? buildToolCallHandler(
     SettingsProvider settings,
     Assistant? assistant, {
     String? conversationId,
@@ -429,7 +436,7 @@ class ToolHandlerService {
     // use_build_context_synchronously warning
     final assistantProvider = contextProvider.read<AssistantProvider>();
 
-    return (name, args) async {
+    return (name, args, {String? toolCallId}) async {
       // P1-1: workspace tools execute under a per-conversation cwd; resolve
       // the sandbox root the same way FileToolService does so the approval
       // policy classifies the same path the executor will use.
@@ -462,7 +469,15 @@ class ToolHandlerService {
           try {
             await chatService.upsertToolEvent(
               messageId,
-              id: decision.toolCallId,
+              // Kernel path: key the Pending event by the REAL provider
+              // call id so resolveApproval / setToolEventApprovalState
+              // match exactly the event the synthetic toolResults upsert
+              // writes (legacy path has no id here; the fallback matcher
+              // in upsertToolEvent keeps that path working).
+              id:
+                  (toolCallId != null && toolCallId.trim().isNotEmpty)
+                  ? toolCallId
+                  : decision.toolCallId,
               name: name,
               arguments: args,
               content: decision.content,
@@ -510,6 +525,7 @@ class ToolHandlerService {
             toolName: name,
             result: result.text,
             workspacePath: workspacePath,
+            toolCallId: toolCallId,
           );
         } catch (e, st) {
           // Never let an unexpected file-tool failure break the conversation.
@@ -580,6 +596,7 @@ class ToolHandlerService {
             toolName: name,
             result: await SearchToolService.executeSearch(q, settings),
             workspacePath: workspacePath,
+            toolCallId: toolCallId,
           );
         }
 
@@ -607,6 +624,7 @@ class ToolHandlerService {
           toolName: name,
           result: text,
           workspacePath: workspacePath,
+          toolCallId: toolCallId,
         );
       } catch (e) {
         // Catch unexpected exceptions and return error JSON to the LLM.
