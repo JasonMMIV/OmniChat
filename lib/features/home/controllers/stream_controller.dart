@@ -4,12 +4,17 @@ import '../../../core/models/chat_message.dart';
 import '../../../core/models/token_usage.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
+import '../../../core/services/agent/agent_loop.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../chat/widgets/chat_message_widget.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
 import 'streaming_content_notifier.dart';
 
 export 'streaming_content_notifier.dart';
+// P0-2: re-export the kernel hook types so callers wiring Phase-1 hooks via
+// the `stream_ctrl` alias (GenerationContext consumers) can name them.
+export '../../../core/services/agent/agent_loop.dart'
+    show AgentLoopHooks, AgentLoopOptions;
 
 /// Controller for managing streaming message generation.
 ///
@@ -1003,7 +1008,11 @@ class GenerationContext {
   final SettingsProvider settings;
   final ProviderConfig config;
   final List<Map<String, dynamic>> toolDefs;
-  final Future<String> Function(String, Map<String, dynamic>)? onToolCall;
+
+  /// P1-4 id-aware contract: the handler receives the provider tool-call id
+  /// (optional named param) so per-call side effects — externalized output
+  /// filenames, approval event keys — key off the real call id.
+  final ToolCallHandler? onToolCall;
   final Map<String, String>? extraHeaders;
   final Map<String, dynamic>? extraBody;
   final bool supportsReasoning;
@@ -1037,6 +1046,11 @@ class StreamingState {
   /// the message bubble reads this to render the "已重試 N 次仍失敗"
   /// footnote.
   bool retriesExhausted = false;
+
+  /// P0-5: soft-stop reason carried by the agent-loop driver's synthesized
+  /// terminal chunk (`max_steps` / `token_budget`). Appended to the
+  /// persisted content as a localized footnote at finish time.
+  String? softStopReason;
 
   String get messageId => ctx.assistantMessage.id;
   String get conversationId => ctx.assistantMessage.conversationId;

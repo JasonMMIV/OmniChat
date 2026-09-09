@@ -13,10 +13,14 @@ import '../../../core/providers/ai_team_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
+import '../../../core/services/api/learned_context_windows.dart';
 import '../../../core/services/api/transient_stream_error.dart';
+import '../../../core/services/agent/agent_loop.dart';
 import '../../../core/services/agent/approval.dart';
+import '../../../core/services/agent/compaction/midrun_compactor.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../core/services/workspace/workspace_snapshot.dart';
 import '../../../l10n/app_localizations.dart';
@@ -101,6 +105,10 @@ class ChatActions {
 
   /// Called when an error occurs during streaming.
   void Function(String error)? onStreamError;
+
+  /// Called for non-fatal user notices (e.g. P1-5 snapshot restore result).
+  /// The UI surfaces these as an info snackbar.
+  void Function(String message)? onNotice;
 
   /// Called when the L1 retry loop is about to reissue a request after a
   /// transient network failure or silent stream interruption. The UI uses
@@ -828,6 +836,15 @@ class ChatActions {
       );
     } catch (_) {}
     _refreshToolPart(runId, 'snap_$runId', content: jsonEncode(record));
+    // P1-5: localized user-facing hint on the restored card (the number of
+    // files rolled back); a snackbar for immediate feedback when the card
+    // is scrolled out of view.
+    final l10n = AppLocalizations.of(contextProvider);
+    if (l10n != null) {
+      onNotice?.call(
+        l10n.workspaceSnapshotsToggleRestoreHint(result.fileCount),
+      );
+    }
     return null;
   }
 
@@ -1121,6 +1138,145 @@ class ChatActions {
   // Stream Execution
   // ============================================================================
 
+  /// Phase-1 kernel hooks (IMPORT_PLAN_COWORK.md P0-2/P0-3): the policy the
+  /// kernel consults at round boundaries. Built fresh per run so the run
+  /// always sees the settings/approval snapshot of its own start (generation
+  /// 中 UI 變更不影響已建立的 handler — CLI v4 §四.2 semantics).
+  ///
+  /// `onRoundStart` duties (plan P0-2 「hooks.onRoundStart 實作」):
+  /// 1. **Approval / ask_user pause judgment** — when the previous round left
+  ///    an unresolved Pending tool event (approval card not yet decided, or
+  ///    an ask_user card not yet answered), veto the round so the run pauses
+  ///    (ADR-A5: Pending → break → user resolves → resume via [resumeRun]).
+  ///    The veto is a clean stop: no request is sent, tools already executed
+  ///    stay executed, and the synthesized terminal chunk has no
+  ///    softStopReason — the card is the user-facing surface.
+  /// 2. **Mid-run compaction re-evaluation** (P1-2) — the prep-time trigger
+  ///    only runs before a run starts; a long loop can still cross the
+  ///    trigger mid-flight. The hook re-evaluates the same formula with the
+  ///    kernel's cumulative `tokensSoFar` and compacts the working list in
+  ///    place (projection only, ADR-A6) when it fires.
+  Future<stream_ctrl.AgentLoopHooks> _buildPhase1Hooks(
+    stream_ctrl.GenerationContext ctx,
+  ) async {
+    final assistantMessageId = ctx.assistantMessage.id;
+
+    bool hasUnresolvedPendingEvent() {
+      try {
+        for (final e in chatService.getToolEvents(assistantMessageId)) {
+          final state = (e['approvalState'] ?? '').toString();
+          final content = e['content']?.toString();
+          if (state == approvalStatePending) return true;
+          // ask_user cards created before an answer upserts the content:
+          // the pending content JSON is the marker (the state field is
+          // absent for legacy events).
+          final parsedAsk = parseAskUserContent(content);
+          if (parsedAsk != null && parsedAsk['type'] == askUserPendingType) {
+            return true;
+          }
+        }
+      } catch (_) {}
+      return false;
+    }
+
+    return stream_ctrl.AgentLoopHooks(
+      onRoundStart: (stepIndex, messages, tokensSoFar) async {
+        // Duty 1 — approval / ask_user pause (checked first: a pending
+        // card means the user must decide before any further model call).
+        if (stepIndex > 0 && hasUnresolvedPendingEvent()) {
+          return false;
+        }
+        // Duty 2 — mid-run compaction (P1-2): same formula as the prep-time
+        // trigger, reusing the kernel's cumulative token counter.
+        try {
+          if (ctx.settings.autoCompactionV1) {
+            final learned = await LearnedContextWindows.lookup(
+              ctx.providerKey,
+              ctx.modelId,
+            );
+            applyMidRunCompaction(
+              messages,
+              tokensSoFar: tokensSoFar,
+              modelId: ctx.modelId,
+              learnedWindowTokens: learned,
+            );
+          }
+        } catch (_) {
+          // Compaction is a best-effort projection; never veto the run.
+        }
+        return true;
+      },
+    );
+  }
+
+  /// P0-3 `resumeRun` facade (ADR-A5): re-enter generation from a paused
+  /// checkpoint without re-asking the model. The resolved tool result already
+  /// lives in the persisted tool events (the approval/answer upsert is the
+  /// checkpoint), so the fresh assistant message simply replays the
+  /// conversation with the resolved event included — the same mechanism the
+  /// approval and ask_user resume paths use today. This single entry point
+  /// is what a future P2-1 checkpoint store will call on app restart.
+  Future<ChatMessage?> resumeRun(
+    String conversationId, {
+    String? assistantMessageId,
+    String? toolCallId,
+    bool approve = false,
+    bool alwaysAllow = false,
+    Map<String, dynamic>? answerPayload,
+  }) async {
+    // Dispatch on the pause kind: an approval pending resolves through the
+    // approval path; an ask_user pending resolves through the answer path.
+    // A bare resume (no toolCallId) just continues generation.
+    if (toolCallId != null && assistantMessageId != null && answerPayload != null) {
+      final event = _toolEvent(assistantMessageId, toolCallId);
+      final content = event?['content']?.toString();
+      final isAskUser =
+          (event?['name']?.toString() ?? '') == askUserToolName ||
+          parseAskUserContent(content)?['type'] == askUserPendingType;
+      if (isAskUser) {
+        return resumeAfterAskUserAnswer(
+          conversationId,
+          assistantMessageId,
+          toolCallId,
+          answerPayload,
+        );
+      }
+      return resolveApproval(
+        conversationId,
+        assistantMessageId,
+        toolCallId,
+        approve: approve,
+        alwaysAllow: alwaysAllow,
+        answerPayload: answerPayload,
+      );
+    }
+    if (toolCallId != null && assistantMessageId != null) {
+      return resolveApproval(
+        conversationId,
+        assistantMessageId,
+        toolCallId,
+        approve: approve,
+        alwaysAllow: alwaysAllow,
+      );
+    }
+    // Bare resume: continue the paused conversation with a fresh assistant
+    // message (same continuation as the resume paths, no tool to resolve).
+    return _continueAfterApproval(
+      conv: _currentConversation!,
+      answeredAssistantMessageId: assistantMessageId ?? '',
+    );
+  }
+
+  /// Look up a persisted tool event by id.
+  Map<String, dynamic>? _toolEvent(String assistantMessageId, String id) {
+    try {
+      for (final e in chatService.getToolEvents(assistantMessageId)) {
+        if ((e['id']?.toString() ?? '') == id) return e;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   /// Execute generation with the given context.
   Future<void> _executeGeneration(stream_ctrl.GenerationContext ctx) async {
     final state = stream_ctrl.StreamingState(ctx);
@@ -1151,6 +1307,7 @@ class ChatActions {
               maxTokens: assistant?.maxTokens,
               tools: ctx.toolDefs.isEmpty ? null : ctx.toolDefs,
               onToolCall: ctx.onToolCall,
+              hooks: await _buildPhase1Hooks(ctx),
               extraHeaders: ctx.extraHeaders,
               extraBody: ctx.extraBody,
               streamOutput: ctx.streamOutput,
@@ -1474,7 +1631,7 @@ class ChatActions {
     double? topP,
     int? maxTokens,
     List<Map<String, dynamic>>? tools,
-    Future<String> Function(String, Map<String, dynamic>)? onToolCall,
+    ToolCallHandler? onToolCall,
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     required bool streamOutput,
@@ -1863,6 +2020,13 @@ class ChatActions {
       await _handleToolResultsChunk(chunk, state);
     }
 
+    // P0-5: a soft stop (max steps / token budget) surfaces as a localized
+    // footnote on the finished bubble so the user understands the run ended
+    // by policy, not by failure, and can continue with another message.
+    if ((chunk.softStopReason ?? '').isNotEmpty) {
+      state.softStopReason = chunk.softStopReason;
+    }
+
     // Handle finish or content
     if (chunk.isDone) {
       await _handleStreamFinish(chunk, state, chunkContent);
@@ -2188,10 +2352,27 @@ class ChatActions {
 
     // Replace extremely long inline base64 images with local files to avoid jank
     final processedContent = _transformAssistantContent(state);
-    final sanitizedContent =
+    // P0-5: append the localized soft-stop footnote (max steps / token
+    // budget) to the persisted bubble so the stop reason outlives the
+    // session — same convention as the streamInterruptedNote on errors.
+    var sanitizedContent =
         await MarkdownMediaSanitizer.replaceInlineBase64Images(
           processedContent,
         );
+    final softStop = state.softStopReason;
+    if (softStop != null && softStop.isNotEmpty) {
+      final l10n = AppLocalizations.of(contextProvider);
+      final note = softStop == 'max_steps'
+          ? (l10n?.softStopMaxStepsNote ??
+              'The run reached its step limit and stopped; send a message to continue.')
+          : (l10n?.softStopTokenBudgetNote ??
+              'The run reached its token budget and stopped; send a message to continue.');
+      if (sanitizedContent.isNotEmpty) {
+        sanitizedContent = '$sanitizedContent\n\n$note';
+      } else {
+        sanitizedContent = note;
+      }
+    }
     // Extract pending AI Team proposals for persistence
     final pendingProposals = _aiTeamPendingProposals.remove(messageId);
     await chatService.updateMessage(

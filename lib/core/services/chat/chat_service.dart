@@ -966,12 +966,18 @@ class ChatService extends ChangeNotifier {
       );
     }
 
+    final existingApprovalState = _existingApprovalState(list, idx);
     final record = <String, dynamic>{
       'id': cleanId,
       'name': name,
       'arguments': arguments,
       'content': _boundToolResultForPersistence(name, content),
-      if (approvalState != null) 'approvalState': approvalState,
+      // P0-2 Phase-1: preserve a previously persisted approvalState on
+      // result upserts. The kernel path writes the Pending state at gate
+      // time; when the resolved/synthetic result upsert rewrites the same
+      // event (same id) the state must not be silently dropped, otherwise
+      // the approval card loses its lifecycle record.
+      'approvalState': approvalState ?? existingApprovalState,
     };
     if (idx >= 0) {
       list[idx] = record;
@@ -980,6 +986,18 @@ class ChatService extends ChangeNotifier {
     }
     await _toolEventsBox.put(assistantMessageId, list);
     notifyListeners();
+  }
+
+  /// The persisted `approvalState` of the event at [idx] (null when the
+  /// index is out of range or the field is absent). Used by [upsertToolEvent]
+  /// so a result upsert never erases the approval lifecycle state.
+  static String? _existingApprovalState(
+    List<Map<String, dynamic>> list,
+    int idx,
+  ) {
+    if (idx < 0 || idx >= list.length) return null;
+    final raw = list[idx]['approvalState'];
+    return raw == null ? null : raw.toString();
   }
 
   /// P1-1: update only the `approvalState` (and optionally the content) of

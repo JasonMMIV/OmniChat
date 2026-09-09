@@ -4941,4 +4941,24 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get aiContentPolicyReportHint =>
       'To report harmful or inappropriate content, please open an issue on GitHub.';
+
+  @override
+  String get softStopMaxStepsNote =>
+      'The run reached its step limit and stopped; send a message to continue.';
+
+  @override
+  String get softStopTokenBudgetNote =>
+      'The run reached its token budget and stopped; send a message to continue.';
+
+  @override
+  String get workspaceSnapshotsToggleTitle => 'Run snapshots';
+
+  @override
+  String get workspaceSnapshotsToggleSubtitle =>
+      'Automatically snapshot the workspace before each agent run, enabling one-click rollback of file changes.';
+
+  @override
+  String workspaceSnapshotsToggleRestoreHint(Object count) {
+    return 'Restored workspace snapshot: $count files.';
+  }
 }

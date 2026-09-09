@@ -1726,6 +1726,11 @@
   "aboutPageAiContentPolicy": "AI 内容政策",
   "aiContentPolicyDisclaimer": "回复由 AI 生成，可能不准确、过时、有偏见或不适当。在依赖重要信息前请务必自行查证。",
   "aiContentPolicyReportAction": "打开 GitHub Issues",
-  "aiContentPolicyReportHint": "如需回报有害或不当内容，请到 GitHub 创建 Issue。"
+  "aiContentPolicyReportHint": "如需回报有害或不当内容，请到 GitHub 创建 Issue。",
+  "softStopMaxStepsNote": "运行已达步数上限并停止，发送消息即可继续。",
+  "softStopTokenBudgetNote": "运行已达 Token 预算并停止，发送消息即可继续。",
+  "workspaceSnapshotsToggleTitle": "运行快照",
+  "workspaceSnapshotsToggleSubtitle": "在每轮 Agent 运行前自动快照工作区，支持一键回滚文件改动。",
+  "workspaceSnapshotsToggleRestoreHint": "已恢复工作区快照：{count} 个文件。"
 }
 

@@ -136,6 +136,25 @@ class _DefaultWorkspaceDirectorySheet extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
+              // P1-5: workspace run snapshots kill-switch (provider layer
+              // `workspace_snapshots_v1`). Toggling here affects every
+              // surface that opens this dialog (mobile settings, assistant
+              // pages, desktop popover) — single source of truth.
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: settings.workspaceSnapshotsV1,
+                onChanged: (v) =>
+                    context.read<SettingsProvider>().setWorkspaceSnapshotsV1(v),
+                title: Text(l10n.workspaceSnapshotsToggleTitle),
+                subtitle: Text(
+                  l10n.workspaceSnapshotsToggleSubtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: cs.onSurface.withOpacity(0.62),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
               option(
                 icon: Lucide.CircleX,
                 title: l10n.workspaceDoNotUse,

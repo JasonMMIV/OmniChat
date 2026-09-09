@@ -4913,6 +4913,24 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get aiContentPolicyReportHint => '如需回报有害或不当内容，请到 GitHub 创建 Issue。';
+
+  @override
+  String get softStopMaxStepsNote => '运行已达步数上限并停止，发送消息即可继续。';
+
+  @override
+  String get softStopTokenBudgetNote => '运行已达 Token 预算并停止，发送消息即可继续。';
+
+  @override
+  String get workspaceSnapshotsToggleTitle => '运行快照';
+
+  @override
+  String get workspaceSnapshotsToggleSubtitle =>
+      '在每轮 Agent 运行前自动快照工作区，支持一键回滚文件改动。';
+
+  @override
+  String workspaceSnapshotsToggleRestoreHint(Object count) {
+    return '已恢复工作区快照：$count 个文件。';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -9607,6 +9625,24 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get aiContentPolicyReportHint => '如需回报有害或不当内容，请到 GitHub 创建 Issue。';
+
+  @override
+  String get softStopMaxStepsNote => '运行已达步数上限并停止，发送消息即可继续。';
+
+  @override
+  String get softStopTokenBudgetNote => '运行已达 Token 预算并停止，发送消息即可继续。';
+
+  @override
+  String get workspaceSnapshotsToggleTitle => '运行快照';
+
+  @override
+  String get workspaceSnapshotsToggleSubtitle =>
+      '在每轮 Agent 运行前自动快照工作区，支持一键回滚文件改动。';
+
+  @override
+  String workspaceSnapshotsToggleRestoreHint(Object count) {
+    return '已恢复工作区快照：$count 个文件。';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -14408,4 +14444,22 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get aiContentPolicyReportHint => '如需回報有害或不當內容，請至 GitHub 建立 Issue。';
+
+  @override
+  String get softStopMaxStepsNote => '執行已達步數上限並停止，傳送訊息即可繼續。';
+
+  @override
+  String get softStopTokenBudgetNote => '執行已達 Token 預算並停止，傳送訊息即可繼續。';
+
+  @override
+  String get workspaceSnapshotsToggleTitle => '執行快照';
+
+  @override
+  String get workspaceSnapshotsToggleSubtitle =>
+      '在每輪 Agent 執行前自動快照工作區，支援一鍵還原檔案變更。';
+
+  @override
+  String workspaceSnapshotsToggleRestoreHint(Object count) {
+    return '已還原工作區快照：$count 個檔案。';
+  }
 }

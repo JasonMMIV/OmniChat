@@ -53,7 +53,7 @@ void main() {
           messages: const [
             {'role': 'user', 'content': 'hi'},
           ],
-          onToolCall: (name, args) async => 'R',
+          onToolCall: (name, args, {String? toolCallId}) async => 'R',
           sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
             <ChatStreamChunk>[_text('hello'), _done()],
           ),
@@ -77,7 +77,7 @@ void main() {
           messages: const [
             {'role': 'user', 'content': 'read'},
           ],
-          onToolCall: (name, args) async => 'BODY',
+          onToolCall: (name, args, {String? toolCallId}) async => 'BODY',
           sendRound: (msgs) async {
             final hasToolCalls = msgs.any(
               (m) => m['role'] == 'assistant' && m['tool_calls'] != null,
@@ -120,7 +120,7 @@ void main() {
           messages: const [
             {'role': 'user', 'content': 'read'},
           ],
-          onToolCall: (name, args) async => 'BODY',
+          onToolCall: (name, args, {String? toolCallId}) async => 'BODY',
           options: const AgentLoopOptions(maxSteps: 1),
           sendRound: (msgs) async =>
               Stream<ChatStreamChunk>.fromIterable(<ChatStreamChunk>[_tools()]),
@@ -131,6 +131,42 @@ void main() {
     // it, so the driver synthesizes isDone to finalize the bubble.
     expect(chunks.last.isDone, isTrue);
     expect(chunks.where((c) => c.isDone), hasLength(1));
+    // P0-5: max-steps soft stop carries the reason on the terminal chunk
+    // so the UI can append the localized footnote.
+    expect(chunks.last.softStopReason, 'max_steps');
+  });
+
+  test('early stop (token budget): terminal chunk carries token_budget',
+      () async {
+    final chunks = await AgentOrchestrator()
+        .run(
+          config: _config(),
+          modelId: 'm',
+          requestId: 't3b',
+          streamOutput: true,
+          messages: const [
+            {'role': 'user', 'content': 'read'},
+          ],
+          onToolCall: (name, args, {String? toolCallId}) async => 'BODY',
+          // maxSteps must not bind first (the kernel checks it before the
+          // budget gate), so give the run room and trip the budget only.
+          options: const AgentLoopOptions(maxSteps: 5, tokenBudget: 1),
+          sendRound: (msgs) async =>
+              Stream<ChatStreamChunk>.fromIterable(<ChatStreamChunk>[
+                // Usage-carrying tool round: tokensUsed(5) >= budget(1)
+                // stops the run before round 2 is dispatched.
+                ChatStreamChunk(
+                  content: '',
+                  isDone: false,
+                  totalTokens: 5,
+                  toolCalls: _tools().toolCalls,
+                ),
+              ]),
+        )
+        .toList();
+
+    expect(chunks.last.isDone, isTrue);
+    expect(chunks.last.softStopReason, 'token_budget');
   });
 
   test(
@@ -146,7 +182,7 @@ void main() {
             messages: const [
               {'role': 'user', 'content': 'hi'},
             ],
-            onToolCall: (name, args) async => 'R',
+            onToolCall: (name, args, {String? toolCallId}) async => 'R',
             hooks: AgentLoopHooks(
               onRoundStart: (step, msgs, tokens) async => false,
             ),
@@ -161,8 +197,33 @@ void main() {
 
       expect(sent, 0);
       expect(chunks.single.isDone, isTrue);
+      // P0-5: hook vetoes (approval pause) carry NO soft-stop reason — the
+      // approval card is the user-facing surface for those.
+      expect(chunks.single.softStopReason, isNull);
     },
   );
+
+  test('P1-4: handler receives the provider tool-call id', () async {
+    String? seenId;
+    await AgentOrchestrator()
+        .run(
+          config: _config(),
+          modelId: 'm',
+          requestId: 't4b',
+          streamOutput: true,
+          messages: const [
+            {'role': 'user', 'content': 'read'},
+          ],
+          onToolCall: (name, args, {String? toolCallId}) async {
+            seenId = toolCallId;
+            return 'BODY';
+          },
+          sendRound: (msgs) async =>
+              Stream<ChatStreamChunk>.fromIterable(<ChatStreamChunk>[_tools()]),
+        )
+        .toList();
+    expect(seenId, 'c1');
+  });
 
   test('supportsKernelPath: OpenAI/Claude/Gemini/Responses yes', () {
     expect(AgentOrchestrator.supportsKernelPath(_config()), isTrue);

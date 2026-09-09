@@ -9,6 +9,7 @@ import '../../../core/models/conversation.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/agent/compaction/compaction_trigger.dart';
 import '../../../core/services/agent/compaction/context_trim.dart';
+import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
 import '../../../core/services/api/learned_context_windows.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/todo_service.dart';
@@ -32,7 +33,9 @@ typedef OnHapticFeedback = void Function();
 class PreparedGeneration {
   final List<Map<String, dynamic>> apiMessages;
   final List<Map<String, dynamic>> toolDefs;
-  final Future<String> Function(String, Map<String, dynamic>)? onToolCall;
+
+  /// P1-4 id-aware contract (see [ToolCallHandler]).
+  final ToolCallHandler? onToolCall;
   final bool hasBuiltInSearch;
   final List<String> lastUserImagePaths;
 

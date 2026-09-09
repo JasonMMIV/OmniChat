@@ -9451,6 +9451,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'To report harmful or inappropriate content, please open an issue on GitHub.'**
   String get aiContentPolicyReportHint;
+
+  /// No description provided for @softStopMaxStepsNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The run reached its step limit and stopped; send a message to continue.'**
+  String get softStopMaxStepsNote;
+
+  /// No description provided for @softStopTokenBudgetNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The run reached its token budget and stopped; send a message to continue.'**
+  String get softStopTokenBudgetNote;
+
+  /// No description provided for @workspaceSnapshotsToggleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Run snapshots'**
+  String get workspaceSnapshotsToggleTitle;
+
+  /// No description provided for @workspaceSnapshotsToggleSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatically snapshot the workspace before each agent run, enabling one-click rollback of file changes.'**
+  String get workspaceSnapshotsToggleSubtitle;
+
+  /// No description provided for @workspaceSnapshotsToggleRestoreHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Restored workspace snapshot: {count} files.'**
+  String workspaceSnapshotsToggleRestoreHint(Object count);
 }
 
 class _AppLocalizationsDelegate
