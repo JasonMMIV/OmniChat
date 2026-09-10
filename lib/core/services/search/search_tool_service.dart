@@ -1,11 +1,36 @@
 import 'dart:convert';
 import 'package:uuid/uuid.dart';
 import 'search_service.dart';
+import 'search_dispatch.dart';
 import '../../providers/settings_provider.dart';
+
+/// Result of a dispatched search: the LLM-visible JSON plus UI-only trace
+/// info (which provider actually served it and the fallback origin).
+class SearchTraceResult {
+  const SearchTraceResult({
+    required this.json,
+    this.providerName,
+    this.fallbackFromName,
+  });
+
+  /// The JSON string handed to the LLM — unchanged shape from before.
+  final String json;
+
+  /// Display name of the provider that produced the result.
+  final String? providerName;
+
+  /// Display name of the originally-preferred provider when the search was
+  /// switched to another provider (fallback), null otherwise.
+  final String? fallbackFromName;
+}
 
 class SearchToolService {
   static const String toolName = 'search_web';
   static const String toolDescription = 'Search the web for information';
+
+  /// App-lifecycle dispatch state (round-robin cursor + 429 cooldown table);
+  /// resets on restart — same ephemeral pattern as connection test results.
+  static final SearchDispatcher _dispatcher = SearchDispatcher();
 
   static Map<String, dynamic> getToolDefinition() {
     return {
@@ -26,30 +51,81 @@ class SearchToolService {
       },
     };
   }
-  
+
+  /// Execute a web search through the multi-provider dispatch engine.
+  ///
+  /// The signature stays unchanged so every existing call site (tool handler,
+  /// live voice tools, chat turn service, AI Team) benefits automatically.
   static Future<String> executeSearch(
     String query,
     SettingsProvider settings,
   ) async {
+    final trace = await executeSearchWithTrace(query, settings);
+    return trace.json;
+  }
+
+  /// Same as [executeSearch] but also reports which provider served the
+  /// result (and the fallback origin) for UI-only display. The returned
+  /// [SearchTraceResult.json] is exactly what [executeSearch] would return.
+  static Future<SearchTraceResult> executeSearchWithTrace(
+    String query,
+    SettingsProvider settings,
+  ) async {
     try {
-      // Get selected search service
       final services = settings.searchServices;
       if (services.isEmpty) {
-        return jsonEncode({
-          'error': 'No search services configured',
-        });
+        return SearchTraceResult(
+          json: jsonEncode({'error': 'No search services configured'}),
+        );
       }
-      
-      final selectedIndex = settings.searchServiceSelected.clamp(0, services.length - 1);
-      final service = SearchService.getService(services[selectedIndex]);
-      
-      // Execute search
-      final result = await service.search(
-        query: query,
-        commonOptions: settings.searchCommonOptions,
-        serviceOptions: services[selectedIndex],
+
+      // Dispatch candidates: the selected (checked) set in service-list
+      // order — the first entry is the primary provider. Duplicate ids
+      // (possible via JSON import / restore) are collapsed so the cooldown
+      // table and attempt lookup stay unambiguous.
+      final selectedIds = settings.searchSelectedProviders.toSet();
+      final seenIds = <String>{};
+      var candidates = <SearchServiceOptions>[
+        for (final s in services)
+          if (selectedIds.contains(s.id) && seenIds.add(s.id)) s,
+      ];
+      if (candidates.isEmpty) {
+        // Defensive: the settings UI/migration never allow an empty set —
+        // fall back to the legacy single index so stale data still searches.
+        final idx = settings.searchServiceSelected.clamp(
+          0,
+          services.length - 1,
+        );
+        candidates = <SearchServiceOptions>[services[idx]];
+      }
+
+      final outcome = await _dispatcher.dispatch<SearchResult>(
+        candidates: [
+          for (final s in candidates)
+            SearchDispatchCandidate(
+              id: s.id,
+              name: SearchService.getService(s).name,
+            ),
+        ],
+        mode: settings.searchDispatchMode,
+        attempt: (candidate) async {
+          final options = candidates.firstWhere((s) => s.id == candidate.id);
+          final service = SearchService.getService(options);
+          return service.search(
+            query: query,
+            commonOptions: settings.searchCommonOptions,
+            serviceOptions: options,
+          );
+        },
       );
-      
+
+      final result = outcome.value;
+      if (result == null) {
+        return SearchTraceResult(
+          json: SearchDispatcher.buildAggregateErrorJson(outcome.failures),
+        );
+      }
+
       // Add unique IDs to each result item
       final itemsWithIds = result.items.asMap().entries.map((entry) {
         final item = entry.value;
@@ -57,19 +133,22 @@ class SearchToolService {
         item.index = entry.key + 1;
         return item;
       }).toList();
-      
-      // Return formatted result
-      return jsonEncode({
-        if (result.answer != null) 'answer': result.answer,
-        'items': itemsWithIds.map((item) => item.toJson()).toList(),
-      });
+
+      // Return formatted result (identical to the previous single-provider
+      // output — provider info never enters this JSON).
+      return SearchTraceResult(
+        json: jsonEncode({
+          if (result.answer != null) 'answer': result.answer,
+          'items': itemsWithIds.map((item) => item.toJson()).toList(),
+        }),
+        providerName: outcome.provider?.name,
+        fallbackFromName: outcome.fallbackFrom?.name,
+      );
     } catch (e) {
-      return jsonEncode({
-        'error': 'Search failed: $e',
-      });
+      return SearchTraceResult(json: jsonEncode({'error': 'Search failed: $e'}));
     }
   }
-  
+
   static String getSystemPrompt() {
     return '''
 ## search_web 工具使用说明

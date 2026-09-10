@@ -353,8 +353,7 @@ class _SearchContent extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final services = sp.searchServices;
-    final selected = sp.searchServiceSelected
-        .clamp(0, services.isNotEmpty ? services.length - 1 : 0);
+    final selectedIds = sp.searchSelectedProviders;
     final enabled = sp.searchEnabled;
     final supportsBuiltIn = _supportsBuiltInSearch(sp, ap);
     final builtInEnabled = _hasBuiltInSearchEnabled(sp, ap);
@@ -377,6 +376,7 @@ class _SearchContent extends StatelessWidget {
       leading: Icon(Lucide.CircleX, size: 16, color: cs.onSurface),
       label: l10n.homePageCancel,
       selected: false,
+      badge: null,
       onTap: () async {
         await _disableBuiltInSearch(context);
         await context.read<SettingsProvider>().setSearchEnabled(false);
@@ -390,6 +390,7 @@ class _SearchContent extends StatelessWidget {
         leading: Icon(Lucide.Search, size: 16, color: cs.onSurface),
         label: l10n.searchSettingsSheetBuiltinSearchTitle,
         selected: builtInEnabled && !claudeDynamicWebSearchEnabled,
+        badge: null,
         onTap: () async {
           await _enableBuiltInSearch(context);
           onDone();
@@ -401,6 +402,7 @@ class _SearchContent extends StatelessWidget {
           leading: Icon(Lucide.Search, size: 16, color: cs.onSurface),
           label: l10n.searchSettingsSheetClaudeDynamicSearchTitle,
           selected: builtInEnabled && claudeDynamicWebSearchEnabled,
+          badge: null,
           onTap: () async {
             await _enableBuiltInSearch(
               context,
@@ -414,17 +416,25 @@ class _SearchContent extends StatelessWidget {
 
     // 3) External services list (hidden when url_context is active)
     if (!builtInMode) {
-      for (int i = 0; i < services.length; i++) {
-        final s = services[i];
+      final showOrderBadge = selectedIds.length > 1;
+      for (final s in services) {
         final svc = SearchService.getService(s);
         final name = svc.name;
-        final isSelectedActive = enabled && (i == selected);
+        final isSelectedActive = enabled && selectedIds.contains(s.id);
+        final order = selectedIds.indexOf(s.id);
         rows.add(_RowItem(
           leading: _BrandIcon(name: name),
           label: name,
           selected: isSelectedActive,
+          // Order badges (1,2,3…) communicate provider priority — the first
+          // selected provider is the primary one.
+          badge: (showOrderBadge && order >= 0) ? '${order + 1}' : null,
           onTap: () async {
-            await context.read<SettingsProvider>().setSearchServiceSelected(i);
+            // Tap = make this the primary provider (moved to the top of the
+            // service list) + select it + enable web search.
+            await context.read<SettingsProvider>().promoteSearchProvider(
+              s.id,
+            );
             await _disableBuiltInSearch(context);
             await context.read<SettingsProvider>().setSearchEnabled(true);
             onDone();
@@ -457,11 +467,13 @@ class _RowItem extends StatefulWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    required this.badge,
   });
   final Widget leading;
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final String? badge;
 
   @override
   State<_RowItem> createState() => _RowItemState();
@@ -513,9 +525,28 @@ class _RowItemState extends State<_RowItem> {
               ),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 160),
-                child: widget.selected
-                    ? Icon(Lucide.Check, key: const ValueKey('check'), size: 16, color: cs.primary)
-                    : const SizedBox(width: 16, key: ValueKey('space')),
+                child: widget.badge != null
+                    ? Container(
+                        key: ValueKey('badge-${widget.badge}'),
+                        width: 18,
+                        height: 18,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: cs.primary.withOpacity(isDark ? 0.22 : 0.14),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          widget.badge!,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: cs.primary,
+                          ),
+                        ),
+                      )
+                    : (widget.selected
+                          ? Icon(Lucide.Check, key: const ValueKey('check'), size: 16, color: cs.primary)
+                          : const SizedBox(width: 16, key: ValueKey('space'))),
               ),
             ],
           ),

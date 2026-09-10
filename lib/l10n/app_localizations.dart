@@ -2747,6 +2747,36 @@ abstract class AppLocalizations {
   /// **'Providers'**
   String get searchServicesPageSearchProviders;
 
+  /// No description provided for @searchServicesPageDispatchModeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Dispatch Mode'**
+  String get searchServicesPageDispatchModeTitle;
+
+  /// No description provided for @searchDispatchModeFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Fallback'**
+  String get searchDispatchModeFallback;
+
+  /// No description provided for @searchDispatchModeFallbackSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Try the selected providers in order — switch to the next one automatically when the primary fails.'**
+  String get searchDispatchModeFallbackSubtitle;
+
+  /// No description provided for @searchDispatchModeRoundRobin.
+  ///
+  /// In en, this message translates to:
+  /// **'Round-Robin'**
+  String get searchDispatchModeRoundRobin;
+
+  /// No description provided for @searchDispatchModeRoundRobinSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rotate the starting provider on every search to spread requests across providers.'**
+  String get searchDispatchModeRoundRobinSubtitle;
+
   /// No description provided for @searchServicesPageGeneralOptions.
   ///
   /// In en, this message translates to:
@@ -4264,6 +4294,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Search: {query}'**
   String chatMessageWidgetWebSearch(String query);
+
+  /// No description provided for @chatMessageWidgetSearchSwitchedFromTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Switched from {from} to {to}'**
+  String chatMessageWidgetSearchSwitchedFromTo(String from, String to);
 
   /// No description provided for @chatMessageWidgetBuiltinSearch.
   ///
@@ -6658,6 +6694,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Service required'**
   String get searchServicesPageAtLeastOneServiceRequired;
+
+  /// No description provided for @searchServicesPageAtLeastOneSelectedRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep at least one provider selected'**
+  String get searchServicesPageAtLeastOneSelectedRequired;
 
   /// No description provided for @modelDetailSheetChatType.
   ///

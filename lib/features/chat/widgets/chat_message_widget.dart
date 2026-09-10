@@ -3105,13 +3105,53 @@ class ToolUIPart {
   final Map<String, dynamic> arguments;
   final String? content; // null means still loading/result not yet available
   final bool loading;
+
+  /// UI-only search trace: display name of the provider that actually served
+  /// a `search_web` result (multi-provider dispatch), null otherwise.
+  final String? searchProvider;
+
+  /// UI-only search trace: originally-preferred provider when the search was
+  /// switched to another provider (fallback), null otherwise.
+  final String? searchFallbackFrom;
+
   const ToolUIPart({
     required this.id,
     required this.toolName,
     required this.arguments,
     this.content,
     this.loading = false,
+    this.searchProvider,
+    this.searchFallbackFrom,
   });
+}
+
+/// Small pill showing the search provider that served a `search_web` result
+/// (multi-provider dispatch trace, UI-only).
+class _SearchProviderBadge extends StatelessWidget {
+  const _SearchProviderBadge({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: cs.primary.withOpacity(isDark ? 0.18 : 0.10),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        name,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w600,
+          color: cs.primary,
+        ),
+      ),
+    );
+  }
 }
 
 // Data for a reasoning segment (for mixed display)
@@ -3210,6 +3250,7 @@ class _ToolCallItem extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardTextColor =
         isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
+    final l10n = AppLocalizations.of(context)!;
 
     // P1-3: cowork tools render as dedicated interactive cards instead of the
     // generic tool row (plan card / ask_user answer card).
@@ -3301,19 +3342,49 @@ class _ToolCallItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _titleFor(
-                    context,
-                    part.toolName,
-                    part.arguments,
-                    isResult: !part.loading,
-                  ),
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.normal,
-                    color: cardTextColor,
-                  ),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        _titleFor(
+                          context,
+                          part.toolName,
+                          part.arguments,
+                          isResult: !part.loading,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.normal,
+                          color: cardTextColor,
+                        ),
+                      ),
+                    ),
+                    // Multi-provider dispatch trace: which provider actually
+                    // served this search (UI-only, never in LLM context).
+                    if (part.toolName == 'search_web' &&
+                        (part.searchProvider ?? '').isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      _SearchProviderBadge(name: part.searchProvider!),
+                    ],
+                  ],
                 ),
+                if (part.toolName == 'search_web' &&
+                    (part.searchFallbackFrom ?? '').isNotEmpty &&
+                    (part.searchProvider ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    l10n.chatMessageWidgetSearchSwitchedFromTo(
+                      part.searchFallbackFrom!,
+                      part.searchProvider!,
+                    ),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: cardTextColor.withOpacity(0.75),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

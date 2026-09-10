@@ -1396,6 +1396,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchServicesPageSearchProviders => 'Providers';
 
   @override
+  String get searchServicesPageDispatchModeTitle => 'Dispatch Mode';
+
+  @override
+  String get searchDispatchModeFallback => 'Fallback';
+
+  @override
+  String get searchDispatchModeFallbackSubtitle =>
+      'Try the selected providers in order — switch to the next one automatically when the primary fails.';
+
+  @override
+  String get searchDispatchModeRoundRobin => 'Round-Robin';
+
+  @override
+  String get searchDispatchModeRoundRobinSubtitle =>
+      'Rotate the starting provider on every search to spread requests across providers.';
+
+  @override
   String get searchServicesPageGeneralOptions => 'General';
 
   @override
@@ -2205,6 +2222,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String chatMessageWidgetWebSearch(String query) {
     return 'Search: $query';
+  }
+
+  @override
+  String chatMessageWidgetSearchSwitchedFromTo(String from, String to) {
+    return 'Switched from $from to $to';
   }
 
   @override
@@ -3466,6 +3488,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchServicesPageAtLeastOneServiceRequired => 'Service required';
+
+  @override
+  String get searchServicesPageAtLeastOneSelectedRequired =>
+      'Keep at least one provider selected';
 
   @override
   String get modelDetailSheetChatType => 'Chat';

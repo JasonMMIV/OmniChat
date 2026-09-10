@@ -321,6 +321,36 @@ class StreamController {
     return out;
   }
 
+  /// UI-only extras of the persisted tool event matching a streamed result
+  /// (by id, falling back to name when the event carries no id).
+  Map<String, dynamic> _extrasForToolResult(
+    String messageId,
+    String resultId,
+    String name,
+    List<Map<String, dynamic>> Function(String messageId)? getToolEventsFromDb,
+  ) {
+    if (getToolEventsFromDb == null) return const <String, dynamic>{};
+    // Only search_web currently carries UI-only extras — short-circuit so
+    // the tool-event box is never read for unrelated tools (avoids extra
+    // Hive reads per result in long agent runs).
+    if (name != 'search_web') return const <String, dynamic>{};
+    try {
+      for (final e in getToolEventsFromDb(messageId)) {
+        final eid = (e['id']?.toString() ?? '').trim();
+        final matches = eid.isNotEmpty
+            ? eid == resultId
+            : (e['name']?.toString() ?? '') == name;
+        if (matches) {
+          return <String, dynamic>{
+            for (final key in ChatService.preservedToolEventExtraKeys)
+              if (e[key] != null) key: e[key],
+          };
+        }
+      }
+    } catch (_) {}
+    return const <String, dynamic>{};
+  }
+
   /// Deduplicate raw persisted tool events.
   List<Map<String, dynamic>> dedupeToolEvents(List<Map<String, dynamic>> events) {
     final completedNoIdBases = <String>{
@@ -665,6 +695,7 @@ class StreamController {
     ChatStreamChunk chunk,
     StreamingState state, {
     required Future<void> Function(String messageId, {required String id, required String name, required Map<String, dynamic> arguments, String? content}) upsertToolEventInDb,
+    List<Map<String, dynamic>> Function(String messageId)? getToolEventsFromDb,
   }) async {
     if ((chunk.toolResults ?? const []).isEmpty) return;
 
@@ -673,6 +704,14 @@ class StreamController {
 
     final parts = List<ToolUIPart>.of(_toolParts[messageId] ?? const []);
     for (final r in chunk.toolResults!) {
+      // UI-only extras (search provider trace) persisted by the executor
+      // before the synthetic/result chunk arrives.
+      final extras = _extrasForToolResult(
+        messageId,
+        r.id,
+        r.name,
+        getToolEventsFromDb,
+      );
       int idx = -1;
       for (int i = 0; i < parts.length; i++) {
         if (parts[i].loading &&
@@ -691,6 +730,8 @@ class StreamController {
               : parts[idx].arguments,
           content: r.content,
           loading: false,
+          searchProvider: extras['searchProvider']?.toString(),
+          searchFallbackFrom: extras['searchFallbackFrom']?.toString(),
         );
       } else {
         parts.add(ToolUIPart(
@@ -699,6 +740,8 @@ class StreamController {
           arguments: r.arguments,
           content: r.content,
           loading: false,
+          searchProvider: extras['searchProvider']?.toString(),
+          searchFallbackFrom: extras['searchFallbackFrom']?.toString(),
         ));
       }
       try {
@@ -951,6 +994,8 @@ class StreamController {
                       ? e['content'].toString()
                       : null,
                   loading: !(e['content']?.toString().isNotEmpty == true),
+                  searchProvider: e['searchProvider']?.toString(),
+                  searchFallbackFrom: e['searchFallbackFrom']?.toString(),
                 ))
             .toList();
       }

@@ -4,7 +4,9 @@ import '../../icons/lucide_adapter.dart' as lucide;
 import '../../l10n/app_localizations.dart';
 import '../../core/providers/settings_provider.dart';
 import '../../core/services/search/search_service.dart';
+import '../../core/services/search/search_dispatch.dart';
 import '../../utils/brand_assets.dart';
+import '../../shared/widgets/snackbar.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:uuid/uuid.dart';
 import '../../shared/widgets/ios_switch.dart';
@@ -25,10 +27,7 @@ class _DesktopSearchServicesPaneState extends State<DesktopSearchServicesPane> {
     final l10n = AppLocalizations.of(context)!;
     final settings = context.watch<SettingsProvider>();
     final services = settings.searchServices;
-    final selected = settings.searchServiceSelected.clamp(
-      0,
-      services.isNotEmpty ? services.length - 1 : 0,
-    );
+    final selectedIds = settings.searchSelectedProviders;
     final common = settings.searchCommonOptions;
 
     return Container(
@@ -81,6 +80,7 @@ class _DesktopSearchServicesPaneState extends State<DesktopSearchServicesPane> {
                 itemCount: services.length,
                 itemBuilder: (context, index) {
                   final s = services[index];
+                  final checked = selectedIds.contains(s.id);
                   return KeyedSubtree(
                     key: ValueKey('desktop-search-service-${s.id}'),
                     child: Padding(
@@ -89,11 +89,12 @@ class _DesktopSearchServicesPaneState extends State<DesktopSearchServicesPane> {
                         index: index,
                         child: _ServiceCard(
                           service: s,
-                          selected: index == selected,
+                          checked: checked,
+                          orderNumber: (checked && selectedIds.length > 1)
+                              ? selectedIds.indexOf(s.id) + 1
+                              : null,
                           testing: _testing[s.id] == true,
-                          onTap: () async => context
-                              .read<SettingsProvider>()
-                              .setSearchServiceSelected(index),
+                          onToggle: () => _toggleSelected(context, s),
                           onEdit: () async {
                             final updated = await _showEditServiceDialog(
                               context,
@@ -116,10 +117,9 @@ class _DesktopSearchServicesPaneState extends State<DesktopSearchServicesPane> {
                             );
                             if (list.length <= 1) return;
                             list.removeAt(index);
+                            // setSearchServices also prunes the checked set
+                            // (and re-seeds it when it would become empty).
                             await sp.setSearchServices(list);
-                            var idx = sp.searchServiceSelected;
-                            if (idx >= list.length) idx = list.length - 1;
-                            await sp.setSearchServiceSelected(idx);
                           },
                           onTest: () => _testConnection(context, s),
                         ),
@@ -140,22 +140,20 @@ class _DesktopSearchServicesPaneState extends State<DesktopSearchServicesPane> {
                     return;
                   final moved = current.removeAt(oldIndex);
                   current.insert(newIndex, moved);
-                  final selectedId =
-                      (sp.searchServices.isNotEmpty &&
-                          sp.searchServiceSelected >= 0 &&
-                          sp.searchServiceSelected < sp.searchServices.length)
-                      ? sp.searchServices[sp.searchServiceSelected].id
-                      : null;
+                  // Checked ids survive reorders; list order is the priority.
                   await sp.setSearchServices(current);
-                  if (selectedId != null) {
-                    final newSel = current.indexWhere(
-                      (e) => e.id == selectedId,
-                    );
-                    if (newSel >= 0) await sp.setSearchServiceSelected(newSel);
-                  }
                 },
               ),
 
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+              SliverToBoxAdapter(
+                child: _DispatchModeCard(
+                  mode: settings.searchDispatchMode,
+                  onChanged: (m) => context
+                      .read<SettingsProvider>()
+                      .setSearchDispatchMode(m),
+                ),
+              ),
               const SliverToBoxAdapter(child: SizedBox(height: 16)),
               SliverToBoxAdapter(
                 child: _sectionCard(
@@ -232,6 +230,31 @@ class _DesktopSearchServicesPaneState extends State<DesktopSearchServicesPane> {
 
   // list height helper removed after switching to sliver-based list
 
+  /// Toggle a provider in the checked (selected) set. Keeps at least one
+  /// provider checked — the dispatch engine always has a primary provider.
+  Future<void> _toggleSelected(
+    BuildContext context,
+    SearchServiceOptions service,
+  ) async {
+    final sp = context.read<SettingsProvider>();
+    final l10n = AppLocalizations.of(context)!;
+    final selected = List<String>.from(sp.searchSelectedProviders);
+    if (selected.contains(service.id)) {
+      if (selected.length <= 1) {
+        showAppSnackBar(
+          context,
+          message: l10n.searchServicesPageAtLeastOneSelectedRequired,
+          type: NotificationType.warning,
+        );
+        return;
+      }
+      selected.remove(service.id);
+    } else {
+      selected.add(service.id);
+    }
+    await sp.setSearchSelectedProviders(selected);
+  }
+
   Future<void> _testConnection(
     BuildContext context,
     SearchServiceOptions s,
@@ -257,16 +280,18 @@ class _DesktopSearchServicesPaneState extends State<DesktopSearchServicesPane> {
 class _ServiceCard extends StatefulWidget {
   const _ServiceCard({
     required this.service,
-    required this.selected,
-    required this.onTap,
+    required this.checked,
+    required this.orderNumber,
+    required this.onToggle,
     required this.onEdit,
     required this.onDelete,
     required this.onTest,
     required this.testing,
   });
   final SearchServiceOptions service;
-  final bool selected;
-  final VoidCallback onTap;
+  final bool checked;
+  final int? orderNumber;
+  final VoidCallback onToggle;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onTest;
@@ -283,7 +308,7 @@ class _ServiceCardState extends State<_ServiceCard> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final name = SearchService.getService(widget.service).name;
     final baseBg = isDark ? Colors.white10 : Colors.white.withOpacity(0.96);
-    final borderColor = _hover || widget.selected
+    final borderColor = _hover || widget.checked
         ? cs.primary.withOpacity(isDark ? 0.35 : 0.45)
         : cs.outlineVariant.withOpacity(isDark ? 0.12 : 0.08);
 
@@ -318,7 +343,7 @@ class _ServiceCardState extends State<_ServiceCard> {
       onExit: (_) => setState(() => _hover = false),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: widget.onTap,
+        onTap: widget.onToggle,
         child: Container(
           decoration: BoxDecoration(
             color: baseBg,
@@ -341,6 +366,12 @@ class _ServiceCardState extends State<_ServiceCard> {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
+              ),
+              const SizedBox(width: 8),
+              _SelectionCheck(
+                checked: widget.checked,
+                badge: widget.orderNumber,
+                onTap: widget.onToggle,
               ),
               if (widget.service is! BingLocalOptions) ...[
                 const SizedBox(width: 8),
@@ -395,6 +426,64 @@ class _ServiceCardState extends State<_ServiceCard> {
   }
 }
 
+/// Circular check control for the checked (selected) provider set. Shows
+/// the provider's priority number when several are selected (1 = primary).
+class _SelectionCheck extends StatelessWidget {
+  const _SelectionCheck({
+    required this.checked,
+    required this.badge,
+    required this.onTap,
+  });
+
+  final bool checked;
+  final int? badge;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final showBadge = checked && badge != null;
+    return Semantics(
+      button: true,
+      selected: checked,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          width: 26,
+          height: 26,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: checked ? cs.primary : Colors.transparent,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: checked
+                  ? cs.primary
+                  : cs.onSurface.withOpacity(isDark ? 0.35 : 0.3),
+              width: 1.4,
+            ),
+          ),
+          child: !checked
+              ? const SizedBox.shrink()
+              : (showBadge
+                    ? Text(
+                        '${badge!}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: cs.onPrimary,
+                        ),
+                      )
+                    : Icon(lucide.Lucide.Check, size: 15, color: cs.onPrimary)),
+        ),
+      ),
+    );
+  }
+}
+
 class _ToggleRow extends StatelessWidget {
   const _ToggleRow({
     required this.icon,
@@ -436,6 +525,80 @@ class _ToggleRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Dispatch mode selector (fallback backup vs round-robin) with a one-line
+/// explanation of the currently active mode.
+class _DispatchModeCard extends StatelessWidget {
+  const _DispatchModeCard({required this.mode, required this.onChanged});
+
+  final SearchDispatchMode mode;
+  final ValueChanged<SearchDispatchMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    return _sectionCard(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+          child: Row(
+            children: [
+              Icon(
+                lucide.Lucide.Activity,
+                size: 18,
+                color: cs.onSurface.withOpacity(0.9),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  l10n.searchServicesPageDispatchModeTitle,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: cs.onSurface.withOpacity(0.9),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+          child: SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<SearchDispatchMode>(
+              segments: [
+                ButtonSegment(
+                  value: SearchDispatchMode.fallback,
+                  label: Text(l10n.searchDispatchModeFallback),
+                ),
+                ButtonSegment(
+                  value: SearchDispatchMode.roundRobin,
+                  label: Text(l10n.searchDispatchModeRoundRobin),
+                ),
+              ],
+              selected: <SearchDispatchMode>{mode},
+              onSelectionChanged: (selection) => onChanged(selection.first),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 2, 14, 12),
+          child: Text(
+            mode == SearchDispatchMode.fallback
+                ? l10n.searchDispatchModeFallbackSubtitle
+                : l10n.searchDispatchModeRoundRobinSubtitle,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.35,
+              color: cs.onSurface.withOpacity(0.6),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

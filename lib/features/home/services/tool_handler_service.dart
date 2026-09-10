@@ -589,12 +589,37 @@ class ToolHandlerService {
           });
         }
 
-        // Search tool
+        // Search tool — dispatched through the multi-provider engine
+        // (fallback / round-robin). The returned JSON is unchanged; the
+        // provider trace is persisted as UI-only tool-event extras.
         if (name == SearchToolService.toolName && settings.searchEnabled) {
           final q = (args['query'] ?? '').toString();
+          final trace = await SearchToolService.executeSearchWithTrace(
+            q,
+            settings,
+          );
+          if (messageId != null && messageId.isNotEmpty) {
+            try {
+              await chatService.upsertToolEvent(
+                messageId,
+                id: (toolCallId ?? '').trim(),
+                name: name,
+                arguments: args,
+                content: trace.json,
+                extras: <String, dynamic>{
+                  if (trace.providerName != null)
+                    'searchProvider': trace.providerName,
+                  if (trace.fallbackFromName != null)
+                    'searchFallbackFrom': trace.fallbackFromName,
+                },
+              );
+            } catch (_) {
+              // Extras are best-effort UI metadata — never break a search.
+            }
+          }
           return await ToolOutputExternalizer.maybeExternalize(
             toolName: name,
-            result: await SearchToolService.executeSearch(q, settings),
+            result: trace.json,
             workspacePath: workspacePath,
             toolCallId: toolCallId,
           );

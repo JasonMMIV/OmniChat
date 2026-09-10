@@ -944,6 +944,7 @@ class ChatService extends ChangeNotifier {
     required Map<String, dynamic> arguments,
     String? content,
     String? approvalState,
+    Map<String, dynamic>? extras,
   }) async {
     if (!_initialized) await init();
     final list = List<Map<String, dynamic>>.of(
@@ -966,9 +967,26 @@ class ChatService extends ChangeNotifier {
       );
     }
 
+    // When matched through the no-id fallback, keep the placeholder's id so
+    // the later id-aware result upsert still lands on the same event.
+    final resolvedId = (cleanId.isEmpty && idx >= 0)
+        ? (list[idx]['id']?.toString() ?? '')
+        : cleanId;
     final existingApprovalState = _existingApprovalState(list, idx);
+    // UI-only extras (e.g. searchProvider / searchFallbackFrom) ride along
+    // as flat fields. Previously stored extras are preserved unless this
+    // upsert supplies replacements — the result upsert that follows a tool
+    // execution carries no extras but must not erase them. Incoming extras
+    // are filtered through the allow-list so they can never clobber the
+    // core fields (id / name / arguments / content / approvalState).
+    final mergedExtras = <String, dynamic>{
+      ..._existingToolEventExtras(list, idx),
+      if (extras != null)
+        for (final key in preservedToolEventExtraKeys)
+          if (extras[key] != null) key: extras[key],
+    };
     final record = <String, dynamic>{
-      'id': cleanId,
+      'id': resolvedId,
       'name': name,
       'arguments': arguments,
       'content': _boundToolResultForPersistence(name, content),
@@ -978,6 +996,7 @@ class ChatService extends ChangeNotifier {
       // event (same id) the state must not be silently dropped, otherwise
       // the approval card loses its lifecycle record.
       'approvalState': approvalState ?? existingApprovalState,
+      ...mergedExtras,
     };
     if (idx >= 0) {
       list[idx] = record;
@@ -986,6 +1005,29 @@ class ChatService extends ChangeNotifier {
     }
     await _toolEventsBox.put(assistantMessageId, list);
     notifyListeners();
+  }
+
+  /// UI-only metadata fields that must survive result upserts. Kept as a
+  /// public allow-list so arbitrary event payloads never leak into
+  /// replacements (also used by the stream controller when hydrating live
+  /// tool card parts).
+  static const List<String> preservedToolEventExtraKeys = <String>[
+    'searchProvider',
+    'searchFallbackFrom',
+  ];
+
+  /// The persisted UI-only extras of the event at [idx] (empty when the
+  /// index is out of range or no extras were stored).
+  static Map<String, dynamic> _existingToolEventExtras(
+    List<Map<String, dynamic>> list,
+    int idx,
+  ) {
+    if (idx < 0 || idx >= list.length) return const <String, dynamic>{};
+    final event = list[idx];
+    return <String, dynamic>{
+      for (final key in preservedToolEventExtraKeys)
+        if (event[key] != null) key: event[key],
+    };
   }
 
   /// The persisted `approvalState` of the event at [idx] (null when the

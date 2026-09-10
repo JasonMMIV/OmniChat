@@ -408,6 +408,8 @@ class ChatActions {
         arguments: parts[pIdx].arguments,
         content: answerJson,
         loading: false,
+        searchProvider: parts[pIdx].searchProvider,
+        searchFallbackFrom: parts[pIdx].searchFallbackFrom,
       );
       streamController.toolParts[assistantMessageId] = parts;
       streamController.streamingContentNotifier
@@ -703,6 +705,8 @@ class ChatActions {
       arguments: parts[idx].arguments,
       content: content,
       loading: false,
+      searchProvider: parts[idx].searchProvider,
+      searchFallbackFrom: parts[idx].searchFallbackFrom,
     );
     streamController.toolParts[messageId] = parts;
     streamController.streamingContentNotifier
@@ -2132,6 +2136,9 @@ class ChatActions {
               content: content,
             );
           },
+      // UI-only extras (search provider trace) hydrate the live tool card.
+      getToolEventsFromDb: (String messageId) =>
+          chatService.getToolEvents(messageId),
     );
   }
 

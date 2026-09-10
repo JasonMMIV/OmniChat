@@ -589,6 +589,11 @@
   "searchServicesPageTitle": "Search",
   "searchServicesPageAddProvider": "Add",
   "searchServicesPageSearchProviders": "Providers",
+  "searchServicesPageDispatchModeTitle": "Dispatch Mode",
+  "searchDispatchModeFallback": "Fallback",
+  "searchDispatchModeFallbackSubtitle": "Try the selected providers in order — switch to the next one automatically when the primary fails.",
+  "searchDispatchModeRoundRobin": "Round-Robin",
+  "searchDispatchModeRoundRobinSubtitle": "Rotate the starting provider on every search to spread requests across providers.",
   "searchServicesPageGeneralOptions": "General",
   "searchServicesPageAutoTestTitle": "Auto test",
   "searchServicesPageMaxResults": "Max results",
@@ -971,6 +976,17 @@
   "@chatMessageWidgetWebSearch": {
     "placeholders": {
       "query": {
+        "type": "String"
+      }
+    }
+  },
+  "chatMessageWidgetSearchSwitchedFromTo": "Switched from {from} to {to}",
+  "@chatMessageWidgetSearchSwitchedFromTo": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "to": {
         "type": "String"
       }
     }
@@ -1493,6 +1509,7 @@
   "assistantTagsManageTitle": "Tags",
   "sideDrawerChooseAssistantTitle": "Choose",
   "searchServicesPageAtLeastOneServiceRequired": "Service required",
+  "searchServicesPageAtLeastOneSelectedRequired": "Keep at least one provider selected",
   "modelDetailSheetChatType": "Chat",
   "modelDetailSheetEmbeddingType": "Embedding",
   "providerDetailPageMultiKeyModeTitle": "Multi-Key",
