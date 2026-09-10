@@ -3128,18 +3128,21 @@ class ToolUIPart {
 /// Small pill showing the search provider that served a `search_web` result
 /// (multi-provider dispatch trace, UI-only).
 class _SearchProviderBadge extends StatelessWidget {
-  const _SearchProviderBadge({required this.name});
+  const _SearchProviderBadge({required this.name, required this.color});
 
   final String name;
 
+  /// Chip color — matches the tool card's text color (light gray) so the
+  /// badge blends with the card instead of standing out in the theme
+  /// primary color.
+  final Color color;
+
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
-        color: cs.primary.withOpacity(isDark ? 0.18 : 0.10),
+        color: color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -3147,7 +3150,7 @@ class _SearchProviderBadge extends StatelessWidget {
         style: TextStyle(
           fontSize: 10.5,
           fontWeight: FontWeight.w600,
-          color: cs.primary,
+          color: color,
         ),
       ),
     );
@@ -3366,7 +3369,10 @@ class _ToolCallItem extends StatelessWidget {
                     if (part.toolName == 'search_web' &&
                         (part.searchProvider ?? '').isNotEmpty) ...[
                       const SizedBox(width: 6),
-                      _SearchProviderBadge(name: part.searchProvider!),
+                      _SearchProviderBadge(
+                        name: part.searchProvider!,
+                        color: cardTextColor,
+                      ),
                     ],
                   ],
                 ),

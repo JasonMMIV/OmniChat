@@ -1003,14 +1003,9 @@ class _ChatInputBarState extends State<ChatInputBar>
               (kind == ProviderKind.google) &&
               toolsState.anyMcpConflictingToolActive;
           final appSearchEnabled = settings.searchEnabled;
-          // Primary provider = the first selected service in list order;
-          // searchSelectedCount drives the "+N" badge when several providers
-          // are checked (multi-provider dispatch).
+          // Primary provider = the first selected service in list order
+          // (multi-provider dispatch; no count badge on the button).
           final searchSelectedIds = settings.searchSelectedProviders;
-          final searchSelectedCount =
-              appSearchEnabled && !builtinSearchActive
-              ? searchSelectedIds.length
-              : 0;
           final brandAsset = (() {
             if (!appSearchEnabled || builtinSearchActive) return null;
             final services = settings.searchServices;
@@ -1065,34 +1060,23 @@ class _ChatInputBarState extends State<ChatInputBar>
                     onTap: widget.onOpenSearch,
                     childBuilder: (c) {
                       final asset = brandAsset;
-                      final Widget icon;
                       if (asset != null) {
                         if (asset.endsWith('.svg')) {
-                          icon = SvgPicture.asset(
+                          return SvgPicture.asset(
                             asset,
                             width: 24,
                             height: 24,
                           );
                         } else {
-                          icon = Image.asset(
+                          return Image.asset(
                             asset,
                             width: 24,
                             height: 24,
                           );
                         }
                       } else {
-                        icon = Icon(Lucide.Globe, size: 24, color: c);
+                        return Icon(Lucide.Globe, size: 24, color: c);
                       }
-                      // The icon shows the primary provider; "+N" counts the
-                      // rest of the checked providers.
-                      if (searchSelectedCount <= 1) return icon;
-                      return Badge(
-                        label: Text('+${searchSelectedCount - 1}'),
-                        backgroundColor: c,
-                        textColor: Theme.of(context).colorScheme.surface,
-                        offset: const Offset(-4, -4),
-                        child: icon,
-                      );
                     },
                   );
                 },
