@@ -48,6 +48,12 @@ Future<void> showDefaultWorkspaceDirectoryDialog(BuildContext context) async {
     await showDialog<void>(
       context: context,
       builder: (_) => Dialog(
+        // The sheet only rounds its top corners (bottom-sheet styling); clip
+        // the centered dialog to the same radius so all four corners match.
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+        ),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
           child: child,
