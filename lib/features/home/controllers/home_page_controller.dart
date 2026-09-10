@@ -482,14 +482,6 @@ class HomePageController extends ChangeNotifier {
     );
   }
 
-  /// P1-5: restore the run's workspace snapshot (one-click rollback).
-  /// Returns null on success, an error code otherwise.
-  Future<String?> restoreRunSnapshot(String runId) async {
-    final conv = currentConversation;
-    if (conv == null) return 'no_conversation';
-    return _viewModel.chatActions.restoreRunSnapshot(conv.id, runId);
-  }
-
   /// Lightweight notifier for streaming content updates.
   /// Use this with ValueListenableBuilder in MessageListView to avoid full page rebuilds.
   stream_ctrl.StreamingContentNotifier get streamingContentNotifier =>
@@ -592,10 +584,6 @@ class HomePageController extends ChangeNotifier {
     _viewModel.onError = (error) {
       final l10n = AppLocalizations.of(_context)!;
       showAppSnackBar(_context, message: '${l10n.generationInterrupted}: $error', type: NotificationType.error);
-    };
-    _viewModel.onNotice = (message) {
-      // Non-fatal informational notice (e.g. P1-5 snapshot restored).
-      showAppSnackBar(_context, message: message, type: NotificationType.info);
     };
     _viewModel.onRetry =
         (attempt, maxAttempts, errorKind, conversationId) {

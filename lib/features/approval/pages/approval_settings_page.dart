@@ -8,7 +8,8 @@ import '../../../core/services/agent/approval.dart';
 import '../../../core/services/haptics.dart';
 
 /// P1-1: mobile settings page for the tool-approval policy — strict mode
-/// toggle plus management of the persisted "always allow" overrides.
+/// toggle plus management of the persisted "always allow" overrides
+/// (out-of-workspace paths; the MCP policy source was removed 2026-09-10).
 class ApprovalSettingsPage extends StatelessWidget {
   const ApprovalSettingsPage({super.key});
 
@@ -16,16 +17,7 @@ class ApprovalSettingsPage extends StatelessWidget {
     AppLocalizations l10n,
     ApprovalOverrideKey decoded,
   ) {
-    switch (decoded.kind) {
-      case ApprovalOverrideKind.mcpTool:
-        return l10n.approvalOverrideMcpTool(
-          '${decoded.serverId ?? '*'} / ${decoded.toolName ?? '*'}',
-        );
-      case ApprovalOverrideKind.mcpServer:
-        return l10n.approvalOverrideMcpServer(decoded.serverId ?? '*');
-      case ApprovalOverrideKind.workspaceOut:
-        return l10n.approvalOverridePath(decoded.resolvedPath ?? '*');
-    }
+    return l10n.approvalOverridePath(decoded.resolvedPath ?? '*');
   }
 
   @override
@@ -103,7 +95,7 @@ class ApprovalSettingsPage extends StatelessWidget {
                 for (final key in overrides)
                   _pressableRow(
                     context,
-                    icon: decodedIcon(key),
+                    icon: Lucide.FileQuestion,
                     title: _labelFor(l10n, key),
                     subtitle: null,
                     trailing: GestureDetector(
@@ -133,13 +125,6 @@ class ApprovalSettingsPage extends StatelessWidget {
   String _labelFor(AppLocalizations l10n, String key) {
     final decoded = decodeApprovalOverrideKey(key);
     return decoded != null ? _overrideLabel(l10n, decoded) : key;
-  }
-
-  IconData decodedIcon(String key) {
-    final decoded = decodeApprovalOverrideKey(key);
-    return decoded?.kind == ApprovalOverrideKind.workspaceOut
-        ? Lucide.FileQuestion
-        : Lucide.Terminal;
   }
 }
 

@@ -110,15 +110,16 @@ class SettingsProvider extends ChangeNotifier {
   /// `deny` (for users who prefer hard blocks over per-call approval).
   static const String _approvalStrictModeV1Key = 'approval_strict_mode_v1';
 
-  /// P1-1: persisted "always allow" override keys (per MCP tool / MCP
-  /// server / out-of-workspace absolute path). Not in `_localOnlyKeys`:
+  /// P1-1: persisted "always allow" override keys (out-of-workspace paths;
+  /// the MCP policy source was removed 2026-09-10). Not in `_localOnlyKeys`:
   /// approval grants are user intent and sync across devices.
   static const String _approvalAlwaysAllowedKey = 'approval_always_allowed_v1';
 
-  /// P1-5: workspace run snapshots + one-click rollback. Default `true` —
-  /// the snapshot is the complete rollback guarantee for shell mutations
-  /// (FileRecord lists alone are incomplete, CLI v4 §九.2).
-  static const String _workspaceSnapshotsV1Key = 'workspace_snapshots_v1';
+  /// P1-5 (removed 2026-09-10): legacy snapshot kill-switch key, dropped on
+  /// load so it does not linger in SharedPreferences.
+  static const String _legacyWorkspaceSnapshotsV1Key =
+      'workspace_snapshots_v1';
+
   static const String _displayAutoCollapseThinkingKey =
       'display_auto_collapse_thinking_v1';
   static const String _displayReplayToolResultsKey =
@@ -712,10 +713,15 @@ class SettingsProvider extends ChangeNotifier {
     _agentLoopV1 = prefs.getBool(_agentLoopV1Key) ?? true;
     _autoCompactionV1 = prefs.getBool(_autoCompactionV1Key) ?? true;
     _approvalStrictModeV1 = prefs.getBool(_approvalStrictModeV1Key) ?? false;
-    _approvalAlwaysAllowed = (
-      prefs.getStringList(_approvalAlwaysAllowedKey) ?? const <String>[]
-    ).toSet();
-    _workspaceSnapshotsV1 = prefs.getBool(_workspaceSnapshotsV1Key) ?? true;
+    // P1-1 v1.6: drop legacy MCP override keys (the MCP approval policy
+    // source was removed 2026-09-10); they decode to nothing and would
+    // otherwise surface as raw text in the settings list.
+    _approvalAlwaysAllowed = (prefs.getStringList(_approvalAlwaysAllowedKey) ??
+            const <String>[])
+        .where((k) => !k.startsWith('mcp:') && !k.startsWith('mcp-server:'))
+        .toSet();
+    // P1-5 removed 2026-09-10: drop the legacy snapshot kill-switch key.
+    await prefs.remove(_legacyWorkspaceSnapshotsV1Key);
     _autoCollapseThinking =
         prefs.getBool(_displayAutoCollapseThinkingKey) ?? true;
     _replayToolResults = prefs.getBool(_displayReplayToolResultsKey) ?? true;
@@ -2946,17 +2952,6 @@ Synthesize your reasoning and research into a final response. The structure shou
     await prefs.setBool(_approvalStrictModeV1Key, v);
   }
 
-  // P1-5: workspace run snapshots + rollback (default on)
-  bool _workspaceSnapshotsV1 = true;
-  bool get workspaceSnapshotsV1 => _workspaceSnapshotsV1;
-  Future<void> setWorkspaceSnapshotsV1(bool v) async {
-    if (_workspaceSnapshotsV1 == v) return;
-    _workspaceSnapshotsV1 = v;
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_workspaceSnapshotsV1Key, v);
-  }
-
   // P1-1: persisted "always allow" overrides
   Set<String> _approvalAlwaysAllowed = <String>{};
   Set<String> get approvalAlwaysAllowed => _approvalAlwaysAllowed;
@@ -3652,7 +3647,6 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._replayToolResults = _replayToolResults;
     copy._agentLoopV1 = _agentLoopV1;
     copy._autoCompactionV1 = _autoCompactionV1;
-    copy._workspaceSnapshotsV1 = _workspaceSnapshotsV1;
     copy._showMessageNavButtons = _showMessageNavButtons;
     copy._showProviderInModelCapsule = _showProviderInModelCapsule;
     copy._hapticsOnGenerate = _hapticsOnGenerate;

@@ -1,17 +1,24 @@
 // P1-1 approval engine (IMPORT_PLAN_COWORK.md P1-1; ADR-A5/A8/A9).
 //
 // Pure Dart: the five-state machine, the approval decision, the policy
-// sources shared by one engine (file out-of-workspace → ask, MCP tools →
-// default ask, shell allowlist — Phase 1 ships the first two; `shell_run`
-// arrives with P1-6), and the structured tool-result JSON that feeds the
-// model after a denial or an approval-required timeout.
+// source the engine currently ships (file out-of-workspace → ask; the
+// `shell_run` allowlist source arrives with P1-6), and the structured
+// tool-result JSON that feeds the model after a denial or an
+// approval-required timeout.
+//
+// 2026-09-10: the MCP policy source (MCP tools → default ask) was REMOVED.
+// Real-world testing showed per-call MCP approval is unnecessary (MCP tool
+// calls are high-frequency JSON-RPC calls the user opted into by enabling
+// the server) and the mechanism was broken in practice (the approve path
+// never actually executed the call; persisted "always allow" overrides were
+// never read by the policy layer). MCP tools execute directly now.
 //
 // Semantics (ADR-A5): approval = loop pause, not a blocking wait. A tool
 // call classified as `ask` returns the `approval_required` error JSON
 // WITHOUT executing; the tool event is persisted with
 // `approvalState: pending`; the run breaks; the user's decision resumes
-// generation (approve → execute once, deny → denial JSON as the result,
-// answer → the answer becomes the result).
+// generation (approve → execute once against the approved path, deny →
+// denial JSON as the result).
 library;
 
 import 'dart:convert';
@@ -53,9 +60,6 @@ class ApprovalContext {
     this.isWorkspaceTool = false,
     this.pathInsideWorkspace = true,
     this.resolvedPath,
-    this.isMcpTool = false,
-    this.mcpServerId,
-    this.mcpToolName,
     this.alwaysAllowedKeys = const <String>{},
     this.strictMode = false,
   });
@@ -69,17 +73,9 @@ class ApprovalContext {
 
   /// The resolved absolute path shown on the approval card when the call is
   /// out of bounds (ADR-A8: the user approves a concrete absolute path, not
-  /// a relative string).
+  /// a relative string). The same path is handed to the executor when an
+  /// out-of-bounds call is approved.
   final String? resolvedPath;
-
-  /// MCP tool (black-box capability — default ask per v1.5).
-  final bool isMcpTool;
-
-  /// MCP server id, for per-server "always allow" keys.
-  final String? mcpServerId;
-
-  /// MCP tool name, for per-tool "always allow" keys.
-  final String? mcpToolName;
 
   /// Persisted "always allow" override keys captured at generation-prep
   /// time (policy snapshot; ADR-A9).
@@ -93,11 +89,12 @@ class ApprovalContext {
 /// 1. persisted "always allow" override → allow (user's explicit prior
 ///    consent, same storage as the future shell allowlist);
 /// 2. workspace tools inside the sandbox → allow;
-/// 3. workspace tools with a path outside the sandbox → ask (ADR-A8 v1.5;
+/// 3. workspace tools with a path outside the sandbox → ask (ADR-A8;
 ///    type/size hard floors are enforced later by FileToolService itself
 ///    and are NOT relaxed by approval);
-/// 4. MCP tools → ask (black-box capability, v1.5);
-/// 5. everything else (search, memory, todo, ask_user, …) → allow.
+/// 4. everything else (MCP, search, memory, todo, ask_user, …) → allow.
+///    MCP tools are deliberately ungated (2026-09-10: the black-box ask
+///    policy source was removed).
 ApprovalDecision decideApproval(ApprovalContext ctx) {
   if (ctx.strictMode) {
     // Strict mode degrades every would-be ask to deny (v1.5).
@@ -109,16 +106,7 @@ ApprovalDecision decideApproval(ApprovalContext ctx) {
 }
 
 bool _wouldAsk(ApprovalContext ctx) {
-  // 1. Persisted per-tool / per-server override wins.
-  if (ctx.isMcpTool) {
-    final toolKey = _mcpToolKey(ctx.mcpServerId, ctx.mcpToolName);
-    final serverKey = _mcpServerKey(ctx.mcpServerId);
-    if (ctx.alwaysAllowedKeys.contains(toolKey) ||
-        ctx.alwaysAllowedKeys.contains(serverKey)) {
-      return false;
-    }
-    return true;
-  }
+  // 1. Persisted per-path override wins.
   if (ctx.isWorkspaceTool && !ctx.pathInsideWorkspace) {
     final pathKey = _workspaceOutKey(ctx.resolvedPath);
     if (ctx.alwaysAllowedKeys.contains(pathKey)) return false;
@@ -126,13 +114,6 @@ bool _wouldAsk(ApprovalContext ctx) {
   }
   return false;
 }
-
-/// "Always allow" key for an MCP tool (`mcp:{serverId}:{toolName}`).
-String _mcpToolKey(String? serverId, String? toolName) =>
-    'mcp:${serverId ?? '*'}:${toolName ?? '*'}';
-
-/// "Always allow" key for a whole MCP server (`mcp-server:{serverId}`).
-String _mcpServerKey(String? serverId) => 'mcp-server:${serverId ?? '*'}';
 
 /// "Always allow" key for an out-of-workspace absolute path.
 String _workspaceOutKey(String? resolvedPath) =>
@@ -145,7 +126,6 @@ String buildApprovalPendingContent({
   required String toolName,
   String? resolvedPath,
   bool outsideWorkspace = false,
-  String? serverName,
   Map<String, dynamic> arguments = const {},
   DateTime? requestedAt,
   String? previewDiff,
@@ -155,7 +135,6 @@ String buildApprovalPendingContent({
     'tool': toolName,
     if (resolvedPath != null) 'resolved_path': resolvedPath,
     'outside_workspace': outsideWorkspace,
-    if (serverName != null) 'server': serverName,
     'arguments': arguments,
     'requested_at': (requestedAt ?? DateTime.now()).millisecondsSinceEpoch,
     if (previewDiff != null && previewDiff.isNotEmpty)
@@ -259,23 +238,22 @@ String normalizeApprovalState(Object? raw) {
   }
 }
 
-/// The kind of a persisted "always allow" override key.
-enum ApprovalOverrideKind { mcpTool, mcpServer, workspaceOut }
+/// The kind of a persisted "always allow" override key. Only workspace-out
+/// paths exist today (the MCP key kinds were removed 2026-09-10); the enum
+/// stays for forward compatibility with later policy sources (e.g. the
+/// shell allowlist in P1-6).
+enum ApprovalOverrideKind { workspaceOut }
 
 /// A decoded "always allow" override key, for the settings UI list.
 class ApprovalOverrideKey {
   const ApprovalOverrideKey({
     required this.kind,
     required this.rawKey,
-    this.serverId,
-    this.toolName,
     this.resolvedPath,
   });
 
   final ApprovalOverrideKind kind;
   final String rawKey;
-  final String? serverId;
-  final String? toolName;
   final String? resolvedPath;
 }
 
@@ -284,24 +262,6 @@ class ApprovalOverrideKey {
 /// later policy sources — e.g. shell allowlist — surface as unknown and are
 /// skipped by the settings list rather than crashing it).
 ApprovalOverrideKey? decodeApprovalOverrideKey(String key) {
-  if (key.startsWith('mcp:')) {
-    final rest = key.substring(4);
-    final sep = rest.indexOf(':');
-    if (sep < 0) return null;
-    return ApprovalOverrideKey(
-      kind: ApprovalOverrideKind.mcpTool,
-      rawKey: key,
-      serverId: rest.substring(0, sep),
-      toolName: rest.substring(sep + 1),
-    );
-  }
-  if (key.startsWith('mcp-server:')) {
-    return ApprovalOverrideKey(
-      kind: ApprovalOverrideKind.mcpServer,
-      rawKey: key,
-      serverId: key.substring(11),
-    );
-  }
   if (key.startsWith('workspace-out:')) {
     return ApprovalOverrideKey(
       kind: ApprovalOverrideKind.workspaceOut,

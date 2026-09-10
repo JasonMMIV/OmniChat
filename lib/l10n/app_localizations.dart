@@ -4139,12 +4139,6 @@ abstract class AppLocalizations {
   /// **'Outside workspace: {path}'**
   String approvalOutsideWorkspace(String path);
 
-  /// No description provided for @approvalServerLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'MCP server: {server}'**
-  String approvalServerLabel(String server);
-
   /// No description provided for @approvalApprove.
   ///
   /// In en, this message translates to:
@@ -4205,77 +4199,11 @@ abstract class AppLocalizations {
   /// **'Remove'**
   String get approvalOverrideRemove;
 
-  /// No description provided for @approvalOverrideMcpTool.
-  ///
-  /// In en, this message translates to:
-  /// **'MCP tool: {tool}'**
-  String approvalOverrideMcpTool(String tool);
-
-  /// No description provided for @approvalOverrideMcpServer.
-  ///
-  /// In en, this message translates to:
-  /// **'MCP server: {server}'**
-  String approvalOverrideMcpServer(String server);
-
   /// No description provided for @approvalOverridePath.
   ///
   /// In en, this message translates to:
   /// **'Path: {path}'**
   String approvalOverridePath(String path);
-
-  /// No description provided for @snapshotCardTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Workspace snapshot'**
-  String get snapshotCardTitle;
-
-  /// No description provided for @snapshotCardRestoredTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Workspace restored'**
-  String get snapshotCardRestoredTitle;
-
-  /// No description provided for @snapshotCardChangesTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'This task changed {count} files — restore to the run-start snapshot?'**
-  String snapshotCardChangesTitle(int count);
-
-  /// No description provided for @snapshotCardRestoredPill.
-  ///
-  /// In en, this message translates to:
-  /// **'{count} files restored'**
-  String snapshotCardRestoredPill(int count);
-
-  /// No description provided for @snapshotCardRestoredShort.
-  ///
-  /// In en, this message translates to:
-  /// **'Restored'**
-  String get snapshotCardRestoredShort;
-
-  /// No description provided for @snapshotCardDisclaimer.
-  ///
-  /// In en, this message translates to:
-  /// **'Restore rolls the whole workspace back to its state when this task started. The list of changed files is incomplete for shell commands — the snapshot is the complete rollback guarantee.'**
-  String get snapshotCardDisclaimer;
-
-  /// No description provided for @snapshotCardTakenAt.
-  ///
-  /// In en, this message translates to:
-  /// **'Snapshot taken: {time}'**
-  String snapshotCardTakenAt(String time);
-
-  /// No description provided for @snapshotCardFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Restore failed. Try again.'**
-  String get snapshotCardFailed;
-
-  /// No description provided for @snapshotCardRestoreButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Restore'**
-  String get snapshotCardRestoreButton;
 
   /// No description provided for @chatMessageWidgetEditMemory.
   ///
@@ -9505,24 +9433,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The run reached its token budget and stopped; send a message to continue.'**
   String get softStopTokenBudgetNote;
-
-  /// No description provided for @workspaceSnapshotsToggleTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Run snapshots'**
-  String get workspaceSnapshotsToggleTitle;
-
-  /// No description provided for @workspaceSnapshotsToggleSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Automatically snapshot the workspace before each agent run, enabling one-click rollback of file changes.'**
-  String get workspaceSnapshotsToggleSubtitle;
-
-  /// No description provided for @workspaceSnapshotsToggleRestoreHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Restored workspace snapshot: {count} files.'**
-  String workspaceSnapshotsToggleRestoreHint(Object count);
 }
 
 class _AppLocalizationsDelegate

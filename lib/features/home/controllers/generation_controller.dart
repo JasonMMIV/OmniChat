@@ -141,13 +141,15 @@ class GenerationController {
   /// Build tool call handler function.
   /// Delegates to ToolHandlerService.buildToolCallHandler (P1-4 id-aware
   /// contract: the returned handler accepts the optional provider
-  /// `toolCallId`).
+  /// `toolCallId`). [approvedResolvedPath] carries the user-approved
+  /// out-of-workspace path on the approval resume path (P1-1 v1.6).
   ToolCallHandler? buildToolCallHandler(
     SettingsProvider settings,
     Assistant? assistant, {
     String? conversationId,
     String? messageId,
     String? workspacePath,
+    String? approvedResolvedPath,
   }) {
     return toolHandlerService.buildToolCallHandler(
       settings,
@@ -155,6 +157,7 @@ class GenerationController {
       conversationId: conversationId,
       messageId: messageId,
       workspacePath: workspacePath,
+      approvedResolvedPath: approvedResolvedPath,
     );
   }
 

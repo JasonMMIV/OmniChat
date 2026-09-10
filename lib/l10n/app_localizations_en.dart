@@ -2128,11 +2128,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String approvalServerLabel(String server) {
-    return 'MCP server: $server';
-  }
-
-  @override
   String get approvalApprove => 'Approve';
 
   @override
@@ -2165,53 +2160,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get approvalOverrideRemove => 'Remove';
 
   @override
-  String approvalOverrideMcpTool(String tool) {
-    return 'MCP tool: $tool';
-  }
-
-  @override
-  String approvalOverrideMcpServer(String server) {
-    return 'MCP server: $server';
-  }
-
-  @override
   String approvalOverridePath(String path) {
     return 'Path: $path';
   }
-
-  @override
-  String get snapshotCardTitle => 'Workspace snapshot';
-
-  @override
-  String get snapshotCardRestoredTitle => 'Workspace restored';
-
-  @override
-  String snapshotCardChangesTitle(int count) {
-    return 'This task changed $count files — restore to the run-start snapshot?';
-  }
-
-  @override
-  String snapshotCardRestoredPill(int count) {
-    return '$count files restored';
-  }
-
-  @override
-  String get snapshotCardRestoredShort => 'Restored';
-
-  @override
-  String get snapshotCardDisclaimer =>
-      'Restore rolls the whole workspace back to its state when this task started. The list of changed files is incomplete for shell commands — the snapshot is the complete rollback guarantee.';
-
-  @override
-  String snapshotCardTakenAt(String time) {
-    return 'Snapshot taken: $time';
-  }
-
-  @override
-  String get snapshotCardFailed => 'Restore failed. Try again.';
-
-  @override
-  String get snapshotCardRestoreButton => 'Restore';
 
   @override
   String get chatMessageWidgetEditMemory => 'Edit';
@@ -4975,16 +4926,4 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get softStopTokenBudgetNote =>
       'The run reached its token budget and stopped; send a message to continue.';
-
-  @override
-  String get workspaceSnapshotsToggleTitle => 'Run snapshots';
-
-  @override
-  String get workspaceSnapshotsToggleSubtitle =>
-      'Automatically snapshot the workspace before each agent run, enabling one-click rollback of file changes.';
-
-  @override
-  String workspaceSnapshotsToggleRestoreHint(Object count) {
-    return 'Restored workspace snapshot: $count files.';
-  }
 }

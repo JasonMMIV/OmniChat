@@ -7,8 +7,6 @@
 // - [AskUserCard] — renders `ask_user`: interactive single/multi answer form
 //   with an auto-added Other free-text field and Skip; collapses to an
 //   answered summary once the tool event carries the answer JSON.
-// - [SnapshotRestoreCard] (P1-5) — run-start workspace snapshot card with a
-//   one-click restore button; collapses to a restored summary.
 //
 // The cards take primitive parameters (no ToolUIPart dependency) so the
 // widget library stays acyclic.
@@ -21,7 +19,6 @@ import 'package:flutter/material.dart';
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/todo_service.dart';
-import '../../../core/services/workspace/workspace_snapshot.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
@@ -222,9 +219,11 @@ class _TodoPlanCardState extends State<TodoPlanCard> {
 // ============================================================================
 
 /// Approval card for a tool call classified as `ask` by the P1-1 policy
-/// engine. Shows the parsed absolute path (with an out-of-workspace marker
-/// when applicable) or the MCP server, plus Approve / Always-allow / Deny.
-/// After a decision the card renders the recorded state (approved/denied).
+/// engine. Shows the parsed concrete absolute path (with an
+/// out-of-workspace marker when applicable) plus Approve / Always-allow /
+/// Deny. After a decision the card renders the recorded state
+/// (approved/denied). MCP tools are never routed here (2026-09-10: the MCP
+/// policy source was removed).
 class ApprovalToolCard extends StatelessWidget {
   final ToolUIPart part;
   final Map<String, dynamic> approval;
@@ -256,7 +255,6 @@ class ApprovalToolCard extends StatelessWidget {
     final toolName = (approval['tool'] ?? part.toolName).toString();
     final resolvedPath = (approval['resolved_path'] ?? '').toString();
     final outside = approval['outside_workspace'] == true;
-    final server = (approval['server'] ?? '').toString();
 
     return IosCardPress(
       borderRadius: BorderRadius.circular(10),
@@ -343,14 +341,6 @@ class ApprovalToolCard extends StatelessWidget {
                     ),
                   ),
                 ],
-              ),
-            ),
-          if (server.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(
-                l10n.approvalServerLabel(server),
-                style: TextStyle(fontSize: 12, color: cardTextColor),
               ),
             ),
           // P1-1: unified-diff preview for file_edit calls (before execution).
@@ -805,239 +795,3 @@ class _AskUserCardState extends State<AskUserCard> {
   }
 }
 
-// ============================================================================
-// SnapshotRestoreCard (P1-5)
-// ============================================================================
-
-/// Run-start workspace snapshot card. Shows "this task changed N files →
-/// restore" once the run snapshot record carries file counts; the restore
-/// button calls back into the rollback chain (ChatActions.restoreRunSnapshot
-/// via HomePageController). Copy notes that the list is FileRecord-based and
-/// therefore incomplete for shell mutations — the zip snapshot is the
-/// complete guarantee (CLI v4 §九.2).
-class SnapshotRestoreCard extends StatefulWidget {
-  final Map<String, dynamic> arguments;
-  final String? content; // tool result; null while loading
-
-  /// Called when the user taps restore. Null = read-only rendering (no
-  /// rollback plumbing available). Returns the error code, or null on
-  /// success — the card re-renders from the refreshed snapshot record.
-  final Future<String?> Function()? onRestore;
-
-  const SnapshotRestoreCard({
-    super.key,
-    required this.arguments,
-    required this.content,
-    this.onRestore,
-  });
-
-  @override
-  State<SnapshotRestoreCard> createState() => _SnapshotRestoreCardState();
-}
-
-class _SnapshotRestoreCardState extends State<SnapshotRestoreCard> {
-  bool _expanded = false;
-  bool _restoring = false;
-  String? _error;
-
-  static Map<String, dynamic> _parseRecord(String? content) {
-    if (content == null || content.isEmpty) return const <String, dynamic>{};
-    try {
-      final decoded = jsonDecode(content);
-      if (decoded is Map) return decoded.cast<String, dynamic>();
-    } catch (_) {}
-    return const <String, dynamic>{};
-  }
-
-  Future<void> _restore() async {
-    if (_restoring || widget.onRestore == null) return;
-    setState(() {
-      _restoring = true;
-      _error = null;
-    });
-    try {
-      final err = await widget.onRestore!();
-      if (!mounted) return;
-      setState(() {
-        _restoring = false;
-        _error = err;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _restoring = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardTextColor =
-        isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
-
-    final record = _parseRecord(widget.content);
-    final loading = widget.content == null || widget.content!.isEmpty;
-    final restored = record['restored'] == true;
-    final restoredFiles = record['restored_files'];
-    final fileCount = record['file_count'];
-    final hasCount = fileCount is num && fileCount >= 0;
-    final createdRaw = record['created_at']?.toString();
-    final created = (createdRaw != null && createdRaw.isNotEmpty)
-        ? DateTime.tryParse(createdRaw)
-        : null;
-
-    final title = loading
-        ? l10n.snapshotCardTitle
-        : restored
-            ? l10n.snapshotCardRestoredTitle
-            : hasCount
-                ? l10n.snapshotCardChangesTitle(fileCount.toInt())
-                : l10n.snapshotCardTitle;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                loading
-                    ? SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(cardTextColor),
-                        ),
-                      )
-                    : SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: Center(
-                          child: Icon(
-                            restored ? Lucide.CheckCircle : Lucide.History,
-                            size: 18,
-                            color: restored ? cs.primary : cardTextColor,
-                          ),
-                        ),
-                      ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.normal,
-                      color: cardTextColor,
-                    ),
-                  ),
-                ),
-                if (restored)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: cs.primary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      restoredFiles is num
-                          ? l10n.snapshotCardRestoredPill(
-                              restoredFiles.toInt())
-                          : l10n.snapshotCardRestoredShort,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: cs.primary,
-                      ),
-                    ),
-                  ),
-                const SizedBox(width: 4),
-                Icon(
-                  _expanded
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
-                  size: 18,
-                  color: cardTextColor,
-                ),
-              ],
-            ),
-          ),
-          if (_expanded) ...[
-            const SizedBox(height: 6),
-            Text(
-              l10n.snapshotCardDisclaimer,
-              style: TextStyle(fontSize: 12, color: cardTextColor),
-            ),
-            if (created != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                l10n.snapshotCardTakenAt(_formatTime(created)),
-                style: TextStyle(fontSize: 12, color: cardTextColor),
-              ),
-            ],
-            if (!restored && !loading) ...[
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  if (_error != null)
-                    Expanded(
-                      child: Text(
-                        l10n.snapshotCardFailed,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: cs.error,
-                        ),
-                      ),
-                    ),
-                  FilledButton.icon(
-                    onPressed:
-                        (_restoring || widget.onRestore == null)
-                            ? null
-                            : _restore,
-                    icon: _restoring
-                        ? SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                  cs.onPrimary),
-                            ),
-                          )
-                        : const Icon(Lucide.RotateCcw, size: 14),
-                    label: Text(
-                      l10n.snapshotCardRestoreButton,
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            if (_error != null && restored) ...[
-              const SizedBox(height: 4),
-              Text(
-                l10n.snapshotCardFailed,
-                style: TextStyle(fontSize: 12, color: cs.error),
-              ),
-            ],
-          ],
-        ],
-      ),
-    );
-  }
-
-  static String _formatTime(DateTime t) {
-    final two = (int v) => v.toString().padLeft(2, '0');
-    return '${t.year}-${two(t.month)}-${two(t.day)} '
-        '${two(t.hour)}:${two(t.minute)}';
-  }
-}
