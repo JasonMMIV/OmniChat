@@ -181,13 +181,17 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
   }
 
   Future<void> _openBrowser() async {
+    if (_closing) return;
     final path = _workspacePath;
     if (path == null || _resolution?.enabled != true) return;
+    // Capture the navigator before _close(): closing removes the popover's
+    // OverlayEntry, which unmounts this State, so `mounted`/`context` are no
+    // longer usable for pushing the file browser dialog afterwards.
+    final navigator = Navigator.of(context);
     await _close();
     await Future<void>.delayed(const Duration(milliseconds: 80));
-    if (!mounted) return;
     await showDialog<void>(
-      context: context,
+      context: navigator.context,
       builder: (_) => Dialog(
         child: SizedBox(
           width: 560,

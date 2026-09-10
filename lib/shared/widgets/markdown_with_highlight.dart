@@ -3214,44 +3214,50 @@ class _MarkdownTableToolbar extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
 
     return SelectionContainer.disabled(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          CodeBlockDownloadButton(onTap: onExport),
-          const SizedBox(width: 6),
-          InkWell(
-            onTap: onCopy,
-            splashColor: Platform.isIOS ? Colors.transparent : null,
-            highlightColor: Platform.isIOS ? Colors.transparent : null,
-            hoverColor: Platform.isIOS ? Colors.transparent : null,
-            overlayColor: Platform.isIOS
-                ? const MaterialStatePropertyAll(Colors.transparent)
-                : null,
-            borderRadius: BorderRadius.circular(6),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Lucide.Copy,
-                    size: 14,
-                    color: cs.onSurface.withOpacity(0.6),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    l10n.shareProviderSheetCopyButton,
-                    style: TextStyle(
-                      fontSize: 12,
+      child: Material(
+        // Local ink surface so InkWell hover/splash feedback stays visible;
+        // without it the overlay is painted on a distant Material ancestor
+        // and gets hidden behind the surrounding backgrounds.
+        type: MaterialType.transparency,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            CodeBlockDownloadButton(onTap: onExport),
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: onCopy,
+              splashColor: Platform.isIOS ? Colors.transparent : null,
+              highlightColor: Platform.isIOS ? Colors.transparent : null,
+              hoverColor: Platform.isIOS ? Colors.transparent : null,
+              overlayColor: Platform.isIOS
+                  ? const MaterialStatePropertyAll(Colors.transparent)
+                  : null,
+              borderRadius: BorderRadius.circular(6),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Lucide.Copy,
+                      size: 14,
                       color: cs.onSurface.withOpacity(0.6),
-                      fontWeight: FontWeight.w600,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 6),
+                    Text(
+                      l10n.shareProviderSheetCopyButton,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurface.withOpacity(0.6),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
