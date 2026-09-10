@@ -112,6 +112,34 @@ void main() {
     // the rebuilt markdown escapes them again so re-rendering still works.
     expect(_copied, '| X | Y |\n| --- | --- |\n| \$P(A\\|B)\$ | \$\\|x\\|\$ |');
   });
+
+  testWidgets('table action buttons paint ink on a local transparent Material', (tester) async {
+    final sp = await _loadedProvider();
+    await _pumpMd(tester, sp, _tableMd);
+
+    // Regression: the actions sit below the table; InkWell hover/splash
+    // overlays only render when a Material ancestor sits right above them.
+    // Without it the overlay is painted on a distant Material and hidden
+    // behind the surrounding backgrounds (no hover effect on Windows).
+    for (final label in const ['Copy', 'Download']) {
+      final element = tester.element(find.text(label));
+      Material? nearest;
+      element.visitAncestorElements((ancestor) {
+        final widget = ancestor.widget;
+        if (widget is Material) {
+          nearest = widget;
+          return false;
+        }
+        return true;
+      });
+      expect(nearest, isNotNull, reason: 'No Material ancestor for "$label"');
+      expect(
+        nearest!.type,
+        MaterialType.transparency,
+        reason: 'Ink overlay for "$label" must paint on the local surface',
+      );
+    }
+  });
 }
 
 String? _copied;
