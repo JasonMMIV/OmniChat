@@ -76,7 +76,6 @@ class _TodoPlanCardState extends State<TodoPlanCard> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardTextColor =
         isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
@@ -137,7 +136,7 @@ class _TodoPlanCardState extends State<TodoPlanCard> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: cs.primary.withValues(alpha: 0.12),
+                    color: cardTextColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
@@ -145,7 +144,7 @@ class _TodoPlanCardState extends State<TodoPlanCard> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: cs.primary,
+                      color: cardTextColor,
                     ),
                   ),
                 ),
@@ -173,7 +172,7 @@ class _TodoPlanCardState extends State<TodoPlanCard> {
                       child: Center(
                         child: t.isCompleted
                             ? Icon(Lucide.CheckCircle,
-                                size: 15, color: cs.primary)
+                                size: 15, color: cardTextColor)
                             : t.isInProgress
                                 ? Icon(Lucide.circleDot,
                                     size: 15, color: cardTextColor)
