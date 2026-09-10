@@ -29,33 +29,12 @@ Future<void> showDesktopContextMenuAt(
   required List<DesktopContextMenuItem> items,
 }) async {
   final overlay = Overlay.of(context);
-  final overlayBox = overlay?.context.findRenderObject() as RenderBox?;
-  if (overlay == null || overlayBox == null) return;
+  final overlayBox = overlay.context.findRenderObject() as RenderBox?;
+  if (overlayBox == null) return;
 
-  const double minMenuWidth = 160;
-  const double maxMenuWidth = 360;
-  final double menuWidth = _estimateMenuWidth(context, items, minMenuWidth, maxMenuWidth);
-  final screen = overlayBox.size;
-  final double menuMaxHeight = screen.height * 0.5; // scroll if exceeds
-  final double estMenuHeight = (items.length * 44.0).clamp(44.0, menuMaxHeight);
-  const double gap = 8; // offset from cursor
   final cs = Theme.of(context).colorScheme;
   final isDark = Theme.of(context).brightness == Brightness.dark;
-  final padding = MediaQuery.of(context).padding;
-  final minX = padding.left + 8;
-  final maxX = screen.width - padding.right - menuWidth - 8;
-  final minY = padding.top + 8;
-  final maxY = screen.height - padding.bottom - estMenuHeight - 8;
-
-  final local = overlayBox.globalToLocal(globalPosition);
-  double x = (local.dx + gap).clamp(minX, maxX);
-  // Decide above/below based on available space
-  final availableBelow = screen.height - padding.bottom - local.dy - 8;
-  final availableAbove = local.dy - padding.top - 8;
-  final placeAbove = availableBelow < estMenuHeight && availableAbove > availableBelow;
-  double y = placeAbove
-      ? (local.dy - gap - estMenuHeight).clamp(minY, maxY)
-      : (local.dy + gap).clamp(minY, maxY);
+  const double gap = 8; // offset from cursor
 
   await showGeneralDialog<void>(
     context: context,
@@ -63,6 +42,30 @@ Future<void> showDesktopContextMenuAt(
     barrierDismissible: true,
     barrierColor: Colors.black.withOpacity(0.06),
     pageBuilder: (ctx, _, __) {
+      // Measure inside the dialog so the estimate uses the same text style
+      // and text scale as the rendered menu (system scale included).
+      const double minMenuWidth = 160;
+      const double maxMenuWidth = 360;
+      final double menuWidth = _estimateMenuWidth(ctx, items, minMenuWidth, maxMenuWidth);
+      final screen = overlayBox.size;
+      final double menuMaxHeight = screen.height * 0.5; // scroll if exceeds
+      final double estMenuHeight = (items.length * 44.0).clamp(44.0, menuMaxHeight);
+      final padding = MediaQuery.of(ctx).padding;
+      final minX = padding.left + 8;
+      final maxX = screen.width - padding.right - menuWidth - 8;
+      final minY = padding.top + 8;
+      final maxY = screen.height - padding.bottom - estMenuHeight - 8;
+
+      final local = overlayBox.globalToLocal(globalPosition);
+      double x = (local.dx + gap).clamp(minX, maxX);
+      // Decide above/below based on available space
+      final availableBelow = screen.height - padding.bottom - local.dy - 8;
+      final availableAbove = local.dy - padding.top - 8;
+      final placeAbove = availableBelow < estMenuHeight && availableAbove > availableBelow;
+      double y = placeAbove
+          ? (local.dy - gap - estMenuHeight).clamp(minY, maxY)
+          : (local.dy + gap).clamp(minY, maxY);
+
       return Material(
         type: MaterialType.transparency,
         child: Stack(children: [
@@ -132,21 +135,27 @@ double _estimateMenuWidth(
   double minW,
   double maxW,
 ) {
-  // Base paddings: 12 left/right; icon 18 + spacing 10 if present
+  // Base paddings: 12 left/right; icon 18 + spacing 10 if present; plus a
+  // small slack for subpixel rounding. Use the same text style and text scale
+  // as the rendered menu so labels stay on one line under system text scaling
+  // (e.g. Windows 125% / 150%).
   double maxText = 0;
-  final textStyle = TextStyle(
+  final baseStyle =
+      Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
+  final textStyle = baseStyle.copyWith(
     fontSize: 14.5,
     color: Theme.of(context).colorScheme.onSurface,
     decoration: TextDecoration.none,
-    fontWeight: FontWeight.w500,
   );
+  final textScaler = MediaQuery.textScalerOf(context);
   for (final it in items) {
     final tp = TextPainter(
       text: TextSpan(text: it.label, style: textStyle),
       textDirection: TextDirection.ltr,
       maxLines: 1,
+      textScaler: textScaler,
     )..layout(maxWidth: maxW);
-    double width = 12 /*left*/ + tp.width + 12 /*right*/;
+    double width = 12 /*left*/ + tp.width + 12 /*right*/ + 4 /*slack*/;
     if (it.icon != null || it.svgAsset != null) {
       width += 18 /*icon*/ + 10 /*gap*/;
     }

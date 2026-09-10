@@ -10,9 +10,11 @@ import android.media.AudioFocusRequest
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.provider.DocumentsContract
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -21,6 +23,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val channelName = "omnichat/call_mode"
     private val processTextChannelName = "app.process_text"
+    private val folderRevealChannelName = "omnichat/folder_reveal"
     private val TAG = "OmniChatCallMode"
     private var processTextChannel: MethodChannel? = null
     private var pendingProcessText: String? = null
@@ -65,6 +68,16 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, folderRevealChannelName).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "revealFolder" -> {
+                    val uri = call.argument<String>("uri")
+                    result.success(uri != null && revealFolder(uri))
+                }
+                else -> result.notImplemented()
+            }
+        }
         pendingProcessText = extractProcessText(intent)
     }
 
@@ -84,6 +97,22 @@ class MainActivity : FlutterActivity() {
         if (intent?.action != Intent.ACTION_PROCESS_TEXT) return null
         val text = intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
         return text?.trim()?.takeIf { it.isNotEmpty() }
+    }
+
+    // Opens a SAF document URI (shared-storage folder) in the system file
+    // manager. App-private folders have no document URI and never reach here.
+    private fun revealFolder(uriString: String): Boolean {
+        return try {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(Uri.parse(uriString), DocumentsContract.Document.MIME_TYPE_DIR)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(intent)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to reveal folder: ${e.message}")
+            false
+        }
     }
 
     private var audioManager: AudioManager? = null

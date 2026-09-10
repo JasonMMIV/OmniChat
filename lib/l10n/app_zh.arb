@@ -1652,6 +1652,7 @@
     }
   },
   "chatMessageWidgetShowInFolder": "显示所在文件夹",
+  "workspaceShowInFolderUnavailable": "此文件夹无法在系统文件管理器中打开。",
   "chatMessageWidgetOpenExternally": "外部打开",
   "chatMessageWidgetDownload": "下载",
   "chatMessageWidgetFileActions": "文件操作",

@@ -4846,6 +4846,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatMessageWidgetShowInFolder => '显示所在文件夹';
 
   @override
+  String get workspaceShowInFolderUnavailable => '此文件夹无法在系统文件管理器中打开。';
+
+  @override
   String get chatMessageWidgetOpenExternally => '外部打开';
 
   @override
@@ -9519,6 +9522,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get chatMessageWidgetShowInFolder => '显示所在文件夹';
+
+  @override
+  String get workspaceShowInFolderUnavailable => '此文件夹无法在系统文件管理器中打开。';
 
   @override
   String get chatMessageWidgetOpenExternally => '外部打开';
@@ -14300,6 +14306,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatMessageWidgetShowInFolder => '顯示所在資料夾';
+
+  @override
+  String get workspaceShowInFolderUnavailable => '此資料夾無法在系統檔案管理員中開啟。';
 
   @override
   String get chatMessageWidgetOpenExternally => '外部開啟';

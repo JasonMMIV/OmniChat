@@ -4875,6 +4875,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatMessageWidgetShowInFolder => 'Show in folder';
 
   @override
+  String get workspaceShowInFolderUnavailable =>
+      'This folder can\'t be opened with the system file manager.';
+
+  @override
   String get chatMessageWidgetOpenExternally => 'Open externally';
 
   @override
