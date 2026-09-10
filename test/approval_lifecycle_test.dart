@@ -114,6 +114,56 @@ void main() {
     );
   });
 
+  test(
+      'P1-3 fix: reasoning-echo extras survive the answered ask_user upsert',
+      () async {
+    final service = ChatService();
+    await service.init();
+
+    const messageId = 'assistant-message';
+    // The stream driver persists the tool call carrying the round's
+    // reasoning-echo extras (DeepSeek thinking mode).
+    await service.upsertToolEvent(
+      messageId,
+      id: 'call_ask',
+      name: 'ask_user',
+      arguments: const {
+        'questions': [
+          {'id': 'q1', 'question': 'Which?', 'options': ['A', 'B']},
+        ],
+      },
+      content: null,
+      extras: const {
+        'reasoning_content': 'let me think about the question',
+      },
+    );
+    expect(
+      service
+          .getToolEvents(messageId)
+          .firstWhere((e) => e['id'] == 'call_ask')['reasoning_content'],
+      'let me think about the question',
+    );
+
+    // The answer upsert rewrites the same event (same flow as
+    // resumeAfterAskUserAnswer) — the persisted reasoning-echo extra must
+    // survive so the §3.11 replay can re-attach it.
+    await service.upsertToolEvent(
+      messageId,
+      id: 'call_ask',
+      name: 'ask_user',
+      arguments: const {},
+      content: '{"type":"ask_user_answer"}',
+    );
+    final event = service
+        .getToolEvents(messageId)
+        .firstWhere((e) => e['id'] == 'call_ask');
+    expect(event['content'], '{"type":"ask_user_answer"}');
+    expect(
+      event['reasoning_content'],
+      'let me think about the question',
+    );
+  });
+
   test('ask_user pending/answered protocol strings are stable', () {
     expect(askUserToolName, 'ask_user');
     expect(askUserPendingType, 'ask_user_pending');

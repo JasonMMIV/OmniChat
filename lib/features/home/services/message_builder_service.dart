@@ -199,6 +199,9 @@ class MessageBuilderService {
           if (!hasPendingToolEvent) {
             final calls = <Map<String, dynamic>>[];
             final toolMessages = <Map<String, dynamic>>[];
+            // Events that actually produced a replayed call/result pair —
+            // used below to gather the persisted reasoning-echo extras.
+            final replayedEvents = <Map<String, dynamic>>[];
 
             for (int i = 0; i < events.length; i++) {
               final e = events[i];
@@ -237,6 +240,7 @@ class MessageBuilderService {
                 'type': 'function',
                 'function': {'name': name, 'arguments': argumentsJson},
               });
+              replayedEvents.add(e);
 
               final c = e['content'];
               toolMessages.add({
@@ -248,10 +252,38 @@ class MessageBuilderService {
             }
 
             if (calls.isNotEmpty) {
+              // P1-3 fix: re-attach the reasoning-echo fields persisted on
+              // the tool events. DeepSeek (and Zhipu/Kimi/Mimo) thinking-mode
+              // endpoints reject a conversation whose assistant `tool_calls`
+              // message does not carry `reasoning_content` back (HTTP 400:
+              // "The reasoning_content in the thinking mode must be passed
+              // back to the API") — this is exactly what happened when a
+              // pending ask_user card was answered and the run resumed with
+              // a fresh context assembly. Providers that do not understand
+              // the field strip it at conversion time (ChatApiService), so
+              // a plain passthrough here is safe.
+              String? reasoningContent;
+              final reasoningDetails = <dynamic>[];
+              for (final e in replayedEvents) {
+                final rc = e['reasoning_content'];
+                if (reasoningContent == null &&
+                    rc is String &&
+                    rc.isNotEmpty) {
+                  reasoningContent = rc;
+                }
+                final rd = e['reasoning_details'];
+                if (rd is List && rd.isNotEmpty) {
+                  reasoningDetails.addAll(rd);
+                }
+              }
               out.add(<String, dynamic>{
                 'role': 'assistant',
                 'content': '\n\n',
                 'tool_calls': calls,
+                if (reasoningContent != null)
+                  'reasoning_content': reasoningContent,
+                if (reasoningDetails.isNotEmpty)
+                  'reasoning_details': reasoningDetails,
               });
               out.addAll(toolMessages);
             }

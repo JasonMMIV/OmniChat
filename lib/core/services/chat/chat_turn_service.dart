@@ -157,6 +157,9 @@ class ChatTurnService {
           if (!hasPendingToolEvent) {
             final calls = <Map<String, dynamic>>[];
             final toolMessages = <Map<String, dynamic>>[];
+            // P1-3 fix: events that produce a replayed call/result pair;
+            // their persisted reasoning-echo extras are re-attached below.
+            final replayedEvents = <Map<String, dynamic>>[];
             for (int i = 0; i < events.length; i++) {
               final e = events[i];
               final name = (e['name'] ?? '').toString().trim();
@@ -179,6 +182,7 @@ class ChatTurnService {
                 'type': 'function',
                 'function': {'name': name, 'arguments': argumentsJson},
               });
+              replayedEvents.add(e);
               toolMessages.add({
                 'role': 'tool',
                 'name': name,
@@ -187,10 +191,31 @@ class ChatTurnService {
               });
             }
             if (calls.isNotEmpty) {
+              // P1-3 fix: re-attach persisted reasoning-echo fields —
+              // DeepSeek thinking mode rejects an assistant `tool_calls`
+              // message without `reasoning_content` (HTTP 400).
+              String? reasoningContent;
+              final reasoningDetails = <dynamic>[];
+              for (final e in replayedEvents) {
+                final rc = e['reasoning_content'];
+                if (reasoningContent == null &&
+                    rc is String &&
+                    rc.isNotEmpty) {
+                  reasoningContent = rc;
+                }
+                final rd = e['reasoning_details'];
+                if (rd is List && rd.isNotEmpty) {
+                  reasoningDetails.addAll(rd);
+                }
+              }
               out.add(<String, dynamic>{
                 'role': 'assistant',
                 'content': '\n\n',
                 'tool_calls': calls,
+                if (reasoningContent != null)
+                  'reasoning_content': reasoningContent,
+                if (reasoningDetails.isNotEmpty)
+                  'reasoning_details': reasoningDetails,
               });
               out.addAll(toolMessages);
             }

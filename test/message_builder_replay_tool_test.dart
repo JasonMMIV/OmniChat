@@ -247,5 +247,168 @@ void main() {
       expect(api, hasLength(2));
       expect(api.where((m) => m['role'] == 'tool'), isEmpty);
     });
+
+    testWidgets(
+        'P1-3 fix: empty-string reasoning_content from events is not echoed',
+        (tester) async {
+      final context = await _pumpContext(tester);
+      final service = MessageBuilderService(
+        chatService: ToolEventChatService({
+          'a1': [
+            {
+              'id': 'call_1',
+              'name': 'file_read',
+              'arguments': {'path': 'main.dart'},
+              'content': 'file contents',
+              // Non-echo-model history: the driver persisted an empty
+              // echo (kernel path always includes the key when the
+              // transport negotiated echo policy). Empty must not be
+              // re-attached — providers reject empty reasoning fields.
+              'reasoning_content': '',
+            },
+          ],
+        }),
+        contextProvider: context,
+      );
+      final conversation = Conversation(title: 't', id: 'c1');
+      final api = service.buildApiMessages(
+        messages: [
+          _msg('user', 'read the file', 'c1'),
+          _msg('assistant', 'done', 'c1', id: 'a1'),
+          _msg('user', 'thanks', 'c1'),
+        ],
+        versionSelections: {},
+        currentConversation: conversation,
+        includeToolMessages: true,
+      );
+
+      final assistantMsg = api[1] as Map;
+      expect(assistantMsg.containsKey('reasoning_content'), isFalse);
+    });
+
+    testWidgets(
+        'P1-3 fix: re-attaches persisted reasoning_content on the replayed '
+        'assistant tool_calls message (DeepSeek thinking mode resume)',
+        (tester) async {
+      final context = await _pumpContext(tester);
+      final service = MessageBuilderService(
+        chatService: ToolEventChatService({
+          // Answered ask_user event (the ask_user resume checkpoint) with
+          // the reasoning-echo fields persisted by the stream driver.
+          'a1': [
+            {
+              'id': 'call_ask',
+              'name': 'ask_user',
+              'arguments': {
+                'questions': [
+                  {
+                    'id': 'q1',
+                    'question': 'Which style?',
+                    'options': ['A', 'B'],
+                  },
+                ],
+              },
+              'content': '{"type":"ask_user_answer","answers":[]}',
+              'reasoning_content': 'let me think about reading the file',
+            },
+          ],
+        }),
+        contextProvider: context,
+      );
+      final conversation = Conversation(title: 't', id: 'c1');
+      final api = service.buildApiMessages(
+        messages: [
+          _msg('user', 'ask me first', 'c1'),
+          _msg('assistant', '', 'c1', id: 'a1'),
+          _msg('user', 'follow-up after answering', 'c1'),
+        ],
+        versionSelections: {},
+        currentConversation: conversation,
+        includeToolMessages: true,
+      );
+
+      // user / assistant(tool_calls + reasoning_content) / tool / user
+      expect(api, hasLength(4));
+      final assistantMsg = api[1] as Map;
+      expect(assistantMsg['role'], 'assistant');
+      expect(assistantMsg['tool_calls'], hasLength(1));
+      expect(
+        assistantMsg['reasoning_content'],
+        'let me think about reading the file',
+      );
+      expect(api[2]['role'], 'tool');
+      expect(api[2]['tool_call_id'], 'call_ask');
+    });
+
+    testWidgets(
+        'P1-3 fix: no reasoning echo when events carry none (legacy history)',
+        (tester) async {
+      final context = await _pumpContext(tester);
+      final service = MessageBuilderService(
+        chatService: ToolEventChatService({
+          'a1': [
+            {
+              'id': 'call_1',
+              'name': 'file_read',
+              'arguments': {'path': 'main.dart'},
+              'content': 'file contents',
+            },
+          ],
+        }),
+        contextProvider: context,
+      );
+      final conversation = Conversation(title: 't', id: 'c1');
+      final api = service.buildApiMessages(
+        messages: [
+          _msg('user', 'read the file', 'c1'),
+          _msg('assistant', 'done', 'c1', id: 'a1'),
+          _msg('user', 'thanks', 'c1'),
+        ],
+        versionSelections: {},
+        currentConversation: conversation,
+        includeToolMessages: true,
+      );
+
+      final assistantMsg = api[1] as Map;
+      expect(assistantMsg.containsKey('reasoning_content'), isFalse);
+      expect(assistantMsg.containsKey('reasoning_details'), isFalse);
+    });
+
+    testWidgets(
+        'P1-3 fix: reasoning_details from the events are merged into the replay',
+        (tester) async {
+      final context = await _pumpContext(tester);
+      final service = MessageBuilderService(
+        chatService: ToolEventChatService({
+          'a1': [
+            {
+              'id': 'call_1',
+              'name': 'file_read',
+              'arguments': {'path': 'main.dart'},
+              'content': 'file contents',
+              'reasoning_details': [
+                {'type': 'reasoning.text', 'text': 'thinking...'},
+              ],
+            },
+          ],
+        }),
+        contextProvider: context,
+      );
+      final conversation = Conversation(title: 't', id: 'c1');
+      final api = service.buildApiMessages(
+        messages: [
+          _msg('user', 'read the file', 'c1'),
+          _msg('assistant', 'done', 'c1', id: 'a1'),
+          _msg('user', 'thanks', 'c1'),
+        ],
+        versionSelections: {},
+        currentConversation: conversation,
+        includeToolMessages: true,
+      );
+
+      final assistantMsg = api[1] as Map;
+      expect(assistantMsg['reasoning_details'], isA<List>());
+      expect((assistantMsg['reasoning_details'] as List), hasLength(1));
+    });
   });
 }

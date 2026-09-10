@@ -289,6 +289,9 @@ class ChatApiService {
       if (isToolRole || hasToolCalls) {
         out.add(Map<String, dynamic>.from(m));
       } else {
+        // P1-3 fix: plain assistant/user messages must not carry the
+        // vendor-specific reasoning-echo fields (only the `tool_calls`
+        // assistant message echoes them).
         out.add({
           'role': role,
           'content': m['content'] ?? '',
@@ -2562,7 +2565,23 @@ class ChatApiService {
         if (role == 'tool' ||
             (role == 'assistant' && m['tool_calls'] is List &&
                 (m['tool_calls'] as List).isNotEmpty)) {
-          mm.add(Map<String, dynamic>.from(m));
+          final copy = Map<String, dynamic>.from(m);
+          if (role == 'assistant') {
+            if (needsReasoningEcho) {
+              // P1-3 fix: echo-capable models (DeepSeek / Zhipu /
+              // Kimi-thinking / Mimo) must always receive a `reasoning_content`
+              // key on the assistant tool_calls message — the multi-round
+              // follow-up path (line ~3105) relies on this exact contract. An
+              // empty string is what the legacy loop sent before the field
+              // was persisted; the kernel roundExtras carry the real text.
+              copy['reasoning_content'] ??= '';
+            } else {
+              // Non-echo models must not see the vendor-specific fields.
+              copy.remove('reasoning_content');
+              copy.remove('reasoning_details');
+            }
+          }
+          mm.add(copy);
           continue;
         }
 

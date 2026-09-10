@@ -978,6 +978,12 @@ class ChatService extends ChangeNotifier {
   static const List<String> preservedToolEventExtraKeys = <String>[
     'searchProvider',
     'searchFallbackFrom',
+    // P1-3 fix: reasoning-echo fields captured from the tool-calling round
+    // (expose-mode `assistantExtras`). Cross-turn §3.11 replay re-attaches
+    // them so DeepSeek thinking mode does not reject the resumed request
+    // with "reasoning_content must be passed back".
+    'reasoning_content',
+    'reasoning_details',
   ];
 
   /// The persisted UI-only extras of the event at [idx] (empty when the
