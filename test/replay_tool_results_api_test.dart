@@ -316,6 +316,114 @@ void main() {
       );
     });
 
+    test(
+        'P1-3 fix: DeepSeek thinking model keeps reasoning_content echoed on '
+        'the replayed assistant tool_calls message', () async {
+      final config = ProviderConfig(
+        id: 'deepseek-test',
+        enabled: true,
+        name: 'deepseek-test',
+        apiKey: 'key',
+        baseUrl: server.baseUrl,
+        providerType: ProviderKind.openai,
+        models: const ['deepseek-v4.1-flash'],
+      );
+      final echoedToolMessages = [
+        {
+          'role': 'assistant',
+          'content': '\n\n',
+          'tool_calls': [
+            {
+              'id': 'call_ask',
+              'type': 'function',
+              'function': {'name': 'ask_user', 'arguments': '{}'},
+            },
+          ],
+          // Persisted by the stream driver onto the tool event and
+          // re-attached by the §3.11 replay builder.
+          'reasoning_content': 'let me think about the question',
+        },
+        {
+          'role': 'tool',
+          'name': 'ask_user',
+          'tool_call_id': 'call_ask',
+          'content': '{"type":"ask_user_answer"}',
+        },
+      ];
+      await ChatApiService.sendMessageStream(
+        config: config,
+        modelId: 'deepseek-v4.1-flash',
+        messages: [
+          const {'role': 'user', 'content': 'ask me'},
+          ...echoedToolMessages,
+          const {'role': 'user', 'content': 'follow-up'},
+        ],
+        requestId: 'req-deepseek-echo',
+        stream: false,
+      ).toList();
+
+      expect(server.bodies, isNotEmpty);
+      final body = server.bodies.first;
+      final msgs = body['messages'] as List;
+      final assistantMsg = msgs[1] as Map;
+      expect(assistantMsg['tool_calls'], isA<List>());
+      expect(
+        assistantMsg['reasoning_content'],
+        'let me think about the question',
+      );
+    });
+
+    test(
+        'P1-3 fix: non-echo models (OpenAI) strip the replayed '
+        'reasoning_content field', () async {
+      final config = ProviderConfig(
+        id: 'openai-test',
+        enabled: true,
+        name: 'openai-test',
+        apiKey: 'key',
+        baseUrl: server.baseUrl,
+        providerType: ProviderKind.openai,
+        models: const ['gpt-4o'],
+      );
+      final echoedToolMessages = [
+        {
+          'role': 'assistant',
+          'content': '\n\n',
+          'tool_calls': [
+            {
+              'id': 'call_1',
+              'type': 'function',
+              'function': {'name': 'file_read', 'arguments': '{}'},
+            },
+          ],
+          'reasoning_content': 'vendor-specific field',
+        },
+        {
+          'role': 'tool',
+          'name': 'file_read',
+          'tool_call_id': 'call_1',
+          'content': 'file contents',
+        },
+      ];
+      await ChatApiService.sendMessageStream(
+        config: config,
+        modelId: 'gpt-4o',
+        messages: [
+          const {'role': 'user', 'content': 'read the file'},
+          ...echoedToolMessages,
+          const {'role': 'user', 'content': 'what next?'},
+        ],
+        requestId: 'req-openai-strip',
+        stream: false,
+      ).toList();
+
+      expect(server.bodies, isNotEmpty);
+      final body = server.bodies.first;
+      final msgs = body['messages'] as List;
+      final assistantMsg = msgs[1] as Map;
+      expect(assistantMsg.containsKey('reasoning_content'), isFalse);
+    });
+
     test('OpenAI Responses API: converts tool messages to function_call items',
         () async {
       final config = ProviderConfig(
