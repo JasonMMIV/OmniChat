@@ -3127,7 +3127,8 @@ class _SearchProviderBadge extends StatelessWidget {
 
   /// Chip color — matches the tool card's text color (light gray) so the
   /// badge blends with the card instead of standing out in the theme
-  /// primary color.
+  /// primary color. Rendered at whisper-level alpha so the whole tool card
+  /// recedes and visual focus stays on the answer content.
   final Color color;
 
   @override
@@ -3135,15 +3136,15 @@ class _SearchProviderBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withOpacity(0.06),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         name,
         style: TextStyle(
           fontSize: 10.5,
-          fontWeight: FontWeight.w600,
-          color: color,
+          fontWeight: FontWeight.w500,
+          color: color.withOpacity(0.7),
         ),
       ),
     );
