@@ -509,6 +509,10 @@ class _AskUserCardState extends State<AskUserCard> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardTextColor =
         isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
+    // ask_user 的內容是給使用者看與作答的（不同於 todo / reasoning / 工具卡
+    // 的「隱藏工具與思考過程」淡灰設計），配色恢復為正常內文色，僅標題列
+    // （icon＋標題＋收合箭頭）與「已回答」膠囊維持淡灰。
+    final bodyTextColor = cs.onSurface;
 
     final loading = widget.content == null || widget.content!.isEmpty;
 
@@ -584,7 +588,7 @@ class _AskUserCardState extends State<AskUserCard> {
             ],
             ),
           ),
-          if (_expanded) ...[const SizedBox(height: 6), _buildBody(context, l10n, cs, cardTextColor)],
+          if (_expanded) ...[const SizedBox(height: 6), _buildBody(context, l10n, cs, cardTextColor, bodyTextColor)],
         ],
       ),
     );
@@ -594,7 +598,8 @@ class _AskUserCardState extends State<AskUserCard> {
     BuildContext context,
     AppLocalizations l10n,
     ColorScheme cs,
-    Color cardTextColor,
+    Color headerTextColor,
+    Color bodyTextColor,
   ) {
     final content = widget.content;
     final parsed = parseAskUserContent(content);
@@ -603,7 +608,7 @@ class _AskUserCardState extends State<AskUserCard> {
     if (content == null || content.isEmpty) {
       return Text(
         l10n.askUserPending,
-        style: TextStyle(fontSize: 12, color: cardTextColor),
+        style: TextStyle(fontSize: 12, color: bodyTextColor),
       );
     }
 
@@ -626,7 +631,7 @@ class _AskUserCardState extends State<AskUserCard> {
                       child: Icon(
                         a.skipped ? Lucide.CircleX : Lucide.CheckCircle,
                         size: 14,
-                        color: cardTextColor,
+                        color: bodyTextColor,
                       ),
                     ),
                   ),
@@ -637,7 +642,7 @@ class _AskUserCardState extends State<AskUserCard> {
                       style: TextStyle(
                         fontSize: 12.5,
                         height: 1.35,
-                        color: cardTextColor,
+                        color: bodyTextColor,
                       ),
                     ),
                   ),
@@ -655,7 +660,7 @@ class _AskUserCardState extends State<AskUserCard> {
     if (questions.isEmpty) {
       return Text(
         l10n.askUserPending,
-        style: TextStyle(fontSize: 12, color: cardTextColor),
+        style: TextStyle(fontSize: 12, color: bodyTextColor),
       );
     }
     _selectionsFor(questions); // lazily reset stale form state
@@ -671,13 +676,13 @@ class _AskUserCardState extends State<AskUserCard> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: cardTextColor,
+                color: bodyTextColor,
               ),
             ),
           ),
           for (var i = 0; i < q.options.length; i++)
-            _optionRow(context, q, i, cs, cardTextColor, interactive),
-          _otherRow(context, q, cardTextColor, interactive),
+            _optionRow(context, q, i, cs, bodyTextColor, interactive),
+          _otherRow(context, q, bodyTextColor, interactive),
         ],
         const SizedBox(height: 8),
         Row(
@@ -688,7 +693,7 @@ class _AskUserCardState extends State<AskUserCard> {
                   interactive ? () => _submit(questions, skipAll: true) : null,
               child: Text(
                 l10n.askUserSkip,
-                style: TextStyle(fontSize: 13, color: cardTextColor),
+                style: TextStyle(fontSize: 13, color: bodyTextColor),
               ),
             ),
             const SizedBox(width: 8),
@@ -712,7 +717,7 @@ class _AskUserCardState extends State<AskUserCard> {
     AskUserQuestion q,
     int index,
     ColorScheme cs,
-    Color cardTextColor,
+    Color bodyTextColor,
     bool interactive,
   ) {
     final selected = _selected[q.id]?.contains(index) ?? false;
@@ -745,7 +750,7 @@ class _AskUserCardState extends State<AskUserCard> {
                       ? (selected ? Lucide.CheckCircle : Lucide.Circle)
                       : (selected ? Lucide.CheckSquare : Lucide.Square),
                   size: 16,
-                  color: selected ? cs.primary : cardTextColor,
+                  color: selected ? cs.primary : bodyTextColor,
                 ),
               ),
             ),
@@ -755,7 +760,7 @@ class _AskUserCardState extends State<AskUserCard> {
                 q.options[index],
                 style: TextStyle(
                   fontSize: 13,
-                  color: cardTextColor,
+                  color: bodyTextColor,
                 ),
               ),
             ),
@@ -768,7 +773,7 @@ class _AskUserCardState extends State<AskUserCard> {
   Widget _otherRow(
     BuildContext context,
     AskUserQuestion q,
-    Color cardTextColor,
+    Color bodyTextColor,
     bool interactive,
   ) {
     final controller =
@@ -779,10 +784,10 @@ class _AskUserCardState extends State<AskUserCard> {
         controller: controller,
         enabled: interactive,
         onChanged: (_) => setState(() {}),
-        style: TextStyle(fontSize: 13, color: cardTextColor),
+        style: TextStyle(fontSize: 13, color: bodyTextColor),
         decoration: InputDecoration(
           isDense: true,
-          prefixIcon: Icon(Lucide.Pencil, size: 16, color: cardTextColor),
+          prefixIcon: Icon(Lucide.Pencil, size: 16, color: bodyTextColor),
           hintText: AppLocalizations.of(context)!.askUserOther,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
