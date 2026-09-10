@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/services/search/search_service.dart';
+import '../../../core/services/search/search_dispatch.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
@@ -22,7 +23,8 @@ class SearchServicesPage extends StatefulWidget {
 
 class _SearchServicesPageState extends State<SearchServicesPage> {
   List<SearchServiceOptions> _services = [];
-  int _selectedIndex = 0;
+  List<String> _selectedIds = <String>[];
+  SearchDispatchMode _dispatchMode = SearchDispatchMode.fallback;
   final Map<String, bool> _testing = <String, bool>{}; // serviceId -> testing
   // Use SettingsProvider for connection results; keep only local testing spinner state
 
@@ -31,7 +33,8 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     super.initState();
     final settings = context.read<SettingsProvider>();
     _services = List.from(settings.searchServices);
-    _selectedIndex = settings.searchServiceSelected;
+    _selectedIds = List<String>.from(settings.searchSelectedProviders);
+    _dispatchMode = settings.searchDispatchMode;
     // Do not auto test here; rely on app-start tests. Users can test manually.
   }
 
@@ -87,21 +90,46 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
       return;
     }
 
+    final removedId = _services[index].id;
     setState(() {
       _services.removeAt(index);
-      if (_selectedIndex >= _services.length) {
-        _selectedIndex = _services.length - 1;
-      } else if (_selectedIndex > index) {
-        _selectedIndex--;
+      // The checked set is id-based; keep it consistent locally (the
+      // provider prunes / re-seeds on save as the source of truth).
+      _selectedIds = _selectedIds.where((id) => id != removedId).toList();
+      if (_selectedIds.isEmpty && _services.isNotEmpty) {
+        _selectedIds = <String>[_services.first.id];
       }
     });
     _saveChanges();
   }
 
-  void _selectService(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+  /// Toggle a provider in the checked (selected) set. Keeps at least one
+  /// provider checked — the dispatch engine always has a primary provider.
+  void _toggleSelected(String id) {
+    final l10n = AppLocalizations.of(context)!;
+    if (_selectedIds.contains(id)) {
+      if (_selectedIds.length <= 1) {
+        showAppSnackBar(
+          context,
+          message: l10n.searchServicesPageAtLeastOneSelectedRequired,
+          type: NotificationType.warning,
+        );
+        return;
+      }
+      setState(() {
+        _selectedIds = _selectedIds.where((e) => e != id).toList();
+      });
+    } else {
+      setState(() {
+        // Keep the checked set in service-list order (= priority order) so
+        // the priority numbering stays consistent.
+        final selectedSet = <String>{..._selectedIds, id};
+        _selectedIds = <String>[
+          for (final s in _services)
+            if (selectedSet.contains(s.id)) s.id,
+        ];
+      });
+    }
     _saveChanges();
   }
 
@@ -110,8 +138,75 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     context.read<SettingsProvider>().updateSettings(
       settings.copyWith(
         searchServices: _services,
-        searchServiceSelected: _selectedIndex,
+        searchSelectedProviders: _selectedIds,
+        searchDispatchMode: _dispatchMode,
       ),
+    );
+  }
+
+  /// Reorder the service list — its order defines provider priority (the
+  /// first checked provider is the primary one). The checked set is
+  /// re-sorted to keep the priority numbering consistent.
+  void _reorderServices(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) newIndex -= 1;
+    setState(() {
+      final moved = _services.removeAt(oldIndex);
+      _services.insert(newIndex, moved);
+      final selectedSet = _selectedIds.toSet();
+      _selectedIds = <String>[
+        for (final s in _services)
+          if (selectedSet.contains(s.id)) s.id,
+      ];
+    });
+    _saveChanges();
+  }
+
+  Widget _buildDispatchModeSection(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    return _iosSectionCard(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+          child: SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<SearchDispatchMode>(
+              segments: [
+                ButtonSegment(
+                  value: SearchDispatchMode.fallback,
+                  label: Text(l10n.searchDispatchModeFallback),
+                ),
+                ButtonSegment(
+                  value: SearchDispatchMode.roundRobin,
+                  label: Text(l10n.searchDispatchModeRoundRobin),
+                ),
+              ],
+              selected: <SearchDispatchMode>{_dispatchMode},
+              onSelectionChanged: (selection) {
+                Haptics.light();
+                setState(() => _dispatchMode = selection.first);
+                _saveChanges();
+              },
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+          child: SizedBox(
+            width: double.infinity,
+            child: Text(
+              _dispatchMode == SearchDispatchMode.fallback
+                  ? l10n.searchDispatchModeFallbackSubtitle
+                  : l10n.searchDispatchModeRoundRobinSubtitle,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.35,
+                color: cs.onSurface.withOpacity(0.65),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -185,14 +280,22 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
             cs,
             first: true,
           ),
-          _iosSectionCard(
-            children: [
-              for (int i = 0; i < _services.length; i++) ...[
-                _iosProviderRow(context, index: i),
-                if (i != _services.length - 1) _iosDivider(context),
-              ],
-            ],
+          // Order = provider priority: drag to reorder; the first checked
+          // provider is the primary one.
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false,
+            itemCount: _services.length,
+            onReorder: _reorderServices,
+            itemBuilder: (context, i) => KeyedSubtree(
+              key: ValueKey('search-service-${_services[i].id}'),
+              child: _iosProviderRow(context, index: i),
+            ),
           ),
+          const SizedBox(height: 16),
+          _sectionHeader(l10n.searchServicesPageDispatchModeTitle, cs),
+          _buildDispatchModeSection(context),
           const SizedBox(height: 16),
           _sectionHeader(l10n.searchServicesPageGeneralOptions, cs),
           _buildCommonOptionsSection(context),
@@ -427,10 +530,15 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
   Widget _iosProviderRow(BuildContext context, {required int index}) {
     final s = _services[index];
     final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final name = SearchService.getService(s).name;
-    final selected = index == _selectedIndex;
-    // Connection/testing status for capsule
     final l10n = AppLocalizations.of(context)!;
+    final checked = _selectedIds.contains(s.id);
+    // Priority number (position in the checked set; list order = priority)
+    // is shown once more than one provider is selected.
+    final orderNumber = checked ? _selectedIds.indexOf(s.id) + 1 : null;
+    final showOrderBadge = _selectedIds.length > 1 && orderNumber != null;
+    // Connection/testing status for capsule
     final testing = _testing[s.id] == true;
     final conn = context.watch<SettingsProvider>().searchConnection[s.id];
     String statusText;
@@ -453,74 +561,119 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
       statusBg = cs.onSurface.withOpacity(0.06);
       statusFg = cs.onSurface.withOpacity(0.7);
     }
-    return _TactileRow(
-      onTap: () {
-        // Tap to edit (bottom sheet)
-        _editService(index);
-      },
-      pressedScale: 1.00,
-      haptics: false,
-      builder: (pressed) {
-        final base = cs.onSurface.withOpacity(0.9);
-        return _AnimatedPressColor(
-          pressed: pressed,
-          base: base,
-          builder: (c) {
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onLongPress: () => _showServiceActions(context, index),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 11,
-                ),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 36,
-                      child: Center(child: _BrandBadge.forService(s, size: 22)),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white10 : Colors.white.withOpacity(0.96),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: checked
+                ? cs.primary.withOpacity(isDark ? 0.45 : 0.55)
+                : cs.outlineVariant.withOpacity(isDark ? 0.08 : 0.06),
+            width: checked ? 1.1 : 0.6,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: _TactileRow(
+          onTap: () {
+            // Tap to edit (bottom sheet)
+            _editService(index);
+          },
+          pressedScale: 1.00,
+          haptics: false,
+          builder: (pressed) {
+            final base = cs.onSurface.withOpacity(0.9);
+            return _AnimatedPressColor(
+              pressed: pressed,
+              base: base,
+              builder: (c) {
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onLongPress: () => _showServiceActions(context, index),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: c,
-                          fontWeight: FontWeight.w600,
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 36,
+                          child: Center(
+                            child: _BrandBadge.forService(s, size: 22),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: c,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (s is! BingLocalOptions &&
+                                  statusText.isNotEmpty) ...[
+                                const SizedBox(height: 3),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: statusBg,
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    statusText,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: statusFg,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // Drag handle — reorder defines provider priority.
+                        ReorderableDragStartListener(
+                          index: index,
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Icon(
+                              Lucide.GripVertical,
+                              size: 18,
+                              color: c.withOpacity(0.55),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        _SelectionCheck(
+                          checked: checked,
+                          badge: showOrderBadge ? orderNumber : null,
+                          onTap: () => _toggleSelected(s.id),
+                        ),
+                      ],
                     ),
-                    if (s is! BingLocalOptions && statusText.isNotEmpty) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: statusBg,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          statusText,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 11, color: statusFg),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(width: 8),
-                    Icon(Lucide.ChevronRight, size: 16, color: c),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             );
           },
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -776,6 +929,65 @@ class _BrandBadge extends StatelessWidget {
           color: cs.primary,
           fontWeight: FontWeight.w700,
           fontSize: size * 0.42,
+        ),
+      ),
+    );
+  }
+}
+
+/// Circular check control for the checked (selected) provider set. Shows a
+/// soft priority number instead of the check when several providers are
+/// selected (1 = primary).
+class _SelectionCheck extends StatelessWidget {
+  const _SelectionCheck({
+    required this.checked,
+    required this.badge,
+    required this.onTap,
+  });
+
+  final bool checked;
+  final int? badge;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final showBadge = checked && badge != null;
+    return Semantics(
+      button: true,
+      selected: checked,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          width: 26,
+          height: 26,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: checked ? cs.primary : Colors.transparent,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: checked
+                  ? cs.primary
+                  : cs.onSurface.withOpacity(isDark ? 0.35 : 0.3),
+              width: 1.4,
+            ),
+          ),
+          child: !checked
+              ? const SizedBox.shrink()
+              : (showBadge
+                    ? Text(
+                        '${badge!}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: cs.onPrimary,
+                        ),
+                      )
+                    : Icon(Lucide.Check, size: 15, color: cs.onPrimary)),
         ),
       ),
     );

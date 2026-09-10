@@ -1385,6 +1385,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchServicesPageSearchProviders => '搜索提供商';
 
   @override
+  String get searchServicesPageDispatchModeTitle => '调度模式';
+
+  @override
+  String get searchDispatchModeFallback => '备援';
+
+  @override
+  String get searchDispatchModeFallbackSubtitle =>
+      '按顺序尝试选中的服务，主要服务失败时自动切换到下一家。';
+
+  @override
+  String get searchDispatchModeRoundRobin => '轮询';
+
+  @override
+  String get searchDispatchModeRoundRobinSubtitle => '每次搜索轮流从不同的服务开始，分散请求。';
+
+  @override
   String get searchServicesPageGeneralOptions => '通用选项';
 
   @override
@@ -2191,6 +2207,11 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String chatMessageWidgetWebSearch(String query) {
     return '联网检索: $query';
+  }
+
+  @override
+  String chatMessageWidgetSearchSwitchedFromTo(String from, String to) {
+    return '已从 $from 切换至 $to';
   }
 
   @override
@@ -3448,6 +3469,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get searchServicesPageAtLeastOneServiceRequired => '至少需要一个搜索服务';
+
+  @override
+  String get searchServicesPageAtLeastOneSelectedRequired => '至少需要选中一个搜索服务';
 
   @override
   String get modelDetailSheetChatType => '聊天';
@@ -6208,6 +6232,22 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get searchServicesPageSearchProviders => '搜索提供商';
 
   @override
+  String get searchServicesPageDispatchModeTitle => '调度模式';
+
+  @override
+  String get searchDispatchModeFallback => '备援';
+
+  @override
+  String get searchDispatchModeFallbackSubtitle =>
+      '按顺序尝试选中的服务，主要服务失败时自动切换到下一家。';
+
+  @override
+  String get searchDispatchModeRoundRobin => '轮询';
+
+  @override
+  String get searchDispatchModeRoundRobinSubtitle => '每次搜索轮流从不同的服务开始，分散请求。';
+
+  @override
   String get searchServicesPageGeneralOptions => '通用选项';
 
   @override
@@ -7014,6 +7054,11 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   @override
   String chatMessageWidgetWebSearch(String query) {
     return '联网检索: $query';
+  }
+
+  @override
+  String chatMessageWidgetSearchSwitchedFromTo(String from, String to) {
+    return '已从 $from 切换至 $to';
   }
 
   @override
@@ -8262,6 +8307,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get searchServicesPageAtLeastOneServiceRequired => '至少需要一个搜索服务';
+
+  @override
+  String get searchServicesPageAtLeastOneSelectedRequired => '至少需要选中一个搜索服务';
 
   @override
   String get modelDetailSheetChatType => '聊天';
@@ -10927,6 +10975,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get searchServicesPageSearchProviders => '搜尋提供商';
 
   @override
+  String get searchServicesPageDispatchModeTitle => '調度模式';
+
+  @override
+  String get searchDispatchModeFallback => '備援';
+
+  @override
+  String get searchDispatchModeFallbackSubtitle => '依序嘗試選中的服務，主要服務失敗時自動切換至下一家。';
+
+  @override
+  String get searchDispatchModeRoundRobin => '輪詢';
+
+  @override
+  String get searchDispatchModeRoundRobinSubtitle => '每次搜尋輪流從不同服務開始，分散請求。';
+
+  @override
   String get searchServicesPageGeneralOptions => '通用選項';
 
   @override
@@ -11732,6 +11795,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String chatMessageWidgetWebSearch(String query) {
     return '聯網檢索: $query';
+  }
+
+  @override
+  String chatMessageWidgetSearchSwitchedFromTo(String from, String to) {
+    return '已從 $from 切換至 $to';
   }
 
   @override
@@ -12981,6 +13049,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get searchServicesPageAtLeastOneServiceRequired => '至少需要一個搜尋服務';
+
+  @override
+  String get searchServicesPageAtLeastOneSelectedRequired => '至少需要選中一個搜尋服務';
 
   @override
   String get modelDetailSheetChatType => '聊天';

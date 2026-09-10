@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:convert';
 import '../services/search/search_service.dart';
+import '../services/search/search_dispatch.dart';
 import '../services/stt/network_stt.dart';
 import '../services/tts/network_tts.dart';
 import '../services/tts/tts_text_selection.dart';
@@ -241,6 +242,11 @@ class SettingsProvider extends ChangeNotifier {
   static const String _searchServicesKey = 'search_services_v1';
   static const String _searchCommonKey = 'search_common_v1';
   static const String _searchSelectedKey = 'search_selected_v1';
+  // Multi-select (checked set) + dispatch mode. Not in `_localOnlyKeys`:
+  // these sync across devices with the existing backup mechanism.
+  static const String _searchSelectedProvidersKey =
+      'search_selected_providers_v1';
+  static const String _searchDispatchModeKey = 'search_dispatch_mode_v1';
   static const String _searchEnabledKey = 'search_enabled_v1';
   static const String _searchAutoTestOnLaunchKey =
       'search_auto_test_on_launch_v1';
@@ -414,7 +420,32 @@ class SettingsProvider extends ChangeNotifier {
   SearchCommonOptions _searchCommonOptions = const SearchCommonOptions();
   SearchCommonOptions get searchCommonOptions => _searchCommonOptions;
   int _searchServiceSelected = 0;
-  int get searchServiceSelected => _searchServiceSelected;
+
+  /// Selected search service ids (the checked set). Priority order is the
+  /// service-list order, so the first selected entry in list order is the
+  /// primary provider. Kept in sync with the service list (never dangling).
+  List<String> _searchSelectedProviders = <String>[];
+  List<String> get searchSelectedProviders =>
+      List.unmodifiable(_searchSelectedProviders);
+
+  /// Multi-provider dispatch mode (fallback backup vs round-robin).
+  SearchDispatchMode _searchDispatchMode = SearchDispatchMode.fallback;
+  SearchDispatchMode get searchDispatchMode => _searchDispatchMode;
+
+  /// Legacy derived getter: index of the first (highest priority) selected
+  /// provider. Retained only for call sites not yet migrated to the
+  /// multi-selection API.
+  int get searchServiceSelected {
+    if (_searchSelectedProviders.isNotEmpty) {
+      final idx = _searchServices.indexWhere(
+        (s) => s.id == _searchSelectedProviders.first,
+      );
+      if (idx >= 0) return idx;
+    }
+    if (_searchServices.isEmpty) return 0;
+    return _searchServiceSelected.clamp(0, _searchServices.length - 1);
+  }
+
   bool _searchEnabled = false;
   bool get searchEnabled => _searchEnabled;
   bool _searchAutoTestOnLaunch = false;
@@ -870,6 +901,28 @@ class SettingsProvider extends ChangeNotifier {
       } catch (_) {}
     }
     _searchServiceSelected = prefs.getInt(_searchSelectedKey) ?? 0;
+    // Multi-select migration: derive the checked set from the legacy single
+    // selection index the first time (zero-touch upgrade), then persist so
+    // subsequent loads use the new key directly.
+    final storedSelectedProviders = prefs.getStringList(
+      _searchSelectedProvidersKey,
+    );
+    if (storedSelectedProviders != null) {
+      _searchSelectedProviders = List<String>.from(storedSelectedProviders);
+    } else if (_searchServices.isNotEmpty) {
+      final legacyIdx = _searchServiceSelected.clamp(
+        0,
+        _searchServices.length - 1,
+      );
+      _searchSelectedProviders = <String>[_searchServices[legacyIdx].id];
+      await prefs.setStringList(
+        _searchSelectedProvidersKey,
+        _searchSelectedProviders,
+      );
+    }
+    _searchDispatchMode = SearchDispatchModeCodec.fromValue(
+      prefs.getString(_searchDispatchModeKey),
+    );
     _searchEnabled = prefs.getBool(_searchEnabledKey) ?? false;
     _searchAutoTestOnLaunch =
         prefs.getBool(_searchAutoTestOnLaunchKey) ?? false;
@@ -931,6 +984,18 @@ class SettingsProvider extends ChangeNotifier {
         jsonEncode(_searchServices.map((e) => e.toJson()).toList()),
       );
       await prefs.setInt(_searchSelectedKey, _searchServiceSelected);
+      // Keep the multi-selection consistent with the pruned service list.
+      final migratedIds = _searchServices.map((e) => e.id).toSet();
+      _searchSelectedProviders = _searchSelectedProviders
+          .where(migratedIds.contains)
+          .toList();
+      if (_searchSelectedProviders.isEmpty && _searchServices.isNotEmpty) {
+        _searchSelectedProviders = <String>[_searchServices.first.id];
+      }
+      await prefs.setStringList(
+        _searchSelectedProvidersKey,
+        _searchSelectedProviders,
+      );
       await prefs.setString(
         _academicConfigKey,
         jsonEncode(_academicConfig.toJson()),
@@ -3373,13 +3438,75 @@ Synthesize your reasoning and research into a final response. The structure shou
           ? _searchServices.length - 1
           : 0;
     }
+    // Prune the multi-selection so ids never dangle after delete/reorder and
+    // normalize it to the (new) service-list order = priority order. Never
+    // leave the selected set empty while at least one service exists.
+    final selectedSet = _searchSelectedProviders.toSet();
+    _searchSelectedProviders = <String>[
+      for (final s in _searchServices)
+        if (selectedSet.contains(s.id)) s.id,
+    ];
+    if (_searchSelectedProviders.isEmpty && _searchServices.isNotEmpty) {
+      _searchSelectedProviders = <String>[_searchServices.first.id];
+    }
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
       _searchServicesKey,
       jsonEncode(_searchServices.map((e) => e.toJson()).toList()),
     );
-    await prefs.setInt(_searchSelectedKey, _searchServiceSelected);
+    await prefs.setStringList(
+      _searchSelectedProvidersKey,
+      _searchSelectedProviders,
+    );
+    // Keep the legacy single-selection key in sync (derived first index) so
+    // older builds still resolve a sensible provider.
+    await prefs.setInt(_searchSelectedKey, searchServiceSelected);
+  }
+
+  /// Replace the selected search providers (checked set). Ids are validated
+  /// against the service list and normalized to service-list order (= the
+  /// priority order); an empty set is upgraded to the first service so the
+  /// selected set is never empty while a service exists.
+  Future<void> setSearchSelectedProviders(List<String> ids) async {
+    final wanted = ids.toSet();
+    final valid = <String>[
+      for (final s in _searchServices)
+        if (wanted.contains(s.id)) s.id,
+    ];
+    if (valid.isEmpty && _searchServices.isNotEmpty) {
+      valid.add(_searchServices.first.id);
+    }
+    _searchSelectedProviders = valid;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_searchSelectedProvidersKey, valid);
+    await prefs.setInt(_searchSelectedKey, searchServiceSelected);
+  }
+
+  /// Set the multi-provider dispatch mode (fallback / round-robin).
+  Future<void> setSearchDispatchMode(SearchDispatchMode mode) async {
+    if (_searchDispatchMode == mode) return;
+    _searchDispatchMode = mode;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_searchDispatchModeKey, mode.value);
+  }
+
+  /// Quick surfaces (input-bar popover / search sheet): make [id] the primary
+  /// provider by moving it to the top of the service list and adding it to
+  /// the selected set.
+  Future<void> promoteSearchProvider(String id) async {
+    final list = List<SearchServiceOptions>.from(_searchServices);
+    final idx = list.indexWhere((s) => s.id == id);
+    if (idx > 0) {
+      final moved = list.removeAt(idx);
+      list.insert(0, moved);
+    }
+    await setSearchServices(list);
+    final ids = List<String>.from(_searchSelectedProviders);
+    if (!ids.contains(id)) ids.add(id);
+    await setSearchSelectedProviders(ids);
   }
 
   Future<void> setSearchCommonOptions(SearchCommonOptions options) async {
@@ -3389,14 +3516,25 @@ Synthesize your reasoning and research into a final response. The structure shou
     await prefs.setString(_searchCommonKey, jsonEncode(options.toJson()));
   }
 
+  /// Legacy single-selection setter: replaces the multi-selection with just
+  /// this provider (kept for call sites not yet migrated).
   Future<void> setSearchServiceSelected(int index) async {
     _searchServiceSelected = index.clamp(
       0,
       _searchServices.isNotEmpty ? _searchServices.length - 1 : 0,
     );
+    if (_searchServices.isNotEmpty) {
+      _searchSelectedProviders = <String>[
+        _searchServices[_searchServiceSelected].id,
+      ];
+    }
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_searchSelectedKey, _searchServiceSelected);
+    await prefs.setStringList(
+      _searchSelectedProvidersKey,
+      _searchSelectedProviders,
+    );
   }
 
   Future<void> setSearchEnabled(bool enabled) async {
@@ -3433,8 +3571,14 @@ Synthesize your reasoning and research into a final response. The structure shou
     if (_searchCommonOptions != newSettings._searchCommonOptions) {
       await setSearchCommonOptions(newSettings._searchCommonOptions);
     }
-    if (_searchServiceSelected != newSettings._searchServiceSelected) {
-      await setSearchServiceSelected(newSettings._searchServiceSelected);
+    if (!listEquals(
+      _searchSelectedProviders,
+      newSettings._searchSelectedProviders,
+    )) {
+      await setSearchSelectedProviders(newSettings._searchSelectedProviders);
+    }
+    if (_searchDispatchMode != newSettings._searchDispatchMode) {
+      await setSearchDispatchMode(newSettings._searchDispatchMode);
     }
     if (_searchEnabled != newSettings._searchEnabled) {
       await setSearchEnabled(newSettings._searchEnabled);
@@ -3449,6 +3593,8 @@ Synthesize your reasoning and research into a final response. The structure shou
     List<SearchServiceOptions>? searchServices,
     SearchCommonOptions? searchCommonOptions,
     int? searchServiceSelected,
+    List<String>? searchSelectedProviders,
+    SearchDispatchMode? searchDispatchMode,
     bool? searchEnabled,
     bool? searchAutoTestOnLaunch,
   }) {
@@ -3458,6 +3604,19 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._searchCommonOptions = searchCommonOptions ?? _searchCommonOptions;
     copy._searchServiceSelected =
         searchServiceSelected ?? _searchServiceSelected;
+    copy._searchSelectedProviders =
+        searchSelectedProviders ?? _searchSelectedProviders;
+    if (searchServiceSelected != null &&
+        searchSelectedProviders == null &&
+        copy._searchServices.isNotEmpty) {
+      // Legacy single-selection shorthand: mirror into the multi-selection.
+      final idx = searchServiceSelected.clamp(
+        0,
+        copy._searchServices.length - 1,
+      );
+      copy._searchSelectedProviders = <String>[copy._searchServices[idx].id];
+    }
+    copy._searchDispatchMode = searchDispatchMode ?? _searchDispatchMode;
     copy._searchEnabled = searchEnabled ?? _searchEnabled;
     copy._searchAutoTestOnLaunch =
         searchAutoTestOnLaunch ?? _searchAutoTestOnLaunch;

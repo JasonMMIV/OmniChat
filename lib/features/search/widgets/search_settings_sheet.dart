@@ -153,10 +153,7 @@ class _SearchSettingsSheet extends StatelessWidget {
     final ap = context.watch<AssistantProvider>();
     final a = ap.currentAssistant;
     final services = settings.searchServices;
-    final selected = settings.searchServiceSelected.clamp(
-      0,
-      services.isNotEmpty ? services.length - 1 : 0,
-    );
+    final selectedIds = settings.searchSelectedProviders;
     final enabled = settings.searchEnabled;
 
     // Determine if current selected model supports built-in search
@@ -551,7 +548,10 @@ class _SearchSettingsSheet extends StatelessWidget {
                 if (!builtInMode && services.isNotEmpty) ...[
                   ...List.generate(services.length, (i) {
                     final s = services[i];
-                    final bool isSelected = i == selected;
+                    final order = selectedIds.indexOf(s.id);
+                    final bool isSelected = order >= 0;
+                    final bool showOrderBadge =
+                        selectedIds.length > 1 && isSelected;
                     final Color onColor = isSelected
                         ? cs.primary
                         : cs.onSurface;
@@ -563,12 +563,15 @@ class _SearchSettingsSheet extends StatelessWidget {
                           borderRadius: BorderRadius.circular(14),
                           baseColor: cs.surface,
                           duration: const Duration(milliseconds: 260),
-                          onTap: () {
+                          onTap: () async {
                             Haptics.light();
-                            context
-                                .read<SettingsProvider>()
-                                .setSearchServiceSelected(i);
-                            Navigator.of(context).maybePop();
+                            final navigator = Navigator.of(context);
+                            final sp = context.read<SettingsProvider>();
+                            // Tap = make this the primary provider (moved to
+                            // the top of the list) + select it + enable search.
+                            await sp.promoteSearchProvider(s.id);
+                            await sp.setSearchEnabled(true);
+                            navigator.maybePop();
                           },
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           child: Row(
@@ -588,7 +591,28 @@ class _SearchSettingsSheet extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              if (isSelected)
+                              // Order badges (1,2,3…) communicate provider
+                              // priority — the first selected provider is
+                              // the primary one.
+                              if (showOrderBadge)
+                                Container(
+                                  width: 18,
+                                  height: 18,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: cs.primary.withOpacity(0.14),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Text(
+                                    '${order + 1}',
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: cs.primary,
+                                    ),
+                                  ),
+                                )
+                              else if (isSelected)
                                 Icon(Lucide.Check, size: 18, color: cs.primary)
                               else
                                 const SizedBox(width: 18),
