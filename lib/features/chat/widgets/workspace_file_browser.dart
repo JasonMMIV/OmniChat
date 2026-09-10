@@ -8,6 +8,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/services/android_folder_reveal.dart';
 import '../../../core/services/file/file_tool_service.dart';
 import '../../../desktop/desktop_context_menu.dart';
 import '../../../desktop/html_preview_dialog.dart';
@@ -283,6 +284,21 @@ class _WorkspaceFileBrowserState extends State<WorkspaceFileBrowser> {
     }
     if (Platform.isLinux) {
       await Process.run('xdg-open', [entry.parent.path]);
+      return;
+    }
+    if (Platform.isAndroid) {
+      // Android has no generic "show in folder" API: hand shared-storage
+      // folders to the system file manager via a SAF document URI, and report
+      // when the folder is app-private (invisible to every external app).
+      final opened = await AndroidFolderReveal.revealFolder(entry.parent.path);
+      if (mounted && !opened) {
+        final l10n = AppLocalizations.of(context)!;
+        showAppSnackBar(
+          context,
+          message: l10n.workspaceShowInFolderUnavailable,
+          type: NotificationType.error,
+        );
+      }
       return;
     }
     await OpenFilex.open(entry.parent.path);

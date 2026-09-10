@@ -9338,6 +9338,12 @@ abstract class AppLocalizations {
   /// **'Show in folder'**
   String get chatMessageWidgetShowInFolder;
 
+  /// No description provided for @workspaceShowInFolderUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This folder can\'t be opened with the system file manager.'**
+  String get workspaceShowInFolderUnavailable;
+
   /// No description provided for @chatMessageWidgetOpenExternally.
   ///
   /// In en, this message translates to:

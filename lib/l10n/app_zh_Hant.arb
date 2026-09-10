@@ -1697,6 +1697,7 @@
     }
   },
   "chatMessageWidgetShowInFolder": "顯示所在資料夾",
+  "workspaceShowInFolderUnavailable": "此資料夾無法在系統檔案管理員中開啟。",
   "chatMessageWidgetOpenExternally": "外部開啟",
   "chatMessageWidgetDownload": "下載",
   "chatMessageWidgetFileActions": "檔案操作",

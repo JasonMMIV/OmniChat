@@ -2069,6 +2069,7 @@
     }
   },
   "chatMessageWidgetShowInFolder": "Show in folder",
+  "workspaceShowInFolderUnavailable": "This folder can't be opened with the system file manager.",
   "chatMessageWidgetOpenExternally": "Open externally",
   "chatMessageWidgetDownload": "Download",
   "chatMessageWidgetFileActions": "File actions",
