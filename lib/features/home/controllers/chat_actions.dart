@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/widgets.dart';
-import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import '../../../core/models/ai_team_config.dart';
 import '../../../core/models/assistant.dart';
@@ -22,7 +21,6 @@ import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
-import '../../../core/services/workspace/workspace_snapshot.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant_regex.dart';
@@ -105,10 +103,6 @@ class ChatActions {
 
   /// Called when an error occurs during streaming.
   void Function(String error)? onStreamError;
-
-  /// Called for non-fatal user notices (e.g. P1-5 snapshot restore result).
-  /// The UI surfaces these as an info snackbar.
-  void Function(String message)? onNotice;
 
   /// Called when the L1 retry loop is about to reissue a request after a
   /// transient network failure or silent stream interruption. The UI uses
@@ -262,16 +256,6 @@ class ChatActions {
           modelId: effModelId,
           providerKey: effProviderKey,
         );
-
-    // P1-5: workspace snapshot at run start (best-effort, never blocks the
-    // run). Only when the run has an enabled workspace — the zip is the
-    // complete rollback guarantee for file tools AND shell mutations (the
-    // FileRecord list alone is incomplete for shell, CLI v4 §九.2).
-    await _createRunSnapshot(
-      conversation: conversation,
-      runId: assistantMessage.id,
-      settings: settings,
-    );
 
     // Pre-create streaming notifier BEFORE adding message to list
     // so that MessageListView can detect it's streaming on first render
@@ -484,16 +468,16 @@ class ChatActions {
   /// Resolve an approval decision and continue the run.
   ///
   /// [approve] = execute the pending call once and feed its real result to
-  /// the model; deny = feed the structured denial JSON; answer = feed the
-  /// user's answer JSON (ask_user mode). [alwaysAllow] additionally records
-  /// the per-tool/per-server/per-path override so future calls skip the
-  /// card (persisted, not in _localOnlyKeys).
+  /// the model; deny = feed the structured denial JSON (ask_user answers are
+  /// dispatched to [resumeAfterAskUserAnswer] before reaching here).
+  /// [alwaysAllow] additionally records the `workspace-out:{resolvedPath}`
+  /// override so future calls to the same concrete out-of-workspace path
+  /// skip the card (persisted, not in _localOnlyKeys).
   Future<ChatMessage?> resolveApproval(
     String conversationId,
     String assistantMessageId,
     String toolCallId, {
     required bool approve,
-    Map<String, dynamic>? answerPayload,
     bool alwaysAllow = false,
   }) async {
     final conv = _currentConversation;
@@ -533,25 +517,18 @@ class ChatActions {
       );
     }
 
-    // "Always allow": persist the override key derived from the pending
-    // payload (MCP tool / server, or out-of-workspace absolute path).
+    // "Always allow": persist the out-of-workspace override key derived from
+    // the pending payload so future calls to the same concrete resolved path
+    // skip the card (the policy snapshot reads it back on the next run).
     if (alwaysAllow && approve) {
-      final pending = parseApprovalContent(event['content']?.toString());
-      final resolvedPath = pending?['resolved_path']?.toString();
-      final serverName = pending?['server']?.toString();
-      String key;
-      if (name.startsWith('file_')) {
-        key = 'workspace-out:${resolvedPath ?? '*'}';
-      } else if (serverName != null) {
-        key = 'mcp-server:$serverName';
-      } else {
-        key = 'mcp:*:$name';
+      final resolvedPath = pendingPayload?['resolved_path']?.toString();
+      if (resolvedPath != null && resolvedPath.trim().isNotEmpty) {
+        try {
+          await contextProvider
+              .read<SettingsProvider>()
+              .addApprovalAlwaysAllowed('workspace-out:$resolvedPath');
+        } catch (_) {}
       }
-      try {
-        await contextProvider
-            .read<SettingsProvider>()
-            .addApprovalAlwaysAllowed(key);
-      } catch (_) {}
     }
 
     // Deny: record the denial and continue with the denial JSON as the
@@ -577,12 +554,20 @@ class ChatActions {
 
     // Approve: execute the tool once (the checkpoint was the pending event;
     // the side effect happens exactly here), then persist the real result.
+    // When the pending payload carries an out-of-workspace path, hand it to
+    // the handler so the call skips re-classification and the executor runs
+    // against the concrete path the user approved (ADR-A8).
+    final outsideWorkspace = pendingPayload?['outside_workspace'] == true;
+    final approvedPath = pendingPayload?['resolved_path']?.toString();
     final handler = generationController.buildToolCallHandler(
       contextProvider.read<SettingsProvider>(),
       _assistantForConversation(conv),
       conversationId: conversationId,
       messageId: assistantMessageId,
       workspacePath: await _workspacePathFor(conv),
+      approvedResolvedPath: (outsideWorkspace && (approvedPath ?? '').isNotEmpty)
+          ? approvedPath
+          : null,
     );
     String result;
     try {
@@ -734,122 +719,6 @@ class ChatActions {
     } catch (_) {
       return null;
     }
-  }
-
-  // ==========================================================================
-  // P1-5 Workspace snapshot + one-click rollback
-  // ==========================================================================
-
-  /// Capture a zip snapshot of the workspace at run start (best-effort:
-  /// any failure skips the snapshot silently — never breaks the run).
-  /// Persisted as a log-only `workspace_snapshot` tool event on the run's
-  /// assistant message so the SnapshotRestoreCard renders in the timeline
-  /// (and survives reload) without the event ever reaching the model.
-  Future<void> _createRunSnapshot({
-    required Conversation conversation,
-    required String runId,
-    required SettingsProvider settings,
-  }) async {
-    try {
-      if (!settings.workspaceSnapshotsV1) return;
-      final workspacePath = await _workspacePathFor(conversation);
-      if (workspacePath == null) return;
-      final result = await WorkspaceSnapshotService.create(
-        workspaceRoot: workspacePath,
-        runId: runId,
-      );
-      if (result.ok && result.zipPath != null) {
-        final record = <String, dynamic>{
-          'version': 1,
-          'workspace': workspacePath,
-          'zip': result.zipPath,
-          'file_count': result.fileCount,
-          'zip_bytes': result.totalBytes,
-          'created_at': DateTime.now().toIso8601String(),
-          'restored': false,
-        };
-        await chatService.setMessageSnapshot(runId, record);
-        // P1-5: log-only tool event → SnapshotRestoreCard in the timeline.
-        // Placement after markStreamingStarted mirrors todoToolName; failure
-        // is non-fatal (the record above still enables rollback).
-        try {
-          await chatService.upsertToolEvent(
-            runId,
-            id: 'snap_$runId',
-            name: workspaceSnapshotToolName,
-            arguments: const <String, dynamic>{},
-            content: jsonEncode(record),
-          );
-        } catch (_) {}
-      }
-    } catch (_) {
-      // Snapshot persistence must never break the conversation.
-    }
-  }
-
-  /// One-click rollback: restore the run's snapshot over the workspace and
-  /// mark the record (the card flips to its restored state). Returns an
-  /// error-code string on failure, null on success.
-  Future<String?> restoreRunSnapshot(
-    String conversationId,
-    String runId,
-  ) async {
-    final conv = _currentConversation;
-    if (conv == null || conv.id != conversationId) return 'no_conversation';
-    final snapshot = chatService.getMessageSnapshot(runId);
-    if (snapshot == null) return 'snapshot_missing';
-    if (snapshot['restored'] == true) return 'already_restored';
-    final zipPath = snapshot['zip']?.toString();
-    final workspacePath = snapshot['workspace']?.toString();
-    if (zipPath == null || zipPath.isEmpty) return 'snapshot_missing';
-
-    // Roll back against the CURRENT workspace of the conversation (the user
-    // may have re-pointed it; restoring into a different directory would
-    // corrupt an unrelated project).
-    final currentWorkspace = await _workspacePathFor(conv);
-    if (currentWorkspace == null) return 'workspace_disabled';
-    if (workspacePath != null &&
-        workspacePath.trim().isNotEmpty &&
-        p.canonicalize(workspacePath) != p.canonicalize(currentWorkspace)) {
-      return 'workspace_changed';
-    }
-
-    final result = await WorkspaceSnapshotService.restore(
-      workspaceRoot: currentWorkspace,
-      zipPath: zipPath,
-    );
-    if (!result.ok) return result.error ?? 'restore_failed';
-
-    final record = <String, dynamic>{
-      ...snapshot,
-      'restored': true,
-      'restored_at': DateTime.now().toIso8601String(),
-      'restored_files': result.fileCount,
-    };
-    await chatService.setMessageSnapshot(runId, record);
-    // P1-5: refresh the open SnapshotRestoreCard in place — the run's own
-    // workspace_snapshot tool event carries the updated record (id matches
-    // the emit path in _createRunSnapshot).
-    try {
-      await chatService.upsertToolEvent(
-        runId,
-        id: 'snap_$runId',
-        name: workspaceSnapshotToolName,
-        arguments: const <String, dynamic>{},
-        content: jsonEncode(record),
-      );
-    } catch (_) {}
-    _refreshToolPart(runId, 'snap_$runId', content: jsonEncode(record));
-    // P1-5: localized user-facing hint on the restored card (the number of
-    // files rolled back); a snackbar for immediate feedback when the card
-    // is scrolled out of view.
-    final l10n = AppLocalizations.of(contextProvider);
-    if (l10n != null) {
-      onNotice?.call(
-        l10n.workspaceSnapshotsToggleRestoreHint(result.fileCount),
-      );
-    }
-    return null;
   }
 
   // ============================================================================
@@ -1251,7 +1120,6 @@ class ChatActions {
         toolCallId,
         approve: approve,
         alwaysAllow: alwaysAllow,
-        answerPayload: answerPayload,
       );
     }
     if (toolCallId != null && assistantMessageId != null) {

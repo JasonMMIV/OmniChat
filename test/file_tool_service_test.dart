@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:archive/archive_io.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:OmniChat/core/services/chat/document_text_extractor.dart';
 import 'package:OmniChat/core/services/file/file_tool_service.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
@@ -30,6 +31,78 @@ void main() {
       ),
       throwsA(isA<FileToolSecurityException>()),
     );
+  });
+
+  group('approved out-of-workspace execution (P1-1 v1.6)', () {
+    late Directory outside;
+
+    setUp(() async {
+      outside = await Directory.systemTemp.createTemp(
+        'omnichat_file_outside_',
+      );
+    });
+
+    tearDown(() async {
+      if (await outside.exists()) await outside.delete(recursive: true);
+    });
+
+    test('probePathSafety reports the concrete outside path', () {
+      final probe = FileToolService.probePathSafety(
+        '../${p.basename(outside.path)}/report.txt',
+        workspace.path,
+      );
+      expect(probe.inside, isFalse);
+      expect(probe.resolvedPath, isNotNull);
+      expect(p.basename(probe.resolvedPath!), equals('report.txt'));
+      expect(probe.resolvedPath!, contains('omnichat_file_outside_'));
+    });
+
+    test('without approval the boundary is still enforced', () async {
+      final result = await FileToolService.execute('file_write', {
+        'path': '../${p.basename(outside.path)}/blocked.txt',
+        'content': 'nope',
+      }, workspace.path);
+      expect(result.text, contains('out of workspace boundary'));
+      expect(File('${outside.path}/blocked.txt').existsSync(), isFalse);
+    });
+
+    test('approved write executes against the concrete outside path', () async {
+      final target = '${outside.path}/approved.txt';
+      final result = await FileToolService.execute('file_write', {
+        'path': target,
+        'content': 'hello outside',
+      }, workspace.path, approvedOutsidePath: target);
+      expect(result.text, contains('Wrote'));
+      expect(await File(target).readAsString(), 'hello outside');
+      expect(result.createdOrModifiedFilePath, p.normalize(target));
+    });
+
+    test('approved read returns outside content', () async {
+      final target = '${outside.path}/read-me.txt';
+      await File(target).writeAsString('outside data');
+      final result = await FileToolService.execute('file_read', {
+        'path': target,
+      }, workspace.path, approvedOutsidePath: target);
+      expect(result.text, contains('outside data'));
+    });
+
+    test('hard floors are not relaxed by approval', () async {
+      final bigTarget = '${outside.path}/too-large.txt';
+      final big = await FileToolService.execute('file_write', {
+        'path': bigTarget,
+        'content': 'x' * (FileToolService.maxWriteBytes + 1),
+      }, workspace.path, approvedOutsidePath: bigTarget);
+      expect(big.text, contains('512 KB'));
+      expect(File(bigTarget).existsSync(), isFalse);
+
+      final exeTarget = '${outside.path}/evil.exe';
+      final exe = await FileToolService.execute('file_write', {
+        'path': exeTarget,
+        'content': 'MZ',
+      }, workspace.path, approvedOutsidePath: exeTarget);
+      expect(exe.text, contains('blocked'));
+      expect(File(exeTarget).existsSync(), isFalse);
+    });
   });
 
   test('writes, reads, appends, and enforces byte limits', () async {

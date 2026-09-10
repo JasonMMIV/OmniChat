@@ -8,8 +8,8 @@ import '../../core/services/agent/approval.dart';
 import '../../shared/widgets/ios_switch.dart';
 
 /// P1-1: desktop settings pane for the tool-approval policy — strict mode
-/// toggle plus management of the persisted "always allow" overrides (CLI v4
-/// §三.3 override 持久化；ADR-A9 三層政策的可見控制面).
+/// toggle plus management of the persisted "always allow" overrides
+/// (out-of-workspace paths; the MCP override keys were removed 2026-09-10).
 class DesktopApprovalPane extends StatelessWidget {
   const DesktopApprovalPane({super.key});
 
@@ -17,16 +17,7 @@ class DesktopApprovalPane extends StatelessWidget {
     AppLocalizations l10n,
     ApprovalOverrideKey decoded,
   ) {
-    switch (decoded.kind) {
-      case ApprovalOverrideKind.mcpTool:
-        return l10n.approvalOverrideMcpTool(
-          '${decoded.serverId ?? '*'} / ${decoded.toolName ?? '*'}',
-        );
-      case ApprovalOverrideKind.mcpServer:
-        return l10n.approvalOverrideMcpServer(decoded.serverId ?? '*');
-      case ApprovalOverrideKind.workspaceOut:
-        return l10n.approvalOverridePath(decoded.resolvedPath ?? '*');
-    }
+    return l10n.approvalOverridePath(decoded.resolvedPath ?? '*');
   }
 
   @override
@@ -158,9 +149,7 @@ class DesktopApprovalPane extends StatelessWidget {
                         child: Row(
                           children: [
                             Icon(
-                              decoded?.kind == ApprovalOverrideKind.workspaceOut
-                                  ? lucide.Lucide.FileQuestion
-                                  : lucide.Lucide.Terminal,
+                              lucide.Lucide.FileQuestion,
                               size: 18,
                               color: cs.onSurface.withOpacity(0.6),
                             ),

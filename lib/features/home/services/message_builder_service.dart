@@ -17,11 +17,14 @@ import '../../../core/services/search/search_tool_service.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/services/api/builtin_tools.dart';
 import '../../../core/services/chat/todo_service.dart';
-import '../../../core/services/workspace/workspace_snapshot.dart';
 import '../../../core/services/agent/compaction/context_trim.dart';
 import '../../../core/services/agent/compaction/history_compactor.dart';
 import '../../../core/services/agent/compaction/tool_result_pruner.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
+
+/// Legacy log-only tool name (P1-5 workspace snapshots, removed 2026-09-10).
+/// Old conversations may still persist these events; they must never replay.
+const String _legacyWorkspaceSnapshotToolName = 'workspace_snapshot';
 
 /// Normalize a stored tool result for model consumption.
 ///
@@ -205,10 +208,11 @@ class MessageBuilderService {
               // injected at the system-prompt tail, never replayed as
               // history (avoids pushing the whole plan into every turn).
               if (name == todoToolName) continue;
-              // P1-5: workspace_snapshot is a UI-only rollback affordance —
-              // the record's file counts must not cost model context, and
-              // the snapshot zip is never model-visible.
-              if (name == workspaceSnapshotToolName) continue;
+              // Legacy (P1-5 removed 2026-09-10): old conversations may
+              // still persist `workspace_snapshot` log-only events — keep
+              // skipping them so the removed affordance never reaches the
+              // model.
+              if (name == _legacyWorkspaceSnapshotToolName) continue;
               // P1-3: ask_user DOES replay — the answered JSON is the
               // model-facing record of what the user chose (ADR-A5
               // "Answered → answer as tool result"), so the resumed turn's

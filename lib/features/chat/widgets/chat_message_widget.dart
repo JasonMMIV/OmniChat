@@ -27,7 +27,6 @@ import '../../../core/providers/user_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/todo_service.dart';
-import '../../../core/services/workspace/workspace_snapshot.dart';
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../core/providers/assistant_provider.dart';
@@ -122,8 +121,6 @@ class ChatMessageWidget extends StatefulWidget {
   // P1-1: resolve an approval-pending tool call (approve/deny, resumes)
   final Future<void> Function(String assistantMessageId, String toolCallId,
       {required bool approve, bool alwaysAllow})? onResolveApproval;
-  // P1-5: restore a run's workspace snapshot (one-click rollback)
-  final Future<String?> Function(String runId)? onRestoreRunSnapshot;
 
   const ChatMessageWidget({
     super.key,
@@ -160,7 +157,6 @@ class ChatMessageWidget extends StatefulWidget {
     this.hideStreamingIndicator = false,
     this.onSubmitAskUserAnswer,
     this.onResolveApproval,
-    this.onRestoreRunSnapshot,
   });
 
   @override
@@ -722,7 +718,6 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
         assistantMessageId: widget.message.id,
         onSubmitAskUserAnswer: widget.onSubmitAskUserAnswer,
         onResolveApproval: widget.onResolveApproval,
-        onRestoreRunSnapshot: widget.onRestoreRunSnapshot,
       ),
     );
   }
@@ -1933,7 +1928,6 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                         assistantMessageId: widget.message.id,
                         onSubmitAskUserAnswer: widget.onSubmitAskUserAnswer,
                         onResolveApproval: widget.onResolveApproval,
-                        onRestoreRunSnapshot: widget.onRestoreRunSnapshot,
                       ),
                     ),
                   );
@@ -2020,7 +2014,6 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                           assistantMessageId: widget.message.id,
                           onSubmitAskUserAnswer: widget.onSubmitAskUserAnswer,
                           onResolveApproval: widget.onResolveApproval,
-                          onRestoreRunSnapshot: widget.onRestoreRunSnapshot,
                         ),
                       ),
                     )
@@ -3179,13 +3172,17 @@ class ReasoningSegment {
   });
 }
 
+/// Legacy log-only tool name (P1-5 workspace snapshots, removed 2026-09-10).
+/// Old conversations may still persist `workspace_snapshot` events; the
+/// timeline renders nothing for them.
+const String _legacyWorkspaceSnapshotToolName = 'workspace_snapshot';
+
 class _ToolCallItem extends StatelessWidget {
   const _ToolCallItem({
     required this.part,
     this.assistantMessageId,
     this.onSubmitAskUserAnswer,
     this.onResolveApproval,
-    this.onRestoreRunSnapshot,
   });
   final ToolUIPart part;
 
@@ -3200,10 +3197,6 @@ class _ToolCallItem extends StatelessWidget {
   /// P1-1: resolve an approval-pending call (approve/deny, resumes).
   final Future<void> Function(String assistantMessageId, String toolCallId,
       {required bool approve, bool alwaysAllow})? onResolveApproval;
-
-  /// P1-5: restore a run's workspace snapshot (one-click rollback). Returns
-  /// an error code on failure, null on success.
-  final Future<String?> Function(String runId)? onRestoreRunSnapshot;
 
   IconData _iconFor(String name) {
     switch (name) {
@@ -3276,16 +3269,10 @@ class _ToolCallItem extends StatelessWidget {
       );
     }
 
-    // P1-5: snapshot restore card — one-click workspace rollback rendered
-    // from the run-start workspace_snapshot tool event.
-    if (part.toolName == workspaceSnapshotToolName) {
-      return SnapshotRestoreCard(
-        arguments: part.arguments,
-        content: part.content,
-        onRestore: (assistantMessageId != null && onRestoreRunSnapshot != null)
-            ? () => onRestoreRunSnapshot!(assistantMessageId!)
-            : null,
-      );
+    // Legacy (P1-5 removed 2026-09-10): old conversations may still contain
+    // `workspace_snapshot` log-only events — render nothing for them.
+    if (part.toolName == _legacyWorkspaceSnapshotToolName) {
+      return const SizedBox.shrink();
     }
 
     // P1-1: approval-pending card — Approve / Deny / Always-allow row

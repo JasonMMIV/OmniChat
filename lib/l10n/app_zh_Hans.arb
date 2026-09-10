@@ -537,14 +537,6 @@
       }
     }
   },
-  "approvalServerLabel": "MCP 服务器：{server}",
-  "@approvalServerLabel": {
-    "placeholders": {
-      "server": {
-        "type": "String"
-      }
-    }
-  },
   "approvalApprove": "批准",
   "approvalAlwaysAllow": "总是允许",
   "approvalDeny": "拒绝",
@@ -555,22 +547,6 @@
   "approvalOverridesSubtitle": "此列表中的工具调用跳过审批提示，可在审批卡上添加。",
   "approvalOverridesEmpty": "还没有总是允许的项目。",
   "approvalOverrideRemove": "移除",
-  "approvalOverrideMcpTool": "MCP 工具：{tool}",
-  "@approvalOverrideMcpTool": {
-    "placeholders": {
-      "tool": {
-        "type": "String"
-      }
-    }
-  },
-  "approvalOverrideMcpServer": "MCP 服务器：{server}",
-  "@approvalOverrideMcpServer": {
-    "placeholders": {
-      "server": {
-        "type": "String"
-      }
-    }
-  },
   "approvalOverridePath": "路径：{path}",
   "@approvalOverridePath": {
     "placeholders": {
@@ -579,36 +555,6 @@
       }
     }
   },
-  "snapshotCardTitle": "工作区快照",
-  "snapshotCardRestoredTitle": "工作区已还原",
-  "snapshotCardChangesTitle": "本次任务改动 {count} 个文件 — 还原到任务开始时的快照？",
-  "@snapshotCardChangesTitle": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "snapshotCardRestoredPill": "已还原 {count} 个文件",
-  "@snapshotCardRestoredPill": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "snapshotCardRestoredShort": "已还原",
-  "snapshotCardDisclaimer": "还原会把整个工作区回滚到本任务开始时的状态。对 shell 命令而言，改动文件列表并不完整——快照才是完整的回滚保障。",
-  "snapshotCardTakenAt": "快照时间：{time}",
-  "@snapshotCardTakenAt": {
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "snapshotCardFailed": "还原失败，请重试。",
-  "snapshotCardRestoreButton": "还原",
   "chatMessageWidgetEditMemory": "编辑记忆",
   "chatMessageWidgetDeleteMemory": "删除记忆",
   "chatMessageWidgetWebSearch": "联网检索: {query}",
@@ -1735,9 +1681,6 @@
   "aiContentPolicyReportAction": "打开 GitHub Issues",
   "aiContentPolicyReportHint": "如需回报有害或不当内容，请到 GitHub 创建 Issue。",
   "softStopMaxStepsNote": "运行已达步数上限并停止，发送消息即可继续。",
-  "softStopTokenBudgetNote": "运行已达 Token 预算并停止，发送消息即可继续。",
-  "workspaceSnapshotsToggleTitle": "运行快照",
-  "workspaceSnapshotsToggleSubtitle": "在每轮 Agent 运行前自动快照工作区，支持一键回滚文件改动。",
-  "workspaceSnapshotsToggleRestoreHint": "已恢复工作区快照：{count} 个文件。"
+  "softStopTokenBudgetNote": "运行已达 Token 预算并停止，发送消息即可继续。"
 }
 

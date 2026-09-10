@@ -36,9 +36,10 @@ class ToolHandlerService {
   final BuildContext contextProvider;
   final ChatService chatService;
 
-  /// P1-1: persisted "always allow" override keys (policy snapshot, taken
-  /// when the handler is built). Mutated via [allowAlways].
-  final Set<String> _approvalAlwaysAllowed = <String>{};
+  /// P1-1: persisted "always allow" override keys (policy snapshot, refreshed
+  /// from `SettingsProvider.approvalAlwaysAllowed` whenever a handler is
+  /// built). Keys are `workspace-out:{resolvedPath}`.
+  Set<String> _approvalAlwaysAllowed = <String>{};
 
   // ============================================================================
   // Tool Schema Sanitization
@@ -423,13 +424,22 @@ class ToolHandlerService {
   /// approval Pending event id (kernel path) and the externalized output
   /// filename. Closures of the legacy `(name, args)` shape remain
   /// assignable.
+  ///
+  /// P1-1 v1.6: [approvedResolvedPath] is set by the approval resume path —
+  /// the user approved this concrete out-of-workspace path, so the call
+  /// skips re-classification and executes against it exactly once.
   ToolCallHandler? buildToolCallHandler(
     SettingsProvider settings,
     Assistant? assistant, {
     String? conversationId,
     String? messageId,
     String? workspacePath,
+    String? approvedResolvedPath,
   }) {
+    // P1-1 v1.6: refresh the "always allow" policy snapshot from settings so
+    // persisted workspace-out overrides are actually consulted (the set
+    // previously stayed empty and overrides never reached the engine).
+    _approvalAlwaysAllowed = settings.approvalAlwaysAllowed.toSet();
     final mcp = contextProvider.read<McpProvider>();
     final toolSvc = contextProvider.read<McpToolService>();
     // Capture AssistantProvider reference before async gap to avoid
@@ -456,13 +466,19 @@ class ToolHandlerService {
 
       // P1-1: approval gate (ADR-A5) — classify BEFORE execution; an `ask`
       // decision returns the approval_required JSON without running the tool
-      // and marks the event Pending so the card offers Approve / Deny.
-      final decision = _classifyApproval(
-        name,
-        args,
-        workspacePath: effectiveWorkspace,
-        assistant: assistant,
-      );
+      // and marks the event Pending so the card offers Approve / Deny. An
+      // approved resume (`approvedResolvedPath` set) skips classification:
+      // the user's decision IS the gate, and the call executes once below.
+      final decision = name.startsWith('file_') && approvedResolvedPath != null
+          ? _PendingDecision(
+              state: ApprovalDecision.allow,
+              resolvedPath: approvedResolvedPath,
+            )
+          : _classifyApproval(
+              name,
+              args,
+              workspacePath: effectiveWorkspace,
+            );
       if (decision.state == ApprovalDecision.ask ||
           decision.state == ApprovalDecision.deny) {
         if (messageId != null && conversationId != null) {
@@ -496,6 +512,7 @@ class ToolHandlerService {
             name,
             args,
             workspacePath,
+            approvedOutsidePath: decision.resolvedPath,
           );
           if (result.createdOrModifiedFilePath != null && messageId != null) {
             try {
@@ -681,7 +698,6 @@ class ToolHandlerService {
     String name,
     Map<String, dynamic> args, {
     String? workspacePath,
-    Assistant? assistant,
   }) {
     // Non-callable decision tools and in-sandbox flows skip the engine.
     if (name == askUserToolName || name == todoToolName) {
@@ -721,7 +737,15 @@ class ToolHandlerService {
           strictMode: strict,
         ),
       );
-      if (decision == ApprovalDecision.allow) return _PendingDecision.allow();
+      if (decision == ApprovalDecision.allow) {
+        // Override-approved out-of-bounds call: carry the concrete resolved
+        // path so the executor runs against it (the approval IS the gate;
+        // blocked extensions / size caps still apply downstream).
+        return _PendingDecision(
+          state: ApprovalDecision.allow,
+          resolvedPath: pathProbe.inside ? null : pathProbe.resolvedPath,
+        );
+      }
       final content = decision == ApprovalDecision.ask
           ? buildApprovalPendingContent(
               toolName: name,
@@ -738,33 +762,10 @@ class ToolHandlerService {
       );
     }
 
-    // --- MCP tools: black-box capability → ask by default (v1.5) ---
-    final mcpProbe = _mcpToolProbe(name, assistant);
-    if (mcpProbe != null) {
-      final decision = decideApproval(
-        ApprovalContext(
-          isMcpTool: true,
-          mcpServerId: mcpProbe.$1,
-          mcpToolName: name,
-          alwaysAllowedKeys: alwaysAllowed,
-          strictMode: strict,
-        ),
-      );
-      if (decision == ApprovalDecision.allow) return _PendingDecision.allow();
-      final content = decision == ApprovalDecision.ask
-          ? buildApprovalPendingContent(
-              toolName: name,
-              serverName: mcpProbe.$2,
-              arguments: args,
-            )
-          : buildApprovalDeniedContent(toolName: name);
-      return _PendingDecision(
-        state: decision,
-        toolCallId: _approvalCallId(name),
-        content: content,
-      );
-    }
-
+    // MCP tools are deliberately NOT approval-gated (2026-09-10): the
+    // black-box policy source was removed — per-call MCP approval proved
+    // unnecessary, and the approve side of the engine never actually
+    // executed the call. MCP calls fall through to `allow` and run directly.
     return _PendingDecision.allow();
   }
 
@@ -773,22 +774,6 @@ class ToolHandlerService {
   /// the provider id; the event is later matched/upserted by name when the
   /// provider id arrives, or resumed by this id).
   String _approvalCallId(String name) => 'approval_$name';
-
-  /// Look up the MCP server that owns [name] for the given assistant.
-  /// Returns `(serverId, serverName)` or null when [name] is not an MCP
-  /// tool for this assistant.
-  (String, String)? _mcpToolProbe(String name, Assistant? assistant) {
-    try {
-      final mcp = contextProvider.read<McpProvider>();
-      final selected = (assistant?.mcpServerIds ?? const <String>[]).toSet();
-      for (final s in mcp.connectedServers) {
-        if (!selected.contains(s.id)) continue;
-        final has = s.tools.any((t) => t.enabled && t.name == name);
-        if (has) return (s.id, s.name);
-      }
-    } catch (_) {}
-    return null;
-  }
 
   SettingsProvider? _safeReadSettings() {
     try {
@@ -835,12 +820,6 @@ class ToolHandlerService {
     return null;
   }
 
-  /// P1-1: record a per-tool/per-server/per-path "always allow" override
-  /// (policy snapshot mutation — takes effect for the rest of this
-  /// generation and is persisted by the resume layer).
-  void allowAlways(String key) {
-    _approvalAlwaysAllowed.add(key);
-  }
 }
 
 /// The outcome of the P1-1 approval classification for one tool call.
@@ -849,14 +828,21 @@ class _PendingDecision {
     required this.state,
     this.toolCallId = '',
     this.content = '',
+    this.resolvedPath,
   });
 
   const _PendingDecision.allow()
     : state = ApprovalDecision.allow,
       toolCallId = '',
-      content = '';
+      content = '',
+      resolvedPath = null;
 
   final ApprovalDecision state;
   final String toolCallId;
   final String content;
+
+  /// The approved concrete out-of-workspace path handed to the executor when
+  /// the call runs (set when an override allowed an out-of-bounds workspace
+  /// call). Null for ordinary in-sandbox calls.
+  final String? resolvedPath;
 }

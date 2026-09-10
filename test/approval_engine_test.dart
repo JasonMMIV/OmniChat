@@ -1,18 +1,14 @@
 // P1-1 approval engine unit tests (IMPORT_PLAN_COWORK.md P1-1; ADR-A5/A8/A9).
 //
 // Covers the pure-Dart policy engine: the three-decision classification
-// (allow / ask / deny) across the v1.5 policy sources (workspace boundary →
-// ask, MCP tools → default ask, "always allow" overrides, strict mode), and
-// the structured pending / denied / timeout tool-result JSON contracts.
+// (allow / ask / deny) for the workspace-boundary source (out-of-sandbox
+// paths → ask, "always allow" overrides, strict mode), and the structured
+// pending / denied / timeout tool-result JSON contracts. MCP tools are no
+// longer approval-gated (2026-09-10: the MCP policy source was removed).
 
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:OmniChat/core/services/agent/approval.dart';
-
-// Re-exported private helpers are not accessible; use the public key shapes.
-String _mcpToolKey(String serverId, String toolName) =>
-    'mcp:$serverId:$toolName';
-String _mcpServerKey(String serverId) => 'mcp-server:$serverId';
 
 void main() {
   group('decideApproval — workspace tools', () {
@@ -64,57 +60,6 @@ void main() {
     });
   });
 
-  group('decideApproval — MCP tools', () {
-    test('MCP tool → ask by default (v1.5 black-box policy)', () {
-      final d = decideApproval(const ApprovalContext(
-        isMcpTool: true,
-        mcpServerId: 'srv1',
-        mcpToolName: 'fetch',
-      ));
-      expect(d, equals(ApprovalDecision.ask));
-    });
-
-    test('per-tool override → allow', () {
-      final d = decideApproval(ApprovalContext(
-        isMcpTool: true,
-        mcpServerId: 'srv1',
-        mcpToolName: 'fetch',
-        alwaysAllowedKeys: {_mcpToolKey('srv1', 'fetch')},
-      ));
-      expect(d, equals(ApprovalDecision.allow));
-    });
-
-    test('per-server override → allow', () {
-      final d = decideApproval(ApprovalContext(
-        isMcpTool: true,
-        mcpServerId: 'srv1',
-        mcpToolName: 'fetch',
-        alwaysAllowedKeys: {_mcpServerKey('srv1')},
-      ));
-      expect(d, equals(ApprovalDecision.allow));
-    });
-
-    test('override for another tool does not leak', () {
-      final d = decideApproval(ApprovalContext(
-        isMcpTool: true,
-        mcpServerId: 'srv1',
-        mcpToolName: 'fetch',
-        alwaysAllowedKeys: {_mcpToolKey('srv1', 'other')},
-      ));
-      expect(d, equals(ApprovalDecision.ask));
-    });
-
-    test('strict mode degrades an MCP ask to deny', () {
-      final d = decideApproval(const ApprovalContext(
-        isMcpTool: true,
-        mcpServerId: 'srv1',
-        mcpToolName: 'fetch',
-        strictMode: true,
-      ));
-      expect(d, equals(ApprovalDecision.deny));
-    });
-  });
-
   group('decideApproval — other tools', () {
     test('search / memory / todo / ask_user → allow', () {
       for (final ctx in const [
@@ -123,6 +68,15 @@ void main() {
       ]) {
         expect(decideApproval(ctx), equals(ApprovalDecision.allow));
       }
+    });
+
+    test('MCP calls are not approval-gated (2026-09-10 removal)', () {
+      // The MCP policy source was removed: nothing in the context classifies
+      // an MCP call as ask — the handler lets MCP tools execute directly.
+      expect(
+        decideApproval(const ApprovalContext()),
+        equals(ApprovalDecision.allow),
+      );
     });
   });
 
@@ -240,22 +194,6 @@ void main() {
   });
 
   group('always-allow override key decoding', () {
-    test('mcp tool key decodes server + tool', () {
-      final d = decodeApprovalOverrideKey('mcp:github:read_file');
-      expect(d, isNotNull);
-      expect(d!.kind, equals(ApprovalOverrideKind.mcpTool));
-      expect(d!.serverId, equals('github'));
-      expect(d!.toolName, equals('read_file'));
-    });
-
-    test('mcp server key decodes server', () {
-      final d = decodeApprovalOverrideKey('mcp-server:github');
-      expect(d, isNotNull);
-      expect(d!.kind, equals(ApprovalOverrideKind.mcpServer));
-      expect(d!.serverId, equals('github'));
-      expect(d!.toolName, isNull);
-    });
-
     test('workspace-out key decodes resolved path', () {
       final d = decodeApprovalOverrideKey('workspace-out:D:/Reports/q3.docx');
       expect(d, isNotNull);
@@ -265,7 +203,8 @@ void main() {
 
     test('unknown shapes return null (forward compatible)', () {
       expect(decodeApprovalOverrideKey('shell:git'), isNull);
-      expect(decodeApprovalOverrideKey('mcp:no-colon'), isNull);
+      expect(decodeApprovalOverrideKey('mcp:github:read_file'), isNull);
+      expect(decodeApprovalOverrideKey('mcp-server:github'), isNull);
       expect(decodeApprovalOverrideKey(''), isNull);
       expect(decodeApprovalOverrideKey('random'), isNull);
     });

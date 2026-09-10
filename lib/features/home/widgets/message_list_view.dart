@@ -95,7 +95,6 @@ class MessageListView extends StatelessWidget {
     this.buildPinnedStreamingIndicator,
     this.onSubmitAskUserAnswer,
     this.onResolveApproval,
-    this.onRestoreRunSnapshot,
   });
 
   final ScrollController scrollController;
@@ -141,9 +140,6 @@ class MessageListView extends StatelessWidget {
   /// P1-1: resolve an approval-pending tool call (approve/deny, resumes).
   final Future<void> Function(String assistantMessageId, String toolCallId,
       {required bool approve, bool alwaysAllow})? onResolveApproval;
-
-  /// P1-5: restore a run's workspace snapshot (one-click rollback).
-  final Future<String?> Function(String runId)? onRestoreRunSnapshot;
 
   /// Collapse message versions to show only selected version per group.
   List<ChatMessage> _collapseVersions(List<ChatMessage> items) {
@@ -550,7 +546,6 @@ class MessageListView extends StatelessWidget {
       toolParts: message.role == 'assistant' ? toolParts[message.id] : null,
       onSubmitAskUserAnswer: onSubmitAskUserAnswer,
       onResolveApproval: onResolveApproval,
-      onRestoreRunSnapshot: onRestoreRunSnapshot,
       reasoningSegments: message.role == 'assistant'
           ? (() {
               final segments = reasoningSegments[message.id];

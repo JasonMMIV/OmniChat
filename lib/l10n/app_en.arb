@@ -898,14 +898,6 @@
       }
     }
   },
-  "approvalServerLabel": "MCP server: {server}",
-  "@approvalServerLabel": {
-    "placeholders": {
-      "server": {
-        "type": "String"
-      }
-    }
-  },
   "approvalApprove": "Approve",
   "approvalAlwaysAllow": "Always allow",
   "approvalDeny": "Deny",
@@ -916,22 +908,6 @@
   "approvalOverridesSubtitle": "Tool calls on this list skip the approval prompt. Added from an approval card.",
   "approvalOverridesEmpty": "No always-allow overrides yet.",
   "approvalOverrideRemove": "Remove",
-  "approvalOverrideMcpTool": "MCP tool: {tool}",
-  "@approvalOverrideMcpTool": {
-    "placeholders": {
-      "tool": {
-        "type": "String"
-      }
-    }
-  },
-  "approvalOverrideMcpServer": "MCP server: {server}",
-  "@approvalOverrideMcpServer": {
-    "placeholders": {
-      "server": {
-        "type": "String"
-      }
-    }
-  },
   "approvalOverridePath": "Path: {path}",
   "@approvalOverridePath": {
     "placeholders": {
@@ -940,36 +916,6 @@
       }
     }
   },
-  "snapshotCardTitle": "Workspace snapshot",
-  "snapshotCardRestoredTitle": "Workspace restored",
-  "snapshotCardChangesTitle": "This task changed {count} files — restore to the run-start snapshot?",
-  "@snapshotCardChangesTitle": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "snapshotCardRestoredPill": "{count} files restored",
-  "@snapshotCardRestoredPill": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "snapshotCardRestoredShort": "Restored",
-  "snapshotCardDisclaimer": "Restore rolls the whole workspace back to its state when this task started. The list of changed files is incomplete for shell commands — the snapshot is the complete rollback guarantee.",
-  "snapshotCardTakenAt": "Snapshot taken: {time}",
-  "@snapshotCardTakenAt": {
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "snapshotCardFailed": "Restore failed. Try again.",
-  "snapshotCardRestoreButton": "Restore",
   "chatMessageWidgetEditMemory": "Edit",
   "chatMessageWidgetDeleteMemory": "Forget",
   "chatMessageWidgetWebSearch": "Search: {query}",
@@ -2138,8 +2084,5 @@
   "aiContentPolicyReportAction": "Open GitHub Issues",
   "aiContentPolicyReportHint": "To report harmful or inappropriate content, please open an issue on GitHub.",
   "softStopMaxStepsNote": "The run reached its step limit and stopped; send a message to continue.",
-  "softStopTokenBudgetNote": "The run reached its token budget and stopped; send a message to continue.",
-  "workspaceSnapshotsToggleTitle": "Run snapshots",
-  "workspaceSnapshotsToggleSubtitle": "Automatically snapshot the workspace before each agent run, enabling one-click rollback of file changes.",
-  "workspaceSnapshotsToggleRestoreHint": "Restored workspace snapshot: {count} files."
+  "softStopTokenBudgetNote": "The run reached its token budget and stopped; send a message to continue."
 }

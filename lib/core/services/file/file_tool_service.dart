@@ -302,44 +302,70 @@ class FileToolService {
     ];
   }
 
+  /// [approvedOutsidePath] is set by the approval resume path (P1-1 v1.6):
+  /// the user approved an out-of-workspace target on the card, so primary
+  /// path arguments resolve to this concrete absolute path instead of the
+  /// sandbox boundary. Type/size hard floors (blocked extensions, 512 KB
+  /// caps) are enforced by each operation and are NOT relaxed by approval.
   static Future<FileToolResult> execute(
     String toolName,
     Map<String, dynamic> args,
-    String? workspacePath,
-  ) async {
+    String? workspacePath, {
+    String? approvedOutsidePath,
+  }) async {
     try {
       final workspace = await _prepareWorkspace(workspacePath);
       switch (toolName) {
         case 'file_read':
-          return await _read(args, workspace);
+          return await _read(args, workspace, approvedOutsidePath);
         case 'file_write':
-          return await _write(args, workspace, append: false);
+          return await _write(
+            args,
+            workspace,
+            approvedOutsidePath,
+            append: false,
+          );
         case 'file_append':
-          return await _write(args, workspace, append: true);
+          return await _write(
+            args,
+            workspace,
+            approvedOutsidePath,
+            append: true,
+          );
         case 'file_edit':
-          return await _edit(args, workspace);
+          return await _edit(args, workspace, approvedOutsidePath);
         case 'file_patch':
-          return await _patch(args, workspace);
+          return await _patch(args, workspace, approvedOutsidePath);
         case 'file_delete':
-          return await _delete(args, workspace);
+          return await _delete(args, workspace, approvedOutsidePath);
         case 'file_list':
-          return await _list(args, workspace);
+          return await _list(args, workspace, approvedOutsidePath);
         case 'file_mkdir':
-          return await _mkdir(args, workspace);
+          return await _mkdir(args, workspace, approvedOutsidePath);
         case 'file_info':
-          return await _info(args, workspace);
+          return await _info(args, workspace, approvedOutsidePath);
         case 'file_move':
-          return await _moveOrCopy(args, workspace, move: true);
+          return await _moveOrCopy(
+            args,
+            workspace,
+            approvedOutsidePath,
+            move: true,
+          );
         case 'file_copy':
-          return await _moveOrCopy(args, workspace, move: false);
+          return await _moveOrCopy(
+            args,
+            workspace,
+            approvedOutsidePath,
+            move: false,
+          );
         case 'file_search':
-          return await _search(args, workspace);
+          return await _search(args, workspace, approvedOutsidePath);
         case 'file_extract_text':
-          return await _extractText(args, workspace);
+          return await _extractText(args, workspace, approvedOutsidePath);
         case 'file_extract_zip':
-          return await _extractZip(args, workspace);
+          return await _extractZip(args, workspace, approvedOutsidePath);
         case 'file_create_pdf':
-          return await _createPdf(args, workspace);
+          return await _createPdf(args, workspace, approvedOutsidePath);
         default:
           return FileToolResult(text: 'Error: Unknown file tool "$toolName".');
       }
@@ -407,12 +433,20 @@ class FileToolService {
       if (!isBoundary) {
         return (inside: true, resolvedPath: null);
       }
-      // Best-effort absolute path for the card display.
+      // Best-effort concrete absolute path for the card display (ADR-A8:
+      // `..` and symlinks are expanded so the user approves a concrete
+      // absolute path, not a relative string; the same path is handed to
+      // the executor when the call is approved).
       String? display;
       try {
-        display = p.isAbsolute(relativePath)
+        final candidate = p.isAbsolute(relativePath)
             ? p.normalize(relativePath)
             : p.normalize(p.join(workspaceRoot, relativePath));
+        try {
+          display = _resolveExistingOrParent(candidate);
+        } catch (_) {
+          display = candidate;
+        }
       } catch (_) {
         display = relativePath;
       }
@@ -420,6 +454,31 @@ class FileToolService {
     } catch (_) {
       return (inside: true, resolvedPath: null);
     }
+  }
+
+  /// P1-1 v1.6: resolve a tool's primary path argument. Without an approved
+  /// out-of-workspace path this is exactly [resolveSafePath] (the sandbox
+  /// boundary is enforced). With one, the user approved a concrete absolute
+  /// path on the card: re-probe the raw argument and hand back the approved
+  /// path only when the argument genuinely resolves outside the workspace
+  /// (blocked extensions / size caps are still enforced by each operation).
+  static String _resolveToolPath(
+    String rawPath,
+    String workspace,
+    String? approvedOutsidePath,
+  ) {
+    if (approvedOutsidePath == null || approvedOutsidePath.trim().isEmpty) {
+      return resolveSafePath(rawPath, workspace);
+    }
+    final probe = probePathSafety(rawPath, workspace);
+    if (probe.inside) return resolveSafePath(rawPath, workspace);
+    final approved = p.normalize(approvedOutsidePath.trim());
+    if (!p.isAbsolute(approved)) {
+      throw const FileToolSecurityException(
+        'The approved path must be an absolute path.',
+      );
+    }
+    return approved;
   }
 
   /// P1-1: resolve and validate the workspace root without executing
@@ -547,8 +606,13 @@ class FileToolService {
   static Future<FileToolResult> _read(
     Map<String, dynamic> args,
     String workspace,
+    String? approvedOutsidePath,
   ) async {
-    final path = resolveSafePath(_requiredString(args, 'path'), workspace);
+    final path = _resolveToolPath(
+      _requiredString(args, 'path'),
+      workspace,
+      approvedOutsidePath,
+    );
     final file = File(path);
     if (!await file.exists()) {
       return FileToolResult(text: 'Error: File not found.');
@@ -631,8 +695,13 @@ class FileToolService {
   static Future<FileToolResult> _extractText(
     Map<String, dynamic> args,
     String workspace,
+    String? approvedOutsidePath,
   ) async {
-    final path = resolveSafePath(_requiredString(args, 'path'), workspace);
+    final path = _resolveToolPath(
+      _requiredString(args, 'path'),
+      workspace,
+      approvedOutsidePath,
+    );
     final type = FileSystemEntity.typeSync(path, followLinks: false);
     if (type == FileSystemEntityType.notFound) {
       return const FileToolResult(text: 'Error: File not found.');
@@ -755,8 +824,13 @@ class FileToolService {
   static Future<FileToolResult> _extractZip(
     Map<String, dynamic> args,
     String workspace,
+    String? approvedOutsidePath,
   ) async {
-    final zipPath = resolveSafePath(_requiredString(args, 'path'), workspace);
+    final zipPath = _resolveToolPath(
+      _requiredString(args, 'path'),
+      workspace,
+      approvedOutsidePath,
+    );
     final type = FileSystemEntity.typeSync(zipPath, followLinks: false);
     if (type == FileSystemEntityType.notFound) {
       return const FileToolResult(text: 'Error: File not found.');
@@ -889,8 +963,13 @@ class FileToolService {
   static Future<FileToolResult> _createPdf(
     Map<String, dynamic> args,
     String workspace,
+    String? approvedOutsidePath,
   ) async {
-    final path = resolveSafePath(_requiredString(args, 'path'), workspace);
+    final path = _resolveToolPath(
+      _requiredString(args, 'path'),
+      workspace,
+      approvedOutsidePath,
+    );
     if (!args.containsKey('content') || args['content'] is! String) {
       return const FileToolResult(
         text: 'Error: The content argument is required and must be a string.',
@@ -994,8 +1073,13 @@ class FileToolService {
   static Future<FileToolResult> _edit(
     Map<String, dynamic> args,
     String workspace,
+    String? approvedOutsidePath,
   ) async {
-    final path = resolveSafePath(_requiredString(args, 'path'), workspace);
+    final path = _resolveToolPath(
+      _requiredString(args, 'path'),
+      workspace,
+      approvedOutsidePath,
+    );
     _rejectBlockedExtension(path);
     final file = File(path);
     if (!await file.exists()) {
@@ -1078,8 +1162,13 @@ class FileToolService {
   static Future<FileToolResult> _patch(
     Map<String, dynamic> args,
     String workspace,
+    String? approvedOutsidePath,
   ) async {
-    final path = resolveSafePath(_requiredString(args, 'path'), workspace);
+    final path = _resolveToolPath(
+      _requiredString(args, 'path'),
+      workspace,
+      approvedOutsidePath,
+    );
     _rejectBlockedExtension(path);
     final patch = _requiredTextArgument(args, 'patch', allowEmpty: false);
     if (utf8.encode(patch).length > maxWriteBytes) {
@@ -1373,10 +1462,15 @@ class FileToolService {
 
   static Future<FileToolResult> _write(
     Map<String, dynamic> args,
-    String workspace, {
+    String workspace,
+    String? approvedOutsidePath, {
     required bool append,
   }) async {
-    final path = resolveSafePath(_requiredString(args, 'path'), workspace);
+    final path = _resolveToolPath(
+      _requiredString(args, 'path'),
+      workspace,
+      approvedOutsidePath,
+    );
     _rejectBlockedExtension(path);
     if (!args.containsKey('content') || args['content'] is! String) {
       return const FileToolResult(
@@ -1414,8 +1508,13 @@ class FileToolService {
   static Future<FileToolResult> _delete(
     Map<String, dynamic> args,
     String workspace,
+    String? approvedOutsidePath,
   ) async {
-    final path = resolveSafePath(_requiredString(args, 'path'), workspace);
+    final path = _resolveToolPath(
+      _requiredString(args, 'path'),
+      workspace,
+      approvedOutsidePath,
+    );
     if (_samePath(path, workspace)) {
       return const FileToolResult(
         text: 'Error: The workspace root cannot be deleted.',
@@ -1436,8 +1535,13 @@ class FileToolService {
   static Future<FileToolResult> _list(
     Map<String, dynamic> args,
     String workspace,
+    String? approvedOutsidePath,
   ) async {
-    final path = resolveSafePath((args['path'] ?? '').toString(), workspace);
+    final path = _resolveToolPath(
+      (args['path'] ?? '').toString(),
+      workspace,
+      approvedOutsidePath,
+    );
     final directory = Directory(path);
     if (!await directory.exists()) {
       return const FileToolResult(text: 'Error: Directory not found.');
@@ -1470,8 +1574,13 @@ class FileToolService {
   static Future<FileToolResult> _mkdir(
     Map<String, dynamic> args,
     String workspace,
+    String? approvedOutsidePath,
   ) async {
-    final path = resolveSafePath(_requiredString(args, 'path'), workspace);
+    final path = _resolveToolPath(
+      _requiredString(args, 'path'),
+      workspace,
+      approvedOutsidePath,
+    );
     await Directory(path).create(recursive: true);
     return FileToolResult(text: 'Created directory ${p.basename(path)}.');
   }
@@ -1479,8 +1588,13 @@ class FileToolService {
   static Future<FileToolResult> _info(
     Map<String, dynamic> args,
     String workspace,
+    String? approvedOutsidePath,
   ) async {
-    final path = resolveSafePath(_requiredString(args, 'path'), workspace);
+    final path = _resolveToolPath(
+      _requiredString(args, 'path'),
+      workspace,
+      approvedOutsidePath,
+    );
     final type = FileSystemEntity.typeSync(path, followLinks: false);
     if (type == FileSystemEntityType.notFound) {
       return const FileToolResult(text: 'Error: Path not found.');
@@ -1498,10 +1612,15 @@ class FileToolService {
 
   static Future<FileToolResult> _moveOrCopy(
     Map<String, dynamic> args,
-    String workspace, {
+    String workspace,
+    String? approvedOutsidePath, {
     required bool move,
   }) async {
-    final source = resolveSafePath(_requiredString(args, 'source'), workspace);
+    final source = _resolveToolPath(
+      _requiredString(args, 'source'),
+      workspace,
+      approvedOutsidePath,
+    );
     final destination = resolveSafePath(
       _requiredString(args, 'destination'),
       workspace,
@@ -1546,9 +1665,14 @@ class FileToolService {
   static Future<FileToolResult> _search(
     Map<String, dynamic> args,
     String workspace,
+    String? approvedOutsidePath,
   ) async {
     final pattern = _requiredString(args, 'pattern');
-    final start = resolveSafePath((args['path'] ?? '').toString(), workspace);
+    final start = _resolveToolPath(
+      (args['path'] ?? '').toString(),
+      workspace,
+      approvedOutsidePath,
+    );
     final directory = Directory(start);
     if (!await directory.exists()) {
       return const FileToolResult(text: 'Error: Directory not found.');
