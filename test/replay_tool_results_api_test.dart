@@ -374,6 +374,194 @@ void main() {
     });
 
     test(
+        'P1-3 fix (2026-09-11): DeepSeek thinking mode never 400s on a '
+        'pending-tool replay without a persisted echo — the transport '
+        'backfills reasoning_content when the builder could not', () async {
+      // The real-world ask_user failure: the round that called ask_user
+      // streamed no reasoning (or the conversation predates the echo
+      // persistence), so the replayed assistant tool_calls message carries
+      // no reasoning_content at all. needsReasoningEcho models must still
+      // receive the field — the input-side backfill guarantees it.
+      final config = ProviderConfig(
+        id: 'deepseek-heal-test',
+        enabled: true,
+        name: 'deepseek-heal-test',
+        apiKey: 'key',
+        baseUrl: server.baseUrl,
+        providerType: ProviderKind.openai,
+        models: const ['deepseek-v4.1-flash'],
+      );
+      await ChatApiService.sendMessageStream(
+        config: config,
+        modelId: 'deepseek-v4.1-flash',
+        messages: [
+          const {'role': 'user', 'content': 'ask me'},
+          const {
+            'role': 'assistant',
+            'content': '\n\n',
+            'tool_calls': [
+              {
+                'id': 'call_ask',
+                'type': 'function',
+                'function': {'name': 'ask_user', 'arguments': '{}'},
+              },
+            ],
+            // No reasoning_content: neither the persisted event echo nor
+            // the reasoningText fallback produced one.
+          },
+          const {
+            'role': 'tool',
+            'name': 'ask_user',
+            'tool_call_id': 'call_ask',
+            'content': '{"type":"ask_user_answer"}',
+          },
+          const {'role': 'user', 'content': 'follow-up'},
+        ],
+        requestId: 'req-deepseek-heal',
+        stream: false,
+      ).toList();
+
+      expect(server.bodies, isNotEmpty);
+      final body = server.bodies.first;
+      final msgs = body['messages'] as List;
+      final assistantMsg = msgs[1] as Map;
+      expect(assistantMsg['tool_calls'], isA<List>());
+      // The field must exist (DeepSeek rejects its absence) and must be a
+      // string (a null value would also be rejected).
+      expect(assistantMsg.containsKey('reasoning_content'), isTrue);
+      // DeepSeek v4 treats an EMPTY string as missing (wire-capture
+      // 2026-09-12 02:00): the backfilled value must be non-empty.
+      expect(assistantMsg['reasoning_content'], '(no reasoning content)');
+    });
+
+    test(
+        'P1-3 fix (2026-09-12 02:00): empty-string echo is replaced with a '
+        'non-empty sentinel on every assistant message', () async {
+      // Exact live-400 shape: the tool_calls message carried
+      // reasoning_content:"" (backfilled) and the trailing text-only
+      // assistant message carried reasoning_content:"" after the
+      // every-message echo fix — DeepSeek v4 still rejected the request,
+      // proving empty string == missing. Every echo must be non-empty.
+      final config = ProviderConfig(
+        id: 'deepseek-empty-echo-test',
+        enabled: true,
+        name: 'deepseek-empty-echo-test',
+        apiKey: 'key',
+        baseUrl: server.baseUrl,
+        providerType: ProviderKind.openai,
+        models: const ['deepseek-v4.1-flash'],
+      );
+      await ChatApiService.sendMessageStream(
+        config: config,
+        modelId: 'deepseek-v4.1-flash',
+        messages: const [
+          {'role': 'user', 'content': 'tell me something'},
+          {
+            'role': 'assistant',
+            'content': '\n\n',
+            'tool_calls': [
+              {
+                'id': 'call_ask',
+                'type': 'function',
+                'function': {'name': 'ask_user', 'arguments': '{}'},
+              },
+            ],
+            'reasoning_content': '',
+          },
+          {
+            'role': 'tool',
+            'name': 'ask_user',
+            'tool_call_id': 'call_ask',
+            'content': '{"type":"ask_user_answer"}',
+          },
+          {'role': 'assistant', 'content': '我來問問你想聽什麼 🙂', 'reasoning_content': ''},
+        ],
+        requestId: 'req-deepseek-empty-echo',
+        stream: false,
+      ).toList();
+
+      expect(server.bodies, isNotEmpty);
+      final body = server.bodies.first;
+      final msgs = body['messages'] as List;
+      for (final m in msgs) {
+        if ((m as Map)['role'] != 'assistant') continue;
+        expect(
+          m['reasoning_content'],
+          '(no reasoning content)',
+          reason: 'assistant message with empty echo must be sent non-empty',
+        );
+      }
+    });
+
+    test(
+        'P1-3 fix (2026-09-12): DeepSeek thinking mode requires '
+        'reasoning_content on EVERY assistant message — a trailing '
+        'text-only assistant message must be backfilled too', () async {
+      // Exact wire shape captured from the live 400 (wire_errors.log,
+      // req:b23c2675): the tool_calls assistant message had
+      // reasoning_content backfilled, but the trailing text-only assistant
+      // message (the pre-ask_user text) had no reasoning_content key at
+      // all — DeepSeek v4 thinking mode rejects that with HTTP 400
+      // "The `reasoning_content` in the thinking mode must be passed back
+      // to the API." The echo contract covers every assistant message.
+      final config = ProviderConfig(
+        id: 'deepseek-trailing-test',
+        enabled: true,
+        name: 'deepseek-trailing-test',
+        apiKey: 'key',
+        baseUrl: server.baseUrl,
+        providerType: ProviderKind.openai,
+        models: const ['deepseek-v4.1-flash'],
+      );
+      await ChatApiService.sendMessageStream(
+        config: config,
+        modelId: 'deepseek-v4.1-flash',
+        messages: const [
+          {'role': 'user', 'content': 'write something. (ask me first)'},
+          {
+            'role': 'assistant',
+            'content': '\n\n',
+            'tool_calls': [
+              {
+                'id': 'call_ask',
+                'type': 'function',
+                'function': {'name': 'ask_user', 'arguments': '{}'},
+              },
+            ],
+            'reasoning_content': '',
+          },
+          {
+            'role': 'tool',
+            'name': 'ask_user',
+            'tool_call_id': 'call_ask',
+            'content': '{"type":"ask_user_answer"}',
+          },
+          {
+            'role': 'assistant',
+            'content': '我樂意幫你寫！先確認一下方向，這樣才能寫得符合你的期待。',
+          },
+        ],
+        requestId: 'req-deepseek-trailing',
+        stream: false,
+      ).toList();
+
+      expect(server.bodies, isNotEmpty);
+      final body = server.bodies.first;
+      final msgs = body['messages'] as List;
+      // user / assistant(tool_calls) / tool / assistant(text-only)
+      expect(msgs, hasLength(4));
+      // The tool_calls message keeps its echo.
+      expect((msgs[1] as Map).containsKey('reasoning_content'), isTrue);
+      // THE FIX: the trailing text-only assistant message now carries the
+      // field (string, possibly empty) instead of being stripped.
+      final trailing = msgs[3] as Map;
+      expect(trailing['role'], 'assistant');
+      expect(trailing.containsKey('reasoning_content'), isTrue);
+      // Non-empty: DeepSeek v4 rejects an empty string as if missing.
+      expect(trailing['reasoning_content'], '(no reasoning content)');
+    });
+
+    test(
         'P1-3 fix: Claude conversion never forwards the replayed '
         'reasoning_content field (allow-list blocks it)', () async {
       final config = ProviderConfig(

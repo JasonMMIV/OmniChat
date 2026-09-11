@@ -24,6 +24,7 @@ import 'transient_stream_error.dart';
 import 'chat_stream_chunk.dart';
 import 'context_overflow.dart';
 import 'learned_context_windows.dart';
+import '../logging/flutter_logger.dart';
 import '../agent/compaction/context_trim.dart';
 export 'chat_stream_chunk.dart'
     show ChatStreamChunk, ToolCallInfo, ToolResultInfo, ToolCallHandler;
@@ -274,11 +275,26 @@ class ChatApiService {
   /// replayed tool structure (role:'tool' messages and assistant tool_calls).
   ///
   /// The generic `{role, content}` shape is kept for plain messages; tool
+  /// DeepSeek v4 thinking mode treats an empty `reasoning_content` as
+  /// missing and still answers HTTP 400 "must be passed back" — wire-capture
+  /// 2026-09-12 02:00 (req:cf0a7cf0) showed every assistant message carrying
+  /// `reasoning_content:""` and the request was still rejected. The echo
+  /// value must therefore be non-empty: echo sites substitute this sentinel
+  /// when no reasoning text was captured for the turn.
+  static const String _reasoningEchoPlaceholder = '(no reasoning content)';
+
+  /// Normalizes an echo value: null/empty → sentinel placeholder.
+  static String _reasoningEchoValue(Object? v) {
+    final s = v?.toString() ?? '';
+    return s.isEmpty ? _reasoningEchoPlaceholder : s;
+  }
+
   /// messages pass through untouched so `tool_call_id`/`tool_calls` survive
   /// multi-round tool loops.
   static List<Map<String, dynamic>> _preserveToolStructuredMessages(
-    List<Map<String, dynamic>> messages,
-  ) {
+    List<Map<String, dynamic>> messages, {
+    bool reasoningEcho = false,
+  }) {
     final out = <Map<String, dynamic>>[];
     for (final m in messages) {
       final role = (m['role'] ?? 'user').toString();
@@ -289,12 +305,17 @@ class ChatApiService {
       if (isToolRole || hasToolCalls) {
         out.add(Map<String, dynamic>.from(m));
       } else {
-        // P1-3 fix: plain assistant/user messages must not carry the
-        // vendor-specific reasoning-echo fields (only the `tool_calls`
-        // assistant message echoes them).
+        // Plain assistant/user messages: keep only role+content, plus the
+        // vendor reasoning-echo fields for echo-capable models — DeepSeek
+        // thinking mode requires `reasoning_content` on EVERY assistant
+        // message in the request, not just `tool_calls` ones (wire-capture
+        // confirmed 2026-09-12: a trailing text-only assistant message
+        // without the field reproduces HTTP 400 "must be passed back").
         out.add({
           'role': role,
           'content': m['content'] ?? '',
+          if (reasoningEcho && role == 'assistant')
+            'reasoning_content': _reasoningEchoValue(m['reasoning_content']),
         });
       }
     }
@@ -984,6 +1005,11 @@ class ChatApiService {
     // The agent-loop kernel / driver owns execution and follow-up assembly.
     // Default false = legacy multi-round transport loop, byte-identical.
     bool exposeToolCallsOnly = false,
+    // Wire-capture diagnostics (2026-09-11): tag used by the on-error wire
+    // logger so a failing request's exact JSON body can be correlated with
+    // the conversation that produced it (e.g. a DeepSeek thinking-mode 400
+    // on the ask_user resume path).
+    String? debugRequestId,
   }) async* {
     final kind = _apiKind(config);
     final cancelToken = CancelToken();
@@ -1053,6 +1079,7 @@ class ChatApiService {
               imageAspectRatio: imageAspectRatio,
               flags: flags,
               exposeToolCallsOnly: exposeToolCallsOnly,
+              debugRequestId: debugRequestId ?? rid,
             ), rid, flags)) {
               yield chunk;
             }
@@ -2114,6 +2141,37 @@ class ChatApiService {
     }).toList();
   }
 
+  /// Wire-capture diagnostics (2026-09-11): log the exact request body of a
+  /// FAILED HTTP request (4xx/5xx) so provider-rejection bugs (e.g. DeepSeek
+  /// thinking mode's "reasoning_content must be passed back" 400) can be
+  /// diagnosed from the real wire payload instead of reconstructed guesses.
+  ///
+  /// Never logs successful requests (keeps volume low); oversized message
+  /// bodies are head/tail truncated (keeps the log bounded); no-op when the
+  /// FlutterLogger is disabled. [label] distinguishes the initial request
+  /// from follow-up rounds.
+  static void _logFailedWireBody(
+    String? debugRequestId,
+    String label,
+    String bodyJson,
+  ) {
+    // Always-on: failed requests are rare and this is the primary
+    // diagnostic for provider compatibility bugs, so it must not depend on
+    // the user-facing logging toggle. Writes to logs/wire_errors.log.
+    final ridTag = (debugRequestId == null || debugRequestId.isEmpty)
+        ? null
+        : 'req:$debugRequestId';
+    final tag = ['chat-api', ?ridTag].nonNulls.join('/');
+    const maxLogChars = 65536;
+    final bodyForLog = bodyJson.length > maxLogChars
+        ? '${bodyJson.substring(0, maxLogChars)}\n...[wire body truncated, '
+            'original ${bodyJson.length} chars]'
+        : bodyJson;
+    FlutterLogger.logWireError(
+        'HTTP error wire body ($label):\n$bodyForLog',
+        tag: tag);
+  }
+
   static Stream<ChatStreamChunk> _sendOpenAIStream(
     http.Client client,
     ProviderConfig config,
@@ -2132,6 +2190,9 @@ class ChatApiService {
     bool stream = true,
     String? imageAspectRatio,
     StreamAttemptFlags? flags,
+    // Wire-capture diagnostics: tag for the on-error wire logger (see
+    // [sendMessageStream.debugRequestId]).
+    String? debugRequestId,
   }) async* {
     final upstreamModelId = _apiModelId(config, modelId);
     final base = config.baseUrl.endsWith('/')
@@ -2567,15 +2628,17 @@ class ChatApiService {
                 (m['tool_calls'] as List).isNotEmpty)) {
           final copy = Map<String, dynamic>.from(m);
           if (role == 'assistant') {
-            if (needsReasoningEcho) {
-              // P1-3 fix: echo-capable models (DeepSeek / Zhipu /
-              // Kimi-thinking / Mimo) must always receive a `reasoning_content`
-              // key on the assistant tool_calls message — the multi-round
-              // follow-up path (line ~3105) relies on this exact contract. An
-              // empty string is what the legacy loop sent before the field
-              // was persisted; the kernel roundExtras carry the real text.
-              copy['reasoning_content'] ??= '';
-            } else {
+          if (needsReasoningEcho) {
+            // P1-3 fix: echo-capable models (DeepSeek / Zhipu /
+            // Kimi-thinking / Mimo) must always receive a `reasoning_content`
+            // key on the assistant tool_calls message — the multi-round
+            // follow-up path relies on this exact contract. DeepSeek v4
+            // treats an EMPTY string as missing (wire-capture 2026-09-12:
+            // reasoning_content:"" on every message still 400s), so the
+            // value is normalized to a non-empty sentinel when absent.
+            copy['reasoning_content'] =
+                _reasoningEchoValue(copy['reasoning_content']);
+          } else {
               // Non-echo models must not see the vendor-specific fields.
               copy.remove('reasoning_content');
               copy.remove('reasoning_details');
@@ -2667,10 +2730,24 @@ class ChatApiService {
               }
             }
           }
-          mm.add({'role': role, 'content': parts});
+          mm.add({
+            'role': role,
+            'content': parts,
+            if (needsReasoningEcho && role == 'assistant')
+              'reasoning_content': _reasoningEchoValue(m['reasoning_content']),
+          });
         } else {
-          // No images, use simple string content
-          mm.add({'role': role, 'content': raw});
+          // No images, use simple string content. Echo-capable reasoning
+          // models must receive `reasoning_content` on EVERY assistant
+          // message — a trailing text-only assistant message without the
+          // key triggers DeepSeek HTTP 400 "must be passed back"
+          // (wire-capture confirmed 2026-09-12).
+          mm.add({
+            'role': role,
+            'content': raw,
+            if (needsReasoningEcho && role == 'assistant')
+              'reasoning_content': _reasoningEchoValue(m['reasoning_content']),
+          });
         }
       }
       body = {
@@ -2885,6 +2962,11 @@ class ChatApiService {
     final response = await client.send(request);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final errorBody = await response.stream.bytesToString();
+      _logFailedWireBody(
+        debugRequestId,
+        'openai chat-completions/stream main request',
+        request.body,
+      );
       throw HttpException('HTTP ${response.statusCode}: $errorBody');
     }
 
@@ -3064,7 +3146,7 @@ class ChatApiService {
                 // the legacy loop's `assistantToolCallMsg` assembly below.
                 assistantExtras: <String, dynamic>{
                   if (needsReasoningEcho)
-                    'reasoning_content': reasoningForTools,
+                    'reasoning_content': _reasoningEchoValue(reasoningForTools),
                   if (preserveReasoningDetails &&
                       reasoningDetailsForTools is List &&
                       reasoningDetailsForTools.isNotEmpty)
@@ -3114,14 +3196,18 @@ class ChatApiService {
               headers2.addAll(extraHeaders);
             req.headers.addAll(headers2);
             messages = _truncateToolResultsInMessages(messages);
-            final next = _preserveToolStructuredMessages(messages);
+            final next = _preserveToolStructuredMessages(
+              messages,
+              reasoningEcho: needsReasoningEcho,
+            );
             final assistantToolCallMsg = <String, dynamic>{
               'role': 'assistant',
               'content': '\n\n',
               'tool_calls': calls,
             };
             if (needsReasoningEcho) {
-              assistantToolCallMsg['reasoning_content'] = reasoningForTools;
+              assistantToolCallMsg['reasoning_content'] =
+                _reasoningEchoValue(reasoningForTools);
             }
             if (preserveReasoningDetails &&
                 reasoningDetailsForTools is List &&
@@ -3152,6 +3238,11 @@ class ChatApiService {
             final resp2 = await client.send(req);
             if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
               final errorBody = await resp2.stream.bytesToString();
+              _logFailedWireBody(
+                debugRequestId,
+                'openai chat-completions non-stream tool follow-up',
+                req.body,
+              );
               throw HttpException('HTTP ${resp2.statusCode}: $errorBody');
             }
             final txt2 = await resp2.stream.bytesToString();
@@ -3283,7 +3374,7 @@ class ChatApiService {
                 // forwards them onto its follow-up assistant message.
                 assistantExtras: <String, dynamic>{
                   if (needsReasoningEcho)
-                    'reasoning_content': reasoningBuffer,
+                    'reasoning_content': _reasoningEchoValue(reasoningBuffer),
                   if (preserveReasoningDetails &&
                       reasoningDetailsBuffer is List &&
                       reasoningDetailsBuffer.isNotEmpty)
@@ -3327,14 +3418,18 @@ class ChatApiService {
 
             // Build follow-up messages
             messages = _truncateToolResultsInMessages(messages);
-            final mm2 = _preserveToolStructuredMessages(messages);
+            final mm2 = _preserveToolStructuredMessages(
+              messages,
+              reasoningEcho: needsReasoningEcho,
+            );
             final assistantToolCallMsg = <String, dynamic>{
               'role': 'assistant',
               'content': '\n\n',
               'tool_calls': calls,
             };
             if (needsReasoningEcho) {
-              assistantToolCallMsg['reasoning_content'] = reasoningBuffer;
+              assistantToolCallMsg['reasoning_content'] =
+                _reasoningEchoValue(reasoningBuffer);
             }
             if (preserveReasoningDetails &&
                 reasoningDetailsBuffer is List &&
@@ -3519,6 +3614,11 @@ class ChatApiService {
               final resp2 = await client.send(req2);
               if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
                 final errorBody = await resp2.stream.bytesToString();
+                _logFailedWireBody(
+                  debugRequestId,
+                  'openai chat-completions stream tool follow-up',
+                  req2.body,
+                );
                 throw HttpException('HTTP ${resp2.statusCode}: $errorBody');
               }
               final s2 = resp2.stream.transform(utf8.decoder);
@@ -3801,7 +3901,8 @@ class ChatApiService {
                   'tool_calls': calls2,
                 };
                 if (needsReasoningEcho) {
-                  nextAssistantToolCall['reasoning_content'] = reasoningAccum;
+                  nextAssistantToolCall['reasoning_content'] =
+                  _reasoningEchoValue(reasoningAccum);
                 }
                 if (preserveReasoningDetails &&
                     reasoningDetailsAccum is List &&
@@ -4230,6 +4331,11 @@ class ChatApiService {
                   final resp2 = await client.send(req2);
                   if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
                     final errorBody = await resp2.stream.bytesToString();
+                    _logFailedWireBody(
+                      debugRequestId,
+                      'openai responses tool follow-up',
+                      req2.body,
+                    );
                     throw HttpException('HTTP ${resp2.statusCode}: $errorBody');
                   }
                   final s2 = resp2.stream.transform(utf8.decoder);
@@ -4801,14 +4907,18 @@ class ChatApiService {
             }
             // Build follow-up messages
             messages = _truncateToolResultsInMessages(messages);
-            final mm2 = _preserveToolStructuredMessages(messages);
+            final mm2 = _preserveToolStructuredMessages(
+              messages,
+              reasoningEcho: needsReasoningEcho,
+            );
             final assistantToolCallMsg = <String, dynamic>{
               'role': 'assistant',
               'content': '\n\n',
               'tool_calls': calls,
             };
             if (needsReasoningEcho) {
-              assistantToolCallMsg['reasoning_content'] = reasoningBuffer;
+              assistantToolCallMsg['reasoning_content'] =
+                _reasoningEchoValue(reasoningBuffer);
             }
             if (preserveReasoningDetails &&
                 reasoningDetailsBuffer is List &&
@@ -4984,6 +5094,11 @@ class ChatApiService {
               final resp2 = await client.send(req2);
               if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
                 final errorBody = await resp2.stream.bytesToString();
+                _logFailedWireBody(
+                  debugRequestId,
+                  'openai chat-completions stream tool follow-up',
+                  req2.body,
+                );
                 throw HttpException('HTTP ${resp2.statusCode}: $errorBody');
               }
               final s2 = resp2.stream.transform(utf8.decoder);
@@ -5287,7 +5402,8 @@ class ChatApiService {
                   'tool_calls': calls2,
                 };
                 if (needsReasoningEcho) {
-                  nextAssistantToolCall['reasoning_content'] = reasoningAccum;
+                  nextAssistantToolCall['reasoning_content'] =
+                  _reasoningEchoValue(reasoningAccum);
                 }
                 if (preserveReasoningDetails &&
                     reasoningDetailsAccum is List &&
@@ -5378,7 +5494,7 @@ class ChatApiService {
                     // `assistantToolCallMsg` fields (no-DONE vendor fallback).
                     assistantExtras: <String, dynamic>{
                       if (needsReasoningEcho)
-                        'reasoning_content': reasoningBuffer,
+                        'reasoning_content': _reasoningEchoValue(reasoningBuffer),
                       if (preserveReasoningDetails &&
                           reasoningDetailsBuffer is List &&
                           reasoningDetailsBuffer.isNotEmpty)
@@ -5420,14 +5536,18 @@ class ChatApiService {
                 }
                 // Build follow-up messages
                 messages = _truncateToolResultsInMessages(messages);
-                final mm2 = _preserveToolStructuredMessages(messages);
+                final mm2 = _preserveToolStructuredMessages(
+                  messages,
+                  reasoningEcho: needsReasoningEcho,
+                );
                 final assistantToolCallMsg = <String, dynamic>{
                   'role': 'assistant',
                   'content': '\n\n',
                   'tool_calls': calls,
                 };
                 if (needsReasoningEcho) {
-                  assistantToolCallMsg['reasoning_content'] = reasoningBuffer;
+                  assistantToolCallMsg['reasoning_content'] =
+                _reasoningEchoValue(reasoningBuffer);
                 }
                 if (preserveReasoningDetails &&
                     reasoningDetailsBuffer is List &&
@@ -5603,6 +5723,11 @@ class ChatApiService {
                   final resp2 = await client.send(req2);
                   if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
                     final errorBody = await resp2.stream.bytesToString();
+                    _logFailedWireBody(
+                      debugRequestId,
+                      'openai vendor follow-up (deepseek knob branch)',
+                      req2.body,
+                    );
                     throw HttpException('HTTP ${resp2.statusCode}: $errorBody');
                   }
                   final s2 = resp2.stream.transform(utf8.decoder);
@@ -6016,14 +6141,18 @@ class ChatApiService {
             }
 
             // Follow-up request with assistant tool_calls + tool messages
-            final mm2 = _preserveToolStructuredMessages(messages);
+            final mm2 = _preserveToolStructuredMessages(
+              messages,
+              reasoningEcho: needsReasoningEcho,
+            );
             final assistantToolCallMsg = <String, dynamic>{
               'role': 'assistant',
               'content': '\n\n',
               'tool_calls': calls,
             };
             if (needsReasoningEcho) {
-              assistantToolCallMsg['reasoning_content'] = reasoningBuffer;
+              assistantToolCallMsg['reasoning_content'] =
+                _reasoningEchoValue(reasoningBuffer);
             }
             mm2.add(assistantToolCallMsg);
             for (final r in results) {
@@ -6061,6 +6190,11 @@ class ChatApiService {
             final resp2 = await client.send(request2);
             if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
               final errorBody = await resp2.stream.bytesToString();
+              _logFailedWireBody(
+                debugRequestId,
+                'openai vendor root-tool_calls follow-up',
+                request2.body,
+              );
               throw HttpException('HTTP ${resp2.statusCode}: $errorBody');
             }
             final s2 = resp2.stream.transform(utf8.decoder);
