@@ -725,26 +725,71 @@ class ChatActions {
   // Regenerate Message
   // ============================================================================
 
+  /// Project the raw message list into the regeneration context.
+  ///
+  /// Keeps `[0, lastKeep]` verbatim, then adds every message of
+  /// [targetGroupId]'s version group (the assistant versions, so version
+  /// collapsing downstream can pick the new placeholder).
+  ///
+  /// Phase-1 fix (2026-09-11): [versionSelections] must be passed so each
+  /// version group projects to its *selected* version. Collapsing to the
+  /// newest version per group was correct when a regeneration only ever
+  /// appended fresh versions, but edit-and-resend creates the new user
+  /// version BEFORE calling this — a newest-wins projection resurrects the
+  /// pre-edit user text (and any follow-up messages of that stale branch),
+  /// so the model regenerated an answer to the OLD question. The call site
+  /// sets the selection to the new version (in-memory + Hive) before this
+  /// projection is assembled, so selected == newest-in-list here; groups
+  /// with no entry fall back to the newest version (unchanged legacy
+  /// behavior).
   @visibleForTesting
   static List<ChatMessage> projectMessagesForRegenerationContext({
     required List<ChatMessage> messages,
     required int lastKeep,
     required String? targetGroupId,
+    Map<String, int> versionSelections = const <String, int>{},
   }) {
     if (lastKeep < 0) return [...messages];
-    final projected = <ChatMessage>[];
-
+    // Group [0, lastKeep] by groupId, preserving order (a group is
+    // contiguous in practice; the whole list — placeholder included — is
+    // then projected with the same collapse, so the [targetGroupId] slice
+    // and the appended placeholder can never desync).
+    final groupOrder = <String>[];
+    final groupIndex = <String, int>{};
     for (int i = 0; i <= lastKeep && i < messages.length; i++) {
-      projected.add(messages[i]);
+      final g = (messages[i].groupId ?? messages[i].id);
+      if (!groupIndex.containsKey(g)) {
+        groupIndex[g] = groupOrder.length;
+        groupOrder.add(g);
+      }
+    }
+    if (targetGroupId != null && !groupIndex.containsKey(targetGroupId)) {
+      groupIndex[targetGroupId] = groupOrder.length;
+      groupOrder.add(targetGroupId);
     }
 
-    if (targetGroupId != null) {
-      for (int i = lastKeep + 1; i < messages.length; i++) {
-        final m = messages[i];
-        if (m.groupId == targetGroupId) {
-          projected.add(m);
-        }
-      }
+    final groups = <String, List<ChatMessage>>{};
+    for (final m in messages) {
+      final g = (m.groupId ?? m.id);
+      if (!groupIndex.containsKey(g)) continue;
+      groups.putIfAbsent(g, () => <ChatMessage>[]).add(m);
+    }
+
+    // Collapse each kept group to its selected version (newest when no
+    // selection is recorded), keeping original order.
+    ChatMessage pick(List<ChatMessage> vers) {
+      vers.sort((a, b) => a.version.compareTo(b.version));
+      final gid = (vers.first.groupId ?? vers.first.id);
+      final sel = versionSelections[gid];
+      if (sel != null && sel >= 0 && sel < vers.length) return vers[sel];
+      return vers.last;
+    }
+
+    final projected = <ChatMessage>[];
+    for (final g in groupOrder) {
+      final vers = groups[g];
+      if (vers == null || vers.isEmpty) continue;
+      projected.add(pick(vers));
     }
 
     return projected;
@@ -756,12 +801,14 @@ class ChatActions {
     required int lastKeep,
     required String? targetGroupId,
     required ChatMessage assistantPlaceholder,
+    Map<String, int> versionSelections = const <String, int>{},
   }) {
     return <ChatMessage>[
       ...projectMessagesForRegenerationContext(
         messages: messages,
         lastKeep: lastKeep,
         targetGroupId: targetGroupId,
+        versionSelections: versionSelections,
       ),
       assistantPlaceholder,
     ];
@@ -839,6 +886,10 @@ class ChatActions {
       lastKeep: versioning.lastKeep,
       targetGroupId: versioning.targetGroupId,
       assistantPlaceholder: assistantMessage,
+      // Phase-1 fix: project version groups to the SELECTED version so the
+      // edit-and-resend context carries the edited text (the selection was
+      // just set to the new version below) instead of the pre-edit version.
+      versionSelections: _versionSelections,
     );
 
     // Pre-create streaming notifier BEFORE adding message to list
