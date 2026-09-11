@@ -9284,6 +9284,42 @@ abstract class AppLocalizations {
   /// **'Default working directory'**
   String get workspaceDefaultDirectorySettings;
 
+  /// No description provided for @workspaceEnableToggle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable workspace'**
+  String get workspaceEnableToggle;
+
+  /// No description provided for @workspaceDisabledHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace disabled'**
+  String get workspaceDisabledHint;
+
+  /// No description provided for @workspaceDirectoryMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace directory'**
+  String get workspaceDirectoryMenu;
+
+  /// No description provided for @workspaceToolsMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Tools'**
+  String get workspaceToolsMenu;
+
+  /// No description provided for @workspaceToolsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tools'**
+  String get workspaceToolsTitle;
+
+  /// No description provided for @workspaceToolsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled tools are not offered to the model. All tools are off while the workspace is disabled.'**
+  String get workspaceToolsDescription;
+
   /// No description provided for @workspaceDefaultDirectoryPrivate.
   ///
   /// In en, this message translates to:

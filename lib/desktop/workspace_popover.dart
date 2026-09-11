@@ -1,10 +1,7 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import '../core/models/workspace_config.dart';
@@ -12,10 +9,12 @@ import '../core/providers/assistant_provider.dart';
 import '../core/providers/settings_provider.dart';
 import '../core/services/chat/chat_service.dart';
 import '../core/services/workspace/workspace_resolver.dart';
+import '../features/chat/pages/workspace_tools_page.dart';
 import '../features/chat/widgets/workspace_file_browser.dart';
 import '../features/chat/widgets/workspace_settings_dialog.dart';
 import '../icons/lucide_adapter.dart';
 import '../l10n/app_localizations.dart';
+import '../shared/widgets/ios_switch.dart';
 
 Future<void> showDesktopWorkspacePopover(
   BuildContext context, {
@@ -147,26 +146,19 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
     if (mounted) widget.onClose();
   }
 
-  Future<void> _pickFolder() async {
+  /// Master enable/disable toggle for this conversation's workspace. The
+  /// popover stays open so the directory/tools/files entries appear or
+  /// disappear in place; ChatService remembers the prior directory choice
+  /// inside the disabled config and restores it when re-enabled.
+  Future<void> _toggleWorkspace(bool enable) async {
     if (_busy) return;
-    final l10n = AppLocalizations.of(context)!;
     setState(() => _busy = true);
     try {
-      if (Platform.isAndroid) {
-        try {
-          await Permission.manageExternalStorage.request();
-        } catch (_) {}
-      }
-      final selected = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: l10n.workspaceSelectFolderDialogTitle,
+      await _chatService.setConversationWorkspaceEnabled(
+        widget.conversationId,
+        enable,
       );
-      if (selected != null && selected.trim().isNotEmpty) {
-        await _chatService.setConversationWorkspace(
-          widget.conversationId,
-          selected,
-        );
-        if (mounted) await _close();
-      }
+      await _loadWorkspace();
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -178,6 +170,33 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
       config,
     );
     if (mounted) await _close();
+  }
+
+  Future<void> _openDirectorySheet() async {
+    if (_closing || _busy) return;
+    final initial =
+        _chatService.getConversationWorkspaceConfig(
+          widget.conversationId,
+        ) ??
+        const WorkspaceConfig.inheritProject();
+    final result = await showConversationWorkspaceModeSheet(
+      context,
+      initial: initial,
+    );
+    if (result == null || !mounted) return;
+    await _setWorkspaceConfig(result);
+  }
+
+  Future<void> _openToolsPage() async {
+    if (_closing) return;
+    // Capture the navigator before _close(): closing removes the popover's
+    // OverlayEntry, which unmounts this State (same pattern as _openBrowser).
+    final navigator = Navigator.of(context);
+    await _close();
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    await navigator.push(
+      MaterialPageRoute(builder: (_) => const WorkspaceToolsPage()),
+    );
   }
 
   Future<void> _openBrowser() async {
@@ -208,9 +227,13 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final resolution = _resolution;
-    final pathLabel = resolution?.enabled == true
+    final enabled = resolution?.enabled == true;
+    final pathLabel = enabled
         ? (resolution!.path ?? '')
-        : l10n.workspaceDoNotUse;
+        : l10n.workspaceDisabledHint;
+    final conversationConfig = _chatService.getConversationWorkspaceConfig(
+      widget.conversationId,
+    );
 
     final width = 380.0.clamp(280.0, screen.width - 24.0);
     final top = (widget.anchorRect.bottom + 6.0).clamp(0.0, screen.height - 100.0);
@@ -272,64 +295,78 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
                                   ),
                                 ),
                                 const SizedBox(height: 12),
-                                ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: const Icon(Lucide.CircleX),
-                                  title: Text(l10n.workspaceDoNotUse),
-                                  onTap: () => _setWorkspaceConfig(
-                                    const WorkspaceConfig.disabled(),
-                                  ),
-                                ),
-                                ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: const Icon(Lucide.Folder),
-                                  title: Text(l10n.workspaceUseDefaultDirectory),
-                                  onTap: () => _setWorkspaceConfig(
-                                    const WorkspaceConfig.useDefault(),
-                                  ),
-                                  trailing: IconButton(
-                                    tooltip:
-                                        l10n.workspaceDefaultDirectorySettings,
-                                    icon: const Icon(Lucide.Settings2),
-                                    onPressed: () async {
-                                      await showDefaultWorkspaceDirectoryDialog(
-                                        context,
-                                      );
-                                      if (mounted) await _loadWorkspace();
-                                    },
-                                  ),
-                                ),
-                                ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: const Icon(Lucide.Folder),
-                                  title: Text(l10n.workspaceUseProjectDirectory),
-                                  onTap: () => _setWorkspaceConfig(
-                                    const WorkspaceConfig.inheritProject(),
-                                  ),
-                                ),
-                                ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: const Icon(Lucide.FolderCode),
-                                  title: Text(l10n.workspaceChooseFolder),
-                                  onTap: _busy ? null : _pickFolder,
-                                  trailing: _busy
-                                      ? const SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
+                                // Master switch: enable or disable the
+                                // workspace for this conversation.
+                                GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: _busy
+                                      ? null
+                                      : () => _toggleWorkspace(!enabled),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Lucide.Folder,
+                                        size: 20,
+                                        color: cs.onSurface.withOpacity(0.75),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          l10n.workspaceEnableToggle,
+                                          style: const TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w500,
                                           ),
-                                        )
-                                      : null,
+                                        ),
+                                      ),
+                                      IosSwitch(
+                                        value: enabled,
+                                        onChanged: _busy
+                                            ? null
+                                            : _toggleWorkspace,
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: const Icon(Lucide.FileText),
-                                  title: Text(l10n.workspaceFiles),
-                                  onTap: resolution?.enabled == true
-                                      ? _openBrowser
-                                      : null,
-                                ),
+                                // Directory, tools and files entries only
+                                // exist while the workspace is enabled.
+                                if (enabled) ...[
+                                  const SizedBox(height: 8),
+                                  ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: const Icon(Lucide.FolderOpen),
+                                    title: Text(
+                                      l10n.workspaceDirectoryMenu,
+                                    ),
+                                    subtitle: Text(
+                                      workspaceModeLabel(
+                                        l10n,
+                                        conversationConfig,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    trailing: const Icon(
+                                      Lucide.ChevronRight,
+                                    ),
+                                    onTap: _busy ? null : _openDirectorySheet,
+                                  ),
+                                  ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: const Icon(Lucide.Wrench),
+                                    title: Text(l10n.workspaceToolsMenu),
+                                    trailing: const Icon(
+                                      Lucide.ChevronRight,
+                                    ),
+                                    onTap: _busy ? null : _openToolsPage,
+                                  ),
+                                  ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: const Icon(Lucide.FileText),
+                                    title: Text(l10n.workspaceFiles),
+                                    onTap: _openBrowser,
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -346,6 +383,7 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
 
 class _GlassPanel extends StatelessWidget {
   const _GlassPanel({required this.child, this.borderRadius});
+
   final Widget child;
   final BorderRadius? borderRadius;
 

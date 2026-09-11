@@ -4815,6 +4815,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get workspaceDefaultDirectorySettings => '默认工作目录';
 
   @override
+  String get workspaceEnableToggle => '启用工作区';
+
+  @override
+  String get workspaceDisabledHint => '工作区未启用';
+
+  @override
+  String get workspaceDirectoryMenu => '工作区目录';
+
+  @override
+  String get workspaceToolsMenu => '工具';
+
+  @override
+  String get workspaceToolsTitle => '工具';
+
+  @override
+  String get workspaceToolsDescription => '已停用的工具不会提供给模型。工作区未启用时，所有工具自动关闭。';
+
+  @override
   String get workspaceDefaultDirectoryPrivate => '应用私有目录';
 
   @override
@@ -9491,6 +9509,24 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get workspaceDefaultDirectorySettings => '默认工作目录';
+
+  @override
+  String get workspaceEnableToggle => '启用工作区';
+
+  @override
+  String get workspaceDisabledHint => '工作区未启用';
+
+  @override
+  String get workspaceDirectoryMenu => '工作区目录';
+
+  @override
+  String get workspaceToolsMenu => '工具';
+
+  @override
+  String get workspaceToolsTitle => '工具';
+
+  @override
+  String get workspaceToolsDescription => '已停用的工具不会提供给模型。工作区未启用时，所有工具自动关闭。';
 
   @override
   String get workspaceDefaultDirectoryPrivate => '应用私有目录';
@@ -14275,6 +14311,24 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get workspaceDefaultDirectorySettings => '預設工作目錄';
+
+  @override
+  String get workspaceEnableToggle => '啟用工作區';
+
+  @override
+  String get workspaceDisabledHint => '工作區未啟用';
+
+  @override
+  String get workspaceDirectoryMenu => '工作區目錄';
+
+  @override
+  String get workspaceToolsMenu => '工具';
+
+  @override
+  String get workspaceToolsTitle => '工具';
+
+  @override
+  String get workspaceToolsDescription => '已停用的工具不會提供給模型。工作區未啟用時，所有工具自動關閉。';
 
   @override
   String get workspaceDefaultDirectoryPrivate => 'App 私有目錄';

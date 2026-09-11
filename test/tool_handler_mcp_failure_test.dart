@@ -67,6 +67,10 @@ class TestSettingsProvider extends ChangeNotifier
   @override
   Set<String> get approvalAlwaysAllowed => alwaysAllowed;
 
+  /// Workspace tool toggles: this double keeps every tool enabled.
+  @override
+  bool isWorkspaceToolEnabled(String toolName) => true;
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
