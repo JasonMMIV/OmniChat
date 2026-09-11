@@ -166,4 +166,59 @@ class FlutterLogger {
   static void logPrint(String line) {
     log(line, tag: 'print');
   }
+
+  // --- Always-on wire-failure capture --------------------------------------
+  // Writes to logs/wire_errors.log regardless of the user-facing logging
+  // toggle, so reproducing API failures never requires flipping a setting.
+  // Opened lazily on first failure: zero cost on the happy path.
+
+  static const int _wireMaxBytes = 10 << 20; // rotate at 10 MB
+  static IOSink? _wireSink;
+  static Future<void> _wireQueue = Future<void>.value();
+
+  static void logWireError(String message, {String? tag}) {
+    final now = DateTime.now();
+    final prefix = '[${_formatTs(now)}]${tag == null ? '' : ' [$tag]'} ';
+    final normalized = message.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    final text = normalized.split('\n').map((l) => '$prefix$l\n').join();
+
+    _wireQueue = _wireQueue.then((_) async {
+      try {
+        final sink = await _ensureWireSink();
+        sink.write(text);
+        await sink.flush();
+      } catch (_) {
+        // Diagnostics must never crash the app.
+        try {
+          await _wireSink?.flush();
+        } catch (_) {}
+        try {
+          await _wireSink?.close();
+        } catch (_) {}
+        _wireSink = null;
+      }
+    });
+  }
+
+  static Future<IOSink> _ensureWireSink() async {
+    if (_wireSink != null) return _wireSink!;
+    final dir = await AppDirectories.getAppDataDirectory();
+    final logsDir = Directory('${dir.path}/logs');
+    if (!await logsDir.exists()) {
+      await logsDir.create(recursive: true);
+    }
+    final f = File('${logsDir.path}/wire_errors.log');
+    try {
+      if (await f.exists()) {
+        final stat = await f.stat();
+        if (stat.size > _wireMaxBytes) {
+          final old = File('${logsDir.path}/wire_errors_old.log');
+          if (await old.exists()) await old.delete();
+          await f.rename(old.path);
+        }
+      }
+    } catch (_) {}
+    _wireSink = f.openWrite(mode: FileMode.append);
+    return _wireSink!;
+  }
 }
