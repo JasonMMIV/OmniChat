@@ -17,6 +17,21 @@ class TestChatService extends ChangeNotifier implements ChatService {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// 測試用 ChatService stub：僅覆寫 getToolEvents（工具重放測試用），
+/// 其餘走 noSuchMethod（同 TestChatService 模式）。
+class ToolEventChatService extends ChangeNotifier implements ChatService {
+  ToolEventChatService(this.eventsByMessage);
+
+  final Map<String, List<Map<String, dynamic>>> eventsByMessage;
+
+  @override
+  List<Map<String, dynamic>> getToolEvents(String assistantMessageId) =>
+      eventsByMessage[assistantMessageId] ?? const [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 class TestSettingsProvider extends ChangeNotifier implements SettingsProvider {
   @override
   bool get searchEnabled => false;
@@ -39,15 +54,19 @@ ChatMessage _msg(
   String role,
   String content,
   String conversationId, {
+  String? id,
   String? groupId,
   int version = 0,
+  String? reasoningText,
 }) {
   return ChatMessage(
+    id: id,
     role: role,
     content: content,
     conversationId: conversationId,
     groupId: groupId,
     version: version,
+    reasoningText: reasoningText,
   );
 }
 
@@ -176,6 +195,73 @@ void main() {
       expect(request.apiMessages, hasLength(1));
       expect(request.apiMessages.first['role'], 'user');
       expect(request.apiMessages.first['content'], 'hello');
+    });
+  });
+
+  group('ChatTurnService.buildApiMessages tool replay reasoning echo', () {
+    test('falls back to the assistant reasoningText when events carry none',
+        () {
+      final service = ChatTurnService(
+        chatService: ToolEventChatService({
+          'a1': [
+            {
+              'id': 'call_1',
+              'name': 'web_search',
+              'arguments': {'query': 'x'},
+              'content': 'results',
+            },
+          ],
+        }),
+      );
+      final conversation = Conversation(title: 't', id: 'c1');
+      final api = service.buildApiMessages(
+        conversation: conversation,
+        messages: [
+          _msg('user', 'search x', conversation.id),
+          _msg('assistant', '', conversation.id,
+              id: 'a1', reasoningText: 'thinking about the search'),
+          _msg('user', 'go on', conversation.id),
+        ],
+        versionSelections: {},
+        includeToolMessages: true,
+      );
+
+      // user / assistant(tool_calls + reasoning_content) / tool / user
+      expect(api, hasLength(4));
+      final assistantMsg = api[1] as Map;
+      expect(assistantMsg['tool_calls'], hasLength(1));
+      expect(assistantMsg['reasoning_content'], 'thinking about the search');
+    });
+
+    test('event reasoning_content wins over the reasoningText fallback', () {
+      final service = ChatTurnService(
+        chatService: ToolEventChatService({
+          'a1': [
+            {
+              'id': 'call_1',
+              'name': 'web_search',
+              'arguments': {'query': 'x'},
+              'content': 'results',
+              'reasoning_content': 'event echo',
+            },
+          ],
+        }),
+      );
+      final conversation = Conversation(title: 't', id: 'c1');
+      final api = service.buildApiMessages(
+        conversation: conversation,
+        messages: [
+          _msg('user', 'search x', conversation.id),
+          _msg('assistant', '', conversation.id,
+              id: 'a1', reasoningText: 'message reasoning'),
+          _msg('user', 'go on', conversation.id),
+        ],
+        versionSelections: {},
+        includeToolMessages: true,
+      );
+
+      final assistantMsg = api[1] as Map;
+      expect(assistantMsg['reasoning_content'], 'event echo');
     });
   });
 }

@@ -374,6 +374,66 @@ void main() {
     });
 
     test(
+        'P1-3 fix: Claude conversion never forwards the replayed '
+        'reasoning_content field (allow-list blocks it)', () async {
+      final config = ProviderConfig(
+        id: 'claude-test',
+        enabled: true,
+        name: 'claude-test',
+        apiKey: 'key',
+        baseUrl: server.baseUrl,
+        providerType: ProviderKind.claude,
+        models: const ['claude-test-model'],
+      );
+      // Shape produced by the builder's reasoningText fallback (pre-fix
+      // history heal): the assistant tool_calls message carries a
+      // vendor-specific reasoning_content the Anthropic schema does not
+      // know. The Claude converter builds blocks from an allow-list
+      // (tool_calls + claude_thinking_blocks), so the field must never
+      // reach the request body.
+      final echoedToolMessages = [
+        {
+          'role': 'assistant',
+          'content': '\n\n',
+          'tool_calls': [
+            {
+              'id': 'call_1',
+              'type': 'function',
+              'function': {'name': 'file_read', 'arguments': '{}'},
+            },
+          ],
+          'reasoning_content': 'deepseek-style field must not leak',
+        },
+        {
+          'role': 'tool',
+          'name': 'file_read',
+          'tool_call_id': 'call_1',
+          'content': 'file contents',
+        },
+      ];
+      await ChatApiService.sendMessageStream(
+        config: config,
+        modelId: 'claude-test-model',
+        messages: [
+          const {'role': 'user', 'content': 'read the file'},
+          ...echoedToolMessages,
+          const {'role': 'user', 'content': 'what next?'},
+        ],
+        requestId: 'req-claude-strip',
+        stream: false,
+      ).toList();
+
+      expect(server.bodies, isNotEmpty);
+      final body = server.bodies.first;
+      expect(body.containsKey('reasoning_content'), isFalse);
+      final msgs = body['messages'] as List;
+      final assistantMsg = msgs[1] as Map;
+      expect(assistantMsg.containsKey('reasoning_content'), isFalse);
+      final blocks = assistantMsg['content'] as List;
+      expect(blocks.single['type'], 'tool_use');
+    });
+
+    test(
         'P1-3 fix: non-echo models (OpenAI) strip the replayed '
         'reasoning_content field', () async {
       final config = ProviderConfig(
