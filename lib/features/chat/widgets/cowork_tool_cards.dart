@@ -564,7 +564,10 @@ class _AskUserCardState extends State<AskUserCard> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: cs.primary.withValues(alpha: 0.12),
+                    // Muted card gray (same as the todo plan card's N/M pill)
+                    // — the Answered pill is a de-emphasized process state,
+                    // not a primary-accent call to action.
+                    color: cardTextColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
@@ -572,7 +575,7 @@ class _AskUserCardState extends State<AskUserCard> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: cs.primary,
+                      color: cardTextColor,
                     ),
                   ),
                 ),
