@@ -501,6 +501,31 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Toggle the workspace for one conversation. Disabling remembers the
+  /// current directory choice inside the disabled config; enabling restores
+  /// it (falling back to project inheritance, which re-joins the
+  /// project/default resolution chain).
+  Future<void> setConversationWorkspaceEnabled(
+    String conversationId,
+    bool enable,
+  ) async {
+    final config = getConversationWorkspaceConfig(conversationId);
+    if (enable) {
+      final restore = config?.mode == WorkspaceMode.disabled
+          ? config!.restoreOnEnable
+          : (config ?? const WorkspaceConfig.inheritProject());
+      await setConversationWorkspaceConfig(conversationId, restore);
+      return;
+    }
+    final prior = (config == null || config.mode == WorkspaceMode.disabled)
+        ? (config?.previous ?? const WorkspaceConfig.inheritProject())
+        : config;
+    await setConversationWorkspaceConfig(
+      conversationId,
+      WorkspaceConfig.disabledFrom(prior),
+    );
+  }
+
   List<FileRecord> getMessageFileRecords(String messageId) {
     if (!_initialized) return const <FileRecord>[];
     final value = _messageFileRecordsBox.get(messageId);

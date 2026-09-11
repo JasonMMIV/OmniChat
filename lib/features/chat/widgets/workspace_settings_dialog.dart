@@ -38,6 +38,17 @@ String workspaceDefaultDirectoryLabel(
   };
 }
 
+/// Short label of a conversation-level workspace config for the workspace
+/// menu subtitle (custom path, default directory, or project inheritance).
+String workspaceModeLabel(AppLocalizations l10n, WorkspaceConfig? config) {
+  return switch (config?.mode) {
+    WorkspaceMode.custom => config?.path ?? l10n.workspaceChooseFolder,
+    WorkspaceMode.useDefault => l10n.workspaceUseDefaultDirectory,
+    WorkspaceMode.disabled => l10n.workspaceDoNotUse,
+    _ => l10n.workspaceUseProjectDirectory,
+  };
+}
+
 Future<void> showDefaultWorkspaceDirectoryDialog(BuildContext context) async {
   final isDesktop =
       defaultTargetPlatform == TargetPlatform.windows ||
@@ -70,17 +81,73 @@ Future<void> showDefaultWorkspaceDirectoryDialog(BuildContext context) async {
   }
 }
 
-Future<WorkspaceConfig?> showProjectWorkspaceSettingsSheet(
+/// Conversation-level workspace directory picker opened from the workspace
+/// menu's "Workspace directory" entry: choose the default directory, the
+/// project directory, or a custom folder. `disabled` is intentionally not
+/// offered here — the menu's enable toggle owns that state. The gear on
+/// the default-directory row opens the global default directory dialog.
+Future<WorkspaceConfig?> showConversationWorkspaceModeSheet(
   BuildContext context, {
   required WorkspaceConfig initial,
-}) async {
+}) {
+  final l10n = AppLocalizations.of(context)!;
+  final isDesktop =
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.linux;
+  if (isDesktop) {
+    return showDialog<WorkspaceConfig>(
+      context: context,
+      builder: (_) => Dialog(
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: _WorkspaceModeSheet(
+            title: l10n.workspaceDirectoryMenu,
+            initial: initial,
+            allowInherit: true,
+            allowDisabled: false,
+            showGlobalDefaultSettings: true,
+          ),
+        ),
+      ),
+    );
+  }
   return showModalBottomSheet<WorkspaceConfig>(
     context: context,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
     ),
-    builder: (_) => _WorkspaceModeSheet(initial: initial, allowInherit: false),
+    builder: (_) => _WorkspaceModeSheet(
+      title: l10n.workspaceDirectoryMenu,
+      initial: initial,
+      allowInherit: true,
+      allowDisabled: false,
+      showGlobalDefaultSettings: true,
+    ),
+  );
+}
+
+Future<WorkspaceConfig?> showProjectWorkspaceSettingsSheet(
+  BuildContext context, {
+  required WorkspaceConfig initial,
+}) async {
+  final l10n = AppLocalizations.of(context)!;
+  return showModalBottomSheet<WorkspaceConfig>(
+    context: context,
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+    ),
+    builder: (_) => _WorkspaceModeSheet(
+      title: l10n.workspaceTitle,
+      initial: initial,
+      allowInherit: false,
+    ),
   );
 }
 
@@ -196,12 +263,30 @@ class _DefaultWorkspaceDirectorySheet extends StatelessWidget {
 
 class _WorkspaceModeSheet extends StatelessWidget {
   const _WorkspaceModeSheet({
+    required this.title,
     required this.initial,
     required this.allowInherit,
+    this.allowDisabled = true,
+    this.showGlobalDefaultSettings = false,
   });
 
+  /// Sheet heading ("Workspace directory" for the conversation flow,
+  /// "Workspace" for the project-level flow).
+  final String title;
+
+  /// The workspace mode chosen before opening this sheet.
   final WorkspaceConfig initial;
+
+  /// Whether the project-inheritance option is offered.
   final bool allowInherit;
+
+  /// Whether the "do not use workspace" option is offered (project-level
+  /// config only; the conversation flow owns disable via its toggle).
+  final bool allowDisabled;
+
+  /// Whether the default-directory row shows the gear opening the global
+  /// default directory dialog (conversation flow only).
+  final bool showGlobalDefaultSettings;
 
   Future<void> _chooseCustom(BuildContext context) async {
     final selected = await _pickWorkspaceFolder(context);
@@ -217,17 +302,22 @@ class _WorkspaceModeSheet extends StatelessWidget {
 
     Widget option({
       required IconData icon,
-      required String title,
+      required String label,
       required WorkspaceConfig value,
-      String? detail,
+      Widget? action,
     }) {
       final selected = initial == value;
       return ListTile(
         contentPadding: EdgeInsets.zero,
         leading: Icon(icon),
-        title: Text(title),
-        subtitle: detail == null ? null : Text(detail),
-        trailing: selected ? Icon(Lucide.Check, color: cs.primary) : null,
+        title: Text(label),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (action != null) ...[action, const SizedBox(width: 4)],
+            if (selected) Icon(Lucide.Check, color: cs.primary),
+          ],
+        ),
         onTap: () => Navigator.of(context).pop(value),
       );
     }
@@ -243,27 +333,36 @@ class _WorkspaceModeSheet extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                l10n.workspaceTitle,
+                title,
                 style: const TextStyle(
                   fontSize: 19,
                   fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 8),
-              option(
-                icon: Lucide.CircleX,
-                title: l10n.workspaceDoNotUse,
-                value: const WorkspaceConfig.disabled(),
-              ),
+              if (allowDisabled)
+                option(
+                  icon: Lucide.CircleX,
+                  label: l10n.workspaceDoNotUse,
+                  value: const WorkspaceConfig.disabled(),
+                ),
               option(
                 icon: Lucide.Folder,
-                title: l10n.workspaceUseDefaultDirectory,
+                label: l10n.workspaceUseDefaultDirectory,
                 value: const WorkspaceConfig.useDefault(),
+                action: showGlobalDefaultSettings
+                    ? IconButton(
+                        tooltip: l10n.workspaceDefaultDirectorySettings,
+                        icon: const Icon(Lucide.Settings2),
+                        onPressed: () =>
+                            showDefaultWorkspaceDirectoryDialog(context),
+                      )
+                    : null,
               ),
               if (allowInherit)
                 option(
                   icon: Lucide.Folder,
-                  title: l10n.workspaceUseProjectDirectory,
+                  label: l10n.workspaceUseProjectDirectory,
                   value: const WorkspaceConfig.inheritProject(),
                 ),
               ListTile(

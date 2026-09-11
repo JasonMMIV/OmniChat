@@ -186,9 +186,17 @@ class ToolHandlerService {
       toolDefs.addAll(_buildMemoryToolDefinitions());
     }
 
-    // P1-3: plan/TODO + ask_user decision tools (no approval needed).
+    // P1-3 + tool toggles: the 15 file tools and the write_todos / ask_user
+    // decision tools share one gate — the conversation workspace switch
+    // and the global per-tool toggles (a disabled workspace turns all of
+    // them off).
     if (supportsTools) {
-      toolDefs.addAll(_buildCoworkToolDefinitions());
+      toolDefs.addAll(
+        buildWorkspaceToolDefinitions(
+          settings,
+          workspaceEnabled: workspaceEnabled,
+        ),
+      );
     }
 
     // MCP tools
@@ -200,17 +208,29 @@ class ToolHandlerService {
     );
     toolDefs.addAll(mcpTools);
 
-    // File tools are available to every model that supports function calls.
-    if (supportsTools && workspaceEnabled) {
-      toolDefs.addAll(FileToolService.getToolDefinitions());
-    }
-
     return toolDefs;
+  }
+
+  /// Workspace tools (15 file tools + write_todos + ask_user) gated by the
+  /// workspace switch and the global per-tool toggles. Static and pure so
+  /// the gating policy is unit-testable without a provider tree.
+  static List<Map<String, dynamic>> buildWorkspaceToolDefinitions(
+    SettingsProvider settings, {
+    required bool workspaceEnabled,
+  }) {
+    if (!workspaceEnabled) return const [];
+    return <Map<String, dynamic>>[
+      ...FileToolService.getToolDefinitions(),
+      ..._buildCoworkToolDefinitions(),
+    ].where((def) {
+      final name = ((def['function'] as Map)['name'] ?? '').toString();
+      return name.isNotEmpty && settings.isWorkspaceToolEnabled(name);
+    }).toList();
   }
 
   /// P1-3 Cowork tools: write_todos (log-only plan snapshot) and ask_user
   /// (decision card). Neither mutates anything dangerous — no approval.
-  List<Map<String, dynamic>> _buildCoworkToolDefinitions() {
+  static List<Map<String, dynamic>> _buildCoworkToolDefinitions() {
     return [
       {
         'type': 'function',
@@ -447,6 +467,18 @@ class ToolHandlerService {
     final assistantProvider = contextProvider.read<AssistantProvider>();
 
     return (name, args, {String? toolCallId}) async {
+      // Defense in depth: a tool disabled globally (or by the workspace
+      // switch) must never execute even if a stale request still carries
+      // its definition.
+      if (_isWorkspaceToolGloballyDisabled(name)) {
+        return jsonEncode(<String, dynamic>{
+          'type': 'tool_error',
+          'error': 'tool_disabled',
+          'message': 'This tool is disabled in the workspace tools settings.',
+          'tool': name,
+        });
+      }
+
       // P1-1: workspace tools execute under a per-conversation cwd; resolve
       // the sandbox root the same way FileToolService does so the approval
       // policy classifies the same path the executor will use.
@@ -780,6 +812,24 @@ class ToolHandlerService {
       return contextProvider.read<SettingsProvider>();
     } catch (_) {
       return null;
+    }
+  }
+
+  /// True when [name] is a workspace tool (file_* / write_todos /
+  /// ask_user) the user disabled globally. Tolerates settings access
+  /// failures (e.g. test doubles) by treating every tool as enabled.
+  bool _isWorkspaceToolGloballyDisabled(String name) {
+    if (!name.startsWith('file_') &&
+        name != todoToolName &&
+        name != askUserToolName) {
+      return false;
+    }
+    final settings = _safeReadSettings();
+    if (settings == null) return false;
+    try {
+      return !settings.isWorkspaceToolEnabled(name);
+    } catch (_) {
+      return false;
     }
   }
 

@@ -231,6 +231,12 @@ class SettingsProvider extends ChangeNotifier {
   static const String _defaultWorkspacePathKey = 'default_workspace_path_v1';
   static const String _defaultWorkspaceConfigKey =
       'default_workspace_config_v1';
+
+  /// Global workspace tool toggles: the names of tools the user DISABLED
+  /// (absent = enabled, so newly added built-in tools default to on).
+  /// Covers file_*, write_todos and ask_user. Not in `_localOnlyKeys` —
+  /// tool preferences are user intent and sync across devices.
+  static const String _workspaceToolsDisabledKey = 'workspace_tools_disabled_v1';
   static const String _newChatCustomLogoFileNameKey =
       'new_chat_custom_logo_file_name_v1';
   static const String _newChatTextTypeKey = 'new_chat_text_type_v1';
@@ -473,6 +479,31 @@ class SettingsProvider extends ChangeNotifier {
 
   WorkspaceConfig _defaultWorkspaceConfig = const WorkspaceConfig.useDefault();
   WorkspaceConfig get defaultWorkspaceConfig => _defaultWorkspaceConfig;
+
+  Set<String> _workspaceToolsDisabled = <String>{};
+
+  /// Whether a workspace tool is offered to the LLM. Unknown tool names
+  /// default to enabled.
+  bool isWorkspaceToolEnabled(String toolName) =>
+      !_workspaceToolsDisabled.contains(toolName);
+
+  /// Toggle one workspace tool (file_*/write_todos/ask_user) globally.
+  Future<void> setWorkspaceToolEnabled(String toolName, bool enabled) async {
+    final next = Set<String>.of(_workspaceToolsDisabled);
+    if (enabled) {
+      next.remove(toolName);
+    } else {
+      next.add(toolName);
+    }
+    if (setEquals(next, _workspaceToolsDisabled)) return;
+    _workspaceToolsDisabled = next;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _workspaceToolsDisabledKey,
+      next.toList(),
+    );
+  }
 
   static const String _appLaunchCountKey = 'app_launch_count_v1';
 
@@ -725,6 +756,9 @@ class SettingsProvider extends ChangeNotifier {
     _autoCollapseThinking =
         prefs.getBool(_displayAutoCollapseThinkingKey) ?? true;
     _replayToolResults = prefs.getBool(_displayReplayToolResultsKey) ?? true;
+    _workspaceToolsDisabled =
+        (prefs.getStringList(_workspaceToolsDisabledKey) ?? const <String>[])
+            .toSet();
     _showMessageNavButtons = prefs.getBool(_displayShowMessageNavKey) ?? true;
     _showProviderInModelCapsule =
         prefs.getBool(_displayShowProviderInModelCapsuleKey) ?? true;
@@ -3645,6 +3679,7 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._showToolCards = _showToolCards;
     copy._autoCollapseThinking = _autoCollapseThinking;
     copy._replayToolResults = _replayToolResults;
+    copy._workspaceToolsDisabled = _workspaceToolsDisabled;
     copy._agentLoopV1 = _agentLoopV1;
     copy._autoCompactionV1 = _autoCompactionV1;
     copy._showMessageNavButtons = _showMessageNavButtons;

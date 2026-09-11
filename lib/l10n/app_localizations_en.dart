@@ -4843,6 +4843,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get workspaceDefaultDirectorySettings => 'Default working directory';
 
   @override
+  String get workspaceEnableToggle => 'Enable workspace';
+
+  @override
+  String get workspaceDisabledHint => 'Workspace disabled';
+
+  @override
+  String get workspaceDirectoryMenu => 'Workspace directory';
+
+  @override
+  String get workspaceToolsMenu => 'Tools';
+
+  @override
+  String get workspaceToolsTitle => 'Tools';
+
+  @override
+  String get workspaceToolsDescription =>
+      'Disabled tools are not offered to the model. All tools are off while the workspace is disabled.';
+
+  @override
   String get workspaceDefaultDirectoryPrivate => 'App private directory';
 
   @override
