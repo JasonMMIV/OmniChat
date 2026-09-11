@@ -44,6 +44,7 @@ ChatMessage _msg(
   String? id,
   String? groupId,
   int version = 0,
+  String? reasoningText,
 }) {
   return ChatMessage(
     id: id,
@@ -52,6 +53,7 @@ ChatMessage _msg(
     conversationId: conversationId,
     groupId: groupId,
     version: version,
+    reasoningText: reasoningText,
   );
 }
 
@@ -407,6 +409,143 @@ void main() {
       );
 
       final assistantMsg = api[1] as Map;
+      expect(assistantMsg['reasoning_details'], isA<List>());
+      expect((assistantMsg['reasoning_details'] as List), hasLength(1));
+    });
+
+    testWidgets(
+        'P1-3 fix: falls back to the assistant reasoningText when events '
+        'carry no reasoning_content (pre-fix history heal)', (tester) async {
+      final context = await _pumpContext(tester);
+      final service = MessageBuilderService(
+        chatService: ToolEventChatService({
+          // History persisted before the 2026-09-11 write-side fix: the
+          // answered ask_user event carries no reasoning-echo fields, so
+          // the replayed assistant tool_calls message would lack
+          // reasoning_content and DeepSeek thinking mode would reject the
+          // resumed request (HTTP 400).
+          'a1': [
+            {
+              'id': 'call_ask',
+              'name': 'ask_user',
+              'arguments': {
+                'questions': [
+                  {
+                    'id': 'q1',
+                    'question': 'Which style?',
+                    'options': ['A', 'B'],
+                  },
+                ],
+              },
+              'content': '{"type":"ask_user_answer","answers":[]}',
+            },
+          ],
+        }),
+        contextProvider: context,
+      );
+      final conversation = Conversation(title: 't', id: 'c1');
+      final api = service.buildApiMessages(
+        messages: [
+          _msg('user', 'ask me first', 'c1'),
+          _msg('assistant', '', 'c1',
+              id: 'a1', reasoningText: 'let me think about the question'),
+          _msg('user', 'follow-up after answering', 'c1'),
+        ],
+        versionSelections: {},
+        currentConversation: conversation,
+        includeToolMessages: true,
+      );
+
+      // user / assistant(tool_calls + reasoning_content) / tool / user
+      expect(api, hasLength(4));
+      final assistantMsg = api[1] as Map;
+      expect(
+        assistantMsg['reasoning_content'],
+        'let me think about the question',
+      );
+    });
+
+    testWidgets(
+        'P1-3 fix: event reasoning_content wins over the reasoningText '
+        'fallback', (tester) async {
+      final context = await _pumpContext(tester);
+      final service = MessageBuilderService(
+        chatService: ToolEventChatService({
+          'a1': [
+            {
+              'id': 'call_1',
+              'name': 'file_read',
+              'arguments': {'path': 'main.dart'},
+              'content': 'file contents',
+              'reasoning_content': 'event echo',
+            },
+          ],
+        }),
+        contextProvider: context,
+      );
+      final conversation = Conversation(title: 't', id: 'c1');
+      final api = service.buildApiMessages(
+        messages: [
+          _msg('user', 'read the file', 'c1'),
+          _msg('assistant', 'done', 'c1',
+              id: 'a1', reasoningText: 'message reasoning'),
+          _msg('user', 'thanks', 'c1'),
+        ],
+        versionSelections: {},
+        currentConversation: conversation,
+        includeToolMessages: true,
+      );
+
+      final assistantMsg = api[1] as Map;
+      expect(assistantMsg['reasoning_content'], 'event echo');
+    });
+
+    testWidgets(
+        'P1-3 fix: reasoning_details are first-wins across a multi-call '
+        'round (no duplication)', (tester) async {
+      final context = await _pumpContext(tester);
+      final service = MessageBuilderService(
+        chatService: ToolEventChatService({
+          // The write side persists the round's echo onto every placeholder
+          // event; the replay must not concatenate the same details list
+          // once per call.
+          'a1': [
+            {
+              'id': 'call_1',
+              'name': 'file_read',
+              'arguments': {'path': 'main.dart'},
+              'content': 'file contents',
+              'reasoning_details': [
+                {'type': 'reasoning.text', 'text': 'thinking...'},
+              ],
+            },
+            {
+              'id': 'call_2',
+              'name': 'file_write',
+              'arguments': {'path': 'out.txt'},
+              'content': 'written',
+              'reasoning_details': [
+                {'type': 'reasoning.text', 'text': 'thinking...'},
+              ],
+            },
+          ],
+        }),
+        contextProvider: context,
+      );
+      final conversation = Conversation(title: 't', id: 'c1');
+      final api = service.buildApiMessages(
+        messages: [
+          _msg('user', 'read and write', 'c1'),
+          _msg('assistant', 'done', 'c1', id: 'a1'),
+          _msg('user', 'thanks', 'c1'),
+        ],
+        versionSelections: {},
+        currentConversation: conversation,
+        includeToolMessages: true,
+      );
+
+      final assistantMsg = api[1] as Map;
+      expect(assistantMsg['tool_calls'], hasLength(2));
       expect(assistantMsg['reasoning_details'], isA<List>());
       expect((assistantMsg['reasoning_details'] as List), hasLength(1));
     });

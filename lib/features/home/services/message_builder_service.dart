@@ -272,9 +272,28 @@ class MessageBuilderService {
                   reasoningContent = rc;
                 }
                 final rd = e['reasoning_details'];
-                if (rd is List && rd.isNotEmpty) {
+                // First-wins (matching reasoningContent): the write side
+                // persists the round's echo onto every placeholder event,
+                // so a multi-call round would otherwise duplicate the same
+                // details list N times.
+                if (reasoningDetails.isEmpty &&
+                    rd is List &&
+                    rd.isNotEmpty) {
                   reasoningDetails.addAll(rd);
                 }
+              }
+              // P1-3 fix (2026-09-11): heal pre-fix history — when the
+              // events carry no echo (conversations persisted before the
+              // write-side fix landed in handleToolCallsChunk, or rounds
+              // whose transport emitted no extras), fall back to this
+              // assistant message's own reasoningText. It is the same
+              // reasoning stream the transport echoes back to the provider,
+              // so the replay stays faithful while satisfying DeepSeek's
+              // "reasoning_content must be passed back" requirement on the
+              // resumed request.
+              if (reasoningContent == null &&
+                  (m.reasoningText ?? '').isNotEmpty) {
+                reasoningContent = m.reasoningText;
               }
               out.add(<String, dynamic>{
                 'role': 'assistant',

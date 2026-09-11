@@ -204,9 +204,24 @@ class ChatTurnService {
                   reasoningContent = rc;
                 }
                 final rd = e['reasoning_details'];
-                if (rd is List && rd.isNotEmpty) {
+                // First-wins (matching reasoningContent): the write side
+                // persists the round's echo onto every placeholder event,
+                // so a multi-call round would otherwise duplicate the same
+                // details list N times.
+                if (reasoningDetails.isEmpty &&
+                    rd is List &&
+                    rd.isNotEmpty) {
                   reasoningDetails.addAll(rd);
                 }
+              }
+              // P1-3 fix (2026-09-11): heal pre-fix history — fall back to
+              // the assistant message's own reasoningText when the events
+              // carry no echo (same reasoning stream the transport echoes;
+              // DeepSeek thinking mode requires the field on the replayed
+              // assistant tool_calls message).
+              if (reasoningContent == null &&
+                  (m.reasoningText ?? '').isNotEmpty) {
+                reasoningContent = m.reasoningText;
               }
               out.add(<String, dynamic>{
                 'role': 'assistant',

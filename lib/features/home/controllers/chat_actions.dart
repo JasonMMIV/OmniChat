@@ -2053,22 +2053,14 @@ class ChatActions {
               name: name,
               arguments: arguments,
               content: content,
-              // P1-3 fix: persist the reasoning-echo fields captured from
-              // the tool-calling round (DeepSeek thinking mode requires
-              // `reasoning_content` to be passed back on every follow-up —
-              // including the §3.11 cross-turn replay of this event after an
-              // ask_user / approval resume). See
-              // ChatService.preservedToolEventExtraKeys for the allow-list.
-              extras: (chunk.assistantExtras == null)
-                  ? null
-                  : <String, dynamic>{
-                      if (chunk.assistantExtras!['reasoning_content'] is String)
-                        'reasoning_content':
-                            chunk.assistantExtras!['reasoning_content'] as String,
-                      if (chunk.assistantExtras!['reasoning_details'] is List)
-                        'reasoning_details':
-                            chunk.assistantExtras!['reasoning_details'] as List,
-                    },
+              // P1-3 (2026-09-11): reasoning-echo fields are persisted at
+              // tool-CALL time — stream_controller.handleToolCallsChunk
+              // writes the round's assistantExtras onto the placeholder
+              // event — and survive this result upsert through
+              // ChatService.upsertToolEvent's existing-extras merge
+              // (preservedToolEventExtraKeys). Tool-RESULT chunks never
+              // carry assistantExtras; the v1.8 attempt read them here,
+              // which was dead code and never persisted anything.
             );
           },
       // UI-only extras (search provider trace) hydrate the live tool card.

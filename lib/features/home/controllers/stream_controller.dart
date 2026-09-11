@@ -681,10 +681,39 @@ class StreamController {
     // Persist tool events
     try {
       final prev = getToolEventsFromDb(messageId);
+      // P1-3 fix (write side, 2026-09-11): the toolCalls chunk carries the
+      // round's reasoning-echo fields (transport-owned policy; both the
+      // agent-loop expose mode and the legacy loop populate
+      // assistantExtras here). Persist them onto the placeholder event so
+      // the §3.11 cross-turn replay can re-attach `reasoning_content` —
+      // DeepSeek-family thinking mode rejects a resumed request whose
+      // replayed assistant `tool_calls` message lacks the field (HTTP 400:
+      // "The reasoning_content in the thinking mode must be passed back").
+      // Writing at call time (not result time) also makes the echo durable
+      // BEFORE the tool executes — a stronger checkpoint for approval /
+      // ask_user pauses.
+      final echoExtras = <String, dynamic>{};
+      final assistantExtras = chunk.assistantExtras;
+      if (assistantExtras != null) {
+        final rc = assistantExtras['reasoning_content'];
+        if (rc is String && rc.isNotEmpty) {
+          echoExtras['reasoning_content'] = rc;
+        }
+        final rd = assistantExtras['reasoning_details'];
+        if (rd is List && rd.isNotEmpty) {
+          echoExtras['reasoning_details'] = rd;
+        }
+      }
       final newEvents = <Map<String, dynamic>>[
         ...prev,
         for (final c in chunk.toolCalls!)
-          {'id': c.id, 'name': c.name, 'arguments': c.arguments, 'content': null},
+          {
+            'id': c.id,
+            'name': c.name,
+            'arguments': c.arguments,
+            'content': null,
+            ...echoExtras,
+          },
       ];
       await setToolEventsInDb(messageId, dedupeToolEvents(newEvents));
     } catch (_) {}
