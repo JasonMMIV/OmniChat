@@ -36,6 +36,10 @@ class DummyTtsProvider extends ChangeNotifier implements TtsProvider {
   @override
   Future<void> stop() async {}
   @override
+  bool get suppressFloatingPlayer => false;
+  @override
+  void setSuppressFloatingPlayer(bool value) {}
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 class DummyUserProvider extends ChangeNotifier implements UserProvider {
