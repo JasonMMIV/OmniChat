@@ -115,6 +115,36 @@ All three providers work out of the box; PubMed and Semantic Scholar accept an o
 
 ---
 
+### 🔀 Multi-Provider Search Dispatch (Fallback + Round-Robin)
+
+Select any combination of search providers and let OmniChat dispatch every search smartly:
+
+- **Multi-Select with Priority**: The list order defines the failover priority — drag & drop to rearrange it.
+- **Two Dispatch Modes**: `Fallback` (sequential failover in priority order) or `Round-Robin` (a rotating cursor spreads load across providers).
+- **Smart Failover**: On rate limits (429), timeouts, or errors, the engine automatically switches to the next provider — with a 60-second cooldown for rate-limited ones; empty results are treated as valid answers and never trigger failover.
+- **Transparent UI**: Search tool cards show the responding provider's badge and a "switched from X to Y" notice whenever failover happens.
+
+<p align="center">
+  <img src="Screenshots/Multi_Provider_Search_Dispatch.jpg" alt="Multi-Provider Search Dispatch" width="300" />
+</p>
+
+---
+
+### 🖼️ Built-in Image Search MCP Server
+
+Zero-config, key-free image retrieval — the AI embeds real pictures of people, products, landmarks, and animals directly into its replies:
+
+- **Built-In & Ready**: An in-memory MCP server (`Image_Search`) ships with OmniChat and exposes a single `image_search(query, max_results)` tool (1–15 results).
+- **Inline Markdown Images**: Results are inserted straight into the reply as `![alt](url)` — no files ever touch your disk.
+- **Dual Backends**: DuckDuckGo's image index is queried first; Wikimedia Commons (including author and license info) automatically takes over when results are empty.
+- **Dead-Link Filtering**: Top candidate thumbnails are HEAD-verified (HTTP 200 + image content type) before the model ever sees them.
+
+<p align="center">
+  <img src="Screenshots/Builtin_Image_Search.jpg" alt="Built-in Image Search MCP Server" width="300" />
+</p>
+
+---
+
 ### 🛠️ Customizable Input Bar Buttons
 
 Tailor the chat input bar tools to your workflow — one shared layout for mobile and desktop:
