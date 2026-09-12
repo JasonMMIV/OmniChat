@@ -2031,13 +2031,15 @@ class ChatApiService {
     }
     body.remove('reasoning_content');
     body.remove('reasoning_budget');
+    // reasoning_effort must never reach DeepSeek alongside the Anthropic-style
+    // thinking knob (manual §5.3), in either thinking state.
+    body.remove('reasoning_effort');
     if (isReasoning) {
       body['thinking'] = {
         'type': _isOff(thinkingBudget) ? 'disabled' : 'enabled',
       };
     } else {
       body.remove('thinking');
-      body.remove('reasoning_effort');
     }
   }
 

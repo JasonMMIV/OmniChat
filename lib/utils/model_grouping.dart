@@ -25,6 +25,7 @@ class ModelGrouping {
     if (RegExp(r'qwen|qwq|qvq|dashscope').hasMatch(id)) return 'Qwen';
     if (RegExp(r'doubao|ark|volc').hasMatch(id)) return 'Doubao';
     if (id.contains('glm') || id.contains('zhipu')) return 'GLM';
+    if (id.contains('muse-spark')) return 'Muse';
     if (id.contains('mistral')) return 'Mistral';
     if (id.contains('minimax')) return 'MiniMax';
     if (id.contains('grok') || id.contains('xai')) return 'Grok';

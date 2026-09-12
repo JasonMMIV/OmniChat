@@ -92,8 +92,23 @@ class ReasoningCapabilities {
       case ReasoningTransport.claude:
         return _claudeCapabilities(id);
       case ReasoningTransport.google:
-        return unsupported;
+        return _googleCapabilities(id);
     }
+  }
+
+  /// Gemini 3.x (incl. 3.8 Flash) expose a thinkingLevel dial rather than a
+  /// raw token budget; their wire mapping tops out at 'high', so the Xhigh
+  /// tier is advertised for UI purposes and clamps to the same level.
+  static ReasoningCapabilities _googleCapabilities(String id) {
+    final match = RegExp(
+      r'gemini-(\d+)',
+      caseSensitive: false,
+    ).firstMatch(id);
+    final major = int.tryParse(match?.group(1) ?? '');
+    if (major != null && major >= 3) {
+      return const ReasoningCapabilities(supportsXhigh: true);
+    }
+    return unsupported;
   }
 
   static ReasoningCapabilities _openAiCapabilities(String id) {
@@ -106,10 +121,34 @@ class ReasoningCapabilities {
       );
     }
     if (id.contains('deepseek')) {
+      // DeepSeek v4 family (incl. v4.1 Flash) supports the max effort tier;
+      // older v3.x models top out at xhigh.
+      final isV4 = id.contains('deepseek-v4');
+      return ReasoningCapabilities(
+        supportsXhigh: true,
+        supportsMax: isV4,
+        openAiEfforts: isV4
+            ? const {'low', 'medium', 'high', 'xhigh', 'max'}
+            : const {'low', 'medium', 'high', 'xhigh'},
+      );
+    }
+    // Meta Muse Spark (dev.meta.ai OpenAI-compatible Model API):
+    // reasoning_effort minimal|low|medium|high|xhigh; the model ALWAYS
+    // reasons, so Off remaps to 'minimal' instead of being dropped. 'max'
+    // is advertised but not yet exposed by the API (2026-09).
+    if (id.contains('muse-spark') || id.contains('muse_spark')) {
       return const ReasoningCapabilities(
         supportsXhigh: true,
-        openAiEfforts: {'low', 'medium', 'high', 'xhigh'},
+        thinkingAlwaysOn: true,
+        openAiEfforts: {'minimal', 'low', 'medium', 'high', 'xhigh'},
+        openAiOffFallback: 'minimal',
       );
+    }
+    // GLM 5.x (incl. 5.3 / 5.3 Flash): supports xhigh-class effort.
+    // Zhipu-like hosts get the vendor thinking knob in ChatApiService and
+    // strip reasoning_effort; aggregator hosts receive reasoning_effort.
+    if (id.contains('glm-5') || id.contains('glm5')) {
+      return const ReasoningCapabilities(supportsXhigh: true);
     }
 
     final match = RegExp(
@@ -145,9 +184,18 @@ class ReasoningCapabilities {
       );
     }
     if (minor == 6) {
-      return const ReasoningCapabilities(
+      // GPT-5.6 Luna (official docs): Reasoning.effort supports none, low,
+      // medium (default), high, xhigh, max, and the model rejects
+      // temperature / top_p while reasoning (as GPT-5.5 does).
+      final isLuna = _containsModel(id, r'gpt-5\.6-luna(?:$|[-.:@])');
+      return ReasoningCapabilities(
         supportsXhigh: true,
         supportsMax: true,
+        samplingRequiresNone: isLuna,
+        openAiEfforts: isLuna
+            ? const {'none', 'low', 'medium', 'high', 'xhigh', 'max'}
+            : const <String>{},
+        openAiOffFallback: isLuna ? 'none' : null,
       );
     }
     return unsupported;
