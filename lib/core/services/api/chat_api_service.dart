@@ -269,6 +269,152 @@ class ChatApiService {
     }).toList();
   }
 
+  /// Normalize OpenAI Chat Completions message `content` into a shape every
+  /// OpenAI-compatible endpoint accepts (DeepSeek / Zhipu / Kimi / Mimo / …).
+  ///
+  /// Wire-capture 2026-09-12 (Android, DeepSeek v4.1 Flash, HTTP 400
+  /// `param: messages.20.content`): the multimodal parts builder produced a
+  /// `content` array whose ONLY blocks were `image_url` / `video_url` — the
+  /// text part is added only when `parsed.text.isNotEmpty`, and the same
+  /// message can legitimately carry an empty string text. OpenAI tolerates
+  /// image-only arrays; strict validators reject them outright.
+  ///
+  /// Contract (chat-completions path only; Claude / Gemini / Responses are
+  /// intentionally untouched):
+  ///   - assistant messages and role:'tool' messages always carry plain-string
+  ///     `content` (arrays are flattened to their text, non-text blocks are
+  ///     appended as Markdown `![image](url)`);
+  ///   - user `content` arrays keep their `text` blocks (inserted first, as
+  ///     most validators require text before/after images to stay in original
+  ///     order otherwise) and gain a leading empty `text` block when every
+  ///     block is non-text, so an image/video-only array never reaches the
+  ///     wire;
+  ///   - unknown / non-map blocks are dropped rather than forwarded as an
+  ///     invalid block shape.
+  static List<Map<String, dynamic>> _normalizeOpenAiCompatMessageContent(
+    List<Map<String, dynamic>> messages,
+  ) {
+    return [for (final m in messages) _normalizeOne(m)];
+  }
+
+  static Map<String, dynamic> _normalizeOne(Map<String, dynamic> m) {
+    final role = (m['role'] ?? 'user').toString();
+    final content = m['content'];
+
+    // EVERY assistant message must carry plain-string content on the
+    // chat-completions wire — a replayed assistant message without tool_calls
+    // and with an array content is still rejected by DeepSeek's validator
+    // (HTTP 400 messages.N.content), because OpenAI's leniency for arrays is
+    // an OpenAI-only extension.
+    if (role == 'tool' || role == 'assistant') {
+      if (content is List) {
+        return <String, dynamic>{
+          ...m,
+          'content': flattenContentBlocksToText(content),
+        };
+      }
+      if (content is! String) {
+        return <String, dynamic>{...m, 'content': (content ?? '').toString()};
+      }
+      return m;
+    }
+
+    if (content is! List) {
+      if (content is! String) {
+        return <String, dynamic>{...m, 'content': (content ?? '').toString()};
+      }
+      return m;
+    }
+
+    // User / system content array: keep text blocks, guarantee at least one.
+    final out = <Map<String, dynamic>>[];
+    var sawText = false;
+    for (final part in content) {
+      if (part is String) {
+        // Some producers put bare strings inside content arrays; keep their
+        // text instead of silently dropping it.
+        if (part.isNotEmpty) {
+          sawText = true;
+          out.add(<String, dynamic>{'type': 'text', 'text': part});
+        }
+        continue;
+      }
+      if (part is! Map) continue;
+      final type = (part['type'] ?? '').toString();
+      if (type == 'text' || type == 'input_text') {
+        final text = (part['text'] ?? '').toString();
+        sawText = true;
+        out.add(<String, dynamic>{...part, 'text': text});
+      } else if (type == 'image_url' || type == 'video_url') {
+        out.add(Map<String, dynamic>.from(part));
+      } else if (type == 'input_image') {
+        // Responses-API-style input_image: convert to the chat-completions
+        // image_url shape instead of dropping the image.
+        dynamic v = part['input_image'] ?? part['image_url'];
+        String? url;
+        if (v is Map) {
+          url = (v['url'] ?? '').toString();
+          if (url.isEmpty) {
+            final data = v['data'];
+            final mime = (v['media_type'] ?? 'image/png').toString();
+            if (data is List && data.isNotEmpty) {
+              try {
+                url =
+                    'data:$mime;base64,${base64Encode(List<int>.from(data))}';
+              } catch (_) {}
+            } else if (data is String && data.isNotEmpty) {
+              url = data.startsWith('data:')
+                  ? data
+                  : 'data:$mime;base64,$data';
+            }
+          }
+        } else if (v is String && v.isNotEmpty) {
+          url = v;
+        }
+        if (url != null && url.isNotEmpty) {
+          out.add(<String, dynamic>{
+            'type': 'image_url',
+            'image_url': {'url': url},
+          });
+        }
+      }
+      // Unknown block types are dropped: forwarding them is what produced
+      // the provider 400 in the first place.
+    }
+    if (!sawText) {
+      out.insert(0, <String, dynamic>{'type': 'text', 'text': ''});
+    }
+    return <String, dynamic>{...m, 'content': out};
+  }
+
+  /// Flatten a multimodal block list into a single text string. `text`-type
+  /// blocks contribute their text; image/video blocks contribute a Markdown
+  /// `![image](url)` line. Used to repair assistant / role:'tool' messages
+  /// whose content must be a plain string on the chat-completions wire.
+  static String flattenContentBlocksToText(dynamic content) {
+    if (content is! List) return (content ?? '').toString();
+    final buf = StringBuffer();
+    for (final part in content) {
+      if (part is String) {
+        // Bare strings inside content arrays contribute their text verbatim.
+        buf.write(part);
+        continue;
+      }
+      if (part is! Map) continue;
+      final type = (part['type'] ?? '').toString();
+      if (type == 'text' || type == 'input_text' || type == 'output_text') {
+        buf.write((part['text'] ?? '').toString());
+      } else if (type == 'image_url' || type == 'video_url') {
+        final v = part[type];
+        final url = v is Map
+            ? (v['url'] ?? '').toString()
+            : (v?.toString() ?? '');
+        if (url.isNotEmpty) buf.write('\n\n![image]($url)');
+      }
+    }
+    return buf.toString();
+  }
+
   /// Rebuild a message list for an OpenAI follow-up request while preserving
   /// replayed tool structure (role:'tool' messages and assistant tool_calls).
   ///
@@ -1020,6 +1166,11 @@ class ChatApiService {
       _activeCancelTokens[rid] = cancelToken;
     }
     final safeMessages = _sanitizeMessages(messages);
+    // NOTE: the chat-completions wire-shape guard
+    // (_normalizeOpenAiCompatMessageContent) is applied inside
+    // _sendOpenAIStream only — NOT here. The OpenAI Images API path consumes
+    // structured `input_image` blocks from the same message list and must
+    // keep seeing them (routing /images/edits depends on their presence).
     // Non-final: the R0 context-overflow trim-retry (below) may replace the
     // list with a mechanically trimmed one before retrying exactly once.
     var truncatedMessages = _truncateToolResultsInMessages(safeMessages);
@@ -2200,6 +2351,14 @@ class ChatApiService {
         ? '/responses'
         : (config.chatPath ?? '/chat/completions');
     final url = Uri.parse('$base$path');
+    // Chat-completions wire-shape guard (see [_normalizeOpenAiCompatMessageContent]):
+    // strict validators reject image-only content arrays on any message and
+    // non-string content on assistant / tool messages. Applied here so the
+    // Responses-API branch is untouched while both the initial request and
+    // the follow-up rounds below start from a normalized list.
+    if (config.useResponseApi != true) {
+      messages = _normalizeOpenAiCompatMessageContent(messages);
+    }
 
     final effectiveInfo = _effectiveModelInfo(config, modelId);
     final isReasoning = effectiveInfo.abilities.contains(
@@ -2611,7 +2770,14 @@ class ChatApiService {
       for (int i = 0; i < messages.length; i++) {
         final m = messages[i];
         final isLast = i == messages.length - 1;
-        final raw = (m['content'] ?? '').toString();
+        // Chat-completions wire-shape guard: List content on a non-tool
+        // message is a *request-side* block list, not a wire shape —
+        // stringify it here so the else-branch always sees a String and no
+        // role:'tool' / assistant message can ever reach the wire with a
+        // non-string `content` (DeepSeek HTTP 400 messages.N.content).
+        final raw = (m['content'] is List)
+            ? flattenContentBlocksToText(m['content'])
+            : (m['content'] ?? '').toString();
         final role = (m['role'] ?? 'user').toString();
 
         // System 消息保持为纯文本，不解析为图片
@@ -2646,9 +2812,20 @@ class ChatApiService {
           continue;
         }
 
-        // Only parse images if there are images to process
-        final hasMarkdownImages = raw.contains('![') && raw.contains('](');
-        final hasCustomImages = raw.contains('[image:');
+        // Only parse images if there are images to process. Assistant
+        // messages carrying tool_calls and role:'tool' messages are preserved
+        // verbatim above and must never enter this branch. A plain assistant
+        // message (no tool_calls) may enter it — safe only because the entry
+        // guard flattens every assistant array back to a plain string before
+        // encode (DeepSeek HTTP 400 messages.N.content), so any image parts
+        // it produces degrade to Markdown on the wire.
+        final hasMultimodalEligibleRole =
+            role == 'user' || (role == 'assistant' && m['tool_calls'] == null);
+        final hasMarkdownImages =
+            hasMultimodalEligibleRole &&
+            raw.contains('![') &&
+            raw.contains('](');
+        final hasCustomImages = hasMultimodalEligibleRole && raw.contains('[image:');
         final hasAttachedImages =
             isLast && (userImagePaths?.isNotEmpty == true) && (role == 'user');
 
@@ -2707,6 +2884,14 @@ class ChatApiService {
               url = ref.src;
             }
             addImageUrl(url);
+          }
+          // DeepSeek v4.1 Flash (wire-capture 2026-09-12, Android) rejects a
+          // `content` array that contains NO text block with HTTP 400
+          // `param: messages.N.content` — OpenAI tolerates image-only arrays,
+          // strict validators do not. Attach an empty text part whenever this
+          // message has non-text parts but no text part.
+          if (parsed.text.isEmpty && parts.isNotEmpty) {
+            parts.insert(0, {'type': 'text', 'text': ''});
           }
           if (hasAttachedImages) {
             for (final p in userImagePaths!) {
@@ -2954,6 +3139,17 @@ class ChatApiService {
         imageAspectRatio != null &&
         imageAspectRatio.isNotEmpty) {
       _applyOpenAIImagesSize(body, config, modelId, imageAspectRatio);
+    }
+    // Final wire-shape guard: every other body mutation above (vendor knobs,
+    // extraBody overrides, prompt caching) is now settled, so this is the
+    // single point where the request can be proven DeepSeek-shaped before it
+    // leaves the app (HTTP 400 messages.N.content regression, 2026-09-12).
+    if (config.useResponseApi != true) {
+      body['messages'] = _normalizeOpenAiCompatMessageContent(
+        (body['messages'] as List)
+            .map((e) => (e as Map).cast<String, dynamic>())
+            .toList(),
+      );
     }
     request.body = jsonEncode(body);
 
