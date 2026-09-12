@@ -212,7 +212,9 @@ void main() {
     );
 
     expect(enabledBody['thinking'], {'type': 'enabled'});
-    expect(enabledBody['reasoning_effort'], 'xhigh');
+    // Manual §5.3: the Anthropic-style thinking knob replaces OpenAI-style
+    // reasoning_effort in BOTH thinking states (no residual knob).
+    expect(enabledBody.containsKey('reasoning_effort'), isFalse);
     expect(disabledBody['thinking'], {'type': 'disabled'});
     expect(disabledBody.containsKey('reasoning_effort'), isFalse);
   });
@@ -398,5 +400,136 @@ void main() {
 
     expect(zaiBody['thinking'], {'type': 'enabled'});
     expect(zaiBody.containsKey('reasoning_effort'), isFalse);
+  });
+
+  test('DeepSeek v4.1 Flash keeps the thinking knob on every host', () async {
+    final maxBody = await _captureRequest(
+      config: ProviderConfig(
+        id: 'DeepSeek',
+        enabled: true,
+        name: 'DeepSeek',
+        apiKey: '',
+        baseUrl: '',
+        providerType: ProviderKind.openai,
+      ),
+      modelId: 'deepseek-v4.1-flash',
+      thinkingBudget: ReasoningBudget.max,
+    );
+
+    // The max tier is a UI-level capability for v4.1 Flash; on the wire the
+    // Anthropic-style thinking knob replaces reasoning_effort on all hosts.
+    expect(maxBody['thinking'], {'type': 'enabled'});
+    expect(maxBody.containsKey('reasoning_effort'), isFalse);
+  });
+
+  test('GLM 5.3 Flash maps to the Zhipu thinking knob', () async {
+    final body = await _captureRequest(
+      config: ProviderConfig(
+        id: 'Zhipu',
+        enabled: true,
+        name: 'Zhipu',
+        apiKey: '',
+        baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+        providerType: ProviderKind.openai,
+      ),
+      modelId: 'glm-5.3-flash',
+      thinkingBudget: ReasoningBudget.xhigh,
+    );
+
+    expect(body['thinking'], {'type': 'enabled'});
+    expect(body.containsKey('reasoning_effort'), isFalse);
+  });
+
+  test('GPT-5.6 Luna supports none..max efforts and strips sampling while reasoning', () async {
+    final mediumBody = await _captureRequest(
+      config: ProviderConfig(
+        id: 'OpenAI',
+        enabled: true,
+        name: 'OpenAI',
+        apiKey: '',
+        baseUrl: '',
+        providerType: ProviderKind.openai,
+      ),
+      modelId: 'gpt-5.6-luna',
+      thinkingBudget: ReasoningBudget.medium,
+    );
+    final maxBody = await _captureRequest(
+      config: ProviderConfig(
+        id: 'OpenAI',
+        enabled: true,
+        name: 'OpenAI',
+        apiKey: '',
+        baseUrl: '',
+        providerType: ProviderKind.openai,
+      ),
+      modelId: 'gpt-5.6-luna',
+      thinkingBudget: ReasoningBudget.max,
+    );
+    final offBody = await _captureRequest(
+      config: ProviderConfig(
+        id: 'OpenAI',
+        enabled: true,
+        name: 'OpenAI',
+        apiKey: '',
+        baseUrl: '',
+        providerType: ProviderKind.openai,
+      ),
+      modelId: 'gpt-5.6-luna',
+      thinkingBudget: ReasoningBudget.off,
+    );
+
+    expect(mediumBody['reasoning_effort'], 'medium');
+    expect(mediumBody.containsKey('temperature'), isFalse);
+    expect(mediumBody.containsKey('top_p'), isFalse);
+
+    expect(maxBody['reasoning_effort'], 'max');
+
+    // Luna officially supports effort 'none' (a real off), unlike 5.5.
+    expect(offBody['reasoning_effort'], 'none');
+    expect(offBody['temperature'], 0.3);
+  });
+
+  test('Muse Spark 1.3 always reasons: off becomes minimal, max clamps to xhigh', () async {
+    final mediumBody = await _captureRequest(
+      config: ProviderConfig(
+        id: 'MetaModelApi',
+        enabled: true,
+        name: 'MetaModelApi',
+        apiKey: '',
+        baseUrl: 'https://api.meta.ai/v1',
+        providerType: ProviderKind.openai,
+      ),
+      modelId: 'muse-spark-1.3',
+      thinkingBudget: ReasoningBudget.medium,
+    );
+    final maxBody = await _captureRequest(
+      config: ProviderConfig(
+        id: 'MetaModelApi',
+        enabled: true,
+        name: 'MetaModelApi',
+        apiKey: '',
+        baseUrl: 'https://api.meta.ai/v1',
+        providerType: ProviderKind.openai,
+      ),
+      modelId: 'muse-spark-1.3',
+      thinkingBudget: ReasoningBudget.max,
+    );
+    final offBody = await _captureRequest(
+      config: ProviderConfig(
+        id: 'MetaModelApi',
+        enabled: true,
+        name: 'MetaModelApi',
+        apiKey: '',
+        baseUrl: 'https://api.meta.ai/v1',
+        providerType: ProviderKind.openai,
+      ),
+      modelId: 'muse-spark-1.3',
+      thinkingBudget: ReasoningBudget.off,
+    );
+
+    expect(mediumBody['reasoning_effort'], 'medium');
+    // The API rejects effort 'none' (always reasons) and has no 'max' yet.
+    expect(maxBody['reasoning_effort'], 'xhigh');
+    expect(offBody['reasoning_effort'], 'minimal');
   });
 }

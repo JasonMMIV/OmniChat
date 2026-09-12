@@ -89,6 +89,96 @@ void main() {
       expect(kimi.normalizeOpenAiEffort('max'), 'max');
     });
 
+    test('covers the 2026-09 model wave: DeepSeek v4.1, GLM 5.3, GPT-5.6 Luna, Muse Spark, Gemini 3.8', () {
+      // DeepSeek v4.1 Flash: xhigh + max on the OpenAI-compatible transport.
+      final dsV4 = ReasoningCapabilities.forModel(
+        ReasoningTransport.openAi,
+        'deepseek-v4.1-flash',
+      );
+      final dsV3 = ReasoningCapabilities.forModel(
+        ReasoningTransport.openAi,
+        'deepseek-v3.2',
+      );
+
+      expect(dsV4.supportsXhigh, isTrue);
+      expect(dsV4.supportsMax, isTrue);
+      expect(dsV4.openAiEfforts, contains('max'));
+      expect(dsV3.supportsXhigh, isTrue);
+      expect(dsV3.supportsMax, isFalse);
+
+      // GLM 5.3 / 5.3 Flash: xhigh-class effort, no max.
+      final glm53 = ReasoningCapabilities.forModel(
+        ReasoningTransport.openAi,
+        'glm-5.3',
+      );
+      final glm53Flash = ReasoningCapabilities.forModel(
+        ReasoningTransport.openAi,
+        'glm-5.3-flash',
+      );
+
+      expect(glm53.supportsXhigh, isTrue);
+      expect(glm53.supportsMax, isFalse);
+      expect(glm53Flash.supportsXhigh, isTrue);
+      expect(glm53Flash.supportsMax, isFalse);
+
+      // GPT-5.6 Luna: full ladder incl. a real 'none' off-fallback, and it
+      // rejects sampling params while reasoning (official docs).
+      final luna = ReasoningCapabilities.forModel(
+        ReasoningTransport.openAi,
+        'gpt-5.6-luna',
+      );
+
+      expect(luna.supportsXhigh, isTrue);
+      expect(luna.supportsMax, isTrue);
+      expect(luna.samplingRequiresNone, isTrue);
+      expect(luna.normalizeOpenAiEffort('off'), 'none');
+      expect(luna.openAiEfforts, containsAll(['none', 'xhigh', 'max']));
+
+      // Other 5.6 variants keep the generic xhigh+max shape.
+      final terra = ReasoningCapabilities.forModel(
+        ReasoningTransport.openAi,
+        'gpt-5.6-terra',
+      );
+      expect(terra.supportsXhigh, isTrue);
+      expect(terra.supportsMax, isTrue);
+      expect(terra.samplingRequiresNone, isFalse);
+      expect(terra.normalizeOpenAiEffort('off'), 'off');
+
+      // Muse Spark (Meta Model API): always reasons, minimal..xhigh,
+      // off remaps to 'minimal', max not yet exposed.
+      final muse = ReasoningCapabilities.forModel(
+        ReasoningTransport.openAi,
+        'muse-spark-1.3',
+      );
+
+      expect(muse.supportsXhigh, isTrue);
+      expect(muse.supportsMax, isFalse);
+      expect(muse.thinkingAlwaysOn, isTrue);
+      expect(muse.normalizeOpenAiEffort('off'), 'minimal');
+      expect(muse.normalizeOpenAiEffort('max'), 'xhigh');
+      expect(
+        muse.openAiEfforts,
+        containsAll(['minimal', 'low', 'medium', 'high', 'xhigh']),
+      );
+
+      // Gemini 3.8 Flash on the Google transport: thinkingLevel dial with
+      // an xhigh-class ceiling (clamps to 'high' on the wire).
+      final gemini38 = ReasoningCapabilities.forModel(
+        ReasoningTransport.google,
+        'gemini-3.8-flash',
+      );
+
+      expect(gemini38.supportsXhigh, isTrue);
+      expect(gemini38.supportsMax, isFalse);
+
+      // Gemini 2.x stays unsupported (no thinkingLevel dial).
+      final gemini25 = ReasoningCapabilities.forModel(
+        ReasoningTransport.google,
+        'gemini-2.5-flash',
+      );
+      expect(gemini25.supportsXhigh, isFalse);
+    });
+
     test('keeps unsupported future OpenAI models conservative', () {
       final capabilities = ReasoningCapabilities.forModel(
         ReasoningTransport.openAi,
