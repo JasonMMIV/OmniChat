@@ -342,9 +342,11 @@ class ChatApiService {
       if (part is! Map) continue;
       final type = (part['type'] ?? '').toString();
       if (type == 'text' || type == 'input_text') {
+        // input_text is Responses-API dialect; emit the canonical
+        // chat-completions text block (extra vendor keys are dropped).
         final text = (part['text'] ?? '').toString();
         sawText = true;
-        out.add(<String, dynamic>{...part, 'text': text});
+        out.add(<String, dynamic>{'type': 'text', 'text': text});
       } else if (type == 'image_url' || type == 'video_url') {
         out.add(Map<String, dynamic>.from(part));
       } else if (type == 'input_image') {
