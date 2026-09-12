@@ -1083,9 +1083,9 @@ class GenerationContext {
   final ProviderConfig config;
   final List<Map<String, dynamic>> toolDefs;
 
-  /// P1-4 id-aware contract: the handler receives the provider tool-call id
-  /// (optional named param) so per-call side effects — externalized output
-  /// filenames, approval event keys — key off the real call id.
+  /// id-aware contract: the handler receives the provider tool-call id
+  /// (optional named param) so per-call side effects — approval event keys —
+  /// key off the real call id.
   final ToolCallHandler? onToolCall;
   final Map<String, String>? extraHeaders;
   final Map<String, dynamic>? extraBody;

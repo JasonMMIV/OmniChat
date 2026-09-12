@@ -114,9 +114,9 @@ class AgentOrchestrator {
     await for (final event in runAgentLoop(
       messages: messages,
       sendRound: round,
-      // P1-4 id-aware contract: the kernel's AgentToolCall carries the
-      // provider call id; handlers key per-call side effects off it
-      // (externalized filenames, approval event ids).
+      // id-aware contract: the kernel's AgentToolCall carries the provider
+      // call id; handlers key per-call side effects off it (approval event
+      // ids).
       onToolCall: (call) =>
           toolHandler(call.name, call.arguments, toolCallId: call.toolCallId),
       options: options,

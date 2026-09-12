@@ -50,6 +50,7 @@
 
 **已結案不採**（防止未來重提，理由摘要）：
 - **工作區 zip 快照回滾（原 P1-5）**：實測對磁碟與系統資源消耗過大、與主流 git-based/差異式 checkpoint 形狀不符 → 完全移除，復原交由使用者自己的 git。舊對話 `workspace_snapshot` 事件不重放不渲染。
+- **長輸出外部化（原 P1-4，2026-09-12 回撤）**：>32KB 落盤 `{workspace}/.omnichat/tool_outputs/` 會在使用者資料夾殘留暫存/隱藏檔案 → 完全移除，比照 AnyBuff 改純記憶體 head/tail 上限 + 重新查詢指引（`ToolResultCaps`）；原子寫入同步改 ADR-13 形狀（無 backup 副檔）。勿重新在工作區落盤任何工具狀態。詳 `PLAN_WORKSPACE_ZERO_RESIDUE.md`。
 - **MCP 工具審批（原 P1-1 第三源）**：實測設計失能（approve 後重新分類回 Pending、override 未被讀取），且 MCP 為使用者主動啟用的高頻低危呼叫 → 移除，MCP 免審批直接執行。
 - **L2 Failover / L3 整輪恢復（§3.10）**：使用者拒絕切備援模型；L3 由 ADR-A7 翻案為 agent run 恢復（P2-1）。
 - **自動壓縮改 LLM 摘要**：失敗路徑三難（中斷本輪 / 返回全文 / fallback 機械 trim 總複雜度更高）、ADR-A6 零儲存失效、手機延遲與生命週期、BYOK 成本；既有分工「手動壓縮＝LLM、自動壓縮＝機械」維持。LLM 摘要維持 P2-6 L2「L1 不足時的升級層」定位。
@@ -156,7 +157,7 @@
 | **兩把 token 尺**：預算用 `chars/3`、閾值用 usage 實測——混用會誤判 | 觸發一律以 usage 實測為準；chars 估算僅作 L1 內部預算；floor 取保守值 |
 | **Windows 穩定性**：外部程序是新的記憶體/並發風險源（pipe deadlock、孤兒子程序樹、cp950 亂碼） | shell 串行、collectors-first drain、Job Object tree-kill、環境 allowlist、secret 遮蔽；手冊 §5 補「外部程序治理」節（P1-6 落地時） |
 | **商店合規**：shell/腳本能力改變 MSIX/F-Droid 審查敘事 | ADR-A8 政策分級：hard floor（黑名單＋容量上限）不變；出界 ask 屬「分層同意」敘事；手冊 §3.1 與隱私政策措辭隨落地更新 |
-| **同步**：新鍵值分類 | `developer_mode_v1`、shell allowlist、審批政策 = 全域偏好（同步）；agent_runs、tool_outputs = 裝置本地（排除）；todo 隨對話資料 |
+| **同步**：新鍵值分類 | `developer_mode_v1`、shell allowlist、審批政策 = 全域偏好（同步）；agent_runs = 裝置本地（排除）；todo 隨對話資料（tool_outputs 已隨 P1-4 回撤不存在） |
 | **Dart `async*`**：`yield*` 於 try/catch 的例外穿透限制 | kernel/driver 一律 `await for` + `yield`（手冊 §3.10） |
 | **舊路徑雙軌期** | kill-switch + 一個 soak 版本後移除四條 legacy 迴圈；雙軌期內不對舊迴圈加任何新功能 |
 
@@ -187,7 +188,7 @@ flutter test                    # 新增測試 + 既有回歸
 | P1-1 | 審批五態 + diff + resume（file 出界源；MCP 源已移除） | 🟡 2026-09-10（v1.6 修復後）；**尚缺**：`shell_run` 政策源（P1-6）、執行後全檔 diff（P3-6） |
 | P1-2 | 壓縮 R0 + L0/L1 + 觸發 + 配對安全 + mid-run 重評估 | 🟡 2026-09-10；**待**：cache_expiry（Phase 2） |
 | P1-3 | TODO + 注入 + UI + ask_user 決策卡 | 🟢 2026-09-11（含 v1.8/v1.9 實測修復） |
-| P1-4 | 長輸出外部化（id-aware 契約） | ✅ 2026-09-10 |
+| P1-4 | ~~長輸出外部化（id-aware 契約）~~ | ⛔ 2026-09-12 已回撤（工作區零殘留，比照 AnyBuff 改記憶體上限，見 `PLAN_WORKSPACE_ZERO_RESIDUE.md`） |
 | P1-5 | ~~工作區 zip 快照 + 回滾~~ | ⛔ 2026-09-10 已移除（v1.7），不採 |
 | P1-6 | 開發者模式 + allowlist shell | ⬜ |
 | P1-7 | 測試（Phase 1 驗收） | ⬜（隨 P1-6） |

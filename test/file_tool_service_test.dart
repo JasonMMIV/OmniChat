@@ -8,6 +8,12 @@ import 'package:OmniChat/core/services/chat/document_text_extractor.dart';
 import 'package:OmniChat/core/services/file/file_tool_service.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
+/// Staging/backup leftovers a workspace write must never leave behind.
+List<FileSystemEntity> _stagingResidue(Directory workspace) => workspace
+    .listSync(recursive: true)
+    .where((e) => e.path.endsWith('.tmp') || e.path.contains('.omnichat'))
+    .toList();
+
 void main() {
   late Directory workspace;
 
@@ -141,6 +147,150 @@ void main() {
     }, workspace.path);
     expect(oversized.text, contains('512 KB'));
     expect(File('${workspace.path}/too-large.txt').existsSync(), isFalse);
+  });
+
+  group('workspace zero-residue: atomic write (Phase 2.2)', () {
+    test(
+        'replacing an existing file leaves no .tmp / .omnichat backup siblings',
+        () async {
+      final target = File('${workspace.path}/report.md');
+      await target.writeAsString('OLD-CONTENT');
+
+      // file_edit replaces the file through the atomic temp + rename path.
+      final result = await FileToolService.execute('file_edit', {
+        'path': 'report.md',
+        'old_text': 'OLD-CONTENT',
+        'new_text': 'NEW-CONTENT',
+      }, workspace.path);
+      expect(result.text, contains('Edited'));
+      expect(await target.readAsString(), 'NEW-CONTENT');
+
+      // Zero residue: no staging or backup files remain in the workspace.
+      expect(_stagingResidue(workspace), isEmpty);
+    });
+
+    test('editing a file leaves only the edited file behind', () async {
+      final target = File('${workspace.path}/doc.txt');
+      await target.writeAsString('alpha beta gamma');
+
+      final result = await FileToolService.execute('file_edit', {
+        'path': 'doc.txt',
+        'old_text': 'beta',
+        'new_text': 'BETA',
+      }, workspace.path);
+      expect(result.text, contains('Edited'));
+      expect(await target.readAsString(), 'alpha BETA gamma');
+
+      expect(_stagingResidue(workspace), isEmpty);
+    });
+
+    test(
+        'repeated edits to the same file never accumulate staging files',
+        () async {
+      final target = File('${workspace.path}/counter.txt');
+      await target.writeAsString('generation 0');
+
+      for (var i = 1; i <= 5; i++) {
+        final result = await FileToolService.execute('file_edit', {
+          'path': 'counter.txt',
+          'old_text': 'generation ${i - 1}',
+          'new_text': 'generation $i',
+        }, workspace.path);
+        expect(result.text, contains('Edited'));
+      }
+      expect(await target.readAsString(), 'generation 5');
+      expect(_stagingResidue(workspace), isEmpty);
+    });
+
+    group('failure paths (Phase 2.4)', () {
+      tearDown(() {
+        FileToolService.debugWriteTemp = null;
+        FileToolService.debugRename = null;
+      });
+
+      test('retries a locked rename once and then succeeds', () async {
+        final target = File('${workspace.path}/locked.md');
+        await target.writeAsString('ORIGINAL');
+
+        var attempts = 0;
+        FileToolService.debugRename = (temporary, targetPath) async {
+          attempts++;
+          if (attempts == 1) {
+            throw const FileSystemException(
+              'locked by another process',
+              '',
+              OSError('Access is denied', 5),
+            );
+          }
+          await temporary.rename(targetPath);
+        };
+
+        final result = await FileToolService.execute('file_edit', {
+          'path': 'locked.md',
+          'old_text': 'ORIGINAL',
+          'new_text': 'NEW-CONTENT',
+        }, workspace.path);
+
+        expect(result.text, contains('Edited'));
+        expect(await target.readAsString(), 'NEW-CONTENT');
+        expect(attempts, 2, reason: 'an EPERM rename must be retried');
+        expect(_stagingResidue(workspace), isEmpty);
+      });
+
+      test('an exhausted retry loop preserves the old file and drops the temp',
+          () async {
+        final target = File('${workspace.path}/exhausted.md');
+        await target.writeAsString('ORIGINAL');
+
+        var attempts = 0;
+        FileToolService.debugRename = (temporary, targetPath) async {
+          attempts++;
+          throw const FileSystemException(
+            'locked by another process',
+            '',
+            OSError('Access is denied', 5),
+          );
+        };
+
+        final result = await FileToolService.execute('file_edit', {
+          'path': 'exhausted.md',
+          'old_text': 'ORIGINAL',
+          'new_text': 'NEW-CONTENT',
+        }, workspace.path);
+
+        expect(attempts, 6, reason: 'bounded backoff retries');
+        expect(result.text, contains('Error'));
+        expect(await target.readAsString(), 'ORIGINAL');
+        expect(_stagingResidue(workspace), isEmpty);
+      });
+
+      test('a failed temp write preserves the old file and drops the temp',
+          () async {
+        final target = File('${workspace.path}/partial.md');
+        await target.writeAsString('ORIGINAL');
+
+        FileToolService.debugWriteTemp = (temporary, bytes) async {
+          // Disk full / AV lock mid-write: a partial staging file exists and
+          // the write then dies.
+          await temporary.writeAsBytes(bytes.sublist(0, bytes.length ~/ 2));
+          throw const FileSystemException(
+            'not enough space',
+            '',
+            OSError('No space left on device', 28),
+          );
+        };
+
+        final result = await FileToolService.execute('file_edit', {
+          'path': 'partial.md',
+          'old_text': 'ORIGINAL',
+          'new_text': 'NEW-CONTENT',
+        }, workspace.path);
+
+        expect(result.text, contains('Error'));
+        expect(await target.readAsString(), 'ORIGINAL');
+        expect(_stagingResidue(workspace), isEmpty);
+      });
+    });
   });
 
   test('reads bounded segments and supports continuation offsets', () async {
