@@ -82,6 +82,19 @@ class TtsProvider extends ChangeNotifier {
   TtsPlaybackState get playbackState => _playbackState;
   Duration get seekStep => _seekStep;
 
+  bool _suppressFloatingPlayer = false;
+
+  /// Hides the floating mini player while TTS audio is produced on behalf of
+  /// another full-screen surface (e.g. standard-mode voice call). The audio
+  /// session itself is untouched - only the mini player is suppressed.
+  bool get suppressFloatingPlayer => _suppressFloatingPlayer;
+
+  void setSuppressFloatingPlayer(bool value) {
+    if (_suppressFloatingPlayer == value) return;
+    _suppressFloatingPlayer = value;
+    notifyListeners();
+  }
+
   TtsProvider() {
     _init();
   }

@@ -125,6 +125,9 @@ class VoiceChatController extends ChangeNotifier {
   // ==========================================================================
 
   Future<void> startUp() async {
+    // 標準語音模式全程朗讀回覆，浮動迷你播放器會遮住通話畫面 —— 抑制它。
+    // 音訊本身不受影響；cleanup() 時解除。
+    _ttsProvider.setSuppressFloatingPlayer(true);
     if (Platform.isAndroid || Platform.isIOS) {
       await PlatformAudioSetup.initAudioSessionForVoiceChat();
     }
@@ -730,6 +733,10 @@ class VoiceChatController extends ChangeNotifier {
       }
     } catch (_) {
       // 忽略：資源清理失敗不影響結束語音對話
+    } finally {
+      // 結束通話：恢復浮動迷你播放器。放在 TTS stop 之後，避免播放狀態尚未
+      // 歸零的空檔讓播放器閃現；finally 保證任何清理路徑都不會殘留遮蔽狀態。
+      _ttsProvider.setSuppressFloatingPlayer(false);
     }
   }
 

@@ -43,7 +43,10 @@ class _TtsFloatingPlayerState extends State<TtsFloatingPlayer> {
     return Consumer<TtsProvider>(
       builder: (context, tts, _) {
         final state = tts.playbackState;
-        final visible = state.isPlayerVisible;
+        // Full-screen audio surfaces (voice call) suppress the mini player;
+        // audio keeps playing, only this floating surface is hidden.
+        final visible =
+            state.isPlayerVisible && !tts.suppressFloatingPlayer;
         if (visible && !_wasVisible) {
           _expanded = false;
         }

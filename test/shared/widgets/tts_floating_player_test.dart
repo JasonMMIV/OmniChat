@@ -25,10 +25,20 @@ class _FakeTtsProvider extends ChangeNotifier implements TtsProvider {
   int forwardCount = 0;
   int speedCount = 0;
   int stopCount = 0;
+  bool suppressValue = false;
   final TtsPlaybackState _state;
 
   @override
   TtsPlaybackState get playbackState => _state;
+
+  @override
+  bool get suppressFloatingPlayer => suppressValue;
+
+  @override
+  void setSuppressFloatingPlayer(bool value) {
+    suppressValue = value;
+    notifyListeners();
+  }
 
   @override
   Future<void> seekBackward() async {
@@ -196,5 +206,42 @@ void main() {
     await tester.tap(find.byTooltip('重新播放'));
 
     expect(tts.playPauseCount, 1);
+  });
+
+  testWidgets('voice-call suppression hides the floating player', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.25;
+    tester.view.physicalSize = const Size(325, 750);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final tts = _FakeTtsProvider();
+    tts.suppressValue = true; // 標準語音模式通話中
+    await tester.pumpWidget(
+      ChangeNotifierProvider<TtsProvider>.value(
+        value: tts,
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) {
+            return AppOverlays(child: child ?? const SizedBox.shrink());
+          },
+          home: const SizedBox.expand(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    // Playback is active, but the mini player must stay hidden.
+    expect(tts.playbackState.isActive, isTrue);
+    expect(find.bySemanticsLabel('语音播放器'), findsNothing);
+
+    // Cleanup (call ended) un-suppresses: the player reappears.
+    tts.setSuppressFloatingPlayer(false);
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('语音播放器'), findsOneWidget);
   });
 }
