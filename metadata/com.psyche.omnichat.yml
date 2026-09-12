@@ -12,7 +12,7 @@ License: AGPL-3.0
 WebSite: https://github.com/JasonMMIV/OmniChat
 SourceCode: https://github.com/JasonMMIV/OmniChat
 IssueTracker: https://github.com/JasonMMIV/OmniChat/issues
-Changelog: https://github.com/JasonMMIV/OmniChat/blob/master/CHANGES_LOG.md
+Changelog: https://github.com/JasonMMIV/OmniChat/releases
 Summary: Cross-platform LLM chat client with voice, search and AI Team
 Description: |
   OmniChat is a cross-platform LLM (AI chat) client offering text chat,
