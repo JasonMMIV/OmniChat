@@ -244,6 +244,56 @@ void main() {
     );
   });
 
+  test('Responses-API input_text blocks are canonicalized to text', () async {
+    // Producers upstream of the transport may carry Responses-API dialect
+    // blocks; the normalizer converts input_image to image_url, so text must
+    // be canonicalized the same way instead of being forwarded verbatim.
+    await ChatApiService.sendMessageStream(
+      config: _deepseekConfig(fix.baseUrl),
+      modelId: 'deepseek-v4.1-flash',
+      messages: const [
+        {
+          'role': 'user',
+          'content': [
+            {'type': 'input_text', 'text': 'legacy dialect text'},
+            {
+              'type': 'input_image',
+              'image_url': 'data:image/png;base64,aGVsbG8=',
+            },
+          ],
+        },
+      ],
+      requestId: 'ds-input-text',
+    ).toList();
+
+    expect(fix.bodies, hasLength(1));
+    final msgs = fix.bodies.single['messages'] as List;
+    final content = (msgs.first as Map)['content'] as List;
+    expect(
+      content.any(
+        (b) =>
+            b is Map && b['type'] == 'text' && b['text'] == 'legacy dialect text',
+      ),
+      isTrue,
+      reason: 'input_text must become a canonical text block',
+    );
+    expect(
+      content.any((b) => b is Map && b['type'] == 'input_text'),
+      isFalse,
+      reason: 'Responses dialect must not reach the chat-completions wire',
+    );
+    expect(
+      content.any(
+        (b) =>
+            b is Map &&
+            b['type'] == 'image_url' &&
+            (b['image_url'] as Map)['url'] == 'data:image/png;base64,aGVsbG8=',
+      ),
+      isTrue,
+      reason: 'input_image must still be converted to image_url',
+    );
+  });
+
   test('plain string messages pass through untouched', () async {
     await ChatApiService.sendMessageStream(
       config: _deepseekConfig(fix.baseUrl),
