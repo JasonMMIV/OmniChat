@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:archive/archive_io.dart';
-import 'package:flutter/foundation.dart' show compute;
+import 'package:flutter/foundation.dart' show compute, visibleForTesting;
 import 'package:path/path.dart' as p;
 
 import '../../../utils/app_directories.dart';
@@ -1248,50 +1248,69 @@ class FileToolService {
     return true;
   }
 
+  /// Test seams (production: null). The OS will not produce a locked rename
+  /// or a failed temp write deterministically, so the zero-residue tests
+  /// inject those failures here (PLAN_WORKSPACE_ZERO_RESIDUE.md Phase 2.4).
+  @visibleForTesting
+  static Future<void> Function(File temporary, List<int> bytes)? debugWriteTemp;
+
+  @visibleForTesting
+  static Future<void> Function(File temporary, String targetPath)? debugRename;
+
+  /// Workspace zero-residue plan Phase 2.2 (AnyBuff ADR-13 / §9.5 shape):
+  /// unique same-directory temp → write + flush → rename-replace → bounded
+  /// EPERM/EACCES/EBUSY backoff retries (AV/indexer locks) → temp removed on
+  /// EVERY exit path (success, failed write, non-retryable rename error,
+  /// exhausted retries). NO backup sibling: the spike in
+  /// `tool/windows_rename_spike.dart` proved Dart `File.rename` REPLACES an
+  /// existing target on Windows (MoveFileExW(REPLACE_EXISTING) semantics),
+  /// so the old target→backup→temp→target dance — which left a window where
+  /// the target is missing and littered `.omnichat-backup-*` files — is gone.
+  /// On total failure the OLD FILE IS PRESERVED and the error propagates.
   static Future<void> _atomicReplace(File target, List<int> bytes) async {
     final token =
         '${DateTime.now().microsecondsSinceEpoch}_${target.path.hashCode.abs()}';
-    final temporary = File('${target.path}.omnichat-tmp-$token');
-    final backup = File('${target.path}.omnichat-backup-$token');
-    await temporary.writeAsBytes(bytes, flush: true);
-
+    final temporary = File('${target.path}.$token.tmp');
+    const maxAttempts = 6;
+    var delayMs = 50;
     try {
-      if (!Platform.isWindows) {
-        // A same-directory rename is atomic on the supported desktop/mobile
-        // filesystems and replaces the existing file.
-        await temporary.rename(target.path);
-        return;
+      final writeTemp = debugWriteTemp;
+      if (writeTemp != null) {
+        await writeTemp(temporary, bytes);
+      } else {
+        await temporary.writeAsBytes(bytes, flush: true);
       }
 
-      // Windows does not reliably replace an existing file with rename().
-      // Keep a recovery copy while swapping the prepared temporary file in.
-      await target.rename(backup.path);
-      try {
-        await temporary.rename(target.path);
-      } catch (_) {
-        if (!await target.exists() && await backup.exists()) {
-          await backup.rename(target.path);
+      for (var attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+          final rename = debugRename;
+          if (rename != null) {
+            await rename(temporary, target.path);
+          } else {
+            await temporary.rename(target.path);
+          }
+          return;
+        } on FileSystemException catch (e) {
+          final code = e.osError?.errorCode;
+          final retryable = attempt < maxAttempts - 1 &&
+              (code == 5 /* ERROR_ACCESS_DENIED */ ||
+                  code == 32 /* ERROR_SHARING_VIOLATION */ ||
+                  code == 33 /* ERROR_LOCK_VIOLATION */ ||
+                  code == 1 /* EPERM */ ||
+                  code == 13 /* EACCES */ ||
+                  code == 16 /* EBUSY (errno mapping) */);
+          if (!retryable) rethrow;
+          await Future<void>.delayed(Duration(milliseconds: delayMs));
+          delayMs *= 2;
         }
-        rethrow;
-      }
-      try {
-        if (await backup.exists()) await backup.delete();
-      } catch (_) {
-        // The new target is already installed; a stale backup is harmless.
       }
     } finally {
-      if (await temporary.exists()) {
-        try {
-          await temporary.delete();
-        } catch (_) {}
-      }
-      if (Platform.isWindows &&
-          !await target.exists() &&
-          await backup.exists()) {
-        try {
-          await backup.rename(target.path);
-        } catch (_) {}
-      }
+      // A successful rename moves the temp away; every other exit — failed
+      // write, non-retryable rename error, exhausted retries — removes it
+      // here so the workspace never keeps a staging file.
+      try {
+        if (await temporary.exists()) await temporary.delete();
+      } catch (_) {}
     }
   }
 
@@ -1490,6 +1509,13 @@ class FileToolService {
       );
     }
     await file.parent.create(recursive: true);
+    // Direct write, no staging temp — deliberate (decided 2026-09-12,
+    // PLAN_WORKSPACE_ZERO_RESIDUE.md §8 F5): file_write / file_append are not
+    // atomic, and a crash mid-write can leave a torn file whose accepted
+    // recovery is the user's own git. Only the read-modify-write tools
+    // (file_edit / file_patch) pay for the ADR-13 temp + rename-replace path,
+    // because there the previous content is rewritten in memory and would
+    // otherwise be lost with no copy.
     if (append) {
       await file.writeAsBytes(bytes, mode: FileMode.append);
     } else {

@@ -5,10 +5,10 @@ import '../../models/token_usage.dart';
 /// [toolCallId] carries the provider tool-call id when it is known at
 /// execution time (the agent-loop kernel path always provides it; the
 /// legacy transport loop provides it at every internal call site too).
-/// Handlers use it to key per-call side effects — most importantly P1-4
-/// long-output externalization, where the persisted filename becomes
-/// `{tool}-{callId}.txt` instead of a timestamp token, so a re-run of the
-/// same call round-trips to the same file.
+/// Handlers key per-call side effects on that real provider id — most
+/// importantly the approval Pending event id (P1-1), so a resumed
+/// approve/deny decision matches exactly the event the synthetic
+/// toolResults upsert wrote.
 ///
 /// Closures with fewer parameters (`(name, args) async => ...`) remain
 /// assignable — the named parameter is optional.

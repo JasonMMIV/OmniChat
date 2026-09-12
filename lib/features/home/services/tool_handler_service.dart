@@ -16,7 +16,7 @@ import '../../../core/services/file/file_tool_service.dart';
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
 import '../../../core/services/logging/flutter_logger.dart';
-import '../../../core/services/tools/tool_output_externalizer.dart';
+import '../../../core/services/tools/tool_result_caps.dart';
 import '../../../core/models/file_record.dart';
 
 /// 工具调用处理服务
@@ -439,11 +439,10 @@ class ToolHandlerService {
   /// - Memory tool calls (create/edit/delete)
   /// - MCP tool calls
   ///
-  /// P1-4 id-aware contract: the optional [ToolCallHandler.toolCallId]
-  /// parameter carries the provider call id when known — it keys the
-  /// approval Pending event id (kernel path) and the externalized output
-  /// filename. Closures of the legacy `(name, args)` shape remain
-  /// assignable.
+  /// id-aware contract: the optional [ToolCallHandler.toolCallId] parameter
+  /// carries the provider call id when known — it keys the approval Pending
+  /// event id (kernel path). Closures of the legacy `(name, args)` shape
+  /// remain assignable.
   ///
   /// P1-1 v1.6: [approvedResolvedPath] is set by the approval resume path —
   /// the user approved this concrete out-of-workspace path, so the call
@@ -567,14 +566,12 @@ class ToolHandlerService {
               );
             }
           }
-          // P1-4 long-output externalization: oversized results are written
-          // to {workspace}/.omnichat/tool_outputs/ and the model gets a
-          // preview + retrieval guidance (single truncation path).
-          return await ToolOutputExternalizer.maybeExternalize(
+          // Workspace zero-residue plan Phase 1: oversized results are
+          // capped in memory (head/tail + re-query guidance) instead of
+          // being persisted under {workspace}/.omnichat/.
+          return ToolResultCaps.cap(
             toolName: name,
             result: result.text,
-            workspacePath: workspacePath,
-            toolCallId: toolCallId,
           );
         } catch (e, st) {
           // Never let an unexpected file-tool failure break the conversation.
@@ -666,12 +663,7 @@ class ToolHandlerService {
               // Extras are best-effort UI metadata — never break a search.
             }
           }
-          return await ToolOutputExternalizer.maybeExternalize(
-            toolName: name,
-            result: trace.json,
-            workspacePath: workspacePath,
-            toolCallId: toolCallId,
-          );
+          return ToolResultCaps.cap(toolName: name, result: trace.json);
         }
 
         // Memory tools
@@ -692,14 +684,10 @@ class ToolHandlerService {
           toolName: name,
           arguments: args,
         );
-        // P1-4 long-output externalization (workspace may be null → the
-        // externalizer returns the result unchanged).
-        return await ToolOutputExternalizer.maybeExternalize(
-          toolName: name,
-          result: text,
-          workspacePath: workspacePath,
-          toolCallId: toolCallId,
-        );
+        // Workspace zero-residue plan Phase 1: in-memory cap (no
+        // externalization; the workspace may be null but that no longer
+        // matters).
+        return ToolResultCaps.cap(toolName: name, result: text);
       } catch (e) {
         // Catch unexpected exceptions and return error JSON to the LLM.
         // This prevents tool execution failures from terminating the chat flow.

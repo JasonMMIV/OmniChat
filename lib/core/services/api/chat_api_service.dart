@@ -26,6 +26,7 @@ import 'context_overflow.dart';
 import 'learned_context_windows.dart';
 import '../logging/flutter_logger.dart';
 import '../agent/compaction/context_trim.dart';
+import '../tools/tool_result_caps.dart';
 export 'chat_stream_chunk.dart'
     show ChatStreamChunk, ToolCallInfo, ToolResultInfo, ToolCallHandler;
 
@@ -102,15 +103,12 @@ class ChatApiService {
     } catch (_) {}
   }
 
-  /// Truncate a tool result text to [maxChars] characters, keeping head and tail.
-  /// Returns the original string if it does not exceed the threshold.
+  /// Truncate a tool result text to [ToolResultCaps.capThresholdChars]
+  /// characters, keeping head and tail. Delegates to the shared in-memory
+  /// capper (workspace zero-residue plan Phase 1.4) so the transport backstop
+  /// and the handler-level cap take the same shape exactly once.
   static String _truncateToolResultText(String content) {
-    const maxChars = 32768;
-    if (content.length <= maxChars) return content;
-    final head = content.substring(0, maxChars ~/ 2);
-    final tail = content.substring(content.length - maxChars ~/ 2);
-    final originalSizeKB = (content.length / 1024).round();
-    return '$head\n\n...[content truncated, original size ${originalSizeKB}KB]...\n\n$tail';
+    return ToolResultCaps.capBare(content);
   }
 
   /// Truncate tool result contents in a message list for all API formats.
