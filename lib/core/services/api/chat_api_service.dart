@@ -1150,6 +1150,15 @@ class ChatApiService {
     // chunk and returns WITHOUT running them or issuing follow-up requests.
     // The agent-loop kernel / driver owns execution and follow-up assembly.
     // Default false = legacy multi-round transport loop, byte-identical.
+    //
+    // L1 contract (2026-09-13): every expose-mode return point syncs
+    // [StreamAttemptFlags.finishReason] (when the parser has not already
+    // captured one) before returning. Surfacing the tool calls IS the round's
+    // completion — without the marker the retry loop's silent-interruption
+    // detector would classify the cancelled round as a dropped SSE body and
+    // re-request it up to 4×, duplicating both the request and whatever
+    // content the model already streamed (standard voice mode answered the
+    // same question 4 times).
     bool exposeToolCallsOnly = false,
     // Wire-capture diagnostics (2026-09-11): tag used by the on-error wire
     // logger so a failing request's exact JSON body can be correlated with
@@ -3273,6 +3282,14 @@ class ChatApiService {
               c0 = (choices.first as Map).cast<String, dynamic>();
           } catch (_) {}
           if (c0 == null) {
+            // Non-stream legacy tool loop completion — a full JSON response
+            // is by definition a complete turn; sync the L1 silent-
+            // interruption detector so the completed loop is never
+            // misclassified as a dropped stream and re-requested 4×.
+            if (flags != null) {
+              flags.finishReason ??= 'stop';
+              flags.hasUsage = flags.hasUsage || aggUsage != null;
+            }
             final s = (lastObj['output_text'] ?? '').toString();
             yield ChatStreamChunk(
               content: s,
@@ -3355,6 +3372,13 @@ class ChatApiService {
             if (exposeToolCallsOnly) {
               // Single-round mode: surface the tool calls and stop; the
               // agent-loop kernel executes them and composes the follow-up.
+              // A non-streaming JSON response is by definition a complete
+              // turn — sync the L1 silent-interruption detector so the
+              // cancelled round is never re-requested.
+              if (flags != null) {
+                flags.finishReason ??= 'tool_calls';
+                flags.hasUsage = flags.hasUsage || aggUsage != null;
+              }
               return;
             }
             final results = <Map<String, dynamic>>[];
@@ -3479,6 +3503,13 @@ class ChatApiService {
               content = buf.toString();
             }
           }
+          // Non-stream legacy loop completion (no tool calls in this round).
+          // Same sync as the c0==null branch above: a full JSON response is
+          // a definitive turn end for the L1 silent-interrupt detector.
+          if (flags != null) {
+            flags.finishReason ??= 'stop';
+            flags.hasUsage = flags.hasUsage || aggUsage != null;
+          }
           yield ChatStreamChunk(
             content: content,
             isDone: true,
@@ -3583,6 +3614,15 @@ class ChatApiService {
 
             if (exposeToolCallsOnly) {
               // Single-round expose mode: surface the tool calls and stop.
+              // [DONE] is a complete, unambiguous round end — sync the L1
+              // retry loop's silent-interruption detector so a cancelled
+              // single round is never misclassified as a dropped stream and
+              // re-requested (standard voice mode answered 4× regression,
+              // 2026-09-13).
+              if (flags != null) {
+                flags.finishReason ??= 'tool_calls';
+                flags.hasUsage = flags.hasUsage || usage != null;
+              }
               return;
             }
             // Execute tools and emit results
@@ -4063,6 +4103,12 @@ class ChatApiService {
                 }
                 if (exposeToolCallsOnly) {
                   // Single-round expose mode: surface the tool calls and stop.
+                  // Follow-up round of the [DONE]-driven loop — same L1 sync
+                  // as the primary expose return.
+                  if (flags != null) {
+                    flags.finishReason ??= 'tool_calls';
+                    flags.hasUsage = flags.hasUsage || usage != null;
+                  }
                   return;
                 }
                 final results2 = <Map<String, dynamic>>[];
@@ -4133,6 +4179,21 @@ class ChatApiService {
                 continue;
               } else {
                 // No further tool calls; finish
+                // Legacy multi-round completion — the follow-up round's
+                // finish_reason (finishReason2) never passes through the
+                // per-chunk flags sync (that only runs for the primary
+                // round), so sync it here: a completed legacy tool loop is
+                // a definitive turn end. Without this the L1 retry loop's
+                // silent-interruption detector would classify the whole
+                // loop (tool round + answer round) as a dropped SSE body
+                // when the tool round carried no finish_reason, re-request
+                // it up to 4× and concatenate each attempt's answer onto
+                // the same message (standard voice mode answered 4×,
+                // 2026-09-13).
+                if (flags != null) {
+                  flags.finishReason ??= finishReason2 ?? 'stop';
+                  flags.hasUsage = flags.hasUsage || usage != null;
+                }
                 final approxTotal =
                     approxPromptTokens +
                     _approxTokensFromChars(approxCompletionChars);
@@ -4419,6 +4480,12 @@ class ChatApiService {
                 }
                 if (exposeToolCallsOnly) {
                   // Single-round expose mode: surface the tool calls and stop.
+                  // Responses transport: `response.completed` already synced
+                  // flags above; keep the fallback in case a vendor omits it.
+                  if (flags != null) {
+                    flags.finishReason ??= 'tool_calls';
+                    flags.hasUsage = flags.hasUsage || usage != null;
+                  }
                   return;
                 }
                 final resultsInfo = <ToolResultInfo>[];
@@ -4635,6 +4702,15 @@ class ChatApiService {
 
                   if (respCalls2.isEmpty) {
                     // No further tool calls; finalize
+                    // Legacy Responses follow-up loop completion — the
+                    // follow-up round's `response.completed` does not pass
+                    // through the primary parser's flags sync, so mark the
+                    // completed loop here (same contract as the chat-
+                    // completions legacy loops above).
+                    if (flags != null) {
+                      flags.finishReason ??= 'completed';
+                      flags.hasUsage = flags.hasUsage || usage != null;
+                    }
                     final approxTotal2 =
                         approxPromptTokens +
                         _approxTokensFromChars(approxCompletionChars);
@@ -4731,6 +4807,10 @@ class ChatApiService {
                 }
 
                 // Safety
+                if (flags != null) {
+                  flags.finishReason ??= 'completed';
+                  flags.hasUsage = flags.hasUsage || usage != null;
+                }
                 final approxTotal =
                     approxPromptTokens +
                     _approxTokensFromChars(approxCompletionChars);
@@ -5073,6 +5153,12 @@ class ChatApiService {
             }
             if (exposeToolCallsOnly) {
               // Single-round expose mode: surface the tool calls and stop.
+              // Same L1 sync as the [DONE] expose return above: the vendor
+              // no-DONE fallback is a complete round, never a dropped stream.
+              if (flags != null) {
+                flags.finishReason ??= 'tool_calls';
+                flags.hasUsage = flags.hasUsage || usage != null;
+              }
               return;
             }
             // Execute tools and emit results
@@ -5565,6 +5651,12 @@ class ChatApiService {
                 }
                 if (exposeToolCallsOnly) {
                   // Single-round expose mode: surface the tool calls and stop.
+                  // Follow-up round of the [DONE]-driven loop — same L1 sync
+                  // as the primary expose return.
+                  if (flags != null) {
+                    flags.finishReason ??= 'tool_calls';
+                    flags.hasUsage = flags.hasUsage || usage != null;
+                  }
                   return;
                 }
                 final results2 = <Map<String, dynamic>>[];
@@ -5632,6 +5724,12 @@ class ChatApiService {
                 ];
                 continue;
               } else {
+                // Legacy no-DONE follow-up loop completion — same flags
+                // sync as the [DONE]-driven loop above.
+                if (flags != null) {
+                  flags.finishReason ??= finishReason2 ?? 'stop';
+                  flags.hasUsage = flags.hasUsage || usage != null;
+                }
                 final approxTotal =
                     approxPromptTokens +
                     _approxTokensFromChars(approxCompletionChars);
@@ -5702,6 +5800,12 @@ class ChatApiService {
                 }
                 if (exposeToolCallsOnly) {
                   // Single-round mode: surfaced above, stop before execution.
+                  // No-DONE vendor streams may never set `finishReason`
+                  // otherwise — a definitive round end, not an interruption.
+                  if (flags != null) {
+                    flags.finishReason ??= 'tool_calls';
+                    flags.hasUsage = flags.hasUsage || usage != null;
+                  }
                   return;
                 }
                 // Execute tools and emit results
@@ -6244,6 +6348,12 @@ class ChatApiService {
                     ];
                     continue;
                   } else {
+                    // Legacy deep no-DONE follow-up loop completion — same
+                    // flags sync as the loops above.
+                    if (flags != null) {
+                      flags.finishReason ??= finishReason2 ?? 'stop';
+                      flags.hasUsage = flags.hasUsage || usage != null;
+                    }
                     final approxTotal =
                         approxPromptTokens +
                         _approxTokensFromChars(approxCompletionChars);
@@ -6406,6 +6516,12 @@ class ChatApiService {
                 if (l.isEmpty || !l.startsWith('data:')) continue;
                 final d = l.substring(5).trimLeft();
                 if (d == '[DONE]') {
+                  // Vendor root-tool_calls follow-up completion — [DONE] is
+                  // a definitive end; sync the flags like the loops above.
+                  if (flags != null) {
+                    flags.finishReason ??= 'stop';
+                    flags.hasUsage = flags.hasUsage || usage != null;
+                  }
                   yield ChatStreamChunk(
                     content: '',
                     isDone: true,
@@ -6865,6 +6981,13 @@ class ChatApiService {
           );
           if (exposeToolCallsOnly) {
             // Single-round expose mode: surface the tool calls and stop.
+            // A non-streaming JSON response is by definition a complete
+            // turn — sync the L1 silent-interruption detector so the
+            // cancelled round is never re-requested.
+            if (flags != null) {
+              flags.finishReason ??= 'end_turn';
+              flags.hasUsage = flags.hasUsage || totalUsage != null;
+            }
             return;
           }
           final results = <Map<String, dynamic>>[];
@@ -7425,6 +7548,15 @@ class ChatApiService {
                   },
           );
         }
+        // Claude always sends `message_stop` (synced into flags above when
+        // message_delta carried a stop_reason); the fallback guards against
+        // a vendor variant that ends the SSE body without one. Either way
+        // this is a definitive round end — sync the L1 silent-interruption
+        // detector so the cancelled round is never re-requested.
+        if (flags != null) {
+          flags.finishReason ??= _lastStopReason ?? 'tool_use';
+          flags.hasUsage = flags.hasUsage || (totalUsage ?? usage) != null;
+        }
         return;
       }
 
@@ -7842,6 +7974,13 @@ class ChatApiService {
           );
           if (exposeToolCallsOnly) {
             // Single-round expose mode: surface the tool calls and stop.
+            // A non-streaming generateContent response is by definition a
+            // complete turn — sync the L1 silent-interruption detector so
+            // the cancelled round is never re-requested.
+            if (flags != null) {
+              flags.finishReason ??= 'STOP';
+              flags.hasUsage = flags.hasUsage || totalUsage != null;
+            }
             return;
           }
           final res =
@@ -8763,7 +8902,14 @@ class ChatApiService {
         if (exposeSurfacedCalls) {
           // Single-round expose mode: the tool calls were already surfaced
           // as chunks above; end the round without a terminal chunk (the
-          // kernel / driver synthesizes it) and without looping.
+          // kernel / driver synthesizes it) and without looping. Sync the
+          // L1 silent-interruption detector: when the vendor never sent an
+          // explicit `finishReason`, the surface itself is a definitive
+          // round end — never re-request the cancelled round.
+          if (flags != null) {
+            flags.finishReason ??= 'STOP';
+            flags.hasUsage = flags.hasUsage || usage != null;
+          }
           return;
         }
         // No tool calls; this round finished

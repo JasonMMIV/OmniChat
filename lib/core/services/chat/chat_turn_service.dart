@@ -76,6 +76,16 @@ class ChatTurnHandle {
     _fullContent += delta;
   }
 
+  /// L1 retry boundary: discard the previous attempt's partial content so
+  /// the retry's regenerated answer replaces it instead of concatenating
+  /// (mirrors chat_actions._resetStreamForRetry). The persist queue is
+  /// flushed through [_schedulePersist] by the new attempt's first chunk;
+  /// [onChunk] is NOT fired here so the UI keeps the old text until real
+  /// new content arrives (same UX as the main chat's bubble reset).
+  void _resetContentForRetry() {
+    _fullContent = '';
+  }
+
   /// 3.2-5：Streaming 持久化節流 — 以 300ms 計時器 batch `updateMessage`，
   /// 避免逐 chunk 寫 DB（長回應 DB 寫入次數顯著下降）。
   void _schedulePersist() {
@@ -380,6 +390,14 @@ class ChatTurnService {
         // to. The current voice controller doesn't pass an [onRetry]
         // hook, so this is a no-op there.
         if (chunk.errorKind != null && chunk.attempt != null) {
+          // L1 retry: the new attempt re-issues the SAME request and
+          // regenerates the whole answer, so the previous attempt's
+          // accumulated content must be discarded — otherwise the two
+          // attempts' full answers concatenate onto one message (the
+          // "answered 4×" regression surfaced by the legacy-loop flags
+          // fix; chat_actions._resetStreamForRetry does the same for
+          // the main chat path).
+          handle._resetContentForRetry();
           onRetry?.call(
             chunk.attempt!,
             chunk.maxAttempts ?? 3,
