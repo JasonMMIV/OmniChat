@@ -68,6 +68,7 @@ internationalization.md
 .claude/settings.local.json
 *.exe
 *.apk
+*.sha1
 
 # Developer notes — not for public repo
 
