@@ -115,3 +115,51 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+# === Bundle the VC++ runtime DLLs next to the executable (app-local CRT) ===
+# flutter_windows.dll and the runner link the MSVC runtime dynamically (/MD),
+# so machines without the VC++ 2015-2022 Redistributable cannot start the app
+# ("VCRUNTIME140.dll / VCRUNTIME140_1.dll / MSVCP140.dll not found"). Per the
+# official Flutter Windows distribution guidance, copy the redist CRT DLLs into
+# the bundle: the Windows loader searches the application directory first, so
+# the app becomes self-contained — the ZIP, the Inno Setup installer and the
+# MSIX (packed from this same Release directory) all ship the runtime without
+# needing a vc_redist step or a Microsoft.VCLibs.140.00 framework dependency.
+set(VCRT_DLLS msvcp140.dll vcruntime140.dll vcruntime140_1.dll)
+
+set(VCRT_DIR "")
+# 1) From the compiler in use: <VS>/VC/Tools/MSVC/<ver>/bin/Hostx64/x64/cl.exe
+#    -> redist lives at <VS>/VC/Redist/MSVC/<redistver>/x64/Microsoft.VC*.CRT
+get_filename_component(_VCRT_MSVC_TOOLS "${CMAKE_CXX_COMPILER}" DIRECTORY)
+get_filename_component(_VCRT_MSVC_TOOLS "${_VCRT_MSVC_TOOLS}/../../.." ABSOLUTE)
+file(GLOB _VCRT_CANDIDATES
+  "${_VCRT_MSVC_TOOLS}/../../../Redist/MSVC/*/x64/Microsoft.VC*.CRT")
+# 2) Fallback: any installed Visual Studio (Build Tools included)
+file(GLOB _VCRT_FALLBACK
+  "C:/Program Files (x86)/Microsoft Visual Studio/*/*/VC/Redist/MSVC/*/x64/Microsoft.VC*.CRT"
+  "C:/Program Files/Microsoft Visual Studio/*/*/VC/Redist/MSVC/*/x64/Microsoft.VC*.CRT")
+list(APPEND _VCRT_CANDIDATES ${_VCRT_FALLBACK})
+# Glob results are ascending; keep the last usable match (newest redist).
+foreach(_cand IN LISTS _VCRT_CANDIDATES)
+  if(EXISTS "${_cand}/msvcp140.dll")
+    set(VCRT_DIR "${_cand}")
+  endif()
+endforeach()
+
+if(VCRT_DIR)
+  foreach(_dll IN LISTS VCRT_DLLS)
+    if(EXISTS "${VCRT_DIR}/${_dll}")
+      install(FILES "${VCRT_DIR}/${_dll}" DESTINATION "${CMAKE_INSTALL_PREFIX}"
+        CONFIGURATIONS Profile;Release
+        COMPONENT Runtime)
+    else()
+      message(WARNING "VC++ runtime: ${_dll} not found in ${VCRT_DIR}")
+    endif()
+  endforeach()
+  message(STATUS "Bundling VC++ runtime DLLs from: ${VCRT_DIR}")
+else()
+  message(WARNING
+    "VC++ runtime DLLs not found - the built app will require the "
+    "VC++ 2015-2022 Redistributable on end-user machines. Install the "
+    "C++ workload / Build Tools with the MSVC component and rebuild.")
+endif()
