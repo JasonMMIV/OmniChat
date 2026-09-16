@@ -333,6 +333,18 @@ jobs:
       - name: 🏗️ 构建 Windows
         run: flutter build windows --release
 
+      - name: 🛡️ 验证 VC++ 运行库已打包
+        shell: pwsh
+        run: |
+          $required = @('msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')
+          foreach ($dll in $required) {
+            $path = "build/windows/x64/runner/Release/$dll"
+            if (-not (Test-Path $path)) {
+              throw "缺少 $path — 应用将无法在未安装 VC++ Redistributable 的机器上启动。"
+            }
+          }
+          Write-Host "✅ VC++ 运行库 DLL 已包含在 bundle 中"
+
       - name: 📦 打包 ZIP
         shell: pwsh
         run: |
