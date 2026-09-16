@@ -32,6 +32,12 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
+# Newer MSVC STLs (VS 2026 / 14.51+) turn <experimental/coroutine> use into a
+# hard error (STL1011). Several bundled plugins (permission_handler_windows,
+# speech_to_text_windows, webview_windows) still compile with the legacy
+# /await + <experimental/coroutine> combo; silence the deprecation until they
+# migrate to C++20 <coroutine>. Directory-scoped, so it covers every plugin.
+add_definitions(-D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
 
 # Compilation settings that should be applied to most targets.
 #
