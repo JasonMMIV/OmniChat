@@ -111,6 +111,15 @@ class ChatApiService {
     return ToolResultCaps.capBare(content);
   }
 
+  /// Test seam — expose the pairing heal so the orphaned-tool-message
+  /// regression (DeepSeek v4 HTTP 400, wire-capture 2026-09-13) stays fixed.
+  @visibleForTesting
+  static List<Map<String, dynamic>> debugRepairOrphanToolMessages(
+    List<Map<String, dynamic>> messages,
+  ) {
+    return _repairOrphanToolMessages(messages);
+  }
+
   /// Truncate tool result contents in a message list for all API formats.
   /// - OpenAI: `role == 'tool'` → truncate `content`
   /// - Claude: `role == 'user'` with `content is List` → find `type == 'tool_result'` → truncate `content`
@@ -290,11 +299,74 @@ class ChatApiService {
   ///     block is non-text, so an image/video-only array never reaches the
   ///     wire;
   ///   - unknown / non-map blocks are dropped rather than forwarded as an
-  ///     invalid block shape.
+  ///     invalid block shape;
+  ///   - every `role:'tool'` message is guaranteed to follow the assistant
+  /// message that carries the matching `tool_calls` entry (pairing heal,
+  /// see [_repairOrphanToolMessages]).
   static List<Map<String, dynamic>> _normalizeOpenAiCompatMessageContent(
     List<Map<String, dynamic>> messages,
   ) {
-    return [for (final m in messages) _normalizeOne(m)];
+    final normalized = [for (final m in messages) _normalizeOne(m)];
+    return _repairOrphanToolMessages(normalized);
+  }
+
+  /// Drop orphaned `role:'tool'` messages — tool results whose assistant
+  /// `tool_calls` carrier is not present AHEAD of them, or whose call id has
+  /// already been answered (each call id is consumed exactly once).
+  ///
+  /// Defense-in-depth for strict OpenAI-compatible validators (DeepSeek v4
+  /// wire-capture 2026-09-13, HTTP 400 "Messages with role 'tool' must be a
+  /// response to a preceding message with 'tool_calls'"): any upstream
+  /// projection that cuts a replayed assistant/tool block mid-pair (e.g. the
+  /// count-based context-limit trim) used to poison the whole request. The
+  /// root-cause pairing guard lives at the cut site
+  /// (`MessageBuilderService.applyContextLimit` via the shared
+  /// `tool_pairing.dart` counter); this transport guard only heals the
+  /// shapes that slip past it, and the request proceeds minus the orphaned
+  /// results instead of failing outright.
+  static List<Map<String, dynamic>> _repairOrphanToolMessages(
+    List<Map<String, dynamic>> messages,
+  ) {
+    final out = <Map<String, dynamic>>[];
+    var dropped = false;
+    final pendingCallIds = <String>{};
+    for (final m in messages) {
+      final role = m['role'];
+      if (role == 'assistant') {
+        out.add(m);
+        final calls = m['tool_calls'];
+        if (calls is List) {
+          for (final c in calls) {
+            if (c is Map) {
+              final id = c['id']?.toString() ?? '';
+              if (id.isNotEmpty) pendingCallIds.add(id);
+            }
+          }
+        }
+        continue;
+      }
+      if (role == 'tool') {
+        final id = m['tool_call_id']?.toString() ?? '';
+        if (id.isEmpty || !pendingCallIds.remove(id)) {
+          // Orphaned (its carrier was trimmed away or never announced the
+          // id) or a duplicate response for an already-answered call:
+          // dropping keeps the request sendable on strict validators.
+          dropped = true;
+          continue;
+        }
+        out.add(m);
+        continue;
+      }
+      out.add(m);
+    }
+    if (!dropped) return messages;
+
+    FlutterLogger.log(
+      'Dropped orphaned role:tool message(s) whose assistant tool_calls '
+      'carrier was missing from the request (pairing heal).',
+      tag: 'chat-api',
+    );
+    return out;
   }
 
   static Map<String, dynamic> _normalizeOne(Map<String, dynamic> m) {

@@ -19,6 +19,7 @@ import '../../../core/services/api/builtin_tools.dart';
 import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/agent/compaction/context_trim.dart';
 import '../../../core/services/agent/compaction/history_compactor.dart';
+import '../../../core/services/agent/compaction/tool_pairing.dart';
 import '../../../core/services/agent/compaction/tool_result_pruner.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
 
@@ -702,11 +703,22 @@ file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPT
   /// The P1-2 `<conversation_summary>` message (if present right after the
   /// system area) is exempt: dropping the summary while keeping the newer
   /// live messages would strand the compaction marker's memory.
+  ///
+  /// The count-based cut is pairing-safe (shared counter, §3.14 切點安全):
+  /// a kept tail may never START on a `role:'tool'` result whose assistant
+  /// `tool_calls` message fell behind the cut — strict OpenAI-compatible
+  /// validators reject such orphaned tool messages (HTTP 400 "Messages with
+  /// role 'tool' must be a response to a preceding message with
+  /// 'tool_calls'"; DeepSeek v4 wire-capture 2026-09-13, replayed tool
+  /// history + count-based trim). The cut advances past dangling tool
+  /// results, dropping them from the kept count; when only tool results
+  /// would remain, the list is left untrimmed (an unsplittable pair beats
+  /// an unsendable request).
   void applyContextLimit(
     List<Map<String, dynamic>> apiMessages,
     Assistant? assistant,
   ) {
-    if ((assistant?.limitContextMessages ?? true) &&
+    if ((assistant?.limitContextMessages ?? false) &&
         (assistant?.contextMessageSize ?? 0) > 0) {
       final int keep = (assistant!.contextMessageSize).clamp(1, 4096);
       int startIdx = 0;
@@ -721,7 +733,12 @@ file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPT
       }
       final tail = apiMessages.sublist(startIdx);
       if (tail.length > keep) {
-        final trimmed = tail.sublist(tail.length - keep);
+        var cut = tail.length - keep;
+        // Pairing safety: advance past dangling tool results whose call
+        // would stay behind the cut.
+        cut = firstLegalTailStart(tail, cut);
+        if (cut >= tail.length) return;
+        final trimmed = tail.sublist(cut);
         apiMessages
           ..removeRange(startIdx, apiMessages.length)
           ..addAll(trimmed);
