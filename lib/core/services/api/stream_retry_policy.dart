@@ -115,10 +115,12 @@ bool isTransientNetworkError(Object error) {
       case DioExceptionType.badResponse:
       case DioExceptionType.cancel:
       case DioExceptionType.badCertificate:
-      // transformTimeout (added upstream in newer dio releases) is a
-      // pre-flight response-transform failure, not a transient connection
-      // issue — same terminal semantics as badResponse.
-      case DioExceptionType.transformTimeout:
+      // Any other terminal type (including `transformTimeout`, added
+      // upstream in newer dio releases as a pre-flight response-transform
+      // failure) is not a transient connection issue — same terminal
+      // semantics as badResponse. `default` keeps this compiling against
+      // dio versions with and without that enum value.
+      default:
         return false;
     }
   }
