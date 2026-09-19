@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import '../../../l10n/app_localizations.dart';
@@ -20,6 +21,7 @@ import '../../ai_team/pages/ai_team_page.dart';
 import '../../approval/pages/approval_settings_page.dart';
 import 'network_proxy_page.dart';
 import 'storage_space_page.dart';
+import 'hotkeys_settings_page.dart';
 import '../../../core/services/storage/storage_usage_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
@@ -251,6 +253,22 @@ class SettingsPage extends StatelessWidget {
                   );
                 },
               ),
+              // Desktop-only: global/in-app hotkey configuration
+              if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) ...[
+                _iosDivider(context),
+                _iosNavRow(
+                  context,
+                  icon: Lucide.Keyboard,
+                  label: l10n.settingsPageHotkeys,
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const HotkeysSettingsPage(),
+                      ),
+                    );
+                  },
+                ),
+              ],
               _iosDivider(context),
               _iosNavRow(
                 context,

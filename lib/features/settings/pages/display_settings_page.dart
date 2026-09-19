@@ -18,6 +18,7 @@ import '../../../core/services/haptics.dart';
 import 'package:file_picker/file_picker.dart';
 import 'google_fonts_picker_page.dart';
 import 'chat_input_button_order_page.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 enum _FontTarget { app, code }
 
@@ -33,7 +34,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    context.watch<SettingsProvider>();
+    final sp = context.watch<SettingsProvider>();
 
     String _paletteName() {
       final settings = context.read<SettingsProvider>();
@@ -289,8 +290,88 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
               },
               onTap: () => _showChatBackgroundMaskSheet(context),
             ),
+            // Desktop-only: system tray & logging (migrated from the retired desktop settings page)
+            if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) ...[
+              _iosDivider(context),
+              _iosSwitchRow(
+                context,
+                icon: Lucide.Monitor,
+                label: l10n.displaySettingsPageTrayShowTrayTitle,
+                value: sp.desktopShowTray,
+                onChanged: (v) => context.read<SettingsProvider>().setDesktopShowTray(v),
+              ),
+              _iosDivider(context),
+              _iosSwitchRow(
+                context,
+                icon: Lucide.panelLeft,
+                label: l10n.displaySettingsPageTrayMinimizeOnCloseTitle,
+                value: sp.desktopShowTray && sp.desktopMinimizeToTrayOnClose,
+                onChanged: (v) {
+                  if (!sp.desktopShowTray) return; // disabled while tray is hidden
+                  context.read<SettingsProvider>().setDesktopMinimizeToTrayOnClose(v);
+                },
+              ),
+              _iosDivider(context),
+              _iosSwitchRow(
+                context,
+                icon: Lucide.Terminal,
+                label: l10n.requestLogSettingTitle,
+                value: sp.requestLogEnabled,
+                onChanged: (v) => context.read<SettingsProvider>().setRequestLogEnabled(v),
+                trailing: Tooltip(
+                  message: l10n.logViewerOpenFolder,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(6),
+                    onTap: _openLogsFolder,
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Icon(Lucide.FolderOpen, size: 18, color: cs.primary),
+                    ),
+                  ),
+                ),
+              ),
+              _iosDivider(context),
+              _iosSwitchRow(
+                context,
+                icon: Lucide.FileText,
+                label: l10n.flutterLogSettingTitle,
+                value: sp.flutterLogEnabled,
+                onChanged: (v) => context.read<SettingsProvider>().setFlutterLogEnabled(v),
+                trailing: Tooltip(
+                  message: l10n.logViewerOpenFolder,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(6),
+                    onTap: _openLogsFolder,
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Icon(Lucide.FolderOpen, size: 18, color: cs.primary),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ]),
-          // Inline cards replaced by sheet-triggering rows above.
+          // Desktop-only: conversation topics panel position (left/right)
+          if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) ...[
+            const SizedBox(height: 12),
+            _iosSectionCard(children: [
+              _iosNavRow(
+                context,
+                icon: Lucide.panelLeft,
+                label: l10n.desktopDisplaySettingsTopicPositionTitle,
+                detailText: () {
+                  switch (sp.desktopTopicPosition) {
+                    case DesktopTopicPosition.right:
+                      return l10n.desktopDisplaySettingsTopicPositionRight;
+                    case DesktopTopicPosition.left:
+                    default:
+                      return l10n.desktopDisplaySettingsTopicPositionLeft;
+                  }
+                }(),
+                onTap: () => _showTopicPositionSheet(context),
+              ),
+            ]),
+          ],
         ],
       ),
     );
@@ -763,6 +844,52 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
       },
     );
   }
+
+  // Desktop-only: conversation topics panel position (left/right)
+  Future<void> _showTopicPositionSheet(BuildContext context) async {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _sheetOption(ctx, label: l10n.desktopDisplaySettingsTopicPositionRight, onTap: () => Navigator.of(ctx).pop('right')),
+              _sheetDividerNoIcon(ctx),
+              _sheetOption(ctx, label: l10n.desktopDisplaySettingsTopicPositionLeft, onTap: () => Navigator.of(ctx).pop('left')),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == null) return;
+    switch (choice) {
+      case 'right':
+        await context.read<SettingsProvider>().setDesktopTopicPosition(DesktopTopicPosition.right);
+        break;
+      case 'left':
+      default:
+        await context.read<SettingsProvider>().setDesktopTopicPosition(DesktopTopicPosition.left);
+    }
+  }
+
+  // Desktop-only: open the logs directory (request/app logs)
+  Future<void> _openLogsFolder() async {
+    try {
+      final dir = await AppDirectories.getAppDataDirectory();
+      final logsDir = Directory('${dir.path}/logs');
+      if (!await logsDir.exists()) {
+        await logsDir.create(recursive: true);
+      }
+      final uri = Uri.file(logsDir.path);
+      await launchUrl(uri);
+    } catch (_) {}
+  }
 }
 
 // --- iOS-style helpers ---
@@ -927,7 +1054,7 @@ Widget _iosNavRow(
   );
 }
 
-Widget _iosSwitchRow(BuildContext context, {IconData? icon, required String label, required bool value, required ValueChanged<bool> onChanged}) {
+Widget _iosSwitchRow(BuildContext context, {IconData? icon, required String label, required bool value, required ValueChanged<bool> onChanged, Widget? trailing}) {
   final cs = Theme.of(context).colorScheme;
   return _TactileRow(
     onTap: () => onChanged(!value),
@@ -944,6 +1071,7 @@ Widget _iosSwitchRow(BuildContext context, {IconData? icon, required String labe
                 const SizedBox(width: 12),
               ],
               Expanded(child: Text(label, style: TextStyle(fontSize: 15, color: c))),
+              if (trailing != null) trailing,
               IosSwitch(value: value, onChanged: onChanged),
             ]),
           );
@@ -1200,6 +1328,10 @@ class BehaviorStartupSettingsPage extends StatelessWidget {
           ],
           _iosDivider(context),
           _iosSwitchRow(context, icon: Lucide.ChevronRight, label: l10n.displaySettingsPageMessageNavButtonsTitle, value: sp.showMessageNavButtons, onChanged: (v) => context.read<SettingsProvider>().setShowMessageNavButtons(v)),
+          if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) ...[
+            _iosDivider(context),
+            _iosSwitchRow(context, icon: Lucide.Bot, label: l10n.desktopShowProviderInModelCapsule, value: sp.showProviderInModelCapsule, onChanged: (v) => context.read<SettingsProvider>().setShowProviderInModelCapsule(v)),
+          ],
           _iosDivider(context),
           _iosSwitchRow(context, icon: Lucide.Calendar, label: l10n.displaySettingsPageShowChatListDateTitle, value: sp.showChatListDate, onChanged: (v) => context.read<SettingsProvider>().setShowChatListDate(v)),
           _iosDivider(context),
