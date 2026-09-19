@@ -1,20 +1,49 @@
-import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../../icons/lucide_adapter.dart' as lucide;
-import '../../l10n/app_localizations.dart';
-import '../../shared/widgets/ios_switch.dart';
-import '../../core/providers/hotkey_provider.dart';
+import '../../../icons/lucide_adapter.dart' as lucide;
+import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/ios_switch.dart';
+import '../../../core/providers/hotkey_provider.dart';
 
-class DesktopHotkeysPane extends StatefulWidget {
-  const DesktopHotkeysPane({super.key});
+/// Hotkey settings hosted in the unified settings flow.
+/// Body moved verbatim from the former desktop hotkeys pane
+/// (lib/desktop/setting/hotkeys_pane.dart) when the desktop settings
+/// page was retired in favor of the unified settings UI.
+class HotkeysSettingsPage extends StatelessWidget {
+  const HotkeysSettingsPage({super.key});
+
   @override
-  State<DesktopHotkeysPane> createState() => _DesktopHotkeysPaneState();
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Scaffold(
+      appBar: AppBar(
+        leading: Tooltip(
+          message: l10n.settingsPageBackButton,
+          child: IconButton(
+            icon: Icon(
+              lucide.Lucide.ArrowLeft,
+              color: Theme.of(context).colorScheme.onSurface,
+              size: 22,
+            ),
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+        ),
+        title: Text(l10n.settingsPageHotkeys),
+      ),
+      body: const _HotkeysPane(),
+    );
+  }
 }
 
-class _DesktopHotkeysPaneState extends State<DesktopHotkeysPane> {
+class _HotkeysPane extends StatefulWidget {
+  const _HotkeysPane({super.key});
+  @override
+  State<_HotkeysPane> createState() => _HotkeysPaneState();
+}
+
+class _HotkeysPaneState extends State<_HotkeysPane> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;

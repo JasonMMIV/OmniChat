@@ -12,7 +12,7 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
-import '../../../desktop/desktop_settings_page.dart';
+import '../../provider/pages/providers_page.dart';
 import 'model_detail_sheet.dart';
 import '../../provider/pages/provider_detail_page.dart';
 import '../../provider/widgets/provider_balance_text.dart';
@@ -1660,14 +1660,12 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
               size: 14,
               color: cs.onSurface.withOpacity(0.4),
               onTap: () async {
-                // Navigate to settings page with provider preselected
+                // Navigate to the unified providers page, focused on this provider
                 Navigator.of(context).pop(); // close selector
-                await showGeneralDialog(
-                  context: context,
-                  barrierDismissible: true,
-                  barrierLabel: 'settings-dialog',
-                  transitionDuration: const Duration(milliseconds: 200),
-                  pageBuilder: (_, __, ___) => DesktopSettingsPage(initialProviderKey: providerKey),
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ProvidersPage(initialSelectedKey: providerKey),
+                  ),
                 );
               },
             ),

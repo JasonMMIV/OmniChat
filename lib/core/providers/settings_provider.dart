@@ -181,8 +181,6 @@ class SettingsProvider extends ChangeNotifier {
       'display_auto_collapse_code_block_v1';
   static const String _displayAutoCollapseCodeBlockLinesKey =
       'display_auto_collapse_code_block_lines_v1';
-  static const String _displayDesktopAutoSwitchTopicsKey =
-      'display_desktop_auto_switch_topics_v1';
   static const String _displayDesktopShowTrayKey =
       'display_desktop_show_tray_v1';
   static const String _displayDesktopMinimizeToTrayOnCloseKey =
@@ -828,8 +826,6 @@ class SettingsProvider extends ChangeNotifier {
           1,
           999,
         );
-    _desktopAutoSwitchTopics =
-        prefs.getBool(_displayDesktopAutoSwitchTopicsKey) ?? false;
     // Desktop: tray settings (default enabled on desktop platforms)
     final trayPref = prefs.getBool(_displayDesktopShowTrayKey);
     if (trayPref == null) {
@@ -3214,17 +3210,6 @@ Synthesize your reasoning and research into a final response. The structure shou
     await prefs.setInt(_displayAutoCollapseCodeBlockLinesKey, next);
   }
 
-  // Desktop-only: auto switch to Topics tab when changing assistant
-  bool _desktopAutoSwitchTopics = false;
-  bool get desktopAutoSwitchTopics => _desktopAutoSwitchTopics;
-  Future<void> setDesktopAutoSwitchTopics(bool v) async {
-    if (_desktopAutoSwitchTopics == v) return;
-    _desktopAutoSwitchTopics = v;
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_displayDesktopAutoSwitchTopicsKey, v);
-  }
-
   // Desktop-only: show system tray icon
   bool _desktopShowTray = false;
   bool get desktopShowTray => _desktopShowTray;
@@ -3713,7 +3698,6 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._showChatListDate = _showChatListDate;
     copy._autoCollapseCodeBlock = _autoCollapseCodeBlock;
     copy._autoCollapseCodeBlockLines = _autoCollapseCodeBlockLines;
-    copy._desktopAutoSwitchTopics = _desktopAutoSwitchTopics;
     copy._desktopShowTray = _desktopShowTray;
     copy._desktopMinimizeToTrayOnClose = _desktopMinimizeToTrayOnClose;
     copy._usePureBackground = _usePureBackground;

@@ -24,7 +24,11 @@ import '../widgets/provider_avatar.dart';
 import '../widgets/provider_balance_text.dart';
 
 class ProvidersPage extends StatefulWidget {
-  const ProvidersPage({super.key});
+  const ProvidersPage({super.key, this.initialSelectedKey});
+
+  /// Optional deep link: provider key to focus when the page opens
+  /// (used by the model selector's provider settings shortcut).
+  final String? initialSelectedKey;
 
   @override
   State<ProvidersPage> createState() => _ProvidersPageState();
@@ -35,6 +39,53 @@ class _ProvidersPageState extends State<ProvidersPage> {
   final Set<String> _settleKeys = {};
   bool _selectMode = false;
   final Set<String> _selected = {};
+
+  // Deep-link anchor: brings the provider list into view when opened with
+  // an [ProvidersPage.initialSelectedKey].
+  final ScrollController _listScrollController = ScrollController();
+  List<_Provider>? _lastItems; // captured each build for deep-link targeting
+
+  @override
+  void initState() {
+    super.initState();
+    final target = widget.initialSelectedKey;
+    if (target != null && target.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToInitial());
+    }
+  }
+
+  Future<void> _scrollToInitial() async {
+    // The list assembles over a few frames (loading gate, then
+    // ReorderableListView); retry briefly until the controller is attached.
+    for (int attempt = 0; attempt < 4; attempt++) {
+      final items = _lastItems;
+      final controller = _listScrollController;
+      if (items != null && items.isNotEmpty && controller.hasClients) {
+        final idx = items.indexWhere((p) => p.keyName == widget.initialSelectedKey);
+        if (idx < 0) return; // target not present; nothing to focus
+        // Row metrics mirror _ProvidersList's own estimate (44 + 6 divider).
+        const rowH = 44.0;
+        const dividerH = 6.0;
+        final maxExtent = controller.position.maxScrollExtent;
+        final offset = (idx * (rowH + dividerH) - 60).clamp(0.0, maxExtent);
+        try {
+          await controller.animateTo(
+            offset,
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOutCubic,
+          );
+        } catch (_) {}
+        return;
+      }
+      await Future.delayed(const Duration(milliseconds: 120));
+    }
+  }
+
+  @override
+  void dispose() {
+    _listScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,6 +123,7 @@ class _ProvidersPageState extends State<ProvidersPage> {
     // Append any remaining providers not recorded in order
     tmp.addAll(map.values);
     final items = tmp;
+    _lastItems = items; // captured for deep-link scroll targeting
 
     return Scaffold(
       appBar: AppBar(
@@ -142,6 +194,7 @@ class _ProvidersPageState extends State<ProvidersPage> {
       body: Stack(
         children: [
           _ProvidersList(
+            scrollController: _listScrollController,
             items: items,
             selectMode: _selectMode,
             selectedKeys: _selected,
@@ -310,7 +363,9 @@ class _ProvidersList extends StatelessWidget {
     required this.selectMode,
     required this.selectedKeys,
     required this.onToggleSelect,
+    this.scrollController,
   });
+  final ScrollController? scrollController;
   final List<_Provider> items;
   final void Function(int oldIndex, int newIndex) onReorder;
   final Set<String> settlingKeys;
@@ -363,6 +418,7 @@ class _ProvidersList extends StatelessWidget {
             ),
             clipBehavior: Clip.antiAlias,
             child: ReorderableListView.builder(
+              scrollController: scrollController,
               padding: EdgeInsets.only(top: 4, bottom: reachesBottom ? bottomGapIfFlush : 4),
               itemCount: items.length,
               onReorder: onReorder,

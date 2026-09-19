@@ -7,6 +7,7 @@ import 'dart:async';
 import 'hotkeys/hotkey_event_bus.dart';
 import 'hotkeys/chat_action_bus.dart';
 import '../features/home/pages/home_page.dart';
+import '../features/settings/pages/settings_page.dart';
 
 /// Desktop home screen: Wraps HomePage with a custom window title bar.
 class DesktopHomePage extends StatefulWidget {
@@ -25,6 +26,7 @@ class DesktopHomePage extends StatefulWidget {
 
 class _DesktopHomePageState extends State<DesktopHomePage> {
   StreamSubscription<HotkeyAction>? _hotkeySub;
+  bool _settingsRouteActive = false;
 
   @override
   void initState() {
@@ -65,6 +67,15 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
           break;
         case HotkeyAction.toggleLeftPanelTopics:
           ChatActionBus.instance.fire(ChatAction.toggleLeftPanelTopics);
+          break;
+        case HotkeyAction.openSettings:
+          // Guard against stacking duplicate settings routes when the
+          // shortcut fires while the page is already open.
+          if (!mounted || _settingsRouteActive) break;
+          _settingsRouteActive = true;
+          Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => const SettingsPage()))
+              .whenComplete(() => _settingsRouteActive = false);
           break;
         default:
           break;
