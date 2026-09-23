@@ -6,6 +6,7 @@ import '../services/network/dio_http_client.dart';
 import '../services/api_key_manager.dart';
 import 'package:OmniChat/secrets/fallback.dart';
 import '../services/api/google_service_account_auth.dart';
+import '../utils/reasoning_overrides.dart';
 
 enum ModelType { chat, embedding }
 
@@ -831,5 +832,288 @@ class ProviderManager {
     } finally {
       client.close();
     }
+  }
+
+  /// Experimental (branch `experiment/reasoning-overrides`): probe which
+  /// reasoning-effort values a model actually accepts on the OpenAI-compatible
+  /// transport. Sends one tiny request ("hi", 16-token cap) per effort value,
+  /// strictly serial, ALWAYS user-triggered from the model detail sheet —
+  /// never called automatically.
+  ///
+  /// A baseline request without the effort parameter runs first; if it fails
+  /// the whole probe aborts with [ReasoningProbeException]. Unknown outcomes
+  /// (timeouts, 5xx, other statuses) are reported as [ReasoningProbeStatus.unknown]
+  /// and never auto-applied — the caller shows a confirmation dialog and the
+  /// user decides.
+  static Future<ReasoningProbeSummary> probeReasoning(
+    ProviderConfig cfg,
+    String modelId, {
+    http.Client? client,
+    List<String>? efforts,
+    void Function(String effort, int index, int total)? onProgress,
+    bool Function()? isCancelled,
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
+    if (_apiKind(cfg) != ProviderKind.openai) {
+      throw ReasoningProbeException('probe_unsupported_transport');
+    }
+
+    // Resolve the upstream model id (mirrors ChatApiService._apiModelId).
+    String upstream = modelId;
+    try {
+      final ov = _modelOverride(cfg, modelId);
+      final raw = (ov['apiModelId'] ?? ov['api_model_id'])?.toString().trim();
+      if (raw != null && raw.isNotEmpty) upstream = raw;
+    } catch (_) {}
+
+    final useResponses = cfg.useResponseApi == true;
+    final base = cfg.baseUrl.endsWith('/')
+        ? cfg.baseUrl.substring(0, cfg.baseUrl.length - 1)
+        : cfg.baseUrl;
+    final path = useResponses
+        ? '/responses'
+        : (cfg.chatPath ?? '/chat/completions');
+    final url = Uri.parse('$base$path');
+
+    final ownedClient = client == null;
+    final http.Client c = client ?? _Http.clientFor(cfg);
+    try {
+      final summary = ReasoningProbeSummary();
+      final ladder = (efforts == null || efforts.isEmpty)
+          ? ReasoningOverride.allEfforts
+          : efforts;
+
+      // Whether the request accepts a token cap, and under which key.
+      // OpenAI's newer reasoning models reject `max_tokens` in favor of
+      // `max_completion_tokens`; some strict validators reject both.
+      String? tokenCapKey = 'max_tokens';
+
+      Map<String, dynamic> buildBody(String? effort) {
+        final body = useResponses
+            ? <String, dynamic>{
+                'model': upstream,
+                'input': [
+                  {'role': 'user', 'content': 'hi'},
+                ],
+              }
+            : <String, dynamic>{
+                'model': upstream,
+                'messages': [
+                  {'role': 'user', 'content': 'hi'},
+                ],
+              };
+        // User custom body merged first; probe keys win below.
+        try {
+          final extra = _customBody(cfg, modelId);
+          if (extra.isNotEmpty) body.addAll(extra);
+        } catch (_) {}
+        if (effort != null) {
+          if (useResponses) {
+            body['reasoning'] = {'summary': 'auto', 'effort': effort};
+          } else {
+            body['reasoning_effort'] = effort;
+          }
+        }
+        if (tokenCapKey != null) {
+          // Responses API has its own top-level token-cap key; the chat
+          // completions key is configurable because newer OpenAI reasoning
+          // models reject `max_tokens` in favor of `max_completion_tokens`.
+          body[useResponses ? 'max_output_tokens' : tokenCapKey] = 16;
+        }
+        return body;
+      }
+
+      Future<http.Response?> send(Map<String, dynamic> body) async {
+        final headers = <String, String>{
+          'Content-Type': 'application/json',
+        };
+        final key = _effectiveApiKey(cfg);
+        if (key.isNotEmpty) headers['Authorization'] = 'Bearer $key';
+        try {
+          headers.addAll(_customHeaders(cfg, modelId));
+        } catch (_) {}
+        try {
+          return await c
+              .post(url, headers: headers, body: jsonEncode(body))
+              .timeout(timeout);
+        } catch (_) {
+          return null;
+        }
+      }
+
+      // Baseline: no effort parameter. Verifies reachability + auth and
+      // negotiates the token-cap key before the ladder starts.
+      {
+        var res = await send(buildBody(null));
+        if (res == null) {
+          throw ReasoningProbeException('baseline_timeout');
+        }
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          final lower = res.body.toLowerCase();
+          if (tokenCapKey == 'max_tokens' &&
+              lower.contains('max_completion_tokens')) {
+            tokenCapKey = 'max_completion_tokens';
+            res = await send(buildBody(null));
+            if (res == null) throw ReasoningProbeException('baseline_timeout');
+          }
+          if (res.statusCode < 200 || res.statusCode >= 300) {
+            if (tokenCapKey != null &&
+                res.body.toLowerCase().contains('max_completion_tokens') &&
+                res.body.toLowerCase().contains('max_tokens')) {
+              tokenCapKey = null;
+              res = await send(buildBody(null));
+            }
+          }
+          if (res == null || res.statusCode < 200 || res.statusCode >= 300) {
+            throw ReasoningProbeException(
+              'baseline_http_${res?.statusCode}',
+              detail: res?.body,
+            );
+          }
+        }
+        summary.baselineOk = true;
+      }
+
+      var i = 0;
+      for (final effort in ladder) {
+        if (isCancelled?.call() ?? false) {
+          summary.cancelled = true;
+          break;
+        }
+        i++;
+        onProgress?.call(effort, i, ladder.length);
+        final res = await send(buildBody(effort));
+        if (res != null &&
+            res.statusCode >= 200 &&
+            res.statusCode < 300) {
+          summary.supported.add(effort);
+          // "Really reasoning" signal: usage.reasoning_tokens > 0 when the
+          // provider reports it. Advisory only, never a hard conclusion.
+          try {
+            final data = jsonDecode(res.body);
+            final usage = data is Map ? data['usage'] : null;
+            final details = usage is Map
+                ? (usage['completion_tokens_details'] ??
+                      usage['output_tokens_details'])
+                : null;
+            if (details is Map) {
+              final rt = details['reasoning_tokens'];
+              if (rt is num && rt > 0) {
+                summary.reasoningTokenEfforts.add(effort);
+              }
+            }
+          } catch (_) {}
+        } else if (res != null &&
+            (res.statusCode == 400 ||
+                res.statusCode == 404 ||
+                res.statusCode == 422)) {
+          // Strict validators name the offending key; if the token cap (not
+          // the effort) is the problem, retry once without it before
+          // concluding the effort itself is rejected.
+          final lower = res.body.toLowerCase();
+          final mentionsEffort = lower.contains('reasoning_effort') ||
+              lower.contains("'effort'") ||
+              lower.contains('reasoning.effort');
+          final mentionsCap = lower.contains('max_tokens') ||
+              lower.contains('max_output_tokens') ||
+              lower.contains('max_completion_tokens');
+          if (tokenCapKey != null && mentionsCap && !mentionsEffort) {
+            final saved = tokenCapKey;
+            tokenCapKey = null;
+            final retry = await send(buildBody(effort));
+            if (retry != null &&
+                retry.statusCode >= 200 &&
+                retry.statusCode < 300) {
+              summary.supported.add(effort);
+            } else {
+              tokenCapKey = saved;
+              summary.unsupported.add(effort);
+            }
+          } else {
+            summary.unsupported.add(effort);
+          }
+        } else {
+          // 429 / 5xx / timeout / anything else: inconclusive, never applied.
+          summary.unknown.add(effort);
+        }
+        // Be gentle with rate limits between ladder steps.
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+      }
+      return summary;
+    } finally {
+      if (ownedClient) c.close();
+    }
+  }
+}
+
+/// Probe outcome for a single effort value.
+enum ReasoningProbeStatus { supported, unsupported, unknown }
+
+/// Raised when the probe cannot even start (baseline failed) or the transport
+/// is not OpenAI-compatible.
+class ReasoningProbeException implements Exception {
+  ReasoningProbeException(this.code, {this.detail});
+  final String code;
+  final String? detail;
+  @override
+  String toString() =>
+      'ReasoningProbeException($code${detail == null ? '' : ': $detail'})';
+}
+
+/// Aggregated probe result. `supported` entries in ladder order are what the
+/// confirmation dialog offers to write into `modelOverrides[modelId]['reasoning']`.
+class ReasoningProbeSummary {
+  bool baselineOk = false;
+  bool cancelled = false;
+  final List<String> supported = [];
+  final List<String> unsupported = [];
+  final List<String> unknown = [];
+  final Set<String> reasoningTokenEfforts = {};
+
+  ReasoningProbeStatus statusFor(String effort) {
+    if (supported.contains(effort)) return ReasoningProbeStatus.supported;
+    if (unsupported.contains(effort)) return ReasoningProbeStatus.unsupported;
+    return ReasoningProbeStatus.unknown;
+  }
+
+  /// Lowest accepted effort — the suggested `offFallback` when `none` is not
+  /// supported (Off cannot truly disable thinking, so remap to the floor).
+  String? get suggestedOffFallback {
+    if (supported.isEmpty) return null;
+    if (supported.contains('none')) return 'none';
+    for (final e in ReasoningOverride.allEfforts) {
+      if (supported.contains(e)) return e;
+    }
+    return null;
+  }
+
+  /// True when the model never accepted `none` — the UI should hide the Off
+  /// tile (thinkingAlwaysOn), mirroring the Muse Spark behavior.
+  bool get suggestedThinkingAlwaysOn =>
+      baselineOk && supported.isNotEmpty && !supported.contains('none');
+
+  /// Build the storage map for `modelOverrides[modelId]['reasoning']`.
+  /// Returns `null` when the probe found nothing supported — there is no
+  /// conclusive data to write, and applying would actively pin Xhigh/Max to
+  /// false for a model that may just have been rate-limited.
+  Map<String, dynamic>? toOverrideMap() {
+    if (supported.isEmpty) return null;
+    final ovr = ReasoningOverride(
+      hasEfforts: true,
+      efforts: {...supported},
+      hasOffFallback: suggestedOffFallback != null,
+      offFallback: suggestedOffFallback,
+      hasSupportsXhigh: true,
+      supportsXhigh: supported.contains('xhigh'),
+      hasSupportsMax: true,
+      supportsMax: supported.contains('max'),
+      hasThinkingAlwaysOn: true,
+      thinkingAlwaysOn: suggestedThinkingAlwaysOn,
+      hasSamplingRequiresNone: false,
+      samplingRequiresNone: false,
+      hasAdaptiveThinking: false,
+      adaptiveThinking: false,
+    );
+    return ovr.toMap();
   }
 }

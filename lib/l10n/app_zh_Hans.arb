@@ -1688,6 +1688,25 @@
   "aiContentPolicyReportAction": "打开 GitHub Issues",
   "aiContentPolicyReportHint": "如需回报有害或不当内容，请到 GitHub 创建 Issue。",
   "softStopMaxStepsNote": "运行已达步数上限并停止，发送消息即可继续。",
-  "softStopTokenBudgetNote": "运行已达 Token 预算并停止，发送消息即可继续。"
+  "softStopTokenBudgetNote": "运行已达 Token 预算并停止，发送消息即可继续。",
+  "modelDetailReasoningSectionTitle": "推理档位覆写",
+  "modelDetailReasoningModeInherited": "跟随内置规则",
+  "modelDetailReasoningModeCustom": "自定义",
+  "modelDetailReasoningDescription": "覆写此模型可选的推理档位。除非模型缺少某些档位或拒收某个档位，否则建议保持\"跟随内置规则\"。",
+  "modelDetailReasoningEffortsLabel": "支持的档位",
+  "modelDetailReasoningOffFallbackLabel": "推理关闭时发送",
+  "modelDetailReasoningOffFallbackOmit": "省略该参数",
+  "modelDetailReasoningAlwaysThinking": "模型始终推理（隐藏关闭）",
+  "modelDetailReasoningStripSampling": "推理时剥离 temperature / top_p",
+  "modelDetailReasoningAdaptive": "自适应思考（Claude）",
+  "modelDetailReasoningResetToBuiltin": "重置为内置规则",
+  "modelDetailReasoningProbeButton": "自动检测档位",
+  "modelDetailReasoningProbeUnsupportedTransport": "自动检测仅支持 OpenAI 兼容服务商",
+  "modelDetailReasoningProbeRunning": "正在检测档位…",
+  "modelDetailReasoningProbeFailed": "检测失败：模型不可达或未授权",
+  "modelDetailReasoningProbeResultTitle": "检测结果",
+  "modelDetailReasoningProbeApply": "套用检测到的档位",
+  "modelDetailReasoningProbeKeepCurrent": "保留当前设置",
+  "modelDetailReasoningProbeCancelled": "检测已取消"
 }
 

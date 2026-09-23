@@ -24,6 +24,7 @@ import '../../utils/app_directories.dart';
 import '../../utils/sandbox_path_resolver.dart';
 import '../../utils/avatar_cache.dart';
 import '../utils/reasoning_capabilities.dart';
+import '../utils/reasoning_overrides.dart';
 
 // Desktop: topic list position
 enum DesktopTopicPosition { left, right }
@@ -517,11 +518,15 @@ class SettingsProvider extends ChangeNotifier {
     _load();
   }
 
-  ReasoningCapabilities reasoningCapabilities(
-    String providerKey,
+  /// One-stop resolver: built-in regex capability first, then the per-model
+  /// `modelOverrides[modelId]['reasoning']` override on top. With no stored
+  /// override this returns exactly the built-in result, so pre-existing
+  /// configurations behave unchanged.
+  static ReasoningCapabilities reasoningCapabilitiesFor(
+    ProviderConfig? cfg,
     String modelId,
   ) {
-    final cfg = getProviderConfig(providerKey);
+    if (cfg == null) return ReasoningCapabilities.unsupported;
     final kind = ProviderConfig.classify(
       cfg.id,
       explicitType: cfg.providerType,
@@ -543,7 +548,20 @@ class SettingsProvider extends ChangeNotifier {
       ProviderKind.claude => ReasoningTransport.claude,
       ProviderKind.google => ReasoningTransport.google,
     };
-    return ReasoningCapabilities.forModel(transport, effectiveModelId);
+
+    return resolveReasoningCapabilities(
+      transport,
+      effectiveModelId,
+      override: ReasoningOverride.fromModelOverrides(rawOverride),
+    );
+  }
+
+  ReasoningCapabilities reasoningCapabilities(
+    String providerKey,
+    String modelId,
+  ) {
+    final cfg = getProviderConfig(providerKey);
+    return reasoningCapabilitiesFor(cfg, modelId);
   }
 
   bool supportsXhighReasoning(String providerKey, String modelId) =>
