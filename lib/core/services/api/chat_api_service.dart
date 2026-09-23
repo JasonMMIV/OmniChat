@@ -17,6 +17,7 @@ import 'package:OmniChat/secrets/fallback.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
 import '../../../utils/unicode_sanitizer.dart';
 import '../../utils/reasoning_capabilities.dart';
+import '../../utils/reasoning_overrides.dart';
 import 'builtin_tools.dart';
 import 'stream_interruption.dart';
 import 'stream_retry_policy.dart';
@@ -1543,7 +1544,11 @@ class ChatApiService {
         final isReasoning = effectiveInfo.abilities.contains(
           ModelAbility.reasoning,
         );
-        final effort = _openAIEffortForBudget(thinkingBudget, upstreamModelId);
+        final effort = _openAIEffortForBudget(
+          thinkingBudget,
+          upstreamModelId,
+          config: config,
+        );
         final host = Uri.tryParse(config.baseUrl)?.host.toLowerCase() ?? '';
         final providerId = config.id.toLowerCase();
         final modelLower = upstreamModelId.toLowerCase();
@@ -1650,6 +1655,7 @@ class ChatApiService {
           upstreamModelId: upstreamModelId,
           isReasoning: isReasoning,
           thinkingBudget: thinkingBudget,
+          config: config,
         );
         _applyOpenRouterClaudePromptCaching(
           body,
@@ -1764,7 +1770,11 @@ class ChatApiService {
             : null;
         final usesAdaptive =
             isReasoning &&
-            _claudeUsesAdaptiveThinking(upstreamModelId, thinkingBudget);
+            _claudeUsesAdaptiveThinking(
+              upstreamModelId,
+              thinkingBudget,
+              config: config,
+            );
         final body = {
           'model': upstreamModelId,
           'max_tokens': 512,
@@ -2011,11 +2021,13 @@ class ChatApiService {
     required String upstreamModelId,
     required bool isReasoning,
     int? thinkingBudget,
+    ProviderConfig? config,
   }) {
     if (!isReasoning || _isOff(thinkingBudget)) return;
-    final caps = ReasoningCapabilities.forModel(
+    final caps = reasoningCapabilitiesForCall(
       ReasoningTransport.openAi,
       upstreamModelId,
+      config,
     );
     if (caps.samplingRequiresNone) {
       body.remove('temperature');
@@ -2134,11 +2146,16 @@ class ChatApiService {
     return 'high';
   }
 
-  static String _openAIEffortForBudget(int? budget, String modelId) {
+  static String _openAIEffortForBudget(
+    int? budget,
+    String modelId, {
+    ProviderConfig? config,
+  }) {
     final base = _effortForBudget(budget);
-    final capabilities = ReasoningCapabilities.forModel(
+    final capabilities = reasoningCapabilitiesForCall(
       ReasoningTransport.openAi,
       modelId,
+      config,
     );
     var requested = base;
     if (base == 'high' && budget != null) {
@@ -2159,15 +2176,20 @@ class ChatApiService {
     return requested;
   }
 
-  static String _claudeEffortForBudget(int? budget, String modelId) {
+  static String _claudeEffortForBudget(
+    int? budget,
+    String modelId, {
+    ProviderConfig? config,
+  }) {
     if (budget == null || budget == -1) return 'auto';
     if (_isOff(budget)) return 'off';
     if (budget <= 2000) return 'low';
     if (budget <= 20000) return 'medium';
 
-    final capabilities = ReasoningCapabilities.forModel(
+    final capabilities = reasoningCapabilitiesForCall(
       ReasoningTransport.claude,
       modelId,
+      config,
     );
     final requested = budget <= 32000
         ? 'high'
@@ -2201,9 +2223,10 @@ class ChatApiService {
     int? budget, {
     ProviderConfig? config,
   }) {
-    final capabilities = ReasoningCapabilities.forModel(
+    final capabilities = reasoningCapabilitiesForCall(
       ReasoningTransport.claude,
       modelId,
+      config,
     );
     if (budget == 0 && !capabilities.thinkingAlwaysOn) {
       return {'type': 'disabled'};
@@ -2233,11 +2256,12 @@ class ChatApiService {
     int? budget, {
     ProviderConfig? config,
   }) {
-    final effort = _claudeEffortForBudget(budget, modelId);
+    final effort = _claudeEffortForBudget(budget, modelId, config: config);
     if (effort == 'auto' || effort == 'off') return null;
-    final capabilities = ReasoningCapabilities.forModel(
+    final capabilities = reasoningCapabilitiesForCall(
       ReasoningTransport.claude,
       modelId,
+      config,
     );
     if (_isDeepSeekClaudeCompatible(modelId, config: config)) {
       return {'effort': effort == 'xhigh' || effort == 'max' ? 'max' : 'high'};
@@ -2246,10 +2270,15 @@ class ChatApiService {
     return {'effort': effort};
   }
 
-  static bool _claudeUsesAdaptiveThinking(String modelId, int? budget) {
-    final capabilities = ReasoningCapabilities.forModel(
+  static bool _claudeUsesAdaptiveThinking(
+    String modelId,
+    int? budget, {
+    ProviderConfig? config,
+  }) {
+    final capabilities = reasoningCapabilitiesForCall(
       ReasoningTransport.claude,
       modelId,
+      config,
     );
     if (budget == 0) return capabilities.thinkingAlwaysOn;
     return capabilities.supportsAdaptiveThinking;
@@ -2452,7 +2481,11 @@ class ChatApiService {
     final wantsImageOutput = effectiveInfo.output.contains(Modality.image);
     final bool canImageInput = effectiveInfo.input.contains(Modality.image);
 
-    final effort = _openAIEffortForBudget(thinkingBudget, upstreamModelId);
+    final effort = _openAIEffortForBudget(
+      thinkingBudget,
+      upstreamModelId,
+      config: config,
+    );
     final host = Uri.tryParse(config.baseUrl)?.host.toLowerCase() ?? '';
     final providerId = config.id.toLowerCase();
     final modelLower = upstreamModelId.toLowerCase();
@@ -2806,6 +2839,7 @@ class ChatApiService {
         upstreamModelId: upstreamModelId,
         isReasoning: isReasoning,
         thinkingBudget: thinkingBudget,
+        config: config,
       );
       // Append include parameter if we opted into sources via overrides
       try {
@@ -3786,6 +3820,7 @@ class ChatApiService {
                 upstreamModelId: upstreamModelId,
                 isReasoning: isReasoning,
                 thinkingBudget: thinkingBudget,
+                config: config,
               );
               _applyOpenRouterClaudePromptCaching(
                 body2,
@@ -4631,6 +4666,7 @@ class ChatApiService {
                     upstreamModelId: upstreamModelId,
                     isReasoning: isReasoning,
                     thinkingBudget: thinkingBudget,
+                    config: config,
                   );
 
                   // Apply overrides
@@ -5320,6 +5356,7 @@ class ChatApiService {
                 upstreamModelId: upstreamModelId,
                 isReasoning: isReasoning,
                 thinkingBudget: thinkingBudget,
+                config: config,
               );
               _applyOpenRouterClaudePromptCaching(
                 body2,
@@ -5968,6 +6005,7 @@ class ChatApiService {
                     upstreamModelId: upstreamModelId,
                     isReasoning: isReasoning,
                     thinkingBudget: thinkingBudget,
+                    config: config,
                   );
                   _applyOpenRouterClaudePromptCaching(
                     body2,
@@ -6896,7 +6934,11 @@ class ChatApiService {
     TokenUsage? totalUsage;
     final usesAdaptive =
         isReasoning &&
-        _claudeUsesAdaptiveThinking(upstreamModelId, thinkingBudget);
+        _claudeUsesAdaptiveThinking(
+          upstreamModelId,
+          thinkingBudget,
+          config: config,
+        );
 
     while (true) {
       // Prepare request body per round

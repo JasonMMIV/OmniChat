@@ -4915,6 +4915,65 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get softStopTokenBudgetNote => '运行已达 Token 预算并停止，发送消息即可继续。';
+
+  @override
+  String get modelDetailReasoningSectionTitle => '推理档位覆写';
+
+  @override
+  String get modelDetailReasoningModeInherited => '跟随内置规则';
+
+  @override
+  String get modelDetailReasoningModeCustom => '自定义';
+
+  @override
+  String get modelDetailReasoningDescription =>
+      '覆写此模型可选的推理档位。除非模型缺少某些档位或拒收某个档位，否则建议保持\"跟随内置规则\"。';
+
+  @override
+  String get modelDetailReasoningEffortsLabel => '支持的档位';
+
+  @override
+  String get modelDetailReasoningOffFallbackLabel => '推理关闭时发送';
+
+  @override
+  String get modelDetailReasoningOffFallbackOmit => '省略该参数';
+
+  @override
+  String get modelDetailReasoningAlwaysThinking => '模型始终推理（隐藏关闭）';
+
+  @override
+  String get modelDetailReasoningStripSampling => '推理时剥离 temperature / top_p';
+
+  @override
+  String get modelDetailReasoningAdaptive => '自适应思考（Claude）';
+
+  @override
+  String get modelDetailReasoningResetToBuiltin => '重置为内置规则';
+
+  @override
+  String get modelDetailReasoningProbeButton => '自动检测档位';
+
+  @override
+  String get modelDetailReasoningProbeUnsupportedTransport =>
+      '自动检测仅支持 OpenAI 兼容服务商';
+
+  @override
+  String get modelDetailReasoningProbeRunning => '正在检测档位…';
+
+  @override
+  String get modelDetailReasoningProbeFailed => '检测失败：模型不可达或未授权';
+
+  @override
+  String get modelDetailReasoningProbeResultTitle => '检测结果';
+
+  @override
+  String get modelDetailReasoningProbeApply => '套用检测到的档位';
+
+  @override
+  String get modelDetailReasoningProbeKeepCurrent => '保留当前设置';
+
+  @override
+  String get modelDetailReasoningProbeCancelled => '检测已取消';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -9611,6 +9670,65 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get softStopTokenBudgetNote => '运行已达 Token 预算并停止，发送消息即可继续。';
+
+  @override
+  String get modelDetailReasoningSectionTitle => '推理档位覆写';
+
+  @override
+  String get modelDetailReasoningModeInherited => '跟随内置规则';
+
+  @override
+  String get modelDetailReasoningModeCustom => '自定义';
+
+  @override
+  String get modelDetailReasoningDescription =>
+      '覆写此模型可选的推理档位。除非模型缺少某些档位或拒收某个档位，否则建议保持\"跟随内置规则\"。';
+
+  @override
+  String get modelDetailReasoningEffortsLabel => '支持的档位';
+
+  @override
+  String get modelDetailReasoningOffFallbackLabel => '推理关闭时发送';
+
+  @override
+  String get modelDetailReasoningOffFallbackOmit => '省略该参数';
+
+  @override
+  String get modelDetailReasoningAlwaysThinking => '模型始终推理（隐藏关闭）';
+
+  @override
+  String get modelDetailReasoningStripSampling => '推理时剥离 temperature / top_p';
+
+  @override
+  String get modelDetailReasoningAdaptive => '自适应思考（Claude）';
+
+  @override
+  String get modelDetailReasoningResetToBuiltin => '重置为内置规则';
+
+  @override
+  String get modelDetailReasoningProbeButton => '自动检测档位';
+
+  @override
+  String get modelDetailReasoningProbeUnsupportedTransport =>
+      '自动检测仅支持 OpenAI 兼容服务商';
+
+  @override
+  String get modelDetailReasoningProbeRunning => '正在检测档位…';
+
+  @override
+  String get modelDetailReasoningProbeFailed => '检测失败：模型不可达或未授权';
+
+  @override
+  String get modelDetailReasoningProbeResultTitle => '检测结果';
+
+  @override
+  String get modelDetailReasoningProbeApply => '套用检测到的档位';
+
+  @override
+  String get modelDetailReasoningProbeKeepCurrent => '保留当前设置';
+
+  @override
+  String get modelDetailReasoningProbeCancelled => '检测已取消';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -14413,4 +14531,63 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get softStopTokenBudgetNote => '執行已達 Token 預算並停止，傳送訊息即可繼續。';
+
+  @override
+  String get modelDetailReasoningSectionTitle => '推理檔位覆寫';
+
+  @override
+  String get modelDetailReasoningModeInherited => '跟隨內建規則';
+
+  @override
+  String get modelDetailReasoningModeCustom => '自訂';
+
+  @override
+  String get modelDetailReasoningDescription =>
+      '覆寫此模型可選的推理檔位。除非模型缺少某些檔位或拒收某個檔位，否則建議保持\"跟隨內建規則\"。';
+
+  @override
+  String get modelDetailReasoningEffortsLabel => '支援的檔位';
+
+  @override
+  String get modelDetailReasoningOffFallbackLabel => '推理關閉時傳送';
+
+  @override
+  String get modelDetailReasoningOffFallbackOmit => '省略該參數';
+
+  @override
+  String get modelDetailReasoningAlwaysThinking => '模型始終推理（隱藏關閉）';
+
+  @override
+  String get modelDetailReasoningStripSampling => '推理時剝離 temperature / top_p';
+
+  @override
+  String get modelDetailReasoningAdaptive => '自適應思考（Claude）';
+
+  @override
+  String get modelDetailReasoningResetToBuiltin => '重設為內建規則';
+
+  @override
+  String get modelDetailReasoningProbeButton => '自動偵測檔位';
+
+  @override
+  String get modelDetailReasoningProbeUnsupportedTransport =>
+      '自動偵測僅支援 OpenAI 相容服務商';
+
+  @override
+  String get modelDetailReasoningProbeRunning => '正在偵測檔位…';
+
+  @override
+  String get modelDetailReasoningProbeFailed => '偵測失敗：模型不可達或未授權';
+
+  @override
+  String get modelDetailReasoningProbeResultTitle => '偵測結果';
+
+  @override
+  String get modelDetailReasoningProbeApply => '套用偵測到的檔位';
+
+  @override
+  String get modelDetailReasoningProbeKeepCurrent => '保留目前設定';
+
+  @override
+  String get modelDetailReasoningProbeCancelled => '偵測已取消';
 }

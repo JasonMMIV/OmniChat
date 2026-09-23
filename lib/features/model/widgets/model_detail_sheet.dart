@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../../core/services/api/builtin_tools.dart';
+import '../../../core/utils/reasoning_overrides.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
@@ -94,6 +95,12 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
   // Defaults ON for image-output models (the only models that see the toggle);
   // stored as `useImagesApi: false` only when explicitly turned off.
   bool _useImagesApi = true;
+
+  // Per-model reasoning-effort override. `null` = follow built-in rules;
+  // non-null = stored under modelOverrides[key]['reasoning'] on save.
+  ReasoningOverride? _reasoningOverride;
+  bool _reasoningProbing = false;
+  String _reasoningProbeProgress = '';
 
   // Pass the aspect-ratio string directly as `aspect_ratio` for providers
   // that natively support it (e.g. Nano Banana 2) instead of `size`.
@@ -200,6 +207,14 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
         final rawTools = ov['tools'];
         final tools = rawTools is Map ? rawTools : const <dynamic, dynamic>{};
         _googleUrlContextTool = _googleUrlContextTool || ((tools['urlContext'] as bool?) ?? false);
+      }
+    }
+    // Load a stored reasoning override, if any. With no stored entry the
+    // model follows the built-in capability table.
+    if (!widget.isNew) {
+      final rawOv = cfg.modelOverrides[widget.modelId];
+      if (rawOv is Map && rawOv['reasoning'] != null) {
+        _reasoningOverride = ReasoningOverride.fromMap(rawOv['reasoning']);
       }
     }
   }
@@ -480,6 +495,7 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
           ],
         ),
       ),
+      ..._buildReasoningOverrideSection(context, l10n),
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
         child: Text(l10n.modelDetailSheetCustomHeadersTitle, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
@@ -515,6 +531,393 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
         ),
       ),
     ];
+  }
+
+  // Per-model reasoning-effort override UI (effort set, off-fallback,
+  // always-thinking, sampling stripping, adaptive thinking, auto-detect).
+  List<Widget> _buildReasoningOverrideSection(
+    BuildContext context,
+    AppLocalizations l10n,
+  ) {
+    final cs = Theme.of(context).colorScheme;
+    final ovr = _reasoningOverride;
+    final bool isOpenAiKind =
+        _providerKind == ProviderKind.openai ||
+        _providerKind == ProviderKind.neuralwatt;
+
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+        child: Text(
+          l10n.modelDetailReasoningSectionTitle,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+        child: Text(
+          l10n.modelDetailReasoningDescription,
+          style: TextStyle(color: cs.onSurface.withOpacity(0.65), fontSize: 12),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+        child: _SegmentedSingle(
+          options: [
+            l10n.modelDetailReasoningModeInherited,
+            l10n.modelDetailReasoningModeCustom,
+          ],
+          value: ovr == null ? 0 : 1,
+          onChanged: (i) => setState(() {
+            if (i == 0) {
+              _reasoningOverride = null;
+            } else {
+              _reasoningOverride ??= const ReasoningOverride(
+                hasEfforts: false,
+                efforts: {},
+                hasOffFallback: false,
+                offFallback: null,
+                hasSupportsXhigh: false,
+                supportsXhigh: false,
+                hasSupportsMax: false,
+                supportsMax: false,
+                hasThinkingAlwaysOn: false,
+                thinkingAlwaysOn: false,
+                hasSamplingRequiresNone: false,
+                samplingRequiresNone: false,
+                hasAdaptiveThinking: false,
+                adaptiveThinking: false,
+              );
+            }
+          }),
+        ),
+      ),
+      if (ovr != null) ...[
+        if (isOpenAiKind) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            child: Text(
+              l10n.modelDetailReasoningEffortsLabel,
+              style: TextStyle(
+                fontSize: 13,
+                color: cs.onSurface.withOpacity(0.8),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+            child: Column(
+              children: [
+                for (final effort in ReasoningOverride.allEfforts)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: _ToolTile(
+                      title: effort,
+                      desc: '',
+                      value: ovr.efforts.contains(effort),
+                      onChanged: (v) => setState(() {
+                        final next = {...ovr.efforts};
+                        if (v) {
+                          next.add(effort);
+                        } else {
+                          next.remove(effort);
+                        }
+                        // Keep the xhigh/max display flags in lockstep with
+                        // the effort set: the budget sheet / popover tiles
+                        // are gated on these flags, not on the set itself.
+                        _reasoningOverride = ovr.copyWith(
+                          efforts: next,
+                          supportsXhigh: next.contains('xhigh'),
+                          supportsMax: next.contains('max'),
+                        );
+                      }),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            child: Text(
+              l10n.modelDetailReasoningOffFallbackLabel,
+              style: TextStyle(
+                fontSize: 13,
+                color: cs.onSurface.withOpacity(0.8),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+            child: _SegmentedSingle(
+              options: ReasoningOverride.allEfforts,
+              value: (ovr.hasOffFallback &&
+                      ovr.offFallback != null &&
+                      ReasoningOverride.allEfforts.contains(ovr.offFallback))
+                  ? ReasoningOverride.allEfforts.indexOf(ovr.offFallback!)
+                  : -1,
+              onChanged: (i) => setState(() {
+                if (i < 0 || i >= ReasoningOverride.allEfforts.length) {
+                  _reasoningOverride = ovr.copyWith(clearOffFallback: true);
+                } else {
+                  _reasoningOverride = ovr.copyWith(
+                    offFallback: ReasoningOverride.allEfforts[i],
+                  );
+                }
+              }),
+            ),
+          ),
+        ] else ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            child: _ToolTile(
+              title: l10n.modelDetailReasoningAdaptive,
+              desc: '',
+              value: ovr.hasAdaptiveThinking && ovr.adaptiveThinking,
+              onChanged: (v) => setState(() {
+                _reasoningOverride =
+                    ovr.copyWith(adaptiveThinking: v);
+              }),
+            ),
+          ),
+        ],
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: _ToolTile(
+            title: l10n.modelDetailReasoningAlwaysThinking,
+            desc: '',
+            value: ovr.hasThinkingAlwaysOn && ovr.thinkingAlwaysOn,
+            onChanged: (v) => setState(() {
+              _reasoningOverride = ovr.copyWith(thinkingAlwaysOn: v);
+            }),
+          ),
+        ),
+        if (isOpenAiKind)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: _ToolTile(
+              title: l10n.modelDetailReasoningStripSampling,
+              desc: '',
+              value: ovr.hasSamplingRequiresNone && ovr.samplingRequiresNone,
+              onChanged: (v) => setState(() {
+                _reasoningOverride = ovr.copyWith(samplingRequiresNone: v);
+              }),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Row(
+            children: [
+              Expanded(
+                child: _OutlinedAddButton(
+                  label: l10n.modelDetailReasoningResetToBuiltin,
+                  onTap: () => setState(() => _reasoningOverride = null),
+                ),
+              ),
+              if (isOpenAiKind) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _OutlinedAddButton(
+                    label: _reasoningProbing
+                        ? l10n.modelDetailReasoningProbeRunning
+                        : l10n.modelDetailReasoningProbeButton,
+                    onTap: () {
+                      if (!_reasoningProbing) _probeReasoningLevels();
+                    },
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (_reasoningProbing && _reasoningProbeProgress.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+            child: Text(
+              _reasoningProbeProgress,
+              style: TextStyle(
+                fontSize: 12,
+                color: cs.onSurface.withOpacity(0.6),
+              ),
+            ),
+          ),
+      ],
+    ];
+  }
+
+  Future<void> _probeReasoningLevels() async {
+    final l10n = AppLocalizations.of(context)!;
+    final settings = context.read<SettingsProvider>();
+    if (_providerKind != ProviderKind.openai &&
+        _providerKind != ProviderKind.neuralwatt) {
+      showAppSnackBar(
+        context,
+        message: l10n.modelDetailReasoningProbeUnsupportedTransport,
+        type: NotificationType.error,
+      );
+      return;
+    }
+    setState(() {
+      _reasoningProbing = true;
+      _reasoningProbeProgress = '';
+    });
+    ReasoningProbeSummary? summary;
+    try {
+      final cfg = settings.getProviderConfig(widget.providerKey);
+      summary = await ProviderManager.probeReasoning(
+        cfg,
+        widget.isNew ? _idCtrl.text.trim() : widget.modelId,
+        onProgress: (effort, index, total) {
+          if (!mounted) return;
+          setState(() {
+            _reasoningProbeProgress = '$effort ($index/$total)';
+          });
+        },
+      );
+    } on ReasoningProbeException {
+      if (!mounted) return;
+      setState(() => _reasoningProbing = false);
+      showAppSnackBar(
+        context,
+        message: l10n.modelDetailReasoningProbeFailed,
+        type: NotificationType.error,
+      );
+      return;
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _reasoningProbing = false);
+      showAppSnackBar(
+        context,
+        message: l10n.modelDetailReasoningProbeFailed,
+        type: NotificationType.error,
+      );
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _reasoningProbing = false);
+    if (summary.cancelled) {
+      showAppSnackBar(
+        context,
+        message: l10n.modelDetailReasoningProbeCancelled,
+      );
+      return;
+    }
+    await _showReasoningProbeResult(summary);
+  }
+
+  Future<void> _showReasoningProbeResult(
+    ReasoningProbeSummary summary,
+  ) async {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    Color statusColor(String effort) {
+      switch (summary.statusFor(effort)) {
+        case ReasoningProbeStatus.supported:
+          return Colors.green.shade400;
+        case ReasoningProbeStatus.unsupported:
+          return cs.error;
+        case ReasoningProbeStatus.unknown:
+          return cs.onSurface.withOpacity(0.5);
+      }
+    }
+
+    String statusLabel(String effort) {
+      switch (summary.statusFor(effort)) {
+        case ReasoningProbeStatus.supported:
+          return '✓';
+        case ReasoningProbeStatus.unsupported:
+          return '✗';
+        case ReasoningProbeStatus.unknown:
+          return '?';
+      }
+    }
+
+    final apply = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.modelDetailReasoningProbeResultTitle),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final effort in ReasoningOverride.allEfforts)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    Text(
+                      statusLabel(effort),
+                      style: TextStyle(
+                        color: statusColor(effort),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(effort),
+                  ],
+                ),
+              ),
+            if (summary.suggestedOffFallback != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '${l10n.modelDetailReasoningOffFallbackLabel}: ${summary.suggestedOffFallback}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: cs.onSurface.withOpacity(0.7),
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.modelDetailReasoningProbeKeepCurrent),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n.modelDetailReasoningProbeApply),
+          ),
+        ],
+      ),
+    );
+    if (apply != true) return;
+    if (!mounted) return;
+    final overrideMap = summary.toOverrideMap();
+    if (overrideMap == null) {
+      // Nothing conclusive was probed (e.g. every step timed out or was
+      // rate-limited); keep the user's current settings untouched.
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        message: l10n.modelDetailReasoningProbeFailed,
+        type: NotificationType.error,
+      );
+      return;
+    }
+    setState(() {
+      // Merge probe results with the current override: fields the probe
+      // cannot measure (samplingRequiresNone, adaptiveThinking and a manual
+      // offFallback) survive; probe-measured fields are replaced.
+      final current = _reasoningOverride;
+      final probed = ReasoningOverride.fromMap(overrideMap)!;
+      _reasoningOverride = ReasoningOverride(
+        hasEfforts: probed.hasEfforts,
+        efforts: probed.efforts,
+        hasOffFallback: probed.hasOffFallback,
+        offFallback: probed.offFallback,
+        hasSupportsXhigh: probed.hasSupportsXhigh,
+        supportsXhigh: probed.supportsXhigh,
+        hasSupportsMax: probed.hasSupportsMax,
+        supportsMax: probed.supportsMax,
+        hasThinkingAlwaysOn: probed.hasThinkingAlwaysOn,
+        thinkingAlwaysOn: probed.thinkingAlwaysOn,
+        hasSamplingRequiresNone:
+            current?.hasSamplingRequiresNone ?? false,
+        samplingRequiresNone: current?.samplingRequiresNone ?? false,
+        hasAdaptiveThinking: current?.hasAdaptiveThinking ?? false,
+        adaptiveThinking: current?.adaptiveThinking ?? false,
+      );
+    });
   }
 
   List<Widget> _buildTools(BuildContext context, AppLocalizations l10n) {
@@ -715,6 +1118,11 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
       if (_openaiCodeInterpreterTool) builtInSet.add(BuiltInToolNames.codeInterpreter);
       if (_openaiImageGenerationTool) builtInSet.add(BuiltInToolNames.imageGeneration);
     }
+    // Carry the reasoning override across saves. Stored data is loaded into
+    // _reasoningOverride at init, so null here means either "never had one"
+    // or "the user explicitly reset to built-in" — both correctly drop the
+    // key. Writing prev through unconditionally would both resurrect reset
+    // data and let the stale map literal key overwrite the user's edits.
     final builtInTools = BuiltInToolNames.orderedForStorage(builtInSet);
     // Decide which logical key to use for this instance
     final String key = (prevKey.isEmpty || widget.isNew) ? _nextModelKey(old, apiModelId) : prevKey;
@@ -730,6 +1138,7 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
       if (!_useImagesApi) 'useImagesApi': false,
       'useAspectRatioParam': _useAspectRatioParam,
       if (builtInTools.isNotEmpty) 'builtInTools': builtInTools,
+      if (_reasoningOverride != null) 'reasoning': _reasoningOverride!.toMap(),
     };
 
     // Apply updates to provider config
@@ -779,44 +1188,46 @@ class _TabChip extends StatelessWidget {
 class _SegmentedSingle extends StatelessWidget {
   const _SegmentedSingle({required this.options, required this.value, required this.onChanged});
   final List<String> options;
-  final int value; // index
+  final int value; // index; -1 = nothing selected
   final ValueChanged<int> onChanged;
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final Color sel = isDark ? cs.primary.withOpacity(0.20) : cs.primary.withOpacity(0.14);
+    Widget chip(int i) => InkWell(
+          onTap: () => onChanged(i),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: i == value ? sel : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (i == value) Padding(padding: const EdgeInsets.only(right: 6), child: Icon(Lucide.Check, size: 16, color: cs.primary)),
+                Text(options[i], style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+        );
+    // Long ladders (e.g. the 7-value off-fallback selector) scroll
+    // horizontally instead of squeezing into equal-width cells.
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         color: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
         border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.35)),
       ),
-      child: Row(
-        children: [
-          for (int i = 0; i < options.length; i++)
-            Expanded(
-              child: InkWell(
-                onTap: () => onChanged(i),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: i == value ? sel : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (i == value) Padding(padding: const EdgeInsets.only(right: 6), child: Icon(Lucide.Check, size: 16, color: cs.primary)),
-                      Text(options[i], style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
+      child: options.length > 3
+          ? SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: [for (int i = 0; i < options.length; i++) chip(i)]),
+            )
+          : Row(children: [for (int i = 0; i < options.length; i++) Expanded(child: chip(i))]),
     );
   }
 }

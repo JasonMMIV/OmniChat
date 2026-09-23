@@ -9475,6 +9475,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The run reached its token budget and stopped; send a message to continue.'**
   String get softStopTokenBudgetNote;
+
+  /// No description provided for @modelDetailReasoningSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reasoning effort override'**
+  String get modelDetailReasoningSectionTitle;
+
+  /// No description provided for @modelDetailReasoningModeInherited.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow built-in rules'**
+  String get modelDetailReasoningModeInherited;
+
+  /// No description provided for @modelDetailReasoningModeCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get modelDetailReasoningModeCustom;
+
+  /// No description provided for @modelDetailReasoningDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Override which reasoning effort levels are offered for this model. Leave on \"Follow built-in rules\" unless the model is missing levels or rejects a level.'**
+  String get modelDetailReasoningDescription;
+
+  /// No description provided for @modelDetailReasoningEffortsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Supported effort levels'**
+  String get modelDetailReasoningEffortsLabel;
+
+  /// No description provided for @modelDetailReasoningOffFallbackLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'When reasoning is Off, send'**
+  String get modelDetailReasoningOffFallbackLabel;
+
+  /// No description provided for @modelDetailReasoningOffFallbackOmit.
+  ///
+  /// In en, this message translates to:
+  /// **'Omit the parameter'**
+  String get modelDetailReasoningOffFallbackOmit;
+
+  /// No description provided for @modelDetailReasoningAlwaysThinking.
+  ///
+  /// In en, this message translates to:
+  /// **'Model always reasons (hide Off)'**
+  String get modelDetailReasoningAlwaysThinking;
+
+  /// No description provided for @modelDetailReasoningStripSampling.
+  ///
+  /// In en, this message translates to:
+  /// **'Strip temperature / top_p while reasoning'**
+  String get modelDetailReasoningStripSampling;
+
+  /// No description provided for @modelDetailReasoningAdaptive.
+  ///
+  /// In en, this message translates to:
+  /// **'Adaptive thinking (Claude)'**
+  String get modelDetailReasoningAdaptive;
+
+  /// No description provided for @modelDetailReasoningResetToBuiltin.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to built-in'**
+  String get modelDetailReasoningResetToBuiltin;
+
+  /// No description provided for @modelDetailReasoningProbeButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-detect levels'**
+  String get modelDetailReasoningProbeButton;
+
+  /// No description provided for @modelDetailReasoningProbeUnsupportedTransport.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-detect supports OpenAI-compatible providers only'**
+  String get modelDetailReasoningProbeUnsupportedTransport;
+
+  /// No description provided for @modelDetailReasoningProbeRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Probing effort levels…'**
+  String get modelDetailReasoningProbeRunning;
+
+  /// No description provided for @modelDetailReasoningProbeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Probe failed: model unreachable or unauthorized'**
+  String get modelDetailReasoningProbeFailed;
+
+  /// No description provided for @modelDetailReasoningProbeResultTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Detection result'**
+  String get modelDetailReasoningProbeResultTitle;
+
+  /// No description provided for @modelDetailReasoningProbeApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply detected levels'**
+  String get modelDetailReasoningProbeApply;
+
+  /// No description provided for @modelDetailReasoningProbeKeepCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep current settings'**
+  String get modelDetailReasoningProbeKeepCurrent;
+
+  /// No description provided for @modelDetailReasoningProbeCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Detection cancelled'**
+  String get modelDetailReasoningProbeCancelled;
 }
 
 class _AppLocalizationsDelegate

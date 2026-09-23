@@ -4949,4 +4949,67 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get softStopTokenBudgetNote =>
       'The run reached its token budget and stopped; send a message to continue.';
+
+  @override
+  String get modelDetailReasoningSectionTitle => 'Reasoning effort override';
+
+  @override
+  String get modelDetailReasoningModeInherited => 'Follow built-in rules';
+
+  @override
+  String get modelDetailReasoningModeCustom => 'Custom';
+
+  @override
+  String get modelDetailReasoningDescription =>
+      'Override which reasoning effort levels are offered for this model. Leave on \"Follow built-in rules\" unless the model is missing levels or rejects a level.';
+
+  @override
+  String get modelDetailReasoningEffortsLabel => 'Supported effort levels';
+
+  @override
+  String get modelDetailReasoningOffFallbackLabel =>
+      'When reasoning is Off, send';
+
+  @override
+  String get modelDetailReasoningOffFallbackOmit => 'Omit the parameter';
+
+  @override
+  String get modelDetailReasoningAlwaysThinking =>
+      'Model always reasons (hide Off)';
+
+  @override
+  String get modelDetailReasoningStripSampling =>
+      'Strip temperature / top_p while reasoning';
+
+  @override
+  String get modelDetailReasoningAdaptive => 'Adaptive thinking (Claude)';
+
+  @override
+  String get modelDetailReasoningResetToBuiltin => 'Reset to built-in';
+
+  @override
+  String get modelDetailReasoningProbeButton => 'Auto-detect levels';
+
+  @override
+  String get modelDetailReasoningProbeUnsupportedTransport =>
+      'Auto-detect supports OpenAI-compatible providers only';
+
+  @override
+  String get modelDetailReasoningProbeRunning => 'Probing effort levels…';
+
+  @override
+  String get modelDetailReasoningProbeFailed =>
+      'Probe failed: model unreachable or unauthorized';
+
+  @override
+  String get modelDetailReasoningProbeResultTitle => 'Detection result';
+
+  @override
+  String get modelDetailReasoningProbeApply => 'Apply detected levels';
+
+  @override
+  String get modelDetailReasoningProbeKeepCurrent => 'Keep current settings';
+
+  @override
+  String get modelDetailReasoningProbeCancelled => 'Detection cancelled';
 }

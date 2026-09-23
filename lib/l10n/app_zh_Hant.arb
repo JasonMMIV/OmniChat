@@ -1719,6 +1719,25 @@
   "aiContentPolicyReportAction": "開啟 GitHub Issues",
   "aiContentPolicyReportHint": "如需回報有害或不當內容，請至 GitHub 建立 Issue。",
   "softStopMaxStepsNote": "執行已達步數上限並停止，傳送訊息即可繼續。",
-  "softStopTokenBudgetNote": "執行已達 Token 預算並停止，傳送訊息即可繼續。"
+  "softStopTokenBudgetNote": "執行已達 Token 預算並停止，傳送訊息即可繼續。",
+  "modelDetailReasoningSectionTitle": "推理檔位覆寫",
+  "modelDetailReasoningModeInherited": "跟隨內建規則",
+  "modelDetailReasoningModeCustom": "自訂",
+  "modelDetailReasoningDescription": "覆寫此模型可選的推理檔位。除非模型缺少某些檔位或拒收某個檔位，否則建議保持\"跟隨內建規則\"。",
+  "modelDetailReasoningEffortsLabel": "支援的檔位",
+  "modelDetailReasoningOffFallbackLabel": "推理關閉時傳送",
+  "modelDetailReasoningOffFallbackOmit": "省略該參數",
+  "modelDetailReasoningAlwaysThinking": "模型始終推理（隱藏關閉）",
+  "modelDetailReasoningStripSampling": "推理時剝離 temperature / top_p",
+  "modelDetailReasoningAdaptive": "自適應思考（Claude）",
+  "modelDetailReasoningResetToBuiltin": "重設為內建規則",
+  "modelDetailReasoningProbeButton": "自動偵測檔位",
+  "modelDetailReasoningProbeUnsupportedTransport": "自動偵測僅支援 OpenAI 相容服務商",
+  "modelDetailReasoningProbeRunning": "正在偵測檔位…",
+  "modelDetailReasoningProbeFailed": "偵測失敗：模型不可達或未授權",
+  "modelDetailReasoningProbeResultTitle": "偵測結果",
+  "modelDetailReasoningProbeApply": "套用偵測到的檔位",
+  "modelDetailReasoningProbeKeepCurrent": "保留目前設定",
+  "modelDetailReasoningProbeCancelled": "偵測已取消"
 }
 
