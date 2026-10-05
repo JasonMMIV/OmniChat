@@ -108,6 +108,28 @@ class StreamController {
   final Map<String, String> _geminiThoughtSigs = <String, String>{};
   Map<String, String> get geminiThoughtSigs => _geminiThoughtSigs;
 
+  /// 過程收褶 (process folding): explicit fold pins per assistant message
+  /// (PLAN_PROCESS_FOLDING.md Phase 3). null → follow the live verdict (B2);
+  /// true/false → the user's manual choice, pinned permanently (AnyBuff
+  /// `isGroupOpen(explicit, live) = explicit ?? live`). In-memory only, the
+  /// same lifecycle as the reasoning/tool-part state maps.
+  final Map<String, bool> _processGroupExplicitOpen = <String, bool>{};
+  Map<String, bool> get processGroupExplicitOpen => _processGroupExplicitOpen;
+
+  /// Pin the process group's fold state after a manual header toggle. The
+  /// pinned value wins over the run state from then on; the B1 forced-open
+  /// contract (approval / ask_user cards) still bypasses it at render time.
+  void setProcessGroupOpen(String messageId, bool open) {
+    _processGroupExplicitOpen[messageId] = open;
+    if (streamingContentNotifier.hasNotifier(messageId)) {
+      // Actively streaming message: lightweight rebuild of that bubble only.
+      streamingContentNotifier.forceRebuild(messageId);
+    } else {
+      // Non-streaming message: full page rebuild (same as toggleTranslation).
+      onStateChanged();
+    }
+  }
+
   // ============================================================================
   // Throttle State
   // ============================================================================
@@ -188,6 +210,7 @@ class StreamController {
     _reasoningSegments.remove(messageId);
     _toolParts.remove(messageId);
     _geminiThoughtSigs.remove(messageId);
+    _processGroupExplicitOpen.remove(messageId);
     _cleanupStreamTimers(messageId);
   }
 
@@ -197,6 +220,7 @@ class StreamController {
     _reasoningSegments.clear();
     _toolParts.clear();
     _geminiThoughtSigs.clear();
+    _processGroupExplicitOpen.clear();
     _cancelAllTimers();
     streamingContentNotifier.clear();
   }

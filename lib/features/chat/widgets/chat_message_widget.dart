@@ -40,6 +40,8 @@ import '../../../shared/widgets/markdown_with_highlight.dart';
 import '../../../shared/widgets/snackbar.dart';
 import 'ai_team_proposals_section.dart';
 import 'cowork_tool_cards.dart';
+import 'process_group_card.dart';
+import 'process_group_logic.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/providers/settings_provider.dart';
@@ -76,6 +78,12 @@ Uri? _tryNormalizeExternalUri(String raw) {
   return Uri.tryParse(u);
 }
 
+/// Muted card text color shared by the process rows (tool cards, reasoning
+/// body, process-group header) — the AnyBuff "no accent color" rule: live
+/// state is carried by wording + motion, not color.
+Color cardTextColor(bool isDark) =>
+    isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
+
 class ChatMessageWidget extends StatefulWidget {
   final ChatMessage message;
   final Widget? modelIcon;
@@ -108,6 +116,18 @@ class ChatMessageWidget extends StatefulWidget {
   final VoidCallback? onToggleReasoning;
   // For multiple reasoning segments
   final List<ReasoningSegment>? reasoningSegments;
+  // 過程收褶 (process folding): explicit fold pin for this message's process
+  // group — null = follow the live verdict (B2), true/false = user-pinned
+  // (wins over run state; B1 forced-open still bypasses it). See
+  // process_group_logic.dart `resolveProcessOpen`.
+  final bool? processGroupExplicitOpen;
+  // 過程收褶 (process folding): the process-group header was tapped. The
+  // widget reports the state it is currently RENDERING (open) plus the B1
+  // forced-open verdict — the call site pins `!open` and ignores taps while
+  // a user-action card holds the group open. Capturing the rendered state
+  // (instead of recomputing it in the controller) guarantees the pin flips
+  // exactly what the user saw, including the inline-<think> fallback path.
+  final void Function(bool open, bool forcedOpen)? onToggleProcessGroup;
   // Optional translation UI props
   final bool translationExpanded;
   final VoidCallback? onToggleTranslation;
@@ -151,6 +171,8 @@ class ChatMessageWidget extends StatefulWidget {
     this.reasoningFinishedAt,
     this.onToggleReasoning,
     this.reasoningSegments,
+    this.processGroupExplicitOpen,
+    this.onToggleProcessGroup,
     this.translationExpanded = true,
     this.onToggleTranslation,
     this.toolParts,
@@ -170,8 +192,6 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     dotAll: true,
   );
   final DateFormat _dateFormat = DateFormat('yyyy-MM-dd HH:mm:ss');
-  final ScrollController _reasoningScroll = ScrollController();
-  bool _tickActive = false;
   // Local expand state for inline <think> card (defaults to expanded)
   bool? _inlineThinkExpanded;
   bool _inlineThinkManuallyToggled = false;
@@ -185,18 +205,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   final GlobalKey _translateBtnKey1 = GlobalKey();
   final GlobalKey _moreBtnKey2 = GlobalKey();
   final GlobalKey _translateBtnKey2 = GlobalKey();
-  // ValueNotifier for reasoning animation tick - avoids full widget rebuild
-  final ValueNotifier<int> _reasoningTick = ValueNotifier<int>(0);
-  late final Ticker _ticker = Ticker((_) {
-    if (mounted && _tickActive) {
-      _reasoningTick.value++; // Only notify reasoning section, not full rebuild
-    }
-  });
 
   @override
   void initState() {
     super.initState();
-    _syncTicker();
 
     // Determine initial state for inline <think> card BEFORE first paint to avoid
     // post-frame size changes that can cause list scroll jitter/snapping.
@@ -237,7 +249,6 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   @override
   void didUpdateWidget(covariant ChatMessageWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _syncTicker();
     // Auto-collapse when inline <think> transitions from loading -> finished
     _applyAutoCollapseInlineThinkIfFinished(oldWidget: oldWidget);
   }
@@ -304,17 +315,6 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       } else {
         if (mounted) setState(() => _inlineThinkExpanded = true);
       }
-    }
-  }
-
-  void _syncTicker() {
-    final loading =
-        widget.reasoningStartAt != null && widget.reasoningFinishedAt == null;
-    _tickActive = loading;
-    if (loading) {
-      if (!_ticker.isActive) _ticker.start();
-    } else {
-      if (_ticker.isActive) _ticker.stop();
     }
   }
 
@@ -442,9 +442,6 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       _userMenuOverlay?.remove();
     } catch (_) {}
     _userMenuOverlay = null;
-    _ticker.dispose();
-    _reasoningTick.dispose();
-    _reasoningScroll.dispose();
     super.dispose();
   }
 
@@ -1873,164 +1870,156 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             ),
             const SizedBox(height: 4),
           ],
-          // Mixed reasoning and tool sections
-          if (widget.reasoningSegments != null &&
-              widget.reasoningSegments!.isNotEmpty) ...[
-            // Build mixed content using tool index ranges carried by segments
-            ...() {
-              final List<Widget> mixedContent = [];
-              final tools = widget.toolParts ?? const <ToolUIPart>[];
-              final segments = widget.reasoningSegments!;
+          // 過程收褶 (process folding, PLAN_PROCESS_FOLDING.md Phase 3): the
+          // mixed reasoning-segments path and the legacy fallback path (plain
+          // reasoningText / inline <think> blocks, old conversations) both fold
+          // into ONE process group per assistant message — header 處理中.../
+          // Working… → 已完成/Worked, explicit pin, B1 forced-open.
+          ...() {
+            final bool isStreaming = widget.message.isStreaming;
+            final tools = widget.toolParts ?? const <ToolUIPart>[];
+            final bool hasAnswerText = visualContent.trim().isNotEmpty;
 
-              for (int i = 0; i < segments.length; i++) {
-                final seg = segments[i];
-
-                // Add the reasoning segment (if any text) — hidden when
-                // “Show Thinking Cards” is off
-                if (settings.showThinkingCards && seg.text.isNotEmpty) {
-                  mixedContent.add(
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: _ReasoningSection(
-                        text: seg.text,
-                        expanded: seg.expanded,
-                        loading: seg.loading,
-                        startAt: seg.startAt,
-                        finishedAt: seg.finishedAt,
-                        isParentStreaming: widget.message.isStreaming,
-                        onToggle: seg.onToggle,
-                      ),
+            final List<ProcessThought> thoughts;
+            if (widget.reasoningSegments != null &&
+                widget.reasoningSegments!.isNotEmpty) {
+              thoughts = widget.reasoningSegments!
+                  .map(
+                    (seg) => ProcessThought(
+                      text: seg.text,
+                      // Segment “loading” is the call-site contract:
+                      // finishedAt == null && text non-empty.
+                      loading: seg.loading,
+                      toolStartIndex: seg.toolStartIndex,
+                      // Card passthrough — thinking rows keep the original
+                      // reasoning-card presentation and fold with the group
+                      // (2026-10-05 revision). No per-card timer: the group
+                      // header owns the one elapsed timer.
+                      expanded: seg.expanded,
+                      onToggle: seg.onToggle,
                     ),
-                  );
-                }
-
-                // Determine tool range mapped to this segment: [start, end)
-                int start = seg.toolStartIndex;
-                final int end = (i < segments.length - 1)
-                    ? segments[i + 1].toolStartIndex
-                    : tools.length;
-
-                // Clamp to bounds and ensure non-decreasing
-                if (start < 0) start = 0;
-                if (start > tools.length) start = tools.length;
-                final int clampedEnd = end.clamp(start, tools.length);
-
-                for (int k = start; k < clampedEnd; k++) {
-                  // Hide builtin_search tool cards; citations still appear via bottom summary card 隐藏内置搜索工具卡片
-                  if (tools[k].toolName == 'builtin_search') continue;
-                  // “Show Tool Cards” off hides tool-use cards
-                  if (!settings.showToolCards) continue;
-                  mixedContent.add(
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: _ToolCallItem(
-                        part: tools[k],
-                        assistantMessageId: widget.message.id,
-                        onSubmitAskUserAnswer: widget.onSubmitAskUserAnswer,
-                        onResolveApproval: widget.onResolveApproval,
-                      ),
-                    ),
-                  );
-                }
-              }
-
-              if (mixedContent.isNotEmpty) {
-                mixedContent.add(const SizedBox(height: 10));
-              }
-
-              return mixedContent;
-            }(),
-          ] else ...[
-            // Fallback to old behavior if no reasoning segments
-            // Reasoning preview (if provided) — also support inline <think> blocks
-            ...() {
-              final hasProvidedReasoning =
-                  (widget.reasoningText != null &&
-                      widget.reasoningText!.isNotEmpty) ||
-                  widget.reasoningLoading;
+                  )
+                  .toList();
+            } else {
+              // Fallback path: legacy reasoningText or inline <think> blocks.
               final effectiveReasoningText =
                   (widget.reasoningText != null &&
                       widget.reasoningText!.isNotEmpty)
                   ? widget.reasoningText!
                   : extractedThinking;
-              final shouldShowReasoning =
-                  hasProvidedReasoning || effectiveReasoningText.isNotEmpty;
-              if (!settings.showThinkingCards ||
-                  !shouldShowReasoning) {
-                return const <Widget>[];
+              if (effectiveReasoningText.isNotEmpty) {
+                final bool inlineThink = (widget.reasoningText == null ||
+                    widget.reasoningText!.isEmpty);
+                final bool streamingThought = inlineThink
+                    ? (isStreaming &&
+                        !widget.message.content.contains('</think>'))
+                    : widget.reasoningLoading;
+                thoughts = [
+                  ProcessThought(
+                    text: effectiveReasoningText,
+                    loading: streamingThought,
+                    expanded: inlineThink
+                        ? (_inlineThinkExpanded ?? true)
+                        : widget.reasoningExpanded,
+                    onToggle: inlineThink
+                        ? () => setState(() {
+                            _inlineThinkExpanded =
+                                !(_inlineThinkExpanded ?? true);
+                            _inlineThinkManuallyToggled = true;
+                          })
+                        : widget.onToggleReasoning,
+                  ),
+                ];
+              } else {
+                thoughts = const <ProcessThought>[];
               }
+            }
 
-              // If using inline <think>, expand by default and treat as loading when streaming until </think> appears
-              final usingInlineThink =
-                  (widget.reasoningText == null ||
-                      widget.reasoningText!.isEmpty) &&
-                  extractedThinking.isNotEmpty;
-              final effectiveExpanded = usingInlineThink
-                  ? (_inlineThinkExpanded ?? true)
-                  : widget.reasoningExpanded;
-              final collapsedNow =
-                  usingInlineThink && (_inlineThinkExpanded == false);
-              final effectiveLoading = usingInlineThink
-                  ? (widget.message.isStreaming &&
-                        !widget.message.content.contains('</think>') &&
-                        !collapsedNow)
-                  : (widget.reasoningFinishedAt == null);
+            final model = buildProcessGroup(
+              thoughts: thoughts,
+              tools: <ProcessTool>[
+                for (int i = 0; i < tools.length; i++)
+                  ProcessTool(
+                    index: i,
+                    toolName: tools[i].toolName,
+                    loading: tools[i].loading,
+                    requiresUserAction: toolRequiresUserAction(
+                      toolName: tools[i].toolName,
+                      content: tools[i].content,
+                    ),
+                  ),
+              ],
+              isStreaming: isStreaming,
+              hasAnswerText: hasAnswerText,
+              showThinkingCards: settings.showThinkingCards,
+              showToolCards: settings.showToolCards,
+            );
+            if (!model.visible) {
+              // B3: no surviving rows — old layout reserved spacing for the
+              // AI Team block even without reasoning/tool rows.
+              if (widget.message.aiTeamProposalsJson != null &&
+                  widget.message.aiTeamProposalsJson!.isNotEmpty) {
+                return <Widget>[const SizedBox(height: 10)];
+              }
+              return const <Widget>[];
+            }
 
-              return <Widget>[
-                _ReasoningSection(
-                  text: effectiveReasoningText,
-                  expanded: effectiveExpanded,
-                  loading: effectiveLoading,
-                  startAt: usingInlineThink ? null : widget.reasoningStartAt,
-                  finishedAt: usingInlineThink
-                      ? null
-                      : widget.reasoningFinishedAt,
-                  isParentStreaming: widget.message.isStreaming,
-                  onToggle: usingInlineThink
-                      ? () => setState(() {
-                          _inlineThinkExpanded =
-                              !(_inlineThinkExpanded ?? true);
-                          _inlineThinkManuallyToggled = true;
-                        })
-                      : widget.onToggleReasoning,
-                ),
-                const SizedBox(height: 4),
-              ];
-            }(),
-            // Tool call placeholders before content 隐藏内置搜索工具卡片
-            if (settings.showToolCards &&
-                (widget.toolParts ?? const <ToolUIPart>[])
-                    .where((p) => p.toolName != 'builtin_search')
-                    .isNotEmpty) ...[
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: widget.toolParts!
-                    .where((p) => p.toolName != 'builtin_search') // 隐藏内置搜索工具卡片
-                    .map(
-                      (p) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: _ToolCallItem(
-                          part: p,
+            // AnyBuff isGroupOpen: explicit pin > forced open > follow run.
+            final bool resolvedOpen = resolveProcessOpen(
+              explicitOpen: widget.processGroupExplicitOpen,
+              forcedOpen: model.forcedOpen,
+              live: model.live,
+              autoCollapse: settings.autoCollapseThinking,
+            );
+
+            final Widget processGroup = Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: ProcessGroupCard(
+                live: model.live,
+                open: resolvedOpen,
+                // One elapsed timer for the whole process (2026-10-05): the
+                // message-level reasoning span is the pre-folding timer
+                // contract, and while the group is live the run may still
+                // have tools in flight, so finishedAt waits for the verdict.
+                startAt: widget.reasoningStartAt,
+                finishedAt: model.live ? null : widget.reasoningFinishedAt,
+                onToggle: widget.onToggleProcessGroup == null
+                    ? null
+                    : () => widget.onToggleProcessGroup!(
+                          resolvedOpen,
+                          model.forcedOpen,
+                        ),
+                children: [
+                  for (final entry in model.entries)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: switch (entry) {
+                        ThoughtEntry(
+                          :final text,
+                          :final streaming,
+                          :final expanded,
+                          :final onToggle,
+                        ) =>
+                          _ReasoningSection(
+                            text: text,
+                            expanded: expanded,
+                            loading: streaming,
+                            isParentStreaming: isStreaming,
+                            onToggle: onToggle,
+                          ),
+                        ToolEntry(:final tool) => _ToolCallItem(
+                          part: tools[tool.index],
                           assistantMessageId: widget.message.id,
                           onSubmitAskUserAnswer: widget.onSubmitAskUserAnswer,
                           onResolveApproval: widget.onResolveApproval,
                         ),
-                      ),
-                    )
-                    .toList(),
+                      },
+                    ),
+                ],
               ),
-              const SizedBox(height: 10),
-            ] else ...[
-              if ((settings.showThinkingCards &&
-                      ((widget.reasoningText != null &&
-                              widget.reasoningText!.isNotEmpty) ||
-                          widget.reasoningLoading ||
-                          extractedThinking.isNotEmpty)) ||
-                  (widget.message.aiTeamProposalsJson != null &&
-                      widget.message.aiTeamProposalsJson!.isNotEmpty))
-                const SizedBox(height: 10),
-            ],
-          ],
+            );
+            return <Widget>[processGroup, const SizedBox(height: 10)];
+          }(),
           // Message content with markdown support (fill available width)
           Container(
             width: double.infinity,
@@ -3152,12 +3141,15 @@ class _SearchProviderBadge extends StatelessWidget {
 }
 
 // Data for a reasoning segment (for mixed display)
+//
+// 2026-10-05: the per-segment start/finish times are gone — the elapsed timer
+// is rendered once on the process group header, from the message-level
+// reasoning span. The segment still carries its own [loading] verdict, fold
+// state and tool anchor.
 class ReasoningSegment {
   final String text;
   final bool expanded;
   final bool loading;
-  final DateTime? startAt;
-  final DateTime? finishedAt;
   final VoidCallback? onToggle;
   // Index of the first tool call that occurs after this segment starts.
   final int toolStartIndex;
@@ -3166,8 +3158,6 @@ class ReasoningSegment {
     required this.text,
     required this.expanded,
     required this.loading,
-    this.startAt,
-    this.finishedAt,
     this.onToggle,
     this.toolStartIndex = 0,
   });
@@ -4011,8 +4001,6 @@ class _ReasoningSection extends StatefulWidget {
     required this.text,
     required this.expanded,
     required this.loading,
-    required this.startAt,
-    required this.finishedAt,
     required this.isParentStreaming,
     this.onToggle,
   });
@@ -4020,8 +4008,6 @@ class _ReasoningSection extends StatefulWidget {
   final String text;
   final bool expanded;
   final bool loading;
-  final DateTime? startAt;
-  final DateTime? finishedAt;
   final bool isParentStreaming;
   final VoidCallback? onToggle;
 
@@ -4029,13 +4015,10 @@ class _ReasoningSection extends StatefulWidget {
   State<_ReasoningSection> createState() => _ReasoningSectionState();
 }
 
-class _ReasoningSectionState extends State<_ReasoningSection>
-    with SingleTickerProviderStateMixin {
-  // Use ValueNotifier to only update elapsed time display, not rebuild entire widget
-  final ValueNotifier<int> _elapsedTick = ValueNotifier<int>(0);
-  late final Ticker _ticker = Ticker((_) {
-    if (mounted) _elapsedTick.value++;
-  });
+class _ReasoningSectionState extends State<_ReasoningSection> {
+  // 2026-10-05: the elapsed timer moved up to the process group header (one
+  // timer per message instead of one per thinking block), so this card keeps
+  // only its own fold state and the streaming auto-scroll.
   final ScrollController _scroll = ScrollController();
   bool _hasOverflow = false;
 
@@ -4043,18 +4026,9 @@ class _ReasoningSectionState extends State<_ReasoningSection>
     return s.replaceAll('\r', '').trim();
   }
 
-  String _elapsed() {
-    final start = widget.startAt;
-    if (start == null) return '';
-    final end = widget.finishedAt ?? DateTime.now();
-    final ms = end.difference(start).inMilliseconds;
-    return '(${(ms / 1000).toStringAsFixed(1)}s)';
-  }
-
   @override
   void initState() {
     super.initState();
-    if (widget.loading) _ticker.start();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkOverflow();
       if (widget.loading && _scroll.hasClients) {
@@ -4066,11 +4040,6 @@ class _ReasoningSectionState extends State<_ReasoningSection>
   @override
   void didUpdateWidget(covariant _ReasoningSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.loading && widget.finishedAt == null) {
-      if (!_ticker.isActive) _ticker.start();
-    } else {
-      if (_ticker.isActive) _ticker.stop();
-    }
     if (widget.loading) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_scroll.hasClients) {
@@ -4083,8 +4052,6 @@ class _ReasoningSectionState extends State<_ReasoningSection>
 
   @override
   void dispose() {
-    _ticker.dispose();
-    _elapsedTick.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -4093,24 +4060,6 @@ class _ReasoningSectionState extends State<_ReasoningSection>
     if (!_scroll.hasClients) return;
     final over = _scroll.position.maxScrollExtent > 0.5;
     if (over != _hasOverflow && mounted) setState(() => _hasOverflow = over);
-  }
-
-  String _sanitizedeepthink(String s) {
-    // 统一换行
-    s = s.replaceAll('\r\n', '\n');
-
-    // 去掉首尾零宽字符（模型有时会插入）
-    s = s
-        .replaceAll(RegExp(r'^[\u200B\u200C\u200D\uFEFF]+'), '')
-        .replaceAll(RegExp(r'[\u200B\u200C\u200D\uFEFF]+$'), '');
-
-    // 去掉**开头**的纯空白行
-    s = s.replaceFirst(RegExp(r'^\s*\n+'), '');
-
-    // 去掉**结尾**的纯空白行
-    s = s.replaceFirst(RegExp(r'\n+\s*$'), '');
-
-    return s;
   }
 
   @override
@@ -4154,22 +4103,9 @@ class _ReasoningSectionState extends State<_ReasoningSection>
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            if (widget.startAt != null)
-              ValueListenableBuilder<int>(
-                valueListenable: _elapsedTick,
-                builder: (context, _, __) => _Shimmer(
-                  enabled: loading,
-                  child: Text(
-                    _elapsed(),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: cardTextColor.withValues(alpha: 0.9),
-                    ),
-                  ),
-                ),
-              ),
-            // No header marquee; content area handles scrolling when loading
+            // No per-card timer (2026-10-05): the group header carries the one
+            // elapsed timer for the whole process. No header marquee either;
+            // the content area scrolls while loading.
             const Spacer(),
             AnimatedRotation(
               turns: widget.expanded ? 0.25 : 0.0, // right -> down
@@ -4391,6 +4327,7 @@ class _ShimmerState extends State<_Shimmer> with TickerProviderStateMixin {
 }
 
 // Simple marquee that bounces horizontally if text exceeds maxWidth
+// (kept: still referenced by non-chat surfaces).
 class _Marquee extends StatefulWidget {
   final String text;
   final TextStyle style;

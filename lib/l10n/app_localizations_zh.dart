@@ -2171,6 +2171,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatMessageWidgetDeepThinking => '深度思考';
 
   @override
+  String get processGroupWorking => '处理中...';
+
+  @override
+  String get processGroupWorked => '已完成';
+
+  @override
   String get chatMessageWidgetSelectAll => '全选';
 
   @override
@@ -6994,6 +7000,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatMessageWidgetDeepThinking => '深度思考';
 
   @override
+  String get processGroupWorking => '处理中...';
+
+  @override
+  String get processGroupWorked => '已完成';
+
+  @override
   String get chatMessageWidgetSelectAll => '全选';
 
   @override
@@ -11715,6 +11727,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatMessageWidgetDeepThinking => '深度思考';
+
+  @override
+  String get processGroupWorking => '處理中...';
+
+  @override
+  String get processGroupWorked => '已完成';
 
   @override
   String get chatMessageWidgetSelectAll => '全選';

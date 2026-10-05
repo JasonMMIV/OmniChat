@@ -672,6 +672,7 @@ class _HomePageState extends State<HomePage>
       reasoning: _controller.reasoning,
       reasoningSegments: _controller.reasoningSegments,
       toolParts: _controller.toolParts,
+      processGroupExplicitOpen: _controller.processGroupExplicitOpen,
       translations: _buildTranslationUiStates(),
       selecting: _controller.selecting,
       selectedItems: _controller.selectedItems,
@@ -703,6 +704,15 @@ class _HomePageState extends State<HomePage>
       },
       onToggleReasoningSegment: (messageId, segmentIndex) {
         _controller.toggleReasoningSegment(messageId, segmentIndex);
+      },
+      onToggleProcessGroup: (messageId, open, forcedOpen) {
+        // B1: the header is inert while a user-action card (approval /
+        // ask_user) holds the group open.
+        if (forcedOpen) return;
+        // AnyBuff explicit-set semantics: pin the FLIPPED state of what the
+        // widget is currently rendering — the widget is the single source of
+        // truth for the open state the user actually saw.
+        _controller.setProcessGroupOpen(messageId, !open);
       },
       onSubmitAskUserAnswer: (assistantMessageId, toolCallId, payload) {
         _controller.submitAskUserAnswer(

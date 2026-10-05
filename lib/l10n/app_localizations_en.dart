@@ -2186,6 +2186,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatMessageWidgetDeepThinking => 'Deep thinking';
 
   @override
+  String get processGroupWorking => 'Working...';
+
+  @override
+  String get processGroupWorked => 'Worked';
+
+  @override
   String get chatMessageWidgetSelectAll => 'Select All';
 
   @override

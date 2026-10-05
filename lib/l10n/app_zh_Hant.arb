@@ -508,6 +508,8 @@
   "chatMessageWidgetTranslateTooltip": "翻譯",
   "chatMessageWidgetBuiltinSearchHideNote": "隱藏內建搜尋工具卡片",
   "chatMessageWidgetDeepThinking": "深度思考",
+  "processGroupWorking": "處理中...",
+  "processGroupWorked": "已完成",
   "chatMessageWidgetSelectAll": "全選",
   "chatMessageWidgetCopy": "複製",
   "chatMessageWidgetCreateMemory": "建立記憶",
