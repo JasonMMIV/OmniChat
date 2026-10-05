@@ -527,6 +527,14 @@ class MessageListView extends StatelessWidget {
       reasoningLoading: (message.role == 'assistant') ? (r?.finishedAt == null && (r?.text.isNotEmpty == true)) : false,
       reasoningStartAt: (message.role == 'assistant') ? r?.startAt : null,
       reasoningFinishedAt: (message.role == 'assistant') ? r?.finishedAt : null,
+      // 過程收褶: the process group's end (last segment / tool call finished) —
+      // the header timer's freeze anchor, distinct from the thinking end.
+      reasoningProcessFinishedAt:
+          (message.role == 'assistant') ? r?.processFinishedAt : null,
+      // …and its start: the first process event (first tool call OR first
+      // thinking token), which a tool-only turn has no reasoning for.
+      reasoningProcessStartedAt:
+          (message.role == 'assistant') ? r?.processStartedAt : null,
       onToggleReasoning: (message.role == 'assistant' && r != null)
           ? () => onToggleReasoning?.call(message.id)
           : null,

@@ -70,6 +70,26 @@ class ChatMessage extends HiveObject {
   @HiveField(19)
   final int? cachedTokens;
 
+  // 過程收褶 (process folding): the moment the whole process group ended —
+  // i.e. the instant the last thinking segment / tool call finished and the
+  // group header flips from 處理中 to 已完成. Distinct from
+  // [reasoningFinishedAt], which is stamped as soon as THINKING pauses
+  // (before the tools run), so it cannot close a timer that spans the tools.
+  // Null on messages that never ran a process group and on rows written
+  // before this field existed (the header then falls back to
+  // reasoningFinishedAt, which is the pre-2026-10-05 behaviour).
+  @HiveField(20)
+  final DateTime? processFinishedAt;
+
+  // The mirror of [processFinishedAt]: the moment this message's process
+  // started — the FIRST process event, which is the first tool call OR the
+  // first thinking token, whichever comes first (a tool-only turn, or a
+  // tool-first agent loop, has no reasoning at all, so reasoningStartAt
+  // cannot anchor the header timer). Null before this field existed and for
+  // messages that never ran a process group.
+  @HiveField(21)
+  final DateTime? processStartedAt;
+
   ChatMessage({
     String? id,
     required this.role,
@@ -91,6 +111,8 @@ class ChatMessage extends HiveObject {
     this.promptTokens,
     this.completionTokens,
     this.cachedTokens,
+    this.processFinishedAt,
+    this.processStartedAt,
   })  : id = id ?? const Uuid().v4(),
         timestamp = timestamp ?? DateTime.now(),
         groupId = groupId ?? id,
@@ -117,6 +139,8 @@ class ChatMessage extends HiveObject {
     int? promptTokens,
     int? completionTokens,
     int? cachedTokens,
+    DateTime? processFinishedAt,
+    DateTime? processStartedAt,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -139,6 +163,8 @@ class ChatMessage extends HiveObject {
       promptTokens: promptTokens ?? this.promptTokens,
       completionTokens: completionTokens ?? this.completionTokens,
       cachedTokens: cachedTokens ?? this.cachedTokens,
+      processFinishedAt: processFinishedAt ?? this.processFinishedAt,
+      processStartedAt: processStartedAt ?? this.processStartedAt,
     );
   }
 
@@ -164,6 +190,8 @@ class ChatMessage extends HiveObject {
       'promptTokens': promptTokens,
       'completionTokens': completionTokens,
       'cachedTokens': cachedTokens,
+      'processFinishedAt': processFinishedAt?.toIso8601String(),
+      'processStartedAt': processStartedAt?.toIso8601String(),
     };
   }
 
@@ -193,6 +221,12 @@ class ChatMessage extends HiveObject {
       promptTokens: json['promptTokens'] as int?,
       completionTokens: json['completionTokens'] as int?,
       cachedTokens: json['cachedTokens'] as int?,
+      processFinishedAt: json['processFinishedAt'] != null
+          ? DateTime.parse(json['processFinishedAt'] as String)
+          : null,
+      processStartedAt: json['processStartedAt'] != null
+          ? DateTime.parse(json['processStartedAt'] as String)
+          : null,
     );
   }
 }

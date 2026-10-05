@@ -113,6 +113,19 @@ class ChatMessageWidget extends StatefulWidget {
   final bool reasoningLoading;
   final DateTime? reasoningStartAt;
   final DateTime? reasoningFinishedAt;
+
+  /// 過程收褶: the moment this message's process group ENDED (last thinking
+  /// segment / tool call finished) — the header timer's freeze anchor, which
+  /// is deliberately NOT [reasoningFinishedAt] (thinking pause). Null for
+  /// messages persisted before 2026-10-05; the header then falls back to the
+  /// thinking end.
+  final DateTime? reasoningProcessFinishedAt;
+
+  /// 過程收褶: when this message's process group STARTED — the first process
+  /// event (first tool call OR first thinking token). Null for messages
+  /// persisted before 2026-10-05; the header then falls back to
+  /// [reasoningStartAt].
+  final DateTime? reasoningProcessStartedAt;
   final VoidCallback? onToggleReasoning;
   // For multiple reasoning segments
   final List<ReasoningSegment>? reasoningSegments;
@@ -169,6 +182,8 @@ class ChatMessageWidget extends StatefulWidget {
     this.reasoningLoading = false,
     this.reasoningStartAt,
     this.reasoningFinishedAt,
+    this.reasoningProcessFinishedAt,
+    this.reasoningProcessStartedAt,
     this.onToggleReasoning,
     this.reasoningSegments,
     this.processGroupExplicitOpen,
@@ -1977,12 +1992,22 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               child: ProcessGroupCard(
                 live: model.live,
                 open: resolvedOpen,
-                // One elapsed timer for the whole process (2026-10-05): the
-                // message-level reasoning span is the pre-folding timer
-                // contract, and while the group is live the run may still
-                // have tools in flight, so finishedAt waits for the verdict.
-                startAt: widget.reasoningStartAt,
-                finishedAt: model.live ? null : widget.reasoningFinishedAt,
+                // One elapsed timer for the whole process (2026-10-05). Start:
+                // the FIRST process event (first tool call or first thinking
+                // token) — anchoring on reasoning alone would drop a
+                // tool-first turn's leading tool time. End: the instant the
+                // PROCESS finished — the last segment / tool call — not the
+                // thinking pause, so the number counts the tools and never
+                // rewinds on completion.
+                startAt: resolveProcessStartAt(
+                  processStartedAt: widget.reasoningProcessStartedAt,
+                  reasoningStartAt: widget.reasoningStartAt,
+                ),
+                finishedAt: resolveProcessFinishedAt(
+                  live: model.live,
+                  processFinishedAt: widget.reasoningProcessFinishedAt,
+                  reasoningFinishedAt: widget.reasoningFinishedAt,
+                ),
                 onToggle: widget.onToggleProcessGroup == null
                     ? null
                     : () => widget.onToggleProcessGroup!(
