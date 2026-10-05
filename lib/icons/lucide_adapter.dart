@@ -165,6 +165,7 @@ class Lucide {
   static const IconData Folder = lucide.LucideIcons.folder;
   static const IconData FolderPlus = lucide.LucideIcons.folderPlus;
   static const IconData FolderCode = lucide.LucideIcons.folderCode;
+  static const IconData Folders = lucide.LucideIcons.folders;
   static const IconData ExternalLink = lucide.LucideIcons.externalLink;
   static const IconData Play = lucide.LucideIcons.play;
   static const IconData Pause = lucide.LucideIcons.pause;
