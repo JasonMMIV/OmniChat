@@ -95,7 +95,7 @@ class _StorageSpacePageState extends State<StorageSpacePage> {
       case StorageUsageCategoryKey.chatData:
         return Lucide.MessagesSquare;
       case StorageUsageCategoryKey.assistantData:
-        return Lucide.Bot;
+        return Lucide.Folders;
       case StorageUsageCategoryKey.cache:
         return Lucide.Boxes;
       case StorageUsageCategoryKey.logs:
