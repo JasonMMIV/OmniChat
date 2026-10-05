@@ -1971,34 +1971,105 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
           ),
         ),
         const SizedBox(height: 16),
-        _iosSectionCard(
-          children: [
-            _iosNavRow(
-              context,
-              icon: Lucide.FolderCode,
-              label: l10n.workspaceTitle,
-              detailText: _workspaceSettingLabel(l10n, a.workspace),
-              accessory: a.workspace.mode == WorkspaceMode.useDefault
-                  ? IconButton(
-                      tooltip: l10n.workspaceDefaultDirectorySettings,
-                      icon: const Icon(Lucide.Settings2, size: 18),
-                      onPressed: () =>
-                          showDefaultWorkspaceDirectoryDialog(context),
-                    )
-                  : null,
-              onTap: () async {
-                final selected = await showProjectWorkspaceSettingsSheet(
-                  context,
-                  initial: a.workspace,
-                );
-                if (selected != null && context.mounted) {
-                  await context.read<AssistantProvider>().updateAssistant(
-                    a.copyWith(workspace: selected),
-                  );
-                }
-              },
+        // Workspace: header row (icon + bold title) then the menu button
+        // below, matching the chat model / chat background cards above.
+        Container(
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white10 : Colors.white.withOpacity(0.96),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: cs.outlineVariant.withOpacity(isDark ? 0.08 : 0.06),
+              width: 0.6,
             ),
-          ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Lucide.FolderCode, size: 18, color: cs.onSurface),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        l10n.workspaceTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _TactileRow(
+                  onTap: () async {
+                    final selected = await showProjectWorkspaceSettingsSheet(
+                      context,
+                      initial: a.workspace,
+                    );
+                    if (selected != null && context.mounted) {
+                      await context.read<AssistantProvider>().updateAssistant(
+                        a.copyWith(workspace: selected),
+                      );
+                    }
+                  },
+                  pressedScale: 0.98,
+                  builder: (pressed) {
+                    final bg = isDark
+                        ? Colors.white10
+                        : const Color(0xFFF2F3F5);
+                    final overlay = isDark
+                        ? Colors.white.withOpacity(0.06)
+                        : Colors.black.withOpacity(0.05);
+                    final pressedBg = Color.alphaBlend(overlay, bg);
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      curve: Curves.easeOutCubic,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: pressed ? pressedBg : bg,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _workspaceSettingLabel(l10n, a.workspace),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          if (a.workspace.mode == WorkspaceMode.useDefault)
+                            IconButton(
+                              tooltip: l10n.workspaceDefaultDirectorySettings,
+                              icon: const Icon(Lucide.Settings2, size: 18),
+                              onPressed: () =>
+                                  showDefaultWorkspaceDirectoryDialog(context),
+                            ),
+                          Icon(
+                            Lucide.ChevronRight,
+                            size: 16,
+                            color: cs.onSurface.withOpacity(0.6),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );
@@ -5783,63 +5854,6 @@ class _TactileRowState extends State<_TactileRow> {
   }
 }
 
-Widget _iosNavRow(
-  BuildContext context, {
-  required IconData icon,
-  required String label,
-  String? detailText,
-  Widget? accessory,
-  VoidCallback? onTap,
-}) {
-  final cs = Theme.of(context).colorScheme;
-  final interactive = onTap != null;
-  return _TactileRow(
-    onTap: onTap,
-    haptics: true,
-    builder: (pressed) {
-      final baseColor = cs.onSurface.withOpacity(0.9);
-      return _AnimatedPressColor(
-        pressed: pressed,
-        base: baseColor,
-        builder: (c) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-            child: Row(
-              children: [
-                SizedBox(width: 36, child: Icon(icon, size: 20, color: c)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(fontSize: 15, color: c),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (detailText != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: Text(
-                      detailText,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: cs.onSurface.withOpacity(0.6),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                if (accessory != null) accessory,
-                if (interactive) Icon(Lucide.ChevronRight, size: 16, color: c),
-              ],
-            ),
-          );
-        },
-      );
-    },
-  );
-}
-
 Widget _iosSwitchRow(
   BuildContext context, {
   required IconData icon,
@@ -6665,32 +6679,93 @@ class _DesktopAssistantBasicPaneState
               ),
             ),
             sectionDivider(),
+            // Workspace: header row (icon + bold title), menu button below.
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-              child: _iosNavRow(
-                context,
-                icon: Lucide.FolderCode,
-                label: l10n.workspaceTitle,
-                detailText: _workspaceSettingLabel(l10n, a.workspace),
-                accessory: a.workspace.mode == WorkspaceMode.useDefault
-                    ? IconButton(
-                        tooltip: l10n.workspaceDefaultDirectorySettings,
-                        icon: const Icon(Lucide.Settings2, size: 18),
-                        onPressed: () =>
-                            showDefaultWorkspaceDirectoryDialog(context),
-                      )
-                    : null,
-                onTap: () async {
-                  final selected = await showProjectWorkspaceSettingsSheet(
-                    context,
-                    initial: a.workspace,
-                  );
-                  if (selected != null && context.mounted) {
-                    await context.read<AssistantProvider>().updateAssistant(
-                      a.copyWith(workspace: selected),
-                    );
-                  }
-                },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Lucide.FolderCode, size: 18, color: cs.onSurface),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          l10n.workspaceTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _TactileRow(
+                    onTap: () async {
+                      final selected = await showProjectWorkspaceSettingsSheet(
+                        context,
+                        initial: a.workspace,
+                      );
+                      if (selected != null && context.mounted) {
+                        await context.read<AssistantProvider>().updateAssistant(
+                          a.copyWith(workspace: selected),
+                        );
+                      }
+                    },
+                    pressedScale: 0.98,
+                    builder: (pressed) {
+                      final bg = isDark
+                          ? Colors.white10
+                          : const Color(0xFFF2F3F5);
+                      final overlay = isDark
+                          ? Colors.white.withOpacity(0.06)
+                          : Colors.black.withOpacity(0.05);
+                      final pressedBg = Color.alphaBlend(overlay, bg);
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        curve: Curves.easeOutCubic,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: pressed ? pressedBg : bg,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _workspaceSettingLabel(l10n, a.workspace),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            if (a.workspace.mode == WorkspaceMode.useDefault)
+                              IconButton(
+                                tooltip: l10n.workspaceDefaultDirectorySettings,
+                                icon: const Icon(Lucide.Settings2, size: 18),
+                                onPressed: () =>
+                                    showDefaultWorkspaceDirectoryDialog(context),
+                              ),
+                            Icon(
+                              Lucide.ChevronRight,
+                              size: 16,
+                              color: cs.onSurface.withOpacity(0.6),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
           ],
