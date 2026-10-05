@@ -72,6 +72,7 @@ class MessageListView extends StatelessWidget {
     required this.reasoning,
     required this.reasoningSegments,
     required this.toolParts,
+    required this.processGroupExplicitOpen,
     required this.translations,
     required this.selecting,
     required this.selectedItems,
@@ -92,6 +93,7 @@ class MessageListView extends StatelessWidget {
     this.onToggleReasoning,
     this.onToggleTranslation,
     this.onToggleReasoningSegment,
+    this.onToggleProcessGroup,
     this.buildPinnedStreamingIndicator,
     this.onSubmitAskUserAnswer,
     this.onResolveApproval,
@@ -105,6 +107,11 @@ class MessageListView extends StatelessWidget {
   final Map<String, stream_ctrl.ReasoningData> reasoning;
   final Map<String, List<stream_ctrl.ReasoningSegmentData>> reasoningSegments;
   final Map<String, List<ToolUIPart>> toolParts;
+
+  /// 過程收褶 (process folding): explicit fold pins per assistant message.
+  /// null = follow the live verdict (B2); true/false = user-pinned and it
+  /// wins over the run state (B1 forced-open still bypasses it).
+  final Map<String, bool> processGroupExplicitOpen;
   final Map<String, TranslationUiState> translations;
   final bool selecting;
   final Set<String> selectedItems;
@@ -131,6 +138,13 @@ class MessageListView extends StatelessWidget {
   final void Function(String messageId)? onToggleReasoning;
   final void Function(String messageId)? onToggleTranslation;
   final void Function(String messageId, int segmentIndex)? onToggleReasoningSegment;
+
+  /// 過程收褶: the process-group header was tapped on [messageId]'s group.
+  /// The wrapping receives the open state the widget is currently rendering
+  /// plus the B1 forced-open verdict; the call site pins the flipped state
+  /// and ignores taps while a user-action card holds the group open.
+  final void Function(String messageId, bool open, bool forcedOpen)?
+  onToggleProcessGroup;
   final Widget Function()? buildPinnedStreamingIndicator;
 
   /// P1-3: submit an ask_user answer (resumes generation).
@@ -544,8 +558,15 @@ class MessageListView extends StatelessWidget {
 
       },
       toolParts: message.role == 'assistant' ? toolParts[message.id] : null,
+      processGroupExplicitOpen: message.role == 'assistant'
+          ? processGroupExplicitOpen[message.id]
+          : null,
       onSubmitAskUserAnswer: onSubmitAskUserAnswer,
       onResolveApproval: onResolveApproval,
+      onToggleProcessGroup: message.role == 'assistant'
+          ? (open, forcedOpen) =>
+                onToggleProcessGroup?.call(message.id, open, forcedOpen)
+          : null,
       reasoningSegments: message.role == 'assistant'
           ? (() {
               final segments = reasoningSegments[message.id];
@@ -557,8 +578,6 @@ class MessageListView extends StatelessWidget {
                         text: entry.value.text,
                         expanded: entry.value.expanded,
                         loading: entry.value.finishedAt == null && entry.value.text.isNotEmpty,
-                        startAt: entry.value.startAt,
-                        finishedAt: entry.value.finishedAt,
                         onToggle: () => onToggleReasoningSegment?.call(message.id, entry.key),
                         toolStartIndex: entry.value.toolStartIndex,
                       ))

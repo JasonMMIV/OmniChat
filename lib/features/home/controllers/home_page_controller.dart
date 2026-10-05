@@ -446,6 +446,17 @@ class HomePageController extends ChangeNotifier {
   Map<String, List<stream_ctrl.ReasoningSegmentData>> get reasoningSegments => _streamController.reasoningSegments;
   Map<String, List<ToolUIPart>> get toolParts => _streamController.toolParts;
 
+  /// 過程收褶 (process folding): explicit fold pins per assistant message —
+  /// null = follow the live verdict, true/false = user-pinned (PLAN
+  /// PROCESS_FOLDING.md Phase 3).
+  Map<String, bool> get processGroupExplicitOpen =>
+      _streamController.processGroupExplicitOpen;
+
+  /// Pin the process group's fold state after a manual header toggle.
+  void setProcessGroupOpen(String messageId, bool open) {
+    _streamController.setProcessGroupOpen(messageId, open);
+  }
+
   /// P1-3: resume generation after the user answers an `ask_user` decision
   /// card (upsert answer JSON into the pending tool event + continue).
   Future<void> submitAskUserAnswer(

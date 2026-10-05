@@ -958,6 +958,8 @@
     }
   },
   "chatMessageWidgetDeepThinking": "Deep thinking",
+  "processGroupWorking": "Working...",
+  "processGroupWorked": "Worked",
   "chatMessageWidgetSelectAll": "Select All",
   "chatMessageWidgetCopy": "Copy",
   "messageMoreSheetSelectCopy": "Select",

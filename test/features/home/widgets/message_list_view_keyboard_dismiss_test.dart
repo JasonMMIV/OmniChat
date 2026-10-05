@@ -69,6 +69,7 @@ void main() {
               reasoning: const {},
               reasoningSegments: const {},
               toolParts: const {},
+              processGroupExplicitOpen: const {},
               translations: const {},
               selecting: false,
               selectedItems: const {},

@@ -4229,6 +4229,18 @@ abstract class AppLocalizations {
   /// **'Deep thinking'**
   String get chatMessageWidgetDeepThinking;
 
+  /// No description provided for @processGroupWorking.
+  ///
+  /// In en, this message translates to:
+  /// **'Working...'**
+  String get processGroupWorking;
+
+  /// No description provided for @processGroupWorked.
+  ///
+  /// In en, this message translates to:
+  /// **'Worked'**
+  String get processGroupWorked;
+
   /// No description provided for @chatMessageWidgetSelectAll.
   ///
   /// In en, this message translates to:
