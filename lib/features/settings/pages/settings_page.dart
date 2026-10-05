@@ -509,11 +509,21 @@ class _ChatStorageSummaryState extends State<_ChatStorageSummary> {
       builder: (context, snapshot) {
         final data = snapshot.data;
         if (snapshot.connectionState != ConnectionState.done) {
-          return Text(l10n.settingsPageCalculating, style: style);
+          return Text(
+            l10n.settingsPageCalculating,
+            style: style,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          );
         }
         final count = data?.totalFiles ?? 0;
         final size = _fmtBytes(data?.totalBytes ?? 0);
-        return Text(l10n.settingsPageFilesCount(count, size), style: style);
+        return Text(
+          l10n.settingsPageFilesCount(count, size),
+          style: style,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        );
       },
     );
   }
@@ -541,46 +551,73 @@ Widget _iosNavRow(
         builder: (c) {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-            child: Row(
-              children: [
-                SizedBox(width: 36, child: Icon(icon, size: 20, color: c)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: c,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (detailBuilder != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: DefaultTextStyle.merge(
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: cs.onSurface.withOpacity(0.6),
-                      ),
-                      child: detailBuilder(context),
-                    ),
-                  )
-                else if (detailText != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: Text(
-                      detailText,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: cs.onSurface.withOpacity(0.6),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // A long detail value (e.g. a workspace path) is a
+                // non-flexible Row child, so it is laid out before the
+                // Expanded label and can squeeze the label to zero width on
+                // narrow portrait screens. Cap the detail to 40% of the
+                // space left after the icon gutter and chevron so the label
+                // always keeps at least 60% of it.
+                final double available = constraints.maxWidth;
+                final double fixedWidth =
+                    36 + 12 + (interactive ? 16 : 0);
+                double detailCap = double.infinity;
+                if (available.isFinite) {
+                  final double freeSpace = available - fixedWidth;
+                  detailCap = freeSpace > 0 ? freeSpace * 0.4 : 0.0;
+                }
+                return Row(
+                  children: [
+                    SizedBox(width: 36, child: Icon(icon, size: 20, color: c)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: c,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
-                if (interactive) Icon(Lucide.ChevronRight, size: 16, color: c),
-              ],
+                    if (detailBuilder != null)
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: detailCap),
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: DefaultTextStyle.merge(
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: cs.onSurface.withOpacity(0.6),
+                            ),
+                            child: detailBuilder(context),
+                          ),
+                        ),
+                      )
+                    else if (detailText != null)
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: detailCap),
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Text(
+                            detailText,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: cs.onSurface.withOpacity(0.6),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    if (interactive)
+                      Icon(Lucide.ChevronRight, size: 16, color: c),
+                  ],
+                );
+              },
             ),
           );
         },
