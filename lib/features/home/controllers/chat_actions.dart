@@ -1036,12 +1036,16 @@ class ChatActions {
               String messageId, {
               String? reasoningText,
               DateTime? reasoningFinishedAt,
+              DateTime? processFinishedAt,
+              DateTime? processStartedAt,
               String? reasoningSegmentsJson,
             }) async {
               await chatService.updateMessage(
                 messageId,
                 reasoningText: reasoningText,
                 reasoningFinishedAt: reasoningFinishedAt,
+                processFinishedAt: processFinishedAt,
+                processStartedAt: processStartedAt,
                 reasoningSegmentsJson: reasoningSegmentsJson,
               );
             },
@@ -1994,6 +1998,7 @@ class ChatActions {
             String messageId, {
             String? reasoningText,
             DateTime? reasoningStartAt,
+            DateTime? processStartedAt,
             String? reasoningSegmentsJson,
           }) async {
             // Use silent update during streaming to avoid UI rebuilds
@@ -2001,6 +2006,7 @@ class ChatActions {
               messageId,
               reasoningText: reasoningText,
               reasoningStartAt: reasoningStartAt,
+              processStartedAt: processStartedAt,
               reasoningSegmentsJson: reasoningSegmentsJson,
             );
           },
@@ -2015,6 +2021,15 @@ class ChatActions {
     await streamController.handleToolCallsChunk(
       chunk,
       state,
+      // 過程收褶: a tool call can open the turn (tool-only models, tool-first
+      // agent loops), so the process start anchor is persisted from here too.
+      updateReasoningInDb:
+          (String messageId, {DateTime? processStartedAt}) async {
+            await chatService.updateMessageSilent(
+              messageId,
+              processStartedAt: processStartedAt,
+            );
+          },
       updateReasoningSegmentsInDb: (String messageId, String json) async {
         // Use silent update during streaming to avoid UI rebuilds
         await chatService.updateMessageSilent(
@@ -2061,6 +2076,15 @@ class ChatActions {
               // (preservedToolEventExtraKeys). Tool-RESULT chunks never
               // carry assistantExtras; the v1.8 attempt read them here,
               // which was dead code and never persisted anything.
+            );
+          },
+      // 過程收褶: persist the process-group end stamp when the last tool
+      // result of a round closes the group (frozen header timer).
+      updateReasoningInDb:
+          (String messageId, {DateTime? processFinishedAt}) async {
+            await chatService.updateMessageSilent(
+              messageId,
+              processFinishedAt: processFinishedAt,
             );
           },
       // UI-only extras (search provider trace) hydrate the live tool card.
@@ -2176,6 +2200,8 @@ class ChatActions {
             String messageId, {
             String? reasoningText,
             DateTime? reasoningFinishedAt,
+            DateTime? processFinishedAt,
+            DateTime? processStartedAt,
             String? reasoningSegmentsJson,
           }) async {
             // Use silent update during streaming to avoid UI rebuilds
@@ -2183,6 +2209,8 @@ class ChatActions {
               messageId,
               reasoningText: reasoningText,
               reasoningFinishedAt: reasoningFinishedAt,
+              processFinishedAt: processFinishedAt,
+              processStartedAt: processStartedAt,
               reasoningSegmentsJson: reasoningSegmentsJson,
             );
           },
@@ -2343,12 +2371,16 @@ class ChatActions {
             String messageId, {
             String? reasoningText,
             DateTime? reasoningFinishedAt,
+            DateTime? processFinishedAt,
+            DateTime? processStartedAt,
             String? reasoningSegmentsJson,
           }) async {
             await chatService.updateMessage(
               messageId,
               reasoningText: reasoningText,
               reasoningFinishedAt: reasoningFinishedAt,
+              processFinishedAt: processFinishedAt,
+              processStartedAt: processStartedAt,
               reasoningSegmentsJson: reasoningSegmentsJson,
             );
           },
@@ -2441,12 +2473,16 @@ class ChatActions {
             String messageId, {
             String? reasoningText,
             DateTime? reasoningFinishedAt,
+            DateTime? processFinishedAt,
+            DateTime? processStartedAt,
             String? reasoningSegmentsJson,
           }) async {
             await chatService.updateMessage(
               messageId,
               reasoningText: reasoningText,
               reasoningFinishedAt: reasoningFinishedAt,
+              processFinishedAt: processFinishedAt,
+              processStartedAt: processStartedAt,
               reasoningSegmentsJson: reasoningSegmentsJson,
             );
           },

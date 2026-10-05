@@ -738,6 +738,8 @@ class ChatService extends ChangeNotifier {
     String? reasoningText,
     DateTime? reasoningStartAt,
     DateTime? reasoningFinishedAt,
+    DateTime? processFinishedAt,
+    DateTime? processStartedAt,
     String? groupId,
     int? version,
   }) async {
@@ -774,6 +776,8 @@ class ChatService extends ChangeNotifier {
       reasoningText: reasoningText,
       reasoningStartAt: reasoningStartAt,
       reasoningFinishedAt: reasoningFinishedAt,
+      processFinishedAt: processFinishedAt,
+      processStartedAt: processStartedAt,
       groupId: groupId,
       version: version,
     );
@@ -804,6 +808,8 @@ class ChatService extends ChangeNotifier {
     String? reasoningText,
     DateTime? reasoningStartAt,
     DateTime? reasoningFinishedAt,
+    DateTime? processFinishedAt,
+    DateTime? processStartedAt,
     String? translation,
     String? reasoningSegmentsJson,
     String? aiTeamProposalsJson,
@@ -823,6 +829,8 @@ class ChatService extends ChangeNotifier {
       reasoningText: reasoningText ?? message.reasoningText,
       reasoningStartAt: reasoningStartAt ?? message.reasoningStartAt,
       reasoningFinishedAt: reasoningFinishedAt ?? message.reasoningFinishedAt,
+      processFinishedAt: processFinishedAt ?? message.processFinishedAt,
+      processStartedAt: processStartedAt ?? message.processStartedAt,
       translation: translation,
       reasoningSegmentsJson:
           reasoningSegmentsJson ?? message.reasoningSegmentsJson,
@@ -858,6 +866,8 @@ class ChatService extends ChangeNotifier {
     String? reasoningText,
     DateTime? reasoningStartAt,
     DateTime? reasoningFinishedAt,
+    DateTime? processFinishedAt,
+    DateTime? processStartedAt,
     String? translation,
     String? reasoningSegmentsJson,
     String? aiTeamProposalsJson,
@@ -877,6 +887,8 @@ class ChatService extends ChangeNotifier {
       reasoningText: reasoningText ?? message.reasoningText,
       reasoningStartAt: reasoningStartAt ?? message.reasoningStartAt,
       reasoningFinishedAt: reasoningFinishedAt ?? message.reasoningFinishedAt,
+      processFinishedAt: processFinishedAt ?? message.processFinishedAt,
+      processStartedAt: processStartedAt ?? message.processStartedAt,
       translation: translation,
       reasoningSegmentsJson:
           reasoningSegmentsJson ?? message.reasoningSegmentsJson,

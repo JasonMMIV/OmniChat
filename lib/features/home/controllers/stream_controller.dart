@@ -583,7 +583,7 @@ class StreamController {
   Future<void> handleReasoningChunk(
     ChatStreamChunk chunk,
     StreamingState state, {
-    required Future<void> Function(String messageId, {String? reasoningText, DateTime? reasoningStartAt, String? reasoningSegmentsJson}) updateReasoningInDb,
+    required Future<void> Function(String messageId, {String? reasoningText, DateTime? reasoningStartAt, DateTime? processStartedAt, String? reasoningSegmentsJson}) updateReasoningInDb,
   }) async {
     if ((chunk.reasoning ?? '').isEmpty || !state.ctx.supportsReasoning) return;
 
@@ -596,6 +596,12 @@ class StreamController {
       r.startAt ??= DateTime.now();
       // NOTE: Do not reset r.expanded here - preserve user's toggle state during streaming
       _reasoning[messageId] = r;
+      // 過程收褶: first process event, if no tool call opened the turn.
+      await _stampProcessStarted(
+        messageId,
+        at: r.startAt,
+        persist: updateReasoningInDb,
+      );
 
       // Add to reasoning segments for mixed display
       final segments = _reasoningSegments[messageId] ?? <ReasoningSegmentData>[];
@@ -606,6 +612,7 @@ class StreamController {
         newSegment.expanded = false;
         newSegment.toolStartIndex = (_toolParts[messageId]?.length ?? 0);
         segments.add(newSegment);
+        _clearProcessFinished(messageId);
       } else {
         final hasToolsAfterLastSegment =
             (_toolParts[messageId]?.isNotEmpty ?? false);
@@ -617,6 +624,7 @@ class StreamController {
           newSegment.expanded = false;
           newSegment.toolStartIndex = (_toolParts[messageId]?.length ?? 0);
           segments.add(newSegment);
+          _clearProcessFinished(messageId);
         } else {
           lastSegment.text += chunk.reasoning!;
           lastSegment.startAt ??= DateTime.now();
@@ -663,11 +671,16 @@ class StreamController {
     required Future<void> Function(String messageId, String json) updateReasoningSegmentsInDb,
     required Future<void> Function(String messageId, List<Map<String, dynamic>> events) setToolEventsInDb,
     required List<Map<String, dynamic>> Function(String messageId) getToolEventsFromDb,
+    required Future<void> Function(String messageId, {DateTime? processStartedAt}) updateReasoningInDb,
   }) async {
     if ((chunk.toolCalls ?? const []).isEmpty) return;
 
     final messageId = state.messageId;
     final conversationId = state.conversationId;
+
+    // 過程收褶: a tool call can open the turn (tool-only models, or a
+    // tool-first agent loop) — it is then the process start anchor.
+    await _stampProcessStarted(messageId, at: null, persist: updateReasoningInDb);
 
     // Finish any unfinished reasoning segment when tools start
     final segments = _reasoningSegments[messageId] ?? <ReasoningSegmentData>[];
@@ -685,6 +698,10 @@ class StreamController {
         serializeReasoningSegments(segments),
       );
     }
+
+    // A new tool round re-opens the process group, so the previous end stamp
+    // must go — the next idle transition re-freezes the header timer.
+    _clearProcessFinished(messageId);
 
     // Add tool call placeholders
     final existing = List<ToolUIPart>.of(_toolParts[messageId] ?? const []);
@@ -748,6 +765,7 @@ class StreamController {
     ChatStreamChunk chunk,
     StreamingState state, {
     required Future<void> Function(String messageId, {required String id, required String name, required Map<String, dynamic> arguments, String? content}) upsertToolEventInDb,
+    required Future<void> Function(String messageId, {DateTime? processFinishedAt}) updateReasoningInDb,
     List<Map<String, dynamic>> Function(String messageId)? getToolEventsFromDb,
   }) async {
     if ((chunk.toolResults ?? const []).isEmpty) return;
@@ -810,6 +828,13 @@ class StreamController {
         );
       } catch (_) {}
     }
+    // The last tool result of a round closes the process group: freeze the
+    // header timer here so it counts the tools, not just the thinking.
+    await _stampProcessFinished(
+      messageId,
+      hasAnswerText: state.fullContentRaw.trim().isNotEmpty,
+      persist: updateReasoningInDb,
+    );
     if (getCurrentConversationId() == conversationId) {
       _toolParts[messageId] = dedupeToolPartsList(parts);
       // Notify via StreamingContentNotifier for real-time UI updates
@@ -820,7 +845,7 @@ class StreamController {
   /// Finish reasoning segment when content starts arriving.
   Future<void> finishReasoningOnContent(
     StreamingState state, {
-    required Future<void> Function(String messageId, {String? reasoningText, DateTime? reasoningFinishedAt, String? reasoningSegmentsJson}) updateReasoningInDb,
+    required Future<void> Function(String messageId, {String? reasoningText, DateTime? reasoningFinishedAt, DateTime? processFinishedAt, String? reasoningSegmentsJson}) updateReasoningInDb,
   }) async {
     final messageId = state.messageId;
 
@@ -856,6 +881,87 @@ class StreamController {
         reasoningSegmentsJson: serializeReasoningSegments(segments),
       );
     }
+
+    // Content with nothing left pending → the process group just closed.
+    await _stampProcessFinished(
+      messageId,
+      hasAnswerText: state.fullContentRaw.trim().isNotEmpty,
+      persist: updateReasoningInDb,
+    );
+  }
+
+  /// 過程收褶 (process folding, 2026-10-05): true while the UI's process-group
+  /// verdict is still 處理中 — a tool is running, the last thinking segment is
+  /// still streaming, or no answer text has arrived yet. Mirrors the `live`
+  /// derivation in process_group_logic.dart.
+  bool _groupIsLive(String messageId, bool hasAnswerText) {
+    if ((_toolParts[messageId] ?? const <ToolUIPart>[]).any((p) => p.loading)) {
+      return true;
+    }
+    final segments = _reasoningSegments[messageId];
+    if (segments != null &&
+        segments.isNotEmpty &&
+        segments.last.finishedAt == null) {
+      return true;
+    }
+    return !hasAnswerText;
+  }
+
+  /// Stamp the process-group START: the first process event of the turn —
+  /// the first tool call or the first thinking token, whichever arrives first
+  /// (a tool-only or tool-first turn has no reasoning timestamp at all, so
+  /// anchoring the header timer on reasoning alone would drop the leading
+  /// tool time). One write per message, ever.
+  ///
+  /// Creates the [ReasoningData] entry when a tool call opens the turn, so a
+  /// tool-only message still gets a start anchor (and restores it after a
+  /// reload — see [_restoreMessageState]).
+  Future<void> _stampProcessStarted(
+    String messageId, {
+    required DateTime? at,
+    required Future<void> Function(String messageId, {DateTime? processStartedAt}) persist,
+  }) async {
+    final r = _reasoning[messageId] ?? ReasoningData();
+    if (r.processStartedAt != null) {
+      return;
+    }
+    final stamp = at ?? DateTime.now();
+    r.processStartedAt = stamp;
+    // Mirror into startAt when the turn opened with a tool call: it is the
+    // same instant, and the header falls back to it for legacy rows.
+    r.startAt ??= stamp;
+    _reasoning[messageId] = r;
+    await persist(messageId, processStartedAt: stamp);
+  }
+
+  /// Freeze the process-group end stamp, i.e. the instant the header timer
+  /// must stop counting. Idempotent per round: skipped while the group is
+  /// still live and when this round is already stamped, so a streaming run
+  /// writes at most one row per process round (never per content chunk).
+  Future<void> _stampProcessFinished(
+    String messageId, {
+    required bool hasAnswerText,
+    required Future<void> Function(String messageId, {DateTime? processFinishedAt}) persist,
+  }) async {
+    if (_groupIsLive(messageId, hasAnswerText)) return;
+    final r = _reasoning[messageId];
+    // No reasoning run → the header has no start anchor and shows no timer,
+    // so there is nothing to freeze.
+    if (r == null || r.startAt == null || r.processFinishedAt != null) return;
+    r.processFinishedAt = DateTime.now();
+    _reasoning[messageId] = r;
+    _safeNotifyStateChanged();
+    await persist(messageId, processFinishedAt: r.processFinishedAt);
+  }
+
+  /// A new thinking segment or tool round re-opens the group: drop the end
+  /// stamp so the next idle transition freezes the timer at the NEW end
+  /// (otherwise round 2 would rewind to round 1's frozen value).
+  void _clearProcessFinished(String messageId) {
+    final r = _reasoning[messageId];
+    if (r == null || r.processFinishedAt == null) return;
+    r.processFinishedAt = null;
+    _reasoning[messageId] = r;
   }
 
   // NOTE: transformAssistantContent is kept in home_page.dart because it uses AssistantRegexScope
@@ -863,7 +969,7 @@ class StreamController {
   /// Finalize streaming and finish reasoning state.
   Future<void> finalizeReasoningState(
     String messageId, {
-    required Future<void> Function(String messageId, {String? reasoningText, DateTime? reasoningFinishedAt, String? reasoningSegmentsJson}) updateReasoningInDb,
+    required Future<void> Function(String messageId, {String? reasoningText, DateTime? reasoningFinishedAt, DateTime? processFinishedAt, String? reasoningSegmentsJson}) updateReasoningInDb,
   }) async {
     // Finish reasoning data
     final r = _reasoning[messageId];
@@ -900,6 +1006,9 @@ class StreamController {
         reasoningSegmentsJson: serializeReasoningSegments(segments),
       );
     }
+
+    // 過程收褶 backstop lives in finishReasoningAndPersist (the end-of-run
+    // path that actually runs — error / cancel / empty answer included).
   }
 
   /// Check if there are any loading tool parts for a message.
@@ -974,9 +1083,27 @@ class StreamController {
       String messageId, {
       String? reasoningText,
       DateTime? reasoningFinishedAt,
+      DateTime? processFinishedAt,
       String? reasoningSegmentsJson,
     }) updateReasoningInDb,
   }) async {
+    // 過程收褶 backstop: a run that ended without a clean idle transition
+    // (error, cancel, empty answer, approval abort) still needs a frozen
+    // header timer. Only fills a gap — a timer already frozen mid-stream at
+    // the real end keeps that value. Runs before the `changed` early-out so a
+    // second call (e.g. an error arriving after the normal finish) still
+    // closes the timer if nothing else did.
+    final rd = _reasoning[messageId];
+    if (rd != null && rd.startAt != null && rd.processFinishedAt == null) {
+      rd.processFinishedAt = DateTime.now();
+      _reasoning[messageId] = rd;
+      _safeNotifyStateChanged();
+      await updateReasoningInDb(
+        messageId,
+        processFinishedAt: rd.processFinishedAt,
+      );
+    }
+
     final changed = finishReasoningIfNeeded(messageId, forceCollapse: forceCollapse);
     if (!changed) return;
 
@@ -1024,11 +1151,17 @@ class StreamController {
     final txt = message.reasoningText ?? '';
     if (txt.isNotEmpty ||
         message.reasoningStartAt != null ||
-        message.reasoningFinishedAt != null) {
+        message.reasoningFinishedAt != null ||
+        // 過程收褶: a tool-only turn persists no reasoning text at all, but
+        // its header timer still needs the process span after a reload.
+        message.processStartedAt != null ||
+        message.processFinishedAt != null) {
       final rd = ReasoningData();
       rd.text = txt;
       rd.startAt = message.reasoningStartAt;
       rd.finishedAt = message.reasoningFinishedAt;
+      rd.processFinishedAt = message.processFinishedAt;
+      rd.processStartedAt = message.processStartedAt;
       rd.expanded = false;
       _reasoning[messageId] = rd;
     }
@@ -1159,6 +1292,18 @@ class ReasoningData {
   String text = '';
   DateTime? startAt;
   DateTime? finishedAt;
+
+  /// 過程收褶 (process folding, 2026-10-05): the process group's end — the
+  /// instant the last thinking segment / tool call finished (the UI's
+  /// `live` verdict flipping to false). Mirrors
+  /// [ChatMessage.processFinishedAt]; null until a process round closes.
+  DateTime? processFinishedAt;
+
+  /// The process group's start — the FIRST process event (first tool call or
+  /// first thinking token, whichever comes first). Mirrors
+  /// [ChatMessage.processStartedAt]; not [startAt], which is only the first
+  /// *thinking* token and is absent for tool-only / tool-first turns.
+  DateTime? processStartedAt;
   bool expanded = false;
 }
 

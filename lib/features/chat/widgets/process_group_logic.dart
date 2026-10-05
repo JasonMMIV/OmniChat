@@ -224,6 +224,43 @@ bool resolveProcessOpen({
   return live || !autoCollapse;
 }
 
+/// Start anchor for the process group header's elapsed timer: the first
+/// PROCESS event — the first tool call or the first thinking token, whichever
+/// comes first ([processStartedAt]). [reasoningStartAt] is only the first
+/// *thinking* token, so anchoring on it alone silently drops the leading tool
+/// time of a tool-only or tool-first turn (and shows no timer at all when the
+/// model never thinks). Null on rows written before the field existed
+/// (Hive field 21, 2026-10-05) — the reasoning start is then the best anchor
+/// available, i.e. the pre-revision behaviour.
+DateTime? resolveProcessStartAt({
+  required DateTime? processStartedAt,
+  required DateTime? reasoningStartAt,
+}) {
+  return processStartedAt ?? reasoningStartAt;
+}
+
+/// End anchor for the process group header's elapsed timer.
+///
+/// While [live] the timer counts (null → the shell ticks against the wall
+/// clock). Once the run is over it must freeze at the moment the PROCESS
+/// ended — the last thinking segment / tool call finished — not at
+/// `reasoningFinishedAt`, which is stamped as soon as thinking pauses
+/// (before the tools run). Anchoring there would make a message with tools
+/// rewind its own timer: it counts up to 11.4s while the tool runs, then
+/// snaps back to the 2.0s thinking span the moment the group completes.
+///
+/// [processFinishedAt] is null on messages persisted before the field existed
+/// (Hive field 20, 2026-10-05) and for runs with no process group; those fall
+/// back to the thinking end, i.e. the pre-revision behaviour.
+DateTime? resolveProcessFinishedAt({
+  required bool live,
+  required DateTime? processFinishedAt,
+  required DateTime? reasoningFinishedAt,
+}) {
+  if (live) return null;
+  return processFinishedAt ?? reasoningFinishedAt;
+}
+
 /// Whether one tool part needs the user's hands right now:
 ///
 /// - `ask_user` question without an answer payload yet — null/empty content

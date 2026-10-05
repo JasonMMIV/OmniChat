@@ -247,6 +247,107 @@ void main() {
     });
   });
 
+  group('resolveProcessStartAt — header timer start anchor', () {
+    final thinkStart = DateTime(2026, 10, 5, 9);
+    final toolStart = DateTime(2026, 10, 5, 8, 59, 30);
+
+    test('prefers the first process event (a tool call before any thinking)', () {
+      expect(
+        resolveProcessStartAt(
+          processStartedAt: toolStart,
+          reasoningStartAt: thinkStart,
+        ),
+        toolStart,
+      );
+    });
+
+    test('tool-only turn (no reasoning at all) still gets an anchor', () {
+      expect(
+        resolveProcessStartAt(
+          processStartedAt: toolStart,
+          reasoningStartAt: null,
+        ),
+        toolStart,
+      );
+    });
+
+    test('legacy rows without the field fall back to the reasoning start', () {
+      expect(
+        resolveProcessStartAt(
+          processStartedAt: null,
+          reasoningStartAt: thinkStart,
+        ),
+        thinkStart,
+      );
+      expect(
+        resolveProcessStartAt(processStartedAt: null, reasoningStartAt: null),
+        isNull,
+      );
+    });
+  });
+
+  group('resolveProcessFinishedAt — header timer freeze anchor', () {
+    // Regression (2026-10-05): a message whose thinking ends at 2.0s and whose
+    // tool finishes at 12.0s used to freeze at reasoningFinishedAt, so the
+    // header counted up to 11.4s and then snapped back to 2.0s.
+    final t0 = DateTime(2026, 10, 5, 9);
+    final thinkEnd = DateTime(2026, 10, 5, 9, 0, 2);
+    final processEnd = DateTime(2026, 10, 5, 9, 0, 12);
+
+    test('live → null (the shell ticks against the wall clock)', () {
+      expect(
+        resolveProcessFinishedAt(
+          live: true,
+          processFinishedAt: processEnd,
+          reasoningFinishedAt: thinkEnd,
+        ),
+        isNull,
+      );
+    });
+
+    test('finished → the process end, not the thinking end', () {
+      expect(
+        resolveProcessFinishedAt(
+          live: false,
+          processFinishedAt: processEnd,
+          reasoningFinishedAt: thinkEnd,
+        ),
+        processEnd,
+      );
+    });
+
+    test('frozen end is never before the last ticked second', () {
+      // 11.4s is the last value the user sees while the tool runs; the frozen
+      // value must not be smaller than it (no rewind).
+      final lastSeen = t0.add(const Duration(milliseconds: 11400));
+      final end = resolveProcessFinishedAt(
+        live: false,
+        processFinishedAt: processEnd,
+        reasoningFinishedAt: thinkEnd,
+      );
+      expect(end!.isBefore(lastSeen), isFalse);
+    });
+
+    test('rows without the new field fall back to the thinking end', () {
+      expect(
+        resolveProcessFinishedAt(
+          live: false,
+          processFinishedAt: null,
+          reasoningFinishedAt: thinkEnd,
+        ),
+        thinkEnd,
+      );
+      expect(
+        resolveProcessFinishedAt(
+          live: false,
+          processFinishedAt: null,
+          reasoningFinishedAt: null,
+        ),
+        isNull,
+      );
+    });
+  });
+
   group('resolveProcessOpen — pin and autoCollapse semantics', () {
     test('no pin + live → open (working, expanded)', () {
       expect(

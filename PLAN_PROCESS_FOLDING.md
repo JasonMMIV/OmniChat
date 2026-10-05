@@ -1,8 +1,9 @@
 # 計畫：過程收褶（Process Folding）— 思考卡片與工具卡片比照 Anybuff 呈現
 
-> **版本**：v1.0（草案）→ **v1.1 修訂定稿（2026-10-05 已實作完成，見 §8）** → **v1.2 實測修訂（同日）**
+> **版本**：v1.0（草案）→ **v1.1 修訂定稿（2026-10-05 已實作完成，見 §8）** → **v1.2 實測修訂（同日）** → **v1.3 計時語意修訂（同日，見 §8.2）**
 > **修訂（v1.1）**：使用者否決「思考段去卡片頭改連續灰字」——思考卡片比照工具卡片，保留原本完整樣式，僅隨群組收褶。
-> **修訂（v1.2）**：實測後用時只留在**群組標題**（每則訊息一個計時，語意不變）；**思考卡片不再顯示用時**（避免一則訊息多張計時器）。
+> **修訂（v1.2）**：實測後用時只留在**群組標題**（每則訊息一個計時）；**思考卡片不再顯示用時**（避免一則訊息多張計時器）。
+> **修訂（v1.3）**：群組計時改量**整段過程**（新增 `ChatMessage.processStartedAt`／`processFinishedAt`，起點＝首個過程事件、終點＝最後一個過程事件），修掉完成瞬間數字倒退、以及純工具／工具先行的訊息漏算前導工具時間兩個缺陷。
 > **日期**：2026-10-05
 > **狀態**：可行性評估完成 → **可行**，待核准後實作
 > **參照實作**：`C:\Users\w2bn1\GitHub\Anybuff`
@@ -226,3 +227,16 @@ l10n（4 份 arb + gen）：
 - `message_list_view.dart`：`ReasoningSegment` 同步移除 `startAt`／`finishedAt`（`loading` 仍由 `entry.value.finishedAt` 推導，資料面不變）；
 - 測試：`process_group_logic_test.dart` 透傳測試改為驗 `expanded`／`onToggle`；`process_group_card_test.dart` 的計時測試不動（那些是群組標題的計時，現在重新接回生產路徑）；
 - 驗證：`flutter analyze` 0 errors、全量 `flutter test`（875 項）通過、`flutter build windows --release` 通過。
+
+### 8.2 v1.3 修訂（同日，使用者選擇「整段過程耗時」）
+
+實測發現的缺陷：v1.2 的計時錨定 `reasoningFinishedAt`，而該欄位在**思考一停就寫入**（工具還沒跑），所以有工具的訊息會在完成瞬間**倒退**（數到 11.4s → 跳回 2.0s）。使用者選擇升級為「整段過程耗時」。
+
+- `chat_message.dart`：**新增 Hive field 20 `processFinishedAt`**（過程終點）與 **field 21 `processStartedAt`**（過程起點），`chat_message.g.dart` 由 `build_runner` 重新產生（`writeByte(22)`）；`toJson`／`fromJson`／`copyWith` 同步（匯出／匯入沿用同一組）。
+- `chat_service.dart`：`addMessage`／`updateMessage`／`updateMessageSilent` 加選擇性的 `processFinishedAt`。
+- `stream_controller.dart`：`ReasoningData.processFinishedAt`／`processStartedAt`（從訊息還原，並擴大還原條件以涵蓋無思考的純工具訊息）；新增 `_groupIsLive`（鏡射 UI 的 live 推導）、`_stampProcessFinished`（在「無待處理工具／思考段且已有正文」時寫一次，**每輪至多一筆**，不隨每個 content chunk 寫）、`_clearProcessFinished`（新思考段／新工具輪開始時清掉舊值，避免第 2 輪凍結在第 1 輪的舊時間）、`_stampProcessStarted`（**首個過程事件**：第一個工具呼叫或第一個思考 token，以先到者為準，每則訊息至多寫一次；純工具輪會順帶建立 `ReasoningData` 與 `startAt`）。呼叫點：`_stampProcessFinished` 於 `finishReasoningOnContent`、`handleToolResultsChunk`、`finishReasoningAndPersist`（錯誤／取消／空答的補場）；`_stampProcessStarted` 於 `handleToolCallsChunk`、`handleReasoningChunk`。
+- `chat_actions.dart`：4 個 `updateReasoningInDb` closure 與新的 tool-call／tool-result 補場 closure 串上新參數。
+- `process_group_logic.dart`：新增純函式 `resolveProcessStartAt({processStartedAt, reasoningStartAt})` 與 `resolveProcessFinishedAt({live, processFinishedAt, reasoningFinishedAt})`——live 時回 null（外殼自行跳動），非 live 時回 `processFinishedAt ?? reasoningFinishedAt`；舊資料（無新欄位）兩端都退回 reasoning 值，即修訂前行為。
+- UI：`ChatMessageWidget.reasoningProcessStartedAt`／`reasoningProcessFinishedAt`（由 `message_list_view` 從 `r.processStartedAt`／`r.processFinishedAt` 傳入）→ `ProcessGroupCard.startAt`／`finishedAt`。`ProcessGroupCard` 不變。
+- 測試：`process_group_logic_test.dart` 新增 7 項（起點優先採首個過程事件、純工具輪有錨點、舊列退回 reasoning 起點、不回退性質、舊列退回思考終點等）；新增 `test/core/models/chat_message_process_finished_at_test.dart`（JSON round-trip／copyWith／舊列為 null，含無思考的純工具輪）。
+- 已知限制：`build_runner` 對本專案其他檔案報 SEVERE（既有現象），但 `chat_message.g.dart` 已確實重新產生；`_stampProcessStarted` 為每則訊息至多一次持久化寫入，串流熱路徑無額外 I/O。

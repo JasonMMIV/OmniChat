@@ -79,6 +79,7 @@ Future<List<Map<String, dynamic>>> _persistCallsChunk(
       assistantExtras: assistantExtras,
     ),
     StreamingState(_ctx()),
+    updateReasoningInDb: (String messageId, {DateTime? processStartedAt}) async {},
     updateReasoningSegmentsInDb: (String messageId, String json) async {},
     setToolEventsInDb:
         (String messageId, List<Map<String, dynamic>> events) async {
