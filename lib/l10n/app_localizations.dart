@@ -1222,47 +1222,11 @@ abstract class AppLocalizations {
   /// **'Project Name'**
   String get assistantEditAssistantNameLabel;
 
-  /// No description provided for @assistantEditContextMessagesTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Context Messages'**
-  String get assistantEditContextMessagesTitle;
-
-  /// No description provided for @assistantEditContextMessagesDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Number of previous messages to include'**
-  String get assistantEditContextMessagesDescription;
-
-  /// No description provided for @assistantEditThinkingBudgetTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Thinking Budget'**
-  String get assistantEditThinkingBudgetTitle;
-
-  /// No description provided for @assistantEditMaxTokensTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Max Tokens'**
-  String get assistantEditMaxTokensTitle;
-
-  /// No description provided for @assistantEditMaxTokensHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Unlimited'**
-  String get assistantEditMaxTokensHint;
-
   /// No description provided for @assistantEditUseAssistantAvatarTitle.
   ///
   /// In en, this message translates to:
   /// **'Use Project Avatar'**
   String get assistantEditUseAssistantAvatarTitle;
-
-  /// No description provided for @assistantEditStreamOutputTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Stream Output'**
-  String get assistantEditStreamOutputTitle;
 
   /// No description provided for @assistantEditChatModelTitle.
   ///
@@ -1335,18 +1299,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Enter image link'**
   String get assistantEditImageUrlDialogHint;
-
-  /// No description provided for @assistantEditParameterDisabled.
-  ///
-  /// In en, this message translates to:
-  /// **'Not set'**
-  String get assistantEditParameterDisabled;
-
-  /// No description provided for @assistantEditParameterDisabled2.
-  ///
-  /// In en, this message translates to:
-  /// **'Default'**
-  String get assistantEditParameterDisabled2;
 
   /// No description provided for @assistantTagsContextMenuEditAssistant.
   ///
@@ -6995,18 +6947,6 @@ abstract class AppLocalizations {
   /// **'Add'**
   String get assistantEditAddQuickPhraseButton;
 
-  /// No description provided for @assistantEditTemperatureTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Temp'**
-  String get assistantEditTemperatureTitle;
-
-  /// No description provided for @assistantEditTopPTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Top P'**
-  String get assistantEditTopPTitle;
-
   /// No description provided for @mermaidPreviewOpenFailed.
   ///
   /// In en, this message translates to:
@@ -7411,24 +7351,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Translate'**
   String get chatMessageWidgetTranslateTooltip;
-
-  /// No description provided for @assistantEditTemperatureDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Temp desc'**
-  String get assistantEditTemperatureDescription;
-
-  /// No description provided for @assistantEditTopPDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Top P desc'**
-  String get assistantEditTopPDescription;
-
-  /// No description provided for @assistantEditMaxTokensDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Max tokens desc'**
-  String get assistantEditMaxTokensDescription;
 
   /// No description provided for @defaultModelPageUseCurrentModel.
   ///
@@ -8077,12 +7999,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'在聊天中使用项目头像和名字而不是模型头像和名字'**
   String get assistantEditUseAssistantAvatarSubtitle;
-
-  /// No description provided for @assistantEditStreamOutputDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'是否启用消息的流式输出'**
-  String get assistantEditStreamOutputDescription;
 
   /// No description provided for @assistantEditConfigureButton.
   ///

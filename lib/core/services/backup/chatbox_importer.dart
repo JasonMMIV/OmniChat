@@ -321,11 +321,6 @@ class ChatboxImporter {
       // Derive assistant config fields.
       final provider = (sessionSettings['provider'] ?? '').toString().trim();
       final modelId = (sessionSettings['modelId'] ?? '').toString().trim();
-      final temperature = (sessionSettings['temperature'] as num?)?.toDouble();
-      final topP = (sessionSettings['topP'] as num?)?.toDouble();
-      final maxTokens = (sessionSettings['maxTokens'] as num?)?.toInt();
-      final stream = sessionSettings['stream'] as bool?;
-      final contextCount = (sessionSettings['maxContextMessageCount'] as num?)?.toInt();
 
       final thinkingBudget = _extractThinkingBudget(sessionSettings);
 
@@ -339,13 +334,9 @@ class ChatboxImporter {
         'useAssistantAvatar': false,
         'chatModelProvider': (provider.isEmpty || provider == 'chatbox-ai') ? null : provider,
         'chatModelId': (provider.isEmpty || provider == 'chatbox-ai' || modelId.isEmpty) ? null : modelId,
-        'temperature': temperature,
-        'topP': topP,
-        'contextMessageSize': contextCount ?? 64,
-        'limitContextMessages': true,
-        'streamOutput': stream ?? true,
+        // 溫度 / Top-p / 上下文數量 / 最大 Token 數 / 串流輸出已自專案設定移除
+        // （Assistant.fromJson 一律回填預設值），故匯入時不寫入這些鍵。
         'thinkingBudget': thinkingBudget,
-        'maxTokens': maxTokens,
         'systemPrompt': sysPrompt,
         'messageTemplate': '{{ message }}',
         'mcpServerIds': const <String>[],
@@ -370,9 +361,6 @@ class ChatboxImporter {
         if (incPrompt.isNotEmpty) local['systemPrompt'] = incPrompt;
         if (assistantJson['chatModelProvider'] != null) local['chatModelProvider'] = assistantJson['chatModelProvider'];
         if (assistantJson['chatModelId'] != null) local['chatModelId'] = assistantJson['chatModelId'];
-        if (assistantJson['temperature'] != null) local['temperature'] = assistantJson['temperature'];
-        if (assistantJson['topP'] != null) local['topP'] = assistantJson['topP'];
-        if (assistantJson['maxTokens'] != null) local['maxTokens'] = assistantJson['maxTokens'];
         if (assistantJson['thinkingBudget'] != null) local['thinkingBudget'] = assistantJson['thinkingBudget'];
         // Do not overwrite local avatar/background in merge mode.
         existingAssistantsById[id] = local;

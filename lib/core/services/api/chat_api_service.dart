@@ -23,8 +23,10 @@ import 'stream_interruption.dart';
 import 'stream_retry_policy.dart';
 import 'transient_stream_error.dart';
 import 'chat_stream_chunk.dart';
+import 'claude_max_tokens.dart';
 import 'context_overflow.dart';
 import 'learned_context_windows.dart';
+import 'learned_max_output_caps.dart';
 import '../logging/flutter_logger.dart';
 import '../agent/compaction/context_trim.dart';
 import '../tools/tool_result_caps.dart';
@@ -6708,6 +6710,28 @@ class ChatApiService {
     );
   }
 
+  /// Test-only seam around [_sendClaudeStream]: drives the real Claude
+  /// sender (max_tokens negotiation, thinking-budget clamp, window
+  /// learning) against an injected [http.Client]. Not for production use.
+  @visibleForTesting
+  static Stream<ChatStreamChunk> debugSendClaudeStream({
+    required http.Client client,
+    required ProviderConfig config,
+    required String modelId,
+    required List<Map<String, dynamic>> messages,
+    int? thinkingBudget,
+    int? maxTokens,
+    bool stream = false,
+  }) => _sendClaudeStream(
+    client,
+    config,
+    modelId,
+    messages,
+    thinkingBudget: thinkingBudget,
+    maxTokens: maxTokens,
+    stream: stream,
+  );
+
   static Stream<ChatStreamChunk> _sendClaudeStream(
     http.Client client,
     ProviderConfig config,
@@ -6940,12 +6964,44 @@ class ChatApiService {
           config: config,
         );
 
+    // === max_tokens negotiation ========================================
+    // Anthropic requires `max_tokens` on every request, so unlike the
+    // OpenAI-compatible paths we cannot hand the decision to the provider.
+    // Start from the ceiling learned for this model (otherwise the highest
+    // any current model accepts) and let a 400 state the real one. See
+    // claude_max_tokens.dart. Callers that pin the value through `maxTokens`
+    // or a customBody keep it and never negotiate.
+    final extraClaude = _customBody(config, modelId);
+    final pinnedMaxTokens =
+        maxTokens != null ||
+        extraClaude.containsKey('max_tokens') ||
+        (extraBody?.containsKey('max_tokens') ?? false);
+    // Learned caps are keyed by the logical model id (same convention as
+    // LearnedContextWindows): every other learner/caller has that id on
+    // hand, and it survives `apiModelId` mapping changes.
+    // Value for the next attempt; rewritten by each negotiation round.
+    var sentMaxTokens =
+        maxTokens ??
+        (!pinnedMaxTokens
+            ? (await LearnedMaxOutputCaps.lookup(config.id, modelId) ??
+                claudeMaxTokensInitial)
+            : claudeMaxTokensInitial);
+    int maxTokensAttempts = 0;
+
     while (true) {
       // Prepare request body per round
+      // Anthropic requires `thinking.budget_tokens` to stay strictly below
+      // `max_tokens`; a negotiated or learned ceiling below the requested
+      // budget would otherwise 400 the retry with an unrelated-looking
+      // error. Clamp the budget to what this attempt can carry.
+      final thinkingBudgetForAttempt = claudeThinkingBudgetForMaxTokens(
+        thinkingBudget,
+        sentMaxTokens,
+      );
       final thinking = isReasoning
           ? _claudeThinkingConfig(
               upstreamModelId,
-              thinkingBudget,
+              thinkingBudgetForAttempt,
               config: config,
             )
           : null;
@@ -6958,7 +7014,7 @@ class ChatApiService {
           : null;
       final body = <String, dynamic>{
         'model': upstreamModelId,
-        'max_tokens': maxTokens ?? 4096,
+        'max_tokens': sentMaxTokens,
         'messages': convo,
         'stream': stream,
         if (systemPrompt.isNotEmpty) 'system': systemPrompt,
@@ -6973,7 +7029,6 @@ class ChatApiService {
         if (thinking != null) 'thinking': thinking,
         if (outputConfig != null) 'output_config': outputConfig,
       };
-      final extraClaude = _customBody(config, modelId);
       if (extraClaude.isNotEmpty)
         (body as Map<String, dynamic>).addAll(extraClaude);
       if (extraBody != null && extraBody.isNotEmpty) {
@@ -6991,6 +7046,40 @@ class ChatApiService {
       final response = await client.send(request);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final errorBody = await response.stream.bytesToString();
+        // Negotiate a max_tokens this endpoint accepts. Validation happens
+        // before a single output byte, so `continue` is invisible downstream;
+        // null means the failure is not ours to fix and it throws as before.
+        if (response.statusCode == 400 && !pinnedMaxTokens) {
+          final nextMaxTokens = claudeMaxTokensNextOn400(
+            errorBody: errorBody,
+            current: sentMaxTokens,
+            attempts: maxTokensAttempts,
+          );
+          // Record any ceiling the server stated even when the attempt
+          // budget is spent or the value is unchanged — the next message
+          // then starts from the last stated value instead of paying the
+          // same 400 again (min-keep makes re-recording a no-op).
+          await rememberClaudeOutputCeiling(config.id, modelId, errorBody);
+          if (nextMaxTokens != null) {
+            maxTokensAttempts += 1;
+            sentMaxTokens = nextMaxTokens;
+            // A `prompt is too long` body also states the context window.
+            // This negotiation consumes the error before the L1
+            // context-overflow trim path would see it, so the window (a
+            // model fact, unlike the per-request slack) is remembered here
+            // — keyed by the logical model id, like every other
+            // LearnedContextWindows call site.
+            final statedWindow = parseClaudePromptTooLongWindow(errorBody);
+            if (statedWindow != null) {
+              await LearnedContextWindows.record(
+                config.id,
+                modelId,
+                statedWindow,
+              );
+            }
+            continue;
+          }
+        }
         throw HttpException('HTTP ${response.statusCode}: $errorBody');
       }
 

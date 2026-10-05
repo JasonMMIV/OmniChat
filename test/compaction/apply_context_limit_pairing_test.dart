@@ -221,15 +221,18 @@ void main() {
     expect(a.limitContextMessages, isFalse);
   });
 
-  test('round-trips persisted value; falls back to disabled when absent', () {
+  test('removed context-limit option deserializes to its default', () {
+    // 專案設定的「上下文訊息數量」入口已移除（2026-10）：舊版存下的 true
+    // 不得在載入時復活，一律回預設（不裁切）。
     expect(
       Assistant.fromJson({
         'id': 'a',
         'name': 'A',
         'limitContextMessages': true,
+        'contextMessageSize': 8,
       }).limitContextMessages,
-      isTrue,
-      reason: 'explicitly persisted value must survive deserialization',
+      isFalse,
+      reason: 'a persisted value must be reset on load, not re-enabled',
     );
     expect(
       Assistant.fromJson({'id': 'a', 'name': 'A'}).limitContextMessages,
