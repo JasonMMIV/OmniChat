@@ -87,8 +87,6 @@ class AssistantProvider extends ChangeNotifier {
           '{system_version}',
         ),
         deletable: false,
-        temperature: 0.6,
-        topP: null,
       );
 
   // Ensure localized default assistants exist; call this after localization is ready.
@@ -222,8 +220,6 @@ class AssistantProvider extends ChangeNotifier {
       name: (name ?? (context != null
           ? AppLocalizations.of(context)!.assistantProviderNewAssistantName
           : 'New Assistant')),
-      temperature: 0.6,
-      topP: null,
     );
     _assistants.add(a);
     await _persist();

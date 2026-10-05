@@ -590,26 +590,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantEditAssistantNameLabel => 'Project Name';
 
   @override
-  String get assistantEditContextMessagesTitle => 'Context Messages';
-
-  @override
-  String get assistantEditContextMessagesDescription =>
-      'Number of previous messages to include';
-
-  @override
-  String get assistantEditThinkingBudgetTitle => 'Thinking Budget';
-
-  @override
-  String get assistantEditMaxTokensTitle => 'Max Tokens';
-
-  @override
-  String get assistantEditMaxTokensHint => 'Unlimited';
-
-  @override
   String get assistantEditUseAssistantAvatarTitle => 'Use Project Avatar';
-
-  @override
-  String get assistantEditStreamOutputTitle => 'Stream Output';
 
   @override
   String get assistantEditChatModelTitle => 'Chat Model';
@@ -647,12 +628,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get assistantEditImageUrlDialogHint => 'Enter image link';
-
-  @override
-  String get assistantEditParameterDisabled => 'Not set';
-
-  @override
-  String get assistantEditParameterDisabled2 => 'Default';
 
   @override
   String get assistantTagsContextMenuEditAssistant => 'Edit Project';
@@ -3633,12 +3608,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantEditAddQuickPhraseButton => 'Add';
 
   @override
-  String get assistantEditTemperatureTitle => 'Temp';
-
-  @override
-  String get assistantEditTopPTitle => 'Top P';
-
-  @override
   String get mermaidPreviewOpenFailed => 'Open failed';
 
   @override
@@ -3863,15 +3832,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatMessageWidgetTranslateTooltip => 'Translate';
-
-  @override
-  String get assistantEditTemperatureDescription => 'Temp desc';
-
-  @override
-  String get assistantEditTopPDescription => 'Top P desc';
-
-  @override
-  String get assistantEditMaxTokensDescription => 'Max tokens desc';
 
   @override
   String get defaultModelPageUseCurrentModel => 'Use current';
@@ -4221,9 +4181,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get assistantEditUseAssistantAvatarSubtitle =>
       '在聊天中使用项目头像和名字而不是模型头像和名字';
-
-  @override
-  String get assistantEditStreamOutputDescription => '是否启用消息的流式输出';
 
   @override
   String get assistantEditConfigureButton => '配置';

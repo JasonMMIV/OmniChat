@@ -700,6 +700,12 @@ file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPT
 
   /// Apply context message limit based on assistant settings.
   ///
+  /// 2026-10 dormancy: the 專案設定 entry that toggled
+  /// `limitContextMessages` was removed and `Assistant.fromJson` now resets
+  /// it to false on load, so this count-based cut is unreachable from the
+  /// UI. Kept as a dormant, pairing-safe contract for directly-constructed
+  /// assistants (and the tests that pin the cut semantics).
+  ///
   /// The P1-2 `<conversation_summary>` message (if present right after the
   /// system area) is exempt: dropping the summary while keeping the newer
   /// live messages would strand the compaction marker's memory.

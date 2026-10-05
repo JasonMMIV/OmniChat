@@ -454,15 +454,7 @@ class CherryImporter {
       if (id.isEmpty) continue;
       final name = (a['name'] ?? id).toString();
       final prompt = (a['prompt'] ?? '').toString();
-      final settings = (a['settings'] as Map?)?.map((k, v) => MapEntry(k.toString(), v));
       final model = (a['model'] as Map?)?.map((k, v) => MapEntry(k.toString(), v));
-
-      final temperature = (settings?['temperature'] as num?)?.toDouble();
-      final topP = (settings?['topP'] as num?)?.toDouble();
-      final ctxCount = (settings?['contextCount'] as num?)?.toInt();
-      final streamOutput = settings?['streamOutput'] as bool?;
-      final enableMaxTokens = settings?['enableMaxTokens'] as bool? ?? false;
-      final maxTokens = enableMaxTokens ? (settings?['maxTokens'] as num?)?.toInt() : null;
 
       final json = <String, dynamic>{
         'id': id,
@@ -471,13 +463,9 @@ class CherryImporter {
         'useAssistantAvatar': false,
         'chatModelProvider': model?['provider']?.toString(),
         'chatModelId': model?['id']?.toString(),
-        'temperature': temperature,
-        'topP': topP,
-        'contextMessageSize': ctxCount ?? 64,
-        'limitContextMessages': true,
-        'streamOutput': streamOutput ?? true,
+        // 溫度 / Top-p / 上下文數量 / 最大 Token 數 / 串流輸出已自專案設定移除
+        // （Assistant.fromJson 一律回填預設值），故匯入時不寫入這些鍵。
         'thinkingBudget': null,
-        'maxTokens': maxTokens,
         'systemPrompt': prompt,
         'messageTemplate': '{{ message }}',
         'mcpServerIds': const <String>[],

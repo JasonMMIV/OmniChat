@@ -93,10 +93,7 @@ class Assistant {
     List<AssistantRegex>? regexRules,
     bool clearChatModel = false,
     bool clearAvatar = false,
-    bool clearTemperature = false,
-    bool clearTopP = false,
     bool clearThinkingBudget = false,
-    bool clearMaxTokens = false,
     bool clearBackground = false,
   }) {
     return Assistant(
@@ -108,15 +105,15 @@ class Assistant {
           ? null
           : (chatModelProvider ?? this.chatModelProvider),
       chatModelId: clearChatModel ? null : (chatModelId ?? this.chatModelId),
-      temperature: clearTemperature ? null : (temperature ?? this.temperature),
-      topP: clearTopP ? null : (topP ?? this.topP),
+      temperature: temperature ?? this.temperature,
+      topP: topP ?? this.topP,
       contextMessageSize: contextMessageSize ?? this.contextMessageSize,
       limitContextMessages: limitContextMessages ?? this.limitContextMessages,
       streamOutput: streamOutput ?? this.streamOutput,
       thinkingBudget: clearThinkingBudget
           ? null
           : (thinkingBudget ?? this.thinkingBudget),
-      maxTokens: clearMaxTokens ? null : (maxTokens ?? this.maxTokens),
+      maxTokens: maxTokens ?? this.maxTokens,
       systemPrompt: systemPrompt ?? this.systemPrompt,
       messageTemplate: messageTemplate ?? this.messageTemplate,
       mcpServerIds: mcpServerIds ?? this.mcpServerIds,
@@ -161,6 +158,13 @@ class Assistant {
     'regexRules': AssistantRegex.encodeList(regexRules),
   };
 
+  /// 2026-10：這批進階選項已自專案設定頁移除（溫度 / Top-p / 上下文訊息數量 /
+  /// 最大 Token 數 / 串流輸出）。欄位與 JSON 鍵保留（備份、第三方匯入的形狀
+  /// 相容），但一律以預設值解讀，舊存值不再生效——載入即視為已重設。這裡
+  /// 刻意不傳這些參數：建構子預設（`temperature`/`topP`/`maxTokens` = null、
+  /// `contextMessageSize` 64、`limitContextMessages` false、`streamOutput`
+  /// true）就是還原值的唯一真相來源。
+  /// `thinkingBudget` 不在此列：聊天頁「推理設定」仍寫入它，須正常持久化。
   static Assistant fromJson(Map<String, dynamic> json) => Assistant(
     id: json['id'] as String,
     name: (json['name'] as String?) ?? '',
@@ -168,13 +172,7 @@ class Assistant {
     useAssistantAvatar: json['useAssistantAvatar'] as bool? ?? false,
     chatModelProvider: json['chatModelProvider'] as String?,
     chatModelId: json['chatModelId'] as String?,
-    temperature: (json['temperature'] as num?)?.toDouble(),
-    topP: (json['topP'] as num?)?.toDouble(),
-    contextMessageSize: (json['contextMessageSize'] as num?)?.toInt() ?? 64,
-    limitContextMessages: json['limitContextMessages'] as bool? ?? false,
-    streamOutput: json['streamOutput'] as bool? ?? true,
     thinkingBudget: (json['thinkingBudget'] as num?)?.toInt(),
-    maxTokens: (json['maxTokens'] as num?)?.toInt(),
     systemPrompt: (json['systemPrompt'] as String?) ?? '',
     messageTemplate: (json['messageTemplate'] as String?) ?? '{{ message }}',
     mcpServerIds:

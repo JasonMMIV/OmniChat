@@ -674,6 +674,10 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   /// Get clear context label based on current state.
+  ///
+  /// 2026-10: `limitContextMessages` is always false after load (the 專案設定
+  /// entry that toggled it was removed), so `configured` is always 0 and the
+  /// count branch below is dormant — the label falls back to the default.
   String getClearContextLabel(
     String Function(String, String) withCountFormatter,
     String defaultLabel,

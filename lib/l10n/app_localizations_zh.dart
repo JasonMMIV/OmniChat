@@ -587,26 +587,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditAssistantNameLabel => '项目名称';
 
   @override
-  String get assistantEditContextMessagesTitle => '上下文消息数量';
-
-  @override
-  String get assistantEditContextMessagesDescription =>
-      '多少历史消息会被当作上下文发送给模型，超过数量会忽略，只保留最近 N 条';
-
-  @override
-  String get assistantEditThinkingBudgetTitle => '思考预算';
-
-  @override
-  String get assistantEditMaxTokensTitle => '最大 Token 数';
-
-  @override
-  String get assistantEditMaxTokensHint => '无限制';
-
-  @override
   String get assistantEditUseAssistantAvatarTitle => '使用项目头像';
-
-  @override
-  String get assistantEditStreamOutputTitle => '流式输出';
 
   @override
   String get assistantEditChatModelTitle => '聊天模型';
@@ -644,12 +625,6 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get assistantEditImageUrlDialogHint =>
       '例如: https://example.com/avatar.png';
-
-  @override
-  String get assistantEditParameterDisabled => '已关闭（使用服务商默认）';
-
-  @override
-  String get assistantEditParameterDisabled2 => '已关闭（无限制）';
 
   @override
   String get assistantTagsContextMenuEditAssistant => '编辑项目';
@@ -3614,12 +3589,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditAddQuickPhraseButton => '添加快捷短语';
 
   @override
-  String get assistantEditTemperatureTitle => '温度';
-
-  @override
-  String get assistantEditTopPTitle => 'Top-p';
-
-  @override
   String get mermaidPreviewOpenFailed => '无法打开预览';
 
   @override
@@ -3844,15 +3813,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatMessageWidgetTranslateTooltip => '翻译';
-
-  @override
-  String get assistantEditTemperatureDescription => '控制输出的随机性，范围 0–2';
-
-  @override
-  String get assistantEditTopPDescription => '请不要修改此值，除非你知道自己在做什么';
-
-  @override
-  String get assistantEditMaxTokensDescription => '留空表示无限制';
 
   @override
   String get defaultModelPageUseCurrentModel => '使用当前对话模型';
@@ -4194,9 +4154,6 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get assistantEditUseAssistantAvatarSubtitle =>
       '在聊天中使用项目头像和名字而不是模型头像和名字';
-
-  @override
-  String get assistantEditStreamOutputDescription => '是否启用消息的流式输出';
 
   @override
   String get assistantEditConfigureButton => '配置';
@@ -5459,26 +5416,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditAssistantNameLabel => '项目名称';
 
   @override
-  String get assistantEditContextMessagesTitle => '上下文消息数量';
-
-  @override
-  String get assistantEditContextMessagesDescription =>
-      '多少历史消息会被当作上下文发送给模型，超过数量会忽略，只保留最近 N 条';
-
-  @override
-  String get assistantEditThinkingBudgetTitle => '思考预算';
-
-  @override
-  String get assistantEditMaxTokensTitle => '最大 Token 数';
-
-  @override
-  String get assistantEditMaxTokensHint => '无限制';
-
-  @override
   String get assistantEditUseAssistantAvatarTitle => '使用项目头像';
-
-  @override
-  String get assistantEditStreamOutputTitle => '流式输出';
 
   @override
   String get assistantEditChatModelTitle => '聊天模型';
@@ -5516,12 +5454,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   @override
   String get assistantEditImageUrlDialogHint =>
       '例如: https://example.com/avatar.png';
-
-  @override
-  String get assistantEditParameterDisabled => '已关闭（使用服务商默认）';
-
-  @override
-  String get assistantEditParameterDisabled2 => '已关闭（无限制）';
 
   @override
   String get assistantTagsContextMenuEditAssistant => '编辑项目';
@@ -8697,15 +8629,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatMessageWidgetTranslateTooltip => '翻译';
 
   @override
-  String get assistantEditTemperatureDescription => '控制输出的随机性，范围 0–2';
-
-  @override
-  String get assistantEditTopPDescription => '请不要修改此值，除非你知道自己在做什么';
-
-  @override
-  String get assistantEditMaxTokensDescription => '留空表示无限制';
-
-  @override
   String get defaultModelPageUseCurrentModel => '使用当前对话模型';
 
   @override
@@ -8982,9 +8905,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   @override
   String get assistantEditUseAssistantAvatarSubtitle =>
       '在聊天中使用项目头像和名字而不是模型头像和名字';
-
-  @override
-  String get assistantEditStreamOutputDescription => '是否启用消息的流式输出';
 
   @override
   String get assistantEditConfigureButton => '配置';
@@ -10220,26 +10140,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditAssistantNameLabel => '專案名稱';
 
   @override
-  String get assistantEditContextMessagesTitle => '上下文訊息數量';
-
-  @override
-  String get assistantEditContextMessagesDescription =>
-      '多少歷史訊息會被當作上下文傳送給模型，超過數量會忽略，只保留最近 N 條';
-
-  @override
-  String get assistantEditThinkingBudgetTitle => '思考預算';
-
-  @override
-  String get assistantEditMaxTokensTitle => '最大 Token 數';
-
-  @override
-  String get assistantEditMaxTokensHint => '無限制';
-
-  @override
   String get assistantEditUseAssistantAvatarTitle => '使用專案頭像';
-
-  @override
-  String get assistantEditStreamOutputTitle => '串流輸出';
 
   @override
   String get assistantEditChatModelTitle => '聊天模型';
@@ -10277,12 +10178,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get assistantEditImageUrlDialogHint =>
       '例如: https://example.com/avatar.png';
-
-  @override
-  String get assistantEditParameterDisabled => '已關閉（使用服務商預設）';
-
-  @override
-  String get assistantEditParameterDisabled2 => '已關閉（無限制）';
 
   @override
   String get assistantTagsContextMenuEditAssistant => '編輯專案';
@@ -13233,12 +13128,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditAddQuickPhraseButton => '新增快捷片語';
 
   @override
-  String get assistantEditTemperatureTitle => '溫度';
-
-  @override
-  String get assistantEditTopPTitle => 'Top-p';
-
-  @override
   String get mermaidPreviewOpenFailed => '無法打開預覽';
 
   @override
@@ -13463,15 +13352,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatMessageWidgetTranslateTooltip => '翻譯';
-
-  @override
-  String get assistantEditTemperatureDescription => '控制輸出的隨機性，範圍 0–2';
-
-  @override
-  String get assistantEditTopPDescription => '請不要修改此值，除非你知道自己在做什麼';
-
-  @override
-  String get assistantEditMaxTokensDescription => '留空表示無限制';
 
   @override
   String get defaultModelPageUseCurrentModel => '使用目前對話模型';
@@ -13810,9 +13690,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get assistantEditUseAssistantAvatarSubtitle =>
       '在聊天中使用專案頭像和名字而不是模型頭像和名字';
-
-  @override
-  String get assistantEditStreamOutputDescription => '是否啟用訊息的串流輸出';
 
   @override
   String get assistantEditConfigureButton => '設定';
