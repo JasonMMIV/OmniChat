@@ -202,10 +202,12 @@ class ChatInputSection extends StatelessWidget {
       onToggleInstructionInjection: isTablet
           ? onToggleInstructionInjection
           : null,
-      // Agent Skills button: shown only when at least one skill is known
-      // (global scan + last-known project skills). Tablet/desktop only,
-      // mirroring the instruction button gate (R12).
-      onOpenSkills: isTablet && context.watch<SkillsProvider>().hasAnyKnownSkills
+      // Agent Skills button: shown whenever at least one skill is known
+      // (global scan + last-known project skills). Since 2026-10-06 it also
+      // participates in the narrow/mobile action layout (no longer
+      // tablet/desktop only) — inline when it fits, otherwise collected into
+      // the overflow ("+") menu/sheet.
+      onOpenSkills: context.watch<SkillsProvider>().hasAnyKnownSkills
           ? onOpenSkills
           : null,
       onLongPressInstruction: isTablet ? onLongPressInstruction : null,
