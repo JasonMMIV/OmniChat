@@ -175,6 +175,38 @@ metadata:
     });
   });
 
+  group('stripFrontmatter', () {
+    test('removes the frontmatter block and following blank lines', () {
+      const raw =
+          '---\nname: git-release\ndescription: d\n---\n\n# Title\n\nBody\n';
+      final body = SkillParser.stripFrontmatter(raw);
+      expect(body, '# Title\n\nBody\n');
+      expect(body.contains('---'), isFalse);
+    });
+
+    test('returns content unchanged without frontmatter', () {
+      const raw = '# Just a doc\nno frontmatter here';
+      expect(SkillParser.stripFrontmatter(raw), raw);
+    });
+
+    test('returns content unchanged for an unterminated block', () {
+      const raw = '---\nname: git-release\nnever closed';
+      expect(SkillParser.stripFrontmatter(raw), raw);
+    });
+
+    test('handles BOM and leading blank lines', () {
+      const raw = '\uFEFF\n---\nname: x\ndescription: d\n---\nbody';
+      expect(SkillParser.stripFrontmatter(raw), 'body');
+    });
+
+    test('frontmatter-only content strips to empty', () {
+      expect(
+        SkillParser.stripFrontmatter('---\nname: x\ndescription: d\n---\n'),
+        '',
+      );
+    });
+  });
+
   group('extractSkillName', () {
     test('extracts the frontmatter name', () {
       expect(

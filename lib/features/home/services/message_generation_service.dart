@@ -250,8 +250,12 @@ class MessageGenerationService {
 
     // Agent Skills: resolve `/skill <name>` tokens in user messages. Works
     // in BOTH preload modes — the user-invocation path is independent of the
-    // `skill` tool (PLAN_AGENT_SKILLS.md §6.2/§6.3). Pure function over the
-    // in-memory assembly; Hive history is never rewritten.
+    // `skill` tool (PLAN_AGENT_SKILLS.md §6.2/§6.3). The invoked skill's
+    // content rides the SAME user message (user-turn delivery — a system
+    // append made models process the token-stripped remnant as a plain
+    // request and never start the skill; 2026-10-06 hands-on fix). Pure
+    // function over the in-memory assembly; Hive history is never
+    // rewritten.
     try {
       final resolution = SkillInvocations.resolveInMessages(
         apiMessages,
@@ -260,9 +264,6 @@ class MessageGenerationService {
           workspacePath: workspacePath,
           globalRoot: SkillService.cachedGlobalRoot,
         ),
-        emptyContentPlaceholder:
-            l10n?.skillsInvocationEmptyPlaceholder ??
-            'Follow the instructions in the skill loaded above.',
       );
       if (resolution.failedNames.isNotEmpty) {
         final firstName = resolution.failedNames.first;

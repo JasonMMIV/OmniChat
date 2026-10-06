@@ -9,12 +9,22 @@
 // - A token is recognized only when `/skill` (case-insensitive) is followed
 //   by a strictly valid skill name — anything else stays untouched so a
 //   sentence that merely mentions "/skill" never pollutes the conversation.
-// - Hit   → token removed from the user message, full SKILL.md content
-//           appended to the system message as `<skill name="…">…</skill>`
-//           (one turn's context, capped).
-// - Miss  → token KEPT (the user sees the failed attempt), a
-//           `<skill_error>` block appended to the system message, and the
-//           name reported back for the UI snackbar.
+// - Hit   → token removed; the message is rebuilt around Anybuff's
+//           `buildFinalPrompt` frame (2026-10-06 revision): an explicit
+//           `I invoke the following skill: …` line, the `<skill name="…">`
+//           blocks (frontmatter stripped, capped), and — when text remains —
+//           `User request: …` last. Without the explicit frame, models read
+//           the frontmatter gating wording ("use ONLY when the user
+//           explicitly…") and second-guessed whether the skill was active.
+// - Miss  → token KEPT (the user sees the failed attempt); a
+//           `<skill_error>` block is appended to the same user message and
+//           the name reported back for the UI snackbar.
+//
+// User-turn delivery (2026-10-06 hands-on fix): the blocks used to be
+// appended to the system message, but models then processed the
+// token-stripped user turn as a plain request and never started the skill.
+// The invoked skill must ride the message that carried the token. The
+// system message is never touched by this resolver.
 //
 // Pure Dart: no Flutter/IO imports; skill loading is injected as a callback.
 library;
@@ -90,24 +100,36 @@ class SkillInvocations {
     return out;
   }
 
+  /// Valid-format `/skill <name>` names in [text], token order, deduped.
+  /// UI surfaces (bubble chip, `/skill` load rows) derive their labels from
+  /// this so every consumer agrees on what was invoked.
+  static List<String> extractSkillNames(String text) {
+    final names = <String>[];
+    for (final invocation in extractSkillInvocations(text)) {
+      if (!names.contains(invocation.name)) names.add(invocation.name);
+    }
+    return names;
+  }
+
   /// Resolves `/skill <name>` tokens across all string user messages in
   /// [apiMessages]. Mutates the list in place (assembly-time projection —
   /// Hive history is never touched, ADR-A6).
   ///
-  /// [emptyContentPlaceholder] replaces user content that would otherwise
-  /// become empty because it consisted only of tokens — several providers
-  /// (Anthropic among them) reject empty user content, which made a lone
-  /// `/skill name` look like a dead command.
+  /// Per message: hit tokens are removed and the message is rebuilt around
+  /// Anybuff's `buildFinalPrompt` frame — an explicit
+  /// `I invoke the following skill: …` line, the `<skill>` blocks (in token
+  /// order; a repeated invocation of the same skill contributes a single
+  /// block), then the remaining text under a `User request:` label. With no
+  /// remaining text the frame is just the line plus blocks (never empty
+  /// content, which providers like Anthropic reject). Miss tokens stay in
+  /// place and gain a `<skill_error>` block at the end so the model can tell
+  /// the user the invocation failed.
   static SkillInvocationResolution resolveInMessages(
     List<Map<String, dynamic>> apiMessages, {
     required SkillDefinition? Function(String name) loadSkill,
-    String emptyContentPlaceholder =
-        'Follow the instructions in the skill loaded above.',
   }) {
     var changed = false;
     final failed = <String>[];
-    final skillBlocks = <String>[];
-    final errorBlocks = <String>[];
 
     for (final message in apiMessages) {
       if (message['role'] != 'user') continue;
@@ -116,57 +138,70 @@ class SkillInvocations {
       final invocations = extractSkillInvocations(content);
       if (invocations.isEmpty) continue;
 
-      var updated = content;
-      // Process from the end so earlier offsets stay valid while removing.
-      for (final inv in invocations.reversed) {
+      final hitBlocks = <String>[];
+      final hitNames = <String>[];
+      final errorBlocks = <String>[];
+      final removedTokens = <SkillInvocation>[];
+      final seenNames = <String>{};
+      // Forward pass so block order is token order. A duplicated invocation
+      // of the same skill contributes one block — the extra tokens are
+      // still removed (hit) or kept (miss) as written.
+      for (final inv in invocations) {
         final skill = loadSkill(inv.name);
         if (skill == null) {
           if (!failed.contains(inv.name)) failed.add(inv.name);
-          errorBlocks.add(
-            '<skill_error name="${_xmlEscape(inv.name)}">'
-            'Skill "${_xmlEscape(inv.name)}" is not installed or could not '
-            'be loaded. Inform the user the invocation failed.'
-            '</skill_error>',
-          );
+          if (seenNames.add(inv.name)) {
+            errorBlocks.add(
+              '<skill_error name="${_xmlEscape(inv.name)}">'
+              'Skill "${_xmlEscape(inv.name)}" is not installed or could not '
+              'be loaded. Inform the user the invocation failed.'
+              '</skill_error>',
+            );
+          }
           continue; // token stays in the message (§9)
         }
-        final capped = ToolResultCaps.capBare(skill.content);
-        skillBlocks.add(
-          '<skill name="${_xmlEscape(skill.name)}">\n$capped\n</skill>',
-        );
-        updated = updated.replaceRange(inv.tokenStart, inv.tokenEnd, '');
-        changed = true;
-      }
-      if (!identical(updated, content) && updated != content) {
-        if (updated.trim().isEmpty && emptyContentPlaceholder.isNotEmpty) {
-          updated = emptyContentPlaceholder;
+        if (seenNames.add(inv.name)) {
+          // Frontmatter is stripped from the activated payload (2026-10-06):
+          // its `description` gating wording ("use ONLY when…") made models
+          // question whether the skill was active even though the user had
+          // just invoked it.
+          final capped = ToolResultCaps.capBare(
+            SkillParser.stripFrontmatter(skill.content),
+          );
+          hitNames.add(skill.name);
+          hitBlocks.add(
+            '<skill name="${_xmlEscape(skill.name)}">\n$capped\n</skill>',
+          );
         }
-        message['content'] = updated;
+        removedTokens.add(inv);
       }
-    }
 
-    if (skillBlocks.isNotEmpty || errorBlocks.isNotEmpty) {
-      final block = [...skillBlocks, ...errorBlocks].join('\n\n');
-      appendToSystemMessage(apiMessages, block);
+      // Remove hit tokens back-to-front so earlier offsets stay valid.
+      var updated = content;
+      for (final inv in removedTokens.reversed) {
+        updated = updated.replaceRange(inv.tokenStart, inv.tokenEnd, '');
+      }
+
+      final remainder = updated.trim();
+      final sections = <String>[];
+      if (hitBlocks.isNotEmpty) {
+        sections.add(
+          hitNames.length == 1
+              ? 'I invoke the following skill: ${hitNames.single}'
+              : 'I invoke the following skills: ${hitNames.join(', ')}',
+        );
+        sections.addAll(hitBlocks);
+        if (remainder.isNotEmpty) sections.add('User request: $remainder');
+      } else if (remainder.isNotEmpty) {
+        // Miss-only message: the token(s) stay in place (§9).
+        sections.add(remainder);
+      }
+      sections.addAll(errorBlocks);
+      message['content'] = sections.join('\n\n');
       changed = true;
     }
-    return SkillInvocationResolution(failedNames: failed, changed: changed);
-  }
 
-  /// Appends [content] to the first system message (creates one when absent).
-  static void appendToSystemMessage(
-    List<Map<String, dynamic>> apiMessages,
-    String content,
-  ) {
-    if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
-      final existing = (apiMessages.first['content'] ?? '').toString();
-      apiMessages.first['content'] = '$existing\n\n$content';
-    } else {
-      apiMessages.insert(
-        0,
-        <String, dynamic>{'role': 'system', 'content': content},
-      );
-    }
+    return SkillInvocationResolution(failedNames: failed, changed: changed);
   }
 
   static String _xmlEscape(String text) => text

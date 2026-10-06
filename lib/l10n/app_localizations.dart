@@ -9779,7 +9779,7 @@ abstract class AppLocalizations {
   /// No description provided for @skillsFormatHelp.
   ///
   /// In en, this message translates to:
-  /// **'A skill is a folder under .agents/skills/ containing a SKILL.md with YAML frontmatter (name must equal the folder name). Skills are compatible with Claude Code. In chat, type /skill <name> or use the skills button to load one.'**
+  /// **'A skill is a folder under .agents/skills/ containing a SKILL.md with YAML frontmatter (name must equal the folder name). Skills are compatible with Claude Code and other tools. In chat, type /skill <name> or use the skills button to load one.'**
   String get skillsFormatHelp;
 
   /// No description provided for @skillsInvocationEmptyPlaceholder.

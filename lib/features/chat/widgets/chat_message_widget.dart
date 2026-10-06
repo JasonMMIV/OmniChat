@@ -28,7 +28,6 @@ import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/agent/approval.dart';
-import '../../../core/services/skills/skill_invocations.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../core/providers/assistant_provider.dart';
 import 'package:intl/intl.dart';
@@ -155,6 +154,12 @@ class ChatMessageWidget extends StatefulWidget {
   // P1-1: resolve an approval-pending tool call (approve/deny, resumes)
   final Future<void> Function(String assistantMessageId, String toolCallId,
       {required bool approve, bool alwaysAllow})? onResolveApproval;
+  // `/skill` load rows (2026-10-06): names of the skills the user invoked via
+  // `/skill <name>` in this turn's user message (derived by the message
+  // list). Rendered as static 載入技能 rows above the process group — the
+  // `/skill` counterpart of the autonomous `skill` tool card, which the
+  // assembly-time injection never produces.
+  final List<String> userInvokedSkillNames;
 
   const ChatMessageWidget({
     super.key,
@@ -195,6 +200,7 @@ class ChatMessageWidget extends StatefulWidget {
     this.hideStreamingIndicator = false,
     this.onSubmitAskUserAnswer,
     this.onResolveApproval,
+    this.userInvokedSkillNames = const <String>[],
   });
 
   @override
@@ -751,9 +757,6 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     );
     final showUserActions = settings.showUserMessageActions;
     final showVersionSwitcher = (widget.versionCount ?? 1) > 1;
-    final skillNames = SkillInvocations.extractSkillInvocations(
-      widget.message.content,
-    ).map((e) => e.name).toSet();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -856,71 +859,6 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // `/skill <name>` invocation badges — the token stays
-                      // in the persisted message (assembly-time resolution),
-                      // so surface it: a token-only message would otherwise
-                      // render as an empty bubble with no visible feedback.
-                      if (skillNames.isNotEmpty) ...[
-                        Wrap(
-                          alignment: WrapAlignment.end,
-                          spacing: 6,
-                          runSpacing: 4,
-                          children: [
-                            for (final skillName in skillNames)
-                              Tooltip(
-                                // Neutral wording on purpose: the badge marks
-                                // the token the user typed, and the skill may
-                                // no longer be installed — claiming it "loaded"
-                                // would be false. Load failures surface as a
-                                // snackbar at send time.
-                                message: l10n.chatMessageWidgetSkillToken(
-                                  skillName,
-                                ),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: cs.primary.withValues(alpha: 0.14),
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Lucide.WandSparkles,
-                                        size: 11,
-                                        color: cs.primary.withValues(
-                                          alpha: 0.9,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      // Skill names may legally run to 64
-                                      // chars — ellipsize instead of letting
-                                      // the chip overflow the bubble.
-                                      Flexible(
-                                        child: Text(
-                                          skillName,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w500,
-                                            color: cs.primary.withValues(
-                                              alpha: 0.95,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        if (visualText.isNotEmpty) const SizedBox(height: 6),
-                      ],
                       if (visualText.isNotEmpty)
                       Builder(
                         builder: (context) {
@@ -1953,6 +1891,15 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             ),
             const SizedBox(height: 4),
           ],
+          // `/skill` load rows — the user-invoked counterpart of the `skill`
+          // tool card: the `/skill` path resolves at message assembly (no
+          // tool event exists), so without this the process area would show
+          // nothing at all. One static row per invoked skill, gated by the
+          // same display setting as tool cards.
+          if (widget.userInvokedSkillNames.isNotEmpty &&
+              settings.showToolCards)
+            for (final skillName in widget.userInvokedSkillNames)
+              _UserSkillLoadRow(skillName: skillName),
           // 過程收褶 (process folding, PLAN_PROCESS_FOLDING.md Phase 3): the
           // mixed reasoning-segments path and the legacy fallback path (plain
           // reasoningText / inline <think> blocks, old conversations) both fold
@@ -3260,6 +3207,53 @@ class ReasoningSegment {
 /// Old conversations may still persist `workspace_snapshot` events; the
 /// timeline renders nothing for them.
 const String _legacyWorkspaceSnapshotToolName = 'workspace_snapshot';
+
+/// One static row for a `/skill`-invoked skill — the user-invoked counterpart
+/// of the autonomous `skill` tool card. The `/skill` path resolves at message
+/// assembly (no tool event exists), so the assistant side renders this
+/// read-only row from the preceding user message instead. Same visual
+/// language as the collapsed `_ToolCallItem` row, deliberately without
+/// interaction.
+class _UserSkillLoadRow extends StatelessWidget {
+  const _UserSkillLoadRow({required this.skillName});
+
+  final String skillName;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = cardTextColor(isDark);
+    final l10n = AppLocalizations.of(context)!;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 18,
+            height: 18,
+            child: Center(
+              child: Icon(Lucide.WandSparkles, size: 18, color: color),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              l10n.chatMessageWidgetSkillLoad(skillName),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.normal,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _ToolCallItem extends StatelessWidget {
   const _ToolCallItem({

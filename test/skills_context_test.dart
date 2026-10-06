@@ -76,6 +76,22 @@ void main() {
     });
   });
 
+  group('extractSkillNames', () {
+    test('returns names in token order, deduped', () {
+      expect(
+        SkillInvocations.extractSkillNames(
+          '/skill a-b then /skill c-d and /skill a-b again',
+        ),
+        ['a-b', 'c-d'],
+      );
+    });
+
+    test('empty when there are no valid tokens', () {
+      expect(SkillInvocations.extractSkillNames('no tokens here'), isEmpty);
+      expect(SkillInvocations.extractSkillNames('/skill Bad-Name'), isEmpty);
+    });
+  });
+
   group('resolveInMessages', () {
     SkillDefinition skill(String name, {bool disabled = false}) {
       return SkillDefinition(
@@ -93,7 +109,7 @@ void main() {
           {'role': 'user', 'content': content},
         ];
 
-    test('hit: token removed and skill block appended to system', () {
+    test('hit: explicit invocation frame replaces the token', () {
       final apiMessages = messagesWithUser('Use /skill git-release please');
       final resolution = SkillInvocations.resolveInMessages(
         apiMessages,
@@ -101,23 +117,54 @@ void main() {
       );
       expect(resolution.changed, isTrue);
       expect(resolution.failedNames, isEmpty);
-      expect(apiMessages[1]['content'], 'Use  please');
-      final system = apiMessages[0]['content'] as String;
-      expect(system, contains('<skill name="git-release">'));
-      expect(system, contains('Body of git-release.'));
-      expect(system, endsWith('</skill>'));
+      final user = apiMessages[1]['content'] as String;
+      // Anybuff `buildFinalPrompt` frame: explicit line, block, then the
+      // remaining text under a `User request:` label.
+      expect(
+        user,
+        startsWith('I invoke the following skill: git-release\n\n'),
+      );
+      expect(user, contains('<skill name="git-release">'));
+      expect(user, contains('Body of git-release.'));
+      expect(user, endsWith('User request: Use  please'));
+      expect(user.contains('/skill git-release'), isFalse);
+      // User-turn delivery: the system message is never touched.
+      expect(apiMessages[0]['content'], 'You are helpful.');
     });
 
-    test('miss: token kept, skill_error appended, name reported', () {
+    test('skill content rides the user turn, not the system prompt', () {
+      // 2026-10-06 hands-on fix: the block used to be appended to the system
+      // prompt tail while the token was stripped from the user message, so
+      // models processed the remnant as a plain request and never started
+      // the skill. Delivery must stay on the message that carried the token
+      // (Anybuff `buildFinalPrompt` parity).
+      final apiMessages = messagesWithUser('/skill git-release 翻譯這段');
+      SkillInvocations.resolveInMessages(
+        apiMessages,
+        loadSkill: (name) => skill(name),
+      );
+      expect(apiMessages[0]['content'], 'You are helpful.');
+      final user = apiMessages[1]['content'] as String;
+      expect(
+        user,
+        startsWith('I invoke the following skill: git-release\n\n'),
+      );
+      expect(user, contains('<skill name="git-release">'));
+      expect(user, contains('User request: 翻譯這段'));
+    });
+
+    test('miss: token kept, skill_error appended to the user message', () {
       final apiMessages = messagesWithUser('/skill no-such-skill');
       final resolution = SkillInvocations.resolveInMessages(
         apiMessages,
         loadSkill: (name) => null,
       );
       expect(resolution.failedNames, ['no-such-skill']);
-      expect(apiMessages[1]['content'], '/skill no-such-skill');
-      final system = apiMessages[0]['content'] as String;
-      expect(system, contains('<skill_error name="no-such-skill">'));
+      expect(resolution.changed, isTrue);
+      final user = apiMessages[1]['content'] as String;
+      expect(user, startsWith('/skill no-such-skill\n\n'));
+      expect(user, contains('<skill_error name="no-such-skill">'));
+      expect(apiMessages[0]['content'], 'You are helpful.');
     });
 
     test('invalid format: nothing happens', () {
@@ -128,19 +175,40 @@ void main() {
       );
       expect(resolution.changed, isFalse);
       expect(apiMessages[1]['content'], 'I typed /skill Bad-Name today');
+      expect(apiMessages[0]['content'], 'You are helpful.');
     });
 
-    test('multiple hits in one message', () {
+    test('multiple hits keep token order and get a plural frame', () {
       final apiMessages = messagesWithUser('/skill a-b and /skill c-d');
       final resolution = SkillInvocations.resolveInMessages(
         apiMessages,
         loadSkill: (name) => skill(name),
       );
       expect(resolution.failedNames, isEmpty);
-      final system = apiMessages[0]['content'] as String;
-      expect(system, contains('<skill name="a-b">'));
-      expect(system, contains('<skill name="c-d">'));
-      expect(apiMessages[1]['content'], ' and ');
+      final user = apiMessages[1]['content'] as String;
+      expect(
+        user,
+        startsWith('I invoke the following skills: a-b, c-d\n\n'),
+      );
+      final abIdx = user.indexOf('<skill name="a-b">');
+      final cdIdx = user.indexOf('<skill name="c-d">');
+      expect(abIdx, greaterThan(0));
+      expect(cdIdx, greaterThan(abIdx));
+      expect(user, contains('User request: and'));
+    });
+
+    test('duplicate invocations of one skill keep a single block', () {
+      final apiMessages = messagesWithUser('/skill a-b /skill a-b');
+      SkillInvocations.resolveInMessages(
+        apiMessages,
+        loadSkill: (name) => skill(name),
+      );
+      final user = apiMessages[1]['content'] as String;
+      expect(user, isNot(contains('/skill a-b')));
+      expect(RegExp(r'<skill name="a-b">').allMatches(user).length, 1);
+      expect(user, startsWith('I invoke the following skill: a-b\n\n'));
+      expect(user.trim(), endsWith('</skill>'));
+      expect(user.contains('User request:'), isFalse);
     });
 
     test('hit with multi-space separator leaves no token residue', () {
@@ -152,25 +220,35 @@ void main() {
         loadSkill: (name) => skill(name),
       );
       expect(resolution.changed, isTrue);
-      expect(apiMessages[1]['content'], 'Run  now');
+      final user = apiMessages[1]['content'] as String;
+      expect(user, startsWith('I invoke the following skill: a-b\n\n'));
+      // Exact remainder pins the offsets — a stray `/` would break it.
       expect(
-        (apiMessages[1]['content'] as String).contains('/'),
-        isFalse,
+        user.substring(user.indexOf('User request:')),
+        'User request: Run  now',
       );
     });
 
-    test('hit + miss mixed', () {
+    test('hit + miss mixed in one message', () {
       final apiMessages = messagesWithUser('/skill good /skill bad2');
       final resolution = SkillInvocations.resolveInMessages(
         apiMessages,
         loadSkill: (name) => name == 'good' ? skill(name) : null,
       );
       expect(resolution.failedNames, ['bad2']);
-      final system = apiMessages[0]['content'] as String;
-      expect(system, contains('<skill name="good">'));
-      expect(system, contains('<skill_error name="bad2">'));
-      expect(apiMessages[1]['content'], contains('/skill bad2'));
-      expect(apiMessages[1]['content'], isNot(contains('/skill good')));
+      final user = apiMessages[1]['content'] as String;
+      expect(user, startsWith('I invoke the following skill: good\n\n'));
+      expect(user, contains('/skill bad2'));
+      expect(user, isNot(contains('/skill good')));
+      expect(user, contains('<skill name="good">'));
+      expect(user, contains('<skill_error name="bad2">'));
+      expect(user, contains('User request: /skill bad2'));
+      // The hit block precedes the retained miss token's error block.
+      expect(
+        user.indexOf('<skill name="good">'),
+        lessThan(user.indexOf('<skill_error name="bad2">')),
+      );
+      expect(apiMessages[0]['content'], 'You are helpful.');
     });
 
     test('only user messages are touched', () {
@@ -184,6 +262,26 @@ void main() {
         loadSkill: (name) => skill(name),
       );
       expect(apiMessages[1]['content'], 'try /skill x-y maybe');
+      expect(apiMessages[0]['content'], 'sys');
+      expect(apiMessages[2]['content'], contains('<skill name="x-y">'));
+    });
+
+    test('resolves tokens across every user message', () {
+      // Regenerate / replay re-resolve the whole assembly, so historical
+      // user messages carrying tokens must keep resolving too.
+      final apiMessages = <Map<String, dynamic>>[
+        {'role': 'system', 'content': 'You are helpful.'},
+        {'role': 'user', 'content': '/skill a-b first'},
+        {'role': 'assistant', 'content': 'ok'},
+        {'role': 'user', 'content': '/skill c-d second'},
+      ];
+      SkillInvocations.resolveInMessages(
+        apiMessages,
+        loadSkill: (name) => skill(name),
+      );
+      expect(apiMessages[1]['content'], contains('<skill name="a-b">'));
+      expect(apiMessages[3]['content'], contains('<skill name="c-d">'));
+      expect(apiMessages[0]['content'], 'You are helpful.');
     });
 
     test('empty map loader with no tokens is a no-op', () {
@@ -196,7 +294,7 @@ void main() {
       expect(apiMessages[0]['content'], 'You are helpful.');
     });
 
-    test('creates a system message when none exists', () {
+    test('no system message is created or modified', () {
       final List<Map<String, dynamic>> apiMessages = [
         {'role': 'user', 'content': '/skill git-release'},
       ];
@@ -204,56 +302,96 @@ void main() {
         apiMessages,
         loadSkill: (name) => skill(name),
       );
-      expect(apiMessages.first['role'], 'system');
-      expect(apiMessages.first['content'], contains('<skill'));
+      expect(apiMessages, hasLength(1));
+      expect(apiMessages.first['role'], 'user');
+      expect(
+        apiMessages.first['content'],
+        startsWith('I invoke the following skill: git-release\n\n'),
+      );
     });
 
-    test('token-only message becomes the placeholder, not empty content', () {
+    test('token-only message becomes the invocation frame, never empty', () {
       // A message consisting ONLY of the token would otherwise resolve to
       // empty user content — several providers (Anthropic among them) reject
-      // that, which made a lone `/skill name` look like a dead command.
+      // that. The invocation frame itself fills the message (the 2026-10-06
+      // placeholder workaround is no longer needed).
       final apiMessages = messagesWithUser('/skill git-release');
       final resolution = SkillInvocations.resolveInMessages(
         apiMessages,
         loadSkill: (name) => skill(name),
-        emptyContentPlaceholder: 'Follow the loaded skill.',
       );
       expect(resolution.changed, isTrue);
       expect(resolution.failedNames, isEmpty);
-      expect(apiMessages[1]['content'], 'Follow the loaded skill.');
-      expect(apiMessages[0]['content'], contains('<skill name="git-release">'));
-    });
-
-    test('placeholder not applied when surrounding text remains', () {
-      final apiMessages = messagesWithUser('Use /skill git-release please');
-      SkillInvocations.resolveInMessages(
-        apiMessages,
-        loadSkill: (name) => skill(name),
-        emptyContentPlaceholder: 'Follow the loaded skill.',
+      final user = apiMessages[1]['content'] as String;
+      expect(
+        user,
+        startsWith('I invoke the following skill: git-release\n\n'),
       );
-      expect(apiMessages[1]['content'], 'Use  please');
+      expect(user, endsWith('</skill>'));
+      expect(user.contains('User request:'), isFalse);
+      expect(apiMessages[0]['content'], 'You are helpful.');
     });
 
-    test('placeholder applied when several hits leave only whitespace', () {
+    test('several hits leaving only whitespace yield frame-only content', () {
       final apiMessages = messagesWithUser('/skill a-b /skill c-d');
       SkillInvocations.resolveInMessages(
         apiMessages,
         loadSkill: (name) => skill(name),
-        emptyContentPlaceholder: 'Follow the loaded skill.',
       );
-      expect(apiMessages[1]['content'], 'Follow the loaded skill.');
+      final user = apiMessages[1]['content'] as String;
+      expect(
+        user,
+        startsWith('I invoke the following skills: a-b, c-d\n\n'),
+      );
+      expect(user, contains('<skill name="a-b">'));
+      expect(user, contains('<skill name="c-d">'));
+      expect(user.trim(), endsWith('</skill>'));
+      expect(user.contains('User request:'), isFalse);
     });
 
-    test('no placeholder when a failed token is all that is left', () {
-      // The miss keeps its token visible (§9 R4), so the message is not blank
-      // and must not be replaced by the placeholder.
+    test('a failed token keeps the message non-empty', () {
+      // The miss keeps its token visible (§9 R4), so the message is never
+      // blank and needs no placeholder.
       final apiMessages = messagesWithUser('/skill good /skill bad2');
       SkillInvocations.resolveInMessages(
         apiMessages,
         loadSkill: (name) => name == 'good' ? skill(name) : null,
-        emptyContentPlaceholder: 'Follow the loaded skill.',
       );
-      expect((apiMessages[1]['content'] as String).trim(), '/skill bad2');
+      final user = (apiMessages[1]['content'] as String).trim();
+      expect(user, contains('/skill bad2'));
+      expect(user, contains('<skill_error name="bad2">'));
+    });
+    test('injected block strips the YAML frontmatter', () {
+      // 2026-10-06 revision: the frontmatter `description` carries gating
+      // wording ("use ONLY when the user explicitly…") that made models
+      // second-guess whether the skill was active. The payload must carry
+      // the body only.
+      final apiMessages = messagesWithUser('/skill git-release');
+      SkillInvocations.resolveInMessages(
+        apiMessages,
+        loadSkill: (name) => skill(name),
+      );
+      final user = apiMessages[1]['content'] as String;
+      expect(user, contains('Body of git-release.'));
+      expect(user.contains('---'), isFalse);
+      expect(user.contains('description:'), isFalse);
+      expect(user.contains('name: git-release'), isFalse);
+    });
+
+    test('frame order: invocation line, block, then User request', () {
+      final apiMessages = messagesWithUser('請 /skill a-b 幫我檢查');
+      SkillInvocations.resolveInMessages(
+        apiMessages,
+        loadSkill: (name) => skill(name),
+      );
+      final user = apiMessages[1]['content'] as String;
+      final lineIdx = user.indexOf('I invoke the following skill: a-b');
+      final blockIdx = user.indexOf('<skill name="a-b">');
+      final requestIdx = user.indexOf('User request: ');
+      expect(lineIdx, 0);
+      expect(blockIdx, greaterThan(lineIdx));
+      expect(requestIdx, greaterThan(blockIdx));
+      expect(user.trim(), endsWith('幫我檢查'));
     });
   });
 

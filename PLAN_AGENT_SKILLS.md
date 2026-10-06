@@ -1,6 +1,6 @@
 # OmniChat Agent Skills 實作計劃
 
-> **狀態**：✅ 已實作（2026-10-06，v1.25.0；驗證：`dart analyze` skills 相關檔案 0 error、新增測試 88 條全過（含型錄回歸共 96 條）。同日實測回饋修訂：移除 example-skill 播種改一次性清理、`/skill` token-only 空內容修正＋氣泡技能徽章、圖示改 WandSparkles（GitHub 下載鈕 Package）、說明移除 Anybuff；新增測試至 93 條。同日 /review 對抗式審查修復三項：未命中 warning 補 snackbar fallback（`onShowWarning` 未接線時直接 `showAppSnackBar`）、徽章 tooltip 改中性 `chatMessageWidgetSkillToken`（不宣稱已載入）、長技能名 Flexible+ellipsis 截斷；`skills_context_test` 新增 2 邊界測試至 95 條（全套 982）。手冊記錄見《OmniChat 專案開發與維護手冊.md》§3.15）
+> **狀態**：✅ 已實作（2026-10-06，v1.25.0；驗證：`dart analyze` skills 相關檔案 0 error、新增測試 88 條全過（含型錄回歸共 96 條）。同日實測回饋修訂：移除 example-skill 播種改一次性清理、`/skill` token-only 空內容修正＋氣泡技能徽章、圖示改 WandSparkles（GitHub 下載鈕 Package）、說明移除 Anybuff；新增測試至 93 條。同日 /review 對抗式審查修復三項：未命中 warning 補 snackbar fallback（`onShowWarning` 未接線時直接 `showAppSnackBar`）、徽章 tooltip 改中性 `chatMessageWidgetSkillToken`（不宣稱已載入）、長技能名 Flexible+ellipsis 截斷；`skills_context_test` 新增 2 邊界測試至 95 條（全套 982）。同日實測修復 2（/skill 無法啟動 skill）：`SkillInvocations.resolveInMessages` 改為 **user-turn 投遞**——命中的 `<skill>` 與未命中的 `<skill_error>` 區塊一律附加到「帶有 token 的那則 user 訊息」（原文之後），system message 不再被碰觸；原設計的 system 尾端追加實測被模型忽視（token 被剝除後模型只看到剩餘文字、把 `/skill X 問題` 當一般問題處理，skill 完全未啟動；參照 Anybuff `buildFinalPrompt` 的 user-turn 投遞修復）；`emptyContentPlaceholder` 參數與 `appendToSystemMessage` 隨之移除（token-only 訊息現以 skill 區塊為內容、空內容 400 自然消解）。同日實測修復 3（/skill 投遞框架）：命中訊息改以 **Anybuff `buildFinalPrompt` 顯式框架**投遞——`I invoke the following skill: <name>`（多技能複數、token 順序）＋ `<skill>` 區塊（frontmatter 經 `SkillParser.stripFrontmatter` 剝除後再 cap）＋ 剩餘文字置尾冠 `User request: `；未命中行為不變。三則實測（ling/mimo 模型）顯示模型先讀到 description gating（「use ONLY when…」）而反覆自問是否已調用——顯式框架＋frontmatter 剝除即對症修正。另：助理過程區新增 `/skill` 靜態「載入技能」列（`ChatMessageWidget.userInvokedSkillNames`＋`_UserSkillLoadRow`，與自主調用的 skill 工具卡同款、受 `showToolCards` 閘控）；`extractSkillNames` 供徽章與新列共用。後續（同日實測回饋）：過程區「載入技能」列上線後，移除提問氣泡的技能徽章——`extractSkillNames` 仍服務過程區列與列表抽取，l10n `chatMessageWidgetSkillToken` 保留未用。手冊記錄見《OmniChat 專案開發與維護手冊.md》§3.15）
 > **日期**：2026-10-05
 > **目標版本**：v1.25.0（開發中）
 > **參考**：Anybuff skills 子系統（`packages/host-core/src/skills/`、`common/src/types/skill.ts`、`packages/agent-runtime/src/tools/handlers/tool/skill.ts`）；本計畫的設計概念與 Anybuff 十分接近，差異處均已註明理由。
@@ -297,25 +297,32 @@ Future<void> setSkillsPreloadEnabled(bool v) async { ... notifyListeners(); }
         skill = loadSkillByName(name)   # project 優先、再 global
         命中 → 收集內容；未命中 → 收集錯誤訊息（送回 LLM 與使用者）
       移除使用者訊息中的 token，避免把無意義指令留在上下文
-      將命中的 skill 內容組成 system 區塊 append 進 system message：
+      將命中的 skill 內容組成 <skill> 區塊（frontmatter 剝除後 capBare）、未命中為 <skill_error>；
+      以顯式調用框架重組「帶有 token 的那則 user 訊息」（2026-10-06 修訂 3；Anybuff buildFinalPrompt 措辭）：
+        I invoke the following skill: my-skill
         <skill name="my-skill">
-        …完整 SKILL.md 內容…
+        …完整 SKILL.md 正文（frontmatter 已剝除）…
         </skill>
-        （未命中的以 <skill_error> 區塊註明，讓 LLM 知道使用者想調用但失敗）
+        User request: <剩餘文字>
+        （未命中的以 <skill_error> 區塊註明於訊息尾端，讓 LLM 知道使用者想調用但失敗）
   ```
 - 效果：即使預載 OFF、沒有 skill 工具，使用者一樣能把完整 skill 內容送進當前這一輪的上下文。
 
+> **【2026-10-06 修訂 2 — 實測修復】** 投遞位置由 system message 改為 **user turn**：命中的 `<skill name="…">…</skill>` 區塊（未命中為 `<skill_error>`）附加在**帶有 token 的那則 user 訊息原文之後**（token-only 訊息即為區塊本身、不再需要 placeholder）。原因：system 尾端追加在實測中被模型忽視——token 被剝除後模型只看到剩餘文字，把 `/skill X 問題` 當一般問題處理、skill 完全未啟動；Anybuff `buildFinalPrompt` 正是把 invoked skill 內容併入使用者訊息，故對齊之。
+
+> **【2026-10-06 修訂 3 — 實測修復（投遞框架）】** 命中訊息改以 Anybuff `buildFinalPrompt` 顯式框架重組：`I invoke the following skill: <name>`（多技能複數、token 順序）＋ `<skill>` 區塊（frontmatter 先經 `SkillParser.stripFrontmatter` 剝除再 `capBare`）＋ 剩餘文字置尾冠 `User request: `（空則省略；框架行固定英文）。原因：修訂 2 的裸附加在實測中被模型以 frontmatter `description` 的 gating 措辭（「use ONLY when…」）反覆質疑「使用者是否真的調用了」——顯式框架＋frontmatter 剝除即對症修正；未命中行為不變。助理過程區另新增 `/skill` 靜態「載入技能」列（與自主調用的 skill 工具卡同款、受 `showToolCards` 閘控）。
+
 ### 6.3 語意澄清（審查後補充）
 
-- **預載 ON 且使用者又插入 `/skill <name>`——不是「重複注入」**：兩條路徑獨立且語意不同。`/skill` token 把**完整內容**注入該輪 system 區塊（一次性、該輪有效）；skill 工具只是讓 LLM **可以**呼叫（呼叫才回傳內容）。兩者可同時存在，內容不會重複堆叠（token 注入的是該次調用的內容；工具只在 LLM 主動呼叫時觸發）。實務上預載 ON 時使用者不太需要再插 token，但允許它（等於「這一輪強制載入 + 之後也可再呼叫」）。
+- **預載 ON 且使用者又插入 `/skill <name>`——不是「重複注入」**：兩條路徑獨立且語意不同。`/skill` token 把**完整內容**注入該輪 user 訊息（一次性、該輪有效）；skill 工具只是讓 LLM **可以**呼叫（呼叫才回傳內容）。兩者可同時存在，內容不會重複堆叠（token 注入的是該次調用的內容；工具只在 LLM 主動呼叫時觸發）。實務上預載 ON 時使用者不太需要再插 token，但允許它（等於「這一輪強制載入 + 之後也可再呼叫」）。
 - **重生生成（regenerate）的行為是正確的**：`/skill` token 存在使用者訊息的持久化內容裡，每次組裝（包含重生生成、跨輪重放）都重新解析。這是刻意設計——重生生成 = 重新回答同一個問題，skill 指引當然要重新載入；且 token 解析是純函數、每次結果一致。
-- **工具卡片渲染**：`skill` 工具的 tool event 走一般的工具卡片渲染路徑（`chat_message_widget.dart` 的 `_iconFor`/`_titleFor`），顯示為「載入 skill：git-release」。skill 工具事件**參與 §3.11 跨輪重放**（普通 function call，無特殊處理）。
+- **工具卡片渲染**：`skill` 工具的 tool event 走一般的工具卡片渲染路徑（`chat_message_widget.dart` 的 `_iconFor`/`_titleFor`），顯示為「載入技能：git-release」。skill 工具事件**參與 §3.11 跨輪重放**（普通 function call，無特殊處理）。
 
 ### 6.4 與既有系統的互動契約
 
-- **§3.11 跨輪重放**：`skill` 工具的 tool event **照常重放**（它是普通 function call，結果是合法的 tool result）。`/skill` 指令路徑不改訊息結構（只是 system prompt 內容），無重放負擔。
+- **§3.11 跨輪重放**：`skill` 工具的 tool event **照常重放**（它是普通 function call，結果是合法的 tool result）。`/skill` 指令路徑只在組裝投影改寫該則 user 訊息內容（Hive 原文不動、每次重投影結果一致），工具事件重放語意不變、無重放負擔。
 - **§3.14 切點安全（tool_pairing）**：skill 工具的 tool result 走與其他工具相同的 neutral 訊息路徑，無特殊處理。
-- **§3.5 提示快取**：skill 工具定義放在工具清單**尾部**（`buildToolDefinitions` 最後加入），skill 清單變動只影響尾部，盡量不破 prefix 快取；`/skill` 注入的內容放在 system prompt 尾部（同 `injectTodoSnapshot` 的穩定位置策略）。
+- **§3.5 提示快取**：skill 工具定義放在工具清單**尾部**（`buildToolDefinitions` 最後加入），skill 清單變動只影響尾部，盡量不破 prefix 快取；`/skill` 注入的內容放在最新 user 訊息（2026-10-06 修訂 2/3；只有尾端 user turn 變動、system 前綴穩定——比 system 追加更利於 prefix 快取；修訂 3 起以顯式框架重組同一則訊息）。
 - **無 workspace 時**：`workspacePath == null` → 只載入全域 skills（專案層為空）；skill 工具仍可用。
 
 ---
@@ -433,6 +440,7 @@ ChatInputButtonSpec(
 
 - **格式**：`/skill <name>`（正規表示式需容許：行首或空白後的 `/skill`、一個以上空白、name；容許行尾註解或夾雜其他文字；**容許多個 `/skill` token**）
 - **解析 regex（草案）**：`(?:^|\s)/skill\s+([a-z0-9-]+)`（大小寫不敏感於 `/skill` 關鍵字；name 嚴格小寫避免歧義）
+- **命中投遞框架（2026-10-06 修訂）**：`I invoke the following skill: <name>`（多技能為 `I invoke the following skills: a, b`）＋ `<skill name="…">` 區塊（frontmatter 先以 `SkillParser.stripFrontmatter` 剝除、再 `capBare`）＋ 剩餘文字置尾冠 `User request: `——Anybuff `buildFinalPrompt` 措辭；修掉實測所見模型「先讀到 description gating、反覆懷疑是否已調用」的現象。未命中仍保留 token 並於尾端加 `<skill_error>`。
 - **與既有指令系統的關係**：OmniChat 沒有全域 slash command 系統，`/skill` 是**訊息組裝階段的 token 解析**（§6.2），不是傳統的 client-side 指令——這是刻意的：它讓 `/skill` 在重新生成、跨輪重放時都能穩定重現（token 存在使用者訊息裡，每次組裝都重新解析）。
 - ⚠️ 邊界：`/skill` 後 name 不存在/格式不合 → 注入 `<skill_error>` 區塊而非刪除 token（讓使用者看到嘗試失敗了）。
 - ⚠️ 若使用者只是想打字聊到 `/skill` 開頭的句子：只在**真的 match `<有效 name>`** 時才解析；未命中名稱的 `/skill xyz` 保持原樣留在訊息裡（不注入錯誤區塊，避免污染正常對話）。
@@ -657,17 +665,18 @@ chatMessageWidgetSkillLoad(name)            "Load skill: {name}" / "載入 skill
 </available_skills>
 ```
 
-## 18. 附錄：`/skill` 注入後的 system prompt 片段
+## 18. 附錄：`/skill` 注入後的 user 訊息片段（2026-10-06 修訂 3）
 
-```xml
+```
+I invoke the following skill: git-release
+
 <skill name="git-release">
----
-name: git-release
-description: Generate changelog entries…
----
-
 # Git Release
 
 When the user asks to cut a release…
 </skill>
+
+User request: <使用者原文（token 已移除）>
 ```
+
+（frontmatter 由 `SkillParser.stripFrontmatter` 剝除；未命中時原文保留 token、尾端加 `<skill_error>` 區塊。）
