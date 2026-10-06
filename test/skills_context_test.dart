@@ -506,4 +506,68 @@ void main() {
       expect(loaded!.description, 'project');
     });
   });
+
+  group('SkillsProvider.noteProjectSkills', () {
+    test('surfaces project-only setups and dedupes notifications', () async {
+      final workspace = await Directory.systemTemp.createTemp('hint_ws_');
+      addTearDown(() async {
+        await workspace.delete(recursive: true);
+      });
+      final dir = Directory('${workspace.path}/.agents/skills/notes')
+        ..createSync(recursive: true);
+      File('${dir.path}/SKILL.md').writeAsStringSync(
+        '---\nname: notes\ndescription: project notes\n---\n\nBody.\n',
+      );
+
+      final provider = SkillsProvider();
+      expect(provider.hasAnyKnownSkills, isFalse);
+
+      var notified = 0;
+      provider.addListener(() => notified++);
+      provider.noteProjectSkills(workspace.path);
+      expect(provider.hasAnyKnownSkills, isTrue);
+      expect(notified, 1);
+
+      // Unchanged skill set → no redundant notification.
+      provider.noteProjectSkills(workspace.path);
+      expect(notified, 1);
+    });
+
+    test('clears the hint when the workspace goes away', () async {
+      final workspace = await Directory.systemTemp.createTemp('hint_ws_');
+      addTearDown(() async {
+        await workspace.delete(recursive: true);
+      });
+      final dir = Directory('${workspace.path}/.agents/skills/notes')
+        ..createSync(recursive: true);
+      File('${dir.path}/SKILL.md').writeAsStringSync(
+        '---\nname: notes\ndescription: project notes\n---\n\nBody.\n',
+      );
+
+      final provider = SkillsProvider();
+      provider.noteProjectSkills(workspace.path);
+      expect(provider.hasAnyKnownSkills, isTrue);
+
+      var notified = 0;
+      provider.addListener(() => notified++);
+      provider.noteProjectSkills(null);
+      expect(provider.hasAnyKnownSkills, isFalse);
+      expect(notified, 1);
+    });
+
+    test('stays hidden when no skills exist anywhere', () async {
+      final workspace = await Directory.systemTemp.createTemp('hint_ws_');
+      addTearDown(() async {
+        await workspace.delete(recursive: true);
+      });
+
+      final provider = SkillsProvider();
+      var notified = 0;
+      provider.addListener(() => notified++);
+      provider.noteProjectSkills(workspace.path); // no .agents/skills inside
+      provider.noteProjectSkills(null);
+      expect(provider.hasAnyKnownSkills, isFalse);
+      expect(notified, 0);
+    });
+  });
 }

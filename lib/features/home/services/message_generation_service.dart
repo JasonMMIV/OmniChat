@@ -7,6 +7,7 @@ import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/providers/skills_provider.dart';
 import '../../../core/services/agent/compaction/compaction_trigger.dart';
 import '../../../core/services/agent/compaction/context_trim.dart';
 import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
@@ -246,6 +247,18 @@ class MessageGenerationService {
     // Also creates the dir on desktop first-use.
     try {
       await SkillService.globalSkillsRoot();
+    } catch (_) {}
+
+    // Keep the input-bar skills button hint fresh: its gate reads
+    // `SkillsProvider.hasAnyKnownSkills`, and the project-skill hint used to
+    // update only when the menu opened — which itself needed a visible
+    // button, so project-only setups (no global skills) never got a menu
+    // entry. Assembly time is the first moment the conversation workspace is
+    // known (PLAN_AGENT_SKILLS.md §2.3) — best-effort, never breaks assembly.
+    try {
+      if (contextProvider.mounted) {
+        contextProvider.read<SkillsProvider>().noteProjectSkills(workspacePath);
+      }
     } catch (_) {}
 
     // Agent Skills: resolve `/skill <name>` tokens in user messages. Works
