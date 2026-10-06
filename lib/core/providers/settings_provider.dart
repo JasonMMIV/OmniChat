@@ -125,6 +125,10 @@ class SettingsProvider extends ChangeNotifier {
       'display_auto_collapse_thinking_v1';
   static const String _displayReplayToolResultsKey =
       'display_replay_tool_results_v1';
+  // Agent Skills: preload skill descriptions into the LLM context (registers
+  // the `skill` tool). Global behavior preference — synced via backup, NOT in
+  // `_localOnlyKeys` (PLAN_AGENT_SKILLS.md §5).
+  static const String _skillsPreloadEnabledKey = 'skills_preload_enabled_v1';
   static const String _displayShowMessageNavKey = 'display_show_message_nav_v1';
   static const String _displayShowProviderInModelCapsuleKey =
       'display_show_provider_in_model_capsule_v1';
@@ -772,6 +776,7 @@ class SettingsProvider extends ChangeNotifier {
     _autoCollapseThinking =
         prefs.getBool(_displayAutoCollapseThinkingKey) ?? true;
     _replayToolResults = prefs.getBool(_displayReplayToolResultsKey) ?? true;
+    _skillsPreloadEnabled = prefs.getBool(_skillsPreloadEnabledKey) ?? true;
     _workspaceToolsDisabled =
         (prefs.getStringList(_workspaceToolsDisabledKey) ?? const <String>[])
             .toSet();
@@ -2967,6 +2972,19 @@ Synthesize your reasoning and research into a final response. The structure shou
     await prefs.setBool(_displayReplayToolResultsKey, v);
   }
 
+  // Agent Skills: preload skill descriptions (default on — zero-config).
+  // Off = no `skill` tool and no `<available_skills>` in the context; the
+  // `/skill <name>` command keeps working through the message-assembly path.
+  bool _skillsPreloadEnabled = true;
+  bool get skillsPreloadEnabled => _skillsPreloadEnabled;
+  Future<void> setSkillsPreloadEnabled(bool v) async {
+    if (_skillsPreloadEnabled == v) return;
+    _skillsPreloadEnabled = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_skillsPreloadEnabledKey, v);
+  }
+
   // Kernel: agent-loop v1 kill-switch (default on; false = legacy loop)
   bool _agentLoopV1 = true;
   bool get agentLoopV1 => _agentLoopV1;
@@ -3682,6 +3700,7 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._showToolCards = _showToolCards;
     copy._autoCollapseThinking = _autoCollapseThinking;
     copy._replayToolResults = _replayToolResults;
+    copy._skillsPreloadEnabled = _skillsPreloadEnabled;
     copy._workspaceToolsDisabled = _workspaceToolsDisabled;
     copy._agentLoopV1 = _agentLoopV1;
     copy._autoCompactionV1 = _autoCompactionV1;

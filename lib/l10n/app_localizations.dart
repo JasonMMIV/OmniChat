@@ -9517,6 +9517,312 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Detection cancelled'**
   String get modelDetailReasoningProbeCancelled;
+
+  /// No description provided for @settingsPageSkills.
+  ///
+  /// In en, this message translates to:
+  /// **'Skills'**
+  String get settingsPageSkills;
+
+  /// No description provided for @skillsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Skills'**
+  String get skillsTitle;
+
+  /// No description provided for @skillsPreloadTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Preload skills'**
+  String get skillsPreloadTitle;
+
+  /// No description provided for @skillsPreloadDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Load skill descriptions into the LLM context so it can invoke skills on its own. When off, you can still invoke a skill with the /skill command.'**
+  String get skillsPreloadDescription;
+
+  /// No description provided for @skillsInstalledSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Installed ({count})'**
+  String skillsInstalledSection(int count);
+
+  /// No description provided for @skillsEmptyMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'No skills installed yet. Add, import, or download from GitHub.'**
+  String get skillsEmptyMessage;
+
+  /// No description provided for @skillsLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading skills…'**
+  String get skillsLoading;
+
+  /// No description provided for @skillsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load skills'**
+  String get skillsLoadError;
+
+  /// No description provided for @skillsAddTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Add skill'**
+  String get skillsAddTooltip;
+
+  /// No description provided for @skillsAddTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'New Skill'**
+  String get skillsAddTitle;
+
+  /// No description provided for @skillsImportTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Import skill files'**
+  String get skillsImportTooltip;
+
+  /// No description provided for @skillsImportSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported {count}'**
+  String skillsImportSuccess(int count);
+
+  /// No description provided for @skillsImportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Import failed'**
+  String get skillsImportFailed;
+
+  /// No description provided for @skillsGithubTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Download from GitHub'**
+  String get skillsGithubTooltip;
+
+  /// No description provided for @skillsDeleteTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete skill'**
+  String get skillsDeleteTooltip;
+
+  /// No description provided for @skillsDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete skill \"{name}\"? The whole folder will be removed.'**
+  String skillsDeleteConfirm(String name);
+
+  /// No description provided for @skillsOverwriteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'A skill named \"{name}\" already exists. Overwrite it?'**
+  String skillsOverwriteConfirm(String name);
+
+  /// No description provided for @skillsConfirmButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm'**
+  String get skillsConfirmButton;
+
+  /// No description provided for @skillNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get skillNameLabel;
+
+  /// No description provided for @skillNameInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Lowercase letters, digits and single hyphens only (e.g. my-skill).'**
+  String get skillNameInvalid;
+
+  /// No description provided for @skillDescriptionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Description'**
+  String get skillDescriptionLabel;
+
+  /// No description provided for @skillBodyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Instructions (Markdown)'**
+  String get skillBodyLabel;
+
+  /// No description provided for @skillScopeGlobal.
+  ///
+  /// In en, this message translates to:
+  /// **'Global'**
+  String get skillScopeGlobal;
+
+  /// No description provided for @skillScopeProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Project'**
+  String get skillScopeProject;
+
+  /// No description provided for @skillSourceManual.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual'**
+  String get skillSourceManual;
+
+  /// No description provided for @skillSourceFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported'**
+  String get skillSourceFile;
+
+  /// No description provided for @skillSourceGithub.
+  ///
+  /// In en, this message translates to:
+  /// **'GitHub'**
+  String get skillSourceGithub;
+
+  /// No description provided for @skillSourceExternal.
+  ///
+  /// In en, this message translates to:
+  /// **'External'**
+  String get skillSourceExternal;
+
+  /// No description provided for @skillFilesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} files'**
+  String skillFilesCount(int count);
+
+  /// No description provided for @skillsFolderConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Install skill folder'**
+  String get skillsFolderConfirmTitle;
+
+  /// No description provided for @skillsFolderConfirmFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'This SKILL.md sits next to {count} file(s). Install the whole folder?'**
+  String skillsFolderConfirmFiles(int count);
+
+  /// No description provided for @skillsGithubDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Download skills from GitHub'**
+  String get skillsGithubDialogTitle;
+
+  /// No description provided for @skillsGithubRepoHint.
+  ///
+  /// In en, this message translates to:
+  /// **'owner/repo or GitHub URL'**
+  String get skillsGithubRepoHint;
+
+  /// No description provided for @skillsGithubListButton.
+  ///
+  /// In en, this message translates to:
+  /// **'List skills'**
+  String get skillsGithubListButton;
+
+  /// No description provided for @skillsGithubListing.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading repository…'**
+  String get skillsGithubListing;
+
+  /// No description provided for @skillsGithubDownloadButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get skillsGithubDownloadButton;
+
+  /// No description provided for @skillsGithubDownloadSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Installed skill \"{name}\"'**
+  String skillsGithubDownloadSuccess(String name);
+
+  /// No description provided for @skillsGithubError404.
+  ///
+  /// In en, this message translates to:
+  /// **'Repository not found. It may be private — only public repositories are supported.'**
+  String get skillsGithubError404;
+
+  /// No description provided for @skillsGithubRateLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'GitHub API rate limit reached (60 unauthenticated requests/hour). Try again later.'**
+  String get skillsGithubRateLimit;
+
+  /// No description provided for @skillsGithubInvalidRepo.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid repository. Use owner/repo or a github.com URL.'**
+  String get skillsGithubInvalidRepo;
+
+  /// No description provided for @skillsGithubNoSkills.
+  ///
+  /// In en, this message translates to:
+  /// **'No folders containing SKILL.md found in this repository.'**
+  String get skillsGithubNoSkills;
+
+  /// No description provided for @skillsGithubTruncated.
+  ///
+  /// In en, this message translates to:
+  /// **'The repository listing was truncated by GitHub; some skills may be missing.'**
+  String get skillsGithubTruncated;
+
+  /// No description provided for @skillsGithubListFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to list skills'**
+  String get skillsGithubListFailed;
+
+  /// No description provided for @skillsFormatHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'A skill is a folder under .agents/skills/ containing a SKILL.md with YAML frontmatter (name must equal the folder name). Skills are compatible with Claude Code and Anybuff.'**
+  String get skillsFormatHelp;
+
+  /// No description provided for @skillsDesktopDeleteHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Global skills live in {path}. That directory is shared with Claude Code and other tools, so in-app deletion is disabled — remove a skill by deleting its folder.'**
+  String skillsDesktopDeleteHint(String path);
+
+  /// No description provided for @skillsProjectHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Project skills are auto-discovered from .agents/skills/ in the conversation workspace and are read-only.'**
+  String get skillsProjectHint;
+
+  /// No description provided for @skillsNoBackupNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Skills are plain files on disk and are not included in backups.'**
+  String get skillsNoBackupNote;
+
+  /// No description provided for @skillsOpenFolderTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Open skills folder'**
+  String get skillsOpenFolderTooltip;
+
+  /// No description provided for @chatInputBarSkillsTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Skills'**
+  String get chatInputBarSkillsTooltip;
+
+  /// No description provided for @skillInvocationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Skill \"{name}\" is not installed'**
+  String skillInvocationFailed(String name);
+
+  /// No description provided for @chatMessageWidgetSkillLoad.
+  ///
+  /// In en, this message translates to:
+  /// **'Load skill: {name}'**
+  String chatMessageWidgetSkillLoad(String name);
 }
 
 class _AppLocalizationsDelegate

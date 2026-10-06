@@ -8,6 +8,7 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
+import '../../../core/providers/skills_provider.dart';
 import '../../../core/providers/ai_team_provider.dart';
 import '../../../core/services/api/builtin_tools.dart';
 import '../../../desktop/desktop_context_menu.dart';
@@ -58,6 +59,7 @@ class ChatInputSection extends StatelessWidget {
     this.onPickPhotos,
     this.onUploadFiles,
     this.onToggleInstructionInjection,
+    this.onOpenSkills,
     this.onLongPressInstruction,
     this.onVoiceChat,
     this.onToggleAiTeam,
@@ -103,6 +105,7 @@ class ChatInputSection extends StatelessWidget {
   final VoidCallback? onPickPhotos;
   final VoidCallback? onUploadFiles;
   final VoidCallback? onToggleInstructionInjection;
+  final VoidCallback? onOpenSkills;
   final VoidCallback? onLongPressInstruction;
   final VoidCallback? onVoiceChat;
   final VoidCallback? onToggleAiTeam;
@@ -198,6 +201,12 @@ class ChatInputSection extends StatelessWidget {
       onUploadFiles: isTablet ? onUploadFiles : null,
       onToggleInstructionInjection: isTablet
           ? onToggleInstructionInjection
+          : null,
+      // Agent Skills button: shown only when at least one skill is known
+      // (global scan + last-known project skills). Tablet/desktop only,
+      // mirroring the instruction button gate (R12).
+      onOpenSkills: isTablet && context.watch<SkillsProvider>().hasAnyKnownSkills
+          ? onOpenSkills
           : null,
       onLongPressInstruction: isTablet ? onLongPressInstruction : null,
       onVoiceChat: onVoiceChat,

@@ -75,6 +75,7 @@ class ChatInputBar extends StatefulWidget {
     this.onPickPhotos,
     this.onUploadFiles,
     this.onToggleInstructionInjection,
+    this.onOpenSkills,
     this.onClearContext,
     this.onCompressContext,
     this.onLongPressInstruction,
@@ -125,6 +126,7 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback? onPickPhotos;
   final VoidCallback? onUploadFiles;
   final VoidCallback? onToggleInstructionInjection;
+  final VoidCallback? onOpenSkills;
   final VoidCallback? onClearContext;
   final VoidCallback? onCompressContext;
   final VoidCallback? onLongPressInstruction;
@@ -1293,6 +1295,25 @@ class _ChatInputBarState extends State<ChatInputBar>
                   icon: Lucide.Layers,
                   label: l10n.instructionInjectionTitle,
                   onTap: widget.onToggleInstructionInjection,
+                ),
+              ),
+            );
+          }
+
+          if (widget.onOpenSkills != null) {
+            actions.add(
+              _OverflowAction(
+                id: 'skills',
+                width: normalButtonW,
+                builder: () => _CompactIconButton(
+                  tooltip: l10n.chatInputBarSkillsTooltip,
+                  icon: Lucide.Sparkles,
+                  onTap: widget.onOpenSkills,
+                ),
+                menu: DesktopContextMenuItem(
+                  icon: Lucide.Sparkles,
+                  label: l10n.chatInputBarSkillsTooltip,
+                  onTap: widget.onOpenSkills,
                 ),
               ),
             );

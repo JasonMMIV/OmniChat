@@ -4937,6 +4937,182 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get modelDetailReasoningProbeCancelled => '检测已取消';
+
+  @override
+  String get settingsPageSkills => '技能';
+
+  @override
+  String get skillsTitle => '技能';
+
+  @override
+  String get skillsPreloadTitle => '预载技能';
+
+  @override
+  String get skillsPreloadDescription =>
+      '预先将技能描述载入 LLM 上下文，让模型可自行调用。关闭时仍可用 /skill 指令调用。';
+
+  @override
+  String skillsInstalledSection(int count) {
+    return '已安装（$count）';
+  }
+
+  @override
+  String get skillsEmptyMessage => '尚未安装技能。可新增、汇入或从 GitHub 下载。';
+
+  @override
+  String get skillsLoading => '载入技能中…';
+
+  @override
+  String get skillsLoadError => '技能载入失败';
+
+  @override
+  String get skillsAddTooltip => '新增技能';
+
+  @override
+  String get skillsAddTitle => '新增技能';
+
+  @override
+  String get skillsImportTooltip => '汇入技能档案';
+
+  @override
+  String skillsImportSuccess(int count) {
+    return '已汇入 $count 个技能';
+  }
+
+  @override
+  String get skillsImportFailed => '汇入失败';
+
+  @override
+  String get skillsGithubTooltip => '从 GitHub 下载';
+
+  @override
+  String get skillsDeleteTooltip => '删除技能';
+
+  @override
+  String skillsDeleteConfirm(String name) {
+    return '删除技能「$name」？整个资料夹将被移除。';
+  }
+
+  @override
+  String skillsOverwriteConfirm(String name) {
+    return '已有同名技能「$name」，要覆写吗？';
+  }
+
+  @override
+  String get skillsConfirmButton => '确认';
+
+  @override
+  String get skillNameLabel => '名称';
+
+  @override
+  String get skillNameInvalid => '仅限小写字母、数字与单一连字号（例如 my-skill）。';
+
+  @override
+  String get skillDescriptionLabel => '描述';
+
+  @override
+  String get skillBodyLabel => '内容（Markdown）';
+
+  @override
+  String get skillScopeGlobal => '全域';
+
+  @override
+  String get skillScopeProject => '专案';
+
+  @override
+  String get skillSourceManual => '手动';
+
+  @override
+  String get skillSourceFile => '汇入';
+
+  @override
+  String get skillSourceGithub => 'GitHub';
+
+  @override
+  String get skillSourceExternal => '外部';
+
+  @override
+  String skillFilesCount(int count) {
+    return '$count 个档案';
+  }
+
+  @override
+  String get skillsFolderConfirmTitle => '安装技能资料夹';
+
+  @override
+  String skillsFolderConfirmFiles(int count) {
+    return '此 SKILL.md 旁有 $count 个档案，要一并安装整个资料夹吗？';
+  }
+
+  @override
+  String get skillsGithubDialogTitle => '从 GitHub 下载技能';
+
+  @override
+  String get skillsGithubRepoHint => 'owner/repo 或 GitHub 网址';
+
+  @override
+  String get skillsGithubListButton => '列出技能';
+
+  @override
+  String get skillsGithubListing => '读取储存库中…';
+
+  @override
+  String get skillsGithubDownloadButton => '下载';
+
+  @override
+  String skillsGithubDownloadSuccess(String name) {
+    return '已安装技能「$name」';
+  }
+
+  @override
+  String get skillsGithubError404 => '找不到储存库，可能是私人储存库。仅支援公开储存库。';
+
+  @override
+  String get skillsGithubRateLimit => '已达 GitHub API 速率限制（未验证每小时 60 次），请稍后再试。';
+
+  @override
+  String get skillsGithubInvalidRepo =>
+      '储存库格式错误。请使用 owner/repo 或 github.com 网址。';
+
+  @override
+  String get skillsGithubNoSkills => '此储存库中没有含 SKILL.md 的资料夹。';
+
+  @override
+  String get skillsGithubTruncated => 'GitHub 回应已截断，部分技能可能未列出。';
+
+  @override
+  String get skillsGithubListFailed => '列出技能失败';
+
+  @override
+  String get skillsFormatHelp =>
+      '技能是 .agents/skills/ 下包含 SKILL.md（YAML frontmatter，name 必须等于资料夹名）的资料夹，与 Claude Code、Anybuff 相容。';
+
+  @override
+  String skillsDesktopDeleteHint(String path) {
+    return '全域技能位于 $path。该目录与 Claude Code 等其他工具共用，因此本应用不提供删除——请手动删除对应资料夹。';
+  }
+
+  @override
+  String get skillsProjectHint => '专案技能从对话工作区的 .agents/skills/ 自动发现，为唯读。';
+
+  @override
+  String get skillsNoBackupNote => '技能是磁碟上的普通档案，不包含在备份中。';
+
+  @override
+  String get skillsOpenFolderTooltip => '开启技能资料夹';
+
+  @override
+  String get chatInputBarSkillsTooltip => '技能';
+
+  @override
+  String skillInvocationFailed(String name) {
+    return '技能「$name」未安装';
+  }
+
+  @override
+  String chatMessageWidgetSkillLoad(String name) {
+    return '载入技能：$name';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -9661,6 +9837,182 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get modelDetailReasoningProbeCancelled => '检测已取消';
+
+  @override
+  String get settingsPageSkills => '技能';
+
+  @override
+  String get skillsTitle => '技能';
+
+  @override
+  String get skillsPreloadTitle => '预载技能';
+
+  @override
+  String get skillsPreloadDescription =>
+      '预先将技能描述载入 LLM 上下文，让模型可自行调用。关闭时仍可用 /skill 指令调用。';
+
+  @override
+  String skillsInstalledSection(int count) {
+    return '已安装（$count）';
+  }
+
+  @override
+  String get skillsEmptyMessage => '尚未安装技能。可新增、汇入或从 GitHub 下载。';
+
+  @override
+  String get skillsLoading => '载入技能中…';
+
+  @override
+  String get skillsLoadError => '技能载入失败';
+
+  @override
+  String get skillsAddTooltip => '新增技能';
+
+  @override
+  String get skillsAddTitle => '新增技能';
+
+  @override
+  String get skillsImportTooltip => '汇入技能档案';
+
+  @override
+  String skillsImportSuccess(int count) {
+    return '已汇入 $count 个技能';
+  }
+
+  @override
+  String get skillsImportFailed => '汇入失败';
+
+  @override
+  String get skillsGithubTooltip => '从 GitHub 下载';
+
+  @override
+  String get skillsDeleteTooltip => '删除技能';
+
+  @override
+  String skillsDeleteConfirm(String name) {
+    return '删除技能「$name」？整个资料夹将被移除。';
+  }
+
+  @override
+  String skillsOverwriteConfirm(String name) {
+    return '已有同名技能「$name」，要覆写吗？';
+  }
+
+  @override
+  String get skillsConfirmButton => '确认';
+
+  @override
+  String get skillNameLabel => '名称';
+
+  @override
+  String get skillNameInvalid => '仅限小写字母、数字与单一连字号（例如 my-skill）。';
+
+  @override
+  String get skillDescriptionLabel => '描述';
+
+  @override
+  String get skillBodyLabel => '内容（Markdown）';
+
+  @override
+  String get skillScopeGlobal => '全域';
+
+  @override
+  String get skillScopeProject => '专案';
+
+  @override
+  String get skillSourceManual => '手动';
+
+  @override
+  String get skillSourceFile => '汇入';
+
+  @override
+  String get skillSourceGithub => 'GitHub';
+
+  @override
+  String get skillSourceExternal => '外部';
+
+  @override
+  String skillFilesCount(int count) {
+    return '$count 个档案';
+  }
+
+  @override
+  String get skillsFolderConfirmTitle => '安装技能资料夹';
+
+  @override
+  String skillsFolderConfirmFiles(int count) {
+    return '此 SKILL.md 旁有 $count 个档案，要一并安装整个资料夹吗？';
+  }
+
+  @override
+  String get skillsGithubDialogTitle => '从 GitHub 下载技能';
+
+  @override
+  String get skillsGithubRepoHint => 'owner/repo 或 GitHub 网址';
+
+  @override
+  String get skillsGithubListButton => '列出技能';
+
+  @override
+  String get skillsGithubListing => '读取储存库中…';
+
+  @override
+  String get skillsGithubDownloadButton => '下载';
+
+  @override
+  String skillsGithubDownloadSuccess(String name) {
+    return '已安装技能「$name」';
+  }
+
+  @override
+  String get skillsGithubError404 => '找不到储存库，可能是私人储存库。仅支援公开储存库。';
+
+  @override
+  String get skillsGithubRateLimit => '已达 GitHub API 速率限制（未验证每小时 60 次），请稍后再试。';
+
+  @override
+  String get skillsGithubInvalidRepo =>
+      '储存库格式错误。请使用 owner/repo 或 github.com 网址。';
+
+  @override
+  String get skillsGithubNoSkills => '此储存库中没有含 SKILL.md 的资料夹。';
+
+  @override
+  String get skillsGithubTruncated => 'GitHub 回应已截断，部分技能可能未列出。';
+
+  @override
+  String get skillsGithubListFailed => '列出技能失败';
+
+  @override
+  String get skillsFormatHelp =>
+      '技能是 .agents/skills/ 下包含 SKILL.md（YAML frontmatter，name 必须等于资料夹名）的资料夹，与 Claude Code、Anybuff 相容。';
+
+  @override
+  String skillsDesktopDeleteHint(String path) {
+    return '全域技能位于 $path。该目录与 Claude Code 等其他工具共用，因此本应用不提供删除——请手动删除对应资料夹。';
+  }
+
+  @override
+  String get skillsProjectHint => '专案技能从对话工作区的 .agents/skills/ 自动发现，为唯读。';
+
+  @override
+  String get skillsNoBackupNote => '技能是磁碟上的普通档案，不包含在备份中。';
+
+  @override
+  String get skillsOpenFolderTooltip => '开启技能资料夹';
+
+  @override
+  String get chatInputBarSkillsTooltip => '技能';
+
+  @override
+  String skillInvocationFailed(String name) {
+    return '技能「$name」未安装';
+  }
+
+  @override
+  String chatMessageWidgetSkillLoad(String name) {
+    return '载入技能：$name';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -14485,4 +14837,180 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get modelDetailReasoningProbeCancelled => '偵測已取消';
+
+  @override
+  String get settingsPageSkills => '技能';
+
+  @override
+  String get skillsTitle => '技能';
+
+  @override
+  String get skillsPreloadTitle => '預載技能';
+
+  @override
+  String get skillsPreloadDescription =>
+      '預先將技能描述載入 LLM 上下文，讓模型可自行調用。關閉時仍可用 /skill 指令調用。';
+
+  @override
+  String skillsInstalledSection(int count) {
+    return '已安裝（$count）';
+  }
+
+  @override
+  String get skillsEmptyMessage => '尚未安裝技能。可新增、匯入或從 GitHub 下載。';
+
+  @override
+  String get skillsLoading => '載入技能中…';
+
+  @override
+  String get skillsLoadError => '技能載入失敗';
+
+  @override
+  String get skillsAddTooltip => '新增技能';
+
+  @override
+  String get skillsAddTitle => '新增技能';
+
+  @override
+  String get skillsImportTooltip => '匯入技能檔案';
+
+  @override
+  String skillsImportSuccess(int count) {
+    return '已匯入 $count 個技能';
+  }
+
+  @override
+  String get skillsImportFailed => '匯入失敗';
+
+  @override
+  String get skillsGithubTooltip => '從 GitHub 下載';
+
+  @override
+  String get skillsDeleteTooltip => '刪除技能';
+
+  @override
+  String skillsDeleteConfirm(String name) {
+    return '刪除技能「$name」？整個資料夾將被移除。';
+  }
+
+  @override
+  String skillsOverwriteConfirm(String name) {
+    return '已有同名技能「$name」，要覆寫嗎？';
+  }
+
+  @override
+  String get skillsConfirmButton => '確認';
+
+  @override
+  String get skillNameLabel => '名稱';
+
+  @override
+  String get skillNameInvalid => '僅限小寫字母、數字與單一連字號（例如 my-skill）。';
+
+  @override
+  String get skillDescriptionLabel => '描述';
+
+  @override
+  String get skillBodyLabel => '內容（Markdown）';
+
+  @override
+  String get skillScopeGlobal => '全域';
+
+  @override
+  String get skillScopeProject => '專案';
+
+  @override
+  String get skillSourceManual => '手動';
+
+  @override
+  String get skillSourceFile => '匯入';
+
+  @override
+  String get skillSourceGithub => 'GitHub';
+
+  @override
+  String get skillSourceExternal => '外部';
+
+  @override
+  String skillFilesCount(int count) {
+    return '$count 個檔案';
+  }
+
+  @override
+  String get skillsFolderConfirmTitle => '安裝技能資料夾';
+
+  @override
+  String skillsFolderConfirmFiles(int count) {
+    return '此 SKILL.md 旁有 $count 個檔案，要一併安裝整個資料夾嗎？';
+  }
+
+  @override
+  String get skillsGithubDialogTitle => '從 GitHub 下載技能';
+
+  @override
+  String get skillsGithubRepoHint => 'owner/repo 或 GitHub 網址';
+
+  @override
+  String get skillsGithubListButton => '列出技能';
+
+  @override
+  String get skillsGithubListing => '讀取儲存庫中…';
+
+  @override
+  String get skillsGithubDownloadButton => '下載';
+
+  @override
+  String skillsGithubDownloadSuccess(String name) {
+    return '已安裝技能「$name」';
+  }
+
+  @override
+  String get skillsGithubError404 => '找不到儲存庫，可能是私人儲存庫。僅支援公開儲存庫。';
+
+  @override
+  String get skillsGithubRateLimit => '已達 GitHub API 速率限制（未驗證每小時 60 次），請稍後再試。';
+
+  @override
+  String get skillsGithubInvalidRepo =>
+      '儲存庫格式錯誤。請使用 owner/repo 或 github.com 網址。';
+
+  @override
+  String get skillsGithubNoSkills => '此儲存庫中沒有含 SKILL.md 的資料夾。';
+
+  @override
+  String get skillsGithubTruncated => 'GitHub 回應已截斷，部分技能可能未列出。';
+
+  @override
+  String get skillsGithubListFailed => '列出技能失敗';
+
+  @override
+  String get skillsFormatHelp =>
+      '技能是 .agents/skills/ 下包含 SKILL.md（YAML frontmatter，name 必須等於資料夾名）的資料夾，與 Claude Code、Anybuff 相容。';
+
+  @override
+  String skillsDesktopDeleteHint(String path) {
+    return '全域技能位於 $path。該目錄與 Claude Code 等其他工具共用，因此本應用不提供刪除——請手動刪除對應資料夾。';
+  }
+
+  @override
+  String get skillsProjectHint => '專案技能從對話工作區的 .agents/skills/ 自動發現，為唯讀。';
+
+  @override
+  String get skillsNoBackupNote => '技能是磁碟上的普通檔案，不包含在備份中。';
+
+  @override
+  String get skillsOpenFolderTooltip => '開啟技能資料夾';
+
+  @override
+  String get chatInputBarSkillsTooltip => '技能';
+
+  @override
+  String skillInvocationFailed(String name) {
+    return '技能「$name」未安裝';
+  }
+
+  @override
+  String chatMessageWidgetSkillLoad(String name) {
+    return '載入技能：$name';
+  }
 }

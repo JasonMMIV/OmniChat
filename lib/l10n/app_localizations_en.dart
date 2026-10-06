@@ -4975,4 +4975,188 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get modelDetailReasoningProbeCancelled => 'Detection cancelled';
+
+  @override
+  String get settingsPageSkills => 'Skills';
+
+  @override
+  String get skillsTitle => 'Skills';
+
+  @override
+  String get skillsPreloadTitle => 'Preload skills';
+
+  @override
+  String get skillsPreloadDescription =>
+      'Load skill descriptions into the LLM context so it can invoke skills on its own. When off, you can still invoke a skill with the /skill command.';
+
+  @override
+  String skillsInstalledSection(int count) {
+    return 'Installed ($count)';
+  }
+
+  @override
+  String get skillsEmptyMessage =>
+      'No skills installed yet. Add, import, or download from GitHub.';
+
+  @override
+  String get skillsLoading => 'Loading skills…';
+
+  @override
+  String get skillsLoadError => 'Failed to load skills';
+
+  @override
+  String get skillsAddTooltip => 'Add skill';
+
+  @override
+  String get skillsAddTitle => 'New Skill';
+
+  @override
+  String get skillsImportTooltip => 'Import skill files';
+
+  @override
+  String skillsImportSuccess(int count) {
+    return 'Imported $count';
+  }
+
+  @override
+  String get skillsImportFailed => 'Import failed';
+
+  @override
+  String get skillsGithubTooltip => 'Download from GitHub';
+
+  @override
+  String get skillsDeleteTooltip => 'Delete skill';
+
+  @override
+  String skillsDeleteConfirm(String name) {
+    return 'Delete skill \"$name\"? The whole folder will be removed.';
+  }
+
+  @override
+  String skillsOverwriteConfirm(String name) {
+    return 'A skill named \"$name\" already exists. Overwrite it?';
+  }
+
+  @override
+  String get skillsConfirmButton => 'Confirm';
+
+  @override
+  String get skillNameLabel => 'Name';
+
+  @override
+  String get skillNameInvalid =>
+      'Lowercase letters, digits and single hyphens only (e.g. my-skill).';
+
+  @override
+  String get skillDescriptionLabel => 'Description';
+
+  @override
+  String get skillBodyLabel => 'Instructions (Markdown)';
+
+  @override
+  String get skillScopeGlobal => 'Global';
+
+  @override
+  String get skillScopeProject => 'Project';
+
+  @override
+  String get skillSourceManual => 'Manual';
+
+  @override
+  String get skillSourceFile => 'Imported';
+
+  @override
+  String get skillSourceGithub => 'GitHub';
+
+  @override
+  String get skillSourceExternal => 'External';
+
+  @override
+  String skillFilesCount(int count) {
+    return '$count files';
+  }
+
+  @override
+  String get skillsFolderConfirmTitle => 'Install skill folder';
+
+  @override
+  String skillsFolderConfirmFiles(int count) {
+    return 'This SKILL.md sits next to $count file(s). Install the whole folder?';
+  }
+
+  @override
+  String get skillsGithubDialogTitle => 'Download skills from GitHub';
+
+  @override
+  String get skillsGithubRepoHint => 'owner/repo or GitHub URL';
+
+  @override
+  String get skillsGithubListButton => 'List skills';
+
+  @override
+  String get skillsGithubListing => 'Loading repository…';
+
+  @override
+  String get skillsGithubDownloadButton => 'Download';
+
+  @override
+  String skillsGithubDownloadSuccess(String name) {
+    return 'Installed skill \"$name\"';
+  }
+
+  @override
+  String get skillsGithubError404 =>
+      'Repository not found. It may be private — only public repositories are supported.';
+
+  @override
+  String get skillsGithubRateLimit =>
+      'GitHub API rate limit reached (60 unauthenticated requests/hour). Try again later.';
+
+  @override
+  String get skillsGithubInvalidRepo =>
+      'Invalid repository. Use owner/repo or a github.com URL.';
+
+  @override
+  String get skillsGithubNoSkills =>
+      'No folders containing SKILL.md found in this repository.';
+
+  @override
+  String get skillsGithubTruncated =>
+      'The repository listing was truncated by GitHub; some skills may be missing.';
+
+  @override
+  String get skillsGithubListFailed => 'Failed to list skills';
+
+  @override
+  String get skillsFormatHelp =>
+      'A skill is a folder under .agents/skills/ containing a SKILL.md with YAML frontmatter (name must equal the folder name). Skills are compatible with Claude Code and Anybuff.';
+
+  @override
+  String skillsDesktopDeleteHint(String path) {
+    return 'Global skills live in $path. That directory is shared with Claude Code and other tools, so in-app deletion is disabled — remove a skill by deleting its folder.';
+  }
+
+  @override
+  String get skillsProjectHint =>
+      'Project skills are auto-discovered from .agents/skills/ in the conversation workspace and are read-only.';
+
+  @override
+  String get skillsNoBackupNote =>
+      'Skills are plain files on disk and are not included in backups.';
+
+  @override
+  String get skillsOpenFolderTooltip => 'Open skills folder';
+
+  @override
+  String get chatInputBarSkillsTooltip => 'Skills';
+
+  @override
+  String skillInvocationFailed(String name) {
+    return 'Skill \"$name\" is not installed';
+  }
+
+  @override
+  String chatMessageWidgetSkillLoad(String name) {
+    return 'Load skill: $name';
+  }
 }

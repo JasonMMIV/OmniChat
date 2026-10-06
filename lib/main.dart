@@ -26,6 +26,8 @@ import 'core/providers/tag_provider.dart';
 import 'core/providers/update_provider.dart';
 import 'core/providers/quick_phrase_provider.dart';
 import 'core/providers/instruction_injection_provider.dart';
+import 'core/providers/skills_provider.dart';
+import 'core/services/skills/skill_service.dart';
 import 'core/providers/ai_team_provider.dart';
 import 'core/providers/memory_provider.dart';
 import 'core/providers/backup_provider.dart';
@@ -35,6 +37,7 @@ import 'core/services/chat/todo_service.dart';
 import 'core/services/mcp/mcp_tool_service.dart';
 import 'core/services/mcp/academic/academic_server.dart';
 import 'core/services/logging/flutter_logger.dart';
+import 'utils/app_directories.dart';
 import 'utils/sandbox_path_resolver.dart';
 import 'shared/widgets/app_overlays.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -147,6 +150,16 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => UpdateProvider()),
         ChangeNotifierProvider(create: (_) => QuickPhraseProvider()),
         ChangeNotifierProvider(create: (_) => InstructionInjectionProvider()),
+        // Agent Skills: resolve the IO roots once (path_provider hook +
+        // home dir) and preload the global scan for the settings page and
+        // the input-bar skills button.
+        ChangeNotifierProvider(
+          create: (_) {
+            SkillService.appDataDirectoryHook =
+                AppDirectories.getAppDataDirectory;
+            return SkillsProvider()..initialize();
+          },
+        ),
         ChangeNotifierProvider(create: (_) => AiTeamProvider()),
         ChangeNotifierProvider(create: (_) => MemoryProvider()),
         // Desktop hotkeys provider

@@ -1823,7 +1823,6 @@
     }
   },
   "chatMessageWidgetDeleteConfirmDelete": "Delete",
-
   "helloWorld": "你好，世界！",
   "settingsPageDisplaySubtitle": "界面主题与字号等外观设置",
   "settingsPageAssistantSubtitle": "默认项目与对话风格",
@@ -2098,5 +2097,126 @@
   "modelDetailReasoningProbeResultTitle": "Detection result",
   "modelDetailReasoningProbeApply": "Apply detected levels",
   "modelDetailReasoningProbeKeepCurrent": "Keep current settings",
-  "modelDetailReasoningProbeCancelled": "Detection cancelled"
+  "modelDetailReasoningProbeCancelled": "Detection cancelled",
+  "settingsPageSkills": "Skills",
+  "skillsTitle": "Skills",
+  "skillsPreloadTitle": "Preload skills",
+  "skillsPreloadDescription": "Load skill descriptions into the LLM context so it can invoke skills on its own. When off, you can still invoke a skill with the /skill command.",
+  "skillsInstalledSection": "Installed ({count})",
+  "skillsEmptyMessage": "No skills installed yet. Add, import, or download from GitHub.",
+  "skillsLoading": "Loading skills…",
+  "skillsLoadError": "Failed to load skills",
+  "skillsAddTooltip": "Add skill",
+  "skillsAddTitle": "New Skill",
+  "skillsImportTooltip": "Import skill files",
+  "skillsImportSuccess": "Imported {count}",
+  "skillsImportFailed": "Import failed",
+  "skillsGithubTooltip": "Download from GitHub",
+  "skillsDeleteTooltip": "Delete skill",
+  "skillsDeleteConfirm": "Delete skill \"{name}\"? The whole folder will be removed.",
+  "skillsOverwriteConfirm": "A skill named \"{name}\" already exists. Overwrite it?",
+  "skillsConfirmButton": "Confirm",
+  "skillNameLabel": "Name",
+  "skillNameInvalid": "Lowercase letters, digits and single hyphens only (e.g. my-skill).",
+  "skillDescriptionLabel": "Description",
+  "skillBodyLabel": "Instructions (Markdown)",
+  "skillScopeGlobal": "Global",
+  "skillScopeProject": "Project",
+  "skillSourceManual": "Manual",
+  "skillSourceFile": "Imported",
+  "skillSourceGithub": "GitHub",
+  "skillSourceExternal": "External",
+  "skillFilesCount": "{count} files",
+  "skillsFolderConfirmTitle": "Install skill folder",
+  "skillsFolderConfirmFiles": "This SKILL.md sits next to {count} file(s). Install the whole folder?",
+  "skillsGithubDialogTitle": "Download skills from GitHub",
+  "skillsGithubRepoHint": "owner/repo or GitHub URL",
+  "skillsGithubListButton": "List skills",
+  "skillsGithubListing": "Loading repository…",
+  "skillsGithubDownloadButton": "Download",
+  "skillsGithubDownloadSuccess": "Installed skill \"{name}\"",
+  "skillsGithubError404": "Repository not found. It may be private — only public repositories are supported.",
+  "skillsGithubRateLimit": "GitHub API rate limit reached (60 unauthenticated requests/hour). Try again later.",
+  "skillsGithubInvalidRepo": "Invalid repository. Use owner/repo or a github.com URL.",
+  "skillsGithubNoSkills": "No folders containing SKILL.md found in this repository.",
+  "skillsGithubTruncated": "The repository listing was truncated by GitHub; some skills may be missing.",
+  "skillsGithubListFailed": "Failed to list skills",
+  "skillsFormatHelp": "A skill is a folder under .agents/skills/ containing a SKILL.md with YAML frontmatter (name must equal the folder name). Skills are compatible with Claude Code and Anybuff.",
+  "skillsDesktopDeleteHint": "Global skills live in {path}. That directory is shared with Claude Code and other tools, so in-app deletion is disabled — remove a skill by deleting its folder.",
+  "skillsProjectHint": "Project skills are auto-discovered from .agents/skills/ in the conversation workspace and are read-only.",
+  "skillsNoBackupNote": "Skills are plain files on disk and are not included in backups.",
+  "skillsOpenFolderTooltip": "Open skills folder",
+  "chatInputBarSkillsTooltip": "Skills",
+  "skillInvocationFailed": "Skill \"{name}\" is not installed",
+  "chatMessageWidgetSkillLoad": "Load skill: {name}",
+  "@skillsInstalledSection": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@skillsImportSuccess": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@skillsDeleteConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@skillsOverwriteConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@skillFilesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@skillsFolderConfirmFiles": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@skillsGithubDownloadSuccess": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@skillsDesktopDeleteHint": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "@skillInvocationFailed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@chatMessageWidgetSkillLoad": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
 }
