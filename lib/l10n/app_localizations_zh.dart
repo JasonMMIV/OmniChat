@@ -5085,7 +5085,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get skillsFormatHelp =>
-      '技能是 .agents/skills/ 下包含 SKILL.md（YAML frontmatter，name 必须等于资料夹名）的资料夹，与 Claude Code 相容。在聊天输入列输入 /skill <名称>，或点技能按钮即可载入。';
+      '技能是 .agents/skills/ 下包含 SKILL.md（YAML frontmatter，name 必须等于资料夹名）的资料夹，与 Claude Code 等其他工具相容。在聊天输入列输入 /skill <名称>，或点技能按钮即可载入。';
 
   @override
   String get skillsInvocationEmptyPlaceholder => '请按照上方载入的技能内容执行。';
@@ -9993,7 +9993,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get skillsFormatHelp =>
-      '技能是 .agents/skills/ 下包含 SKILL.md（YAML frontmatter，name 必须等于资料夹名）的资料夹，与 Claude Code 相容。在聊天输入列输入 /skill <名称>，或点技能按钮即可载入。';
+      '技能是 .agents/skills/ 下包含 SKILL.md（YAML frontmatter，name 必须等于资料夹名）的资料夹，与 Claude Code 等其他工具相容。在聊天输入列输入 /skill <名称>，或点技能按钮即可载入。';
 
   @override
   String get skillsInvocationEmptyPlaceholder => '请按照上方载入的技能内容执行。';
@@ -15001,7 +15001,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get skillsFormatHelp =>
-      '技能是 .agents/skills/ 下包含 SKILL.md（YAML frontmatter，name 必須等於資料夾名）的資料夾，與 Claude Code 相容。在聊天輸入列輸入 /skill <名稱>，或點技能按鈕即可載入。';
+      '技能是 .agents/skills/ 下包含 SKILL.md（YAML frontmatter，name 必須等於資料夾名）的資料夾，與 Claude Code 等其他工具相容。在聊天輸入列輸入 /skill <名稱>，或點技能按鈕即可載入。';
 
   @override
   String get skillsInvocationEmptyPlaceholder => '請按照上方載入的技能內容執行。';

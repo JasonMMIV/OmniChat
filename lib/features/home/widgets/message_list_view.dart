@@ -5,6 +5,7 @@ import '../../../core/models/chat_message.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
+import '../../../core/services/skills/skill_invocations.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/platform_utils.dart';
 import '../../../shared/widgets/ios_checkbox.dart';
@@ -484,6 +485,21 @@ class MessageListView extends StatelessWidget {
     );
   }
 
+  /// Names of skills invoked via valid `/skill <name>` tokens in the nearest
+  /// preceding user message — the prompt of [index]'s assistant reply — in
+  /// token order, deduped. Empty when there is no such message or no tokens.
+  static List<String> _skillNamesFromPrecedingUserMessage(
+    List<ChatMessage> messages,
+    int index,
+  ) {
+    for (var i = index - 1; i >= 0; i--) {
+      final m = messages[i];
+      if (m.role != 'user') continue;
+      return SkillInvocations.extractSkillNames(m.content);
+    }
+    return const <String>[];
+  }
+
   /// Build the actual ChatMessageWidget with all its properties.
   Widget _buildChatMessageWidget(
     BuildContext context, {
@@ -542,6 +558,13 @@ class MessageListView extends StatelessWidget {
       onToggleTranslation: (message.translation != null && message.translation!.isNotEmpty && t != null)
           ? () => onToggleTranslation?.call(message.id)
           : null,
+      // `/skill` load rows (2026-10-06): the assembly-time /skill injection
+      // creates no tool event, so the assistant side derives the invoked
+      // skill names from the turn's user message and renders static 載入技能
+      // rows (the `/skill` counterpart of the autonomous `skill` tool card).
+      userInvokedSkillNames: message.role == 'assistant'
+          ? _skillNamesFromPrecedingUserMessage(messages, index)
+          : const <String>[],
       onRegenerate: message.role == 'assistant' ? () => onRegenerateMessage?.call(message) : null,
       onResend: message.role == 'user' ? () => onResendMessage?.call(message) : null,
       onTranslate: message.role == 'assistant' ? () => onTranslateMessage?.call(message) : null,

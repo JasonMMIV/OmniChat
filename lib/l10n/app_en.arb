@@ -2141,7 +2141,7 @@
   "skillsGithubNoSkills": "No folders containing SKILL.md found in this repository.",
   "skillsGithubTruncated": "The repository listing was truncated by GitHub; some skills may be missing.",
   "skillsGithubListFailed": "Failed to list skills",
-  "skillsFormatHelp": "A skill is a folder under .agents/skills/ containing a SKILL.md with YAML frontmatter (name must equal the folder name). Skills are compatible with Claude Code. In chat, type /skill <name> or use the skills button to load one.",
+  "skillsFormatHelp": "A skill is a folder under .agents/skills/ containing a SKILL.md with YAML frontmatter (name must equal the folder name). Skills are compatible with Claude Code and other tools. In chat, type /skill <name> or use the skills button to load one.",
   "skillsInvocationEmptyPlaceholder": "Follow the instructions in the skill loaded above.",
   "skillsDesktopDeleteHint": "Global skills live in {path}. That directory is shared with Claude Code and other tools, so in-app deletion is disabled — remove a skill by deleting its folder.",
   "skillsProjectHint": "Project skills are auto-discovered from .agents/skills/ in the conversation workspace and are read-only.",

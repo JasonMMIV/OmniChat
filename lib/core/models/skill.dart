@@ -63,7 +63,9 @@ class SkillDefinition {
   final bool disableModelInvocation;
 
   /// Complete SKILL.md text (frontmatter included) — this is what the `skill`
-  /// tool returns and what `/skill <name>` injects.
+  /// tool returns. `/skill <name>` injects it with the frontmatter stripped
+  /// (`SkillParser.stripFrontmatter`), so the `description` gating wording
+  /// cannot re-enter the activated payload.
   final String content;
 
   /// Absolute path of the SKILL.md file.

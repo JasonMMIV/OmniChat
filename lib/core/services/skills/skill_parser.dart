@@ -138,6 +138,35 @@ class SkillParser {
     return result;
   }
 
+  /// Returns [content] without its leading `---\n…\n---` YAML frontmatter
+  /// block and the blank lines directly after it. Returns [content]
+  /// unchanged when there is no (properly closed) frontmatter block.
+  ///
+  /// `/skill` injection (2026-10-06) strips the frontmatter so the activated
+  /// payload no longer carries the `description` gating wording ("use ONLY
+  /// when the user explicitly…") — models read it mid-payload and
+  /// second-guessed whether the skill was active, even though the user had
+  /// just invoked it.
+  static String stripFrontmatter(String content) {
+    final normalized = content.replaceFirst(RegExp(r'^\uFEFF'), '');
+    final lines = normalized.split('\n');
+    var i = 0;
+    while (i < lines.length && lines[i].trim().isEmpty) {
+      i++;
+    }
+    if (i >= lines.length || lines[i].trim() != '---') return content;
+    var j = i + 1;
+    while (j < lines.length && lines[j].trim() != '---') {
+      j++;
+    }
+    if (j >= lines.length) return content; // unterminated → leave as-is
+    var k = j + 1;
+    while (k < lines.length && lines[k].trim().isEmpty) {
+      k++;
+    }
+    return lines.sublist(k).join('\n');
+  }
+
   /// Reads the top-level `metadata:` block's one-level-indented scalar pairs
   /// (provenance stamp: `source`, `installedAt`). Lenient — unknown shapes
   /// simply contribute nothing.
