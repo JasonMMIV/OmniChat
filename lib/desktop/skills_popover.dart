@@ -277,7 +277,7 @@ class _SkillRowState extends State<_SkillRow> {
           child: Row(
             children: [
               Icon(
-                Lucide.Sparkles,
+                Lucide.WandSparkles,
                 size: 16,
                 color: cs.primary.withOpacity(0.8),
               ),

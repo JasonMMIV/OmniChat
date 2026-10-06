@@ -17,6 +17,7 @@ import '../../../core/services/skills/skill_invocations.dart';
 import '../../../core/services/skills/skill_service.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/snackbar.dart';
 import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant_regex.dart';
 import '../controllers/stream_controller.dart' as stream_ctrl;
@@ -259,13 +260,28 @@ class MessageGenerationService {
           workspacePath: workspacePath,
           globalRoot: SkillService.cachedGlobalRoot,
         ),
+        emptyContentPlaceholder:
+            l10n?.skillsInvocationEmptyPlaceholder ??
+            'Follow the instructions in the skill loaded above.',
       );
       if (resolution.failedNames.isNotEmpty) {
         final firstName = resolution.failedNames.first;
-        onShowWarning?.call(
-          l10n?.skillInvocationFailed(firstName) ??
-              'Skill "$firstName" is not installed.',
-        );
+        final warning =
+            l10n?.skillInvocationFailed(firstName) ??
+            'Skill "$firstName" is not installed.';
+        // Nothing in the app assigns `onShowWarning` (home_page_controller
+        // never wires the callbacks), so a misspelled skill name used to fail
+        // completely silently — the exact confusion the `/skill` badge was
+        // added to remove. Fall back to a direct snackbar.
+        if (onShowWarning != null) {
+          onShowWarning!(warning);
+        } else if (contextProvider.mounted) {
+          showAppSnackBar(
+            contextProvider,
+            message: warning,
+            type: NotificationType.warning,
+          );
+        }
       }
     } catch (_) {}
 

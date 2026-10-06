@@ -56,7 +56,7 @@ class SkillsProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    await _seedExampleSkillIfNeeded();
+    await _cleanupSeededExampleSkill();
     await refresh();
   }
 
@@ -168,52 +168,44 @@ class SkillsProvider extends ChangeNotifier {
   }
 
   // ==========================================================================
-  // Example seed (§7.3)
-  // ==========================================================================
+  // One-time cleanup of the old example seed
+  // =========================================================================
 
-  /// Seeds one `example-skill` on first use so the page shows what a skill
-  /// looks like. The flag is device-local: once the user deletes the folder,
-  /// it never re-seeds (the desktop global dir is shared with other tools).
-  Future<void> _seedExampleSkillIfNeeded() async {
+  /// Distinctive line of the seed this app used to write on first use. A
+  /// folder is removed only when its SKILL.md still contains it verbatim, so
+  /// a skill the user has since edited or repurposed is never touched.
+  static const String _seededDescriptionSignature =
+      'A minimal example showing the SKILL.md format.';
+
+  /// Devices that ran the old first-use seed get the unmodified
+  /// `example-skill` folder removed once: seeding no longer happens
+  /// (2026-10-06 user feedback), desktop has no in-app delete, and the
+  /// global dir is shared with other tools — leaving it would strand it.
+  /// The flag is dropped afterwards; nothing is ever re-seeded.
+  Future<void> _cleanupSeededExampleSkill() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      if (prefs.getBool(_seededFlagKey) ?? false) return;
-      await prefs.setBool(_seededFlagKey, true);
+      if (!(prefs.getBool(_seededFlagKey) ?? false)) return;
       final root = _globalRootPath;
-      if (root == null) return;
-      final existing = Directory('$root/example-skill/SKILL.md');
-      if (existing.existsSync()) return;
-      await SkillService.installSkill(
-        name: 'example-skill',
-        content: SkillParser.buildSkillDocument(
-          name: 'example-skill',
-          description:
-              'A minimal example showing the SKILL.md format. Edit or delete it freely.',
-          body: _exampleSkillBody,
-        ),
-        source: SkillInstallSource.manual,
-        globalRoot: root,
-      );
+      var done = true;
+      if (root != null) {
+        final folder = Directory('$root/example-skill');
+        final skillFile = File('${folder.path}/SKILL.md');
+        if (skillFile.existsSync()) {
+          final content = await skillFile.readAsString();
+          if (content.contains(_seededDescriptionSignature)) {
+            try {
+              await folder.delete(recursive: true);
+            } catch (_) {
+              done = false; // locked this run — retry next launch
+            }
+          }
+          // Edited by the user → keep it; it belongs to them now.
+        }
+      }
+      if (done) await prefs.remove(_seededFlagKey);
     } catch (_) {
-      // Seeding is best-effort — never block startup.
+      // Best-effort cleanup — never block startup.
     }
   }
-
-  static const String _exampleSkillBody = '''
-# Example Skill
-
-This file demonstrates the skill format used by OmniChat, Claude Code and
-Anybuff (a folder with a `SKILL.md` under `.agents/skills/`).
-
-## When to use this skill
-
-Whenever the user asks what a "skill" is or how to write one.
-
-## Instructions
-
-1. Show this file's frontmatter as the canonical example.
-2. Explain that `name` must equal the folder name.
-3. Point the user to the Skills settings page for adding, importing or
-   downloading skills from GitHub.
-''';
 }

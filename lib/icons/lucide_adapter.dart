@@ -77,8 +77,10 @@ class Lucide {
   static const IconData EyeOff = lucide.LucideIcons.eyeOff;
   static const IconData Clipboard = lucide.LucideIcons.clipboard;
   static const IconData Sparkles = lucide.LucideIcons.sparkles;
+  static const IconData WandSparkles = lucide.LucideIcons.wandSparkles;
   static const IconData Phone = lucide.LucideIcons.phone;
   static const IconData Github = lucide.LucideIcons.cat;
+  static const IconData Package = lucide.LucideIcons.package;
   static const IconData Code = lucide.LucideIcons.code;
   static const IconData Hash = lucide.LucideIcons.hash;
   static const IconData Link = lucide.LucideIcons.link;

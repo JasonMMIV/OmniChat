@@ -9779,8 +9779,14 @@ abstract class AppLocalizations {
   /// No description provided for @skillsFormatHelp.
   ///
   /// In en, this message translates to:
-  /// **'A skill is a folder under .agents/skills/ containing a SKILL.md with YAML frontmatter (name must equal the folder name). Skills are compatible with Claude Code and Anybuff.'**
+  /// **'A skill is a folder under .agents/skills/ containing a SKILL.md with YAML frontmatter (name must equal the folder name). Skills are compatible with Claude Code. In chat, type /skill <name> or use the skills button to load one.'**
   String get skillsFormatHelp;
+
+  /// No description provided for @skillsInvocationEmptyPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow the instructions in the skill loaded above.'**
+  String get skillsInvocationEmptyPlaceholder;
 
   /// No description provided for @skillsDesktopDeleteHint.
   ///
@@ -9823,6 +9829,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Load skill: {name}'**
   String chatMessageWidgetSkillLoad(String name);
+
+  /// No description provided for @chatMessageWidgetSkillToken.
+  ///
+  /// In en, this message translates to:
+  /// **'Skill: {name}'**
+  String chatMessageWidgetSkillToken(String name);
 }
 
 class _AppLocalizationsDelegate

@@ -5129,7 +5129,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get skillsFormatHelp =>
-      'A skill is a folder under .agents/skills/ containing a SKILL.md with YAML frontmatter (name must equal the folder name). Skills are compatible with Claude Code and Anybuff.';
+      'A skill is a folder under .agents/skills/ containing a SKILL.md with YAML frontmatter (name must equal the folder name). Skills are compatible with Claude Code. In chat, type /skill <name> or use the skills button to load one.';
+
+  @override
+  String get skillsInvocationEmptyPlaceholder =>
+      'Follow the instructions in the skill loaded above.';
 
   @override
   String skillsDesktopDeleteHint(String path) {
@@ -5158,5 +5162,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String chatMessageWidgetSkillLoad(String name) {
     return 'Load skill: $name';
+  }
+
+  @override
+  String chatMessageWidgetSkillToken(String name) {
+    return 'Skill: $name';
   }
 }

@@ -1307,11 +1307,11 @@ class _ChatInputBarState extends State<ChatInputBar>
                 width: normalButtonW,
                 builder: () => _CompactIconButton(
                   tooltip: l10n.chatInputBarSkillsTooltip,
-                  icon: Lucide.Sparkles,
+                  icon: Lucide.WandSparkles,
                   onTap: widget.onOpenSkills,
                 ),
                 menu: DesktopContextMenuItem(
-                  icon: Lucide.Sparkles,
+                  icon: Lucide.WandSparkles,
                   label: l10n.chatInputBarSkillsTooltip,
                   onTap: widget.onOpenSkills,
                 ),

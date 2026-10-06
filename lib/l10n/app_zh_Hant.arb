@@ -1770,12 +1770,14 @@
   "skillsGithubNoSkills": "此儲存庫中沒有含 SKILL.md 的資料夾。",
   "skillsGithubTruncated": "GitHub 回應已截斷，部分技能可能未列出。",
   "skillsGithubListFailed": "列出技能失敗",
-  "skillsFormatHelp": "技能是 .agents/skills/ 下包含 SKILL.md（YAML frontmatter，name 必須等於資料夾名）的資料夾，與 Claude Code、Anybuff 相容。",
+  "skillsFormatHelp": "技能是 .agents/skills/ 下包含 SKILL.md（YAML frontmatter，name 必須等於資料夾名）的資料夾，與 Claude Code 相容。在聊天輸入列輸入 /skill <名稱>，或點技能按鈕即可載入。",
+  "skillsInvocationEmptyPlaceholder": "請按照上方載入的技能內容執行。",
   "skillsDesktopDeleteHint": "全域技能位於 {path}。該目錄與 Claude Code 等其他工具共用，因此本應用不提供刪除——請手動刪除對應資料夾。",
   "skillsProjectHint": "專案技能從對話工作區的 .agents/skills/ 自動發現，為唯讀。",
   "skillsNoBackupNote": "技能是磁碟上的普通檔案，不包含在備份中。",
   "skillsOpenFolderTooltip": "開啟技能資料夾",
   "chatInputBarSkillsTooltip": "技能",
   "skillInvocationFailed": "技能「{name}」未安裝",
-  "chatMessageWidgetSkillLoad": "載入技能：{name}"
+  "chatMessageWidgetSkillLoad": "載入技能：{name}",
+  "chatMessageWidgetSkillToken": "技能：{name}"
 }

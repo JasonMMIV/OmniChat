@@ -1,6 +1,6 @@
 # OmniChat Agent Skills 實作計劃
 
-> **狀態**：✅ 已實作（2026-10-06，v1.25.0；驗證：`dart analyze` skills 相關檔案 0 error、新增測試 88 條全過（含型錄回歸共 96 條）。手冊記錄見《OmniChat 專案開發與維護手冊.md》§3.15）
+> **狀態**：✅ 已實作（2026-10-06，v1.25.0；驗證：`dart analyze` skills 相關檔案 0 error、新增測試 88 條全過（含型錄回歸共 96 條）。同日實測回饋修訂：移除 example-skill 播種改一次性清理、`/skill` token-only 空內容修正＋氣泡技能徽章、圖示改 WandSparkles（GitHub 下載鈕 Package）、說明移除 Anybuff；新增測試至 93 條。同日 /review 對抗式審查修復三項：未命中 warning 補 snackbar fallback（`onShowWarning` 未接線時直接 `showAppSnackBar`）、徽章 tooltip 改中性 `chatMessageWidgetSkillToken`（不宣稱已載入）、長技能名 Flexible+ellipsis 截斷；`skills_context_test` 新增 2 邊界測試至 95 條（全套 982）。手冊記錄見《OmniChat 專案開發與維護手冊.md》§3.15）
 > **日期**：2026-10-05
 > **目標版本**：v1.25.0（開發中）
 > **參考**：Anybuff skills 子系統（`packages/host-core/src/skills/`、`common/src/types/skill.ts`、`packages/agent-runtime/src/tools/handlers/tool/skill.ts`）；本計畫的設計概念與 Anybuff 十分接近，差異處均已註明理由。

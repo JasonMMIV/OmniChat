@@ -243,7 +243,7 @@ class _SkillsPageState extends State<SkillsPage> {
           Tooltip(
             message: l10n.skillsGithubTooltip,
             child: _TactileIconButton(
-              icon: Lucide.Github,
+              icon: Lucide.Package,
               color: cs.onSurface,
               onTap: () => showGithubSkillsDialog(context),
             ),
@@ -418,7 +418,7 @@ class _EmptyState extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
       child: Column(
         children: [
-          Icon(Lucide.Sparkles, size: 56, color: cs.onSurface.withOpacity(0.3)),
+          Icon(Lucide.WandSparkles, size: 56, color: cs.onSurface.withOpacity(0.3)),
           const SizedBox(height: 16),
           Text(
             l10n.skillsEmptyMessage,
@@ -444,7 +444,7 @@ class _EmptyState extends StatelessWidget {
               ),
               OutlinedButton.icon(
                 onPressed: onGithub,
-                icon: Icon(Lucide.Github, size: 16),
+                icon: Icon(Lucide.Package, size: 16),
                 label: Text(l10n.skillsGithubTooltip),
               ),
             ],
@@ -489,7 +489,7 @@ class _SkillCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Lucide.Sparkles, size: 18, color: cs.primary),
+              Icon(Lucide.WandSparkles, size: 18, color: cs.primary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

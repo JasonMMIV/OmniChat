@@ -59,7 +59,7 @@ Future<SkillDefinition?> showSkillsSheet(
                   return ListTile(
                     dense: true,
                     leading: Icon(
-                      Lucide.Sparkles,
+                      Lucide.WandSparkles,
                       size: 18,
                       color: cs.primary,
                     ),
