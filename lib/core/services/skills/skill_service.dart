@@ -78,6 +78,10 @@ class SkillService {
   static String? debugHomeDirectoryOverride;
   static Directory? debugAppDataOverride;
 
+  /// Test-only: drops the cached global root so a new
+  /// [debugHomeDirectoryOverride] takes effect within the same process.
+  static void debugResetGlobalRootCache() => _globalRootCache = null;
+
   static Future<Directory> appDataDirectoryPath() async {
     final override = debugAppDataOverride;
     if (override != null) return override;

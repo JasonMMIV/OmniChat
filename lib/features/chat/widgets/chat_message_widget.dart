@@ -28,6 +28,7 @@ import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/agent/approval.dart';
+import '../../../core/services/skills/skill_invocations.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../core/providers/assistant_provider.dart';
 import 'package:intl/intl.dart';
@@ -750,6 +751,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     );
     final showUserActions = settings.showUserMessageActions;
     final showVersionSwitcher = (widget.versionCount ?? 1) > 1;
+    final skillNames = SkillInvocations.extractSkillInvocations(
+      widget.message.content,
+    ).map((e) => e.name).toSet();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -846,14 +850,78 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               key: _userBubbleKey,
               constraints: BoxConstraints(
                 maxWidth: MediaQuery.sizeOf(context).width * 0.75,
-              ),
-              child: _buildBubbleContainer(
-                context: context,
-                isUser: true,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    if (visualText.isNotEmpty)
+              ),                child: _buildBubbleContainer(
+                  context: context,
+                  isUser: true,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // `/skill <name>` invocation badges — the token stays
+                      // in the persisted message (assembly-time resolution),
+                      // so surface it: a token-only message would otherwise
+                      // render as an empty bubble with no visible feedback.
+                      if (skillNames.isNotEmpty) ...[
+                        Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            for (final skillName in skillNames)
+                              Tooltip(
+                                // Neutral wording on purpose: the badge marks
+                                // the token the user typed, and the skill may
+                                // no longer be installed — claiming it "loaded"
+                                // would be false. Load failures surface as a
+                                // snackbar at send time.
+                                message: l10n.chatMessageWidgetSkillToken(
+                                  skillName,
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: cs.primary.withValues(alpha: 0.14),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Lucide.WandSparkles,
+                                        size: 11,
+                                        color: cs.primary.withValues(
+                                          alpha: 0.9,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      // Skill names may legally run to 64
+                                      // chars — ellipsize instead of letting
+                                      // the chip overflow the bubble.
+                                      Flexible(
+                                        child: Text(
+                                          skillName,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
+                                            color: cs.primary.withValues(
+                                              alpha: 0.95,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        if (visualText.isNotEmpty) const SizedBox(height: 6),
+                      ],
+                      if (visualText.isNotEmpty)
                       Builder(
                         builder: (context) {
                           final bool isDesktop =
@@ -3227,7 +3295,7 @@ class _ToolCallItem extends StatelessWidget {
       case 'builtin_search':
         return Lucide.Search;
       case 'skill':
-        return Lucide.Sparkles;
+        return Lucide.WandSparkles;
       default:
         return Lucide.Wrench;
     }

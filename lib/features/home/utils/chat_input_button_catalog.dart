@@ -81,7 +81,7 @@ const List<ChatInputButtonSpec> chatInputButtonCatalog = [
   ),
   ChatInputButtonSpec(
     id: 'skills',
-    icon: Lucide.Sparkles,
+    icon: Lucide.WandSparkles,
     label: _skillsLabel,
   ),
   ChatInputButtonSpec(

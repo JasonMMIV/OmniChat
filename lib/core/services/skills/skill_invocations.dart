@@ -93,9 +93,16 @@ class SkillInvocations {
   /// Resolves `/skill <name>` tokens across all string user messages in
   /// [apiMessages]. Mutates the list in place (assembly-time projection —
   /// Hive history is never touched, ADR-A6).
+  ///
+  /// [emptyContentPlaceholder] replaces user content that would otherwise
+  /// become empty because it consisted only of tokens — several providers
+  /// (Anthropic among them) reject empty user content, which made a lone
+  /// `/skill name` look like a dead command.
   static SkillInvocationResolution resolveInMessages(
     List<Map<String, dynamic>> apiMessages, {
     required SkillDefinition? Function(String name) loadSkill,
+    String emptyContentPlaceholder =
+        'Follow the instructions in the skill loaded above.',
   }) {
     var changed = false;
     final failed = <String>[];
@@ -131,6 +138,9 @@ class SkillInvocations {
         changed = true;
       }
       if (!identical(updated, content) && updated != content) {
+        if (updated.trim().isEmpty && emptyContentPlaceholder.isNotEmpty) {
+          updated = emptyContentPlaceholder;
+        }
         message['content'] = updated;
       }
     }

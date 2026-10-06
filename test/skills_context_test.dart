@@ -2,8 +2,10 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:OmniChat/core/models/skill.dart';
+import 'package:OmniChat/core/providers/skills_provider.dart';
 import 'package:OmniChat/core/services/skills/skill_invocations.dart';
 import 'package:OmniChat/core/services/skills/skill_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   group('extractSkillInvocations', () {
@@ -204,6 +206,132 @@ void main() {
       );
       expect(apiMessages.first['role'], 'system');
       expect(apiMessages.first['content'], contains('<skill'));
+    });
+
+    test('token-only message becomes the placeholder, not empty content', () {
+      // A message consisting ONLY of the token would otherwise resolve to
+      // empty user content — several providers (Anthropic among them) reject
+      // that, which made a lone `/skill name` look like a dead command.
+      final apiMessages = messagesWithUser('/skill git-release');
+      final resolution = SkillInvocations.resolveInMessages(
+        apiMessages,
+        loadSkill: (name) => skill(name),
+        emptyContentPlaceholder: 'Follow the loaded skill.',
+      );
+      expect(resolution.changed, isTrue);
+      expect(resolution.failedNames, isEmpty);
+      expect(apiMessages[1]['content'], 'Follow the loaded skill.');
+      expect(apiMessages[0]['content'], contains('<skill name="git-release">'));
+    });
+
+    test('placeholder not applied when surrounding text remains', () {
+      final apiMessages = messagesWithUser('Use /skill git-release please');
+      SkillInvocations.resolveInMessages(
+        apiMessages,
+        loadSkill: (name) => skill(name),
+        emptyContentPlaceholder: 'Follow the loaded skill.',
+      );
+      expect(apiMessages[1]['content'], 'Use  please');
+    });
+
+    test('placeholder applied when several hits leave only whitespace', () {
+      final apiMessages = messagesWithUser('/skill a-b /skill c-d');
+      SkillInvocations.resolveInMessages(
+        apiMessages,
+        loadSkill: (name) => skill(name),
+        emptyContentPlaceholder: 'Follow the loaded skill.',
+      );
+      expect(apiMessages[1]['content'], 'Follow the loaded skill.');
+    });
+
+    test('no placeholder when a failed token is all that is left', () {
+      // The miss keeps its token visible (§9 R4), so the message is not blank
+      // and must not be replaced by the placeholder.
+      final apiMessages = messagesWithUser('/skill good /skill bad2');
+      SkillInvocations.resolveInMessages(
+        apiMessages,
+        loadSkill: (name) => name == 'good' ? skill(name) : null,
+        emptyContentPlaceholder: 'Follow the loaded skill.',
+      );
+      expect((apiMessages[1]['content'] as String).trim(), '/skill bad2');
+    });
+  });
+
+  group('SkillsProvider seeded-example cleanup', () {
+    late Directory home;
+
+    setUp(() async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      home = await Directory.systemTemp.createTemp('seed_cleanup_');
+      SkillService.debugHomeDirectoryOverride = home.path;
+      SkillService.debugResetGlobalRootCache();
+    });
+
+    tearDown(() async {
+      SkillService.debugHomeDirectoryOverride = null;
+      SkillService.debugResetGlobalRootCache();
+      try {
+        await home.delete(recursive: true);
+      } catch (_) {}
+    });
+
+    Future<void> writeSeed(String description) async {
+      final dir = Directory('${home.path}/.agents/skills/example-skill');
+      await dir.create(recursive: true);
+      await File('${dir.path}/SKILL.md').writeAsString(
+        '---\nname: example-skill\ndescription: $description\n'
+        'metadata:\n  source: manual\n---\n\n# Example Skill\n',
+      );
+    }
+
+    test('removes the unmodified seeded example-skill once', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'skills_example_seeded_v1': true,
+      });
+      await writeSeed(
+        'A minimal example showing the SKILL.md format. Edit or delete it freely.',
+      );
+
+      await SkillsProvider().initialize();
+
+      expect(
+        Directory('${home.path}/.agents/skills/example-skill').existsSync(),
+        isFalse,
+      );
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('skills_example_seeded_v1'), isNull);
+    });
+
+    test('keeps the folder when the user has edited it', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'skills_example_seeded_v1': true,
+      });
+      await writeSeed('My own customized skill folder');
+
+      await SkillsProvider().initialize();
+
+      expect(
+        Directory('${home.path}/.agents/skills/example-skill').existsSync(),
+        isTrue,
+      );
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('skills_example_seeded_v1'), isNull);
+    });
+
+    test('no-op when the device never seeded', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      await writeSeed(
+        'A minimal example showing the SKILL.md format. Edit or delete it freely.',
+      );
+
+      await SkillsProvider().initialize();
+
+      // No flag → cleanup must not run (a manually created folder with the
+      // same description survives).
+      expect(
+        Directory('${home.path}/.agents/skills/example-skill').existsSync(),
+        isTrue,
+      );
     });
   });
 
