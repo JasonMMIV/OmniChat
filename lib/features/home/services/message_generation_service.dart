@@ -13,7 +13,10 @@ import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
 import '../../../core/services/api/learned_context_windows.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/todo_service.dart';
+import '../../../core/services/skills/skill_invocations.dart';
+import '../../../core/services/skills/skill_service.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant_regex.dart';
 import '../controllers/stream_controller.dart' as stream_ctrl;
@@ -120,6 +123,9 @@ class MessageGenerationService {
     // model's trigger(W), move the compaction marker so the older history
     // becomes a deterministic mechanical summary at assembly time.
     var conversation = currentConversation;
+
+    // Captured before any await (use_build_context_synchronously guard).
+    final l10n = AppLocalizations.of(contextProvider);
 
     // P1-3: fetch the current todo snapshot early — its first incomplete
     // item feeds the compaction knowledge block (Next Action).
@@ -232,11 +238,41 @@ class MessageGenerationService {
       );
     } catch (_) {}
 
+    // Warm the skills global root BEFORE both skill consumers: `/skill`
+    // resolution below reads `cachedGlobalRoot`, and the sync scan inside
+    // buildToolDefinitions needs it too. On a cold start (provider init not
+    // finished) a null cache would wrongly report every skill as missing.
+    // Also creates the dir on desktop first-use.
+    try {
+      await SkillService.globalSkillsRoot();
+    } catch (_) {}
+
+    // Agent Skills: resolve `/skill <name>` tokens in user messages. Works
+    // in BOTH preload modes — the user-invocation path is independent of the
+    // `skill` tool (PLAN_AGENT_SKILLS.md §6.2/§6.3). Pure function over the
+    // in-memory assembly; Hive history is never rewritten.
+    try {
+      final resolution = SkillInvocations.resolveInMessages(
+        apiMessages,
+        loadSkill: (name) => SkillService.loadSkillByName(
+          name,
+          workspacePath: workspacePath,
+          globalRoot: SkillService.cachedGlobalRoot,
+        ),
+      );
+      if (resolution.failedNames.isNotEmpty) {
+        final firstName = resolution.failedNames.first;
+        onShowWarning?.call(
+          l10n?.skillInvocationFailed(firstName) ??
+              'Skill "$firstName" is not installed.',
+        );
+      }
+    } catch (_) {}
+
     // Apply context limit and inline images
     messageBuilderService.applyContextLimit(apiMessages, assistant);
     await messageBuilderService.inlineLocalImages(apiMessages);
 
-    // Prepare tools
     final toolDefs = generationController.buildToolDefinitions(
       settings,
       assistant,
@@ -244,6 +280,7 @@ class MessageGenerationService {
       modelId,
       hasBuiltInSearch,
       workspaceEnabled: workspaceResolution?.enabled ?? false,
+      workspacePath: workspacePath,
     );
     final onToolCall = toolDefs.isNotEmpty
         ? generationController.buildToolCallHandler(

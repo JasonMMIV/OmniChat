@@ -27,6 +27,24 @@ class AppDirectories {
     }
   }
 
+  /// Gets the user home directory (desktop: `%USERPROFILE%` / `$HOME`).
+  /// Mobile platforms have no user-home concept — falls back to the app data
+  /// directory (never returns a null/empty path). Used by the Agent Skills
+  /// global root (`~/.agents/skills/`, PLAN_AGENT_SKILLS.md D5).
+  static Future<Directory> getUserHomeDirectory() async {
+    // Mobile has no user-home concept (D5): skills live in app data.
+    if (Platform.isAndroid || Platform.isIOS) {
+      return await getAppDataDirectory();
+    }
+    final home = Platform.isWindows
+        ? Platform.environment['USERPROFILE']
+        : Platform.environment['HOME'];
+    if (home != null && home.trim().isNotEmpty) {
+      return Directory(home);
+    }
+    return await getAppDataDirectory();
+  }
+
   /// Gets the directory for uploaded files.
   static Future<Directory> getUploadDirectory() async {
     final root = await getAppDataDirectory();

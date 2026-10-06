@@ -126,6 +126,7 @@ class GenerationController {
     String modelId,
     bool hasBuiltInSearch, {
     required bool workspaceEnabled,
+    String? workspacePath,
   }) {
     return toolHandlerService.buildToolDefinitions(
       settings,
@@ -135,6 +136,7 @@ class GenerationController {
       hasBuiltInSearch,
       workspaceEnabled: workspaceEnabled,
       isToolModel: isToolModel,
+      workspacePath: workspacePath,
     );
   }
 

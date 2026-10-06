@@ -15,6 +15,10 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/utils/reasoning_capabilities.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
+import '../../../core/providers/skills_provider.dart';
+import '../../../core/models/skill.dart';
+import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/services/android_process_text.dart';
 import '../../../utils/sandbox_path_resolver.dart';
@@ -26,6 +30,8 @@ import '../../../desktop/mini_map_popover.dart';
 import '../../../desktop/workspace_popover.dart';
 import '../../../desktop/quick_phrase_popover.dart';
 import '../../../desktop/instruction_injection_popover.dart';
+import '../../../desktop/skills_popover.dart';
+import '../widgets/skills_sheet.dart';
 import '../../../desktop/desktop_context_menu.dart';
 import '../../chat/widgets/bottom_tools_sheet.dart';
 import '../../chat/widgets/reasoning_budget_sheet.dart';
@@ -834,6 +840,7 @@ class _HomePageState extends State<HomePage>
       onPickPhotos: _controller.onPickPhotos,
       onUploadFiles: _controller.onPickFiles,
       onToggleInstructionInjection: _openInstructionInjectionPopover,
+      onOpenSkills: _openSkillsMenu,
       onLongPressInstruction: _showInstructionPromptSheet,
       onVoiceChat: _startVoiceChat,
       onToggleAiTeam: _openAiTeamSettings,
@@ -1038,6 +1045,77 @@ class _HomePageState extends State<HomePage>
 
   void _showInstructionPromptSheet() {
     showInstructionPromptSheet(context);
+  }
+
+  /// Agent Skills menu: refresh the global scan, merge the current
+  /// conversation's project skills, show the platform-appropriate picker and
+  /// insert `/skill <name> ` at the cursor (PLAN_AGENT_SKILLS.md §8.4).
+  Future<void> _openSkillsMenu() async {
+    final provider = context.read<SkillsProvider>();
+    await provider.refresh();
+    if (!mounted) return;
+
+    String? workspacePath;
+    final conv = _controller.currentConversation;
+    if (conv != null) {
+      try {
+        final settings = context.read<SettingsProvider>();
+        final assistant = context.read<AssistantProvider>().currentAssistant;
+        final chatService = context.read<ChatService>();
+        final resolution = await WorkspaceResolver.resolve(
+          conversation: conv,
+          project: assistant,
+          conversationConfig:
+              chatService.getConversationWorkspaceConfig(conv.id),
+          defaultConfig: settings.defaultWorkspaceConfig,
+        );
+        workspacePath = resolution.path;
+      } catch (_) {}
+    }
+    if (!mounted) return;
+
+    final skills = provider
+        .skillsForContext(workspacePath)
+        .values
+        .toList(growable: false)
+      ..sort((a, b) => a.name.compareTo(b.name));
+    if (skills.isEmpty || !mounted) return;
+
+    SkillDefinition? selected;
+    if (PlatformUtils.isDesktop) {
+      selected = await showDesktopSkillsPopover(
+        context,
+        anchorKey: _inputBarKey,
+        skills: skills,
+      );
+    } else {
+      selected = await showSkillsSheet(context, skills: skills);
+    }
+    if (selected == null || !mounted) return;
+    _insertSkillToken(selected.name);
+  }
+
+  /// Inserts `/skill <name> ` at the current selection (same pattern as
+  /// [_handleProcessText]).
+  void _insertSkillToken(String name) {
+    final token = '/skill $name ';
+    final current = _inputController.text;
+    final selection = _inputController.selection;
+    final start = (selection.start >= 0 && selection.start <= current.length)
+        ? selection.start
+        : current.length;
+    final end = (selection.end >= 0 &&
+            selection.end <= current.length &&
+            selection.end >= start)
+        ? selection.end
+        : start;
+    final next = current.replaceRange(start, end, token);
+    _inputController.value = _inputController.value.copyWith(
+      text: next,
+      selection: TextSelection.collapsed(offset: start + token.length),
+      composing: TextRange.empty,
+    );
+    _inputFocus.requestFocus();
   }
 
   void _openAiTeamSettings() {

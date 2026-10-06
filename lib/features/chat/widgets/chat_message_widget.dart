@@ -3226,6 +3226,8 @@ class _ToolCallItem extends StatelessWidget {
         return Lucide.Earth;
       case 'builtin_search':
         return Lucide.Search;
+      case 'skill':
+        return Lucide.Sparkles;
       default:
         return Lucide.Wrench;
     }
@@ -3250,6 +3252,11 @@ class _ToolCallItem extends StatelessWidget {
         return l10n.chatMessageWidgetWebSearch(q);
       case 'builtin_search':
         return l10n.chatMessageWidgetBuiltinSearch;
+      case 'skill':
+        final skillName = (args['name'] ?? '').toString();
+        return skillName.isEmpty
+            ? l10n.chatMessageWidgetToolCall(name)
+            : l10n.chatMessageWidgetSkillLoad(skillName);
       default:
         return isResult
             ? l10n.chatMessageWidgetToolResult(name)

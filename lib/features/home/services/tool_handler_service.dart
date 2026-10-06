@@ -17,7 +17,9 @@ import '../../../core/services/agent/approval.dart';
 import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
 import '../../../core/services/logging/flutter_logger.dart';
 import '../../../core/services/tools/tool_result_caps.dart';
+import '../../../core/services/skills/skill_service.dart';
 import '../../../core/models/file_record.dart';
+import '../../../core/models/skill.dart';
 
 /// 工具调用处理服务
 ///
@@ -172,6 +174,7 @@ class ToolHandlerService {
     bool hasBuiltInSearch, {
     required bool workspaceEnabled,
     required bool Function(String providerKey, String modelId) isToolModel,
+    String? workspacePath,
   }) {
     final List<Map<String, dynamic>> toolDefs = <Map<String, dynamic>>[];
     final supportsTools = isToolModel(providerKey, modelId);
@@ -208,7 +211,55 @@ class ToolHandlerService {
     );
     toolDefs.addAll(mcpTools);
 
+    // Agent Skills: the `skill` tool goes LAST in the list so a changing
+    // skill list only perturbs the tool-list tail (prompt-cache friendly,
+    // PLAN_AGENT_SKILLS.md §6.4). Registered only when the preload switch is
+    // on AND at least one skill is model-invocable — advertising an empty
+    // tool burns context tokens on every request for nothing (the `/skill`
+    // command path stays available regardless).
+    if (supportsTools && settings.skillsPreloadEnabled) {
+      final skills = SkillService.skillsForContext(
+        workspacePath: workspacePath,
+        globalRoot: SkillService.cachedGlobalRoot,
+      );
+      final def = buildSkillToolDefinition(skills);
+      if (def != null) toolDefs.add(def);
+    }
+
     return toolDefs;
+  }
+
+  /// Builds the `skill` tool definition embedding the `<available_skills>`
+  /// XML (model-invocable skills only). Returns null when nothing is
+  /// discoverable — the tool is not registered in that case.
+  static Map<String, dynamic>? buildSkillToolDefinition(
+    Map<String, SkillDefinition> skills,
+  ) {
+    final availableSkillsXml = SkillService.formatAvailableSkillsXml(skills);
+    if (availableSkillsXml.isEmpty) return null;
+    return <String, dynamic>{
+      'type': 'function',
+      'function': {
+        'name': skillToolName,
+        'description':
+            'Load a skill by name to get its full instructions. Skills provide reusable '
+                'behaviors and domain-specific knowledge.\n\n'
+                'The following are the pre-loaded skills available:\n'
+                '$availableSkillsXml\n\n'
+                'Note: You can load any skill by name, including ones installed during this '
+                'session. The skill is always read fresh from disk.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'name': {
+              'type': 'string',
+              'description': 'The name of the skill to load',
+            },
+          },
+          'required': ['name'],
+        },
+      },
+    };
   }
 
   /// Workspace tools (15 file tools + write_todos + ask_user) gated by the
@@ -635,6 +686,59 @@ class ToolHandlerService {
           });
         }
 
+        // Agent Skills: `skill` — load one skill's full instructions. Read
+        // straight from disk every call (session-installed skills work
+        // immediately). No approval (read-only, no side effects) and no
+        // workspace requirement — it is NOT a workspace tool.
+        if (name == skillToolName) {
+          final requested = (args['name'] ?? '').toString().trim();
+          String? globalRoot;
+          try {
+            globalRoot = await SkillService.globalSkillsRoot();
+          } catch (_) {}
+          final skills = SkillService.skillsForContext(
+            workspacePath: workspacePath,
+            globalRoot: globalRoot,
+          );
+          if (requested.isEmpty) {
+            return jsonEncode({
+              'type': 'tool_error',
+              'error': 'invalid_name',
+              'message':
+                  'The skill tool requires a non-empty "name" argument.',
+              'available_skills': _invocableSkillNames(skills),
+              'tool': name,
+            });
+          }
+          final skill = SkillService.loadSkillByName(
+            requested,
+            workspacePath: workspacePath,
+            globalRoot: globalRoot,
+          );
+          if (skill == null || skill.disableModelInvocation) {
+            return jsonEncode({
+              'type': 'tool_error',
+              'error': 'skill_not_found',
+              'message':
+                  'No model-invocable skill named "$requested" is installed. '
+                      'Do not retry with a guessed name.',
+              'available_skills': _invocableSkillNames(skills),
+              'tool': name,
+            });
+          }
+          // Skill content is guidance text, not tool data — the cap stays
+          // for the 32KB budget only (PLAN_AGENT_SKILLS.md §6.1/§11).
+          return ToolResultCaps.cap(
+            toolName: name,
+            result: jsonEncode({
+              'name': skill.name,
+              'description': skill.description,
+              if (skill.license != null) 'license': skill.license,
+              'content': skill.content,
+            }),
+          );
+        }
+
         // Search tool — dispatched through the multi-provider engine
         // (fallback / round-robin). The returned JSON is unchanged; the
         // provider trace is persisted as UI-only tool-event extras.
@@ -819,6 +923,18 @@ class ToolHandlerService {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Sorted names of model-invocable skills for tool-error guidance.
+  static List<String> _invocableSkillNames(
+    Map<String, SkillDefinition> skills,
+  ) {
+    final names = skills.values
+        .where((s) => !s.disableModelInvocation)
+        .map((s) => s.name)
+        .toList()
+      ..sort();
+    return names;
   }
 
   /// Handle memory tool calls (create/edit/delete).

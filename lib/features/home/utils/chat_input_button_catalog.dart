@@ -80,6 +80,11 @@ const List<ChatInputButtonSpec> chatInputButtonCatalog = [
     label: _instructionLabel,
   ),
   ChatInputButtonSpec(
+    id: 'skills',
+    icon: Lucide.Sparkles,
+    label: _skillsLabel,
+  ),
+  ChatInputButtonSpec(
     id: 'voice',
     icon: Lucide.AudioWaveform,
     label: _voiceLabel,
@@ -110,6 +115,7 @@ const List<String> chatInputButtonDefaultOrder = [
   'reasoning',
   'aiTeam',
   'instruction',
+  'skills',
   'voice',
   'context',
   'ocr',
@@ -152,6 +158,7 @@ String _reasoningLabel(AppLocalizations l10n) =>
 String _aiTeamLabel(AppLocalizations l10n) => l10n.chatInputBarAiTeamTooltip;
 String _instructionLabel(AppLocalizations l10n) =>
     l10n.instructionInjectionTitle;
+String _skillsLabel(AppLocalizations l10n) => l10n.chatInputBarSkillsTooltip;
 String _voiceLabel(AppLocalizations l10n) => l10n.voiceChatButtonTooltip;
 String _contextLabel(AppLocalizations l10n) => l10n.contextManagement;
 String _ocrLabel(AppLocalizations l10n) => l10n.chatInputBarOcrTooltip;
