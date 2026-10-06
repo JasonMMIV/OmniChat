@@ -27,7 +27,8 @@ class SkillsProvider extends ChangeNotifier {
   String? _globalRootPath;
 
   /// Last known project-scope skills — used only for the input-bar button
-  /// visibility hint; the menu itself rescans on open.
+  /// visibility hint. Refreshed at message assembly (see
+  /// [noteProjectSkills]) and on menu open.
   List<SkillDefinition> _lastProjectSkills = const <SkillDefinition>[];
 
   static const String _seededFlagKey = 'skills_example_seeded_v1';
@@ -93,6 +94,31 @@ class SkillsProvider extends ChangeNotifier {
         .where((s) => s.scope == SkillScope.project)
         .toList(growable: false);
     return map;
+  }
+
+  /// Updates the last-known project-skill hint for [workspacePath]. Message
+  /// assembly calls this each send so the input-bar button gate can see
+  /// project-only setups (no global skills). Previously the hint refreshed
+  /// only when the menu opened — and opening the menu required a visible
+  /// button (the gate reads this very hint), so project-only setups never
+  /// got a menu entry. Never throws (the discovery layer swallows unreadable
+  /// roots); notifies only when the skill-name set changed.
+  void noteProjectSkills(String? workspacePath) {
+    // Project layer only — the global half of the gate reads
+    // `_globalSkills`; this scan fills the project half.
+    final map = SkillService.skillsForContext(
+      workspacePath: workspacePath,
+      globalRoot: null,
+    );
+    final next = map.values.toList(growable: false);
+    final names = [for (final s in next) s.name]..sort();
+    final prevNames = [for (final s in _lastProjectSkills) s.name]..sort();
+    // Dedupe on the name set only: this hint is a non-emptiness gate, so
+    // stale definitions after a same-named workspace switch are harmless
+    // (and the menu rescans when it opens).
+    if (listEquals(names, prevNames)) return;
+    _lastProjectSkills = next;
+    notifyListeners();
   }
 
   // ==========================================================================
