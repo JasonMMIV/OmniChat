@@ -11,6 +11,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -18,6 +19,7 @@ import '../../../core/models/skill.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/skills_provider.dart';
 import '../../../core/services/haptics.dart';
+import '../../../core/services/skills/skill_service.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_switch.dart';
@@ -120,11 +122,39 @@ class _SkillsPageState extends State<SkillsPage> {
     }
     if (picked == null || picked.files.isEmpty) return;
 
+    if (Platform.isAndroid) {
+      // An Android file pick is a flat cache copy, so the skill folder is
+      // recovered from the ORIGINAL document URI and read through its real
+      // path — the same all-files access the workspace picker asks for. Ask
+      // only when it is missing, so an already-granted permission does not
+      // bounce the user into system settings on every import.
+      try {
+        if (!await Permission.manageExternalStorage.isGranted) {
+          await Permission.manageExternalStorage.request();
+        }
+      } catch (_) {}
+    }
+
     var imported = 0;
+    // Android picks whose original folder could not be resolved install the
+    // SKILL.md alone; that is worth saying out loud (the note is what stops the
+    // old silent loss from coming back through the file route).
+    var unresolvedMobilePick = false;
     for (final file in picked.files) {
       final path = file.path;
       if (path == null || path.isEmpty) continue;
-      var result = await provider.importSkill(sourcePath: path);
+      final identifier = file.identifier;
+      if (Platform.isAndroid &&
+          !SkillService.pickCarriesItsFolder(path, identifier)) {
+        // The service's own gate, not a weaker guess: a pick it refuses to
+        // scan (cloud provider, skills root, unreadable path) installs the
+        // SKILL.md alone and must say so.
+        unresolvedMobilePick = true;
+      }
+      var result = await provider.importSkill(
+        sourcePath: path,
+        sourceIdentifier: identifier,
+      );
       if (!mounted) return;
 
       // Folder decision sticks for the rest of this file's flow (including
@@ -148,6 +178,7 @@ class _SkillsPageState extends State<SkillsPage> {
           sourcePath: path,
           confirmFolder: proceed,
           skipFolder: skipFolder,
+          sourceIdentifier: identifier,
         );
       }
       if (!mounted) return;
@@ -164,12 +195,24 @@ class _SkillsPageState extends State<SkillsPage> {
           confirm: true,
           confirmFolder: !skipFolder,
           skipFolder: skipFolder,
+          sourceIdentifier: identifier,
         );
       }
       if (!mounted) return;
       if (result.ok) imported++;
     }
     if (!mounted) return;
+    // The unresolved-folder note replaces the plain success message rather
+    // than following it: an import that landed without its attachments must
+    // not read as a clean success.
+    if (imported > 0 && unresolvedMobilePick) {
+      showAppSnackBar(
+        context,
+        message: l10n.skillsMobilePickUnresolvedNote,
+        type: NotificationType.warning,
+      );
+      return;
+    }
     showAppSnackBar(
       context,
       message: imported > 0
@@ -675,6 +718,18 @@ class _HelpBlock extends StatelessWidget {
               label: Text(l10n.skillsOpenFolderTooltip),
             ),
           ],
+          // iOS has no way to read a picked file's original folder, so its
+          // file route installs the SKILL.md alone — say it here rather than
+          // letting the attachments vanish without a word.
+          if (PlatformUtils.isIOS)
+            Text(
+              l10n.skillsMobileFileImportNote,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.45,
+                color: cs.onSurface.withOpacity(0.65),
+              ),
+            ),
           const SizedBox(height: 6),
           Text(
             l10n.skillsProjectHint,

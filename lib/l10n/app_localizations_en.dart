@@ -5102,6 +5102,43 @@ class AppLocalizationsEn extends AppLocalizations {
       'Cancel imports the SKILL.md alone (without the other files).';
 
   @override
+  String get skillsImportFolderTooltip => 'Import a skill folder';
+
+  @override
+  String get skillsImportFolderDialogTitle => 'Select a skill folder';
+
+  @override
+  String get skillsImportFolderConfirmTitle => 'Install skill folder';
+
+  @override
+  String skillsImportFolderConfirmFiles(int count) {
+    return 'This folder holds $count file(s). Install it as one skill?';
+  }
+
+  @override
+  String get skillsImportFolderConfirmHint => 'Cancel installs nothing.';
+
+  @override
+  String get skillsImportFolderNoSkillMd =>
+      'No SKILL.md in the selected folder — nothing was imported.';
+
+  @override
+  String get skillsImportFolderMultipleSkills =>
+      'That folder contains several skills — pick a single skill folder.';
+
+  @override
+  String get skillsImportFolderUnreadable =>
+      'The selected folder could not be read — nothing was imported.';
+
+  @override
+  String get skillsMobileFileImportNote =>
+      'On iOS, importing a file installs the SKILL.md alone — a skill\'s attachments come in through GitHub download.';
+
+  @override
+  String get skillsMobilePickUnresolvedNote =>
+      'That file\'s folder could not be read, so the SKILL.md was installed alone — pick the same SKILL.md through Internal storage instead, or use GitHub download, to bring a skill\'s attachments along.';
+
+  @override
   String get skillsGithubDialogTitle => 'Download skills from GitHub';
 
   @override

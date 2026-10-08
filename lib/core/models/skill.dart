@@ -173,6 +173,7 @@ class ImportResult {
     this.exists = false,
     this.folderConfirm = false,
     this.folderFiles = const <String>[],
+    this.pendingName,
     this.error,
   });
 
@@ -181,6 +182,12 @@ class ImportResult {
   final bool exists;
   final bool folderConfirm;
   final List<String> folderFiles;
+
+  /// Frontmatter name this import resolves to, carried on the follow-up
+  /// envelopes (`folderConfirm`, overwrite) so the caller can name the skill
+  /// without re-reading the picked document — the picked folder is often not
+  /// named after the skill (`my-skill-main/`).
+  final String? pendingName;
   final String? error;
 
   static ImportResult success(SkillDefinition skill) =>
@@ -189,10 +196,12 @@ class ImportResult {
   static ImportResult existsConflict() =>
       const ImportResult(ok: false, exists: true, error: 'exists');
 
-  static ImportResult confirmFolder(List<String> files) => ImportResult(
+  static ImportResult confirmFolder(List<String> files, {String? name}) =>
+      ImportResult(
         ok: false,
         folderConfirm: true,
         folderFiles: files,
+        pendingName: name,
         error: 'folder_confirm',
       );
 

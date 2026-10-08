@@ -489,14 +489,188 @@ class SkillService {
   /// Test seam for [folderImportSupported] — never set in production.
   static bool? debugFolderImportOverride;
 
-  /// Folder-aware import needs a real on-disk skill folder. Mobile pickers
-  /// hand back a *flattened copy inside the app cache*, where the sibling
-  /// files belong to other picks (or other apps) — treating them as
-  /// attachments would copy unrelated cached files into the skill folder.
-  /// Manual §3.15 §5: mobile degrades to single-file import.
+  /// Folder-aware *file* import needs a real on-disk skill folder. The desktop
+  /// dialog returns real paths outright; on Android the picker's cache copy is
+  /// flat and its parent belongs to other picks (or other apps), so the answer
+  /// comes from the ORIGINAL document URI instead
+  /// ([androidFolderPathFromDocumentUri], passed in as `sourceIdentifier`) —
+  /// and is false outright when that cannot be resolved. iOS has no equivalent
+  /// here, so its file route stays single-file. Anybuff declares the identical
+  /// capability (`pickedFilesShareFolder: false`) for Android for the same
+  /// reason. Android recovers the real folder through the original document
+  /// URI; iOS keeps the explicit single-file note instead.
   static bool get folderImportSupported =>
       debugFolderImportOverride ??
       !(Platform.isAndroid || Platform.isIOS);
+
+  /// Test seam for the external-storage root [androidFolderPathFromDocumentUri]
+  /// maps the `primary` volume onto — never set in production.
+  static String? debugAndroidExternalStorageRoot;
+
+  static String get _androidExternalStorageRoot =>
+      debugAndroidExternalStorageRoot ?? '/storage/emulated/0';
+
+  /// The real folder a picked document belongs to, or null when this pick
+  /// cannot be trusted to carry one: desktop answers with the picked file's
+  /// own folder, mobile only when the original document URI resolves to a real
+  /// directory (see [androidFolderPathFromDocumentUri]).
+  static String? _importFolderForPick(File pickedFile, String? sourceIdentifier) {
+    final String? folder;
+    if (folderImportSupported) {
+      folder = pickedFile.parent.path;
+    } else if (sourceIdentifier == null || sourceIdentifier.isEmpty) {
+      return null;
+    } else {
+      folder = androidFolderPathFromDocumentUri(sourceIdentifier);
+    }
+    if (folder == null) return null;
+    // A skills ROOT is a container of skills, never a skill itself: a document
+    // sitting directly inside one (`<root>/SKILL.md`) must not turn every
+    // installed skill's files into one new skill folder (Anybuff refuses the
+    // same shape). Applies to both routes — the folder list would otherwise
+    // look legitimate, and the install could overwrite the very skill it swept.
+    if (_isSkillsRootDocument(folder)) return null;
+    try {
+      if (!Directory(folder).existsSync()) return null;
+    } catch (_) {
+      return null;
+    }
+    return folder;
+  }
+
+  /// Whether a picked document can bring its folder along ([importSkillFile]'s
+  /// folder gate). The UI asks this to warn when a mobile pick will install the
+  /// SKILL.md alone — it must mirror [_importFolderForPick] exactly (guards
+  /// included), or a pick the service silently refuses would still look like a
+  /// clean success.
+  static bool pickCarriesItsFolder(String sourcePath, String? sourceIdentifier) {
+    if (sourcePath.isEmpty) return false;
+    return _importFolderForPick(File(sourcePath), sourceIdentifier) != null;
+  }
+
+  /// True when [skillDirPath] is a skills root rather than a skill folder —
+  /// i.e. its parent is the convention container (`.agents` / `.claude`).
+  static bool _isSkillsRootDocument(String skillDirPath) {
+    final parent = _fileNameOf(_parentOf(skillDirPath));
+    return parent == '.agents' || parent == '.claude';
+  }
+
+  /// Maps an Android SAF document URI (file_picker's `PlatformFile.identifier`)
+  /// to the real directory of the picked file, or null when the pick cannot be
+  /// resolved.
+  ///
+  /// Why this exists: Android's file picker copies every pick FLAT into the app
+  /// cache (`cacheDir/file_picker/<stamp>/<name>`), so a cache parent is a
+  /// picker staging area, not the skill folder — scanning it would sweep
+  /// unrelated picks into the skill ([folderImportSupported]). The ORIGINAL
+  /// document URI is still handed to Dart, and for the built-in "Files"
+  /// provider its document id carries the volume plus the real path
+  /// (`primary:Download/my-skill/SKILL.md`), readable directly because the app
+  /// already holds all-files access for its workspace picker
+  /// (`MANAGE_EXTERNAL_STORAGE`). That gives Android the desktop gesture back:
+  /// pick `SKILL.md` → the whole folder comes with it.
+  ///
+  /// Deliberately narrow (fail-safe): only the external-storage provider is
+  /// understood. Cloud providers and the Downloads provider hand back shapes
+  /// (`downloads`, `msf:…`, `raw:…`) whose path mapping is a lie, and reading
+  /// the wrong directory would install unrelated files into a skill — anything
+  /// not understood returns null and the caller keeps the single-file import.
+  static String? androidFolderPathFromDocumentUri(String identifier) {
+    final Uri uri;
+    try {
+      uri = Uri.parse(identifier);
+    } catch (_) {
+      return null;
+    }
+    if (uri.scheme != 'content') return null;
+    // `pathSegments` is percent-decoded, so segment 1 is the document id —
+    // 'primary:Download/my-skill/SKILL.md' or 'raw:/storage/…/SKILL.md'.
+    final segments = uri.pathSegments;
+    if (segments.length < 2) return null;
+    final isTree = segments.first == 'tree';
+    final docId = segments[1];
+    // A docId is provider data, not a path this app controls: a `..` segment
+    // must be REFUSED rather than resolved. The app holds all-files access, so
+    // a traversal would read fine and the caller would install whatever it
+    // found — outside the volume the picker vouched for.
+    if (_hasParentSegment(docId)) return null;
+
+    if (uri.authority == _externalStorageAuthority) {
+      final sep = docId.indexOf(':');
+      if (sep <= 0 || sep == docId.length - 1) return null;
+      final volumeId = docId.substring(0, sep);
+      final relative = docId.substring(sep + 1);
+      final String volumeRoot;
+      if (volumeId.toLowerCase() == 'primary') {
+        volumeRoot = _androidExternalStorageRoot;
+      } else if (_removableVolumeId.hasMatch(volumeId)) {
+        volumeRoot = '/storage/$volumeId'; // removable volume (SD card)
+      } else {
+        return null; // pseudo-volumes: 'msf', 'raw'…
+      }
+      // Normalized once here so both shapes come back in the POSIX shape the
+      // rest of the service compares and joins with (a Windows test seam would
+      // otherwise leak its separators into the returned path).
+      final full = _normalize('$volumeRoot/$relative');
+      // A `/document/` id names the picked FILE → its folder; a `/tree/` id
+      // names the folder itself (the folder picker's shape).
+      final folder = isTree ? full : _parentOf(full);
+      // The volume root itself is a container of everything — a document
+      // sitting directly on it must not turn the whole volume into one scan.
+      return _isInsideRoot(volumeRoot, folder) ? folder : null;
+    }
+
+    if (uri.authority == _downloadsAuthority) {
+      // AOSP DownloadStorageProvider: a plain file carries `raw:<absolute
+      // path>` — the "Downloads" entry of the system picker, which is where a
+      // downloaded skill zip usually gets opened from. The other ids it hands
+      // out (`msf:`/`msd:` MediaStore-backed files, `downloads` for the root)
+      // encode no readable path at all and are refused.
+      if (!docId.startsWith('raw:')) return null;
+      final absolute = _normalize(docId.substring(4));
+      if (!absolute.startsWith('/')) return null;
+      final folder = isTree ? absolute : _parentOf(absolute);
+      return _isInsideSharedStorage(folder) ? folder : null;
+    }
+
+    return null; // any other provider: no trustworthy path mapping
+  }
+
+  static const String _externalStorageAuthority =
+      'com.android.externalstorage.documents';
+  static const String _downloadsAuthority =
+      'com.android.providers.downloads.documents';
+  static final RegExp _removableVolumeId =
+      RegExp(r'^[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}$');
+
+  /// True when any segment of [docIdOrPath] is `..` (see the traversal rule in
+  /// [androidFolderPathFromDocumentUri]).
+  static bool _hasParentSegment(String docIdOrPath) {
+    for (final segment in docIdOrPath.split('/')) {
+      if (segment == '..') return true;
+    }
+    return false;
+  }
+
+  /// True when [path] sits inside a shared-storage volume the app may read:
+  /// the primary volume ([_androidExternalStorageRoot]) or a removable one
+  /// (`/storage/XXXX-XXXX/…`). The volume root itself stays excluded — it is a
+  /// container, never a skill folder.
+  static bool _isInsideSharedStorage(String path) {
+    final normalized = _normalize(path);
+    if (_isInsideRoot(_androidExternalStorageRoot, normalized)) return true;
+    // A removable volume (`/storage/XXXX-XXXX/…`) is its own root. The volume
+    // id is matched explicitly: taking the third segment as a root on faith
+    // would let `/storage/emulated/0` pass as "inside /storage/emulated", i.e.
+    // re-admit the very volume root this is meant to exclude.
+    final segments = normalized.split('/');
+    if (segments.length < 4 || segments.first != '' || segments[1] != 'storage') {
+      return false;
+    }
+    final volumeId = segments[2];
+    if (!_removableVolumeId.hasMatch(volumeId)) return false;
+    return _isInsideRoot('/storage/$volumeId', normalized);
+  }
 
   /// Imports a local `.md` file (or, when it sits in a folder with sibling
   /// attachments, the whole folder after `confirmFolder`).
@@ -514,6 +688,7 @@ class SkillService {
     bool confirmFolder = false,
     bool skipFolder = false,
     String? globalRoot,
+    String? sourceIdentifier,
   }) async {
     final file = File(sourcePath);
     if (!file.existsSync()) return ImportResult.failure('file_not_found');
@@ -528,10 +703,11 @@ class SkillService {
       return ImportResult.failure('invalid_skill');
     }
 
-    if (folderImportSupported && !skipFolder) {
+    final skillDirPath = _importFolderForPick(file, sourceIdentifier);
+    if (skillDirPath != null && !skipFolder) {
       // Siblings = the skill folder. The picked file is never one of them:
       // it becomes SKILL.md below, whatever its own name is.
-      final parentDir = file.parent;
+      final parentDir = Directory(skillDirPath);
       final pickedName = _fileNameOf(file.path);
       final siblings = _collectFolderFiles(
         parentDir.path,
@@ -541,6 +717,7 @@ class SkillService {
         if (!confirmFolder) {
           return ImportResult.confirmFolder(
             siblings.keys.toList(growable: false)..sort(),
+            name: name,
           );
         }
         // Byte-exact payloads: a binary reference (PNG/PDF/font) is a
@@ -599,6 +776,168 @@ class SkillService {
       );
     }
     return ImportResult.success(install.skill!);
+  }
+
+  /// Imports a picked *folder* as one whole skill (2026-10-08 iOS/Android
+  /// review follow-up).
+  ///
+  /// Why this sits next to [importSkillFile]: a file pick can only be trusted
+  /// to carry its own folder where the picker returns real paths, so on mobile
+  /// the file route installs SKILL.md alone ([folderImportSupported]) and every
+  /// attachment is lost. A folder pick returns the real tree instead, which is
+  /// what makes the desktop-grade whole-folder install available on mobile.
+  ///
+  /// Accepted shapes: `<picked>/SKILL.md` (the picked folder IS the skill) and
+  /// a single wrapper level (`my-skill-main/SKILL.md` — a release zip unzipped
+  /// in the Files app). Two or more SKILL.md-carrying subfolders is not a
+  /// skill but a skills *root*: installing it would sweep every skill into one
+  /// folder, so it is refused (Anybuff's ADR-29 guard against picking
+  /// `~/.agents`).
+  /// Reserved (2026-10-08, second round): no UI offers a folder pick any more
+  /// — the file route resolves the real folder on Android, and the Downloads
+  /// category is covered by the `raw:` mapping — so nothing in the app calls
+  /// this at present. It is kept because it is platform-neutral and already
+  /// covered by tests: a folder entry (iOS included, once security-scoped
+  /// access is solved) is the natural consumer.
+  static Future<ImportResult> importSkillFolder({
+    required String folderPath,
+    bool confirm = false,
+    bool confirmFolder = false,
+    String? globalRoot,
+  }) async {
+    // An empty path must be refused BEFORE touching the filesystem: `File('')`
+    // and `Directory('')` resolve against the process working directory, so a
+    // blank pick could otherwise read (and install from) wherever the app
+    // happens to run.
+    final picked = folderPath.trim();
+    if (picked.isEmpty || !Directory(picked).existsSync()) {
+      return ImportResult.failure('folder_not_found');
+    }
+    final candidates = _skillFoldersIn(picked);
+    if (candidates.isEmpty) return ImportResult.failure('skill_md_not_found');
+    if (candidates.length > 1) return ImportResult.failure('multiple_skills');
+    final skillDir = candidates.single;
+
+    // A real on-disk folder means the relative paths ARE the skill's own
+    // structure — `references/x.md` lands as `references/x.md`, which a
+    // flattened mobile file pick can never preserve.
+    final collected = _collectFolderFiles(skillDir, relativeTo: skillDir);
+    final document = pickSkillDocument(collected.keys);
+    if (document == null) return ImportResult.failure('skill_md_not_found');
+    final skillKey = document.key;
+    final shadowed = document.shadowed;
+
+    String content;
+    try {
+      content = await File(collected[skillKey]!).readAsString();
+    } catch (e) {
+      return ImportResult.failure('read_failed: $e');
+    }
+    final name = SkillParser.extractSkillName(content);
+    if (name == null || !SkillParser.isValidSkillName(name)) {
+      return ImportResult.failure('invalid_skill');
+    }
+
+    // Whatever the picked document is called (`skill.md`, `Skill.md`), it
+    // becomes the one name the loader reads — same rule as the file flow.
+    final planned = <String>[
+      for (final key in collected.keys)
+        if (!shadowed.contains(key))
+          key == skillKey ? SkillParser.skillFileName : key,
+    ]..sort();
+    if (planned.length > 1 && !confirmFolder) {
+      return ImportResult.confirmFolder(planned, name: name);
+    }
+    final files = <String, List<int>>{};
+    for (final entry in collected.entries) {
+      if (shadowed.contains(entry.key)) continue;
+      final target = entry.key == skillKey
+          ? SkillParser.skillFileName
+          : entry.key;
+      try {
+        files[target] = await File(entry.value).readAsBytes();
+      } catch (e) {
+        // Never install a partial folder: a skill that points at silently
+        // missing reference files is the worst failure mode (file flow rule).
+        return ImportResult.failure('read_failed: $e');
+      }
+    }
+    final install = await installSkillMultiBytes(
+      name: name,
+      files: files,
+      confirm: confirm,
+      source: SkillInstallSource.file,
+      globalRoot: globalRoot,
+    );
+    if (!install.ok) {
+      return ImportResult(
+        ok: false,
+        exists: install.exists,
+        // Carry the name into the overwrite envelope too: the picked folder is
+        // often NOT named after the skill (`my-skill-main/`), so a caller that
+        // falls back to the folder name would ask the user about the wrong
+        // skill.
+        pendingName: name,
+        error: install.error,
+      );
+    }
+    return ImportResult.success(install.skill!);
+  }
+
+  /// Picks the skill document out of a folder's collected keys (`SKILL.md` or
+  /// a case variant) and names the variants it shadows, or null when the
+  /// folder carries none.
+  ///
+  /// Case variants inside ONE folder (`SKILL.md` next to `skill.md` — a
+  /// copy/paste on a case-insensitive filesystem, a restored backup, or a
+  /// hand-made folder) must not install twice: the loader reads whichever it
+  /// happens to list first, so the second copy would shadow the stamped
+  /// document, and `installSkillMultiBytes` would take the frontmatter name
+  /// from the other one. The exact convention name wins; the rest are dropped,
+  /// exactly like the file flow drops a same-named sibling. Pure (no IO), so
+  /// the rule stays testable on hosts where the case cannot be built on disk.
+  static ({String key, Set<String> shadowed})? pickSkillDocument(
+    Iterable<String> keys,
+  ) {
+    final matches = keys
+        .where(
+          (key) =>
+              _fileNameOf(key).toLowerCase() ==
+              SkillParser.skillFileName.toLowerCase(),
+        )
+        .toList(growable: false);
+    if (matches.isEmpty) return null;
+    final key = matches.firstWhere(
+      (k) => _fileNameOf(k) == SkillParser.skillFileName,
+      orElse: () => matches.first,
+    );
+    return (
+      key: key,
+      shadowed: matches.where((k) => k != key).toSet(),
+    );
+  }
+
+  /// Skill folders directly inside [folderPath] (depth ≤ 1): the picked folder
+  /// itself when it carries a SKILL.md, otherwise its direct subfolders that
+  /// do. Doubles as the resolution rule for a folder pick and as the "is this
+  /// a skills root?" guard.
+  static List<String> _skillFoldersIn(String folderPath) {
+    if (_skillFileIn(folderPath) != null) return <String>[folderPath];
+    final out = <String>[];
+    try {
+      final dir = Directory(folderPath);
+      if (!dir.existsSync()) return out;
+      for (final e in dir.listSync(followLinks: false)) {
+        if (e is! Directory) continue;
+        final name = _fileNameOf(e.path);
+        if (name.startsWith('.')) continue;
+        if (name == 'node_modules' || name == '__pycache__') continue;
+        if (_skillFileIn(e.path) != null) out.add(e.path);
+      }
+    } catch (_) {
+      return out;
+    }
+    return out;
   }
 
   /// Counts files in a skill folder (any depth) — no symlink following, and

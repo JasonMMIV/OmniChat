@@ -5061,6 +5061,40 @@ class AppLocalizationsZh extends AppLocalizations {
   String get skillsFolderConfirmHint => '取消则只汇入 SKILL.md（不含其他档案）。';
 
   @override
+  String get skillsImportFolderTooltip => '导入技能资料夹';
+
+  @override
+  String get skillsImportFolderDialogTitle => '选择技能资料夹';
+
+  @override
+  String get skillsImportFolderConfirmTitle => '安装技能资料夹';
+
+  @override
+  String skillsImportFolderConfirmFiles(int count) {
+    return '此资料夹有 $count 个档案，要一并安装为一个技能吗？';
+  }
+
+  @override
+  String get skillsImportFolderConfirmHint => '取消则不汇入任何内容。';
+
+  @override
+  String get skillsImportFolderNoSkillMd => '所选资料夹中找不到 SKILL.md，未汇入任何内容。';
+
+  @override
+  String get skillsImportFolderMultipleSkills => '此资料夹包含多个技能，请选择单一技能资料夹。';
+
+  @override
+  String get skillsImportFolderUnreadable => '无法读取所选资料夹，未汇入任何内容。';
+
+  @override
+  String get skillsMobileFileImportNote =>
+      'iOS 上汇入档案只会安装 SKILL.md；技能的附属档案请改用 GitHub 下载取得。';
+
+  @override
+  String get skillsMobilePickUnresolvedNote =>
+      '读不到此档案所属的资料夹，只安装了 SKILL.md；要一并带入附属档案，请改从「内部存储空间」重新挑选同一个 SKILL.md，或改用 GitHub 下载。';
+
+  @override
   String get skillsGithubDialogTitle => '从 GitHub 下载技能';
 
   @override
@@ -9983,6 +10017,40 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get skillsFolderConfirmHint => '取消则只汇入 SKILL.md（不含其他档案）。';
+
+  @override
+  String get skillsImportFolderTooltip => '导入技能资料夹';
+
+  @override
+  String get skillsImportFolderDialogTitle => '选择技能资料夹';
+
+  @override
+  String get skillsImportFolderConfirmTitle => '安装技能资料夹';
+
+  @override
+  String skillsImportFolderConfirmFiles(int count) {
+    return '此资料夹有 $count 个档案，要一并安装为一个技能吗？';
+  }
+
+  @override
+  String get skillsImportFolderConfirmHint => '取消则不汇入任何内容。';
+
+  @override
+  String get skillsImportFolderNoSkillMd => '所选资料夹中找不到 SKILL.md，未汇入任何内容。';
+
+  @override
+  String get skillsImportFolderMultipleSkills => '此资料夹包含多个技能，请选择单一技能资料夹。';
+
+  @override
+  String get skillsImportFolderUnreadable => '无法读取所选资料夹，未汇入任何内容。';
+
+  @override
+  String get skillsMobileFileImportNote =>
+      'iOS 上汇入档案只会安装 SKILL.md；技能的附属档案请改用 GitHub 下载取得。';
+
+  @override
+  String get skillsMobilePickUnresolvedNote =>
+      '读不到此档案所属的资料夹，只安装了 SKILL.md；要一并带入附属档案，请改从「内部存储空间」重新挑选同一个 SKILL.md，或改用 GitHub 下载。';
 
   @override
   String get skillsGithubDialogTitle => '从 GitHub 下载技能';
@@ -15007,6 +15075,40 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get skillsFolderConfirmHint => '取消則只匯入 SKILL.md（不含其他檔案）。';
+
+  @override
+  String get skillsImportFolderTooltip => '匯入技能資料夾';
+
+  @override
+  String get skillsImportFolderDialogTitle => '選擇技能資料夾';
+
+  @override
+  String get skillsImportFolderConfirmTitle => '安裝技能資料夾';
+
+  @override
+  String skillsImportFolderConfirmFiles(int count) {
+    return '此資料夾有 $count 個檔案，要整包安裝為一個技能嗎？';
+  }
+
+  @override
+  String get skillsImportFolderConfirmHint => '取消則不匯入任何內容。';
+
+  @override
+  String get skillsImportFolderNoSkillMd => '選取的資料夾中找不到 SKILL.md，未匯入任何內容。';
+
+  @override
+  String get skillsImportFolderMultipleSkills => '此資料夾包含多個技能，請選擇單一技能資料夾。';
+
+  @override
+  String get skillsImportFolderUnreadable => '無法讀取選取的資料夾，未匯入任何內容。';
+
+  @override
+  String get skillsMobileFileImportNote =>
+      'iOS 上匯入檔案只會安裝 SKILL.md；技能的附屬檔案請改用 GitHub 下載取得。';
+
+  @override
+  String get skillsMobilePickUnresolvedNote =>
+      '讀不到此檔案所屬的資料夾，只安裝了 SKILL.md；要一併帶入附屬檔案，請改從「內部儲存空間」重新挑選同一個 SKILL.md，或改用 GitHub 下載。';
 
   @override
   String get skillsGithubDialogTitle => '從 GitHub 下載技能';
