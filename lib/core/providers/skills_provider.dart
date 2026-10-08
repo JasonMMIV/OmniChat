@@ -159,12 +159,33 @@ class SkillsProvider extends ChangeNotifier {
     bool confirm = false,
     bool confirmFolder = false,
     bool skipFolder = false,
+    String? sourceIdentifier,
   }) async {
     final result = await SkillService.importSkillFile(
       sourcePath: sourcePath,
       confirm: confirm,
       confirmFolder: confirmFolder,
       skipFolder: skipFolder,
+      // Android: the picked document's original URI, so the import can read the
+      // real skill folder instead of the picker's flat cache copy.
+      sourceIdentifier: sourceIdentifier,
+      globalRoot: _globalRootPath,
+    );
+    if (result.ok) await refresh();
+    return result;
+  }
+
+  /// Whole-folder import for a folder pick (mobile's only route to a skill's
+  /// attachments — see `SkillService.importSkillFolder`).
+  Future<ImportResult> importSkillFolder({
+    required String folderPath,
+    bool confirm = false,
+    bool confirmFolder = false,
+  }) async {
+    final result = await SkillService.importSkillFolder(
+      folderPath: folderPath,
+      confirm: confirm,
+      confirmFolder: confirmFolder,
       globalRoot: _globalRootPath,
     );
     if (result.ok) await refresh();

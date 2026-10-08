@@ -9728,6 +9728,66 @@ abstract class AppLocalizations {
   /// **'Cancel imports the SKILL.md alone (without the other files).'**
   String get skillsFolderConfirmHint;
 
+  /// No description provided for @skillsImportFolderTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Import a skill folder'**
+  String get skillsImportFolderTooltip;
+
+  /// No description provided for @skillsImportFolderDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a skill folder'**
+  String get skillsImportFolderDialogTitle;
+
+  /// No description provided for @skillsImportFolderConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Install skill folder'**
+  String get skillsImportFolderConfirmTitle;
+
+  /// No description provided for @skillsImportFolderConfirmFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'This folder holds {count} file(s). Install it as one skill?'**
+  String skillsImportFolderConfirmFiles(int count);
+
+  /// No description provided for @skillsImportFolderConfirmHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel installs nothing.'**
+  String get skillsImportFolderConfirmHint;
+
+  /// No description provided for @skillsImportFolderNoSkillMd.
+  ///
+  /// In en, this message translates to:
+  /// **'No SKILL.md in the selected folder — nothing was imported.'**
+  String get skillsImportFolderNoSkillMd;
+
+  /// No description provided for @skillsImportFolderMultipleSkills.
+  ///
+  /// In en, this message translates to:
+  /// **'That folder contains several skills — pick a single skill folder.'**
+  String get skillsImportFolderMultipleSkills;
+
+  /// No description provided for @skillsImportFolderUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'The selected folder could not be read — nothing was imported.'**
+  String get skillsImportFolderUnreadable;
+
+  /// No description provided for @skillsMobileFileImportNote.
+  ///
+  /// In en, this message translates to:
+  /// **'On iOS, importing a file installs the SKILL.md alone — a skill\'s attachments come in through GitHub download.'**
+  String get skillsMobileFileImportNote;
+
+  /// No description provided for @skillsMobilePickUnresolvedNote.
+  ///
+  /// In en, this message translates to:
+  /// **'That file\'s folder could not be read, so the SKILL.md was installed alone — pick the same SKILL.md through Internal storage instead, or use GitHub download, to bring a skill\'s attachments along.'**
+  String get skillsMobilePickUnresolvedNote;
+
   /// No description provided for @skillsGithubDialogTitle.
   ///
   /// In en, this message translates to:
