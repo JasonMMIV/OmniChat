@@ -507,6 +507,77 @@ void main() {
     });
   });
 
+  group('SkillsProvider.deleteSkill project shadow', () {
+    late Directory home;
+    late Directory workspace;
+
+    setUp(() async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      home = await Directory.systemTemp.createTemp('del_home_');
+      workspace = await Directory.systemTemp.createTemp('del_ws_');
+      SkillService.debugHomeDirectoryOverride = home.path;
+      SkillService.debugResetGlobalRootCache();
+    });
+
+    tearDown(() async {
+      SkillService.debugHomeDirectoryOverride = null;
+      SkillService.debugResetGlobalRootCache();
+      try {
+        await home.delete(recursive: true);
+      } catch (_) {}
+      try {
+        await workspace.delete(recursive: true);
+      } catch (_) {}
+    });
+
+    Future<void> writeSkill(String rootPath, String name) async {
+      final dir = Directory('$rootPath/$name')..createSync(recursive: true);
+      File('${dir.path}/SKILL.md').writeAsStringSync(
+        '---\nname: $name\ndescription: d\n---\n',
+      );
+    }
+
+    test('reports a same-named read-only project skill after a delete',
+        () async {
+      final provider = SkillsProvider();
+      await provider.initialize();
+      await writeSkill('${home.path}/.agents/skills', 'notes');
+      await writeSkill('${workspace.path}/.agents/skills', 'notes');
+      await provider.refresh();
+
+      // What the input-bar menu does before offering the skill.
+      provider.skillsForContext(workspace.path);
+
+      final result = await provider.deleteSkill('notes', mobilePlatform: true);
+
+      expect(result.ok, isTrue, reason: result.error);
+      expect(result.projectShadow, isTrue);
+      expect(
+        Directory('${home.path}/.agents/skills/notes').existsSync(),
+        isFalse,
+      );
+      // The menu keeps listing the name — via the project layer, by design.
+      expect(
+        provider.skillsForContext(workspace.path).containsKey('notes'),
+        isTrue,
+      );
+    });
+
+    test('no shadow flag when only the global copy existed', () async {
+      final provider = SkillsProvider();
+      await provider.initialize();
+      await writeSkill('${home.path}/.agents/skills', 'solo');
+      await provider.refresh();
+      provider.skillsForContext(workspace.path);
+
+      final result = await provider.deleteSkill('solo', mobilePlatform: true);
+      expect(result.ok, isTrue, reason: result.error);
+      expect(result.projectShadow, isFalse);
+      expect(provider.globalSkills, isEmpty);
+    });
+  });
+
   group('SkillsProvider.noteProjectSkills', () {
     test('surfaces project-only setups and dedupes notifications', () async {
       final workspace = await Directory.systemTemp.createTemp('hint_ws_');

@@ -4994,6 +4994,19 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String skillsDeleteSuccess(String name) {
+    return '已删除技能「$name」';
+  }
+
+  @override
+  String skillsDeleteShadowedProject(String name) {
+    return '已删除全域技能「$name」，但工作区仍有同名专案技能（唯读）——输入列里的技能选单仍会显示它。';
+  }
+
+  @override
+  String get skillsDeleteFailed => '删除失败';
+
+  @override
   String skillsOverwriteConfirm(String name) {
     return '已有同名技能「$name」，要覆写吗？';
   }
@@ -5043,6 +5056,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String skillsFolderConfirmFiles(int count) {
     return '此 SKILL.md 旁有 $count 个档案，要一并安装整个资料夹吗？';
   }
+
+  @override
+  String get skillsFolderConfirmHint => '取消则只汇入 SKILL.md（不含其他档案）。';
 
   @override
   String get skillsGithubDialogTitle => '从 GitHub 下载技能';
@@ -9902,6 +9918,19 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
+  String skillsDeleteSuccess(String name) {
+    return '已删除技能「$name」';
+  }
+
+  @override
+  String skillsDeleteShadowedProject(String name) {
+    return '已删除全域技能「$name」，但工作区仍有同名专案技能（唯读）——输入列里的技能选单仍会显示它。';
+  }
+
+  @override
+  String get skillsDeleteFailed => '删除失败';
+
+  @override
   String skillsOverwriteConfirm(String name) {
     return '已有同名技能「$name」，要覆写吗？';
   }
@@ -9951,6 +9980,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String skillsFolderConfirmFiles(int count) {
     return '此 SKILL.md 旁有 $count 个档案，要一并安装整个资料夹吗？';
   }
+
+  @override
+  String get skillsFolderConfirmHint => '取消则只汇入 SKILL.md（不含其他档案）。';
 
   @override
   String get skillsGithubDialogTitle => '从 GitHub 下载技能';
@@ -14910,6 +14942,19 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
+  String skillsDeleteSuccess(String name) {
+    return '已刪除技能「$name」';
+  }
+
+  @override
+  String skillsDeleteShadowedProject(String name) {
+    return '已刪除全域技能「$name」，但工作區仍有同名專案技能（唯讀）——輸入列的技能選單仍會顯示它。';
+  }
+
+  @override
+  String get skillsDeleteFailed => '刪除失敗';
+
+  @override
   String skillsOverwriteConfirm(String name) {
     return '已有同名技能「$name」，要覆寫嗎？';
   }
@@ -14959,6 +15004,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String skillsFolderConfirmFiles(int count) {
     return '此 SKILL.md 旁有 $count 個檔案，要一併安裝整個資料夾嗎？';
   }
+
+  @override
+  String get skillsFolderConfirmHint => '取消則只匯入 SKILL.md（不含其他檔案）。';
 
   @override
   String get skillsGithubDialogTitle => '從 GitHub 下載技能';

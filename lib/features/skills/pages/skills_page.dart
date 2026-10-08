@@ -127,18 +127,27 @@ class _SkillsPageState extends State<SkillsPage> {
       var result = await provider.importSkill(sourcePath: path);
       if (!mounted) return;
 
+      // Folder decision sticks for the rest of this file's flow (including
+      // the overwrite retry) so a declined folder cannot sneak back in.
+      var skipFolder = false;
       if (result.folderConfirm) {
         final count = result.folderFiles.length;
         final proceed = await _confirm(
           context,
           '${l10n.skillsFolderConfirmTitle}\n\n'
           '${l10n.skillsFolderConfirmFiles(count)}\n\n'
-          '${result.folderFiles.take(20).join('\n')}',
+          '${result.folderFiles.take(20).join('\n')}\n\n'
+          '${l10n.skillsFolderConfirmHint}',
         );
-        if (!proceed || !mounted) continue;
+        if (!mounted) return;
+        // Declining must not abort the import the user asked for — it means
+        // "just the SKILL.md". Aborting here made a skill with a single
+        // unrelated sibling file impossible to import at all (2026-10-08).
+        skipFolder = !proceed;
         result = await provider.importSkill(
           sourcePath: path,
-          confirmFolder: true,
+          confirmFolder: proceed,
+          skipFolder: skipFolder,
         );
       }
       if (!mounted) return;
@@ -153,7 +162,8 @@ class _SkillsPageState extends State<SkillsPage> {
         result = await provider.importSkill(
           sourcePath: path,
           confirm: true,
-          confirmFolder: true,
+          confirmFolder: !skipFolder,
+          skipFolder: skipFolder,
         );
       }
       if (!mounted) return;
@@ -199,12 +209,24 @@ class _SkillsPageState extends State<SkillsPage> {
     if (!confirmed || !mounted) return;
     final result = await provider.deleteSkill(skill.name);
     if (!mounted) return;
+    // Never reuse the "Installed skill X" string here (that made a delete look
+    // like an install), and never show raw `delete_failed:` text to the user.
+    if (!result.ok) {
+      showAppSnackBar(
+        context,
+        message: l10n.skillsDeleteFailed,
+        type: NotificationType.error,
+      );
+      return;
+    }
     showAppSnackBar(
       context,
-      message: result.ok
-          ? l10n.skillsGithubDownloadSuccess(skill.name)
-          : (result.error ?? l10n.skillsImportFailed),
-      type: result.ok ? NotificationType.success : NotificationType.error,
+      message: result.projectShadow
+          ? l10n.skillsDeleteShadowedProject(skill.name)
+          : l10n.skillsDeleteSuccess(skill.name),
+      type: result.projectShadow
+          ? NotificationType.warning
+          : NotificationType.success,
     );
   }
 

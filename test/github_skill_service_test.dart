@@ -234,6 +234,40 @@ void main() {
       expect(ok.ok, isTrue);
     });
 
+    test('binary attachments survive byte-for-byte', () async {
+      // A text round-trip used to write replacement characters over every
+      // non-UTF-8 attachment fetched from GitHub.
+      final png = <int>[
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0xFF, 0x00, 0x7F,
+      ];
+      GithubSkillService.debugHttpClient = MockClient((request) async {
+        if (request.url.host == 'api.github.com') {
+          return _treesResponse([
+            {'path': 'img-skill/SKILL.md', 'type': 'blob'},
+            {'path': 'img-skill/assets/logo.png', 'type': 'blob'},
+          ]);
+        }
+        if (request.url.path.endsWith('SKILL.md')) {
+          return http.Response(
+            '---\nname: img-skill\ndescription: d\n---\n',
+            200,
+          );
+        }
+        return http.Response.bytes(png, 200);
+      });
+
+      final result = await GithubSkillService.downloadGithubSkill(
+        repoInput: 'owner/repo',
+        path: 'img-skill',
+        globalRoot: globalRoot.path,
+      );
+      expect(result.ok, isTrue, reason: result.error);
+      expect(
+        File('${globalRoot.path}/img-skill/assets/logo.png').readAsBytesSync(),
+        png,
+      );
+    });
+
     test('frontmatter name mismatch with folder name installs by name', () async {
       GithubSkillService.debugHttpClient = MockClient((request) async {
         if (request.url.host == 'api.github.com') {

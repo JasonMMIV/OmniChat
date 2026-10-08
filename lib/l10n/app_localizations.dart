@@ -9614,6 +9614,24 @@ abstract class AppLocalizations {
   /// **'Delete skill \"{name}\"? The whole folder will be removed.'**
   String skillsDeleteConfirm(String name);
 
+  /// No description provided for @skillsDeleteSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Removed skill \"{name}\"'**
+  String skillsDeleteSuccess(String name);
+
+  /// No description provided for @skillsDeleteShadowedProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Removed the global skill \"{name}\", but a same-named read-only project skill remains in the workspace — the input-bar skills menu still lists it.'**
+  String skillsDeleteShadowedProject(String name);
+
+  /// No description provided for @skillsDeleteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete failed'**
+  String get skillsDeleteFailed;
+
   /// No description provided for @skillsOverwriteConfirm.
   ///
   /// In en, this message translates to:
@@ -9703,6 +9721,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This SKILL.md sits next to {count} file(s). Install the whole folder?'**
   String skillsFolderConfirmFiles(int count);
+
+  /// No description provided for @skillsFolderConfirmHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel imports the SKILL.md alone (without the other files).'**
+  String get skillsFolderConfirmHint;
 
   /// No description provided for @skillsGithubDialogTitle.
   ///

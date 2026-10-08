@@ -145,7 +145,11 @@ class GithubSkillService {
     if (skillMdResponse.error != null) {
       return DownloadGithubSkillResult.failure(skillMdResponse.error!);
     }
-    final skillMdContent = skillMdResponse.body!;
+    final skillMdBytes = skillMdResponse.bodyBytes!;
+    // Frontmatter is text by contract; tolerate odd encodings here and let
+    // the installer rewrite SKILL.md as UTF-8 (same rule as installSkillMulti).
+    final skillMdContent =
+        utf8.decode(skillMdBytes, allowMalformed: true);
     final name = SkillParser.extractSkillName(skillMdContent);
     if (name == null || !SkillParser.isValidSkillName(name)) {
       return DownloadGithubSkillResult.failure('invalid_skill');
@@ -159,9 +163,12 @@ class GithubSkillService {
     }
 
     // 3) Download every remaining blob (dangerous extensions skipped,
-    //    unsafe paths abort the whole download).
-    final files = <String, String>{
-      _relPath(skillMdEntry.path, prefix): skillMdContent,
+    //    unsafe paths abort the whole download). Bodies stay bytes: a
+    //    binary reference (image/font/PDF) must survive the round-trip —
+    //    the pre-fix utf8.decode(allowMalformed) path wrote replacement
+    //    characters over every non-text attachment.
+    final files = <String, List<int>>{
+      _relPath(skillMdEntry.path, prefix): skillMdBytes,
     };
     for (final entry in folderEntries) {
       if (entry.path == skillMdEntry.path) continue;
@@ -175,10 +182,10 @@ class GithubSkillService {
         // Any failure aborts — never leave half a skill behind.
         return DownloadGithubSkillResult.failure(response.error!);
       }
-      files[rel] = response.body!;
+      files[rel] = response.bodyBytes!;
     }
 
-    final install = await SkillService.installSkillMulti(
+    final install = await SkillService.installSkillMultiBytes(
       name: name,
       files: files,
       confirm: confirm,
@@ -283,7 +290,7 @@ class GithubSkillService {
     if (response == null) return const _RawResult(error: 'network');
     if (response.statusCode == 404) return const _RawResult(error: 'not_found');
     if (response.statusCode != 200) return const _RawResult(error: 'network');
-    return _RawResult(body: utf8.decode(response.bodyBytes, allowMalformed: true));
+    return _RawResult(bodyBytes: response.bodyBytes);
   }
 
   /// Single fetch entry point — re-validates the host (defense in depth) and
@@ -340,8 +347,8 @@ class _TreesResult {
 }
 
 class _RawResult {
-  const _RawResult({this.body, this.error});
+  const _RawResult({this.bodyBytes, this.error});
 
-  final String? body;
+  final List<int>? bodyBytes;
   final String? error;
 }

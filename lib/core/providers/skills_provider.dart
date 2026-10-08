@@ -31,6 +31,11 @@ class SkillsProvider extends ChangeNotifier {
   /// [noteProjectSkills]) and on menu open.
   List<SkillDefinition> _lastProjectSkills = const <SkillDefinition>[];
 
+  /// Workspace path behind [_lastProjectSkills] — read by [deleteSkill] to
+  /// check whether a deleted global skill is still shadowed by a same-named
+  /// read-only project skill (the input-bar menu merges project over global).
+  String? _lastWorkspacePath;
+
   static const String _seededFlagKey = 'skills_example_seeded_v1';
 
   List<SkillDefinition> get globalSkills =>
@@ -86,6 +91,7 @@ class SkillsProvider extends ChangeNotifier {
   /// Project layer overrides global on name collisions. Also updates the
   /// last-known project-skill hint for button visibility.
   Map<String, SkillDefinition> skillsForContext(String? workspacePath) {
+    _lastWorkspacePath = workspacePath;
     final map = SkillService.skillsForContext(
       workspacePath: workspacePath,
       globalRoot: _globalRootPath,
@@ -104,6 +110,7 @@ class SkillsProvider extends ChangeNotifier {
   /// got a menu entry. Never throws (the discovery layer swallows unreadable
   /// roots); notifies only when the skill-name set changed.
   void noteProjectSkills(String? workspacePath) {
+    _lastWorkspacePath = workspacePath;
     // Project layer only — the global half of the gate reads
     // `_globalSkills`; this scan fills the project half.
     final map = SkillService.skillsForContext(
@@ -151,11 +158,13 @@ class SkillsProvider extends ChangeNotifier {
     required String sourcePath,
     bool confirm = false,
     bool confirmFolder = false,
+    bool skipFolder = false,
   }) async {
     final result = await SkillService.importSkillFile(
       sourcePath: sourcePath,
       confirm: confirm,
       confirmFolder: confirmFolder,
+      skipFolder: skipFolder,
       globalRoot: _globalRootPath,
     );
     if (result.ok) await refresh();
@@ -183,14 +192,37 @@ class SkillsProvider extends ChangeNotifier {
 
   /// Mobile-only (D6): the desktop `~/.agents/skills/` directory is shared
   /// with other tools, so the app never deletes from it.
-  Future<DeleteResult> deleteSkill(String name) async {
+  ///
+  /// After a successful delete the name can STILL be resolvable from the
+  /// read-only project layer of the workspace the user is in — the input-bar
+  /// menu merges project skills over global ones, so the entry reappears
+  /// there and the delete looks like it failed. The result carries
+  /// [DeleteResult.projectShadow] so the page can say what happened instead.
+  /// [mobilePlatform] is overridable for tests; production omits it and the
+  /// platform decides (desktop never deletes from the shared `~/.agents/`).
+  Future<DeleteResult> deleteSkill(String name, {bool? mobilePlatform}) async {
     final result = await SkillService.deleteSkill(
       name,
-      mobilePlatform: PlatformUtils.isMobile,
+      mobilePlatform: mobilePlatform ?? PlatformUtils.isMobile,
       globalRoot: _globalRootPath,
     );
-    if (result.ok) await refresh();
-    return result;
+    if (!result.ok) {
+      // The page shows a generic message (raw FileSystemException text scared
+      // users), so this log is the ONLY remaining trace of why a delete
+      // failed — keep it for on-device diagnosis (adb logcat).
+      debugPrint('Skill delete failed ("$name"): ${result.error}');
+      return result;
+    }
+    await refresh();
+    final workspacePath = _lastWorkspacePath;
+    if (workspacePath == null) return result;
+    final stillProject = SkillService.skillsForContext(
+      workspacePath: workspacePath,
+      globalRoot: null,
+    );
+    return stillProject.containsKey(name)
+        ? DeleteResult.success(projectShadow: true)
+        : result;
   }
 
   // ==========================================================================

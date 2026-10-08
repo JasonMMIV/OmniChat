@@ -140,12 +140,24 @@ class InstallResult {
 
 /// Outcome of [SkillService.deleteSkill].
 class DeleteResult {
-  const DeleteResult({required this.ok, this.error});
+  const DeleteResult({
+    required this.ok,
+    this.error,
+    this.projectShadow = false,
+  });
 
   final bool ok;
   final String? error;
 
-  static DeleteResult success() => const DeleteResult(ok: true);
+  /// True when the global folder was removed but a same-named *project* skill
+  /// still resolves in the workspace. Project skills are read-only by design,
+  /// so the input-bar menu (which merges project over global) keeps listing
+  /// the name — the caller must say so instead of letting it look like a
+  /// delete that did not take effect. Set by `SkillsProvider.deleteSkill`.
+  final bool projectShadow;
+
+  static DeleteResult success({bool projectShadow = false}) =>
+      DeleteResult(ok: true, projectShadow: projectShadow);
   static DeleteResult failure(String error) =>
       DeleteResult(ok: false, error: error);
 }
