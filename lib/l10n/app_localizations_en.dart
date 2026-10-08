@@ -5033,6 +5033,19 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String skillsDeleteSuccess(String name) {
+    return 'Removed skill \"$name\"';
+  }
+
+  @override
+  String skillsDeleteShadowedProject(String name) {
+    return 'Removed the global skill \"$name\", but a same-named read-only project skill remains in the workspace — the input-bar skills menu still lists it.';
+  }
+
+  @override
+  String get skillsDeleteFailed => 'Delete failed';
+
+  @override
   String skillsOverwriteConfirm(String name) {
     return 'A skill named \"$name\" already exists. Overwrite it?';
   }
@@ -5083,6 +5096,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String skillsFolderConfirmFiles(int count) {
     return 'This SKILL.md sits next to $count file(s). Install the whole folder?';
   }
+
+  @override
+  String get skillsFolderConfirmHint =>
+      'Cancel imports the SKILL.md alone (without the other files).';
 
   @override
   String get skillsGithubDialogTitle => 'Download skills from GitHub';

@@ -307,6 +307,27 @@ class SkillService {
     return InstallResult.success(saved);
   }
 
+  /// Text variant of [installSkillMultiBytes] for callers that already hold
+  /// UTF-8 text. Attachments that may be binary (PNG/PDF/font/zip references)
+  /// must go through the bytes variant — a text round-trip mangles them.
+  static Future<InstallResult> installSkillMulti({
+    required String name,
+    required Map<String, String> files,
+    bool confirm = false,
+    SkillInstallSource source = SkillInstallSource.manual,
+    String? globalRoot,
+  }) {
+    return installSkillMultiBytes(
+      name: name,
+      files: {
+        for (final entry in files.entries) entry.key: utf8.encode(entry.value),
+      },
+      confirm: confirm,
+      source: source,
+      globalRoot: globalRoot,
+    );
+  }
+
   /// Installs a whole skill folder (GitHub download / folder import).
   ///
   /// All files land in a unique temp dir first, then rename into place with
@@ -314,9 +335,14 @@ class SkillService {
   /// aside and rolls back on failure — a skill is installed completely or
   /// not at all (a half skill loads, advertises itself, and points at
   /// silently dropped attachments).
-  static Future<InstallResult> installSkillMulti({
+  ///
+  /// Every attachment is written byte-for-byte (2026-10-08): skill folders
+  /// carry binary references (images, PDFs, fonts, archives), and the old
+  /// text-only payload dropped them on import and corrupted them on GitHub
+  /// download.
+  static Future<InstallResult> installSkillMultiBytes({
     required String name,
-    required Map<String, String> files,
+    required Map<String, List<int>> files,
     bool confirm = false,
     SkillInstallSource source = SkillInstallSource.manual,
     String? globalRoot,
@@ -324,11 +350,14 @@ class SkillService {
     if (!SkillParser.isValidSkillName(name)) {
       return InstallResult.failure('invalid_name');
     }
-    final skillMd = files.entries
+    final skillMdBytes = files.entries
         .where((e) => e.key.toLowerCase() == 'skill.md')
         .map((e) => e.value)
         .firstOrNull;
-    if (skillMd == null) return InstallResult.failure('missing_skill_md');
+    if (skillMdBytes == null) return InstallResult.failure('missing_skill_md');
+    // SKILL.md is text by contract; tolerate odd encodings rather than
+    // refusing the install (provenance stamping rewrites it as UTF-8).
+    final skillMd = utf8.decode(skillMdBytes, allowMalformed: true);
     final parsed = SkillParser.parseSkillFileContent(
       skillMd,
       directoryName: name,
@@ -368,10 +397,10 @@ class SkillService {
           '${tempDir.path}/${entry.key.replaceAll('/', Platform.pathSeparator)}',
         );
         await target.parent.create(recursive: true);
-        final content = entry.key.toLowerCase() == 'skill.md'
-            ? stampedSkillMd
+        final payload = entry.key.toLowerCase() == 'skill.md'
+            ? utf8.encode(stampedSkillMd)
             : entry.value;
-        await target.writeAsString(content, flush: true);
+        await target.writeAsBytes(payload, flush: true);
       }
 
       var backupCreated = false;
@@ -457,12 +486,33 @@ class SkillService {
     return DeleteResult.success();
   }
 
-  /// Imports a local `.md` file (or, when it sits inside a skill folder with
+  /// Test seam for [folderImportSupported] — never set in production.
+  static bool? debugFolderImportOverride;
+
+  /// Folder-aware import needs a real on-disk skill folder. Mobile pickers
+  /// hand back a *flattened copy inside the app cache*, where the sibling
+  /// files belong to other picks (or other apps) — treating them as
+  /// attachments would copy unrelated cached files into the skill folder.
+  /// Manual §3.15 §5: mobile degrades to single-file import.
+  static bool get folderImportSupported =>
+      debugFolderImportOverride ??
+      !(Platform.isAndroid || Platform.isIOS);
+
+  /// Imports a local `.md` file (or, when it sits in a folder with sibling
   /// attachments, the whole folder after `confirmFolder`).
+  ///
+  /// Folder awareness does NOT require folder name == frontmatter name
+  /// (2026-10-08): a downloaded zip (`my-skill-main/`) or a hand-made folder
+  /// used to defeat that gate and silently install the SKILL.md alone,
+  /// dropping every reference file the skill points at. Any sibling file
+  /// (outside `.git` / `node_modules` / `__pycache__` / dot-entries) now
+  /// triggers the two-step confirm; `skipFolder` imports the picked document
+  /// alone for callers that declined it.
   static Future<ImportResult> importSkillFile({
     required String sourcePath,
     bool confirm = false,
     bool confirmFolder = false,
+    bool skipFolder = false,
     String? globalRoot,
   }) async {
     final file = File(sourcePath);
@@ -478,45 +528,62 @@ class SkillService {
       return ImportResult.failure('invalid_skill');
     }
 
-    // Folder awareness (desktop): a picked <skill>/SKILL.md with sibling
-    // attachments installs the whole folder — but only after the user sees
-    // the file list and confirms.
-    final parentDir = file.parent;
-    final parentName = _fileNameOf(parentDir.path);
-    final attachments = <String, String>{};
-    if (parentName == name) {
-      final files = _collectFolderFiles(parentDir.path, relativeTo: parentDir.path);
-      if (files.length > 1) {
+    if (folderImportSupported && !skipFolder) {
+      // Siblings = the skill folder. The picked file is never one of them:
+      // it becomes SKILL.md below, whatever its own name is.
+      final parentDir = file.parent;
+      final pickedName = _fileNameOf(file.path);
+      final siblings = _collectFolderFiles(
+        parentDir.path,
+        relativeTo: parentDir.path,
+      )..remove(pickedName);
+      if (siblings.isNotEmpty) {
         if (!confirmFolder) {
-          return ImportResult.confirmFolder(files.keys.toList(growable: false)..sort());
+          return ImportResult.confirmFolder(
+            siblings.keys.toList(growable: false)..sort(),
+          );
         }
-        for (final entry in files.entries) {
+        // Byte-exact payloads: a binary reference (PNG/PDF/font) is a
+        // legitimate attachment, and the pre-fix text read silently
+        // dropped every file that was not valid UTF-8 — after the user had
+        // already confirmed the full folder list.
+        final files = <String, List<int>>{};
+        for (final entry in siblings.entries) {
+          if (entry.key.toLowerCase() ==
+              SkillParser.skillFileName.toLowerCase()) {
+            continue; // the picked document wins over a same-named sibling
+          }
           try {
-            attachments[entry.key] = await File(entry.value).readAsString();
-          } catch (_) {
-            // Unreadable attachment — skip rather than abort the import.
+            files[entry.key] = await File(entry.value).readAsBytes();
+          } catch (e) {
+            // Never install a partial folder: a skill pointing at a
+            // silently missing reference file is the worst failure mode.
+            return ImportResult.failure('read_failed: $e');
           }
         }
+        try {
+          files[SkillParser.skillFileName] = await file.readAsBytes();
+        } catch (e) {
+          return ImportResult.failure('read_failed: $e');
+        }
+        final folderInstall = await installSkillMultiBytes(
+          name: name,
+          files: files,
+          confirm: confirm,
+          source: SkillInstallSource.file,
+          globalRoot: globalRoot,
+        );
+        if (!folderInstall.ok) {
+          return ImportResult(
+            ok: false,
+            exists: folderInstall.exists,
+            error: folderInstall.error,
+          );
+        }
+        return ImportResult.success(folderInstall.skill!);
       }
     }
 
-    if (attachments.isNotEmpty) {
-      final install = await installSkillMulti(
-        name: name,
-        files: attachments,
-        confirm: confirm,
-        source: SkillInstallSource.file,
-        globalRoot: globalRoot,
-      );
-      if (!install.ok) {
-        return ImportResult(
-          ok: false,
-          exists: install.exists,
-          error: install.error,
-        );
-      }
-      return ImportResult.success(install.skill!);
-    }
     final install = await installSkill(
       name: name,
       content: content,
@@ -535,7 +602,9 @@ class SkillService {
   }
 
   /// Counts files in a skill folder (any depth) — no symlink following, and
-  /// `.git` / `node_modules` are skipped (Anybuff `scanSkillFolder`).
+  /// `.git` / `node_modules` / `__pycache__` plus dot-entries are skipped
+  /// (Anybuff `scanSkillFolder`; the noise list mirrors the import scan so
+  /// the badge counts exactly what an import would copy).
   static int countSkillFiles(String skillDir) {
     var count = 0;
     void walk(String dirPath) {
@@ -545,8 +614,9 @@ class SkillService {
         if (!dir.existsSync()) return;
         for (final e in dir.listSync(followLinks: false)) {
           final name = _fileNameOf(e.path);
+          if (name.startsWith('.')) continue;
           if (e is Directory) {
-            if (name == '.git' || name == 'node_modules') continue;
+            if (name == 'node_modules' || name == '__pycache__') continue;
             walk(e.path);
           } else if (e is File) {
             count++;
@@ -678,6 +748,8 @@ class SkillService {
   }
 
   /// Collects all files under [root] as relative POSIX paths → absolute.
+  /// `.git` / `node_modules` / `__pycache__` and dot-entries are skipped so
+  /// the confirm list and the copy only carry what belongs to the skill.
   static Map<String, String> _collectFolderFiles(
     String dirPath, {
     required String relativeTo,
@@ -690,8 +762,9 @@ class SkillService {
         if (!d.existsSync()) return;
         for (final e in d.listSync(followLinks: false)) {
           final name = _fileNameOf(e.path);
+          if (name.startsWith('.')) continue;
           if (e is Directory) {
-            if (name == '.git' || name == 'node_modules') continue;
+            if (name == 'node_modules' || name == '__pycache__') continue;
             walk(e.path);
           } else if (e is File) {
             final rel = _normalize(e.path)

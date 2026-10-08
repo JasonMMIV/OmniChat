@@ -2114,6 +2114,9 @@
   "skillsGithubTooltip": "Download from GitHub",
   "skillsDeleteTooltip": "Delete skill",
   "skillsDeleteConfirm": "Delete skill \"{name}\"? The whole folder will be removed.",
+  "skillsDeleteSuccess": "Removed skill \"{name}\"",
+  "skillsDeleteShadowedProject": "Removed the global skill \"{name}\", but a same-named read-only project skill remains in the workspace — the input-bar skills menu still lists it.",
+  "skillsDeleteFailed": "Delete failed",
   "skillsOverwriteConfirm": "A skill named \"{name}\" already exists. Overwrite it?",
   "skillsConfirmButton": "Confirm",
   "skillNameLabel": "Name",
@@ -2129,6 +2132,7 @@
   "skillFilesCount": "{count} files",
   "skillsFolderConfirmTitle": "Install skill folder",
   "skillsFolderConfirmFiles": "This SKILL.md sits next to {count} file(s). Install the whole folder?",
+  "skillsFolderConfirmHint": "Cancel imports the SKILL.md alone (without the other files).",
   "skillsGithubDialogTitle": "Download skills from GitHub",
   "skillsGithubRepoHint": "owner/repo or GitHub URL",
   "skillsGithubListButton": "List skills",
@@ -2166,6 +2170,20 @@
     }
   },
   "@skillsDeleteConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@skillsDeleteSuccess": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@skillsDeleteShadowedProject": {
     "placeholders": {
       "name": {
         "type": "String"

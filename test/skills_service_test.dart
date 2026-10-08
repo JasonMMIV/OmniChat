@@ -417,7 +417,9 @@ void main() {
         globalRoot: globalRoot.path,
       );
       expect(probe.folderConfirm, isTrue);
-      expect(probe.folderFiles, containsAll(['SKILL.md', 'references/a.md']));
+      // The picked document itself is not an attachment — only what comes
+      // with it is listed (the dialog counts "files next to the SKILL.md").
+      expect(probe.folderFiles, ['references/a.md']);
 
       final confirm = await SkillService.importSkillFile(
         sourcePath: src.path,
@@ -439,6 +441,136 @@ void main() {
         globalRoot: globalRoot.path,
       );
       expect(result.error, 'invalid_skill');
+    });
+
+    test('folder import does not require folder name == skill name', () async {
+      // A downloaded zip unpacks into `my-skill-main/`; the old
+      // folder-name gate silently installed the SKILL.md alone.
+      final skillDir = Directory('${projectRoot.path}/my-skill-main')
+        ..createSync(recursive: true);
+      final src = File('${skillDir.path}/SKILL.md')
+        ..writeAsStringSync('---\nname: my-skill\ndescription: d\n---\n');
+      final refs = Directory('${skillDir.path}/references')
+        ..createSync(recursive: true);
+      File('${refs.path}/a.md').writeAsStringSync('a');
+
+      final probe = await SkillService.importSkillFile(
+        sourcePath: src.path,
+        globalRoot: globalRoot.path,
+      );
+      expect(probe.folderConfirm, isTrue);
+      expect(probe.folderFiles, ['references/a.md']);
+
+      final confirm = await SkillService.importSkillFile(
+        sourcePath: src.path,
+        confirmFolder: true,
+        globalRoot: globalRoot.path,
+      );
+      expect(confirm.ok, isTrue, reason: confirm.error);
+      expect(confirm.skill!.name, 'my-skill');
+      expect(
+        File('${globalRoot.path}/my-skill/references/a.md').readAsStringSync(),
+        'a',
+      );
+    });
+
+    test('binary attachments are installed byte-for-byte', () async {
+      final skillDir = Directory('${projectRoot.path}/img-skill')
+        ..createSync(recursive: true);
+      final src = File('${skillDir.path}/SKILL.md')
+        ..writeAsStringSync('---\nname: img-skill\ndescription: d\n---\n');
+      final png = <int>[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0xFF];
+      File('${skillDir.path}/logo.png').writeAsBytesSync(png);
+      // Python/version-control noise must never travel with the skill.
+      final cache = Directory('${skillDir.path}/__pycache__')..createSync();
+      File('${cache.path}/mod.pyc').writeAsBytesSync(<int>[0x00, 0xFF]);
+
+      final confirm = await SkillService.importSkillFile(
+        sourcePath: src.path,
+        confirmFolder: true,
+        globalRoot: globalRoot.path,
+      );
+      expect(confirm.ok, isTrue, reason: confirm.error);
+      expect(
+        File('${globalRoot.path}/img-skill/logo.png').readAsBytesSync(),
+        png,
+        reason: 'a non-UTF-8 attachment used to be dropped after confirm',
+      );
+      expect(
+        Directory('${globalRoot.path}/img-skill/__pycache__').existsSync(),
+        isFalse,
+      );
+    });
+
+    test('skipFolder imports only the picked document', () async {
+      final skillDir = Directory('${projectRoot.path}/solo-skill')
+        ..createSync(recursive: true);
+      final src = File('${skillDir.path}/SKILL.md')
+        ..writeAsStringSync('---\nname: solo-skill\ndescription: d\n---\n');
+      File('${skillDir.path}/notes.md').writeAsStringSync('notes');
+
+      final result = await SkillService.importSkillFile(
+        sourcePath: src.path,
+        skipFolder: true,
+        globalRoot: globalRoot.path,
+      );
+      expect(result.ok, isTrue, reason: result.error);
+      expect(result.skill!.fileCount, 1);
+      expect(
+        File('${globalRoot.path}/solo-skill/notes.md').existsSync(),
+        isFalse,
+      );
+    });
+
+    test('folder import is desktop-only (flattened mobile picks stay single)',
+        () async {
+      final skillDir = Directory('${projectRoot.path}/mobile-skill')
+        ..createSync(recursive: true);
+      final src = File('${skillDir.path}/SKILL.md')
+        ..writeAsStringSync('---\nname: mobile-skill\ndescription: d\n---\n');
+      // A second pick cached in the same flattened picker directory.
+      File('${skillDir.path}/other-skill.md').writeAsStringSync(
+        '---\nname: other-skill\ndescription: d\n---\n',
+      );
+
+      SkillService.debugFolderImportOverride = false; // simulate mobile
+      addTearDown(() => SkillService.debugFolderImportOverride = null);
+
+      final result = await SkillService.importSkillFile(
+        sourcePath: src.path,
+        globalRoot: globalRoot.path,
+      );
+      expect(result.folderConfirm, isFalse);
+      expect(result.ok, isTrue, reason: result.error);
+      expect(result.skill!.fileCount, 1);
+      expect(
+        File('${globalRoot.path}/mobile-skill/other-skill.md').existsSync(),
+        isFalse,
+        reason: 'another cached pick must never travel with this skill',
+      );
+    });
+
+    test('a picked my-skill.md inside a folder becomes SKILL.md', () async {
+      final skillDir = Directory('${projectRoot.path}/renamed-skill')
+        ..createSync(recursive: true);
+      final src = File('${skillDir.path}/my-skill.md')
+        ..writeAsStringSync('---\nname: renamed-skill\ndescription: d\n---\n');
+      File('${skillDir.path}/extra.md').writeAsStringSync('extra');
+
+      final result = await SkillService.importSkillFile(
+        sourcePath: src.path,
+        confirmFolder: true,
+        globalRoot: globalRoot.path,
+      );
+      expect(result.ok, isTrue, reason: result.error);
+      expect(
+        File('${globalRoot.path}/renamed-skill/SKILL.md').existsSync(),
+        isTrue,
+      );
+      expect(
+        File('${globalRoot.path}/renamed-skill/extra.md').readAsStringSync(),
+        'extra',
+      );
     });
   });
 
