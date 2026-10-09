@@ -65,6 +65,38 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 add_subdirectory("runner")
 
 
+# === nuget bootstrap (one verified copy for every plugin) ===
+# flutter_tts only does `find_program(nuget)` and hard-fails when PATH has no
+# nuget.exe; other plugins download their own copy into the build tree. A
+# `flutter clean` wipes that tree (and CMake's cached find results), so the
+# next configure dies at flutter_tts/windows/CMakeLists.txt unless nuget is
+# available. Fetch one hash-pinned copy into the build tree and expose it via
+# CMAKE_PROGRAM_PATH (searched by find_program) so clean builds self-heal
+# without committing a binary (store / F-Droid compliance).
+find_program(OMNICHAT_NUGET nuget)
+if(NOT OMNICHAT_NUGET)
+  set(OMNICHAT_NUGET_DIR "${CMAKE_BINARY_DIR}/nuget-tools")
+  set(OMNICHAT_NUGET_EXE "${OMNICHAT_NUGET_DIR}/nuget.exe")
+  if(NOT EXISTS "${OMNICHAT_NUGET_EXE}")
+    message(STATUS "nuget.exe not found on PATH; downloading a verified copy to ${OMNICHAT_NUGET_EXE}")
+    file(MAKE_DIRECTORY "${OMNICHAT_NUGET_DIR}")
+    file(DOWNLOAD
+      "https://dist.nuget.org/win-x86-commandline/v6.0.0/nuget.exe"
+      "${OMNICHAT_NUGET_EXE}"
+      EXPECTED_HASH SHA256=04eb6c4fe4213907e2773e1be1bbbd730e9a655a3c9c58387ce8d4a714a5b9e1
+      STATUS OMNICHAT_NUGET_STATUS)
+    list(GET OMNICHAT_NUGET_STATUS 0 OMNICHAT_NUGET_CODE)
+    if(NOT OMNICHAT_NUGET_CODE EQUAL 0)
+      list(GET OMNICHAT_NUGET_STATUS 1 OMNICHAT_NUGET_ERROR)
+      file(REMOVE "${OMNICHAT_NUGET_EXE}")
+      message(FATAL_ERROR
+        "No nuget on PATH and the verified download failed (${OMNICHAT_NUGET_ERROR}). "
+        "Install nuget.exe on PATH or restore network access, then reconfigure.")
+    endif()
+  endif()
+  list(APPEND CMAKE_PROGRAM_PATH "${OMNICHAT_NUGET_DIR}")
+endif()
+
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
 include(flutter/generated_plugins.cmake)
