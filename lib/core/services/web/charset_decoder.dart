@@ -1,7 +1,7 @@
 // Web fetch charset decoding (WEB_FETCH_PLAN.md §5.4).
 //
 // Detection order: Content-Type charset → BOM → <meta charset> in the first
-// 4 KB → strict UTF-8 → best-effort CJK candidates → latin1.
+// 4 KB → strict UTF-8 → script-plausibility scoring for CJK → latin1.
 //
 // Package split is deliberate (never mix them):
 //   * enough_convert: Big5, GBK (MPL-2.0)
@@ -39,6 +39,47 @@ class CharsetDecoder {
 
   static const int metaProbeBytes = 4096;
 
+  /// Plausibility scoring only needs a representative prefix; decoding three
+  /// 2 MB candidates and scanning every rune would add avoidable latency.
+  static const int plausibilitySampleChars = 64 * 1024;
+
+  static const List<String> _candidateOrder = <String>[
+    'big5',
+    'gbk',
+    'shift_jis',
+  ];
+
+  /// Characters that are common in Traditional Chinese but rare in Simplified
+  /// Chinese. Used only to rank already-decodable candidates.
+  static final Set<int> _traditionalHints = _hints(
+    '繁體中文國學說時會來對開關進過發後裡麼動現點業兩間問題並產員電數報結'
+    '務場計區隊書聽廣東車極辦議證轉單愛擊團華離請際復線滿須寫稱嗎標談圖'
+    '歷醫專費號盡較語僅隨選紅響雖勢參眾構節範殺蘇願錢網熱屬臉職樂獨彈創'
+    '錯蘭腦預誰陽繼驚傷藥適衛險陸習勞財環歡獲負雲遊龍樹層漢簡擔靜積餘檢'
+    '協勝階審堅媽劉讀壓銀買養懷亂幫歲優鐵稅藝陣腳惡頓島戶評寶釋顧貨歐換'
+    '聞壞麗臨魚雜誤灣編敗溫劍貴槍樓縣頁傑築鄭貝吳圓',
+  );
+
+  /// Characters that are common in Simplified Chinese but rare in Traditional
+  /// Chinese.
+  static final Set<int> _simplifiedHints = _hints(
+    '简体中文国学说话时会来对开关进过发后里么动现点业两间问题并产员电数报结'
+    '务场计区队书听广东车极办议证转单爱击团华离请际复线满须写称吗标谈图'
+    '历医专费号尽较语仅随选红响虽势参众构节范杀苏愿钱网热属脸职乐独弹创'
+    '错兰脑预谁阳继惊伤药适卫险陆习劳财环欢获负云游龙树层汉简担静积余检'
+    '协胜阶审坚妈刘读压银买养怀乱帮岁优铁税艺阵脚恶顿岛户评宝释顾货欧换'
+    '闻坏丽临鱼杂误湾编败温剑贵枪楼县页杰筑郑贝吴圆',
+  );
+
+  /// Common Japanese kanji. Kana are counted separately and weighted higher.
+  static final Set<int> _japaneseHints = _hints(
+    '日本語人年大月小中高校生先私今週間事思言読書聞食飲買友達駅電車道家'
+    '出入上下新古安長短明暗白黒赤青空海山川花木雨風雪春夏秋冬朝昼夜一'
+    '二三四五六七八九十百千万円時分気前後男子女学校会社員手目何',
+  );
+
+  static Set<int> _hints(String value) => value.runes.toSet();
+
   /// Decodes [bytes], honouring [contentType]'s `charset=` when present.
   static DecodedBody decode(Uint8List bytes, {String? contentType}) {
     if (bytes.isEmpty) {
@@ -53,11 +94,19 @@ class CharsetDecoder {
     if (declared != null) {
       final decoded = _decodeWith(declared, bytes);
       if (decoded != null) {
-        return DecodedBody(
-          text: decoded,
-          charset: declared,
-          charsetFallback: decoded.contains('\uFFFD'),
-        );
+        final sample = _sample(decoded);
+        final badness = _replacementCount(sample);
+        if (badness <= _tolerance(sample.length)) {
+          return DecodedBody(
+            text: decoded,
+            charset: declared,
+            charsetFallback: badness > 0,
+          );
+        }
+        // A declared charset that produces mostly replacement characters is
+        // almost always wrong (legacy hosts often mislabel Big5 as UTF-8).
+        // Fall through to BOM/meta/candidate detection instead of returning
+        // guaranteed mojibake.
       }
     }
 
@@ -68,11 +117,15 @@ class CharsetDecoder {
     if (meta != null) {
       final decoded = _decodeWith(meta, bytes);
       if (decoded != null) {
-        return DecodedBody(
-          text: decoded,
-          charset: meta,
-          charsetFallback: decoded.contains('\uFFFD'),
-        );
+        final sample = _sample(decoded);
+        final badness = _replacementCount(sample);
+        if (badness <= _tolerance(sample.length)) {
+          return DecodedBody(
+            text: decoded,
+            charset: meta,
+            charsetFallback: badness > 0,
+          );
+        }
       }
     }
 
@@ -83,30 +136,43 @@ class CharsetDecoder {
         charsetFallback: false,
       );
     } on FormatException {
-      // Not valid UTF-8 and nothing declared: pick the CJK candidate that
-      // produces the fewest replacement characters.
+      // Not valid UTF-8 and nothing usable declared: rank CJK candidates.
     }
 
-    String? best;
-    String bestLabel = 'utf-8';
-    var bestBadness = 1 << 30;
-    for (final candidate in const <String>['big5', 'gbk', 'shift_jis']) {
-      final decoded = _decodeWith(candidate, bytes);
+    final candidates = <_Candidate>[];
+    for (final label in _candidateOrder) {
+      final decoded = _decodeWith(label, bytes);
       if (decoded == null) continue;
-      final badness = _replacementCount(decoded);
-      if (badness < bestBadness) {
-        best = decoded;
-        bestLabel = candidate;
-        bestBadness = badness;
-      }
-      if (badness == 0) break;
+      final sample = _sample(decoded);
+      final badness = _replacementCount(sample);
+      final plausibility = _plausibility(sample, label);
+      candidates.add(
+        _Candidate(
+          label: label,
+          text: decoded,
+          badness: badness,
+          plausibility: plausibility,
+          score: plausibility * 8 - badness * 3,
+        ),
+      );
     }
-    final latin1Badness = _replacementCount(latin1.decode(bytes));
-    if (best != null && (bestBadness == 0 || bestBadness < latin1Badness)) {
+    candidates.sort((a, b) {
+      final byScore = b.score.compareTo(a.score);
+      if (byScore != 0) return byScore;
+      final byBadness = a.badness.compareTo(b.badness);
+      if (byBadness != 0) return byBadness;
+      return _candidateOrder
+          .indexOf(a.label)
+          .compareTo(_candidateOrder.indexOf(b.label));
+    });
+
+    final best = candidates.isEmpty ? null : candidates.first;
+    if (best != null && (best.plausibility > 0 || best.badness == 0)) {
+      final isAscii = best.text.codeUnits.every((unit) => unit < 0x80);
       return DecodedBody(
-        text: best,
-        charset: bestLabel,
-        charsetFallback: bestBadness > 0,
+        text: best.text,
+        charset: isAscii ? 'utf-8' : best.label,
+        charsetFallback: best.badness > 0,
       );
     }
 
@@ -175,6 +241,27 @@ class CharsetDecoder {
     }
   }
 
+  static int _tolerance(int length) =>
+      (length ~/ 100).clamp(1, 8).toInt();
+
+  static int _plausibility(String text, String label) {
+    final hints = switch (label) {
+      'big5' => _traditionalHints,
+      'gbk' => _simplifiedHints,
+      _ => _japaneseHints,
+    };
+    var hits = 0;
+    for (final rune in text.runes) {
+      if (hints.contains(rune)) hits++;
+      if (label == 'shift_jis' && _isKana(rune)) hits += 2;
+    }
+    return hits;
+  }
+
+  static bool _isKana(int rune) =>
+      (rune >= 0x3040 && rune <= 0x309F) ||
+      (rune >= 0x30A0 && rune <= 0x30FF);
+
   static String? _charsetFromContentType(String? contentType) {
     if (contentType == null) return null;
     final match = RegExp(
@@ -220,10 +307,11 @@ class CharsetDecoder {
         bytes[0] == 0xEF &&
         bytes[1] == 0xBB &&
         bytes[2] == 0xBF) {
+      final text = utf8.decode(bytes.sublist(3), allowMalformed: true);
       return DecodedBody(
-        text: utf8.decode(bytes.sublist(3), allowMalformed: true),
+        text: text,
         charset: 'utf-8',
-        charsetFallback: false,
+        charsetFallback: text.contains('\uFFFD'),
       );
     }
     if (bytes.length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE) {
@@ -284,6 +372,10 @@ class CharsetDecoder {
     return String.fromCharCodes(units);
   }
 
+  static String _sample(String text) => text.length <= plausibilitySampleChars
+      ? text
+      : text.substring(0, plausibilitySampleChars);
+
   static int _replacementCount(String text) {
     var count = 0;
     for (var i = 0; i < text.length; i++) {
@@ -291,4 +383,20 @@ class CharsetDecoder {
     }
     return count;
   }
+}
+
+class _Candidate {
+  const _Candidate({
+    required this.label,
+    required this.text,
+    required this.badness,
+    required this.plausibility,
+    required this.score,
+  });
+
+  final String label;
+  final String text;
+  final int badness;
+  final int plausibility;
+  final int score;
 }

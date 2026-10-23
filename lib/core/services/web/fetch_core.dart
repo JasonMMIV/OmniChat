@@ -151,8 +151,25 @@ class FetchCore {
     'transfer-encoding',
     'upgrade',
     'accept-encoding',
+    'user-agent',
     'proxy-connection',
     'proxy-authorization',
+  };
+
+  /// Browser-like defaults. Some sites reject requests that only carry a
+  /// User-Agent but omit Accept / Accept-Language / Fetch Metadata headers.
+  static const Map<String, String> _browserHeaders = <String, String>{
+    'User-Agent': browserUserAgent,
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,'
+        'image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Upgrade-Insecure-Requests': '1',
   };
 
   static const Set<int> _retryStatuses = <int>{429, 500, 502, 503, 504};
@@ -251,6 +268,7 @@ class FetchCore {
           );
         }
         final nextUrl = currentUrl.resolve(location!.trim());
+        _validateUri(nextUrl);
         final sameOrigin = nextUrl.origin == currentUrl.origin;
 
         if (status == 303) {
@@ -274,14 +292,16 @@ class FetchCore {
 
         var forwardedHeaders = request.headers;
         if (!sameOrigin) {
-          forwardedHeaders = Map<String, String>.from(request.headers)
-            ..removeWhere(
-              (key, _) => const <String>{
-                'authorization',
-                'cookie',
-                'proxy-authorization',
-              }.contains(key.toLowerCase()),
-            );
+          // Do not leak custom credentials (X-API-Key, Referer, …) to a
+          // different origin. Only content-negotiation headers survive.
+          forwardedHeaders = <String, String>{
+            for (final entry in request.headers.entries)
+              if (const <String>{
+                'accept',
+                'accept-language',
+              }.contains(entry.key.toLowerCase()))
+                entry.key: entry.value,
+          };
         }
         currentUrl = nextUrl;
         request = FetchRequest(
@@ -352,7 +372,9 @@ class FetchCore {
         bodyBytes: bodyBytes,
       );
       if (!_retryStatuses.contains(streamed.statusCode) ||
-          attempt >= _retryDelays.length) {
+          attempt >= _retryDelays.length ||
+          (method != 'GET' && method != 'HEAD')) {
+        // Retrying a POST on 5xx/429 may repeat a side effect (order, charge…).
         return streamed;
       }
 
@@ -376,7 +398,7 @@ class FetchCore {
     final request = http.Request(method, url)
       ..followRedirects = false
       ..maxRedirects = 0
-      ..headers.addAll(<String, String>{'User-Agent': browserUserAgent});
+      ..headers.addAll(_browserHeaders);
 
     headers.forEach((key, value) {
       if (_deniedHeaders.contains(key.toLowerCase())) return;
@@ -384,6 +406,14 @@ class FetchCore {
     });
     if (bodyBytes != null) {
       request.bodyBytes = bodyBytes;
+      final hasContentType = request.headers.keys.any(
+        (key) => key.toLowerCase() == 'content-type',
+      );
+      if (!hasContentType) {
+        request.headers['Content-Type'] = _looksLikeJsonBody(bodyBytes)
+            ? 'application/json'
+            : 'text/plain; charset=utf-8';
+      }
     }
 
     try {
@@ -407,11 +437,32 @@ class FetchCore {
     http.StreamedResponse response, {
     String? contentType,
   }) async {
-    final isPdf = _isPdfContentType(contentType);
-    final cap = isPdf ? maxPdfDownloadBytes : maxDownloadBytes;
+    final declaredPdf = _isPdfContentType(contentType);
+    var cap = declaredPdf ? maxPdfDownloadBytes : maxDownloadBytes;
     final builder = BytesBuilder(copy: false);
-    await for (final chunk in response.stream) {
+    var received = false;
+    var sniffedPdf = declaredPdf;
+    await for (final chunk in response.stream.handleError((
+      Object error,
+      StackTrace stack,
+    ) {
+      // dart:io's HTTP/1.1 parser does not consume trailing headers. Fastly /
+      // Hearst-style responses end with `Trailer: server-timing`, which throws
+      // after the final body byte (e.g. "115 does not match 13"). The payload
+      // is already complete, so keep it for text content instead of failing.
+      if (received && !declaredPdf && _isIgnorableTrailerError(error)) {
+        return;
+      }
+      Error.throwWithStackTrace(error, stack);
+    })) {
+      received = true;
       builder.add(chunk);
+      if (!sniffedPdf && builder.length >= 5) {
+        sniffedPdf = true;
+        if (_hasPdfMagic(builder.toBytes())) {
+          cap = maxPdfDownloadBytes;
+        }
+      }
       if (builder.length > cap) {
         throw FetchException(
           'response_too_large',
@@ -455,6 +506,18 @@ class FetchCore {
     required String? selector,
   }) async {
     final mediaType = _mediaType(contentType);
+    if (bytes.isEmpty && (status == 204 || status == 205)) {
+      return _textResult(
+        originalUrl: originalUrl,
+        finalUrl: finalUrl,
+        status: status,
+        contentType: contentType,
+        decoded: CharsetDecoder.decode(bytes, contentType: contentType),
+        bytes: bytes,
+        content: '',
+        truncated: false,
+      );
+    }
     final isPdf = mediaType == 'application/pdf' || _hasPdfMagic(bytes);
 
     // Decide binary handling BEFORE decoding: running the charset sniffers
@@ -479,7 +542,8 @@ class FetchCore {
     if (_isBinaryMediaType(mediaType)) {
       throw FetchException(
         'unsupported_binary',
-        'This URL returned binary content and cannot be shown as text.',
+        'This URL returned unsupported binary content '
+            '(${contentType ?? 'no content type'}, ${bytes.length} bytes).',
         status: status,
         uri: finalUrl,
       );
@@ -728,6 +792,22 @@ class FetchCore {
 
   static bool _isPdfContentType(String? contentType) =>
       _mediaType(contentType) == 'application/pdf';
+
+  static bool _looksLikeJsonBody(Uint8List bytes) {
+    if (bytes.isEmpty) return false;
+    final text = utf8.decode(bytes, allowMalformed: true).trimLeft();
+    return text.startsWith('{') || text.startsWith('[');
+  }
+
+  static bool _isIgnorableTrailerError(Object error) {
+    // Dart's HTTP/1.1 parser fails on a trailing-header block after the body
+    // (e.g. "115 does not match 13"). Keep the match narrow: a different
+    // parse failure mid-stream must not be silently accepted as a complete
+    // body. This is only consulted after at least one chunk arrived.
+    final text = error.toString().toLowerCase();
+    return text.contains('failed to parse http') &&
+        text.contains('does not match');
+  }
 
   static bool _hasPdfMagic(Uint8List bytes) {
     if (bytes.length < 5) return false;

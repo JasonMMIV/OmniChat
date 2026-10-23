@@ -154,13 +154,10 @@ void main() {
       expect(decoded.text, '繁體中文');
     });
 
-    test('undeclared Shift-JIS picks a CJK candidate', () {
+    test('undeclared Shift-JIS is decoded as Japanese, not GBK', () {
       final decoded = CharsetDecoder.decode(shiftJisJapanese);
-      // Big5 / GBK share enough byte structure that an undeclared page is
-      // genuinely ambiguous; the contract is that a CJK candidate wins over
-      // latin1 mojibake and that nothing is lost.
-      expect(decoded.charset, anyOf('big5', 'gbk', 'shift_jis'));
-      expect(decoded.text, isNotEmpty);
+      expect(decoded.charset, 'shift_jis');
+      expect(decoded.text, '日本語');
     });
 
     test('lone high bytes fall back to latin1', () {

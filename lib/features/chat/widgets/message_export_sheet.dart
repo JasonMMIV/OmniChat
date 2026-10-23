@@ -27,6 +27,7 @@ import '../../../core/providers/user_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/web/web_fetch_tool.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../shared/widgets/markdown_with_highlight.dart';
 import '../../../shared/widgets/export_capture_scope.dart';
@@ -2849,6 +2850,7 @@ class _ExportToolCard extends StatelessWidget {
   final bool isDesktop;
 
   IconData _iconFor(String name) {
+    name = WebFetchTool.canonicalToolName(name);
     switch (name) {
       case 'create_memory':
         return Lucide.bookHeart;
@@ -2858,6 +2860,8 @@ class _ExportToolCard extends StatelessWidget {
         return Lucide.bookDashed;
       case 'search_web':
         return Lucide.Earth;
+      case 'web_fetch':
+        return Lucide.FileText;
       case 'builtin_search':
         return Lucide.Search;
       default:
@@ -2867,6 +2871,7 @@ class _ExportToolCard extends StatelessWidget {
 
   String _titleFor(BuildContext context, String name, Map<String, dynamic> args) {
     final l10n = AppLocalizations.of(context)!;
+    name = WebFetchTool.canonicalToolName(name);
     switch (name) {
       case 'create_memory':
         return l10n.chatMessageWidgetCreateMemory;
@@ -2877,6 +2882,9 @@ class _ExportToolCard extends StatelessWidget {
       case 'search_web':
         final q = (args['query'] ?? '').toString();
         return l10n.chatMessageWidgetWebSearch(q);
+      case 'web_fetch':
+        final url = (args['url'] ?? '').toString();
+        return l10n.chatMessageWidgetWebFetch(url);
       case 'builtin_search':
         return l10n.chatMessageWidgetBuiltinSearch;
       default:
