@@ -8,6 +8,7 @@ import 'dart:async';
 import 'dart:convert';
 import '../services/search/search_service.dart';
 import '../services/search/search_dispatch.dart';
+import '../services/web/provider_adapters.dart';
 import '../services/stt/network_stt.dart';
 import '../services/tts/network_tts.dart';
 import '../services/tts/tts_text_selection.dart';
@@ -1015,12 +1016,23 @@ class SettingsProvider extends ChangeNotifier {
     _webFetchAllowPost = prefs.getBool(webFetchAllowPostKey) ?? false;
     _webFetchAllowPrivateHosts =
         prefs.getBool(webFetchAllowPrivateHostsKey) ?? false;
-    if (_webFetchSource != 'local' &&
-        _webFetchSource != 'follow' &&
-        !_searchServices.any((s) => s.id == _webFetchSource)) {
-      // The configured provider was deleted: fall back to local and persist.
-      _webFetchSource = 'local';
-      await prefs.setString(webFetchSourceKey, 'local');
+    if (_webFetchSource != 'local' && _webFetchSource != 'follow') {
+      SearchServiceOptions? selected;
+      for (final service in _searchServices) {
+        if (service.id == _webFetchSource) {
+          selected = service;
+          break;
+        }
+      }
+      if (selected == null ||
+          providerFetchAdapterFor(
+                (selected.toJson()['type'] ?? '').toString(),
+              ) ==
+              null) {
+        // The provider was deleted or has no extract adapter: use local.
+        _webFetchSource = 'local';
+        await prefs.setString(webFetchSourceKey, 'local');
+      }
     }
 
     // Load standalone academic MCP config, then migrate any legacy PubMed /
@@ -3536,8 +3548,33 @@ Synthesize your reasoning and research into a final response. The structure shou
     if (_searchSelectedProviders.isEmpty && _searchServices.isNotEmpty) {
       _searchSelectedProviders = <String>[_searchServices.first.id];
     }
+    // A pinned web-fetch provider can be deleted or changed to a service
+    // without an extract adapter. Never leave the in-memory source dangling
+    // until the next app launch.
+    var normalizedFetchSource = _webFetchSource;
+    if (normalizedFetchSource != 'local' && normalizedFetchSource != 'follow') {
+      SearchServiceOptions? selected;
+      for (final service in _searchServices) {
+        if (service.id == normalizedFetchSource) {
+          selected = service;
+          break;
+        }
+      }
+      if (selected == null ||
+          providerFetchAdapterFor(
+                (selected.toJson()['type'] ?? '').toString(),
+              ) ==
+              null) {
+        normalizedFetchSource = 'local';
+      }
+    }
+    final fetchSourceChanged = normalizedFetchSource != _webFetchSource;
+    _webFetchSource = normalizedFetchSource;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
+    if (fetchSourceChanged) {
+      await prefs.setString(webFetchSourceKey, _webFetchSource);
+    }
     await prefs.setString(
       _searchServicesKey,
       jsonEncode(_searchServices.map((e) => e.toJson()).toList()),
@@ -3640,7 +3677,23 @@ Synthesize your reasoning and research into a final response. The structure shou
   }
 
   Future<void> setWebFetchSource(String source) async {
-    final normalized = source.trim().isEmpty ? 'local' : source.trim();
+    var normalized = source.trim().isEmpty ? 'local' : source.trim();
+    if (normalized != 'local' && normalized != 'follow') {
+      SearchServiceOptions? selected;
+      for (final service in _searchServices) {
+        if (service.id == normalized) {
+          selected = service;
+          break;
+        }
+      }
+      if (selected == null ||
+          providerFetchAdapterFor(
+                (selected.toJson()['type'] ?? '').toString(),
+              ) ==
+              null) {
+        normalized = 'local';
+      }
+    }
     if (_webFetchSource == normalized) return;
     _webFetchSource = normalized;
     notifyListeners();

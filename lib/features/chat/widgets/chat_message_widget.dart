@@ -27,6 +27,7 @@ import '../../../core/providers/user_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/todo_service.dart';
+import '../../../core/services/web/web_fetch_tool.dart';
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../core/providers/assistant_provider.dart';
@@ -3282,6 +3283,7 @@ class _ToolCallItem extends StatelessWidget {
       {required bool approve, bool alwaysAllow})? onResolveApproval;
 
   IconData _iconFor(String name) {
+    name = WebFetchTool.canonicalToolName(name);
     switch (name) {
       case 'create_memory':
         return Lucide.bookHeart;
@@ -3292,7 +3294,7 @@ class _ToolCallItem extends StatelessWidget {
       case 'search_web':
         return Lucide.Earth;
       case 'web_fetch':
-        return Lucide.Globe;
+        return Lucide.FileText;
       case 'builtin_search':
         return Lucide.Search;
       case 'skill':
@@ -3309,6 +3311,7 @@ class _ToolCallItem extends StatelessWidget {
     required bool isResult,
   }) {
     final l10n = AppLocalizations.of(context)!;
+    name = WebFetchTool.canonicalToolName(name);
     switch (name) {
       case 'create_memory':
         return l10n.chatMessageWidgetCreateMemory;

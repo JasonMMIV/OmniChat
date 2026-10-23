@@ -649,7 +649,7 @@ class _SearchSettingsSheet extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        Icon(Lucide.Globe, size: 20, color: cs.primary),
+                        Icon(Lucide.FileText, size: 20, color: cs.primary),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(

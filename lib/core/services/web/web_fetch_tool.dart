@@ -92,8 +92,9 @@ class WebFetchTool {
             'the result includes the page title and metadata. Long pages are returned in\n'
             'windows; when the response contains next_start_index, call again with that\n'
             'value as start_index to continue.\n\n'
-            'Use raw=true only when you need the exact bytes the server returned (debugging,\n'
-            'source inspection). Use method=POST with a body only when the user explicitly\n'
+            'Use raw=true only when you need the decoded response exactly as the server\n'
+            'returned it (debugging, source inspection). Use method=POST with a body only\n'
+            'when the user explicitly\n'
             'asks you to call an API endpoint. Use selector to restrict extraction to a CSS\n'
             'selector.\n\n'
             'Safety rules that always apply:\n'
@@ -103,7 +104,8 @@ class WebFetchTool {
             '- POST requests cannot be continued with start_index (that would repeat a\n'
             '  request that may have side effects).\n'
             '- Only http:// and https:// URLs are supported. Private, loopback, and\n'
-            '  link-local addresses are refused unless the user enabled them in settings.\n'
+            '  link-local addresses are refused unless the user enabled them for local\n'
+            '  reads; provider-backed reads always require a public target.\n'
             '- Only fetch URLs that already appear in the conversation: given by the user or\n'
             '  returned by search_web or a previous web_fetch.',
         'parameters': {
@@ -132,7 +134,7 @@ class WebFetchTool {
             ),
             'raw': param(
               'boolean',
-              'true returns the exact server response instead of extracted content.',
+              'true returns the decoded server response instead of extracted content.',
             ),
             'selector': param(
               'string',
@@ -158,31 +160,45 @@ class WebFetchTool {
   final FetchSourceService _sourceService;
   final FetchCache _cache;
 
+  /// One FetchCore per transport configuration. In proxy mode a fresh
+  /// DioHttpClient per call leaked idle sockets (idleTimeout is 3650 days).
+  static final Map<String, FetchCore> _coreCache = <String, FetchCore>{};
+
   FetchCore get _localCore => _core ??= _buildCore();
 
   FetchCore _buildCore() {
-    final guard = SsrfGuard(allowPrivateHosts: _settings.webFetchAllowPrivateHosts);
+    final allowPrivate = _settings.webFetchAllowPrivateHosts;
+    final guard = SsrfGuard(allowPrivateHosts: allowPrivate);
     if (_settings.globalProxyEnabled) {
       final port = int.tryParse(_settings.globalProxyPort) ?? 0;
       final host = _settings.globalProxyHost.trim();
       if (host.isNotEmpty && port > 0) {
-        final client = DioHttpClient(
-          proxy: NetworkProxyConfig(
-            enabled: true,
-            host: host,
-            port: port,
-            username: _settings.globalProxyUsername.trim().isEmpty
-                ? null
-                : _settings.globalProxyUsername.trim(),
-            password: _settings.globalProxyPassword.isEmpty
-                ? null
-                : _settings.globalProxyPassword,
+        final username = _settings.globalProxyUsername.trim();
+        final key = 'proxy|$host|$port|$username|'
+            '${_settings.globalProxyPassword}|$allowPrivate';
+        return _coreCache.putIfAbsent(
+          key,
+          () => FetchCore(
+            client: DioHttpClient(
+              proxy: NetworkProxyConfig(
+                enabled: true,
+                host: host,
+                port: port,
+                username: username.isEmpty ? null : username,
+                password: _settings.globalProxyPassword.isEmpty
+                    ? null
+                    : _settings.globalProxyPassword,
+              ),
+            ),
+            guard: guard,
           ),
         );
-        return FetchCore(client: client, guard: guard);
       }
     }
-    return FetchCore(guard: guard);
+    return _coreCache.putIfAbsent(
+      'direct|$allowPrivate',
+      () => FetchCore(guard: guard),
+    );
   }
 
   /// Executes one tool call and returns the text handed to the model.
@@ -246,7 +262,7 @@ class WebFetchTool {
       );
     }
 
-    final cacheKey = parsed.url.toString();
+    final cacheKey = _cacheKey(parsed.url);
 
     // Continuations of a cacheable GET must follow the source that served
     // the first window.
@@ -304,24 +320,27 @@ class WebFetchTool {
     final WebFetchOutcome outcome;
     try {
       if (policy.cacheable && parsed.startIndex == 0) {
+        WebFetchOutcome? createdOutcome;
         outcome = await _cache.dedupe(cacheKey, () async {
           final value = await _sourceService.fetch(
             request: request,
             settings: _settings,
             localCore: _localCore,
           );
+          createdOutcome = value;
           _cache.store(
             url: cacheKey,
-            content: value.result.content,
-            metadata: value.result.metadata,
+            result: value.result,
             source: value.source,
-            canonicalUrl: value.result.finalUrl.toString(),
+            canonicalUrl: _cacheKey(value.result.finalUrl),
           );
           return value.result;
         }).then((result) {
-          // A deduped result was stored by the creating call; rebuild its
-          // outcome from the cached entry so the header still names the
-          // source.
+          // The creating call keeps its escalation metadata. A concurrent
+          // deduped caller never saw the provider attempt, so it only gets
+          // the source that the cache recorded.
+          final created = createdOutcome;
+          if (created != null) return created;
           final entry = _cache.lookup(cacheKey);
           final source = entry?.source ?? 'local';
           return WebFetchOutcome(
@@ -369,19 +388,19 @@ class WebFetchTool {
     return source;
   }
 
-  FetchResult _resultFromCache(FetchCacheEntry entry, Uri url) {
-    return FetchResult(
-      url: url,
-      finalUrl: url,
-      status: 200,
-      contentType: null,
-      charset: 'utf-8',
-      charsetFallback: false,
-      content: entry.content,
-      metadata: entry.metadata,
-      truncated: false,
-      bytes: entry.content.length,
-    );
+  FetchResult _resultFromCache(FetchCacheEntry entry, Uri url) =>
+      entry.result;
+
+  /// Stable cache key: drop fragments/default-port noise and a trailing slash
+  /// so the same page reaches the same entry regardless of URL spelling.
+  static String _cacheKey(Uri uri) {
+    var normalized = uri.replace(fragment: '');
+    if (normalized.path.length > 1 && normalized.path.endsWith('/')) {
+      normalized = normalized.replace(
+        path: normalized.path.substring(0, normalized.path.length - 1),
+      );
+    }
+    return normalized.toString();
   }
 
   WebFetchToolResult _render(
@@ -463,6 +482,12 @@ class WebFetchTool {
       ..writeln('Total length: $total')
       ..writeln('Showing: $start-${total == 0 ? 0 : end - 1}');
     if (next != null) buffer.writeln('Next start_index: $next');
+    if (escalated && (escalationError ?? '').trim().isNotEmpty) {
+      final reason = escalationError!.trim();
+      buffer.writeln(
+        'Escalation: ${reason.length > 300 ? '${reason.substring(0, 300)}…' : reason}',
+      );
+    }
     if (result.truncated) {
       buffer.writeln('Truncated: content was capped at 200000 characters');
     }
@@ -521,12 +546,18 @@ class WebFetchTool {
           },
         );
       case 'http_error':
+        final blocked = failure.status == 403 &&
+            _looksLikeBotChallenge(failure.bodySnippet);
         return _ToolFailure(
           failure.code,
-          failure.message,
-          instruction:
-              'Check the URL and HTTP status. Do not retry the same request '
-              'blindly.',
+          blocked
+              ? 'The site blocks automated readers (HTTP 403).'
+              : failure.message,
+          instruction: blocked
+              ? 'Do not retry this URL. Use search_web snippets, another URL, '
+                  'or a configured Tier-2 fetch provider.'
+              : 'Check the URL and HTTP status. Do not retry the same request '
+                  'blindly.',
           extra: {
             if (failure.status != null) 'status': failure.status,
             if ((failure.bodySnippet ?? '').isNotEmpty)
@@ -568,6 +599,14 @@ class WebFetchTool {
           instruction:
               'Fix the CSS selector or omit it to extract the whole page.',
         );
+      case 'invalid_arguments':
+        return _ToolFailure(
+          failure.code,
+          failure.message,
+          instruction: failure.message.contains('selector')
+              ? 'Fix the CSS selector or omit it to extract the whole page.'
+              : 'Check the arguments and try again.',
+        );
       case 'network_error':
         return _ToolFailure(
           failure.code,
@@ -583,7 +622,56 @@ class WebFetchTool {
     }
   }
 
+  /// Models often copy Markdown links with the closing parenthesis still
+  /// attached (`https://…/page)`), or end a sentence with `..`. Strip only
+  /// unmatched/trailing punctuation so legitimate URLs stay intact.
+  static String _sanitizeUrlText(String raw) {
+    var value = raw.trim();
+    if (value.length >= 2 &&
+        ((value.startsWith('<') && value.endsWith('>')) ||
+            (value.startsWith('"') && value.endsWith('"')))) {
+      value = value.substring(1, value.length - 1).trim();
+    }
+    const pairs = <String, String>{')': '(', ']': '[', '}': '{'};
+    while (value.isNotEmpty) {
+      final last = value[value.length - 1];
+      final open = pairs[last];
+      if (open != null &&
+          _countChar(value, open) < _countChar(value, last)) {
+        value = value.substring(0, value.length - 1).trimRight();
+        continue;
+      }
+      if (last == ',' || last == ';') {
+        value = value.substring(0, value.length - 1).trimRight();
+        continue;
+      }
+      break;
+    }
+    while (value.endsWith('..')) {
+      value = value.substring(0, value.length - 2).trimRight();
+    }
+    return value;
+  }
+
+  static int _countChar(String value, String char) {
+    var count = 0;
+    for (var i = 0; i < value.length; i++) {
+      if (value[i] == char) count++;
+    }
+    return count;
+  }
+
   static bool _isLowSurrogate(int unit) => unit >= 0xDC00 && unit <= 0xDFFF;
+
+  static bool _looksLikeBotChallenge(String? body) {
+    final text = (body ?? '').toLowerCase();
+    return text.contains('checking your browser') ||
+        text.contains('just a moment') ||
+        text.contains('cf-chl') ||
+        text.contains('attention required') ||
+        text.contains('enable javascript and cookies') ||
+        text.contains('access denied');
+  }
 
   static bool _isHighSurrogate(int unit) => unit >= 0xD800 && unit <= 0xDBFF;
 }
@@ -617,7 +705,7 @@ class _Args {
         'The "url" argument is required and must be a string.',
       );
     }
-    final urlText = urlRaw.trim();
+    final urlText = WebFetchTool._sanitizeUrlText(urlRaw.trim());
     final uri = Uri.tryParse(urlText);
     if (uri == null ||
         !uri.hasScheme ||
@@ -663,7 +751,14 @@ class _Args {
       if (bodyRaw is String) {
         body = bodyRaw;
       } else if (bodyRaw is Map || bodyRaw is List) {
-        body = jsonEncode(bodyRaw);
+        try {
+          body = jsonEncode(bodyRaw);
+        } catch (_) {
+          throw const _ToolFailure(
+            'invalid_arguments',
+            'body contains values that cannot be encoded as JSON.',
+          );
+        }
       } else {
         throw const _ToolFailure(
           'invalid_arguments',

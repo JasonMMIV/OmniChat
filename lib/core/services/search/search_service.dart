@@ -95,16 +95,6 @@ abstract class SearchService<T extends SearchServiceOptions> {
 }
 
 // Search result data structure
-/// A page fetched through a search provider's extract / reader API
-/// (Tier 2 web fetch). Implemented by providers that can read a URL.
-abstract interface class WebFetchCapable<T extends SearchServiceOptions> {
-  Future<WebFetchPage> fetch({
-    required String url,
-    required SearchCommonOptions commonOptions,
-    required T serviceOptions,
-  });
-}
-
 /// Provider-side page extraction result.
 class WebFetchPage {
   const WebFetchPage({

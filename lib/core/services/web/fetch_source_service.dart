@@ -6,6 +6,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -14,6 +15,7 @@ import '../search/search_dispatch.dart';
 import '../search/search_service.dart';
 import 'fetch_core.dart';
 import 'provider_adapters.dart';
+import 'ssrf_guard.dart';
 
 class ResolvedFetchSource {
   const ResolvedFetchSource({
@@ -60,14 +62,18 @@ class FetchSourceService {
   FetchSourceService({
     http.Client? client,
     ProviderCooldown? cooldown,
+    SsrfGuard? guard,
   }) : _client = client,
-       _cooldown = cooldown ?? ProviderCooldown.shared;
+       _cooldown = cooldown ?? ProviderCooldown.shared,
+       _guard = guard;
 
   static const Duration providerTimeout = Duration(seconds: 30);
   static const int maxContentChars = 200000;
+  static const int maxProviderBytes = 2 * 1024 * 1024;
 
   final http.Client? _client;
   final ProviderCooldown _cooldown;
+  final SsrfGuard? _guard;
 
   http.Client get _httpClient {
     final client = _client;
@@ -77,6 +83,7 @@ class FetchSourceService {
   }
 
   static http.Client? _sharedClient;
+  static final SsrfGuard _defaultGuard = SsrfGuard();
 
   /// Resolves the configured source. `follow` is deterministic: the first
   /// selected provider (selection order) that has an extract adapter wins —
@@ -130,11 +137,32 @@ class FetchSourceService {
     final resolved = resolve(settings);
     final provider = resolved.adapter;
     final options = resolved.options;
+    final attempted = allowEscalation && provider != null && options != null;
+    final coolingDown = attempted && _cooldown.isCoolingDown(resolved.source);
 
-    if (allowEscalation &&
-        provider != null &&
-        options != null &&
-        !_cooldown.isCoolingDown(resolved.source)) {
+    if (attempted && !coolingDown) {
+      // Tier-2 sends the URL to a third-party provider. Never allow private
+      // targets here, even when the user enabled them for local fetches: the
+      // provider cannot reach the user's LAN, and the URL would leak internal
+      // hostnames to that provider. If local private access is enabled, skip
+      // the provider and serve the request locally instead.
+      final guard = _guard ?? _defaultGuard;
+      final block = await guard.check(request.url);
+      if (block != null) {
+        if (settings.webFetchAllowPrivateHosts) {
+          final local = await localCore.fetch(request);
+          return WebFetchOutcome(
+            result: local,
+            source: 'local',
+            sourceName: 'Local',
+          );
+        }
+        throw FetchException(
+          'blocked_private_address',
+          block.reason,
+          uri: request.url,
+        );
+      }
       try {
         final page = await _fetchViaProvider(provider, options, request);
         return WebFetchOutcome(
@@ -162,8 +190,8 @@ class FetchSourceService {
       result: local,
       source: 'local',
       sourceName: 'Local',
-      escalated: resolved.adapter != null,
-      escalationError: resolved.adapter != null
+      escalated: attempted,
+      escalationError: attempted && coolingDown
           ? '${resolved.displayName} is rate limited; used the local fetch.'
           : null,
     );
@@ -199,7 +227,14 @@ class FetchSourceService {
       throw _ProviderFailure(e.message);
     }
 
-    final bodyBytes = await response.stream.toBytes();
+    final List<int> bodyBytes;
+    try {
+      bodyBytes = await _readProviderBody(response).timeout(providerTimeout);
+    } on TimeoutException {
+      throw const _ProviderFailure(
+        'provider timed out while reading the page',
+      );
+    }
     final bodyText = utf8.decode(bodyBytes, allowMalformed: true);
 
     if (response.statusCode == 429) {
@@ -231,6 +266,17 @@ class FetchSourceService {
       title: title,
       content: content,
     );
+  }
+
+  Future<Uint8List> _readProviderBody(http.StreamedResponse response) async {
+    final builder = BytesBuilder(copy: false);
+    await for (final chunk in response.stream) {
+      builder.add(chunk);
+      if (builder.length > maxProviderBytes) {
+        throw const _ProviderFailure('provider response was too large');
+      }
+    }
+    return builder.takeBytes();
   }
 
   FetchResult _toResult(FetchRequest request, WebFetchPage page) {

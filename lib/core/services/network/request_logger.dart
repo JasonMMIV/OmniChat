@@ -123,6 +123,28 @@ class RequestLogger {
     }
   }
 
+  /// Headers that must never be written to the request log. `web_fetch`
+  /// explicitly supports authorization/cookie headers, and provider requests
+  /// carry API keys, so log the shape without the secret values.
+  static Map<String, String> redactHeaders(Map<String, String> headers) {
+    const sensitive = <String>{
+      'authorization',
+      'cookie',
+      'set-cookie',
+      'proxy-authorization',
+      'x-api-key',
+      'api-key',
+      'x-auth-token',
+      'x-goog-api-key',
+    };
+    return <String, String>{
+      for (final entry in headers.entries)
+        entry.key: sensitive.contains(entry.key.toLowerCase())
+            ? '***'
+            : entry.value,
+    };
+  }
+
   static String safeDecodeUtf8(List<int> bytes) {
     try {
       return utf8.decode(bytes, allowMalformed: true);

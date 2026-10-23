@@ -190,7 +190,25 @@ class HtmlExtractor {
 
     dom.Element root = body;
     if ((selector ?? '').trim().isNotEmpty) {
-      final selected = document.querySelector(selector!.trim());
+      final rawSelector = selector!.trim();
+      dom.Element? selected;
+      try {
+        selected = document.querySelector(rawSelector);
+      } on FormatException catch (e) {
+        return HtmlExtractionResult(
+          markdown: '',
+          metadata: metadata,
+          errorCode: 'invalid_arguments',
+          errorMessage: 'Invalid CSS selector: ${e.message}',
+        );
+      } on ArgumentError catch (e) {
+        return HtmlExtractionResult(
+          markdown: '',
+          metadata: metadata,
+          errorCode: 'invalid_arguments',
+          errorMessage: 'Invalid CSS selector: $e',
+        );
+      }
       if (selected == null) {
         return HtmlExtractionResult(
           markdown: '',
@@ -226,18 +244,22 @@ class HtmlExtractor {
     // product / forum page whose content sits outside the winning candidate
     // keeps the whole body instead).
     if (rootTextLength > 0 &&
-        _textLength(best) < rootTextLength / 7 &&
+        _textLength(best) < rootTextLength / 5 &&
         best != root) {
       best = root;
     }
 
     var markdown = _toMarkdown(best);
     if (markdown.length < minReadableChars) {
-      final fallback = normalizePlainText(_textWithBreaks(best));
+      final fallback = normalizePlainText(_textWithBreaks(root));
       if (fallback.isNotEmpty) markdown = fallback;
     }
     if (markdown.isEmpty && best != root) {
       markdown = normalizePlainText(_textWithBreaks(root));
+    }
+    if (markdown.isEmpty && (metadata.description ?? '').trim().isNotEmpty) {
+      markdown =
+          '> Only the page description was available.\n\n${metadata.description!.trim()}';
     }
 
     if (markdown.isEmpty) {
@@ -278,7 +300,7 @@ class HtmlExtractor {
     description = _metaContent(html, 'description');
     description ??= _metaContent(html, 'og:description');
     siteName = _metaContent(html, 'og:site_name');
-    publishedTime = _metaContent(html, 'article:published_time');
+    publishedTime = _jsonLdDate(html);
 
     final langMatch = RegExp(
       r"""<html[^>]+lang\s*=\s*["']([^"']+)""",
@@ -286,7 +308,7 @@ class HtmlExtractor {
     ).firstMatch(html);
     language = _cleanText(langMatch?.group(1));
 
-    publishedTime ??= _jsonLdDate(html);
+    publishedTime ??= _metaContent(html, 'article:published_time');
     publishedTime ??= _firstMatch(
       RegExp(
         r"""<time[^>]+datetime\s*=\s*["']([^"']+)["']""",
@@ -368,6 +390,7 @@ class HtmlExtractor {
 
     for (final element in body.querySelectorAll('*')) {
       if (element == body) continue;
+      if (_protectedFromNegativePrune(element, bodyText)) continue;
       final haystack = '${element.id} ${element.className}'.toLowerCase();
       if (haystack.trim().isEmpty) continue;
       if (_matchesNegativePattern(haystack)) {
@@ -376,15 +399,35 @@ class HtmlExtractor {
     }
   }
 
+  /// Never let a generic negative class (e.g. `widget`, `sidebar`, `menu`)
+  /// remove a page's real content container. Several publishers put those
+  /// words on their main article wrapper (`<article class="... widget ...">`,
+  /// `<section class="article-with-sidebar">`, `<section class="storyMenu">`).
+  static bool _protectedFromNegativePrune(
+    dom.Element element,
+    int bodyTextLength,
+  ) {
+    final tag = element.localName;
+    if (tag == 'article' || tag == 'main') return true;
+    if (element.attributes['role'] == 'main') return true;
+    if (element.querySelector('article, main, [role="main"]') != null) {
+      return true;
+    }
+    if (bodyTextLength > 0 && _textLength(element) >= bodyTextLength * 0.35) {
+      return true;
+    }
+    return false;
+  }
+
   static bool _matchesNegativePattern(String haystack) {
     final tokens = haystack.split(RegExp(r'[^a-z0-9]+'));
     for (final pattern in _negativePatterns) {
       for (final token in tokens) {
         if (token.isEmpty) continue;
         if (token == pattern) return true;
-        // `ad` / `ads` must not match `read`, `add`, `header`, `loading`…
+        // `ad` / `ads` must not match `read`, `add`, `downloads`…
         if (pattern.length <= 2) continue;
-        if (token.startsWith(pattern) || token.contains(pattern)) return true;
+        if (token.startsWith(pattern)) return true;
       }
     }
     return false;
@@ -517,11 +560,7 @@ class HtmlExtractor {
       markdown = _textWithBreaks(element);
     }
     markdown = markdown.replaceAll('\r\n', '\n').replaceAll('\n{3,}', '\n\n');
-    markdown = markdown.trim();
-    if (markdown.length > 200000) {
-      markdown = markdown.substring(0, 200000).trimRight();
-    }
-    return markdown;
+    return markdown.trim();
   }
 
   /// Plain-text fallback that keeps block boundaries as line breaks.
@@ -570,13 +609,28 @@ class HtmlExtractor {
   }
 
   static String _decodeBasicEntities(String text) {
-    return text
+    final decoded = text
         .replaceAll('&nbsp;', ' ')
         .replaceAll('&amp;', '&')
         .replaceAll('&lt;', '<')
         .replaceAll('&gt;', '>')
         .replaceAll('&quot;', '"')
         .replaceAll('&#39;', "'");
+    return decoded.replaceAllMapped(
+      RegExp(r'&#(x?[0-9a-fA-F]+);', caseSensitive: false),
+      (match) {
+        final raw = match.group(1)!;
+        final isHex = raw.startsWith('x') || raw.startsWith('X');
+        final code = int.tryParse(
+          isHex ? raw.substring(1) : raw,
+          radix: isHex ? 16 : 10,
+        );
+        if (code == null || code < 0 || code > 0x10FFFF) {
+          return match.group(0)!;
+        }
+        return String.fromCharCode(code);
+      },
+    );
   }
 
   static int _textLength(dom.Element element) => element.text.length;

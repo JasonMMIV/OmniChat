@@ -10,19 +10,23 @@ import 'fetch_core.dart';
 class FetchCacheEntry {
   const FetchCacheEntry({
     required this.url,
-    required this.content,
-    required this.metadata,
+    required this.result,
     required this.source,
     required this.fetchedAt,
   });
 
   final String url;
-  final String content;
-  final FetchMetadata metadata;
+
+  /// Full result, not just the content: cache hits must keep the original
+  /// charset, content type, final URL and truncated flag.
+  final FetchResult result;
 
   /// `local` or the provider id that served the page.
   final String source;
   final DateTime fetchedAt;
+
+  String get content => result.content;
+  FetchMetadata get metadata => result.metadata;
 }
 
 class FetchCache {
@@ -62,15 +66,13 @@ class FetchCache {
 
   void store({
     required String url,
-    required String content,
-    required FetchMetadata metadata,
+    required FetchResult result,
     required String source,
     String? canonicalUrl,
   }) {
     final entry = FetchCacheEntry(
       url: url,
-      content: content,
-      metadata: metadata,
+      result: result,
       source: source,
       fetchedAt: _clock(),
     );
