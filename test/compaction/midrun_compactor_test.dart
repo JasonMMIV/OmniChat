@@ -9,6 +9,21 @@ library;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:OmniChat/core/services/agent/compaction/context_trim.dart';
 import 'package:OmniChat/core/services/agent/compaction/midrun_compactor.dart';
+import 'package:OmniChat/core/services/model_catalog/model_catalog.dart';
+
+const String _catalogFixture = '''
+{
+  "anthropic": {
+    "api": "https://api.anthropic.com/v1",
+    "models": {
+      "claude-sonnet-4-5-20250929": {
+        "limit": {"context": 200000, "output": 64000},
+        "reasoning": true
+      }
+    }
+  }
+}
+''';
 
 Map<String, dynamic> _user(String text) => <String, dynamic>{
       'role': 'user',
@@ -45,6 +60,9 @@ Map<String, dynamic> _toolResult(String id, String body) =>
     };
 
 void main() {
+  setUp(() => ModelCatalog.loadFromJsonString(_catalogFixture));
+  tearDown(ModelCatalog.debugReset);
+
   group('applyMidRunCompaction', () {
     test('no-op below the 140k floor', () {
       final messages = <Map<String, dynamic>>[

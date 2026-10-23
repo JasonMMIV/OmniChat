@@ -187,7 +187,7 @@ class ContextOverflowTrimPlan {
 /// (irreducible).
 ///
 /// [declaredWindowTokens] is the caller's window resolution
-/// (learned-from-settings → seed table → 1M fallback, see
+/// (learned-from-settings → models.dev catalog → 1M fallback, see
 /// [resolveContextWindowTokens]); a window freshly learned from THIS error
 /// always wins over it (capped at the declared value when both exist).
 ContextOverflowTrimPlan? planContextOverflowTrim({

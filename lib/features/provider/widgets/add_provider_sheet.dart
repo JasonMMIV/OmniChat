@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import 'package:provider/provider.dart';
+import '../../../core/providers/model_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import 'package:file_picker/file_picker.dart';
@@ -348,6 +349,14 @@ class _AddProviderSheetState extends State<_AddProviderSheet>
       await settings.setProviderConfig(keyName, cfg);
       createdKey = keyName;
     }
+
+    // models.dev catalog trigger (plan batch 1 §6.3): a new provider may bring
+    // models the bundled snapshot does not know yet.
+    try {
+      ProviderManager.refreshCatalogIfStale(
+        settings.getProviderConfig(createdKey),
+      );
+    } catch (_) {}
 
     // Ensure providers appear in order list at least once
     final order = List<String>.of(context.read<SettingsProvider>().providersOrder);

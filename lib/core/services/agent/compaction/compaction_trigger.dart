@@ -3,9 +3,9 @@
 // v1 evaluates triggers only at generation prep, from the real measured
 // usage persisted per message (`ChatMessage.promptTokens`). Formula and
 // floor come from the plan: `trigger = min(0.7W, W - reserve(W, out))` with
-// the seed-table window (learned windows win), and contexts under 140k
-// tokens get no speculative compaction. `cache_expiry` is deferred to
-// Phase 2 (v1.4).
+// the models.dev catalog window and output cap (learned windows win), and
+// contexts under 140k tokens get no speculative compaction. `cache_expiry` is
+// deferred to Phase 2 (v1.4).
 //
 // When the trigger fires, the boundary walk collects the newest verbatim
 // tail (K=8 tool-bearing assistant rounds, 10k token budget) in the RAW
@@ -16,6 +16,7 @@
 library;
 
 import '../../../models/chat_message.dart';
+import '../../model_catalog/model_catalog.dart';
 import 'context_trim.dart';
 
 /// Contexts below this get no speculative compaction: 2 × (20k + 50k).
@@ -66,6 +67,8 @@ CompactionTriggerResult evaluateCompactionTrigger({
   required int? measuredPromptTokens,
   required String modelId,
   required int? learnedWindowTokens,
+  String? providerId,
+  String? host,
   required RawMessageTokensFn estimateMessageTokens,
   required HasToolEventsFn hasToolEvents,
 }) {
@@ -78,9 +81,18 @@ CompactionTriggerResult evaluateCompactionTrigger({
     return CompactionTriggerResult.none;
   }
 
-  final seed = learnedWindowTokens == null ? seedWindowForModel(modelId) : null;
-  final window = resolveContextWindowTokens(modelId, learned: learnedWindowTokens);
-  final trigger = compactionTriggerTokens(window, seed?.outputTokens);
+  final window = resolveContextWindowTokens(
+    modelId,
+    learned: learnedWindowTokens,
+    providerId: providerId,
+    host: host,
+  );
+  final outputTokens = ModelCatalog.instance?.outputTokens(
+    modelId,
+    providerId: providerId,
+    host: host,
+  );
+  final trigger = compactionTriggerTokens(window, outputTokens);
   if (measuredPromptTokens <= trigger) {
     return CompactionTriggerResult(
       overTrigger: false,

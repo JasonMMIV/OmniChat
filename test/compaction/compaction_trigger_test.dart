@@ -9,8 +9,37 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:OmniChat/core/models/chat_message.dart';
 import 'package:OmniChat/core/services/agent/compaction/compaction_trigger.dart';
 import 'package:OmniChat/core/services/agent/compaction/context_trim.dart';
+import 'package:OmniChat/core/services/model_catalog/model_catalog.dart';
+
+const String _catalogFixture = '''
+{
+  "anthropic": {
+    "api": "https://api.anthropic.com/v1",
+    "models": {
+      "claude-sonnet-4-5": {
+        "limit": {"context": 200000, "output": 64000},
+        "reasoning": true
+      }
+    }
+  },
+  "openai": {
+    "models": {
+      "gpt-5": {
+        "limit": {"context": 400000, "input": 272000, "output": 128000},
+        "reasoning": true
+      },
+      "small-128k": {
+        "limit": {"context": 128000, "output": 16384}
+      }
+    }
+  }
+}
+''';
 
 void main() {
+  setUp(() => ModelCatalog.loadFromJsonString(_catalogFixture));
+  tearDown(ModelCatalog.debugReset);
+
   group('reserveTokens / compactionTriggerTokens worked examples', () {
     test('Claude 200k window / 64k output → trigger 136k', () {
       expect(reserveTokens(200_000, 64_000), 64_000);
@@ -40,23 +69,18 @@ void main() {
       expect(reserveTokens(262_144, 262_144), 64_000);
     });
 
-    test('seed table lookup order: specific ids before family rules', () {
-      expect(seedWindowForModel('gpt-5.2-chat-latest')!.windowTokens, 128_000);
-      expect(seedWindowForModel('gpt-5.2')!.windowTokens, 272_000);
-      expect(seedWindowForModel('gpt-5')!.windowTokens, 272_000);
-      expect(seedWindowForModel('claude-sonnet-4-5-20250929')!.windowTokens,
-          200_000);
-      expect(seedWindowForModel('kimi-k2.6')!.windowTokens, 262_144);
-      expect(seedWindowForModel('minimax-m2.7')!.windowTokens, 204_800);
-      expect(seedWindowForModel('glm-5.1')!.windowTokens, 200_000);
-      expect(seedWindowForModel('totally-unknown-model'), isNull);
+    test('window precedence: learned → catalog input cap → 1M', () {
+      // Catalog hit, input cap preferred over the total context.
+      expect(resolveContextWindowTokens('gpt-5'), 272_000);
+      expect(resolveContextWindowTokens('claude-sonnet-4-5'), 200_000);
+      // Learned windows are endpoint facts and always win.
+      expect(resolveContextWindowTokens('claude-sonnet-4-5', learned: 150_000),
+          150_000);
+      // Catalog miss keeps the optimistic 1M fallback.
       expect(
         resolveContextWindowTokens('totally-unknown-model'),
         unknownModelContextFallback,
       );
-      // Learned windows win over the seed table.
-      expect(resolveContextWindowTokens('claude-sonnet-4-5', learned: 150_000),
-          150_000);
     });
   });
 
@@ -95,6 +119,40 @@ void main() {
       );
       expect(result.overTrigger, isFalse);
       expect(result.boundaryIndex, -1);
+    });
+
+    test('GPT-5 input 272k uses the 190.4k trigger, not 0.7 × 400k', () {
+      final messages = [
+        msg('user', 'hi'),
+        msg('assistant', 'hello', promptTokens: 200_000),
+        msg('user', 'next'),
+      ];
+      final result = evaluateCompactionTrigger(
+        messages: messages,
+        measuredPromptTokens: 200_000,
+        modelId: 'gpt-5',
+        learnedWindowTokens: null,
+        estimateMessageTokens: (_) => 1,
+        hasToolEvents: (_) => false,
+      );
+      expect(result.overTrigger, isTrue);
+    });
+
+    test('128k model below the 140k floor never pre-compacts', () {
+      final messages = [
+        msg('user', 'hi'),
+        msg('assistant', 'hello', promptTokens: 130_000),
+        msg('user', 'next'),
+      ];
+      final result = evaluateCompactionTrigger(
+        messages: messages,
+        measuredPromptTokens: 130_000,
+        modelId: 'small-128k',
+        learnedWindowTokens: null,
+        estimateMessageTokens: (_) => 1,
+        hasToolEvents: (_) => false,
+      );
+      expect(result.overTrigger, isFalse);
     });
 
     test('measured usage under the trigger → no compaction', () {

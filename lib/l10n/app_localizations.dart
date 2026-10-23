@@ -9518,6 +9518,108 @@ abstract class AppLocalizations {
   /// **'Detection cancelled'**
   String get modelDetailReasoningProbeCancelled;
 
+  /// No description provided for @modelDetailReasoningWireLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Reasoning parameter format'**
+  String get modelDetailReasoningWireLabel;
+
+  /// No description provided for @modelDetailReasoningWireDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose how reasoning parameters are written for this model. A wrong format can be rejected by the provider (400). A custom body overrides this setting.'**
+  String get modelDetailReasoningWireDescription;
+
+  /// No description provided for @modelDetailReasoningWireAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto (detect from provider)'**
+  String get modelDetailReasoningWireAuto;
+
+  /// No description provided for @modelDetailReasoningWireChatEffort.
+  ///
+  /// In en, this message translates to:
+  /// **'reasoning_effort'**
+  String get modelDetailReasoningWireChatEffort;
+
+  /// No description provided for @modelDetailReasoningWireChatReasoningEffortObj.
+  ///
+  /// In en, this message translates to:
+  /// **'reasoning.effort'**
+  String get modelDetailReasoningWireChatReasoningEffortObj;
+
+  /// No description provided for @modelDetailReasoningWireChatReasoningBudgetObj.
+  ///
+  /// In en, this message translates to:
+  /// **'reasoning.enabled + max_tokens'**
+  String get modelDetailReasoningWireChatReasoningBudgetObj;
+
+  /// No description provided for @modelDetailReasoningWireChatThinkingBudget.
+  ///
+  /// In en, this message translates to:
+  /// **'thinking.type + budget_tokens'**
+  String get modelDetailReasoningWireChatThinkingBudget;
+
+  /// No description provided for @modelDetailReasoningWireChatEnableThinking.
+  ///
+  /// In en, this message translates to:
+  /// **'enable_thinking + thinking_budget'**
+  String get modelDetailReasoningWireChatEnableThinking;
+
+  /// No description provided for @modelDetailReasoningWireChatThinkingMode.
+  ///
+  /// In en, this message translates to:
+  /// **'thinking_mode'**
+  String get modelDetailReasoningWireChatThinkingMode;
+
+  /// No description provided for @modelDetailReasoningWireChatTemplateKwargs.
+  ///
+  /// In en, this message translates to:
+  /// **'chat_template_kwargs.thinking'**
+  String get modelDetailReasoningWireChatTemplateKwargs;
+
+  /// No description provided for @modelDetailReasoningWireNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Don\'t send'**
+  String get modelDetailReasoningWireNone;
+
+  /// No description provided for @modelDetailReasoningWireResponsesEffort.
+  ///
+  /// In en, this message translates to:
+  /// **'reasoning.effort'**
+  String get modelDetailReasoningWireResponsesEffort;
+
+  /// No description provided for @modelDetailReasoningWireClaudeBudget.
+  ///
+  /// In en, this message translates to:
+  /// **'thinking.budget_tokens'**
+  String get modelDetailReasoningWireClaudeBudget;
+
+  /// No description provided for @modelDetailReasoningWireClaudeAdaptive.
+  ///
+  /// In en, this message translates to:
+  /// **'adaptive + output_config.effort'**
+  String get modelDetailReasoningWireClaudeAdaptive;
+
+  /// No description provided for @modelDetailReasoningWireGeminiBudget.
+  ///
+  /// In en, this message translates to:
+  /// **'thinkingBudget'**
+  String get modelDetailReasoningWireGeminiBudget;
+
+  /// No description provided for @modelDetailReasoningWireGeminiLevel.
+  ///
+  /// In en, this message translates to:
+  /// **'thinkingLevel'**
+  String get modelDetailReasoningWireGeminiLevel;
+
+  /// No description provided for @modelDetailReasoningWireToggleOnlyNote.
+  ///
+  /// In en, this message translates to:
+  /// **'This format only maps on/off; it does not support budget tiers.'**
+  String get modelDetailReasoningWireToggleOnlyNote;
+
   /// No description provided for @settingsPageSkills.
   ///
   /// In en, this message translates to:

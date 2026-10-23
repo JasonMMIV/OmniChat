@@ -4939,6 +4939,64 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelDetailReasoningProbeCancelled => '检测已取消';
 
   @override
+  String get modelDetailReasoningWireLabel => '推理参数格式';
+
+  @override
+  String get modelDetailReasoningWireDescription =>
+      '为此模型选择推理参数的写入格式。选错格式可能被供应商拒绝（400）。自定义 body 会覆盖此设置。';
+
+  @override
+  String get modelDetailReasoningWireAuto => '自动（依供应商判断）';
+
+  @override
+  String get modelDetailReasoningWireChatEffort => 'reasoning_effort';
+
+  @override
+  String get modelDetailReasoningWireChatReasoningEffortObj =>
+      'reasoning.effort';
+
+  @override
+  String get modelDetailReasoningWireChatReasoningBudgetObj =>
+      'reasoning.enabled + max_tokens';
+
+  @override
+  String get modelDetailReasoningWireChatThinkingBudget =>
+      'thinking.type + budget_tokens';
+
+  @override
+  String get modelDetailReasoningWireChatEnableThinking =>
+      'enable_thinking + thinking_budget';
+
+  @override
+  String get modelDetailReasoningWireChatThinkingMode => 'thinking_mode';
+
+  @override
+  String get modelDetailReasoningWireChatTemplateKwargs =>
+      'chat_template_kwargs.thinking';
+
+  @override
+  String get modelDetailReasoningWireNone => '不送';
+
+  @override
+  String get modelDetailReasoningWireResponsesEffort => 'reasoning.effort';
+
+  @override
+  String get modelDetailReasoningWireClaudeBudget => 'thinking.budget_tokens';
+
+  @override
+  String get modelDetailReasoningWireClaudeAdaptive =>
+      'adaptive + output_config.effort';
+
+  @override
+  String get modelDetailReasoningWireGeminiBudget => 'thinkingBudget';
+
+  @override
+  String get modelDetailReasoningWireGeminiLevel => 'thinkingLevel';
+
+  @override
+  String get modelDetailReasoningWireToggleOnlyNote => '此格式只对应开／关，不支持预算档位。';
+
+  @override
   String get settingsPageSkills => '技能';
 
   @override
@@ -9938,6 +9996,64 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get modelDetailReasoningProbeCancelled => '检测已取消';
+
+  @override
+  String get modelDetailReasoningWireLabel => '推理参数格式';
+
+  @override
+  String get modelDetailReasoningWireDescription =>
+      '为此模型选择推理参数的写入格式。选错格式可能被供应商拒绝（400）。自定义 body 会覆盖此设置。';
+
+  @override
+  String get modelDetailReasoningWireAuto => '自动（依供应商判断）';
+
+  @override
+  String get modelDetailReasoningWireChatEffort => 'reasoning_effort';
+
+  @override
+  String get modelDetailReasoningWireChatReasoningEffortObj =>
+      'reasoning.effort';
+
+  @override
+  String get modelDetailReasoningWireChatReasoningBudgetObj =>
+      'reasoning.enabled + max_tokens';
+
+  @override
+  String get modelDetailReasoningWireChatThinkingBudget =>
+      'thinking.type + budget_tokens';
+
+  @override
+  String get modelDetailReasoningWireChatEnableThinking =>
+      'enable_thinking + thinking_budget';
+
+  @override
+  String get modelDetailReasoningWireChatThinkingMode => 'thinking_mode';
+
+  @override
+  String get modelDetailReasoningWireChatTemplateKwargs =>
+      'chat_template_kwargs.thinking';
+
+  @override
+  String get modelDetailReasoningWireNone => '不送';
+
+  @override
+  String get modelDetailReasoningWireResponsesEffort => 'reasoning.effort';
+
+  @override
+  String get modelDetailReasoningWireClaudeBudget => 'thinking.budget_tokens';
+
+  @override
+  String get modelDetailReasoningWireClaudeAdaptive =>
+      'adaptive + output_config.effort';
+
+  @override
+  String get modelDetailReasoningWireGeminiBudget => 'thinkingBudget';
+
+  @override
+  String get modelDetailReasoningWireGeminiLevel => 'thinkingLevel';
+
+  @override
+  String get modelDetailReasoningWireToggleOnlyNote => '此格式只对应开／关，不支持预算档位。';
 
   @override
   String get settingsPageSkills => '技能';
@@ -15039,6 +15155,64 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get modelDetailReasoningProbeCancelled => '偵測已取消';
+
+  @override
+  String get modelDetailReasoningWireLabel => '推理參數格式';
+
+  @override
+  String get modelDetailReasoningWireDescription =>
+      '為此模型選擇推理參數的寫入格式。選錯格式可能被供應商拒絕（400）。自訂 body 會覆蓋此設定。';
+
+  @override
+  String get modelDetailReasoningWireAuto => '自動（依供應商判斷）';
+
+  @override
+  String get modelDetailReasoningWireChatEffort => 'reasoning_effort';
+
+  @override
+  String get modelDetailReasoningWireChatReasoningEffortObj =>
+      'reasoning.effort';
+
+  @override
+  String get modelDetailReasoningWireChatReasoningBudgetObj =>
+      'reasoning.enabled + max_tokens';
+
+  @override
+  String get modelDetailReasoningWireChatThinkingBudget =>
+      'thinking.type + budget_tokens';
+
+  @override
+  String get modelDetailReasoningWireChatEnableThinking =>
+      'enable_thinking + thinking_budget';
+
+  @override
+  String get modelDetailReasoningWireChatThinkingMode => 'thinking_mode';
+
+  @override
+  String get modelDetailReasoningWireChatTemplateKwargs =>
+      'chat_template_kwargs.thinking';
+
+  @override
+  String get modelDetailReasoningWireNone => '不送';
+
+  @override
+  String get modelDetailReasoningWireResponsesEffort => 'reasoning.effort';
+
+  @override
+  String get modelDetailReasoningWireClaudeBudget => 'thinking.budget_tokens';
+
+  @override
+  String get modelDetailReasoningWireClaudeAdaptive =>
+      'adaptive + output_config.effort';
+
+  @override
+  String get modelDetailReasoningWireGeminiBudget => 'thinkingBudget';
+
+  @override
+  String get modelDetailReasoningWireGeminiLevel => 'thinkingLevel';
+
+  @override
+  String get modelDetailReasoningWireToggleOnlyNote => '此格式只對應開／關，不支援預算檔位。';
 
   @override
   String get settingsPageSkills => '技能';

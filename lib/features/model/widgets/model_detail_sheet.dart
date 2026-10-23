@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../../core/services/api/builtin_tools.dart';
+import '../../../core/services/api/reasoning_wire.dart';
 import '../../../core/utils/reasoning_overrides.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
@@ -99,6 +100,9 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
   // Per-model reasoning-effort override. `null` = follow built-in rules;
   // non-null = stored under modelOverrides[key]['reasoning'] on save.
   ReasoningOverride? _reasoningOverride;
+  // Explicit reasoning wire dialect (plan batch 2). `null` = auto.
+  String? _reasoningWire;
+  late final ReasoningWireTransport _wireTransport;
   bool _reasoningProbing = false;
   String _reasoningProbeProgress = '';
 
@@ -114,6 +118,10 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
     final settings = context.read<SettingsProvider>();
     final cfg = settings.getProviderConfig(widget.providerKey);
     _providerKind = ProviderConfig.classify(cfg.id, explicitType: cfg.providerType);
+    _wireTransport = reasoningWireTransportFor(
+      providerType: _providerKind.name,
+      useResponseApi: cfg.useResponseApi == true,
+    );
     _showBuiltinToolsTab = _providerKind == ProviderKind.google || _providerKind == ProviderKind.openai || _providerKind == ProviderKind.neuralwatt;
     _tabCtrl = TabController(length: _showBuiltinToolsTab ? 3 : 2, vsync: this);
     _tabCtrl.addListener(() {
@@ -215,6 +223,10 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
       final rawOv = cfg.modelOverrides[widget.modelId];
       if (rawOv is Map && rawOv['reasoning'] != null) {
         _reasoningOverride = ReasoningOverride.fromMap(rawOv['reasoning']);
+      }
+      if (rawOv is Map) {
+        final wire = ReasoningWire.normalize(rawOv['reasoningWire']?.toString());
+        _reasoningWire = wire == ReasoningWire.auto ? null : wire;
       }
     }
   }
@@ -533,6 +545,43 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
     ];
   }
 
+  String _wireLabel(AppLocalizations l10n, String id) {
+    switch (id) {
+      case ReasoningWire.chatEffort:
+        return l10n.modelDetailReasoningWireChatEffort;
+      case ReasoningWire.chatReasoningEffortObj:
+        return l10n.modelDetailReasoningWireChatReasoningEffortObj;
+      case ReasoningWire.chatReasoningBudgetObj:
+        return l10n.modelDetailReasoningWireChatReasoningBudgetObj;
+      case ReasoningWire.chatThinkingBudget:
+        return l10n.modelDetailReasoningWireChatThinkingBudget;
+      case ReasoningWire.chatEnableThinking:
+        return l10n.modelDetailReasoningWireChatEnableThinking;
+      case ReasoningWire.chatThinkingMode:
+        return l10n.modelDetailReasoningWireChatThinkingMode;
+      case ReasoningWire.chatTemplateKwargs:
+        return l10n.modelDetailReasoningWireChatTemplateKwargs;
+      case ReasoningWire.chatNone:
+      case ReasoningWire.responsesNone:
+      case ReasoningWire.claudeNone:
+      case ReasoningWire.geminiNone:
+        return l10n.modelDetailReasoningWireNone;
+      case ReasoningWire.responsesEffort:
+        return l10n.modelDetailReasoningWireResponsesEffort;
+      case ReasoningWire.claudeBudget:
+        return l10n.modelDetailReasoningWireClaudeBudget;
+      case ReasoningWire.claudeAdaptive:
+        return l10n.modelDetailReasoningWireClaudeAdaptive;
+      case ReasoningWire.geminiBudget:
+        return l10n.modelDetailReasoningWireGeminiBudget;
+      case ReasoningWire.geminiLevel:
+        return l10n.modelDetailReasoningWireGeminiLevel;
+      case ReasoningWire.auto:
+      default:
+        return l10n.modelDetailReasoningWireAuto;
+    }
+  }
+
   // Per-model reasoning-effort override UI (effort set, off-fallback,
   // always-thinking, sampling stripping, adaptive thinking, auto-detect).
   List<Widget> _buildReasoningOverrideSection(
@@ -544,6 +593,15 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
     final bool isOpenAiKind =
         _providerKind == ProviderKind.openai ||
         _providerKind == ProviderKind.neuralwatt;
+    // A stored dialect can belong to another transport (e.g. the provider's
+    // Responses toggle changed after the model was saved). DropdownButton
+    // requires its value to be one of the rendered items, so fall back to
+    // auto instead of asserting.
+    final wireOptions = ReasoningWire.optionsFor(_wireTransport);
+    final normalizedWire = ReasoningWire.normalize(_reasoningWire);
+    final wireValue = wireOptions.contains(normalizedWire)
+        ? normalizedWire
+        : ReasoningWire.auto;
 
     return [
       Padding(
@@ -592,6 +650,74 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
           }),
         ),
       ),
+      // Reasoning parameter wire format (plan batch 2 §14). Shown whether or
+      // not the capability override is custom: the two are independent.
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        child: Text(
+          l10n.modelDetailReasoningWireLabel,
+          style: TextStyle(
+            fontSize: 13,
+            color: cs.onSurface.withOpacity(0.8),
+          ),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.white10
+                : const Color(0xFFF2F3F5),
+            border: Border.all(
+              color: cs.outlineVariant.withOpacity(0.35),
+            ),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: wireValue,
+              isExpanded: true,
+              borderRadius: BorderRadius.circular(12),
+              items: [
+                for (final id in wireOptions)
+                  DropdownMenuItem<String>(
+                    value: id,
+                    child: Text(
+                      _wireLabel(l10n, id),
+                      style: const TextStyle(fontSize: 14),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: (value) => setState(() {
+                final selected = ReasoningWire.normalize(value);
+                _reasoningWire =
+                    selected == ReasoningWire.auto ? null : selected;
+              }),
+            ),
+          ),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+        child: Text(
+          l10n.modelDetailReasoningWireDescription,
+          style: TextStyle(color: cs.onSurface.withOpacity(0.6), fontSize: 12),
+        ),
+      ),
+      if (ReasoningWire.isToggleOnly(wireValue))
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: Text(
+            l10n.modelDetailReasoningWireToggleOnlyNote,
+            style: TextStyle(
+              color: cs.onSurface.withOpacity(0.6),
+              fontSize: 12,
+            ),
+          ),
+        ),
       if (ovr != null) ...[
         if (isOpenAiKind) ...[
           Padding(
@@ -710,7 +836,10 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
               Expanded(
                 child: _OutlinedAddButton(
                   label: l10n.modelDetailReasoningResetToBuiltin,
-                  onTap: () => setState(() => _reasoningOverride = null),
+                  onTap: () => setState(() {
+                    _reasoningOverride = null;
+                    _reasoningWire = null;
+                  }),
                 ),
               ),
               if (isOpenAiKind) ...[
@@ -1139,6 +1268,10 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
       'useAspectRatioParam': _useAspectRatioParam,
       if (builtInTools.isNotEmpty) 'builtInTools': builtInTools,
       if (_reasoningOverride != null) 'reasoning': _reasoningOverride!.toMap(),
+      if (_reasoningWire != null &&
+          _reasoningWire != ReasoningWire.auto &&
+          ReasoningWire.optionsFor(_wireTransport).contains(_reasoningWire))
+        'reasoningWire': _reasoningWire,
     };
 
     // Apply updates to provider config
@@ -1146,6 +1279,14 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
       // Creating a new model
       final list = old.models.toList()..add(key);
       await settings.setProviderConfig(widget.providerKey, old.copyWith(modelOverrides: ov, models: list));
+      // models.dev catalog trigger (plan batch 1 §6.3): unknown ids fetch once,
+      // known ids return without a request.
+      try {
+        ProviderManager.refreshCatalogForModel(
+          settings.getProviderConfig(widget.providerKey),
+          apiModelId,
+        );
+      } catch (_) {}
     } else {
       // Existing model instance; keep logical key stable and just persist overrides
       await settings.setProviderConfig(widget.providerKey, old.copyWith(modelOverrides: ov));
