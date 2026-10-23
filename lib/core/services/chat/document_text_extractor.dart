@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:archive/archive_io.dart';
 import 'package:xml/xml.dart';
@@ -296,6 +297,27 @@ class DocumentTextExtractor {
   // PDF
   // --------------------------------------------------------------------------
 
+  /// Maximum size accepted by the PDF bytes entry point (16 MB).
+  static const int maxPdfBytes = 16 * 1024 * 1024;
+
+  /// Extract text from an in-memory PDF (web fetch). Same page markers and
+  /// output cap as the workspace path; a scanned PDF returns a notice rather
+  /// than an error.
+  static DocumentExtractionResult extractPdfBytes(
+    Uint8List bytes, {
+    required int maxOutputBytes,
+  }) {
+    if (bytes.length > maxPdfBytes) {
+      throw const DocumentExtractionException(
+        'The PDF is too large to extract.',
+      );
+    }
+    if (!_isPdfSignature(bytes)) {
+      throw const DocumentExtractionException('The file is not a valid PDF.');
+    }
+    return _extractPdfFromBytes(bytes, maxOutputBytes: maxOutputBytes);
+  }
+
   static Future<DocumentExtractionResult> _extractPdfWorkspace(
     File file, {
     required int maxOutputBytes,
@@ -304,6 +326,13 @@ class DocumentTextExtractor {
     if (!_isPdfSignature(bytes)) {
       throw const DocumentExtractionException('The file is not a valid PDF.');
     }
+    return _extractPdfFromBytes(bytes, maxOutputBytes: maxOutputBytes);
+  }
+
+  static DocumentExtractionResult _extractPdfFromBytes(
+    List<int> bytes, {
+    required int maxOutputBytes,
+  }) {
     PdfDocument? document;
     try {
       document = PdfDocument(inputBytes: bytes);

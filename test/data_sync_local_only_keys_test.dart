@@ -9,12 +9,14 @@ void main() {
 
   const fontScaleKey = 'display_chat_font_scale_v1';
   const windowWidthKey = 'window_width_v1';
+  const privateHostsKey = 'web_fetch_allow_private_hosts_v1';
   const normalKey = 'some_regular_setting_v1';
 
   setUp(() {
     SharedPreferences.setMockInitialValues({
       fontScaleKey: 1.4,
       windowWidthKey: 1200,
+      privateHostsKey: false,
       normalKey: 'hello',
     });
   });
@@ -27,6 +29,11 @@ void main() {
       expect(map.containsKey(fontScaleKey), isFalse,
           reason: 'chat font scale must stay local to the device');
       expect(map.containsKey(windowWidthKey), isFalse);
+      expect(
+        map.containsKey(privateHostsKey),
+        isFalse,
+        reason: 'allowing private hosts is device/network specific',
+      );
       expect(map[normalKey], 'hello');
     });
 
@@ -35,6 +42,7 @@ void main() {
       await prefs.restore({
         fontScaleKey: 0.8,
         windowWidthKey: 800,
+        privateHostsKey: true,
         normalKey: 'world',
       });
 
@@ -42,6 +50,7 @@ void main() {
       expect(stored.getDouble(fontScaleKey), 1.4,
           reason: 'local-only keys must not be overwritten by sync restore');
       expect(stored.getInt(windowWidthKey), 1200);
+      expect(stored.getBool(privateHostsKey), isFalse);
       expect(stored.getString(normalKey), 'world');
     });
 

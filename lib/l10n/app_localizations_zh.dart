@@ -5171,6 +5171,49 @@ class AppLocalizationsZh extends AppLocalizations {
   String chatMessageWidgetSkillToken(String name) {
     return '技能：$name';
   }
+
+  @override
+  String chatMessageWidgetWebFetch(String url) {
+    return '读取：$url';
+  }
+
+  @override
+  String get searchWebFetchSectionTitle => '网页读取';
+
+  @override
+  String get searchWebFetchEnabledTitle => '启用网页读取';
+
+  @override
+  String get searchWebFetchEnabledDescription => '允许模型通过内置 web_fetch 工具读取网页内容。';
+
+  @override
+  String get searchWebFetchSourceTitle => '读取来源';
+
+  @override
+  String get searchWebFetchSourceLocal => '本机';
+
+  @override
+  String get searchWebFetchSourceFollow => '跟随搜索';
+
+  @override
+  String get searchWebFetchSourceProvider => '指定供应商';
+
+  @override
+  String get searchWebFetchAllowPostTitle => '允许 POST';
+
+  @override
+  String get searchWebFetchAllowPostDescription =>
+      'POST 请求可能改变服务器状态。仅在需要调用 API 时开启。';
+
+  @override
+  String get searchWebFetchAllowPrivateHostsTitle => '允许内网地址';
+
+  @override
+  String get searchWebFetchAllowPrivateHostsDescription =>
+      '仅在信任的网络环境中开启。开启后可访问本机与局域网服务。';
+
+  @override
+  String get searchWebFetchTier2Note => '使用供应商来源时，URL 会发送给该供应商，并按其方案计费。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -10129,6 +10172,49 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String chatMessageWidgetSkillToken(String name) {
     return '技能：$name';
   }
+
+  @override
+  String chatMessageWidgetWebFetch(String url) {
+    return '读取：$url';
+  }
+
+  @override
+  String get searchWebFetchSectionTitle => '网页读取';
+
+  @override
+  String get searchWebFetchEnabledTitle => '启用网页读取';
+
+  @override
+  String get searchWebFetchEnabledDescription => '允许模型通过内置 web_fetch 工具读取网页内容。';
+
+  @override
+  String get searchWebFetchSourceTitle => '读取来源';
+
+  @override
+  String get searchWebFetchSourceLocal => '本机';
+
+  @override
+  String get searchWebFetchSourceFollow => '跟随搜索';
+
+  @override
+  String get searchWebFetchSourceProvider => '指定供应商';
+
+  @override
+  String get searchWebFetchAllowPostTitle => '允许 POST';
+
+  @override
+  String get searchWebFetchAllowPostDescription =>
+      'POST 请求可能改变服务器状态。仅在需要调用 API 时开启。';
+
+  @override
+  String get searchWebFetchAllowPrivateHostsTitle => '允许内网地址';
+
+  @override
+  String get searchWebFetchAllowPrivateHostsDescription =>
+      '仅在信任的网络环境中开启。开启后可访问本机与局域网服务。';
+
+  @override
+  String get searchWebFetchTier2Note => '使用供应商来源时，URL 会发送给该供应商，并按其方案计费。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -15187,4 +15273,47 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String chatMessageWidgetSkillToken(String name) {
     return '技能：$name';
   }
+
+  @override
+  String chatMessageWidgetWebFetch(String url) {
+    return '讀取：$url';
+  }
+
+  @override
+  String get searchWebFetchSectionTitle => '網頁讀取';
+
+  @override
+  String get searchWebFetchEnabledTitle => '啟用網頁讀取';
+
+  @override
+  String get searchWebFetchEnabledDescription => '允許模型透過內建 web_fetch 工具讀取網頁內容。';
+
+  @override
+  String get searchWebFetchSourceTitle => '讀取來源';
+
+  @override
+  String get searchWebFetchSourceLocal => '本機';
+
+  @override
+  String get searchWebFetchSourceFollow => '跟隨搜尋';
+
+  @override
+  String get searchWebFetchSourceProvider => '指定供應商';
+
+  @override
+  String get searchWebFetchAllowPostTitle => '允許 POST';
+
+  @override
+  String get searchWebFetchAllowPostDescription =>
+      'POST 請求可能改變伺服器狀態。僅在需要呼叫 API 時開啟。';
+
+  @override
+  String get searchWebFetchAllowPrivateHostsTitle => '允許內網位址';
+
+  @override
+  String get searchWebFetchAllowPrivateHostsDescription =>
+      '僅在信任的網路環境中開啟。開啟後可存取本機與區域網路服務。';
+
+  @override
+  String get searchWebFetchTier2Note => '使用供應商來源時，URL 會傳送給該供應商，並依其方案計費。';
 }

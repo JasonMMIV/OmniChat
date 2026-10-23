@@ -629,6 +629,64 @@ class _SearchSettingsSheet extends StatelessWidget {
                     style: TextStyle(color: cs.onSurface.withOpacity(0.7)),
                   ),
                 ],
+                // Web fetch kill switch (source / POST / private hosts live
+                // on the Search Services page next to the provider list).
+                if (!builtInMode) ...[
+                  const SizedBox(height: 14),
+                  IosCardPress(
+                    borderRadius: BorderRadius.circular(14),
+                    baseColor: cs.surface,
+                    duration: const Duration(milliseconds: 260),
+                    onTap: () {
+                      Haptics.light();
+                      context.read<SettingsProvider>().setWebFetchEnabled(
+                        !settings.webFetchEnabled,
+                      );
+                    },
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Lucide.Globe, size: 20, color: cs.primary),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                l10n.searchWebFetchEnabledTitle,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                l10n.searchWebFetchEnabledDescription,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: cs.onSurface.withOpacity(0.65),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        IosSwitch(
+                          value: settings.webFetchEnabled,
+                          onChanged: (v) => context
+                              .read<SettingsProvider>()
+                              .setWebFetchEnabled(v),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

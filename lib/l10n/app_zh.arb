@@ -1748,5 +1748,18 @@
   "chatInputBarSkillsTooltip": "技能",
   "skillInvocationFailed": "技能「{name}」未安装",
   "chatMessageWidgetSkillLoad": "载入技能：{name}",
-  "chatMessageWidgetSkillToken": "技能：{name}"
+  "chatMessageWidgetSkillToken": "技能：{name}",
+  "chatMessageWidgetWebFetch": "读取：{url}",
+  "searchWebFetchSectionTitle": "网页读取",
+  "searchWebFetchEnabledTitle": "启用网页读取",
+  "searchWebFetchEnabledDescription": "允许模型通过内置 web_fetch 工具读取网页内容。",
+  "searchWebFetchSourceTitle": "读取来源",
+  "searchWebFetchSourceLocal": "本机",
+  "searchWebFetchSourceFollow": "跟随搜索",
+  "searchWebFetchSourceProvider": "指定供应商",
+  "searchWebFetchAllowPostTitle": "允许 POST",
+  "searchWebFetchAllowPostDescription": "POST 请求可能改变服务器状态。仅在需要调用 API 时开启。",
+  "searchWebFetchAllowPrivateHostsTitle": "允许内网地址",
+  "searchWebFetchAllowPrivateHostsDescription": "仅在信任的网络环境中开启。开启后可访问本机与局域网服务。",
+  "searchWebFetchTier2Note": "使用供应商来源时，URL 会发送给该供应商，并按其方案计费。"
 }

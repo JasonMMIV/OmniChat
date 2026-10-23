@@ -84,6 +84,12 @@ Future<void> main() async {
       // logging.Logger.root.onRecord.listen((rec) { ... });
       // Cache current Documents directory to fix sandboxed absolute paths on iOS
       await SandboxPathResolver.init();
+      // Migrate the retired @kelivo/fetch MCP entry before SettingsProvider
+      // loads, otherwise its async load reads the default `true` and the
+      // migrated `web_fetch_enabled_v1` value never reaches the UI.
+      try {
+        await McpProvider.applyLegacyFetchMigration();
+      } catch (_) {}
       // Enable edge-to-edge to allow content under system bars (Android)
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       // Start app (Flutter log capture is toggleable and off by default)

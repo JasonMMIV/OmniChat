@@ -5222,4 +5222,49 @@ class AppLocalizationsEn extends AppLocalizations {
   String chatMessageWidgetSkillToken(String name) {
     return 'Skill: $name';
   }
+
+  @override
+  String chatMessageWidgetWebFetch(String url) {
+    return 'Read: $url';
+  }
+
+  @override
+  String get searchWebFetchSectionTitle => 'Web Fetch';
+
+  @override
+  String get searchWebFetchEnabledTitle => 'Enable Web Fetch';
+
+  @override
+  String get searchWebFetchEnabledDescription =>
+      'Let the model read web pages with the built-in web_fetch tool.';
+
+  @override
+  String get searchWebFetchSourceTitle => 'Fetch source';
+
+  @override
+  String get searchWebFetchSourceLocal => 'Local';
+
+  @override
+  String get searchWebFetchSourceFollow => 'Follow search';
+
+  @override
+  String get searchWebFetchSourceProvider => 'Specific provider';
+
+  @override
+  String get searchWebFetchAllowPostTitle => 'Allow POST';
+
+  @override
+  String get searchWebFetchAllowPostDescription =>
+      'POST requests may change server state. Only enable this when you need to call an API endpoint.';
+
+  @override
+  String get searchWebFetchAllowPrivateHostsTitle => 'Allow private addresses';
+
+  @override
+  String get searchWebFetchAllowPrivateHostsDescription =>
+      'Only enable this on a network you trust. It allows requests to localhost and LAN services.';
+
+  @override
+  String get searchWebFetchTier2Note =>
+      'With a provider source, the URL is sent to that provider and billed by its plan.';
 }

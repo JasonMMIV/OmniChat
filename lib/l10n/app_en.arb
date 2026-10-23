@@ -2262,5 +2262,25 @@
         "type": "String"
       }
     }
-  }
+  },
+  "chatMessageWidgetWebFetch": "Read: {url}",
+  "@chatMessageWidgetWebFetch": {
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "searchWebFetchSectionTitle": "Web Fetch",
+  "searchWebFetchEnabledTitle": "Enable Web Fetch",
+  "searchWebFetchEnabledDescription": "Let the model read web pages with the built-in web_fetch tool.",
+  "searchWebFetchSourceTitle": "Fetch source",
+  "searchWebFetchSourceLocal": "Local",
+  "searchWebFetchSourceFollow": "Follow search",
+  "searchWebFetchSourceProvider": "Specific provider",
+  "searchWebFetchAllowPostTitle": "Allow POST",
+  "searchWebFetchAllowPostDescription": "POST requests may change server state. Only enable this when you need to call an API endpoint.",
+  "searchWebFetchAllowPrivateHostsTitle": "Allow private addresses",
+  "searchWebFetchAllowPrivateHostsDescription": "Only enable this on a network you trust. It allows requests to localhost and LAN services.",
+  "searchWebFetchTier2Note": "With a provider source, the URL is sent to that provider and billed by its plan."
 }

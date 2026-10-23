@@ -394,6 +394,7 @@ class ChatActions {
         loading: false,
         searchProvider: parts[pIdx].searchProvider,
         searchFallbackFrom: parts[pIdx].searchFallbackFrom,
+        webFetchSource: parts[pIdx].webFetchSource,
       );
       streamController.toolParts[assistantMessageId] = parts;
       streamController.streamingContentNotifier
@@ -692,6 +693,7 @@ class ChatActions {
       loading: false,
       searchProvider: parts[idx].searchProvider,
       searchFallbackFrom: parts[idx].searchFallbackFrom,
+      webFetchSource: parts[idx].webFetchSource,
     );
     streamController.toolParts[messageId] = parts;
     streamController.streamingContentNotifier

@@ -103,6 +103,40 @@ class SearchDispatchOutcome<T> {
   bool get succeeded => value != null;
 }
 
+/// App-wide 429 cooldown table (60 s by default). Shared by search dispatch
+/// and the Tier-2 web fetch source service so a rate-limited provider is
+/// skipped by both.
+class ProviderCooldown {
+  ProviderCooldown({
+    DateTime Function()? clock,
+    this.duration = const Duration(seconds: 60),
+  }) : _clock = clock ?? DateTime.now;
+
+  /// Process-wide table used by web fetch (search keeps its dispatcher-local
+  /// table for deterministic unit tests).
+  static final ProviderCooldown shared = ProviderCooldown();
+
+  final DateTime Function() _clock;
+  final Duration duration;
+  final Map<String, DateTime> _until = <String, DateTime>{};
+
+  bool isCoolingDown(String id) {
+    final until = _until[id];
+    if (until == null) return false;
+    if (!_clock().isBefore(until)) {
+      _until.remove(id);
+      return false;
+    }
+    return true;
+  }
+
+  void mark(String id) {
+    _until[id] = _clock().add(duration);
+  }
+
+  void clear() => _until.clear();
+}
+
 /// In-memory dispatch state machine: orders candidates per mode, walks them
 /// until one succeeds, records 429 cooldowns and advances the round-robin
 /// cursor once per completed search.
