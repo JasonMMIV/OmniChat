@@ -17,6 +17,7 @@ import '../../../core/services/agent/approval.dart';
 import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
 import '../../../core/services/logging/flutter_logger.dart';
 import '../../../core/services/tools/tool_result_caps.dart';
+import '../../../core/services/web/web_fetch_tool.dart';
 import '../../../core/services/skills/skill_service.dart';
 import '../../../core/models/file_record.dart';
 import '../../../core/models/skill.dart';
@@ -182,6 +183,13 @@ class ToolHandlerService {
     // Search tool (skip when Gemini built-in search is active)
     if (settings.searchEnabled && !hasBuiltInSearch && supportsTools) {
       toolDefs.add(SearchToolService.getToolDefinition());
+    }
+
+    // Web fetch: one built-in tool (`web_fetch`). Legacy fetch_* names are
+    // accepted by the handler only; they are never advertised (WEB_FETCH_PLAN
+    // §5.1–5.2).
+    if (settings.webFetchEnabled && supportsTools) {
+      toolDefs.add(WebFetchTool.getToolDefinition());
     }
 
     // Memory tools
@@ -517,6 +525,12 @@ class ToolHandlerService {
     final assistantProvider = contextProvider.read<AssistantProvider>();
 
     return (name, args, {String? toolCallId}) async {
+      // Legacy fetch tool names (fetch_markdown, read_page, …) resolve to the
+      // single canonical handler. `invokedName` keeps the fetch_html alias's
+      // raw-HTML semantics without registering another tool.
+      final invokedName = name;
+      name = WebFetchTool.canonicalToolName(name);
+
       // Defense in depth: a tool disabled globally (or by the workspace
       // switch) must never execute even if a stale request still carries
       // its definition.
@@ -768,6 +782,42 @@ class ToolHandlerService {
             }
           }
           return ToolResultCaps.cap(toolName: name, result: trace.json);
+        }
+
+        // Web fetch — local-first single entry point. The returned text is
+        // self-describing (metadata header + content window); the source is
+        // persisted as a UI-only extra for the tool card badge.
+        if (name == WebFetchTool.toolName) {
+          if (!settings.webFetchEnabled) {
+            return jsonEncode(<String, dynamic>{
+              'type': 'tool_error',
+              'error': 'tool_disabled',
+              'message': 'Web fetch is disabled in settings.',
+              'tool': name,
+            });
+          }
+          final tool = WebFetchTool(settings: settings);
+          final fetched = await tool.executeWithTrace(
+            args,
+            invokedName: invokedName,
+          );
+          if (messageId != null && messageId.isNotEmpty) {
+            try {
+              await chatService.upsertToolEvent(
+                messageId,
+                id: (toolCallId ?? '').trim(),
+                name: name,
+                arguments: args,
+                content: fetched.text,
+                extras: <String, dynamic>{
+                  'webFetchSource': fetched.sourceName,
+                },
+              );
+            } catch (_) {
+              // The badge is best-effort UI metadata — never fail the fetch.
+            }
+          }
+          return ToolResultCaps.cap(toolName: name, result: fetched.text);
         }
 
         // Memory tools

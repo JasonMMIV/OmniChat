@@ -260,6 +260,13 @@ class SettingsProvider extends ChangeNotifier {
   static const String _searchEnabledKey = 'search_enabled_v1';
   static const String _searchAutoTestOnLaunchKey =
       'search_auto_test_on_launch_v1';
+  // Web fetch (WEB_FETCH_PLAN.md §5.12). The enabled / source / allow-POST
+  // keys sync with backups; allow-private-hosts stays local-only.
+  static const String webFetchEnabledKey = 'web_fetch_enabled_v1';
+  static const String webFetchSourceKey = 'web_fetch_source_v1';
+  static const String webFetchAllowPostKey = 'web_fetch_allow_post_v1';
+  static const String webFetchAllowPrivateHostsKey =
+      'web_fetch_allow_private_hosts_v1';
   // Standalone academic MCP config (PubMed / Semantic Scholar API keys),
   // independent from the web search services list.
   static const String _academicConfigKey = 'academic_search_config_v1';
@@ -460,6 +467,21 @@ class SettingsProvider extends ChangeNotifier {
   bool get searchEnabled => _searchEnabled;
   bool _searchAutoTestOnLaunch = false;
   bool get searchAutoTestOnLaunch => _searchAutoTestOnLaunch;
+
+  // ===== Web Fetch Settings (WEB_FETCH_PLAN.md §5.12) =====
+  bool _webFetchEnabled = true;
+  bool get webFetchEnabled => _webFetchEnabled;
+
+  /// `local` / `follow` / `<searchServiceId>`.
+  String _webFetchSource = 'local';
+  String get webFetchSource => _webFetchSource;
+
+  bool _webFetchAllowPost = false;
+  bool get webFetchAllowPost => _webFetchAllowPost;
+
+  bool _webFetchAllowPrivateHosts = false;
+  bool get webFetchAllowPrivateHosts => _webFetchAllowPrivateHosts;
+
   // Ephemeral connection test results: serviceId -> connected (true), failed (false), or null (not tested)
   final Map<String, bool?> _searchConnection = <String, bool?>{};
   Map<String, bool?> get searchConnection =>
@@ -985,6 +1007,21 @@ class SettingsProvider extends ChangeNotifier {
     _searchEnabled = prefs.getBool(_searchEnabledKey) ?? false;
     _searchAutoTestOnLaunch =
         prefs.getBool(_searchAutoTestOnLaunchKey) ?? false;
+
+    // Web fetch settings. A fresh install defaults to enabled + local; the
+    // retired fetch MCP entry is migrated separately by McpProvider.
+    _webFetchEnabled = prefs.getBool(webFetchEnabledKey) ?? true;
+    _webFetchSource = prefs.getString(webFetchSourceKey) ?? 'local';
+    _webFetchAllowPost = prefs.getBool(webFetchAllowPostKey) ?? false;
+    _webFetchAllowPrivateHosts =
+        prefs.getBool(webFetchAllowPrivateHostsKey) ?? false;
+    if (_webFetchSource != 'local' &&
+        _webFetchSource != 'follow' &&
+        !_searchServices.any((s) => s.id == _webFetchSource)) {
+      // The configured provider was deleted: fall back to local and persist.
+      _webFetchSource = 'local';
+      await prefs.setString(webFetchSourceKey, 'local');
+    }
 
     // Load standalone academic MCP config, then migrate any legacy PubMed /
     // Semantic Scholar / arXiv entries out of the search services list into
@@ -3592,6 +3629,39 @@ Synthesize your reasoning and research into a final response. The structure shou
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_searchEnabledKey, enabled);
+  }
+
+  Future<void> setWebFetchEnabled(bool enabled) async {
+    if (_webFetchEnabled == enabled) return;
+    _webFetchEnabled = enabled;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(webFetchEnabledKey, enabled);
+  }
+
+  Future<void> setWebFetchSource(String source) async {
+    final normalized = source.trim().isEmpty ? 'local' : source.trim();
+    if (_webFetchSource == normalized) return;
+    _webFetchSource = normalized;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(webFetchSourceKey, normalized);
+  }
+
+  Future<void> setWebFetchAllowPost(bool enabled) async {
+    if (_webFetchAllowPost == enabled) return;
+    _webFetchAllowPost = enabled;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(webFetchAllowPostKey, enabled);
+  }
+
+  Future<void> setWebFetchAllowPrivateHosts(bool enabled) async {
+    if (_webFetchAllowPrivateHosts == enabled) return;
+    _webFetchAllowPrivateHosts = enabled;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(webFetchAllowPrivateHostsKey, enabled);
   }
 
   Future<void> setSearchAutoTestOnLaunch(bool enabled) async {

@@ -3136,6 +3136,10 @@ class ToolUIPart {
   /// switched to another provider (fallback), null otherwise.
   final String? searchFallbackFrom;
 
+  /// UI-only web fetch trace: display name of the source that served the page
+  /// (`Local` or a Tier-2 provider), null otherwise.
+  final String? webFetchSource;
+
   const ToolUIPart({
     required this.id,
     required this.toolName,
@@ -3144,6 +3148,7 @@ class ToolUIPart {
     this.loading = false,
     this.searchProvider,
     this.searchFallbackFrom,
+    this.webFetchSource,
   });
 }
 
@@ -3286,6 +3291,8 @@ class _ToolCallItem extends StatelessWidget {
         return Lucide.bookDashed;
       case 'search_web':
         return Lucide.Earth;
+      case 'web_fetch':
+        return Lucide.Globe;
       case 'builtin_search':
         return Lucide.Search;
       case 'skill':
@@ -3312,6 +3319,9 @@ class _ToolCallItem extends StatelessWidget {
       case 'search_web':
         final q = (args['query'] ?? '').toString();
         return l10n.chatMessageWidgetWebSearch(q);
+      case 'web_fetch':
+        final url = (args['url'] ?? '').toString();
+        return l10n.chatMessageWidgetWebFetch(url);
       case 'builtin_search':
         return l10n.chatMessageWidgetBuiltinSearch;
       case 'skill':
@@ -3443,6 +3453,14 @@ class _ToolCallItem extends StatelessWidget {
                       const SizedBox(width: 6),
                       _SearchProviderBadge(
                         name: part.searchProvider!,
+                        color: cardTextColor,
+                      ),
+                    ],
+                    if (part.toolName == 'web_fetch' &&
+                        (part.webFetchSource ?? '').isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      _SearchProviderBadge(
+                        name: part.webFetchSource!,
                         color: cardTextColor,
                       ),
                     ],

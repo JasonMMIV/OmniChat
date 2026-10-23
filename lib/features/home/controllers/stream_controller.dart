@@ -803,6 +803,7 @@ class StreamController {
           loading: false,
           searchProvider: extras['searchProvider']?.toString(),
           searchFallbackFrom: extras['searchFallbackFrom']?.toString(),
+          webFetchSource: extras['webFetchSource']?.toString(),
         );
       } else {
         parts.add(ToolUIPart(
@@ -813,6 +814,7 @@ class StreamController {
           loading: false,
           searchProvider: extras['searchProvider']?.toString(),
           searchFallbackFrom: extras['searchFallbackFrom']?.toString(),
+          webFetchSource: extras['webFetchSource']?.toString(),
         ));
       }
       try {
@@ -1182,6 +1184,7 @@ class StreamController {
                   loading: !(e['content']?.toString().isNotEmpty == true),
                   searchProvider: e['searchProvider']?.toString(),
                   searchFallbackFrom: e['searchFallbackFrom']?.toString(),
+                  webFetchSource: e['webFetchSource']?.toString(),
                 ))
             .toList();
       }

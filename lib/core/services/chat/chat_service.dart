@@ -1015,6 +1015,9 @@ class ChatService extends ChangeNotifier {
   static const List<String> preservedToolEventExtraKeys = <String>[
     'searchProvider',
     'searchFallbackFrom',
+    // Web fetch: display name of the source that served the page (`Local` or
+    // a Tier-2 provider). UI-only badge, never part of the LLM context.
+    'webFetchSource',
     // P1-3 fix: reasoning-echo fields captured from the tool-calling round
     // (expose-mode `assistantExtras`). Cross-turn §3.11 replay re-attaches
     // them so DeepSeek thinking mode does not reject the resumed request

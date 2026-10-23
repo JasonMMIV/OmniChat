@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/services/search/search_service.dart';
 import '../../../core/services/search/search_dispatch.dart';
+import '../../../core/services/web/provider_adapters.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
@@ -297,6 +298,9 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
           _sectionHeader(l10n.searchServicesPageDispatchModeTitle, cs),
           _buildDispatchModeSection(context),
           const SizedBox(height: 16),
+          _sectionHeader(l10n.searchWebFetchSectionTitle, cs),
+          _buildWebFetchSection(context),
+          const SizedBox(height: 16),
           _sectionHeader(l10n.searchServicesPageGeneralOptions, cs),
           _buildCommonOptionsSection(context),
         ],
@@ -316,6 +320,174 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
           ),
         ),
       );
+
+  /// Web fetch settings: enabled / source / POST / private hosts. Only
+  /// providers with an extract adapter are listed as explicit sources.
+  Widget _buildWebFetchSection(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final settings = context.watch<SettingsProvider>();
+    final capable = <SearchServiceOptions>[
+      for (final service in settings.searchServices)
+        if (providerFetchAdapterFor(
+              (service.toJson()['type'] ?? '').toString(),
+            ) !=
+            null)
+          service,
+    ];
+    var source = settings.webFetchSource;
+    if (source != 'local' &&
+        source != 'follow' &&
+        !capable.any((s) => s.id == source)) {
+      source = 'local';
+    }
+
+    Widget row({
+      required String title,
+      String? description,
+      required Widget trailing,
+      VoidCallback? onTap,
+    }) {
+      final content = Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: TextStyle(fontSize: 15, color: cs.onSurface)),
+                  if ((description ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      description!,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        height: 1.35,
+                        color: cs.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            trailing,
+          ],
+        ),
+      );
+      if (onTap == null) return content;
+      return InkWell(onTap: onTap, child: content);
+    }
+
+    Widget toggle({
+      required String title,
+      String? description,
+      required bool value,
+      required ValueChanged<bool> onChanged,
+    }) => row(
+      title: title,
+      description: description,
+      onTap: () => onChanged(!value),
+      trailing: IosSwitch(
+        value: value,
+        onChanged: (v) {
+          Haptics.light();
+          onChanged(v);
+        },
+      ),
+    );
+
+    return _iosSectionCard(
+      children: [
+        toggle(
+          title: l10n.searchWebFetchEnabledTitle,
+          description: l10n.searchWebFetchEnabledDescription,
+          value: settings.webFetchEnabled,
+          onChanged: (v) =>
+              context.read<SettingsProvider>().setWebFetchEnabled(v),
+        ),
+        _iosDivider(context),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.searchWebFetchSourceTitle,
+                style: TextStyle(fontSize: 15, color: cs.onSurface),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: cs.onSurface.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    value: source,
+                    items: <DropdownMenuItem<String>>[
+                      DropdownMenuItem(
+                        value: 'local',
+                        child: Text(l10n.searchWebFetchSourceLocal),
+                      ),
+                      DropdownMenuItem(
+                        value: 'follow',
+                        child: Text(l10n.searchWebFetchSourceFollow),
+                      ),
+                      for (final service in capable)
+                        DropdownMenuItem(
+                          value: service.id,
+                          child: Text(
+                            '${l10n.searchWebFetchSourceProvider}: '
+                            '${SearchService.getService(service).name}',
+                          ),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      Haptics.light();
+                      context.read<SettingsProvider>().setWebFetchSource(value);
+                    },
+                  ),
+                ),
+              ),
+              if (source != 'local') ...[
+                const SizedBox(height: 6),
+                Text(
+                  l10n.searchWebFetchTier2Note,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.35,
+                    color: cs.onSurface.withOpacity(0.6),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        _iosDivider(context),
+        toggle(
+          title: l10n.searchWebFetchAllowPostTitle,
+          description: l10n.searchWebFetchAllowPostDescription,
+          value: settings.webFetchAllowPost,
+          onChanged: (v) =>
+              context.read<SettingsProvider>().setWebFetchAllowPost(v),
+        ),
+        _iosDivider(context),
+        toggle(
+          title: l10n.searchWebFetchAllowPrivateHostsTitle,
+          description: l10n.searchWebFetchAllowPrivateHostsDescription,
+          value: settings.webFetchAllowPrivateHosts,
+          onChanged: (v) => context
+              .read<SettingsProvider>()
+              .setWebFetchAllowPrivateHosts(v),
+        ),
+      ],
+    );
+  }
 
   Widget _buildCommonOptionsSection(BuildContext context) {
     final cs = Theme.of(context).colorScheme;

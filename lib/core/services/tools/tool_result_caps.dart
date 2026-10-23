@@ -52,6 +52,10 @@ class ToolResultCaps {
       'Re-run the search with narrower parameters (more specific query, '
       'lower max_results) to retrieve the specific portion you need.';
 
+  static const String webFetchGuidance =
+      'Re-run web_fetch with start_index set to the next_start_index value '
+      'from the response (keep max_length small) to read the next window.';
+
   static const String genericGuidance =
       'Re-run the tool with narrower parameters to retrieve the specific '
       'portion you need.';
@@ -105,6 +109,7 @@ class ToolResultCaps {
   static String _guidanceFor(String toolName) {
     if (toolName.startsWith('file_')) return fileToolGuidance;
     if (toolName == 'search_web') return searchToolGuidance;
+    if (toolName == 'web_fetch') return webFetchGuidance;
     return genericGuidance;
   }
 }

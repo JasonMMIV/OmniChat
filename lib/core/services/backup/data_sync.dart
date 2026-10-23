@@ -16,6 +16,7 @@ import '../../models/conversation.dart';
 import '../../models/file_record.dart';
 import '../../models/workspace_config.dart';
 import '../chat/chat_service.dart';
+import '../../providers/mcp_provider.dart';
 import 'dropbox_auth_service.dart';
 import '../../../utils/app_directories.dart';
 
@@ -1234,6 +1235,12 @@ class DataSync {
       }
     }
 
+    // A restored backup may still carry the retired fetch MCP entry; migrate
+    // it into web_fetch_enabled_v1 exactly like a fresh app start.
+    try {
+      await McpProvider.applyLegacyFetchMigration();
+    } catch (_) {}
+
     try {
       await extractDir.delete(recursive: true);
     } catch (_) {}
@@ -1246,6 +1253,9 @@ class SharedPreferencesAsync {
   static SharedPreferencesAsync? _inst;
   // Local-only UI state stays on device and is excluded from backups/restores.
   static const _localOnlyKeys = {
+    // Web fetch: "allow private hosts" is device/network specific and must
+    // never ride along through a backup (WEB_FETCH_PLAN.md §5.12).
+    'web_fetch_allow_private_hosts_v1',
     'learned_context_windows_v1',
     'learned_output_caps_v1',
     'window_width_v1',

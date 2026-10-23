@@ -9919,6 +9919,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Skill: {name}'**
   String chatMessageWidgetSkillToken(String name);
+
+  /// No description provided for @chatMessageWidgetWebFetch.
+  ///
+  /// In en, this message translates to:
+  /// **'Read: {url}'**
+  String chatMessageWidgetWebFetch(String url);
+
+  /// No description provided for @searchWebFetchSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Web Fetch'**
+  String get searchWebFetchSectionTitle;
+
+  /// No description provided for @searchWebFetchEnabledTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable Web Fetch'**
+  String get searchWebFetchEnabledTitle;
+
+  /// No description provided for @searchWebFetchEnabledDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Let the model read web pages with the built-in web_fetch tool.'**
+  String get searchWebFetchEnabledDescription;
+
+  /// No description provided for @searchWebFetchSourceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Fetch source'**
+  String get searchWebFetchSourceTitle;
+
+  /// No description provided for @searchWebFetchSourceLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Local'**
+  String get searchWebFetchSourceLocal;
+
+  /// No description provided for @searchWebFetchSourceFollow.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow search'**
+  String get searchWebFetchSourceFollow;
+
+  /// No description provided for @searchWebFetchSourceProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'Specific provider'**
+  String get searchWebFetchSourceProvider;
+
+  /// No description provided for @searchWebFetchAllowPostTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow POST'**
+  String get searchWebFetchAllowPostTitle;
+
+  /// No description provided for @searchWebFetchAllowPostDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'POST requests may change server state. Only enable this when you need to call an API endpoint.'**
+  String get searchWebFetchAllowPostDescription;
+
+  /// No description provided for @searchWebFetchAllowPrivateHostsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow private addresses'**
+  String get searchWebFetchAllowPrivateHostsTitle;
+
+  /// No description provided for @searchWebFetchAllowPrivateHostsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Only enable this on a network you trust. It allows requests to localhost and LAN services.'**
+  String get searchWebFetchAllowPrivateHostsDescription;
+
+  /// No description provided for @searchWebFetchTier2Note.
+  ///
+  /// In en, this message translates to:
+  /// **'With a provider source, the URL is sent to that provider and billed by its plan.'**
+  String get searchWebFetchTier2Note;
 }
 
 class _AppLocalizationsDelegate

@@ -81,6 +81,10 @@ dependencies:
   audioplayers: ^6.5.1
   html: ^0.15.6
   html2md: ^1.2.10
+  # Web fetch charset support: enough_convert (Big5/GBK, MPL-2.0) and
+  # charset (Shift-JIS/EUC-JP/EUC-KR, Apache-2.0). Both are pure Dart.
+  enough_convert: ^1.7.1
+  charset: ^2.0.1
   animations: ^2.0.11
   flutter_animate: ^4.5.2
   webview_flutter: ^4.7.0

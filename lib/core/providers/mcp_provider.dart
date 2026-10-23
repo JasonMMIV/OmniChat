@@ -3,8 +3,8 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:mcp_client/mcp_client.dart' as mcp;
-import '../services/mcp/kelivo_fetch/kelivo_fetch_server.dart';
 import '../services/mcp/kelivo_js/kelivo_js_server.dart';
+import 'settings_provider.dart';
 import '../services/mcp/academic/academic_server.dart';
 import '../services/mcp/image_search/image_search_server.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -235,7 +235,104 @@ class McpProvider extends ChangeNotifier {
   Duration get requestTimeout => _requestTimeout;
   int get requestTimeoutSeconds => _requestTimeout.inSeconds;
 
+  // ===== Legacy @kelivo/fetch migration (WEB_FETCH_PLAN.md §5.2) =====
+  //
+  // fetch is now the built-in `web_fetch` tool. The in-memory MCP entry is
+  // removed and its enabled state is carried over to `web_fetch_enabled_v1`.
+  // This constant block is the ONLY place in lib/ that may name the legacy
+  // server id / display name.
+  static const String legacyFetchServerId = 'kelivo_fetch';
+  static const String legacyFetchServerName = '@kelivo/fetch';
+  static const String legacyWebFetchServerId = 'web_fetch';
+  static const String legacyWebFetchServerName = 'Web Fetch';
+
+  static bool _isLegacyFetchConfig(McpServerConfig server) {
+    if (server.transport != McpTransportType.inmemory) return false;
+    return server.id == legacyFetchServerId ||
+        server.id == legacyWebFetchServerId ||
+        server.name == legacyFetchServerName ||
+        server.name == legacyWebFetchServerName;
+  }
+
+  static bool _isLegacyFetchMap(Map<String, dynamic> json) {
+    final transport = (json['transport'] ?? json['type'] ?? '')
+        .toString()
+        .toLowerCase();
+    if (transport != 'inmemory') return false;
+    final id = (json['id'] ?? '').toString();
+    final name = (json['name'] ?? '').toString();
+    return id == legacyFetchServerId ||
+        id == legacyWebFetchServerId ||
+        name == legacyFetchServerName ||
+        name == legacyWebFetchServerName;
+  }
+
+  /// Reads the enabled flag out of a legacy fetch entry. All four tools
+  /// disabled means the feature was off; any enabled tool means on.
+  static bool _legacyFetchEnabled(Map<String, dynamic> json) {
+    final serverEnabled = json['enabled'] as bool? ?? true;
+    final tools = json['tools'];
+    if (tools is! List || tools.isEmpty) {
+      return (json['isActive'] as bool?) ?? serverEnabled;
+    }
+    var sawToolFlag = false;
+    for (final tool in tools) {
+      if (tool is! Map) continue;
+      final enabled = tool['enabled'];
+      if (enabled is! bool) continue;
+      sawToolFlag = true;
+      if (enabled) return true;
+    }
+    return sawToolFlag ? false : serverEnabled;
+  }
+
+  /// Removes legacy fetch entries from the persisted MCP list and writes
+  /// `web_fetch_enabled_v1`. Safe to run repeatedly (also after a backup
+  /// restore). New installs get `true`.
+  static Future<void> applyLegacyFetchMigration() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_prefsKey);
+    if (raw == null || raw.isEmpty) {
+      if (!prefs.containsKey(SettingsProvider.webFetchEnabledKey)) {
+        await prefs.setBool(SettingsProvider.webFetchEnabledKey, true);
+      }
+      return;
+    }
+
+    List<dynamic> list;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return;
+      list = decoded;
+    } catch (_) {
+      return;
+    }
+
+    var found = false;
+    bool? enabled;
+    final remaining = <dynamic>[];
+    for (final item in list) {
+      if (item is Map && _isLegacyFetchMap(item.cast<String, dynamic>())) {
+        found = true;
+        enabled = _legacyFetchEnabled(item.cast<String, dynamic>());
+        continue;
+      }
+      remaining.add(item);
+    }
+
+    if (found) {
+      await prefs.setString(_prefsKey, jsonEncode(remaining));
+      await prefs.setBool(
+        SettingsProvider.webFetchEnabledKey,
+        enabled ?? true,
+      );
+    } else if (!prefs.containsKey(SettingsProvider.webFetchEnabledKey)) {
+      await prefs.setBool(SettingsProvider.webFetchEnabledKey, true);
+    }
+  }
+
   Future<void> _load() async {
+    await applyLegacyFetchMigration();
     final prefs = await SharedPreferences.getInstance();
     final timeoutMs = prefs.getInt(_prefsTimeoutKey);
     if (timeoutMs != null && timeoutMs > 0) {
@@ -285,8 +382,6 @@ class McpProvider extends ChangeNotifier {
       _persist(); // flush renamed entry so old cached names never return
     }
 
-    // Ensure built-in @kelivo/fetch is present by default
-    _ensureBuiltinFetchServerPresent();
     // Ensure built-in run-javascript is present by default
     _ensureBuiltinJsServerPresent();
     // Ensure built-in academic (PubMed / arXiv / Semantic Scholar) is present by default
@@ -305,19 +400,6 @@ class McpProvider extends ChangeNotifier {
       // fire and forget
       unawaited(connect(s.id));
     }
-  }
-
-  void _ensureBuiltinFetchServerPresent() {
-    final exists = _servers.any((s) => s.id == 'kelivo_fetch' || s.name == '@kelivo/fetch');
-    if (exists) return;
-    final cfg = McpServerConfig(
-      id: 'kelivo_fetch',
-      enabled: true,
-      name: '@kelivo/fetch',
-      transport: McpTransportType.inmemory,
-      tools: const <McpToolConfig>[], // will refresh on connect
-    );
-    _servers = [..._servers, cfg];
   }
 
   void _ensureBuiltinJsServerPresent() {
@@ -375,6 +457,11 @@ class McpProvider extends ChangeNotifier {
     _servers = [..._servers, cfg];
   }
 
+  Future<void> _setWebFetchEnabledPref(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(SettingsProvider.webFetchEnabledKey, enabled);
+  }
+
   Future<void> _persist() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsKey, jsonEncode(_servers.map((e) => e.toJson()).toList()));
@@ -408,7 +495,8 @@ class McpProvider extends ChangeNotifier {
     final map = <String, dynamic>{
       'mcpServers': {
         for (final s in _servers)
-          if (s.transport != McpTransportType.stdio || isDesktop)
+          if (!_isLegacyFetchConfig(s) &&
+              (s.transport != McpTransportType.stdio || isDesktop))
             s.id: {
               'name': s.name,
               if (s.transport == McpTransportType.http) 'type': 'streamableHttp',
@@ -460,16 +548,45 @@ class McpProvider extends ChangeNotifier {
 
       if (serversFromMap != null) {
         final isDesktop = _isDesktopPlatform();
-        bool builtinSeen = false;
-        bool builtinEnabled = true;
+        // Each built-in keeps its own isActive flag. The previous code shared
+        // one flag between fetch and run_js, so importing a file could not
+        // toggle them independently.
+        bool fetchSeen = false;
+        bool fetchEnabled = true;
+        bool? runJsEnabled;
+        bool? academicEnabled;
+        bool? imageSearchEnabled;
         serversFromMap.forEach((id, cfgAny) {
           if (cfgAny is! Map) return;
           final cfg = cfgAny.cast<String, dynamic>();
           final typeLower = (cfg['type'] ?? '').toString().toLowerCase();
           if (typeLower == 'inmemory') {
-            // Built-in @kelivo/fetch control via isActive; ignore name mismatches silently
-            builtinSeen = true;
-            builtinEnabled = (cfg['isActive'] as bool?) ?? true;
+            final name = (cfg['name'] ?? '').toString();
+            if (id == legacyFetchServerId ||
+                id == legacyWebFetchServerId ||
+                name == legacyFetchServerName ||
+                name == legacyWebFetchServerName) {
+              fetchSeen = true;
+              fetchEnabled = (cfg['isActive'] as bool?) ?? true;
+              return;
+            }
+            if (id == 'run_js' || name == 'run-javascript') {
+              runJsEnabled = (cfg['isActive'] as bool?) ?? true;
+              return;
+            }
+            if (id == builtinAcademicServerId ||
+                id.contains('academic') ||
+                name.contains('academic')) {
+              academicEnabled = (cfg['isActive'] as bool?) ?? true;
+              return;
+            }
+            if (id == builtinImageSearchServerId ||
+                name.contains('image_search') ||
+                name.contains('image search')) {
+              imageSearchEnabled = (cfg['isActive'] as bool?) ?? true;
+              return;
+            }
+            // Unknown in-memory entry: no engine exists for it anymore.
             return;
           }
 
@@ -533,69 +650,28 @@ class McpProvider extends ChangeNotifier {
             headers: headers,
           ));
         });
-        if (builtinSeen) {
-          // Append single built-in server with fixed id/name
-          next.add(McpServerConfig(
-            id: 'kelivo_fetch',
-            enabled: builtinEnabled,
-            name: '@kelivo/fetch',
-            transport: McpTransportType.inmemory,
-          ));
-          next.add(McpServerConfig(
-            id: 'run_js',
-            enabled: builtinEnabled, // Assuming same enabled state for simplicity or could be split
-            name: 'run-javascript',
-            transport: McpTransportType.inmemory,
-          ));
-          // Academic server: default enabled, but honor its own isActive flag
-          // when the imported JSON explicitly toggled it (matched by id, or by
-          // the legacy id/name containing 'academic').
-          bool? academicEnabled;
-          serversFromMap.forEach((eid, eValue) {
-            if (academicEnabled != null) return;
-            if (eValue is! Map) return;
-            final eMap = eValue.cast<String, dynamic>();
-            final eType = (eMap['type'] ?? '').toString().toLowerCase();
-            final eName = (eMap['name'] ?? '').toString().toLowerCase();
-            final isAcademic =
-                eType == 'inmemory' &&
-                (eid == builtinAcademicServerId ||
-                    eid.contains('academic') ||
-                    eName.contains('academic'));
-            if (isAcademic) {
-              academicEnabled = (eMap['isActive'] as bool?) ?? true;
-            }
-          });
-          next.add(McpServerConfig(
-            id: builtinAcademicServerId,
-            enabled: academicEnabled ?? true,
-            name: 'Academic_Search',
-            transport: McpTransportType.inmemory,
-          ));
-          // Image_Search built-in: default enabled, honor its own isActive
-          // when the imported JSON explicitly toggled it.
-          bool? imageSearchEnabled;
-          serversFromMap.forEach((eid2, eValue2) {
-            if (imageSearchEnabled != null) return;
-            if (eValue2 is! Map) return;
-            final eMap2 = eValue2.cast<String, dynamic>();
-            final eType2 = (eMap2['type'] ?? '').toString().toLowerCase();
-            final eName2 = (eMap2['name'] ?? '').toString().toLowerCase();
-            final isImageSearch =
-                eType2 == 'inmemory' &&
-                (eid2 == builtinImageSearchServerId ||
-                    eName2.contains('image_search') ||
-                    eName2.contains('image search'));
-            if (isImageSearch) {
-              imageSearchEnabled = (eMap2['isActive'] as bool?) ?? true;
-            }
-          });
-          next.add(McpServerConfig(
-            id: builtinImageSearchServerId,
-            enabled: imageSearchEnabled ?? true,
-            name: 'Image_Search',
-            transport: McpTransportType.inmemory,
-          ));
+        // The three remaining in-memory servers are core capabilities: they
+        // are always present, each honouring its own imported isActive flag.
+        next.add(McpServerConfig(
+          id: 'run_js',
+          enabled: runJsEnabled ?? true,
+          name: 'run-javascript',
+          transport: McpTransportType.inmemory,
+        ));
+        next.add(McpServerConfig(
+          id: builtinAcademicServerId,
+          enabled: academicEnabled ?? true,
+          name: 'Academic_Search',
+          transport: McpTransportType.inmemory,
+        ));
+        next.add(McpServerConfig(
+          id: builtinImageSearchServerId,
+          enabled: imageSearchEnabled ?? true,
+          name: 'Image_Search',
+          transport: McpTransportType.inmemory,
+        ));
+        if (fetchSeen) {
+          await _setWebFetchEnabledPref(fetchEnabled);
         }
       } else if (data is List) {
         // Attempt to parse internal list format. Be tolerant to transport string variants.
@@ -609,6 +685,10 @@ class McpProvider extends ChangeNotifier {
             m['transport'] = 'sse';
           } else if (t == 'stdio') {
             m['transport'] = 'stdio';
+          }
+          if (_isLegacyFetchMap(m)) {
+            await _setWebFetchEnabledPref(_legacyFetchEnabled(m));
+            continue;
           }
           try {
             final s = McpServerConfig.fromJson(m);
@@ -629,6 +709,10 @@ class McpProvider extends ChangeNotifier {
               m['transport'] = 'sse';
             } else if (t == 'stdio') {
               m['transport'] = 'stdio';
+            }
+            if (_isLegacyFetchMap(m)) {
+              await _setWebFetchEnabledPref(_legacyFetchEnabled(m));
+              continue;
             }
             try {
               final s = McpServerConfig.fromJson(m);
@@ -792,10 +876,7 @@ class McpProvider extends ChangeNotifier {
       // In-memory builtin server path
       if (server.transport == McpTransportType.inmemory) {
         mcp.ClientTransport transport;
-        if (server.id == 'kelivo_fetch' || server.name == '@kelivo/fetch') {
-          final engine = KelivoFetchMcpServerEngine();
-          transport = KelivoInMemoryClientTransport(engine);
-        } else if (server.id == 'run_js' || server.name == 'run-javascript') {
+        if (server.id == 'run_js' || server.name == 'run-javascript') {
           final engine = JsMcpServerEngine();
           transport = JsInMemoryClientTransport(engine);
         } else if (server.id == builtinAcademicServerId ||
