@@ -26,6 +26,7 @@ import '../../utils/sandbox_path_resolver.dart';
 import '../../utils/avatar_cache.dart';
 import '../utils/reasoning_capabilities.dart';
 import '../utils/reasoning_overrides.dart';
+import '../services/model_catalog/model_catalog.dart';
 
 // Desktop: topic list position
 enum DesktopTopicPosition { left, right }
@@ -545,10 +546,10 @@ class SettingsProvider extends ChangeNotifier {
     _load();
   }
 
-  /// One-stop resolver: built-in regex capability first, then the per-model
+  /// One-stop resolver: built-in regex capability, then the models.dev
+  /// catalog entry (when one matches), then the per-model
   /// `modelOverrides[modelId]['reasoning']` override on top. With no stored
-  /// override this returns exactly the built-in result, so pre-existing
-  /// configurations behave unchanged.
+  /// override and no catalog entry this returns the built-in result.
   static ReasoningCapabilities reasoningCapabilitiesFor(
     ProviderConfig? cfg,
     String modelId,
@@ -580,6 +581,8 @@ class SettingsProvider extends ChangeNotifier {
       transport,
       effectiveModelId,
       override: ReasoningOverride.fromModelOverrides(rawOverride),
+      providerId: cfg.catalogProviderId,
+      host: cfg.catalogHost,
     );
   }
 
@@ -4473,4 +4476,26 @@ class ProviderConfig {
         );
     }
   }
+}
+
+/// models.dev catalog hints for a provider config (plan batch 1 §4.5).
+///
+/// `ProviderConfig.id` is a user-defined key and `providerType` is only a
+/// transport kind; the catalog lookup needs a resolved provider id plus the
+/// base-URL host (for aggregator/proxy entries that publish an `api` field).
+extension ProviderConfigCatalogHints on ProviderConfig {
+  /// Base-URL host, lowercased, or `null` when the URL cannot be parsed.
+  String? get catalogHost {
+    final host = Uri.tryParse(baseUrl.trim())?.host.toLowerCase() ?? '';
+    return host.isEmpty ? null : host;
+  }
+
+  /// Resolved models.dev provider id, or `null` when the catalog has no entry
+  /// that can be tied to this provider.
+  String? get catalogProviderId => resolveCatalogProviderId(
+        providerId: id,
+        providerName: name,
+        host: catalogHost,
+        providerType: providerType?.name,
+      );
 }

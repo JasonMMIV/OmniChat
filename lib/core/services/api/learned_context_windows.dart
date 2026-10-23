@@ -3,7 +3,7 @@
 // When a provider rejects a request with a context-overflow 400 whose
 // message discloses the real window, the parsed value is persisted here:
 // `providerId/modelId → windowTokens`. Window lookup order is
-// learned → seed table → 1M fallback ([resolveContextWindowTokens]).
+// learned → models.dev catalog → 1M fallback ([resolveContextWindowTokens]).
 //
 // Keys use the LOGICAL model id (the app-facing model key) — the same
 // convention as LearnedMaxOutputCaps. Every read site (chat actions,

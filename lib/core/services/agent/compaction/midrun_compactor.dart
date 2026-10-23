@@ -18,6 +18,7 @@
 // Pure Dart: no Hive, no ChatService, no Flutter.
 library;
 
+import '../../model_catalog/model_catalog.dart';
 import 'compaction_trigger.dart';
 import 'context_trim.dart';
 import 'history_compactor.dart';
@@ -38,6 +39,8 @@ bool applyMidRunCompaction(
   required int tokensSoFar,
   required String modelId,
   required int? learnedWindowTokens,
+  String? providerId,
+  String? host,
   String? nextActionOverride,
 }) {
   if (messages.isEmpty) return false;
@@ -46,10 +49,18 @@ bool applyMidRunCompaction(
   // floor as prep-time evaluation (v1.4).
   if (tokensSoFar < compactionFloorTokens) return false;
 
-  final seed = learnedWindowTokens == null ? seedWindowForModel(modelId) : null;
-  final window =
-      resolveContextWindowTokens(modelId, learned: learnedWindowTokens);
-  final trigger = compactionTriggerTokens(window, seed?.outputTokens);
+  final window = resolveContextWindowTokens(
+    modelId,
+    learned: learnedWindowTokens,
+    providerId: providerId,
+    host: host,
+  );
+  final outputTokens = ModelCatalog.instance?.outputTokens(
+    modelId,
+    providerId: providerId,
+    host: host,
+  );
+  final trigger = compactionTriggerTokens(window, outputTokens);
   if (tokensSoFar <= trigger) return false;
 
   // The system message (index 0 of the assembled apiMessages) is never

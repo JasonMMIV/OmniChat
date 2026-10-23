@@ -1,9 +1,12 @@
+import 'dart:async' show unawaited;
 import 'dart:convert';
 import 'dart:io' show HttpException;
 import 'package:http/http.dart' as http;
 import 'settings_provider.dart';
 import '../services/network/dio_http_client.dart';
 import '../services/api_key_manager.dart';
+import '../services/model_catalog/model_catalog.dart';
+import '../services/model_catalog/model_catalog_service.dart';
 import 'package:OmniChat/secrets/fallback.dart';
 import '../services/api/google_service_account_auth.dart';
 import '../utils/reasoning_overrides.dart';
@@ -83,7 +86,28 @@ class ModelRegistry {
     caseSensitive: false,
   );
 
-  static ModelInfo infer(ModelInfo base) {
+  /// Infer capabilities for a model, consulting the models.dev catalog first
+  /// (global model id) and falling back to the built-in regexes on a miss.
+  static ModelInfo infer(ModelInfo base) => _inferWithCatalog(
+        base,
+        ModelCatalog.instance?.lookup(modelId: base.id),
+      );
+
+  /// Provider-aware variant used by provider model lists: a proxy/aggregator's
+  /// same-named model resolves to its own catalog entry first.
+  static ModelInfo inferForProvider(ModelInfo base, ProviderConfig cfg) {
+    final catalog = ModelCatalog.instance;
+    return _inferWithCatalog(
+      base,
+      catalog?.lookup(
+        providerId: cfg.catalogProviderId,
+        host: cfg.catalogHost,
+        modelId: base.id,
+      ),
+    );
+  }
+
+  static ModelInfo _inferWithCatalog(ModelInfo base, CatalogModel? catalog) {
     final id = base.id.toLowerCase();
     final inMods = <Modality>[...base.input];
     final outMods = <Modality>[...base.output];
@@ -107,6 +131,27 @@ class ModelRegistry {
       ab.removeWhere(
         (x) => x == ModelAbility.tool || x == ModelAbility.reasoning,
       );
+      return base.copyWith(input: inMods, output: outMods, abilities: ab);
+    }
+    if (catalog != null) {
+      // Catalog hit: capabilities come from the catalog, not the regexes
+      // (plan D1). Output modality deliberately stays on the existing image-id
+      // rules so `/images` routing cannot change.
+      if (catalog.imageInput && !inMods.contains(Modality.image)) {
+        inMods.add(Modality.image);
+      }
+      if (catalog.toolCall == true) {
+        if (!ab.contains(ModelAbility.tool)) ab.add(ModelAbility.tool);
+      } else if (catalog.toolCall == false) {
+        ab.remove(ModelAbility.tool);
+      }
+      if (catalog.reasoning == true) {
+        if (!ab.contains(ModelAbility.reasoning)) {
+          ab.add(ModelAbility.reasoning);
+        }
+      } else if (catalog.reasoning == false) {
+        ab.remove(ModelAbility.reasoning);
+      }
       return base.copyWith(input: inMods, output: outMods, abilities: ab);
     }
     if (vision.hasMatch(id)) {
@@ -211,11 +256,12 @@ class OpenAIProvider extends BaseProvider {
         return [
           for (final e in data)
             if (e is Map && e['id'] is String)
-              ModelRegistry.infer(
+              ModelRegistry.inferForProvider(
                 ModelInfo(
                   id: e['id'] as String,
                   displayName: e['id'] as String,
                 ),
+                cfg,
               ),
         ];
       }
@@ -302,12 +348,13 @@ class ClaudeProvider extends BaseProvider {
         return [
           for (final e in data)
             if (e is Map && e['id'] is String)
-              ModelRegistry.infer(
+              ModelRegistry.inferForProvider(
                 ModelInfo(
                   id: e['id'] as String,
                   displayName:
                       (e['display_name'] as String?) ?? (e['id'] as String),
                 ),
+                cfg,
               ),
         ];
       }
@@ -394,7 +441,7 @@ class GoogleProvider extends BaseProvider {
                 methods.contains('embedContent')))
               continue;
             out.add(
-              ModelRegistry.infer(
+              ModelRegistry.inferForProvider(
                 ModelInfo(
                   id: id,
                   displayName: displayName,
@@ -402,6 +449,7 @@ class GoogleProvider extends BaseProvider {
                       ? ModelType.chat
                       : ModelType.embedding,
                 ),
+                cfg,
               ),
             );
           }
@@ -447,7 +495,7 @@ class NeuralwattProvider extends BaseProvider {
         return [
           for (final e in data)
             if (e is Map && e['id'] is String)
-              _fromModelJson(e.cast<String, dynamic>()),
+              _fromModelJson(e.cast<String, dynamic>(), cfg),
         ];
       }
       return [];
@@ -456,7 +504,7 @@ class NeuralwattProvider extends BaseProvider {
     }
   }
 
-  ModelInfo _fromModelJson(Map<String, dynamic> e) {
+  ModelInfo _fromModelJson(Map<String, dynamic> e, ProviderConfig cfg) {
     final id = e['id'] as String;
     final meta = e['metadata'];
     final metaMap = meta is Map
@@ -486,7 +534,7 @@ class NeuralwattProvider extends BaseProvider {
 
     final effectiveName = deprecated ? '$name (deprecated)' : name;
 
-    return ModelRegistry.infer(
+    return ModelRegistry.inferForProvider(
       ModelInfo(
         id: id,
         displayName: effectiveName,
@@ -494,6 +542,7 @@ class NeuralwattProvider extends BaseProvider {
         output: const [Modality.text],
         abilities: abilities,
       ),
+      cfg,
     );
   }
 
@@ -623,8 +672,55 @@ class ProviderManager {
     }
   }
 
-  static Future<List<ModelInfo>> listModels(ProviderConfig cfg) {
-    return forConfig(cfg).listModels(cfg);
+  static Future<List<ModelInfo>> listModels(ProviderConfig cfg) async {
+    final models = await forConfig(cfg).listModels(cfg);
+    // Catalog refresh trigger (plan batch 1 §6.3): a successful provider list
+    // fetch is a good moment to pick up new models. Fire-and-forget — the
+    // list must render immediately.
+    if (models.isNotEmpty) refreshCatalogIfStale(cfg);
+    return models;
+  }
+
+  /// Refresh the models.dev catalog when it is older than 30 days, reusing the
+  /// provider's proxy client. Never throws; failures keep the current catalog.
+  static void refreshCatalogIfStale(ProviderConfig cfg, {int days = 30}) {
+    _runCatalogRefresh((client) async {
+      await ModelCatalogService.instance.refreshIfStale(
+        days: days,
+        client: client,
+      );
+    }, cfg);
+  }
+
+  /// Refresh the catalog when [apiModelId] is unknown, so a newly added model
+  /// can pick up its window/capabilities. Catalog hits skip the request.
+  static void refreshCatalogForModel(
+    ProviderConfig cfg,
+    String apiModelId,
+  ) {
+    _runCatalogRefresh((client) async {
+      await ModelCatalogService.instance.refreshForModel(
+        apiModelId,
+        client: client,
+      );
+    }, cfg);
+  }
+
+  static void _runCatalogRefresh(
+    Future<void> Function(http.Client client) body,
+    ProviderConfig cfg,
+  ) {
+    unawaited(Future<void>(() async {
+      http.Client? client;
+      try {
+        client = _Http.clientFor(cfg);
+        await body(client);
+      } catch (_) {
+        // The catalog is an enhancement; a failed refresh is a no-op.
+      } finally {
+        client?.close();
+      }
+    }));
   }
 
   static Future<String> getBalance(ProviderConfig cfg) {

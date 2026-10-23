@@ -160,11 +160,14 @@ class MessageGenerationService {
         providerKey,
         modelId,
       );
+      final catalogCfg = settings.getProviderConfig(providerKey);
       final trigger = evaluateCompactionTrigger(
         messages: messages,
         measuredPromptTokens: measured,
         modelId: modelId,
         learnedWindowTokens: learned,
+        providerId: catalogCfg.catalogProviderId,
+        host: catalogCfg.catalogHost,
         estimateMessageTokens: _estimateRawMessageTokens,
         hasToolEvents: (m) => chatService.getToolEvents(m.id).isNotEmpty,
       );

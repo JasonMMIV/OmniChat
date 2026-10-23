@@ -1258,6 +1258,9 @@ class SharedPreferencesAsync {
     'web_fetch_allow_private_hosts_v1',
     'learned_context_windows_v1',
     'learned_output_caps_v1',
+    // models.dev catalog refresh bookkeeping: device-local cache metadata.
+    'model_catalog_fetched_at_v1',
+    'model_catalog_etag_v1',
     'window_width_v1',
     'window_height_v1',
     'window_pos_x_v1',

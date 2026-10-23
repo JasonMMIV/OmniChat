@@ -1124,11 +1124,14 @@ class ChatActions {
               ctx.providerKey,
               ctx.modelId,
             );
+            final catalogCfg = ctx.settings.getProviderConfig(ctx.providerKey);
             applyMidRunCompaction(
               messages,
               tokensSoFar: tokensSoFar,
               modelId: ctx.modelId,
               learnedWindowTokens: learned,
+              providerId: catalogCfg.catalogProviderId,
+              host: catalogCfg.catalogHost,
             );
           }
         } catch (_) {

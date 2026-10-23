@@ -7,6 +7,7 @@ library;
 
 import 'dart:math' as math;
 
+import '../../model_catalog/model_catalog.dart';
 import 'tool_pairing.dart';
 
 /// Window assumed for a model with no declared capability and no learned
@@ -58,58 +59,29 @@ int compactionTriggerTokens(int contextWindowTokens, int? outputTokens) {
 }
 
 // ============================================================================
-// Seed window table (plan v1.4: tiny ~10-entry table, small-window trap
-// families only; values from AnyBuff B1a, data source models.dev (MIT)).
-// BYOK model ids outpace any table — R0 error-message learning is the
-// authoritative correction; this table doubles as insurance for the
-// "no digits in the error message" corner.
+// Window lookup (plan batch 1 §5): learned → models.dev catalog → 1M
+// fallback. The 11-entry seed table was retired with the catalog; learned
+// values remain the authoritative correction for a specific endpoint and the
+// R0 overflow path still learns windows from provider errors.
 // ============================================================================
 
-class ModelWindowSpec {
-  /// Lowercase substring matched against the model id. First match wins —
-  /// order specific ids before family rules.
-  final String pattern;
-
-  /// Input-context cap in tokens (口径 = input cap over total window).
-  final int windowTokens;
-
-  /// Declared max output tokens (feeds the output reserve).
-  final int outputTokens;
-
-  const ModelWindowSpec(this.pattern, this.windowTokens, this.outputTokens);
-}
-
-const List<ModelWindowSpec> kSeedContextWindows = <ModelWindowSpec>[
-  // Specific ids before family rules.
-  ModelWindowSpec('gpt-5.2-chat-latest', 128_000, 16_384),
-  ModelWindowSpec('gpt-5', 272_000, 128_000), // input cap
-  ModelWindowSpec('gpt-4.1', 1_047_576, 32_768),
-  ModelWindowSpec('gpt-4o', 131_072, 16_384),
-  ModelWindowSpec('claude', 200_000, 64_000), // 4.5 line + older
-  ModelWindowSpec('glm-5.1', 200_000, 131_072),
-  ModelWindowSpec('glm', 131_072, 65_536),
-  ModelWindowSpec('kimi', 262_144, 131_072), // K2.x
-  ModelWindowSpec('minimax', 204_800, 131_072), // m2.x
-  ModelWindowSpec('deepseek', 131_072, 65_536), // V3-era chat/reasoner
-  ModelWindowSpec('gemini', 1_048_576, 65_536),
-];
-
-/// Resolve the seed window spec for a model id, or `null` when unknown.
-ModelWindowSpec? seedWindowForModel(String modelId) {
-  final id = modelId.trim().toLowerCase();
-  if (id.isEmpty) return null;
-  for (final spec in kSeedContextWindows) {
-    if (id.contains(spec.pattern)) return spec;
-  }
-  return null;
-}
-
-/// Window lookup order: learned (from R0 overflow errors) → seed table →
-/// 1M fallback. Explicit user configuration, once it exists, belongs ahead
-/// of the learned value at the call site.
-int resolveContextWindowTokens(String modelId, {int? learned}) {
+/// Window lookup order: learned (from R0 overflow errors) → models.dev
+/// catalog (`limit.input`, else `limit.context`) → 1M fallback. Explicit user
+/// configuration, once it exists, belongs ahead of the learned value.
+int resolveContextWindowTokens(
+  String modelId, {
+  int? learned,
+  String? providerId,
+  String? host,
+}) {
   if (learned != null && learned > 0) return learned;
-  return seedWindowForModel(modelId)?.windowTokens ?? unknownModelContextFallback;
+  final catalogWindow = ModelCatalog.instance?.windowTokens(
+    modelId,
+    providerId: providerId,
+    host: host,
+  );
+  if (catalogWindow != null && catalogWindow > 0) return catalogWindow;
+  return unknownModelContextFallback;
 }
 
 // ============================================================================

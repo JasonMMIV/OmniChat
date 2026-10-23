@@ -4977,6 +4977,65 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelDetailReasoningProbeCancelled => 'Detection cancelled';
 
   @override
+  String get modelDetailReasoningWireLabel => 'Reasoning parameter format';
+
+  @override
+  String get modelDetailReasoningWireDescription =>
+      'Choose how reasoning parameters are written for this model. A wrong format can be rejected by the provider (400). A custom body overrides this setting.';
+
+  @override
+  String get modelDetailReasoningWireAuto => 'Auto (detect from provider)';
+
+  @override
+  String get modelDetailReasoningWireChatEffort => 'reasoning_effort';
+
+  @override
+  String get modelDetailReasoningWireChatReasoningEffortObj =>
+      'reasoning.effort';
+
+  @override
+  String get modelDetailReasoningWireChatReasoningBudgetObj =>
+      'reasoning.enabled + max_tokens';
+
+  @override
+  String get modelDetailReasoningWireChatThinkingBudget =>
+      'thinking.type + budget_tokens';
+
+  @override
+  String get modelDetailReasoningWireChatEnableThinking =>
+      'enable_thinking + thinking_budget';
+
+  @override
+  String get modelDetailReasoningWireChatThinkingMode => 'thinking_mode';
+
+  @override
+  String get modelDetailReasoningWireChatTemplateKwargs =>
+      'chat_template_kwargs.thinking';
+
+  @override
+  String get modelDetailReasoningWireNone => 'Don\'t send';
+
+  @override
+  String get modelDetailReasoningWireResponsesEffort => 'reasoning.effort';
+
+  @override
+  String get modelDetailReasoningWireClaudeBudget => 'thinking.budget_tokens';
+
+  @override
+  String get modelDetailReasoningWireClaudeAdaptive =>
+      'adaptive + output_config.effort';
+
+  @override
+  String get modelDetailReasoningWireGeminiBudget => 'thinkingBudget';
+
+  @override
+  String get modelDetailReasoningWireGeminiLevel => 'thinkingLevel';
+
+  @override
+  String get modelDetailReasoningWireToggleOnlyNote =>
+      'This format only maps on/off; it does not support budget tiers.';
+
+  @override
   String get settingsPageSkills => 'Skills';
 
   @override

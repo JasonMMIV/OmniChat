@@ -1,3 +1,5 @@
+import '../services/model_catalog/model_catalog.dart';
+
 enum ReasoningTransport { openAi, claude, google }
 
 class ReasoningBudget {
@@ -43,6 +45,7 @@ class ReasoningCapabilities {
     this.supportsAdaptiveThinking = false,
     this.thinkingAlwaysOn = false,
     this.samplingRequiresNone = false,
+    this.samplingUnsupported = false,
     this.openAiEfforts = const <String>{},
     this.openAiOffFallback,
   });
@@ -52,10 +55,53 @@ class ReasoningCapabilities {
   final bool supportsAdaptiveThinking;
   final bool thinkingAlwaysOn;
   final bool samplingRequiresNone;
+
+  /// The model rejects temperature/top_p regardless of reasoning state
+  /// (models.dev `temperature: false`). Distinct from
+  /// [samplingRequiresNone], which only strips them while reasoning.
+  final bool samplingUnsupported;
   final Set<String> openAiEfforts;
   final String? openAiOffFallback;
 
   static const unsupported = ReasoningCapabilities();
+
+  /// Overlay catalog facts on top of the regex baseline (plan batch 1 §7.2).
+  ///
+  /// Only fields the catalog actually publishes are replaced:
+  /// - effort tiers drive `openAiEfforts` and the Xhigh/Max display flags;
+  /// - `temperature: false` sets [samplingUnsupported];
+  /// - an explicit `reasoning: false` clears reasoning capabilities.
+  /// Missing fields keep the regex baseline so unknown entries cannot
+  /// silently downgrade a model.
+  static ReasoningCapabilities fromCatalog(
+    ReasoningCapabilities base,
+    CatalogModel catalog,
+  ) {
+    final samplingUnsupported = catalog.temperatureSupported == false;
+    if (catalog.reasoning == false) {
+      return ReasoningCapabilities(
+        samplingRequiresNone: base.samplingRequiresNone,
+        samplingUnsupported: samplingUnsupported,
+      );
+    }
+    final efforts = catalog.efforts;
+    final hasEfforts = efforts.isNotEmpty;
+    return ReasoningCapabilities(
+      supportsXhigh:
+          hasEfforts ? efforts.contains('xhigh') : base.supportsXhigh,
+      supportsMax: hasEfforts ? efforts.contains('max') : base.supportsMax,
+      supportsAdaptiveThinking: base.supportsAdaptiveThinking,
+      thinkingAlwaysOn: base.thinkingAlwaysOn,
+      samplingRequiresNone: base.samplingRequiresNone,
+      samplingUnsupported: samplingUnsupported,
+      openAiEfforts: hasEfforts
+          ? efforts
+          : (catalog.reasoning == true
+              ? const <String>{}
+              : base.openAiEfforts),
+      openAiOffFallback: base.openAiOffFallback,
+    );
+  }
 
   String normalizeOpenAiEffort(String effort) {
     final normalized = effort.trim().toLowerCase();

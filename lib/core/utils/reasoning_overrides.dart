@@ -1,3 +1,4 @@
+import '../services/model_catalog/model_catalog.dart';
 import 'reasoning_capabilities.dart';
 
 /// Per-model reasoning-effort overrides.
@@ -219,6 +220,7 @@ ReasoningCapabilities mergeReasoningCapabilities(
     samplingRequiresNone: override.hasSamplingRequiresNone
         ? override.samplingRequiresNone
         : base.samplingRequiresNone,
+    samplingUnsupported: base.samplingUnsupported,
     openAiEfforts:
         override.hasEfforts ? override.efforts : base.openAiEfforts,
     openAiOffFallback: override.hasOffFallback
@@ -227,16 +229,27 @@ ReasoningCapabilities mergeReasoningCapabilities(
   );
 }
 
-/// One-stop resolver used by the experimental call sites:
-/// built-in regex capability first, then the per-model override on top.
+/// One-stop resolver used by the call sites: built-in regex capability, then
+/// the models.dev catalog (when it has an entry), then the per-model override
+/// on top (plan §5 precedence).
 ReasoningCapabilities resolveReasoningCapabilities(
   ReasoningTransport transport,
   String modelId, {
   ReasoningOverride? override,
-}) => mergeReasoningCapabilities(
-      ReasoningCapabilities.forModel(transport, modelId),
-      override,
-    );
+  String? providerId,
+  String? host,
+}) {
+  final base = ReasoningCapabilities.forModel(transport, modelId);
+  final catalog = ModelCatalog.instance?.lookup(
+    providerId: providerId,
+    host: host,
+    modelId: modelId,
+  );
+  return mergeReasoningCapabilities(
+    catalog == null ? base : ReasoningCapabilities.fromCatalog(base, catalog),
+    override,
+  );
+}
 
 /// Transport-layer convenience: resolve capabilities for a call site that
 /// holds the [ProviderConfig] (typed `dynamic` here to avoid a provider
@@ -246,8 +259,14 @@ ReasoningCapabilities reasoningCapabilitiesForCall(
   String modelId,
   dynamic config,
 ) {
+  String? providerId;
+  String? host;
   ReasoningOverride? ovr;
   if (config != null) {
+    try {
+      providerId = (config as dynamic).catalogProviderId as String?;
+      host = (config as dynamic).catalogHost as String?;
+    } catch (_) {}
     try {
       final overrides = (config as dynamic).modelOverrides;
       if (overrides is Map) {
@@ -280,5 +299,11 @@ ReasoningCapabilities reasoningCapabilitiesForCall(
       ovr = null;
     }
   }
-  return resolveReasoningCapabilities(transport, modelId, override: ovr);
+  return resolveReasoningCapabilities(
+    transport,
+    modelId,
+    override: ovr,
+    providerId: providerId,
+    host: host,
+  );
 }

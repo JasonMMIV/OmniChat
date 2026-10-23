@@ -28,6 +28,7 @@ import 'core/providers/quick_phrase_provider.dart';
 import 'core/providers/instruction_injection_provider.dart';
 import 'core/providers/skills_provider.dart';
 import 'core/services/skills/skill_service.dart';
+import 'core/services/model_catalog/model_catalog_service.dart';
 import 'core/providers/ai_team_provider.dart';
 import 'core/providers/memory_provider.dart';
 import 'core/providers/backup_provider.dart';
@@ -89,6 +90,15 @@ Future<void> main() async {
       // migrated `web_fetch_enabled_v1` value never reaches the UI.
       try {
         await McpProvider.applyLegacyFetchMigration();
+      } catch (_) {}
+      // models.dev catalog (plan batch 1 §6.2): cache/snapshot only, never a
+      // startup network call. A slow parse must not block launch — callers
+      // fall back to the regex/1M rules until the catalog lands.
+      try {
+        await ModelCatalogService.instance.ensureLoaded().timeout(
+          const Duration(seconds: 3),
+          onTimeout: () {},
+        );
       } catch (_) {}
       // Enable edge-to-edge to allow content under system bars (Android)
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
