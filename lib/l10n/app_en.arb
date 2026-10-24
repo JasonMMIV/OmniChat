@@ -668,8 +668,6 @@
   "modelDetailSheetAbilitiesLabel": "Abilities",
   "modelDetailSheetToolsAbility": "Tools",
   "modelDetailSheetReasoningAbility": "Reasoning",
-  "modelDetailSheetProviderOverrideDescription": "Overrides",
-  "modelDetailSheetAddProviderOverride": "Add Override",
   "modelDetailSheetCustomHeadersTitle": "Headers",
   "modelDetailSheetAddHeader": "Add",
   "modelDetailSheetCustomBodyTitle": "Body",

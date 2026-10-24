@@ -1638,12 +1638,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelDetailSheetReasoningAbility => 'Reasoning';
 
   @override
-  String get modelDetailSheetProviderOverrideDescription => 'Overrides';
-
-  @override
-  String get modelDetailSheetAddProviderOverride => 'Add Override';
-
-  @override
   String get modelDetailSheetCustomHeadersTitle => 'Headers';
 
   @override
