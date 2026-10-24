@@ -1567,6 +1567,21 @@ class ChatApiService {
           host: host,
           upstreamModelId: upstreamModelId,
         );
+        // Explicit reasoning dialect (plan batch 2 §14), scoped to this
+        // utility path: only a wire saved for THIS transport replaces the
+        // legacy inline chain. `auto` — and a wire saved for another
+        // transport — must stay byte-identical to the pre-dialect behaviour.
+        final String? savedWire = reasoningWireForCall(config, modelId);
+        final String? chatWire =
+            ReasoningWire.optionsFor(ReasoningWireTransport.chat)
+                .contains(savedWire)
+            ? savedWire
+            : null;
+        final String? responsesWire =
+            ReasoningWire.optionsFor(ReasoningWireTransport.responses)
+                .contains(savedWire)
+            ? savedWire
+            : null;
         if (config.useResponseApi == true) {
           // Inject built-in web_search tool when enabled and supported
           final toolsList = <Map<String, dynamic>>[];
@@ -1636,6 +1651,42 @@ class ChatApiService {
               'reasoning_effort': effort,
           };
         }
+        // Apply an explicit dialect before the custom-body merge so a custom
+        // body still wins (same precedence as the main chat path). The auto
+        // branches above remain untouched — this is the B scope.
+        if (config.useResponseApi == true) {
+          if (responsesWire != null) {
+            applyResponsesReasoningWire(
+              body,
+              wire: responsesWire,
+              isReasoning: isReasoning,
+              thinkingBudget: thinkingBudget,
+              caps: reasoningCapabilitiesForCall(
+                ReasoningTransport.openAi,
+                upstreamModelId,
+                config,
+              ),
+              effort: effort,
+            );
+          }
+        } else if (chatWire != null) {
+          applyChatReasoningWire(
+            body,
+            wire: chatWire,
+            host: host,
+            upstreamModelId: upstreamModelId,
+            isReasoning: isReasoning,
+            thinkingBudget: thinkingBudget,
+            caps: reasoningCapabilitiesForCall(
+              ReasoningTransport.openAi,
+              upstreamModelId,
+              config,
+            ),
+            isZhipu: isZhipu,
+            isMimo: isMimo,
+            effort: effort,
+          );
+        }
         final headers = <String, String>{
           'Authorization': 'Bearer ${_apiKeyForRequest(config, modelId)}',
           'Content-Type': 'application/json',
@@ -1673,9 +1724,12 @@ class ChatApiService {
           upstreamModelId: upstreamModelId,
           isReasoning: isReasoning,
           thinkingBudget: thinkingBudget,
+          // The normalizer only shapes chat bodies; a wire saved for another
+          // transport must not alter the legacy Responses behaviour.
+          wire: config.useResponseApi == true ? null : chatWire,
         );
         // Vendor-specific reasoning knobs for chat-completions compatible hosts (non-streaming)
-        if (config.useResponseApi != true) {
+        if (config.useResponseApi != true && chatWire == null) {
           final off = _isOff(thinkingBudget);
           if (isZhipu || isMimo) {
             // Zhipu BigModel / Xiaomi MiMo: thinking: { type: enabled|disabled }
@@ -1689,7 +1743,7 @@ class ChatApiService {
             (body as Map<String, dynamic>).remove('reasoning_effort');
           }
         }
-        if (config.useResponseApi != true) {
+        if (config.useResponseApi != true && chatWire == null) {
           _applyDeepSeekThinkingKnob(
             body as Map<String, dynamic>,
             host: host,
@@ -3335,13 +3389,6 @@ class ChatApiService {
                         }
                       }
                     }
-                    _applyDeepSeekThinkingKnob(
-                      body as Map<String, dynamic>,
-                      host: host,
-                      modelId: upstreamModelId,
-                      isReasoning: isReasoning,
-                      thinkingBudget: thinkingBudget,
-                    );
                   }
                 }
                 outText = buf.toString();

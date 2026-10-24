@@ -186,7 +186,10 @@ class ModelCatalogService {
 
     String pruned;
     try {
-      pruned = pruneCatalogJson(response.body);
+      // Pruning decodes the multi-megabyte upstream payload and re-encodes
+      // the reduced map; keep it off the UI isolate just like the parse in
+      // `_installParsed` (compute runs inline on web, which has no isolates).
+      pruned = await compute(pruneCatalogJson, response.body);
     } catch (_) {
       return null;
     }

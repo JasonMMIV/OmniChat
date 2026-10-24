@@ -224,4 +224,21 @@ void main() {
     expect(result, isNull);
     expect(ModelCatalog.instance!.hasModel('gpt-5.6-luna'), isTrue);
   });
+
+  test('malformed 200 payload keeps the previously loaded catalog', () async {
+    final service = buildService();
+    await service.ensureLoaded();
+    // Pruning now runs in an isolate; a non-map payload must still surface as
+    // a silent null rather than propagating across the isolate boundary.
+    nextResponse = () => const CatalogHttpResponse(
+          statusCode: 200,
+          body: '[]',
+          etag: '"v2"',
+        );
+
+    final result = await service.refresh();
+
+    expect(result, isNull);
+    expect(ModelCatalog.instance!.hasModel('gpt-5.6-luna'), isTrue);
+  });
 }
