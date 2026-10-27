@@ -443,6 +443,124 @@ void main() {
     });
   });
 
+  group('http errors', () {
+    test('404 points at search_web instead of retrying', () async {
+      final settings = await _loadedSettings();
+      final tool = WebFetchTool(
+        settings: settings,
+        core: _core(
+          MockClient(
+            (request) async => http.Response(
+              '<html><body>not found</body></html>',
+              404,
+              headers: {'content-type': 'text/html'},
+            ),
+          ),
+        ),
+        cache: FetchCache(),
+      );
+      final text = await tool.execute({'url': 'https://example.com/missing'});
+      final error = jsonDecode(text) as Map<String, dynamic>;
+      expect(error['error'], 'http_error');
+      expect(error['instruction'], contains('does not exist'));
+      expect(error['instruction'], contains('search_web'));
+    });
+  });
+
+  group('bot challenges', () {
+    test('403 Cloudflare challenge becomes bot_challenge without body', () async {
+      final settings = await _loadedSettings();
+      final tool = WebFetchTool(
+        settings: settings,
+        core: _core(
+          MockClient(
+            (request) async => http.Response(
+              '<html><script src="https://challenges.cloudflare.com/turnstile/v0/api.js">'
+              '</script><p>Verify you are human</p></html>',
+              403,
+              headers: {'content-type': 'text/html'},
+            ),
+          ),
+        ),
+        cache: FetchCache(),
+      );
+      final text = await tool.execute({'url': 'https://example.com/cf'});
+      final error = jsonDecode(text) as Map<String, dynamic>;
+      expect(error['error'], 'bot_challenge');
+      expect(error['challenge'], 'Cloudflare');
+      expect(error['status'], 403);
+      expect(error['instruction'], contains('Do not retry this URL'));
+      expect(error.containsKey('body'), isFalse);
+    });
+
+    test('raw challenge keeps the body and adds a Challenge header', () async {
+      final settings = await _loadedSettings();
+      final tool = WebFetchTool(
+        settings: settings,
+        core: _core(
+          MockClient(
+            (request) async => http.Response(
+              '<html><body><form id="js_challenge">'
+              '<input name="jsc_token">raw challenge body</form>'
+              '</body></html>',
+              200,
+              headers: {'content-type': 'text/html'},
+            ),
+          ),
+        ),
+        cache: FetchCache(),
+      );
+      final text = await tool.execute({
+        'url': 'https://example.com/reddit',
+        'raw': true,
+      });
+      expect(text, contains('Challenge: Reddit'));
+      expect(text, contains('raw challenge body'));
+    });
+
+    test('generic 403 body is capped', () async {
+      final settings = await _loadedSettings();
+      final tool = WebFetchTool(
+        settings: settings,
+        core: _core(
+          MockClient(
+            (request) async => http.Response(
+              '<html><body>${'x' * 5000}</body></html>',
+              403,
+              headers: {'content-type': 'text/html'},
+            ),
+          ),
+        ),
+        cache: FetchCache(),
+      );
+      final text = await tool.execute({'url': 'https://example.com/403'});
+      final error = jsonDecode(text) as Map<String, dynamic>;
+      expect(error['error'], 'http_error');
+      expect((error['body'] as String).length, lessThanOrEqualTo(512));
+    });
+
+    test('no_readable_content points at JavaScript or a bot challenge', () async {
+      final settings = await _loadedSettings();
+      final tool = WebFetchTool(
+        settings: settings,
+        core: _core(
+          MockClient(
+            (request) async => http.Response(
+              '<html><body><div> </div></body></html>',
+              200,
+              headers: {'content-type': 'text/html'},
+            ),
+          ),
+        ),
+        cache: FetchCache(),
+      );
+      final text = await tool.execute({'url': 'https://example.com/empty'});
+      final error = jsonDecode(text) as Map<String, dynamic>;
+      expect(error['error'], 'no_readable_content');
+      expect(error['instruction'], contains('JavaScript'));
+    });
+  });
+
   group('aliases and binary', () {
     test('fetch_html keeps raw semantics', () async {
       final settings = await _loadedSettings();

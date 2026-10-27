@@ -164,6 +164,171 @@ void main() {
     });
   });
 
+  group('bot challenges', () {
+    test('202 AWS WAF page returns bot_challenge', () async {
+      final client = MockClient(
+        (request) async => http.Response(
+          '<html><body><script>window.gokuProps = {};</script></body></html>',
+          202,
+          headers: {'content-type': 'text/html'},
+        ),
+      );
+      await expectLater(
+        _core(client).fetch(
+          FetchRequest(url: Uri.parse('https://example.com/waf')),
+        ),
+        throwsA(
+          isA<FetchException>()
+              .having((e) => e.code, 'code', 'bot_challenge')
+              .having((e) => e.status, 'status', 202)
+              .having((e) => e.challenge, 'challenge', 'AWS WAF'),
+        ),
+      );
+    });
+
+    test('200 Reddit JS challenge returns bot_challenge', () async {
+      final client = MockClient(
+        (request) async => http.Response(
+          '<html><body><form id="js_challenge">'
+          '<input name="jsc_token" value="x"></form></body></html>',
+          200,
+          headers: {'content-type': 'text/html'},
+        ),
+      );
+      await expectLater(
+        _core(client).fetch(
+          FetchRequest(url: Uri.parse('https://example.com/reddit')),
+        ),
+        throwsA(
+          isA<FetchException>()
+              .having((e) => e.code, 'code', 'bot_challenge')
+              .having((e) => e.challenge, 'challenge', 'Reddit'),
+        ),
+      );
+    });
+
+    test('403 Cloudflare Turnstile returns bot_challenge', () async {
+      final client = MockClient(
+        (request) async => http.Response(
+          '<html><script src="https://challenges.cloudflare.com/turnstile/v0/api.js">'
+          '</script><p>Verify you are human</p></html>',
+          403,
+          headers: {'content-type': 'text/html'},
+        ),
+      );
+      await expectLater(
+        _core(client).fetch(
+          FetchRequest(url: Uri.parse('https://example.com/cf')),
+        ),
+        throwsA(
+          isA<FetchException>()
+              .having((e) => e.code, 'code', 'bot_challenge')
+              .having((e) => e.challenge, 'challenge', 'Cloudflare'),
+        ),
+      );
+    });
+
+    test('403 hashcash returns bot_challenge', () async {
+      final client = MockClient(
+        (request) async => http.Response(
+          '<html><title>Checking your browser...</title>'
+          '<script src="/__challenge/probes.js"></script></html>',
+          403,
+          headers: {'content-type': 'text/html'},
+        ),
+      );
+      await expectLater(
+        _core(client).fetch(
+          FetchRequest(url: Uri.parse('https://example.com/hashcash')),
+        ),
+        throwsA(
+          isA<FetchException>()
+              .having((e) => e.code, 'code', 'bot_challenge')
+              .having((e) => e.challenge, 'challenge', 'hashcash'),
+        ),
+      );
+    });
+
+    test('non-2xx challenge marker after a large CSS block is detected', () async {
+      final css = '<style>${'x' * 20000}</style>';
+      final client = MockClient(
+        (request) async => http.Response(
+          '<html><body>$css<form id="js_challenge"><input name="jsc_token"></form></body></html>',
+          403,
+          headers: {'content-type': 'text/html'},
+        ),
+      );
+      await expectLater(
+        _core(client).fetch(
+          FetchRequest(url: Uri.parse('https://example.com/reddit-403')),
+        ),
+        throwsA(
+          isA<FetchException>()
+              .having((e) => e.code, 'code', 'bot_challenge')
+              .having((e) => e.challenge, 'challenge', 'Reddit'),
+        ),
+      );
+    });
+
+    test('generic 403 stays http_error', () async {
+      final client = MockClient(
+        (request) async => http.Response(
+          '<html><body><h1>Forbidden</h1></body></html>',
+          403,
+          headers: {'content-type': 'text/html'},
+        ),
+      );
+      await expectLater(
+        _core(client).fetch(
+          FetchRequest(url: Uri.parse('https://example.com/forbidden')),
+        ),
+        throwsA(
+          isA<FetchException>()
+              .having((e) => e.code, 'code', 'http_error')
+              .having(
+                (e) => e.bodySnippet!.length,
+                'snippet length',
+                lessThanOrEqualTo(FetchCore.maxErrorSnippetChars),
+              ),
+        ),
+      );
+    });
+
+    test('normal 200 article is not a challenge', () async {
+      final client = MockClient(
+        (request) async => http.Response(
+          '<html><body><article><p>'
+          '${'Cloudflare Turnstile and captcha discussion. ' * 20}'
+          '</p></article></body></html>',
+          200,
+          headers: {'content-type': 'text/html; charset=utf-8'},
+        ),
+      );
+      final result = await _core(client).fetch(
+        FetchRequest(url: Uri.parse('https://example.com/article')),
+      );
+      expect(result.content, contains('Cloudflare Turnstile'));
+    });
+
+    test('raw=true keeps the challenge body and marks it', () async {
+      final client = MockClient(
+        (request) async => http.Response(
+          '<html><body><form id="js_challenge"><input name="jsc_token">raw body</form></body></html>',
+          200,
+          headers: {'content-type': 'text/html'},
+        ),
+      );
+      final result = await _core(client).fetch(
+        FetchRequest(
+          url: Uri.parse('https://example.com/reddit'),
+          raw: true,
+        ),
+      );
+      expect(result.challenge, 'Reddit');
+      expect(result.content, contains('raw body'));
+    });
+  });
+
   group('redirects', () {
     test('301 + POST returns redirect_method_change', () async {
       final client = MockClient(

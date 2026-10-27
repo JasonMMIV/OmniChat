@@ -392,7 +392,8 @@ void main() {
         core: _core(
           MockClient(
             (request) async => http.Response(
-              '<!DOCTYPE html><title>Checking your browser...</title>',
+              '<!DOCTYPE html><title>Checking your browser...</title>'
+              '<script src="/__challenge/probes.js"></script>',
               403,
               headers: <String, String>{'content-type': 'text/html'},
             ),
@@ -403,7 +404,8 @@ void main() {
       final text = await tool.execute(<String, dynamic>{
         'url': 'https://example.com/blocked',
       });
-      expect(text, contains('blocks automated readers'));
+      expect(text, contains('"error":"bot_challenge"'));
+      expect(text, contains('hashcash'));
       expect(text, contains('Do not retry this URL'));
     });
   });
