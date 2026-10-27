@@ -18,6 +18,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import '../chat/document_text_extractor.dart';
+import 'bot_challenge.dart';
 import 'charset_decoder.dart';
 import 'content_extractor.dart';
 import 'ssrf_guard.dart';
@@ -78,6 +79,7 @@ class FetchResult {
     required this.metadata,
     required this.truncated,
     required this.bytes,
+    this.challenge,
   });
 
   final Uri url;
@@ -90,6 +92,9 @@ class FetchResult {
   final FetchMetadata metadata;
   final bool truncated;
   final int bytes;
+
+  /// Set only for `raw=true` when the response is a bot-verification page.
+  final String? challenge;
 }
 
 /// A fetch failure with the machine-readable code from the error contract.
@@ -100,6 +105,7 @@ class FetchException implements Exception {
     this.status,
     this.bodySnippet,
     this.uri,
+    this.challenge,
   });
 
   final String code;
@@ -107,6 +113,9 @@ class FetchException implements Exception {
   final int? status;
   final String? bodySnippet;
   final Uri? uri;
+
+  /// Provider label for a `bot_challenge` failure.
+  final String? challenge;
 
   @override
   String toString() => message;
@@ -134,6 +143,13 @@ class FetchCore {
   static const int maxConcurrentFetches = 2;
   static const int maxQueuedFetches = 50;
   static const int maxRedirects = 5;
+
+  /// Non-2xx responses are read up to this many bytes for challenge
+  /// detection. The visible error body is capped separately.
+  static const int challengeSnippetBytes = 32 * 1024;
+
+  /// The body excerpt shown in an `http_error` payload.
+  static const int maxErrorSnippetChars = 512;
 
   /// Extracted content is capped at this many characters.
   static const int maxExtractedChars = 200000;
@@ -317,11 +333,30 @@ class FetchCore {
 
       if (status < 200 || status >= 300) {
         final snippet = await _readSnippet(response);
+        final contentType = response.headers['content-type'];
+        final mediaType = _mediaType(contentType);
+        final looksHtml =
+            mediaType == 'text/html' ||
+            mediaType == 'application/xhtml+xml' ||
+            (mediaType.isEmpty && _looksLikeHtml(snippet));
+        final challenge = looksHtml
+            ? BotChallengeDetector.detect(snippet, status: status)
+            : null;
+        if (challenge != null) {
+          throw FetchException(
+            'bot_challenge',
+            'The site returned a ${challenge.provider} challenge instead of '
+                'the page.',
+            status: status,
+            uri: currentUrl,
+            challenge: challenge.provider,
+          );
+        }
         throw FetchException(
           'http_error',
           'The server returned HTTP $status.',
           status: status,
-          bodySnippet: snippet,
+          bodySnippet: _truncateSnippet(snippet),
           uri: currentUrl,
         );
       }
@@ -486,14 +521,23 @@ class FetchCore {
     try {
       await for (final chunk in response.stream) {
         bytes.addAll(chunk);
-        if (bytes.length >= 1024) break;
+        if (bytes.length >= challengeSnippetBytes) break;
       }
     } catch (_) {}
-    final head = bytes.length > 1024 ? bytes.sublist(0, 1024) : bytes;
+    final head = bytes.length > challengeSnippetBytes
+        ? bytes.sublist(0, challengeSnippetBytes)
+        : bytes;
     return CharsetDecoder.decode(
       Uint8List.fromList(head),
       contentType: response.headers['content-type'],
     ).text.trim();
+  }
+
+  static String _truncateSnippet(String snippet) {
+    if (snippet.length <= maxErrorSnippetChars) return snippet;
+    var end = maxErrorSnippetChars;
+    if (_isLowSurrogate(snippet.codeUnitAt(end))) end--;
+    return snippet.substring(0, end);
   }
 
   Future<FetchResult> _route({
@@ -552,7 +596,15 @@ class FetchCore {
     final decoded = CharsetDecoder.decode(bytes, contentType: contentType);
     final text = decoded.text;
 
+    final looksHtml =
+        mediaType == 'text/html' ||
+        mediaType == 'application/xhtml+xml' ||
+        (mediaType.isEmpty && _looksLikeHtml(text));
+
     if (raw) {
+      final challenge = looksHtml
+          ? await _detectHtmlChallenge(text, status: status)
+          : null;
       final capped = _capText(text);
       return FetchResult(
         url: originalUrl,
@@ -565,13 +617,9 @@ class FetchCore {
         metadata: const FetchMetadata(),
         truncated: capped.truncated,
         bytes: bytes.length,
+        challenge: challenge,
       );
     }
-
-    final looksHtml =
-        mediaType == 'text/html' ||
-        mediaType == 'application/xhtml+xml' ||
-        (mediaType.isEmpty && _looksLikeHtml(text));
 
     if (looksHtml) {
       final extracted = await _extractHtml(
@@ -580,15 +628,26 @@ class FetchCore {
         status: status,
         uri: finalUrl,
       );
-      if (!extracted.ok) {
+      if (extracted.challenge != null) {
         throw FetchException(
-          extracted.errorCode!,
-          extracted.errorMessage ?? 'The page contained no readable text.',
+          'bot_challenge',
+          'The site returned a ${extracted.challenge} challenge instead of '
+              'the page.',
+          status: status,
+          uri: finalUrl,
+          challenge: extracted.challenge,
+        );
+      }
+      final result = extracted.result;
+      if (result == null || !result.ok) {
+        throw FetchException(
+          result?.errorCode ?? 'no_readable_content',
+          result?.errorMessage ?? 'The page contained no readable text.',
           status: status,
           uri: finalUrl,
         );
       }
-      final capped = _capText(extracted.markdown);
+      final capped = _capText(result.markdown);
       return FetchResult(
         url: originalUrl,
         finalUrl: finalUrl,
@@ -597,7 +656,7 @@ class FetchCore {
         charset: decoded.charset,
         charsetFallback: decoded.charsetFallback,
         content: capped.value,
-        metadata: FetchMetadata.fromHtml(extracted.metadata),
+        metadata: FetchMetadata.fromHtml(result.metadata),
         truncated: capped.truncated,
         bytes: bytes.length,
       );
@@ -671,19 +730,28 @@ class FetchCore {
   /// Parses HTML off the UI isolate when the document is large enough to
   /// matter. Isolate startup failures fall back to a synchronous parse instead
   /// of failing the fetch; a timeout is surfaced as a fetch timeout.
-  Future<HtmlExtractionResult> _extractHtml(
+  Future<({String? challenge, HtmlExtractionResult? result})> _extractHtml(
     String text, {
     required String? selector,
     required int status,
     required Uri uri,
   }) async {
+    ({String? challenge, HtmlExtractionResult? result}) run() {
+      final challenge = BotChallengeDetector.detect(text, status: status);
+      if (challenge != null) {
+        return (challenge: challenge.provider, result: null);
+      }
+      return (
+        challenge: null,
+        result: HtmlExtractor.extract(text, selector: selector),
+      );
+    }
+
     if (text.length < computeIsolateThresholdChars) {
-      return HtmlExtractor.extract(text, selector: selector);
+      return run();
     }
     try {
-      return await Isolate.run(
-        () => HtmlExtractor.extract(text, selector: selector),
-      ).timeout(extractionTimeout);
+      return await Isolate.run(run).timeout(extractionTimeout);
     } on TimeoutException {
       throw FetchException(
         'timeout',
@@ -693,7 +761,31 @@ class FetchCore {
         uri: uri,
       );
     } catch (_) {
-      return HtmlExtractor.extract(text, selector: selector);
+      return run();
+    }
+  }
+
+  /// Detects a challenge in a raw HTML response. The extraction path runs the
+  /// detector inside the same isolate as parsing; raw responses have no parser,
+  /// so large ones get their own isolate to keep the UI thread free.
+  Future<String?> _detectHtmlChallenge(
+    String text, {
+    required int status,
+  }) async {
+    String? run() =>
+        BotChallengeDetector.detect(text, status: status)?.provider;
+
+    if (text.length < computeIsolateThresholdChars) {
+      return run();
+    }
+    try {
+      return await Isolate.run(run).timeout(extractionTimeout);
+    } on TimeoutException {
+      // Raw is a debugging path; never block the UI with a synchronous
+      // rescan after the isolate has already exceeded its budget.
+      return null;
+    } catch (_) {
+      return run();
     }
   }
 

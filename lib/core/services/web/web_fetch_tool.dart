@@ -453,6 +453,9 @@ class WebFetchTool {
       ..writeln('URL: ${result.url}')
       ..writeln('Final URL: ${result.finalUrl}')
       ..writeln('Status: ${result.status}');
+    if ((result.challenge ?? '').isNotEmpty) {
+      buffer.writeln('Challenge: ${result.challenge}');
+    }
     if ((result.contentType ?? '').isNotEmpty) {
       buffer.writeln('Content-Type: ${result.contentType}');
     }
@@ -546,22 +549,28 @@ class WebFetchTool {
           },
         );
       case 'http_error':
-        final blocked = failure.status == 403 &&
-            _looksLikeBotChallenge(failure.bodySnippet);
         return _ToolFailure(
           failure.code,
-          blocked
-              ? 'The site blocks automated readers (HTTP 403).'
-              : failure.message,
-          instruction: blocked
-              ? 'Do not retry this URL. Use search_web snippets, another URL, '
-                  'or a configured Tier-2 fetch provider.'
-              : 'Check the URL and HTTP status. Do not retry the same request '
-                  'blindly.',
+          failure.message,
+          instruction: _httpErrorInstruction(failure.status),
           extra: {
             if (failure.status != null) 'status': failure.status,
             if ((failure.bodySnippet ?? '').isNotEmpty)
               'body': failure.bodySnippet,
+          },
+        );
+      case 'bot_challenge':
+        final challenge = (failure.challenge ?? 'bot-verification').trim();
+        return _ToolFailure(
+          failure.code,
+          failure.message,
+          instruction:
+              'Do not retry this URL. A plain HTTP client cannot solve this '
+              'challenge. Use search_web snippets, a different source, or a '
+              'configured Tier-2 reader.',
+          extra: {
+            if (failure.status != null) 'status': failure.status,
+            'challenge': challenge,
           },
         );
       case 'response_too_large':
@@ -589,8 +598,9 @@ class WebFetchTool {
           failure.code,
           failure.message,
           instruction:
-              'The page had no extractable text. Try raw=true to inspect the '
-              'raw response, or use a different URL.',
+              'The page had no extractable text. It may require JavaScript or '
+              'a bot challenge. Try raw=true once to inspect the response, or '
+              'use search_web / a different URL.',
         );
       case 'selector_not_found':
         return _ToolFailure(
@@ -661,17 +671,20 @@ class WebFetchTool {
     return count;
   }
 
-  static bool _isLowSurrogate(int unit) => unit >= 0xDC00 && unit <= 0xDFFF;
-
-  static bool _looksLikeBotChallenge(String? body) {
-    final text = (body ?? '').toLowerCase();
-    return text.contains('checking your browser') ||
-        text.contains('just a moment') ||
-        text.contains('cf-chl') ||
-        text.contains('attention required') ||
-        text.contains('enable javascript and cookies') ||
-        text.contains('access denied');
+  static String _httpErrorInstruction(int? status) {
+    if (status == 404) {
+      return 'This URL does not exist (HTTP 404). Use search_web to find the '
+          'correct URL; do not retry the same URL.';
+    }
+    if (status == 403 || status == 429 || status == 503) {
+      return 'Do not retry the same request blindly. If the site blocks '
+          'automated readers, use search_web or a configured Tier-2 reader.';
+    }
+    return 'Check the URL and HTTP status. Do not retry the same request '
+        'blindly.';
   }
+
+  static bool _isLowSurrogate(int unit) => unit >= 0xDC00 && unit <= 0xDFFF;
 
   static bool _isHighSurrogate(int unit) => unit >= 0xD800 && unit <= 0xDBFF;
 }

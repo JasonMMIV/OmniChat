@@ -103,6 +103,127 @@ void main() {
       expect(result.markdown, contains('外部段落文字'));
     });
 
+    test('removes legacy navigation tables but keeps content tables', () {
+      final navLinks = List<String>.generate(
+        8,
+        (index) => '<a href="/nav/$index">nav link $index</a>',
+      ).join(' ');
+      final html = '''
+<html><body>
+<table id="top-nav"><tr><td>$navLinks</td></tr></table>
+<table id="layout"><tr>
+  <td><table id="side-nav"><tr><td>$navLinks</td></tr></table></td>
+  <td>
+    <h1>Siege Tank</h1>
+    <table id="stats"><tr><td>Hit Points: 150</td><td>Cost: 150</td></tr></table>
+    <p>${'The heavily armored siege tank anchors the Terran line. ' * 20}</p>
+  </td>
+</tr></table>
+</body></html>
+''';
+      final result = HtmlExtractor.extract(html);
+      expect(result.ok, isTrue);
+      expect(result.markdown, contains('Siege Tank'));
+      expect(result.markdown, contains('Hit Points: 150'));
+      expect(result.markdown, contains('heavily armored siege tank'));
+      expect(result.markdown, isNot(contains('nav link 0')));
+      expect(result.markdown, isNot(contains('nav link 7')));
+    });
+
+    test('removes image-only navigation cells inside a table layout', () {
+      final nav = List<String>.generate(
+        8,
+        (index) =>
+            '<a href="/nav/$index"><img src="/nav/$index.gif" alt="nav $index"></a>',
+      ).join(' ');
+      final html = '''
+<html><body>
+<table id="layout">
+  <tr><td>$nav</td></tr>
+  <tr><td>
+    <h1>Siege Tank</h1>
+    <table><tr><td>Hit Points: 150 ${'stats detail. ' * 20}</td></tr></table>
+    <p>${'The heavily armored siege tank anchors the Terran line. ' * 20}</p>
+  </td></tr>
+</table>
+</body></html>
+''';
+      final result = HtmlExtractor.extract(html);
+      expect(result.ok, isTrue);
+      expect(result.markdown, contains('Siege Tank'));
+      expect(result.markdown, contains('Hit Points: 150'));
+      expect(result.markdown, isNot(contains('nav/0.gif')));
+      expect(result.markdown, isNot(contains('nav/7.gif')));
+    });
+
+    test('keeps the dominant link-list content cell inside a layout table', () {
+      final links = List<String>.generate(
+        30,
+        (index) => '<a href="/item/$index">item $index long label text</a>',
+      ).join(' ');
+      final html = '''
+<html><body>
+<table id="layout">
+  <tr>
+    <td><a href="/nav">nav</a></td>
+    <td><table><tr><td>${'stats detail. ' * 20}</td></tr></table></td>
+  </tr>
+  <tr><td colspan="2">$links</td></tr>
+</table>
+</body></html>
+''';
+      final result = HtmlExtractor.extract(html);
+      expect(result.ok, isTrue);
+      expect(result.markdown, contains('item 0 long label text'));
+      expect(result.markdown, contains('item 29 long label text'));
+    });
+
+    test('keeps a page whose content is one link-dense table', () {
+      final links = List<String>.generate(
+        40,
+        (index) => '<a href="/item/$index">item $index with enough label text</a>',
+      ).join(' ');
+      final html =
+          '<html><body><table><tr><td>$links</td></tr></table></body></html>';
+      final result = HtmlExtractor.extract(html);
+      expect(result.ok, isTrue);
+      expect(result.markdown, contains('item 0 with enough label text'));
+      expect(result.markdown, contains('item 39 with enough label text'));
+    });
+
+    test('keeps image-only tables without width or height attributes', () {
+      final html = '''
+<html><body>
+<table id="hero"><tr><td><img src="/hero.jpg"></td></tr></table>
+<p>${'Article text after the hero image. ' * 20}</p>
+</body></html>
+''';
+      final result = HtmlExtractor.extract(html);
+      expect(result.ok, isTrue);
+      expect(result.markdown, contains('hero.jpg'));
+      expect(result.markdown, contains('Article text after the hero image.'));
+    });
+
+    test('keeps high-link tables inside article content', () {
+      final links = List<String>.generate(
+        8,
+        (index) => '<a href="/episode/$index">episode $index</a>',
+      ).join(' ');
+      final html = '''
+<html><body>
+<article>
+  <h1>Episode guide</h1>
+  <p>${'This article text is long enough to be treated as the main content. ' * 12}</p>
+  <table><tr><td>$links</td></tr></table>
+</article>
+</body></html>
+''';
+      final result = HtmlExtractor.extract(html);
+      expect(result.ok, isTrue);
+      expect(result.markdown, contains('episode 0'));
+      expect(result.markdown, contains('episode 7'));
+    });
+
     test('handles a document larger than the parser cap', () {
       final html = '<html><body>${'<p>hello world</p>' * 70000}</body></html>';
       expect(html.length, greaterThan(1024 * 1024));

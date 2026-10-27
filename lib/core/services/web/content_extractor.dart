@@ -60,6 +60,8 @@ class HtmlExtractionResult {
   bool get ok => errorCode == null;
 }
 
+typedef _RemovedNode = ({dom.Element element, dom.Node parent, int index});
+
 class HtmlExtractor {
   HtmlExtractor._();
 
@@ -68,6 +70,17 @@ class HtmlExtractor {
   static const int maxParserInputChars = 1024 * 1024;
 
   static const int minReadableChars = 250;
+
+  static const int _layoutLinkCount = 8;
+  static const double _layoutLinkDensity = 0.45;
+  static const double _layoutCellLinkDensity = 0.6;
+  static const int _layoutTextCap = 5000;
+  static const double _dominantTextShare = 0.6;
+  static const int _imageOnlyLinkCount = 8;
+  static const int _imageOnlyTextCap = 500;
+  static const int _imageOnlyNonLinkText = 100;
+  static const int _contentTableMinText = 200;
+  static const double _contentTableMaxLinkDensity = 0.3;
 
   static const Set<String> _dropTags = <String>{
     'script',
@@ -187,6 +200,11 @@ class HtmlExtractor {
     }
 
     _prune(document, body);
+    final bodyTextBeforeLayoutPrune = _textLength(body);
+    final removed = <_RemovedNode>[];
+    _pruneLayoutCells(body, removed, bodyTextBeforeLayoutPrune);
+    _pruneLayoutTables(body, removed, bodyTextBeforeLayoutPrune);
+    _restoreIfCollapsed(body, removed, bodyTextBeforeLayoutPrune);
 
     dom.Element root = body;
     if ((selector ?? '').trim().isNotEmpty) {
@@ -397,6 +415,204 @@ class HtmlExtractor {
         element.remove();
       }
     }
+  }
+
+  /// Removes link-heavy navigation cells inside table layouts. Old sites put
+  /// the site menu in a top row or sidebar cell of the same table that holds
+  /// the article, so pruning whole tables alone cannot clean them up.
+  static void _pruneLayoutCells(
+    dom.Element body,
+    List<_RemovedNode> removed,
+    int bodyTextLength,
+  ) {
+    final cells = body.querySelectorAll('td, th').toList();
+    final touchedRows = <dom.Element>{};
+
+    void removeCell(dom.Element cell) {
+      final parent = cell.parent;
+      if (parent is dom.Element && parent.localName == 'tr') {
+        touchedRows.add(parent);
+      }
+      _removeNode(cell, removed);
+    }
+
+    for (final cell in cells.reversed) {
+      if (cell.parent == null) continue;
+      if (_insideContentRegion(cell)) continue;
+      if (!_insideLayoutTable(cell)) continue;
+      if (_containsContentTable(cell)) continue;
+
+      final textLength = _textLength(cell);
+      if (textLength == 0) {
+        if (cell.querySelectorAll('a').isEmpty &&
+            !_hasMeaningfulImage(cell)) {
+          removeCell(cell);
+        }
+        continue;
+      }
+      if (bodyTextLength > 0 &&
+          textLength >= bodyTextLength * _dominantTextShare) {
+        continue;
+      }
+      final links = cell.querySelectorAll('a');
+      if (links.length < _layoutLinkCount) continue;
+      final linkTextLength = links.fold<int>(
+        0,
+        (sum, link) => sum + _textLength(link),
+      );
+      // Image-only navigation has lots of links but almost no link text, so
+      // text-density alone would miss it.
+      if (links.length >= _imageOnlyLinkCount &&
+          textLength < _imageOnlyTextCap &&
+          textLength - linkTextLength < _imageOnlyNonLinkText) {
+        removeCell(cell);
+        continue;
+      }
+      final linkDensity = _linkDensity(cell);
+      if (linkDensity >= _layoutCellLinkDensity &&
+          textLength < _layoutTextCap) {
+        removeCell(cell);
+      }
+    }
+
+    // Drop rows that only contained removed navigation cells. This is scoped
+    // to rows touched by the cell pass, so data-table form rows stay intact.
+    for (final row in touchedRows) {
+      if (row.parent == null) continue;
+      if (_rowHasContent(row)) continue;
+      _removeNode(row, removed);
+    }
+  }
+
+  /// True when the nearest table ancestor is a layout wrapper that contains a
+  /// content-bearing inner table.
+  static bool _insideLayoutTable(dom.Element element) {
+    dom.Node? ancestor = element.parent;
+    while (ancestor != null) {
+      if (ancestor is dom.Element && ancestor.localName == 'table') {
+        return _containsContentTable(ancestor);
+      }
+      ancestor = ancestor.parent;
+    }
+    return false;
+  }
+
+  static bool _rowHasContent(dom.Element row) {
+    return row.children
+        .where((child) => child.localName == 'td' || child.localName == 'th')
+        .any(
+          (cell) =>
+              cell.text.trim().isNotEmpty || _hasMeaningfulImage(cell),
+        );
+  }
+
+  /// Old table-based sites wrap navigation and content in nested tables.
+  /// Remove link-heavy leaf tables (menus, dropdowns) while keeping the
+  /// content table they surround.
+  static void _pruneLayoutTables(
+    dom.Element body,
+    List<_RemovedNode> removed,
+    int bodyTextLength,
+  ) {
+    final tables = body.querySelectorAll('table').toList();
+    // Deepest first: removing a leaf menu changes the outer table's density.
+    for (final table in tables.reversed) {
+      if (table.parent == null) continue;
+      if (_insideContentRegion(table)) continue;
+      if (_containsContentTable(table)) continue;
+
+      final textLength = _textLength(table);
+      if (textLength == 0) {
+        if (!_hasMeaningfulImage(table)) {
+          _removeNode(table, removed);
+        }
+        continue;
+      }
+      // Never remove a table that is the page's dominant text container: an
+      // index/list page can legitimately be one large link-dense table.
+      if (bodyTextLength > 0 &&
+          textLength >= bodyTextLength * _dominantTextShare) {
+        continue;
+      }
+      if (table.querySelectorAll('a').length < _layoutLinkCount) continue;
+      final linkDensity = _linkDensity(table);
+      if (linkDensity >= _layoutLinkDensity &&
+          textLength < _layoutTextCap) {
+        _removeNode(table, removed);
+      }
+    }
+  }
+
+  static void _removeNode(dom.Element element, List<_RemovedNode> removed) {
+    final parent = element.parent;
+    if (parent == null) return;
+    final index = parent.nodes.indexOf(element);
+    if (index < 0) return;
+    element.remove();
+    removed.add((element: element, parent: parent, index: index));
+  }
+
+  /// Undo layout pruning when it removed almost the entire page. This keeps
+  /// index/list pages from becoming a false `no_readable_content`.
+  static void _restoreIfCollapsed(
+    dom.Element body,
+    List<_RemovedNode> removed,
+    int bodyTextLength,
+  ) {
+    if (removed.isEmpty ||
+        bodyTextLength < minReadableChars ||
+        _textLength(body) >= minReadableChars) {
+      return;
+    }
+    for (final entry in removed.reversed) {
+      final parent = entry.parent;
+      final index = entry.index <= parent.nodes.length
+          ? entry.index
+          : parent.nodes.length;
+      parent.nodes.insert(index, entry.element);
+    }
+  }
+
+  static bool _insideContentRegion(dom.Element element) {
+    dom.Node? ancestor = element.parent;
+    while (ancestor != null) {
+      if (ancestor is dom.Element) {
+        if (ancestor.localName == 'article' ||
+            ancestor.localName == 'main' ||
+            ancestor.attributes['role'] == 'main') {
+          return true;
+        }
+      }
+      ancestor = ancestor.parent;
+    }
+    return false;
+  }
+
+  static bool _containsContentTable(dom.Element table) {
+    for (final nested in table.querySelectorAll('table')) {
+      final textLength = _textLength(nested);
+      if (textLength > _contentTableMinText &&
+          _linkDensity(nested) < _contentTableMaxLinkDensity) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool _hasMeaningfulImage(dom.Element table) {
+    for (final image in table.querySelectorAll('img')) {
+      final src = (image.attributes['src'] ?? '').trim().toLowerCase();
+      if (src.isEmpty) continue;
+      if (src.contains('blank.') ||
+          src.contains('pixel.') ||
+          src.contains('spacer.')) {
+        continue;
+      }
+      // Do not require width/height attributes: modern markup often omits
+      // them, and the src filter above already excludes spacer pixels.
+      return true;
+    }
+    return false;
   }
 
   /// Never let a generic negative class (e.g. `widget`, `sidebar`, `menu`)
