@@ -2246,6 +2246,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cameraPermissionDeniedMessage => '未授予相机权限';
 
   @override
+  String incomingShareFilesFailed(int count) {
+    return '有 $count 个分享文件无法导入。';
+  }
+
+  @override
   String get openSystemSettings => 'Settings';
 
   @override
@@ -7400,6 +7405,11 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get cameraPermissionDeniedMessage => '未授予相机权限';
 
   @override
+  String incomingShareFilesFailed(int count) {
+    return '有 $count 个分享文件无法导入。';
+  }
+
+  @override
   String get searchProviderBingLocalDescription =>
       '使用网络抓取工具获取必应搜索结果。无需 API 密钥，但可能不够稳定。';
 
@@ -12455,6 +12465,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get cameraPermissionDeniedMessage => '未授予相機權限';
+
+  @override
+  String incomingShareFilesFailed(int count) {
+    return '有 $count 個分享檔案無法匯入。';
+  }
 
   @override
   String get searchProviderBingLocalDescription =>

@@ -2262,6 +2262,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cameraPermissionDeniedMessage => 'No camera access';
 
   @override
+  String incomingShareFilesFailed(int count) {
+    return 'Could not import $count shared file(s).';
+  }
+
+  @override
   String get openSystemSettings => 'Settings';
 
   @override

@@ -34,15 +34,55 @@ enum _DesktopTextMenuAction { paste, cut, copy, selectAll }
 
 class ChatInputBarController {
   _ChatInputBarState? _state;
-  void _bind(_ChatInputBarState s) => _state = s;
+
+  // Attachments that arrived before the input bar was bound (cold start):
+  // drop them on bind instead of silently discarding them.
+  final List<String> _pendingImages = <String>[];
+  final List<DocumentAttachment> _pendingFiles = <DocumentAttachment>[];
+
+  void _bind(_ChatInputBarState s) {
+    _state = s;
+    // Bound from initState: append straight to the state's lists instead of
+    // calling setState before the first build.
+    if (_pendingImages.isNotEmpty) {
+      s._images.addAll(_pendingImages);
+      _pendingImages.clear();
+    }
+    if (_pendingFiles.isNotEmpty) {
+      s._docs.addAll(_pendingFiles);
+      _pendingFiles.clear();
+    }
+  }
+
   void _unbind(_ChatInputBarState s) {
     if (identical(_state, s)) _state = null;
   }
 
-  void addImages(List<String> paths) => _state?._addImages(paths);
-  void clearImages() => _state?._clearImages();
-  void addFiles(List<DocumentAttachment> docs) => _state?._addFiles(docs);
-  void clearFiles() => _state?._clearFiles();
+  void addImages(List<String> paths) {
+    if (_state != null) {
+      _state!._addImages(paths);
+    } else {
+      _pendingImages.addAll(paths);
+    }
+  }
+
+  void clearImages() {
+    _pendingImages.clear();
+    _state?._clearImages();
+  }
+
+  void addFiles(List<DocumentAttachment> docs) {
+    if (_state != null) {
+      _state!._addFiles(docs);
+    } else {
+      _pendingFiles.addAll(docs);
+    }
+  }
+
+  void clearFiles() {
+    _pendingFiles.clear();
+    _state?._clearFiles();
+  }
 }
 
 class ChatInputBar extends StatefulWidget {

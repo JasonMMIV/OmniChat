@@ -1330,6 +1330,8 @@ class HomePageController extends ChangeNotifier {
   Future<void> onPickPhotos() => _fileUploadService.onPickPhotos();
   Future<void> onPickCamera() => _fileUploadService.onPickCamera(_context);
   Future<void> onPickFiles() => _fileUploadService.onPickFiles();
+  Future<int> importSharedFiles(List<Object?> files) =>
+      _fileUploadService.importSharedFiles(files);
   Future<void> onFilesDroppedDesktop(List<XFile> files) => _fileUploadService.onFilesDroppedDesktop(files);
 
   // ============================================================================

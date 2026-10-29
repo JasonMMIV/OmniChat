@@ -31,6 +31,7 @@ import '../../../desktop/workspace_popover.dart';
 import '../../../desktop/quick_phrase_popover.dart';
 import '../../../desktop/instruction_injection_popover.dart';
 import '../../../desktop/skills_popover.dart';
+import '../services/android_incoming_share.dart';
 import '../widgets/skills_sheet.dart';
 import '../../../desktop/desktop_context_menu.dart';
 import '../../chat/widgets/bottom_tools_sheet.dart';
@@ -94,6 +95,11 @@ class _HomePageState extends State<HomePage>
   final GlobalKey _topMiniMapKey = GlobalKey();
   final GlobalKey _topWorkspaceKey = GlobalKey();
   StreamSubscription<String>? _processTextSub;
+  StreamSubscription<void>? _incomingShareSub;
+  Future<void> _incomingShareQueue = Future<void>.value();
+  bool _chatInitializedForIncomingShare = false;
+  final Set<String> _processedIncomingShareIds = <String>{};
+  final Set<String> _notifiedIncomingShareFailures = <String>{};
 
   // ============================================================================
   // Page Controller (manages all business logic and state)
@@ -126,7 +132,17 @@ class _HomePageState extends State<HomePage>
     _controller.addListener(_onControllerChanged);
     _drawerController.addListener(_onDrawerValueChanged);
 
-    _controller.initChat();
+    unawaited(
+      _controller.initChat().then(
+        (_) {
+          _chatInitializedForIncomingShare = true;
+          _drainIncomingShares();
+        },
+        onError: (Object _) {
+          // Chat init failed; pending shares stay parked for the next launch.
+        },
+      ),
+    );
     _initProcessText();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -146,6 +162,9 @@ class _HomePageState extends State<HomePage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _controller.onAppLifecycleStateChanged(state);
+    if (state == AppLifecycleState.resumed) {
+      _drainIncomingShares();
+    }
   }
 
   @override
@@ -164,6 +183,7 @@ class _HomePageState extends State<HomePage>
       WidgetsBinding.instance.removeObserver(this);
     } catch (_) {}
     _processTextSub?.cancel();
+    _incomingShareSub?.cancel();
     _controller.removeListener(_onControllerChanged);
     _drawerController.removeListener(_onDrawerValueChanged);
     _inputFocus.dispose();
@@ -197,6 +217,89 @@ class _HomePageState extends State<HomePage>
       if (text != null) {
         _handleProcessText(text);
       }
+    });
+    AndroidIncomingShare.ensureInitialized();
+    _incomingShareSub = AndroidIncomingShare.changes.listen((_) {
+      _drainIncomingShares();
+    });
+    _drainIncomingShares();
+  }
+
+  /// Applies pending Android shares to the composer draft. Runs only after
+  /// `initChat()` finished (so attachments land in a live input bar) and is
+  /// serialized so overlapping shares cannot interleave.
+  void _drainIncomingShares() {
+    if (!PlatformUtils.isAndroid ||
+        !_chatInitializedForIncomingShare ||
+        !mounted) return;
+    _incomingShareQueue = _incomingShareQueue.then((_) async {
+      final shares = await AndroidIncomingShare.getPendingShares();
+      for (final share in shares) {
+        if (!mounted) return;
+        final id = share['id']?.toString() ?? '';
+        if (id.isEmpty) continue;
+        if (_processedIncomingShareIds.contains(id)) {
+          await AndroidIncomingShare.acknowledge(id);
+          continue;
+        }
+        var fileCount = 0;
+        try {
+          final rawFiles = share['files'];
+          final files = rawFiles is List
+              ? rawFiles.cast<Object?>()
+              : const <Object?>[];
+          fileCount = files.length;
+          final failedFiles = await _controller.importSharedFiles(files) +
+              ((share['failedFiles'] as num?)?.toInt() ?? 0);
+          if (!mounted) return;
+
+          final text = share['text']?.toString() ?? '';
+          if (text.isNotEmpty) _appendIncomingShareText(text);
+          if (failedFiles > 0) {
+            _notifyIncomingShareFailure(id, failedFiles);
+          }
+          // Draft first, then acknowledge: a crash in between imports the share
+          // again on the next launch (recoverable), whereas acknowledging first
+          // would silently drop the shared text.
+          _processedIncomingShareIds.add(id);
+          await AndroidIncomingShare.acknowledge(id);
+        } catch (_) {
+          // Keep the share pending so it can be retried after foreground/startup,
+          // but never let it fail silently.
+          if (mounted && fileCount > 0) {
+            _notifyIncomingShareFailure(id, fileCount);
+          }
+        }
+      }
+    }).catchError((_) {});
+  }
+
+  /// Shows the share-import warning at most once per share id: a share that
+  /// stays pending is retried on every resume, and repeating the toast would
+  /// turn one bad file into a stream of notifications.
+  void _notifyIncomingShareFailure(String id, int count) {
+    if (!_notifiedIncomingShareFailures.add(id)) return;
+    showAppSnackBar(
+      context,
+      message: AppLocalizations.of(context)!.incomingShareFilesFailed(count),
+      type: NotificationType.warning,
+      duration: const Duration(seconds: 5),
+    );
+  }
+
+  void _appendIncomingShareText(String text) {
+    final value = _inputController.value;
+    final next = AndroidIncomingShare.mergeShareText(value.text, text);
+    if (next == value.text) return;
+    _inputController.value = value.copyWith(
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
+      composing: TextRange.empty,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _controller.forceScrollToBottomSoon(animate: false);
+      _inputFocus.requestFocus();
     });
   }
 
