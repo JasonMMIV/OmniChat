@@ -27,6 +27,8 @@ class MainActivity : FlutterActivity() {
     private val TAG = "OmniChatCallMode"
     private var processTextChannel: MethodChannel? = null
     private var pendingProcessText: String? = null
+    private var incomingShareChannel: MethodChannel? = null
+    private var incomingShareHandler: IncomingShareHandler? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -57,6 +59,40 @@ class MainActivity : FlutterActivity() {
             }
         }
 
+        incomingShareHandler = IncomingShareHandler(applicationContext) {
+            runOnUiThread { incomingShareChannel?.invokeMethod("onIncomingSharesChanged", null) }
+        }
+        incomingShareChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "omnichat/incoming_share",
+        )
+        incomingShareChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getPendingShares" -> {
+                    val handler = incomingShareHandler
+                    if (handler == null) {
+                        result.success(emptyList<Map<String, Any>>())
+                    } else {
+                        handler.getPendingShares { shares ->
+                            runOnUiThread { result.success(shares) }
+                        }
+                    }
+                }
+                "acknowledge" -> {
+                    val handler = incomingShareHandler
+                    val id = call.argument<String>("id")
+                    if (handler == null) {
+                        result.success(false)
+                    } else {
+                        handler.acknowledge(id) { deleted ->
+                            runOnUiThread { result.success(deleted) }
+                        }
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
         processTextChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, processTextChannelName)
         processTextChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
@@ -79,17 +115,33 @@ class MainActivity : FlutterActivity() {
             }
         }
         pendingProcessText = extractProcessText(intent)
+        handleIncomingShare(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        handleIncomingShare(intent)
         val text = extractProcessText(intent) ?: return
         val ch = processTextChannel
         if (ch != null) {
             ch.invokeMethod("onProcessText", text)
         } else {
             pendingProcessText = text
+        }
+    }
+
+    /**
+     * Copies a SEND/SEND_MULTIPLE payload and clears the sticky share intent, so
+     * an Activity recreation or a task restored from history cannot import the
+     * same share twice. Content already copied stays in the pending queue.
+     */
+    private fun handleIncomingShare(intent: Intent?) {
+        incomingShareHandler?.handleIntent(intent)
+        if (intent?.action == Intent.ACTION_SEND ||
+            intent?.action == Intent.ACTION_SEND_MULTIPLE
+        ) {
+            setIntent(Intent(Intent.ACTION_MAIN))
         }
     }
 
@@ -420,6 +472,9 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        incomingShareHandler?.close()
+        incomingShareHandler = null
+        incomingShareChannel = null
         stopCallMode()
         super.onDestroy()
     }

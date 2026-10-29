@@ -81,6 +81,7 @@
   "settingsPageAbout": "關於",
   "settingsPageShare": "分享",
   "cameraPermissionDeniedMessage": "未授予相機權限",
+  "incomingShareFilesFailed": "有 {count} 個分享檔案無法匯入。",
   "languageDisplayEnglish": "English",
   "languageDisplayTraditionalChinese": "繁體中文",
   "languageDisplayJapanese": "日本語",

@@ -983,6 +983,14 @@
   "messageExportSheetExporting": "Exporting",
   "messageEditDialogTitle": "Edit Message",
   "cameraPermissionDeniedMessage": "No camera access",
+  "incomingShareFilesFailed": "Could not import {count} shared file(s).",
+  "@incomingShareFilesFailed": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "openSystemSettings": "Settings",
   "searchProviderBingLocalDescription": "Bing search",
   "searchProviderTavilyDescription": "Tavily search",

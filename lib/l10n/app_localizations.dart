@@ -4379,6 +4379,12 @@ abstract class AppLocalizations {
   /// **'No camera access'**
   String get cameraPermissionDeniedMessage;
 
+  /// No description provided for @incomingShareFilesFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not import {count} shared file(s).'**
+  String incomingShareFilesFailed(int count);
+
   /// No description provided for @openSystemSettings.
   ///
   /// In en, this message translates to:

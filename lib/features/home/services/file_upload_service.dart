@@ -33,12 +33,17 @@ class FileUploadService {
 
   /// 复制选中的文件到应用上传目录
   ///
-  /// [files] 要复制的文件列表
+  /// [files] 要复制的文件列表；[names] 可逐项指定目的檔名（Android 分享
+  /// 匯入用：dart:io 的 `XFile.name` 會被忽略）。
   /// 返回复制后的文件路径列表
   ///
-  /// 防止重复附件：同一批次里（相同文件名 + 相同大小）只保留一份；
+  /// 防止重复附件：同一批次里（相同文件名 + 相同大小）只保留一份（指定目的
+  /// 檔名時不做，同名但不同來源的分享檔必須各自保留）；
   /// 文件名冲突时追加序号，避免静默覆盖不同内容。
-  Future<List<String>> copyPickedFiles(List<XFile> files) async {
+  Future<List<String>> copyPickedFiles(
+    List<XFile> files, {
+    List<String>? names,
+  }) async {
     final dir = await AppDirectories.getUploadDirectory();
     if (!await dir.exists()) {
       await dir.create(recursive: true);
@@ -48,27 +53,32 @@ class FileUploadService {
     final seenKeys = <String>{};
     // 目标目录内已占用的文件名（防止覆盖）
     final usedNames = <String>{};
-    for (final f in files) {
+    for (var index = 0; index < files.length; index++) {
+      final f = files[index];
       try {
-        final rawName = f.name.isNotEmpty
-            ? f.name
-            : (f.path.split(Platform.pathSeparator).last);
+        final override =
+            names != null && index < names.length ? names[index] : null;
+        final rawName = override != null && override.isNotEmpty
+            ? override
+            : (f.name.isNotEmpty
+                ? f.name
+                : (f.path.split(Platform.pathSeparator).last));
         final name = rawName.split(RegExp(r'[/\\]')).last;
         if (name.isEmpty) continue;
-        // 内容去重：同批同文件名且大小一致视为同一附件
-        int? length;
-        try {
-          length = await f.length();
-        } catch (_) {
-          length = null;
+        // 内容去重：同批同文件名且大小一致视为同一附件（指定目的檔名時不做）
+        if (override == null) {
+          int? length;
+          try {
+            length = await f.length();
+          } catch (_) {
+            length = null;
+          }
+          if (length != null && !seenKeys.add('$name|$length')) continue;
         }
-        if (length != null) {
-          final key = '$name|$length';
-          if (!seenKeys.add(key)) continue;
-        }
-        // 文件名冲突：追加 (n) 后缀而不是覆盖
+        // 文件名冲突：追加 (n) 后缀而不是覆盖（也不能覆盖舊訊息已引用的附件）
         var destName = name;
-        if (usedNames.contains(destName)) {
+        if (usedNames.contains(destName) ||
+            await File('${dir.path}/$destName').exists()) {
           final dot = destName.lastIndexOf('.');
           final stem = dot > 0 ? destName.substring(0, dot) : destName;
           final ext = dot > 0 ? destName.substring(dot) : '';
@@ -76,15 +86,80 @@ class FileUploadService {
           do {
             destName = '$stem ($n)$ext';
             n++;
-          } while (usedNames.contains(destName));
+          } while (usedNames.contains(destName) ||
+              await File('${dir.path}/$destName').exists());
         }
         usedNames.add(destName);
         final dest = File('${dir.path}/$destName');
-        await dest.writeAsBytes(await f.readAsBytes());
+        // 串流複製：分享檔案可達數十 MB，不得整份讀進記憶體
+        await f.openRead().cast<List<int>>().pipe(dest.openWrite());
         out.add(dest.path);
       } catch (_) {}
     }
     return out;
+  }
+
+  /// 將 Android 分享選單交來的檔案複製進上傳目錄，加入目前草稿（不自動送出）。
+  /// 回傳無法匯入的檔案數量。
+  Future<int> importSharedFiles(List<Object?> incomingFiles) async {
+    final images = <String>[];
+    final docs = <DocumentAttachment>[];
+    var failed = 0;
+
+    for (final incoming in incomingFiles) {
+      if (incoming is! Map) {
+        failed++;
+        continue;
+      }
+      final sourcePath = incoming['path']?.toString() ?? '';
+      if (sourcePath.isEmpty || !await File(sourcePath).exists()) {
+        failed++;
+        continue;
+      }
+      final fileName = sharedFileName(incoming['fileName']?.toString() ?? '');
+      final declaredMime = incoming['mime']?.toString() ?? '';
+
+      final saved = await copyPickedFiles(
+        [XFile(sourcePath)],
+        names: [fileName],
+      );
+      if (saved.isEmpty) {
+        failed++;
+        continue;
+      }
+      final savedPath = saved.single;
+      // 分享者宣告的 MIME 不可信：只在具體時採用，否則依副檔名判定
+      final mime =
+          declaredMime.isEmpty || declaredMime == 'application/octet-stream'
+          ? mimeForSharedFile(fileName)
+          : declaredMime;
+      if (mime.toLowerCase().startsWith('image/') ||
+          isImageExtension(fileName)) {
+        images.add(savedPath);
+      } else {
+        docs.add(
+          DocumentAttachment(path: savedPath, fileName: fileName, mime: mime),
+        );
+      }
+    }
+
+    if (images.isNotEmpty) mediaController.addImages(images);
+    if (docs.isNotEmpty) mediaController.addFiles(docs);
+    if (images.isNotEmpty || docs.isNotEmpty) onScrollToBottom();
+    return failed;
+  }
+
+  /// 剝除路徑分隔符與控制字元，避免惡意顯示名稱逃出上傳目錄或產生非法檔名。
+  String sharedFileName(String rawName) {
+    final cleaned = rawName
+        .split(RegExp(r'[/\\]'))
+        .last
+        .replaceAll(RegExp(r'[\u0000-\u001f\u007f]'), '')
+        .trim();
+    if (cleaned.isEmpty || cleaned == '.' || cleaned == '..') {
+      return 'shared_file';
+    }
+    return cleaned;
   }
 
   /// 从相册选取图片
@@ -190,6 +265,7 @@ class FileUploadService {
     if (lower.endsWith('.3gp') || lower.endsWith('.3gpp')) return 'video/3gpp';
     // Documents / text
     if (lower.endsWith('.pdf')) return 'application/pdf';
+    if (lower.endsWith('.doc')) return 'application/msword';
     if (lower.endsWith('.docx')) {
       return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     }
@@ -198,12 +274,43 @@ class FileUploadService {
     }
     if (lower.endsWith('.xls')) return 'application/vnd.ms-excel';
     if (lower.endsWith('.ppt')) return 'application/vnd.ms-powerpoint';
+    if (lower.endsWith('.pptx')) {
+      return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    }
     if (lower.endsWith('.csv')) return 'text/csv';
     if (lower.endsWith('.json')) return 'application/json';
     if (lower.endsWith('.js')) return 'application/javascript';
     if (lower.endsWith('.txt') || lower.endsWith('.md')) return 'text/plain';
     return 'text/plain';
   }
+
+  /// 分享檔案的 MIME：先判圖片／影音，再交給既有副檔名表；未知二進位檔
+  /// 一律回 `application/octet-stream`（不可誤標成 `text/plain`）。
+  String mimeForSharedFile(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.heic')) return 'image/heic';
+    if (lower.endsWith('.heif')) return 'image/heif';
+    if (lower.endsWith('.mp4')) return 'video/mp4';
+    if (lower.endsWith('.mov')) return 'video/quicktime';
+    if (lower.endsWith('.m4a')) return 'audio/mp4';
+    if (lower.endsWith('.mp3')) return 'audio/mpeg';
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    final inferred = inferMimeByExtension(lower);
+    return inferred == 'text/plain' && !_isPlainTextExtension(lower)
+        ? 'application/octet-stream'
+        : inferred;
+  }
+
+  static bool _isPlainTextExtension(String lower) =>
+      lower.endsWith('.txt') ||
+      lower.endsWith('.md') ||
+      lower.endsWith('.log') ||
+      lower.endsWith('.yaml') ||
+      lower.endsWith('.yml');
 
   /// 判断文件是否为图片（根据扩展名）
   bool isImageExtension(String name) {
