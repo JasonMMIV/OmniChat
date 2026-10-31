@@ -1,9 +1,10 @@
 import 'dart:async';
-import 'dart:io' show File;
+import 'dart:io' show Directory, File;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show TargetPlatform;
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:desktop_drop/desktop_drop.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../main.dart';
@@ -17,7 +18,11 @@ import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/providers/skills_provider.dart';
 import '../../../core/models/skill.dart';
+import '../../../core/models/backup.dart';
+import '../../../core/services/android_background.dart';
+import '../../../core/services/backup/data_sync.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/chat/storage/chat_storage_gate.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/services/android_process_text.dart';
@@ -62,6 +67,8 @@ import '../widgets/selection_toolbar.dart';
 import '../widgets/message_list_view.dart';
 
 import '../widgets/chat_input_section.dart';
+import '../widgets/chat_storage_recovery_overlay.dart';
+import '../widgets/chat_storage_startup_overlay.dart';
 import '../utils/chat_layout_constants.dart';
 import '../controllers/home_page_controller.dart';
 import 'home_mobile_layout.dart';
@@ -69,6 +76,8 @@ import 'home_desktop_layout.dart';
 
 import '../../../features/voice_chat/pages/voice_chat_screen.dart';
 import '../../../features/voice_chat/pages/live_call_screen.dart';
+
+enum _MigrationBackupChoice { backup, skip, cancel }
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -98,6 +107,10 @@ class _HomePageState extends State<HomePage>
   StreamSubscription<void>? _incomingShareSub;
   Future<void> _incomingShareQueue = Future<void>.value();
   bool _chatInitializedForIncomingShare = false;
+  bool _didShowStorageFallbackNotice = false;
+  Future<void> _migrationKeepAliveQueue = Future<void>.value();
+  bool _migrationKeepAliveEnabledByUs = false;
+  bool _migrationKeepAliveShouldRestore = false;
   final Set<String> _processedIncomingShareIds = <String>{};
   final Set<String> _notifiedIncomingShareFailures = <String>{};
 
@@ -132,17 +145,7 @@ class _HomePageState extends State<HomePage>
     _controller.addListener(_onControllerChanged);
     _drawerController.addListener(_onDrawerValueChanged);
 
-    unawaited(
-      _controller.initChat().then(
-        (_) {
-          _chatInitializedForIncomingShare = true;
-          _drainIncomingShares();
-        },
-        onError: (Object _) {
-          // Chat init failed; pending shares stay parked for the next launch.
-        },
-      ),
-    );
+    unawaited(_initializeChat());
     _initProcessText();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -225,53 +228,310 @@ class _HomePageState extends State<HomePage>
     _drainIncomingShares();
   }
 
+  /// Runs (or retries) chat initialization and resumes the startup work that
+  /// must happen after storage is ready. The overlay owns the visible error;
+  /// this method keeps the pending-share path parked until a retry succeeds.
+  Future<void> _initializeChat() async {
+    try {
+      await _controller.initChat(
+        backupPrompt: _promptMigrationBackup,
+        onMigrationStarted: _startMigrationKeepAlive,
+        onMigrationFinished: _stopMigrationKeepAlive,
+      );
+      if (!mounted) return;
+      _chatInitializedForIncomingShare = true;
+      _drainIncomingShares();
+      final storageStatus = context.read<ChatService>().storageInitStatus;
+      if (storageStatus.isLegacyFallback && !_didShowStorageFallbackNotice) {
+        _didShowStorageFallbackNotice = true;
+        showAppSnackBar(
+          context,
+          message: AppLocalizations.of(context)!.chatStorageFallbackSnackbar,
+          type: NotificationType.warning,
+        );
+      }
+    } catch (_) {
+      // Chat storage status/overlay is the source of truth and offers Retry.
+    }
+  }
+
+  // A one-time migration can outlive the foreground activity. Keep Android's
+  // data-sync foreground service alive while it runs, then restore the user's
+  // background setting. The queue serializes start/stop so a fast migration
+  // cannot leave the service enabled after the import finishes.
+  Future<void> _startMigrationKeepAlive() {
+    return _queueMigrationKeepAlive(_enableMigrationKeepAlive);
+  }
+
+  Future<void> _stopMigrationKeepAlive() {
+    return _queueMigrationKeepAlive(_disableMigrationKeepAlive);
+  }
+
+  Future<void> _queueMigrationKeepAlive(Future<void> Function() action) {
+    _migrationKeepAliveQueue = _migrationKeepAliveQueue
+        .then((_) => action())
+        .catchError((Object _) {});
+    return _migrationKeepAliveQueue;
+  }
+
+  Future<void> _enableMigrationKeepAlive() async {
+    if (!mounted || !PlatformUtils.isAndroid) return;
+    if (_migrationKeepAliveEnabledByUs) return;
+
+    final l10n = AppLocalizations.of(context)!;
+    final mode = context.read<SettingsProvider>().androidBackgroundChatMode;
+
+    // The normal startup path may already have enabled background execution
+    // from the user's setting. Never turn that off when migration ends.
+    if (await AndroidBackgroundManager.isEnabled()) {
+      _migrationKeepAliveShouldRestore = false;
+      return;
+    }
+
+    final initialized = await AndroidBackgroundManager.ensureInitialized(
+      notificationTitle: l10n.chatStorageMigrationNotificationTitle,
+      notificationText: l10n.chatStorageMigrationNotificationText,
+    );
+    if (!initialized) return;
+
+    await AndroidBackgroundManager.setEnabled(true);
+    _migrationKeepAliveEnabledByUs = true;
+    _migrationKeepAliveShouldRestore = mode == AndroidBackgroundChatMode.off;
+  }
+
+  Future<void> _disableMigrationKeepAlive() async {
+    if (!_migrationKeepAliveEnabledByUs) return;
+    final shouldRestore = _migrationKeepAliveShouldRestore;
+    _migrationKeepAliveEnabledByUs = false;
+    _migrationKeepAliveShouldRestore = false;
+    if (shouldRestore) {
+      await AndroidBackgroundManager.setEnabled(false);
+    }
+  }
+
+  Future<bool> _restoreStorageBackup() async {
+    final l10n = AppLocalizations.of(context)!;
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const <String>['zip'],
+    );
+    final path = picked?.files.single.path;
+    if (path == null || !mounted) return false;
+
+    final chatService = context.read<ChatService>();
+    final backup = File(path);
+    await chatService.validateChatBackup(backup);
+    await chatService.resetChatStorage();
+    await DataSync(chatService: chatService).restoreFromLocalFile(
+      backup,
+      // Recovery replaces chat rows only. Keep local uploads/images/avatars in
+      // place instead of deleting them during a failed-recovery retry.
+      const WebDavConfig(includeFiles: false),
+      mode: RestoreMode.overwrite,
+      restoreSettings: false,
+    );
+    if (!mounted) return false;
+    await _initializeChat();
+    if (!mounted) return false;
+    showAppSnackBar(
+      context,
+      message: l10n.chatStorageRecoveryRestoreDone,
+      type: NotificationType.success,
+    );
+    return true;
+  }
+
+  Future<void> _rebuildStorageFromHive() async {
+    final l10n = AppLocalizations.of(context)!;
+    final chatService = context.read<ChatService>();
+    await chatService.rebuildFromLegacyHive();
+    if (!mounted) return;
+    await _initializeChat();
+    if (!mounted) return;
+    if (!chatService.storageInitStatus.isLegacyFallback) {
+      showAppSnackBar(
+        context,
+        message: l10n.chatStorageRecoveryRebuildDone,
+        type: NotificationType.success,
+      );
+    }
+  }
+
+  Future<void> _resetChatStorage() async {
+    final l10n = AppLocalizations.of(context)!;
+    final chatService = context.read<ChatService>();
+    await chatService.resetChatStorage();
+    if (!mounted) return;
+    await _initializeChat();
+    if (!mounted) return;
+    showAppSnackBar(
+      context,
+      message: l10n.chatStorageRecoveryResetDone,
+      type: NotificationType.success,
+    );
+  }
+
+  Future<void> _continueWithLegacyStorage() async {
+    final chatService = context.read<ChatService>();
+    await chatService.useLegacyStorage();
+    if (!mounted) return;
+    await _initializeChat();
+  }
+
+  /// §8.2.2: ask before the one-time Hive import. A backup failure or a
+  /// cancelled folder picker aborts before the temp database is created, so
+  /// Hive remains the untouched fallback.
+  Future<ChatMigrationBackupDecision> _promptMigrationBackup() async {
+    if (!mounted) return const ChatMigrationBackupDecision.skip();
+    final l10n = AppLocalizations.of(context)!;
+    final choice = await showDialog<_MigrationBackupChoice>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          title: Text(l10n.chatMigrationBackupTitle),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.chatMigrationBackupBody,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  height: 1.45,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer.withValues(alpha: 0.32),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Lucide.Database, size: 17, color: cs.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        l10n.chatMigrationBackupRecommended,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.4,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(ctx).pop(_MigrationBackupChoice.cancel),
+              child: Text(l10n.homePageCancel),
+            ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(ctx).pop(_MigrationBackupChoice.skip),
+              child: Text(l10n.chatMigrationBackupSkip),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(ctx).pop(_MigrationBackupChoice.backup),
+              child: Text(l10n.chatMigrationBackupNow),
+            ),
+          ],
+        );
+      },
+    );
+    if (!mounted) return const ChatMigrationBackupDecision.cancel();
+
+    switch (choice) {
+      case _MigrationBackupChoice.backup:
+        String? folder;
+        try {
+          folder = await FilePicker.platform.getDirectoryPath(
+            dialogTitle: l10n.chatMigrationBackupFolderTitle,
+          );
+        } catch (e) {
+          if (mounted) {
+            showAppSnackBar(
+              context,
+              message: e.toString(),
+              type: NotificationType.error,
+            );
+          }
+          return const ChatMigrationBackupDecision.cancel();
+        }
+        if (folder == null || folder.trim().isEmpty) {
+          return const ChatMigrationBackupDecision.cancel();
+        }
+        return ChatMigrationBackupDecision.backup(Directory(folder));
+      case _MigrationBackupChoice.skip:
+        return const ChatMigrationBackupDecision.skip();
+      case _MigrationBackupChoice.cancel:
+      case null:
+        return const ChatMigrationBackupDecision.cancel();
+    }
+  }
+
   /// Applies pending Android shares to the composer draft. Runs only after
   /// `initChat()` finished (so attachments land in a live input bar) and is
   /// serialized so overlapping shares cannot interleave.
   void _drainIncomingShares() {
     if (!PlatformUtils.isAndroid ||
         !_chatInitializedForIncomingShare ||
-        !mounted) return;
-    _incomingShareQueue = _incomingShareQueue.then((_) async {
-      final shares = await AndroidIncomingShare.getPendingShares();
-      for (final share in shares) {
-        if (!mounted) return;
-        final id = share['id']?.toString() ?? '';
-        if (id.isEmpty) continue;
-        if (_processedIncomingShareIds.contains(id)) {
-          await AndroidIncomingShare.acknowledge(id);
-          continue;
-        }
-        var fileCount = 0;
-        try {
-          final rawFiles = share['files'];
-          final files = rawFiles is List
-              ? rawFiles.cast<Object?>()
-              : const <Object?>[];
-          fileCount = files.length;
-          final failedFiles = await _controller.importSharedFiles(files) +
-              ((share['failedFiles'] as num?)?.toInt() ?? 0);
-          if (!mounted) return;
+        !mounted)
+      return;
+    _incomingShareQueue = _incomingShareQueue
+        .then((_) async {
+          final shares = await AndroidIncomingShare.getPendingShares();
+          for (final share in shares) {
+            if (!mounted) return;
+            final id = share['id']?.toString() ?? '';
+            if (id.isEmpty) continue;
+            if (_processedIncomingShareIds.contains(id)) {
+              await AndroidIncomingShare.acknowledge(id);
+              continue;
+            }
+            var fileCount = 0;
+            try {
+              final rawFiles = share['files'];
+              final files = rawFiles is List
+                  ? rawFiles.cast<Object?>()
+                  : const <Object?>[];
+              fileCount = files.length;
+              final failedFiles =
+                  await _controller.importSharedFiles(files) +
+                  ((share['failedFiles'] as num?)?.toInt() ?? 0);
+              if (!mounted) return;
 
-          final text = share['text']?.toString() ?? '';
-          if (text.isNotEmpty) _appendIncomingShareText(text);
-          if (failedFiles > 0) {
-            _notifyIncomingShareFailure(id, failedFiles);
+              final text = share['text']?.toString() ?? '';
+              if (text.isNotEmpty) _appendIncomingShareText(text);
+              if (failedFiles > 0) {
+                _notifyIncomingShareFailure(id, failedFiles);
+              }
+              // Draft first, then acknowledge: a crash in between imports the share
+              // again on the next launch (recoverable), whereas acknowledging first
+              // would silently drop the shared text.
+              _processedIncomingShareIds.add(id);
+              await AndroidIncomingShare.acknowledge(id);
+            } catch (_) {
+              // Keep the share pending so it can be retried after foreground/startup,
+              // but never let it fail silently.
+              if (mounted && fileCount > 0) {
+                _notifyIncomingShareFailure(id, fileCount);
+              }
+            }
           }
-          // Draft first, then acknowledge: a crash in between imports the share
-          // again on the next launch (recoverable), whereas acknowledging first
-          // would silently drop the shared text.
-          _processedIncomingShareIds.add(id);
-          await AndroidIncomingShare.acknowledge(id);
-        } catch (_) {
-          // Keep the share pending so it can be retried after foreground/startup,
-          // but never let it fail silently.
-          if (mounted && fileCount > 0) {
-            _notifyIncomingShareFailure(id, fileCount);
-          }
-        }
-      }
-    }).catchError((_) {});
+        })
+        .catchError((_) {});
   }
 
   /// Shows the share-import warning at most once per share id: a share that
@@ -394,11 +654,26 @@ class _HomePageState extends State<HomePage>
         ? _controller.currentConversation!.title
         : _controller.titleForLocale();
 
-    if (width >= AppBreakpoints.tablet) {
-      return _buildTabletLayout(context, title: title, cs: cs);
-    }
+    final content = width >= AppBreakpoints.tablet
+        ? _buildTabletLayout(context, title: title, cs: cs)
+        : _buildMobileLayout(context, title: title, cs: cs);
 
-    return _buildMobileLayout(context, title: title, cs: cs);
+    // The overlay is the only widget allowed to observe startup progress;
+    // `ChatService` also notifies on every message, so watching it at the
+    // page root would rebuild the whole chat surface.
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        content,
+        ChatStorageStartupOverlay(onRetry: _initializeChat),
+        ChatStorageRecoveryHost(
+          onRestoreBackup: _restoreStorageBackup,
+          onRebuildFromHive: _rebuildStorageFromHive,
+          onReset: _resetChatStorage,
+          onContinueLegacy: _continueWithLegacyStorage,
+        ),
+      ],
+    );
   }
 
   Widget _buildMobileLayout(
@@ -830,15 +1105,20 @@ class _HomePageState extends State<HomePage>
           payload,
         );
       },
-      onResolveApproval: (assistantMessageId, toolCallId,
-          {required approve, alwaysAllow = false}) async {
-        await _controller.resolveApproval(
-          assistantMessageId,
-          toolCallId,
-          approve: approve,
-          alwaysAllow: alwaysAllow,
-        );
-      },
+      onResolveApproval:
+          (
+            assistantMessageId,
+            toolCallId, {
+            required approve,
+            alwaysAllow = false,
+          }) async {
+            await _controller.resolveApproval(
+              assistantMessageId,
+              toolCallId,
+              approve: approve,
+              alwaysAllow: alwaysAllow,
+            );
+          },
     );
   }
 
@@ -1168,8 +1448,9 @@ class _HomePageState extends State<HomePage>
         final resolution = await WorkspaceResolver.resolve(
           conversation: conv,
           project: assistant,
-          conversationConfig:
-              chatService.getConversationWorkspaceConfig(conv.id),
+          conversationConfig: chatService.getConversationWorkspaceConfig(
+            conv.id,
+          ),
           defaultConfig: settings.defaultWorkspaceConfig,
         );
         workspacePath = resolution.path;
@@ -1177,11 +1458,9 @@ class _HomePageState extends State<HomePage>
     }
     if (!mounted) return;
 
-    final skills = provider
-        .skillsForContext(workspacePath)
-        .values
-        .toList(growable: false)
-      ..sort((a, b) => a.name.compareTo(b.name));
+    final skills =
+        provider.skillsForContext(workspacePath).values.toList(growable: false)
+          ..sort((a, b) => a.name.compareTo(b.name));
     if (skills.isEmpty || !mounted) return;
 
     SkillDefinition? selected;
@@ -1207,7 +1486,8 @@ class _HomePageState extends State<HomePage>
     final start = (selection.start >= 0 && selection.start <= current.length)
         ? selection.start
         : current.length;
-    final end = (selection.end >= 0 &&
+    final end =
+        (selection.end >= 0 &&
             selection.end <= current.length &&
             selection.end >= start)
         ? selection.end
@@ -1609,7 +1889,9 @@ class _SegmentButton extends StatelessWidget {
             style: TextStyle(
               fontSize: 13,
               fontWeight: AppFontWeights.emphasis,
-              color: selected ? cs.primary : cs.onSurface.withValues(alpha: 0.78),
+              color: selected
+                  ? cs.primary
+                  : cs.onSurface.withValues(alpha: 0.78),
             ),
           ),
         ),

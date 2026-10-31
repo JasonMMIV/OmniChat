@@ -1,114 +1,485 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
 import 'dart:io';
-import 'package:path/path.dart' as p;
+
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path/path.dart' as p;
+
+import '../../../utils/app_directories.dart';
+import '../../../utils/sandbox_path_resolver.dart';
 import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
 import '../../models/file_record.dart';
 import '../../models/workspace_config.dart';
-import '../../../utils/sandbox_path_resolver.dart';
-import '../../../utils/app_directories.dart';
+import '../logging/flutter_logger.dart';
+import 'storage/chat_repository.dart' show ChatStorageCounts;
+import 'storage/chat_storage.dart';
+import 'storage/chat_storage_gate.dart';
+import 'storage/chat_storage_recovery_service.dart';
+import 'storage/chat_storage_startup_status.dart';
+import 'storage/database_installation_gate.dart' show chatHiveFiles;
+import 'storage/hive_chat_storage.dart';
+import 'storage/legacy_reimport_service.dart';
+import 'storage/message_part_codec.dart';
+import 'storage/sqlite_chat_storage.dart';
 
+/// Runs when chat-storage migration actually starts and when initialization
+/// leaves the migration path. The UI uses this for a temporary Android
+/// foreground service so the OS cannot kill a long import.
+typedef ChatMigrationLifecycleCallback = Future<void> Function();
+
+/// The installation gate recorded a database that is now missing. Recovery
+/// must be an explicit user decision; `init()` must not silently create an
+/// empty database or fall back without offering the choices.
+class ChatStorageRestoreRequiredException implements Exception {
+  const ChatStorageRestoreRequiredException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// App-facing chat store (§9.1).
+///
+/// The public API and its `ChangeNotifier` notifications stay stable; all
+/// persistence is delegated to a [ChatStorage] backend:
+///
+/// * `sqlite` — `chat_v2.sqlite` after the installation/migration gate passes
+///   (§9.6). Tool bodies are loaded per conversation; [getToolEvents] fails
+///   closed for a message that was never loaded.
+/// * `hive` — the legacy boxes, kept as a one-release fallback when the gate
+///   fails and as the explicit backend in the Hive persistence tests.
+///
+/// Draft conversations live here, not in a backend: a draft has no persisted
+/// rows until the first message promotes it in one operation.
 class ChatService extends ChangeNotifier {
-  static const String _conversationsBoxName = 'conversations';
-  static const String _messagesBoxName = 'messages';
-  static const String _toolEventsBoxName = 'tool_events_v1';
-  static const String _conversationWorkspacesBoxName =
-      'conversation_workspaces_v1';
-  static const String _conversationWorkspaceBindingsBoxName =
-      'conversation_workspace_bindings_v2';
-  static const String _messageFileRecordsBoxName = 'message_file_records_v1';
-  /// P1-5 (removed 2026-09-10): legacy snapshot-record box name, kept only to
-  /// sweep the orphaned records from disk on the first launch after removal.
-  static const String _legacyMessageSnapshotsBoxName = 'message_snapshots_v1';
-  static const int maxPersistedFileReadResultChars = 8192;
+  ChatService({ChatStorage? storage, ChatStorageBackend? backend})
+    : _storageOverride = storage,
+      _backendOverride = backend;
 
-  late Box<Conversation> _conversationsBox;
-  late Box<ChatMessage> _messagesBox;
-  late Box
-  _toolEventsBox; // key: assistantMessageId, value: List<Map<String,dynamic>>
-  late Box
-  _conversationWorkspacesBox; // key: conversationId, value: absolute path
-  late Box
-  _conversationWorkspaceBindingsBox; // key: conversationId, value: WorkspaceConfig JSON
-  late Box
-  _messageFileRecordsBox; // key: messageId, value: List<Map<String,dynamic>>
-  String _sigKey(String id) => 'sig_$id';
+  static const int maxPersistedFileReadResultChars =
+      kMaxPersistedFileReadResultChars;
+
+  /// UI-only metadata fields that must survive result upserts. Kept as a
+  /// public allow-list so arbitrary event payloads never leak into
+  /// replacements (also used by the stream controller when hydrating live
+  /// tool card parts).
+  static const List<String> preservedToolEventExtraKeys =
+      kPreservedToolEventExtraKeys;
+
+  final ChatStorage? _storageOverride;
+  final ChatStorageBackend? _backendOverride;
+
+  ChatStorage? _storage;
+  ChatStorageGateResult? _lastStorageGateResult;
+  bool _initialized = false;
+  bool _disposed = false;
+  Future<void>? _initFuture;
+  Future<LegacyReimportReport>? _reimportFuture;
+  ChatMigrationBackupPrompt? _backupPrompt;
+  ChatMigrationLifecycleCallback? _onMigrationStarted;
+  ChatMigrationLifecycleCallback? _onMigrationFinished;
+  bool _migrationKeepAliveStarted = false;
+  Directory? _appDataDirectory;
+  bool _legacyHiveAvailable = false;
+  ChatStorageInitStatus _storageInitStatus = const ChatStorageInitStatus();
 
   String? _currentConversationId;
-  final Map<String, List<ChatMessage>> _messagesCache = {};
   final Map<String, Conversation> _draftConversations = {};
+
+  /// Workspace choices made on an unpersisted draft. SQLite has a foreign key
+  /// from the binding to `conversations`, so the binding is applied in the
+  /// same operation that promotes the draft on its first message.
+  final Map<String, WorkspaceConfig> _draftWorkspaceConfigs = {};
 
   // Localized default title for new conversations; set by UI on startup.
   String _defaultConversationTitle = 'New Chat';
+
   void setDefaultConversationTitle(String title) {
     if (title.trim().isEmpty) return;
     _defaultConversationTitle = title.trim();
   }
 
-  bool _initialized = false;
   bool get initialized => _initialized;
+
+  /// True when a persisted assistant row is still marked as streaming. Legacy
+  /// re-import requires an idle store so a stream write cannot race the cache
+  /// refresh after the merge.
+  /// Loads every conversation first because a stream may belong to a
+  /// conversation that is not currently open. This is a rare re-import guard,
+  /// not a startup path.
+  Future<bool> hasStreamingMessages() async {
+    if (!_initialized) return false;
+    await _storage!.ensureAllMessagesLoaded();
+    return _storage!.allMessages().any((message) => message.isStreaming);
+  }
 
   String? get currentConversationId => _currentConversationId;
 
-  Future<void> init() async {
-    if (_initialized) return;
+  /// The active backend, or null before initialization.
+  ChatStorageBackend? get backend => _storage?.backend;
 
-    // Initialize Hive with platform-specific directory
-    final appDataDir = await AppDirectories.getAppDataDirectory();
-    await Hive.initFlutter(appDataDir.path);
+  /// Result of the SQLite admission/migration gate for diagnostics. Null when
+  /// a backend was explicitly injected (tests) or Hive was forced.
+  ChatStorageGateResult? get storageGateResult => _lastStorageGateResult;
 
-    // Register adapters if not already registered
-    if (!Hive.isAdapterRegistered(0)) {
-      Hive.registerAdapter(ChatMessageAdapter());
-    }
-    if (!Hive.isAdapterRegistered(1)) {
-      Hive.registerAdapter(ConversationAdapter());
-    }
+  /// Live startup progress for the blocking migration UI (§9.6 step 3).
+  ChatStorageInitStatus get storageInitStatus => _storageInitStatus;
 
-    _conversationsBox = await Hive.openBox<Conversation>(_conversationsBoxName);
-    _messagesBox = await Hive.openBox<ChatMessage>(_messagesBoxName);
-    _toolEventsBox = await Hive.openBox(_toolEventsBoxName);
-    _conversationWorkspacesBox = await Hive.openBox(
-      _conversationWorkspacesBoxName,
-    );
-    _conversationWorkspaceBindingsBox = await Hive.openBox(
-      _conversationWorkspaceBindingsBoxName,
-    );
-    _messageFileRecordsBox = await Hive.openBox(_messageFileRecordsBoxName);
-    // P1-5 removed 2026-09-10: sweep the orphaned snapshot-record box from
-    // disk. Workspace snapshot zips are user-owned files and are left as-is.
-    try {
-      await Hive.deleteBoxFromDisk(_legacyMessageSnapshotsBoxName);
-    } catch (_) {}
+  /// True when the gate needs an explicit restore/reset choice. The recovery
+  /// overlay owns the next action; no chat widget may read the store yet.
+  bool get needsRestoreOrReset =>
+      _storageInitStatus.phase == ChatStorageInitPhase.restoreRequired;
 
-    await _migrateConversationWorkspaceBindings();
+  /// Whether untouched Hive chat artifacts exist for a rebuild action. Only
+  /// meaningful while [needsRestoreOrReset] is true.
+  bool get legacyHiveAvailable => _legacyHiveAvailable;
 
-    // Migrate any persisted message content that references old iOS sandbox paths
-    await _migrateSandboxPaths();
+  /// True while [init] is running. Concurrent callers await the same future so
+  /// the gate and importer never run twice in one process.
+  bool get initializing => _initFuture != null;
 
-    _initialized = true;
-    notifyListeners();
+  /// Initializes the chat store. Runs the SQLite installation/migration gate
+  /// first; ordinary failures fall back to Hive, while a recorded-but-missing
+  /// database pauses in `restoreRequired` for the explicit recovery UI.
+  ///
+  /// [onMigrationStarted] and [onMigrationFinished] are best-effort lifecycle
+  /// hooks for the UI. They fire once per real import, never for an ordinary
+  /// SQLite startup. Concurrent [init] callers join the first call's hooks.
+  Future<void> init({
+    ChatMigrationBackupPrompt? backupPrompt,
+    ChatMigrationLifecycleCallback? onMigrationStarted,
+    ChatMigrationLifecycleCallback? onMigrationFinished,
+  }) {
+    if (_disposed || _initialized) return Future<void>.value();
+    final running = _initFuture;
+    if (running != null) return running;
+
+    // Register the in-flight future *before* `_initialize` can run. Its first
+    // status update notifies listeners synchronously; a listener that calls
+    // `init()` again must join this future instead of starting a second gate
+    // or importer. The microtask also keeps the first notification out of a
+    // widget build that may be creating this service.
+    _backupPrompt = backupPrompt ?? _backupPrompt;
+    _onMigrationStarted = onMigrationStarted ?? _onMigrationStarted;
+    _onMigrationFinished = onMigrationFinished ?? _onMigrationFinished;
+    final completer = Completer<void>();
+    _initFuture = completer.future;
+    scheduleMicrotask(() async {
+      try {
+        await _initialize();
+        if (!completer.isCompleted) completer.complete();
+      } catch (error, stackTrace) {
+        if (!completer.isCompleted) {
+          completer.completeError(error, stackTrace);
+        }
+      } finally {
+        if (identical(_initFuture, completer.future)) {
+          _initFuture = null;
+        }
+      }
+    });
+    return completer.future;
   }
 
-  Future<void> _migrateConversationWorkspaceBindings() async {
-    for (final key in _conversationWorkspacesBox.keys) {
-      if (_conversationWorkspaceBindingsBox.containsKey(key)) continue;
-      final raw = _conversationWorkspacesBox.get(key);
-      if (raw is String && raw.trim().isNotEmpty) {
-        await _conversationWorkspaceBindingsBox.put(
-          key,
-          WorkspaceConfig.custom(raw.trim()).toJson(),
+  Future<void> _initialize() async {
+    _migrationKeepAliveStarted = false;
+    _legacyHiveAvailable = false;
+    _lastStorageGateResult = null;
+    _setStorageInitStatus(
+      const ChatStorageInitStatus(phase: ChatStorageInitPhase.preparing),
+    );
+    try {
+      if (_storageOverride != null) {
+        await _storageOverride.initialize();
+        _storage = _storageOverride;
+        _initialized = true;
+        _setStorageInitStatus(
+          const ChatStorageInitStatus(phase: ChatStorageInitPhase.ready),
         );
+        return;
+      }
+
+      final appDataDir = await AppDirectories.getAppDataDirectory();
+      _appDataDirectory = appDataDir;
+      // Historically ChatService.init was the app's Hive initializer;
+      // TodoService (`todo_v1`) still opens its own box, so keep the path
+      // initialized even when SQLite is authoritative. Initializing the path
+      // opens no chat box.
+      Hive.init(appDataDir.path);
+
+      // The gate reports `checking` through `onMigrationProgress`; don't
+      // publish a duplicate intermediate status before it runs.
+      final selection = await _selectStorage(appDataDir);
+      var storage = selection.storage;
+      var fallbackReason = selection.fallbackReason;
+      _setStorageInitStatus(
+        const ChatStorageInitStatus(phase: ChatStorageInitPhase.opening),
+      );
+      try {
+        await storage.initialize();
+      } catch (e) {
+        // A failed initialize may already hold a DB connection or some Hive
+        // boxes. Close it before a fallback/retry opens the same files again.
+        final failedStorage = storage;
+        try {
+          await failedStorage.dispose();
+        } catch (_) {}
+
+        // A database can pass the admission gate and still fail to open (for
+        // example a locked/corrupt file). Keep the app usable on the legacy
+        // backend instead of failing chat initialization outright.
+        if (failedStorage.backend == ChatStorageBackend.sqlite &&
+            _backendOverride != ChatStorageBackend.sqlite) {
+          FlutterLogger.log(
+            'SQLite chat storage open failed: $e. Falling back to Hive.',
+            tag: 'chat-storage',
+          );
+          fallbackReason = 'SQLite could not be opened: $e';
+          storage = HiveChatStorage(directory: appDataDir);
+          try {
+            await storage.initialize();
+          } catch (_) {
+            try {
+              await storage.dispose();
+            } catch (_) {}
+            rethrow;
+          }
+        } else {
+          rethrow;
+        }
+      }
+
+      // Retired P1-5 snapshot box: best-effort sweep, never opened as chat
+      // data.
+      try {
+        await Hive.deleteBoxFromDisk(
+          HiveChatStorage.legacyMessageSnapshotsBoxName,
+        );
+      } catch (_) {}
+
+      if (_disposed) return;
+      _storage = storage;
+      _initialized = true;
+      _setStorageInitStatus(
+        ChatStorageInitStatus(
+          phase: ChatStorageInitPhase.ready,
+          isLegacyFallback: fallbackReason != null,
+          message: fallbackReason,
+        ),
+      );
+    } on ChatStorageRestoreRequiredException catch (e) {
+      _legacyHiveAvailable =
+          _appDataDirectory != null &&
+          chatHiveFiles(_appDataDirectory!).isNotEmpty;
+      _setStorageInitStatus(
+        ChatStorageInitStatus(
+          phase: ChatStorageInitPhase.restoreRequired,
+          message: e.message,
+          canRetry: true,
+        ),
+      );
+      rethrow;
+    } catch (e) {
+      FlutterLogger.log(
+        'Chat storage initialization failed: $e',
+        tag: 'chat-storage',
+      );
+      _setStorageInitStatus(
+        ChatStorageInitStatus(
+          phase: ChatStorageInitPhase.failed,
+          message: e.toString(),
+          canRetry: true,
+        ),
+      );
+      rethrow;
+    } finally {
+      // On failure the overlay exposes Retry immediately. Do not make a fast
+      // retry join this failed initialization while Android tears the
+      // foreground service down; success can wait for the bounded cleanup.
+      if (_storageInitStatus.phase == ChatStorageInitPhase.failed) {
+        unawaited(_endMigrationKeepAlive());
+      } else {
+        await _endMigrationKeepAlive();
       }
     }
   }
 
+  Future<_StorageSelection> _selectStorage(Directory directory) async {
+    if (_backendOverride == ChatStorageBackend.hive) {
+      return _StorageSelection(HiveChatStorage(directory: directory));
+    }
+
+    final appVersion = await _appVersion();
+    if (_backendOverride == ChatStorageBackend.sqlite) {
+      return _StorageSelection(
+        SqliteChatStorage(directory: directory, appVersion: appVersion),
+      );
+    }
+
+    const forceHive = bool.fromEnvironment(
+      'CHAT_STORAGE_FORCE_HIVE',
+      defaultValue: false,
+    );
+    if (forceHive) {
+      FlutterLogger.log(
+        'CHAT_STORAGE_FORCE_HIVE is set; using the Hive chat backend.',
+        tag: 'chat-storage',
+      );
+      return _StorageSelection(HiveChatStorage(directory: directory));
+    }
+
+    try {
+      final result = await ChatStorageGate(
+        directory: directory,
+        appVersion: appVersion,
+        backupPrompt: _backupPrompt,
+        // Never silently skip the pre-migration backup. A non-UI caller that
+        // reaches the gate first stays on Hive until the app is restarted from
+        // the chat surface, where the backup prompt is available.
+        requireBackupPrompt: true,
+        onMigrationProgress: _onMigrationProgress,
+      ).ensureReady();
+      _lastStorageGateResult = result;
+      if (result.stage == ChatStorageGateStage.needsRestoreOrReset) {
+        throw ChatStorageRestoreRequiredException(result.message);
+      }
+      if (result.sqliteReady) {
+        FlutterLogger.log(
+          'SQLite chat storage ready (${result.stage.name}).',
+          tag: 'chat-storage',
+        );
+        return _StorageSelection(
+          SqliteChatStorage(directory: directory, appVersion: appVersion),
+        );
+      }
+      FlutterLogger.log(
+        'SQLite chat storage unavailable (${result.stage.name}): '
+        '${result.message}. Falling back to Hive.',
+        tag: 'chat-storage',
+      );
+      return _StorageSelection(
+        HiveChatStorage(directory: directory),
+        fallbackReason: result.message,
+      );
+    } on ChatStorageRestoreRequiredException {
+      rethrow;
+    } catch (e) {
+      FlutterLogger.log(
+        'Chat storage gate failed: $e. Falling back to Hive.',
+        tag: 'chat-storage',
+      );
+      return _StorageSelection(
+        HiveChatStorage(directory: directory),
+        fallbackReason: e.toString(),
+      );
+    }
+  }
+
+  void _onMigrationProgress(String stage, ChatStorageCounts? counts) {
+    final phase = switch (stage) {
+      'checking' => ChatStorageInitPhase.checking,
+      'validating' => ChatStorageInitPhase.validating,
+      'backing-up' ||
+      'copying-hive' ||
+      'exporting-json' ||
+      'verifying-backup' => ChatStorageInitPhase.backingUp,
+      _ => ChatStorageInitPhase.migrating,
+    };
+    if (stage != 'checking') {
+      _startMigrationKeepAlive();
+    }
+    _setStorageInitStatus(
+      _storageInitStatus.copyWith(
+        phase: phase,
+        stage: stage,
+        conversations: counts?.conversations,
+        messages: counts?.messages,
+        parts: counts?.parts,
+        quarantined: counts?.quarantined,
+      ),
+    );
+  }
+
+  void _startMigrationKeepAlive() {
+    if (_migrationKeepAliveStarted) return;
+    _migrationKeepAliveStarted = true;
+    final callback = _onMigrationStarted;
+    if (callback == null) return;
+    unawaited(
+      Future<void>.sync(callback).catchError((Object error) {
+        FlutterLogger.log(
+          'Migration keep-alive start failed: $error',
+          tag: 'chat-storage',
+        );
+      }),
+    );
+  }
+
+  Future<void> _endMigrationKeepAlive() async {
+    if (!_migrationKeepAliveStarted) return;
+    _migrationKeepAliveStarted = false;
+    final callback = _onMigrationFinished;
+    if (callback == null) return;
+    try {
+      // A best-effort platform cleanup must never hold the startup future
+      // open if a plugin hangs.
+      await callback().timeout(const Duration(seconds: 2));
+    } catch (error) {
+      FlutterLogger.log(
+        'Migration keep-alive cleanup failed: $error',
+        tag: 'chat-storage',
+      );
+    }
+  }
+
+  void _setStorageInitStatus(ChatStorageInitStatus status) {
+    if (_disposed || _storageInitStatus == status) return;
+    _storageInitStatus = status;
+    notifyListeners();
+  }
+
+  Future<String> _appVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      final build = info.buildNumber.trim();
+      return build.isEmpty ? info.version : '${info.version}+$build';
+    } catch (_) {
+      return 'unknown';
+    }
+  }
+
+  /// Clears `isStreaming` flags left behind by a crash/force-close.
+  ///
+  /// Kept as a static, box-scoped helper for the Hive backend tests. The
+  /// SQLite backend performs the equivalent repair in its repository/startup
+  /// path.
+  @visibleForTesting
+  static Future<int> repairStaleStreamingMessages(Box<ChatMessage> box) async {
+    final updates = <dynamic, ChatMessage>{};
+    for (final key in box.keys.toList()) {
+      try {
+        final message = box.get(key);
+        if (message == null || !message.isStreaming) continue;
+        updates[key] = message.copyWith(isStreaming: false);
+      } catch (_) {
+        // One corrupt row must not abort the sweep.
+      }
+    }
+    if (updates.isEmpty) return 0;
+    await box.putAll(updates);
+    return updates.length;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Reads
+  // ---------------------------------------------------------------------------
+
   List<Conversation> getAllConversations() {
     if (!_initialized) return [];
-    final conversations = _conversationsBox.values.toList();
-    conversations.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    return conversations;
+    return _storage!.listConversations();
   }
 
   List<Conversation> getPinnedConversations() {
@@ -117,33 +488,51 @@ class ChatService extends ChangeNotifier {
 
   Conversation? getConversation(String id) {
     if (!_initialized) return null;
-    return _conversationsBox.get(id) ?? _draftConversations[id];
+    return _storage!.getConversation(id) ?? _draftConversations[id];
   }
 
+  /// Messages for an open conversation. Call [ensureConversationLoaded] first;
+  /// an unloaded persisted conversation throws rather than looking empty.
   List<ChatMessage> getMessages(String conversationId) {
     if (!_initialized) return [];
-
-    // Check cache first
-    if (_messagesCache.containsKey(conversationId)) {
-      return _messagesCache[conversationId]!;
+    if (_draftConversations.containsKey(conversationId)) {
+      return const <ChatMessage>[];
     }
-
-    // Load from storage
-    final conversation = _conversationsBox.get(conversationId);
-    if (conversation == null) return [];
-
-    final messages = <ChatMessage>[];
-    for (final messageId in conversation.messageIds) {
-      final message = _messagesBox.get(messageId);
-      if (message != null) {
-        messages.add(message);
-      }
-    }
-
-    // Cache the result
-    _messagesCache[conversationId] = messages;
-    return messages;
+    return _storage!.getMessages(conversationId);
   }
+
+  /// Preloads a conversation's timeline tool *summaries* (never full bodies).
+  /// Call before [getToolPartSummaries] for a conversation that has just been
+  /// opened. Model replay must call [ensureToolEventsLoaded] separately.
+  Future<void> ensureConversationLoaded(String conversationId) async {
+    if (!_initialized) await init();
+    if (_draftConversations.containsKey(conversationId)) return;
+    await _storage!.ensureConversationLoaded(conversationId);
+  }
+
+  Future<void> ensureToolEventsLoaded(Iterable<String> messageIds) async {
+    if (!_initialized) await init();
+    await _storage!.ensureToolEventsLoaded(messageIds);
+  }
+
+  /// Loads every persisted conversation's message bodies. Used by stats and
+  /// importers that legitimately need the full history but not tool bodies.
+  Future<void> ensureAllMessagesLoaded() async {
+    if (!_initialized) await init();
+    await _storage!.ensureAllMessagesLoaded();
+  }
+
+  /// Loads every message and full tool event. Required before a full
+  /// backup/export, which legitimately reads every message.
+  Future<void> ensureAllConversationsLoaded() async {
+    if (!_initialized) await init();
+    await _storage!.ensureAllMessagesLoaded();
+    await _storage!.ensureAllToolEventsLoaded();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Conversations
+  // ---------------------------------------------------------------------------
 
   Future<Conversation> createConversation({
     String? title,
@@ -155,14 +544,13 @@ class ChatService extends ChangeNotifier {
       title: title ?? _defaultConversationTitle,
       assistantId: assistantId,
     );
-
-    await _conversationsBox.put(conversation.id, conversation);
+    await _storage!.putConversation(conversation);
     _currentConversationId = conversation.id;
     notifyListeners();
     return conversation;
   }
 
-  // Create a draft conversation that is not persisted until first message arrives.
+  /// Creates a conversation that is not persisted until the first message.
   Future<Conversation> createDraftConversation({
     String? title,
     String? assistantId,
@@ -204,196 +592,24 @@ class ChatService extends ChangeNotifier {
     return count;
   }
 
-  /// Core delete logic for a single conversation. When [cleanup] is false the
-  /// caller owns [_cleanupOrphanUploads] (so a batch can run it exactly once).
-  /// Returns whether a conversation was actually removed.
   Future<bool> _deleteConversationInternal(
     String id, {
     bool cleanup = true,
   }) async {
-    // If it's a draft and never persisted, just drop it.
     if (_draftConversations.containsKey(id)) {
       _draftConversations.remove(id);
-      if (_initialized) await _conversationWorkspacesBox.delete(id);
-      if (_initialized) await _conversationWorkspaceBindingsBox.delete(id);
-      if (_currentConversationId == id) {
-        _currentConversationId = null;
-      }
+      _draftWorkspaceConfigs.remove(id);
+      if (_currentConversationId == id) _currentConversationId = null;
       return true;
     }
 
-    final conversation = _conversationsBox.get(id);
+    final conversation = _storage!.getConversation(id);
     if (conversation == null) return false;
 
-    // Collect local file paths referenced by messages in this conversation
-    final Set<String> pathsToMaybeDelete = <String>{};
-    for (final messageId in conversation.messageIds) {
-      final message = _messagesBox.get(messageId);
-      if (message == null) continue;
-      final content = message.content;
-      // [image:/abs/path]
-      final imgRe = RegExp(r"\[image:(.+?)\]");
-      for (final m in imgRe.allMatches(content)) {
-        final pth = m.group(1)?.trim();
-        if (pth != null &&
-            pth.isNotEmpty &&
-            !pth.startsWith('http') &&
-            !pth.startsWith('data:')) {
-          pathsToMaybeDelete.add(pth);
-        }
-      }
-      // [file:/abs/path|filename|mime]
-      final fileRe = RegExp(r"\[file:(.+?)\|(.+?)\|(.+?)\]");
-      for (final m in fileRe.allMatches(content)) {
-        final pth = m.group(1)?.trim();
-        if (pth != null &&
-            pth.isNotEmpty &&
-            !pth.startsWith('http') &&
-            !pth.startsWith('data:')) {
-          pathsToMaybeDelete.add(pth);
-        }
-      }
-    }
-
-    // Delete all messages
-    for (final messageId in conversation.messageIds) {
-      final msg = _messagesBox.get(messageId);
-      if (msg != null && msg.role == 'assistant') {
-        try {
-          await _toolEventsBox.delete(msg.id);
-        } catch (_) {}
-        try {
-          await _toolEventsBox.delete(_sigKey(msg.id));
-        } catch (_) {}
-      }
-      try {
-        await _messageFileRecordsBox.delete(messageId);
-      } catch (_) {}
-      await _messagesBox.delete(messageId);
-    }
-
-    // Delete conversation
-    await _conversationsBox.delete(id);
-    await _conversationWorkspacesBox.delete(id);
-    await _conversationWorkspaceBindingsBox.delete(id);
-
-    // Remove cached messages
-    // Clear cache
-    _messagesCache.remove(id);
-
-    // Delete orphaned files (not referenced by any remaining conversation)
-    if (cleanup) {
-      await _cleanupOrphanUploads();
-    }
-
-    if (_currentConversationId == id) {
-      _currentConversationId = null;
-    }
-
+    await _storage!.deleteConversation(id);
+    if (cleanup) await _cleanupOrphanUploads();
+    if (_currentConversationId == id) _currentConversationId = null;
     return true;
-  }
-
-  Set<String> _extractAttachmentPaths(String content) {
-    final out = <String>{};
-    final imgRe = RegExp(r"\[image:(.+?)\]");
-    for (final m in imgRe.allMatches(content)) {
-      final pth = m.group(1)?.trim();
-      if (pth != null &&
-          pth.isNotEmpty &&
-          !pth.startsWith('http') &&
-          !pth.startsWith('data:')) {
-        out.add(SandboxPathResolver.fix(pth));
-      }
-    }
-    final fileRe = RegExp(r"\[file:(.+?)\|(.+?)\|(.+?)\]");
-    for (final m in fileRe.allMatches(content)) {
-      final pth = m.group(1)?.trim();
-      if (pth != null &&
-          pth.isNotEmpty &&
-          !pth.startsWith('http') &&
-          !pth.startsWith('data:')) {
-        out.add(SandboxPathResolver.fix(pth));
-      }
-    }
-    return out;
-  }
-
-  Future<void> _migrateSandboxPaths() async {
-    try {
-      // No-op if empty
-      if (_messagesBox.isEmpty) return;
-      final imgRe = RegExp(r"\[image:(.+?)\]");
-      final fileRe = RegExp(r"\[file:(.+?)\|(.+?)\|(.+?)\]");
-
-      for (final key in _messagesBox.keys) {
-        final msg = _messagesBox.get(key);
-        if (msg == null) continue;
-        final content = msg.content;
-        String updated = content;
-        bool changed = false;
-
-        // Rewrite image paths
-        updated = updated.replaceAllMapped(imgRe, (m) {
-          final raw = (m.group(1) ?? '').trim();
-          final fixed = SandboxPathResolver.fix(raw);
-          if (fixed != raw) changed = true;
-          return '[image:$fixed]';
-        });
-
-        // Rewrite file attachment paths
-        updated = updated.replaceAllMapped(fileRe, (m) {
-          final raw = (m.group(1) ?? '').trim();
-          final name = (m.group(2) ?? '').trim();
-          final mime = (m.group(3) ?? '').trim();
-          final fixed = SandboxPathResolver.fix(raw);
-          if (fixed != raw) changed = true;
-          return '[file:$fixed|$name|$mime]';
-        });
-
-        if (changed && updated != content) {
-          final newMsg = msg.copyWith(content: updated);
-          await _messagesBox.put(msg.id, newMsg);
-        }
-      }
-    } catch (_) {
-      // best-effort migration; ignore errors
-    }
-  }
-
-  Future<void> _cleanupOrphanUploads() async {
-    try {
-      final uploadDir = await AppDirectories.getUploadDirectory();
-      if (!await uploadDir.exists()) return;
-
-      // Build the set of all referenced paths across all messages
-      String _canon(String pth) {
-        // Normalize separators and resolve redundant segments to enable
-        // reliable equality checks across platforms (esp. Windows).
-        final normalized = p.normalize(pth);
-        // On Windows, paths are case-insensitive; compare in lowercase.
-        return Platform.isWindows ? normalized.toLowerCase() : normalized;
-      }
-
-      final referenced = <String>{};
-      for (final m in _messagesBox.values) {
-        for (final pth in _extractAttachmentPaths(m.content)) {
-          referenced.add(_canon(pth));
-        }
-      }
-
-      // Walk upload directory recursively to consider all files
-      final entries = uploadDir.listSync(recursive: true, followLinks: false);
-      for (final ent in entries) {
-        if (ent is File) {
-          final filePath = _canon(ent.path);
-          if (!referenced.contains(filePath)) {
-            try {
-              await ent.delete();
-            } catch (_) {}
-          }
-        }
-      }
-    } catch (_) {}
   }
 
   Future<void> restoreConversation(
@@ -401,199 +617,19 @@ class ChatService extends ChangeNotifier {
     List<ChatMessage> messages,
   ) async {
     if (!_initialized) await init();
-    // Restore messages first
-    for (final m in messages) {
-      await _messagesBox.put(m.id, m);
-    }
-    // Ensure messageIds are in the same order
-    final ids = messages.map((m) => m.id).toList();
-    final restored = Conversation(
-      id: conversation.id,
-      title: conversation.title,
-      createdAt: conversation.createdAt,
-      updatedAt: conversation.updatedAt,
-      messageIds: ids,
-      isPinned: conversation.isPinned,
-      mcpServerIds: List.of(conversation.mcpServerIds),
-      truncateIndex: conversation.truncateIndex,
-      assistantId: conversation.assistantId,
-      versionSelections: Map<String, int>.from(conversation.versionSelections),
-      compactBeforeIndex: conversation.compactBeforeIndex,
-    );
-    await _conversationsBox.put(restored.id, restored);
-
-    // Update caches
-    _messagesCache[restored.id] = List.of(messages);
-
+    _draftConversations.remove(conversation.id);
+    await _storage!.restoreConversation(conversation, messages);
     notifyListeners();
   }
 
-  // Add a message directly to an existing conversation (for merge mode)
+  /// Adds a message directly to an existing conversation (merge/import path).
   Future<void> addMessageDirectly(
     String conversationId,
     ChatMessage message,
   ) async {
     if (!_initialized) await init();
-
-    // Add message to box
-    await _messagesBox.put(message.id, message);
-
-    // Update conversation
-    final conversation = _conversationsBox.get(conversationId);
-    if (conversation != null) {
-      if (!conversation.messageIds.contains(message.id)) {
-        conversation.messageIds.add(message.id);
-        // Keep original updatedAt during restore
-        await conversation.save();
-      }
-    }
-
-    // Update cache
-    if (_messagesCache.containsKey(conversationId)) {
-      if (!_messagesCache[conversationId]!.any((m) => m.id == message.id)) {
-        _messagesCache[conversationId]!.add(message);
-      }
-    }
-
+    await _storage!.addMessageDirectly(conversationId, message);
     notifyListeners();
-  }
-
-  // Conversation-scoped workspace settings.
-  WorkspaceConfig? getConversationWorkspaceConfig(String conversationId) {
-    if (!_initialized) return null;
-    final raw = _conversationWorkspaceBindingsBox.get(conversationId);
-    if (raw is Map) return WorkspaceConfig.fromJson(raw);
-
-    // Keep reading the legacy box if migration was interrupted.
-    final legacy = _conversationWorkspacesBox.get(conversationId);
-    if (legacy is String && legacy.trim().isNotEmpty) {
-      return WorkspaceConfig.custom(legacy.trim());
-    }
-    return null;
-  }
-
-  Future<void> setConversationWorkspace(
-    String conversationId,
-    String? path,
-  ) async {
-    await setConversationWorkspaceConfig(
-      conversationId,
-      path == null || path.trim().isEmpty
-          ? const WorkspaceConfig.inheritProject()
-          : WorkspaceConfig.custom(path.trim()),
-    );
-  }
-
-  Future<void> setConversationWorkspaceConfig(
-    String conversationId,
-    WorkspaceConfig config,
-  ) async {
-    if (!_initialized) await init();
-    await _conversationWorkspacesBox.delete(conversationId);
-    if (config.mode == WorkspaceMode.inheritProject) {
-      await _conversationWorkspaceBindingsBox.delete(conversationId);
-    } else {
-      await _conversationWorkspaceBindingsBox.put(
-        conversationId,
-        config.toJson(),
-      );
-    }
-    notifyListeners();
-  }
-
-  /// Toggle the workspace for one conversation. Disabling remembers the
-  /// current directory choice inside the disabled config; enabling restores
-  /// it (falling back to project inheritance, which re-joins the
-  /// project/default resolution chain).
-  Future<void> setConversationWorkspaceEnabled(
-    String conversationId,
-    bool enable,
-  ) async {
-    final config = getConversationWorkspaceConfig(conversationId);
-    if (enable) {
-      final restore = config?.mode == WorkspaceMode.disabled
-          ? config!.restoreOnEnable
-          : (config ?? const WorkspaceConfig.inheritProject());
-      await setConversationWorkspaceConfig(conversationId, restore);
-      return;
-    }
-    final prior = (config == null || config.mode == WorkspaceMode.disabled)
-        ? (config?.previous ?? const WorkspaceConfig.inheritProject())
-        : config;
-    await setConversationWorkspaceConfig(
-      conversationId,
-      WorkspaceConfig.disabledFrom(prior),
-    );
-  }
-
-  List<FileRecord> getMessageFileRecords(String messageId) {
-    if (!_initialized) return const <FileRecord>[];
-    final value = _messageFileRecordsBox.get(messageId);
-    if (value is! List) return const <FileRecord>[];
-    final records = <FileRecord>[];
-    for (final item in value) {
-      try {
-        if (item is Map) {
-          records.add(FileRecord.fromJson(Map<String, dynamic>.from(item)));
-        }
-      } catch (_) {}
-    }
-    return records;
-  }
-
-  Future<void> addMessageFileRecord(String messageId, FileRecord record) async {
-    if (!_initialized) await init();
-    final records = List<FileRecord>.of(getMessageFileRecords(messageId))
-      ..removeWhere((item) => item.path == record.path)
-      ..add(record);
-    await _messageFileRecordsBox.put(
-      messageId,
-      records.map((item) => item.toJson()).toList(),
-    );
-    notifyListeners();
-  }
-
-  List<String> getConversationMcpServers(String conversationId) {
-    if (!_initialized) return const <String>[];
-    final c =
-        _conversationsBox.get(conversationId) ??
-        _draftConversations[conversationId];
-    return c?.mcpServerIds ?? const <String>[];
-  }
-
-  Future<void> setConversationMcpServers(
-    String conversationId,
-    List<String> serverIds,
-  ) async {
-    if (!_initialized) await init();
-    if (_draftConversations.containsKey(conversationId)) {
-      final draft = _draftConversations[conversationId]!;
-      draft.mcpServerIds = List.of(serverIds);
-      draft.updatedAt = DateTime.now();
-      notifyListeners();
-      return;
-    }
-    final c = _conversationsBox.get(conversationId);
-    if (c == null) return;
-    c.mcpServerIds = List.of(serverIds);
-    c.updatedAt = DateTime.now();
-    await c.save();
-    notifyListeners();
-  }
-
-  Future<void> toggleConversationMcpServer(
-    String conversationId,
-    String serverId,
-    bool enabled,
-  ) async {
-    final current = getConversationMcpServers(conversationId);
-    final set = current.toSet();
-    if (enabled) {
-      set.add(serverId);
-    } else {
-      set.remove(serverId);
-    }
-    await setConversationMcpServers(conversationId, set.toList());
   }
 
   Future<void> renameConversation(String id, String newTitle) async {
@@ -606,16 +642,12 @@ class ChatService extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    final conversation = _conversationsBox.get(id);
-    if (conversation == null) return;
-
-    conversation.title = newTitle;
-    conversation.updatedAt = DateTime.now();
-    await conversation.save();
+    if (_storage!.getConversation(id) == null) return;
+    await _storage!.renameConversation(id, newTitle);
     notifyListeners();
   }
 
-  /// Updates the conversation summary generated by LLM.
+  /// Updates the conversation summary generated by the LLM.
   Future<void> updateConversationSummary(
     String id,
     String summary,
@@ -630,13 +662,8 @@ class ChatService extends ChangeNotifier {
       notifyListeners();
       return;
     }
-
-    final conversation = _conversationsBox.get(id);
-    if (conversation == null) return;
-
-    conversation.summary = summary;
-    conversation.lastSummarizedMessageCount = messageCount;
-    await conversation.save();
+    if (_storage!.getConversation(id) == null) return;
+    await _storage!.setConversationSummary(id, summary, messageCount);
     notifyListeners();
   }
 
@@ -666,13 +693,8 @@ class ChatService extends ChangeNotifier {
       notifyListeners();
       return;
     }
-
-    final conversation = _conversationsBox.get(conversationId);
-    if (conversation == null) return;
-
-    conversation.summary = null;
-    conversation.lastSummarizedMessageCount = 0;
-    await conversation.save();
+    if (_storage!.getConversation(conversationId) == null) return;
+    await _storage!.setConversationSummary(conversationId, null, 0);
     notifyListeners();
   }
 
@@ -685,20 +707,15 @@ class ChatService extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    final conversation = _conversationsBox.get(id);
+    final conversation = _storage!.getConversation(id);
     if (conversation == null) return;
-
-    conversation.isPinned = !conversation.isPinned;
-    await conversation.save();
+    await _storage!.setConversationPinned(id, !conversation.isPinned);
     notifyListeners();
   }
 
   /// Sets pin state to [pinned] for each id. Returns how many conversations
   /// changed. Notifies at most once.
-  Future<int> setConversationsPinned(
-    Iterable<String> ids,
-    bool pinned,
-  ) async {
+  Future<int> setConversationsPinned(Iterable<String> ids, bool pinned) async {
     if (!_initialized) await init();
 
     var changed = 0;
@@ -712,17 +729,20 @@ class ChatService extends ChangeNotifier {
         changed++;
         continue;
       }
-      final conversation = _conversationsBox.get(id);
+      final conversation = _storage!.getConversation(id);
       if (conversation == null) continue;
       if (conversation.isPinned == pinned) continue;
-      conversation.isPinned = pinned;
-      await conversation.save();
+      await _storage!.setConversationPinned(id, pinned);
       changed++;
     }
     if (changed == 0) return 0;
     notifyListeners();
     return changed;
   }
+
+  // ---------------------------------------------------------------------------
+  // Messages
+  // ---------------------------------------------------------------------------
 
   Future<ChatMessage> addMessage({
     required String conversationId,
@@ -745,20 +765,22 @@ class ChatService extends ChangeNotifier {
   }) async {
     if (!_initialized) await init();
 
-    var conversation = _conversationsBox.get(conversationId);
-    // If conversation doesn't exist yet, persist draft (if any)
+    var conversation = _storage!.getConversation(conversationId);
     if (conversation == null) {
       final draft = _draftConversations.remove(conversationId);
       if (draft != null) {
-        await _conversationsBox.put(draft.id, draft);
+        await _storage!.putConversation(draft);
+        final pendingWorkspace = _draftWorkspaceConfigs.remove(conversationId);
+        if (pendingWorkspace != null) {
+          await _storage!.setWorkspaceConfig(conversationId, pendingWorkspace);
+        }
         conversation = draft;
       } else {
-        // Create a new one on the fly as a fallback
         conversation = Conversation(
           id: conversationId,
           title: _defaultConversationTitle,
         );
-        await _conversationsBox.put(conversationId, conversation);
+        await _storage!.putConversation(conversation);
       }
     }
 
@@ -782,17 +804,7 @@ class ChatService extends ChangeNotifier {
       version: version,
     );
 
-    await _messagesBox.put(message.id, message);
-
-    conversation.messageIds.add(message.id);
-    conversation.updatedAt = DateTime.now();
-    await conversation.save();
-
-    // Update cache
-    if (_messagesCache.containsKey(conversationId)) {
-      _messagesCache[conversationId]!.add(message);
-    }
-
+    await _storage!.appendMessage(message);
     notifyListeners();
     return message;
   }
@@ -815,46 +827,27 @@ class ChatService extends ChangeNotifier {
     String? aiTeamProposalsJson,
   }) async {
     if (!_initialized) return;
-
-    final message = _messagesBox.get(messageId);
-    if (message == null) return;
-
-    final updatedMessage = message.copyWith(
-      content: content ?? message.content,
-      totalTokens: totalTokens ?? message.totalTokens,
-      promptTokens: promptTokens ?? message.promptTokens,
-      completionTokens: completionTokens ?? message.completionTokens,
-      cachedTokens: cachedTokens ?? message.cachedTokens,
-      isStreaming: isStreaming ?? message.isStreaming,
-      reasoningText: reasoningText ?? message.reasoningText,
-      reasoningStartAt: reasoningStartAt ?? message.reasoningStartAt,
-      reasoningFinishedAt: reasoningFinishedAt ?? message.reasoningFinishedAt,
-      processFinishedAt: processFinishedAt ?? message.processFinishedAt,
-      processStartedAt: processStartedAt ?? message.processStartedAt,
+    await _storage!.updateMessage(
+      messageId,
+      content: content,
+      totalTokens: totalTokens,
+      promptTokens: promptTokens,
+      completionTokens: completionTokens,
+      cachedTokens: cachedTokens,
+      isStreaming: isStreaming,
+      reasoningText: reasoningText,
+      reasoningStartAt: reasoningStartAt,
+      reasoningFinishedAt: reasoningFinishedAt,
+      processFinishedAt: processFinishedAt,
+      processStartedAt: processStartedAt,
       translation: translation,
-      reasoningSegmentsJson:
-          reasoningSegmentsJson ?? message.reasoningSegmentsJson,
-      aiTeamProposalsJson: aiTeamProposalsJson ?? message.aiTeamProposalsJson,
+      reasoningSegmentsJson: reasoningSegmentsJson,
+      aiTeamProposalsJson: aiTeamProposalsJson,
     );
-
-    await _messagesBox.put(messageId, updatedMessage);
-
-    // Update cache
-    final conversationId = message.conversationId;
-    if (_messagesCache.containsKey(conversationId)) {
-      final messages = _messagesCache[conversationId]!;
-      final index = messages.indexWhere((m) => m.id == messageId);
-      if (index != -1) {
-        messages[index] = updatedMessage;
-      }
-    }
-
     notifyListeners();
   }
 
-  /// Update message content during streaming without triggering notifyListeners.
-  /// This is used for streaming updates to avoid unnecessary rebuilds of
-  /// widgets watching ChatService (e.g., side_drawer).
+  /// Updates a message during streaming without notifying listeners.
   Future<void> updateMessageSilent(
     String messageId, {
     String? content,
@@ -873,330 +866,89 @@ class ChatService extends ChangeNotifier {
     String? aiTeamProposalsJson,
   }) async {
     if (!_initialized) return;
-
-    final message = _messagesBox.get(messageId);
-    if (message == null) return;
-
-    final updatedMessage = message.copyWith(
-      content: content ?? message.content,
-      totalTokens: totalTokens ?? message.totalTokens,
-      promptTokens: promptTokens ?? message.promptTokens,
-      completionTokens: completionTokens ?? message.completionTokens,
-      cachedTokens: cachedTokens ?? message.cachedTokens,
-      isStreaming: isStreaming ?? message.isStreaming,
-      reasoningText: reasoningText ?? message.reasoningText,
-      reasoningStartAt: reasoningStartAt ?? message.reasoningStartAt,
-      reasoningFinishedAt: reasoningFinishedAt ?? message.reasoningFinishedAt,
-      processFinishedAt: processFinishedAt ?? message.processFinishedAt,
-      processStartedAt: processStartedAt ?? message.processStartedAt,
+    await _storage!.updateMessage(
+      messageId,
+      content: content,
+      totalTokens: totalTokens,
+      promptTokens: promptTokens,
+      completionTokens: completionTokens,
+      cachedTokens: cachedTokens,
+      isStreaming: isStreaming,
+      reasoningText: reasoningText,
+      reasoningStartAt: reasoningStartAt,
+      reasoningFinishedAt: reasoningFinishedAt,
+      processFinishedAt: processFinishedAt,
+      processStartedAt: processStartedAt,
       translation: translation,
-      reasoningSegmentsJson:
-          reasoningSegmentsJson ?? message.reasoningSegmentsJson,
-      aiTeamProposalsJson: aiTeamProposalsJson ?? message.aiTeamProposalsJson,
+      reasoningSegmentsJson: reasoningSegmentsJson,
+      aiTeamProposalsJson: aiTeamProposalsJson,
     );
-
-    await _messagesBox.put(messageId, updatedMessage);
-
-    // Update cache
-    final conversationId = message.conversationId;
-    if (_messagesCache.containsKey(conversationId)) {
-      final messages = _messagesCache[conversationId]!;
-      final index = messages.indexWhere((m) => m.id == messageId);
-      if (index != -1) {
-        messages[index] = updatedMessage;
-      }
-    }
-    // NOTE: Do NOT call notifyListeners() here to avoid UI rebuilds during streaming
+    // NOTE: deliberately no notifyListeners() during streaming.
   }
 
-  // Tool events persistence (per assistant message)
-  List<Map<String, dynamic>> getToolEvents(String assistantMessageId) {
-    if (!_initialized) return const <Map<String, dynamic>>[];
-    final v = _toolEventsBox.get(assistantMessageId);
-    if (v is List) {
-      return v
-          .whereType<Map>()
-          .map(
-            (e) => _boundToolEventForPersistence(
-              e.map((k, v) => MapEntry(k.toString(), v)),
-            ),
-          )
-          .toList();
-    }
-    return const <Map<String, dynamic>>[];
-  }
-
-  Future<void> setToolEvents(
-    String assistantMessageId,
-    List<Map<String, dynamic>> events,
-  ) async {
-    if (!_initialized) await init();
-    await _toolEventsBox.put(
-      assistantMessageId,
-      events.map(_boundToolEventForPersistence).toList(),
-    );
+  Future<void> deleteMessage(String messageId) async {
+    if (!_initialized) return;
+    final deleted = await _storage!.deleteMessage(messageId);
+    if (!deleted) return;
+    await _cleanupOrphanUploads();
     notifyListeners();
   }
 
-  Future<void> upsertToolEvent(
-    String assistantMessageId, {
-    required String id,
-    required String name,
-    required Map<String, dynamic> arguments,
-    String? content,
-    String? approvalState,
-    Map<String, dynamic>? extras,
+  Future<Conversation?> toggleTruncateAtTail(
+    String conversationId, {
+    String? defaultTitle,
   }) async {
     if (!_initialized) await init();
-    final list = List<Map<String, dynamic>>.of(
-      getToolEvents(assistantMessageId),
+    if (_draftConversations.containsKey(conversationId)) {
+      final draft = _draftConversations[conversationId]!;
+      final lastIndexPlusOne = draft.messageIds.length;
+      draft.truncateIndex = (draft.truncateIndex == lastIndexPlusOne)
+          ? -1
+          : lastIndexPlusOne;
+      if ((defaultTitle ?? '').isNotEmpty) draft.title = defaultTitle!;
+      draft.updatedAt = DateTime.now();
+      notifyListeners();
+      return draft;
+    }
+
+    final conversation = _storage!.getConversation(conversationId);
+    if (conversation == null) return null;
+    final lastIndexPlusOne = conversation.messageIds.length;
+    final newValue = (conversation.truncateIndex == lastIndexPlusOne)
+        ? -1
+        : lastIndexPlusOne;
+    if ((defaultTitle ?? '').isNotEmpty) {
+      await _storage!.renameConversation(conversationId, defaultTitle!);
+    }
+    await _storage!.setConversationIndexes(
+      conversationId,
+      truncateIndex: newValue,
+      compactBeforeIndex: conversation.compactBeforeIndex,
     );
-    final cleanId = (id).toString();
-
-    int idx = -1;
-    // Prefer matching by a non-empty id
-    if (cleanId.isNotEmpty) {
-      idx = list.indexWhere((e) => (e['id']?.toString() ?? '') == cleanId);
-    }
-    // If no id or not found, match the first placeholder (no content) with same name
-    if (idx < 0) {
-      idx = list.indexWhere(
-        (e) =>
-            (e['name']?.toString() ?? '') == name &&
-            (e['content'] == null ||
-                (e['content']?.toString().isEmpty ?? true)),
-      );
-    }
-
-    // When matched through the no-id fallback, keep the placeholder's id so
-    // the later id-aware result upsert still lands on the same event.
-    final resolvedId = (cleanId.isEmpty && idx >= 0)
-        ? (list[idx]['id']?.toString() ?? '')
-        : cleanId;
-    final existingApprovalState = _existingApprovalState(list, idx);
-    // UI-only extras (e.g. searchProvider / searchFallbackFrom) ride along
-    // as flat fields. Previously stored extras are preserved unless this
-    // upsert supplies replacements — the result upsert that follows a tool
-    // execution carries no extras but must not erase them. Incoming extras
-    // are filtered through the allow-list so they can never clobber the
-    // core fields (id / name / arguments / content / approvalState).
-    final mergedExtras = <String, dynamic>{
-      ..._existingToolEventExtras(list, idx),
-      if (extras != null)
-        for (final key in preservedToolEventExtraKeys)
-          if (extras[key] != null) key: extras[key],
-    };
-    final record = <String, dynamic>{
-      'id': resolvedId,
-      'name': name,
-      'arguments': arguments,
-      'content': _boundToolResultForPersistence(name, content),
-      // P0-2 Phase-1: preserve a previously persisted approvalState on
-      // result upserts. The kernel path writes the Pending state at gate
-      // time; when the resolved/synthetic result upsert rewrites the same
-      // event (same id) the state must not be silently dropped, otherwise
-      // the approval card loses its lifecycle record.
-      'approvalState': approvalState ?? existingApprovalState,
-      ...mergedExtras,
-    };
-    if (idx >= 0) {
-      list[idx] = record;
-    } else {
-      list.add(record);
-    }
-    await _toolEventsBox.put(assistantMessageId, list);
     notifyListeners();
+    return _storage!.getConversation(conversationId);
   }
 
-  /// UI-only metadata fields that must survive result upserts. Kept as a
-  /// public allow-list so arbitrary event payloads never leak into
-  /// replacements (also used by the stream controller when hydrating live
-  /// tool card parts).
-  static const List<String> preservedToolEventExtraKeys = <String>[
-    'searchProvider',
-    'searchFallbackFrom',
-    // Web fetch: display name of the source that served the page (`Local` or
-    // a Tier-2 provider). UI-only badge, never part of the LLM context.
-    'webFetchSource',
-    // P1-3 fix: reasoning-echo fields captured from the tool-calling round
-    // (expose-mode `assistantExtras`). Cross-turn §3.11 replay re-attaches
-    // them so DeepSeek thinking mode does not reject the resumed request
-    // with "reasoning_content must be passed back".
-    'reasoning_content',
-    'reasoning_details',
-  ];
-
-  /// The persisted UI-only extras of the event at [idx] (empty when the
-  /// index is out of range or no extras were stored).
-  static Map<String, dynamic> _existingToolEventExtras(
-    List<Map<String, dynamic>> list,
-    int idx,
-  ) {
-    if (idx < 0 || idx >= list.length) return const <String, dynamic>{};
-    final event = list[idx];
-    return <String, dynamic>{
-      for (final key in preservedToolEventExtraKeys)
-        if (event[key] != null) key: event[key],
-    };
-  }
-
-  /// The persisted `approvalState` of the event at [idx] (null when the
-  /// index is out of range or the field is absent). Used by [upsertToolEvent]
-  /// so a result upsert never erases the approval lifecycle state.
-  static String? _existingApprovalState(
-    List<Map<String, dynamic>> list,
-    int idx,
-  ) {
-    if (idx < 0 || idx >= list.length) return null;
-    final raw = list[idx]['approvalState'];
-    return raw == null ? null : raw.toString();
-  }
-
-  /// P1-1: update only the `approvalState` (and optionally the content) of
-  /// an existing tool event, preserving id/name/arguments. No-op when the
-  /// event does not exist. Used by the approval resume path (approve / deny
-  /// / answer) and by the timeout sweeper.
-  Future<bool> setToolEventApprovalState(
-    String assistantMessageId, {
-    required String id,
-    required String approvalState,
-    String? content,
-  }) async {
+  /// Persists the auto-compaction marker (raw message index).
+  Future<void> setCompactBeforeIndex(String conversationId, int index) async {
     if (!_initialized) await init();
-    final list = List<Map<String, dynamic>>.of(
-      getToolEvents(assistantMessageId),
+    if (_draftConversations.containsKey(conversationId)) {
+      final draft = _draftConversations[conversationId]!;
+      if (draft.compactBeforeIndex == index) return;
+      draft.compactBeforeIndex = index;
+      draft.updatedAt = DateTime.now();
+      notifyListeners();
+      return;
+    }
+    final conversation = _storage!.getConversation(conversationId);
+    if (conversation == null) return;
+    if (conversation.compactBeforeIndex == index) return;
+    await _storage!.setConversationIndexes(
+      conversationId,
+      truncateIndex: conversation.truncateIndex,
+      compactBeforeIndex: index,
     );
-    final idx = list.indexWhere((e) => (e['id']?.toString() ?? '') == id);
-    if (idx < 0) return false;
-    final updated = Map<String, dynamic>.of(list[idx]);
-    updated['approvalState'] = approvalState;
-    if (content != null) {
-      updated['content'] = _boundToolResultForPersistence(
-        updated['name']?.toString() ?? '',
-        content,
-      );
-    }
-    list[idx] = updated;
-    await _toolEventsBox.put(assistantMessageId, list);
     notifyListeners();
-    return true;
-  }
-
-  Map<String, dynamic> _boundToolEventForPersistence(
-    Map<String, dynamic> event,
-  ) {
-    final bounded = Map<String, dynamic>.from(event);
-    final content = bounded['content'];
-    bounded['content'] = _boundToolResultForPersistence(
-      bounded['name']?.toString() ?? '',
-      content is String ? content : null,
-    );
-    return bounded;
-  }
-
-  String? _boundToolResultForPersistence(String name, String? content) {
-    if (name != 'file_read' ||
-        content == null ||
-        content.length <= maxPersistedFileReadResultChars) {
-      return content;
-    }
-    const marker = '\n\n...[file_read result persisted preview]...\n\n';
-    final available = maxPersistedFileReadResultChars - marker.length;
-    final headLength = available ~/ 2;
-    final tailLength = available - headLength;
-    return '${content.substring(0, headLength)}$marker${content.substring(content.length - tailLength)}';
-  }
-
-  // Gemini thought signature persistence (per assistant message)
-  String? getGeminiThoughtSignature(String assistantMessageId) {
-    if (!_initialized) return null;
-    final v = _toolEventsBox.get(_sigKey(assistantMessageId));
-    if (v is String && v.trim().isNotEmpty) return v;
-    return null;
-  }
-
-  Future<void> setGeminiThoughtSignature(
-    String assistantMessageId,
-    String signature,
-  ) async {
-    if (!_initialized) await init();
-    await _toolEventsBox.put(_sigKey(assistantMessageId), signature);
-    notifyListeners();
-  }
-
-  Future<void> removeGeminiThoughtSignature(String assistantMessageId) async {
-    if (!_initialized) await init();
-    try {
-      await _toolEventsBox.delete(_sigKey(assistantMessageId));
-    } catch (_) {}
-  }
-
-  Future<Conversation> forkConversation({
-    required String title,
-    required String? assistantId,
-    required List<ChatMessage> sourceMessages,
-    Map<String, int>? versionSelections,
-  }) async {
-    if (!_initialized) await init();
-    // Create new conversation first
-    final convo = await createConversation(
-      title: title,
-      assistantId: assistantId,
-    );
-    final sourceWorkspace = sourceMessages.isEmpty
-        ? null
-        : getConversationWorkspaceConfig(sourceMessages.first.conversationId);
-    if (sourceWorkspace != null) {
-      await setConversationWorkspaceConfig(convo.id, sourceWorkspace);
-    }
-    final ids = <String>[];
-    for (final src in sourceMessages) {
-      final clone = ChatMessage(
-        role: src.role,
-        content: src.content,
-        timestamp: src.timestamp,
-        modelId: src.modelId,
-        providerId: src.providerId,
-        totalTokens: src.totalTokens,
-        promptTokens: src.promptTokens,
-        completionTokens: src.completionTokens,
-        cachedTokens: src.cachedTokens,
-        conversationId: convo.id,
-        isStreaming: false,
-        reasoningText: src.reasoningText,
-        reasoningStartAt: src.reasoningStartAt,
-        reasoningFinishedAt: src.reasoningFinishedAt,
-        translation: src.translation,
-        reasoningSegmentsJson: src.reasoningSegmentsJson,
-        groupId: src.groupId,
-        version: src.version,
-      );
-      await _messagesBox.put(clone.id, clone);
-      final records = getMessageFileRecords(src.id);
-      if (records.isNotEmpty) {
-        await _messageFileRecordsBox.put(
-          clone.id,
-          records.map((record) => record.toJson()).toList(),
-        );
-      }
-      ids.add(clone.id);
-    }
-    // Attach to conversation in storage
-    final c = _conversationsBox.get(convo.id);
-    if (c != null) {
-      c.messageIds
-        ..clear()
-        ..addAll(ids);
-      c.versionSelections = Map<String, int>.from(
-        versionSelections ?? const <String, int>{},
-      );
-      c.updatedAt = DateTime.now();
-      await c.save();
-    }
-    // Cache
-    _messagesCache[convo.id] = [for (final id in ids) _messagesBox.get(id)!];
-    notifyListeners();
-    return _conversationsBox.get(convo.id)!;
   }
 
   Future<ChatMessage?> appendMessageVersion({
@@ -1204,66 +956,22 @@ class ChatService extends ChangeNotifier {
     required String content,
   }) async {
     if (!_initialized) await init();
-    final original = _messagesBox.get(messageId);
-    if (original == null) return null;
-
-    final cid = original.conversationId;
-    final convo = _conversationsBox.get(cid) ?? _draftConversations[cid];
-    if (convo == null) return null;
-
-    final gid = (original.groupId ?? original.id);
-    // Find current max version within this group in this conversation
-    int maxVersion = -1;
-    for (final mid in convo.messageIds) {
-      final m = _messagesBox.get(mid);
-      if (m == null) continue;
-      final mg = (m.groupId ?? m.id);
-      if (mg == gid) {
-        if (m.version > maxVersion) maxVersion = m.version;
-      }
-    }
-    final nextVersion = maxVersion + 1;
-
-    final newMsg = ChatMessage(
-      role: original.role,
+    final message = await _storage!.appendMessageVersion(
+      messageId: messageId,
       content: content,
-      conversationId: cid,
-      modelId: original.modelId,
-      providerId: original.providerId,
-      totalTokens: null,
-      isStreaming: false,
-      groupId: gid,
-      version: nextVersion,
     );
-    await _messagesBox.put(newMsg.id, newMsg);
-    // Append to conversation order at the end (we'll group when rendering)
-    if (_draftConversations.containsKey(cid)) {
-      final draft = _draftConversations[cid]!;
-      draft.messageIds.add(newMsg.id);
-      draft.updatedAt = DateTime.now();
-      draft.versionSelections[gid] = nextVersion;
-    } else {
-      final c = _conversationsBox.get(cid);
-      if (c != null) {
-        c.messageIds.add(newMsg.id);
-        c.updatedAt = DateTime.now();
-        // Persist selection of latest version for this group
-        c.versionSelections[gid] = nextVersion;
-        await c.save();
-      }
-    }
-    // Update caches
-    final arr = _messagesCache[cid];
-    if (arr != null) arr.add(newMsg);
+    if (message == null) return null;
     notifyListeners();
-    return newMsg;
+    return message;
   }
 
   Map<String, int> getVersionSelections(String conversationId) {
-    final c =
-        _conversationsBox.get(conversationId) ??
+    final conversation =
+        _storage?.getConversation(conversationId) ??
         _draftConversations[conversationId];
-    return Map<String, int>.from(c?.versionSelections ?? const <String, int>{});
+    return Map<String, int>.from(
+      conversation?.versionSelections ?? const <String, int>{},
+    );
   }
 
   Future<void> setSelectedVersion(
@@ -1278,11 +986,12 @@ class ChatService extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    final c = _conversationsBox.get(conversationId);
-    if (c == null) return;
-    c.versionSelections[groupId] = version;
-    c.updatedAt = DateTime.now();
-    await c.save();
+    final conversation = _storage!.getConversation(conversationId);
+    if (conversation == null) return;
+    await _storage!.setVersionSelections(conversationId, {
+      ...conversation.versionSelections,
+      groupId: version,
+    });
     notifyListeners();
   }
 
@@ -1297,202 +1006,282 @@ class ChatService extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    final c = _conversationsBox.get(conversationId);
-    if (c == null) return;
-    c.versionSelections.remove(groupId);
-    c.updatedAt = DateTime.now();
-    await c.save();
+    final conversation = _storage!.getConversation(conversationId);
+    if (conversation == null) return;
+    final selections = Map<String, int>.of(conversation.versionSelections)
+      ..remove(groupId);
+    await _storage!.setVersionSelections(conversationId, selections);
     notifyListeners();
   }
 
-  Future<Conversation?> toggleTruncateAtTail(
-    String conversationId, {
-    String? defaultTitle,
+  Future<Conversation> forkConversation({
+    required String title,
+    required String? assistantId,
+    required List<ChatMessage> sourceMessages,
+    Map<String, int>? versionSelections,
   }) async {
     if (!_initialized) await init();
-    // Draft case
-    if (_draftConversations.containsKey(conversationId)) {
-      final draft = _draftConversations[conversationId]!;
-      final lastIndexPlusOne = draft.messageIds.length; // last index + 1
-      final newValue = (draft.truncateIndex == lastIndexPlusOne)
-          ? -1
-          : lastIndexPlusOne;
-      draft.truncateIndex = newValue;
-      if ((defaultTitle ?? '').isNotEmpty) draft.title = defaultTitle!;
-      draft.updatedAt = DateTime.now();
-      notifyListeners();
-      return draft;
-    }
-    // Persisted case
-    final c = _conversationsBox.get(conversationId);
-    if (c == null) return null;
-    final lastIndexPlusOne = c.messageIds.length;
-    final newValue = (c.truncateIndex == lastIndexPlusOne)
-        ? -1
-        : lastIndexPlusOne;
-    c.truncateIndex = newValue;
-    if ((defaultTitle ?? '').isNotEmpty) c.title = defaultTitle!;
-    c.updatedAt = DateTime.now();
-    await c.save();
+    final conversation = await _storage!.forkConversation(
+      title: title,
+      assistantId: assistantId,
+      sourceMessages: sourceMessages,
+      versionSelections: versionSelections,
+    );
     notifyListeners();
-    return c;
+    return conversation;
   }
 
-  /// P1-2: persist the auto-compaction marker (raw message index; messages
-  /// before it are compacted at assembly time). Mirrors the
-  /// [toggleTruncateAtTail] draft/persisted split.
-  Future<void> setCompactBeforeIndex(String conversationId, int index) async {
+  // ---------------------------------------------------------------------------
+  // Tool events / provider artifacts
+  // ---------------------------------------------------------------------------
+
+  /// Full tool events for model replay and UI hydration. Before `init()` this
+  /// keeps the historical empty-list contract; after initialization it throws
+  /// [ChatStorageNotLoadedException] when the message was never loaded. Use
+  /// [ensureToolEventsLoaded] first.
+  List<Map<String, dynamic>> getToolEvents(String assistantMessageId) {
+    if (!_initialized) return const <Map<String, dynamic>>[];
+    return _storage!.getToolEvents(assistantMessageId);
+  }
+
+  /// Timeline summaries for one message (no completed tool bodies). Throws
+  /// [ChatStorageNotLoadedException] when the conversation was never opened.
+  List<ToolPartSummary> getToolPartSummaries(String assistantMessageId) {
+    if (!_initialized) return const <ToolPartSummary>[];
+    return _storage!.getToolPartSummaries(assistantMessageId);
+  }
+
+  /// Loads one part's full arguments/content for an expanded card.
+  Future<Map<String, dynamic>?> loadToolEventDetail({
+    required String assistantMessageId,
+    required String toolCallId,
+  }) async {
+    if (!_initialized) await init();
+    return _storage!.loadToolEventDetail(
+      assistantMessageId: assistantMessageId,
+      toolCallId: toolCallId,
+    );
+  }
+
+  /// Citation rows parsed from the message's search results, without loading
+  /// the rest of its tool bodies.
+  Future<List<Map<String, dynamic>>> getSearchCitations(
+    String assistantMessageId,
+  ) async {
+    if (!_initialized) await init();
+    return _storage!.getSearchCitations(assistantMessageId);
+  }
+
+  Future<void> setToolEvents(
+    String assistantMessageId,
+    List<Map<String, dynamic>> events,
+  ) async {
+    if (!_initialized) await init();
+    // Preserve the existing writer policy for every backend: a `file_read`
+    // result persisted with the event list keeps its 8 KB preview, and
+    // non-string content is normalized to null.
+    final bounded = [
+      for (final event in events) _boundToolEventForPersistence(event),
+    ];
+    await _storage!.setToolEvents(assistantMessageId, bounded);
+    notifyListeners();
+  }
+
+  Future<void> upsertToolEvent(
+    String assistantMessageId, {
+    required String id,
+    required String name,
+    required Map<String, dynamic> arguments,
+    String? content,
+    String? approvalState,
+    Map<String, dynamic>? extras,
+  }) async {
+    if (!_initialized) await init();
+    await _storage!.upsertToolEvent(
+      assistantMessageId,
+      id: id,
+      name: name,
+      arguments: arguments,
+      content: _boundToolResultForPersistence(name, content),
+      approvalState: approvalState,
+      extras: extras,
+    );
+    notifyListeners();
+  }
+
+  static Map<String, dynamic> _boundToolEventForPersistence(
+    Map<String, dynamic> event,
+  ) => boundPersistedToolEvent(event);
+
+  static String? _boundToolResultForPersistence(String name, String? content) =>
+      boundPersistedToolResult(name, content);
+
+  /// Updates only the `approvalState` (and optionally content) of an existing
+  /// tool event. No-op when the event does not exist.
+  Future<bool> setToolEventApprovalState(
+    String assistantMessageId, {
+    required String id,
+    required String approvalState,
+    String? content,
+  }) async {
+    if (!_initialized) await init();
+    final updated = await _storage!.setToolEventApprovalState(
+      assistantMessageId,
+      id: id,
+      approvalState: approvalState,
+      content: content,
+    );
+    if (updated) notifyListeners();
+    return updated;
+  }
+
+  String? getGeminiThoughtSignature(String assistantMessageId) {
+    if (!_initialized) return null;
+    return _storage!.getGeminiThoughtSignature(assistantMessageId);
+  }
+
+  Future<void> setGeminiThoughtSignature(
+    String assistantMessageId,
+    String signature,
+  ) async {
+    if (!_initialized) await init();
+    await _storage!.setGeminiThoughtSignature(assistantMessageId, signature);
+    notifyListeners();
+  }
+
+  Future<void> removeGeminiThoughtSignature(String assistantMessageId) async {
+    if (!_initialized) await init();
+    await _storage!.removeGeminiThoughtSignature(assistantMessageId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // File records / workspace
+  // ---------------------------------------------------------------------------
+
+  List<FileRecord> getMessageFileRecords(String messageId) {
+    if (!_initialized) return const <FileRecord>[];
+    return _storage!.getFileRecords(messageId);
+  }
+
+  Future<void> addMessageFileRecord(String messageId, FileRecord record) async {
+    if (!_initialized) await init();
+    await _storage!.addFileRecord(messageId, record);
+    notifyListeners();
+  }
+
+  WorkspaceConfig? getConversationWorkspaceConfig(String conversationId) {
+    if (!_initialized) return null;
+    if (_draftConversations.containsKey(conversationId)) {
+      return _draftWorkspaceConfigs[conversationId];
+    }
+    return _storage!.getWorkspaceConfig(conversationId);
+  }
+
+  Future<void> setConversationWorkspace(
+    String conversationId,
+    String? path,
+  ) async {
+    await setConversationWorkspaceConfig(
+      conversationId,
+      path == null || path.trim().isEmpty
+          ? const WorkspaceConfig.inheritProject()
+          : WorkspaceConfig.custom(path.trim()),
+    );
+  }
+
+  Future<void> setConversationWorkspaceConfig(
+    String conversationId,
+    WorkspaceConfig config,
+  ) async {
+    if (!_initialized) await init();
+    if (_draftConversations.containsKey(conversationId)) {
+      if (config.mode == WorkspaceMode.inheritProject) {
+        _draftWorkspaceConfigs.remove(conversationId);
+      } else {
+        _draftWorkspaceConfigs[conversationId] = config;
+      }
+      notifyListeners();
+      return;
+    }
+    await _storage!.setWorkspaceConfig(conversationId, config);
+    notifyListeners();
+  }
+
+  /// Toggle the workspace for one conversation. Disabling remembers the
+  /// current directory choice inside the disabled config; enabling restores
+  /// it (falling back to project inheritance).
+  Future<void> setConversationWorkspaceEnabled(
+    String conversationId,
+    bool enable,
+  ) async {
+    final config = getConversationWorkspaceConfig(conversationId);
+    if (enable) {
+      final restore = config?.mode == WorkspaceMode.disabled
+          ? config!.restoreOnEnable
+          : (config ?? const WorkspaceConfig.inheritProject());
+      await setConversationWorkspaceConfig(conversationId, restore);
+      return;
+    }
+    final prior = (config == null || config.mode == WorkspaceMode.disabled)
+        ? (config?.previous ?? const WorkspaceConfig.inheritProject())
+        : config;
+    await setConversationWorkspaceConfig(
+      conversationId,
+      WorkspaceConfig.disabledFrom(prior),
+    );
+  }
+
+  List<String> getConversationMcpServers(String conversationId) {
+    if (!_initialized) return const <String>[];
+    final conversation =
+        _storage!.getConversation(conversationId) ??
+        _draftConversations[conversationId];
+    return conversation?.mcpServerIds ?? const <String>[];
+  }
+
+  Future<void> setConversationMcpServers(
+    String conversationId,
+    List<String> serverIds,
+  ) async {
     if (!_initialized) await init();
     if (_draftConversations.containsKey(conversationId)) {
       final draft = _draftConversations[conversationId]!;
-      if (draft.compactBeforeIndex == index) return;
-      draft.compactBeforeIndex = index;
+      draft.mcpServerIds = List.of(serverIds);
       draft.updatedAt = DateTime.now();
       notifyListeners();
       return;
     }
-    final c = _conversationsBox.get(conversationId);
-    if (c == null) return;
-    if (c.compactBeforeIndex == index) return;
-    c.compactBeforeIndex = index;
-    c.updatedAt = DateTime.now();
-    await c.save();
+    if (_storage!.getConversation(conversationId) == null) return;
+    await _storage!.setConversationMcpServers(conversationId, serverIds);
     notifyListeners();
   }
 
-  Future<void> deleteMessage(String messageId) async {
-    if (!_initialized) return;
-
-    final message = _messagesBox.get(messageId);
-    if (message == null) return;
-
-    final conversation = _conversationsBox.get(message.conversationId);
-    if (conversation != null) {
-      // Preserve stable ordering for message groups when deleting a single
-      // version of a message. Without this, deleting the first version of a
-      // user message after editing (which appends new versions at the tail)
-      // would cause the remaining version to "move" after the assistant
-      // reply when collapsing versions in the UI.
-
-      final gid = message.groupId ?? message.id;
-      final ids = conversation.messageIds;
-      final removedIndex = ids.indexOf(messageId);
-
-      // Remove the message id from the conversation first.
-      ids.remove(messageId);
-
-      // If there are other versions in the same group, move one of them
-      // into the original slot so that the group keeps its relative order.
-      if (removedIndex >= 0) {
-        String? replacementId;
-        for (final mid in ids) {
-          if (mid == messageId) continue;
-          final m = _messagesBox.get(mid);
-          if (m == null) continue;
-          final mgid = m.groupId ?? m.id;
-          if (mgid == gid) {
-            replacementId = mid;
-            break;
-          }
-        }
-
-        if (replacementId != null) {
-          ids.remove(replacementId);
-          final insertAt = removedIndex <= ids.length
-              ? removedIndex
-              : ids.length;
-          ids.insert(insertAt, replacementId);
-        }
-      }
-
-      await conversation.save();
+  Future<void> toggleConversationMcpServer(
+    String conversationId,
+    String serverId,
+    bool enabled,
+  ) async {
+    final current = getConversationMcpServers(conversationId);
+    final set = current.toSet();
+    if (enabled) {
+      set.add(serverId);
+    } else {
+      set.remove(serverId);
     }
-
-    await _messagesBox.delete(messageId);
-    // Remove any tool events linked to this assistant message
-    if (message.role == 'assistant') {
-      try {
-        await _toolEventsBox.delete(message.id);
-      } catch (_) {}
-      try {
-        await _toolEventsBox.delete(_sigKey(message.id));
-      } catch (_) {}
-    }
-    try {
-      await _messageFileRecordsBox.delete(messageId);
-    } catch (_) {}
-
-    // Update cache: clear this conversation so that next getMessages()
-    // reloads messages in the updated order from conversation.messageIds.
-    _messagesCache.remove(message.conversationId);
-
-    // Clean up orphaned upload files that are no longer referenced by any message
-    await _cleanupOrphanUploads();
-
-    notifyListeners();
+    await setConversationMcpServers(conversationId, set.toList());
   }
 
-  void setCurrentConversation(String? id) {
-    _currentConversationId = id;
-    notifyListeners();
-  }
+  // ---------------------------------------------------------------------------
+  // Assistant ownership
+  // ---------------------------------------------------------------------------
 
-  Future<void> clearAllData() async {
-    if (!_initialized) return;
-
-    await _messagesBox.clear();
-    await _conversationsBox.clear();
-    await _toolEventsBox.clear();
-    await _conversationWorkspacesBox.clear();
-    await _conversationWorkspaceBindingsBox.clear();
-    await _messageFileRecordsBox.clear();
-    _messagesCache.clear();
-    _draftConversations.clear();
-    _currentConversationId = null;
-    // Remove uploads directory completely
-    try {
-      final uploadDir = await AppDirectories.getUploadDirectory();
-      if (await uploadDir.exists()) {
-        await uploadDir.delete(recursive: true);
-      }
-    } catch (_) {}
-    notifyListeners();
-  }
-
-  // Uploads stats: count and total size of files under app documents/upload
-  Future<UploadStats> getUploadStats() async {
-    try {
-      final uploadDir = await AppDirectories.getUploadDirectory();
-      if (!await uploadDir.exists()) {
-        return const UploadStats(fileCount: 0, totalBytes: 0);
-      }
-      int count = 0;
-      int bytes = 0;
-      final entries = uploadDir.listSync(recursive: true, followLinks: false);
-      for (final ent in entries) {
-        if (ent is File) {
-          count += 1;
-          try {
-            bytes += await ent.length();
-          } catch (_) {}
-        }
-      }
-      return UploadStats(fileCount: count, totalBytes: bytes);
-    } catch (_) {
-      return const UploadStats(fileCount: 0, totalBytes: 0);
-    }
-  }
-
-  // Move an existing conversation to a different assistant.
-  // If the conversation is still a draft, update it in memory;
-  // otherwise persist the assistantId change and updatedAt.
+  /// Move an existing conversation to a different assistant.
   Future<void> moveConversationToAssistant({
     required String conversationId,
     required String assistantId,
   }) async {
     if (!_initialized) await init();
 
-    // Draft conversation case
     if (_draftConversations.containsKey(conversationId)) {
       final draft = _draftConversations[conversationId]!;
       draft.assistantId = assistantId;
@@ -1500,12 +1289,8 @@ class ChatService extends ChangeNotifier {
       notifyListeners();
       return;
     }
-
-    final c = _conversationsBox.get(conversationId);
-    if (c == null) return;
-    c.assistantId = assistantId;
-    c.updatedAt = DateTime.now();
-    await c.save();
+    if (_storage!.getConversation(conversationId) == null) return;
+    await _storage!.setConversationAssistant(conversationId, assistantId);
     notifyListeners();
   }
 
@@ -1517,21 +1302,17 @@ class ChatService extends ChangeNotifier {
   }) async {
     if (!_initialized) await init();
 
-    var n = 0;
+    var changed = 0;
     final seen = <String>{};
     for (final id in conversationIds) {
       if (id.isEmpty || !seen.add(id)) continue;
-      if (await _moveConversationCore(id, assistantId)) {
-        n++;
-      }
+      if (await _moveConversationCore(id, assistantId)) changed++;
     }
-    if (n == 0) return 0;
+    if (changed == 0) return 0;
     notifyListeners();
-    return n;
+    return changed;
   }
 
-  /// Applies a single conversation's assistant change without notifying.
-  /// Returns false when the conversation is missing or already there.
   Future<bool> _moveConversationCore(
     String conversationId,
     String assistantId,
@@ -1543,18 +1324,332 @@ class ChatService extends ChangeNotifier {
       draft.updatedAt = DateTime.now();
       return true;
     }
-    final c = _conversationsBox.get(conversationId);
-    if (c == null) return false;
-    if (c.assistantId == assistantId) return false;
-    c.assistantId = assistantId;
-    c.updatedAt = DateTime.now();
-    await c.save();
+    final conversation = _storage!.getConversation(conversationId);
+    if (conversation == null || conversation.assistantId == assistantId) {
+      return false;
+    }
+    await _storage!.setConversationAssistant(conversationId, assistantId);
     return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle / filesystem
+  // ---------------------------------------------------------------------------
+
+  void setCurrentConversation(String? id) {
+    _currentConversationId = id;
+    notifyListeners();
+  }
+
+  Future<ChatStorageRecoveryService> _recoveryService() async {
+    final directory =
+        _appDataDirectory ?? await AppDirectories.getAppDataDirectory();
+    return ChatStorageRecoveryService(
+      directory: directory,
+      appVersion: await _appVersion(),
+    );
+  }
+
+  /// Closes the current backend before a file-level reset/rebuild. Unlike
+  /// [close], this keeps the startup callbacks and backup prompt so a rebuild
+  /// can immediately re-enter the normal migration flow.
+  Future<void> _detachStorageForRecovery() async {
+    final storage = _storage;
+    _storage = null;
+    _initialized = false;
+    _currentConversationId = null;
+    _draftConversations.clear();
+    _draftWorkspaceConfigs.clear();
+    if (storage != null) {
+      try {
+        await storage.dispose();
+      } catch (_) {}
+    }
+  }
+
+  /// Explicitly recreate an empty SQLite store after the gate reported a
+  /// missing/corrupt database. The legacy Hive files are preserved, but the
+  /// reset sentinel prevents them from being imported into the new database.
+  Future<void> resetChatStorage() async {
+    await _detachStorageForRecovery();
+    try {
+      final recovery = await _recoveryService();
+      await recovery.resetToFreshDatabase();
+      await init();
+    } catch (error) {
+      _markRecoveryFailed(error);
+      rethrow;
+    }
+  }
+
+  /// Remove only SQLite artifacts/markers so the normal gate can re-import the
+  /// untouched Hive files. The existing backup prompt is reused.
+  Future<void> rebuildFromLegacyHive() async {
+    await _detachStorageForRecovery();
+    try {
+      final recovery = await _recoveryService();
+      await recovery.clearForLegacyImport();
+      await init();
+    } catch (error) {
+      _markRecoveryFailed(error);
+      rethrow;
+    }
+  }
+
+  /// Validate a backup before destructive recovery. A settings-only archive is
+  /// not enough to replace the chat database.
+  Future<void> validateChatBackup(File archive) async {
+    final recovery = await _recoveryService();
+    await recovery.validateBackup(archive);
+  }
+
+  /// Keep the app usable for this session without deleting the missing/corrupt
+  /// SQLite family or modifying Hive. A later launch asks again.
+  Future<void> useLegacyStorage() async {
+    if (_initialized && _storage?.backend == ChatStorageBackend.hive) return;
+    await _detachStorageForRecovery();
+    final directory =
+        _appDataDirectory ?? await AppDirectories.getAppDataDirectory();
+    final storage = HiveChatStorage(directory: directory);
+    try {
+      await storage.initialize();
+    } catch (error) {
+      try {
+        await storage.dispose();
+      } catch (_) {}
+      _markRecoveryFailed(error);
+      rethrow;
+    }
+    if (_disposed) {
+      await storage.dispose();
+      return;
+    }
+    _storage = storage;
+    _initialized = true;
+    _setStorageInitStatus(
+      ChatStorageInitStatus(
+        phase: ChatStorageInitPhase.ready,
+        isLegacyFallback: true,
+        message: _lastStorageGateResult?.message,
+      ),
+    );
+  }
+
+  void _markRecoveryFailed(Object error) {
+    if (_disposed) return;
+    _setStorageInitStatus(
+      ChatStorageInitStatus(
+        phase: ChatStorageInitPhase.failed,
+        message: error.toString(),
+        canRetry: true,
+      ),
+    );
+  }
+
+  /// Destructive user action: reset the chat database (§8.10) and clear the
+  /// in-memory drafts. Writes the `legacy_import_disabled` sentinel.
+  Future<void> clearAllData() async {
+    if (!_initialized) return;
+    try {
+      await _storage!.clearAllData();
+    } catch (_) {
+      // A failed reset may leave the backend closed. Do not keep serving the
+      // stale cache as if it were live data; a later init() re-admits.
+      _initialized = false;
+      rethrow;
+    }
+    await _afterClearRows();
+  }
+
+  /// Explicit §9.8 legacy Hive re-import. Merges missing conversations and
+  /// messages into the live SQLite store, keeps existing rows, and removes the
+  /// durable `legacy_import_disabled` sentinel only after validation succeeds.
+  /// Concurrent callers join one import.
+  Future<LegacyReimportReport> reimportLegacyHive({
+    void Function(String stage)? onProgress,
+  }) {
+    final running = _reimportFuture;
+    if (running != null) return running;
+
+    final completer = Completer<LegacyReimportReport>();
+    _reimportFuture = completer.future;
+    scheduleMicrotask(() async {
+      try {
+        final report = await _reimportLegacyHiveInternal(onProgress);
+        if (!completer.isCompleted) completer.complete(report);
+      } catch (error, stackTrace) {
+        if (!completer.isCompleted) {
+          completer.completeError(error, stackTrace);
+        }
+      } finally {
+        if (identical(_reimportFuture, completer.future)) {
+          _reimportFuture = null;
+        }
+      }
+    });
+    return completer.future;
+  }
+
+  Future<LegacyReimportReport> _reimportLegacyHiveInternal(
+    void Function(String stage)? onProgress,
+  ) async {
+    if (!_initialized) await init();
+    final storage = _storage;
+    if (storage is! SqliteChatStorage) {
+      throw const LegacyReimportException(
+        'The legacy import requires the SQLite chat store.',
+      );
+    }
+    if (await hasStreamingMessages()) {
+      throw const LegacyReimportException(
+        'Stop any active reply before importing legacy chat data.',
+      );
+    }
+    final report = await LegacyReimportService(
+      directory: storage.directory,
+      appVersion: await _appVersion(),
+      destination: storage,
+    ).run(onProgress: onProgress);
+    notifyListeners();
+    return report;
+  }
+
+  /// Reclaims free pages after large deletions (`VACUUM`). Requires an idle
+  /// app; the settings page only calls it after confirmation.
+  Future<void> optimizeChatDatabase() async {
+    if (!_initialized) await init();
+    await _storage!.optimize();
+    notifyListeners();
+  }
+
+  /// Backup-restore path: delete all chat rows without resetting the database
+  /// installation or writing the `legacy_import_disabled` sentinel.
+  Future<void> clearAllChatRows() async {
+    if (!_initialized) return;
+    await _storage!.clearAllRows();
+    await _afterClearRows();
+  }
+
+  Future<void> _afterClearRows() async {
+    _draftConversations.clear();
+    _draftWorkspaceConfigs.clear();
+    _currentConversationId = null;
+    // Remove the uploads directory completely.
+    try {
+      final uploadDir = await AppDirectories.getUploadDirectory();
+      if (await uploadDir.exists()) {
+        await uploadDir.delete(recursive: true);
+      }
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  /// Uploads stats: count and total size of files under app documents/upload.
+  Future<UploadStats> getUploadStats() async {
+    try {
+      final uploadDir = await AppDirectories.getUploadDirectory();
+      if (!await uploadDir.exists()) {
+        return const UploadStats(fileCount: 0, totalBytes: 0);
+      }
+      var count = 0;
+      var bytes = 0;
+      final entries = uploadDir.listSync(recursive: true, followLinks: false);
+      for (final entry in entries) {
+        if (entry is File) {
+          count += 1;
+          try {
+            bytes += await entry.length();
+          } catch (_) {}
+        }
+      }
+      return UploadStats(fileCount: count, totalBytes: bytes);
+    } catch (_) {
+      return const UploadStats(fileCount: 0, totalBytes: 0);
+    }
+  }
+
+  Future<void> _cleanupOrphanUploads() async {
+    try {
+      final storage = _storage;
+      if (storage == null) return;
+      final uploadDir = await AppDirectories.getUploadDirectory();
+      if (!await uploadDir.exists()) return;
+
+      String canon(String path) {
+        final normalized = p.normalize(path);
+        return Platform.isWindows ? normalized.toLowerCase() : normalized;
+      }
+
+      final referenced = <String>{};
+      final contents = await storage.attachmentBearingMessageContents();
+      for (final content in contents) {
+        if (content.isEmpty) continue;
+        final imgRe = RegExp(r'\[image:(.+?)\]');
+        for (final match in imgRe.allMatches(content)) {
+          final path = match.group(1)?.trim();
+          if (path != null && path.isNotEmpty) {
+            referenced.add(canon(SandboxPathResolver.fix(path)));
+          }
+        }
+        final fileRe = RegExp(r'\[file:(.+?)\|(.+?)\|(.+?)\]');
+        for (final match in fileRe.allMatches(content)) {
+          final path = match.group(1)?.trim();
+          if (path != null && path.isNotEmpty) {
+            referenced.add(canon(SandboxPathResolver.fix(path)));
+          }
+        }
+      }
+
+      final entries = uploadDir.listSync(recursive: true, followLinks: false);
+      for (final entry in entries) {
+        if (entry is File && !referenced.contains(canon(entry.path))) {
+          try {
+            await entry.delete();
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+  }
+
+  /// Closes the active backend. Exposed for tests and orderly shutdown; the
+  /// facade must be re-initialized before use afterwards.
+  Future<void> close() async {
+    await _endMigrationKeepAlive();
+    _onMigrationStarted = null;
+    _onMigrationFinished = null;
+    final storage = _storage;
+    _storage = null;
+    _initialized = false;
+    _initFuture = null;
+    _reimportFuture = null;
+    _backupPrompt = null;
+    _storageInitStatus = const ChatStorageInitStatus();
+    if (storage == null) return;
+    try {
+      await storage.dispose();
+    } catch (_) {
+      // A shutdown failure must not surface as an unhandled async error.
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    unawaited(close());
+    super.dispose();
   }
 }
 
 class UploadStats {
+  const UploadStats({required this.fileCount, required this.totalBytes});
+
   final int fileCount;
   final int totalBytes;
-  const UploadStats({required this.fileCount, required this.totalBytes});
+}
+
+class _StorageSelection {
+  const _StorageSelection(this.storage, {this.fallbackReason});
+
+  final ChatStorage storage;
+  final String? fallbackReason;
 }

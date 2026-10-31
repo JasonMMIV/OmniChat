@@ -19,6 +19,7 @@ import '../../../core/services/agent/approval.dart';
 import '../../../core/services/agent/compaction/midrun_compactor.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/chat/storage/message_part_codec.dart';
 import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../l10n/app_localizations.dart';
@@ -340,6 +341,9 @@ class ChatActions {
   ) async {
     final conv = _currentConversation;
     if (conv == null || conv.id != conversationId) return null;
+    // The timeline preloads summaries only; this resume path reads the full
+    // events (questions/answers), so load them first.
+    await chatService.ensureToolEventsLoaded([assistantMessageId]);
     final settings = contextProvider.read<SettingsProvider>();
     final assistantProvider = contextProvider.read<AssistantProvider>();
     final assistant = conv.assistantId == null
@@ -392,6 +396,8 @@ class ChatActions {
         arguments: parts[pIdx].arguments,
         content: answerJson,
         loading: false,
+        contentLoaded: true,
+        status: kPartStatusCompleted,
         searchProvider: parts[pIdx].searchProvider,
         searchFallbackFrom: parts[pIdx].searchFallbackFrom,
         webFetchSource: parts[pIdx].webFetchSource,
@@ -484,6 +490,9 @@ class ChatActions {
     final conv = _currentConversation;
     if (conv == null || conv.id != conversationId) return null;
 
+    // The timeline preloads summaries only; approval needs the full event.
+    await chatService.ensureToolEventsLoaded([assistantMessageId]);
+
     // Locate the pending event.
     Map<String, dynamic>? event;
     for (final e in chatService.getToolEvents(assistantMessageId)) {
@@ -511,7 +520,12 @@ class ChatActions {
         approvalState: approvalStateDenied,
         content: timeoutJson,
       );
-      _refreshToolPart(assistantMessageId, toolCallId, content: timeoutJson);
+      _refreshToolPart(
+        assistantMessageId,
+        toolCallId,
+        content: timeoutJson,
+        status: kPartStatusDenied,
+      );
       return _continueAfterApproval(
         conv: conv,
         answeredAssistantMessageId: assistantMessageId,
@@ -546,6 +560,7 @@ class ChatActions {
         assistantMessageId,
         toolCallId,
         content: denialJson,
+        status: kPartStatusDenied,
       );
       return _continueAfterApproval(
         conv: conv,
@@ -679,6 +694,7 @@ class ChatActions {
     String messageId,
     String toolCallId, {
     required String content,
+    String status = kPartStatusCompleted,
   }) {
     final parts = List<ToolUIPart>.of(
       streamController.toolParts[messageId] ?? const [],
@@ -691,6 +707,8 @@ class ChatActions {
       arguments: parts[idx].arguments,
       content: content,
       loading: false,
+      contentLoaded: true,
+      status: status,
       searchProvider: parts[idx].searchProvider,
       searchFallbackFrom: parts[idx].searchFallbackFrom,
       webFetchSource: parts[idx].webFetchSource,

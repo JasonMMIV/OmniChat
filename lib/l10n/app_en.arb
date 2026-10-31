@@ -945,6 +945,8 @@
     }
   },
   "chatMessageWidgetNoResultYet": "Waiting",
+  "chatMessageWidgetLoadResult": "Tap to load result",
+  "chatMessageWidgetLoadResultFailed": "Could not load the tool result.",
   "chatMessageWidgetArguments": "Args",
   "chatMessageWidgetResult": "Result",
   "chatMessageWidgetCitationsCount": "{count} citations",
@@ -1111,6 +1113,173 @@
   "storageSpaceLoadFailed": "Failed to load",
   "storageSpacePageTitle": "Storage",
   "storageSpaceRefreshTooltip": "Refresh",
+  "chatStoragePageTitle": "Chat storage",
+  "chatStorageSqliteSection": "SQLite database",
+  "chatStorageLegacySection": "Legacy Hive files",
+  "chatStorageDatabaseSize": "Database",
+  "chatStorageWalSize": "WAL",
+  "chatStorageConversationsCount": "{count} chats",
+  "@chatStorageConversationsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatStorageMessagesCount": "{count} messages",
+  "@chatStorageMessagesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatStoragePartsCount": "{count} tool parts",
+  "@chatStoragePartsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatStorageLegacyImportDisabled": "Legacy import disabled",
+  "chatStorageImportLegacy": "Import legacy Hive",
+  "chatStorageImportLegacyTitle": "Import legacy chat files?",
+  "chatStorageImportLegacyBody": "Adds missing conversations, messages, tool results, signatures, file records, and workspace bindings from the legacy Hive snapshot. Existing chats are not overwritten.",
+  "chatStorageImportLegacyWarning": "Stop any active reply first. The Hive snapshot is kept; the legacy-import lock is removed only after validation succeeds.",
+  "chatStorageImportLegacyConfirm": "Import",
+  "chatStorageImportStagePreparing": "Preparing legacy data…",
+  "chatStorageImportStageReading": "Reading legacy chat data…",
+  "chatStorageImportStageMerging": "Merging into SQLite…",
+  "chatStorageImportStageVerifying": "Verifying imported data…",
+  "chatStorageImportLegacyDone": "Imported {conversations} conversations and {messages} messages. Kept existing data for {conflicts} conflicts.",
+  "chatStorageImportLegacyLockRemains": "Import completed, but the legacy-import lock could not be removed. Retry the import to clear it.",
+  "@chatStorageImportLegacyDone": {
+    "placeholders": {
+      "conversations": {
+        "type": "int"
+      },
+      "messages": {
+        "type": "int"
+      },
+      "conflicts": {
+        "type": "int"
+      }
+    }
+  },
+  "chatStorageNoLegacyFiles": "No legacy chat files remain.",
+  "chatStorageCleanupInterrupted": "Legacy cleanup was interrupted; resume it after verifying the files.",
+  "chatStorageExportValid": "A verified legacy export is available.",
+  "chatStorageExportLegacy": "Export legacy files",
+  "chatStorageDeleteLegacy": "Delete legacy files",
+  "chatStorageResumeCleanup": "Resume interrupted cleanup",
+  "chatStorageMaintenanceSection": "Maintenance",
+  "chatStorageOptimize": "Optimize database",
+  "chatStorageOptimizeWarning": "Stop any active reply first. Compacting the database can take a while and needs free disk space.",
+  "chatStorageExportSuccess": "Exported to {path}",
+  "@chatStorageExportSuccess": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "chatStorageExportRequired": "Export the legacy files before deleting them.",
+  "chatStorageDeleteWarning": "This permanently deletes the legacy Hive chat files. The SQLite database is not affected.",
+  "chatStorageDeleteConfirm": "Delete legacy files",
+  "chatStorageCleanupCompleted": "Legacy cleanup completed at {date}.",
+  "@chatStorageCleanupCompleted": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "chatStorageBlocked": "Cleanup unavailable: {reason}",
+  "@chatStorageBlocked": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "chatStorageDiscardNeverMigratedWarning": "These files were never imported into SQLite. After export they can be discarded explicitly.",
+  "chatStorageCleanupDone": "Legacy files deleted.",
+  "chatStorageResetMarker": "Forget completed cleanup record",
+  "chatStorageResetMarkerWarning": "New legacy files appeared after cleanup. Forget the completed record so they can be exported and deleted again? No chat data is deleted by this step.",
+  "chatStorageOptimizeDone": "Database optimized.",
+  "chatStorageFallbackSnackbar": "Chat storage is using the legacy store. See Settings → Storage for details.",
+  "chatStorageFallbackTitle": "Using the legacy chat store",
+  "chatStorageFallbackBody": "SQLite could not start, so this release is using the previous Hive store. Your chats are available, but the cutover will retry on a later launch.",
+  "chatStorageStartupBackingUp": "Backing up legacy chat data…",
+  "chatStorageMigrationNotificationTitle": "Updating chat storage",
+  "chatStorageMigrationNotificationText": "OmniChat is migrating your chat history. You can switch away while it finishes.",
+  "chatMigrationBackupTitle": "Back up chat history before upgrading?",
+  "chatMigrationBackupBody": "OmniChat will move your chat history to a new local database. This is a one-time upgrade.",
+  "chatMigrationBackupRecommended": "We recommend saving a backup first. The archive contains the legacy chat files and a readable chats.json.",
+  "chatMigrationBackupNow": "Back up now",
+  "chatMigrationBackupSkip": "Skip without backup",
+  "chatMigrationBackupFolderTitle": "Choose a backup folder",
+  "chatStorageStartupTitle": "Preparing chat storage",
+  "chatStorageStartupSubtitle": "Your chat history stays on this device.",
+  "chatStorageRecoveryTitle": "Chat storage needs attention",
+  "chatStorageRecoveryBody": "A previously installed chat database is missing. Choose how to recover your chat history.",
+  "chatStorageRecoveryFailedBody": "Recovery did not finish. You can retry or choose a different option below.",
+  "chatStorageRecoveryRestore": "Restore from backup",
+  "chatStorageRecoveryRestoreHint": "Choose an OmniChat backup zip. Current SQLite chat rows will be replaced.",
+  "chatStorageRecoveryRebuild": "Rebuild from legacy Hive",
+  "chatStorageRecoveryRebuildHint": "Recreate SQLite from the untouched Hive files. A backup is recommended first.",
+  "chatStorageRecoveryReset": "Reset chat storage",
+  "chatStorageRecoveryResetHint": "Create an empty database. Hive files are kept but will not be imported automatically.",
+  "chatStorageRecoveryContinueLegacy": "Continue with the legacy store for now",
+  "chatStorageRecoveryContinueLegacyHint": "This session only. OmniChat will ask again on the next launch.",
+  "chatStorageRecoveryRestoring": "Restoring backup…",
+  "chatStorageRecoveryRebuilding": "Rebuilding from legacy Hive…",
+  "chatStorageRecoveryResetting": "Resetting chat storage…",
+  "chatStorageRecoveryOpeningLegacy": "Opening the legacy store…",
+  "chatStorageRecoveryConfirmRestoreTitle": "Restore this backup?",
+  "chatStorageRecoveryConfirmRestoreBody": "The current SQLite chat rows will be replaced. The backup file is not modified.",
+  "chatStorageRecoveryConfirmRebuildTitle": "Rebuild from legacy Hive?",
+  "chatStorageRecoveryConfirmRebuildBody": "SQLite will be recreated from the legacy Hive files. Hive files are not modified. Make a backup first if possible.",
+  "chatStorageRecoveryConfirmResetTitle": "Reset chat storage?",
+  "chatStorageRecoveryConfirmResetBody": "The SQLite chat database will be deleted and recreated empty. Legacy Hive files are kept, but they will not be imported automatically.",
+  "chatStorageRecoveryCancel": "Cancel",
+  "chatStorageRecoveryErrorTitle": "Recovery failed",
+  "chatStorageRecoveryRestoreDone": "Backup restored.",
+  "chatStorageRecoveryRebuildDone": "Chat storage rebuilt from legacy Hive.",
+  "chatStorageRecoveryResetDone": "Chat storage reset.",
+  "chatStorageStartupChecking": "Checking the chat database…",
+  "chatStorageStartupOpeningHive": "Opening legacy chat data…",
+  "chatStorageStartupImportingMessages": "Migrating conversations and messages…",
+  "chatStorageStartupImportingToolEvents": "Migrating tool results…",
+  "chatStorageStartupImportingWorkspaces": "Migrating workspace settings…",
+  "chatStorageStartupValidating": "Validating the migrated data…",
+  "chatStorageStartupOpening": "Opening chat storage…",
+  "chatStorageStartupCounts": "{conversations} chats · {messages} messages",
+  "@chatStorageStartupCounts": {
+    "placeholders": {
+      "conversations": {
+        "type": "int"
+      },
+      "messages": {
+        "type": "int"
+      }
+    }
+  },
+  "chatStorageStartupQuarantine": "{count} items need review",
+  "@chatStorageStartupQuarantine": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatStorageStartupInitialHint": "Large histories may take a moment. Keep OmniChat open until this finishes.",
+  "chatStorageStartupFailedTitle": "Chat storage did not start",
+  "chatStorageStartupFailedBody": "Nothing was deleted. Retry, or copy the diagnostics for troubleshooting.",
+  "chatStorageStartupRetry": "Retry",
+  "chatStorageStartupCopyDiagnostics": "Copy diagnostics",
+  "chatStorageStartupDiagnosticsCopied": "Diagnostics copied.",
   "storageSpaceTotalLabel": "Total",
   "storageSpaceClearableLabel": "Clearable: {size}",
   "@storageSpaceClearableLabel": {

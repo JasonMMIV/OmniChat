@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:OmniChat/core/models/file_record.dart';
 import 'package:OmniChat/core/services/chat/chat_service.dart';
+import 'package:OmniChat/core/services/chat/storage/chat_storage.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -36,7 +37,7 @@ void main() {
   });
 
   test('persists a file record for an assistant message', () async {
-    final service = ChatService();
+    final service = ChatService(backend: ChatStorageBackend.hive);
     await service.init();
 
     const messageId = 'assistant-message';
@@ -61,7 +62,7 @@ void main() {
   test(
     'bounds persisted file-read results and tolerates legacy content types',
     () async {
-      final service = ChatService();
+      final service = ChatService(backend: ChatStorageBackend.hive);
       await service.init();
 
       final content =

@@ -393,6 +393,7 @@ class HomeViewModel extends ChangeNotifier {
 
     if (currentConversation?.id == id) return;
 
+    await _chatService.ensureConversationLoaded(id);
     _chatService.setCurrentConversation(id);
     final convo = _chatService.getConversation(id);
     if (convo != null) {
@@ -479,6 +480,7 @@ class HomeViewModel extends ChangeNotifier {
     );
 
     // Switch to the new conversation
+    await _chatService.ensureConversationLoaded(newConvo.id);
     _chatService.setCurrentConversation(newConvo.id);
     _chatController.setCurrentConversation(newConvo);
     _restoreMessageUiState();
@@ -630,7 +632,8 @@ class HomeViewModel extends ChangeNotifier {
       if (m.role == 'assistant') {
         _streamController.restoreMessageUiState(
           m,
-          getToolEventsFromDb: (id) => _chatService.getToolEvents(id),
+          getToolPartSummariesFromDb: (id) =>
+              _chatService.getToolPartSummaries(id),
           getGeminiThoughtSigFromDb: (id) =>
               _chatService.getGeminiThoughtSignature(id),
         );

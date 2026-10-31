@@ -118,6 +118,31 @@ void main() {
     expect(find.text('(1.5s)'), findsOneWidget);
   });
 
+  testWidgets('finished without an end stamp hides the elapsed timer',
+      (tester) async {
+    // Interrupted run (app killed before the finish write): live is false but
+    // there is no finishedAt. The header must not fake a growing wall-clock
+    // span from `DateTime.now()`.
+    final base = DateTime(2026, 10, 5, 12, 0, 0);
+    await tester.pumpWidget(_wrap(
+      ProcessGroupCard(
+        live: false,
+        open: false,
+        startAt: base,
+        finishedAt: null,
+      ),
+    ));
+    await tester.pump();
+
+    expect(find.text('Worked'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Text && (w.data ?? '').startsWith('('),
+      ),
+      findsNothing,
+    );
+  });
+
   testWidgets('no startAt → no elapsed text even while live', (tester) async {
     await tester.pumpWidget(_wrap(
       ProcessGroupCard(live: true, open: false),

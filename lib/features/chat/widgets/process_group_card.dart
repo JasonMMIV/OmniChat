@@ -105,7 +105,11 @@ class _ProcessGroupCardState extends State<ProcessGroupCard>
   String _elapsed() {
     final start = widget.startAt;
     if (start == null) return '';
-    final end = widget.finishedAt ?? DateTime.now();
+    // A finished run with no end stamp was interrupted (e.g. the app was
+    // killed before the finish write). Do not fake a growing wall-clock span;
+    // hide the timer instead.
+    final end = widget.finishedAt ?? (widget.live ? DateTime.now() : null);
+    if (end == null) return '';
     final ms = end.difference(start).inMilliseconds;
     return '(${(ms / 1000).toStringAsFixed(1)}s)';
   }
@@ -152,7 +156,8 @@ class _ProcessGroupCardState extends State<ProcessGroupCard>
               const SizedBox(width: 6),
               _BouncingDots(color: cardTextColor),
             ],
-            if (widget.startAt != null) ...[
+            if (widget.startAt != null &&
+                (widget.live || widget.finishedAt != null)) ...[
               const SizedBox(width: 8),
               ValueListenableBuilder<int>(
                 valueListenable: _elapsedTick,

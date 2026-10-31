@@ -26,6 +26,7 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/user_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
+import '../../../core/services/chat/storage/message_part_codec.dart';
 import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/web/web_fetch_tool.dart';
 import '../../../core/services/agent/approval.dart';
@@ -228,10 +229,16 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   final GlobalKey _translateBtnKey1 = GlobalKey();
   final GlobalKey _moreBtnKey2 = GlobalKey();
   final GlobalKey _translateBtnKey2 = GlobalKey();
+  // Citations parsed from the persisted search tool results. The timeline
+  // only holds summaries, so this is loaded on demand for the visible message.
+  List<Map<String, dynamic>> _loadedSearchItems = const <Map<String, dynamic>>[];
+  String? _searchItemsMessageId;
+  bool _searchItemsLoading = false;
 
   @override
   void initState() {
     super.initState();
+    _loadSearchItemsIfNeeded();
 
     // Determine initial state for inline <think> card BEFORE first paint to avoid
     // post-frame size changes that can cause list scroll jitter/snapping.
@@ -272,8 +279,47 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   @override
   void didUpdateWidget(covariant ChatMessageWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.message.id != widget.message.id) {
+      _loadedSearchItems = const <Map<String, dynamic>>[];
+      _searchItemsMessageId = null;
+      _searchItemsLoading = false;
+    }
+    _loadSearchItemsIfNeeded();
     // Auto-collapse when inline <think> transitions from loading -> finished
     _applyAutoCollapseInlineThinkIfFinished(oldWidget: oldWidget);
+  }
+
+  /// Loads the citation rows for restored search parts. Only search result
+  /// rows are read; the rest of the message's tool bodies stay lazy.
+  void _loadSearchItemsIfNeeded() {
+    if (widget.message.role != 'assistant') return;
+    final parts = widget.toolParts;
+    if (parts == null || parts.isEmpty) return;
+    final needsLoad = parts.any(
+      (part) =>
+          (part.toolName == 'search_web' ||
+              part.toolName == 'builtin_search') &&
+          !part.contentLoaded,
+    );
+    if (!needsLoad) return;
+    if (_searchItemsLoading || _searchItemsMessageId == widget.message.id) {
+      return;
+    }
+    _searchItemsLoading = true;
+    _searchItemsMessageId = widget.message.id;
+    final messageId = widget.message.id;
+    Future<void>(() async {
+      if (!mounted) return;
+      try {
+        final chat = context.read<ChatService>();
+        final items = await chat.getSearchCitations(messageId);
+        if (!mounted || widget.message.id != messageId) return;
+        setState(() => _loadedSearchItems = items);
+      } catch (_) {
+      } finally {
+        _searchItemsLoading = false;
+      }
+    });
   }
 
   void _applyAutoCollapseInlineThinkIfFinished({ChatMessageWidget? oldWidget}) {
@@ -2594,10 +2640,18 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   // Extract items from all search_web or builtin_search tool results for this assistant message
   List<Map<String, dynamic>> _allSearchItems() {
     final parts = widget.toolParts ?? const <ToolUIPart>[];
-    if (parts.isEmpty) return const <Map<String, dynamic>>[];
+    if (parts.isEmpty && _loadedSearchItems.isEmpty) {
+      return const <Map<String, dynamic>>[];
+    }
 
     final out = <Map<String, dynamic>>[];
     final seen = <String>{};
+
+    for (final item in _loadedSearchItems) {
+      final key = (item['id'] ?? item['url'] ?? '').toString();
+      if (key.isNotEmpty && !seen.add(key)) continue;
+      out.add(item);
+    }
 
     for (int i = parts.length - 1; i >= 0; i--) {
       final p = parts[i];
@@ -3129,6 +3183,22 @@ class ToolUIPart {
   final String? content; // null means still loading/result not yet available
   final bool loading;
 
+  /// True when [content] is the full persisted result (live streaming, or an
+  /// eager approval/answer payload). A restored completed part starts false;
+  /// its body is loaded when the card is expanded (§9.5).
+  final bool contentLoaded;
+
+  /// Character count from the summary, for the "load result" hint.
+  final int contentLength;
+
+  /// Persisted part status (`pending`/`completed`/`interrupted`/`denied`), or
+  /// null for a live tool part.
+  final String? status;
+
+  /// First 256 chars of the serialized arguments (persisted parts). Used to
+  /// recover short arguments without loading the full body.
+  final String? argumentsPreview;
+
   /// UI-only search trace: display name of the provider that actually served
   /// a `search_web` result (multi-provider dispatch), null otherwise.
   final String? searchProvider;
@@ -3147,10 +3217,15 @@ class ToolUIPart {
     required this.arguments,
     this.content,
     this.loading = false,
+    bool? contentLoaded,
+    int? contentLength,
+    this.status,
+    this.argumentsPreview,
     this.searchProvider,
     this.searchFallbackFrom,
     this.webFetchSource,
-  });
+  }) : contentLoaded = contentLoaded ?? (content != null),
+       contentLength = contentLength ?? (content?.length ?? 0);
 }
 
 /// Small pill showing the search provider that served a `search_web` result
@@ -3484,6 +3559,27 @@ class _ToolCallItem extends StatelessWidget {
                     ),
                   ),
                 ],
+                if (part.status == kPartStatusInterrupted) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    l10n.generationInterrupted,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: cardTextColor.withOpacity(0.7),
+                    ),
+                  ),
+                ] else if (!part.contentLoaded &&
+                    !part.loading &&
+                    part.status == kPartStatusCompleted) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    l10n.chatMessageWidgetLoadResult,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: cardTextColor.withOpacity(0.65),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -3500,15 +3596,50 @@ class _ToolCallItem extends StatelessWidget {
     return null;
   }
 
-  void _showDetail(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+  Future<void> _showDetail(BuildContext context) async {
+    // Lazy detail (§9.5): a restored completed part starts with no body. Load
+    // exactly this row before opening the dialog; live/eager parts skip the
+    // query.
     final l10n = AppLocalizations.of(context)!;
-    final argsPretty = const JsonEncoder.withIndent(
-      '  ',
-    ).convert(part.arguments);
-    final resultText = (part.content ?? '').isNotEmpty
-        ? part.content!
-        : l10n.chatMessageWidgetNoResultYet;
+    var arguments = part.arguments;
+    var content = part.content;
+    if (!part.contentLoaded) {
+      final messageId = assistantMessageId ?? '';
+      if (messageId.isNotEmpty && part.id.isNotEmpty) {
+        try {
+          final detail = await context.read<ChatService>().loadToolEventDetail(
+            assistantMessageId: messageId,
+            toolCallId: part.id,
+          );
+          if (detail != null) {
+            final rawArguments = detail['arguments'];
+            if (rawArguments is Map) {
+              arguments = rawArguments.map(
+                (k, v) => MapEntry(k.toString(), v),
+              );
+            }
+            content = detail['content']?.toString();
+          }
+        } catch (_) {
+          if (!context.mounted) return;
+          showAppSnackBar(
+            context,
+            message: l10n.chatMessageWidgetLoadResultFailed,
+            type: NotificationType.error,
+          );
+          return;
+        }
+      }
+      if (!context.mounted) return;
+    }
+
+    final cs = Theme.of(context).colorScheme;
+    final argsPretty = const JsonEncoder.withIndent('  ').convert(arguments);
+    final resultText = (content ?? '').isNotEmpty
+        ? content!
+        : part.status == kPartStatusInterrupted
+            ? l10n.generationInterrupted
+            : l10n.chatMessageWidgetNoResultYet;
 
     final bool isDesktop =
         defaultTargetPlatform == TargetPlatform.macOS ||
@@ -3558,7 +3689,7 @@ class _ToolCallItem extends StatelessWidget {
                                 _titleFor(
                                   context,
                                   part.toolName,
-                                  part.arguments,
+                                  arguments,
                                   isResult: !part.loading,
                                 ),
                                 style: const TextStyle(
@@ -3695,7 +3826,7 @@ class _ToolCallItem extends StatelessWidget {
                             _titleFor(
                               context,
                               part.toolName,
-                              part.arguments,
+                              arguments,
                               isResult: !part.loading,
                             ),
                             style: const TextStyle(

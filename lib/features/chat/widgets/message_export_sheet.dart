@@ -497,6 +497,12 @@ Future<File?> _renderAndSavePagedOld(
 
 
 Future<void> showMessageExportSheet(BuildContext context, ChatMessage message) async {
+  // The export renders full tool cards; the SQLite facade loads tool bodies
+  // per conversation, so make sure this message's parts are available.
+  try {
+    await context.read<ChatService>().ensureToolEventsLoaded([message.id]);
+  } catch (_) {}
+  if (!context.mounted) return;
   final cs = Theme.of(context).colorScheme;
   try {
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {

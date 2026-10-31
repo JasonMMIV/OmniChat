@@ -4193,6 +4193,18 @@ abstract class AppLocalizations {
   /// **'Waiting'**
   String get chatMessageWidgetNoResultYet;
 
+  /// No description provided for @chatMessageWidgetLoadResult.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to load result'**
+  String get chatMessageWidgetLoadResult;
+
+  /// No description provided for @chatMessageWidgetLoadResultFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load the tool result.'**
+  String get chatMessageWidgetLoadResultFailed;
+
   /// No description provided for @chatMessageWidgetArguments.
   ///
   /// In en, this message translates to:
@@ -4936,6 +4948,580 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Refresh'**
   String get storageSpaceRefreshTooltip;
+
+  /// No description provided for @chatStoragePageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat storage'**
+  String get chatStoragePageTitle;
+
+  /// No description provided for @chatStorageSqliteSection.
+  ///
+  /// In en, this message translates to:
+  /// **'SQLite database'**
+  String get chatStorageSqliteSection;
+
+  /// No description provided for @chatStorageLegacySection.
+  ///
+  /// In en, this message translates to:
+  /// **'Legacy Hive files'**
+  String get chatStorageLegacySection;
+
+  /// No description provided for @chatStorageDatabaseSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Database'**
+  String get chatStorageDatabaseSize;
+
+  /// No description provided for @chatStorageWalSize.
+  ///
+  /// In en, this message translates to:
+  /// **'WAL'**
+  String get chatStorageWalSize;
+
+  /// No description provided for @chatStorageConversationsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} chats'**
+  String chatStorageConversationsCount(int count);
+
+  /// No description provided for @chatStorageMessagesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} messages'**
+  String chatStorageMessagesCount(int count);
+
+  /// No description provided for @chatStoragePartsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} tool parts'**
+  String chatStoragePartsCount(int count);
+
+  /// No description provided for @chatStorageLegacyImportDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Legacy import disabled'**
+  String get chatStorageLegacyImportDisabled;
+
+  /// No description provided for @chatStorageImportLegacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Import legacy Hive'**
+  String get chatStorageImportLegacy;
+
+  /// No description provided for @chatStorageImportLegacyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Import legacy chat files?'**
+  String get chatStorageImportLegacyTitle;
+
+  /// No description provided for @chatStorageImportLegacyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Adds missing conversations, messages, tool results, signatures, file records, and workspace bindings from the legacy Hive snapshot. Existing chats are not overwritten.'**
+  String get chatStorageImportLegacyBody;
+
+  /// No description provided for @chatStorageImportLegacyWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop any active reply first. The Hive snapshot is kept; the legacy-import lock is removed only after validation succeeds.'**
+  String get chatStorageImportLegacyWarning;
+
+  /// No description provided for @chatStorageImportLegacyConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Import'**
+  String get chatStorageImportLegacyConfirm;
+
+  /// No description provided for @chatStorageImportStagePreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing legacy data…'**
+  String get chatStorageImportStagePreparing;
+
+  /// No description provided for @chatStorageImportStageReading.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading legacy chat data…'**
+  String get chatStorageImportStageReading;
+
+  /// No description provided for @chatStorageImportStageMerging.
+  ///
+  /// In en, this message translates to:
+  /// **'Merging into SQLite…'**
+  String get chatStorageImportStageMerging;
+
+  /// No description provided for @chatStorageImportStageVerifying.
+  ///
+  /// In en, this message translates to:
+  /// **'Verifying imported data…'**
+  String get chatStorageImportStageVerifying;
+
+  /// No description provided for @chatStorageImportLegacyDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported {conversations} conversations and {messages} messages. Kept existing data for {conflicts} conflicts.'**
+  String chatStorageImportLegacyDone(
+    int conversations,
+    int messages,
+    int conflicts,
+  );
+
+  /// No description provided for @chatStorageImportLegacyLockRemains.
+  ///
+  /// In en, this message translates to:
+  /// **'Import completed, but the legacy-import lock could not be removed. Retry the import to clear it.'**
+  String get chatStorageImportLegacyLockRemains;
+
+  /// No description provided for @chatStorageNoLegacyFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'No legacy chat files remain.'**
+  String get chatStorageNoLegacyFiles;
+
+  /// No description provided for @chatStorageCleanupInterrupted.
+  ///
+  /// In en, this message translates to:
+  /// **'Legacy cleanup was interrupted; resume it after verifying the files.'**
+  String get chatStorageCleanupInterrupted;
+
+  /// No description provided for @chatStorageExportValid.
+  ///
+  /// In en, this message translates to:
+  /// **'A verified legacy export is available.'**
+  String get chatStorageExportValid;
+
+  /// No description provided for @chatStorageExportLegacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Export legacy files'**
+  String get chatStorageExportLegacy;
+
+  /// No description provided for @chatStorageDeleteLegacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete legacy files'**
+  String get chatStorageDeleteLegacy;
+
+  /// No description provided for @chatStorageResumeCleanup.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume interrupted cleanup'**
+  String get chatStorageResumeCleanup;
+
+  /// No description provided for @chatStorageMaintenanceSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Maintenance'**
+  String get chatStorageMaintenanceSection;
+
+  /// No description provided for @chatStorageOptimize.
+  ///
+  /// In en, this message translates to:
+  /// **'Optimize database'**
+  String get chatStorageOptimize;
+
+  /// No description provided for @chatStorageOptimizeWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop any active reply first. Compacting the database can take a while and needs free disk space.'**
+  String get chatStorageOptimizeWarning;
+
+  /// No description provided for @chatStorageExportSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Exported to {path}'**
+  String chatStorageExportSuccess(String path);
+
+  /// No description provided for @chatStorageExportRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Export the legacy files before deleting them.'**
+  String get chatStorageExportRequired;
+
+  /// No description provided for @chatStorageDeleteWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This permanently deletes the legacy Hive chat files. The SQLite database is not affected.'**
+  String get chatStorageDeleteWarning;
+
+  /// No description provided for @chatStorageDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete legacy files'**
+  String get chatStorageDeleteConfirm;
+
+  /// No description provided for @chatStorageCleanupCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Legacy cleanup completed at {date}.'**
+  String chatStorageCleanupCompleted(String date);
+
+  /// No description provided for @chatStorageBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Cleanup unavailable: {reason}'**
+  String chatStorageBlocked(String reason);
+
+  /// No description provided for @chatStorageDiscardNeverMigratedWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'These files were never imported into SQLite. After export they can be discarded explicitly.'**
+  String get chatStorageDiscardNeverMigratedWarning;
+
+  /// No description provided for @chatStorageCleanupDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Legacy files deleted.'**
+  String get chatStorageCleanupDone;
+
+  /// No description provided for @chatStorageResetMarker.
+  ///
+  /// In en, this message translates to:
+  /// **'Forget completed cleanup record'**
+  String get chatStorageResetMarker;
+
+  /// No description provided for @chatStorageResetMarkerWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'New legacy files appeared after cleanup. Forget the completed record so they can be exported and deleted again? No chat data is deleted by this step.'**
+  String get chatStorageResetMarkerWarning;
+
+  /// No description provided for @chatStorageOptimizeDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Database optimized.'**
+  String get chatStorageOptimizeDone;
+
+  /// No description provided for @chatStorageFallbackSnackbar.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat storage is using the legacy store. See Settings → Storage for details.'**
+  String get chatStorageFallbackSnackbar;
+
+  /// No description provided for @chatStorageFallbackTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Using the legacy chat store'**
+  String get chatStorageFallbackTitle;
+
+  /// No description provided for @chatStorageFallbackBody.
+  ///
+  /// In en, this message translates to:
+  /// **'SQLite could not start, so this release is using the previous Hive store. Your chats are available, but the cutover will retry on a later launch.'**
+  String get chatStorageFallbackBody;
+
+  /// No description provided for @chatStorageStartupBackingUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Backing up legacy chat data…'**
+  String get chatStorageStartupBackingUp;
+
+  /// No description provided for @chatStorageMigrationNotificationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating chat storage'**
+  String get chatStorageMigrationNotificationTitle;
+
+  /// No description provided for @chatStorageMigrationNotificationText.
+  ///
+  /// In en, this message translates to:
+  /// **'OmniChat is migrating your chat history. You can switch away while it finishes.'**
+  String get chatStorageMigrationNotificationText;
+
+  /// No description provided for @chatMigrationBackupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Back up chat history before upgrading?'**
+  String get chatMigrationBackupTitle;
+
+  /// No description provided for @chatMigrationBackupBody.
+  ///
+  /// In en, this message translates to:
+  /// **'OmniChat will move your chat history to a new local database. This is a one-time upgrade.'**
+  String get chatMigrationBackupBody;
+
+  /// No description provided for @chatMigrationBackupRecommended.
+  ///
+  /// In en, this message translates to:
+  /// **'We recommend saving a backup first. The archive contains the legacy chat files and a readable chats.json.'**
+  String get chatMigrationBackupRecommended;
+
+  /// No description provided for @chatMigrationBackupNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Back up now'**
+  String get chatMigrationBackupNow;
+
+  /// No description provided for @chatMigrationBackupSkip.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip without backup'**
+  String get chatMigrationBackupSkip;
+
+  /// No description provided for @chatMigrationBackupFolderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a backup folder'**
+  String get chatMigrationBackupFolderTitle;
+
+  /// No description provided for @chatStorageStartupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing chat storage'**
+  String get chatStorageStartupTitle;
+
+  /// No description provided for @chatStorageStartupSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your chat history stays on this device.'**
+  String get chatStorageStartupSubtitle;
+
+  /// No description provided for @chatStorageRecoveryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat storage needs attention'**
+  String get chatStorageRecoveryTitle;
+
+  /// No description provided for @chatStorageRecoveryBody.
+  ///
+  /// In en, this message translates to:
+  /// **'A previously installed chat database is missing. Choose how to recover your chat history.'**
+  String get chatStorageRecoveryBody;
+
+  /// No description provided for @chatStorageRecoveryFailedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Recovery did not finish. You can retry or choose a different option below.'**
+  String get chatStorageRecoveryFailedBody;
+
+  /// No description provided for @chatStorageRecoveryRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore from backup'**
+  String get chatStorageRecoveryRestore;
+
+  /// No description provided for @chatStorageRecoveryRestoreHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose an OmniChat backup zip. Current SQLite chat rows will be replaced.'**
+  String get chatStorageRecoveryRestoreHint;
+
+  /// No description provided for @chatStorageRecoveryRebuild.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebuild from legacy Hive'**
+  String get chatStorageRecoveryRebuild;
+
+  /// No description provided for @chatStorageRecoveryRebuildHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Recreate SQLite from the untouched Hive files. A backup is recommended first.'**
+  String get chatStorageRecoveryRebuildHint;
+
+  /// No description provided for @chatStorageRecoveryReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset chat storage'**
+  String get chatStorageRecoveryReset;
+
+  /// No description provided for @chatStorageRecoveryResetHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Create an empty database. Hive files are kept but will not be imported automatically.'**
+  String get chatStorageRecoveryResetHint;
+
+  /// No description provided for @chatStorageRecoveryContinueLegacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue with the legacy store for now'**
+  String get chatStorageRecoveryContinueLegacy;
+
+  /// No description provided for @chatStorageRecoveryContinueLegacyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This session only. OmniChat will ask again on the next launch.'**
+  String get chatStorageRecoveryContinueLegacyHint;
+
+  /// No description provided for @chatStorageRecoveryRestoring.
+  ///
+  /// In en, this message translates to:
+  /// **'Restoring backup…'**
+  String get chatStorageRecoveryRestoring;
+
+  /// No description provided for @chatStorageRecoveryRebuilding.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebuilding from legacy Hive…'**
+  String get chatStorageRecoveryRebuilding;
+
+  /// No description provided for @chatStorageRecoveryResetting.
+  ///
+  /// In en, this message translates to:
+  /// **'Resetting chat storage…'**
+  String get chatStorageRecoveryResetting;
+
+  /// No description provided for @chatStorageRecoveryOpeningLegacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Opening the legacy store…'**
+  String get chatStorageRecoveryOpeningLegacy;
+
+  /// No description provided for @chatStorageRecoveryConfirmRestoreTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore this backup?'**
+  String get chatStorageRecoveryConfirmRestoreTitle;
+
+  /// No description provided for @chatStorageRecoveryConfirmRestoreBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The current SQLite chat rows will be replaced. The backup file is not modified.'**
+  String get chatStorageRecoveryConfirmRestoreBody;
+
+  /// No description provided for @chatStorageRecoveryConfirmRebuildTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebuild from legacy Hive?'**
+  String get chatStorageRecoveryConfirmRebuildTitle;
+
+  /// No description provided for @chatStorageRecoveryConfirmRebuildBody.
+  ///
+  /// In en, this message translates to:
+  /// **'SQLite will be recreated from the legacy Hive files. Hive files are not modified. Make a backup first if possible.'**
+  String get chatStorageRecoveryConfirmRebuildBody;
+
+  /// No description provided for @chatStorageRecoveryConfirmResetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset chat storage?'**
+  String get chatStorageRecoveryConfirmResetTitle;
+
+  /// No description provided for @chatStorageRecoveryConfirmResetBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The SQLite chat database will be deleted and recreated empty. Legacy Hive files are kept, but they will not be imported automatically.'**
+  String get chatStorageRecoveryConfirmResetBody;
+
+  /// No description provided for @chatStorageRecoveryCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get chatStorageRecoveryCancel;
+
+  /// No description provided for @chatStorageRecoveryErrorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recovery failed'**
+  String get chatStorageRecoveryErrorTitle;
+
+  /// No description provided for @chatStorageRecoveryRestoreDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup restored.'**
+  String get chatStorageRecoveryRestoreDone;
+
+  /// No description provided for @chatStorageRecoveryRebuildDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat storage rebuilt from legacy Hive.'**
+  String get chatStorageRecoveryRebuildDone;
+
+  /// No description provided for @chatStorageRecoveryResetDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat storage reset.'**
+  String get chatStorageRecoveryResetDone;
+
+  /// No description provided for @chatStorageStartupChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking the chat database…'**
+  String get chatStorageStartupChecking;
+
+  /// No description provided for @chatStorageStartupOpeningHive.
+  ///
+  /// In en, this message translates to:
+  /// **'Opening legacy chat data…'**
+  String get chatStorageStartupOpeningHive;
+
+  /// No description provided for @chatStorageStartupImportingMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'Migrating conversations and messages…'**
+  String get chatStorageStartupImportingMessages;
+
+  /// No description provided for @chatStorageStartupImportingToolEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'Migrating tool results…'**
+  String get chatStorageStartupImportingToolEvents;
+
+  /// No description provided for @chatStorageStartupImportingWorkspaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Migrating workspace settings…'**
+  String get chatStorageStartupImportingWorkspaces;
+
+  /// No description provided for @chatStorageStartupValidating.
+  ///
+  /// In en, this message translates to:
+  /// **'Validating the migrated data…'**
+  String get chatStorageStartupValidating;
+
+  /// No description provided for @chatStorageStartupOpening.
+  ///
+  /// In en, this message translates to:
+  /// **'Opening chat storage…'**
+  String get chatStorageStartupOpening;
+
+  /// No description provided for @chatStorageStartupCounts.
+  ///
+  /// In en, this message translates to:
+  /// **'{conversations} chats · {messages} messages'**
+  String chatStorageStartupCounts(int conversations, int messages);
+
+  /// No description provided for @chatStorageStartupQuarantine.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} items need review'**
+  String chatStorageStartupQuarantine(int count);
+
+  /// No description provided for @chatStorageStartupInitialHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Large histories may take a moment. Keep OmniChat open until this finishes.'**
+  String get chatStorageStartupInitialHint;
+
+  /// No description provided for @chatStorageStartupFailedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat storage did not start'**
+  String get chatStorageStartupFailedTitle;
+
+  /// No description provided for @chatStorageStartupFailedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing was deleted. Retry, or copy the diagnostics for troubleshooting.'**
+  String get chatStorageStartupFailedBody;
+
+  /// No description provided for @chatStorageStartupRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get chatStorageStartupRetry;
+
+  /// No description provided for @chatStorageStartupCopyDiagnostics.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy diagnostics'**
+  String get chatStorageStartupCopyDiagnostics;
+
+  /// No description provided for @chatStorageStartupDiagnosticsCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Diagnostics copied.'**
+  String get chatStorageStartupDiagnosticsCopied;
 
   /// No description provided for @storageSpaceTotalLabel.
   ///

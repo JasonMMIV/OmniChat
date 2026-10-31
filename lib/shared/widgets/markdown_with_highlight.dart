@@ -1055,21 +1055,40 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
   }
 
   static ImageProvider? _imageProviderFor(String src) {
-    if (src.startsWith('http://') || src.startsWith('https://')) {
-      return NetworkImage(src);
+    final url = src.trim();
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return NetworkImage(url);
     }
-    if (src.startsWith('data:')) {
+    // Protocol-relative URLs are web URLs. Treating them as local paths turns
+    // them into Windows UNC paths (`\\host\...`) and File.existsSync blocks
+    // the UI isolate on SMB for 10-25s. Resolve them against https instead.
+    if (url.startsWith('//')) {
+      return NetworkImage('https:$url');
+    }
+    // UNC / remote network paths must never be probed synchronously.
+    if (url.startsWith(r'\\')) return null;
+    if (url.startsWith('data:')) {
       try {
         final base64Marker = 'base64,';
-        final idx = src.indexOf(base64Marker);
+        final idx = url.indexOf(base64Marker);
         if (idx != -1) {
-          final b64 = src.substring(idx + base64Marker.length);
+          final b64 = url.substring(idx + base64Marker.length);
           return MemoryImage(base64Decode(b64));
         }
       } catch (_) {}
       return null;
     }
-    final fixed = SandboxPathResolver.fix(src);
+    if (url.startsWith('file://')) {
+      final uri = Uri.tryParse(url);
+      if (uri == null || uri.host.isNotEmpty) return null;
+      try {
+        final f = File(uri.toFilePath());
+        return f.existsSync() ? FileImage(f) : null;
+      } catch (_) {
+        return null;
+      }
+    }
+    final fixed = SandboxPathResolver.fix(url);
     final f = File(fixed);
     if (f.existsSync()) {
       return FileImage(f);

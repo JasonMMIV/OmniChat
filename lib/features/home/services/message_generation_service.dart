@@ -120,6 +120,11 @@ class MessageGenerationService {
     required String providerKey,
     required String modelId,
   }) async {
+    // Tool replay reads full events synchronously. The timeline only preloads
+    // summaries, so fetch the full bodies for this slice before assembly
+    // (including the token estimate below).
+    await chatService.ensureToolEventsLoaded(messages.map((m) => m.id));
+
     // P1-2 trigger evaluation (assembly-time projection, ADR-A6): if the
     // measured usage of the last completed assistant turn is over the
     // model's trigger(W), move the compaction marker so the older history

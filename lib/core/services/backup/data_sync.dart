@@ -101,21 +101,27 @@ class DataSync {
       'Content-Type': 'application/octet-stream',
     });
 
-    final fileStream = file.openRead();
-    fileStream.listen(
-      (chunk) => req.sink.add(chunk),
-      onDone: () => req.sink.close(),
-      onError: (e, st) => req.sink.addError(e, st),
-    );
+    req.contentLength = await file.length();
+    // Start send() first so the request sink has a consumer; addStream then
+    // applies backpressure instead of buffering the whole zip in memory.
+    final responseFuture = req.send();
+    final uploadFuture = _streamFileToRequest(file, req);
+    try {
+      // Increase timeout to 30 minutes to allow slow connections to upload large backup files
+      final streamedRes = await responseFuture.timeout(
+        const Duration(minutes: 30),
+      );
+      final res = await http.Response.fromStream(streamedRes);
+      await uploadFuture;
 
-    // Increase timeout to 30 minutes to allow slow connections to upload large backup files
-    final streamedRes = await req.send().timeout(const Duration(minutes: 30));
-    final res = await http.Response.fromStream(streamedRes);
-
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw Exception('Dropbox 上傳失敗 (${res.statusCode}): ${res.body}');
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        throw Exception('Dropbox 上傳失敗 (${res.statusCode}): ${res.body}');
+      }
+      return dropboxFilePath;
+    } catch (_) {
+      unawaited(uploadFuture.catchError((_) {}));
+      rethrow;
     }
-    return dropboxFilePath;
   }
 
   Future<List<BackupFileItem>> listDropboxBackupFiles(DropboxConfig cfg) async {
@@ -345,91 +351,138 @@ class DataSync {
     if (await outFile.exists()) await outFile.delete();
 
     final zip = ZipFileEncoder();
-    zip.create(outFile.path);
+    File? chatsFile;
+    var zipClosed = false;
+    try {
+      zip.create(outFile.path);
 
-    // settings.json
-    final settingsJson = await _exportSettingsJson();
-    final settingsBytes = utf8.encode(settingsJson);
-    final settingsArchiveFile = ArchiveFile(
-      'settings.json',
-      settingsBytes.length,
-      settingsBytes,
-    );
-    zip.addArchiveFile(settingsArchiveFile);
-
-    // chats
-    if (cfg.includeChats) {
-      final chatsJson = await _exportChatsJson();
-      final chatsBytes = utf8.encode(chatsJson);
-      final chatsArchiveFile = ArchiveFile(
-        'chats.json',
-        chatsBytes.length,
-        chatsBytes,
+      // settings.json is small enough to keep in memory.
+      final settingsJson = await _exportSettingsJson();
+      final settingsBytes = utf8.encode(settingsJson);
+      zip.addArchiveFile(
+        ArchiveFile('settings.json', settingsBytes.length, settingsBytes),
       );
-      zip.addArchiveFile(chatsArchiveFile);
+
+      // chats.json is streamed to a temp file first. Building one enormous
+      // String and then one Uint8List doubles peak memory for large histories.
+      if (cfg.includeChats) {
+        chatsFile = await _exportChatsJsonFile();
+        await zip.addFile(chatsFile, 'chats.json');
+      }
+
+      // files under upload/, images/, and avatars/. addFile streams each file;
+      // await it so close() cannot race the InputFileStream.
+      if (cfg.includeFiles) {
+        final uploadDir = await _getUploadDir();
+        if (await uploadDir.exists()) {
+          final entries = uploadDir.listSync(
+            recursive: true,
+            followLinks: false,
+          );
+          for (final ent in entries) {
+            if (ent is File) {
+              final rel = p.relative(ent.path, from: uploadDir.path);
+              final relPosix = rel.replaceAll('\\', '/');
+              await zip.addFile(ent, 'upload/$relPosix');
+            }
+          }
+        }
+
+        final avatarsDir = await _getAvatarsDir();
+        if (await avatarsDir.exists()) {
+          final entries = avatarsDir.listSync(
+            recursive: true,
+            followLinks: false,
+          );
+          for (final ent in entries) {
+            if (ent is File) {
+              final rel = p.relative(ent.path, from: avatarsDir.path);
+              final relPosix = rel.replaceAll('\\', '/');
+              await zip.addFile(ent, 'avatars/$relPosix');
+            }
+          }
+        }
+
+        final imagesDir = await _getImagesDir();
+        if (await imagesDir.exists()) {
+          final entries = imagesDir.listSync(
+            recursive: true,
+            followLinks: false,
+          );
+          for (final ent in entries) {
+            if (ent is File) {
+              final rel = p.relative(ent.path, from: imagesDir.path);
+              final relPosix = rel.replaceAll('\\', '/');
+              await zip.addFile(ent, 'images/$relPosix');
+            }
+          }
+        }
+      }
+
+      await zip.close();
+      zipClosed = true;
+      return outFile;
+    } catch (_) {
+      if (!zipClosed) {
+        try {
+          await zip.close();
+        } catch (_) {}
+      }
+      try {
+        if (await outFile.exists()) await outFile.delete();
+      } catch (_) {}
+      rethrow;
+    } finally {
+      if (chatsFile != null) {
+        try {
+          if (await chatsFile.exists()) await chatsFile.delete();
+        } catch (_) {}
+      }
     }
-
-    // files under upload/, images/, and avatars/
-    if (cfg.includeFiles) {
-      // Export upload directory
-      final uploadDir = await _getUploadDir();
-      if (await uploadDir.exists()) {
-        final entries = uploadDir.listSync(recursive: true, followLinks: false);
-        for (final ent in entries) {
-          if (ent is File) {
-            final rel = p.relative(ent.path, from: uploadDir.path);
-            final relPosix = rel.replaceAll('\\', '/');
-            zip.addFile(ent, 'upload/$relPosix');
-          }
-        }
-      }
-
-      // Export avatars directory
-      final avatarsDir = await _getAvatarsDir();
-      if (await avatarsDir.exists()) {
-        final entries = avatarsDir.listSync(
-          recursive: true,
-          followLinks: false,
-        );
-        for (final ent in entries) {
-          if (ent is File) {
-            final rel = p.relative(ent.path, from: avatarsDir.path);
-            final relPosix = rel.replaceAll('\\', '/');
-            zip.addFile(ent, 'avatars/$relPosix');
-          }
-        }
-      }
-
-      // Export images directory
-      final imagesDir = await _getImagesDir();
-      if (await imagesDir.exists()) {
-        final entries = imagesDir.listSync(recursive: true, followLinks: false);
-        for (final ent in entries) {
-          if (ent is File) {
-            final rel = p.relative(ent.path, from: imagesDir.path);
-            final relPosix = rel.replaceAll('\\', '/');
-            zip.addFile(ent, 'images/$relPosix');
-          }
-        }
-      }
-    }
-
-    zip.close();
-    return outFile;
   }
 
   Future<void> backupToWebDav(WebDavConfig cfg) async {
     final file = await prepareBackupFile(cfg);
     await _ensureCollection(cfg);
     final target = _fileUri(cfg, p.basename(file.path));
-    final bytes = await file.readAsBytes();
-    final res = await http.put(
-      target,
-      headers: {'content-type': 'application/zip', ..._authHeaders(cfg)},
-      body: bytes,
-    );
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw Exception('Upload failed: ${res.statusCode}');
+
+    // Stream the zip instead of reading it into one Uint8List. The server gets
+    // a Content-Length so WebDAV can reject incomplete uploads.
+    final req = http.StreamedRequest('PUT', target);
+    req.headers.addAll({
+      'content-type': 'application/zip',
+      ..._authHeaders(cfg),
+    });
+    req.contentLength = await file.length();
+    // Start send() first so the request sink has a consumer; addStream then
+    // applies backpressure instead of buffering the whole zip in memory.
+    final responseFuture = req.send();
+    final uploadFuture = _streamFileToRequest(file, req);
+    try {
+      final streamedRes = await responseFuture.timeout(
+        const Duration(minutes: 30),
+      );
+      final res = await http.Response.fromStream(streamedRes);
+      await uploadFuture;
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        throw Exception('Upload failed: ${res.statusCode}: ${res.body}');
+      }
+    } catch (_) {
+      unawaited(uploadFuture.catchError((_) {}));
+      rethrow;
+    }
+  }
+
+  /// Streams [file] into a request body with backpressure. The request must
+  /// already be sent/being consumed; [StreamSink.addStream] pauses the file
+  /// stream when the network consumer is slow.
+  Future<void> _streamFileToRequest(File file, http.StreamedRequest req) async {
+    try {
+      await req.sink.addStream(file.openRead());
+    } finally {
+      try {
+        await req.sink.close();
+      } catch (_) {}
     }
   }
 
@@ -566,19 +619,18 @@ class DataSync {
     File file,
     WebDavConfig cfg, {
     RestoreMode mode = RestoreMode.overwrite,
+    bool restoreSettings = true,
   }) async {
     if (!await file.exists()) throw Exception('备份文件不存在');
-    await _restoreFromBackupFile(file, cfg, mode: mode);
+    await _restoreFromBackupFile(
+      file,
+      cfg,
+      mode: mode,
+      restoreSettings: restoreSettings,
+    );
   }
 
   // ===== Internal helpers =====
-  Future<File> _writeTempText(String name, String content) async {
-    final tmp = await getTemporaryDirectory();
-    final f = File(p.join(tmp.path, name));
-    await f.writeAsString(content);
-    return f;
-  }
-
   Future<Directory> _getUploadDir() async {
     return await AppDirectories.getUploadDirectory();
   }
@@ -597,59 +649,170 @@ class DataSync {
     return jsonEncode(map);
   }
 
-  Future<String> _exportChatsJson() async {
+  /// Streams the v3 chats shape into a temp file.
+  ///
+  /// Messages, tool events, and file records are emitted one entry at a time;
+  /// only the small workspace/signature maps are assembled in memory. The
+  /// caller adds the file to the zip and deletes it. The JSON shape and merge
+  /// semantics are unchanged from the previous eager exporter.
+  Future<File> _exportChatsJsonFile() async {
     if (!chatService.initialized) {
       await chatService.init();
     }
+    // Backups legitimately read every message/tool body. The SQLite facade
+    // loads tool events per conversation, so preload them all before the
+    // synchronous export loop.
+    await chatService.ensureAllConversationsLoaded();
     final conversations = chatService.getAllConversations();
-    final allMsgs = <ChatMessage>[];
-    final toolEvents = <String, List<Map<String, dynamic>>>{};
-    final geminiThoughtSigs = <String, String>{};
+    final messagesByConversation = <String, List<ChatMessage>>{
+      for (final c in conversations) c.id: chatService.getMessages(c.id),
+    };
     final workspaces = <String, String>{};
     final workspaceBindings = <String, Map<String, dynamic>>{};
-    final fileRecords = <String, List<Map<String, dynamic>>>{};
     for (final c in conversations) {
-      final workspaceConfig = chatService.getConversationWorkspaceConfig(c.id);
-      if (workspaceConfig != null &&
-          workspaceConfig.mode != WorkspaceMode.inheritProject) {
-        workspaceBindings[c.id] = workspaceConfig.toJson();
-        if (workspaceConfig.mode == WorkspaceMode.custom &&
-            workspaceConfig.path != null) {
-          workspaces[c.id] = workspaceConfig.path!;
-        }
-      }
-      final msgs = chatService.getMessages(c.id);
-      allMsgs.addAll(msgs);
-      for (final m in msgs) {
-        if (m.role == 'assistant') {
-          final ev = chatService.getToolEvents(m.id);
-          if (ev.isNotEmpty) toolEvents[m.id] = ev;
-          final sig = chatService.getGeminiThoughtSignature(m.id);
-          if (sig != null && sig.isNotEmpty) geminiThoughtSigs[m.id] = sig;
-        }
-        final records = chatService.getMessageFileRecords(m.id);
-        if (records.isNotEmpty) {
-          fileRecords[m.id] = records.map((record) => record.toJson()).toList();
+      final config = chatService.getConversationWorkspaceConfig(c.id);
+      if (config != null && config.mode != WorkspaceMode.inheritProject) {
+        workspaceBindings[c.id] = config.toJson();
+        if (config.mode == WorkspaceMode.custom && config.path != null) {
+          workspaces[c.id] = config.path!;
         }
       }
     }
-    final obj = {
-      'version': 3,
-      'conversations': conversations.map((c) => c.toJson()).toList(),
-      'messages': allMsgs.map((m) => m.toJson()).toList(),
-      'toolEvents': toolEvents,
-      'geminiThoughtSigs': geminiThoughtSigs,
-      'workspaces': workspaces,
-      'workspaceBindings': workspaceBindings,
-      'fileRecords': fileRecords,
-    };
-    return jsonEncode(obj);
+
+    final tmp = await getTemporaryDirectory();
+    final output = File(
+      p.join(
+        tmp.path,
+        'omnichat_chats_${DateTime.now().microsecondsSinceEpoch}.json',
+      ),
+    );
+    final sink = output.openWrite();
+    try {
+      sink.write('{"version":3,"conversations":');
+      _writeJsonList(sink, conversations.map((c) => c.toJson()));
+      sink.write(',"messages":');
+      _writeJsonList(
+        sink,
+        conversations
+            .expand((c) => messagesByConversation[c.id] ?? const [])
+            .map((m) => m.toJson()),
+      );
+      sink.write(',"toolEvents":');
+      _writeJsonMap(
+        sink,
+        _toolEventEntries(conversations, messagesByConversation),
+      );
+      sink.write(',"geminiThoughtSigs":');
+      _writeJsonMap(
+        sink,
+        _signatureEntries(conversations, messagesByConversation),
+      );
+      sink.write(',"workspaces":');
+      sink.write(jsonEncode(workspaces));
+      sink.write(',"workspaceBindings":');
+      sink.write(jsonEncode(workspaceBindings));
+      sink.write(',"fileRecords":');
+      _writeJsonMap(
+        sink,
+        _fileRecordEntries(conversations, messagesByConversation),
+      );
+      sink.write('}');
+    } catch (_) {
+      try {
+        await sink.close();
+      } catch (_) {}
+      try {
+        if (await output.exists()) await output.delete();
+      } catch (_) {}
+      rethrow;
+    }
+    try {
+      await sink.close();
+    } catch (_) {
+      try {
+        if (await output.exists()) await output.delete();
+      } catch (_) {}
+      rethrow;
+    }
+    return output;
+  }
+
+  void _writeJsonList(StringSink sink, Iterable<Object?> values) {
+    sink.write('[');
+    var first = true;
+    for (final value in values) {
+      if (!first) sink.write(',');
+      first = false;
+      sink.write(jsonEncode(value));
+    }
+    sink.write(']');
+  }
+
+  Iterable<MapEntry<String, Object?>> _toolEventEntries(
+    List<Conversation> conversations,
+    Map<String, List<ChatMessage>> messagesByConversation,
+  ) sync* {
+    for (final c in conversations) {
+      for (final m in messagesByConversation[c.id] ?? const <ChatMessage>[]) {
+        if (m.role != 'assistant') continue;
+        final events = chatService.getToolEvents(m.id);
+        if (events.isEmpty) continue;
+        yield MapEntry<String, Object?>(m.id, events);
+      }
+    }
+  }
+
+  Iterable<MapEntry<String, Object?>> _signatureEntries(
+    List<Conversation> conversations,
+    Map<String, List<ChatMessage>> messagesByConversation,
+  ) sync* {
+    for (final c in conversations) {
+      for (final m in messagesByConversation[c.id] ?? const <ChatMessage>[]) {
+        if (m.role != 'assistant') continue;
+        final signature = chatService.getGeminiThoughtSignature(m.id);
+        if (signature == null || signature.isEmpty) continue;
+        yield MapEntry<String, Object?>(m.id, signature);
+      }
+    }
+  }
+
+  Iterable<MapEntry<String, Object?>> _fileRecordEntries(
+    List<Conversation> conversations,
+    Map<String, List<ChatMessage>> messagesByConversation,
+  ) sync* {
+    for (final c in conversations) {
+      for (final m in messagesByConversation[c.id] ?? const <ChatMessage>[]) {
+        final records = chatService.getMessageFileRecords(m.id);
+        if (records.isEmpty) continue;
+        yield MapEntry<String, Object?>(
+          m.id,
+          records.map((record) => record.toJson()).toList(growable: false),
+        );
+      }
+    }
+  }
+
+  void _writeJsonMap(
+    StringSink sink,
+    Iterable<MapEntry<String, Object?>> entries,
+  ) {
+    sink.write('{');
+    var first = true;
+    for (final entry in entries) {
+      if (!first) sink.write(',');
+      first = false;
+      sink.write(jsonEncode(entry.key));
+      sink.write(':');
+      sink.write(jsonEncode(entry.value));
+    }
+    sink.write('}');
   }
 
   Future<void> _restoreFromBackupFile(
     File file,
     WebDavConfig cfg, {
     RestoreMode mode = RestoreMode.overwrite,
+    bool restoreSettings = true,
   }) async {
     // Extract to temp
     final tmp = await getTemporaryDirectory();
@@ -677,7 +840,7 @@ class DataSync {
 
     // Restore settings
     final settingsFile = File(p.join(extractDir.path, 'settings.json'));
-    if (await settingsFile.exists()) {
+    if (restoreSettings && await settingsFile.exists()) {
       try {
         final txt = await settingsFile.readAsString();
         final map = jsonDecode(txt) as Map<String, dynamic>;
@@ -993,8 +1156,9 @@ class DataSync {
         }
 
         if (mode == RestoreMode.overwrite) {
-          // Clear and restore via ChatService
-          await chatService.clearAllData();
+          // Clear rows only: a routine restore must not reset the database
+          // installation or write the legacy-import-disabled sentinel.
+          await chatService.clearAllChatRows();
           final byConv = <String, List<ChatMessage>>{};
           for (final m in msgs) {
             (byConv[m.conversationId] ??= <ChatMessage>[]).add(m);
@@ -1033,6 +1197,10 @@ class DataSync {
             }
           }
         } else {
+          // Merge mode reads existing tool events synchronously below; the
+          // SQLite facade loads them per conversation.
+          await chatService.ensureAllConversationsLoaded();
+
           // Merge mode: Add only non-existing conversations and messages
           final existingConvs = chatService.getAllConversations();
           final existingConvIds = existingConvs.map((c) => c.id).toSet();
