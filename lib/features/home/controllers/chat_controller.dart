@@ -119,6 +119,7 @@ class ChatController extends ChangeNotifier {
   Future<void> switchConversation(String id) async {
     if (_currentConversation?.id == id) return;
 
+    await _chatService.ensureConversationLoaded(id);
     _chatService.setCurrentConversation(id);
     final convo = _chatService.getConversation(id);
     if (convo != null) {

@@ -12,20 +12,16 @@ import '../../../core/providers/user_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/document_text_extractor.dart';
 import '../../../core/services/chat/prompt_transformer.dart';
+import '../../../core/services/chat/tool_replay.dart';
 import '../../../core/services/instruction_injection_store.dart';
 import '../../../core/services/search/search_tool_service.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/services/api/builtin_tools.dart';
-import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/agent/compaction/context_trim.dart';
 import '../../../core/services/agent/compaction/history_compactor.dart';
 import '../../../core/services/agent/compaction/tool_pairing.dart';
 import '../../../core/services/agent/compaction/tool_result_pruner.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
-
-/// Legacy log-only tool name (P1-5 workspace snapshots, removed 2026-09-10).
-/// Old conversations may still persist these events; they must never replay.
-const String _legacyWorkspaceSnapshotToolName = 'workspace_snapshot';
 
 /// Normalize a stored tool result for model consumption.
 ///
@@ -193,121 +189,87 @@ class MessageBuilderService {
     final out = <Map<String, dynamic>>[];
     for (final m in source) {
       if (includeToolMessages && m.role == 'assistant') {
-        final events = chatService.getToolEvents(m.id);
-        if (events.isNotEmpty) {
-          // Tool-call history is only valid once every call has a result.
-          final hasPendingToolEvent = events.any((e) => e['content'] == null);
-          if (!hasPendingToolEvent) {
-            final calls = <Map<String, dynamic>>[];
-            final toolMessages = <Map<String, dynamic>>[];
-            // Events that actually produced a replayed call/result pair —
-            // used below to gather the persisted reasoning-echo extras.
-            final replayedEvents = <Map<String, dynamic>>[];
-
-            for (int i = 0; i < events.length; i++) {
-              final e = events[i];
-              final name = (e['name'] ?? '').toString().trim();
-              if (name.isEmpty) continue;
-              // P1-3: write_todos is a log-only tool — its snapshot is
-              // injected at the system-prompt tail, never replayed as
-              // history (avoids pushing the whole plan into every turn).
-              if (name == todoToolName) continue;
-              // Legacy (P1-5 removed 2026-09-10): old conversations may
-              // still persist `workspace_snapshot` log-only events — keep
-              // skipping them so the removed affordance never reaches the
-              // model.
-              if (name == _legacyWorkspaceSnapshotToolName) continue;
-              // P1-3: ask_user DOES replay — the answered JSON is the
-              // model-facing record of what the user chose (ADR-A5
-              // "Answered → answer as tool result"), so the resumed turn's
-              // context carries question + answer via §3.11.
-              final rawId = (e['id'] ?? '').toString().trim();
-              final id = rawId.isNotEmpty
-                  ? rawId
-                  : 'call_${m.id.substring(0, m.id.length < 8 ? m.id.length : 8)}_$i';
-
-              Map<String, dynamic> args = const <String, dynamic>{};
-              final a = e['arguments'];
-              if (a is Map) {
-                args = a.map((k, v) => MapEntry(k.toString(), v));
-              }
-              String argumentsJson = '{}';
-              try {
-                argumentsJson = jsonEncode(args);
-              } catch (_) {}
-
-              calls.add({
-                'id': id,
-                'type': 'function',
-                'function': {'name': name, 'arguments': argumentsJson},
-              });
-              replayedEvents.add(e);
-
-              final c = e['content'];
-              toolMessages.add({
-                'role': 'tool',
-                'name': name,
-                'tool_call_id': id,
-                'content': toolResultContentForModel(c?.toString()),
-              });
+        // §9.5.2: replay only completed/denied pairs. Pending and interrupted
+        // events are omitted as a pair; a pending approval-protocol payload
+        // is never mistaken for a tool result. `denied` replays its denial
+        // JSON, which is the one approval shape the model should see.
+        final pairs = buildToolReplayPairs(
+          chatService.getToolEvents(m.id),
+          messageId: m.id,
+        );
+        if (pairs.isNotEmpty) {
+          final calls = <Map<String, dynamic>>[];
+          final toolMessages = <Map<String, dynamic>>[];
+          // Pairs that actually produced a replayed call/result — used below
+          // to gather the persisted reasoning-echo extras.
+          for (final pair in pairs) {
+            Map<String, dynamic> args = const <String, dynamic>{};
+            final a = pair.event['arguments'];
+            if (a is Map) {
+              args = a.map((k, v) => MapEntry(k.toString(), v));
             }
+            String argumentsJson = '{}';
+            try {
+              argumentsJson = jsonEncode(args);
+            } catch (_) {}
 
-            if (calls.isNotEmpty) {
-              // P1-3 fix: re-attach the reasoning-echo fields persisted on
-              // the tool events. DeepSeek (and Zhipu/Kimi/Mimo) thinking-mode
-              // endpoints reject a conversation whose assistant `tool_calls`
-              // message does not carry `reasoning_content` back (HTTP 400:
-              // "The reasoning_content in the thinking mode must be passed
-              // back to the API") — this is exactly what happened when a
-              // pending ask_user card was answered and the run resumed with
-              // a fresh context assembly. Providers that do not understand
-              // the field strip it at conversion time (ChatApiService), so
-              // a plain passthrough here is safe.
-              String? reasoningContent;
-              final reasoningDetails = <dynamic>[];
-              for (final e in replayedEvents) {
-                final rc = e['reasoning_content'];
-                if (reasoningContent == null &&
-                    rc is String &&
-                    rc.isNotEmpty) {
-                  reasoningContent = rc;
-                }
-                final rd = e['reasoning_details'];
-                // First-wins (matching reasoningContent): the write side
-                // persists the round's echo onto every placeholder event,
-                // so a multi-call round would otherwise duplicate the same
-                // details list N times.
-                if (reasoningDetails.isEmpty &&
-                    rd is List &&
-                    rd.isNotEmpty) {
-                  reasoningDetails.addAll(rd);
-                }
-              }
-              // P1-3 fix (2026-09-11): heal pre-fix history — when the
-              // events carry no echo (conversations persisted before the
-              // write-side fix landed in handleToolCallsChunk, or rounds
-              // whose transport emitted no extras), fall back to this
-              // assistant message's own reasoningText. It is the same
-              // reasoning stream the transport echoes back to the provider,
-              // so the replay stays faithful while satisfying DeepSeek's
-              // "reasoning_content must be passed back" requirement on the
-              // resumed request.
-              if (reasoningContent == null &&
-                  (m.reasoningText ?? '').isNotEmpty) {
-                reasoningContent = m.reasoningText;
-              }
-              out.add(<String, dynamic>{
-                'role': 'assistant',
-                'content': '\n\n',
-                'tool_calls': calls,
-                if (reasoningContent != null)
-                  'reasoning_content': reasoningContent,
-                if (reasoningDetails.isNotEmpty)
-                  'reasoning_details': reasoningDetails,
-              });
-              out.addAll(toolMessages);
+            calls.add({
+              'id': pair.toolCallId,
+              'type': 'function',
+              'function': {'name': pair.toolName, 'arguments': argumentsJson},
+            });
+            toolMessages.add({
+              'role': 'tool',
+              'name': pair.toolName,
+              'tool_call_id': pair.toolCallId,
+              'content': toolResultContentForModel(pair.content),
+            });
+          }
+
+          // P1-3 fix: re-attach the reasoning-echo fields persisted on the
+          // tool events. DeepSeek (and Zhipu/Kimi/Mimo) thinking-mode
+          // endpoints reject a conversation whose assistant `tool_calls`
+          // message does not carry `reasoning_content` back (HTTP 400:
+          // "The reasoning_content in the thinking mode must be passed
+          // back to the API"). Providers that do not understand the field
+          // strip it at conversion time (ChatApiService), so a plain
+          // passthrough here is safe.
+          String? reasoningContent;
+          final reasoningDetails = <dynamic>[];
+          for (final pair in pairs) {
+            final rc = pair.event['reasoning_content'];
+            if (reasoningContent == null && rc is String && rc.isNotEmpty) {
+              reasoningContent = rc;
+            }
+            final rd = pair.event['reasoning_details'];
+            // First-wins (matching reasoningContent): the write side
+            // persists the round's echo onto every placeholder event, so a
+            // multi-call round would otherwise duplicate the same details
+            // list N times.
+            if (reasoningDetails.isEmpty && rd is List && rd.isNotEmpty) {
+              reasoningDetails.addAll(rd);
             }
           }
+          // P1-3 fix (2026-09-11): heal pre-fix history — when the events
+          // carry no echo, fall back to this assistant message's own
+          // reasoningText. It is the same reasoning stream the transport
+          // echoes back to the provider, so the replay stays faithful while
+          // satisfying DeepSeek's "reasoning_content must be passed back"
+          // requirement on the resumed request.
+          if (reasoningContent == null &&
+              (m.reasoningText ?? '').isNotEmpty) {
+            reasoningContent = m.reasoningText;
+          }
+          out.add(<String, dynamic>{
+            'role': 'assistant',
+            'content': '\n\n',
+            'tool_calls': calls,
+            if (reasoningContent != null)
+              'reasoning_content': reasoningContent,
+            if (reasoningDetails.isNotEmpty)
+              'reasoning_details': reasoningDetails,
+          });
+          out.addAll(toolMessages);
         }
       }
 
@@ -753,16 +715,24 @@ file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPT
   }
 
   /// Convert local Markdown image links to inline base64 for model context.
+  ///
+  /// Tool results are skipped: they are model-facing text (web_fetch pages,
+  /// search results) that often contains protocol-relative image URLs
+  /// (`//host/...`). Treating those as local paths made Windows resolve them
+  /// as UNC shares and blocked the UI isolate for 10-25s per host. They are
+  /// also the largest messages, so skipping them keeps assembly cheap.
   Future<void> inlineLocalImages(List<Map<String, dynamic>> apiMessages) async {
-    for (int i = 0; i < apiMessages.length; i++) {
-      final s = (apiMessages[i]['content'] ?? '').toString();
+    for (final message in apiMessages) {
+      if (message['role'] == 'tool') continue;
+      final content = message['content'];
+      // Only string content can contain Markdown image links; leave structured
+      // multimodal content untouched.
+      if (content is! String || content.isEmpty) continue;
       // Skip the P1-2 summary: its text quotes old history and must never
       // have stale image references re-inlined as base64 blobs.
-      if (s.startsWith(summaryContentPrefix)) continue;
-      if (s.isNotEmpty) {
-        apiMessages[i]['content'] =
-            await MarkdownMediaSanitizer.inlineLocalImagesToBase64(s);
-      }
+      if (content.startsWith(summaryContentPrefix)) continue;
+      message['content'] =
+          await MarkdownMediaSanitizer.inlineLocalImagesToBase64(content);
     }
   }
 

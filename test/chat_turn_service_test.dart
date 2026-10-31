@@ -263,5 +263,64 @@ void main() {
       final assistantMsg = api[1] as Map;
       expect(assistantMsg['reasoning_content'], 'event echo');
     });
+
+    test('§9.5.2: replays completed/denied pairs only, never dangling calls',
+        () {
+      final service = ChatTurnService(
+        chatService: ToolEventChatService({
+          'a1': [
+            {
+              'id': 'call_done',
+              'name': 'file_read',
+              'arguments': {'path': 'a.txt'},
+              'content': 'contents',
+            },
+            {
+              'id': 'call_denied',
+              'name': 'file_write',
+              'arguments': {'path': 'b.txt'},
+              'content': '{"type":"approval_denied"}',
+              'approvalState': 'denied',
+            },
+            {
+              'id': 'call_pending',
+              'name': 'file_delete',
+              'arguments': {'path': 'c.txt'},
+              'content': '{"type":"approval_required"}',
+              'approvalState': 'pending',
+            },
+            {
+              'id': 'call_interrupted',
+              'name': 'web_fetch',
+              'arguments': {'url': 'https://example.com'},
+              'content': null,
+              'approvalState': 'approved',
+            },
+          ],
+        }),
+      );
+      final conversation = Conversation(title: 't', id: 'c1');
+      final api = service.buildApiMessages(
+        conversation: conversation,
+        messages: [
+          _msg('user', 'work', conversation.id),
+          _msg('assistant', '', conversation.id, id: 'a1'),
+          _msg('user', 'go on', conversation.id),
+        ],
+        versionSelections: {},
+        includeToolMessages: true,
+      );
+
+      final toolCalls = api[1]['tool_calls'] as List;
+      expect(toolCalls, hasLength(2));
+      final callIds = toolCalls.map((c) => c['id']).toSet();
+      expect(callIds, {'call_done', 'call_denied'});
+      final toolResults = api.where((m) => m['role'] == 'tool').toList();
+      expect(toolResults, hasLength(2));
+      expect(
+        toolResults.map((m) => m['tool_call_id']).toSet(),
+        callIds,
+      );
+    });
   });
 }

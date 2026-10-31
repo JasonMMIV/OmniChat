@@ -41,12 +41,12 @@ class VoiceChatController extends ChangeNotifier {
     required UserProvider userProvider,
     required BuildContext context,
     ChatTurnService? turnService,
-  })  : _chatService = chatService,
-        _settings = settings,
-        _assistantProvider = assistantProvider,
-        _ttsProvider = ttsProvider,
-        _userProvider = userProvider,
-        _context = context {
+  }) : _chatService = chatService,
+       _settings = settings,
+       _assistantProvider = assistantProvider,
+       _ttsProvider = ttsProvider,
+       _userProvider = userProvider,
+       _context = context {
     _turnService = turnService ?? ChatTurnService(chatService: chatService);
     _sttLocaleResolver = SttLocaleResolver(
       speechToText: _speechToText,
@@ -526,8 +526,7 @@ class VoiceChatController extends ChangeNotifier {
       final currentAssistant = _assistantProvider.currentAssistant;
       final providerKey =
           currentAssistant?.chatModelProvider ?? settings.currentModelProvider;
-      final modelId =
-          currentAssistant?.chatModelId ?? settings.currentModelId;
+      final modelId = currentAssistant?.chatModelId ?? settings.currentModelId;
 
       if (providerKey == null || modelId == null) {
         _showErrorAndResume(
@@ -536,9 +535,16 @@ class VoiceChatController extends ChangeNotifier {
         return;
       }
 
+      // The turn builder replays completed tool events synchronously; the
+      // timeline only preloads summaries, so load the message bodies and full
+      // tool bodies for this turn's message slice.
+      await chatService.ensureConversationLoaded(currentConversationId);
+      final turnMessages = chatService.getMessages(currentConversationId);
+      await chatService.ensureToolEventsLoaded(turnMessages.map((m) => m.id));
+
       final request = _turnService.prepareTurnRequest(
         conversation: currentConversation,
-        messages: chatService.getMessages(currentConversationId),
+        messages: turnMessages,
         versionSelections: _versionSelections,
         providerKey: providerKey,
         modelId: modelId,
@@ -581,19 +587,22 @@ class VoiceChatController extends ChangeNotifier {
         // Switch to talking state before playing TTS
         if (_active) {
           _currentState = VoiceChatState.talking;
-          _currentSubtitle = fullContent; // Show the response during talking state
+          _currentSubtitle =
+              fullContent; // Show the response during talking state
           _notify();
         }
 
         try {
           // Play the response using TTS and wait for completion
           // Task 2.6: 引擎卡死 watchdog — 2 分鐘未完成則強制停止並回到聆聽
-          await _ttsProvider.speak(fullContent).timeout(
-            const Duration(seconds: 120),
-            onTimeout: () async {
-              await _ttsProvider.stop();
-            },
-          );
+          await _ttsProvider
+              .speak(fullContent)
+              .timeout(
+                const Duration(seconds: 120),
+                onTimeout: () async {
+                  await _ttsProvider.stop();
+                },
+              );
 
           // After TTS completes, return to listening
           if (_active) {
@@ -611,7 +620,8 @@ class VoiceChatController extends ChangeNotifier {
           if (_active) {
             final l = AppLocalizations.of(_context);
             _currentSubtitle =
-                l?.voiceChatErrorTts(e.toString()) ?? 'TTS error: ${e.toString()}';
+                l?.voiceChatErrorTts(e.toString()) ??
+                'TTS error: ${e.toString()}';
             _notify();
           }
 

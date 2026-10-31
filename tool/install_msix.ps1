@@ -7,15 +7,34 @@ $root = Split-Path -Parent $PSScriptRoot
 $msix = Join-Path $root 'build\windows\x64\runner\Release\OmniChat.msix'
 $name = 'com.psyche.omnichat'
 
+if (-not (Test-Path $msix)) {
+    throw "MSIX not found: $msix. Run flutter build windows --release first."
+}
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zip = [System.IO.Compression.ZipFile]::OpenRead($msix)
+try {
+    $sqliteEntry = $zip.Entries | Where-Object { $_.FullName -eq 'sqlite3.dll' }
+    if (-not $sqliteEntry) {
+        throw "sqlite3.dll is missing from $msix. SQLite chat storage would fall back to Hive; rebuild the release bundle."
+    }
+
+    $entry = $zip.Entries | Where-Object { $_.FullName -eq 'AppxManifest.xml' }
+    if (-not $entry) {
+        throw "AppxManifest.xml is missing from $msix."
+    }
+    $reader = New-Object System.IO.StreamReader($entry.Open())
+    try {
+        $manifest = $reader.ReadToEnd()
+    } finally {
+        $reader.Close()
+    }
+} finally {
+    $zip.Dispose()
+}
+
 $existing = Get-AppxPackage -Name $name
 if ($existing) {
-    # Extract Publisher from the new manifest and compare.
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $zip = [System.IO.Compression.ZipFile]::OpenRead($msix)
-    $entry = $zip.Entries | Where-Object { $_.FullName -eq 'AppxManifest.xml' }
-    $reader = New-Object System.IO.StreamReader($entry.Open())
-    $manifest = $reader.ReadToEnd()
-    $reader.Close(); $zip.Dispose()
     if ($manifest -match 'Publisher="([^"]+)"') { $newPublisher = $Matches[1] } else { $newPublisher = '' }
 
     if ($existing.Publisher -ne $newPublisher) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:characters/characters.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
@@ -60,11 +61,13 @@ class SideDrawer extends StatefulWidget {
 
   final String userName;
   final String assistantName;
-  final FutureOr<void> Function(String id, {bool closeDrawer})? onSelectConversation;
+  final FutureOr<void> Function(String id, {bool closeDrawer})?
+  onSelectConversation;
   final FutureOr<void> Function({bool closeDrawer})? onNewConversation;
   final ValueNotifier<int>? closePickerTicker;
   final Set<String> loadingConversationIds;
-  final bool embedded; // when true, render as a fixed side panel instead of a Drawer
+  final bool
+  embedded; // when true, render as a fixed side panel instead of a Drawer
   final double? embeddedWidth; // optional explicit width for embedded mode
   final bool showBottomBar; // desktop can hide this bottom area
 
@@ -73,7 +76,10 @@ class SideDrawer extends StatefulWidget {
 }
 
 class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
-  bool get _isDesktop => defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux;
+  bool get _isDesktop =>
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux;
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
   final GlobalKey _assistantTileKey = GlobalKey();
@@ -85,7 +91,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   bool _selectionMode = false;
   final Set<String> _selectedConversationIds = <String>{};
 
-
   @override
   void initState() {
     super.initState();
@@ -95,9 +100,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         setState(() => _query = _searchController.text);
       }
     });
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final currentAssistantId = context.read<AssistantProvider>().currentAssistantId;
+      final currentAssistantId = context
+          .read<AssistantProvider>()
+          .currentAssistantId;
       if (currentAssistantId != null) {
         setState(() {
           _expandedAssistantIds.add(currentAssistantId);
@@ -106,11 +113,16 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     });
   }
 
-  void _showChatMenu(BuildContext context, ChatItem chat, {Offset? anchor}) async {
+  void _showChatMenu(
+    BuildContext context,
+    ChatItem chat, {
+    Offset? anchor,
+  }) async {
     final l10n = AppLocalizations.of(context)!;
     final chatService = context.read<ChatService>();
     final isPinned = chatService.getConversation(chat.id)?.isPinned ?? false;
-    final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+    final isDesktop =
+        defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.linux;
 
@@ -129,24 +141,31 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
           DesktopContextMenuItem(
             icon: Lucide.Edit,
             label: l10n.sideDrawerMenuRename,
-            onTap: () async { await _renameChat(context, chat); },
+            onTap: () async {
+              await _renameChat(context, chat);
+            },
           ),
           DesktopContextMenuItem(
             icon: Lucide.Pin,
             label: isPinned ? l10n.sideDrawerMenuUnpin : l10n.sideDrawerMenuPin,
-            onTap: () async { await chatService.togglePinConversation(chat.id); },
+            onTap: () async {
+              await chatService.togglePinConversation(chat.id);
+            },
           ),
           DesktopContextMenuItem(
             icon: Lucide.RefreshCw,
             label: l10n.sideDrawerMenuRegenerateTitle,
-            onTap: () async { await _regenerateTitle(context, chat.id); },
+            onTap: () async {
+              await _regenerateTitle(context, chat.id);
+            },
           ),
           DesktopContextMenuItem(
             icon: Lucide.Shuffle,
             label: l10n.sideDrawerMenuMoveTo,
             onTap: () async {
               final conv = chatService.getConversation(chat.id);
-              final movingCurrent = chatService.currentConversationId == chat.id;
+              final movingCurrent =
+                  chatService.currentConversationId == chat.id;
               // Pre-compute next recent conversation for current assistant
               String? nextId;
               try {
@@ -154,20 +173,36 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                 final currentAid = ap.currentAssistantId;
                 if (currentAid != null) {
                   final all = chatService.getAllConversations();
-                  final candidates = all
-                      .where((c) => c.assistantId == currentAid && c.id != chat.id)
-                      .toList()
-                    ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+                  final candidates =
+                      all
+                          .where(
+                            (c) =>
+                                c.assistantId == currentAid && c.id != chat.id,
+                          )
+                          .toList()
+                        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
                   if (candidates.isNotEmpty) nextId = candidates.first.id;
                 }
               } catch (_) {}
-              final targetId = await showAssistantMoveSelector(context, excludeAssistantId: conv?.assistantId);
+              final targetId = await showAssistantMoveSelector(
+                context,
+                excludeAssistantId: conv?.assistantId,
+              );
               if (targetId != null) {
-                await chatService.moveConversationToAssistant(conversationId: chat.id, assistantId: targetId);
-                if (movingCurrent || chatService.currentConversationId == null) {
-                  final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
+                await chatService.moveConversationToAssistant(
+                  conversationId: chat.id,
+                  assistantId: targetId,
+                );
+                if (movingCurrent ||
+                    chatService.currentConversationId == null) {
+                  final closeDrawer = !context
+                      .read<SettingsProvider>()
+                      .keepSidebarOpenOnTopicTap;
                   if (nextId != null) {
-                    widget.onSelectConversation?.call(nextId!, closeDrawer: closeDrawer);
+                    widget.onSelectConversation?.call(
+                      nextId!,
+                      closeDrawer: closeDrawer,
+                    );
                   } else {
                     widget.onNewConversation?.call(closeDrawer: closeDrawer);
                   }
@@ -182,7 +217,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             onTap: () async {
               final confirmed = await _confirmDeleteConversation(context, chat);
               if (!confirmed) return;
-              final deletingCurrent = chatService.currentConversationId == chat.id;
+              final deletingCurrent =
+                  chatService.currentConversationId == chat.id;
               final nextId = _nextRecentConversation(chatService, chat.id);
               await chatService.deleteConversation(chat.id);
               showAppSnackBar(
@@ -191,7 +227,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                 type: NotificationType.success,
                 duration: const Duration(seconds: 3),
               );
-              _handlePostDeleteNavigation(chatService: chatService, deletingCurrent: deletingCurrent, nextConversationId: nextId);
+              _handlePostDeleteNavigation(
+                chatService: chatService,
+                deletingCurrent: deletingCurrent,
+                nextConversationId: nextId,
+              );
               Navigator.of(context).maybePop();
             },
           ),
@@ -210,7 +250,12 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
         final maxH = MediaQuery.sizeOf(ctx).height * 0.8;
-        Widget row({required IconData icon, required String label, Color? color, required Future<void> Function() action}) {
+        Widget row({
+          required IconData icon,
+          required String label,
+          Color? color,
+          required Future<void> Function() action,
+        }) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: SizedBox(
@@ -233,7 +278,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                     Expanded(
                       child: Text(
                         label,
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: color ?? cs.onSurface),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: color ?? cs.onSurface,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -244,6 +293,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             ),
           );
         }
+
         return SafeArea(
           top: false,
           child: ConstrainedBox(
@@ -269,24 +319,33 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                     row(
                       icon: Lucide.Edit,
                       label: l10n.sideDrawerMenuRename,
-                      action: () async { _renameChat(context, chat); },
+                      action: () async {
+                        _renameChat(context, chat);
+                      },
                     ),
                     row(
                       icon: Lucide.Pin,
-                      label: isPinned ? l10n.sideDrawerMenuUnpin : l10n.sideDrawerMenuPin,
-                      action: () async { await chatService.togglePinConversation(chat.id); },
+                      label: isPinned
+                          ? l10n.sideDrawerMenuUnpin
+                          : l10n.sideDrawerMenuPin,
+                      action: () async {
+                        await chatService.togglePinConversation(chat.id);
+                      },
                     ),
                     row(
                       icon: Lucide.RefreshCw,
                       label: l10n.sideDrawerMenuRegenerateTitle,
-                      action: () async { await _regenerateTitle(context, chat.id); },
+                      action: () async {
+                        await _regenerateTitle(context, chat.id);
+                      },
                     ),
                     row(
                       icon: Lucide.Shuffle,
                       label: l10n.sideDrawerMenuMoveTo,
                       action: () async {
                         final conv = chatService.getConversation(chat.id);
-                        final movingCurrent = chatService.currentConversationId == chat.id;
+                        final movingCurrent =
+                            chatService.currentConversationId == chat.id;
                         // Pre-compute next recent conversation for current assistant
                         String? nextId;
                         try {
@@ -294,22 +353,45 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                           final currentAid = ap.currentAssistantId;
                           if (currentAid != null) {
                             final all = chatService.getAllConversations();
-                            final candidates = all
-                                .where((c) => c.assistantId == currentAid && c.id != chat.id)
-                                .toList()
-                              ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-                            if (candidates.isNotEmpty) nextId = candidates.first.id;
+                            final candidates =
+                                all
+                                    .where(
+                                      (c) =>
+                                          c.assistantId == currentAid &&
+                                          c.id != chat.id,
+                                    )
+                                    .toList()
+                                  ..sort(
+                                    (a, b) =>
+                                        b.updatedAt.compareTo(a.updatedAt),
+                                  );
+                            if (candidates.isNotEmpty)
+                              nextId = candidates.first.id;
                           }
                         } catch (_) {}
-                        final targetId = await showAssistantMoveSelector(context, excludeAssistantId: conv?.assistantId);
+                        final targetId = await showAssistantMoveSelector(
+                          context,
+                          excludeAssistantId: conv?.assistantId,
+                        );
                         if (targetId != null) {
-                          await chatService.moveConversationToAssistant(conversationId: chat.id, assistantId: targetId);
-                          if (movingCurrent || chatService.currentConversationId == null) {
-                            final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
+                          await chatService.moveConversationToAssistant(
+                            conversationId: chat.id,
+                            assistantId: targetId,
+                          );
+                          if (movingCurrent ||
+                              chatService.currentConversationId == null) {
+                            final closeDrawer = !context
+                                .read<SettingsProvider>()
+                                .keepSidebarOpenOnTopicTap;
                             if (nextId != null) {
-                              widget.onSelectConversation?.call(nextId!, closeDrawer: closeDrawer);
+                              widget.onSelectConversation?.call(
+                                nextId!,
+                                closeDrawer: closeDrawer,
+                              );
                             } else {
-                              widget.onNewConversation?.call(closeDrawer: closeDrawer);
+                              widget.onNewConversation?.call(
+                                closeDrawer: closeDrawer,
+                              );
                             }
                           }
                         }
@@ -318,17 +400,26 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                     row(
                       icon: Lucide.ListChecks,
                       label: l10n.sideDrawerMenuSelect,
-                      action: () async { _enterSelectionMode(chat.id); },
+                      action: () async {
+                        _enterSelectionMode(chat.id);
+                      },
                     ),
                     row(
                       icon: Lucide.Trash,
                       label: l10n.sideDrawerMenuDelete,
                       color: Colors.redAccent,
                       action: () async {
-                        final confirmed = await _confirmDeleteConversation(context, chat);
+                        final confirmed = await _confirmDeleteConversation(
+                          context,
+                          chat,
+                        );
                         if (!confirmed) return;
-                        final deletingCurrent = chatService.currentConversationId == chat.id;
-                        final nextId = _nextRecentConversation(chatService, chat.id);
+                        final deletingCurrent =
+                            chatService.currentConversationId == chat.id;
+                        final nextId = _nextRecentConversation(
+                          chatService,
+                          chat.id,
+                        );
                         await chatService.deleteConversation(chat.id);
                         showAppSnackBar(
                           context,
@@ -336,7 +427,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                           type: NotificationType.success,
                           duration: const Duration(seconds: 3),
                         );
-                        _handlePostDeleteNavigation(chatService: chatService, deletingCurrent: deletingCurrent, nextConversationId: nextId);
+                        _handlePostDeleteNavigation(
+                          chatService: chatService,
+                          deletingCurrent: deletingCurrent,
+                          nextConversationId: nextId,
+                        );
                         Navigator.of(context).maybePop();
                       },
                     ),
@@ -523,11 +618,14 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       final ap = context.read<AssistantProvider>();
       final currentAid = ap.currentAssistantId;
       if (currentAid != null) {
-        final candidates = chatService
-            .getAllConversations()
-            .where((c) => c.assistantId == currentAid && !ids.contains(c.id))
-            .toList()
-          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        final candidates =
+            chatService
+                .getAllConversations()
+                .where(
+                  (c) => c.assistantId == currentAid && !ids.contains(c.id),
+                )
+                .toList()
+              ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
         if (candidates.isNotEmpty) nextId = candidates.first.id;
       }
     } catch (_) {}
@@ -577,11 +675,12 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       final ap = context.read<AssistantProvider>();
       final currentAid = ap.currentAssistantId;
       if (currentAid == null) return null;
-      final candidates = chatService
-          .getAllConversations()
-          .where((c) => c.assistantId == currentAid && c.id != excludeId)
-          .toList()
-        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      final candidates =
+          chatService
+              .getAllConversations()
+              .where((c) => c.assistantId == currentAid && c.id != excludeId)
+              .toList()
+            ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
       if (candidates.isEmpty) return null;
       return candidates.first.id;
     } catch (_) {
@@ -595,14 +694,19 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     required String? nextConversationId,
   }) {
     if (!(deletingCurrent || chatService.currentConversationId == null)) return;
-    final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
+    final closeDrawer = !context
+        .read<SettingsProvider>()
+        .keepSidebarOpenOnTopicTap;
     final preferNewChat = context.read<SettingsProvider>().newChatAfterDelete;
     if (preferNewChat && widget.onNewConversation != null) {
       widget.onNewConversation!.call(closeDrawer: closeDrawer);
       return;
     }
     if (!preferNewChat && nextConversationId != null) {
-      widget.onSelectConversation?.call(nextConversationId, closeDrawer: closeDrawer);
+      widget.onSelectConversation?.call(
+        nextConversationId,
+        closeDrawer: closeDrawer,
+      );
       return;
     }
     if (widget.onNewConversation != null) {
@@ -610,7 +714,10 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       return;
     }
     if (nextConversationId != null) {
-      widget.onSelectConversation?.call(nextConversationId, closeDrawer: closeDrawer);
+      widget.onSelectConversation?.call(
+        nextConversationId,
+        closeDrawer: closeDrawer,
+      );
     }
   }
 
@@ -625,9 +732,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration: InputDecoration(
-              hintText: l10n.sideDrawerRenameHint,
-            ),
+            decoration: InputDecoration(hintText: l10n.sideDrawerRenameHint),
             onSubmitted: (_) => Navigator.of(ctx).pop(true),
           ),
           actions: [
@@ -644,12 +749,17 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       },
     );
     if (ok == true) {
-      await context.read<ChatService>().renameConversation(chat.id, controller.text.trim());
+      await context.read<ChatService>().renameConversation(
+        chat.id,
+        controller.text.trim(),
+      );
     }
   }
 
-  Future<bool> _confirmDeleteConversation(BuildContext context, ChatItem chat) async {
-
+  Future<bool> _confirmDeleteConversation(
+    BuildContext context,
+    ChatItem chat,
+  ) async {
     final l10n = AppLocalizations.of(context)!;
     final confirm = await showDialog<bool>(
       context: context,
@@ -674,30 +784,46 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     return confirm ?? false;
   }
 
-
-  Future<void> _regenerateTitle(BuildContext context, String conversationId) async {
+  Future<void> _regenerateTitle(
+    BuildContext context,
+    String conversationId,
+  ) async {
     final settings = context.read<SettingsProvider>();
     final chatService = context.read<ChatService>();
     final convo = chatService.getConversation(conversationId);
     if (convo == null) return;
     // Decide model
-    final provKey = settings.titleModelProvider ?? settings.currentModelProvider;
+    final provKey =
+        settings.titleModelProvider ?? settings.currentModelProvider;
     final mdlId = settings.titleModelId ?? settings.currentModelId;
     if (provKey == null || mdlId == null) return;
     final cfg = settings.getProviderConfig(provKey);
     // Content
+    await chatService.ensureConversationLoaded(conversationId);
     final msgs = chatService.getMessages(conversationId);
-    final joined = msgs.where((m) => m.content.isNotEmpty).map((m) => '${m.role == 'assistant' ? 'Assistant' : 'User'}: ${m.content}').join('\n\n');
+    final joined = msgs
+        .where((m) => m.content.isNotEmpty)
+        .map(
+          (m) =>
+              '${m.role == 'assistant' ? 'Assistant' : 'User'}: ${m.content}',
+        )
+        .join('\n\n');
     final content = joined.length > 3000 ? joined.substring(0, 3000) : joined;
     final locale = Localizations.localeOf(context).toLanguageTag();
-    final prompt = settings.titlePrompt.replaceAll('{locale}', locale).replaceAll('{content}', content);
+    final prompt = settings.titlePrompt
+        .replaceAll('{locale}', locale)
+        .replaceAll('{content}', content);
     try {
-      final assistant = convo.assistantId != null ? context.read<AssistantProvider>().getById(convo.assistantId!) : null;
+      final assistant = convo.assistantId != null
+          ? context.read<AssistantProvider>().getById(convo.assistantId!)
+          : null;
       final title = (await ChatApiService.generateText(
         config: cfg,
         modelId: mdlId,
         prompt: prompt,
-        thinkingBudget: settings.titleGenerationThinkingBudgetFor(assistant?.thinkingBudget),
+        thinkingBudget: settings.titleGenerationThinkingBudgetFor(
+          assistant?.thinkingBudget,
+        ),
       )).trim();
 
       if (title.isNotEmpty) {
@@ -736,9 +862,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     _closeTicker?.addListener(_handleCloseTick);
   }
 
-  void _handleCloseTick() {
-  }
-
+  void _handleCloseTick() {}
 
   String _greeting(BuildContext context) {
     final hour = DateTime.now().hour;
@@ -758,7 +882,9 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     if (diff == 0) return l10n.sideDrawerDateToday;
     if (diff == 1) return l10n.sideDrawerDateYesterday;
     final sameYear = now.year == date.year;
-    final pattern = sameYear ? l10n.sideDrawerDateShortPattern : l10n.sideDrawerDateFullPattern;
+    final pattern = sameYear
+        ? l10n.sideDrawerDateShortPattern
+        : l10n.sideDrawerDateFullPattern;
     final fmt = DateFormat(pattern);
     return fmt.format(date);
   }
@@ -772,14 +898,13 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       map.putIfAbsent(d, () => []).add(c);
     }
     // sort groups by date desc (recent first)
-    final keys = map.keys.toList()
-      ..sort((a, b) => b.compareTo(a));
+    final keys = map.keys.toList()..sort((a, b) => b.compareTo(a));
     return [
       for (final k in keys)
         _ChatGroup(
           label: _dateLabel(context, k),
           items: (map[k]!..sort((a, b) => b.created.compareTo(a.created)))!,
-        )
+        ),
     ];
   }
 
@@ -792,7 +917,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     final textBase = isDark ? Colors.white : Colors.black; // 纯黑（白天），夜间自动适配
     final chatService = context.watch<ChatService>();
     final ap = context.watch<AssistantProvider>();
-
 
     // Avatar renderer: emoji / url / file / default initial
     Widget avatarWidget(String name, UserProvider up, {double size = 40}) {
@@ -843,7 +967,14 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                     color: cs.primary.withOpacity(0.15),
                     shape: BoxShape.circle,
                   ),
-                  child: Text('?', style: TextStyle(color: cs.primary, fontSize: size * 0.42, fontWeight: FontWeight.w700)),
+                  child: Text(
+                    '?',
+                    style: TextStyle(
+                      color: cs.primary,
+                      fontSize: size * 0.42,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
             );
@@ -893,279 +1024,346 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     final inner = SafeArea(
       child: Stack(
         children: [
-            // Main column content
-            Column(
-              children: [
-            // Fixed header + search
-            Padding(
-              padding: EdgeInsets.fromLTRB(16, _isDesktop ? 10 : 4, 16, 0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 1. Selection header (multi-select) or 搜索框 + 历史按钮
-                  if (_selectionMode)
-                    _buildSelectionHeader(context)
-                  else if (_isDesktop)
-                    // 桌面端
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 240),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
-                        transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: child),
-                        child: Row(
-                          key: ValueKey<String>(AppLocalizations.of(context)!.sideDrawerSearchHint),
-                          children: [
+          // Main column content
+          Column(
+            children: [
+              // Fixed header + search
+              Padding(
+                padding: EdgeInsets.fromLTRB(16, _isDesktop ? 10 : 4, 16, 0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 1. Selection header (multi-select) or 搜索框 + 历史按钮
+                    if (_selectionMode)
+                      _buildSelectionHeader(context)
+                    else if (_isDesktop)
+                      // 桌面端
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 240),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          transitionBuilder: (child, anim) =>
+                              FadeTransition(opacity: anim, child: child),
+                          child: Row(
+                            key: ValueKey<String>(
+                              AppLocalizations.of(
+                                context,
+                              )!.sideDrawerSearchHint,
+                            ),
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _searchController,
+                                  decoration: InputDecoration(
+                                    hintText: AppLocalizations.of(
+                                      context,
+                                    )!.sideDrawerSearchHint,
+                                    filled: true,
+                                    fillColor: isDark
+                                        ? Colors.white10
+                                        : Colors.grey.shade200.withOpacity(
+                                            0.80,
+                                          ),
+                                    isDense: true,
+                                    isCollapsed: true,
+                                    prefixIcon: Padding(
+                                      padding: const EdgeInsets.only(
+                                        left: 10,
+                                        right: 4,
+                                      ),
+                                      child: Icon(
+                                        Lucide.Search,
+                                        size: 16,
+                                        color: textBase.withOpacity(0.6),
+                                      ),
+                                    ),
+                                    prefixIconConstraints: const BoxConstraints(
+                                      minWidth: 0,
+                                      minHeight: 0,
+                                    ),
+                                    suffixIcon: Padding(
+                                      padding: const EdgeInsets.only(right: 6),
+                                      child: IosIconButton(
+                                        size: 20,
+                                        color: textBase,
+                                        icon: Lucide.History,
+                                        padding: const EdgeInsets.all(4),
+                                        onTap: () async {
+                                          final selectedId =
+                                              await showChatHistoryDesktopDialog(
+                                                context,
+                                              );
+                                          if (selectedId != null &&
+                                              selectedId.isNotEmpty) {
+                                            final closeDrawer = !context
+                                                .read<SettingsProvider>()
+                                                .keepSidebarOpenOnTopicTap;
+                                            widget.onSelectConversation?.call(
+                                              selectedId,
+                                              closeDrawer: closeDrawer,
+                                            );
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                    suffixIconConstraints: const BoxConstraints(
+                                      minWidth: 0,
+                                      minHeight: 0,
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 11,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: const BorderSide(
+                                        color: Colors.transparent,
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: const BorderSide(
+                                        color: Colors.transparent,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: const BorderSide(
+                                        color: Colors.transparent,
+                                      ),
+                                    ),
+                                  ),
+                                  textAlignVertical: TextAlignVertical.center,
+                                  style: TextStyle(
+                                    color: textBase,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      Row(
+                        children: [
                           Expanded(
                             child: TextField(
                               controller: _searchController,
                               decoration: InputDecoration(
-                                hintText: AppLocalizations.of(context)!.sideDrawerSearchHint,
+                                hintText: AppLocalizations.of(
+                                  context,
+                                )!.sideDrawerSearchHint,
                                 filled: true,
-                                fillColor: isDark ? Colors.white10 : Colors.grey.shade200.withOpacity(0.80),
+                                fillColor: isDark
+                                    ? Colors.white10
+                                    : Colors.grey.shade200.withOpacity(0.80),
                                 isDense: true,
                                 isCollapsed: true,
                                 prefixIcon: Padding(
-                                  padding: const EdgeInsets.only(left: 10, right: 4),
+                                  padding: const EdgeInsets.only(
+                                    left: 10,
+                                    right: 4,
+                                  ),
                                   child: Icon(
                                     Lucide.Search,
                                     size: 16,
                                     color: textBase.withOpacity(0.6),
                                   ),
                                 ),
-                                prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                                suffixIcon: Padding(
-                                  padding: const EdgeInsets.only(right: 6),
-                                  child: IosIconButton(
-                                    size: 20,
-                                    color: textBase,
-                                    icon: Lucide.History,
-                                    padding: const EdgeInsets.all(4),
-                                    onTap: () async {
-                                      final selectedId = await showChatHistoryDesktopDialog(context);
-                                      if (selectedId != null && selectedId.isNotEmpty) {
-                                        final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
-                                        widget.onSelectConversation?.call(selectedId, closeDrawer: closeDrawer);
-                                      }
-                                    },
-                                  ),
+                                prefixIconConstraints: const BoxConstraints(
+                                  minWidth: 0,
+                                  minHeight: 0,
                                 ),
-                                suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 14,
-                                  vertical: 11,
+                                  vertical: 10,
                                 ),
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: const BorderSide(color: Colors.transparent),
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: const BorderSide(
+                                    color: Colors.transparent,
+                                  ),
                                 ),
                                 enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: const BorderSide(color: Colors.transparent),
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: const BorderSide(
+                                    color: Colors.transparent,
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: const BorderSide(color: Colors.transparent),
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: const BorderSide(
+                                    color: Colors.transparent,
+                                  ),
                                 ),
                               ),
                               textAlignVertical: TextAlignVertical.center,
                               style: TextStyle(color: textBase, fontSize: 14),
                             ),
                           ),
+                          const SizedBox(width: 8),
+                          // 历史按钮（圆形，无水波纹）
+                          SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: Center(
+                              child: IosIconButton(
+                                size: 24,
+                                color: textBase,
+                                icon: Lucide.History,
+                                padding: const EdgeInsets.all(6),
+                                onTap: () async {
+                                  final selectedId = await Navigator.of(context)
+                                      .push<String>(
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const ChatHistoryPage(),
+                                        ),
+                                      );
+                                  if (selectedId != null &&
+                                      selectedId.isNotEmpty) {
+                                    final closeDrawer = !context
+                                        .read<SettingsProvider>()
+                                        .keepSidebarOpenOnTopicTap;
+                                    widget.onSelectConversation?.call(
+                                      selectedId,
+                                      closeDrawer: closeDrawer,
+                                    );
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
                         ],
                       ),
-                      ),
-                    )
-                  else
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            decoration: InputDecoration(
-                              hintText: AppLocalizations.of(context)!.sideDrawerSearchHint,
-                              filled: true,
-                              fillColor: isDark ? Colors.white10 : Colors.grey.shade200.withOpacity(0.80),
-                              isDense: true,
-                              isCollapsed: true,
-                              prefixIcon: Padding(
-                                padding: const EdgeInsets.only(left: 10, right: 4),
-                                child: Icon(
-                                  Lucide.Search,
-                                  size: 16,
-                                  color: textBase.withOpacity(0.6),
-                                ),
-                              ),
-                              prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 10,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: const BorderSide(color: Colors.transparent),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: const BorderSide(color: Colors.transparent),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: const BorderSide(color: Colors.transparent),
-                              ),
-                            ),
-                            textAlignVertical: TextAlignVertical.center,
-                            style: TextStyle(color: textBase, fontSize: 14),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // 历史按钮（圆形，无水波纹）
-                        SizedBox(
-                          width: 44,
-                          height: 44,
-                          child: Center(
-                            child: IosIconButton(
-                              size: 24,
-                              color: textBase,
-                              icon: Lucide.History,
-                              padding: const EdgeInsets.all(6),
-                              onTap: () async {
-                                  final selectedId = await Navigator.of(context).push<String>(
-                                    MaterialPageRoute(builder: (_) => const ChatHistoryPage()),
-                                  );
-                                if (selectedId != null && selectedId.isNotEmpty) {
-                                  final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
-                                  widget.onSelectConversation?.call(selectedId, closeDrawer: closeDrawer);
-                                }
-                              },
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
 
-                  if (_selectionMode) ...[
-                    const SizedBox(height: 10),
-                    _buildSelectionActionBar(context),
+                    if (_selectionMode) ...[
+                      const SizedBox(height: 10),
+                      _buildSelectionActionBar(context),
+                    ],
+                    SizedBox(height: _isDesktop ? 8 : 12),
                   ],
-                  SizedBox(height: _isDesktop ? 8 : 12),
-                ],
+                ),
               ),
-            ),
 
-            // Scrollable area below header
-            Expanded(
-              child: ListView(
-                controller: _listController,
-                padding: const EdgeInsets.fromLTRB(10, 4, 10, 16),
-                children: [
-                  _buildFolderTreeList(context),
-                ],
+              // Scrollable area below header
+              Expanded(
+                child: ListView(
+                  controller: _listController,
+                  padding: const EdgeInsets.fromLTRB(10, 4, 10, 16),
+                  children: [_buildFolderTreeList(context)],
+                ),
               ),
-            ),
 
-            if (widget.showBottomBar) Container(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-              decoration: BoxDecoration(
-                color: widget.embedded ? Colors.transparent : cs.surface,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
+              if (widget.showBottomBar)
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                  decoration: BoxDecoration(
+                    color: widget.embedded ? Colors.transparent : cs.surface,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const SizedBox(width: 6),
-                      // 用户头像（可点击更换）—移除水波纹
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => _editAvatar(context),
-                        child: avatarWidget(
-                          widget.userName,
-                          context.watch<UserProvider>(),
-                          size: 40,
-                        ),
-                      ),
-                      const SizedBox(width: 20),
-                      // 用户名称（可点击编辑，垂直居中）
-                      Expanded(
-                        child: IosCardPress(
-                          borderRadius: BorderRadius.circular(6),
-                          baseColor: Colors.transparent,
-                          onTap: () => _editUserName(context),
-                          padding: const EdgeInsets.symmetric(horizontal: 0),
-                          child: SizedBox(
-                            height: 45,
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                widget.userName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: _isDesktop ? 14 : 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: textBase,
+                      Row(
+                        children: [
+                          const SizedBox(width: 6),
+                          // 用户头像（可点击更换）—移除水波纹
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _editAvatar(context),
+                            child: avatarWidget(
+                              widget.userName,
+                              context.watch<UserProvider>(),
+                              size: 40,
+                            ),
+                          ),
+                          const SizedBox(width: 20),
+                          // 用户名称（可点击编辑，垂直居中）
+                          Expanded(
+                            child: IosCardPress(
+                              borderRadius: BorderRadius.circular(6),
+                              baseColor: Colors.transparent,
+                              onTap: () => _editUserName(context),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 0,
+                              ),
+                              child: SizedBox(
+                                height: 45,
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    widget.userName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: _isDesktop ? 14 : 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: textBase,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // 设置按钮（圆形，无水波纹）
-                      SizedBox(
-                        width: 45,
-                        height: 45,
-                        child: Center(
-                          child: IosIconButton(
-                            size: 26,
-                            color: textBase,
-                            icon: Lucide.Settings,
-                            padding: const EdgeInsets.all(8),
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => const SettingsPage()),
-                              );
-                            },
+                          const SizedBox(width: 8),
+                          // 设置按钮（圆形，无水波纹）
+                          SizedBox(
+                            width: 45,
+                            height: 45,
+                            child: Center(
+                              child: IosIconButton(
+                                size: 26,
+                                color: textBase,
+                                icon: Lucide.Settings,
+                                padding: const EdgeInsets.all(8),
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const SettingsPage(),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-              ],
-            ),
+                ),
+            ],
+          ),
 
-            // iOS-style blur/fade effect above user area
-            if (!widget.embedded)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 62, // Approximate height of user area
-                child: IgnorePointer(
-                  child: Container(
-                    height: 20,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          cs.surface.withOpacity(0.0),
-                          cs.surface.withOpacity(0.8),
-                          cs.surface.withOpacity(1.0),
-                        ],
-                        stops: const [0.0, 0.6, 1.0],
-                      ),
+          // iOS-style blur/fade effect above user area
+          if (!widget.embedded)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 62, // Approximate height of user area
+              child: IgnorePointer(
+                child: Container(
+                  height: 20,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        cs.surface.withOpacity(0.0),
+                        cs.surface.withOpacity(0.8),
+                        cs.surface.withOpacity(1.0),
+                      ],
+                      stops: const [0.0, 0.6, 1.0],
                     ),
                   ),
                 ),
               ),
-          ],
-        ),
-      );
+            ),
+        ],
+      ),
+    );
 
     if (widget.embedded) {
       return ClipRect(
@@ -1173,10 +1371,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
           filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
           child: Material(
             color: cs.surface.withOpacity(0.60),
-            child: SizedBox(
-              width: widget.embeddedWidth ?? 300,
-              child: inner,
-            ),
+            child: SizedBox(width: widget.embeddedWidth ?? 300, child: inner),
           ),
         ),
       );
@@ -1200,7 +1395,10 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     });
   }
 
-  Future<void> _handleNewConversationForAssistant(BuildContext context, Assistant assistant) async {
+  Future<void> _handleNewConversationForAssistant(
+    BuildContext context,
+    Assistant assistant,
+  ) async {
     final sp = context.read<SettingsProvider>();
     final closeDrawer = !sp.keepSidebarOpenOnTopicTap;
     await context.read<AssistantProvider>().setCurrentAssistant(assistant.id);
@@ -1236,8 +1434,13 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         barrierDismissible: true,
         builder: (ctx) => Dialog(
           backgroundColor: cs.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
+          ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 400),
             child: Column(
@@ -1251,7 +1454,10 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                       Expanded(
                         child: Text(
                           l10n.sideDrawerNewProject,
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                       IosIconButton(
@@ -1275,7 +1481,9 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                         decoration: InputDecoration(
                           hintText: l10n.assistantSettingsAddSheetHint,
                           filled: true,
-                          fillColor: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
+                          fillColor: isDark
+                              ? Colors.white10
+                              : const Color(0xFFF2F3F5),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(color: Colors.transparent),
@@ -1286,7 +1494,9 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: cs.primary.withOpacity(0.4)),
+                            borderSide: BorderSide(
+                              color: cs.primary.withOpacity(0.4),
+                            ),
                           ),
                         ),
                         onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
@@ -1301,10 +1511,14 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                           ),
                           const SizedBox(width: 8),
                           TextButton(
-                            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+                            onPressed: () =>
+                                Navigator.of(ctx).pop(controller.text.trim()),
                             child: Text(
                               l10n.assistantSettingsAddSheetSave,
-                              style: TextStyle(color: cs.primary, fontWeight: FontWeight.w600),
+                              style: TextStyle(
+                                color: cs.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ],
@@ -1331,7 +1545,12 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         return SafeArea(
           top: false,
           child: Padding(
-            padding: EdgeInsets.only(left: 16, right: 16, top: 12, bottom: bottomInset + 16),
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 12,
+              bottom: bottomInset + 16,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1350,7 +1569,10 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                 Center(
                   child: Text(
                     l10n.sideDrawerNewProject,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -1360,18 +1582,26 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                   decoration: InputDecoration(
                     hintText: l10n.assistantSettingsAddSheetHint,
                     filled: true,
-                    fillColor: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
+                    fillColor: isDark
+                        ? Colors.white10
+                        : const Color(0xFFF2F3F5),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4)),
+                      borderSide: BorderSide(
+                        color: cs.outlineVariant.withOpacity(0.4),
+                      ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4)),
+                      borderSide: BorderSide(
+                        color: cs.outlineVariant.withOpacity(0.4),
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: cs.primary.withOpacity(0.5)),
+                      borderSide: BorderSide(
+                        color: cs.primary.withOpacity(0.5),
+                      ),
                     ),
                   ),
                   onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
@@ -1388,7 +1618,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                     const SizedBox(width: 12),
                     Expanded(
                       child: FilledButton(
-                        onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+                        onPressed: () =>
+                            Navigator.of(ctx).pop(controller.text.trim()),
                         child: Text(l10n.assistantSettingsAddSheetSave),
                       ),
                     ),
@@ -1403,7 +1634,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   }
 
   void _openAssistantSettings(String id) {
-    final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+    final isDesktop =
+        defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.linux;
     if (isDesktop) {
@@ -1413,14 +1645,18 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     }
     // Fallback to mobile edit page on non-desktop platforms
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => AssistantSettingsEditPage(assistantId: id)),
+      MaterialPageRoute(
+        builder: (_) => AssistantSettingsEditPage(assistantId: id),
+      ),
     );
   }
-
 }
 
 extension on _SideDrawerState {
-  Future<void> _showAssistantItemMenuDesktop(Assistant a, Offset globalPosition) async {
+  Future<void> _showAssistantItemMenuDesktop(
+    Assistant a,
+    Offset globalPosition,
+  ) async {
     if (!_isDesktop) return;
     final l10n = AppLocalizations.of(context)!;
     final tp = context.read<TagProvider>();
@@ -1460,17 +1696,31 @@ extension on _SideDrawerState {
                 title: Text(l10n.assistantSettingsDeleteDialogTitle),
                 content: Text(l10n.assistantSettingsDeleteDialogContent),
                 actions: [
-                  TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(l10n.assistantSettingsDeleteDialogCancel)),
-                  TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(l10n.assistantSettingsDeleteDialogConfirm)),
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    child: Text(l10n.assistantSettingsDeleteDialogCancel),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    child: Text(l10n.assistantSettingsDeleteDialogConfirm),
+                  ),
                 ],
               ),
             );
             if (confirmed != true) return;
-            final ok = await context.read<AssistantProvider>().deleteAssistant(a.id);
+            final ok = await context.read<AssistantProvider>().deleteAssistant(
+              a.id,
+            );
             if (!ok) {
-              showAppSnackBar(context, message: l10n.assistantSettingsAtLeastOneAssistantRequired, type: NotificationType.warning);
+              showAppSnackBar(
+                context,
+                message: l10n.assistantSettingsAtLeastOneAssistantRequired,
+                type: NotificationType.warning,
+              );
             } else {
-              try { await context.read<TagProvider>().unassignAssistant(a.id); } catch (_) {}
+              try {
+                await context.read<TagProvider>().unassignAssistant(a.id);
+              } catch (_) {}
             }
           },
         ),
@@ -1487,10 +1737,17 @@ extension on _SideDrawerState {
       context: context,
       isScrollControlled: false,
       backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
-        Widget row(String text, IconData icon, VoidCallback onTap, {bool danger = false}) {
+        Widget row(
+          String text,
+          IconData icon,
+          VoidCallback onTap, {
+          bool danger = false,
+        }) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: SizedBox(
@@ -1508,13 +1765,22 @@ extension on _SideDrawerState {
                   children: [
                     Icon(icon, size: 18, color: danger ? cs.error : cs.primary),
                     const SizedBox(width: 10),
-                    Expanded(child: Text(text, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500))),
+                    Expanded(
+                      child: Text(
+                        text,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
           );
         }
+
         return SafeArea(
           top: false,
           child: Padding(
@@ -1522,35 +1788,75 @@ extension on _SideDrawerState {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                row(l10n.assistantTagsContextMenuEditAssistant, Lucide.Pencil, () => _openAssistantSettings(a.id)),
+                row(
+                  l10n.assistantTagsContextMenuEditAssistant,
+                  Lucide.Pencil,
+                  () => _openAssistantSettings(a.id),
+                ),
                 if (hasTag)
                   row(l10n.assistantTagsClearTag, Lucide.Eraser, () async {
                     await context.read<TagProvider>().unassignAssistant(a.id);
                   }),
-                row(l10n.assistantTagsContextMenuManageTags, Lucide.Bookmark, () async {
-                  // Navigate to manage tags page
-                  await Navigator.of(context).push(MaterialPageRoute(builder: (_) => TagsManagerPage(assistantId: a.id)));
-                }),
-                row(l10n.assistantTagsContextMenuDeleteAssistant, Lucide.Trash2, () async {
-                  final confirmed = await showDialog<bool>(
-                    context: context,
-                    builder: (ctx2) => AlertDialog(
-                      title: Text(l10n.assistantSettingsDeleteDialogTitle),
-                      content: Text(l10n.assistantSettingsDeleteDialogContent),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.of(ctx2).pop(false), child: Text(l10n.assistantSettingsDeleteDialogCancel)),
-                        TextButton(onPressed: () => Navigator.of(ctx2).pop(true), child: Text(l10n.assistantSettingsDeleteDialogConfirm)),
-                      ],
-                    ),
-                  );
-                  if (confirmed != true) return;
-                  final ok = await context.read<AssistantProvider>().deleteAssistant(a.id);
-                  if (!ok) {
-                    showAppSnackBar(context, message: l10n.assistantSettingsAtLeastOneAssistantRequired, type: NotificationType.warning);
-                  } else {
-                    try { await context.read<TagProvider>().unassignAssistant(a.id); } catch (_) {}
-                  }
-                }, danger: true),
+                row(
+                  l10n.assistantTagsContextMenuManageTags,
+                  Lucide.Bookmark,
+                  () async {
+                    // Navigate to manage tags page
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => TagsManagerPage(assistantId: a.id),
+                      ),
+                    );
+                  },
+                ),
+                row(
+                  l10n.assistantTagsContextMenuDeleteAssistant,
+                  Lucide.Trash2,
+                  () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx2) => AlertDialog(
+                        title: Text(l10n.assistantSettingsDeleteDialogTitle),
+                        content: Text(
+                          l10n.assistantSettingsDeleteDialogContent,
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx2).pop(false),
+                            child: Text(
+                              l10n.assistantSettingsDeleteDialogCancel,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx2).pop(true),
+                            child: Text(
+                              l10n.assistantSettingsDeleteDialogConfirm,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirmed != true) return;
+                    final ok = await context
+                        .read<AssistantProvider>()
+                        .deleteAssistant(a.id);
+                    if (!ok) {
+                      showAppSnackBar(
+                        context,
+                        message:
+                            l10n.assistantSettingsAtLeastOneAssistantRequired,
+                        type: NotificationType.warning,
+                      );
+                    } else {
+                      try {
+                        await context.read<TagProvider>().unassignAssistant(
+                          a.id,
+                        );
+                      } catch (_) {}
+                    }
+                  },
+                  danger: true,
+                ),
               ],
             ),
           ),
@@ -1589,12 +1895,19 @@ extension on _SideDrawerState {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(text, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                  child: Text(
+                    text,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
               ),
             ),
           );
         }
+
         return SafeArea(
           top: false,
           child: ConstrainedBox(
@@ -1617,15 +1930,23 @@ extension on _SideDrawerState {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    row(l10n.sideDrawerChooseImage, () async { await _pickLocalImage(context); }),
+                    row(l10n.sideDrawerChooseImage, () async {
+                      await _pickLocalImage(context);
+                    }),
                     row(l10n.sideDrawerChooseEmoji, () async {
                       final emoji = await _pickEmoji(context);
                       if (emoji != null) {
-                        await context.read<UserProvider>().setAvatarEmoji(emoji);
+                        await context.read<UserProvider>().setAvatarEmoji(
+                          emoji,
+                        );
                       }
                     }),
-                    row(l10n.sideDrawerEnterLink, () async { await _inputAvatarUrl(context); }),
-                    row(l10n.sideDrawerReset, () async { await context.read<UserProvider>().resetAvatar(); }),
+                    row(l10n.sideDrawerEnterLink, () async {
+                      await _inputAvatarUrl(context);
+                    }),
+                    row(l10n.sideDrawerReset, () async {
+                      await context.read<UserProvider>().resetAvatar();
+                    }),
                     const SizedBox(height: 4),
                   ],
                 ),
@@ -1647,127 +1968,261 @@ extension on _SideDrawerState {
       final trimmed = s.characters.take(1).toString().trim();
       return trimmed.isNotEmpty && trimmed == s.trim();
     }
+
     final List<String> quick = const [
-      '😀','😁','😂','🤣','😃','😄','😅','😊','😍','😘','😗','😙','😚','🙂','🤗','🤩','🫶','🤝','👍','👎','👋','🙏','💪','🔥','✨','🌟','💡','🎉','🎊','🎈','🌈','☀️','🌙','⭐','⚡','☁️','❄️','🌧️','🍎','🍊','🍋','🍉','🍇','🍓','🍒','🍑','🥭','🍍','🥝','🍅','🥕','🌽','🍞','🧀','🍔','🍟','🍕','🌮','🌯','🍣','🍜','🍰','🍪','🍩','🍫','🍻','☕','🧋','🥤','⚽','🏀','🏈','🎾','🏐','🎮','🎧','🎸','🎹','🎺','📚','✏️','💼','💻','🖥️','📱','🛩️','✈️','🚗','🚕','🚙','🚌','🚀','🛰️','🧠','🫀','💊','🩺','🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵'
+      '😀',
+      '😁',
+      '😂',
+      '🤣',
+      '😃',
+      '😄',
+      '😅',
+      '😊',
+      '😍',
+      '😘',
+      '😗',
+      '😙',
+      '😚',
+      '🙂',
+      '🤗',
+      '🤩',
+      '🫶',
+      '🤝',
+      '👍',
+      '👎',
+      '👋',
+      '🙏',
+      '💪',
+      '🔥',
+      '✨',
+      '🌟',
+      '💡',
+      '🎉',
+      '🎊',
+      '🎈',
+      '🌈',
+      '☀️',
+      '🌙',
+      '⭐',
+      '⚡',
+      '☁️',
+      '❄️',
+      '🌧️',
+      '🍎',
+      '🍊',
+      '🍋',
+      '🍉',
+      '🍇',
+      '🍓',
+      '🍒',
+      '🍑',
+      '🥭',
+      '🍍',
+      '🥝',
+      '🍅',
+      '🥕',
+      '🌽',
+      '🍞',
+      '🧀',
+      '🍔',
+      '🍟',
+      '🍕',
+      '🌮',
+      '🌯',
+      '🍣',
+      '🍜',
+      '🍰',
+      '🍪',
+      '🍩',
+      '🍫',
+      '🍻',
+      '☕',
+      '🧋',
+      '🥤',
+      '⚽',
+      '🏀',
+      '🏈',
+      '🎾',
+      '🏐',
+      '🎮',
+      '🎧',
+      '🎸',
+      '🎹',
+      '🎺',
+      '📚',
+      '✏️',
+      '💼',
+      '💻',
+      '🖥️',
+      '📱',
+      '🛩️',
+      '✈️',
+      '🚗',
+      '🚕',
+      '🚙',
+      '🚌',
+      '🚀',
+      '🛰️',
+      '🧠',
+      '🫀',
+      '💊',
+      '🩺',
+      '🐶',
+      '🐱',
+      '🐭',
+      '🐹',
+      '🐰',
+      '🦊',
+      '🐻',
+      '🐼',
+      '🐨',
+      '🐯',
+      '🦁',
+      '🐮',
+      '🐷',
+      '🐸',
+      '🐵',
     ];
     return showDialog<String>(
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
-        return StatefulBuilder(builder: (ctx, setLocal) {
-          // Revert to non-scrollable dialog but cap grid height
-          // based on available height when keyboard is visible.
-          final size = MediaQuery.sizeOf(ctx);
-          final viewInsets = MediaQuery.viewInsetsOf(ctx);
-          final avail = size.height - viewInsets.bottom;
-          final double gridHeight = (avail * 0.28).clamp(120.0, 220.0);
-          return AlertDialog(
-            scrollable: true,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            backgroundColor: cs.surface,
-            title: Text(l10n.sideDrawerEmojiDialogTitle),
-            content: SizedBox(
-              width: 360,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      color: cs.primary.withOpacity(0.08),
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: EmojiText(
-                      value.isEmpty ? '🙂' : value.characters.take(1).toString(),
-                      fontSize: 40,
-                      optimizeEmojiAlign: true,
-                      nudge: Offset.zero, // mobile/desktop picker preview: no extra nudge
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: controller,
-                    autofocus: true,
-                    onChanged: (v) => setLocal(() => value = v),
-                    onSubmitted: (_) {
-                      if (validGrapheme(value)) Navigator.of(ctx).pop(value.characters.take(1).toString());
-                    },
-                    decoration: InputDecoration(
-                      hintText: l10n.sideDrawerEmojiDialogHint,
-                      filled: true,
-                      fillColor: Theme.of(ctx).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF2F3F5),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.transparent),
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            // Revert to non-scrollable dialog but cap grid height
+            // based on available height when keyboard is visible.
+            final size = MediaQuery.sizeOf(ctx);
+            final viewInsets = MediaQuery.viewInsetsOf(ctx);
+            final avail = size.height - viewInsets.bottom;
+            final double gridHeight = (avail * 0.28).clamp(120.0, 220.0);
+            return AlertDialog(
+              scrollable: true,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              backgroundColor: cs.surface,
+              title: Text(l10n.sideDrawerEmojiDialogTitle),
+              content: SizedBox(
+                width: 360,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: cs.primary.withOpacity(0.08),
+                        shape: BoxShape.circle,
                       ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.transparent),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: cs.primary.withOpacity(0.4)),
+                      alignment: Alignment.center,
+                      child: EmojiText(
+                        value.isEmpty
+                            ? '🙂'
+                            : value.characters.take(1).toString(),
+                        fontSize: 40,
+                        optimizeEmojiAlign: true,
+                        nudge: Offset
+                            .zero, // mobile/desktop picker preview: no extra nudge
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: gridHeight,
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      padding: EdgeInsets.zero,
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 8,
-                        mainAxisSpacing: 8,
-                        crossAxisSpacing: 8,
-                      ),
-                      itemCount: quick.length,
-                      itemBuilder: (c, i) {
-                        final e = quick[i];
-                        return InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () => Navigator.of(ctx).pop(e),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: cs.primary.withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            alignment: Alignment.center,
-                            child: EmojiText(
-                              e,
-                              fontSize: 20,
-                              optimizeEmojiAlign: true,
-                              nudge: Offset.zero, // picker grid: no extra nudge
-                            ),
-                          ),
-                        );
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: controller,
+                      autofocus: true,
+                      onChanged: (v) => setLocal(() => value = v),
+                      onSubmitted: (_) {
+                        if (validGrapheme(value))
+                          Navigator.of(
+                            ctx,
+                          ).pop(value.characters.take(1).toString());
                       },
+                      decoration: InputDecoration(
+                        hintText: l10n.sideDrawerEmojiDialogHint,
+                        filled: true,
+                        fillColor: Theme.of(ctx).brightness == Brightness.dark
+                            ? Colors.white10
+                            : const Color(0xFFF2F3F5),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.transparent),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.transparent),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: cs.primary.withOpacity(0.4),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: Text(l10n.sideDrawerCancel),
-              ),
-              TextButton(
-                onPressed: validGrapheme(value) ? () => Navigator.of(ctx).pop(value.characters.take(1).toString()) : null,
-                child: Text(
-                  l10n.sideDrawerSave,
-                  style: TextStyle(
-                    color: validGrapheme(value) ? cs.primary : cs.onSurface.withOpacity(0.38),
-                    fontWeight: FontWeight.w600,
-                  ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      height: gridHeight,
+                      child: GridView.builder(
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 8,
+                              mainAxisSpacing: 8,
+                              crossAxisSpacing: 8,
+                            ),
+                        itemCount: quick.length,
+                        itemBuilder: (c, i) {
+                          final e = quick[i];
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => Navigator.of(ctx).pop(e),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: cs.primary.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              alignment: Alignment.center,
+                              child: EmojiText(
+                                e,
+                                fontSize: 20,
+                                optimizeEmojiAlign: true,
+                                nudge:
+                                    Offset.zero, // picker grid: no extra nudge
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          );
-        });
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(l10n.sideDrawerCancel),
+                ),
+                TextButton(
+                  onPressed: validGrapheme(value)
+                      ? () => Navigator.of(
+                          ctx,
+                        ).pop(value.characters.take(1).toString())
+                      : null,
+                  child: Text(
+                    l10n.sideDrawerSave,
+                    style: TextStyle(
+                      color: validGrapheme(value)
+                          ? cs.primary
+                          : cs.onSurface.withOpacity(0.38),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
       },
     );
   }
@@ -1779,56 +2234,67 @@ extension on _SideDrawerState {
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
-        bool valid(String s) => s.trim().startsWith('http://') || s.trim().startsWith('https://');
+        bool valid(String s) =>
+            s.trim().startsWith('http://') || s.trim().startsWith('https://');
         String value = '';
-        return StatefulBuilder(builder: (ctx, setLocal) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            backgroundColor: cs.surface,
-            title: Text(l10n.sideDrawerImageUrlDialogTitle),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: l10n.sideDrawerImageUrlDialogHint,
-                filled: true,
-                fillColor: Theme.of(ctx).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF2F3F5),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.transparent),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.transparent),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: cs.primary.withOpacity(0.4)),
-                ),
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-              onChanged: (v) => setLocal(() => value = v),
-              onSubmitted: (_) {
-                if (valid(value)) Navigator.of(ctx).pop(true);
-              },
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: Text(l10n.sideDrawerCancel),
-              ),
-              TextButton(
-                onPressed: valid(value) ? () => Navigator.of(ctx).pop(true) : null,
-                child: Text(
-                  l10n.sideDrawerSave,
-                  style: TextStyle(
-                    color: valid(value) ? cs.primary : cs.onSurface.withOpacity(0.38),
-                    fontWeight: FontWeight.w600,
+              backgroundColor: cs.surface,
+              title: Text(l10n.sideDrawerImageUrlDialogTitle),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: l10n.sideDrawerImageUrlDialogHint,
+                  filled: true,
+                  fillColor: Theme.of(ctx).brightness == Brightness.dark
+                      ? Colors.white10
+                      : const Color(0xFFF2F3F5),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.transparent),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.transparent),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: cs.primary.withOpacity(0.4)),
                   ),
                 ),
+                onChanged: (v) => setLocal(() => value = v),
+                onSubmitted: (_) {
+                  if (valid(value)) Navigator.of(ctx).pop(true);
+                },
               ),
-            ],
-          );
-        });
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: Text(l10n.sideDrawerCancel),
+                ),
+                TextButton(
+                  onPressed: valid(value)
+                      ? () => Navigator.of(ctx).pop(true)
+                      : null,
+                  child: Text(
+                    l10n.sideDrawerSave,
+                    style: TextStyle(
+                      color: valid(value)
+                          ? cs.primary
+                          : cs.onSurface.withOpacity(0.38),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
       },
     );
     if (ok == true) {
@@ -1879,6 +2345,7 @@ extension on _SideDrawerState {
       return;
     }
   }
+
   Future<void> _editUserName(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
     final initial = widget.userName;
@@ -1894,7 +2361,9 @@ extension on _SideDrawerState {
         return StatefulBuilder(
           builder: (ctx, setLocal) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               backgroundColor: cs.surface,
               title: Text(l10n.sideDrawerSetNicknameTitle),
               content: Column(
@@ -1915,7 +2384,9 @@ extension on _SideDrawerState {
                       labelText: l10n.sideDrawerNicknameLabel,
                       hintText: l10n.sideDrawerNicknameHint,
                       filled: true,
-                      fillColor: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
+                      fillColor: isDark
+                          ? Colors.white10
+                          : const Color(0xFFF2F3F5),
                       counterText: '',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -1927,16 +2398,24 @@ extension on _SideDrawerState {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: cs.primary.withOpacity(0.4)),
+                        borderSide: BorderSide(
+                          color: cs.primary.withOpacity(0.4),
+                        ),
                       ),
                     ),
-                    style: TextStyle(fontSize: 15, color: Theme.of(ctx).textTheme.bodyMedium?.color),
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Theme.of(ctx).textTheme.bodyMedium?.color,
+                    ),
                   ),
                   Align(
                     alignment: Alignment.centerRight,
                     child: Text(
                       '${value.trim().length}/$maxLen',
-                      style: TextStyle(color: cs.onSurface.withOpacity(0.45), fontSize: 12),
+                      style: TextStyle(
+                        color: cs.onSurface.withOpacity(0.45),
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ],
@@ -1947,11 +2426,15 @@ extension on _SideDrawerState {
                   child: Text(l10n.sideDrawerCancel),
                 ),
                 TextButton(
-                  onPressed: valid(value) ? () => Navigator.of(ctx).pop(true) : null,
+                  onPressed: valid(value)
+                      ? () => Navigator.of(ctx).pop(true)
+                      : null,
                   child: Text(
                     l10n.sideDrawerSave,
                     style: TextStyle(
-                      color: valid(value) ? cs.primary : cs.onSurface.withOpacity(0.38),
+                      color: valid(value)
+                          ? cs.primary
+                          : cs.onSurface.withOpacity(0.38),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -1962,7 +2445,7 @@ extension on _SideDrawerState {
         );
       },
     );
-  if (ok == true) {
+    if (ok == true) {
       final text = controller.text.trim();
       if (text.isNotEmpty) {
         await context.read<UserProvider>().setName(text);
@@ -1982,22 +2465,34 @@ extension on _SideDrawerState {
     final allConvos = chatService.getAllConversations();
     final hasQuery = _query.trim().isNotEmpty;
     final q = _query.toLowerCase();
-    
+
     // Build list of assistants
     List<Assistant> assistants = ap.assistants;
     if (hasQuery) {
       final matchingConvoAssistantIds = allConvos
-          .where((c) => c.title.toLowerCase().contains(q) && c.assistantId != null)
+          .where(
+            (c) => c.title.toLowerCase().contains(q) && c.assistantId != null,
+          )
           .map((c) => c.assistantId!)
           .toSet();
-      assistants = assistants.where((a) => a.name.toLowerCase().contains(q) || matchingConvoAssistantIds.contains(a.id)).toList();
+      assistants = assistants
+          .where(
+            (a) =>
+                a.name.toLowerCase().contains(q) ||
+                matchingConvoAssistantIds.contains(a.id),
+          )
+          .toList();
     }
 
     final tags = tp.tags;
-    final ungrouped = assistants.where((a) => tp.tagOfAssistant(a.id) == null).toList();
+    final ungrouped = assistants
+        .where((a) => tp.tagOfAssistant(a.id) == null)
+        .toList();
     final groupedByTag = <String, List<Assistant>>{};
     for (final t in tags) {
-      final list = assistants.where((a) => tp.tagOfAssistant(a.id) == t.id).toList();
+      final list = assistants
+          .where((a) => tp.tagOfAssistant(a.id) == t.id)
+          .toList();
       if (list.isNotEmpty) groupedByTag[t.id] = list;
     }
 
@@ -2018,9 +2513,11 @@ extension on _SideDrawerState {
     Widget buildAssistantNode(Assistant a) {
       final isExpanded = _expandedAssistantIds.contains(a.id) || hasQuery;
       final isCurrent = ap.currentAssistantId == a.id;
-      
+
       final convos = allConvos.where((c) => c.assistantId == a.id).toList();
-      final filteredConvos = hasQuery ? convos.where((c) => c.title.toLowerCase().contains(q)).toList() : convos;
+      final filteredConvos = hasQuery
+          ? convos.where((c) => c.title.toLowerCase().contains(q)).toList()
+          : convos;
 
       Widget _buildChatTile(ChatItem chatItem) {
         final inSelection = _selectionMode;
@@ -2028,8 +2525,8 @@ extension on _SideDrawerState {
         return _ChatTile(
           chat: chatItem,
           loading: widget.loadingConversationIds.contains(chatItem.id),
-          selected: !inSelection &&
-              chatService.currentConversationId == chatItem.id,
+          selected:
+              !inSelection && chatService.currentConversationId == chatItem.id,
           selectionMode: inSelection,
           checked: checked,
           onTap: () {
@@ -2037,9 +2534,14 @@ extension on _SideDrawerState {
               _toggleConversationSelected(chatItem.id);
               return;
             }
-            final closeDrawer = !context.read<SettingsProvider>().keepSidebarOpenOnTopicTap;
+            final closeDrawer = !context
+                .read<SettingsProvider>()
+                .keepSidebarOpenOnTopicTap;
             ap.setCurrentAssistant(a.id);
-            widget.onSelectConversation?.call(chatItem.id, closeDrawer: closeDrawer);
+            widget.onSelectConversation?.call(
+              chatItem.id,
+              closeDrawer: closeDrawer,
+            );
           },
           onLongPress: inSelection
               ? () => _toggleConversationSelected(chatItem.id)
@@ -2053,13 +2555,22 @@ extension on _SideDrawerState {
 
       final convosWidgets = <Widget>[];
       if (isExpanded && filteredConvos.isNotEmpty) {
-        final convosItems = filteredConvos.map((c) => ChatItem(id: c.id, title: c.title, created: c.updatedAt)).toList();
-        final pinnedList = convosItems
-            .where((c) => (chatService.getConversation(c.id)?.isPinned ?? false))
-            .toList()
-          ..sort((a, b) => b.created.compareTo(a.created));
+        final convosItems = filteredConvos
+            .map(
+              (c) => ChatItem(id: c.id, title: c.title, created: c.updatedAt),
+            )
+            .toList();
+        final pinnedList =
+            convosItems
+                .where(
+                  (c) => (chatService.getConversation(c.id)?.isPinned ?? false),
+                )
+                .toList()
+              ..sort((a, b) => b.created.compareTo(a.created));
         final rest = convosItems
-            .where((c) => !(chatService.getConversation(c.id)?.isPinned ?? false))
+            .where(
+              (c) => !(chatService.getConversation(c.id)?.isPinned ?? false),
+            )
             .toList();
         final groups = _groupByDate(context, rest);
 
@@ -2069,7 +2580,11 @@ extension on _SideDrawerState {
               padding: const EdgeInsets.fromLTRB(14, 6, 0, 6),
               child: Text(
                 AppLocalizations.of(context)!.sideDrawerPinnedLabel,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.primary),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
             ),
           );
@@ -2084,7 +2599,11 @@ extension on _SideDrawerState {
                 child: Text(
                   group.label,
                   textAlign: TextAlign.left,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.primary),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
               ),
             );
@@ -2114,7 +2633,8 @@ extension on _SideDrawerState {
               onNewChat: () => _handleNewConversationForAssistant(context, a),
               onEditTap: () => _openAssistantSettings(a.id),
               onLongPress: () => _showAssistantItemMenuMobile(a),
-              onSecondaryTapDown: (pos) => _showAssistantItemMenuDesktop(a, pos),
+              onSecondaryTapDown: (pos) =>
+                  _showAssistantItemMenuDesktop(a, pos),
             ),
           ),
           if (isExpanded && convosWidgets.isNotEmpty)
@@ -2202,24 +2722,32 @@ class _ChatTile extends StatefulWidget {
 
 class _ChatTileState extends State<_ChatTile> {
   bool _hovered = false;
-  bool get _isDesktop => defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux;
+  bool get _isDesktop =>
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final embedded = context.findAncestorWidgetOfExactType<SideDrawer>()?.embedded ?? false;
+    final embedded =
+        context.findAncestorWidgetOfExactType<SideDrawer>()?.embedded ?? false;
     final effectiveSelected = widget.selectionMode
         ? widget.checked
         : widget.selected;
     final Color tileColor;
     if (embedded) {
       // In tablet embedded mode, keep selected highlight, others transparent
-      tileColor = effectiveSelected ? cs.primary.withOpacity(0.16) : Colors.transparent;
+      tileColor = effectiveSelected
+          ? cs.primary.withOpacity(0.16)
+          : Colors.transparent;
     } else {
       tileColor = effectiveSelected ? cs.primary.withOpacity(0.12) : cs.surface;
     }
     final base = _isDesktop && !effectiveSelected && _hovered
-        ? (embedded ? cs.primary.withOpacity(0.08) : cs.surface.withOpacity(0.9))
+        ? (embedded
+              ? cs.primary.withOpacity(0.08)
+              : cs.surface.withOpacity(0.9))
         : tileColor;
     final double _vGap = _sideDrawerTileGap;
     return Padding(
@@ -2235,17 +2763,28 @@ class _ChatTileState extends State<_ChatTile> {
           widget.onLongPress?.call();
         },
         child: MouseRegion(
-          onEnter: (_) { if (_isDesktop) setState(() => _hovered = true); },
-          onExit: (_) { if (_isDesktop) setState(() => _hovered = false); },
-          cursor: _isDesktop ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        child: IosCardPress(
-          baseColor: base,
-          borderRadius: BorderRadius.circular(16),
-          haptics: false,
-          onTap: widget.onTap,
-          onLongPress: _isDesktop ? null : widget.onLongPress,
-          padding: EdgeInsets.fromLTRB(_isDesktop ? 14 : 14, _isDesktop ? 9 : 10, 8, _isDesktop ? 9 : 10),
-          child: Row(
+          onEnter: (_) {
+            if (_isDesktop) setState(() => _hovered = true);
+          },
+          onExit: (_) {
+            if (_isDesktop) setState(() => _hovered = false);
+          },
+          cursor: _isDesktop
+              ? SystemMouseCursors.click
+              : SystemMouseCursors.basic,
+          child: IosCardPress(
+            baseColor: base,
+            borderRadius: BorderRadius.circular(16),
+            haptics: false,
+            onTap: widget.onTap,
+            onLongPress: _isDesktop ? null : widget.onLongPress,
+            padding: EdgeInsets.fromLTRB(
+              _isDesktop ? 14 : 14,
+              _isDesktop ? 9 : 10,
+              8,
+              _isDesktop ? 9 : 10,
+            ),
+            child: Row(
               children: [
                 if (widget.selectionMode) ...[
                   _SelectionCheckbox(checked: widget.checked),
@@ -2295,9 +2834,7 @@ class _SelectionCheckbox extends StatelessWidget {
           width: 1.6,
         ),
       ),
-      child: checked
-          ? Icon(Lucide.Check, size: 14, color: cs.onPrimary)
-          : null,
+      child: checked ? Icon(Lucide.Check, size: 14, color: cs.onPrimary) : null,
     );
   }
 }
@@ -2307,14 +2844,18 @@ class _LoadingDot extends StatefulWidget {
   State<_LoadingDot> createState() => _LoadingDotState();
 }
 
-class _LoadingDotState extends State<_LoadingDot> with SingleTickerProviderStateMixin {
+class _LoadingDotState extends State<_LoadingDot>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
   late final Animation<double> _anim;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
     _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
   }
 
@@ -2339,7 +2880,11 @@ class _LoadingDotState extends State<_LoadingDot> with SingleTickerProviderState
 }
 
 class _GroupHeader extends StatelessWidget {
-  const _GroupHeader({required this.title, required this.collapsed, required this.onToggle});
+  const _GroupHeader({
+    required this.title,
+    required this.collapsed,
+    required this.onToggle,
+  });
   final String title;
   final bool collapsed;
   final VoidCallback onToggle;
@@ -2371,7 +2916,11 @@ class _GroupHeader extends StatelessWidget {
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: textBase),
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: textBase,
+                ),
               ),
             ),
           ],
@@ -2471,22 +3020,24 @@ class _AssistantFolderTile extends StatefulWidget {
 
 class _AssistantFolderTileState extends State<_AssistantFolderTile> {
   bool _hovered = false;
-  
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+    final isDesktop =
+        defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.linux;
-        
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       cursor: isDesktop ? SystemMouseCursors.click : SystemMouseCursors.basic,
       child: GestureDetector(
-        onSecondaryTapDown: (details) => widget.onSecondaryTapDown(details.globalPosition),
+        onSecondaryTapDown: (details) =>
+            widget.onSecondaryTapDown(details.globalPosition),
         child: IosCardPress(
-          baseColor: widget.isCurrent 
+          baseColor: widget.isCurrent
               ? cs.primary.withOpacity(0.08)
               : (_hovered ? cs.surface.withOpacity(0.8) : Colors.transparent),
           borderRadius: BorderRadius.circular(12),
@@ -2498,7 +3049,9 @@ class _AssistantFolderTileState extends State<_AssistantFolderTile> {
               Icon(
                 widget.isExpanded ? Lucide.FolderOpen : Lucide.Folder,
                 size: 20,
-                color: widget.isCurrent ? cs.primary : cs.onSurface.withOpacity(0.7),
+                color: widget.isCurrent
+                    ? cs.primary
+                    : cs.onSurface.withOpacity(0.7),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2508,7 +3061,9 @@ class _AssistantFolderTileState extends State<_AssistantFolderTile> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: widget.isCurrent ? FontWeight.w600 : FontWeight.w500,
+                    fontWeight: widget.isCurrent
+                        ? FontWeight.w600
+                        : FontWeight.w500,
                     color: widget.textColor,
                   ),
                 ),

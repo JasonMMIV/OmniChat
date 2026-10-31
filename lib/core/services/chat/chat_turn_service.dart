@@ -12,6 +12,7 @@ import '../api/chat_api_service.dart';
 import '../search/search_tool_service.dart';
 import 'chat_service.dart';
 import 'prompt_transformer.dart';
+import 'tool_replay.dart';
 
 /// 已準備好的單一 LLM turn 請求（context、system prompt、search tool 皆已組裝）。
 class ChatTurnRequest {
@@ -161,90 +162,79 @@ class ChatTurnService {
     final out = <Map<String, dynamic>>[];
     for (final m in source) {
       if (includeToolMessages && m.role == 'assistant') {
-        final events = chatService.getToolEvents(m.id);
-        if (events.isNotEmpty) {
-          final hasPendingToolEvent = events.any((e) => e['content'] == null);
-          if (!hasPendingToolEvent) {
-            final calls = <Map<String, dynamic>>[];
-            final toolMessages = <Map<String, dynamic>>[];
-            // P1-3 fix: events that produce a replayed call/result pair;
-            // their persisted reasoning-echo extras are re-attached below.
-            final replayedEvents = <Map<String, dynamic>>[];
-            for (int i = 0; i < events.length; i++) {
-              final e = events[i];
-              final name = (e['name'] ?? '').toString().trim();
-              if (name.isEmpty) continue;
-              final rawId = (e['id'] ?? '').toString().trim();
-              final id = rawId.isNotEmpty
-                  ? rawId
-                  : 'call_${m.id.substring(0, m.id.length < 8 ? m.id.length : 8)}_$i';
-              Map<String, dynamic> args = const <String, dynamic>{};
-              final a = e['arguments'];
-              if (a is Map) {
-                args = a.map((k, v) => MapEntry(k.toString(), v));
-              }
-              String argumentsJson = '{}';
-              try {
-                argumentsJson = jsonEncode(args);
-              } catch (_) {}
-              calls.add({
-                'id': id,
-                'type': 'function',
-                'function': {'name': name, 'arguments': argumentsJson},
-              });
-              replayedEvents.add(e);
-              toolMessages.add({
-                'role': 'tool',
-                'name': name,
-                'tool_call_id': id,
-                'content': e['content']?.toString() ?? '',
-              });
+        // §9.5.2: replay only completed/denied pairs. Pending and interrupted
+        // events are omitted as a pair; a pending approval-protocol payload
+        // is never mistaken for a tool result. `denied` replays its denial
+        // JSON. This mirrors MessageBuilderService so voice chat and text
+        // chat assemble identical histories.
+        final pairs = buildToolReplayPairs(
+          chatService.getToolEvents(m.id),
+          messageId: m.id,
+        );
+        if (pairs.isNotEmpty) {
+          final calls = <Map<String, dynamic>>[];
+          final toolMessages = <Map<String, dynamic>>[];
+          for (final pair in pairs) {
+            Map<String, dynamic> args = const <String, dynamic>{};
+            final a = pair.event['arguments'];
+            if (a is Map) {
+              args = a.map((k, v) => MapEntry(k.toString(), v));
             }
-            if (calls.isNotEmpty) {
-              // P1-3 fix: re-attach persisted reasoning-echo fields —
-              // DeepSeek thinking mode rejects an assistant `tool_calls`
-              // message without `reasoning_content` (HTTP 400).
-              String? reasoningContent;
-              final reasoningDetails = <dynamic>[];
-              for (final e in replayedEvents) {
-                final rc = e['reasoning_content'];
-                if (reasoningContent == null &&
-                    rc is String &&
-                    rc.isNotEmpty) {
-                  reasoningContent = rc;
-                }
-                final rd = e['reasoning_details'];
-                // First-wins (matching reasoningContent): the write side
-                // persists the round's echo onto every placeholder event,
-                // so a multi-call round would otherwise duplicate the same
-                // details list N times.
-                if (reasoningDetails.isEmpty &&
-                    rd is List &&
-                    rd.isNotEmpty) {
-                  reasoningDetails.addAll(rd);
-                }
-              }
-              // P1-3 fix (2026-09-11): heal pre-fix history — fall back to
-              // the assistant message's own reasoningText when the events
-              // carry no echo (same reasoning stream the transport echoes;
-              // DeepSeek thinking mode requires the field on the replayed
-              // assistant tool_calls message).
-              if (reasoningContent == null &&
-                  (m.reasoningText ?? '').isNotEmpty) {
-                reasoningContent = m.reasoningText;
-              }
-              out.add(<String, dynamic>{
-                'role': 'assistant',
-                'content': '\n\n',
-                'tool_calls': calls,
-                if (reasoningContent != null)
-                  'reasoning_content': reasoningContent,
-                if (reasoningDetails.isNotEmpty)
-                  'reasoning_details': reasoningDetails,
-              });
-              out.addAll(toolMessages);
+            String argumentsJson = '{}';
+            try {
+              argumentsJson = jsonEncode(args);
+            } catch (_) {}
+            calls.add({
+              'id': pair.toolCallId,
+              'type': 'function',
+              'function': {'name': pair.toolName, 'arguments': argumentsJson},
+            });
+            toolMessages.add({
+              'role': 'tool',
+              'name': pair.toolName,
+              'tool_call_id': pair.toolCallId,
+              'content': pair.content,
+            });
+          }
+
+          // P1-3 fix: re-attach persisted reasoning-echo fields —
+          // DeepSeek thinking mode rejects an assistant `tool_calls`
+          // message without `reasoning_content` (HTTP 400).
+          String? reasoningContent;
+          final reasoningDetails = <dynamic>[];
+          for (final pair in pairs) {
+            final rc = pair.event['reasoning_content'];
+            if (reasoningContent == null && rc is String && rc.isNotEmpty) {
+              reasoningContent = rc;
+            }
+            final rd = pair.event['reasoning_details'];
+            // First-wins (matching reasoningContent): the write side
+            // persists the round's echo onto every placeholder event, so a
+            // multi-call round would otherwise duplicate the same details
+            // list N times.
+            if (reasoningDetails.isEmpty && rd is List && rd.isNotEmpty) {
+              reasoningDetails.addAll(rd);
             }
           }
+          // P1-3 fix (2026-09-11): heal pre-fix history — fall back to
+          // the assistant message's own reasoningText when the events
+          // carry no echo (same reasoning stream the transport echoes;
+          // DeepSeek thinking mode requires the field on the replayed
+          // assistant tool_calls message).
+          if (reasoningContent == null &&
+              (m.reasoningText ?? '').isNotEmpty) {
+            reasoningContent = m.reasoningText;
+          }
+          out.add(<String, dynamic>{
+            'role': 'assistant',
+            'content': '\n\n',
+            'tool_calls': calls,
+            if (reasoningContent != null)
+              'reasoning_content': reasoningContent,
+            if (reasoningDetails.isNotEmpty)
+              'reasoning_details': reasoningDetails,
+          });
+          out.addAll(toolMessages);
         }
       }
       if (m.content.isEmpty) continue;

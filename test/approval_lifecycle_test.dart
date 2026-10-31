@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:OmniChat/core/services/chat/chat_service.dart';
+import 'package:OmniChat/core/services/chat/storage/chat_storage.dart';
 import 'package:OmniChat/core/services/chat/ask_user_models.dart';
 import 'package:OmniChat/core/services/agent/approval.dart';
 
@@ -45,7 +46,7 @@ void main() {
   });
 
   test('result upsert preserves the Pending approvalState', () async {
-    final service = ChatService();
+    final service = ChatService(backend: ChatStorageBackend.hive);
     await service.init();
 
     const messageId = 'assistant-message';
@@ -85,7 +86,7 @@ void main() {
 
   test('explicit approvalState on the upsert still wins over the old value',
       () async {
-    final service = ChatService();
+    final service = ChatService(backend: ChatStorageBackend.hive);
     await service.init();
 
     const messageId = 'assistant-message';
@@ -117,7 +118,7 @@ void main() {
   test(
       'P1-3 fix: reasoning-echo extras survive the answered ask_user upsert',
       () async {
-    final service = ChatService();
+    final service = ChatService(backend: ChatStorageBackend.hive);
     await service.init();
 
     const messageId = 'assistant-message';

@@ -32,6 +32,8 @@ class StatsPage extends StatefulWidget {
 
 class _StatsPageState extends State<StatsPage> {
   late StatsDateRange _range;
+  bool _ready = false;
+  String? _loadError;
 
   @override
   void initState() {
@@ -39,11 +41,73 @@ class _StatsPageState extends State<StatsPage> {
     _range =
         widget.snapshotOverride?.range ??
         StatsDateRange.allTime(DateTime.now());
+    if (widget.snapshotOverride == null) {
+      _loadStats();
+    } else {
+      _ready = true;
+    }
+  }
+
+  Future<void> _loadStats() async {
+    try {
+      await context.read<ChatService>().ensureAllMessagesLoaded();
+      if (!mounted) return;
+      setState(() => _ready = true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = error.toString();
+        _ready = true;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    if (!_ready) {
+      final loading = const Center(child: CircularProgressIndicator());
+      if (!widget.showAppBar) return loading;
+      return Scaffold(
+        appBar: AppBar(
+          leading: Tooltip(
+            message: l10n.settingsPageBackButton,
+            child: IosIconButton(
+              icon: Lucide.ArrowLeft,
+              minSize: 44,
+              size: 22,
+              onTap: () => Navigator.of(context).maybePop(),
+            ),
+          ),
+          title: Text(l10n.statsPageTitle),
+        ),
+        body: loading,
+      );
+    }
+    if (_loadError != null) {
+      final error = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: SelectableText(_loadError!),
+        ),
+      );
+      if (!widget.showAppBar) return error;
+      return Scaffold(
+        appBar: AppBar(
+          leading: Tooltip(
+            message: l10n.settingsPageBackButton,
+            child: IosIconButton(
+              icon: Lucide.ArrowLeft,
+              minSize: 44,
+              size: 22,
+              onTap: () => Navigator.of(context).maybePop(),
+            ),
+          ),
+          title: Text(l10n.statsPageTitle),
+        ),
+        body: error,
+      );
+    }
     final snapshot = widget.snapshotOverride ?? _buildSnapshot(context);
     final assistantById = widget.snapshotOverride == null
         ? {
@@ -209,7 +273,8 @@ class _StatsPageState extends State<StatsPage> {
   Future<void> _pickCustomRange() async {
     final now = DateTime.now();
     final end = StatsDateRange.normalizeDate(now);
-    final initialStart = _range.start ?? StatsDateRange.addCalendarDays(end, -29);
+    final initialStart =
+        _range.start ?? StatsDateRange.addCalendarDays(end, -29);
     final initialEnd = _range.end ?? end;
 
     final selected = await _showCustomRangePicker(
@@ -588,9 +653,9 @@ class _CustomRangeSheetState extends State<_CustomRangeSheet> {
               const SizedBox(width: 8),
               FilledButton(
                 onPressed: () {
-                  Navigator.of(context).pop(
-                    DateTimeRange(start: _startDate, end: _endDate),
-                  );
+                  Navigator.of(
+                    context,
+                  ).pop(DateTimeRange(start: _startDate, end: _endDate));
                 },
                 child: Text(l10n.statsPageCustomRangeApply),
               ),
@@ -602,16 +667,15 @@ class _CustomRangeSheetState extends State<_CustomRangeSheet> {
 
     if (widget.desktop) return content;
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: mediaSize.height * 0.88),
         child: SingleChildScrollView(
           child: SafeArea(
             top: false,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: content,
-            ),
+            child: Padding(padding: const EdgeInsets.all(12), child: content),
           ),
         ),
       ),

@@ -2,7 +2,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:provider/provider.dart';
 
+import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/chat/storage/chat_storage.dart';
 import '../../../core/services/haptics.dart';
 import '../../../core/services/storage/storage_usage_service.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -13,6 +16,7 @@ import '../../../shared/widgets/ios_tile_button.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../utils/platform_utils.dart';
 import '../../chat/pages/image_viewer_page.dart';
+import 'chat_storage_page.dart';
 
 class StorageSpacePage extends StatefulWidget {
   const StorageSpacePage({super.key, this.embedded = false});
@@ -275,6 +279,12 @@ class _StorageSpacePageState extends State<StorageSpacePage> {
     }
   }
 
+  void _openChatStorage() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ChatStoragePage()),
+    );
+  }
+
   Future<void> _openCategoryDetail(StorageUsageCategoryKey key) async {
     final report = _report;
     if (report == null) return;
@@ -409,6 +419,13 @@ class _StorageSpacePageState extends State<StorageSpacePage> {
                       style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(0.7), decoration: TextDecoration.none),
                     ),
                   ],
+                  const Spacer(),
+                  IosTileButton(
+                    label: l10n.chatStoragePageTitle,
+                    icon: Lucide.Database,
+                    backgroundColor: cs.primary,
+                    onTap: _openChatStorage,
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -468,6 +485,9 @@ class _StorageSpacePageState extends State<StorageSpacePage> {
     final cs = theme.colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final total = report.totalBytes;
+    final backend = context.select<ChatService, ChatStorageBackend?>(
+      (service) => service.backend,
+    );
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -515,6 +535,16 @@ class _StorageSpacePageState extends State<StorageSpacePage> {
                 if (i != report.categories.length - 1) _iosDivider(context),
               ],
             ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _iosSectionCard(
+          child: _iosNavRow(
+            context,
+            icon: Lucide.Database,
+            label: l10n.chatStoragePageTitle,
+            detailText: backend == ChatStorageBackend.sqlite ? 'SQLite' : 'Hive',
+            onTap: _openChatStorage,
           ),
         ),
       ],

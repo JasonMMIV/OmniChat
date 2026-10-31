@@ -2166,6 +2166,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatMessageWidgetNoResultYet => 'Waiting';
 
   @override
+  String get chatMessageWidgetLoadResult => 'Tap to load result';
+
+  @override
+  String get chatMessageWidgetLoadResultFailed =>
+      'Could not load the tool result.';
+
+  @override
   String get chatMessageWidgetArguments => 'Args';
 
   @override
@@ -2562,6 +2569,345 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get storageSpaceRefreshTooltip => 'Refresh';
+
+  @override
+  String get chatStoragePageTitle => 'Chat storage';
+
+  @override
+  String get chatStorageSqliteSection => 'SQLite database';
+
+  @override
+  String get chatStorageLegacySection => 'Legacy Hive files';
+
+  @override
+  String get chatStorageDatabaseSize => 'Database';
+
+  @override
+  String get chatStorageWalSize => 'WAL';
+
+  @override
+  String chatStorageConversationsCount(int count) {
+    return '$count chats';
+  }
+
+  @override
+  String chatStorageMessagesCount(int count) {
+    return '$count messages';
+  }
+
+  @override
+  String chatStoragePartsCount(int count) {
+    return '$count tool parts';
+  }
+
+  @override
+  String get chatStorageLegacyImportDisabled => 'Legacy import disabled';
+
+  @override
+  String get chatStorageImportLegacy => 'Import legacy Hive';
+
+  @override
+  String get chatStorageImportLegacyTitle => 'Import legacy chat files?';
+
+  @override
+  String get chatStorageImportLegacyBody =>
+      'Adds missing conversations, messages, tool results, signatures, file records, and workspace bindings from the legacy Hive snapshot. Existing chats are not overwritten.';
+
+  @override
+  String get chatStorageImportLegacyWarning =>
+      'Stop any active reply first. The Hive snapshot is kept; the legacy-import lock is removed only after validation succeeds.';
+
+  @override
+  String get chatStorageImportLegacyConfirm => 'Import';
+
+  @override
+  String get chatStorageImportStagePreparing => 'Preparing legacy data…';
+
+  @override
+  String get chatStorageImportStageReading => 'Reading legacy chat data…';
+
+  @override
+  String get chatStorageImportStageMerging => 'Merging into SQLite…';
+
+  @override
+  String get chatStorageImportStageVerifying => 'Verifying imported data…';
+
+  @override
+  String chatStorageImportLegacyDone(
+    int conversations,
+    int messages,
+    int conflicts,
+  ) {
+    return 'Imported $conversations conversations and $messages messages. Kept existing data for $conflicts conflicts.';
+  }
+
+  @override
+  String get chatStorageImportLegacyLockRemains =>
+      'Import completed, but the legacy-import lock could not be removed. Retry the import to clear it.';
+
+  @override
+  String get chatStorageNoLegacyFiles => 'No legacy chat files remain.';
+
+  @override
+  String get chatStorageCleanupInterrupted =>
+      'Legacy cleanup was interrupted; resume it after verifying the files.';
+
+  @override
+  String get chatStorageExportValid => 'A verified legacy export is available.';
+
+  @override
+  String get chatStorageExportLegacy => 'Export legacy files';
+
+  @override
+  String get chatStorageDeleteLegacy => 'Delete legacy files';
+
+  @override
+  String get chatStorageResumeCleanup => 'Resume interrupted cleanup';
+
+  @override
+  String get chatStorageMaintenanceSection => 'Maintenance';
+
+  @override
+  String get chatStorageOptimize => 'Optimize database';
+
+  @override
+  String get chatStorageOptimizeWarning =>
+      'Stop any active reply first. Compacting the database can take a while and needs free disk space.';
+
+  @override
+  String chatStorageExportSuccess(String path) {
+    return 'Exported to $path';
+  }
+
+  @override
+  String get chatStorageExportRequired =>
+      'Export the legacy files before deleting them.';
+
+  @override
+  String get chatStorageDeleteWarning =>
+      'This permanently deletes the legacy Hive chat files. The SQLite database is not affected.';
+
+  @override
+  String get chatStorageDeleteConfirm => 'Delete legacy files';
+
+  @override
+  String chatStorageCleanupCompleted(String date) {
+    return 'Legacy cleanup completed at $date.';
+  }
+
+  @override
+  String chatStorageBlocked(String reason) {
+    return 'Cleanup unavailable: $reason';
+  }
+
+  @override
+  String get chatStorageDiscardNeverMigratedWarning =>
+      'These files were never imported into SQLite. After export they can be discarded explicitly.';
+
+  @override
+  String get chatStorageCleanupDone => 'Legacy files deleted.';
+
+  @override
+  String get chatStorageResetMarker => 'Forget completed cleanup record';
+
+  @override
+  String get chatStorageResetMarkerWarning =>
+      'New legacy files appeared after cleanup. Forget the completed record so they can be exported and deleted again? No chat data is deleted by this step.';
+
+  @override
+  String get chatStorageOptimizeDone => 'Database optimized.';
+
+  @override
+  String get chatStorageFallbackSnackbar =>
+      'Chat storage is using the legacy store. See Settings → Storage for details.';
+
+  @override
+  String get chatStorageFallbackTitle => 'Using the legacy chat store';
+
+  @override
+  String get chatStorageFallbackBody =>
+      'SQLite could not start, so this release is using the previous Hive store. Your chats are available, but the cutover will retry on a later launch.';
+
+  @override
+  String get chatStorageStartupBackingUp => 'Backing up legacy chat data…';
+
+  @override
+  String get chatStorageMigrationNotificationTitle => 'Updating chat storage';
+
+  @override
+  String get chatStorageMigrationNotificationText =>
+      'OmniChat is migrating your chat history. You can switch away while it finishes.';
+
+  @override
+  String get chatMigrationBackupTitle =>
+      'Back up chat history before upgrading?';
+
+  @override
+  String get chatMigrationBackupBody =>
+      'OmniChat will move your chat history to a new local database. This is a one-time upgrade.';
+
+  @override
+  String get chatMigrationBackupRecommended =>
+      'We recommend saving a backup first. The archive contains the legacy chat files and a readable chats.json.';
+
+  @override
+  String get chatMigrationBackupNow => 'Back up now';
+
+  @override
+  String get chatMigrationBackupSkip => 'Skip without backup';
+
+  @override
+  String get chatMigrationBackupFolderTitle => 'Choose a backup folder';
+
+  @override
+  String get chatStorageStartupTitle => 'Preparing chat storage';
+
+  @override
+  String get chatStorageStartupSubtitle =>
+      'Your chat history stays on this device.';
+
+  @override
+  String get chatStorageRecoveryTitle => 'Chat storage needs attention';
+
+  @override
+  String get chatStorageRecoveryBody =>
+      'A previously installed chat database is missing. Choose how to recover your chat history.';
+
+  @override
+  String get chatStorageRecoveryFailedBody =>
+      'Recovery did not finish. You can retry or choose a different option below.';
+
+  @override
+  String get chatStorageRecoveryRestore => 'Restore from backup';
+
+  @override
+  String get chatStorageRecoveryRestoreHint =>
+      'Choose an OmniChat backup zip. Current SQLite chat rows will be replaced.';
+
+  @override
+  String get chatStorageRecoveryRebuild => 'Rebuild from legacy Hive';
+
+  @override
+  String get chatStorageRecoveryRebuildHint =>
+      'Recreate SQLite from the untouched Hive files. A backup is recommended first.';
+
+  @override
+  String get chatStorageRecoveryReset => 'Reset chat storage';
+
+  @override
+  String get chatStorageRecoveryResetHint =>
+      'Create an empty database. Hive files are kept but will not be imported automatically.';
+
+  @override
+  String get chatStorageRecoveryContinueLegacy =>
+      'Continue with the legacy store for now';
+
+  @override
+  String get chatStorageRecoveryContinueLegacyHint =>
+      'This session only. OmniChat will ask again on the next launch.';
+
+  @override
+  String get chatStorageRecoveryRestoring => 'Restoring backup…';
+
+  @override
+  String get chatStorageRecoveryRebuilding => 'Rebuilding from legacy Hive…';
+
+  @override
+  String get chatStorageRecoveryResetting => 'Resetting chat storage…';
+
+  @override
+  String get chatStorageRecoveryOpeningLegacy => 'Opening the legacy store…';
+
+  @override
+  String get chatStorageRecoveryConfirmRestoreTitle => 'Restore this backup?';
+
+  @override
+  String get chatStorageRecoveryConfirmRestoreBody =>
+      'The current SQLite chat rows will be replaced. The backup file is not modified.';
+
+  @override
+  String get chatStorageRecoveryConfirmRebuildTitle =>
+      'Rebuild from legacy Hive?';
+
+  @override
+  String get chatStorageRecoveryConfirmRebuildBody =>
+      'SQLite will be recreated from the legacy Hive files. Hive files are not modified. Make a backup first if possible.';
+
+  @override
+  String get chatStorageRecoveryConfirmResetTitle => 'Reset chat storage?';
+
+  @override
+  String get chatStorageRecoveryConfirmResetBody =>
+      'The SQLite chat database will be deleted and recreated empty. Legacy Hive files are kept, but they will not be imported automatically.';
+
+  @override
+  String get chatStorageRecoveryCancel => 'Cancel';
+
+  @override
+  String get chatStorageRecoveryErrorTitle => 'Recovery failed';
+
+  @override
+  String get chatStorageRecoveryRestoreDone => 'Backup restored.';
+
+  @override
+  String get chatStorageRecoveryRebuildDone =>
+      'Chat storage rebuilt from legacy Hive.';
+
+  @override
+  String get chatStorageRecoveryResetDone => 'Chat storage reset.';
+
+  @override
+  String get chatStorageStartupChecking => 'Checking the chat database…';
+
+  @override
+  String get chatStorageStartupOpeningHive => 'Opening legacy chat data…';
+
+  @override
+  String get chatStorageStartupImportingMessages =>
+      'Migrating conversations and messages…';
+
+  @override
+  String get chatStorageStartupImportingToolEvents => 'Migrating tool results…';
+
+  @override
+  String get chatStorageStartupImportingWorkspaces =>
+      'Migrating workspace settings…';
+
+  @override
+  String get chatStorageStartupValidating => 'Validating the migrated data…';
+
+  @override
+  String get chatStorageStartupOpening => 'Opening chat storage…';
+
+  @override
+  String chatStorageStartupCounts(int conversations, int messages) {
+    return '$conversations chats · $messages messages';
+  }
+
+  @override
+  String chatStorageStartupQuarantine(int count) {
+    return '$count items need review';
+  }
+
+  @override
+  String get chatStorageStartupInitialHint =>
+      'Large histories may take a moment. Keep OmniChat open until this finishes.';
+
+  @override
+  String get chatStorageStartupFailedTitle => 'Chat storage did not start';
+
+  @override
+  String get chatStorageStartupFailedBody =>
+      'Nothing was deleted. Retry, or copy the diagnostics for troubleshooting.';
+
+  @override
+  String get chatStorageStartupRetry => 'Retry';
+
+  @override
+  String get chatStorageStartupCopyDiagnostics => 'Copy diagnostics';
+
+  @override
+  String get chatStorageStartupDiagnosticsCopied => 'Diagnostics copied.';
 
   @override
   String get storageSpaceTotalLabel => 'Total';

@@ -6,6 +6,8 @@ import './app_directories.dart';
 
 class MarkdownMediaSanitizer {
   static final Uuid _uuid = const Uuid();
+  static final RegExp _windowsDrivePathRe =
+      RegExp(r'^[A-Za-z]:[\\/]');
   static final RegExp _imgRe = RegExp(
     r'!\[[^\]]*\]\((data:image\/[a-zA-Z0-9.+-]+;base64,[a-zA-Z0-9+/=\r\n]+)\)',
     multiLine: true,
@@ -29,7 +31,6 @@ class MarkdownMediaSanitizer {
 
     final sb = StringBuffer();
     int last = 0;
-    int idx = 0;
     for (final m in matches) {
       sb.write(markdown.substring(last, m.start));
       final dataUrl = m.group(1)!;
@@ -75,10 +76,39 @@ class MarkdownMediaSanitizer {
       final replaced = markdown.substring(m.start, m.end).replaceFirst(dataUrl, file.path);
       sb.write(replaced);
       last = m.end;
-      idx++;
     }
     sb.write(markdown.substring(last));
     return sb.toString();
+  }
+
+  /// Whether [url] should be treated as a local file path.
+  ///
+  /// Protocol-relative (`//host/path`) and UNC (`\\host\share`) URLs are
+  /// web/network locations. On Windows they resolve to SMB paths, and a
+  /// synchronous existence check blocks the UI isolate until the SMB timeout
+  /// (measured 10-25s per host). Remote `file://host/...` URIs are rejected
+  /// for the same reason; only local absolute paths (and local `file://`
+  /// URIs) are accepted.
+  @visibleForTesting
+  static bool isLikelyLocalImagePath(String url) {
+    final value = url.trim();
+    if (value.isEmpty) return false;
+    if (value.startsWith('data:')) return false;
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return false;
+    }
+    if (value.startsWith('//') || value.startsWith(r'\\')) return false;
+    if (value.startsWith('file://')) {
+      final uri = Uri.tryParse(value);
+      // A non-empty host turns the URI into a UNC/remote path.
+      return uri != null && uri.host.isEmpty && uri.path.isNotEmpty;
+    }
+    if (_windowsDrivePathRe.hasMatch(value)) return true;
+    // POSIX/Android/macOS absolute path. On Windows a leading `/` is not a
+    // local absolute path (it would probe the current drive root, e.g.
+    // C:\front\assets\logo.png), so root-relative web paths are rejected.
+    if (value.startsWith('/')) return !Platform.isWindows;
+    return false;
   }
 
   // Replace Markdown image links pointing to local file paths with inline base64 data URLs.
@@ -96,13 +126,11 @@ class MarkdownMediaSanitizer {
     for (final m in matches) {
       sb.write(markdown.substring(last, m.start));
       final url = (m.group(1) ?? '').trim();
-      // Only convert local file paths; skip http(s) and existing data URLs
-      final isRemote = url.startsWith('http://') || url.startsWith('https://');
-      final isData = url.startsWith('data:');
+      // Only convert true local file paths; remote, protocol-relative, UNC and
+      // data URLs stay untouched. See [isLikelyLocalImagePath].
       final isFileUri = url.startsWith('file://');
-      final isLikelyLocalPath = (!isRemote && !isData) && (isFileUri || url.startsWith('/') || url.contains(':'));
 
-      if (!isLikelyLocalPath) {
+      if (!isLikelyLocalImagePath(url)) {
         // Keep original
         sb.write(markdown.substring(m.start, m.end));
         last = m.end;
@@ -110,15 +138,14 @@ class MarkdownMediaSanitizer {
       }
 
       try {
-        // Normalize file path
-        var path = url;
-        if (isFileUri) {
-          path = url.replaceFirst('file://', '');
-        }
-        // Read bytes and encode
-        final fixed = path; // Caller may already pass sandbox-fixed paths; avoid depending on Flutter layer here
+        // Resolve file:// URIs to a real path (decodes %20 and keeps Windows
+        // drive letters intact). The classifier already rejected file:// URIs
+        // with a remote host.
+        final fixed = isFileUri ? Uri.parse(url).toFilePath() : url;
         final f = File(fixed);
-        if (!f.existsSync()) {
+        // Async existence check: even a misclassified network path must never
+        // block the UI isolate.
+        if (!await f.exists()) {
           // Fallback to original if missing
           sb.write(markdown.substring(m.start, m.end));
           last = m.end;

@@ -2150,6 +2150,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatMessageWidgetNoResultYet => '（暂无结果）';
 
   @override
+  String get chatMessageWidgetLoadResult => '点击加载结果';
+
+  @override
+  String get chatMessageWidgetLoadResultFailed => '无法加载工具结果。';
+
+  @override
   String get chatMessageWidgetArguments => '参数';
 
   @override
@@ -2550,6 +2556,328 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get storageSpaceRefreshTooltip => '刷新';
+
+  @override
+  String get chatStoragePageTitle => '聊天储存';
+
+  @override
+  String get chatStorageSqliteSection => 'SQLite 数据库';
+
+  @override
+  String get chatStorageLegacySection => 'Legacy Hive 文件';
+
+  @override
+  String get chatStorageDatabaseSize => '数据库';
+
+  @override
+  String get chatStorageWalSize => 'WAL';
+
+  @override
+  String chatStorageConversationsCount(int count) {
+    return '$count 个对话';
+  }
+
+  @override
+  String chatStorageMessagesCount(int count) {
+    return '$count 条消息';
+  }
+
+  @override
+  String chatStoragePartsCount(int count) {
+    return '$count 个工具片段';
+  }
+
+  @override
+  String get chatStorageLegacyImportDisabled => '已停用 legacy 导入';
+
+  @override
+  String get chatStorageImportLegacy => '导入 legacy Hive';
+
+  @override
+  String get chatStorageImportLegacyTitle => '导入旧版聊天文件？';
+
+  @override
+  String get chatStorageImportLegacyBody =>
+      '从 legacy Hive 快照加入缺少的对话、消息、工具结果、签名、文件记录与工作区绑定。现有聊天不会被覆盖。';
+
+  @override
+  String get chatStorageImportLegacyWarning =>
+      '请先停止正在进行的回复。Hive 快照会保留；只有验证成功后才会移除 legacy 导入锁定。';
+
+  @override
+  String get chatStorageImportLegacyConfirm => '导入';
+
+  @override
+  String get chatStorageImportStagePreparing => '正在准备旧版数据…';
+
+  @override
+  String get chatStorageImportStageReading => '正在读取旧版聊天数据…';
+
+  @override
+  String get chatStorageImportStageMerging => '正在合并到 SQLite…';
+
+  @override
+  String get chatStorageImportStageVerifying => '正在验证导入的数据…';
+
+  @override
+  String chatStorageImportLegacyDone(
+    int conversations,
+    int messages,
+    int conflicts,
+  ) {
+    return '已导入 $conversations 个对话与 $messages 条消息；$conflicts 项冲突保留现有数据。';
+  }
+
+  @override
+  String get chatStorageImportLegacyLockRemains =>
+      '导入已完成，但无法移除 legacy 导入锁定。请重试导入以清除它。';
+
+  @override
+  String get chatStorageNoLegacyFiles => '已无 legacy 聊天文件。';
+
+  @override
+  String get chatStorageCleanupInterrupted => 'Legacy 清理已中断；请验证文件后继续清理。';
+
+  @override
+  String get chatStorageExportValid => '已有通过验证的 legacy 导出。';
+
+  @override
+  String get chatStorageExportLegacy => '导出 legacy 文件';
+
+  @override
+  String get chatStorageDeleteLegacy => '删除 legacy 文件';
+
+  @override
+  String get chatStorageResumeCleanup => '继续中断的清理';
+
+  @override
+  String get chatStorageMaintenanceSection => '维护';
+
+  @override
+  String get chatStorageOptimize => '优化数据库';
+
+  @override
+  String get chatStorageOptimizeWarning =>
+      '请先停止进行中的回复。压实数据库可能需要一些时间，并需要可用磁盘空间。';
+
+  @override
+  String chatStorageExportSuccess(String path) {
+    return '已导出至 $path';
+  }
+
+  @override
+  String get chatStorageExportRequired => '请先导出 legacy 文件再删除。';
+
+  @override
+  String get chatStorageDeleteWarning =>
+      '这会永久删除 legacy Hive 聊天文件，SQLite 数据库不受影响。';
+
+  @override
+  String get chatStorageDeleteConfirm => '删除 legacy 文件';
+
+  @override
+  String chatStorageCleanupCompleted(String date) {
+    return 'Legacy 清理已于 $date 完成。';
+  }
+
+  @override
+  String chatStorageBlocked(String reason) {
+    return '无法清理：$reason';
+  }
+
+  @override
+  String get chatStorageDiscardNeverMigratedWarning =>
+      '这些文件从未导入 SQLite。导出后可明确选择丢弃。';
+
+  @override
+  String get chatStorageCleanupDone => '已删除 legacy 文件。';
+
+  @override
+  String get chatStorageResetMarker => '清除已完成的清理记录';
+
+  @override
+  String get chatStorageResetMarkerWarning =>
+      '清理完成后又出现了新的 legacy 文件。要忘记完成记录，以便重新导出并删除吗？此步骤不会删除任何聊天数据。';
+
+  @override
+  String get chatStorageOptimizeDone => '数据库已优化。';
+
+  @override
+  String get chatStorageFallbackSnackbar => '聊天存储正在使用旧版模式。详情请见「设置 → 存储」。';
+
+  @override
+  String get chatStorageFallbackTitle => '正在使用旧版聊天存储';
+
+  @override
+  String get chatStorageFallbackBody =>
+      'SQLite 无法启动，因此此版本正在使用先前的 Hive 存储。聊天仍可使用，并会在下次启动时重试迁移。';
+
+  @override
+  String get chatStorageStartupBackingUp => '正在备份旧版聊天数据…';
+
+  @override
+  String get chatStorageMigrationNotificationTitle => '正在更新聊天存储';
+
+  @override
+  String get chatStorageMigrationNotificationText =>
+      'OmniChat 正在迁移聊天记录，你可以先切换到其他应用。';
+
+  @override
+  String get chatMigrationBackupTitle => '升级前要备份聊天记录吗？';
+
+  @override
+  String get chatMigrationBackupBody => 'OmniChat 会把聊天记录迁移到新的本地数据库。这是一次性升级。';
+
+  @override
+  String get chatMigrationBackupRecommended =>
+      '建议先保存备份。备份包含旧版聊天文件与可读的 chats.json。';
+
+  @override
+  String get chatMigrationBackupNow => '立即备份';
+
+  @override
+  String get chatMigrationBackupSkip => '不备份并继续';
+
+  @override
+  String get chatMigrationBackupFolderTitle => '选择备份文件夹';
+
+  @override
+  String get chatStorageStartupTitle => '正在准备聊天存储';
+
+  @override
+  String get chatStorageStartupSubtitle => '聊天记录会保留在此设备上。';
+
+  @override
+  String get chatStorageRecoveryTitle => '聊天存储需要处理';
+
+  @override
+  String get chatStorageRecoveryBody => '先前安装的聊天数据库已丢失。请选择如何恢复聊天记录。';
+
+  @override
+  String get chatStorageRecoveryFailedBody => '恢复未完成。你可以重试，或选择下方其他选项。';
+
+  @override
+  String get chatStorageRecoveryRestore => '从备份还原';
+
+  @override
+  String get chatStorageRecoveryRestoreHint =>
+      '选择 OmniChat 备份 zip。当前 SQLite 聊天记录会被替换。';
+
+  @override
+  String get chatStorageRecoveryRebuild => '从旧版 Hive 重建';
+
+  @override
+  String get chatStorageRecoveryRebuildHint => '使用未修改的 Hive 文件重建 SQLite。建议先备份。';
+
+  @override
+  String get chatStorageRecoveryReset => '重置聊天存储';
+
+  @override
+  String get chatStorageRecoveryResetHint => '创建空数据库。Hive 文件会保留，但不会自动导入。';
+
+  @override
+  String get chatStorageRecoveryContinueLegacy => '暂时继续使用旧版存储';
+
+  @override
+  String get chatStorageRecoveryContinueLegacyHint => '仅限本次会话。下次启动会再次询问。';
+
+  @override
+  String get chatStorageRecoveryRestoring => '正在还原备份…';
+
+  @override
+  String get chatStorageRecoveryRebuilding => '正在从旧版 Hive 重建…';
+
+  @override
+  String get chatStorageRecoveryResetting => '正在重置聊天存储…';
+
+  @override
+  String get chatStorageRecoveryOpeningLegacy => '正在打开旧版存储…';
+
+  @override
+  String get chatStorageRecoveryConfirmRestoreTitle => '要还原此备份吗？';
+
+  @override
+  String get chatStorageRecoveryConfirmRestoreBody =>
+      '当前 SQLite 聊天记录会被替换。备份文件不会被修改。';
+
+  @override
+  String get chatStorageRecoveryConfirmRebuildTitle => '要从旧版 Hive 重建吗？';
+
+  @override
+  String get chatStorageRecoveryConfirmRebuildBody =>
+      '将使用旧版 Hive 文件重建 SQLite。Hive 文件不会被修改。若可能，请先备份。';
+
+  @override
+  String get chatStorageRecoveryConfirmResetTitle => '要重置聊天存储吗？';
+
+  @override
+  String get chatStorageRecoveryConfirmResetBody =>
+      'SQLite 聊天数据库将被删除并重建为空。旧版 Hive 文件会保留，但不会自动导入。';
+
+  @override
+  String get chatStorageRecoveryCancel => '取消';
+
+  @override
+  String get chatStorageRecoveryErrorTitle => '恢复失败';
+
+  @override
+  String get chatStorageRecoveryRestoreDone => '备份已还原。';
+
+  @override
+  String get chatStorageRecoveryRebuildDone => '已从旧版 Hive 重建聊天存储。';
+
+  @override
+  String get chatStorageRecoveryResetDone => '聊天存储已重置。';
+
+  @override
+  String get chatStorageStartupChecking => '正在检查聊天数据库…';
+
+  @override
+  String get chatStorageStartupOpeningHive => '正在打开旧版聊天数据…';
+
+  @override
+  String get chatStorageStartupImportingMessages => '正在迁移对话与消息…';
+
+  @override
+  String get chatStorageStartupImportingToolEvents => '正在迁移工具结果…';
+
+  @override
+  String get chatStorageStartupImportingWorkspaces => '正在迁移工作区设置…';
+
+  @override
+  String get chatStorageStartupValidating => '正在校验迁移后的数据…';
+
+  @override
+  String get chatStorageStartupOpening => '正在打开聊天存储…';
+
+  @override
+  String chatStorageStartupCounts(int conversations, int messages) {
+    return '$conversations 个对话 · $messages 条消息';
+  }
+
+  @override
+  String chatStorageStartupQuarantine(int count) {
+    return '$count 项需要检查';
+  }
+
+  @override
+  String get chatStorageStartupInitialHint =>
+      '聊天记录较多时可能需要一点时间，请保持 OmniChat 开启直到完成。';
+
+  @override
+  String get chatStorageStartupFailedTitle => '聊天存储未能启动';
+
+  @override
+  String get chatStorageStartupFailedBody => '没有删除任何数据。请重试，或复制诊断信息以便排查。';
+
+  @override
+  String get chatStorageStartupRetry => '重试';
+
+  @override
+  String get chatStorageStartupCopyDiagnostics => '复制诊断信息';
+
+  @override
+  String get chatStorageStartupDiagnosticsCopied => '诊断信息已复制。';
 
   @override
   String get storageSpaceTotalLabel => '已用空间';
@@ -7312,6 +7640,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatMessageWidgetNoResultYet => '（暂无结果）';
 
   @override
+  String get chatMessageWidgetLoadResult => '点击加载结果';
+
+  @override
+  String get chatMessageWidgetLoadResultFailed => '无法加载工具结果。';
+
+  @override
   String get chatMessageWidgetArguments => '参数';
 
   @override
@@ -7703,6 +8037,328 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get storageSpaceRefreshTooltip => '刷新';
+
+  @override
+  String get chatStoragePageTitle => '聊天储存';
+
+  @override
+  String get chatStorageSqliteSection => 'SQLite 数据库';
+
+  @override
+  String get chatStorageLegacySection => 'Legacy Hive 文件';
+
+  @override
+  String get chatStorageDatabaseSize => '数据库';
+
+  @override
+  String get chatStorageWalSize => 'WAL';
+
+  @override
+  String chatStorageConversationsCount(int count) {
+    return '$count 个对话';
+  }
+
+  @override
+  String chatStorageMessagesCount(int count) {
+    return '$count 条消息';
+  }
+
+  @override
+  String chatStoragePartsCount(int count) {
+    return '$count 个工具片段';
+  }
+
+  @override
+  String get chatStorageLegacyImportDisabled => '已停用 legacy 导入';
+
+  @override
+  String get chatStorageImportLegacy => '导入 legacy Hive';
+
+  @override
+  String get chatStorageImportLegacyTitle => '导入旧版聊天文件？';
+
+  @override
+  String get chatStorageImportLegacyBody =>
+      '从 legacy Hive 快照加入缺少的对话、消息、工具结果、签名、文件记录与工作区绑定。现有聊天不会被覆盖。';
+
+  @override
+  String get chatStorageImportLegacyWarning =>
+      '请先停止正在进行的回复。Hive 快照会保留；只有验证成功后才会移除 legacy 导入锁定。';
+
+  @override
+  String get chatStorageImportLegacyConfirm => '导入';
+
+  @override
+  String get chatStorageImportStagePreparing => '正在准备旧版数据…';
+
+  @override
+  String get chatStorageImportStageReading => '正在读取旧版聊天数据…';
+
+  @override
+  String get chatStorageImportStageMerging => '正在合并到 SQLite…';
+
+  @override
+  String get chatStorageImportStageVerifying => '正在验证导入的数据…';
+
+  @override
+  String chatStorageImportLegacyDone(
+    int conversations,
+    int messages,
+    int conflicts,
+  ) {
+    return '已导入 $conversations 个对话与 $messages 条消息；$conflicts 项冲突保留现有数据。';
+  }
+
+  @override
+  String get chatStorageImportLegacyLockRemains =>
+      '导入已完成，但无法移除 legacy 导入锁定。请重试导入以清除它。';
+
+  @override
+  String get chatStorageNoLegacyFiles => '已无 legacy 聊天文件。';
+
+  @override
+  String get chatStorageCleanupInterrupted => 'Legacy 清理已中断；请验证文件后继续清理。';
+
+  @override
+  String get chatStorageExportValid => '已有通过验证的 legacy 导出。';
+
+  @override
+  String get chatStorageExportLegacy => '导出 legacy 文件';
+
+  @override
+  String get chatStorageDeleteLegacy => '删除 legacy 文件';
+
+  @override
+  String get chatStorageResumeCleanup => '继续中断的清理';
+
+  @override
+  String get chatStorageMaintenanceSection => '维护';
+
+  @override
+  String get chatStorageOptimize => '优化数据库';
+
+  @override
+  String get chatStorageOptimizeWarning =>
+      '请先停止进行中的回复。压实数据库可能需要一些时间，并需要可用磁盘空间。';
+
+  @override
+  String chatStorageExportSuccess(String path) {
+    return '已导出至 $path';
+  }
+
+  @override
+  String get chatStorageExportRequired => '请先导出 legacy 文件再删除。';
+
+  @override
+  String get chatStorageDeleteWarning =>
+      '这会永久删除 legacy Hive 聊天文件，SQLite 数据库不受影响。';
+
+  @override
+  String get chatStorageDeleteConfirm => '删除 legacy 文件';
+
+  @override
+  String chatStorageCleanupCompleted(String date) {
+    return 'Legacy 清理已于 $date 完成。';
+  }
+
+  @override
+  String chatStorageBlocked(String reason) {
+    return '无法清理：$reason';
+  }
+
+  @override
+  String get chatStorageDiscardNeverMigratedWarning =>
+      '这些文件从未导入 SQLite。导出后可明确选择丢弃。';
+
+  @override
+  String get chatStorageCleanupDone => '已删除 legacy 文件。';
+
+  @override
+  String get chatStorageResetMarker => '清除已完成的清理记录';
+
+  @override
+  String get chatStorageResetMarkerWarning =>
+      '清理完成后又出现了新的 legacy 文件。要忘记完成记录，以便重新导出并删除吗？此步骤不会删除任何聊天数据。';
+
+  @override
+  String get chatStorageOptimizeDone => '数据库已优化。';
+
+  @override
+  String get chatStorageFallbackSnackbar => '聊天存储正在使用旧版模式。详情请见「设置 → 存储」。';
+
+  @override
+  String get chatStorageFallbackTitle => '正在使用旧版聊天存储';
+
+  @override
+  String get chatStorageFallbackBody =>
+      'SQLite 无法启动，因此此版本正在使用先前的 Hive 存储。聊天仍可使用，并会在下次启动时重试迁移。';
+
+  @override
+  String get chatStorageStartupBackingUp => '正在备份旧版聊天数据…';
+
+  @override
+  String get chatStorageMigrationNotificationTitle => '正在更新聊天存储';
+
+  @override
+  String get chatStorageMigrationNotificationText =>
+      'OmniChat 正在迁移聊天记录，你可以先切换到其他应用。';
+
+  @override
+  String get chatMigrationBackupTitle => '升级前要备份聊天记录吗？';
+
+  @override
+  String get chatMigrationBackupBody => 'OmniChat 会把聊天记录迁移到新的本地数据库。这是一次性升级。';
+
+  @override
+  String get chatMigrationBackupRecommended =>
+      '建议先保存备份。备份包含旧版聊天文件与可读的 chats.json。';
+
+  @override
+  String get chatMigrationBackupNow => '立即备份';
+
+  @override
+  String get chatMigrationBackupSkip => '不备份并继续';
+
+  @override
+  String get chatMigrationBackupFolderTitle => '选择备份文件夹';
+
+  @override
+  String get chatStorageStartupTitle => '正在准备聊天存储';
+
+  @override
+  String get chatStorageStartupSubtitle => '聊天记录会保留在此设备上。';
+
+  @override
+  String get chatStorageRecoveryTitle => '聊天存储需要处理';
+
+  @override
+  String get chatStorageRecoveryBody => '先前安装的聊天数据库已丢失。请选择如何恢复聊天记录。';
+
+  @override
+  String get chatStorageRecoveryFailedBody => '恢复未完成。你可以重试，或选择下方其他选项。';
+
+  @override
+  String get chatStorageRecoveryRestore => '从备份还原';
+
+  @override
+  String get chatStorageRecoveryRestoreHint =>
+      '选择 OmniChat 备份 zip。当前 SQLite 聊天记录会被替换。';
+
+  @override
+  String get chatStorageRecoveryRebuild => '从旧版 Hive 重建';
+
+  @override
+  String get chatStorageRecoveryRebuildHint => '使用未修改的 Hive 文件重建 SQLite。建议先备份。';
+
+  @override
+  String get chatStorageRecoveryReset => '重置聊天存储';
+
+  @override
+  String get chatStorageRecoveryResetHint => '创建空数据库。Hive 文件会保留，但不会自动导入。';
+
+  @override
+  String get chatStorageRecoveryContinueLegacy => '暂时继续使用旧版存储';
+
+  @override
+  String get chatStorageRecoveryContinueLegacyHint => '仅限本次会话。下次启动会再次询问。';
+
+  @override
+  String get chatStorageRecoveryRestoring => '正在还原备份…';
+
+  @override
+  String get chatStorageRecoveryRebuilding => '正在从旧版 Hive 重建…';
+
+  @override
+  String get chatStorageRecoveryResetting => '正在重置聊天存储…';
+
+  @override
+  String get chatStorageRecoveryOpeningLegacy => '正在打开旧版存储…';
+
+  @override
+  String get chatStorageRecoveryConfirmRestoreTitle => '要还原此备份吗？';
+
+  @override
+  String get chatStorageRecoveryConfirmRestoreBody =>
+      '当前 SQLite 聊天记录会被替换。备份文件不会被修改。';
+
+  @override
+  String get chatStorageRecoveryConfirmRebuildTitle => '要从旧版 Hive 重建吗？';
+
+  @override
+  String get chatStorageRecoveryConfirmRebuildBody =>
+      '将使用旧版 Hive 文件重建 SQLite。Hive 文件不会被修改。若可能，请先备份。';
+
+  @override
+  String get chatStorageRecoveryConfirmResetTitle => '要重置聊天存储吗？';
+
+  @override
+  String get chatStorageRecoveryConfirmResetBody =>
+      'SQLite 聊天数据库将被删除并重建为空。旧版 Hive 文件会保留，但不会自动导入。';
+
+  @override
+  String get chatStorageRecoveryCancel => '取消';
+
+  @override
+  String get chatStorageRecoveryErrorTitle => '恢复失败';
+
+  @override
+  String get chatStorageRecoveryRestoreDone => '备份已还原。';
+
+  @override
+  String get chatStorageRecoveryRebuildDone => '已从旧版 Hive 重建聊天存储。';
+
+  @override
+  String get chatStorageRecoveryResetDone => '聊天存储已重置。';
+
+  @override
+  String get chatStorageStartupChecking => '正在检查聊天数据库…';
+
+  @override
+  String get chatStorageStartupOpeningHive => '正在打开旧版聊天数据…';
+
+  @override
+  String get chatStorageStartupImportingMessages => '正在迁移对话与消息…';
+
+  @override
+  String get chatStorageStartupImportingToolEvents => '正在迁移工具结果…';
+
+  @override
+  String get chatStorageStartupImportingWorkspaces => '正在迁移工作区设置…';
+
+  @override
+  String get chatStorageStartupValidating => '正在校验迁移后的数据…';
+
+  @override
+  String get chatStorageStartupOpening => '正在打开聊天存储…';
+
+  @override
+  String chatStorageStartupCounts(int conversations, int messages) {
+    return '$conversations 个对话 · $messages 条消息';
+  }
+
+  @override
+  String chatStorageStartupQuarantine(int count) {
+    return '$count 项需要检查';
+  }
+
+  @override
+  String get chatStorageStartupInitialHint =>
+      '聊天记录较多时可能需要一点时间，请保持 OmniChat 开启直到完成。';
+
+  @override
+  String get chatStorageStartupFailedTitle => '聊天存储未能启动';
+
+  @override
+  String get chatStorageStartupFailedBody => '没有删除任何数据。请重试，或复制诊断信息以便排查。';
+
+  @override
+  String get chatStorageStartupRetry => '重试';
+
+  @override
+  String get chatStorageStartupCopyDiagnostics => '复制诊断信息';
+
+  @override
+  String get chatStorageStartupDiagnosticsCopied => '诊断信息已复制。';
 
   @override
   String get storageSpaceTotalLabel => '已用空间';
@@ -12374,6 +13030,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatMessageWidgetNoResultYet => '（暫無結果）';
 
   @override
+  String get chatMessageWidgetLoadResult => '點擊載入結果';
+
+  @override
+  String get chatMessageWidgetLoadResultFailed => '無法載入工具結果。';
+
+  @override
   String get chatMessageWidgetArguments => '參數';
 
   @override
@@ -12766,6 +13428,328 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get storageSpaceRefreshTooltip => '重新整理';
+
+  @override
+  String get chatStoragePageTitle => '聊天儲存';
+
+  @override
+  String get chatStorageSqliteSection => 'SQLite 資料庫';
+
+  @override
+  String get chatStorageLegacySection => 'Legacy Hive 檔案';
+
+  @override
+  String get chatStorageDatabaseSize => '資料庫';
+
+  @override
+  String get chatStorageWalSize => 'WAL';
+
+  @override
+  String chatStorageConversationsCount(int count) {
+    return '$count 個對話';
+  }
+
+  @override
+  String chatStorageMessagesCount(int count) {
+    return '$count 則訊息';
+  }
+
+  @override
+  String chatStoragePartsCount(int count) {
+    return '$count 個工具片段';
+  }
+
+  @override
+  String get chatStorageLegacyImportDisabled => '已停用 legacy 匯入';
+
+  @override
+  String get chatStorageImportLegacy => '匯入 legacy Hive';
+
+  @override
+  String get chatStorageImportLegacyTitle => '匯入舊版聊天檔案？';
+
+  @override
+  String get chatStorageImportLegacyBody =>
+      '從 legacy Hive 快照加入缺少的對話、訊息、工具結果、簽名、檔案記錄與工作區綁定。現有聊天不會被覆寫。';
+
+  @override
+  String get chatStorageImportLegacyWarning =>
+      '請先停止正在進行的回覆。Hive 快照會保留；只有驗證成功後才會移除 legacy 匯入鎖定。';
+
+  @override
+  String get chatStorageImportLegacyConfirm => '匯入';
+
+  @override
+  String get chatStorageImportStagePreparing => '正在準備舊版資料…';
+
+  @override
+  String get chatStorageImportStageReading => '正在讀取舊版聊天資料…';
+
+  @override
+  String get chatStorageImportStageMerging => '正在合併到 SQLite…';
+
+  @override
+  String get chatStorageImportStageVerifying => '正在驗證匯入的資料…';
+
+  @override
+  String chatStorageImportLegacyDone(
+    int conversations,
+    int messages,
+    int conflicts,
+  ) {
+    return '已匯入 $conversations 個對話與 $messages 則訊息；$conflicts 項衝突保留現有資料。';
+  }
+
+  @override
+  String get chatStorageImportLegacyLockRemains =>
+      '匯入已完成，但無法移除 legacy 匯入鎖定。請重試匯入以清除它。';
+
+  @override
+  String get chatStorageNoLegacyFiles => '已無 legacy 聊天檔案。';
+
+  @override
+  String get chatStorageCleanupInterrupted => 'Legacy 清理已中斷；請驗證檔案後繼續清理。';
+
+  @override
+  String get chatStorageExportValid => '已有通過驗證的 legacy 匯出。';
+
+  @override
+  String get chatStorageExportLegacy => '匯出 legacy 檔案';
+
+  @override
+  String get chatStorageDeleteLegacy => '刪除 legacy 檔案';
+
+  @override
+  String get chatStorageResumeCleanup => '繼續中斷的清理';
+
+  @override
+  String get chatStorageMaintenanceSection => '維護';
+
+  @override
+  String get chatStorageOptimize => '最佳化資料庫';
+
+  @override
+  String get chatStorageOptimizeWarning =>
+      '請先停止進行中的回覆。壓實資料庫可能需要一些時間，並需要可用磁碟空間。';
+
+  @override
+  String chatStorageExportSuccess(String path) {
+    return '已匯出至 $path';
+  }
+
+  @override
+  String get chatStorageExportRequired => '請先匯出 legacy 檔案再刪除。';
+
+  @override
+  String get chatStorageDeleteWarning =>
+      '這會永久刪除 legacy Hive 聊天檔案，SQLite 資料庫不受影響。';
+
+  @override
+  String get chatStorageDeleteConfirm => '刪除 legacy 檔案';
+
+  @override
+  String chatStorageCleanupCompleted(String date) {
+    return 'Legacy 清理已於 $date 完成。';
+  }
+
+  @override
+  String chatStorageBlocked(String reason) {
+    return '無法清理：$reason';
+  }
+
+  @override
+  String get chatStorageDiscardNeverMigratedWarning =>
+      '這些檔案從未匯入 SQLite。匯出後可明確選擇丟棄。';
+
+  @override
+  String get chatStorageCleanupDone => '已刪除 legacy 檔案。';
+
+  @override
+  String get chatStorageResetMarker => '清除已完成的清理記錄';
+
+  @override
+  String get chatStorageResetMarkerWarning =>
+      '清理完成後又出現了新的 legacy 檔案。要忘記完成記錄，以便重新匯出並刪除嗎？此步驟不會刪除任何聊天資料。';
+
+  @override
+  String get chatStorageOptimizeDone => '資料庫已最佳化。';
+
+  @override
+  String get chatStorageFallbackSnackbar => '聊天儲存空間正在使用舊版模式。詳情請見「設定 → 儲存空間」。';
+
+  @override
+  String get chatStorageFallbackTitle => '正在使用舊版聊天儲存空間';
+
+  @override
+  String get chatStorageFallbackBody =>
+      'SQLite 無法啟動，因此此版本正在使用先前的 Hive 儲存空間。聊天仍可使用，並會在下次啟動時重試移轉。';
+
+  @override
+  String get chatStorageStartupBackingUp => '正在備份舊版聊天資料…';
+
+  @override
+  String get chatStorageMigrationNotificationTitle => '正在更新聊天儲存空間';
+
+  @override
+  String get chatStorageMigrationNotificationText =>
+      'OmniChat 正在移轉聊天記錄，你可以先切換到其他應用程式。';
+
+  @override
+  String get chatMigrationBackupTitle => '升級前要備份聊天記錄嗎？';
+
+  @override
+  String get chatMigrationBackupBody => 'OmniChat 會把聊天記錄移轉到新的本機資料庫。這是一次性升級。';
+
+  @override
+  String get chatMigrationBackupRecommended =>
+      '建議先儲存備份。備份包含舊版聊天檔案與可讀的 chats.json。';
+
+  @override
+  String get chatMigrationBackupNow => '立即備份';
+
+  @override
+  String get chatMigrationBackupSkip => '不備份並繼續';
+
+  @override
+  String get chatMigrationBackupFolderTitle => '選擇備份資料夾';
+
+  @override
+  String get chatStorageStartupTitle => '正在準備聊天儲存空間';
+
+  @override
+  String get chatStorageStartupSubtitle => '聊天記錄會保留在此裝置上。';
+
+  @override
+  String get chatStorageRecoveryTitle => '聊天儲存空間需要處理';
+
+  @override
+  String get chatStorageRecoveryBody => '先前安裝的聊天資料庫已遺失。請選擇如何還原聊天記錄。';
+
+  @override
+  String get chatStorageRecoveryFailedBody => '復原未完成。你可以重試，或選擇下方其他選項。';
+
+  @override
+  String get chatStorageRecoveryRestore => '從備份還原';
+
+  @override
+  String get chatStorageRecoveryRestoreHint =>
+      '選擇 OmniChat 備份 zip。目前 SQLite 聊天記錄會被取代。';
+
+  @override
+  String get chatStorageRecoveryRebuild => '從舊版 Hive 重建';
+
+  @override
+  String get chatStorageRecoveryRebuildHint => '使用未修改的 Hive 檔案重建 SQLite。建議先備份。';
+
+  @override
+  String get chatStorageRecoveryReset => '重置聊天儲存空間';
+
+  @override
+  String get chatStorageRecoveryResetHint => '建立空白資料庫。Hive 檔案會保留，但不會自動匯入。';
+
+  @override
+  String get chatStorageRecoveryContinueLegacy => '暫時繼續使用舊版儲存空間';
+
+  @override
+  String get chatStorageRecoveryContinueLegacyHint => '僅限本次工作階段。下次啟動會再次詢問。';
+
+  @override
+  String get chatStorageRecoveryRestoring => '正在還原備份…';
+
+  @override
+  String get chatStorageRecoveryRebuilding => '正在從舊版 Hive 重建…';
+
+  @override
+  String get chatStorageRecoveryResetting => '正在重置聊天儲存空間…';
+
+  @override
+  String get chatStorageRecoveryOpeningLegacy => '正在開啟舊版儲存空間…';
+
+  @override
+  String get chatStorageRecoveryConfirmRestoreTitle => '要還原此備份嗎？';
+
+  @override
+  String get chatStorageRecoveryConfirmRestoreBody =>
+      '目前 SQLite 聊天記錄會被取代。備份檔案不會被修改。';
+
+  @override
+  String get chatStorageRecoveryConfirmRebuildTitle => '要從舊版 Hive 重建嗎？';
+
+  @override
+  String get chatStorageRecoveryConfirmRebuildBody =>
+      '將使用舊版 Hive 檔案重建 SQLite。Hive 檔案不會被修改。若可能，請先備份。';
+
+  @override
+  String get chatStorageRecoveryConfirmResetTitle => '要重置聊天儲存空間嗎？';
+
+  @override
+  String get chatStorageRecoveryConfirmResetBody =>
+      'SQLite 聊天資料庫將被刪除並重建為空白。舊版 Hive 檔案會保留，但不會自動匯入。';
+
+  @override
+  String get chatStorageRecoveryCancel => '取消';
+
+  @override
+  String get chatStorageRecoveryErrorTitle => '復原失敗';
+
+  @override
+  String get chatStorageRecoveryRestoreDone => '備份已還原。';
+
+  @override
+  String get chatStorageRecoveryRebuildDone => '已從舊版 Hive 重建聊天儲存空間。';
+
+  @override
+  String get chatStorageRecoveryResetDone => '聊天儲存空間已重置。';
+
+  @override
+  String get chatStorageStartupChecking => '正在檢查聊天資料庫…';
+
+  @override
+  String get chatStorageStartupOpeningHive => '正在開啟舊版聊天資料…';
+
+  @override
+  String get chatStorageStartupImportingMessages => '正在移轉對話與訊息…';
+
+  @override
+  String get chatStorageStartupImportingToolEvents => '正在移轉工具結果…';
+
+  @override
+  String get chatStorageStartupImportingWorkspaces => '正在移轉工作區設定…';
+
+  @override
+  String get chatStorageStartupValidating => '正在驗證移轉後的資料…';
+
+  @override
+  String get chatStorageStartupOpening => '正在開啟聊天儲存空間…';
+
+  @override
+  String chatStorageStartupCounts(int conversations, int messages) {
+    return '$conversations 個對話 · $messages 則訊息';
+  }
+
+  @override
+  String chatStorageStartupQuarantine(int count) {
+    return '$count 項需要檢查';
+  }
+
+  @override
+  String get chatStorageStartupInitialHint =>
+      '聊天記錄較多時可能需要一點時間，請保持 OmniChat 開啟直到完成。';
+
+  @override
+  String get chatStorageStartupFailedTitle => '聊天儲存空間未能啟動';
+
+  @override
+  String get chatStorageStartupFailedBody => '沒有刪除任何資料。請重試，或複製診斷資訊以便排查。';
+
+  @override
+  String get chatStorageStartupRetry => '重試';
+
+  @override
+  String get chatStorageStartupCopyDiagnostics => '複製診斷資訊';
+
+  @override
+  String get chatStorageStartupDiagnosticsCopied => '診斷資訊已複製。';
 
   @override
   String get storageSpaceTotalLabel => '已用空間';

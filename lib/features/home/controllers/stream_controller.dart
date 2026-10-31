@@ -6,6 +6,7 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/services/agent/agent_loop.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/chat/storage/message_part_codec.dart';
 import '../../chat/widgets/chat_message_widget.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
 import 'streaming_content_notifier.dart';
@@ -1133,10 +1134,14 @@ class StreamController {
   // Restoration from Database
   // ============================================================================
 
-  /// Restore UI state for a message from its persisted data.
+  /// Restore UI state for a message from its persisted summary data.
+  ///
+  /// Tool bodies stay in storage: a completed part is rendered with
+  /// `contentLoaded=false` and is loaded by the card on expand (§9.5).
   void restoreMessageUiState(
     ChatMessage message, {
-    required List<Map<String, dynamic>> Function(String messageId) getToolEventsFromDb,
+    required List<ToolPartSummary> Function(String messageId)
+        getToolPartSummariesFromDb,
     required String? Function(String messageId) getGeminiThoughtSigFromDb,
   }) {
     if (message.role != 'assistant') return;
@@ -1168,24 +1173,35 @@ class StreamController {
       _reasoning[messageId] = rd;
     }
 
-    // Restore tool events
+    // Restore tool summaries (never full completed bodies).
     try {
-      final events = dedupeToolEvents(getToolEventsFromDb(messageId));
-      if (events.isNotEmpty) {
-        _toolParts[messageId] = events
-            .map((e) => ToolUIPart(
-                  id: (e['id'] ?? '').toString(),
-                  toolName: (e['name'] ?? '').toString(),
-                  arguments: (e['arguments'] as Map?)?.cast<String, dynamic>() ??
-                      const <String, dynamic>{},
-                  content: (e['content']?.toString().isNotEmpty == true)
-                      ? e['content'].toString()
-                      : null,
-                  loading: !(e['content']?.toString().isNotEmpty == true),
-                  searchProvider: e['searchProvider']?.toString(),
-                  searchFallbackFrom: e['searchFallbackFrom']?.toString(),
-                  webFetchSource: e['webFetchSource']?.toString(),
-                ))
+      final summaries = _dedupeToolPartSummaries(
+        getToolPartSummariesFromDb(messageId),
+      );
+      if (summaries.isNotEmpty) {
+        _toolParts[messageId] = summaries
+            .map(
+              (summary) => ToolUIPart(
+                id: summary.toolCallId ?? '',
+                toolName: summary.toolName ?? '',
+                arguments: _summaryArguments(summary),
+                content: summary.eagerContent,
+                contentLoaded: summary.contentLoaded,
+                contentLength: summary.contentLengthChars,
+                status: summary.status,
+                argumentsPreview: summary.argumentsPreview,
+                // A pending summary only means "still running" while the
+                // message itself is streaming. After the startup repair of a
+                // crashed run, the stale placeholder must not keep its tool
+                // row spinning forever.
+                loading: message.isStreaming &&
+                    summary.isPending &&
+                    summary.eagerContent == null,
+                searchProvider: summary.searchProvider,
+                searchFallbackFrom: summary.searchFallbackFrom,
+                webFetchSource: summary.webFetchSource,
+              ),
+            )
             .toList();
       }
     } catch (_) {}
@@ -1195,6 +1211,34 @@ class StreamController {
     if (segments.isNotEmpty) {
       _reasoningSegments[messageId] = segments;
     }
+  }
+
+  static List<ToolPartSummary> _dedupeToolPartSummaries(
+    List<ToolPartSummary> summaries,
+  ) {
+    final seen = <String>{};
+    final out = <ToolPartSummary>[];
+    for (final summary in summaries) {
+      final id = summary.toolCallId;
+      if (id != null && id.isNotEmpty && !seen.add(id)) continue;
+      out.add(summary);
+    }
+    return out;
+  }
+
+  /// Parses the eager arguments or a complete short preview. A truncated
+  /// preview is not valid JSON and yields an empty map; the card loads the
+  /// full arguments when expanded.
+  static Map<String, dynamic> _summaryArguments(ToolPartSummary summary) {
+    final raw = summary.eagerArgumentsJson ?? summary.argumentsPreview;
+    if (raw == null || raw.isEmpty) return const <String, dynamic>{};
+    try {
+      final decoded = _jsonDecode(raw);
+      if (decoded is Map) {
+        return decoded.map((k, v) => MapEntry(k.toString(), v));
+      }
+    } catch (_) {}
+    return const <String, dynamic>{};
   }
 
   // ============================================================================
