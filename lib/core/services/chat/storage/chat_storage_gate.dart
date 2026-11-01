@@ -17,8 +17,9 @@ enum ChatStorageGateStage {
   /// The user must decide whether to restore a backup or reset storage.
   needsRestoreOrReset,
 
-  /// SQLite is unusable (unknown/newer/corrupt/split-brain). The caller stays
-  /// on Hive for this release; nothing was deleted.
+  /// SQLite is unusable (unknown/newer/corrupt/split-brain) or the cutover
+  /// failed. Nothing was deleted; the caller must retry or use the explicit
+  /// recovery UI. There is no runtime Hive fallback.
   failed,
 }
 
@@ -49,12 +50,17 @@ class ChatStorageGateResult {
     required this.message,
     this.migration,
     this.installation,
+    this.needsRecovery = false,
   });
 
   final ChatStorageGateStage stage;
   final String message;
   final LegacyMigrationResult? migration;
   final ChatInstallationResult? installation;
+
+  /// A failure that needs an explicit recovery decision. Callers should offer
+  /// restore/reset/rebuild alongside Retry when a retry could re-run the gate.
+  final bool needsRecovery;
 
   bool get sqliteReady =>
       stage == ChatStorageGateStage.ready ||
@@ -66,9 +72,10 @@ class ChatStorageGateResult {
 /// published database third.
 ///
 /// This class does not switch `ChatService` to SQLite and never opens a live
-/// chat connection. Callers use [sqliteReady] to decide whether the future
-/// SQLite-backed facade may be used; on [ChatStorageGateStage.failed] they keep
-/// the existing Hive storage for one release.
+/// chat connection. Callers use [sqliteReady] to decide whether the
+/// SQLite-backed facade may be used. On [ChatStorageGateStage.failed] they fail
+/// closed (retry or explicit recovery); Hive is never selected as a runtime
+/// fallback.
 class ChatStorageGate {
   ChatStorageGate({
     required this.directory,
@@ -147,8 +154,8 @@ class ChatStorageGate {
           stage: ChatStorageGateStage.failed,
           message:
               'A backup decision is required before migrating legacy '
-              'chat data. Restart OmniChat from the chat screen to retry; '
-              'Hive remains in use.',
+              'chat data. Chat storage remains unavailable until you retry '
+              'from the chat screen.',
         );
       }
       if (prompt != null) {
@@ -157,8 +164,8 @@ class ChatStorageGate {
           return const ChatStorageGateResult(
             stage: ChatStorageGateStage.failed,
             message:
-                'Chat storage setup was cancelled before migration; '
-                'Hive remains in use.',
+                'Chat storage setup was cancelled before migration; retry '
+                'and choose Skip backup to continue.',
           );
         }
         if (decision.kind == ChatMigrationBackupDecisionKind.backup) {
@@ -167,8 +174,8 @@ class ChatStorageGate {
             return const ChatStorageGateResult(
               stage: ChatStorageGateStage.failed,
               message:
-                  'A backup folder was not selected; Hive remains in '
-                  'use.',
+                  'A backup folder was not selected; retry and choose Skip '
+                  'backup to continue.',
             );
           }
           onMigrationProgress?.call('backing-up', null);
@@ -187,8 +194,8 @@ class ChatStorageGate {
             return ChatStorageGateResult(
               stage: ChatStorageGateStage.failed,
               message:
-                  'Pre-migration backup failed: $e. Hive was not '
-                  'modified; retry or skip the backup on the next launch.',
+                  'Pre-migration backup failed: $e. Legacy Hive files were '
+                  'not modified; retry to attempt the backup again.',
             );
           }
         }
@@ -231,10 +238,12 @@ class ChatStorageGate {
         message: e.toString(),
       );
     } on LegacyMigrationException catch (e) {
-      // Hive is intact; the caller can keep using the legacy storage.
+      // Hive is intact for an explicit rebuild/export, but it is not a runtime
+      // fallback anymore. A validation/import failure needs the recovery UI.
       return ChatStorageGateResult(
         stage: ChatStorageGateStage.failed,
         message: e.toString(),
+        needsRecovery: true,
       );
     } catch (e) {
       // Storage initialization must fail closed, never crash the app.

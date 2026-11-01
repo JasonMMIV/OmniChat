@@ -2703,16 +2703,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatStorageOptimizeDone => '数据库已优化。';
 
   @override
-  String get chatStorageFallbackSnackbar => '聊天存储正在使用旧版模式。详情请见「设置 → 存储」。';
-
-  @override
-  String get chatStorageFallbackTitle => '正在使用旧版聊天存储';
-
-  @override
-  String get chatStorageFallbackBody =>
-      'SQLite 无法启动，因此此版本正在使用先前的 Hive 存储。聊天仍可使用，并会在下次启动时重试迁移。';
-
-  @override
   String get chatStorageStartupBackingUp => '正在备份旧版聊天数据…';
 
   @override
@@ -2776,12 +2766,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatStorageRecoveryResetHint => '创建空数据库。Hive 文件会保留，但不会自动导入。';
 
   @override
-  String get chatStorageRecoveryContinueLegacy => '暂时继续使用旧版存储';
-
-  @override
-  String get chatStorageRecoveryContinueLegacyHint => '仅限本次会话。下次启动会再次询问。';
-
-  @override
   String get chatStorageRecoveryRestoring => '正在还原备份…';
 
   @override
@@ -2789,9 +2773,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatStorageRecoveryResetting => '正在重置聊天存储…';
-
-  @override
-  String get chatStorageRecoveryOpeningLegacy => '正在打开旧版存储…';
 
   @override
   String get chatStorageRecoveryConfirmRestoreTitle => '要还原此备份吗？';
@@ -8184,16 +8165,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatStorageOptimizeDone => '数据库已优化。';
 
   @override
-  String get chatStorageFallbackSnackbar => '聊天存储正在使用旧版模式。详情请见「设置 → 存储」。';
-
-  @override
-  String get chatStorageFallbackTitle => '正在使用旧版聊天存储';
-
-  @override
-  String get chatStorageFallbackBody =>
-      'SQLite 无法启动，因此此版本正在使用先前的 Hive 存储。聊天仍可使用，并会在下次启动时重试迁移。';
-
-  @override
   String get chatStorageStartupBackingUp => '正在备份旧版聊天数据…';
 
   @override
@@ -8257,12 +8228,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatStorageRecoveryResetHint => '创建空数据库。Hive 文件会保留，但不会自动导入。';
 
   @override
-  String get chatStorageRecoveryContinueLegacy => '暂时继续使用旧版存储';
-
-  @override
-  String get chatStorageRecoveryContinueLegacyHint => '仅限本次会话。下次启动会再次询问。';
-
-  @override
   String get chatStorageRecoveryRestoring => '正在还原备份…';
 
   @override
@@ -8270,9 +8235,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get chatStorageRecoveryResetting => '正在重置聊天存储…';
-
-  @override
-  String get chatStorageRecoveryOpeningLegacy => '正在打开旧版存储…';
 
   @override
   String get chatStorageRecoveryConfirmRestoreTitle => '要还原此备份吗？';
@@ -13575,16 +13537,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatStorageOptimizeDone => '資料庫已最佳化。';
 
   @override
-  String get chatStorageFallbackSnackbar => '聊天儲存空間正在使用舊版模式。詳情請見「設定 → 儲存空間」。';
-
-  @override
-  String get chatStorageFallbackTitle => '正在使用舊版聊天儲存空間';
-
-  @override
-  String get chatStorageFallbackBody =>
-      'SQLite 無法啟動，因此此版本正在使用先前的 Hive 儲存空間。聊天仍可使用，並會在下次啟動時重試移轉。';
-
-  @override
   String get chatStorageStartupBackingUp => '正在備份舊版聊天資料…';
 
   @override
@@ -13648,12 +13600,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatStorageRecoveryResetHint => '建立空白資料庫。Hive 檔案會保留，但不會自動匯入。';
 
   @override
-  String get chatStorageRecoveryContinueLegacy => '暫時繼續使用舊版儲存空間';
-
-  @override
-  String get chatStorageRecoveryContinueLegacyHint => '僅限本次工作階段。下次啟動會再次詢問。';
-
-  @override
   String get chatStorageRecoveryRestoring => '正在還原備份…';
 
   @override
@@ -13661,9 +13607,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatStorageRecoveryResetting => '正在重置聊天儲存空間…';
-
-  @override
-  String get chatStorageRecoveryOpeningLegacy => '正在開啟舊版儲存空間…';
 
   @override
   String get chatStorageRecoveryConfirmRestoreTitle => '要還原此備份嗎？';

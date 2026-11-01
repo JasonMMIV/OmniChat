@@ -10,13 +10,23 @@ import 'package:OmniChat/l10n/app_localizations.dart';
 class _FakeChatService extends ChatService {
   _FakeChatService(this.status);
 
-  final ChatStorageInitStatus status;
+  ChatStorageInitStatus status;
 
   @override
   ChatStorageInitStatus get storageInitStatus => status;
+
+  void updateStatus(ChatStorageInitStatus next) {
+    if (status == next) return;
+    status = next;
+    notifyListeners();
+  }
 }
 
-Widget _app(ChatService service, {Future<void> Function()? onRetry}) {
+Widget _app(
+  ChatService service, {
+  Future<void> Function()? onRetry,
+  Widget? background,
+}) {
   return MaterialApp(
     locale: const Locale('en'),
     localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -26,7 +36,7 @@ Widget _app(ChatService service, {Future<void> Function()? onRetry}) {
       child: Scaffold(
         body: Stack(
           children: [
-            const Center(child: Text('chat surface')),
+            background ?? const Center(child: Text('chat surface')),
             ChatStorageStartupOverlay(onRetry: onRetry),
           ],
         ),
@@ -36,6 +46,134 @@ Widget _app(ChatService service, {Future<void> Function()? onRetry}) {
 }
 
 void main() {
+  testWidgets('ordinary SQLite startup uses only an invisible barrier', (
+    tester,
+  ) async {
+    var tapped = false;
+    final service = _FakeChatService(
+      const ChatStorageInitStatus(phase: ChatStorageInitPhase.checking),
+    );
+
+    await tester.pumpWidget(
+      _app(
+        service,
+        background: Center(
+          child: ElevatedButton(
+            onPressed: () => tapped = true,
+            child: const Text('under overlay'),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Preparing chat storage'), findsNothing);
+    expect(find.text('under overlay'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    await tester.tap(find.text('under overlay'), warnIfMissed: false);
+    expect(tapped, isFalse);
+  });
+
+  testWidgets('ordinary opening without counts stays quiet', (tester) async {
+    final service = _FakeChatService(
+      const ChatStorageInitStatus(
+        phase: ChatStorageInitPhase.opening,
+        stage: 'opening',
+      ),
+    );
+
+    await tester.pumpWidget(_app(service));
+
+    expect(find.text('Preparing chat storage'), findsNothing);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+  });
+
+  testWidgets('migration panel persists through opening until ready', (
+    tester,
+  ) async {
+    final service = _FakeChatService(
+      const ChatStorageInitStatus(
+        phase: ChatStorageInitPhase.backingUp,
+        stage: 'backing-up',
+      ),
+    );
+
+    await tester.pumpWidget(_app(service));
+    expect(find.text('Preparing chat storage'), findsOneWidget);
+
+    service.updateStatus(
+      const ChatStorageInitStatus(
+        phase: ChatStorageInitPhase.migrating,
+        stage: 'migrating',
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Preparing chat storage'), findsOneWidget);
+
+    service.updateStatus(
+      const ChatStorageInitStatus(
+        phase: ChatStorageInitPhase.validating,
+        stage: 'validating',
+        conversations: 12,
+        messages: 345,
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Preparing chat storage'), findsOneWidget);
+
+    service.updateStatus(
+      const ChatStorageInitStatus(
+        phase: ChatStorageInitPhase.opening,
+        stage: 'opening',
+        conversations: 12,
+        messages: 345,
+        cutoverStarted: true,
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Preparing chat storage'), findsOneWidget);
+    expect(find.text('Opening chat storage…'), findsOneWidget);
+
+    service.updateStatus(
+      const ChatStorageInitStatus(phase: ChatStorageInitPhase.ready),
+    );
+    await tester.pump();
+    expect(find.text('Preparing chat storage'), findsNothing);
+  });
+
+  testWidgets('empty migration still blocks at opening', (tester) async {
+    final service = _FakeChatService(
+      const ChatStorageInitStatus(
+        phase: ChatStorageInitPhase.opening,
+        stage: 'opening',
+        cutoverStarted: true,
+      ),
+    );
+
+    await tester.pumpWidget(_app(service));
+
+    expect(find.text('Preparing chat storage'), findsOneWidget);
+    expect(find.text('Opening chat storage…'), findsOneWidget);
+  });
+
+  testWidgets('opening after a migration keeps the blocking panel', (
+    tester,
+  ) async {
+    final service = _FakeChatService(
+      const ChatStorageInitStatus(
+        phase: ChatStorageInitPhase.opening,
+        stage: 'opening',
+        conversations: 12,
+        messages: 345,
+        cutoverStarted: true,
+      ),
+    );
+
+    await tester.pumpWidget(_app(service));
+
+    expect(find.text('Preparing chat storage'), findsOneWidget);
+    expect(find.text('Opening chat storage…'), findsOneWidget);
+  });
+
   testWidgets('shows the migration stage and destination counts', (
     tester,
   ) async {

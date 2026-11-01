@@ -12,7 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:OmniChat/core/services/chat/chat_service.dart';
-import 'package:OmniChat/core/services/chat/storage/chat_storage.dart';
+import 'package:OmniChat/core/services/chat/storage/hive_chat_storage.dart';
 import 'package:OmniChat/core/services/chat/ask_user_models.dart';
 import 'package:OmniChat/core/services/agent/approval.dart';
 
@@ -46,7 +46,9 @@ void main() {
   });
 
   test('result upsert preserves the Pending approvalState', () async {
-    final service = ChatService(backend: ChatStorageBackend.hive);
+    final service = ChatService(
+      storage: HiveChatStorage(directory: dataDirectory),
+    );
     await service.init();
 
     const messageId = 'assistant-message';
@@ -84,86 +86,92 @@ void main() {
     expect(event['content'], 'file written');
   });
 
-  test('explicit approvalState on the upsert still wins over the old value',
-      () async {
-    final service = ChatService(backend: ChatStorageBackend.hive);
-    await service.init();
+  test(
+    'explicit approvalState on the upsert still wins over the old value',
+    () async {
+      final service = ChatService(
+        storage: HiveChatStorage(directory: dataDirectory),
+      );
+      await service.init();
 
-    const messageId = 'assistant-message';
-    await service.upsertToolEvent(
-      messageId,
-      id: 'call_2',
-      name: 'file_read',
-      arguments: const {},
-      content: buildApprovalPendingContent(toolName: 'file_read'),
-      approvalState: approvalStatePending,
-    );
-    // The resume path flips the state explicitly.
-    await service.upsertToolEvent(
-      messageId,
-      id: 'call_2',
-      name: 'file_read',
-      arguments: const {},
-      content: 'result',
-      approvalState: approvalStateApproved,
-    );
-    expect(
-      service
-          .getToolEvents(messageId)
-          .firstWhere((e) => e['id'] == 'call_2')['approvalState'],
-      approvalStateApproved,
-    );
-  });
+      const messageId = 'assistant-message';
+      await service.upsertToolEvent(
+        messageId,
+        id: 'call_2',
+        name: 'file_read',
+        arguments: const {},
+        content: buildApprovalPendingContent(toolName: 'file_read'),
+        approvalState: approvalStatePending,
+      );
+      // The resume path flips the state explicitly.
+      await service.upsertToolEvent(
+        messageId,
+        id: 'call_2',
+        name: 'file_read',
+        arguments: const {},
+        content: 'result',
+        approvalState: approvalStateApproved,
+      );
+      expect(
+        service
+            .getToolEvents(messageId)
+            .firstWhere((e) => e['id'] == 'call_2')['approvalState'],
+        approvalStateApproved,
+      );
+    },
+  );
 
   test(
-      'P1-3 fix: reasoning-echo extras survive the answered ask_user upsert',
-      () async {
-    final service = ChatService(backend: ChatStorageBackend.hive);
-    await service.init();
+    'P1-3 fix: reasoning-echo extras survive the answered ask_user upsert',
+    () async {
+      final service = ChatService(
+        storage: HiveChatStorage(directory: dataDirectory),
+      );
+      await service.init();
 
-    const messageId = 'assistant-message';
-    // The stream driver persists the tool call carrying the round's
-    // reasoning-echo extras (DeepSeek thinking mode).
-    await service.upsertToolEvent(
-      messageId,
-      id: 'call_ask',
-      name: 'ask_user',
-      arguments: const {
-        'questions': [
-          {'id': 'q1', 'question': 'Which?', 'options': ['A', 'B']},
-        ],
-      },
-      content: null,
-      extras: const {
-        'reasoning_content': 'let me think about the question',
-      },
-    );
-    expect(
-      service
+      const messageId = 'assistant-message';
+      // The stream driver persists the tool call carrying the round's
+      // reasoning-echo extras (DeepSeek thinking mode).
+      await service.upsertToolEvent(
+        messageId,
+        id: 'call_ask',
+        name: 'ask_user',
+        arguments: const {
+          'questions': [
+            {
+              'id': 'q1',
+              'question': 'Which?',
+              'options': ['A', 'B'],
+            },
+          ],
+        },
+        content: null,
+        extras: const {'reasoning_content': 'let me think about the question'},
+      );
+      expect(
+        service
+            .getToolEvents(messageId)
+            .firstWhere((e) => e['id'] == 'call_ask')['reasoning_content'],
+        'let me think about the question',
+      );
+
+      // The answer upsert rewrites the same event (same flow as
+      // resumeAfterAskUserAnswer) — the persisted reasoning-echo extra must
+      // survive so the §3.11 replay can re-attach it.
+      await service.upsertToolEvent(
+        messageId,
+        id: 'call_ask',
+        name: 'ask_user',
+        arguments: const {},
+        content: '{"type":"ask_user_answer"}',
+      );
+      final event = service
           .getToolEvents(messageId)
-          .firstWhere((e) => e['id'] == 'call_ask')['reasoning_content'],
-      'let me think about the question',
-    );
-
-    // The answer upsert rewrites the same event (same flow as
-    // resumeAfterAskUserAnswer) — the persisted reasoning-echo extra must
-    // survive so the §3.11 replay can re-attach it.
-    await service.upsertToolEvent(
-      messageId,
-      id: 'call_ask',
-      name: 'ask_user',
-      arguments: const {},
-      content: '{"type":"ask_user_answer"}',
-    );
-    final event = service
-        .getToolEvents(messageId)
-        .firstWhere((e) => e['id'] == 'call_ask');
-    expect(event['content'], '{"type":"ask_user_answer"}');
-    expect(
-      event['reasoning_content'],
-      'let me think about the question',
-    );
-  });
+          .firstWhere((e) => e['id'] == 'call_ask');
+      expect(event['content'], '{"type":"ask_user_answer"}');
+      expect(event['reasoning_content'], 'let me think about the question');
+    },
+  );
 
   test('ask_user pending/answered protocol strings are stable', () {
     expect(askUserToolName, 'ask_user');

@@ -5193,24 +5193,6 @@ abstract class AppLocalizations {
   /// **'Database optimized.'**
   String get chatStorageOptimizeDone;
 
-  /// No description provided for @chatStorageFallbackSnackbar.
-  ///
-  /// In en, this message translates to:
-  /// **'Chat storage is using the legacy store. See Settings → Storage for details.'**
-  String get chatStorageFallbackSnackbar;
-
-  /// No description provided for @chatStorageFallbackTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Using the legacy chat store'**
-  String get chatStorageFallbackTitle;
-
-  /// No description provided for @chatStorageFallbackBody.
-  ///
-  /// In en, this message translates to:
-  /// **'SQLite could not start, so this release is using the previous Hive store. Your chats are available, but the cutover will retry on a later launch.'**
-  String get chatStorageFallbackBody;
-
   /// No description provided for @chatStorageStartupBackingUp.
   ///
   /// In en, this message translates to:
@@ -5331,18 +5313,6 @@ abstract class AppLocalizations {
   /// **'Create an empty database. Hive files are kept but will not be imported automatically.'**
   String get chatStorageRecoveryResetHint;
 
-  /// No description provided for @chatStorageRecoveryContinueLegacy.
-  ///
-  /// In en, this message translates to:
-  /// **'Continue with the legacy store for now'**
-  String get chatStorageRecoveryContinueLegacy;
-
-  /// No description provided for @chatStorageRecoveryContinueLegacyHint.
-  ///
-  /// In en, this message translates to:
-  /// **'This session only. OmniChat will ask again on the next launch.'**
-  String get chatStorageRecoveryContinueLegacyHint;
-
   /// No description provided for @chatStorageRecoveryRestoring.
   ///
   /// In en, this message translates to:
@@ -5360,12 +5330,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Resetting chat storage…'**
   String get chatStorageRecoveryResetting;
-
-  /// No description provided for @chatStorageRecoveryOpeningLegacy.
-  ///
-  /// In en, this message translates to:
-  /// **'Opening the legacy store…'**
-  String get chatStorageRecoveryOpeningLegacy;
 
   /// No description provided for @chatStorageRecoveryConfirmRestoreTitle.
   ///

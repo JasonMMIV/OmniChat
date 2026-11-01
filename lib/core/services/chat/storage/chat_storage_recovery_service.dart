@@ -94,14 +94,23 @@ class ChatStorageRecoveryService {
       // place. Rebuild may replace that, but never a database with chat rows.
       if (await files.database.exists()) {
         final probe = await probeDatabase(files.database);
-        if (!probe.readable || !probe.schemaIsCurrent) {
+        if (!probe.readable) {
           throw const ChatStorageRecoveryException(
-            'A chat database is present but is not readable; use Reset instead.',
+            'The existing chat database cannot be read. Restore a backup or '
+            'keep it for a compatible OmniChat version; Reset will delete it.',
+          );
+        }
+        if (!probe.schemaIsCurrent) {
+          throw const ChatStorageRecoveryException(
+            'The existing chat database uses a newer or unknown schema. '
+            'Restore a backup or keep it for a compatible OmniChat version; '
+            'Reset will delete it.',
           );
         }
         if (await _conversationCount(files.database) != 0) {
           throw const ChatStorageRecoveryException(
-            'A chat database with conversations is present; use Reset instead.',
+            'The existing chat database already has conversations. Rebuild '
+            'will not overwrite it; restore a backup or reset explicitly.',
           );
         }
       }

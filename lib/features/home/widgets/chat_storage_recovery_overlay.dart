@@ -19,13 +19,13 @@ class ChatStorageRecoveryHost extends StatelessWidget {
     this.onRestoreBackup,
     this.onRebuildFromHive,
     this.onReset,
-    this.onContinueLegacy,
+    this.onRetry,
   });
 
   final Future<bool> Function()? onRestoreBackup;
   final Future<void> Function()? onRebuildFromHive;
   final Future<void> Function()? onReset;
-  final Future<void> Function()? onContinueLegacy;
+  final Future<void> Function()? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +41,7 @@ class ChatStorageRecoveryHost extends StatelessWidget {
       onRestoreBackup: onRestoreBackup,
       onRebuildFromHive: onRebuildFromHive,
       onReset: onReset,
-      onContinueLegacy: onContinueLegacy,
+      onRetry: onRetry,
     );
   }
 }
@@ -58,7 +58,7 @@ class ChatStorageRecoveryOverlay extends StatefulWidget {
     this.onRestoreBackup,
     this.onRebuildFromHive,
     this.onReset,
-    this.onContinueLegacy,
+    this.onRetry,
   });
 
   final ChatStorageInitStatus status;
@@ -66,7 +66,7 @@ class ChatStorageRecoveryOverlay extends StatefulWidget {
   final Future<bool> Function()? onRestoreBackup;
   final Future<void> Function()? onRebuildFromHive;
   final Future<void> Function()? onReset;
-  final Future<void> Function()? onContinueLegacy;
+  final Future<void> Function()? onRetry;
 
   @override
   State<ChatStorageRecoveryOverlay> createState() =>
@@ -182,10 +182,11 @@ class _ChatStorageRecoveryOverlayState
     });
   }
 
-  Future<void> _continueLegacy() async {
+  Future<void> _retry() async {
+    if (widget.onRetry == null) return;
     final l10n = AppLocalizations.of(context)!;
-    await _run(l10n.chatStorageRecoveryOpeningLegacy, () async {
-      await widget.onContinueLegacy!();
+    await _run(l10n.chatStorageStartupRetry, () async {
+      await widget.onRetry!();
       return true;
     });
   }
@@ -338,27 +339,15 @@ class _ChatStorageRecoveryOverlayState
                                       onTap: _reset,
                                     ),
                                   ],
-                                  if (widget.status.isRestoreRequired &&
-                                      widget.onContinueLegacy != null) ...[
-                                    const SizedBox(height: 8),
-                                    TextButton.icon(
-                                      onPressed: _continueLegacy,
+                                  if (widget.onRetry != null) ...[
+                                    const SizedBox(height: 12),
+                                    OutlinedButton.icon(
+                                      onPressed: _retry,
                                       icon: const Icon(
-                                        Lucide.HardDrive,
+                                        Lucide.RefreshCw,
                                         size: 16,
                                       ),
-                                      label: Text(
-                                        l10n.chatStorageRecoveryContinueLegacy,
-                                      ),
-                                    ),
-                                    Text(
-                                      l10n.chatStorageRecoveryContinueLegacyHint,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 11.5,
-                                        height: 1.35,
-                                        color: cs.onSurfaceVariant,
-                                      ),
+                                      label: Text(l10n.chatStorageStartupRetry),
                                     ),
                                   ],
                                 ],

@@ -2718,17 +2718,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatStorageOptimizeDone => 'Database optimized.';
 
   @override
-  String get chatStorageFallbackSnackbar =>
-      'Chat storage is using the legacy store. See Settings → Storage for details.';
-
-  @override
-  String get chatStorageFallbackTitle => 'Using the legacy chat store';
-
-  @override
-  String get chatStorageFallbackBody =>
-      'SQLite could not start, so this release is using the previous Hive store. Your chats are available, but the cutover will retry on a later launch.';
-
-  @override
   String get chatStorageStartupBackingUp => 'Backing up legacy chat data…';
 
   @override
@@ -2799,14 +2788,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Create an empty database. Hive files are kept but will not be imported automatically.';
 
   @override
-  String get chatStorageRecoveryContinueLegacy =>
-      'Continue with the legacy store for now';
-
-  @override
-  String get chatStorageRecoveryContinueLegacyHint =>
-      'This session only. OmniChat will ask again on the next launch.';
-
-  @override
   String get chatStorageRecoveryRestoring => 'Restoring backup…';
 
   @override
@@ -2814,9 +2795,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatStorageRecoveryResetting => 'Resetting chat storage…';
-
-  @override
-  String get chatStorageRecoveryOpeningLegacy => 'Opening the legacy store…';
 
   @override
   String get chatStorageRecoveryConfirmRestoreTitle => 'Restore this backup?';

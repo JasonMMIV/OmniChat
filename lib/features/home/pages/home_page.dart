@@ -107,7 +107,6 @@ class _HomePageState extends State<HomePage>
   StreamSubscription<void>? _incomingShareSub;
   Future<void> _incomingShareQueue = Future<void>.value();
   bool _chatInitializedForIncomingShare = false;
-  bool _didShowStorageFallbackNotice = false;
   Future<void> _migrationKeepAliveQueue = Future<void>.value();
   bool _migrationKeepAliveEnabledByUs = false;
   bool _migrationKeepAliveShouldRestore = false;
@@ -241,15 +240,6 @@ class _HomePageState extends State<HomePage>
       if (!mounted) return;
       _chatInitializedForIncomingShare = true;
       _drainIncomingShares();
-      final storageStatus = context.read<ChatService>().storageInitStatus;
-      if (storageStatus.isLegacyFallback && !_didShowStorageFallbackNotice) {
-        _didShowStorageFallbackNotice = true;
-        showAppSnackBar(
-          context,
-          message: AppLocalizations.of(context)!.chatStorageFallbackSnackbar,
-          type: NotificationType.warning,
-        );
-      }
     } catch (_) {
       // Chat storage status/overlay is the source of truth and offers Retry.
     }
@@ -348,13 +338,11 @@ class _HomePageState extends State<HomePage>
     if (!mounted) return;
     await _initializeChat();
     if (!mounted) return;
-    if (!chatService.storageInitStatus.isLegacyFallback) {
-      showAppSnackBar(
-        context,
-        message: l10n.chatStorageRecoveryRebuildDone,
-        type: NotificationType.success,
-      );
-    }
+    showAppSnackBar(
+      context,
+      message: l10n.chatStorageRecoveryRebuildDone,
+      type: NotificationType.success,
+    );
   }
 
   Future<void> _resetChatStorage() async {
@@ -371,16 +359,9 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Future<void> _continueWithLegacyStorage() async {
-    final chatService = context.read<ChatService>();
-    await chatService.useLegacyStorage();
-    if (!mounted) return;
-    await _initializeChat();
-  }
-
   /// §8.2.2: ask before the one-time Hive import. A backup failure or a
-  /// cancelled folder picker aborts before the temp database is created, so
-  /// Hive remains the untouched fallback.
+  /// cancelled folder picker aborts before the temp database is created; Hive
+  /// remains untouched for an explicit retry or rebuild.
   Future<ChatMigrationBackupDecision> _promptMigrationBackup() async {
     if (!mounted) return const ChatMigrationBackupDecision.skip();
     final l10n = AppLocalizations.of(context)!;
@@ -670,7 +651,7 @@ class _HomePageState extends State<HomePage>
           onRestoreBackup: _restoreStorageBackup,
           onRebuildFromHive: _rebuildStorageFromHive,
           onReset: _resetChatStorage,
-          onContinueLegacy: _continueWithLegacyStorage,
+          onRetry: _initializeChat,
         ),
       ],
     );

@@ -14,7 +14,6 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tile_button.dart';
 import '../../../shared/widgets/snackbar.dart';
-import '../../../theme/app_font_weights.dart';
 import '../../../utils/app_directories.dart';
 
 /// Read-only chat storage diagnostics plus the guarded legacy cleanup flow
@@ -429,15 +428,6 @@ class _ChatStoragePageState extends State<ChatStoragePage> {
           (service) => service.backend,
         ) ==
         ChatStorageBackend.sqlite;
-    final fallbackReason = context.select<ChatService, String?>((service) {
-      final status = service.storageInitStatus;
-      return status.isLegacyFallback
-          ? (status.message ?? '').trim().isEmpty
-                ? null
-                : status.message
-          : null;
-    });
-
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -475,10 +465,6 @@ class _ChatStoragePageState extends State<ChatStoragePage> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                   children: [
-                    if (fallbackReason != null) ...[
-                      _buildFallbackCard(context, l10n, fallbackReason),
-                      const SizedBox(height: 12),
-                    ],
                     _buildSqliteCard(context, l10n, info),
                     const SizedBox(height: 12),
                     _buildLegacyCard(context, l10n, info, sqliteActive),
@@ -488,64 +474,6 @@ class _ChatStoragePageState extends State<ChatStoragePage> {
                 ),
               ),
             ),
-    );
-  }
-
-  Widget _buildFallbackCard(
-    BuildContext context,
-    AppLocalizations l10n,
-    String? reason,
-  ) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
-      decoration: BoxDecoration(
-        color: cs.errorContainer.withValues(alpha: 0.42),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cs.error.withValues(alpha: 0.16)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Lucide.MessageCircleWarning, size: 18, color: cs.error),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  l10n.chatStorageFallbackTitle,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: AppFontWeights.emphasis,
-                    color: cs.onSurface,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            l10n.chatStorageFallbackBody,
-            style: TextStyle(
-              fontSize: 12.5,
-              height: 1.45,
-              color: cs.onSurfaceVariant,
-            ),
-          ),
-          if (reason != null) ...[
-            const SizedBox(height: 8),
-            SelectableText(
-              reason,
-              maxLines: 5,
-              style: TextStyle(
-                fontSize: 11.5,
-                height: 1.4,
-                color: cs.onSurfaceVariant.withValues(alpha: 0.9),
-              ),
-            ),
-          ],
-        ],
-      ),
     );
   }
 

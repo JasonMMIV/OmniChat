@@ -15,7 +15,53 @@ import 'package:OmniChat/core/models/file_record.dart';
 import 'package:OmniChat/core/models/workspace_config.dart';
 import 'package:OmniChat/core/services/backup/data_sync.dart';
 import 'package:OmniChat/core/services/chat/chat_service.dart';
-import 'package:OmniChat/core/services/chat/storage/chat_storage.dart';
+import 'package:OmniChat/core/services/chat/storage/hive_chat_storage.dart';
+import 'package:OmniChat/core/services/chat/storage/sqlite_chat_storage.dart';
+
+Future<File> _writeRestoreZip(
+  Directory directory, {
+  String? uploadName,
+  String? uploadContent,
+  bool emptyUploadDirectory = false,
+}) async {
+  final conversation = Conversation(
+    id: 'restore-chat',
+    title: 'Restored chat',
+    createdAt: DateTime.utc(2026, 1, 1),
+    updatedAt: DateTime.utc(2026, 1, 2),
+  );
+  final message = ChatMessage(
+    id: 'restore-message',
+    role: 'user',
+    content: 'hello from backup',
+    conversationId: conversation.id,
+    timestamp: DateTime.utc(2026, 1, 1),
+  );
+  final chats = <String, dynamic>{
+    'version': 3,
+    'conversations': <dynamic>[conversation.toJson()],
+    'messages': <dynamic>[message.toJson()],
+    'toolEvents': <String, dynamic>{},
+    'geminiThoughtSigs': <String, dynamic>{},
+    'fileRecords': <String, dynamic>{},
+    'workspaces': <String, dynamic>{},
+    'workspaceBindings': <String, dynamic>{},
+  };
+  final chatsBytes = utf8.encode(jsonEncode(chats));
+  final archive = Archive()
+    ..addFile(ArchiveFile('chats.json', chatsBytes.length, chatsBytes));
+  if (uploadName != null && uploadContent != null) {
+    final uploadBytes = utf8.encode(uploadContent);
+    archive.addFile(
+      ArchiveFile('upload/$uploadName', uploadBytes.length, uploadBytes),
+    );
+  } else if (emptyUploadDirectory) {
+    archive.addFile(ArchiveFile('upload/', 0, <int>[])..isFile = false);
+  }
+  final backup = File(p.join(directory.path, 'restore.zip'));
+  await backup.writeAsBytes(ZipEncoder().encode(archive));
+  return backup;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -122,7 +168,7 @@ void main() {
     );
     await Hive.close();
 
-    final service = ChatService(backend: ChatStorageBackend.hive);
+    final service = ChatService(storage: HiveChatStorage(directory: appDir));
     addTearDown(service.close);
     await service.init();
     await service.setGeminiThoughtSignature('a', 'thought-signature');
@@ -164,7 +210,7 @@ void main() {
     HttpOverrides.global = null;
     addTearDown(() => HttpOverrides.global = previousOverrides);
 
-    final service = ChatService(backend: ChatStorageBackend.hive);
+    final service = ChatService(storage: HiveChatStorage(directory: appDir));
     addTearDown(service.close);
     await service.init();
 
@@ -207,7 +253,7 @@ void main() {
   });
 
   test('includeChats false omits chats.json', () async {
-    final service = ChatService(backend: ChatStorageBackend.hive);
+    final service = ChatService(storage: HiveChatStorage(directory: appDir));
     addTearDown(service.close);
     await service.init();
 
@@ -220,4 +266,134 @@ void main() {
     expect(names, contains('settings.json'));
     expect(names, isNot(contains('chats.json')));
   });
+
+  test('restore with includeFiles false preserves local uploads', () async {
+    final uploadDir = Directory(p.join(appDir.path, 'upload'));
+    await uploadDir.create(recursive: true);
+    final localUpload = File(p.join(uploadDir.path, 'keep.txt'));
+    await localUpload.writeAsString('local-only');
+
+    final backup = await _writeRestoreZip(tempDir);
+
+    final storage = SqliteChatStorage(
+      directory: appDir,
+      appVersion: 'test',
+      background: false,
+    );
+    final service = ChatService(storage: storage);
+    addTearDown(service.close);
+    await service.init();
+
+    await DataSync(chatService: service).restoreFromLocalFile(
+      backup,
+      const WebDavConfig(includeFiles: false),
+      mode: RestoreMode.overwrite,
+      restoreSettings: false,
+    );
+
+    expect(await localUpload.exists(), isTrue);
+    expect(await localUpload.readAsString(), 'local-only');
+    expect(service.getAllConversations().single.id, 'restore-chat');
+    expect(
+      service.getMessages('restore-chat').single.content,
+      'hello from backup',
+    );
+  });
+
+  test('restore with files replaces uploads from the archive', () async {
+    final uploadDir = Directory(p.join(appDir.path, 'upload'));
+    await uploadDir.create(recursive: true);
+    final staleUpload = File(p.join(uploadDir.path, 'stale.txt'));
+    await staleUpload.writeAsString('delete me');
+
+    final backup = await _writeRestoreZip(
+      tempDir,
+      uploadName: 'from-backup.txt',
+      uploadContent: 'restored upload',
+    );
+    final storage = SqliteChatStorage(
+      directory: appDir,
+      appVersion: 'test',
+      background: false,
+    );
+    final service = ChatService(storage: storage);
+    addTearDown(service.close);
+    await service.init();
+
+    await DataSync(chatService: service).restoreFromLocalFile(
+      backup,
+      const WebDavConfig(includeFiles: true),
+      mode: RestoreMode.overwrite,
+      restoreSettings: false,
+    );
+
+    expect(await staleUpload.exists(), isFalse);
+    expect(
+      await File(p.join(uploadDir.path, 'from-backup.txt')).readAsString(),
+      'restored upload',
+    );
+  });
+
+  test(
+    'restore with files but no upload directory preserves uploads',
+    () async {
+      final uploadDir = Directory(p.join(appDir.path, 'upload'));
+      await uploadDir.create(recursive: true);
+      final localUpload = File(p.join(uploadDir.path, 'keep.txt'));
+      await localUpload.writeAsString('keep me');
+
+      final backup = await _writeRestoreZip(tempDir);
+      final storage = SqliteChatStorage(
+        directory: appDir,
+        appVersion: 'test',
+        background: false,
+      );
+      final service = ChatService(storage: storage);
+      addTearDown(service.close);
+      await service.init();
+
+      await DataSync(chatService: service).restoreFromLocalFile(
+        backup,
+        const WebDavConfig(includeFiles: true),
+        mode: RestoreMode.overwrite,
+        restoreSettings: false,
+      );
+
+      expect(await localUpload.exists(), isTrue);
+      expect(await localUpload.readAsString(), 'keep me');
+    },
+  );
+
+  test(
+    'restore with files but only an empty upload directory preserves uploads',
+    () async {
+      final uploadDir = Directory(p.join(appDir.path, 'upload'));
+      await uploadDir.create(recursive: true);
+      final localUpload = File(p.join(uploadDir.path, 'keep.txt'));
+      await localUpload.writeAsString('keep me too');
+
+      final backup = await _writeRestoreZip(
+        tempDir,
+        emptyUploadDirectory: true,
+      );
+      final storage = SqliteChatStorage(
+        directory: appDir,
+        appVersion: 'test',
+        background: false,
+      );
+      final service = ChatService(storage: storage);
+      addTearDown(service.close);
+      await service.init();
+
+      await DataSync(chatService: service).restoreFromLocalFile(
+        backup,
+        const WebDavConfig(includeFiles: true),
+        mode: RestoreMode.overwrite,
+        restoreSettings: false,
+      );
+
+      expect(await localUpload.exists(), isTrue);
+      expect(await localUpload.readAsString(), 'keep me too');
+    },
+  );
 }

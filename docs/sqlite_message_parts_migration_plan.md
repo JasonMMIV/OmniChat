@@ -2,7 +2,7 @@
 
 | Item | Value |
 |---|---|
-| Status | M1-M4 landed 2026-10-31 (storage core, live `ChatService` facade, lazy tool detail, storage settings, marker-backed legacy retirement). M5 startup hardening is in progress: blocking progress/retry UI, the R5 Hive-open boundary, the optional pre-migration backup archive, streaming `DataSync` export, validated explicit legacy re-import, temporary Android foreground execution during migration, explicit restore/reset recovery, and per-conversation message lazy loading plus a Windows benchmark baseline are landed; Windows/Android platform smoke tests, Android benchmark validation, crash/kill tests, and Hive removal (M5-M6) remain |
+| Status | M1-M4 landed 2026-10-31 (storage core, live `ChatService` facade, lazy tool detail, storage settings, marker-backed legacy retirement). M5 startup hardening and M6 runtime Hive-fallback removal landed 2026-11-01: SQLite is the only runtime store; Hive remains for legacy import/export/re-import and tests. Gate/open failures now fail closed or enter restore/reset recovery instead of returning to Hive. Windows/Android full platform smoke tests, Android benchmark validation, crash/kill tests, and a post-M6 device regression remain |
 | Scope | Chat history storage: conversations, messages, tool events, Gemini thought signatures, message file records, conversation workspace bindings |
 | Target platforms | **Windows (x64/ARM64) and Android (arm64-v8a) are the release targets.** macOS/Linux/iOS code may remain source-compatible, but they are not released and are excluded from the M5/M6 acceptance gates. |
 | Out of scope | Web storage, settings/assistant/MCP/skills Hive boxes, context-compaction policy, tool-output truncation policy, end-to-end encryption |
@@ -31,7 +31,7 @@ The migration is a one-time copy-then-swap import. The temp database is disposab
 2. Import Hive data in batches.
 3. Validate counts, ordering, and content hashes.
 4. Publish the SQLite file atomically.
-5. Keep the original Hive files untouched as a legacy fallback/export source.
+5. Keep the original Hive files untouched as a legacy import/export/re-import source.
 
 The existing `ChatService` public API remains as a facade during the transition. UI code is not required to switch to async database calls in the first milestone; a per-conversation cache preserves the synchronous read methods until lazy tool-detail loading is introduced.
 
@@ -608,7 +608,7 @@ Temp identity must match the intent's recorded temp `database_id` before any pub
 
 ### 8.2.2 Pre-migration backup (optional)
 
-**M5 implementation:** `PreMigrationBackupService` runs under the maintenance lock, streams each raw `.hive` file and a JSON export from a **staging copy** into a temp zip, records sizes/mtimes/SHA-256 in `manifest.json`, flushes, reopens the zip to verify entry sizes, then renames it atomically. `ChatStorageGate` prompts before creating the temp database; the production path requires an explicit backup/skip decision (`requireBackupPrompt`), and a cancelled backup or backup failure returns `failed` and leaves Hive authoritative for this launch. The receipt records `backup=completed` plus `backupArtifact`. The JSON export opens a **staging copy** only after asserting that no chat Hive box is already open; if the legacy fallback still holds the boxes, the backup refuses and asks for a restart instead of touching the real files.
+**M5 implementation:** `PreMigrationBackupService` runs under the maintenance lock, streams each raw `.hive` file and a JSON export from a **staging copy** into a temp zip, records sizes/mtimes/SHA-256 in `manifest.json`, flushes, reopens the zip to verify entry sizes, then renames it atomically. `ChatStorageGate` prompts before creating the temp database; the production path requires an explicit backup/skip decision (`requireBackupPrompt`), and a cancelled backup or backup failure returns `failed` and leaves Hive untouched for an explicit retry/rebuild; it is not a runtime fallback. The receipt records `backup=completed` plus `backupArtifact`. The JSON export opens a **staging copy** only after asserting that no chat Hive box is already open; if the legacy fallback still holds the boxes, the backup refuses and asks for a restart instead of touching the real files.
 
 Before creating the temp database, the migration gate offers:
 
@@ -790,7 +790,7 @@ Write `chat_v2.legacy-retirement.json` atomically before the first unlink. It co
 - Hive remains a pre-migration snapshot.
 - Downgrading to a build that only reads Hive is not supported after the first SQLite write, because post-migration messages are not in Hive.
 - Release notes must warn users to make a backup before upgrading.
-- A failed migration can fall back to Hive **before** the first SQLite write; after that, fallback requires an explicit export/restore path.
+- A failed migration never switches the runtime to Hive; Hive stays untouched for an explicit rebuild/restore. After the first SQLite write, recovery requires a backup or explicit rebuild/reset path.
 - Drift `onUpgrade` must be real for every version; never use `onUpgrade: (_, __, ___) async {}`.
 - Drift `onDowngrade` must fail closed. If the binary is older than the database schema, show "This database was created by a newer version" and stop; do not delete or recreate the database.
 
@@ -972,7 +972,7 @@ Add a `ChatStorageGate` before the chat surface:
 
 `ChatService.init` can remain the entry point, but it must select the storage backend and run both gates before setting `_initialized = true`.
 
-**M5 implementation:** `ChatStorageInitStatus` exposes `preparing → checking → backingUp/migrating/validating → opening → ready|failed`. `ChatStorageStartupOverlay` is mounted above the home surface, blocks input, shows localized stages and destination counts, and keeps a failed start visible with Copy diagnostics + Retry. `ChatService.init()` de-duplicates concurrent callers (one gate per process), and the Retry action re-runs the post-init conversation/share setup. Hive open failures are converted by `HiveOpenBoundary` into one diagnostic (R5). The pre-migration backup choice from step 3 is wired through `ChatStorageGate.backupPrompt`; a skip is explicit, and a failed/cancelled backup leaves Hive authoritative.
+**M5 implementation:** `ChatStorageInitStatus` exposes `preparing → checking → backingUp/migrating/validating → opening → ready|failed`. `ChatStorageStartupOverlay` is mounted above the home surface. It shows the full blocking panel only for the real backup/migration/validation work, the migration tail while SQLite opens, and failures; ordinary SQLite `preparing`/`checking`/`opening` shows no visible progress UI at all; an invisible full-screen barrier absorbs input until ready so a normal launch never opens the "Preparing chat storage" panel and chat actions cannot race post-init conversation selection. The migration panel shows localized stages and destination counts, and keeps a failed start visible with Copy diagnostics + Retry. `ChatService.init()` de-duplicates concurrent callers (one gate per process), and the Retry action re-runs the post-init conversation/share setup. Hive open failures are converted by `HiveOpenBoundary` into one diagnostic (R5). The pre-migration backup choice from step 3 is wired through `ChatStorageGate.backupPrompt`; a skip is explicit, and a failed/cancelled backup leaves Hive authoritative.
 
 ### 9.7 Backup, restore, and import
 
@@ -1161,9 +1161,11 @@ Implementation notes:
 
 ### M6: Remove Hive chat hot path
 
-After at least one stable Windows + Android release with the Hive fallback, and after the Windows/Android smoke + crash/kill gates pass:
+**Implemented 2026-11-01 on master.** The owner waived the one-stable-release gate because 1.26.1 was built and device-tested but not publicly released; retain the 1.26.1 Hive-fallback installer/APK as the recovery artifact.
 
-- Remove Hive chat reads/writes from `ChatService`.
+- `ChatService` no longer selects `HiveChatStorage` at runtime: `CHAT_STORAGE_FORCE_HIVE`, backend override, and gate/open fallback are removed.
+- Gate `failClosed`/missing DB enters the explicit restore/reset recovery; transient gate/open failures show the startup Retry panel. `useLegacyStorage` and the recovery "continue with legacy" action are removed.
+- `HiveChatStorage` is retained only for legacy import/export, re-import staging, and tests; it is not a runtime backend.
 - Keep legacy export code and migration receipt.
 - Remove obsolete Hive adapters/boxes only after a separate decision and after users have had an export path.
 
@@ -1281,6 +1283,8 @@ Only Windows and Android are release targets. macOS/Linux/iOS builds are not req
 - Windows packaged build (MSIX/Inno) with SQLite DLL.
 - Android packaged APK/AAB with the released ABI(s).
 
+**Recorded partial Android smoke (2026-11-01, user device, APK 1.26.1+109):** fresh install → import backup → old conversation tool cards present → new messages work. This passes the fresh-install/backup-import slice only; Android upgrade, ABI variants, force-stop/foreground migration, and low-storage cases remain.
+
 ### 13.5 Performance tests
 
 - Synthetic 250 MB / 16k tool events.
@@ -1380,7 +1384,7 @@ A release is acceptable only when all of the following are true:
 |---|---|
 | Web support | Out of scope for this migration; add a separate Drift-web/IndexedDB plan if web is a supported target. |
 | Text/reasoning parts | Phase 2 after tool-part migration stabilizes; keep message columns as compatibility projections. |
-| Dual-write | No. Use Hive fallback only before the first SQLite write. |
+| Dual-write | No. Hive is never a runtime backend after M6; it is import/export only. |
 | Hive deletion | Never automatic; explicit storage-settings action after export and the 8.8 marker/size gate. |
 | `file_read` 8 KB persistence cap | Preserve existing behavior during migration; decide separately whether full file reads are required. |
 | Encryption at rest | Out of scope; evaluate SQLCipher separately if the threat model changes. |
@@ -1471,9 +1475,9 @@ one-release fallback. The storage code lives in
 | Installation gate | `database_installation_gate.dart`: fresh/0-byte/older/newer/unpublished/missing-with-receipt admission, reset marker completion, `chat_v2.legacy_import_disabled` sentinel, sidecar repair and identity checks, fail-closed diagnostics. |
 | Family publish | `database_family_publisher.dart`: durable `publish-intent.json`, `.previous` preservation, `.replaced-<id>` fallback, `publish-id` verification, split-brain fail-closed recovery for the §8.2.1 crash table. |
 | Hive importer | `legacy_hive_importer.dart`: lazy boxes (`crashRecovery: false`), copy-then-swap temp DB, conversation batching, orphan/recovered conversations, quarantine with payload hash, count + UTF-8 byte-sum + full/sampled hash validation, in-database meta and sidecar receipt, atomic publish. |
-| Lock + orchestration | `chat_maintenance_lock.dart` (re-entrant process guard, file lock with stale-PID recovery, bounded wait) and `chat_storage_gate.dart` (admission -> migration -> re-admission, Hive fallback on failure). |
+| Lock + orchestration | `chat_maintenance_lock.dart` (re-entrant process guard, file lock with stale-PID recovery, bounded wait) and `chat_storage_gate.dart` (admission -> migration -> re-admission; failures fail closed for retry/recovery, no Hive runtime fallback). |
 | Facade (M3/M6-prep) | `chat_storage.dart` contract, `hive_chat_storage.dart` legacy backend, `sqlite_chat_storage.dart` cache backend; `ChatService` is now a delegating `ChangeNotifier`. SQLite loads conversation metadata (including ID-only `messageIds`), file records, workspace bindings, and signatures at startup; message bodies and tool parts load per conversation. `getMessages`/`getToolEvents` fail closed with `ChatStorageNotLoadedException`; `ensureAllMessagesLoaded` is explicit for backup/import/stats. Drafts stay in the facade and are promoted on the first message. |
-| Startup wiring | `ChatService.init()` runs `ChatStorageGate` and selects SQLite on `ready`/`migrated`; `failed` falls back to Hive. `needsRestoreOrReset` pauses in `ChatStorageInitPhase.restoreRequired` and shows a blocking recovery overlay (restore backup, rebuild from Hive, reset, or continue with Hive for this session). `CHAT_STORAGE_FORCE_HIVE` and constructor injection (`storage`, `backend`) provide escape hatches. `DataSync`, conversation-open paths, message generation, and voice chat preload tool events. |
+| Startup wiring | `ChatService.init()` runs `ChatStorageGate` and selects SQLite on `ready`/`migrated`; transient failures surface Retry, while `needsRestoreOrReset`/`failClosed`/migration-recovery pause in `ChatStorageInitPhase.restoreRequired` and show the blocking recovery overlay (restore backup, rebuild from Hive, reset, or retry). Hive is never a runtime fallback. `ChatService(storage: ...)` remains only as a test seam; `DataSync`, conversation-open paths, message generation, and voice chat preload tool events. |
 | Replay pairing (§9.5.2) | `tool_replay.dart` shared by `MessageBuilderService` and `ChatTurnService`: only `completed`/`denied` pairs replay, `pending`/`interrupted` are omitted as a pair, `denied` replays its denial JSON, and `write_todos`/`workspace_snapshot` never replay. Legacy events without `approvalState` infer pending from `approval_required`/`ask_user_pending` protocol JSON (and denied from `approval_denied`); duplicate non-empty call ids replay only the first pair; denials with null content are logged and omitted. |
 | Reset / clear | `clearAllData` follows §8.10: close DB, write `chat_v2.reset`, let the installation gate delete the family, create `source='reset'`, write `legacy_import_disabled`, remove the marker, reopen and reload. Backup restore overwrite uses the separate `clearAllChatRows` path, which deletes rows without resetting the installation or writing the sentinel, so a routine restore never blocks the legacy import path. |
 | Review fixes | R1 (no cross-reply version promotion), R2 (selection retargeted on version delete), R3 (group id normalized on appendMessageVersion), R4 (`is_recovered` preserved unless explicitly set) are implemented with regression tests. |
@@ -1488,7 +1492,7 @@ one-release fallback. The storage code lives in
 5. **`sqlite3_flutter_libs` is kept for plan parity but is EOL**; `sqlite3` 3.x ships SQLite through Dart native assets, which is what the tests and desktop build use.
 6. **Pre-migration backup and legacy-retirement UI are now implemented.** `PreMigrationBackupService` archives raw Hive + streamed `chats.json` with a SHA-256 manifest and refuses when a live Hive box set is open; `LegacyRetirementService`/`ChatStoragePage` provide the marker-backed export/delete flow. The explicit re-import/merge action is now implemented by `LegacyReimportService` (staging import → idempotent merge → cache refresh → sentinel removal).
 7. **Per-conversation message loading landed after the M5 benchmark.** `SqliteChatStorage` now loads only conversation metadata at startup; `getMessages` fails closed until `ensureConversationLoaded` loads that conversation. Open/switch paths already preload; stats, importers, re-import, and backup use explicit `ensureAllMessagesLoaded`/`ensureAllConversationsLoaded`. Upload cleanup uses a narrow SQL `LIKE` query instead of loading every message. The Windows benchmark dropped cold start from 809 ms to 643 ms and RSS from ~319 MB to ~259 MB on the 20k-message/10k-event profile; Android still needs a device run.
-8. **`needsRestoreOrReset` has an explicit recovery decision.** `ChatService` now pauses in `ChatStorageInitPhase.restoreRequired` instead of silently falling back. `ChatStorageRecoveryOverlay` offers (1) restore a validated `chats.json` backup through `DataSync`, (2) rebuild SQLite from untouched Hive files, (3) reset to an empty `source='reset'` database with the legacy-import sentinel, or (4) continue on Hive for this session. `ChatStorageRecoveryService` performs reset/rebuild under the maintenance lock and never deletes Hive; restore is rejected before reset when the archive has no `chats.json`. This closes the §9.6 step 5 UI gap.
+8. **`needsRestoreOrReset` has an explicit recovery decision.** `ChatService` pauses in `ChatStorageInitPhase.restoreRequired` instead of silently falling back. `ChatStorageRecoveryOverlay` offers (1) restore a validated `chats.json` backup through `DataSync`, (2) rebuild SQLite from untouched Hive files, (3) reset to an empty `source='reset'` database with the legacy-import sentinel, or (4) retry the gate. `ChatStorageRecoveryService` performs reset/rebuild under the maintenance lock and never deletes Hive; restore is rejected before reset when the archive has no `chats.json`. This closes the §9.6 step 5 UI gap; M6 adds Retry and removes the session-only Hive option.
 9. **Replay pairing derives status from the event shape, not `message_parts.status`.** Both builders receive the legacy event map (Hive or SQLite). `deriveLegacyToolPartStatus(approvalState, content)` is a pure function that matches the importer's stored status, so one code path serves both backends; the SQLite `CHECK (status <> 'completed' OR content IS NOT NULL)` still makes a null-content completed pair impossible. Legacy events with no `approvalState` are classified from the persisted protocol JSON (`approval_required`/`ask_user_pending` → pending, `approval_denied` → denied), so the intentional "never replay pending approval JSON" correction also applies to pre-M3 history.
 10. **Live `setToolEvents` uses the runtime status.** When the assistant row is streaming, a result-less placeholder is `pending`; a restored/migrated row is `interrupted`. The distinction is pinned by a storage test.
 
@@ -1496,13 +1500,14 @@ one-release fallback. The storage code lives in
 
 - Chatbox/Cherry importer review and a restore-from-backup drill (§9.7). The pre-migration backup, streaming `DataSync` export, and explicit legacy re-import are landed.
 - Platform packaging/smoke tests for the two release targets only: Windows MSIX/Inno install + SQLite DLL, Android ABI + foreground keep-alive; plus crash/kill tests on Windows and Android (M5). The Android foreground keep-alive is wired; packaged smoke coverage is still pending. macOS/Linux/iOS are intentionally out of scope.
-- Performance benchmarks and the M5 release with the legacy fallback.
+- Performance benchmarks and the 1.26.1 fallback artifact release/record.
 
-The facade is live: the app now reads/writes SQLite when the gate succeeds and
-keeps Hive byte-identical as the legacy/export source. Lazy detail, storage
-settings, legacy retirement, pre-migration backup, streaming backup export, and
-explicit legacy re-import are landed; the remaining work is platform hardening
-and the Hive removal release.
+The facade is live and SQLite is the only runtime store: the app reads/writes
+SQLite when the gate succeeds and keeps Hive byte-identical as the legacy
+import/export source. Lazy detail, storage settings, legacy retirement,
+pre-migration backup, streaming backup export, explicit legacy re-import, and
+M6 runtime Hive-fallback removal are landed; the remaining work is platform and
+crash/kill hardening plus the post-M6 device regression.
 
 ### 18.4 Deferred review findings (2026-10-31)
 
@@ -1597,7 +1602,7 @@ test.
 **Resolved (M5):** `HiveOpenBoundary` runs each legacy box open in an isolated
 zone, captures both the returned future error and Hive's internal
 open-completer error, waits a short settle window, and closes a box that opened
-before the secondary error surfaced. The importer and the Hive fallback both
+before the secondary error surfaced. The importer and the Hive legacy/test backend both
 use it, so the startup overlay receives one `LegacyMigrationException` /
 `HiveOpenException` diagnostic instead of an extra uncaught zone error.
 
@@ -1669,7 +1674,7 @@ A pending approval event normally carries approval-protocol JSON in `content`; t
 - [x] Implement delete/fork/truncate/clear paths and their tests.
 - [x] Resolve R1/R2/R3/R4 and R5 in §18.4 (R5 via `HiveOpenBoundary`).
 - [x] Add a blocking migration progress screen (§9.6 step 3).
-- [x] Add an explicit `needsRestoreOrReset` recovery screen: validated backup restore, Hive rebuild, reset with the legacy-import sentinel, and session-only Hive fallback.
+- [x] Add an explicit `needsRestoreOrReset` recovery screen: validated backup restore, Hive rebuild, and reset with the legacy-import sentinel (session-only Hive fallback removed in M6).
 - [x] Add a pre-migration backup choice before the temp DB is created and record `backup=completed|skipped`; failure/cancel aborts before the temp DB.
 - [x] Add storage settings for legacy Hive export/delete and marker-backed retirement.
 - [x] Add the explicit "import legacy Hive" merge action (staging import → idempotent merge → cache refresh → sentinel removal only after validation).
@@ -1683,8 +1688,8 @@ A pending approval event normally carries approval-protocol JSON in `content`; t
 - [ ] Run crash/kill tests for import, database-family publish, and legacy cleanup.
 - [x] Exercise installation-gate fresh, 0-byte, unknown, newer, and missing-with-receipt cases (no older published schema exists yet).
 - [ ] Run performance benchmarks and record results.
-- [ ] Release with legacy Hive fallback for one release.
-- [ ] After one stable release, remove Hive chat hot paths.
+- [ ] Release the retained 1.26.1 Hive-fallback artifact for one release.
+- [x] Remove Hive runtime hot paths (M6 code landed 2026-11-01; owner waived the one-release gate, retain 1.26.1 as the fallback artifact).
 
 ---
 

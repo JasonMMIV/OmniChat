@@ -12,14 +12,14 @@ import 'chat_storage.dart';
 import 'hive_open_boundary.dart';
 import 'message_part_codec.dart';
 
-/// Legacy Hive backend. It is retained for one release as the fallback when
-/// the SQLite installation/migration gate fails (§9.6) and for the existing
-/// Hive persistence tests.
+/// Legacy Hive backend. It is retained only for legacy import/export,
+/// re-import staging, and tests. It is never selected as a runtime fallback
+/// after M6; see [ChatStorageGate].
 ///
 /// The behaviour is the pre-M3 `ChatService` storage code, minus
 /// notifications and draft handling (both owned by the facade). Hive boxes are
-/// opened eagerly here because this backend only runs when SQLite is not
-/// authoritative; the Hive hot path is retired in M6.
+/// opened eagerly here because this backend only runs for legacy import/export
+/// and test seams; the Hive hot path is retired in M6.
 class HiveChatStorage extends ChatStorage {
   HiveChatStorage({required this.directory});
 
@@ -101,8 +101,8 @@ class HiveChatStorage extends ChatStorage {
   Future<void> dispose() async {
     _messagesCache.clear();
     _initialized = false;
-    // Release the box locks so the migration importer (or a later fallback)
-    // can open the same files. Track closers as boxes open, so a failed
+    // Release the box locks so the migration importer or legacy re-import can
+    // open the same files. Track closers as boxes open, so a failed
     // initialization still releases everything opened before the failure.
     final closers = List<Future<void> Function()>.of(_boxClosers);
     _boxClosers.clear();

@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:OmniChat/core/services/chat/chat_service.dart';
-import 'package:OmniChat/core/services/chat/storage/chat_storage.dart';
+import 'package:OmniChat/core/services/chat/storage/hive_chat_storage.dart';
 import 'package:OmniChat/features/settings/pages/chat_storage_page.dart';
 import 'package:OmniChat/l10n/app_localizations.dart';
 
@@ -56,7 +56,9 @@ void main() {
   });
 
   testWidgets('renders the SQLite and legacy sections', (tester) async {
-    final chatService = ChatService(backend: ChatStorageBackend.hive);
+    final chatService = ChatService(
+      storage: HiveChatStorage(directory: dataDirectory),
+    );
     addTearDown(chatService.dispose);
 
     // ChatStorageInfoService probes the real filesystem; widget tests run in a

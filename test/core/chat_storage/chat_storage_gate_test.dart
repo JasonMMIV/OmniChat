@@ -179,6 +179,7 @@ void main() {
     ).ensureReady();
 
     expect(result.stage, ChatStorageGateStage.failed);
+    expect(result.needsRecovery, isFalse);
     expect(await files.database.exists(), isFalse);
     expect(await files.migrating.exists(), isFalse);
     expect(await File('${directory.path}/conversations.hive').exists(), isTrue);
@@ -209,7 +210,7 @@ void main() {
     },
   );
 
-  test('a validation failure stays on Hive and does not publish', () async {
+  test('a validation failure does not publish and needs recovery', () async {
     final conversations = await Hive.openBox<Conversation>(
       'conversations',
       path: directory.path,
@@ -228,6 +229,7 @@ void main() {
     final result = await gate().ensureReady();
     expect(result.stage, ChatStorageGateStage.failed);
     expect(result.sqliteReady, isFalse);
+    expect(result.needsRecovery, isTrue);
     expect(await files.database.exists(), isFalse);
     expect(await File('${directory.path}/conversations.hive').exists(), isTrue);
   });

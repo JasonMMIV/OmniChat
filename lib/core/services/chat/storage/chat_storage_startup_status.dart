@@ -37,8 +37,8 @@ class ChatStorageInitStatus {
     this.parts,
     this.quarantined,
     this.message,
-    this.isLegacyFallback = false,
     this.canRetry = false,
+    this.cutoverStarted = false,
   });
 
   final ChatStorageInitPhase phase;
@@ -48,17 +48,18 @@ class ChatStorageInitStatus {
   final int? parts;
   final int? quarantined;
 
-  /// User-facing detail for a fallback or failure. Migration progress uses
-  /// [stage] instead so it stays localizable.
+  /// User-facing detail for a failure or recovery state. Migration progress
+  /// uses [stage] instead so it stays localizable.
   final String? message;
-
-  /// True when SQLite could not be admitted and the legacy Hive store is
-  /// serving the app for this release (§9.6 step 5).
-  final bool isLegacyFallback;
 
   /// True after initialization failed; the retry action is safe because no
   /// data was deleted by the gate.
   final bool canRetry;
+
+  /// True once this init actually entered the Hive→SQLite cutover. Unlike
+  /// [hasCounts] (which is display data), this is stable even when an empty
+  /// legacy store never reports destination counts.
+  final bool cutoverStarted;
 
   bool get isBusy =>
       phase == ChatStorageInitPhase.preparing ||
@@ -67,6 +68,15 @@ class ChatStorageInitStatus {
       phase == ChatStorageInitPhase.migrating ||
       phase == ChatStorageInitPhase.validating ||
       phase == ChatStorageInitPhase.opening;
+
+  /// True only for the one-time Hive→SQLite cutover. Ordinary SQLite startup
+  /// also passes through `preparing`/`checking`/`opening`, but must not show
+  /// the blocking migration panel on every launch.
+  bool get isMigration =>
+      phase == ChatStorageInitPhase.backingUp ||
+      phase == ChatStorageInitPhase.migrating ||
+      phase == ChatStorageInitPhase.validating ||
+      (phase == ChatStorageInitPhase.opening && cutoverStarted);
 
   bool get hasFailed => phase == ChatStorageInitPhase.failed;
 
@@ -84,8 +94,8 @@ class ChatStorageInitStatus {
         other.parts == parts &&
         other.quarantined == quarantined &&
         other.message == message &&
-        other.isLegacyFallback == isLegacyFallback &&
-        other.canRetry == canRetry;
+        other.canRetry == canRetry &&
+        other.cutoverStarted == cutoverStarted;
   }
 
   @override
@@ -97,8 +107,8 @@ class ChatStorageInitStatus {
     parts,
     quarantined,
     message,
-    isLegacyFallback,
     canRetry,
+    cutoverStarted,
   );
 
   ChatStorageInitStatus copyWith({
@@ -109,8 +119,8 @@ class ChatStorageInitStatus {
     int? parts,
     int? quarantined,
     String? message,
-    bool? isLegacyFallback,
     bool? canRetry,
+    bool? cutoverStarted,
     bool clearStage = false,
     bool clearMessage = false,
     bool clearCounts = false,
@@ -123,8 +133,8 @@ class ChatStorageInitStatus {
       parts: clearCounts ? null : (parts ?? this.parts),
       quarantined: clearCounts ? null : (quarantined ?? this.quarantined),
       message: clearMessage ? null : (message ?? this.message),
-      isLegacyFallback: isLegacyFallback ?? this.isLegacyFallback,
       canRetry: canRetry ?? this.canRetry,
+      cutoverStarted: cutoverStarted ?? this.cutoverStarted,
     );
   }
 }

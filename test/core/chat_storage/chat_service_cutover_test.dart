@@ -104,11 +104,14 @@ void main() {
     final service = ChatService();
     final phases = <ChatStorageInitPhase>{};
     final migrationEvents = <String>[];
+    ChatStorageInitStatus? openingStatus;
     var preparingCount = 0;
     service.addListener(() {
-      final phase = service.storageInitStatus.phase;
+      final status = service.storageInitStatus;
+      final phase = status.phase;
       phases.add(phase);
       if (phase == ChatStorageInitPhase.preparing) preparingCount++;
+      if (phase == ChatStorageInitPhase.opening) openingStatus = status;
     });
     // Concurrent callers must join one gate/importer run; the first caller
     // supplies the backup prompt before the gate opens Hive.
@@ -141,7 +144,10 @@ void main() {
         ChatStorageInitPhase.ready,
       ]),
     );
-    expect(service.storageInitStatus.isLegacyFallback, isFalse);
+    expect(openingStatus, isNotNull);
+    expect(openingStatus!.hasCounts, isTrue);
+    expect(openingStatus!.stage, 'opening');
+    expect(openingStatus!.cutoverStarted, isTrue);
     expect(service.storageInitStatus.canRetry, isFalse);
     expect(service.backend, ChatStorageBackend.sqlite);
     expect(service.getAllConversations(), hasLength(1));
@@ -183,10 +189,20 @@ void main() {
     () async {
       final events = <String>[];
       final first = ChatService();
+      ChatStorageInitStatus? freshOpeningStatus;
+      first.addListener(() {
+        final status = first.storageInitStatus;
+        if (status.phase == ChatStorageInitPhase.opening) {
+          freshOpeningStatus = status;
+        }
+      });
       await first.init(
         onMigrationStarted: () async => events.add('start'),
         onMigrationFinished: () async => events.add('finish'),
       );
+      expect(freshOpeningStatus, isNotNull);
+      expect(freshOpeningStatus!.hasCounts, isFalse);
+      expect(freshOpeningStatus!.cutoverStarted, isFalse);
       expect(first.storageInitStatus.phase, ChatStorageInitPhase.ready);
       expect(first.backend, ChatStorageBackend.sqlite);
       expect(events, isEmpty);
@@ -246,51 +262,36 @@ void main() {
     expect(await hiveFile.readAsBytes(), hiveBefore);
   });
   test(
-    'continue with legacy opens Hive without consuming the recovery receipt',
+    'transient gate failure becomes failed retry without selecting Hive',
     () async {
       final conversations = await Hive.openBox<Conversation>(
         'conversations',
         path: directory.path,
       );
       await conversations.put(
-        'legacy-1',
-        Conversation(id: 'legacy-1', title: 'Legacy session'),
+        'legacy-cancel',
+        Conversation(id: 'legacy-cancel', title: 'Cancel migration'),
       );
       await Hive.close();
-
-      final files = ChatDatabaseFiles(directory);
-      await files
-          .writeJsonAtomically(files.installationReceipt, <String, dynamic>{
-            'format': 1,
-            'version': 1,
-            'databaseId': 'lost-database',
-            'schemaVersion': 1,
-            'source': 'hive',
-            'state': 'complete_clean',
-            'installedAtUtc': DateTime.now().toUtc().toIso8601String(),
-            'appVersion': 'test',
-          });
 
       final service = ChatService();
       addTearDown(service.close);
       await expectLater(
-        service.init(),
-        throwsA(isA<ChatStorageRestoreRequiredException>()),
+        service.init(
+          backupPrompt: () async => const ChatMigrationBackupDecision.cancel(),
+        ),
+        throwsA(isA<ChatStorageUnavailableException>()),
       );
 
-      await service.useLegacyStorage();
-
-      expect(service.storageInitStatus.phase, ChatStorageInitPhase.ready);
-      expect(service.storageInitStatus.isLegacyFallback, isTrue);
-      expect(service.backend, ChatStorageBackend.hive);
-      expect(service.getAllConversations().single.id, 'legacy-1');
-      expect(await files.installationReceipt.exists(), isTrue);
-      expect(await files.database.exists(), isFalse);
+      expect(service.storageInitStatus.phase, ChatStorageInitPhase.failed);
+      expect(service.storageInitStatus.canRetry, isTrue);
+      expect(service.backend, isNull);
+      expect(await ChatDatabaseFiles(directory).database.exists(), isFalse);
     },
   );
 
   test(
-    'migration lifecycle finishes when the Hive import falls back',
+    'migration failure enters recovery instead of falling back to Hive',
     () async {
       await Hive.close();
       final corrupt = File(
@@ -301,15 +302,22 @@ void main() {
       final events = <String>[];
       final service = ChatService();
       addTearDown(service.close);
-      await service.init(
-        backupPrompt: () async => const ChatMigrationBackupDecision.skip(),
-        onMigrationStarted: () async => events.add('start'),
-        onMigrationFinished: () async => events.add('finish'),
+      await expectLater(
+        service.init(
+          backupPrompt: () async => const ChatMigrationBackupDecision.skip(),
+          onMigrationStarted: () async => events.add('start'),
+          onMigrationFinished: () async => events.add('finish'),
+        ),
+        throwsA(isA<ChatStorageRestoreRequiredException>()),
       );
 
       expect(events, <String>['start', 'finish']);
-      expect(service.storageInitStatus.phase, ChatStorageInitPhase.ready);
-      expect(service.storageInitStatus.isLegacyFallback, isTrue);
+      expect(
+        service.storageInitStatus.phase,
+        ChatStorageInitPhase.restoreRequired,
+      );
+      expect(service.storageInitStatus.canRetry, isTrue);
+      expect(service.backend, isNull);
     },
   );
 }

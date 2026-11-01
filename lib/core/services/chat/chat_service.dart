@@ -18,7 +18,8 @@ import 'storage/chat_storage.dart';
 import 'storage/chat_storage_gate.dart';
 import 'storage/chat_storage_recovery_service.dart';
 import 'storage/chat_storage_startup_status.dart';
-import 'storage/database_installation_gate.dart' show chatHiveFiles;
+import 'storage/database_installation_gate.dart'
+    show ChatInstallationState, chatHiveFiles;
 import 'storage/hive_chat_storage.dart';
 import 'storage/legacy_reimport_service.dart';
 import 'storage/message_part_codec.dart';
@@ -29,11 +30,21 @@ import 'storage/sqlite_chat_storage.dart';
 /// foreground service so the OS cannot kill a long import.
 typedef ChatMigrationLifecycleCallback = Future<void> Function();
 
-/// The installation gate recorded a database that is now missing. Recovery
-/// must be an explicit user decision; `init()` must not silently create an
-/// empty database or fall back without offering the choices.
+/// The installation gate needs an explicit recovery decision. `init()` must
+/// not silently create an empty database or pick another backend.
 class ChatStorageRestoreRequiredException implements Exception {
   const ChatStorageRestoreRequiredException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// SQLite is the only runtime chat store. A gate/import/open failure leaves the
+/// app in the retry state; it never silently switches back to Hive.
+class ChatStorageUnavailableException implements Exception {
+  const ChatStorageUnavailableException(this.message);
 
   final String message;
 
@@ -49,15 +60,13 @@ class ChatStorageRestoreRequiredException implements Exception {
 /// * `sqlite` — `chat_v2.sqlite` after the installation/migration gate passes
 ///   (§9.6). Tool bodies are loaded per conversation; [getToolEvents] fails
 ///   closed for a message that was never loaded.
-/// * `hive` — the legacy boxes, kept as a one-release fallback when the gate
-///   fails and as the explicit backend in the Hive persistence tests.
+/// * `hive` — only an injected test seam or the legacy import/export source;
+///   production startup never selects it as a runtime fallback.
 ///
 /// Draft conversations live here, not in a backend: a draft has no persisted
 /// rows until the first message promotes it in one operation.
 class ChatService extends ChangeNotifier {
-  ChatService({ChatStorage? storage, ChatStorageBackend? backend})
-    : _storageOverride = storage,
-      _backendOverride = backend;
+  ChatService({ChatStorage? storage}) : _storageOverride = storage;
 
   static const int maxPersistedFileReadResultChars =
       kMaxPersistedFileReadResultChars;
@@ -70,7 +79,6 @@ class ChatService extends ChangeNotifier {
       kPreservedToolEventExtraKeys;
 
   final ChatStorage? _storageOverride;
-  final ChatStorageBackend? _backendOverride;
 
   ChatStorage? _storage;
   ChatStorageGateResult? _lastStorageGateResult;
@@ -142,8 +150,9 @@ class ChatService extends ChangeNotifier {
   bool get initializing => _initFuture != null;
 
   /// Initializes the chat store. Runs the SQLite installation/migration gate
-  /// first; ordinary failures fall back to Hive, while a recorded-but-missing
-  /// database pauses in `restoreRequired` for the explicit recovery UI.
+  /// first; ordinary failures surface the startup Retry panel, while a
+  /// recorded-but-missing/unrecoverable database pauses in `restoreRequired`
+  /// for the explicit recovery UI. Hive is never selected at runtime.
   ///
   /// [onMigrationStarted] and [onMigrationFinished] are best-effort lifecycle
   /// hooks for the UI. They fire once per real import, never for an ordinary
@@ -212,44 +221,25 @@ class ChatService extends ChangeNotifier {
 
       // The gate reports `checking` through `onMigrationProgress`; don't
       // publish a duplicate intermediate status before it runs.
-      final selection = await _selectStorage(appDataDir);
-      var storage = selection.storage;
-      var fallbackReason = selection.fallbackReason;
+      final storage = await _selectSqliteStorage(appDataDir);
+      // Preserve migration counts/stage through `opening` so the blocking
+      // panel does not disappear between validation and the first render.
+      // A normal SQLite startup has no counts and uses the invisible barrier.
       _setStorageInitStatus(
-        const ChatStorageInitStatus(phase: ChatStorageInitPhase.opening),
+        _storageInitStatus.copyWith(
+          phase: ChatStorageInitPhase.opening,
+          stage: 'opening',
+        ),
       );
       try {
         await storage.initialize();
       } catch (e) {
-        // A failed initialize may already hold a DB connection or some Hive
-        // boxes. Close it before a fallback/retry opens the same files again.
-        final failedStorage = storage;
+        // A failed initialize may already hold a DB connection. Close it before
+        // Retry reopens the same files. There is no Hive runtime fallback.
         try {
-          await failedStorage.dispose();
+          await storage.dispose();
         } catch (_) {}
-
-        // A database can pass the admission gate and still fail to open (for
-        // example a locked/corrupt file). Keep the app usable on the legacy
-        // backend instead of failing chat initialization outright.
-        if (failedStorage.backend == ChatStorageBackend.sqlite &&
-            _backendOverride != ChatStorageBackend.sqlite) {
-          FlutterLogger.log(
-            'SQLite chat storage open failed: $e. Falling back to Hive.',
-            tag: 'chat-storage',
-          );
-          fallbackReason = 'SQLite could not be opened: $e';
-          storage = HiveChatStorage(directory: appDataDir);
-          try {
-            await storage.initialize();
-          } catch (_) {
-            try {
-              await storage.dispose();
-            } catch (_) {}
-            rethrow;
-          }
-        } else {
-          rethrow;
-        }
+        throw ChatStorageUnavailableException('SQLite could not be opened: $e');
       }
 
       // Retired P1-5 snapshot box: best-effort sweep, never opened as chat
@@ -264,11 +254,7 @@ class ChatService extends ChangeNotifier {
       _storage = storage;
       _initialized = true;
       _setStorageInitStatus(
-        ChatStorageInitStatus(
-          phase: ChatStorageInitPhase.ready,
-          isLegacyFallback: fallbackReason != null,
-          message: fallbackReason,
-        ),
+        const ChatStorageInitStatus(phase: ChatStorageInitPhase.ready),
       );
     } on ChatStorageRestoreRequiredException catch (e) {
       _legacyHiveAvailable =
@@ -307,73 +293,43 @@ class ChatService extends ChangeNotifier {
     }
   }
 
-  Future<_StorageSelection> _selectStorage(Directory directory) async {
-    if (_backendOverride == ChatStorageBackend.hive) {
-      return _StorageSelection(HiveChatStorage(directory: directory));
-    }
-
+  Future<ChatStorage> _selectSqliteStorage(Directory directory) async {
     final appVersion = await _appVersion();
-    if (_backendOverride == ChatStorageBackend.sqlite) {
-      return _StorageSelection(
-        SqliteChatStorage(directory: directory, appVersion: appVersion),
-      );
-    }
-
-    const forceHive = bool.fromEnvironment(
-      'CHAT_STORAGE_FORCE_HIVE',
-      defaultValue: false,
-    );
-    if (forceHive) {
-      FlutterLogger.log(
-        'CHAT_STORAGE_FORCE_HIVE is set; using the Hive chat backend.',
-        tag: 'chat-storage',
-      );
-      return _StorageSelection(HiveChatStorage(directory: directory));
-    }
-
     try {
       final result = await ChatStorageGate(
         directory: directory,
         appVersion: appVersion,
         backupPrompt: _backupPrompt,
         // Never silently skip the pre-migration backup. A non-UI caller that
-        // reaches the gate first stays on Hive until the app is restarted from
-        // the chat surface, where the backup prompt is available.
+        // reaches the gate first fails closed until the chat surface retries.
         requireBackupPrompt: true,
         onMigrationProgress: _onMigrationProgress,
       ).ensureReady();
       _lastStorageGateResult = result;
-      if (result.stage == ChatStorageGateStage.needsRestoreOrReset) {
+
+      final installationState = result.installation?.state;
+      if (result.stage == ChatStorageGateStage.needsRestoreOrReset ||
+          result.needsRecovery ||
+          installationState == ChatInstallationState.failClosed ||
+          installationState == ChatInstallationState.needsRestoreOrReset) {
         throw ChatStorageRestoreRequiredException(result.message);
       }
-      if (result.sqliteReady) {
-        FlutterLogger.log(
-          'SQLite chat storage ready (${result.stage.name}).',
-          tag: 'chat-storage',
-        );
-        return _StorageSelection(
-          SqliteChatStorage(directory: directory, appVersion: appVersion),
-        );
+      if (!result.sqliteReady) {
+        throw ChatStorageUnavailableException(result.message);
       }
       FlutterLogger.log(
-        'SQLite chat storage unavailable (${result.stage.name}): '
-        '${result.message}. Falling back to Hive.',
+        'SQLite chat storage ready (${result.stage.name}).',
         tag: 'chat-storage',
       );
-      return _StorageSelection(
-        HiveChatStorage(directory: directory),
-        fallbackReason: result.message,
-      );
+      return SqliteChatStorage(directory: directory, appVersion: appVersion);
     } on ChatStorageRestoreRequiredException {
       rethrow;
+    } on ChatStorageUnavailableException {
+      rethrow;
     } catch (e) {
-      FlutterLogger.log(
-        'Chat storage gate failed: $e. Falling back to Hive.',
-        tag: 'chat-storage',
-      );
-      return _StorageSelection(
-        HiveChatStorage(directory: directory),
-        fallbackReason: e.toString(),
+      FlutterLogger.log('Chat storage gate failed: $e.', tag: 'chat-storage');
+      throw ChatStorageUnavailableException(
+        'Chat storage initialization failed: $e',
       );
     }
   }
@@ -399,6 +355,7 @@ class ChatService extends ChangeNotifier {
         messages: counts?.messages,
         parts: counts?.parts,
         quarantined: counts?.quarantined,
+        cutoverStarted: stage != 'checking',
       ),
     );
   }
@@ -1403,38 +1360,6 @@ class ChatService extends ChangeNotifier {
     await recovery.validateBackup(archive);
   }
 
-  /// Keep the app usable for this session without deleting the missing/corrupt
-  /// SQLite family or modifying Hive. A later launch asks again.
-  Future<void> useLegacyStorage() async {
-    if (_initialized && _storage?.backend == ChatStorageBackend.hive) return;
-    await _detachStorageForRecovery();
-    final directory =
-        _appDataDirectory ?? await AppDirectories.getAppDataDirectory();
-    final storage = HiveChatStorage(directory: directory);
-    try {
-      await storage.initialize();
-    } catch (error) {
-      try {
-        await storage.dispose();
-      } catch (_) {}
-      _markRecoveryFailed(error);
-      rethrow;
-    }
-    if (_disposed) {
-      await storage.dispose();
-      return;
-    }
-    _storage = storage;
-    _initialized = true;
-    _setStorageInitStatus(
-      ChatStorageInitStatus(
-        phase: ChatStorageInitPhase.ready,
-        isLegacyFallback: true,
-        message: _lastStorageGateResult?.message,
-      ),
-    );
-  }
-
   void _markRecoveryFailed(Object error) {
     if (_disposed) return;
     _setStorageInitStatus(
@@ -1458,7 +1383,7 @@ class ChatService extends ChangeNotifier {
       _initialized = false;
       rethrow;
     }
-    await _afterClearRows();
+    await _afterClearRows(deleteUploads: true);
   }
 
   /// Explicit §9.8 legacy Hive re-import. Merges missing conversations and
@@ -1524,23 +1449,28 @@ class ChatService extends ChangeNotifier {
 
   /// Backup-restore path: delete all chat rows without resetting the database
   /// installation or writing the `legacy_import_disabled` sentinel.
+  ///
+  /// Uploads are preserved. A full reset uses [clearAllData], and a
+  /// file-inclusive restore replaces `upload/` only inside the restore's file
+  /// section after the archive has been validated and extracted.
   Future<void> clearAllChatRows() async {
     if (!_initialized) return;
     await _storage!.clearAllRows();
-    await _afterClearRows();
+    await _afterClearRows(deleteUploads: false);
   }
 
-  Future<void> _afterClearRows() async {
+  Future<void> _afterClearRows({required bool deleteUploads}) async {
     _draftConversations.clear();
     _draftWorkspaceConfigs.clear();
     _currentConversationId = null;
-    // Remove the uploads directory completely.
-    try {
-      final uploadDir = await AppDirectories.getUploadDirectory();
-      if (await uploadDir.exists()) {
-        await uploadDir.delete(recursive: true);
-      }
-    } catch (_) {}
+    if (deleteUploads) {
+      try {
+        final uploadDir = await AppDirectories.getUploadDirectory();
+        if (await uploadDir.exists()) {
+          await uploadDir.delete(recursive: true);
+        }
+      } catch (_) {}
+    }
     notifyListeners();
   }
 
@@ -1645,11 +1575,4 @@ class UploadStats {
 
   final int fileCount;
   final int totalBytes;
-}
-
-class _StorageSelection {
-  const _StorageSelection(this.storage, {this.fallbackReason});
-
-  final ChatStorage storage;
-  final String? fallbackReason;
 }

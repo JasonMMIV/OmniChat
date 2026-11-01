@@ -11,7 +11,7 @@ Widget _app({
   Future<bool> Function()? onRestore,
   Future<void> Function()? onRebuild,
   Future<void> Function()? onReset,
-  Future<void> Function()? onContinueLegacy,
+  Future<void> Function()? onRetry,
 }) {
   return MaterialApp(
     locale: const Locale('en'),
@@ -26,7 +26,7 @@ Widget _app({
             onRestoreBackup: onRestore ?? () async => true,
             onRebuildFromHive: onRebuild ?? () async {},
             onReset: onReset ?? () async {},
-            onContinueLegacy: onContinueLegacy ?? () async {},
+            onRetry: onRetry ?? () async {},
           ),
         ],
       ),
@@ -40,22 +40,40 @@ void main() {
     message: 'A prior installation was recorded but chat_v2.sqlite is missing.',
   );
 
-  testWidgets('shows restore, rebuild, reset, and explicit legacy choices', (
-    tester,
-  ) async {
+  testWidgets('shows restore, rebuild, and reset choices', (tester) async {
     await tester.pumpWidget(_app(status: status));
 
     expect(find.text('Chat storage needs attention'), findsOneWidget);
     expect(find.text('Restore from backup'), findsOneWidget);
     expect(find.text('Rebuild from legacy Hive'), findsOneWidget);
     expect(find.text('Reset chat storage'), findsOneWidget);
-    expect(find.text('Continue with the legacy store for now'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
+    expect(find.text('Continue with the legacy store for now'), findsNothing);
     expect(
       find.text(
         'A prior installation was recorded but chat_v2.sqlite is missing.',
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('retry runs the startup retry callback', (tester) async {
+    var retries = 0;
+    await tester.pumpWidget(
+      _app(
+        status: status,
+        onRetry: () async {
+          retries++;
+        },
+      ),
+    );
+
+    await tester.ensureVisible(find.text('Retry'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+
+    expect(retries, 1);
   });
 
   testWidgets('hides rebuild when no Hive artifacts exist', (tester) async {

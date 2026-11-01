@@ -1157,7 +1157,9 @@ class DataSync {
 
         if (mode == RestoreMode.overwrite) {
           // Clear rows only: a routine restore must not reset the database
-          // installation or write the legacy-import-disabled sentinel.
+          // installation or write the legacy-import-disabled sentinel. Local
+          // uploads are only replaced by the file section below when the
+          // archive actually contains an upload directory.
           await chatService.clearAllChatRows();
           final byConv = <String, List<ChatMessage>>{};
           for (final m in msgs) {
@@ -1286,15 +1288,21 @@ class DataSync {
         // Restore upload directory
         final uploadSrc = Directory(p.join(extractDir.path, 'upload'));
         if (await uploadSrc.exists()) {
-          final dst = await _getUploadDir();
-          if (await dst.exists()) {
-            try {
-              await dst.delete(recursive: true);
-            } catch (_) {}
-          }
-          await dst.create(recursive: true);
-          for (final ent in uploadSrc.listSync(recursive: true)) {
-            if (ent is File) {
+          final uploadFiles = uploadSrc
+              .listSync(recursive: true)
+              .whereType<File>()
+              .toList();
+          // An archive with only an empty upload/ entry must not wipe local
+          // files while restoring nothing.
+          if (uploadFiles.isNotEmpty) {
+            final dst = await _getUploadDir();
+            if (await dst.exists()) {
+              try {
+                await dst.delete(recursive: true);
+              } catch (_) {}
+            }
+            await dst.create(recursive: true);
+            for (final ent in uploadFiles) {
               final rel = p.relative(ent.path, from: uploadSrc.path);
               final target = File(p.join(dst.path, rel));
               await target.parent.create(recursive: true);
@@ -1306,15 +1314,19 @@ class DataSync {
         // Restore images directory
         final imagesSrc = Directory(p.join(extractDir.path, 'images'));
         if (await imagesSrc.exists()) {
-          final dst = await _getImagesDir();
-          if (await dst.exists()) {
-            try {
-              await dst.delete(recursive: true);
-            } catch (_) {}
-          }
-          await dst.create(recursive: true);
-          for (final ent in imagesSrc.listSync(recursive: true)) {
-            if (ent is File) {
+          final imageFiles = imagesSrc
+              .listSync(recursive: true)
+              .whereType<File>()
+              .toList();
+          if (imageFiles.isNotEmpty) {
+            final dst = await _getImagesDir();
+            if (await dst.exists()) {
+              try {
+                await dst.delete(recursive: true);
+              } catch (_) {}
+            }
+            await dst.create(recursive: true);
+            for (final ent in imageFiles) {
               final rel = p.relative(ent.path, from: imagesSrc.path);
               final target = File(p.join(dst.path, rel));
               await target.parent.create(recursive: true);
@@ -1326,15 +1338,19 @@ class DataSync {
         // Restore avatars directory
         final avatarsSrc = Directory(p.join(extractDir.path, 'avatars'));
         if (await avatarsSrc.exists()) {
-          final dst = await _getAvatarsDir();
-          if (await dst.exists()) {
-            try {
-              await dst.delete(recursive: true);
-            } catch (_) {}
-          }
-          await dst.create(recursive: true);
-          for (final ent in avatarsSrc.listSync(recursive: true)) {
-            if (ent is File) {
+          final avatarFiles = avatarsSrc
+              .listSync(recursive: true)
+              .whereType<File>()
+              .toList();
+          if (avatarFiles.isNotEmpty) {
+            final dst = await _getAvatarsDir();
+            if (await dst.exists()) {
+              try {
+                await dst.delete(recursive: true);
+              } catch (_) {}
+            }
+            await dst.create(recursive: true);
+            for (final ent in avatarFiles) {
               final rel = p.relative(ent.path, from: avatarsSrc.path);
               final target = File(p.join(dst.path, rel));
               await target.parent.create(recursive: true);

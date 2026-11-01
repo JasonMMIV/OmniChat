@@ -12,13 +12,14 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../theme/app_font_weights.dart';
 
-/// Blocking startup surface for the one-time chat-storage cutover (§9.6).
+/// Startup surface for the one-time chat-storage cutover (§9.6).
 ///
-/// Chat widgets must never call `getMessages`/`getToolEvents` before the gate
-/// finishes. This overlay is the visual contract for that rule: it stays above
-/// the home layout while the database is checked, migrated, validated, and
-/// opened, then disappears. A failure keeps the surface visible with the
-/// diagnostic and a retry action; nothing has been deleted at that point.
+/// A normal SQLite launch also passes through `preparing`/`checking`/`opening`.
+/// Those phases show no progress UI at all; only an invisible full-screen
+/// barrier absorbs input until ready. The full panel is reserved for the real
+/// backup/migration/validation work, failures, and the migration tail while
+/// SQLite is being opened. Chat widgets must never read chat rows before
+/// initialization finishes.
 class ChatStorageStartupOverlay extends StatelessWidget {
   const ChatStorageStartupOverlay({super.key, this.onRetry});
 
@@ -34,8 +35,13 @@ class ChatStorageStartupOverlay extends StatelessWidget {
     );
     final showInitializing =
         initializing && status.phase == ChatStorageInitPhase.idle;
-    if (!showInitializing && !status.isBusy && !status.hasFailed) {
+    final showBlocking = status.hasFailed || status.isMigration;
+    final showQuiet = !showBlocking && (showInitializing || status.isBusy);
+    if (!showBlocking && !showQuiet) {
       return const SizedBox.shrink();
+    }
+    if (!showBlocking) {
+      return const _StartupInputBarrier();
     }
 
     final l10n = AppLocalizations.of(context)!;
@@ -83,6 +89,20 @@ class ChatStorageStartupOverlay extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Invisible input guard for ordinary SQLite startup. A normal launch is fast
+/// and needs no visible progress UI, but chat actions must still not race the
+/// post-init conversation selection.
+class _StartupInputBarrier extends StatelessWidget {
+  const _StartupInputBarrier();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Positioned.fill(
+      child: AbsorbPointer(child: SizedBox.expand()),
     );
   }
 }
@@ -263,7 +283,7 @@ class _FailedState extends StatelessWidget {
   final Future<void> Function()? onRetry;
 
   Future<void> _retry() async {
-    // `init()` rethrows when the Hive fallback also fails. The service already
+    // `init()` rethrows when SQLite cannot be opened. The service already
     // recorded that failure in the status, so keep the retry future settled and
     // never leak an unhandled zone error from a button tap.
     try {
