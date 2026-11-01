@@ -32,6 +32,8 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        // Provider OAuth sign-in: Custom Tabs/AuthTab + deep-link completion.
+        OAuthHandler.configure(this, flutterEngine.dartExecutor.binaryMessenger)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName).setMethodCallHandler { call, result ->
             when (call.method) {
                 "startCallMode" -> {
@@ -472,6 +474,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        OAuthHandler.detachActivity(this)
         incomingShareHandler?.close()
         incomingShareHandler = null
         incomingShareChannel = null

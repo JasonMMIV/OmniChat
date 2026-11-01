@@ -10643,6 +10643,390 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'With a provider source, the URL is sent to that provider and billed by its plan.'**
   String get searchWebFetchTier2Note;
+
+  /// No description provided for @addProviderSheetAccountTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get addProviderSheetAccountTab;
+
+  /// No description provided for @oauthChatGptName.
+  ///
+  /// In en, this message translates to:
+  /// **'ChatGPT (Codex)'**
+  String get oauthChatGptName;
+
+  /// No description provided for @oauthChatGptSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Use your ChatGPT Plus / Pro subscription'**
+  String get oauthChatGptSubtitle;
+
+  /// No description provided for @oauthClaudeName.
+  ///
+  /// In en, this message translates to:
+  /// **'Claude (Pro / Max)'**
+  String get oauthClaudeName;
+
+  /// No description provided for @oauthClaudeSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Use your Claude Pro / Max subscription'**
+  String get oauthClaudeSubtitle;
+
+  /// No description provided for @oauthGrokName.
+  ///
+  /// In en, this message translates to:
+  /// **'Grok'**
+  String get oauthGrokName;
+
+  /// No description provided for @oauthGrokSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Use your Grok subscription'**
+  String get oauthGrokSubtitle;
+
+  /// No description provided for @oauthKimiName.
+  ///
+  /// In en, this message translates to:
+  /// **'Kimi Code'**
+  String get oauthKimiName;
+
+  /// No description provided for @oauthKimiSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Use your Kimi Code coding plan'**
+  String get oauthKimiSubtitle;
+
+  /// No description provided for @oauthChatGptIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with your ChatGPT account to use GPT-5.x and Codex models on your subscription quota - no API key needed.'**
+  String get oauthChatGptIntro;
+
+  /// No description provided for @oauthClaudeIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with your Claude account to use Claude models on your Pro / Max subscription - no API key needed.'**
+  String get oauthClaudeIntro;
+
+  /// No description provided for @oauthGrokIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with your xAI account to use Grok models on your subscription quota - no API key needed.'**
+  String get oauthGrokIntro;
+
+  /// No description provided for @oauthKimiIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with your Kimi account to use Kimi Code models on your coding plan - no API key needed.'**
+  String get oauthKimiIntro;
+
+  /// No description provided for @oauthSignInButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in'**
+  String get oauthSignInButton;
+
+  /// No description provided for @oauthWaitingBrowser.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the browser. Finish signing in there and return to OmniChat.'**
+  String get oauthWaitingBrowser;
+
+  /// No description provided for @oauthOpenBrowserAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Open sign-in page'**
+  String get oauthOpenBrowserAgain;
+
+  /// No description provided for @oauthCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get oauthCancel;
+
+  /// No description provided for @oauthManualHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste the authorization code, code#state, or the full callback URL'**
+  String get oauthManualHint;
+
+  /// No description provided for @oauthManualSubmit.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit code'**
+  String get oauthManualSubmit;
+
+  /// No description provided for @oauthManualWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic callback did not complete. Paste the code from the browser instead.'**
+  String get oauthManualWaiting;
+
+  /// No description provided for @oauthDeviceRequesting.
+  ///
+  /// In en, this message translates to:
+  /// **'Requesting a device code...'**
+  String get oauthDeviceRequesting;
+
+  /// No description provided for @oauthDeviceWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for confirmation on the device page...'**
+  String get oauthDeviceWaiting;
+
+  /// No description provided for @oauthExchanging.
+  ///
+  /// In en, this message translates to:
+  /// **'Exchanging the authorization code...'**
+  String get oauthExchanging;
+
+  /// No description provided for @oauthDeviceCodeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter this code on the provider page:'**
+  String get oauthDeviceCodeHint;
+
+  /// No description provided for @oauthOpenDevicePage.
+  ///
+  /// In en, this message translates to:
+  /// **'Open device page'**
+  String get oauthOpenDevicePage;
+
+  /// No description provided for @oauthSignInFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in failed'**
+  String get oauthSignInFailed;
+
+  /// No description provided for @oauthRiskNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'This signs in with a subscription account through an unofficial client. Provider terms may change and the account risk is yours.'**
+  String get oauthRiskNotice;
+
+  /// No description provided for @oauthDisabledNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Provider account sign-in is turned off. Enable it on the account page to sign in.'**
+  String get oauthDisabledNotice;
+
+  /// No description provided for @oauthClaudeAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Claude subscription account'**
+  String get oauthClaudeAccount;
+
+  /// No description provided for @oauthGrokAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Grok subscription account'**
+  String get oauthGrokAccount;
+
+  /// No description provided for @oauthKimiAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Kimi Code subscription account'**
+  String get oauthKimiAccount;
+
+  /// No description provided for @oauthChatGptAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'ChatGPT subscription account'**
+  String get oauthChatGptAccount;
+
+  /// No description provided for @oauthConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected'**
+  String get oauthConnected;
+
+  /// No description provided for @oauthNotSignedIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Not signed in'**
+  String get oauthNotSignedIn;
+
+  /// No description provided for @oauthLoginRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in required'**
+  String get oauthLoginRequired;
+
+  /// No description provided for @oauthChatRecoveryReadyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready to retry'**
+  String get oauthChatRecoveryReadyTitle;
+
+  /// No description provided for @oauthChatRecoveryBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The subscription account for {provider} needs to sign in again. Sign in, then press Retry. This turn is not re-sent automatically.'**
+  String oauthChatRecoveryBody(String provider);
+
+  /// No description provided for @oauthChatRecoveryNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'This turn stopped because the account needed to sign in again.'**
+  String get oauthChatRecoveryNotice;
+
+  /// No description provided for @oauthChatRecoverySignIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in again'**
+  String get oauthChatRecoverySignIn;
+
+  /// No description provided for @oauthChatRecoveryRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get oauthChatRecoveryRetry;
+
+  /// No description provided for @oauthChatRecoveryDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed in. Press Retry to continue this turn.'**
+  String get oauthChatRecoveryDone;
+
+  /// No description provided for @oauthSignedIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed in'**
+  String get oauthSignedIn;
+
+  /// No description provided for @oauthPlanLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan'**
+  String get oauthPlanLabel;
+
+  /// No description provided for @oauthUsageSession.
+  ///
+  /// In en, this message translates to:
+  /// **'5-hour window'**
+  String get oauthUsageSession;
+
+  /// No description provided for @oauthUsageWeekly.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly window'**
+  String get oauthUsageWeekly;
+
+  /// No description provided for @oauthUsageScoped.
+  ///
+  /// In en, this message translates to:
+  /// **'Model window'**
+  String get oauthUsageScoped;
+
+  /// No description provided for @oauthUsageExtra.
+  ///
+  /// In en, this message translates to:
+  /// **'Extra usage'**
+  String get oauthUsageExtra;
+
+  /// No description provided for @oauthUsageResets.
+  ///
+  /// In en, this message translates to:
+  /// **'Resets {time}'**
+  String oauthUsageResets(String time);
+
+  /// No description provided for @oauthRefreshUsage.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh usage'**
+  String get oauthRefreshUsage;
+
+  /// No description provided for @oauthSyncModels.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync models'**
+  String get oauthSyncModels;
+
+  /// No description provided for @oauthSyncSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Models updated ({count})'**
+  String oauthSyncSuccess(int count);
+
+  /// No description provided for @oauthSyncFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Model sync failed'**
+  String get oauthSyncFailed;
+
+  /// No description provided for @oauthModelsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Models ({count})'**
+  String oauthModelsTitle(int count);
+
+  /// No description provided for @oauthModelsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No models synced yet. Use Sync models.'**
+  String get oauthModelsEmpty;
+
+  /// No description provided for @oauthModelsKeptAfterSignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Models stay in this list after sign-out and are shown as signed out.'**
+  String get oauthModelsKeptAfterSignOut;
+
+  /// No description provided for @oauthPromptCaching.
+  ///
+  /// In en, this message translates to:
+  /// **'Prompt caching'**
+  String get oauthPromptCaching;
+
+  /// No description provided for @oauthPromptCacheTtl5m.
+  ///
+  /// In en, this message translates to:
+  /// **'5 minutes'**
+  String get oauthPromptCacheTtl5m;
+
+  /// No description provided for @oauthPromptCacheTtl1h.
+  ///
+  /// In en, this message translates to:
+  /// **'1 hour'**
+  String get oauthPromptCacheTtl1h;
+
+  /// No description provided for @oauthEndpointLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Endpoint'**
+  String get oauthEndpointLabel;
+
+  /// No description provided for @oauthSignedInAccountId.
+  ///
+  /// In en, this message translates to:
+  /// **'Account ID'**
+  String get oauthSignedInAccountId;
+
+  /// No description provided for @oauthLogout.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out'**
+  String get oauthLogout;
+
+  /// No description provided for @oauthLogoutConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out of this account? The synced model list is kept.'**
+  String get oauthLogoutConfirm;
+
+  /// No description provided for @oauthFeatureToggle.
+  ///
+  /// In en, this message translates to:
+  /// **'Provider account sign-in'**
+  String get oauthFeatureToggle;
+
+  /// No description provided for @oauthFeatureToggleHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn this off to hide and disable subscription sign-in. API-key providers are unaffected.'**
+  String get oauthFeatureToggleHelp;
 }
 
 class _AppLocalizationsDelegate

@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../icons/lucide_adapter.dart';
 import 'provider_detail_page.dart';
+import 'oauth_provider_detail_page.dart';
 import '../widgets/import_provider_sheet.dart';
 import '../widgets/add_provider_sheet.dart';
 // grid reorder removed in favor of iOS-style list reordering
@@ -488,12 +489,20 @@ class _ProviderRow extends StatelessWidget {
           Haptics.light();
           onToggleSelect(provider.keyName);
         } else {
+          final cfg = context
+              .read<SettingsProvider>()
+              .providerConfigs[provider.keyName];
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => ProviderDetailPage(
-                keyName: provider.keyName,
-                displayName: provider.name,
-              ),
+              builder: (_) => cfg?.oauthProvider != null
+                  ? OAuthProviderDetailPage(
+                      keyName: provider.keyName,
+                      displayName: provider.name,
+                    )
+                  : ProviderDetailPage(
+                      keyName: provider.keyName,
+                      displayName: provider.name,
+                    ),
             ),
           );
         }

@@ -25,7 +25,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
@@ -55,6 +55,33 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+        <!-- Provider OAuth: a translucent activity owns the Custom Tab/AuthTab
+             result across recreation; the exported callback activity receives the
+             deep link that closes the browser and returns to the app. -->
+        <activity
+            android:name=".OAuthAuthorizationActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <activity
+            android:name=".OAuthCallbackActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="com.psyche.omnichat" android:host="oauth-callback"/>
+            </intent-filter>
+        </activity>
+        <!-- Custom Tabs binds here only while its authorization window is visible. -->
+        <service
+            android:name=".OAuthBrowserService"
+            android:exported="true" />
         <!-- Foreground service to keep Flutter isolate alive for background generation -->
         <service
             android:name="de.julianassmann.flutter_background.IsolateHolderService"
@@ -72,6 +99,13 @@
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>

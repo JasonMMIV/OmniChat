@@ -14,6 +14,10 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/services/api/learned_context_windows.dart';
 import '../../../core/services/api/transient_stream_error.dart';
+import '../../../core/services/auth/oauth_errors.dart';
+import '../../../core/services/auth/oauth_failure.dart';
+import '../../../core/services/auth/oauth_recovery_registry.dart';
+import '../../../core/services/auth/provider_oauth_service.dart';
 import '../../../core/services/agent/agent_loop.dart';
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/agent/compaction/midrun_compactor.dart';
@@ -75,7 +79,11 @@ class ChatActions {
     required this.generationController,
     required this.messageGenerationService,
     required this.contextProvider,
-  });
+    ProviderOAuthService? oauthService,
+    OAuthRecoveryRegistry? oauthRecoveryRegistry,
+  }) : oauthService = oauthService ?? ProviderOAuthService.instance,
+       oauthRecoveryRegistry =
+           oauthRecoveryRegistry ?? OAuthRecoveryRegistry.instance;
 
   final ChatService chatService;
   final ChatController chatController;
@@ -83,6 +91,11 @@ class ChatActions {
   final GenerationController generationController;
   final MessageGenerationService messageGenerationService;
   final BuildContext contextProvider;
+
+  /// Subscription-account state and per-message auth failures (plan M4).
+  /// Injected in tests; defaults to the app-wide singletons in production.
+  final ProviderOAuthService oauthService;
+  final OAuthRecoveryRegistry oauthRecoveryRegistry;
 
   /// P0-2 agent-loop driver (kernel path behind the `agent_loop_v1`
   /// kill-switch). Stateless per run.
@@ -2432,7 +2445,27 @@ class ChatActions {
   ) async {
     final messageId = state.messageId;
     final conversationId = state.conversationId;
-    final errorText = e.toString();
+    final l10n = AppLocalizations.of(contextProvider);
+    // Only an auth failure of this account may turn the turn into the recovery
+    // flow. The classifier also covers the second-401 shape, which the wrapper
+    // returns after marking the account (the transport then throws HttpException
+    // rather than OAuthException) — see oauth_failure.dart (plan C3).
+    final bool oauthLoginRequired = isOAuthLoginRequiredFailure(
+      config: state.ctx.config,
+      error: e,
+      accountFlagged: oauthService.isLoginRequired(state.ctx.config.id),
+    );
+    // Never dump raw OAuth text (English, provider-shaped) into the bubble:
+    // the recovery card under the message owns the sign-in UX (plan M4/C16).
+    final String oauthNotice =
+        l10n?.oauthChatRecoveryNotice ??
+        'This turn stopped because the account needed to sign in again.';
+    final bool oauthDisabled = e is OAuthDisabledException;
+    final errorText = oauthLoginRequired
+        ? oauthNotice
+        : oauthDisabled
+        ? (l10n?.oauthDisabledNotice ?? e.toString())
+        : e.toString();
     final isRetriesExhausted =
         e is TransientStreamError && e.isRetriesExhausted;
 
@@ -2445,7 +2478,18 @@ class ChatActions {
     // budget was spent and we have partial content, keep it; otherwise
     // fall back to the legacy behaviour (rawContent or errorText).
     final String displayContent;
-    if (state.fullContentRaw.isNotEmpty && isRetriesExhausted) {
+    if (oauthLoginRequired) {
+      // Both the message bubble and the card are driven by the failure; the
+      // registry is keyed by message id and drives the card independently of
+      // the (localizable) notice text.
+      oauthRecoveryRegistry.markFailed(messageId);
+      // Partial output is still billed and visible, so keep it and append the
+      // recovery note; the card below the message carries the action.
+      final partial = state.fullContentRaw.trimRight();
+      displayContent = partial.isEmpty
+          ? oauthNotice
+          : '$partial\n\n$oauthNotice';
+    } else if (state.fullContentRaw.isNotEmpty && isRetriesExhausted) {
       // When retries are exhausted, the error is guaranteed to be a
       // [TransientStreamError] (the only path that flips
       // [isRetriesExhausted] to true).
@@ -2453,7 +2497,6 @@ class ChatActions {
       // Localised note via the ARB key. Fall back to a hard-coded
       // string if the ARB lookup fails (e.g. context has been
       // disposed by the time the error fires).
-      final l10n = AppLocalizations.of(contextProvider);
       final note = l10n != null
           ? '\n\n${l10n.streamInterruptedNote(attempts)}'
           : '\n\n(Connection interrupted after $attempts retries)';

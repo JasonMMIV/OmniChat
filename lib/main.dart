@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
-    show kIsWeb, defaultTargetPlatform, TargetPlatform;
+    show
+        kIsWeb,
+        defaultTargetPlatform,
+        TargetPlatform,
+        LicenseRegistry,
+        LicenseEntryWithLineBreaks;
 import 'dart:async';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
@@ -29,6 +34,7 @@ import 'core/providers/instruction_injection_provider.dart';
 import 'core/providers/skills_provider.dart';
 import 'core/services/skills/skill_service.dart';
 import 'core/services/model_catalog/model_catalog_service.dart';
+import 'core/services/auth/provider_oauth_service.dart';
 import 'core/providers/ai_team_provider.dart';
 import 'core/providers/memory_provider.dart';
 import 'core/providers/backup_provider.dart';
@@ -100,6 +106,24 @@ Future<void> main() async {
           onTimeout: () {},
         );
       } catch (_) {}
+      // Ported provider-OAuth adapters carry AGPL-3.0 obligations. Registering
+      // the notice here makes it visible in the About → licenses page without
+      // duplicating the repo-level THIRD_PARTY_NOTICES.md text.
+      LicenseRegistry.addLicense(() async* {
+        yield const LicenseEntryWithLineBreaks(
+          <String>['OmniChat provider OAuth adapters'],
+          'Ported from Chevey339/kelivo (AGPL-3.0), '
+          'commit 05eef503b6e7cda14de897373b79bab7bebe35b9, '
+          'modified for OmniChat on 2026-11-01.\n\n'
+          'Files: lib/core/models/provider_oauth.dart, '
+          'lib/core/services/auth/*.dart, '
+          'lib/core/services/api/provider_request_headers.dart, '
+          'android/app/src/main/kotlin/com/psyche/omnichat/OAuth*.kt.\n\n'
+          'Derivative files are distributed under the GNU Affero General '
+          'Public License v3 — see the LICENSE file at the repository root '
+          'and THIRD_PARTY_NOTICES.md for the full attribution list.',
+        );
+      });
       // Enable edge-to-edge to allow content under system bars (Android)
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       // Start app (Flutter log capture is toggleable and off by default)
@@ -133,6 +157,38 @@ Future<void> _initDesktopWindow() async {
   }
 }
 
+/// Wires OAuth account state to settings (persistence) and re-syncs Codex
+/// models when the pinned client version moved (plan D4 / M3). Fully
+/// non-blocking: launch never waits on the network.
+void _bootstrapProviderOAuth(SettingsProvider settings) {
+  final service = ProviderOAuthService.instance;
+  service.attachSettings(settings);
+  unawaited(() async {
+    try {
+      await service.loadPreferences();
+      // Wait for settings via its ChangeNotifier instead of a polling timer:
+      // a pending timer keeps WidgetTester's fake async alive after disposal.
+      if (!settings.isLoaded) {
+        final completer = Completer<void>();
+        void onChanged() {
+          if (settings.isLoaded && !completer.isCompleted) {
+            completer.complete();
+          }
+        }
+
+        settings.addListener(onChanged);
+        try {
+          if (!settings.isLoaded) await completer.future;
+        } finally {
+          settings.removeListener(onChanged);
+        }
+      }
+      if (!settings.isLoaded) return;
+      await service.syncOutdatedModels(settings);
+    } catch (_) {}
+  }());
+}
+
 // Removed eager system font preloading to reduce memory footprint at launch.
 
 class MyApp extends StatelessWidget {
@@ -146,7 +202,13 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => ChatProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
-        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProvider(
+          create: (_) {
+            final settings = SettingsProvider();
+            _bootstrapProviderOAuth(settings);
+            return settings;
+          },
+        ),
         ChangeNotifierProvider(create: (_) => ChatService()),
         ChangeNotifierProvider(create: (_) => TodoService()),
         ChangeNotifierProvider(create: (_) => McpToolService()),

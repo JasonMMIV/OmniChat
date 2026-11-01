@@ -15,6 +15,7 @@ import '../../../shared/widgets/ios_tactile.dart';
 import '../../provider/pages/providers_page.dart';
 import 'model_detail_sheet.dart';
 import '../../provider/pages/provider_detail_page.dart';
+import '../../provider/pages/oauth_provider_detail_page.dart';
 import '../../provider/widgets/provider_balance_text.dart';
 import '../../provider/widgets/provider_avatar.dart';
 
@@ -874,8 +875,18 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         borderColor: cs.outlineVariant.withOpacity(0.25),
         onTap: () async { await _jumpToProvider(key); },
         onLongPress: () async {
+          final cfg = context
+              .read<SettingsProvider>()
+              .providerConfigs[key];
           await Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => ProviderDetailPage(keyName: key, displayName: name)),
+            MaterialPageRoute(
+              builder: (_) => cfg?.oauthProvider != null
+                  ? OAuthProviderDetailPage(
+                      keyName: key,
+                      displayName: name,
+                    )
+                  : ProviderDetailPage(keyName: key, displayName: name),
+            ),
           );
           if (mounted) setState(() {});
         },

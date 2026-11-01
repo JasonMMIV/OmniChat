@@ -31,6 +31,7 @@ class DioHttpClient extends http.BaseClient {
   DioHttpClient({
     NetworkProxyConfig? proxy,
     CancelToken? cancelToken,
+    this.redactSensitiveBody = false,
   })  : _proxy = proxy,
         _cancelToken = cancelToken ?? CancelToken(),
         _dio = Dio(
@@ -66,6 +67,11 @@ class DioHttpClient extends http.BaseClient {
   final Dio _dio;
   final NetworkProxyConfig? _proxy;
   final CancelToken _cancelToken;
+
+  /// OAuth providers carry session/account identifiers in the shaped body
+  /// (Claude `metadata.user_id`, Codex `session_id`). When set, the logger
+  /// masks them; the transmitted bytes are never changed (plan C5).
+  final bool redactSensitiveBody;
 
   @override
   void close() {
@@ -107,7 +113,10 @@ class DioHttpClient extends http.BaseClient {
       }
       if (bodyBytes.isNotEmpty) {
         final decoded = RequestLogger.safeDecodeUtf8(bodyBytes);
-        final bodyText = decoded.isNotEmpty ? decoded : 'base64:${base64Encode(bodyBytes)}';
+        var bodyText = decoded.isNotEmpty ? decoded : 'base64:${base64Encode(bodyBytes)}';
+        if (redactSensitiveBody) {
+          bodyText = RequestLogger.redactOAuthBody(bodyText);
+        }
         RequestLogger.logLine('[REQ $reqId] body=${RequestLogger.escape(bodyText)}');
       }
     }
@@ -153,9 +162,20 @@ class DioHttpClient extends http.BaseClient {
           (chunk) {
             controller.add(chunk);
             if (RequestLogger.enabled) {
-              final s = RequestLogger.safeDecodeUtf8(chunk);
-              if (s.isNotEmpty) {
-                RequestLogger.logLine('[RES $reqId] chunk=${RequestLogger.escape(s)}');
+              if (redactSensitiveBody) {
+                // OAuth responses include token-exchange payloads and SSE
+                // bodies containing account/session identity. They must never
+                // reach the log file; log only the size.
+                RequestLogger.logLine(
+                  '[RES $reqId] chunk_bytes=${chunk.length}',
+                );
+              } else {
+                final s = RequestLogger.safeDecodeUtf8(chunk);
+                if (s.isNotEmpty) {
+                  RequestLogger.logLine(
+                    '[RES $reqId] chunk=${RequestLogger.escape(s)}',
+                  );
+                }
               }
             }
           },

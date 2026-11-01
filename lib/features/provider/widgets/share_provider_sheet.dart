@@ -28,7 +28,10 @@ String encodeProviderConfig(ProviderConfig cfg) {
   final map = <String, dynamic>{
     'type': type,
     'name': cfg.name,
-    'apiKey': cfg.apiKey,
+    // Subscription accounts never share credentials: the exported provider is
+    // a signed-out skeleton the receiver signs in to (plan C6).
+    'apiKey': cfg.oauthProvider != null ? '' : cfg.apiKey,
+    if (cfg.oauthProvider != null) 'oauth': cfg.oauthProvider!.wireName,
   };
   if (kind != ProviderKind.google) {
     map['baseUrl'] = cfg.baseUrl;

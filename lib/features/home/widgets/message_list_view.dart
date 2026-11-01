@@ -216,6 +216,16 @@ class MessageListView extends StatelessWidget {
     final collapsedMessages = _collapseVersions(messages);
     final byGroup = _groupMessages(messages);
 
+    // Plan M4: only the newest assistant turn can carry the OAuth recovery
+    // card; older failures would otherwise accumulate cards for one account.
+    String? lastAssistantMessageId;
+    for (final m in collapsedMessages.reversed) {
+      if (m.role == 'assistant') {
+        lastAssistantMessageId = m.id;
+        break;
+      }
+    }
+
     // Map persisted truncateIndex (raw message count) to collapsed index
     final int truncRaw = currentConversation?.truncateIndex ?? -1;
     int truncCollapsed = -1;
@@ -270,6 +280,7 @@ class MessageListView extends StatelessWidget {
               messages: collapsedMessages,
               byGroup: byGroup,
               truncCollapsed: truncCollapsed,
+              lastAssistantMessageId: lastAssistantMessageId,
             );
           },
         );
@@ -291,6 +302,7 @@ class MessageListView extends StatelessWidget {
     required List<ChatMessage> messages,
     required Map<String, List<ChatMessage>> byGroup,
     required int truncCollapsed,
+    required String? lastAssistantMessageId,
   }) {
     final message = messages[index];
     final r = reasoning[message.id];
@@ -360,6 +372,7 @@ class MessageListView extends StatelessWidget {
                             total: total,
                             effectiveIndex: effectiveIndex,
                             effectiveTotal: effectiveTotal,
+                            lastAssistantMessageId: lastAssistantMessageId,
                           )
                         : _buildChatMessageWidget(
                             context,
@@ -377,6 +390,7 @@ class MessageListView extends StatelessWidget {
                             total: total,
                             effectiveIndex: effectiveIndex,
                             effectiveTotal: effectiveTotal,
+                            lastAssistantMessageId: lastAssistantMessageId,
                           ),
                   );
                 },
@@ -411,6 +425,7 @@ class MessageListView extends StatelessWidget {
     required int total,
     required int effectiveIndex,
     required int effectiveTotal,
+    required String? lastAssistantMessageId,
   }) {
     return ValueListenableBuilder<StreamingContentData>(
       valueListenable: streamingContentNotifier!.getNotifier(message.id),
@@ -477,6 +492,7 @@ class MessageListView extends StatelessWidget {
                 total: total,
                 effectiveIndex: effectiveIndex,
                 effectiveTotal: effectiveTotal,
+                lastAssistantMessageId: lastAssistantMessageId,
               ),
             ],
           ),
@@ -517,6 +533,7 @@ class MessageListView extends StatelessWidget {
     required int total,
     required int effectiveIndex,
     required int effectiveTotal,
+    required String? lastAssistantMessageId,
   }) {
     return ChatMessageWidget(
       message: message,
@@ -589,6 +606,10 @@ class MessageListView extends StatelessWidget {
 
       },
       toolParts: message.role == 'assistant' ? toolParts[message.id] : null,
+      showOAuthRecovery:
+          message.role == 'assistant' &&
+          !message.isStreaming &&
+          message.id == lastAssistantMessageId,
       processGroupExplicitOpen: message.role == 'assistant'
           ? processGroupExplicitOpen[message.id]
           : null,

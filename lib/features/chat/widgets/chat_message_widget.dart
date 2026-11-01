@@ -54,6 +54,7 @@ import '../../../desktop/desktop_context_menu.dart';
 import '../../../desktop/menu_anchor.dart';
 import '../../../desktop/html_preview_dialog.dart';
 import '../widgets/workspace_file_browser.dart';
+import '../../provider/widgets/oauth_message_recovery.dart';
 import '../../../shared/widgets/emoji_text.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:super_clipboard/super_clipboard.dart';
@@ -163,6 +164,11 @@ class ChatMessageWidget extends StatefulWidget {
   // assembly-time injection never produces.
   final List<String> userInvokedSkillNames;
 
+  /// Plan M4: renders the subscription re-login recovery card under the last
+  /// assistant turn. The card itself is gated per message by
+  /// `OAuthRecoveryRegistry` and is a no-op for API-key providers.
+  final bool showOAuthRecovery;
+
   const ChatMessageWidget({
     super.key,
     required this.message,
@@ -203,6 +209,7 @@ class ChatMessageWidget extends StatefulWidget {
     this.onSubmitAskUserAnswer,
     this.onResolveApproval,
     this.userInvokedSkillNames = const <String>[],
+    this.showOAuthRecovery = false,
   });
 
   @override
@@ -2349,6 +2356,29 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                     ),
             ),
           ),
+          // Plan M4: the last assistant turn may carry the re-login recovery
+          // card. The card is gated per message by OAuthRecoveryRegistry and
+          // is a no-op for API-key providers.
+          if (widget.showOAuthRecovery)
+            Builder(
+              builder: (context) {
+                final providerId = widget.message.providerId;
+                if (providerId == null || providerId.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                final cfg = context
+                    .watch<SettingsProvider>()
+                    .providerConfigs[providerId];
+                if (cfg == null || cfg.oauthProvider == null) {
+                  return const SizedBox.shrink();
+                }
+                return OAuthMessageRecovery(
+                  messageId: widget.message.id,
+                  config: cfg,
+                  onRetry: widget.onRegenerate,
+                );
+              },
+            ),
           if (_messageFileRecords().isNotEmpty)
             _buildFileCardsSection(_messageFileRecords()),
           // Sources summary card (tap to open full citations)

@@ -18,6 +18,7 @@ import '../services/network/request_logger.dart';
 import '../services/logging/flutter_logger.dart';
 import '../models/api_keys.dart';
 import '../models/backup.dart';
+import '../models/provider_oauth.dart';
 import '../models/workspace_config.dart';
 import '../services/haptics.dart';
 import '../services/screen_wakelock.dart';
@@ -120,8 +121,7 @@ class SettingsProvider extends ChangeNotifier {
 
   /// P1-5 (removed 2026-09-10): legacy snapshot kill-switch key, dropped on
   /// load so it does not linger in SharedPreferences.
-  static const String _legacyWorkspaceSnapshotsV1Key =
-      'workspace_snapshots_v1';
+  static const String _legacyWorkspaceSnapshotsV1Key = 'workspace_snapshots_v1';
 
   static const String _displayAutoCollapseThinkingKey =
       'display_auto_collapse_thinking_v1';
@@ -241,7 +241,8 @@ class SettingsProvider extends ChangeNotifier {
   /// (absent = enabled, so newly added built-in tools default to on).
   /// Covers file_*, write_todos and ask_user. Not in `_localOnlyKeys` —
   /// tool preferences are user intent and sync across devices.
-  static const String _workspaceToolsDisabledKey = 'workspace_tools_disabled_v1';
+  static const String _workspaceToolsDisabledKey =
+      'workspace_tools_disabled_v1';
   static const String _newChatCustomLogoFileNameKey =
       'new_chat_custom_logo_file_name_v1';
   static const String _newChatTextTypeKey = 'new_chat_text_type_v1';
@@ -526,10 +527,7 @@ class SettingsProvider extends ChangeNotifier {
     _workspaceToolsDisabled = next;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(
-      _workspaceToolsDisabledKey,
-      next.toList(),
-    );
+    await prefs.setStringList(_workspaceToolsDisabledKey, next.toList());
   }
 
   static const String _appLaunchCountKey = 'app_launch_count_v1';
@@ -793,10 +791,10 @@ class SettingsProvider extends ChangeNotifier {
     // P1-1 v1.6: drop legacy MCP override keys (the MCP approval policy
     // source was removed 2026-09-10); they decode to nothing and would
     // otherwise surface as raw text in the settings list.
-    _approvalAlwaysAllowed = (prefs.getStringList(_approvalAlwaysAllowedKey) ??
-            const <String>[])
-        .where((k) => !k.startsWith('mcp:') && !k.startsWith('mcp-server:'))
-        .toSet();
+    _approvalAlwaysAllowed =
+        (prefs.getStringList(_approvalAlwaysAllowedKey) ?? const <String>[])
+            .where((k) => !k.startsWith('mcp:') && !k.startsWith('mcp-server:'))
+            .toSet();
     // P1-5 removed 2026-09-10: drop the legacy snapshot kill-switch key.
     await prefs.remove(_legacyWorkspaceSnapshotsV1Key);
     _autoCollapseThinking =
@@ -1222,8 +1220,15 @@ class SettingsProvider extends ChangeNotifier {
     // Migrate balance settings for existing providers if they are missing
     await _migrateBalanceSettings();
 
+    _loaded = true;
     notifyListeners();
   }
+
+  bool _loaded = false;
+
+  /// True once the asynchronous preferences load has finished. Startup tasks
+  /// that read provider configs (OAuth model re-sync) wait for this.
+  bool get isLoaded => _loaded;
 
   Future<void> _migrateBalanceSettings() async {
     bool changed = false;
@@ -4036,6 +4041,13 @@ class ProviderConfig {
   final bool? claudePromptCachingEnabled;
   final String? claudePromptCachingTtl;
 
+  // Provider OAuth account (ChatGPT Codex / Claude Pro-Max subscription).
+  // `oauthProvider != null` switches every request onto the OAuth wire; the
+  // credential blob itself lives here so it follows `provider_configs_v1`
+  // backups (plan D1). Never exported through share/QR (C6).
+  final OAuthProvider? oauthProvider;
+  final Map<String, dynamic>? oauthCredentials;
+
   static const String claudePromptCachingTtl5m = '5m';
   static const String claudePromptCachingTtl1h = '1h';
 
@@ -4088,7 +4100,63 @@ class ProviderConfig {
     this.balanceResultKey,
     this.claudePromptCachingEnabled = false,
     this.claudePromptCachingTtl = claudePromptCachingTtl5m,
+    this.oauthProvider,
+    this.oauthCredentials,
   });
+
+  bool get isOAuth => oauthProvider != null;
+
+  /// Kimi Code advertises a per-model wire protocol. Resolve it before the
+  /// transport is chosen so Anthropic-protocol models use `/messages` while
+  /// OpenAI-protocol models keep `/chat/completions` (plan M6).
+  ProviderConfig forModelProtocol(String modelId) {
+    if (oauthProvider == OAuthProvider.kimi &&
+        (modelOverrides[modelId] as Map?)?['oauthProtocol'] == 'anthropic' &&
+        providerType != ProviderKind.claude) {
+      return copyWith(providerType: ProviderKind.claude);
+    }
+    return this;
+  }
+
+  ProviderOAuthCredentials? get oauthCredentialsValue =>
+      ProviderOAuthCredentials.fromJson(oauthCredentials);
+
+  /// `copyWith` cannot clear a nullable field (`?? this.x`), so sign-out must
+  /// use this dedicated rebuild (plan C14).
+  ProviderConfig clearOAuthCredentials() => ProviderConfig(
+    id: id,
+    enabled: enabled,
+    name: name,
+    apiKey: apiKey,
+    baseUrl: baseUrl,
+    providerType: providerType,
+    chatPath: chatPath,
+    useResponseApi: useResponseApi,
+    vertexAI: vertexAI,
+    location: location,
+    projectId: projectId,
+    serviceAccountJson: serviceAccountJson,
+    models: models,
+    modelOverrides: modelOverrides,
+    proxyEnabled: proxyEnabled,
+    proxyHost: proxyHost,
+    proxyPort: proxyPort,
+    proxyUsername: proxyUsername,
+    proxyPassword: proxyPassword,
+    avatarType: avatarType,
+    avatarValue: avatarValue,
+    multiKeyEnabled: multiKeyEnabled,
+    apiKeys: apiKeys,
+    keyManagement: keyManagement,
+    aihubmixAppCodeEnabled: aihubmixAppCodeEnabled,
+    balanceEnabled: balanceEnabled,
+    balanceApiPath: balanceApiPath,
+    balanceResultKey: balanceResultKey,
+    claudePromptCachingEnabled: claudePromptCachingEnabled,
+    claudePromptCachingTtl: claudePromptCachingTtl,
+    oauthProvider: oauthProvider,
+    oauthCredentials: null,
+  );
 
   // Sentinel for copyWith nullability control (allow explicit null set)
   static const Object _sentinel = Object();
@@ -4124,6 +4192,10 @@ class ProviderConfig {
     String? balanceResultKey,
     bool? claudePromptCachingEnabled,
     String? claudePromptCachingTtl,
+    // Deliberately `?? this.x`: a null argument keeps the existing value. Use
+    // clearOAuthCredentials() to actually sign out (plan C14).
+    OAuthProvider? oauthProvider,
+    Map<String, dynamic>? oauthCredentials,
   }) => ProviderConfig(
     id: id ?? this.id,
     enabled: enabled ?? this.enabled,
@@ -4162,6 +4234,8 @@ class ProviderConfig {
         claudePromptCachingEnabled ?? this.claudePromptCachingEnabled,
     claudePromptCachingTtl:
         claudePromptCachingTtl ?? this.claudePromptCachingTtl,
+    oauthProvider: oauthProvider ?? this.oauthProvider,
+    oauthCredentials: oauthCredentials ?? this.oauthCredentials,
   );
 
   Map<String, dynamic> toJson() => {
@@ -4197,6 +4271,8 @@ class ProviderConfig {
     'claudePromptCachingTtl': resolveClaudePromptCachingTtl(
       claudePromptCachingTtl,
     ),
+    'oauthProvider': oauthProvider?.wireName,
+    'oauthCredentials': oauthCredentials,
   };
 
   /// Returns [ids] with duplicates removed, preserving first-occurrence order.
@@ -4260,7 +4336,50 @@ class ProviderConfig {
     claudePromptCachingTtl: resolveClaudePromptCachingTtl(
       json['claudePromptCachingTtl'] as String?,
     ),
+    oauthProvider: OAuthProvider.fromWire(json['oauthProvider']),
+    oauthCredentials: json['oauthCredentials'] is Map
+        ? (json['oauthCredentials'] as Map).map(
+            (k, v) => MapEntry(k.toString(), v),
+          )
+        : null,
   );
+
+  /// Builds a subscription-account provider (plan §4.2). No `ProviderKind` is
+  /// added: `oauthProvider` is the discriminator, the transport follows the
+  /// provider's native protocol (Codex Responses / Anthropic Messages).
+  static ProviderConfig oauthAccount({
+    required String id,
+    required String name,
+    required OAuthProvider provider,
+    Map<String, dynamic>? credentials,
+    List<String> models = const [],
+    Map<String, dynamic> modelOverrides = const {},
+  }) {
+    final isClaude = provider == OAuthProvider.claude;
+    final usesResponses =
+        provider == OAuthProvider.chatgpt || provider == OAuthProvider.grok;
+    return ProviderConfig(
+      id: id,
+      enabled: true,
+      name: name,
+      apiKey: '',
+      baseUrl: provider.defaultBaseUrl,
+      providerType: isClaude ? ProviderKind.claude : ProviderKind.openai,
+      useResponseApi: usesResponses,
+      chatPath: usesResponses ? '/responses' : null,
+      models: models,
+      modelOverrides: modelOverrides,
+      proxyEnabled: false,
+      proxyHost: '',
+      proxyPort: '8080',
+      proxyUsername: '',
+      proxyPassword: '',
+      claudePromptCachingEnabled: isClaude,
+      claudePromptCachingTtl: claudePromptCachingTtl1h,
+      oauthProvider: provider,
+      oauthCredentials: credentials,
+    );
+  }
 
   static ProviderKind classify(String key, {ProviderKind? explicitType}) {
     // If an explicit type is provided, use it
@@ -4493,9 +4612,9 @@ extension ProviderConfigCatalogHints on ProviderConfig {
   /// Resolved models.dev provider id, or `null` when the catalog has no entry
   /// that can be tied to this provider.
   String? get catalogProviderId => resolveCatalogProviderId(
-        providerId: id,
-        providerName: name,
-        host: catalogHost,
-        providerType: providerType?.name,
-      );
+    providerId: id,
+    providerName: name,
+    host: catalogHost,
+    providerType: providerType?.name,
+  );
 }

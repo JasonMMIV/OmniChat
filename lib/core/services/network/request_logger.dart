@@ -136,6 +136,18 @@ class RequestLogger {
       'api-key',
       'x-auth-token',
       'x-goog-api-key',
+      // OAuth identity headers (session/account/conversation ids). The OAuth
+      // body is redacted separately; the headers carry the same identifiers.
+      'session_id',
+      'conversation_id',
+      'x-client-request-id',
+      'x-claude-code-session-id',
+      'chatgpt-account-id',
+      // Kimi CLI device identity. The id is stable per install/account and is
+      // as sensitive as the other OAuth session identifiers (plan C5).
+      'x-msh-device-id',
+      'x-msh-access-token',
+      'x-msh-sign',
     };
     return <String, String>{
       for (final entry in headers.entries)
@@ -143,6 +155,74 @@ class RequestLogger {
             ? '***'
             : entry.value,
     };
+  }
+
+  /// Keys that carry OAuth session / account identity. Only redacted for
+  /// OAuth providers (`DioHttpClient.redactSensitiveBody`), so logs for every
+  /// other provider stay byte-identical (plan C5).
+  static const Set<String> oauthSensitiveKeys = <String>{
+    'metadata',
+    'user_id',
+    'session_id',
+    'conversation_id',
+    'prompt_cache_key',
+    'x_client_request_id',
+    'x-client-request-id',
+    'device_id',
+    'account_uuid',
+    'chatgpt-account-id',
+    // Token exchange / refresh payloads (auth endpoints use the same logger).
+    'access_token',
+    'refresh_token',
+    'id_token',
+    'code',
+    'code_verifier',
+    'device_auth_id',
+    'user_code',
+  };
+
+  /// Masks OAuth identity fields in a JSON body and hides form-encoded auth
+  /// payloads entirely. Every other shape is replaced with a marker: an OAuth
+  /// request body may only be JSON or an `x-www-form-urlencoded` token grant,
+  /// and malformed text must not be assumed safe to log.
+  static String redactOAuthBody(String body) {
+    final trimmed = body.trim();
+    if (trimmed.isEmpty) return body;
+    try {
+      final decoded = jsonDecode(trimmed);
+      if (decoded is Map || decoded is List) {
+        final redacted = _redactOAuthValue(decoded);
+        return const JsonEncoder.withIndent('  ').convert(redacted);
+      }
+    } catch (_) {}
+    // Token exchange/refresh use form encoding for ChatGPT; those values are
+    // authorization codes, PKCE verifiers and refresh tokens. Keep the keys
+    // for diagnosis, never the values.
+    if (trimmed.contains('=') && !trimmed.contains('{')) {
+      try {
+        final params = Uri.splitQueryString(trimmed);
+        if (params.isNotEmpty) {
+          return params.keys.map((key) => '$key=***').join('&');
+        }
+      } catch (_) {}
+    }
+    return '[redacted oauth body]';
+  }
+
+  static Object? _redactOAuthValue(Object? value) {
+    if (value is Map) {
+      return <String, dynamic>{
+        for (final entry in value.entries)
+          entry.key.toString():
+              oauthSensitiveKeys.contains(entry.key.toString().toLowerCase())
+              ? '***'
+              : _redactOAuthValue(entry.value),
+      };
+    }
+    if (value is List) {
+      return <Object?>[for (final item in value) _redactOAuthValue(item)];
+    }
+    return value;
   }
 
   static String safeDecodeUtf8(List<int> bytes) {

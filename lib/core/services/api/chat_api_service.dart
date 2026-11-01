@@ -28,6 +28,10 @@ import 'claude_max_tokens.dart';
 import 'context_overflow.dart';
 import 'learned_context_windows.dart';
 import 'learned_max_output_caps.dart';
+import '../auth/oauth_http_client.dart';
+import '../auth/oauth_pkce.dart';
+import '../auth/claude_oauth_request.dart';
+import '../../models/provider_oauth.dart';
 import '../logging/flutter_logger.dart';
 import '../agent/compaction/context_trim.dart';
 import '../model_catalog/model_catalog.dart';
@@ -46,8 +50,7 @@ class ChatApiService {
   ///
   /// Entries are cleared in the `finally` of [sendMessageStream] so the
   /// map cannot grow unbounded across requests.
-  static final Map<String, bool> _requestYieldedAnything =
-      <String, bool>{};
+  static final Map<String, bool> _requestYieldedAnything = <String, bool>{};
 
   /// Mark a request as having yielded at least one visible chunk. Safe
   /// to call from any parser with the current request id; a missing /
@@ -94,7 +97,8 @@ class ChatApiService {
 
   /// Test hook — read whether the given request has yielded anything.
   @visibleForTesting
-  static bool debugHasYielded(String rid) => _requestYieldedAnything[rid] ?? false;
+  static bool debugHasYielded(String rid) =>
+      _requestYieldedAnything[rid] ?? false;
   static final Map<String, CancelToken> _activeCancelTokens =
       <String, CancelToken>{};
 
@@ -438,13 +442,10 @@ class ChatApiService {
             final mime = (v['media_type'] ?? 'image/png').toString();
             if (data is List && data.isNotEmpty) {
               try {
-                url =
-                    'data:$mime;base64,${base64Encode(List<int>.from(data))}';
+                url = 'data:$mime;base64,${base64Encode(List<int>.from(data))}';
               } catch (_) {}
             } else if (data is String && data.isNotEmpty) {
-              url = data.startsWith('data:')
-                  ? data
-                  : 'data:$mime;base64,$data';
+              url = data.startsWith('data:') ? data : 'data:$mime;base64,$data';
             }
           }
         } else if (v is String && v.isNotEmpty) {
@@ -523,7 +524,8 @@ class ChatApiService {
       final role = (m['role'] ?? 'user').toString();
       final isToolRole = role == 'tool';
       final hasToolCalls =
-          role == 'assistant' && m['tool_calls'] is List &&
+          role == 'assistant' &&
+          m['tool_calls'] is List &&
           (m['tool_calls'] as List).isNotEmpty;
       if (isToolRole || hasToolCalls) {
         out.add(Map<String, dynamic>.from(m));
@@ -1184,15 +1186,22 @@ class ChatApiService {
     return b64;
   }
 
-  static http.Client _clientFor(ProviderConfig cfg, CancelToken cancelToken) {
+  static http.Client _clientFor(
+    ProviderConfig cfg,
+    CancelToken cancelToken, {
+    String? sessionId,
+    String? requestId,
+  }) {
     final enabled = cfg.proxyEnabled == true;
     final host = (cfg.proxyHost ?? '').trim();
     final portStr = (cfg.proxyPort ?? '').trim();
     final user = (cfg.proxyUsername ?? '').trim();
     final pass = (cfg.proxyPassword ?? '').trim();
+    final isOAuth = cfg.oauthProvider != null;
+    http.Client inner;
     if (enabled && host.isNotEmpty && portStr.isNotEmpty) {
       final port = int.tryParse(portStr) ?? 8080;
-      return DioHttpClient(
+      inner = DioHttpClient(
         proxy: NetworkProxyConfig(
           enabled: true,
           host: host,
@@ -1201,10 +1210,29 @@ class ChatApiService {
           password: pass.isEmpty ? null : pass,
         ),
         cancelToken: cancelToken,
+        redactSensitiveBody: isOAuth,
+      );
+    } else {
+      inner = DioHttpClient(
+        cancelToken: cancelToken,
+        redactSensitiveBody: isOAuth,
       );
     }
-    return DioHttpClient(cancelToken: cancelToken);
+    if (!isOAuth) return inner;
+    // Single interception point for every chat/utility request (plan C1).
+    return OAuthHttpClient(
+      inner: inner,
+      config: cfg,
+      sessionId: sessionId,
+      conversationId: sessionId,
+      requestId: requestId,
+    );
   }
+
+  static String _claudeResponseToolName(ProviderConfig config, String name) =>
+      config.oauthProvider == OAuthProvider.claude
+      ? restoreClaudeOAuthToolName(name)
+      : name;
 
   static Stream<ChatStreamChunk> sendMessageStream({
     required ProviderConfig config,
@@ -1242,8 +1270,19 @@ class ChatApiService {
     // the conversation that produced it (e.g. a DeepSeek thinking-mode 400
     // on the ask_user resume path).
     String? debugRequestId,
+    // Stable conversation session id for provider attribution / prompt-cache
+    // prefixes (plan C15). Callers pass the conversation id; never random.
+    String? sessionId,
   }) async* {
+    // Kimi advertises a per-model wire protocol; resolve it before choosing the
+    // transport (plan M6). Other providers return the config unchanged.
+    config = config.forModelProtocol(modelId);
     final kind = _apiKind(config);
+    // Codex subscription endpoints are stream-only. Aggregating callers (OCR,
+    // translation) accumulate chunks anyway, so this is transparent (C8).
+    if (config.oauthProvider == OAuthProvider.chatgpt) {
+      stream = true;
+    }
     final cancelToken = CancelToken();
     final rid = (requestId ?? '').trim();
     if (rid.isNotEmpty) {
@@ -1262,7 +1301,12 @@ class ChatApiService {
     // Non-final: the R0 context-overflow trim-retry (below) may replace the
     // list with a mechanically trimmed one before retrying exactly once.
     var truncatedMessages = _truncateToolResultsInMessages(safeMessages);
-    final client = _clientFor(config, cancelToken);
+    final client = _clientFor(
+      config,
+      cancelToken,
+      sessionId: sessionId ?? (rid.isEmpty ? null : rid),
+      requestId: rid.isEmpty ? null : rid,
+    );
 
     // === L1 retry loop =====================================================
     // Wraps a single LLM HTTP request. Up to [StreamRetryConfig.maxRetriesPerMessage]
@@ -1284,82 +1328,98 @@ class ChatApiService {
         try {
           if (kind == ProviderKind.openai &&
               shouldUseOpenAIImagesApi(config, modelId)) {
-            await for (final chunk in _trackYielded(_sendOpenAIImagesStream(
-              client,
-              config,
-              modelId,
-              truncatedMessages,
-              userImagePaths: userImagePaths,
-              extraHeaders: extraHeaders,
-              extraBody: extraBody,
-              imageAspectRatio: imageAspectRatio,
-              flags: flags,
-            ), rid, flags)) {
+            await for (final chunk in _trackYielded(
+              _sendOpenAIImagesStream(
+                client,
+                config,
+                modelId,
+                truncatedMessages,
+                userImagePaths: userImagePaths,
+                extraHeaders: extraHeaders,
+                extraBody: extraBody,
+                imageAspectRatio: imageAspectRatio,
+                flags: flags,
+              ),
+              rid,
+              flags,
+            )) {
               yield chunk;
             }
           } else if (kind == ProviderKind.openai) {
-            await for (final chunk in _trackYielded(_sendOpenAIStream(
-              client,
-              config,
-              modelId,
-              truncatedMessages,
-              userImagePaths: userImagePaths,
-              thinkingBudget: thinkingBudget,
-              temperature: temperature,
-              topP: topP,
-              maxTokens: maxTokens,
-              tools: tools,
-              onToolCall: onToolCall,
-              extraHeaders: extraHeaders,
-              extraBody: extraBody,
-              stream: stream,
-              imageAspectRatio: imageAspectRatio,
-              flags: flags,
-              exposeToolCallsOnly: exposeToolCallsOnly,
-              debugRequestId: debugRequestId ?? rid,
-            ), rid, flags)) {
+            await for (final chunk in _trackYielded(
+              _sendOpenAIStream(
+                client,
+                config,
+                modelId,
+                truncatedMessages,
+                userImagePaths: userImagePaths,
+                thinkingBudget: thinkingBudget,
+                temperature: temperature,
+                topP: topP,
+                maxTokens: maxTokens,
+                tools: tools,
+                onToolCall: onToolCall,
+                extraHeaders: extraHeaders,
+                extraBody: extraBody,
+                stream: stream,
+                imageAspectRatio: imageAspectRatio,
+                flags: flags,
+                exposeToolCallsOnly: exposeToolCallsOnly,
+                debugRequestId: debugRequestId ?? rid,
+              ),
+              rid,
+              flags,
+            )) {
               yield chunk;
             }
           } else if (kind == ProviderKind.claude) {
-            await for (final chunk in _trackYielded(_sendClaudeStream(
-              client,
-              config,
-              modelId,
-              truncatedMessages,
-              userImagePaths: userImagePaths,
-              thinkingBudget: thinkingBudget,
-              temperature: temperature,
-              topP: topP,
-              maxTokens: maxTokens,
-              tools: tools,
-              onToolCall: onToolCall,
-              extraHeaders: extraHeaders,
-              extraBody: extraBody,
-              stream: stream,
-              flags: flags,
-              exposeToolCallsOnly: exposeToolCallsOnly,
-            ), rid, flags)) {
+            await for (final chunk in _trackYielded(
+              _sendClaudeStream(
+                client,
+                config,
+                modelId,
+                truncatedMessages,
+                userImagePaths: userImagePaths,
+                thinkingBudget: thinkingBudget,
+                temperature: temperature,
+                topP: topP,
+                maxTokens: maxTokens,
+                tools: tools,
+                onToolCall: onToolCall,
+                extraHeaders: extraHeaders,
+                extraBody: extraBody,
+                stream: stream,
+                flags: flags,
+                exposeToolCallsOnly: exposeToolCallsOnly,
+              ),
+              rid,
+              flags,
+            )) {
               yield chunk;
             }
           } else if (kind == ProviderKind.google) {
-            await for (final chunk in _trackYielded(_sendGoogleStream(
-              client,
-              config,
-              modelId,
-              truncatedMessages,
-              userImagePaths: userImagePaths,
-              thinkingBudget: thinkingBudget,
-              temperature: temperature,
-              topP: topP,
-              maxTokens: maxTokens,
-              tools: tools,
-              onToolCall: onToolCall,
-              extraHeaders: extraHeaders,
-              extraBody: extraBody,
-              stream: stream,
-              flags: flags,
-              exposeToolCallsOnly: exposeToolCallsOnly,
-            ), rid, flags)) {
+            await for (final chunk in _trackYielded(
+              _sendGoogleStream(
+                client,
+                config,
+                modelId,
+                truncatedMessages,
+                userImagePaths: userImagePaths,
+                thinkingBudget: thinkingBudget,
+                temperature: temperature,
+                topP: topP,
+                maxTokens: maxTokens,
+                tools: tools,
+                onToolCall: onToolCall,
+                extraHeaders: extraHeaders,
+                extraBody: extraBody,
+                stream: stream,
+                flags: flags,
+                exposeToolCallsOnly: exposeToolCallsOnly,
+              ),
+              rid,
+              flags,
+            )) {
               yield chunk;
             }
           }
@@ -1438,8 +1498,10 @@ class ChatApiService {
                   isContextOverflowMessage(overflowErrorText(e))) {
                 final declared = resolveContextWindowTokens(
                   modelId,
-                  learned:
-                      await LearnedContextWindows.lookup(config.id, modelId),
+                  learned: await LearnedContextWindows.lookup(
+                    config.id,
+                    modelId,
+                  ),
                   providerId: config.catalogProviderId,
                   host: config.catalogHost,
                 );
@@ -1486,8 +1548,7 @@ class ChatApiService {
           }
 
           attempt++;
-          final delayMs =
-              StreamRetryConfig.computeBackoffDelayMs(attempt - 1);
+          final delayMs = StreamRetryConfig.computeBackoffDelayMs(attempt - 1);
 
           // Tell the caller we are about to retry. Downstream code in
           // [chat_actions] and [chat_turn_service] surfaces this as a
@@ -1530,9 +1591,31 @@ class ChatApiService {
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     int? thinkingBudget,
+    String? sessionId,
   }) async {
+    config = config.forModelProtocol(modelId);
     final kind = _apiKind(config);
-    final client = _clientFor(config, CancelToken());
+    // Codex has no non-streaming parse path: its subscription endpoint always
+    // streams. Utility calls (title / summary / compression / greeting) route
+    // through the streaming aggregator instead (plan C1/C8).
+    if (config.oauthProvider == OAuthProvider.chatgpt) {
+      return _generateTextViaStream(
+        config: config,
+        modelId: modelId,
+        prompt: prompt,
+        extraHeaders: extraHeaders,
+        extraBody: extraBody,
+        thinkingBudget: thinkingBudget,
+        sessionId: sessionId,
+      );
+    }
+    final client = _clientFor(
+      config,
+      CancelToken(),
+      sessionId:
+          sessionId ??
+          oauthStableUuid('${config.id}:${config.baseUrl}:$modelId'),
+    );
     final upstreamModelId = _apiModelId(config, modelId);
     final safePrompt = UnicodeSanitizer.sanitize(prompt);
     try {
@@ -1573,13 +1656,15 @@ class ChatApiService {
         // transport — must stay byte-identical to the pre-dialect behaviour.
         final String? savedWire = reasoningWireForCall(config, modelId);
         final String? chatWire =
-            ReasoningWire.optionsFor(ReasoningWireTransport.chat)
-                .contains(savedWire)
+            ReasoningWire.optionsFor(
+              ReasoningWireTransport.chat,
+            ).contains(savedWire)
             ? savedWire
             : null;
         final String? responsesWire =
-            ReasoningWire.optionsFor(ReasoningWireTransport.responses)
-                .contains(savedWire)
+            ReasoningWire.optionsFor(
+              ReasoningWireTransport.responses,
+            ).contains(savedWire)
             ? savedWire
             : null;
         if (config.useResponseApi == true) {
@@ -1978,6 +2063,44 @@ class ChatApiService {
     } finally {
       client.close();
     }
+  }
+
+  /// `generateText` fork for Codex: one streaming request, aggregate the text,
+  /// no tools, no tool loop. Extra headers/body and the thinking budget keep
+  /// their usual meaning.
+  static Future<String> _generateTextViaStream({
+    required ProviderConfig config,
+    required String modelId,
+    required String prompt,
+    Map<String, String>? extraHeaders,
+    Map<String, dynamic>? extraBody,
+    int? thinkingBudget,
+    String? sessionId,
+  }) async {
+    final buffer = StringBuffer();
+    await for (final chunk in sendMessageStream(
+      config: config,
+      modelId: modelId,
+      messages: <Map<String, dynamic>>[
+        <String, dynamic>{
+          'role': 'user',
+          'content': UnicodeSanitizer.sanitize(prompt),
+        },
+      ],
+      thinkingBudget: thinkingBudget,
+      tools: null,
+      onToolCall: null,
+      extraHeaders: extraHeaders,
+      extraBody: extraBody,
+      stream: true,
+      exposeToolCallsOnly: true,
+      sessionId:
+          sessionId ??
+          oauthStableUuid('${config.id}:${config.baseUrl}:$modelId'),
+    )) {
+      if (chunk.content.isNotEmpty) buffer.write(chunk.content);
+    }
+    return buffer.toString();
   }
 
   static List<Map<String, dynamic>> _sanitizeMessages(
@@ -2544,11 +2667,12 @@ class ChatApiService {
     const maxLogChars = 65536;
     final bodyForLog = bodyJson.length > maxLogChars
         ? '${bodyJson.substring(0, maxLogChars)}\n...[wire body truncated, '
-            'original ${bodyJson.length} chars]'
+              'original ${bodyJson.length} chars]'
         : bodyJson;
     FlutterLogger.logWireError(
-        'HTTP error wire body ($label):\n$bodyForLog',
-        tag: tag);
+      'HTTP error wire body ($label):\n$bodyForLog',
+      tag: tag,
+    );
   }
 
   static Stream<ChatStreamChunk> _sendOpenAIStream(
@@ -2796,15 +2920,16 @@ class ChatApiService {
                 if (tc is Map)
                   ToolCallInfo(
                     id: (tc['id'] ?? '').toString(),
-                    name: ((tc['function'] is Map)
-                            ? (tc['function'] as Map)['name']
-                            : null)
-                        ?.toString() ??
+                    name:
+                        ((tc['function'] is Map)
+                                ? (tc['function'] as Map)['name']
+                                : null)
+                            ?.toString() ??
                         '',
                     arguments: () {
                       final argumentsStr = (tc['function'] is Map)
                           ? ((tc['function'] as Map)['arguments'] ?? '{}')
-                              .toString()
+                                .toString()
                           : '{}';
                       try {
                         return (jsonDecode(argumentsStr) as Map)
@@ -3051,21 +3176,23 @@ class ChatApiService {
 
         // Preserve replayed tool result messages and assistant tool_calls as-is.
         if (role == 'tool' ||
-            (role == 'assistant' && m['tool_calls'] is List &&
+            (role == 'assistant' &&
+                m['tool_calls'] is List &&
                 (m['tool_calls'] as List).isNotEmpty)) {
           final copy = Map<String, dynamic>.from(m);
           if (role == 'assistant') {
-          if (needsReasoningEcho) {
-            // P1-3 fix: echo-capable models (DeepSeek / Zhipu /
-            // Kimi-thinking / Mimo) must always receive a `reasoning_content`
-            // key on the assistant tool_calls message — the multi-round
-            // follow-up path relies on this exact contract. DeepSeek v4
-            // treats an EMPTY string as missing (wire-capture 2026-09-12:
-            // reasoning_content:"" on every message still 400s), so the
-            // value is normalized to a non-empty sentinel when absent.
-            copy['reasoning_content'] =
-                _reasoningEchoValue(copy['reasoning_content']);
-          } else {
+            if (needsReasoningEcho) {
+              // P1-3 fix: echo-capable models (DeepSeek / Zhipu /
+              // Kimi-thinking / Mimo) must always receive a `reasoning_content`
+              // key on the assistant tool_calls message — the multi-round
+              // follow-up path relies on this exact contract. DeepSeek v4
+              // treats an EMPTY string as missing (wire-capture 2026-09-12:
+              // reasoning_content:"" on every message still 400s), so the
+              // value is normalized to a non-empty sentinel when absent.
+              copy['reasoning_content'] = _reasoningEchoValue(
+                copy['reasoning_content'],
+              );
+            } else {
               // Non-echo models must not see the vendor-specific fields.
               copy.remove('reasoning_content');
               copy.remove('reasoning_details');
@@ -3088,7 +3215,8 @@ class ChatApiService {
             hasMultimodalEligibleRole &&
             raw.contains('![') &&
             raw.contains('](');
-        final hasCustomImages = hasMultimodalEligibleRole && raw.contains('[image:');
+        final hasCustomImages =
+            hasMultimodalEligibleRole && raw.contains('[image:');
         final hasAttachedImages =
             isLast && (userImagePaths?.isNotEmpty == true) && (role == 'user');
 
@@ -3590,8 +3718,9 @@ class ChatApiService {
               'tool_calls': calls,
             };
             if (needsReasoningEcho) {
-              assistantToolCallMsg['reasoning_content'] =
-                _reasoningEchoValue(reasoningForTools);
+              assistantToolCallMsg['reasoning_content'] = _reasoningEchoValue(
+                reasoningForTools,
+              );
             }
             if (preserveReasoningDetails &&
                 reasoningDetailsForTools is List &&
@@ -3727,7 +3856,8 @@ class ChatApiService {
         if (data == '[DONE]') {
           // If model streamed tool_calls but didn't include finish_reason on prior chunks,
           // execute tool flow now and start follow-up request.
-          if ((onToolCall != null || exposeToolCallsOnly) && toolAcc.isNotEmpty) {
+          if ((onToolCall != null || exposeToolCallsOnly) &&
+              toolAcc.isNotEmpty) {
             final calls = <Map<String, dynamic>>[];
             final callInfos = <ToolCallInfo>[];
             final toolMsgs = <Map<String, dynamic>>[];
@@ -3794,8 +3924,7 @@ class ChatApiService {
               final name = m['__name'] as String;
               final id = m['__id'] as String;
               final args = (m['__args'] as Map<String, dynamic>);
-              final res =
-                  await onToolCall!(name, args, toolCallId: id) ?? '';
+              final res = await onToolCall!(name, args, toolCallId: id) ?? '';
               results.add({'tool_call_id': id, 'content': res});
               resultsInfo.add(
                 ToolResultInfo(
@@ -3828,8 +3957,9 @@ class ChatApiService {
               'tool_calls': calls,
             };
             if (needsReasoningEcho) {
-              assistantToolCallMsg['reasoning_content'] =
-                _reasoningEchoValue(reasoningBuffer);
+              assistantToolCallMsg['reasoning_content'] = _reasoningEchoValue(
+                reasoningBuffer,
+              );
             }
             if (preserveReasoningDetails &&
                 reasoningDetailsBuffer is List &&
@@ -4239,7 +4369,7 @@ class ChatApiService {
                 };
                 if (needsReasoningEcho) {
                   nextAssistantToolCall['reasoning_content'] =
-                  _reasoningEchoValue(reasoningAccum);
+                      _reasoningEchoValue(reasoningAccum);
                 }
                 if (preserveReasoningDetails &&
                     reasoningDetailsAccum is List &&
@@ -5270,8 +5400,7 @@ class ChatApiService {
               final name = m['__name'] as String;
               final id = m['__id'] as String;
               final args = (m['__args'] as Map<String, dynamic>);
-              final res =
-                  await onToolCall!(name, args, toolCallId: id) ?? '';
+              final res = await onToolCall!(name, args, toolCallId: id) ?? '';
               results.add({'tool_call_id': id, 'content': res});
               resultsInfo.add(
                 ToolResultInfo(
@@ -5303,8 +5432,9 @@ class ChatApiService {
               'tool_calls': calls,
             };
             if (needsReasoningEcho) {
-              assistantToolCallMsg['reasoning_content'] =
-                _reasoningEchoValue(reasoningBuffer);
+              assistantToolCallMsg['reasoning_content'] = _reasoningEchoValue(
+                reasoningBuffer,
+              );
             }
             if (preserveReasoningDetails &&
                 reasoningDetailsBuffer is List &&
@@ -5726,7 +5856,7 @@ class ChatApiService {
                 };
                 if (needsReasoningEcho) {
                   nextAssistantToolCall['reasoning_content'] =
-                  _reasoningEchoValue(reasoningAccum);
+                      _reasoningEchoValue(reasoningAccum);
                 }
                 if (preserveReasoningDetails &&
                     reasoningDetailsAccum is List &&
@@ -5785,7 +5915,8 @@ class ChatApiService {
             if (hasPendingToolCalls) {
               // Some providers (like XinLiu/iflow.cn) may return tool_calls with finish_reason='stop'
               // and may not send a [DONE] marker. Execute tools immediately in this case.
-              if ((onToolCall != null || exposeToolCallsOnly) && toolAcc.isNotEmpty) {
+              if ((onToolCall != null || exposeToolCallsOnly) &&
+                  toolAcc.isNotEmpty) {
                 final calls = <Map<String, dynamic>>[];
                 final callInfos = <ToolCallInfo>[];
                 final toolMsgs = <Map<String, dynamic>>[];
@@ -5823,7 +5954,9 @@ class ChatApiService {
                     // `assistantToolCallMsg` fields (no-DONE vendor fallback).
                     assistantExtras: <String, dynamic>{
                       if (needsReasoningEcho)
-                        'reasoning_content': _reasoningEchoValue(reasoningBuffer),
+                        'reasoning_content': _reasoningEchoValue(
+                          reasoningBuffer,
+                        ),
                       if (preserveReasoningDetails &&
                           reasoningDetailsBuffer is List &&
                           reasoningDetailsBuffer.isNotEmpty)
@@ -5882,7 +6015,7 @@ class ChatApiService {
                 };
                 if (needsReasoningEcho) {
                   assistantToolCallMsg['reasoning_content'] =
-                _reasoningEchoValue(reasoningBuffer);
+                      _reasoningEchoValue(reasoningBuffer);
                 }
                 if (preserveReasoningDetails &&
                     reasoningDetailsBuffer is List &&
@@ -6424,8 +6557,9 @@ class ChatApiService {
               'tool_calls': calls,
             };
             if (needsReasoningEcho) {
-              assistantToolCallMsg['reasoning_content'] =
-                _reasoningEchoValue(reasoningBuffer);
+              assistantToolCallMsg['reasoning_content'] = _reasoningEchoValue(
+                reasoningBuffer,
+              );
             }
             mm2.add(assistantToolCallMsg);
             for (final r in results) {
@@ -6645,7 +6779,7 @@ class ChatApiService {
           });
         }
         continue;
-      }        // Convert replayed assistant tool_calls to Anthropic tool_use blocks.
+      } // Convert replayed assistant tool_calls to Anthropic tool_use blocks.
       if (role == 'assistant' && m['tool_calls'] is List) {
         final toolCalls = m['tool_calls'] as List;
         final blocks = <Map<String, dynamic>>[];
@@ -6837,7 +6971,7 @@ class ChatApiService {
         maxTokens ??
         (!pinnedMaxTokens
             ? (await LearnedMaxOutputCaps.lookup(config.id, modelId) ??
-                claudeMaxTokensInitial)
+                  claudeMaxTokensInitial)
             : claudeMaxTokensInitial);
     int maxTokensAttempts = 0;
 
@@ -6859,11 +6993,7 @@ class ChatApiService {
             )
           : null;
       final outputConfig = isReasoning
-          ? _claudeOutputConfig(
-              upstreamModelId,
-              thinkingBudget,
-              config: config,
-            )
+          ? _claudeOutputConfig(upstreamModelId, thinkingBudget, config: config)
           : null;
       final body = <String, dynamic>{
         'model': upstreamModelId,
@@ -6989,7 +7119,10 @@ class ChatApiService {
             } catch (_) {}
           } else if (type == 'tool_use') {
             final id = (it['id'] ?? '').toString();
-            final name = (it['name'] ?? '').toString();
+            final name = _claudeResponseToolName(
+              config,
+              (it['name'] ?? '').toString(),
+            );
             final args =
                 (it['input'] as Map?)?.cast<String, dynamic>() ??
                 const <String, dynamic>{};
@@ -7004,7 +7137,8 @@ class ChatApiService {
             }
           }
         }
-        if (toolUses.isNotEmpty && (onToolCall != null || exposeToolCallsOnly)) {
+        if (toolUses.isNotEmpty &&
+            (onToolCall != null || exposeToolCallsOnly)) {
           final callInfos = <ToolCallInfo>[];
           for (final e in toolUses.entries) {
             callInfos.add(
@@ -7022,8 +7156,7 @@ class ChatApiService {
           final claudeThinkingExtras = <String, dynamic>{
             'claude_thinking_blocks': <Map<String, dynamic>>[
               for (final b in assistantBlocks)
-                if (b['type'] == 'thinking' ||
-                    b['type'] == 'redacted_thinking')
+                if (b['type'] == 'thinking' || b['type'] == 'redacted_thinking')
                   Map<String, dynamic>.from(b),
             ],
           };
@@ -7051,8 +7184,7 @@ class ChatApiService {
           for (final e in toolUses.entries) {
             final name = (e.value['name'] ?? '').toString();
             final args = (e.value['args'] as Map<String, dynamic>);
-            final res =
-                await onToolCall!(name, args, toolCallId: e.key) ?? '';
+            final res = await onToolCall!(name, args, toolCallId: e.key) ?? '';
             results.add({
               'type': 'tool_result',
               'tool_use_id': e.key,
@@ -7189,7 +7321,10 @@ class ChatApiService {
                 // Flush text block before tool_use
                 _flushTextBlock();
                 final id = (cb['id'] ?? '').toString();
-                final name = (cb['name'] ?? '').toString();
+                final name = _claudeResponseToolName(
+                  config,
+                  (cb['name'] ?? '').toString(),
+                );
                 final idx2 = idx ?? -1;
                 if (id.isNotEmpty) {
                   _anthToolUse.putIfAbsent(
@@ -7234,7 +7369,9 @@ class ChatApiService {
                 // web_search); skip the code_execution companion tool which has
                 // no dedicated UI card. Skipped in expose mode — the round-end
                 // surface owns tool-call emission there.
-                if (id.isNotEmpty && name == 'web_search' && !exposeToolCallsOnly) {
+                if (id.isNotEmpty &&
+                    name == 'web_search' &&
+                    !exposeToolCallsOnly) {
                   yield ChatStreamChunk(
                     content: '',
                     isDone: false,
@@ -7571,9 +7708,8 @@ class ChatApiService {
           final name = (entry.value['name'] ?? '').toString();
           Map<String, dynamic> args;
           try {
-            args =
-                (jsonDecode((entry.value['args'] ?? '{}') as String) as Map)
-                    .cast<String, dynamic>();
+            args = (jsonDecode((entry.value['args'] ?? '{}') as String) as Map)
+                .cast<String, dynamic>();
           } catch (_) {
             args = <String, dynamic>{};
           }
@@ -7587,8 +7723,7 @@ class ChatApiService {
           final thinkingBlocks = <Map<String, dynamic>>[
             for (final b in assistantBlocks)
               if (b is Map &&
-                  (b['type'] == 'thinking' ||
-                      b['type'] == 'redacted_thinking'))
+                  (b['type'] == 'thinking' || b['type'] == 'redacted_thinking'))
                 Map<String, dynamic>.from(b),
           ];
           yield ChatStreamChunk(
@@ -7599,9 +7734,7 @@ class ChatApiService {
             toolCalls: exposed,
             assistantExtras: thinkingBlocks.isEmpty
                 ? null
-                : <String, dynamic>{
-                    'claude_thinking_blocks': thinkingBlocks,
-                  },
+                : <String, dynamic>{'claude_thinking_blocks': thinkingBlocks},
           );
         }
         // Claude always sends `message_stop` (synced into flags above when
@@ -7615,7 +7748,6 @@ class ChatApiService {
         }
         return;
       }
-
 
       // Build tool_result blocks in a single user message (parallel-safe)
       final toolResultsBlocks = <Map<String, dynamic>>[];
@@ -7714,7 +7846,9 @@ class ChatApiService {
             contents.add({
               'role': 'user',
               'parts': [
-                {'functionResponse': {'name': name, 'response': response}},
+                {
+                  'functionResponse': {'name': name, 'response': response},
+                },
               ],
             });
           }
@@ -7737,8 +7871,8 @@ class ChatApiService {
               // `part[thoughtSigKey] = thoughtSigVal`.
               final callId = (tc['id'] ?? '').toString();
               if (thoughtSigs is Map && thoughtSigs[callId] is Map) {
-                final sig =
-                    (thoughtSigs[callId] as Map).cast<String, dynamic>();
+                final sig = (thoughtSigs[callId] as Map)
+                    .cast<String, dynamic>();
                 final key = (sig['key'] ?? '').toString();
                 if (key.isNotEmpty && sig.containsKey('value')) {
                   part[key] = sig['value'];
@@ -8021,10 +8155,7 @@ class ChatApiService {
                 ? null
                 : <String, dynamic>{
                     'gemini_thought_sigs': <String, dynamic>{
-                      callId: <String, dynamic>{
-                        'key': sigKey,
-                        'value': sigVal,
-                      },
+                      callId: <String, dynamic>{'key': sigKey, 'value': sigVal},
                     },
                   },
           );
@@ -8039,8 +8170,7 @@ class ChatApiService {
             }
             return;
           }
-          final res =
-              await onToolCall!(name, args, toolCallId: callId) ?? '';
+          final res = await onToolCall!(name, args, toolCallId: callId) ?? '';
           yield ChatStreamChunk(
             content: '',
             isDone: false,
@@ -8135,7 +8265,9 @@ class ChatApiService {
           contents.add({
             'role': 'user',
             'parts': [
-              {'functionResponse': {'name': name, 'response': response}},
+              {
+                'functionResponse': {'name': name, 'response': response},
+              },
             ],
           });
         }
@@ -8691,8 +8823,7 @@ class ChatApiService {
                     }
                     // Prefer the API-provided functionCall id so multi-round
                     // tool loops stay stable; fall back to a synthetic id.
-                    final vendorCallId =
-                        (fc['id'] ?? '').toString().trim();
+                    final vendorCallId = (fc['id'] ?? '').toString().trim();
                     final id = vendorCallId.isNotEmpty
                         ? vendorCallId
                         : 'call_${DateTime.now().microsecondsSinceEpoch}';
@@ -9165,26 +9296,26 @@ class ChatApiService {
             imageAspectRatio: imageAspectRatio,
           )
         : _isAgnesHost(config)
-            ? await _sendAgnesImageEdit(
-                client,
-                config,
-                modelId,
-                input.prompt,
-                input.imageRefs,
-                extraHeaders: extraHeaders,
-                extraBody: extraBody,
-                imageAspectRatio: imageAspectRatio,
-              )
-            : await _sendOpenAIImageEdit(
-                client,
-                config,
-                modelId,
-                input.prompt,
-                input.imageRefs,
-                extraHeaders: extraHeaders,
-                extraBody: extraBody,
-                imageAspectRatio: imageAspectRatio,
-              );
+        ? await _sendAgnesImageEdit(
+            client,
+            config,
+            modelId,
+            input.prompt,
+            input.imageRefs,
+            extraHeaders: extraHeaders,
+            extraBody: extraBody,
+            imageAspectRatio: imageAspectRatio,
+          )
+        : await _sendOpenAIImageEdit(
+            client,
+            config,
+            modelId,
+            input.prompt,
+            input.imageRefs,
+            extraHeaders: extraHeaders,
+            extraBody: extraBody,
+            imageAspectRatio: imageAspectRatio,
+          );
     var markdown = await _openAIImagesResponseToMarkdown(
       response,
       outputMime: outputMime,
@@ -9282,7 +9413,11 @@ class ChatApiService {
       _openAIImagesUrl(config, '/images/edits'),
     );
     request.headers.addAll(
-      _openAIImagesMultipartHeaders(config, modelId, extraHeaders: extraHeaders),
+      _openAIImagesMultipartHeaders(
+        config,
+        modelId,
+        extraHeaders: extraHeaders,
+      ),
     );
     request.fields['model'] = _apiModelId(config, modelId);
     request.fields['prompt'] = prompt;
@@ -9388,7 +9523,9 @@ class ChatApiService {
     if (explicitPaths.isNotEmpty) {
       return _OpenAIImagesInput(
         prompt: prompt,
-        imageRefs: [for (final path in explicitPaths) _imageRefFromSource(path)],
+        imageRefs: [
+          for (final path in explicitPaths) _imageRefFromSource(path),
+        ],
       );
     }
 
@@ -9398,7 +9535,10 @@ class ChatApiService {
       if (content is List) {
         final structuredImages = _extractOpenAIImageRefs(content);
         if (structuredImages.isNotEmpty) {
-          return _OpenAIImagesInput(prompt: prompt, imageRefs: structuredImages);
+          return _OpenAIImagesInput(
+            prompt: prompt,
+            imageRefs: structuredImages,
+          );
         }
       }
 
@@ -9469,7 +9609,10 @@ class ChatApiService {
     return refs;
   }
 
-  static void _addOpenAIStructuredImageRefs(List<_ImageRef> refs, dynamic value) {
+  static void _addOpenAIStructuredImageRefs(
+    List<_ImageRef> refs,
+    dynamic value,
+  ) {
     if (value == null) return;
     if (value is List) {
       for (final item in value) {
@@ -9506,7 +9649,12 @@ class ChatApiService {
   }) {
     if (data is List) {
       for (final item in data) {
-        _addOpenAIStructuredImageData(refs, item, isBase64: isBase64, mime: mime);
+        _addOpenAIStructuredImageData(
+          refs,
+          item,
+          isBase64: isBase64,
+          mime: mime,
+        );
       }
       return;
     }
@@ -9642,7 +9790,8 @@ class ChatApiService {
   ) {
     if (ratio == 'auto') {
       final upstream = _apiModelId(cfg, modelId).toLowerCase();
-      final isGptImage = upstream.startsWith('gpt-image-') ||
+      final isGptImage =
+          upstream.startsWith('gpt-image-') ||
           upstream.startsWith('chatgpt-image-');
       if (isGptImage) return {'size': 'auto'};
       return const <String, String>{};
@@ -9713,7 +9862,10 @@ class ChatApiService {
   ) {
     final body = <String, dynamic>{};
     _applyOpenAIImagesExtraBody(body, config, modelId, extraBody);
-    final format = (body['output_format'] ?? '').toString().trim().toLowerCase();
+    final format = (body['output_format'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
     switch (format) {
       case '':
       case 'png':
@@ -9778,7 +9930,8 @@ class ChatApiService {
     final input =
         (usage['input_tokens'] ?? usage['prompt_tokens'] ?? 0) as int? ?? 0;
     final output =
-        (usage['output_tokens'] ?? usage['completion_tokens'] ?? 0) as int? ?? 0;
+        (usage['output_tokens'] ?? usage['completion_tokens'] ?? 0) as int? ??
+        0;
     return TokenUsage(
       promptTokens: input,
       completionTokens: output,
@@ -9823,7 +9976,6 @@ class _GeminiSignatureMeta {
   bool get hasAny => hasText || hasImages;
 }
 
-
 /// Mutable flags accumulated during a single LLM stream attempt. Used by
 /// the L1 retry loop in [ChatApiService.sendMessageStream] to detect
 /// silent stream interruptions: the parser fills in [finishReason] /
@@ -9844,4 +9996,3 @@ class StreamAttemptFlags {
   bool yieldedToolCall = false;
   bool receivedReasoning = false;
 }
-

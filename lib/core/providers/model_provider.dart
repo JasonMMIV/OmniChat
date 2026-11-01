@@ -3,12 +3,16 @@ import 'dart:convert';
 import 'dart:io' show HttpException;
 import 'package:http/http.dart' as http;
 import 'settings_provider.dart';
+import '../models/provider_oauth.dart';
+import '../services/auth/oauth_http_client.dart';
+import '../services/auth/oauth_pkce.dart';
 import '../services/network/dio_http_client.dart';
 import '../services/api_key_manager.dart';
 import '../services/model_catalog/model_catalog.dart';
 import '../services/model_catalog/model_catalog_service.dart';
 import 'package:OmniChat/secrets/fallback.dart';
 import '../services/api/google_service_account_auth.dart';
+import '../services/auth/provider_oauth_service.dart';
 import '../utils/reasoning_overrides.dart';
 
 enum ModelType { chat, embedding }
@@ -88,10 +92,8 @@ class ModelRegistry {
 
   /// Infer capabilities for a model, consulting the models.dev catalog first
   /// (global model id) and falling back to the built-in regexes on a miss.
-  static ModelInfo infer(ModelInfo base) => _inferWithCatalog(
-        base,
-        ModelCatalog.instance?.lookup(modelId: base.id),
-      );
+  static ModelInfo infer(ModelInfo base) =>
+      _inferWithCatalog(base, ModelCatalog.instance?.lookup(modelId: base.id));
 
   /// Provider-aware variant used by provider model lists: a proxy/aggregator's
   /// same-named model resolves to its own catalog entry first.
@@ -122,8 +124,8 @@ class ModelRegistry {
     // - No tool or reasoning abilities
     if (id.contains('image') ||
         RegExp(r'(dall-e-|sensenova-u1-fast)').hasMatch(id)) {
-      final textToImageOnly = id.contains('dall-e-3') ||
-          id.contains('sensenova-u1-fast');
+      final textToImageOnly =
+          id.contains('dall-e-3') || id.contains('sensenova-u1-fast');
       if (!outMods.contains(Modality.image)) outMods.add(Modality.image);
       if (!textToImageOnly && !inMods.contains(Modality.image)) {
         inMods.add(Modality.image);
@@ -673,6 +675,21 @@ class ProviderManager {
   }
 
   static Future<List<ModelInfo>> listModels(ProviderConfig cfg) async {
+    // OAuth accounts never use the API-key `/models` path: the subscription
+    // endpoints have their own listing (plan §4.2 G6). Abilities/modalities
+    // come from the synced override the service wrote, so inference here is
+    // only a display fallback.
+    if (cfg.oauthProvider != null) {
+      final entries = await ProviderOAuthService.instance.fetchModels(cfg);
+      return <ModelInfo>[
+        for (final entry in entries)
+          if (entry.id.trim().isNotEmpty)
+            ModelRegistry.inferForProvider(
+              ModelInfo(id: entry.id, displayName: entry.displayName),
+              cfg,
+            ),
+      ];
+    }
     final models = await forConfig(cfg).listModels(cfg);
     // Catalog refresh trigger (plan batch 1 §6.3): a successful provider list
     // fetch is a good moment to pick up new models. Fire-and-forget — the
@@ -694,10 +711,7 @@ class ProviderManager {
 
   /// Refresh the catalog when [apiModelId] is unknown, so a newly added model
   /// can pick up its window/capabilities. Catalog hits skip the request.
-  static void refreshCatalogForModel(
-    ProviderConfig cfg,
-    String apiModelId,
-  ) {
+  static void refreshCatalogForModel(ProviderConfig cfg, String apiModelId) {
     _runCatalogRefresh((client) async {
       await ModelCatalogService.instance.refreshForModel(
         apiModelId,
@@ -710,17 +724,19 @@ class ProviderManager {
     Future<void> Function(http.Client client) body,
     ProviderConfig cfg,
   ) {
-    unawaited(Future<void>(() async {
-      http.Client? client;
-      try {
-        client = _Http.clientFor(cfg);
-        await body(client);
-      } catch (_) {
-        // The catalog is an enhancement; a failed refresh is a no-op.
-      } finally {
-        client?.close();
-      }
-    }));
+    unawaited(
+      Future<void>(() async {
+        http.Client? client;
+        try {
+          client = _Http.clientFor(cfg);
+          await body(client);
+        } catch (_) {
+          // The catalog is an enhancement; a failed refresh is a no-op.
+        } finally {
+          client?.close();
+        }
+      }),
+    );
   }
 
   static Future<String> getBalance(ProviderConfig cfg) {
@@ -732,8 +748,22 @@ class ProviderManager {
     String modelId, {
     bool useStream = false,
   }) async {
+    // Kimi's per-model protocol decides whether this is Claude Messages or
+    // OpenAI chat completions (plan M6).
+    cfg = cfg.forModelProtocol(modelId);
+    // Codex subscription endpoints are stream-only.
+    if (cfg.oauthProvider == OAuthProvider.chatgpt) useStream = true;
     final kind = _apiKind(cfg);
-    final client = _Http.clientFor(cfg);
+    final inner = _Http.clientFor(cfg);
+    // Connection tests must go through the same auth/shaping wrapper as chat;
+    // otherwise every OAuth account is tested with empty API-key headers.
+    final client = cfg.oauthProvider == null
+        ? inner
+        : OAuthHttpClient(
+            inner: inner,
+            config: cfg,
+            sessionId: oauthStableUuid('${cfg.id}:$modelId:connection'),
+          );
     try {
       if (kind == ProviderKind.openai) {
         final base = cfg.baseUrl.endsWith('/')
@@ -1020,9 +1050,7 @@ class ProviderManager {
       }
 
       Future<http.Response?> send(Map<String, dynamic> body) async {
-        final headers = <String, String>{
-          'Content-Type': 'application/json',
-        };
+        final headers = <String, String>{'Content-Type': 'application/json'};
         final key = _effectiveApiKey(cfg);
         if (key.isNotEmpty) headers['Authorization'] = 'Bearer $key';
         try {
@@ -1079,9 +1107,7 @@ class ProviderManager {
         i++;
         onProgress?.call(effort, i, ladder.length);
         final res = await send(buildBody(effort));
-        if (res != null &&
-            res.statusCode >= 200 &&
-            res.statusCode < 300) {
+        if (res != null && res.statusCode >= 200 && res.statusCode < 300) {
           summary.supported.add(effort);
           // "Really reasoning" signal: usage.reasoning_tokens > 0 when the
           // provider reports it. Advisory only, never a hard conclusion.
@@ -1107,10 +1133,12 @@ class ProviderManager {
           // the effort) is the problem, retry once without it before
           // concluding the effort itself is rejected.
           final lower = res.body.toLowerCase();
-          final mentionsEffort = lower.contains('reasoning_effort') ||
+          final mentionsEffort =
+              lower.contains('reasoning_effort') ||
               lower.contains("'effort'") ||
               lower.contains('reasoning.effort');
-          final mentionsCap = lower.contains('max_tokens') ||
+          final mentionsCap =
+              lower.contains('max_tokens') ||
               lower.contains('max_output_tokens') ||
               lower.contains('max_completion_tokens');
           if (tokenCapKey != null && mentionsCap && !mentionsEffort) {

@@ -5579,6 +5579,209 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get searchWebFetchTier2Note => '使用供应商来源时，URL 会发送给该供应商，并按其方案计费。';
+
+  @override
+  String get addProviderSheetAccountTab => '账户登录';
+
+  @override
+  String get oauthChatGptName => 'ChatGPT（Codex）';
+
+  @override
+  String get oauthChatGptSubtitle => '使用 ChatGPT Plus / Pro 订阅额度';
+
+  @override
+  String get oauthClaudeName => 'Claude（Pro / Max）';
+
+  @override
+  String get oauthClaudeSubtitle => '使用 Claude Pro / Max 订阅额度';
+
+  @override
+  String get oauthGrokName => 'Grok';
+
+  @override
+  String get oauthGrokSubtitle => '使用 Grok 订阅额度';
+
+  @override
+  String get oauthKimiName => 'Kimi Code';
+
+  @override
+  String get oauthKimiSubtitle => '使用 Kimi Code 编程方案';
+
+  @override
+  String get oauthChatGptIntro =>
+      '使用 ChatGPT 账号登录，即可用订阅额度使用 GPT-5.x 与 Codex 模型，无需 API Key。';
+
+  @override
+  String get oauthClaudeIntro =>
+      '使用 Claude 账号登录，即可用 Pro / Max 订阅额度使用 Claude 模型，无需 API Key。';
+
+  @override
+  String get oauthGrokIntro => '使用 xAI 账号登录，即可用订阅额度使用 Grok 模型，无需 API Key。';
+
+  @override
+  String get oauthKimiIntro =>
+      '使用 Kimi 账号登录，即可用编程方案使用 Kimi Code 模型，无需 API Key。';
+
+  @override
+  String get oauthSignInButton => '登录';
+
+  @override
+  String get oauthWaitingBrowser => '正在等待浏览器完成登录，完成后请回到 OmniChat。';
+
+  @override
+  String get oauthOpenBrowserAgain => '重新打开登录页';
+
+  @override
+  String get oauthCancel => '取消';
+
+  @override
+  String get oauthManualHint => '粘贴授权码、code#state 或完整回调网址';
+
+  @override
+  String get oauthManualSubmit => '提交授权码';
+
+  @override
+  String get oauthManualWaiting => '自动回调未完成，请改从浏览器粘贴授权码。';
+
+  @override
+  String get oauthDeviceRequesting => '正在申请设备码…';
+
+  @override
+  String get oauthDeviceWaiting => '等待在设备页面确认…';
+
+  @override
+  String get oauthExchanging => '正在交换授权码…';
+
+  @override
+  String get oauthDeviceCodeHint => '请在供应商页面输入此代码：';
+
+  @override
+  String get oauthOpenDevicePage => '打开设备页面';
+
+  @override
+  String get oauthSignInFailed => '登录失败';
+
+  @override
+  String get oauthRiskNotice => '本功能以非官方客户端方式使用订阅账号，供应商条款可能变动，账号风险由您自行承担。';
+
+  @override
+  String get oauthDisabledNotice => '账户登录功能已关闭，请到账号页面开启后再登录。';
+
+  @override
+  String get oauthClaudeAccount => 'Claude 订阅账号';
+
+  @override
+  String get oauthGrokAccount => 'Grok 订阅账号';
+
+  @override
+  String get oauthKimiAccount => 'Kimi Code 订阅账号';
+
+  @override
+  String get oauthChatGptAccount => 'ChatGPT 订阅账号';
+
+  @override
+  String get oauthConnected => '已连接';
+
+  @override
+  String get oauthNotSignedIn => '未登录';
+
+  @override
+  String get oauthLoginRequired => '需要登录';
+
+  @override
+  String get oauthChatRecoveryReadyTitle => '可以重试';
+
+  @override
+  String oauthChatRecoveryBody(String provider) {
+    return '$provider 的订阅账号登录已失效。请重新登录后按「重试」，本轮不会自动重送。';
+  }
+
+  @override
+  String get oauthChatRecoveryNotice => '本轮因账号需要重新登录而中止。';
+
+  @override
+  String get oauthChatRecoverySignIn => '重新登录';
+
+  @override
+  String get oauthChatRecoveryRetry => '重试';
+
+  @override
+  String get oauthChatRecoveryDone => '已重新登录，按「重试」继续本轮。';
+
+  @override
+  String get oauthSignedIn => '已登录';
+
+  @override
+  String get oauthPlanLabel => '方案';
+
+  @override
+  String get oauthUsageSession => '5 小时窗口';
+
+  @override
+  String get oauthUsageWeekly => '每周窗口';
+
+  @override
+  String get oauthUsageScoped => '模型窗口';
+
+  @override
+  String get oauthUsageExtra => '额外用量';
+
+  @override
+  String oauthUsageResets(String time) {
+    return '重置于 $time';
+  }
+
+  @override
+  String get oauthRefreshUsage => '刷新用量';
+
+  @override
+  String get oauthSyncModels => '同步模型';
+
+  @override
+  String oauthSyncSuccess(int count) {
+    return '模型已更新（$count 个）';
+  }
+
+  @override
+  String get oauthSyncFailed => '模型同步失败';
+
+  @override
+  String oauthModelsTitle(int count) {
+    return '模型（$count）';
+  }
+
+  @override
+  String get oauthModelsEmpty => '尚未同步模型，请使用「同步模型」。';
+
+  @override
+  String get oauthModelsKeptAfterSignOut => '登出后模型仍会保留在此清单，并标示为未登录。';
+
+  @override
+  String get oauthPromptCaching => '提示缓存';
+
+  @override
+  String get oauthPromptCacheTtl5m => '5 分钟';
+
+  @override
+  String get oauthPromptCacheTtl1h => '1 小时';
+
+  @override
+  String get oauthEndpointLabel => '端点';
+
+  @override
+  String get oauthSignedInAccountId => '账号 ID';
+
+  @override
+  String get oauthLogout => '登出';
+
+  @override
+  String get oauthLogoutConfirm => '要登出此账号吗？已同步的模型清单会保留。';
+
+  @override
+  String get oauthFeatureToggle => '供应商账号登录';
+
+  @override
+  String get oauthFeatureToggleHelp => '关闭后将隐藏并停用订阅登录，不影响 API Key 供应商。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -10945,6 +11148,209 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get searchWebFetchTier2Note => '使用供应商来源时，URL 会发送给该供应商，并按其方案计费。';
+
+  @override
+  String get addProviderSheetAccountTab => '账户登录';
+
+  @override
+  String get oauthChatGptName => 'ChatGPT（Codex）';
+
+  @override
+  String get oauthChatGptSubtitle => '使用 ChatGPT Plus / Pro 订阅额度';
+
+  @override
+  String get oauthClaudeName => 'Claude（Pro / Max）';
+
+  @override
+  String get oauthClaudeSubtitle => '使用 Claude Pro / Max 订阅额度';
+
+  @override
+  String get oauthGrokName => 'Grok';
+
+  @override
+  String get oauthGrokSubtitle => '使用 Grok 订阅额度';
+
+  @override
+  String get oauthKimiName => 'Kimi Code';
+
+  @override
+  String get oauthKimiSubtitle => '使用 Kimi Code 编程方案';
+
+  @override
+  String get oauthChatGptIntro =>
+      '使用 ChatGPT 账号登录，即可用订阅额度使用 GPT-5.x 与 Codex 模型，无需 API Key。';
+
+  @override
+  String get oauthClaudeIntro =>
+      '使用 Claude 账号登录，即可用 Pro / Max 订阅额度使用 Claude 模型，无需 API Key。';
+
+  @override
+  String get oauthGrokIntro => '使用 xAI 账号登录，即可用订阅额度使用 Grok 模型，无需 API Key。';
+
+  @override
+  String get oauthKimiIntro =>
+      '使用 Kimi 账号登录，即可用编程方案使用 Kimi Code 模型，无需 API Key。';
+
+  @override
+  String get oauthSignInButton => '登录';
+
+  @override
+  String get oauthWaitingBrowser => '正在等待浏览器完成登录，完成后请回到 OmniChat。';
+
+  @override
+  String get oauthOpenBrowserAgain => '重新打开登录页';
+
+  @override
+  String get oauthCancel => '取消';
+
+  @override
+  String get oauthManualHint => '粘贴授权码、code#state 或完整回调网址';
+
+  @override
+  String get oauthManualSubmit => '提交授权码';
+
+  @override
+  String get oauthManualWaiting => '自动回调未完成，请改从浏览器粘贴授权码。';
+
+  @override
+  String get oauthDeviceRequesting => '正在申请设备码…';
+
+  @override
+  String get oauthDeviceWaiting => '等待在设备页面确认…';
+
+  @override
+  String get oauthExchanging => '正在交换授权码…';
+
+  @override
+  String get oauthDeviceCodeHint => '请在供应商页面输入此代码：';
+
+  @override
+  String get oauthOpenDevicePage => '打开设备页面';
+
+  @override
+  String get oauthSignInFailed => '登录失败';
+
+  @override
+  String get oauthRiskNotice => '本功能以非官方客户端方式使用订阅账号，供应商条款可能变动，账号风险由您自行承担。';
+
+  @override
+  String get oauthDisabledNotice => '账户登录功能已关闭，请到账号页面开启后再登录。';
+
+  @override
+  String get oauthClaudeAccount => 'Claude 订阅账号';
+
+  @override
+  String get oauthGrokAccount => 'Grok 订阅账号';
+
+  @override
+  String get oauthKimiAccount => 'Kimi Code 订阅账号';
+
+  @override
+  String get oauthChatGptAccount => 'ChatGPT 订阅账号';
+
+  @override
+  String get oauthConnected => '已连接';
+
+  @override
+  String get oauthNotSignedIn => '未登录';
+
+  @override
+  String get oauthLoginRequired => '需要登录';
+
+  @override
+  String get oauthChatRecoveryReadyTitle => '可以重试';
+
+  @override
+  String oauthChatRecoveryBody(String provider) {
+    return '$provider 的订阅账号登录已失效。请重新登录后按「重试」，本轮不会自动重送。';
+  }
+
+  @override
+  String get oauthChatRecoveryNotice => '本轮因账号需要重新登录而中止。';
+
+  @override
+  String get oauthChatRecoverySignIn => '重新登录';
+
+  @override
+  String get oauthChatRecoveryRetry => '重试';
+
+  @override
+  String get oauthChatRecoveryDone => '已重新登录，按「重试」继续本轮。';
+
+  @override
+  String get oauthSignedIn => '已登录';
+
+  @override
+  String get oauthPlanLabel => '方案';
+
+  @override
+  String get oauthUsageSession => '5 小时窗口';
+
+  @override
+  String get oauthUsageWeekly => '每周窗口';
+
+  @override
+  String get oauthUsageScoped => '模型窗口';
+
+  @override
+  String get oauthUsageExtra => '额外用量';
+
+  @override
+  String oauthUsageResets(String time) {
+    return '重置于 $time';
+  }
+
+  @override
+  String get oauthRefreshUsage => '刷新用量';
+
+  @override
+  String get oauthSyncModels => '同步模型';
+
+  @override
+  String oauthSyncSuccess(int count) {
+    return '模型已更新（$count 个）';
+  }
+
+  @override
+  String get oauthSyncFailed => '模型同步失败';
+
+  @override
+  String oauthModelsTitle(int count) {
+    return '模型（$count）';
+  }
+
+  @override
+  String get oauthModelsEmpty => '尚未同步模型，请使用「同步模型」。';
+
+  @override
+  String get oauthModelsKeptAfterSignOut => '登出后模型仍会保留在此清单，并标示为未登录。';
+
+  @override
+  String get oauthPromptCaching => '提示缓存';
+
+  @override
+  String get oauthPromptCacheTtl5m => '5 分钟';
+
+  @override
+  String get oauthPromptCacheTtl1h => '1 小时';
+
+  @override
+  String get oauthEndpointLabel => '端点';
+
+  @override
+  String get oauthSignedInAccountId => '账号 ID';
+
+  @override
+  String get oauthLogout => '登出';
+
+  @override
+  String get oauthLogoutConfirm => '要登出此账号吗？已同步的模型清单会保留。';
+
+  @override
+  String get oauthFeatureToggle => '供应商账号登录';
+
+  @override
+  String get oauthFeatureToggleHelp => '关闭后将隐藏并停用订阅登录，不影响 API Key 供应商。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -16411,4 +16817,207 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get searchWebFetchTier2Note => '使用供應商來源時，URL 會傳送給該供應商，並依其方案計費。';
+
+  @override
+  String get addProviderSheetAccountTab => '帳號登入';
+
+  @override
+  String get oauthChatGptName => 'ChatGPT（Codex）';
+
+  @override
+  String get oauthChatGptSubtitle => '使用 ChatGPT Plus / Pro 訂閱額度';
+
+  @override
+  String get oauthClaudeName => 'Claude（Pro / Max）';
+
+  @override
+  String get oauthClaudeSubtitle => '使用 Claude Pro / Max 訂閱額度';
+
+  @override
+  String get oauthGrokName => 'Grok';
+
+  @override
+  String get oauthGrokSubtitle => '使用 Grok 訂閱額度';
+
+  @override
+  String get oauthKimiName => 'Kimi Code';
+
+  @override
+  String get oauthKimiSubtitle => '使用 Kimi Code 程式方案';
+
+  @override
+  String get oauthChatGptIntro =>
+      '使用 ChatGPT 帳號登入，即可用訂閱額度使用 GPT-5.x 與 Codex 模型，無需 API Key。';
+
+  @override
+  String get oauthClaudeIntro =>
+      '使用 Claude 帳號登入，即可用 Pro / Max 訂閱額度使用 Claude 模型，無需 API Key。';
+
+  @override
+  String get oauthGrokIntro => '使用 xAI 帳號登入，即可用訂閱額度使用 Grok 模型，無需 API Key。';
+
+  @override
+  String get oauthKimiIntro =>
+      '使用 Kimi 帳號登入，即可用程式方案使用 Kimi Code 模型，無需 API Key。';
+
+  @override
+  String get oauthSignInButton => '登入';
+
+  @override
+  String get oauthWaitingBrowser => '正在等待瀏覽器完成登入，完成後請回到 OmniChat。';
+
+  @override
+  String get oauthOpenBrowserAgain => '重新開啟登入頁';
+
+  @override
+  String get oauthCancel => '取消';
+
+  @override
+  String get oauthManualHint => '貼上授權碼、code#state 或完整回呼網址';
+
+  @override
+  String get oauthManualSubmit => '送出授權碼';
+
+  @override
+  String get oauthManualWaiting => '自動回呼未完成，請改從瀏覽器貼上授權碼。';
+
+  @override
+  String get oauthDeviceRequesting => '正在申請裝置碼…';
+
+  @override
+  String get oauthDeviceWaiting => '等待在裝置頁面確認…';
+
+  @override
+  String get oauthExchanging => '正在交換授權碼…';
+
+  @override
+  String get oauthDeviceCodeHint => '請在供應商頁面輸入此代碼：';
+
+  @override
+  String get oauthOpenDevicePage => '開啟裝置頁面';
+
+  @override
+  String get oauthSignInFailed => '登入失敗';
+
+  @override
+  String get oauthRiskNotice => '本功能以非官方客戶端方式使用訂閱帳號，供應商條款可能變動，帳號風險由您自行承擅。';
+
+  @override
+  String get oauthDisabledNotice => '帳號登入功能已關閉，請到帳號頁面開啟後再登入。';
+
+  @override
+  String get oauthClaudeAccount => 'Claude 訂閱帳號';
+
+  @override
+  String get oauthGrokAccount => 'Grok 訂閱帳號';
+
+  @override
+  String get oauthKimiAccount => 'Kimi Code 訂閱帳號';
+
+  @override
+  String get oauthChatGptAccount => 'ChatGPT 訂閱帳號';
+
+  @override
+  String get oauthConnected => '已連線';
+
+  @override
+  String get oauthNotSignedIn => '未登入';
+
+  @override
+  String get oauthLoginRequired => '需要登入';
+
+  @override
+  String get oauthChatRecoveryReadyTitle => '可以重試';
+
+  @override
+  String oauthChatRecoveryBody(String provider) {
+    return '$provider 的訂閱帳號登入已失效。請重新登入後按「重試」，本輪不會自動重送。';
+  }
+
+  @override
+  String get oauthChatRecoveryNotice => '本輪因帳號需要重新登入而中止。';
+
+  @override
+  String get oauthChatRecoverySignIn => '重新登入';
+
+  @override
+  String get oauthChatRecoveryRetry => '重試';
+
+  @override
+  String get oauthChatRecoveryDone => '已重新登入，按「重試」繼續本輪。';
+
+  @override
+  String get oauthSignedIn => '已登入';
+
+  @override
+  String get oauthPlanLabel => '方案';
+
+  @override
+  String get oauthUsageSession => '5 小時視窗';
+
+  @override
+  String get oauthUsageWeekly => '每週視窗';
+
+  @override
+  String get oauthUsageScoped => '模型視窗';
+
+  @override
+  String get oauthUsageExtra => '額外用量';
+
+  @override
+  String oauthUsageResets(String time) {
+    return '重置於 $time';
+  }
+
+  @override
+  String get oauthRefreshUsage => '重新整理用量';
+
+  @override
+  String get oauthSyncModels => '同步模型';
+
+  @override
+  String oauthSyncSuccess(int count) {
+    return '模型已更新（$count 個）';
+  }
+
+  @override
+  String get oauthSyncFailed => '模型同步失敗';
+
+  @override
+  String oauthModelsTitle(int count) {
+    return '模型（$count）';
+  }
+
+  @override
+  String get oauthModelsEmpty => '尚未同步模型，請使用「同步模型」。';
+
+  @override
+  String get oauthModelsKeptAfterSignOut => '登出後模型仍會保留在此清單，並標示為未登入。';
+
+  @override
+  String get oauthPromptCaching => '提示快取';
+
+  @override
+  String get oauthPromptCacheTtl5m => '5 分鐘';
+
+  @override
+  String get oauthPromptCacheTtl1h => '1 小時';
+
+  @override
+  String get oauthEndpointLabel => '端點';
+
+  @override
+  String get oauthSignedInAccountId => '帳號 ID';
+
+  @override
+  String get oauthLogout => '登出';
+
+  @override
+  String get oauthLogoutConfirm => '要登出此帳號嗎？已同步的模型清單會保留。';
+
+  @override
+  String get oauthFeatureToggle => '供應商帳號登入';
+
+  @override
+  String get oauthFeatureToggleHelp => '關閉後將隱藏並停用訂閱登入，不影響 API Key 供應商。';
 }

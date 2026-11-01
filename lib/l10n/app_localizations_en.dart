@@ -5649,4 +5649,219 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get searchWebFetchTier2Note =>
       'With a provider source, the URL is sent to that provider and billed by its plan.';
+
+  @override
+  String get addProviderSheetAccountTab => 'Account';
+
+  @override
+  String get oauthChatGptName => 'ChatGPT (Codex)';
+
+  @override
+  String get oauthChatGptSubtitle => 'Use your ChatGPT Plus / Pro subscription';
+
+  @override
+  String get oauthClaudeName => 'Claude (Pro / Max)';
+
+  @override
+  String get oauthClaudeSubtitle => 'Use your Claude Pro / Max subscription';
+
+  @override
+  String get oauthGrokName => 'Grok';
+
+  @override
+  String get oauthGrokSubtitle => 'Use your Grok subscription';
+
+  @override
+  String get oauthKimiName => 'Kimi Code';
+
+  @override
+  String get oauthKimiSubtitle => 'Use your Kimi Code coding plan';
+
+  @override
+  String get oauthChatGptIntro =>
+      'Sign in with your ChatGPT account to use GPT-5.x and Codex models on your subscription quota - no API key needed.';
+
+  @override
+  String get oauthClaudeIntro =>
+      'Sign in with your Claude account to use Claude models on your Pro / Max subscription - no API key needed.';
+
+  @override
+  String get oauthGrokIntro =>
+      'Sign in with your xAI account to use Grok models on your subscription quota - no API key needed.';
+
+  @override
+  String get oauthKimiIntro =>
+      'Sign in with your Kimi account to use Kimi Code models on your coding plan - no API key needed.';
+
+  @override
+  String get oauthSignInButton => 'Sign in';
+
+  @override
+  String get oauthWaitingBrowser =>
+      'Waiting for the browser. Finish signing in there and return to OmniChat.';
+
+  @override
+  String get oauthOpenBrowserAgain => 'Open sign-in page';
+
+  @override
+  String get oauthCancel => 'Cancel';
+
+  @override
+  String get oauthManualHint =>
+      'Paste the authorization code, code#state, or the full callback URL';
+
+  @override
+  String get oauthManualSubmit => 'Submit code';
+
+  @override
+  String get oauthManualWaiting =>
+      'Automatic callback did not complete. Paste the code from the browser instead.';
+
+  @override
+  String get oauthDeviceRequesting => 'Requesting a device code...';
+
+  @override
+  String get oauthDeviceWaiting =>
+      'Waiting for confirmation on the device page...';
+
+  @override
+  String get oauthExchanging => 'Exchanging the authorization code...';
+
+  @override
+  String get oauthDeviceCodeHint => 'Enter this code on the provider page:';
+
+  @override
+  String get oauthOpenDevicePage => 'Open device page';
+
+  @override
+  String get oauthSignInFailed => 'Sign-in failed';
+
+  @override
+  String get oauthRiskNotice =>
+      'This signs in with a subscription account through an unofficial client. Provider terms may change and the account risk is yours.';
+
+  @override
+  String get oauthDisabledNotice =>
+      'Provider account sign-in is turned off. Enable it on the account page to sign in.';
+
+  @override
+  String get oauthClaudeAccount => 'Claude subscription account';
+
+  @override
+  String get oauthGrokAccount => 'Grok subscription account';
+
+  @override
+  String get oauthKimiAccount => 'Kimi Code subscription account';
+
+  @override
+  String get oauthChatGptAccount => 'ChatGPT subscription account';
+
+  @override
+  String get oauthConnected => 'Connected';
+
+  @override
+  String get oauthNotSignedIn => 'Not signed in';
+
+  @override
+  String get oauthLoginRequired => 'Sign-in required';
+
+  @override
+  String get oauthChatRecoveryReadyTitle => 'Ready to retry';
+
+  @override
+  String oauthChatRecoveryBody(String provider) {
+    return 'The subscription account for $provider needs to sign in again. Sign in, then press Retry. This turn is not re-sent automatically.';
+  }
+
+  @override
+  String get oauthChatRecoveryNotice =>
+      'This turn stopped because the account needed to sign in again.';
+
+  @override
+  String get oauthChatRecoverySignIn => 'Sign in again';
+
+  @override
+  String get oauthChatRecoveryRetry => 'Retry';
+
+  @override
+  String get oauthChatRecoveryDone =>
+      'Signed in. Press Retry to continue this turn.';
+
+  @override
+  String get oauthSignedIn => 'Signed in';
+
+  @override
+  String get oauthPlanLabel => 'Plan';
+
+  @override
+  String get oauthUsageSession => '5-hour window';
+
+  @override
+  String get oauthUsageWeekly => 'Weekly window';
+
+  @override
+  String get oauthUsageScoped => 'Model window';
+
+  @override
+  String get oauthUsageExtra => 'Extra usage';
+
+  @override
+  String oauthUsageResets(String time) {
+    return 'Resets $time';
+  }
+
+  @override
+  String get oauthRefreshUsage => 'Refresh usage';
+
+  @override
+  String get oauthSyncModels => 'Sync models';
+
+  @override
+  String oauthSyncSuccess(int count) {
+    return 'Models updated ($count)';
+  }
+
+  @override
+  String get oauthSyncFailed => 'Model sync failed';
+
+  @override
+  String oauthModelsTitle(int count) {
+    return 'Models ($count)';
+  }
+
+  @override
+  String get oauthModelsEmpty => 'No models synced yet. Use Sync models.';
+
+  @override
+  String get oauthModelsKeptAfterSignOut =>
+      'Models stay in this list after sign-out and are shown as signed out.';
+
+  @override
+  String get oauthPromptCaching => 'Prompt caching';
+
+  @override
+  String get oauthPromptCacheTtl5m => '5 minutes';
+
+  @override
+  String get oauthPromptCacheTtl1h => '1 hour';
+
+  @override
+  String get oauthEndpointLabel => 'Endpoint';
+
+  @override
+  String get oauthSignedInAccountId => 'Account ID';
+
+  @override
+  String get oauthLogout => 'Sign out';
+
+  @override
+  String get oauthLogoutConfirm =>
+      'Sign out of this account? The synced model list is kept.';
+
+  @override
+  String get oauthFeatureToggle => 'Provider account sign-in';
+
+  @override
+  String get oauthFeatureToggleHelp =>
+      'Turn this off to hide and disable subscription sign-in. API-key providers are unaffected.';
 }

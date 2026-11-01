@@ -67,6 +67,8 @@ flutter {
 }
 
 dependencies {
+    // Custom Tabs + AuthTab for the Android provider OAuth sign-in window.
+    implementation("androidx.browser:browser:1.9.0")
     // Required for core library desugaring (used by flutter_local_notifications)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
