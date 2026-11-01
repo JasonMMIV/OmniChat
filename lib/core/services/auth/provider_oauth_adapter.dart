@@ -1490,6 +1490,26 @@ OAuthUsage parseKimiUsage(
   return OAuthUsage(windows: windows, fetchedAt: fetchedAt);
 }
 
+String _codexWindowKind(Map<String, dynamic> map) {
+  final rawSeconds = _number(
+    map['limit_window_seconds'] ??
+        map['limitWindowSeconds'] ??
+        map['window_seconds'] ??
+        map['windowSeconds'],
+  );
+  final rawMinutes = _number(map['window_minutes'] ?? map['windowMinutes']);
+  final seconds = rawSeconds != null && rawSeconds > 0
+      ? rawSeconds
+      : rawMinutes != null && rawMinutes > 0
+      ? rawMinutes * 60
+      : null;
+  if (seconds == null || seconds <= 0) return 'usage';
+  if (seconds >= 28 * 24 * 60 * 60) return 'monthly';
+  if (seconds >= 6 * 24 * 60 * 60) return 'weekly';
+  if (seconds >= 4 * 60 * 60 && seconds <= 6 * 60 * 60) return 'session';
+  return 'usage';
+}
+
 /// Parses `GET /backend-api/wham/usage`.
 OAuthUsage parseCodexUsage(
   Map<String, dynamic> json, {
@@ -1497,7 +1517,7 @@ OAuthUsage parseCodexUsage(
 }) {
   final windows = <OAuthUsageWindow>[];
   final rate = _asMap(json['rate_limit'] ?? json['rate_limits']);
-  void addWindow(Object? raw, String kind) {
+  void addWindow(Object? raw) {
     final map = _asMap(raw);
     if (map.isEmpty) return;
     final percentRaw = map['used_percent'] ?? map['percent'] ?? map['used'];
@@ -1514,13 +1534,14 @@ OAuthUsage parseCodexUsage(
     } else if (resetRaw is String) {
       resetsAt = DateTime.tryParse(resetRaw);
     }
+    final kind = _codexWindowKind(map);
     windows.add(
       OAuthUsageWindow(kind: kind, percent: percent, resetsAt: resetsAt),
     );
   }
 
-  addWindow(rate['primary_window'] ?? rate['primary'], 'session');
-  addWindow(rate['secondary_window'] ?? rate['secondary'], 'weekly');
+  addWindow(rate['primary_window'] ?? rate['primary']);
+  addWindow(rate['secondary_window'] ?? rate['secondary']);
   final plan = (json['plan_type'] ?? json['plan'] ?? '').toString();
   return OAuthUsage(
     windows: windows,

@@ -85,9 +85,6 @@ class _AddProviderSheetState extends State<_AddProviderSheet>
   late final TextEditingController _googleProject = TextEditingController();
   late final TextEditingController _googleSaJson = TextEditingController();
 
-  // Account (OAuth) sign-in
-  OAuthProvider _oauthProvider = OAuthProvider.chatgpt;
-
   // Claude
   bool _claudeEnabled = true;
   late final TextEditingController _claudeName = TextEditingController(
@@ -378,126 +375,14 @@ class _AddProviderSheetState extends State<_AddProviderSheet>
     return candidate;
   }
 
-  Widget _oauthForm(AppLocalizations l10n) {
-    final cs = Theme.of(context).colorScheme;
-    Widget row(OAuthProvider provider, String title, String subtitle) {
-      final selected = _oauthProvider == provider;
-      return InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => setState(() => _oauthProvider = provider),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-          child: Row(
-            children: [
-              Radio<OAuthProvider>(
-                value: provider,
-                groupValue: _oauthProvider,
-                onChanged: (v) {
-                  if (v != null) setState(() => _oauthProvider = v);
-                },
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: selected
-                            ? FontWeight.w600
-                            : FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: cs.onSurface.withOpacity(0.6),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _iosCard(
-          children: [
-            row(
-              OAuthProvider.chatgpt,
-              l10n.oauthChatGptName,
-              l10n.oauthChatGptSubtitle,
-            ),
-            const Divider(height: 1),
-            row(
-              OAuthProvider.claude,
-              l10n.oauthClaudeName,
-              l10n.oauthClaudeSubtitle,
-            ),
-            const Divider(height: 1),
-            row(OAuthProvider.grok, l10n.oauthGrokName, l10n.oauthGrokSubtitle),
-            const Divider(height: 1),
-            row(OAuthProvider.kimi, l10n.oauthKimiName, l10n.oauthKimiSubtitle),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? Colors.white10
-                : const Color(0xFFF7F7F9),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: cs.outlineVariant.withOpacity(0.25)),
-          ),
-          child: AnimatedBuilder(
-            animation: ProviderOAuthService.instance,
-            builder: (context, _) => OAuthLoginPanel(
-              key: ValueKey<OAuthProvider>(_oauthProvider),
-              provider: _oauthProvider,
-              providerId: _oauthProvider.wireName,
-              onSignedIn: _onOAuthSignedIn,
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        AnimatedBuilder(
-          animation: ProviderOAuthService.instance,
-          builder: (context, _) => _iosCard(
-            children: [
-              _switchRow(
-                label: l10n.oauthFeatureToggle,
-                value: ProviderOAuthService.instance.enabled,
-                onChanged: (v) => ProviderOAuthService.instance.setEnabled(v),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          l10n.oauthFeatureToggleHelp,
-          style: TextStyle(
-            fontSize: 11,
-            height: 1.45,
-            color: cs.onSurface.withOpacity(0.55),
-          ),
-        ),
-      ],
-    );
+  Widget _oauthForm() {
+    return OAuthLoginPanel(providerId: null, onSignedIn: _onOAuthSignedIn);
   }
 
-  Future<void> _onOAuthSignedIn(ProviderOAuthCredentials credentials) async {
-    final provider = _oauthProvider;
+  Future<void> _onOAuthSignedIn(
+    ProviderOAuthCredentials credentials,
+    OAuthProvider provider,
+  ) async {
     final prefix = switch (provider) {
       OAuthProvider.chatgpt => 'ChatGPT',
       OAuthProvider.claude => 'Claude',
@@ -735,7 +620,7 @@ class _AddProviderSheetState extends State<_AddProviderSheet>
                               if (idx == 0) _openaiForm(l10n),
                               if (idx == 1) _googleForm(l10n),
                               if (idx == 2) _claudeForm(l10n),
-                              if (idx == 3) _oauthForm(l10n),
+                              if (idx == 3) _oauthForm(),
                             ],
                           );
                         },

@@ -1,10 +1,14 @@
 // Modified for OmniChat on 2026-11-01. See THIRD_PARTY_NOTICES.md.
 //
-// Interactive sign-in panel shared by the "Account" tab of Add Provider and by
-// the account detail page. All protocol work lives in the auth adapters; this
-// widget only renders controller state and forwards the manual code.
+// Interactive sign-in panel shared by the "Accounts" tab of Add Provider and by
+// the account detail page. The layout follows Kelivo: provider rows with an
+// inline sign-in button, then a centered waiting state while the provider page
+// is open. All protocol work lives in the auth adapters; this widget only
+// renders controller state and forwards manual codes.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/models/provider_oauth.dart';
@@ -12,23 +16,34 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/auth/oauth_errors.dart';
 import '../../../core/services/auth/provider_oauth_adapter.dart';
 import '../../../core/services/auth/provider_oauth_service.dart';
+import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/ios_form_text_field.dart';
 import '../../../shared/widgets/ios_tile_button.dart';
+import '../../../theme/app_font_weights.dart';
+import 'provider_avatar.dart';
+
+typedef OAuthLoginCompleted =
+    Future<void> Function(
+      ProviderOAuthCredentials credentials,
+      OAuthProvider provider,
+    );
 
 class OAuthLoginPanel extends StatefulWidget {
   const OAuthLoginPanel({
     super.key,
-    required this.provider,
-    required this.providerId,
+    this.provider,
+    this.providerId,
     required this.onSignedIn,
     this.previousDeviceId,
     this.networkConfig,
     this.compact = false,
   });
 
-  final OAuthProvider provider;
-  final String providerId;
-  final void Function(ProviderOAuthCredentials credentials) onSignedIn;
+  /// Null renders every provider as a selectable row (the Add Provider tab).
+  final OAuthProvider? provider;
+  final String? providerId;
+  final OAuthLoginCompleted onSignedIn;
   final String? previousDeviceId;
 
   /// Existing provider whose proxy settings should be used for login traffic.
@@ -42,10 +57,9 @@ class OAuthLoginPanel extends StatefulWidget {
 class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
   final TextEditingController _manual = TextEditingController();
   OAuthLoginController? _controller;
+  OAuthProvider? _activeProvider;
   bool _busy = false;
   String? _error;
-
-  bool get _killSwitchOff => !ProviderOAuthService.instance.enabled;
 
   @override
   void dispose() {
@@ -72,35 +86,44 @@ class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
     return false;
   }
 
-  Future<void> _start() async {
-    if (_busy || _killSwitchOff) return;
-    final controller = OAuthLoginController(provider: widget.provider)
+  Future<void> _start(OAuthProvider provider) async {
+    if (_busy) return;
+    final controller = OAuthLoginController(provider: provider)
       ..onChanged = () {
         if (mounted) setState(() {});
       };
+    final usesWidgetContext = widget.provider == provider;
     setState(() {
       _busy = true;
       _error = null;
+      _activeProvider = provider;
       _controller = controller;
     });
     try {
       final credentials = await ProviderOAuthService.instance.login(
-        provider: widget.provider,
-        providerId: widget.providerId,
+        provider: provider,
+        providerId: widget.providerId ?? provider.wireName,
         controller: controller,
-        previousDeviceId: widget.previousDeviceId,
-        networkConfig: widget.networkConfig,
+        previousDeviceId: usesWidgetContext ? widget.previousDeviceId : null,
+        networkConfig: usesWidgetContext ? widget.networkConfig : null,
         launchBrowser: _launch,
       );
       // A cancel followed by a new attempt replaces the controller; the old
       // attempt's completion must not touch the new one's UI state.
       if (!mounted || !identical(_controller, controller)) return;
-      setState(() => _busy = false);
-      widget.onSignedIn(credentials);
+      await widget.onSignedIn(credentials, provider);
+      if (!mounted || !identical(_controller, controller)) return;
+      setState(() {
+        _busy = false;
+        _activeProvider = null;
+        _controller = null;
+      });
     } on OAuthException catch (e) {
       if (!mounted || !identical(_controller, controller)) return;
       setState(() {
         _busy = false;
+        _activeProvider = null;
+        _controller = null;
         // Cancelling is a user action, not a failure worth reporting back.
         _error = e is OAuthLoginCancelled ? null : e.message;
       });
@@ -108,6 +131,8 @@ class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
       if (!mounted || !identical(_controller, controller)) return;
       setState(() {
         _busy = false;
+        _activeProvider = null;
+        _controller = null;
         _error = '$e';
       });
     }
@@ -116,6 +141,7 @@ class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
   void _cancel() {
     final controller = _controller;
     _controller = null;
+    _activeProvider = null;
     controller?.cancel();
     setState(() {
       _busy = false;
@@ -123,192 +149,67 @@ class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
     });
   }
 
+  String _serviceLabel(OAuthProvider provider) {
+    return switch (provider) {
+      OAuthProvider.chatgpt => 'Codex',
+      OAuthProvider.claude => 'Pro / Max',
+      OAuthProvider.grok => 'xAI',
+      OAuthProvider.kimi => 'Kimi Code',
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final active = _activeProvider;
     final controller = _controller;
 
+    if (_busy && active != null) {
+      return _buildWaiting(l10n, cs, active, controller);
+    }
+
+    final providers = widget.provider == null
+        ? OAuthProvider.values
+        : <OAuthProvider>[widget.provider!];
+    final configs = context
+        .watch<SettingsProvider>()
+        .providerConfigs
+        .values
+        .toList(growable: false);
+    final cardColor = isDark ? Colors.white10 : const Color(0xFFF7F7F9);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          switch (widget.provider) {
-            OAuthProvider.chatgpt => l10n.oauthChatGptIntro,
-            OAuthProvider.claude => l10n.oauthClaudeIntro,
-            OAuthProvider.grok => l10n.oauthGrokIntro,
-            OAuthProvider.kimi => l10n.oauthKimiIntro,
-          },
-          style: TextStyle(
-            fontSize: 12,
-            height: 1.5,
-            color: cs.onSurface.withOpacity(0.7),
+        Container(
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: cs.outlineVariant.withOpacity(0.25)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              for (var i = 0; i < providers.length; i++) ...[
+                _providerRow(l10n, cs, providers[i], configs),
+                if (i < providers.length - 1)
+                  Divider(
+                    height: 1,
+                    thickness: 0.5,
+                    color: cs.outlineVariant.withOpacity(0.18),
+                  ),
+              ],
+            ],
           ),
         ),
-        const SizedBox(height: 12),
-        if (_killSwitchOff)
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              l10n.oauthDisabledNotice,
-              style: const TextStyle(fontSize: 12, color: Colors.orange),
-            ),
-          )
-        else if (!_busy)
-          SizedBox(
-            width: double.infinity,
-            child: IosTileButton(
-              icon: Icons.login,
-              label: l10n.oauthSignInButton,
-              backgroundColor: cs.primary,
-              onTap: _start,
-            ),
-          ),
-        if (_busy) ...[
-          Row(
-            children: [
-              const SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  _statusText(l10n, controller),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: cs.onSurface.withOpacity(0.75),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (controller?.userCode != null) ...[
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-              decoration: BoxDecoration(
-                color: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.oauthDeviceCodeHint,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: cs.onSurface.withOpacity(0.6),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  SelectableText(
-                    controller!.userCode!,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  if ((controller.verificationUrl ?? '').isNotEmpty)
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: const Size(0, 30),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      onPressed: () => _launch(controller.verificationUrl!),
-                      child: Text(l10n.oauthOpenDevicePage),
-                    ),
-                ],
-              ),
-            ),
-          ],
-          if (controller?.manualMode == true) ...[
-            const SizedBox(height: 10),
-            TextField(
-              controller: _manual,
-              minLines: 1,
-              maxLines: 3,
-              decoration: InputDecoration(
-                hintText: l10n.oauthManualHint,
-                isDense: true,
-                filled: true,
-                fillColor: isDark ? Colors.white10 : Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(
-                    color: cs.outlineVariant.withOpacity(0.4),
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(
-                    color: cs.outlineVariant.withOpacity(0.4),
-                  ),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 10,
-                ),
-              ),
-            ),
-            if ((controller?.manualError ?? '').isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                controller!.manualError!,
-                style: const TextStyle(fontSize: 11, color: Colors.red),
-              ),
-            ],
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                TextButton(
-                  onPressed: () {
-                    final text = _manual.text.trim();
-                    if (text.isEmpty) return;
-                    controller?.submitManualCode(text);
-                    _manual.clear();
-                  },
-                  child: Text(l10n.oauthManualSubmit),
-                ),
-                if ((controller?.authorizeUrl ?? '').isNotEmpty)
-                  TextButton(
-                    onPressed: () => _launch(controller!.authorizeUrl!),
-                    child: Text(l10n.oauthOpenBrowserAgain),
-                  ),
-                const Spacer(),
-                TextButton(onPressed: _cancel, child: Text(l10n.oauthCancel)),
-              ],
-            ),
-          ] else ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                if ((controller?.authorizeUrl ?? '').isNotEmpty)
-                  TextButton(
-                    onPressed: () => _launch(controller!.authorizeUrl!),
-                    child: Text(l10n.oauthOpenBrowserAgain),
-                  ),
-                const Spacer(),
-                TextButton(onPressed: _cancel, child: Text(l10n.oauthCancel)),
-              ],
-            ),
-          ],
-        ],
         if ((_error ?? '').isNotEmpty) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(
             '${l10n.oauthSignInFailed}: $_error',
-            style: const TextStyle(fontSize: 12, color: Colors.red),
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: cs.error),
           ),
         ],
         if (!widget.compact) ...[
@@ -323,6 +224,254 @@ class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
           ),
         ],
       ],
+    );
+  }
+
+  Widget _providerRow(
+    AppLocalizations l10n,
+    ColorScheme cs,
+    OAuthProvider provider,
+    List<ProviderConfig> configs,
+  ) {
+    final service = ProviderOAuthService.instance;
+    final accounts = configs
+        .where((cfg) => cfg.oauthProvider == provider)
+        .toList(growable: false);
+    final signedIn = accounts
+        .where(
+          (cfg) =>
+              cfg.oauthCredentialsValue != null &&
+              !service.isLoginRequired(cfg.id),
+        )
+        .length;
+    final needsLogin =
+        widget.provider != null && widget.previousDeviceId != null;
+    final status = signedIn > 0
+        ? l10n.oauthSignedIn
+        : needsLogin
+        ? l10n.oauthLoginRequired
+        : null;
+    final statusColor = signedIn > 0 ? Colors.green : Colors.orange;
+    final addAnother = signedIn > 0;
+    final actionLabel = addAnother
+        ? l10n.oauthAddAnotherAccount
+        : needsLogin
+        ? l10n.oauthChatRecoverySignIn
+        : l10n.oauthSignInButton;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      child: Row(
+        children: [
+          ProviderAvatar(
+            providerKey: provider.wireName,
+            displayName: provider.displayName,
+            size: 36,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  provider.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: AppFontWeights.semibold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      _serviceLabel(provider),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                    if (status != null) _statusPill(status, statusColor),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          IosTileButton(
+            label: actionLabel,
+            icon: addAnother ? Icons.add : Icons.login,
+            backgroundColor: addAnother ? null : cs.primary,
+            fontSize: 13,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            onTap: () => _start(provider),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusPill(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: AppFontWeights.semibold,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWaiting(
+    AppLocalizations l10n,
+    ColorScheme cs,
+    OAuthProvider provider,
+    OAuthLoginController? controller,
+  ) {
+    final code = controller?.userCode;
+    final verificationUrl = controller?.verificationUrl;
+    final manualMode = controller?.manualMode == true;
+    final authorizeUrl = controller?.authorizeUrl;
+    final manualError = controller?.manualError;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: ProviderAvatar(
+              providerKey: provider.wireName,
+              displayName: provider.displayName,
+              size: 48,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            provider.displayName,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 17, fontWeight: AppFontWeights.semibold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _statusText(l10n, controller),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.45,
+              color: cs.onSurface.withOpacity(0.6),
+            ),
+          ),
+          if (code != null) ...[
+            const SizedBox(height: 20),
+            Text(
+              l10n.oauthDeviceCodeHint,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: cs.onSurface.withOpacity(0.6),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SelectableText(
+              code,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: AppFontWeights.semibold,
+                letterSpacing: 3,
+              ),
+            ),
+            const SizedBox(height: 12),
+            IosTileButton(
+              label: l10n.oauthCopyCode,
+              icon: Lucide.Copy,
+              onTap: () => Clipboard.setData(ClipboardData(text: code)),
+            ),
+            if ((verificationUrl ?? '').isNotEmpty) ...[
+              const SizedBox(height: 12),
+              IosTileButton(
+                label: l10n.oauthOpenDevicePage,
+                icon: Lucide.ExternalLink,
+                onTap: () => _launch(verificationUrl!),
+              ),
+            ],
+          ],
+          if (manualMode) ...[
+            const SizedBox(height: 20),
+            Text(
+              l10n.oauthManualHint,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.45,
+                color: cs.onSurface.withOpacity(0.6),
+              ),
+            ),
+            const SizedBox(height: 12),
+            IosFormTextField(
+              label: l10n.oauthAuthorizationCode,
+              controller: _manual,
+              hintText: l10n.oauthManualHint,
+              maxLines: 2,
+            ),
+            if ((manualError ?? '').isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                manualError!,
+                style: TextStyle(fontSize: 12, color: cs.error),
+              ),
+            ],
+            const SizedBox(height: 12),
+            IosTileButton(
+              label: l10n.oauthManualSubmit,
+              icon: Lucide.Check,
+              onTap: () {
+                final text = _manual.text.trim();
+                if (text.isEmpty) return;
+                controller?.submitManualCode(text);
+                _manual.clear();
+              },
+            ),
+            if ((authorizeUrl ?? '').isNotEmpty) ...[
+              const SizedBox(height: 12),
+              IosTileButton(
+                label: l10n.oauthOpenBrowserAgain,
+                icon: Lucide.ExternalLink,
+                onTap: () => _launch(authorizeUrl!),
+              ),
+            ],
+          ] else if ((authorizeUrl ?? '').isNotEmpty) ...[
+            const SizedBox(height: 20),
+            IosTileButton(
+              label: l10n.oauthOpenBrowserAgain,
+              icon: Lucide.ExternalLink,
+              onTap: () => _launch(authorizeUrl!),
+            ),
+          ],
+          const SizedBox(height: 16),
+          IosTileButton(
+            label: l10n.oauthCancel,
+            icon: Lucide.X,
+            foregroundColor: cs.error,
+            onTap: _cancel,
+          ),
+        ],
+      ),
     );
   }
 

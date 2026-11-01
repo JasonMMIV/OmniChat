@@ -5584,46 +5584,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get addProviderSheetAccountTab => '账户登录';
 
   @override
-  String get oauthChatGptName => 'ChatGPT（Codex）';
-
-  @override
-  String get oauthChatGptSubtitle => '使用 ChatGPT Plus / Pro 订阅额度';
-
-  @override
-  String get oauthClaudeName => 'Claude（Pro / Max）';
-
-  @override
-  String get oauthClaudeSubtitle => '使用 Claude Pro / Max 订阅额度';
-
-  @override
-  String get oauthGrokName => 'Grok';
-
-  @override
-  String get oauthGrokSubtitle => '使用 Grok 订阅额度';
-
-  @override
-  String get oauthKimiName => 'Kimi Code';
-
-  @override
-  String get oauthKimiSubtitle => '使用 Kimi Code 编程方案';
-
-  @override
-  String get oauthChatGptIntro =>
-      '使用 ChatGPT 账号登录，即可用订阅额度使用 GPT-5.x 与 Codex 模型，无需 API Key。';
-
-  @override
-  String get oauthClaudeIntro =>
-      '使用 Claude 账号登录，即可用 Pro / Max 订阅额度使用 Claude 模型，无需 API Key。';
-
-  @override
-  String get oauthGrokIntro => '使用 xAI 账号登录，即可用订阅额度使用 Grok 模型，无需 API Key。';
-
-  @override
-  String get oauthKimiIntro =>
-      '使用 Kimi 账号登录，即可用编程方案使用 Kimi Code 模型，无需 API Key。';
-
-  @override
   String get oauthSignInButton => '登录';
+
+  @override
+  String get oauthAddAnotherAccount => '添加账号';
 
   @override
   String get oauthWaitingBrowser => '正在等待浏览器完成登录，完成后请回到 OmniChat。';
@@ -5718,6 +5682,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get oauthUsageSession => '5 小时窗口';
 
   @override
+  String get oauthUsageMonthly => '30 天窗口';
+
+  @override
+  String get oauthUsageWindow => '用量窗口';
+
+  @override
+  String get oauthCopyCode => '复制代码';
+
+  @override
+  String get oauthAuthorizationCode => '授权码';
+
+  @override
   String get oauthUsageWeekly => '每周窗口';
 
   @override
@@ -5751,13 +5727,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get oauthModelsTapToConfigure => '点击模型可调整推理与高级设置。';
-
-  @override
   String get oauthModelsEmpty => '尚未同步模型，请使用「同步模型」。';
-
-  @override
-  String get oauthModelsKeptAfterSignOut => '登出后模型仍会保留在此清单，并标示为未登录。';
 
   @override
   String get oauthPromptCaching => '提示缓存';
@@ -5779,12 +5749,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get oauthLogoutConfirm => '要登出此账号吗？已同步的模型清单会保留。';
-
-  @override
-  String get oauthFeatureToggle => '供应商账号登录';
-
-  @override
-  String get oauthFeatureToggleHelp => '关闭后将隐藏并停用订阅登录，不影响 API Key 供应商。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -11156,46 +11120,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get addProviderSheetAccountTab => '账户登录';
 
   @override
-  String get oauthChatGptName => 'ChatGPT（Codex）';
-
-  @override
-  String get oauthChatGptSubtitle => '使用 ChatGPT Plus / Pro 订阅额度';
-
-  @override
-  String get oauthClaudeName => 'Claude（Pro / Max）';
-
-  @override
-  String get oauthClaudeSubtitle => '使用 Claude Pro / Max 订阅额度';
-
-  @override
-  String get oauthGrokName => 'Grok';
-
-  @override
-  String get oauthGrokSubtitle => '使用 Grok 订阅额度';
-
-  @override
-  String get oauthKimiName => 'Kimi Code';
-
-  @override
-  String get oauthKimiSubtitle => '使用 Kimi Code 编程方案';
-
-  @override
-  String get oauthChatGptIntro =>
-      '使用 ChatGPT 账号登录，即可用订阅额度使用 GPT-5.x 与 Codex 模型，无需 API Key。';
-
-  @override
-  String get oauthClaudeIntro =>
-      '使用 Claude 账号登录，即可用 Pro / Max 订阅额度使用 Claude 模型，无需 API Key。';
-
-  @override
-  String get oauthGrokIntro => '使用 xAI 账号登录，即可用订阅额度使用 Grok 模型，无需 API Key。';
-
-  @override
-  String get oauthKimiIntro =>
-      '使用 Kimi 账号登录，即可用编程方案使用 Kimi Code 模型，无需 API Key。';
-
-  @override
   String get oauthSignInButton => '登录';
+
+  @override
+  String get oauthAddAnotherAccount => '添加账号';
 
   @override
   String get oauthWaitingBrowser => '正在等待浏览器完成登录，完成后请回到 OmniChat。';
@@ -11290,6 +11218,18 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get oauthUsageSession => '5 小时窗口';
 
   @override
+  String get oauthUsageMonthly => '30 天窗口';
+
+  @override
+  String get oauthUsageWindow => '用量窗口';
+
+  @override
+  String get oauthCopyCode => '复制代码';
+
+  @override
+  String get oauthAuthorizationCode => '授权码';
+
+  @override
   String get oauthUsageWeekly => '每周窗口';
 
   @override
@@ -11323,13 +11263,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
-  String get oauthModelsTapToConfigure => '点击模型可调整推理与高级设置。';
-
-  @override
   String get oauthModelsEmpty => '尚未同步模型，请使用「同步模型」。';
-
-  @override
-  String get oauthModelsKeptAfterSignOut => '登出后模型仍会保留在此清单，并标示为未登录。';
 
   @override
   String get oauthPromptCaching => '提示缓存';
@@ -11351,12 +11285,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get oauthLogoutConfirm => '要登出此账号吗？已同步的模型清单会保留。';
-
-  @override
-  String get oauthFeatureToggle => '供应商账号登录';
-
-  @override
-  String get oauthFeatureToggleHelp => '关闭后将隐藏并停用订阅登录，不影响 API Key 供应商。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -16828,46 +16756,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get addProviderSheetAccountTab => '帳號登入';
 
   @override
-  String get oauthChatGptName => 'ChatGPT（Codex）';
-
-  @override
-  String get oauthChatGptSubtitle => '使用 ChatGPT Plus / Pro 訂閱額度';
-
-  @override
-  String get oauthClaudeName => 'Claude（Pro / Max）';
-
-  @override
-  String get oauthClaudeSubtitle => '使用 Claude Pro / Max 訂閱額度';
-
-  @override
-  String get oauthGrokName => 'Grok';
-
-  @override
-  String get oauthGrokSubtitle => '使用 Grok 訂閱額度';
-
-  @override
-  String get oauthKimiName => 'Kimi Code';
-
-  @override
-  String get oauthKimiSubtitle => '使用 Kimi Code 程式方案';
-
-  @override
-  String get oauthChatGptIntro =>
-      '使用 ChatGPT 帳號登入，即可用訂閱額度使用 GPT-5.x 與 Codex 模型，無需 API Key。';
-
-  @override
-  String get oauthClaudeIntro =>
-      '使用 Claude 帳號登入，即可用 Pro / Max 訂閱額度使用 Claude 模型，無需 API Key。';
-
-  @override
-  String get oauthGrokIntro => '使用 xAI 帳號登入，即可用訂閱額度使用 Grok 模型，無需 API Key。';
-
-  @override
-  String get oauthKimiIntro =>
-      '使用 Kimi 帳號登入，即可用程式方案使用 Kimi Code 模型，無需 API Key。';
-
-  @override
   String get oauthSignInButton => '登入';
+
+  @override
+  String get oauthAddAnotherAccount => '新增帳號';
 
   @override
   String get oauthWaitingBrowser => '正在等待瀏覽器完成登入，完成後請回到 OmniChat。';
@@ -16906,7 +16798,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get oauthSignInFailed => '登入失敗';
 
   @override
-  String get oauthRiskNotice => '本功能以非官方客戶端方式使用訂閱帳號，供應商條款可能變動，帳號風險由您自行承擅。';
+  String get oauthRiskNotice => '本功能以非官方客戶端方式使用訂閱帳號，供應商條款可能變動，帳號風險由您自行承擔。';
 
   @override
   String get oauthDisabledNotice => '帳號登入功能已關閉，請到帳號頁面開啟後再登入。';
@@ -16962,6 +16854,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get oauthUsageSession => '5 小時視窗';
 
   @override
+  String get oauthUsageMonthly => '30 天視窗';
+
+  @override
+  String get oauthUsageWindow => '用量視窗';
+
+  @override
+  String get oauthCopyCode => '複製代碼';
+
+  @override
+  String get oauthAuthorizationCode => '授權碼';
+
+  @override
   String get oauthUsageWeekly => '每週視窗';
 
   @override
@@ -16995,13 +16899,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get oauthModelsTapToConfigure => '點擊模型可調整推理與進階設定。';
-
-  @override
   String get oauthModelsEmpty => '尚未同步模型，請使用「同步模型」。';
-
-  @override
-  String get oauthModelsKeptAfterSignOut => '登出後模型仍會保留在此清單，並標示為未登入。';
 
   @override
   String get oauthPromptCaching => '提示快取';
@@ -17023,10 +16921,4 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get oauthLogoutConfirm => '要登出此帳號嗎？已同步的模型清單會保留。';
-
-  @override
-  String get oauthFeatureToggle => '供應商帳號登入';
-
-  @override
-  String get oauthFeatureToggleHelp => '關閉後將隱藏並停用訂閱登入，不影響 API Key 供應商。';
 }

@@ -10,7 +10,6 @@ import 'package:provider/provider.dart';
 
 import '../../../core/models/provider_oauth.dart';
 import '../../../core/providers/settings_provider.dart';
-import '../../../core/services/auth/oauth_errors.dart';
 import '../../../core/services/auth/provider_oauth_service.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
@@ -57,7 +56,7 @@ Future<bool> showOAuthLoginSheet({
     previousDeviceId: config.oauthCredentialsValue?.deviceId,
     networkConfig: config,
     compact: true,
-    onSignedIn: (credentials) async {
+    onSignedIn: (credentials, _) async {
       try {
         await persistOAuthLogin(
           context: panelContext,

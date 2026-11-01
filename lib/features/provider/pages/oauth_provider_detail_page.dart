@@ -238,11 +238,6 @@ class _OAuthProviderDetailPageState extends State<OAuthProviderDetailPage> {
     return modelId;
   }
 
-  Future<void> _setKillSwitch(bool value) async {
-    await ProviderOAuthService.instance.setEnabled(value);
-    if (mounted) setState(() {});
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -271,21 +266,6 @@ class _OAuthProviderDetailPageState extends State<OAuthProviderDetailPage> {
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
             children: [
-              if (!service.enabled) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    l10n.oauthDisabledNotice,
-                    style: const TextStyle(fontSize: 12, color: Colors.orange),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
               _sectionCard(
                 context,
                 child: Row(
@@ -317,15 +297,12 @@ class _OAuthProviderDetailPageState extends State<OAuthProviderDetailPage> {
               ),
               if (credentials == null || loginRequired) ...[
                 const SizedBox(height: 14),
-                _sectionCard(
-                  context,
-                  child: OAuthLoginPanel(
-                    provider: provider,
-                    providerId: cfg.id,
-                    previousDeviceId: credentials?.deviceId,
-                    networkConfig: cfg,
-                    onSignedIn: (creds) => _handleSignedIn(cfg, creds),
-                  ),
+                OAuthLoginPanel(
+                  provider: provider,
+                  providerId: cfg.id,
+                  previousDeviceId: credentials?.deviceId,
+                  networkConfig: cfg,
+                  onSignedIn: (creds, _) => _handleSignedIn(cfg, creds),
                 ),
               ] else ...[
                 const SizedBox(height: 10),
@@ -407,24 +384,6 @@ class _OAuthProviderDetailPageState extends State<OAuthProviderDetailPage> {
                             ],
                           ],
                         ),
-                      if (cfg.models.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          l10n.oauthModelsTapToConfigure,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: cs.onSurface.withOpacity(0.55),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 10),
-                      Text(
-                        l10n.oauthModelsKeptAfterSignOut,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: cs.onSurface.withOpacity(0.55),
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -532,38 +491,6 @@ class _OAuthProviderDetailPageState extends State<OAuthProviderDetailPage> {
                   ),
                 ),
               ],
-              const SizedBox(height: 20),
-              _sectionCard(
-                context,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            l10n.oauthFeatureToggle,
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                        ),
-                        Switch.adaptive(
-                          value: service.enabled,
-                          onChanged: _setKillSwitch,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      l10n.oauthFeatureToggleHelp,
-                      style: TextStyle(
-                        fontSize: 11,
-                        height: 1.45,
-                        color: cs.onSurface.withOpacity(0.55),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
         );

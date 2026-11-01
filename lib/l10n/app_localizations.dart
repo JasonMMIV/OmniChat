@@ -10650,83 +10650,17 @@ abstract class AppLocalizations {
   /// **'Account'**
   String get addProviderSheetAccountTab;
 
-  /// No description provided for @oauthChatGptName.
-  ///
-  /// In en, this message translates to:
-  /// **'ChatGPT (Codex)'**
-  String get oauthChatGptName;
-
-  /// No description provided for @oauthChatGptSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Use your ChatGPT Plus / Pro subscription'**
-  String get oauthChatGptSubtitle;
-
-  /// No description provided for @oauthClaudeName.
-  ///
-  /// In en, this message translates to:
-  /// **'Claude (Pro / Max)'**
-  String get oauthClaudeName;
-
-  /// No description provided for @oauthClaudeSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Use your Claude Pro / Max subscription'**
-  String get oauthClaudeSubtitle;
-
-  /// No description provided for @oauthGrokName.
-  ///
-  /// In en, this message translates to:
-  /// **'Grok'**
-  String get oauthGrokName;
-
-  /// No description provided for @oauthGrokSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Use your Grok subscription'**
-  String get oauthGrokSubtitle;
-
-  /// No description provided for @oauthKimiName.
-  ///
-  /// In en, this message translates to:
-  /// **'Kimi Code'**
-  String get oauthKimiName;
-
-  /// No description provided for @oauthKimiSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Use your Kimi Code coding plan'**
-  String get oauthKimiSubtitle;
-
-  /// No description provided for @oauthChatGptIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign in with your ChatGPT account to use GPT-5.x and Codex models on your subscription quota - no API key needed.'**
-  String get oauthChatGptIntro;
-
-  /// No description provided for @oauthClaudeIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign in with your Claude account to use Claude models on your Pro / Max subscription - no API key needed.'**
-  String get oauthClaudeIntro;
-
-  /// No description provided for @oauthGrokIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign in with your xAI account to use Grok models on your subscription quota - no API key needed.'**
-  String get oauthGrokIntro;
-
-  /// No description provided for @oauthKimiIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign in with your Kimi account to use Kimi Code models on your coding plan - no API key needed.'**
-  String get oauthKimiIntro;
-
   /// No description provided for @oauthSignInButton.
   ///
   /// In en, this message translates to:
   /// **'Sign in'**
   String get oauthSignInButton;
+
+  /// No description provided for @oauthAddAnotherAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Add account'**
+  String get oauthAddAnotherAccount;
 
   /// No description provided for @oauthWaitingBrowser.
   ///
@@ -10908,6 +10842,30 @@ abstract class AppLocalizations {
   /// **'5-hour window'**
   String get oauthUsageSession;
 
+  /// No description provided for @oauthUsageMonthly.
+  ///
+  /// In en, this message translates to:
+  /// **'30-day window'**
+  String get oauthUsageMonthly;
+
+  /// No description provided for @oauthUsageWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'Usage window'**
+  String get oauthUsageWindow;
+
+  /// No description provided for @oauthCopyCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy code'**
+  String get oauthCopyCode;
+
+  /// No description provided for @oauthAuthorizationCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorization code'**
+  String get oauthAuthorizationCode;
+
   /// No description provided for @oauthUsageWeekly.
   ///
   /// In en, this message translates to:
@@ -10962,23 +10920,11 @@ abstract class AppLocalizations {
   /// **'Models ({count})'**
   String oauthModelsTitle(int count);
 
-  /// No description provided for @oauthModelsTapToConfigure.
-  ///
-  /// In en, this message translates to:
-  /// **'Tap a model to edit reasoning and advanced options.'**
-  String get oauthModelsTapToConfigure;
-
   /// No description provided for @oauthModelsEmpty.
   ///
   /// In en, this message translates to:
   /// **'No models synced yet. Use Sync models.'**
   String get oauthModelsEmpty;
-
-  /// No description provided for @oauthModelsKeptAfterSignOut.
-  ///
-  /// In en, this message translates to:
-  /// **'Models stay in this list after sign-out and are shown as signed out.'**
-  String get oauthModelsKeptAfterSignOut;
 
   /// No description provided for @oauthPromptCaching.
   ///
@@ -11021,18 +10967,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sign out of this account? The synced model list is kept.'**
   String get oauthLogoutConfirm;
-
-  /// No description provided for @oauthFeatureToggle.
-  ///
-  /// In en, this message translates to:
-  /// **'Provider account sign-in'**
-  String get oauthFeatureToggle;
-
-  /// No description provided for @oauthFeatureToggleHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'Turn this off to hide and disable subscription sign-in. API-key providers are unaffected.'**
-  String get oauthFeatureToggleHelp;
 }
 
 class _AppLocalizationsDelegate

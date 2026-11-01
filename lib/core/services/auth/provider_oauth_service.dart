@@ -101,11 +101,16 @@ class ProviderOAuthService extends ChangeNotifier {
     _loaded = true;
     try {
       final prefs = await SharedPreferences.getInstance();
-      _enabled = prefs.getBool(prefsKey) ?? true;
+      // The account-login kill switch is no longer exposed in the UI. Clear
+      // any opt-out written by older builds so upgrading users are not left
+      // with a disabled sign-in flow that has no way back.
+      if (prefs.getBool(prefsKey) == false) await prefs.remove(prefsKey);
+      _enabled = true;
       notifyListeners();
     } catch (_) {}
   }
 
+  /// Kept for tests and emergency diagnostics; the UI no longer exposes it.
   Future<void> setEnabled(bool value) async {
     if (_enabled == value) return;
     _enabled = value;

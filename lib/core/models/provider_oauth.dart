@@ -368,7 +368,7 @@ class OAuthUsageWindow {
     this.label,
   });
 
-  /// `session` / `weekly` / `weekly_scoped` / `extra` …
+  /// `session` / `weekly` / `monthly` / `weekly_scoped` / `usage` / `extra` …
   final String kind;
 
   /// 0..100. Values above 100 are kept (providers report overages).

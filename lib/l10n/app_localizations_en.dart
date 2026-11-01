@@ -5654,47 +5654,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addProviderSheetAccountTab => 'Account';
 
   @override
-  String get oauthChatGptName => 'ChatGPT (Codex)';
-
-  @override
-  String get oauthChatGptSubtitle => 'Use your ChatGPT Plus / Pro subscription';
-
-  @override
-  String get oauthClaudeName => 'Claude (Pro / Max)';
-
-  @override
-  String get oauthClaudeSubtitle => 'Use your Claude Pro / Max subscription';
-
-  @override
-  String get oauthGrokName => 'Grok';
-
-  @override
-  String get oauthGrokSubtitle => 'Use your Grok subscription';
-
-  @override
-  String get oauthKimiName => 'Kimi Code';
-
-  @override
-  String get oauthKimiSubtitle => 'Use your Kimi Code coding plan';
-
-  @override
-  String get oauthChatGptIntro =>
-      'Sign in with your ChatGPT account to use GPT-5.x and Codex models on your subscription quota - no API key needed.';
-
-  @override
-  String get oauthClaudeIntro =>
-      'Sign in with your Claude account to use Claude models on your Pro / Max subscription - no API key needed.';
-
-  @override
-  String get oauthGrokIntro =>
-      'Sign in with your xAI account to use Grok models on your subscription quota - no API key needed.';
-
-  @override
-  String get oauthKimiIntro =>
-      'Sign in with your Kimi account to use Kimi Code models on your coding plan - no API key needed.';
-
-  @override
   String get oauthSignInButton => 'Sign in';
+
+  @override
+  String get oauthAddAnotherAccount => 'Add account';
 
   @override
   String get oauthWaitingBrowser =>
@@ -5797,6 +5760,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get oauthUsageSession => '5-hour window';
 
   @override
+  String get oauthUsageMonthly => '30-day window';
+
+  @override
+  String get oauthUsageWindow => 'Usage window';
+
+  @override
+  String get oauthCopyCode => 'Copy code';
+
+  @override
+  String get oauthAuthorizationCode => 'Authorization code';
+
+  @override
   String get oauthUsageWeekly => 'Weekly window';
 
   @override
@@ -5830,15 +5805,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get oauthModelsTapToConfigure =>
-      'Tap a model to edit reasoning and advanced options.';
-
-  @override
   String get oauthModelsEmpty => 'No models synced yet. Use Sync models.';
-
-  @override
-  String get oauthModelsKeptAfterSignOut =>
-      'Models stay in this list after sign-out and are shown as signed out.';
 
   @override
   String get oauthPromptCaching => 'Prompt caching';
@@ -5861,11 +5828,4 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get oauthLogoutConfirm =>
       'Sign out of this account? The synced model list is kept.';
-
-  @override
-  String get oauthFeatureToggle => 'Provider account sign-in';
-
-  @override
-  String get oauthFeatureToggleHelp =>
-      'Turn this off to hide and disable subscription sign-in. API-key providers are unaffected.';
 }

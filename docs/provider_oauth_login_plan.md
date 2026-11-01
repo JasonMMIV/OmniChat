@@ -218,7 +218,7 @@ graph TD
 |:--|:--|:--|
 | **D1** | **憑證儲存：`ProviderConfig.oauthCredentials`（對齊上游），不另開 secure storage**——**2026-11-01 裁示：憑證隨備份跨裝置同步** | 理由：(a) `sessionId` 為核心並發安全機制，憑證與 provider 設定同層最簡單；(b) 隨 `provider_configs_v1` 備份走，換機免重登（與 C-S01 否決 flutter_secure_storage 的理由同一邏輯——「換機須手動重輸」是致命傷）；(c) 風險面與既有明文 API key 完全同級，緩解同 C-S01：**本機明文可接受、備份加密為長期緩解、分享/匯出必須脫敏**（§6 C5/C6） |
 | **D2** | **Android callback：Phase 1 純 loopback（比照 Dropbox 8976 前例）；原生 Custom Tabs + deep link 排 M5.5（2026-11-01 裁示）** | 同一 Dart 代碼路徑覆蓋 Windows + Android，最小工程量先驗證端到端；已知限制：授權期間 app 進背景可能被殺（以 10 分鐘逾時＋手動貼碼/裝置碼備援兜底）。原生 Custom Tabs + deep link 自動關瀏覽器（對齊上游 UX）於 M5.5 落地，消解此限制 |
-| **D3** | **kill-switch：SharedPreferences `provider_oauth_v1`（預設 ON）** | 比照 `agent_loop_v1`/`auto_compaction_v1` 慣例；關閉時 OAuth provider 在 UI 顯示「此功能已停用」、服務層拒絕 resolve——非公開端點出事時可一鍵回退，不阻塞對話主線 |
+| **D3** | **服務層保護開關：`ProviderOAuthService.enabled`（預設 ON）** | 保留 `ensureEnabled()` 閘門給測試與緊急診斷；2026-11-02 裁示移除兩處 UI 總開關（與 `ProviderConfig.enabled` 重複），舊版 `provider_oauth_v1=false` 於啟動時清除，避免無入口可恢復 |
 | **D4** | **版本常數集中管理**：`provider_oauth.dart` 頂部單一定義 `codexClientVersion` / `defaultClaudeCodeVersion` / beta header 清單 | 上游會持續 bump；集中一處＋啟動重同步機制（`oauthModelsClientVersion`）可把「版本過舊」的營運成本降到改一個常數 |
 | **D5** | **登出保留模型清單（2026-11-01 裁示，Q5）**：登出撤銷憑證後，該帳號同步來的模型清單**保留**，UI 標示「未登入」徽章；重新登入（同一帳號）後合併沿用；登入**不同帳號**時以新帳號的同步結果覆寫 OAuth 來源模型（使用者手動新增的模型永遠保留） | 換號/重登不閃空；模型清單標記來源（`oauth-synced`／`user`）以區分覆寫範圍 |
 
@@ -284,10 +284,10 @@ graph TD
 
 | 元件 | 要點 |
 |:--|:--|
-| Add Provider 第 4 tab「帳號登入」 | 列 ChatGPT（Codex）／Claude（Pro / Max）兩列 + Login 鈕；kill-switch OFF 時整 tab 顯示停用說明 |
+| Add Provider 第 4 tab「帳號登入」 | 列 ChatGPT／Claude／Grok／Kimi Code 四列（供應商頭像＋服務副標＋登入鈕）；登入中顯示置中等待、裝置碼／貼碼與取消 |
 | 登入面板 | 等候畫面：ChatGPT 顯示裝置碼切換鈕；Claude 顯示手動貼碼輸入框＋四種貼法說明；取消按 sessionId 精準取消 |
 | 帳號詳情頁（行動頁／桌面 pane） | 帳號卡（email/plan/用量進度條、90% 轉紅、重置時間、美元 extra usage）、同步模型鈕、登出、Claude prompt cache TTL 設定（沿用 `claudePromptCachingTtl`）。**用量只進此頁**——上游 Kelivo 亦然（桌面 Settings → Providers 右欄嵌入 pane ＋行動頁；桌面側欄與模型選擇器皆無用量顯示，模型選擇器的餘額徽章僅服務 API-key 供應商）。**裁示（Q4）：照上游範圍，不做側欄/模型膠囊顯示。** |
-| 401 復原卡（`OAuthMessageRecovery`） | 憑證失效的訊息內嵌「重新登入」入口——**手動重試，不自動重發**（比照審批卡的「中斷→決定→恢復」精神）。**已落地（2026-11-01）**：最後一則 assistant 訊息內嵌卡片；登入流程與帳號詳情頁共用 `persistOAuthLogin()`，登入成功後才出現「重試」；kill-switch 關閉時改顯示停用說明（§11.1 #19） |
+| 401 復原卡（`OAuthMessageRecovery`） | 憑證失效的訊息內嵌「重新登入」入口——**手動重試，不自動重發**（比照審批卡的「中斷→決定→恢復」精神）。**已落地（2026-11-01）**：最後一則 assistant 訊息內嵌卡片；登入流程與帳號詳情頁共用 `persistOAuthLogin()`，登入成功後才出現「重試」 |
 | l10n ×4 | 所有新字串；錯誤文案經 `oauthErrorText()` 統一脫敏 |
 
 ### M5：平台驗收與周邊整合
@@ -296,7 +296,7 @@ graph TD
 - Android：實機登入→對話→背景被殺後的逾時訊息→手動貼碼恢復；per-provider proxy 共存（socks5/http proxy 之下 OAuth 請求與 callback 都要走對 client）。
 - 備份/還原：`provider_configs_v1` 隨備份走（含憑證）→ 還原後免重登；**還原是同名 provider 整包覆蓋**（merge、新值覆蓋舊值）——還原後的舊 token 可能已被輪替，首次使用時 refresh 失敗視為「需重新登入」（顯示復原卡），不得崩潰或無限重試（C16）；分享/QR 匯出帶 `oauth` 標記、`apiKey` 恆空，匯入方得到「未登入」的 OAuth provider（C6）。
 - `_localOnlyKeys` 檢查（§5.7）：本期**不**新增 device-private 鍵（決策 D1）。
-- kill-switch D3 的 UI 顯示與服務層閘門驗證。
+- 服務層保護開關 D3 的閘門驗證（UI 總開關已於 2026-11-02 移除）。
 
 ### M5.5：Android 原生登入體驗（2026-11-01 裁示，Q2；**已落地 2026-11-01**）
 

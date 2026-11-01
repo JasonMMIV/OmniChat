@@ -131,27 +131,42 @@ void main() {
   });
 
   group('parseCodexUsage', () {
-    test('parses primary and secondary windows', () {
+    test('classifies windows by reported duration', () {
       final usage = parseCodexUsage(<String, dynamic>{
         'plan_type': 'plus',
         'rate_limit': <String, dynamic>{
           'primary_window': <String, dynamic>{
             'used_percent': 25,
             'reset_at': 1790000000,
+            'limit_window_seconds': 2592000,
           },
           'secondary_window': <String, dynamic>{
             'used_percent': 95,
             'reset_at': '2026-11-02T00:00:00Z',
+            'limit_window_seconds': 604800,
           },
         },
       }, fetchedAt: DateTime.utc(2026, 11, 1));
       expect(usage.planType, 'plus');
       expect(usage.windows.length, 2);
-      expect(usage.windows.first.kind, 'session');
+      expect(usage.windows.first.kind, 'monthly');
       expect(usage.windows.first.percent, 25);
       expect(usage.windows.first.resetsAt, isNotNull);
       expect(usage.windows.last.kind, 'weekly');
       expect(usage.windows.last.isWarning, isTrue);
+    });
+
+    test('classifies a 5-hour window from duration', () {
+      final usage = parseCodexUsage(<String, dynamic>{
+        'rate_limit': <String, dynamic>{
+          'primary_window': <String, dynamic>{
+            'used_percent': 10,
+            'limit_window_seconds': 18000,
+          },
+        },
+      }, fetchedAt: DateTime.utc(2026, 11, 1));
+      expect(usage.windows.length, 1);
+      expect(usage.windows.single.kind, 'session');
     });
   });
 }

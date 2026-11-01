@@ -269,6 +269,10 @@ String usageWindowLabel(AppLocalizations l10n, OAuthUsageWindow window) {
     case 'session':
     case 'five_hour':
       return l10n.oauthUsageSession;
+    case 'monthly':
+      return l10n.oauthUsageMonthly;
+    case 'usage':
+      return l10n.oauthUsageWindow;
     case 'weekly':
     case 'seven_day':
     case 'weekly_all':
