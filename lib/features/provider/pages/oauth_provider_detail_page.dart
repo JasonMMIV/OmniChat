@@ -8,12 +8,16 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/models/provider_oauth.dart';
+import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/auth/oauth_errors.dart';
 import '../../../core/services/auth/provider_oauth_service.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/ios_switch.dart';
+import '../../../shared/widgets/ios_tactile.dart';
 import '../../../shared/widgets/snackbar.dart';
+import '../../model/widgets/model_detail_sheet.dart';
 import '../widgets/oauth_account_card.dart';
 import '../widgets/oauth_login_flow.dart';
 import '../widgets/oauth_login_panel.dart';
@@ -198,6 +202,42 @@ class _OAuthProviderDetailPageState extends State<OAuthProviderDetailPage> {
     );
   }
 
+  Future<void> _setProviderEnabled(ProviderConfig cfg, bool value) async {
+    final settings = context.read<SettingsProvider>();
+    // Capture the assistant store before the first await: cleanup must still
+    // run when the page is popped while the config write is in flight, and
+    // reading BuildContext after an await would be unsafe.
+    AssistantProvider? assistants;
+    try {
+      assistants = context.read<AssistantProvider>();
+    } catch (_) {}
+    final current = settings.providerConfigs[cfg.id] ?? cfg;
+    if (current.enabled == value) return;
+    await settings.setProviderConfig(
+      current.id,
+      current.copyWith(enabled: value),
+    );
+    if (value) return;
+    await settings.clearSelectionsForProvider(current.id);
+    if (assistants == null) return;
+    for (final assistant in assistants.assistants) {
+      if (assistant.chatModelProvider == current.id) {
+        await assistants.updateAssistant(
+          assistant.copyWith(clearChatModel: true),
+        );
+      }
+    }
+  }
+
+  String _modelDisplayName(ProviderConfig cfg, String modelId) {
+    final raw = cfg.modelOverrides[modelId];
+    if (raw is Map) {
+      final name = (raw['name'] ?? '').toString().trim();
+      if (name.isNotEmpty) return name;
+    }
+    return modelId;
+  }
+
   Future<void> _setKillSwitch(bool value) async {
     await ProviderOAuthService.instance.setEnabled(value);
     if (mounted) setState(() {});
@@ -246,6 +286,28 @@ class _OAuthProviderDetailPageState extends State<OAuthProviderDetailPage> {
                 ),
                 const SizedBox(height: 12),
               ],
+              _sectionCard(
+                context,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        l10n.providerDetailPageEnabledTitle,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                    IosSwitch(
+                      value: cfg.enabled,
+                      // A model sync persists a config snapshot; toggling while
+                      // it is in flight could be reverted by that write.
+                      onChanged: _syncing
+                          ? null
+                          : (v) => _setProviderEnabled(cfg, v),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               OAuthAccountCard(
                 provider: provider,
                 credentials: credentials,
@@ -321,22 +383,40 @@ class _OAuthProviderDetailPageState extends State<OAuthProviderDetailPage> {
                           ),
                         )
                       else
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
+                        Column(
                           children: [
-                            for (final model in cfg.models)
-                              Chip(
-                                label: Text(
-                                  model,
-                                  style: const TextStyle(fontSize: 11),
+                            for (var i = 0; i < cfg.models.length; i++) ...[
+                              _OAuthModelRow(
+                                modelId: cfg.models[i],
+                                displayName: _modelDisplayName(
+                                  cfg,
+                                  cfg.models[i],
                                 ),
-                                visualDensity: VisualDensity.compact,
-                                materialTapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
+                                onTap: () => showModelDetailSheet(
+                                  context,
+                                  providerKey: cfg.id,
+                                  modelId: cfg.models[i],
+                                ),
                               ),
+                              if (i < cfg.models.length - 1)
+                                Divider(
+                                  height: 1,
+                                  thickness: 0.5,
+                                  color: cs.outlineVariant.withOpacity(0.18),
+                                ),
+                            ],
                           ],
                         ),
+                      if (cfg.models.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          l10n.oauthModelsTapToConfigure,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: cs.onSurface.withOpacity(0.55),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 10),
                       Text(
                         l10n.oauthModelsKeptAfterSignOut,
@@ -504,6 +584,78 @@ class _OAuthProviderDetailPageState extends State<OAuthProviderDetailPage> {
         ),
       ),
       child: child,
+    );
+  }
+}
+
+class _OAuthModelRow extends StatelessWidget {
+  const _OAuthModelRow({
+    required this.modelId,
+    required this.displayName,
+    required this.onTap,
+  });
+
+  final String modelId;
+  final String displayName;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final showId = displayName.trim() != modelId;
+    return IosCardPress(
+      baseColor: Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: cs.primary.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(Lucide.Bot, size: 16, color: cs.primary),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (showId) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    modelId,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      color: cs.onSurface.withOpacity(0.55),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Icon(
+            Lucide.Settings2,
+            size: 16,
+            color: cs.onSurface.withOpacity(0.55),
+          ),
+        ],
+      ),
     );
   }
 }

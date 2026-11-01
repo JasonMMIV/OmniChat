@@ -2526,6 +2526,7 @@
   "oauthSyncFailed": "Model sync failed",
   "oauthModelsTitle": "Models ({count})",
   "@oauthModelsTitle": {"placeholders": {"count": {"type": "int"}}},
+  "oauthModelsTapToConfigure": "Tap a model to edit reasoning and advanced options.",
   "oauthModelsEmpty": "No models synced yet. Use Sync models.",
   "oauthModelsKeptAfterSignOut": "Models stay in this list after sign-out and are shown as signed out.",
   "oauthPromptCaching": "Prompt caching",

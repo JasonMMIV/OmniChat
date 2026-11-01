@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/provider_oauth.dart';
 import '../../providers/settings_provider.dart';
+import '../../utils/reasoning_overrides.dart';
 import '../network/dio_http_client.dart';
 import 'claude_oauth_adapter.dart';
 import 'oauth_errors.dart';
@@ -413,6 +414,32 @@ class ProviderOAuthService extends ChangeNotifier {
 
   // ---- model sync --------------------------------------------------------
 
+  /// Builds the provider-owned `reasoningSynced` map only from metadata the
+  /// provider actually returned. Missing fields stay absent so models.dev or
+  /// the built-in regex can still supply them.
+  static Map<String, dynamic>? _syncedReasoningForEntry(OAuthModelEntry entry) {
+    if (entry.efforts.isEmpty &&
+        entry.thinkingAlwaysOn == null &&
+        entry.offFallback == null) {
+      return null;
+    }
+    return <String, dynamic>{
+      'v': 1,
+      if (entry.efforts.isNotEmpty)
+        'efforts': <String>[
+          for (final effort in ReasoningOverride.allEfforts)
+            if (entry.efforts.contains(effort)) effort,
+        ],
+      if (entry.offFallback != null) 'offFallback': entry.offFallback,
+      // A false-only flag is treated as "no opinion" by ReasoningOverride.isEmpty
+      // (the user-customization guard). Keep false only when the effort set
+      // itself makes the layer non-empty.
+      if (entry.thinkingAlwaysOn != null &&
+          (entry.thinkingAlwaysOn == true || entry.efforts.isNotEmpty))
+        'thinkingAlwaysOn': entry.thinkingAlwaysOn,
+    };
+  }
+
   /// Merges synced models without ever touching user-authored overrides (C13).
   @visibleForTesting
   static ProviderConfig mergeSyncedModels(
@@ -462,11 +489,20 @@ class ProviderOAuthService extends ChangeNotifier {
       final existing = existingRaw is Map
           ? existingRaw.cast<String, dynamic>()
           : <String, dynamic>{};
+      final syncedReasoning = _syncedReasoningForEntry(entry);
       if (existing.isNotEmpty && existing['source'] != 'oauth-synced') {
-        // Hand-authored override: leave every field alone.
+        // Hand-authored override: keep every user field, but capability
+        // metadata is still provider-owned and should stay fresh.
+        final next = <String, dynamic>{...existing};
+        if (syncedReasoning != null) {
+          next['reasoningSynced'] = syncedReasoning;
+        } else {
+          next.remove('reasoningSynced');
+        }
+        overrides[entry.id] = next;
         continue;
       }
-      overrides[entry.id] = <String, dynamic>{
+      final next = <String, dynamic>{
         ...existing,
         'name': entry.displayName,
         'type': 'chat',
@@ -480,6 +516,12 @@ class ProviderOAuthService extends ChangeNotifier {
         'source': 'oauth-synced',
         'oauthAccountId': accountId,
       };
+      if (syncedReasoning != null) {
+        next['reasoningSynced'] = syncedReasoning;
+      } else {
+        next.remove('reasoningSynced');
+      }
+      overrides[entry.id] = next;
     }
 
     return config.copyWith(models: models, modelOverrides: overrides);

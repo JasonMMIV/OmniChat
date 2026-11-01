@@ -117,10 +117,11 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
     super.initState();
     final settings = context.read<SettingsProvider>();
     final cfg = settings.getProviderConfig(widget.providerKey);
-    _providerKind = ProviderConfig.classify(cfg.id, explicitType: cfg.providerType);
+    final modelCfg = widget.isNew ? cfg : cfg.forModelProtocol(widget.modelId);
+    _providerKind = ProviderConfig.classify(modelCfg.id, explicitType: modelCfg.providerType);
     _wireTransport = reasoningWireTransportFor(
       providerType: _providerKind.name,
-      useResponseApi: cfg.useResponseApi == true,
+      useResponseApi: modelCfg.useResponseApi == true,
     );
     _showBuiltinToolsTab = _providerKind == ProviderKind.google || _providerKind == ProviderKind.openai || _providerKind == ProviderKind.neuralwatt;
     _tabCtrl = TabController(length: _showBuiltinToolsTab ? 3 : 2, vsync: this);
@@ -1212,6 +1213,10 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
     final prev = (prevKey.isNotEmpty && ov[prevKey] is Map)
         ? (ov[prevKey] as Map).cast<String, dynamic>()
         : const <String, dynamic>{};
+    final oauthProtocol = prev['oauthProtocol'];
+    final source = prev['source'];
+    final oauthAccountId = prev['oauthAccountId'];
+    final reasoningSynced = prev['reasoningSynced'];
     final builtInSet = BuiltInToolNames.parseAndNormalize(prev['builtInTools']);
     if (_providerKind == ProviderKind.google) {
       builtInSet.remove(BuiltInToolNames.urlContext);
@@ -1234,7 +1239,7 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
     final builtInTools = BuiltInToolNames.orderedForStorage(builtInSet);
     // Decide which logical key to use for this instance
     final String key = (prevKey.isEmpty || widget.isNew) ? _nextModelKey(old, apiModelId) : prevKey;
-    ov[key] = {
+    final next = <String, dynamic>{
       'apiModelId': apiModelId,
       'name': _nameCtrl.text.trim(),
       'type': _type == ModelType.chat ? 'chat' : 'embedding',
@@ -1243,15 +1248,31 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
       'abilities': _abilities.map((e) => e == ModelAbility.reasoning ? 'reasoning' : 'tool').toList(),
       'headers': headers,
       'body': bodies,
+      if (oauthProtocol is String && oauthProtocol.trim().isNotEmpty)
+        'oauthProtocol': oauthProtocol.trim(),
+      if (source is String && source.trim().isNotEmpty) 'source': source.trim(),
+      if (oauthAccountId is String && oauthAccountId.trim().isNotEmpty)
+        'oauthAccountId': oauthAccountId.trim(),
+      if (reasoningSynced is Map)
+        'reasoningSynced': Map<String, dynamic>.from(reasoningSynced),
       if (!_useImagesApi) 'useImagesApi': false,
       'useAspectRatioParam': _useAspectRatioParam,
       if (builtInTools.isNotEmpty) 'builtInTools': builtInTools,
       if (_reasoningOverride != null) 'reasoning': _reasoningOverride!.toMap(),
       if (_reasoningWire != null &&
           _reasoningWire != ReasoningWire.auto &&
-          ReasoningWire.optionsFor(_wireTransport).contains(_reasoningWire))
+          (_reasoningWire == prev['reasoningWire'] ||
+              ReasoningWire.optionsFor(
+                _wireTransport,
+              ).contains(_reasoningWire)))
         'reasoningWire': _reasoningWire,
     };
+    // Only a change to a provider-owned field makes the model user-owned.
+    // A no-op save (or a reasoning-only edit) must keep the OAuth sync link.
+    if (source == 'oauth-synced' && _syncOwnedFieldsChanged(prev, next)) {
+      next['source'] = 'user';
+    }
+    ov[key] = next;
 
     // Apply updates to provider config
     if (prevKey.isEmpty || widget.isNew) {
@@ -1273,6 +1294,36 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
     if (!mounted) return;
     Navigator.of(context).pop(true);
   }
+}
+
+bool _syncOwnedFieldsChanged(
+  Map<String, dynamic> prev,
+  Map<String, dynamic> next,
+) {
+  for (final key in const <String>[
+    'name',
+    'type',
+    'input',
+    'output',
+    'abilities',
+    'oauthProtocol',
+  ]) {
+    if (!prev.containsKey(key)) continue;
+    if (!_modelValueEquals(prev[key], next[key])) return true;
+  }
+  return false;
+}
+
+bool _modelValueEquals(Object? a, Object? b) {
+  if (identical(a, b)) return true;
+  if (a is List && b is List) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (!_modelValueEquals(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  return a == b;
 }
 
 class _TabChip extends StatelessWidget {

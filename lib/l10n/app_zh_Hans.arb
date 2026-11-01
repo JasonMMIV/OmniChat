@@ -1938,6 +1938,7 @@
   "oauthSyncSuccess": "模型已更新（{count} 个）",
   "oauthSyncFailed": "模型同步失败",
   "oauthModelsTitle": "模型（{count}）",
+  "oauthModelsTapToConfigure": "点击模型可调整推理与高级设置。",
   "oauthModelsEmpty": "尚未同步模型，请使用「同步模型」。",
   "oauthModelsKeptAfterSignOut": "登出后模型仍会保留在此清单，并标示为未登录。",
   "oauthPromptCaching": "提示缓存",

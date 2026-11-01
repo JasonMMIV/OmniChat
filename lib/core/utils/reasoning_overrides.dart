@@ -3,8 +3,13 @@ import 'reasoning_capabilities.dart';
 
 /// Per-model reasoning-effort overrides.
 ///
-/// Storage lives in the existing `ProviderConfig.modelOverrides[modelId]`
-/// map under the `reasoning` key:
+/// Two independent layers live in `ProviderConfig.modelOverrides[modelId]`:
+///
+/// * `reasoning` — user-authored override, highest priority.
+/// * `reasoningSynced` — capability metadata reported by an OAuth provider's
+///   model endpoint, below the user override but above models.dev/regex.
+///
+/// Both use the same shape:
 ///
 /// ```json
 /// {
@@ -20,9 +25,8 @@ import 'reasoning_capabilities.dart';
 /// ```
 ///
 /// Parsing is lenient: a missing or wrongly-typed field falls back to the
-/// built-in regex-based capability for that single field. When the whole
-/// `reasoning` key is absent the model behaves exactly like before this
-/// feature existed.
+/// next capability layer for that single field. When both keys are absent
+/// the model behaves exactly like before this feature existed.
 class ReasoningOverride {
   const ReasoningOverride({
     required this.hasEfforts,
@@ -52,8 +56,11 @@ class ReasoningOverride {
     'max',
   ];
 
-  /// Storage key inside `modelOverrides[modelId]`.
+  /// User-authored storage key inside `modelOverrides[modelId]`.
   static const String storageKey = 'reasoning';
+
+  /// Provider-reported capability layer, lower priority than [storageKey].
+  static const String syncedStorageKey = 'reasoningSynced';
 
   final bool hasEfforts;
   final Set<String> efforts;
@@ -135,9 +142,12 @@ class ReasoningOverride {
 
   /// Extract the override from one `modelOverrides[modelId]` entry, returning
   /// `null` when absent (or not a map) so callers use built-in behavior.
-  static ReasoningOverride? fromModelOverrides(Object? modelOverride) {
+  static ReasoningOverride? fromModelOverrides(
+    Object? modelOverride, {
+    String key = storageKey,
+  }) {
     if (modelOverride is! Map) return null;
-    return fromMap(modelOverride[storageKey]);
+    return fromMap(modelOverride[key]);
   }
 
   /// Whether the override map expresses any opinion at all. An override
@@ -230,12 +240,13 @@ ReasoningCapabilities mergeReasoningCapabilities(
 }
 
 /// One-stop resolver used by the call sites: built-in regex capability, then
-/// the models.dev catalog (when it has an entry), then the per-model override
-/// on top (plan §5 precedence).
+/// the models.dev catalog (when it has an entry), then the provider-synced
+/// layer, then the user-authored override (plan §5 precedence).
 ReasoningCapabilities resolveReasoningCapabilities(
   ReasoningTransport transport,
   String modelId, {
   ReasoningOverride? override,
+  ReasoningOverride? syncedOverride,
   String? providerId,
   String? host,
 }) {
@@ -245,8 +256,11 @@ ReasoningCapabilities resolveReasoningCapabilities(
     host: host,
     modelId: modelId,
   );
+  final catalogCaps = catalog == null
+      ? base
+      : ReasoningCapabilities.fromCatalog(base, catalog);
   return mergeReasoningCapabilities(
-    catalog == null ? base : ReasoningCapabilities.fromCatalog(base, catalog),
+    mergeReasoningCapabilities(catalogCaps, syncedOverride),
     override,
   );
 }
@@ -262,6 +276,7 @@ ReasoningCapabilities reasoningCapabilitiesForCall(
   String? providerId;
   String? host;
   ReasoningOverride? ovr;
+  ReasoningOverride? syncedOvr;
   if (config != null) {
     try {
       providerId = (config as dynamic).catalogProviderId as String?;
@@ -274,36 +289,53 @@ ReasoningCapabilities reasoningCapabilitiesForCall(
         // (ChatApiService's claude path resolves _apiModelId first). The
         // override map is keyed by the logical key, so a direct miss falls
         // back to a reverse lookup through `apiModelId`.
-        ovr = ReasoningOverride.fromModelOverrides(overrides[modelId]);
-        if (ovr == null) {
+        Object? entry;
+        final direct = overrides[modelId];
+        final directHasData = direct is Map && _hasReasoningData(direct);
+        if (directHasData) {
+          entry = direct;
+        } else {
           final lowerId = modelId.toLowerCase();
-          for (final entry in overrides.values) {
-            if (entry is! Map) continue;
+          for (final candidate in overrides.values) {
+            if (candidate is! Map) continue;
             final apiId =
-                (entry['apiModelId'] ?? entry['api_model_id'])?.toString();
+                (candidate['apiModelId'] ?? candidate['api_model_id'])
+                    ?.toString();
             if (apiId == null || apiId.trim().toLowerCase() != lowerId) {
               continue;
             }
-            // Entries that merely share the upstream id but carry no
-            // 'reasoning' data are skipped; falling through returns the
-            // built-in result, which is the correct outcome for them.
-            final candidate = ReasoningOverride.fromModelOverrides(entry);
-            if (candidate != null) {
-              ovr = candidate;
-              break;
-            }
+            entry = candidate;
+            break;
           }
+        }
+        if (entry is Map) {
+          ovr = ReasoningOverride.fromModelOverrides(entry);
+          syncedOvr = ReasoningOverride.fromModelOverrides(
+            entry,
+            key: ReasoningOverride.syncedStorageKey,
+          );
         }
       }
     } catch (_) {
       ovr = null;
+      syncedOvr = null;
     }
   }
   return resolveReasoningCapabilities(
     transport,
     modelId,
     override: ovr,
+    syncedOverride: syncedOvr,
     providerId: providerId,
     host: host,
   );
+}
+
+bool _hasReasoningData(Map override) {
+  if (ReasoningOverride.fromModelOverrides(override) != null) return true;
+  final synced = ReasoningOverride.fromModelOverrides(
+    override,
+    key: ReasoningOverride.syncedStorageKey,
+  );
+  return synced != null;
 }

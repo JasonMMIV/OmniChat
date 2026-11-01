@@ -33,6 +33,9 @@ ProviderConfig _config({String account = 'account-a'}) =>
           'name': 'Old',
           'source': 'oauth-synced',
           'oauthAccountId': 'account-a',
+          'reasoning': <String, dynamic>{
+            'efforts': <String>['low', 'high'],
+          },
         },
       },
     );
@@ -117,6 +120,71 @@ void main() {
     expect(override['name'], 'My model');
     expect(override['headers'], isNotNull);
     expect(override['source'], 'user');
+  });
+
+  test('sync persists provider reasoning separately from user overrides', () {
+    final merged = ProviderOAuthService.mergeSyncedModels(
+      _config(),
+      const <OAuthModelEntry>[
+        OAuthModelEntry(
+          id: 'synced-old',
+          displayName: 'Old',
+          efforts: <String>{'xhigh', 'low', 'high'},
+          thinkingAlwaysOn: true,
+        ),
+        OAuthModelEntry(
+          id: 'user-model',
+          displayName: 'Synced name',
+          efforts: <String>{'max'},
+        ),
+      ],
+      accountId: 'account-a',
+    );
+
+    final synced = merged.modelOverrides['synced-old'] as Map;
+    final syncedReasoning = synced['reasoningSynced'] as Map;
+    expect(syncedReasoning['v'], 1);
+    expect(syncedReasoning['efforts'], <String>['low', 'high', 'xhigh']);
+    expect(syncedReasoning['thinkingAlwaysOn'], isTrue);
+    expect(synced['source'], 'oauth-synced');
+    expect((synced['reasoning'] as Map)['efforts'], <String>['low', 'high']);
+
+    final user = merged.modelOverrides['user-model'] as Map;
+    expect(user['name'], 'My model');
+    expect(user['source'], 'user');
+    // Provider capability metadata still refreshes for user-owned entries.
+    expect((user['reasoningSynced'] as Map)['efforts'], <String>['max']);
+  });
+
+  test('a later sync without metadata removes only reasoningSynced', () {
+    final initial = ProviderOAuthService.mergeSyncedModels(
+      _config(),
+      const <OAuthModelEntry>[
+        OAuthModelEntry(
+          id: 'synced-old',
+          displayName: 'Old',
+          efforts: <String>{'low', 'max'},
+        ),
+      ],
+      accountId: 'account-a',
+    );
+    expect(
+      (initial.modelOverrides['synced-old'] as Map).containsKey(
+        'reasoningSynced',
+      ),
+      isTrue,
+    );
+
+    final next = ProviderOAuthService.mergeSyncedModels(
+      initial,
+      const <OAuthModelEntry>[
+        OAuthModelEntry(id: 'synced-old', displayName: 'Old'),
+      ],
+      accountId: 'account-a',
+    );
+    final override = next.modelOverrides['synced-old'] as Map;
+    expect(override.containsKey('reasoningSynced'), isFalse);
+    expect((override['reasoning'] as Map)['efforts'], <String>['low', 'high']);
   });
 
   test('empty sync result leaves the existing list untouched', () {

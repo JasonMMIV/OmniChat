@@ -16,6 +16,7 @@ import 'codex_request.dart';
 import 'grok_request.dart';
 import 'kimi_request.dart';
 import 'oauth_callback.dart';
+import 'oauth_effort_metadata.dart';
 import 'oauth_errors.dart';
 import 'oauth_mobile_browser.dart';
 import 'oauth_pkce.dart';
@@ -660,7 +661,11 @@ class ChatGptOAuthAdapter implements ProviderOAuthAdapter {
         final id = (map['slug'] ?? map['id'] ?? map['model'] ?? '').toString();
         if (id.isEmpty) continue;
         final visibility = (map['visibility'] ?? '').toString().toLowerCase();
-        if (visibility == 'hide' || visibility == 'hidden') continue;
+        if (visibility == 'hide' ||
+            visibility == 'hidden' ||
+            visibility == 'none') {
+          continue;
+        }
         final display = (map['display_name'] ?? map['displayName'] ?? id)
             .toString();
         final modalities = map['input_modalities'] ?? map['inputModalities'];
@@ -669,12 +674,20 @@ class ChatGptOAuthAdapter implements ProviderOAuthAdapter {
                 (value) => value.toString().toLowerCase() == 'image',
               )
             : true; // Codex subscription models accept images; the list may not say.
+        final efforts = normalizeOAuthReasoningEfforts(
+          map['supported_reasoning_levels'] ??
+              map['reasoning_efforts'] ??
+              map['reasoningEfforts'] ??
+              map['supported_reasoning_efforts'],
+        );
         entries.add(
           OAuthModelEntry(
             id: id,
             displayName: display.isEmpty ? id : display,
             vision: vision,
             priority: int.tryParse((map['priority'] ?? '').toString()),
+            efforts: efforts,
+            offFallback: efforts.contains('none') ? 'none' : null,
           ),
         );
       }
@@ -1043,10 +1056,11 @@ class GrokOAuthAdapter implements ProviderOAuthAdapter {
             _string(meta['modelId']);
         if (id == null || imageOrVoice.hasMatch(id)) continue;
         if (row['hidden'] == true || meta['hidden'] == true) continue;
-        final efforts =
-            row['reasoningEfforts'] ??
-            row['reasoning_efforts'] ??
-            meta['reasoningEfforts'];
+        final efforts = normalizeOAuthReasoningEfforts(
+          row['reasoningEfforts'] ??
+              row['reasoning_efforts'] ??
+              meta['reasoningEfforts'],
+        );
         final modalities =
             row['input_modalities'] ??
             row['inputModalities'] ??
@@ -1061,9 +1075,9 @@ class GrokOAuthAdapter implements ProviderOAuthAdapter {
           () => OAuthModelEntry(
             id: id,
             displayName: display,
-            reasoning:
-                (efforts is List && efforts.isNotEmpty) ||
-                row['supports_reasoning'] == true,
+            reasoning: efforts.isNotEmpty || row['supports_reasoning'] == true,
+            efforts: efforts,
+            offFallback: efforts.contains('none') ? 'none' : null,
             vision: modalities is List
                 ? modalities.any(
                     (value) => value.toString().toLowerCase() == 'image',
@@ -1259,11 +1273,20 @@ class KimiOAuthAdapter implements ProviderOAuthAdapter {
           _string(row['name']) ??
           id;
       final modalities = row['input_modalities'] ?? row['inputModalities'];
+      final supportsReasoning = _kimiReasoningSupport(row);
+      final efforts = supportsReasoning
+          ? _kimiReasoningEfforts(row)
+          : const <String>{};
       entries.add(
         OAuthModelEntry(
           id: id,
           displayName: display,
-          reasoning: _kimiReasoningSupport(row),
+          reasoning: supportsReasoning,
+          efforts: efforts,
+          offFallback: efforts.contains('none') ? 'none' : null,
+          thinkingAlwaysOn: supportsReasoning
+              ? _kimiThinkingAlwaysOn(row)
+              : null,
           tool:
               row['supports_tool_use'] != false &&
               row['supports_tools'] != false,
@@ -1334,6 +1357,30 @@ bool _kimiReasoningSupport(Map<String, dynamic> row) {
   final effortsList = row['supported_reasoning_efforts'];
   if (effortsList is List) return effortsList.isNotEmpty;
   return false;
+}
+
+Set<String> _kimiReasoningEfforts(Map<String, dynamic> row) {
+  final out = <String>{};
+  out.addAll(normalizeOAuthReasoningEfforts(row['supported_reasoning_levels']));
+  out.addAll(
+    normalizeOAuthReasoningEfforts(row['supported_reasoning_efforts']),
+  );
+  out.addAll(normalizeOAuthReasoningEfforts(row['think_efforts']));
+  final think = _asMap(row['think_efforts']);
+  out.addAll(normalizeOAuthReasoningEfforts(think['efforts']));
+  out.addAll(normalizeOAuthReasoningEfforts(think['levels']));
+  out.addAll(normalizeOAuthReasoningEfforts(think['values']));
+  return out;
+}
+
+bool? _kimiThinkingAlwaysOn(Map<String, dynamic> row) {
+  final type = (row['supports_thinking_type'] ?? '')
+      .toString()
+      .trim()
+      .toLowerCase();
+  if (type == 'only') return true;
+  if (type == 'both' || type == 'optional' || type == 'no') return false;
+  return null;
 }
 
 /// Parses Grok's billing payload (weekly credits or monthly quota).

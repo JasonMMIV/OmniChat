@@ -10962,6 +10962,12 @@ abstract class AppLocalizations {
   /// **'Models ({count})'**
   String oauthModelsTitle(int count);
 
+  /// No description provided for @oauthModelsTapToConfigure.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap a model to edit reasoning and advanced options.'**
+  String get oauthModelsTapToConfigure;
+
   /// No description provided for @oauthModelsEmpty.
   ///
   /// In en, this message translates to:

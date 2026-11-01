@@ -47,7 +47,7 @@ void main() {
     test('is lenient: unknown effort strings dropped, empty list = no opinion',
         () {
       final junk = ReasoningOverride.fromMap(const {
-        'efforts': ['ultra', '', 'LOW', 'high'],
+        'efforts': ['ultra', 'persistent', '', 'LOW', 'high'],
         'offFallback': 7,
         'supportsXhigh': 'yes',
       });
@@ -209,6 +209,77 @@ void main() {
         }),
       );
       expect(identical(merged, base), isTrue);
+    });
+  });
+
+  group('provider-synced reasoning layer', () {
+    test('synced efforts override regex but yield to user override', () {
+      final synced = ReasoningOverride.fromMap(const {
+        'efforts': ['low', 'high'],
+      });
+      final user = ReasoningOverride.fromMap(const {
+        'efforts': ['low', 'high', 'max'],
+      });
+
+      final syncedCaps = resolveReasoningCapabilities(
+        ReasoningTransport.openAi,
+        'brand-new-model-9000',
+        syncedOverride: synced,
+      );
+      expect(syncedCaps.openAiEfforts, {'low', 'high'});
+      expect(syncedCaps.supportsMax, isFalse);
+
+      final userCaps = resolveReasoningCapabilities(
+        ReasoningTransport.openAi,
+        'brand-new-model-9000',
+        syncedOverride: synced,
+        override: user,
+      );
+      expect(userCaps.openAiEfforts, {'low', 'high', 'max'});
+      expect(userCaps.supportsMax, isTrue);
+    });
+
+    test('user fields merge over synced fields instead of replacing them', () {
+      final synced = ReasoningOverride.fromMap(const {
+        'efforts': ['low', 'high'],
+        'offFallback': 'low',
+      });
+      final user = ReasoningOverride.fromMap(const {
+        'thinkingAlwaysOn': true,
+      });
+      final caps = resolveReasoningCapabilities(
+        ReasoningTransport.openAi,
+        'brand-new-model-9000',
+        syncedOverride: synced,
+        override: user,
+      );
+      expect(caps.openAiEfforts, {'low', 'high'});
+      expect(caps.openAiOffFallback, 'low');
+      expect(caps.thinkingAlwaysOn, isTrue);
+    });
+
+    test('ProviderConfig resolver reads reasoningSynced', () {
+      final cfg = ProviderConfig(
+        id: 'Aggregator',
+        enabled: true,
+        name: 'Aggregator',
+        apiKey: '',
+        baseUrl: 'https://example.com/v1',
+        providerType: ProviderKind.openai,
+        modelOverrides: const <String, dynamic>{
+          'brand-new-model-9000': <String, dynamic>{
+            'reasoningSynced': <String, dynamic>{
+              'efforts': <String>['low', 'high'],
+            },
+          },
+        },
+      );
+      final caps = SettingsProvider.reasoningCapabilitiesFor(
+        cfg,
+        'brand-new-model-9000',
+      );
+      expect(caps.openAiEfforts, {'low', 'high'});
+      expect(caps.supportsMax, isFalse);
     });
   });
 

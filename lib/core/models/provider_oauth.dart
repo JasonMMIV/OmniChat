@@ -410,6 +410,9 @@ class OAuthModelEntry {
     this.vision = false,
     this.priority,
     this.protocol,
+    this.efforts = const <String>{},
+    this.thinkingAlwaysOn,
+    this.offFallback,
   });
 
   final String id;
@@ -422,6 +425,22 @@ class OAuthModelEntry {
   /// Kimi Code serves some models over the Anthropic Messages wire and some
   /// over OpenAI chat completions. Null for every other provider.
   final String? protocol;
+
+  /// Standard reasoning effort tiers reported by the provider's model endpoint.
+  ///
+  /// Codex publishes `supported_reasoning_levels`; Claude publishes
+  /// `capabilities.effort`. Only `ReasoningOverride.allEfforts` values are
+  /// kept; Codex-only modes such as `ultra`/`persistent` are intentionally
+  /// ignored because they are not raw Responses API effort values. An empty
+  /// set means "the endpoint did not tell us", not "no reasoning".
+  final Set<String> efforts;
+
+  /// `true` when the provider says reasoning cannot be turned off, `false`
+  /// when it explicitly offers a non-thinking mode, and `null` when unknown.
+  final bool? thinkingAlwaysOn;
+
+  /// Provider-specific effort used when reasoning is switched off, if given.
+  final String? offFallback;
 }
 
 /// Decodes the payload of a JWT without verifying it. OAuth access tokens are

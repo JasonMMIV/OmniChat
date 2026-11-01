@@ -545,19 +545,21 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   /// One-stop resolver: built-in regex capability, then the models.dev
-  /// catalog entry (when one matches), then the per-model
-  /// `modelOverrides[modelId]['reasoning']` override on top. With no stored
-  /// override and no catalog entry this returns the built-in result.
+  /// catalog entry (when one matches), then provider-synced capability
+  /// metadata, then the user `modelOverrides[modelId]['reasoning']` override
+  /// on top. With no stored override and no catalog entry this returns the
+  /// built-in result.
   static ReasoningCapabilities reasoningCapabilitiesFor(
     ProviderConfig? cfg,
     String modelId,
   ) {
     if (cfg == null) return ReasoningCapabilities.unsupported;
+    final effectiveCfg = cfg.forModelProtocol(modelId);
     final kind = ProviderConfig.classify(
-      cfg.id,
-      explicitType: cfg.providerType,
+      effectiveCfg.id,
+      explicitType: effectiveCfg.providerType,
     );
-    final rawOverride = cfg.modelOverrides[modelId];
+    final rawOverride = effectiveCfg.modelOverrides[modelId];
     final override = rawOverride is Map
         ? rawOverride.cast<String, dynamic>()
         : const <String, dynamic>{};
@@ -579,8 +581,12 @@ class SettingsProvider extends ChangeNotifier {
       transport,
       effectiveModelId,
       override: ReasoningOverride.fromModelOverrides(rawOverride),
-      providerId: cfg.catalogProviderId,
-      host: cfg.catalogHost,
+      syncedOverride: ReasoningOverride.fromModelOverrides(
+        rawOverride,
+        key: ReasoningOverride.syncedStorageKey,
+      ),
+      providerId: effectiveCfg.catalogProviderId,
+      host: effectiveCfg.catalogHost,
     );
   }
 

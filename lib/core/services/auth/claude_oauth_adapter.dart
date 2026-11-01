@@ -13,11 +13,24 @@ import 'package:http/http.dart' as http;
 
 import '../../models/provider_oauth.dart';
 import 'claude_oauth_request.dart';
+import 'oauth_effort_metadata.dart';
 import 'oauth_callback.dart';
 import 'oauth_errors.dart';
 import 'oauth_mobile_browser.dart';
 import 'oauth_pkce.dart';
 import 'provider_oauth_adapter.dart';
+
+bool? _claudeThinkingAlwaysOn(Object? capabilities) {
+  if (capabilities is! Map) return null;
+  final thinking = capabilities['thinking'];
+  if (thinking is! Map) return null;
+  final types = thinking['types'];
+  if (types is! Map) return null;
+  final disabled = types['disabled'];
+  if (disabled is! Map) return null;
+  final supported = disabled['supported'];
+  return supported is bool ? !supported : null;
+}
 
 class ClaudeOAuthAdapter implements ProviderOAuthAdapter {
   @override
@@ -445,6 +458,17 @@ class ClaudeOAuthAdapter implements ProviderOAuthAdapter {
           final id = (raw['id'] ?? '').toString();
           if (id.isEmpty || !seen.add(id)) continue;
           final display = (raw['display_name'] ?? raw['name'] ?? id).toString();
+          final capabilities = raw['capabilities'];
+          final efforts = <String>{
+            ...normalizeOAuthCapabilityEfforts(
+              capabilities is Map ? capabilities['effort'] : null,
+            ),
+            ...normalizeOAuthReasoningEfforts(
+              raw['reasoning_efforts'] ??
+                  raw['reasoningEfforts'] ??
+                  raw['supported_reasoning_efforts'],
+            ),
+          };
           out.add(
             OAuthModelEntry(
               id: id,
@@ -452,6 +476,9 @@ class ClaudeOAuthAdapter implements ProviderOAuthAdapter {
               reasoning: true,
               tool: true,
               vision: true,
+              efforts: efforts,
+              offFallback: efforts.contains('none') ? 'none' : null,
+              thinkingAlwaysOn: _claudeThinkingAlwaysOn(capabilities),
             ),
           );
         }

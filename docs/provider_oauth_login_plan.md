@@ -132,7 +132,7 @@
 | **Dropbox OAuth PKCE loopback** | `lib/core/services/backup/dropbox_auth_service.dart`（`HttpServer.bind(loopback, 8976, shared:true)`、PKCE、`url_launcher` 開瀏覽器、token exchange） | 本機已驗證的 loopback 前例，M0/M1 的直接參考；**含 Android 實機可用性**（備份頁在行動端可達） |
 | **Responses API 路徑** | `chat_api_service.dart` `useResponseApi == true` → `{base}/responses`（串流 + 非串流 + body2 續輪俱全，§3.5 §6 另有 Responses 推理方言 writer） | Codex 對話的傳輸基礎——只需疊加 `store=false`/`include`/會話 headers 等塑形 |
 | **Claude 傳輸與協商** | `_sendClaudeStream`、`max_tokens` 從高協商＋學習（§3.5 §5）、`claudePromptCachingEnabled/Ttl`、`reasoning_wire.dart` 的 Claude writer | OAuth Claude 沿用同一條 Messages 管線；max_tokens 夾 64000 後協商邏輯仍可作用 |
-| **推理檔位正規化** | `ReasoningCapabilities`、`reasoningCapabilitiesForCall`（§3.5）、models.dev 目錄（§3.5 §6） | Codex 模型的 reasoning 等級寫入 override 後自動接上四 transport writer |
+| **推理檔位正規化** | `ReasoningCapabilities`、`reasoningCapabilitiesForCall`（§3.5）、models.dev 目錄（§3.5 §6） | Codex 的 `supported_reasoning_levels` 與 Claude 的 `capabilities.effort` 寫入 `reasoningSynced`（低於使用者 `reasoning`、高於 models.dev/regex）；`ultra`／`persistent` 不寫入 |
 | **5-Hook 掛接點清單** | 手冊 §5.3：`generateText` 主 body、`sendMessageStream` 主 body、`body2` 三處 | 由「手動注入點」降級為**測試斷言清單**：確認所有路徑都經過 `_clientFor` 包裝的 `OAuthHttpClient`（C1） |
 | **PKCE 密碼學** | `crypto ^3.0.6`（SHA256）已入 pubspec | S256 challenge 直接可用；JWT 解碼可用 `jose ^0.3.5+1` 或手寫 base64url |
 | **loopback 網路白名單** | `android/app/src/main/res/xml/network_security_config.xml`（localhost/127.0.0.1/::1 → cleartext 許可，註解已標明為 OAuth callback 預留） | Android loopback callback 免改 manifest |
@@ -182,7 +182,7 @@ lib/features/provider/
 |:--|:--|
 | `lib/core/providers/settings_provider.dart` | `ProviderConfig` 新增 `oauthProvider`（nullable enum：chatgpt/claude）＋`oauthCredentials`（nullable JSON，`toJson/fromJson` 對稱）；**不新增 ProviderKind**（用 `oauthProvider` 判別，對齊上游、避免 enum 擴散）；新增 `clearOAuthCredentials()`（**注意 `copyWith` 的 `?? this.x` 無法清空 nullable 欄位**）；OAuth 預設 provider 工廠（providerType 分別為 openai＋`useResponseApi=true`／claude）；備份鍵照 `provider_configs_v1` 整體走 |
 | `lib/core/services/api/chat_api_service.dart` | ① `_clientFor()` 是**唯一 client 工廠**（sendMessageStream 與 generateText 共用）→ 在此包一層 `OAuthHttpClient`，統一做：`resolve()` 續期、header 改寫（Claude 去 `x-api-key` 加 Bearer/beta；Codex 加 `chatgpt-account-id`/version/originator）、body 塑形（Claude `encodeClaudeOAuthRequest`／Codex `applyCodexRequest`）、401→續期→重試一次、錯誤脫敏、**`close()` 轉發**。**所有 `http.Request` 皆為 JSON body，包裝層可安全重寫**（與上游同構）；② `sendMessageStream` 頂部對 Codex **強制 `stream=true`**（`stream:false` 呼叫端＝OCR 等聚合型，行為透明）；③ `generateText`（line 1526）有**獨立非串流 body 建構與解析**，Codex 帳號必須 fork 到「串流＋聚合」路徑（包裝層無法把非串流解析變成串流）；④ Codex 的 `include` 與既有 `web_search_call.action.sources` **合併去重**（line 2993/4648）；⑤ `sendMessageStream` 新增 optional `sessionId`（會話 UUID；呼叫端已有 conversationId），供 providerSessionHeaders |
-| `lib/core/providers/model_provider.dart` | OAuth provider 的模型清單由 `ProviderOAuthService.syncModels()` 寫入 `config.models` + `modelOverrides`（abilities/reasoning），不走 API-key 抓取路徑 |
+| `lib/core/providers/model_provider.dart` | OAuth provider 的模型清單由 `ProviderOAuthService.syncModels()` 寫入 `config.models` + `modelOverrides`（abilities/reasoningSynced），不走 API-key 抓取路徑 |
 | `lib/features/provider/widgets/add_provider_sheet.dart` | 新增第 4 個 tab「帳號登入」（`OAuthLoginPanel`） |
 | `lib/features/provider/pages/provider_detail_page.dart` | OAuth 帳號路由至 `OAuthProviderDetailPage`（隱藏 API key 欄位） |
 | `lib/features/provider/widgets/share_provider_sheet.dart`、`import_provider_sheet.dart` | 匯出加 `oauth` 標記（值為 `chatgpt` 或 `claude`；`apiKey` 恆空；現行格式本就不含 `oauthCredentials`）；import `_decodeSingle` 辨識後建立**未登入** OAuth provider（C6） |
@@ -273,8 +273,8 @@ graph TD
 
 ### M3：模型同步與帳號生命週期
 
-- `syncModels()`：Codex `{base}/models?client_version=`（濾 visibility、priority 排序、reasoning 等級寫 `modelOverrides`）；Claude `/v1/models` 分頁（上限 1000/頁）。
-- **合併語義（不覆寫使用者資料）**：只新增缺少的模型；`modelOverrides` 只更新 `source: 'oauth-synced'` 的條目（abilities/reasoning/顯示名），**永不覆蓋**使用者自行建立的 override（custom headers/body/reasoningWire）。同步失敗不清空既有清單。
+- `syncModels()`：Codex `{base}/models?client_version=`（濾 visibility、priority 排序、`supported_reasoning_levels` → `reasoningSynced`）；Claude `/v1/models` 分頁（上限 1000/頁，`capabilities.effort` → `reasoningSynced`）。
+- **合併語義（不覆寫使用者資料）**：只新增缺少的模型；`modelOverrides` 只更新 `source: 'oauth-synced'` 的條目（abilities/reasoningSynced/顯示名），**永不覆蓋**使用者自行建立的 override（custom headers/body/reasoningWire/user reasoning）。同步失敗不清空既有清單；成功但無 effort metadata 時移除舊 `reasoningSynced`。
 - **能力標註**：OAuth 模型不在 models.dev 目錄（host 為 chatgpt.com/api.anthropic.com 的 OAuth 路徑），同步時必須寫入 `abilities`（tool/reasoning/vision）與 input/output modalities（provider 有回傳就用，否則保守推斷），避免 regex fallback 誤判（例如 Codex 全系列都應視為 reasoning）。
 - `syncOutdatedModels()` 接上 `main.dart` 啟動（3 秒 timeout、single-flight、沿用 provider proxy client——比照 models.dev 目錄刷新的既有模式 §3.5 §6）。
 - 模型顯示：`ModelProvider` 對 OAuth provider 跳過 API-key 抓取，讀 `config.models`。

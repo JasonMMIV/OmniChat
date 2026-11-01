@@ -5830,6 +5830,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get oauthModelsTapToConfigure =>
+      'Tap a model to edit reasoning and advanced options.';
+
+  @override
   String get oauthModelsEmpty => 'No models synced yet. Use Sync models.';
 
   @override

@@ -5751,6 +5751,9 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get oauthModelsTapToConfigure => '点击模型可调整推理与高级设置。';
+
+  @override
   String get oauthModelsEmpty => '尚未同步模型，请使用「同步模型」。';
 
   @override
@@ -11318,6 +11321,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String oauthModelsTitle(int count) {
     return '模型（$count）';
   }
+
+  @override
+  String get oauthModelsTapToConfigure => '点击模型可调整推理与高级设置。';
 
   @override
   String get oauthModelsEmpty => '尚未同步模型，请使用「同步模型」。';
@@ -16987,6 +16993,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String oauthModelsTitle(int count) {
     return '模型（$count）';
   }
+
+  @override
+  String get oauthModelsTapToConfigure => '點擊模型可調整推理與進階設定。';
 
   @override
   String get oauthModelsEmpty => '尚未同步模型，請使用「同步模型」。';

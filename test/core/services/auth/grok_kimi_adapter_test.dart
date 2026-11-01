@@ -144,7 +144,9 @@ void main() {
         containsAll(<String>['grok-4', 'grok-3']),
       );
       expect(entries.map((e) => e.id), isNot(contains('grok-imagine')));
-      expect(entries.firstWhere((e) => e.id == 'grok-4').reasoning, isTrue);
+      final grok4 = entries.firstWhere((e) => e.id == 'grok-4');
+      expect(grok4.reasoning, isTrue);
+      expect(grok4.efforts, <String>{'low', 'high'});
     });
 
     test('usage prefers the weekly credits window', () async {
@@ -236,6 +238,7 @@ void main() {
                 'display_name': 'Kimi K2.5',
                 'protocol': null,
                 'supports_reasoning': true,
+                'supported_reasoning_levels': <String>['low', 'high', 'max'],
                 'supports_tool_use': true,
                 'supports_vision': true,
               },
@@ -261,9 +264,11 @@ void main() {
         final k3 = entries.firstWhere((e) => e.id == 'kimi-k3');
         expect(k25.protocol, 'openai');
         expect(k25.reasoning, isTrue);
+        expect(k25.efforts, <String>{'low', 'high', 'max'});
         expect(k25.vision, isTrue);
         expect(k3.protocol, 'anthropic');
         expect(k3.reasoning, isTrue);
+        expect(k3.thinkingAlwaysOn, isTrue);
       },
     );
 
