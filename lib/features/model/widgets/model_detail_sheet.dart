@@ -1257,6 +1257,12 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
         'reasoningSynced': Map<String, dynamic>.from(reasoningSynced),
       if (!_useImagesApi) 'useImagesApi': false,
       'useAspectRatioParam': _useAspectRatioParam,
+      // Read-modify-write: these maps are edited on the search settings sheet,
+      // not here, so a model-detail save must carry them through untouched.
+      if (prev['webSearch'] is Map)
+        'webSearch': Map<String, dynamic>.from(prev['webSearch'] as Map),
+      if (prev['webFetch'] is Map)
+        'webFetch': Map<String, dynamic>.from(prev['webFetch'] as Map),
       if (builtInTools.isNotEmpty) 'builtInTools': builtInTools,
       if (_reasoningOverride != null) 'reasoning': _reasoningOverride!.toMap(),
       if (_reasoningWire != null &&

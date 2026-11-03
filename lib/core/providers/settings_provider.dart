@@ -1031,12 +1031,8 @@ class SettingsProvider extends ChangeNotifier {
           break;
         }
       }
-      if (selected == null ||
-          providerFetchAdapterFor(
-                (selected.toJson()['type'] ?? '').toString(),
-              ) ==
-              null) {
-        // The provider was deleted or has no extract adapter: use local.
+      if (selected == null || !providerSupportsFetch(selected)) {
+        // The provider was deleted or cannot fetch pages: use local.
         _webFetchSource = 'local';
         await prefs.setString(webFetchSourceKey, 'local');
       }
@@ -3574,11 +3570,7 @@ Synthesize your reasoning and research into a final response. The structure shou
           break;
         }
       }
-      if (selected == null ||
-          providerFetchAdapterFor(
-                (selected.toJson()['type'] ?? '').toString(),
-              ) ==
-              null) {
+      if (selected == null || !providerSupportsFetch(selected)) {
         normalizedFetchSource = 'local';
       }
     }
@@ -3700,11 +3692,7 @@ Synthesize your reasoning and research into a final response. The structure shou
           break;
         }
       }
-      if (selected == null ||
-          providerFetchAdapterFor(
-                (selected.toJson()['type'] ?? '').toString(),
-              ) ==
-              null) {
+      if (selected == null || !providerSupportsFetch(selected)) {
         normalized = 'local';
       }
     }

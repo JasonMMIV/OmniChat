@@ -139,8 +139,9 @@ class MessageGenerationService {
     List<TodoItem> currentTodos = const <TodoItem>[];
     try {
       if (conversation != null) {
-        currentTodos =
-            await contextProvider.read<TodoService>().getTodos(conversation.id);
+        currentTodos = await contextProvider.read<TodoService>().getTodos(
+          conversation.id,
+        );
       }
     } catch (_) {}
     String? todoNextAction;
@@ -161,10 +162,7 @@ class MessageGenerationService {
           break;
         }
       }
-      final learned = await LearnedContextWindows.lookup(
-        providerKey,
-        modelId,
-      );
+      final learned = await LearnedContextWindows.lookup(providerKey, modelId);
       final catalogCfg = settings.getProviderConfig(providerKey);
       final trigger = evaluateCompactionTrigger(
         messages: messages,
@@ -178,10 +176,7 @@ class MessageGenerationService {
       );
       if (trigger.overTrigger &&
           trigger.boundaryIndex > conv.compactBeforeIndex) {
-        await chatService.setCompactBeforeIndex(
-          conv.id,
-          trigger.boundaryIndex,
-        );
+        await chatService.setCompactBeforeIndex(conv.id, trigger.boundaryIndex);
         conversation = conv.copyWith(compactBeforeIndex: trigger.boundaryIndex);
       }
     }
@@ -224,11 +219,12 @@ class MessageGenerationService {
       currentConversationId: currentConversation?.id,
     );
 
-    final hasBuiltInSearch = messageBuilderService.hasBuiltInGeminiSearch(
+    final hasBuiltInSearch = messageBuilderService.hasGeminiBuiltInTools(
       settings,
       providerKey,
       modelId,
     );
+
     messageBuilderService.injectSearchPrompt(
       apiMessages,
       settings,

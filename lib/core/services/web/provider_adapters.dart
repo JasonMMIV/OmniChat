@@ -7,10 +7,8 @@ import 'dart:convert';
 
 import '../search/search_service.dart';
 
-typedef ProviderUriBuilder = Uri Function(
-  String url,
-  SearchServiceOptions options,
-);
+typedef ProviderUriBuilder =
+    Uri Function(String url, SearchServiceOptions options);
 typedef ProviderHeadersBuilder =
     Map<String, String> Function(SearchServiceOptions options);
 typedef ProviderBodyBuilder =
@@ -26,6 +24,7 @@ class ProviderFetchAdapter {
     this.bodyBuilder,
     required this.contentExtractor,
     this.titleExtractor,
+    this.errorExtractor,
     this.plainTextResponse = false,
   });
 
@@ -39,17 +38,28 @@ class ProviderFetchAdapter {
   final String Function(dynamic payload) contentExtractor;
   final String Function(dynamic payload)? titleExtractor;
 
+  /// Provider-specific error envelope (e.g. AnySearch `code != 0`). Return a
+  /// non-empty message to fail the fetch before content extraction.
+  final String? Function(dynamic payload)? errorExtractor;
+
   /// Jina Reader answers with Markdown text, everything else with JSON.
   final bool plainTextResponse;
 }
 
 /// Returns the adapter for a provider [type], or null when the provider has
 /// no extract API.
-ProviderFetchAdapter? providerFetchAdapterFor(String type) =>
-    _adapters[type];
+ProviderFetchAdapter? providerFetchAdapterFor(String type) => _adapters[type];
 
 List<ProviderFetchAdapter> get providerFetchAdapters =>
     List<ProviderFetchAdapter>.unmodifiable(_adapters.values);
+
+/// Whether [options] can fetch a page, either through a declarative REST
+/// adapter or a [WebFetchCapable] service (e.g. an MCP provider).
+bool providerSupportsFetch(SearchServiceOptions options) {
+  final type = (options.toJson()['type'] ?? '').toString();
+  if (_adapters.containsKey(type)) return true;
+  return SearchService.getService(options) is WebFetchCapable;
+}
 
 /// Replaces the trailing [searchPath] of [searchUrl] with [fetchPath].
 ///
@@ -67,7 +77,8 @@ Uri? siblingFetchEndpoint(
   if (uri == null || !uri.hasScheme || uri.host.isEmpty) return null;
   final path = uri.path;
   if (!path.endsWith(searchPath)) return null;
-  final nextPath = '${path.substring(0, path.length - searchPath.length)}'
+  final nextPath =
+      '${path.substring(0, path.length - searchPath.length)}'
       '$fetchPath';
   return uri.replace(path: nextPath);
 }
@@ -86,6 +97,16 @@ Map<String, String> _jsonHeaders(SearchServiceOptions options) => {
   'Content-Type': 'application/json',
   if (_apiKey(options).isNotEmpty)
     'Authorization': 'Bearer ${_apiKey(options)}',
+};
+
+Map<String, String> _parallelHeaders(SearchServiceOptions options) => {
+  'Content-Type': 'application/json',
+  if (_apiKey(options).isNotEmpty) 'x-api-key': _apiKey(options),
+};
+
+Map<String, String> _youHeaders(SearchServiceOptions options) => {
+  'Content-Type': 'application/json',
+  if (_apiKey(options).isNotEmpty) 'X-API-Key': _apiKey(options),
 };
 
 dynamic _walk(dynamic payload, String path) {
@@ -112,8 +133,65 @@ String _firstString(dynamic payload, List<String> paths) {
   return '';
 }
 
+String _joinedStrings(dynamic value) {
+  if (value is List) {
+    return value
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .join('\n\n');
+  }
+  return (value ?? '').toString().trim();
+}
+
+String? _anySearchError(dynamic payload) {
+  final code = _walk(payload, 'code');
+  if (code == null || code == 0) return null;
+  final message = _firstString(payload, ['message', 'msg']);
+  final requestId = _firstString(payload, ['request_id', 'requestId']);
+  return '${message.isEmpty ? 'AnySearch API error' : message}'
+      '${requestId.isEmpty ? '' : ' (request_id: $requestId)'}';
+}
+
+String? _parallelError(dynamic payload) {
+  final errors = _walk(payload, 'errors');
+  if (errors is! List || errors.isEmpty) return null;
+  final first = errors.first;
+  if (first is Map) {
+    final type = (first['error_type'] ?? first['type'] ?? '').toString().trim();
+    final status = (first['http_status_code'] ?? first['status'] ?? '')
+        .toString()
+        .trim();
+    final detail = (first['message'] ?? first['detail'] ?? '')
+        .toString()
+        .trim();
+    return [
+      if (type.isNotEmpty) type,
+      if (status.isNotEmpty) 'HTTP $status',
+      if (detail.isNotEmpty) detail,
+    ].join(' - ');
+  }
+  return first.toString();
+}
+
 Uri _tavilyUri(String url, SearchServiceOptions options) =>
     Uri.parse('https://api.tavily.com/extract');
+
+Uri _anySearchUri(String url, SearchServiceOptions options) {
+  final base = options is AnySearchOptions && options.url.trim().isNotEmpty
+      ? options.url.trim()
+      : AnySearchOptions.defaultUrl;
+  return siblingFetchEndpoint(base, '/search', '/extract') ??
+      Uri.parse(AnySearchOptions.defaultFetchUrl);
+}
+
+Uri _deepSeekUri(String url, SearchServiceOptions options) =>
+    Uri.parse(DeepSeekSearchOptions.fetchEndpoint);
+
+Uri _parallelUri(String url, SearchServiceOptions options) =>
+    Uri.parse(ParallelOptions.extractEndpoint);
+
+Uri _youUri(String url, SearchServiceOptions options) =>
+    Uri.parse(YouSearchOptions.contentsEndpoint);
 
 Uri _exaUri(String url, SearchServiceOptions options) =>
     Uri.parse('https://api.exa.ai/contents');
@@ -148,141 +226,178 @@ Map<String, dynamic> _urlBody(String url, SearchServiceOptions options) => {
   'url': url,
 };
 
-final Map<String, ProviderFetchAdapter> _adapters =
-    <String, ProviderFetchAdapter>{
-      'tavily': ProviderFetchAdapter(
-        type: 'tavily',
-        displayName: 'Tavily',
-        uriBuilder: _tavilyUri,
-        headersBuilder: _jsonHeaders,
-        bodyBuilder: (url, options) => {
-          'urls': <String>[url],
-          'extract_depth': 'basic',
-        },
-        contentExtractor: (payload) => _firstString(payload, [
-          'results.0.raw_content',
-          'results.0.content',
-        ]),
-        titleExtractor: (payload) =>
-            _firstString(payload, ['results.0.title']),
-      ),
-      'exa': ProviderFetchAdapter(
-        type: 'exa',
-        displayName: 'Exa',
-        uriBuilder: _exaUri,
-        headersBuilder: _jsonHeaders,
-        bodyBuilder: (url, options) => {
-          'urls': <String>[url],
-          'text': true,
-        },
-        contentExtractor: (payload) =>
-            _firstString(payload, ['results.0.text', 'results.0.content']),
-        titleExtractor: (payload) =>
-            _firstString(payload, ['results.0.title']),
-      ),
-      'firecrawl': ProviderFetchAdapter(
-        type: 'firecrawl',
-        displayName: 'Firecrawl',
-        uriBuilder: _firecrawlUri,
-        headersBuilder: _jsonHeaders,
-        bodyBuilder: (url, options) => {
-          'url': url,
-          'formats': <String>['markdown'],
-          'onlyMainContent': true,
-        },
-        contentExtractor: (payload) => _firstString(payload, [
-          'data.markdown',
-          'data.content',
-          'markdown',
-        ]),
-        titleExtractor: (payload) =>
-            _firstString(payload, ['data.metadata.title', 'metadata.title']),
-      ),
-      'jina': ProviderFetchAdapter(
-        type: 'jina',
-        displayName: 'Jina',
-        method: 'GET',
-        plainTextResponse: true,
-        uriBuilder: _jinaUri,
-        headersBuilder: (options) => {
-          'Accept': 'text/plain',
-          if (_apiKey(options).isNotEmpty)
-            'Authorization': 'Bearer ${_apiKey(options)}',
-        },
-        contentExtractor: (payload) => payload is String ? payload : '',
-      ),
-      'linkup': ProviderFetchAdapter(
-        type: 'linkup',
-        displayName: 'LinkUp',
-        uriBuilder: _linkupUri,
-        headersBuilder: _jsonHeaders,
-        bodyBuilder: (url, options) => {
-          'url': url,
-          'extractDepth': 'standard',
-        },
-        contentExtractor: (payload) => _firstString(payload, [
-          'markdown',
-          'content',
-          'data.markdown',
-          'data.content',
-        ]),
-        titleExtractor: (payload) =>
-            _firstString(payload, ['title', 'data.title']),
-      ),
-      'metaso': ProviderFetchAdapter(
-        type: 'metaso',
-        displayName: 'Metaso',
-        uriBuilder: _metasoUri,
-        headersBuilder: _jsonHeaders,
-        bodyBuilder: _urlBody,
-        contentExtractor: (payload) => _firstString(payload, [
-          'data.text',
-          'data.content',
-          'text',
-          'content',
-          'raw_content',
-        ]),
-      ),
-      'querit': ProviderFetchAdapter(
-        type: 'querit',
-        displayName: 'Querit',
-        uriBuilder: _queritUri,
-        headersBuilder: _jsonHeaders,
-        bodyBuilder: _urlBody,
-        contentExtractor: (payload) => _firstString(payload, [
-          'data.content',
-          'data.text',
-          'content',
-          'text',
-        ]),
-      ),
-      'tinyfish': ProviderFetchAdapter(
-        type: 'tinyfish',
-        displayName: 'Tinyfish',
-        method: 'GET',
-        uriBuilder: _tinyfishUri,
-        headersBuilder: (options) => {
-          if (_apiKey(options).isNotEmpty) 'X-API-Key': _apiKey(options),
-        },
-        contentExtractor: (payload) => _firstString(payload, [
-          'content',
-          'data.content',
-          'text',
-        ]),
-      ),
-      'ollama': ProviderFetchAdapter(
-        type: 'ollama',
-        displayName: 'Ollama',
-        uriBuilder: _ollamaUri,
-        headersBuilder: _jsonHeaders,
-        bodyBuilder: _urlBody,
-        contentExtractor: (payload) => _firstString(payload, [
-          'content',
-          'data.content',
-          'text',
-        ]),
-      ),
-    };
+final Map<String, ProviderFetchAdapter>
+_adapters = <String, ProviderFetchAdapter>{
+  'tavily': ProviderFetchAdapter(
+    type: 'tavily',
+    displayName: 'Tavily',
+    uriBuilder: _tavilyUri,
+    headersBuilder: _jsonHeaders,
+    bodyBuilder: (url, options) => {
+      'urls': <String>[url],
+      'extract_depth': 'basic',
+    },
+    contentExtractor: (payload) =>
+        _firstString(payload, ['results.0.raw_content', 'results.0.content']),
+    titleExtractor: (payload) => _firstString(payload, ['results.0.title']),
+  ),
+  'exa': ProviderFetchAdapter(
+    type: 'exa',
+    displayName: 'Exa',
+    uriBuilder: _exaUri,
+    headersBuilder: _jsonHeaders,
+    bodyBuilder: (url, options) => {
+      'urls': <String>[url],
+      'text': {'maxCharacters': 100000},
+    },
+    contentExtractor: (payload) =>
+        _firstString(payload, ['results.0.text', 'results.0.content']),
+    titleExtractor: (payload) => _firstString(payload, ['results.0.title']),
+  ),
+  'anysearch': ProviderFetchAdapter(
+    type: 'anysearch',
+    displayName: 'AnySearch',
+    uriBuilder: _anySearchUri,
+    headersBuilder: _jsonHeaders,
+    bodyBuilder: _urlBody,
+    errorExtractor: _anySearchError,
+    contentExtractor: (payload) =>
+        _firstString(payload, ['data.content', 'data.text', 'content', 'text']),
+    titleExtractor: (payload) => _firstString(payload, ['data.title', 'title']),
+  ),
+  'deepseek': ProviderFetchAdapter(
+    type: 'deepseek',
+    displayName: 'DeepSeek',
+    uriBuilder: _deepSeekUri,
+    headersBuilder: _jsonHeaders,
+    bodyBuilder: _urlBody,
+    contentExtractor: (payload) =>
+        _firstString(payload, ['content', 'data.content', 'text']),
+    titleExtractor: (payload) => _firstString(payload, ['title', 'data.title']),
+  ),
+  'parallel': ProviderFetchAdapter(
+    type: 'parallel',
+    displayName: 'Parallel',
+    uriBuilder: _parallelUri,
+    headersBuilder: _parallelHeaders,
+    bodyBuilder: (url, options) => {
+      'urls': <String>[url],
+      'advanced_settings': {
+        'full_content': true,
+        'excerpt_settings': {'max_chars_per_result': 100000},
+      },
+    },
+    errorExtractor: _parallelError,
+    contentExtractor: (payload) {
+      final full = _firstString(payload, ['results.0.full_content']);
+      if (full.isNotEmpty) return full;
+      return _joinedStrings(_walk(payload, 'results.0.excerpts'));
+    },
+    titleExtractor: (payload) => _firstString(payload, ['results.0.title']),
+  ),
+  'you': ProviderFetchAdapter(
+    type: 'you',
+    displayName: 'You.com',
+    uriBuilder: _youUri,
+    headersBuilder: _youHeaders,
+    bodyBuilder: (url, options) => {
+      'urls': <String>[url],
+      'formats': <String>['markdown', 'metadata'],
+    },
+    contentExtractor: (payload) => _firstString(payload, [
+      '0.markdown',
+      '0.content',
+      'markdown',
+      'content',
+    ]),
+    titleExtractor: (payload) => _firstString(payload, ['0.title', 'title']),
+  ),
+  'firecrawl': ProviderFetchAdapter(
+    type: 'firecrawl',
+    displayName: 'Firecrawl',
+    uriBuilder: _firecrawlUri,
+    headersBuilder: _jsonHeaders,
+    bodyBuilder: (url, options) => {
+      'url': url,
+      'formats': <String>['markdown'],
+      'onlyMainContent': true,
+    },
+    contentExtractor: (payload) =>
+        _firstString(payload, ['data.markdown', 'data.content', 'markdown']),
+    titleExtractor: (payload) =>
+        _firstString(payload, ['data.metadata.title', 'metadata.title']),
+  ),
+  'jina': ProviderFetchAdapter(
+    type: 'jina',
+    displayName: 'Jina',
+    method: 'GET',
+    plainTextResponse: true,
+    uriBuilder: _jinaUri,
+    headersBuilder: (options) => {
+      'Accept': 'text/plain',
+      if (_apiKey(options).isNotEmpty)
+        'Authorization': 'Bearer ${_apiKey(options)}',
+    },
+    contentExtractor: (payload) => payload is String ? payload : '',
+  ),
+  'linkup': ProviderFetchAdapter(
+    type: 'linkup',
+    displayName: 'LinkUp',
+    uriBuilder: _linkupUri,
+    headersBuilder: _jsonHeaders,
+    bodyBuilder: (url, options) => {'url': url, 'extractDepth': 'standard'},
+    contentExtractor: (payload) => _firstString(payload, [
+      'markdown',
+      'content',
+      'data.markdown',
+      'data.content',
+    ]),
+    titleExtractor: (payload) => _firstString(payload, ['title', 'data.title']),
+  ),
+  'metaso': ProviderFetchAdapter(
+    type: 'metaso',
+    displayName: 'Metaso',
+    uriBuilder: _metasoUri,
+    headersBuilder: _jsonHeaders,
+    bodyBuilder: _urlBody,
+    contentExtractor: (payload) => _firstString(payload, [
+      'data.text',
+      'data.content',
+      'text',
+      'content',
+      'raw_content',
+    ]),
+  ),
+  'querit': ProviderFetchAdapter(
+    type: 'querit',
+    displayName: 'Querit',
+    uriBuilder: _queritUri,
+    headersBuilder: _jsonHeaders,
+    bodyBuilder: _urlBody,
+    contentExtractor: (payload) =>
+        _firstString(payload, ['data.content', 'data.text', 'content', 'text']),
+  ),
+  'tinyfish': ProviderFetchAdapter(
+    type: 'tinyfish',
+    displayName: 'Tinyfish',
+    method: 'GET',
+    uriBuilder: _tinyfishUri,
+    headersBuilder: (options) => {
+      if (_apiKey(options).isNotEmpty) 'X-API-Key': _apiKey(options),
+    },
+    contentExtractor: (payload) =>
+        _firstString(payload, ['content', 'data.content', 'text']),
+  ),
+  'ollama': ProviderFetchAdapter(
+    type: 'ollama',
+    displayName: 'Ollama',
+    uriBuilder: _ollamaUri,
+    headersBuilder: _jsonHeaders,
+    bodyBuilder: _urlBody,
+    contentExtractor: (payload) =>
+        _firstString(payload, ['content', 'data.content', 'text']),
+  ),
+};
 
 /// Encodes [body] for the adapter's request.
 String encodeAdapterBody(Map<String, dynamic> body) => jsonEncode(body);

@@ -329,11 +329,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     final settings = context.watch<SettingsProvider>();
     final capable = <SearchServiceOptions>[
       for (final service in settings.searchServices)
-        if (providerFetchAdapterFor(
-              (service.toJson()['type'] ?? '').toString(),
-            ) !=
-            null)
-          service,
+        if (providerSupportsFetch(service)) service,
     ];
     var source = settings.webFetchSource;
     if (source != 'local' &&
@@ -356,7 +352,10 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: TextStyle(fontSize: 15, color: cs.onSurface)),
+                  Text(
+                    title,
+                    style: TextStyle(fontSize: 15, color: cs.onSurface),
+                  ),
                   if ((description ?? '').isNotEmpty) ...[
                     const SizedBox(height: 3),
                     Text(
@@ -481,9 +480,8 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
           title: l10n.searchWebFetchAllowPrivateHostsTitle,
           description: l10n.searchWebFetchAllowPrivateHostsDescription,
           value: settings.webFetchAllowPrivateHosts,
-          onChanged: (v) => context
-              .read<SettingsProvider>()
-              .setWebFetchAllowPrivateHosts(v),
+          onChanged: (v) =>
+              context.read<SettingsProvider>().setWebFetchAllowPrivateHosts(v),
         ),
       ],
     );
@@ -897,6 +895,11 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     if (service is DuckDuckGoOptions) return Lucide.Search;
     if (service is TavilyOptions) return Lucide.Sparkles;
     if (service is ExaOptions) return Lucide.Brain;
+    if (service is AnySearchOptions) return Lucide.Globe;
+    if (service is ExaMcpOptions) return Lucide.Brain;
+    if (service is DeepSeekSearchOptions) return Lucide.Sparkles;
+    if (service is ParallelOptions) return Lucide.Brain;
+    if (service is YouSearchOptions) return Lucide.Search;
     if (service is ZhipuOptions) return Lucide.Languages;
     if (service is SearXNGOptions) return Lucide.Shield;
     if (service is LinkUpOptions) return Lucide.Link2;
@@ -932,6 +935,24 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
       return service.apiKey.isNotEmpty
           ? l10n.searchServicesPageConfiguredStatus
           : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (service is AnySearchOptions || service is ExaMcpOptions) {
+      return l10n.searchServicesPageNoKeyRequiredStatus;
+    }
+    if (service is DeepSeekSearchOptions ||
+        service is ParallelOptions ||
+        service is YouSearchOptions) {
+      final String key;
+      if (service is DeepSeekSearchOptions) {
+        key = service.apiKey;
+      } else if (service is ParallelOptions) {
+        key = service.apiKey;
+      } else {
+        key = (service as YouSearchOptions).apiKey;
+      }
+      return key.isNotEmpty
+          ? l10n.searchServicesPageConfiguredStatus
+          : l10n.searchServicesPageApiKeyRequiredStatus;
+    }
     if (service is ZhipuOptions)
       return service.apiKey.isNotEmpty
           ? l10n.searchServicesPageConfiguredStatus
@@ -1027,6 +1048,11 @@ class _BrandBadge extends StatelessWidget {
     if (s is DuckDuckGoOptions) return 'duckduckgo';
     if (s is TavilyOptions) return 'tavily';
     if (s is ExaOptions) return 'exa';
+    if (s is AnySearchOptions) return 'anysearch';
+    if (s is ExaMcpOptions) return 'exa';
+    if (s is DeepSeekSearchOptions) return 'deepseek';
+    if (s is ParallelOptions) return 'parallel';
+    if (s is YouSearchOptions) return 'you';
     if (s is ZhipuOptions) return 'zhipu';
     if (s is SearXNGOptions) return 'searxng';
     if (s is LinkUpOptions) return 'linkup';
@@ -1269,6 +1295,11 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
       {'type': 'duckduckgo', 'name': l10n.searchServiceNameDuckDuckGo},
       {'type': 'tavily', 'name': l10n.searchServiceNameTavily},
       {'type': 'exa', 'name': l10n.searchServiceNameExa},
+      {'type': 'exa_mcp', 'name': l10n.searchServiceNameExaMcp},
+      {'type': 'anysearch', 'name': l10n.searchServiceNameAnySearch},
+      {'type': 'deepseek', 'name': l10n.searchServiceNameDeepSeekSearch},
+      {'type': 'parallel', 'name': l10n.searchServiceNameParallel},
+      {'type': 'you', 'name': l10n.searchServiceNameYou},
       {'type': 'zhipu', 'name': l10n.searchServiceNameZhipu},
       {'type': 'searxng', 'name': l10n.searchServiceNameSearXNG},
       {'type': 'linkup', 'name': l10n.searchServiceNameLinkUp},
@@ -1328,6 +1359,16 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
         return l10n.searchServiceNameTavily;
       case 'exa':
         return l10n.searchServiceNameExa;
+      case 'exa_mcp':
+        return l10n.searchServiceNameExaMcp;
+      case 'anysearch':
+        return l10n.searchServiceNameAnySearch;
+      case 'deepseek':
+        return l10n.searchServiceNameDeepSeekSearch;
+      case 'parallel':
+        return l10n.searchServiceNameParallel;
+      case 'you':
+        return l10n.searchServiceNameYou;
       case 'zhipu':
         return l10n.searchServiceNameZhipu;
       case 'searxng':
@@ -1524,6 +1565,92 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
             ),
           ],
         ];
+      case 'exa_mcp':
+        return [
+          _buildTextField(key: 'apiKey', label: 'API Key (Optional)'),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'url',
+            label: l10n.searchServicesFieldCustomUrlOptional,
+            hint: ExaMcpOptions.defaultUrl,
+          ),
+        ];
+      case 'anysearch':
+        return [
+          _buildTextField(key: 'apiKey', label: 'API Key (Optional)'),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'zone',
+            label: l10n.searchServicesDialogZone,
+            hint: 'intl',
+            initialValue: 'intl',
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'language',
+            label: l10n.searchServicesAddDialogLanguageOptional,
+            hint: 'en',
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'url',
+            label: l10n.searchServicesFieldCustomUrlOptional,
+            hint: AnySearchOptions.defaultUrl,
+          ),
+        ];
+      case 'deepseek':
+        return [
+          _buildTextField(
+            key: 'apiKey',
+            label: 'API Key',
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return l10n.searchServicesAddDialogApiKeyRequired;
+              }
+              return null;
+            },
+          ),
+        ];
+      case 'parallel':
+        return [
+          _buildTextField(
+            key: 'apiKey',
+            label: 'API Key',
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return l10n.searchServicesAddDialogApiKeyRequired;
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'mode',
+            label: l10n.searchServicesDialogMode,
+            hint: 'turbo / fast / basic / advanced',
+            initialValue: ParallelOptions.defaultMode,
+          ),
+        ];
+      case 'you':
+        return [
+          _buildTextField(
+            key: 'apiKey',
+            label: 'API Key',
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return l10n.searchServicesAddDialogApiKeyRequired;
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'contentMode',
+            label: l10n.searchServicesDialogContentMode,
+            hint: 'highlights / snippets',
+            initialValue: YouSearchOptions.highlightsMode,
+          ),
+        ];
       case 'stepfun':
         return [
           _buildTextField(
@@ -1552,10 +1679,7 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
         ];
       case 'firecrawl':
         return [
-          _buildTextField(
-            key: 'apiKey',
-            label: 'API Key (Optional)',
-          ),
+          _buildTextField(key: 'apiKey', label: 'API Key (Optional)'),
           const SizedBox(height: 12),
           _buildTextField(
             key: 'url',
@@ -1791,6 +1915,39 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
         return TinyfishOptions(id: id, apiKey: _controllers['apiKey']!.text);
       case 'doubao':
         return DoubaoOptions(id: id, apiKey: _controllers['apiKey']!.text);
+      case 'exa_mcp':
+        return ExaMcpOptions(
+          id: id,
+          apiKey: (_controllers['apiKey']?.text ?? '').trim(),
+          url: (_controllers['url']?.text ?? '').trim(),
+        );
+      case 'anysearch':
+        return AnySearchOptions(
+          id: id,
+          apiKey: (_controllers['apiKey']?.text ?? '').trim(),
+          zone: (_controllers['zone']?.text ?? 'intl').trim().isEmpty
+              ? 'intl'
+              : _controllers['zone']!.text.trim(),
+          language: (_controllers['language']?.text ?? '').trim(),
+          url: (_controllers['url']?.text ?? '').trim(),
+        );
+      case 'deepseek':
+        return DeepSeekSearchOptions(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+        );
+      case 'parallel':
+        return ParallelOptions(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+          mode: (_controllers['mode']?.text ?? '').trim(),
+        );
+      case 'you':
+        return YouSearchOptions(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+          contentMode: (_controllers['contentMode']?.text ?? '').trim(),
+        );
       case 'stepfun':
         return StepFunOptions(
           id: id,
@@ -1869,6 +2026,24 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
       _controllers['region'] = TextEditingController(text: service.region);
     } else if (service is ExaOptions) {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+    } else if (service is ExaMcpOptions) {
+      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['url'] = TextEditingController(text: service.url);
+    } else if (service is AnySearchOptions) {
+      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['zone'] = TextEditingController(text: service.zone);
+      _controllers['language'] = TextEditingController(text: service.language);
+      _controllers['url'] = TextEditingController(text: service.url);
+    } else if (service is DeepSeekSearchOptions) {
+      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+    } else if (service is ParallelOptions) {
+      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['mode'] = TextEditingController(text: service.mode);
+    } else if (service is YouSearchOptions) {
+      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['contentMode'] = TextEditingController(
+        text: service.contentMode,
+      );
     } else if (service is ZhipuOptions) {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
     } else if (service is SearXNGOptions) {
@@ -1915,9 +2090,15 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
       _controllers['sitesExclude'] = TextEditingController(
         text: service.sitesExclude,
       );
-      _controllers['timeRange'] = TextEditingController(text: service.timeRange);
-      _controllers['countries'] = TextEditingController(text: service.countries);
-      _controllers['languages'] = TextEditingController(text: service.languages);
+      _controllers['timeRange'] = TextEditingController(
+        text: service.timeRange,
+      );
+      _controllers['countries'] = TextEditingController(
+        text: service.countries,
+      );
+      _controllers['languages'] = TextEditingController(
+        text: service.languages,
+      );
     } else if (service is SerperOptions) {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
       _controllers['gl'] = TextEditingController(text: service.gl);
@@ -2078,6 +2259,89 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
           hint: 'us-en',
         ),
       ];
+    } else if (service is ExaMcpOptions) {
+      return [
+        _buildTextField(key: 'apiKey', label: 'API Key (Optional)'),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'url',
+          label: l10n.searchServicesFieldCustomUrlOptional,
+          hint: ExaMcpOptions.defaultUrl,
+        ),
+      ];
+    } else if (service is AnySearchOptions) {
+      return [
+        _buildTextField(key: 'apiKey', label: 'API Key (Optional)'),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'zone',
+          label: l10n.searchServicesDialogZone,
+          hint: 'intl',
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'language',
+          label: l10n.searchServicesAddDialogLanguageOptional,
+          hint: 'en',
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'url',
+          label: l10n.searchServicesFieldCustomUrlOptional,
+          hint: AnySearchOptions.defaultUrl,
+        ),
+      ];
+    } else if (service is DeepSeekSearchOptions) {
+      return [
+        _buildTextField(
+          key: 'apiKey',
+          label: 'API Key',
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return l10n.searchServicesEditDialogApiKeyRequired;
+            }
+            return null;
+          },
+        ),
+      ];
+    } else if (service is ParallelOptions) {
+      return [
+        _buildTextField(
+          key: 'apiKey',
+          label: 'API Key',
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return l10n.searchServicesEditDialogApiKeyRequired;
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'mode',
+          label: l10n.searchServicesDialogMode,
+          hint: 'turbo / fast / basic / advanced',
+        ),
+      ];
+    } else if (service is YouSearchOptions) {
+      return [
+        _buildTextField(
+          key: 'apiKey',
+          label: 'API Key',
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return l10n.searchServicesEditDialogApiKeyRequired;
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 12),
+        _buildTextField(
+          key: 'contentMode',
+          label: l10n.searchServicesDialogContentMode,
+          hint: 'highlights / snippets',
+        ),
+      ];
     } else if (service is TavilyOptions ||
         service is ExaOptions ||
         service is ZhipuOptions ||
@@ -2142,10 +2406,7 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
       ];
     } else if (service is FirecrawlOptions) {
       return [
-        _buildTextField(
-          key: 'apiKey',
-          label: 'API Key (Optional)',
-        ),
+        _buildTextField(key: 'apiKey', label: 'API Key (Optional)'),
         const SizedBox(height: 12),
         _buildTextField(
           key: 'url',
@@ -2403,6 +2664,39 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
         id: service.id,
         apiKey: _controllers['apiKey']!.text,
       );
+    } else if (service is ExaMcpOptions) {
+      return ExaMcpOptions(
+        id: service.id,
+        apiKey: (_controllers['apiKey']?.text ?? '').trim(),
+        url: (_controllers['url']?.text ?? '').trim(),
+      );
+    } else if (service is AnySearchOptions) {
+      return AnySearchOptions(
+        id: service.id,
+        apiKey: (_controllers['apiKey']?.text ?? '').trim(),
+        zone: (_controllers['zone']?.text ?? 'intl').trim().isEmpty
+            ? 'intl'
+            : _controllers['zone']!.text.trim(),
+        language: (_controllers['language']?.text ?? '').trim(),
+        url: (_controllers['url']?.text ?? '').trim(),
+      );
+    } else if (service is DeepSeekSearchOptions) {
+      return DeepSeekSearchOptions(
+        id: service.id,
+        apiKey: _controllers['apiKey']!.text,
+      );
+    } else if (service is ParallelOptions) {
+      return ParallelOptions(
+        id: service.id,
+        apiKey: _controllers['apiKey']!.text,
+        mode: (_controllers['mode']?.text ?? '').trim(),
+      );
+    } else if (service is YouSearchOptions) {
+      return YouSearchOptions(
+        id: service.id,
+        apiKey: _controllers['apiKey']!.text,
+        contentMode: (_controllers['contentMode']?.text ?? '').trim(),
+      );
     } else if (service is StepFunOptions) {
       return StepFunOptions(
         id: service.id,
@@ -2526,6 +2820,16 @@ class _ServiceIcon extends StatelessWidget {
         return 'tavily';
       case 'exa':
         return 'exa';
+      case 'exa_mcp':
+        return 'exa';
+      case 'anysearch':
+        return 'anysearch';
+      case 'deepseek':
+        return 'deepseek';
+      case 'parallel':
+        return 'parallel';
+      case 'you':
+        return 'you';
       case 'zhipu':
         return 'zhipu';
       case 'searxng':

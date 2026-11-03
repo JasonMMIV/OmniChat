@@ -17,7 +17,6 @@ import '../../../core/services/instruction_injection_store.dart';
 import '../../../core/services/search/search_tool_service.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/services/api/builtin_tools.dart';
-import '../../../core/services/agent/compaction/context_trim.dart';
 import '../../../core/services/agent/compaction/history_compactor.dart';
 import '../../../core/services/agent/compaction/tool_pairing.dart';
 import '../../../core/services/agent/compaction/tool_result_pruner.dart';
@@ -144,9 +143,7 @@ class MessageBuilderService {
       final cIndex = currentConversation.compactBeforeIndex;
       final rawStart = (tIndex >= 0 && tIndex <= messages.length) ? tIndex : 0;
       final compactSplit = cIndex - rawStart;
-      if (cIndex > 0 &&
-          compactSplit > 0 &&
-          compactSplit < sourceAll.length) {
+      if (cIndex > 0 && compactSplit > 0 && compactSplit < sourceAll.length) {
         headSource = collapseVersions(
           sourceAll.sublist(0, compactSplit),
           versionSelections,
@@ -256,16 +253,14 @@ class MessageBuilderService {
           // echoes back to the provider, so the replay stays faithful while
           // satisfying DeepSeek's "reasoning_content must be passed back"
           // requirement on the resumed request.
-          if (reasoningContent == null &&
-              (m.reasoningText ?? '').isNotEmpty) {
+          if (reasoningContent == null && (m.reasoningText ?? '').isNotEmpty) {
             reasoningContent = m.reasoningText;
           }
           out.add(<String, dynamic>{
             'role': 'assistant',
             'content': '\n\n',
             'tool_calls': calls,
-            if (reasoningContent != null)
-              'reasoning_content': reasoningContent,
+            if (reasoningContent != null) 'reasoning_content': reasoningContent,
             if (reasoningDetails.isNotEmpty)
               'reasoning_details': reasoningDetails,
           });
@@ -694,9 +689,9 @@ file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPT
         startIdx = 1;
       }
       if (startIdx < apiMessages.length &&
-          (apiMessages[startIdx]['content'] ?? '')
-              .toString()
-              .startsWith(summaryContentPrefix)) {
+          (apiMessages[startIdx]['content'] ?? '').toString().startsWith(
+            summaryContentPrefix,
+          )) {
         startIdx++;
       }
       final tail = apiMessages.sublist(startIdx);
@@ -737,7 +732,7 @@ file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPT
   }
 
   /// Check if Gemini built-in search is enabled for the given provider/model.
-  bool hasBuiltInGeminiSearch(
+  bool hasGeminiBuiltInTools(
     SettingsProvider settings,
     String providerKey,
     String modelId,
@@ -748,7 +743,13 @@ file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPT
       final rawOv = cfg.modelOverrides[modelId];
       final ov = rawOv is Map ? rawOv : null;
       final builtIns = BuiltInToolNames.parseAndNormalize(ov?['builtInTools']);
-      return builtIns.contains(BuiltInToolNames.search);
+      // Gemini drops function declarations whenever any provider-side tool is
+      // active, not only google_search. url_context / code_execution must
+      // suppress the client search and fetch tools too.
+      return builtIns.contains(BuiltInToolNames.search) ||
+          builtIns.contains(BuiltInToolNames.urlContext) ||
+          builtIns.contains(BuiltInToolNames.codeExecution) ||
+          builtIns.contains(BuiltInToolNames.youtube);
     } catch (_) {
       return false;
     }

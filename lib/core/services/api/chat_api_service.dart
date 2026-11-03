@@ -1248,6 +1248,9 @@ class ChatApiService {
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     bool stream = true,
+    // Global Web Fetch master switch. When false, provider-side web fetch
+    // (Claude / OpenRouter / Gemini url_context) is not injected either.
+    bool webFetchEnabled = true,
     String? requestId,
     String? imageAspectRatio,
     // P0-3 single-round mode: when true the transport executes exactly one
@@ -1362,6 +1365,7 @@ class ChatApiService {
                 extraHeaders: extraHeaders,
                 extraBody: extraBody,
                 stream: stream,
+                webFetchEnabled: webFetchEnabled,
                 imageAspectRatio: imageAspectRatio,
                 flags: flags,
                 exposeToolCallsOnly: exposeToolCallsOnly,
@@ -1389,6 +1393,7 @@ class ChatApiService {
                 extraHeaders: extraHeaders,
                 extraBody: extraBody,
                 stream: stream,
+                webFetchEnabled: webFetchEnabled,
                 flags: flags,
                 exposeToolCallsOnly: exposeToolCallsOnly,
               ),
@@ -1414,6 +1419,7 @@ class ChatApiService {
                 extraHeaders: extraHeaders,
                 extraBody: extraBody,
                 stream: stream,
+                webFetchEnabled: webFetchEnabled,
                 flags: flags,
                 exposeToolCallsOnly: exposeToolCallsOnly,
               ),
@@ -2585,6 +2591,51 @@ class ChatApiService {
   }
 
   // Clean OpenAI-format tools for compatibility with strict backends (like Gemini via NewAPI)
+  static Map<String, dynamic> _openRouterWebFetchEntry(
+    ProviderConfig config,
+    String modelId,
+  ) {
+    Map<String, dynamic> wf = const <String, dynamic>{};
+    try {
+      final ov = config.modelOverrides[modelId];
+      if (ov is Map && ov['webFetch'] is Map) {
+        wf = (ov['webFetch'] as Map).cast<String, dynamic>();
+      }
+    } catch (_) {}
+    final parameters = <String, dynamic>{};
+    final engine = (wf['engine'] ?? '').toString().trim();
+    if (engine.isNotEmpty) parameters['engine'] = engine;
+    final maxUses = (wf['maxUses'] ?? wf['max_uses']) as int?;
+    if (maxUses != null && maxUses > 0) {
+      parameters['max_uses'] = maxUses.clamp(1, 20);
+    }
+    final maxContentTokens =
+        (wf['maxContentTokens'] ?? wf['max_content_tokens']) as int?;
+    if (maxContentTokens != null && maxContentTokens > 0) {
+      parameters['max_content_tokens'] = maxContentTokens.clamp(1024, 200000);
+    }
+    final allowed = _stringList(wf['allowedDomains'] ?? wf['allowed_domains']);
+    if (allowed.isNotEmpty) parameters['allowed_domains'] = allowed;
+    final blocked = _stringList(wf['blockedDomains'] ?? wf['blocked_domains']);
+    if (blocked.isNotEmpty) parameters['blocked_domains'] = blocked;
+    return <String, dynamic>{
+      'type': 'openrouter:web_fetch',
+      'parameters': parameters,
+    };
+  }
+
+  static List<String> _stringList(dynamic value) {
+    if (value is! List) return const <String>[];
+    final out = <String>[];
+    final seen = <String>{};
+    for (final item in value) {
+      final text = item.toString().trim();
+      if (text.isEmpty || !seen.add(text)) continue;
+      out.add(text);
+    }
+    return out;
+  }
+
   static List<Map<String, dynamic>> _cleanToolsForCompatibility(
     List<Map<String, dynamic>> tools,
   ) {
@@ -2691,6 +2742,7 @@ class ChatApiService {
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     bool stream = true,
+    bool webFetchEnabled = true,
     String? imageAspectRatio,
     StreamAttemptFlags? flags,
     // Wire-capture diagnostics: tag for the on-error wire logger (see
@@ -2705,6 +2757,22 @@ class ChatApiService {
         ? '/responses'
         : (config.chatPath ?? '/chat/completions');
     final url = Uri.parse('$base$path');
+    // OpenRouter server-side web fetch (chat-completions only). It is a
+    // server tool in the normal `tools` array; `plugins:[{id:'web'}]` remains
+    // the separate search plugin.
+    if (webFetchEnabled &&
+        config.useResponseApi != true &&
+        BuiltInToolsHelper.isNativeWebFetchEnabled(
+          cfg: config,
+          modelId: modelId,
+        )) {
+      final augmented = <Map<String, dynamic>>[...?tools];
+      final exists = augmented.any(
+        (tool) => (tool['type'] ?? '').toString() == 'openrouter:web_fetch',
+      );
+      if (!exists) augmented.add(_openRouterWebFetchEntry(config, modelId));
+      tools = augmented;
+    }
     // Chat-completions wire-shape guard (see [_normalizeOpenAiCompatMessageContent]):
     // strict validators reject image-only content arrays on any message and
     // non-string content on assistant / tool messages. Applied here so the
@@ -6735,6 +6803,7 @@ class ChatApiService {
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     bool stream = true,
+    bool webFetchEnabled = true,
     StreamAttemptFlags? flags,
   }) async* {
     final upstreamModelId = _apiModelId(config, modelId);
@@ -6927,6 +6996,48 @@ class ChatApiService {
       allTools.add(entry);
     }
 
+    // Claude server-side web fetch. Only the official Anthropic endpoint is
+    // allowed: Claude-compatible relays (DeepSeek / gateways) reject or
+    // silently ignore server tools.
+    if (webFetchEnabled &&
+        builtIns.contains(BuiltInToolNames.webFetch) &&
+        BuiltInToolsHelper.supportsNativeWebFetch(
+          cfg: config,
+          modelId: modelId,
+        )) {
+      Map<String, dynamic> wf = const <String, dynamic>{};
+      try {
+        final ov = config.modelOverrides[modelId];
+        if (ov is Map && ov['webFetch'] is Map) {
+          wf = (ov['webFetch'] as Map).cast<String, dynamic>();
+        }
+      } catch (_) {}
+      final fetchToolType = BuiltInToolsHelper.claudeBuiltInFetchToolType(
+        cfg: config,
+        modelId: modelId,
+      );
+      final maxContentTokens =
+          (wf['maxContentTokens'] ?? wf['max_content_tokens']) as int?;
+      final entry = <String, dynamic>{
+        'type': fetchToolType,
+        'name': 'web_fetch',
+        'max_content_tokens': (maxContentTokens ?? 30000).clamp(1024, 200000),
+      };
+      final maxUses = (wf['maxUses'] ?? wf['max_uses']) as int?;
+      if (maxUses != null && maxUses > 0) {
+        entry['max_uses'] = maxUses.clamp(1, 20);
+      }
+      final allowed = _stringList(
+        wf['allowedDomains'] ?? wf['allowed_domains'],
+      );
+      if (allowed.isNotEmpty) entry['allowed_domains'] = allowed;
+      final blocked = _stringList(
+        wf['blockedDomains'] ?? wf['blocked_domains'],
+      );
+      if (blocked.isNotEmpty) entry['blocked_domains'] = blocked;
+      allTools.add(entry);
+    }
+
     // Headers (constant across rounds)
     final baseHeaders = <String, String>{
       'x-api-key': _effectiveApiKey(config),
@@ -6937,6 +7048,25 @@ class ChatApiService {
     baseHeaders.addAll(_customHeaders(config, modelId));
     if (extraHeaders != null && extraHeaders.isNotEmpty)
       baseHeaders.addAll(extraHeaders);
+    final claudeFetchToolType = BuiltInToolsHelper.claudeBuiltInFetchToolType(
+      cfg: config,
+      modelId: modelId,
+    );
+    final fetchBeta = BuiltInToolsHelper.claudeWebFetchBetaHeader(
+      claudeFetchToolType,
+    );
+    if (webFetchEnabled &&
+        fetchBeta != null &&
+        builtIns.contains(BuiltInToolNames.webFetch) &&
+        BuiltInToolsHelper.supportsNativeWebFetch(
+          cfg: config,
+          modelId: modelId,
+        )) {
+      final existing = (baseHeaders['anthropic-beta'] ?? '').trim();
+      baseHeaders['anthropic-beta'] = existing.isEmpty
+          ? fetchBeta
+          : '$existing,$fetchBeta';
+    }
 
     // Running conversation across rounds
     List<Map<String, dynamic>> convo = List<Map<String, dynamic>>.from(
@@ -7270,6 +7400,8 @@ class ChatApiService {
       // Server tool helpers (web_search)
       final Map<int, String> _srvIndexToId = <int, String>{};
       final Map<String, String> _srvArgsStr = <String, String>{};
+      final Map<int, String> _srvIndexToName = <int, String>{};
+      final Map<int, int> _srvIndexToBlock = <int, int>{};
       final Map<String, Map<String, dynamic>> _srvArgs =
           <String, Map<String, dynamic>>{};
 
@@ -7363,14 +7495,16 @@ class ChatApiService {
                 final idx2 = idx ?? -1;
                 if (id.isNotEmpty && idx2 >= 0) {
                   _srvIndexToId[idx2] = id;
+                  _srvIndexToName[idx2] = name;
                   _srvArgsStr[id] = '';
+                  _srvIndexToBlock[idx2] = assistantBlocks.length;
+                  assistantBlocks.add(Map<String, dynamic>.from(cb));
                 }
-                // Emit placeholder for server tool to show card (e.g., built-in
-                // web_search); skip the code_execution companion tool which has
-                // no dedicated UI card. Skipped in expose mode — the round-end
-                // surface owns tool-call emission there.
+                // Emit placeholder for server tools that have a dedicated UI
+                // card; skip the code_execution companion tool. Skipped in
+                // expose mode — the round-end surface owns tool-call emission.
                 if (id.isNotEmpty &&
-                    name == 'web_search' &&
+                    (name == 'web_search' || name == 'web_fetch') &&
                     !exposeToolCallsOnly) {
                   yield ChatStreamChunk(
                     content: '',
@@ -7380,7 +7514,7 @@ class ChatApiService {
                     toolCalls: [
                       ToolCallInfo(
                         id: id,
-                        name: 'search_web',
+                        name: name == 'web_fetch' ? 'web_fetch' : 'search_web',
                         arguments: const <String, dynamic>{},
                       ),
                     ],
@@ -7410,6 +7544,8 @@ class ChatApiService {
                     (contentBlock['type'] == 'web_search_tool_result_error')) {
                   errorCode = (contentBlock['error_code'] ?? '').toString();
                 }
+                // Keep the server result block for pause_turn continuation.
+                assistantBlocks.add(Map<String, dynamic>.from(cb));
                 Map<String, dynamic> args = const <String, dynamic>{};
                 if (_srvArgs.containsKey(toolUseId))
                   args = _srvArgs[toolUseId]!;
@@ -7428,6 +7564,80 @@ class ChatApiService {
                       name: 'search_web',
                       arguments: args,
                       content: payload,
+                    ),
+                  ],
+                );              } else if (cb is Map &&
+                  (cb['type'] == 'web_fetch_tool_result')) {
+                // Keep the server result block for pause_turn continuation.
+                assistantBlocks.add(Map<String, dynamic>.from(cb));
+                final toolUseId = (cb['tool_use_id'] ?? '').toString();
+                final contentBlock = cb['content'];
+                String? url;
+                String? errorCode;
+                String? errorMessage;
+                String? text;
+                if (contentBlock is Map) {
+                  if ((contentBlock['type'] ?? '').toString() ==
+                      'web_fetch_tool_result_error') {
+                    errorCode = (contentBlock['error_code'] ?? '')
+                        .toString()
+                        .trim();
+                    errorMessage = (contentBlock['error_message'] ?? '')
+                        .toString()
+                        .trim();
+                  } else {
+                    url = (contentBlock['url'] ?? '').toString().trim();
+                    final inner = contentBlock['content'];
+                    if (inner is String) {
+                      text = inner;
+                    } else if (inner is Map) {
+                      final source = inner['source'];
+                      if (source is Map && source['data'] is String) {
+                        text = source['data'] as String;
+                      }
+                      if ((text ?? '').isEmpty && inner['content'] is String) {
+                        text = inner['content'] as String;
+                      }
+                    }
+                    if ((text ?? '').isEmpty &&
+                        contentBlock['text'] is String) {
+                      text = contentBlock['text'] as String;
+                    }
+                  }
+                }
+                Map<String, dynamic> args = const <String, dynamic>{};
+                if (_srvArgs.containsKey(toolUseId)) {
+                  args = _srvArgs[toolUseId]!;
+                }
+                var fetched = (text ?? '').trim();
+                if (fetched.length > 20000) {
+                  fetched = '${fetched.substring(0, 20000)}…';
+                }
+                final payload = StringBuffer();
+                if ((url ?? '').isNotEmpty) payload.writeln('URL: $url');
+                if ((errorCode ?? '').isNotEmpty) {
+                  payload.writeln('Error: $errorCode');
+                }
+                if ((errorMessage ?? '').isNotEmpty) {
+                  payload.writeln('Message: $errorMessage');
+                }
+                if (fetched.isNotEmpty) {
+                  payload
+                    ..writeln()
+                    ..write(fetched);
+                }
+                final payloadText = payload.toString().trim();
+                yield ChatStreamChunk(
+                  content: '',
+                  isDone: false,
+                  totalTokens: roundTokens,
+                  usage: usage,
+                  toolResults: [
+                    ToolResultInfo(
+                      id: toolUseId.isEmpty ? 'builtin_web_fetch' : toolUseId,
+                      name: 'web_fetch',
+                      arguments: args,
+                      content: payloadText,
                     ),
                   ],
                 );
@@ -7607,19 +7817,30 @@ class ChatApiService {
                     args = <String, dynamic>{};
                   }
                   _srvArgs[sid] = args;
-                  yield ChatStreamChunk(
-                    content: '',
-                    isDone: false,
-                    totalTokens: roundTokens,
-                    usage: usage,
-                    toolCalls: [
-                      ToolCallInfo(
-                        id: sid,
-                        name: 'search_web',
-                        arguments: args,
-                      ),
-                    ],
-                  );
+                  final blockIndex = _srvIndexToBlock[idx];
+                  if (blockIndex != null &&
+                      blockIndex >= 0 &&
+                      blockIndex < assistantBlocks.length) {
+                    assistantBlocks[blockIndex]['input'] = args;
+                  }
+                  final srvName = _srvIndexToName[idx] ?? 'web_search';
+                  if (srvName != 'code_execution') {
+                    yield ChatStreamChunk(
+                      content: '',
+                      isDone: false,
+                      totalTokens: roundTokens,
+                      usage: usage,
+                      toolCalls: [
+                        ToolCallInfo(
+                          id: sid,
+                          name: srvName == 'web_fetch'
+                              ? 'web_fetch'
+                              : 'search_web',
+                          arguments: args,
+                        ),
+                      ],
+                    );
+                  }
                 }
               }
             } else if (type == 'message_delta') {
@@ -7799,6 +8020,7 @@ class ChatApiService {
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     bool stream = true,
+    bool webFetchEnabled = true,
     StreamAttemptFlags? flags,
   }) async* {
     final bool _persistGeminiThoughtSigs = modelId.toLowerCase().contains(
@@ -8045,10 +8267,11 @@ class ChatApiService {
       if (builtIns.contains(BuiltInToolNames.codeExecution)) {
         toolsArr.add({'code_execution': {}});
       } else if (builtIns.contains(BuiltInToolNames.search) ||
-          builtIns.contains(BuiltInToolNames.urlContext)) {
+          (webFetchEnabled &&
+              builtIns.contains(BuiltInToolNames.urlContext))) {
         if (builtIns.contains(BuiltInToolNames.search))
           toolsArr.add({'google_search': {}});
-        if (builtIns.contains(BuiltInToolNames.urlContext))
+        if (webFetchEnabled && builtIns.contains(BuiltInToolNames.urlContext))
           toolsArr.add({'url_context': {}});
       } else if (geminiTools != null) {
         toolsArr.addAll(geminiTools);
@@ -8460,10 +8683,10 @@ class ChatApiService {
     if (builtIns.contains(BuiltInToolNames.codeExecution)) {
       toolsArr.add({'code_execution': {}});
     } else if (builtIns.contains(BuiltInToolNames.search) ||
-        builtIns.contains(BuiltInToolNames.urlContext)) {
+        (webFetchEnabled && builtIns.contains(BuiltInToolNames.urlContext))) {
       if (builtIns.contains(BuiltInToolNames.search))
         toolsArr.add({'google_search': {}});
-      if (builtIns.contains(BuiltInToolNames.urlContext))
+      if (webFetchEnabled && builtIns.contains(BuiltInToolNames.urlContext))
         toolsArr.add({'url_context': {}});
     } else if (geminiTools != null) {
       toolsArr.addAll(geminiTools);
@@ -8479,6 +8702,9 @@ class ChatApiService {
 
     // Accumulate built-in search citations across stream rounds
     final List<Map<String, dynamic>> _builtinCitations =
+        <Map<String, dynamic>>[];
+    // Gemini url_context retrieval metadata (separate from search citations).
+    final List<Map<String, dynamic>> _urlContextCitations =
         <Map<String, dynamic>>[];
 
     List<Map<String, dynamic>> _parseCitations(dynamic gm) {
@@ -8945,6 +9171,62 @@ class ChatApiService {
                     ],
                   );
                 }
+
+                // Gemini url_context metadata: keep successes and failures
+                // (a failed retrieval is useful feedback, not noise).
+                final ucm =
+                    cand['urlContextMetadata'] ?? cand['url_context_metadata'];
+                if (ucm is Map) {
+                  final entries = ucm['urlMetadata'] ?? ucm['url_metadata'];
+                  if (entries is List) {
+                    final existingUrls = _urlContextCitations
+                        .map((e) => e['url']?.toString() ?? '')
+                        .toSet();
+                    var added = false;
+                    for (final entry in entries) {
+                      if (entry is! Map) continue;
+                      final url =
+                          (entry['retrievedUrl'] ??
+                                  entry['retrieved_url'] ??
+                                  '')
+                              .toString()
+                              .trim();
+                      if (url.isEmpty || !existingUrls.add(url)) continue;
+                      _urlContextCitations.add({
+                        'url': url,
+                        'status':
+                            (entry['urlRetrievalStatus'] ??
+                                    entry['url_retrieval_status'] ??
+                                    '')
+                                .toString(),
+                      });
+                      added = true;
+                    }
+                    if (added) {
+                      final payload = _urlContextCitations
+                          .map(
+                            (item) =>
+                                'URL: ${item['url'] ?? ''}\n'
+                                'Status: ${item['status'] ?? ''}',
+                          )
+                          .join('\n\n');
+                      yield ChatStreamChunk(
+                        content: '',
+                        isDone: false,
+                        totalTokens: totalTokens,
+                        usage: usage,
+                        toolResults: [
+                          ToolResultInfo(
+                            id: 'builtin_web_fetch',
+                            name: 'web_fetch',
+                            arguments: const <String, dynamic>{},
+                            content: payload,
+                          ),
+                        ],
+                      );
+                    }
+                  }
+                }
               }
 
               // When finishing, emit any buffered inline image (and trailing text) in one batch to avoid partial base64 during streaming.
@@ -8993,6 +9275,29 @@ class ChatApiService {
                       ToolResultInfo(
                         id: 'builtin_search',
                         name: 'builtin_search',
+                        arguments: const <String, dynamic>{},
+                        content: payload,
+                      ),
+                    ],
+                  );
+                }
+                if (_urlContextCitations.isNotEmpty) {
+                  final payload = _urlContextCitations
+                      .map(
+                        (item) =>
+                            'URL: ${item['url'] ?? ''}\n'
+                            'Status: ${item['status'] ?? ''}',
+                      )
+                      .join('\n\n');
+                  yield ChatStreamChunk(
+                    content: '',
+                    isDone: false,
+                    totalTokens: totalTokens,
+                    usage: usage,
+                    toolResults: [
+                      ToolResultInfo(
+                        id: 'builtin_web_fetch',
+                        name: 'web_fetch',
                         arguments: const <String, dynamic>{},
                         content: payload,
                       ),

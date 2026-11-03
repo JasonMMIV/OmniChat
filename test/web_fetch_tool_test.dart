@@ -93,6 +93,7 @@ void main() {
         'fetch_markdown',
         'fetch_txt',
         'fetch_json',
+        'kelivo_fetch',
       ]) {
         expect(WebFetchTool.canonicalToolName(alias), 'web_fetch');
       }

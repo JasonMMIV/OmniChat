@@ -24,6 +24,11 @@ import 'providers/semantic_scholar_search_service.dart';
 import 'providers/firecrawl_search_service.dart';
 import 'providers/doubao_search_service.dart';
 import 'providers/stepfun_search_service.dart';
+import 'providers/anysearch_search_service.dart';
+import 'providers/deepseek_search_service.dart';
+import 'providers/parallel_search_service.dart';
+import 'providers/you_search_service.dart';
+import 'providers/exa_mcp_search_service.dart';
 
 // Base interface for all search services
 abstract class SearchService<T extends SearchServiceOptions> {
@@ -88,6 +93,16 @@ abstract class SearchService<T extends SearchServiceOptions> {
         return DoubaoSearchService() as SearchService;
       case StepFunOptions:
         return StepFunSearchService() as SearchService;
+      case AnySearchOptions:
+        return AnySearchSearchService() as SearchService;
+      case DeepSeekSearchOptions:
+        return DeepSeekSearchService() as SearchService;
+      case ParallelOptions:
+        return ParallelSearchService() as SearchService;
+      case YouSearchOptions:
+        return YouSearchService() as SearchService;
+      case ExaMcpOptions:
+        return ExaMcpSearchService() as SearchService;
       default:
         return BingSearchService() as SearchService;
     }
@@ -106,6 +121,17 @@ class WebFetchPage {
   final String url;
   final String title;
   final String content;
+}
+
+/// A provider that can read a page directly, beyond the declarative REST
+/// [ProviderFetchAdapter] table (e.g. MCP-based providers). Implementations
+/// must throw on failure; [FetchSourceService] falls back to the local reader.
+abstract interface class WebFetchCapable<T extends SearchServiceOptions> {
+  Future<WebFetchPage> fetch({
+    required String url,
+    required SearchCommonOptions commonOptions,
+    required T serviceOptions,
+  });
 }
 
 class SearchResult {
@@ -238,6 +264,16 @@ abstract class SearchServiceOptions {
         return DoubaoOptions.fromJson(json);
       case 'stepfun':
         return StepFunOptions.fromJson(json);
+      case 'anysearch':
+        return AnySearchOptions.fromJson(json);
+      case 'deepseek':
+        return DeepSeekSearchOptions.fromJson(json);
+      case 'parallel':
+        return ParallelOptions.fromJson(json);
+      case 'you':
+        return YouSearchOptions.fromJson(json);
+      case 'exa_mcp':
+        return ExaMcpOptions.fromJson(json);
       default:
         return BingLocalOptions(id: json['id']);
     }
@@ -554,10 +590,8 @@ class TinyfishOptions extends SearchServiceOptions {
     'apiKey': apiKey,
   };
 
-  factory TinyfishOptions.fromJson(Map<String, dynamic> json) => TinyfishOptions(
-    id: json['id'],
-    apiKey: json['apiKey'] ?? '',
-  );
+  factory TinyfishOptions.fromJson(Map<String, dynamic> json) =>
+      TinyfishOptions(id: json['id'], apiKey: json['apiKey'] ?? '');
 }
 
 class QueritOptions extends SearchServiceOptions {
@@ -851,6 +885,169 @@ class FirecrawlOptions extends SearchServiceOptions {
       );
 }
 
+class AnySearchOptions extends SearchServiceOptions {
+  static const String defaultUrl = 'https://api.anysearch.com/v1/search';
+  static const String defaultFetchUrl = 'https://api.anysearch.com/v1/extract';
+
+  final String apiKey;
+  final String zone;
+  final String language;
+  final String url;
+
+  AnySearchOptions({
+    required super.id,
+    this.apiKey = '',
+    this.zone = 'intl',
+    this.language = '',
+    this.url = '',
+  });
+
+  String get resolvedUrl {
+    final trimmed = url.trim();
+    return trimmed.isEmpty ? defaultUrl : trimmed;
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'anysearch',
+    'id': id,
+    'apiKey': apiKey,
+    'zone': zone,
+    'language': language,
+    'url': url.trim(),
+  };
+
+  factory AnySearchOptions.fromJson(Map<String, dynamic> json) =>
+      AnySearchOptions(
+        id: json['id'],
+        apiKey: json['apiKey'] ?? '',
+        zone: json['zone'] ?? 'intl',
+        language: json['language'] ?? '',
+        url: json['url'] ?? '',
+      );
+}
+
+class DeepSeekSearchOptions extends SearchServiceOptions {
+  static const String searchEndpoint =
+      'https://api.deepseek.com/v1/tools/search';
+  static const String fetchEndpoint = 'https://api.deepseek.com/v1/tools/fetch';
+
+  final String apiKey;
+
+  DeepSeekSearchOptions({required super.id, required this.apiKey});
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'deepseek',
+    'id': id,
+    'apiKey': apiKey,
+  };
+
+  factory DeepSeekSearchOptions.fromJson(Map<String, dynamic> json) =>
+      DeepSeekSearchOptions(id: json['id'], apiKey: json['apiKey'] ?? '');
+}
+
+class ParallelOptions extends SearchServiceOptions {
+  static const String searchEndpoint = 'https://api.parallel.ai/v1/search';
+  static const String extractEndpoint = 'https://api.parallel.ai/v1/extract';
+  static const String defaultMode = 'fast';
+
+  final String apiKey;
+  final String mode;
+
+  ParallelOptions({
+    required super.id,
+    required this.apiKey,
+    this.mode = defaultMode,
+  });
+
+  String get resolvedMode {
+    final value = mode.trim().toLowerCase();
+    return const <String>{'turbo', 'fast', 'basic', 'advanced'}.contains(value)
+        ? value
+        : defaultMode;
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'parallel',
+    'id': id,
+    'apiKey': apiKey,
+    'mode': resolvedMode,
+  };
+
+  factory ParallelOptions.fromJson(Map<String, dynamic> json) =>
+      ParallelOptions(
+        id: json['id'],
+        apiKey: json['apiKey'] ?? '',
+        mode: json['mode'] ?? defaultMode,
+      );
+}
+
+class YouSearchOptions extends SearchServiceOptions {
+  static const String searchEndpoint = 'https://ydc-index.io/v1/search';
+  static const String contentsEndpoint = 'https://ydc-index.io/v1/contents';
+  static const String highlightsMode = 'highlights';
+  static const String snippetsMode = 'snippets';
+
+  final String apiKey;
+  final String contentMode;
+
+  YouSearchOptions({
+    required super.id,
+    required this.apiKey,
+    this.contentMode = highlightsMode,
+  });
+
+  String get resolvedContentMode =>
+      contentMode.trim().toLowerCase() == snippetsMode
+      ? snippetsMode
+      : highlightsMode;
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'you',
+    'id': id,
+    'apiKey': apiKey,
+    'contentMode': resolvedContentMode,
+  };
+
+  factory YouSearchOptions.fromJson(Map<String, dynamic> json) =>
+      YouSearchOptions(
+        id: json['id'],
+        apiKey: json['apiKey'] ?? '',
+        contentMode: json['contentMode'] ?? highlightsMode,
+      );
+}
+
+class ExaMcpOptions extends SearchServiceOptions {
+  static const String defaultUrl = 'https://mcp.exa.ai/mcp';
+
+  final String apiKey;
+  final String url;
+
+  ExaMcpOptions({required super.id, this.apiKey = '', this.url = ''});
+
+  String get resolvedUrl {
+    final trimmed = url.trim();
+    return trimmed.isEmpty ? defaultUrl : trimmed;
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'exa_mcp',
+    'id': id,
+    'apiKey': apiKey,
+    'url': url.trim(),
+  };
+
+  factory ExaMcpOptions.fromJson(Map<String, dynamic> json) => ExaMcpOptions(
+    id: json['id'],
+    apiKey: json['apiKey'] ?? '',
+    url: json['url'] ?? '',
+  );
+}
+
 class DoubaoOptions extends SearchServiceOptions {
   final String apiKey;
 
@@ -863,8 +1060,6 @@ class DoubaoOptions extends SearchServiceOptions {
     'apiKey': apiKey,
   };
 
-  factory DoubaoOptions.fromJson(Map<String, dynamic> json) => DoubaoOptions(
-    id: json['id'],
-    apiKey: json['apiKey'] ?? '',
-  );
+  factory DoubaoOptions.fromJson(Map<String, dynamic> json) =>
+      DoubaoOptions(id: json['id'], apiKey: json['apiKey'] ?? '');
 }

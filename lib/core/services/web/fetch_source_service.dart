@@ -31,12 +31,19 @@ class ResolvedFetchSource {
       adapter = null,
       options = null;
 
+  const ResolvedFetchSource.capability({
+    required this.source,
+    required this.displayName,
+    required this.options,
+  }) : adapter = null;
+
   final String source;
   final String displayName;
   final ProviderFetchAdapter? adapter;
   final SearchServiceOptions? options;
 
-  bool get isLocal => adapter == null || options == null;
+  bool get isLocal => adapter == null && options == null;
+  bool get isCapability => adapter == null && options != null;
 }
 
 class WebFetchOutcome {
@@ -97,33 +104,37 @@ class FetchSourceService {
       for (final id in settings.searchSelectedProviders) {
         final options = _findById(services, id);
         if (options == null) continue;
-        final adapter = providerFetchAdapterFor(
-          (options.toJson()['type'] ?? '').toString(),
-        );
-        if (adapter != null) {
-          return ResolvedFetchSource(
-            source: adapter.type,
-            displayName: adapter.displayName,
-            adapter: adapter,
-            options: options,
-          );
-        }
+        final resolved = _resolveForOptions(options);
+        if (resolved != null) return resolved;
       }
       return const ResolvedFetchSource.local();
     }
 
     final options = _findById(services, mode);
     if (options == null) return const ResolvedFetchSource.local();
-    final adapter = providerFetchAdapterFor(
-      (options.toJson()['type'] ?? '').toString(),
-    );
-    if (adapter == null) return const ResolvedFetchSource.local();
-    return ResolvedFetchSource(
-      source: adapter.type,
-      displayName: adapter.displayName,
-      adapter: adapter,
-      options: options,
-    );
+    return _resolveForOptions(options) ?? const ResolvedFetchSource.local();
+  }
+
+  ResolvedFetchSource? _resolveForOptions(SearchServiceOptions options) {
+    final type = (options.toJson()['type'] ?? '').toString();
+    final adapter = providerFetchAdapterFor(type);
+    if (adapter != null) {
+      return ResolvedFetchSource(
+        source: adapter.type,
+        displayName: adapter.displayName,
+        adapter: adapter,
+        options: options,
+      );
+    }
+    final service = SearchService.getService(options);
+    if (service is WebFetchCapable) {
+      return ResolvedFetchSource.capability(
+        source: type,
+        displayName: service.name,
+        options: options,
+      );
+    }
+    return null;
   }
 
   /// Fetches [request] from the resolved source, falling back to the local
@@ -137,7 +148,9 @@ class FetchSourceService {
     final resolved = resolve(settings);
     final provider = resolved.adapter;
     final options = resolved.options;
-    final attempted = allowEscalation && provider != null && options != null;
+    final capability = resolved.isCapability;
+    final attempted =
+        allowEscalation && options != null && (provider != null || capability);
     final coolingDown = attempted && _cooldown.isCoolingDown(resolved.source);
 
     if (attempted && !coolingDown) {
@@ -164,14 +177,16 @@ class FetchSourceService {
         );
       }
       try {
-        final page = await _fetchViaProvider(provider, options, request);
+        final page = capability
+            ? await _fetchViaCapability(options, request, settings)
+            : await _fetchViaProvider(provider!, options, request);
         return WebFetchOutcome(
           result: _toResult(request, page),
           source: resolved.source,
           sourceName: resolved.displayName,
         );
       } catch (e) {
-        if (e is _ProviderRateLimited) {
+        if (e is _ProviderRateLimited || _looksRateLimited(e)) {
           _cooldown.mark(resolved.source);
         }
         final local = await localCore.fetch(request);
@@ -197,6 +212,51 @@ class FetchSourceService {
     );
   }
 
+  /// Calls a provider that implements [WebFetchCapable] (e.g. an MCP
+  /// transport) through the same SSRF / timeout / fallback path as REST
+  /// adapters.
+  Future<WebFetchPage> _fetchViaCapability(
+    SearchServiceOptions options,
+    FetchRequest request,
+    SettingsProvider settings,
+  ) async {    final service = SearchService.getService(options);
+    if (service is! WebFetchCapable) {
+      throw const _ProviderFailure('provider does not support fetching');
+    }
+    final configured = settings.searchCommonOptions.timeout;
+    final timeoutMs = configured < providerTimeout.inMilliseconds
+        ? providerTimeout.inMilliseconds
+        : configured;
+    final common = SearchCommonOptions(
+      resultSize: settings.searchCommonOptions.resultSize,
+      timeout: timeoutMs,
+    );
+    final capable = service as WebFetchCapable<SearchServiceOptions>;
+    try {
+      return await capable
+          .fetch(
+            url: request.url.toString(),
+            commonOptions: common,
+            serviceOptions: options,
+          )
+          .timeout(Duration(milliseconds: timeoutMs));
+    } on TimeoutException {
+      throw const _ProviderFailure('provider timed out');
+    }
+  }
+
+  /// Capability providers surface quota errors as free-form text (MCP has no
+  /// HTTP status). Treat the common 429 / quota / rate-limit spellings as a
+  /// cooldown signal so a broken session is not retried on every call.
+  static bool _looksRateLimited(Object error) {
+    final text = error.toString().toLowerCase();
+    return text.contains('429') ||
+        text.contains('rate limit') ||
+        text.contains('rate-limit') ||
+        text.contains('too many requests') ||
+        text.contains('quota');
+  }
+
   Future<WebFetchPage> _fetchViaProvider(
     ProviderFetchAdapter adapter,
     SearchServiceOptions options,
@@ -220,7 +280,9 @@ class FetchSourceService {
 
     final http.StreamedResponse response;
     try {
-      response = await _httpClient.send(providerRequest).timeout(providerTimeout);
+      response = await _httpClient
+          .send(providerRequest)
+          .timeout(providerTimeout);
     } on TimeoutException {
       throw _ProviderFailure('provider timed out');
     } on http.ClientException catch (e) {
@@ -231,9 +293,7 @@ class FetchSourceService {
     try {
       bodyBytes = await _readProviderBody(response).timeout(providerTimeout);
     } on TimeoutException {
-      throw const _ProviderFailure(
-        'provider timed out while reading the page',
-      );
+      throw const _ProviderFailure('provider timed out while reading the page');
     }
     final bodyText = utf8.decode(bodyBytes, allowMalformed: true);
 
@@ -254,6 +314,11 @@ class FetchSourceService {
       } on FormatException {
         throw _ProviderFailure('provider returned invalid JSON');
       }
+    }
+
+    final providerError = adapter.errorExtractor?.call(payload)?.trim();
+    if (providerError != null && providerError.isNotEmpty) {
+      throw _ProviderFailure(providerError);
     }
 
     final content = adapter.contentExtractor(payload).trim();

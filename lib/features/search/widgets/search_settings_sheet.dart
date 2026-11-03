@@ -144,6 +144,244 @@ class _SearchSettingsSheet extends StatelessWidget {
     );
   }
 
+  Future<void> _setBuiltInToolEnabled({
+    required SettingsProvider settings,
+    required ProviderConfig providerCfg,
+    required String providerKey,
+    required String modelId,
+    required String tool,
+    required bool enabled,
+  }) async {
+    final overrides = Map<String, dynamic>.from(providerCfg.modelOverrides);
+    final rawMo = overrides[modelId];
+    final baseMo = rawMo is Map ? rawMo : null;
+    final mo = Map<String, dynamic>.from(
+      baseMo?.map((k, val) => MapEntry(k.toString(), val)) ??
+          const <String, dynamic>{},
+    );
+    final builtIns = BuiltInToolNames.parseAndNormalize(mo['builtInTools']);
+    if (enabled) {
+      builtIns.add(tool);
+    } else {
+      builtIns.remove(tool);
+    }
+    if (builtIns.isEmpty) {
+      mo.remove('builtInTools');
+    } else {
+      mo['builtInTools'] = BuiltInToolNames.orderedForStorage(builtIns);
+    }
+    overrides[modelId] = mo;
+    await settings.setProviderConfig(
+      providerKey,
+      providerCfg.copyWith(modelOverrides: overrides),
+    );
+  }
+
+  Future<void> _editNativeWebFetchSettings({
+    required BuildContext context,
+    required ProviderConfig providerCfg,
+    required String providerKey,
+    required String modelId,
+  }) async {
+    final settings = context.read<SettingsProvider>();
+    final rawOv = providerCfg.modelOverrides[modelId];
+    final ov = rawOv is Map ? rawOv : null;
+    final rawWf = ov?['webFetch'];
+    final wf = rawWf is Map
+        ? Map<String, dynamic>.from(
+            rawWf.map((k, val) => MapEntry(k.toString(), val)),
+          )
+        : <String, dynamic>{};
+
+    final maxTokensCtrl = TextEditingController(
+      text: (wf['maxContentTokens'] ?? wf['max_content_tokens'] ?? 30000)
+          .toString(),
+    );
+    final maxUsesCtrl = TextEditingController(
+      text: (wf['maxUses'] ?? wf['max_uses'] ?? '').toString(),
+    );
+    final allowedCtrl = TextEditingController(
+      text:
+          ((wf['allowedDomains'] ?? wf['allowed_domains']) as List? ??
+                  const <dynamic>[])
+              .map((e) => e.toString())
+              .join(', '),
+    );
+    final blockedCtrl = TextEditingController(
+      text:
+          ((wf['blockedDomains'] ?? wf['blocked_domains']) as List? ??
+                  const <dynamic>[])
+              .map((e) => e.toString())
+              .join(', '),
+    );
+    final engineCtrl = TextEditingController(
+      text: (wf['engine'] ?? '').toString(),
+    );
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+
+    Widget field(
+      TextEditingController controller,
+      String label, {
+      String? hint,
+      TextInputType? keyboardType,
+    }) => Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboardType,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+    );
+
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 18,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  l10n.searchSettingsSheetBuiltinFetchAdvanced,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                field(
+                  maxTokensCtrl,
+                  l10n.searchSettingsSheetWebFetchMaxContentTokens,
+                  hint: '1024–200000',
+                  keyboardType: TextInputType.number,
+                ),
+                field(
+                  maxUsesCtrl,
+                  l10n.searchSettingsSheetWebFetchMaxUses,
+                  hint: '1–20',
+                  keyboardType: TextInputType.number,
+                ),
+                field(
+                  allowedCtrl,
+                  l10n.searchSettingsSheetWebFetchAllowedDomains,
+                  hint: 'docs.example.com, example.org',
+                ),
+                field(
+                  blockedCtrl,
+                  l10n.searchSettingsSheetWebFetchBlockedDomains,
+                  hint: 'private.example.com',
+                ),
+                if (BuiltInToolsHelper.isOpenRouterProvider(providerCfg))
+                  field(
+                    engineCtrl,
+                    l10n.searchSettingsSheetWebFetchEngine,
+                    hint: 'exa',
+                  ),
+                FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: Text(l10n.searchSettingsSheetBuiltinFetchSave),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (saved != true) {
+      maxTokensCtrl.dispose();
+      maxUsesCtrl.dispose();
+      allowedCtrl.dispose();
+      blockedCtrl.dispose();
+      engineCtrl.dispose();
+      return;
+    }
+
+    List<String> splitDomains(String value) => value
+        .split(RegExp(r'[\n,]'))
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList();
+
+    final next = Map<String, dynamic>.from(wf);
+    final maxTokens = int.tryParse(maxTokensCtrl.text.trim());
+    if (maxTokens != null && maxTokens > 0) {
+      next['maxContentTokens'] = maxTokens.clamp(1024, 200000);
+    } else {
+      next.remove('maxContentTokens');
+      next.remove('max_content_tokens');
+    }
+    final maxUses = int.tryParse(maxUsesCtrl.text.trim());
+    if (maxUses != null && maxUses > 0) {
+      next['maxUses'] = maxUses.clamp(1, 20);
+    } else {
+      next.remove('maxUses');
+      next.remove('max_uses');
+    }
+    final allowed = splitDomains(allowedCtrl.text);
+    if (allowed.isEmpty) {
+      next.remove('allowedDomains');
+      next.remove('allowed_domains');
+    } else {
+      next['allowedDomains'] = allowed;
+    }
+    final blocked = splitDomains(blockedCtrl.text);
+    if (blocked.isEmpty) {
+      next.remove('blockedDomains');
+      next.remove('blocked_domains');
+    } else {
+      next['blockedDomains'] = blocked;
+    }
+    final engine = engineCtrl.text.trim();
+    if (engine.isEmpty) {
+      next.remove('engine');
+    } else {
+      next['engine'] = engine;
+    }
+    maxTokensCtrl.dispose();
+    maxUsesCtrl.dispose();
+    allowedCtrl.dispose();
+    blockedCtrl.dispose();
+    engineCtrl.dispose();
+
+    final overrides = Map<String, dynamic>.from(providerCfg.modelOverrides);
+    final rawMo = overrides[modelId];
+    final baseMo = rawMo is Map ? rawMo : null;
+    final mo = Map<String, dynamic>.from(
+      baseMo?.map((k, val) => MapEntry(k.toString(), val)) ??
+          const <String, dynamic>{},
+    );
+    if (next.isEmpty) {
+      mo.remove('webFetch');
+    } else {
+      mo['webFetch'] = next;
+    }
+    overrides[modelId] = mo;
+    await settings.setProviderConfig(
+      providerKey,
+      providerCfg.copyWith(modelOverrides: overrides),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -177,6 +415,20 @@ class _SearchSettingsSheet extends StatelessWidget {
         cfg != null &&
         cfg.providerType == ProviderKind.openai &&
         (modelId ?? '').toLowerCase().contains('grok');
+    final supportsNativeWebFetch = BuiltInToolsHelper.supportsNativeWebFetch(
+      cfg: cfg,
+      modelId: modelId,
+    );
+    final hasNativeWebFetch = BuiltInToolsHelper.isNativeWebFetchEnabled(
+      cfg: cfg,
+      modelId: modelId,
+    );
+    // Google's url_context switch lives in the model detail sheet; do not
+    // duplicate it here. This sheet toggles Claude / OpenRouter server fetch.
+    final showNativeWebFetchToggle =
+        cfg != null &&
+        cfg.providerType != ProviderKind.google &&
+        supportsNativeWebFetch;
 
     // Read current built-in search/url_context toggle from modelOverrides
     bool hasBuiltInSearch = false;
@@ -187,7 +439,9 @@ class _SearchSettingsSheet extends StatelessWidget {
       final mid = modelId!;
       final rawOv = cfg!.modelOverrides[mid];
       final ov = rawOv is Map ? rawOv : null;
-      final builtInSet = BuiltInToolNames.parseAndNormalize(ov?['builtInTools']);
+      final builtInSet = BuiltInToolNames.parseAndNormalize(
+        ov?['builtInTools'],
+      );
       hasBuiltInSearch = builtInSet.contains(BuiltInToolNames.search);
       hasUrlContext = builtInSet.contains(BuiltInToolNames.urlContext);
     }
@@ -279,7 +533,8 @@ class _SearchSettingsSheet extends StatelessWidget {
                         isClaudeSupportedModel ||
                         isOpenAIResponsesSupportedModel ||
                         isOpenRouter ||
-                        isGrok) &&
+                        isGrok ||
+                        supportsNativeWebFetch) &&
                     (providerKey != null) &&
                     (modelId ?? '').isNotEmpty) ...[
                   IosCardPress(
@@ -298,12 +553,12 @@ class _SearchSettingsSheet extends StatelessWidget {
                       final rawMo = overrides[mid];
                       final baseMo = rawMo is Map ? rawMo : null;
                       final mo = Map<String, dynamic>.from(
-                        baseMo?.map(
-                              (k, val) => MapEntry(k.toString(), val),
-                            ) ??
+                        baseMo?.map((k, val) => MapEntry(k.toString(), val)) ??
                             const <String, dynamic>{},
                       );
-                      final builtIns = BuiltInToolNames.parseAndNormalize(mo['builtInTools']);
+                      final builtIns = BuiltInToolNames.parseAndNormalize(
+                        mo['builtInTools'],
+                      );
                       if (v) {
                         builtIns.add(BuiltInToolNames.search);
                       } else {
@@ -312,7 +567,9 @@ class _SearchSettingsSheet extends StatelessWidget {
                       if (builtIns.isEmpty) {
                         mo.remove('builtInTools');
                       } else {
-                        mo['builtInTools'] = BuiltInToolNames.orderedForStorage(builtIns);
+                        mo['builtInTools'] = BuiltInToolNames.orderedForStorage(
+                          builtIns,
+                        );
                       }
                       overrides[mid] = mo;
                       await context.read<SettingsProvider>().setProviderConfig(
@@ -369,7 +626,9 @@ class _SearchSettingsSheet extends StatelessWidget {
                                   ) ??
                                   const <String, dynamic>{},
                             );
-                            final builtIns = BuiltInToolNames.parseAndNormalize(mo['builtInTools']);
+                            final builtIns = BuiltInToolNames.parseAndNormalize(
+                              mo['builtInTools'],
+                            );
                             if (v) {
                               builtIns.add(BuiltInToolNames.search);
                             } else {
@@ -378,7 +637,8 @@ class _SearchSettingsSheet extends StatelessWidget {
                             if (builtIns.isEmpty) {
                               mo.remove('builtInTools');
                             } else {
-                              mo['builtInTools'] = BuiltInToolNames.orderedForStorage(builtIns);
+                              mo['builtInTools'] =
+                                  BuiltInToolNames.orderedForStorage(builtIns);
                             }
                             overrides[mid] = mo;
                             await context
@@ -401,7 +661,7 @@ class _SearchSettingsSheet extends StatelessWidget {
                   if (supportsClaudeDynamicWebSearch)
                     Builder(
                       builder: (context) {
-                        final providerCfg = cfg;
+                        final providerCfg = cfg!;
                         final mid = modelId!;
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 14),
@@ -438,8 +698,7 @@ class _SearchSettingsSheet extends StatelessWidget {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
-                                        l10n
-                                            .searchSettingsSheetClaudeDynamicSearchTitle,
+                                        l10n.searchSettingsSheetClaudeDynamicSearchTitle,
                                         style: const TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w700,
@@ -449,8 +708,7 @@ class _SearchSettingsSheet extends StatelessWidget {
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        l10n
-                                            .searchSettingsSheetClaudeDynamicSearchDescription,
+                                        l10n.searchSettingsSheetClaudeDynamicSearchDescription,
                                         style: TextStyle(
                                           fontSize: 12,
                                           color: cs.onSurface.withValues(
@@ -467,7 +725,8 @@ class _SearchSettingsSheet extends StatelessWidget {
                                   onChanged: (v) async {
                                     Haptics.light();
                                     await _setClaudeDynamicWebSearchEnabled(
-                                      settings: context.read<SettingsProvider>(),
+                                      settings: context
+                                          .read<SettingsProvider>(),
                                       providerCfg: providerCfg,
                                       providerKey: providerKey,
                                       modelId: mid,
@@ -481,6 +740,123 @@ class _SearchSettingsSheet extends StatelessWidget {
                         );
                       },
                     ),
+                  if (showNativeWebFetchToggle &&
+                      providerKey != null &&
+                      (modelId ?? '').isNotEmpty) ...[
+                    IosCardPress(
+                      borderRadius: BorderRadius.circular(14),
+                      baseColor: cs.surface,
+                      duration: const Duration(milliseconds: 260),
+                      onTap: () async {
+                        Haptics.light();
+                        await _setBuiltInToolEnabled(
+                          settings: context.read<SettingsProvider>(),
+                          providerCfg: cfg!,
+                          providerKey: providerKey,
+                          modelId: modelId!,
+                          tool: BuiltInToolNames.webFetch,
+                          enabled: !hasNativeWebFetch,
+                        );
+                      },
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Lucide.FileText, size: 20, color: cs.primary),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  l10n.searchSettingsSheetBuiltinFetchTitle,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  l10n.searchSettingsSheetBuiltinFetchDescription,
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: cs.onSurface.withValues(alpha: 0.65),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          IosSwitch(
+                            value: hasNativeWebFetch,
+                            onChanged: (v) async {
+                              Haptics.light();
+                              await _setBuiltInToolEnabled(
+                                settings: context.read<SettingsProvider>(),
+                                providerCfg: cfg!,
+                                providerKey: providerKey,
+                                modelId: modelId!,
+                                tool: BuiltInToolNames.webFetch,
+                                enabled: v,
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (hasNativeWebFetch) ...[
+                      const SizedBox(height: 8),
+                      IosCardPress(
+                        borderRadius: BorderRadius.circular(14),
+                        baseColor: cs.surface,
+                        duration: const Duration(milliseconds: 260),
+                        onTap: () => _editNativeWebFetchSettings(
+                          context: context,
+                          providerCfg: cfg!,
+                          providerKey: providerKey,
+                          modelId: modelId!,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Lucide.Settings2, size: 18, color: cs.primary),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                l10n.searchSettingsSheetBuiltinFetchAdvanced,
+                                style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Lucide.ChevronRight,
+                              size: 18,
+                              color: cs.onSurface.withValues(alpha: 0.5),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        l10n.searchSettingsSheetBuiltinFetchCostNote,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          height: 1.35,
+                          color: cs.onSurface.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ],
+                  ],
                 ],
 
                 // Toggle card

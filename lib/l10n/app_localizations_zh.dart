@@ -5749,6 +5749,81 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get oauthLogoutConfirm => '要登出此账号吗？已同步的模型清单会保留。';
+
+  @override
+  String get searchServiceNameAnySearch => 'AnySearch';
+
+  @override
+  String get searchServiceNameDeepSeekSearch => 'DeepSeek 搜索';
+
+  @override
+  String get searchServiceNameParallel => 'Parallel';
+
+  @override
+  String get searchServiceNameYou => 'You.com';
+
+  @override
+  String get searchServiceNameExaMcp => 'Exa MCP';
+
+  @override
+  String get searchProviderAnySearchDescription =>
+      'AnySearch 统一搜索 API，无密钥也可使用免费额度。';
+
+  @override
+  String get searchProviderDeepSeekSearchDescription =>
+      'DeepSeek 搜索 API，可选网页抓取，按成功调用计费。';
+
+  @override
+  String get searchProviderParallelDescription =>
+      'Parallel AI 搜索，支持 fast／advanced 模式与网页抽取。';
+
+  @override
+  String get searchProviderYouDescription =>
+      'You.com 搜索 API，支持 highlights／snippets 与网页内容。';
+
+  @override
+  String get searchProviderExaMcpDescription =>
+      'Exa 托管的 MCP 服务，API 密钥可选，搜索与抓页共用一个端点。';
+
+  @override
+  String get searchServicesDialogMode => '模式';
+
+  @override
+  String get searchServicesDialogContentMode => '内容模式';
+
+  @override
+  String get searchServicesDialogZone => '区域';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchTitle => '内置网页读取';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchDescription =>
+      '允许此供应商读取 URL。开启后会隐藏客户端的 web_fetch 工具，避免重复工具。';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchCostNote => 'URL 会送到供应商，并由供应商计费。';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchAdvanced => '高级设置';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchSave => '保存';
+
+  @override
+  String get searchSettingsSheetWebFetchMaxContentTokens => '最大内容 token 数';
+
+  @override
+  String get searchSettingsSheetWebFetchMaxUses => '最大使用次数';
+
+  @override
+  String get searchSettingsSheetWebFetchAllowedDomains => '允许的域名（逗号分隔）';
+
+  @override
+  String get searchSettingsSheetWebFetchBlockedDomains => '封锁的域名（逗号分隔）';
+
+  @override
+  String get searchSettingsSheetWebFetchEngine => '引擎（OpenRouter，可选）';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -11285,6 +11360,81 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get oauthLogoutConfirm => '要登出此账号吗？已同步的模型清单会保留。';
+
+  @override
+  String get searchServiceNameAnySearch => 'AnySearch';
+
+  @override
+  String get searchServiceNameDeepSeekSearch => 'DeepSeek 搜索';
+
+  @override
+  String get searchServiceNameParallel => 'Parallel';
+
+  @override
+  String get searchServiceNameYou => 'You.com';
+
+  @override
+  String get searchServiceNameExaMcp => 'Exa MCP';
+
+  @override
+  String get searchProviderAnySearchDescription =>
+      'AnySearch 统一搜索 API，无密钥也可使用免费额度。';
+
+  @override
+  String get searchProviderDeepSeekSearchDescription =>
+      'DeepSeek 搜索 API，可选网页抓取，按成功调用计费。';
+
+  @override
+  String get searchProviderParallelDescription =>
+      'Parallel AI 搜索，支持 fast／advanced 模式与网页抽取。';
+
+  @override
+  String get searchProviderYouDescription =>
+      'You.com 搜索 API，支持 highlights／snippets 与网页内容。';
+
+  @override
+  String get searchProviderExaMcpDescription =>
+      'Exa 托管的 MCP 服务，API 密钥可选，搜索与抓页共用一个端点。';
+
+  @override
+  String get searchServicesDialogMode => '模式';
+
+  @override
+  String get searchServicesDialogContentMode => '内容模式';
+
+  @override
+  String get searchServicesDialogZone => '区域';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchTitle => '内置网页读取';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchDescription =>
+      '允许此供应商读取 URL。开启后会隐藏客户端的 web_fetch 工具，避免重复工具。';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchCostNote => 'URL 会送到供应商，并由供应商计费。';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchAdvanced => '高级设置';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchSave => '保存';
+
+  @override
+  String get searchSettingsSheetWebFetchMaxContentTokens => '最大内容 token 数';
+
+  @override
+  String get searchSettingsSheetWebFetchMaxUses => '最大使用次数';
+
+  @override
+  String get searchSettingsSheetWebFetchAllowedDomains => '允许的域名（逗号分隔）';
+
+  @override
+  String get searchSettingsSheetWebFetchBlockedDomains => '封锁的域名（逗号分隔）';
+
+  @override
+  String get searchSettingsSheetWebFetchEngine => '引擎（OpenRouter，可选）';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -16921,4 +17071,79 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get oauthLogoutConfirm => '要登出此帳號嗎？已同步的模型清單會保留。';
+
+  @override
+  String get searchServiceNameAnySearch => 'AnySearch';
+
+  @override
+  String get searchServiceNameDeepSeekSearch => 'DeepSeek 搜尋';
+
+  @override
+  String get searchServiceNameParallel => 'Parallel';
+
+  @override
+  String get searchServiceNameYou => 'You.com';
+
+  @override
+  String get searchServiceNameExaMcp => 'Exa MCP';
+
+  @override
+  String get searchProviderAnySearchDescription =>
+      'AnySearch 統一搜尋 API，無金鑰也可使用免費額度。';
+
+  @override
+  String get searchProviderDeepSeekSearchDescription =>
+      'DeepSeek 搜尋 API，可選網頁抓取，依成功呼叫計費。';
+
+  @override
+  String get searchProviderParallelDescription =>
+      'Parallel AI 搜尋，支援 fast／advanced 模式與網頁抽取。';
+
+  @override
+  String get searchProviderYouDescription =>
+      'You.com 搜尋 API，支援 highlights／snippets 與網頁內容。';
+
+  @override
+  String get searchProviderExaMcpDescription =>
+      'Exa 託管的 MCP 服務，API 金鑰可選，搜尋與抓頁共用一個端點。';
+
+  @override
+  String get searchServicesDialogMode => '模式';
+
+  @override
+  String get searchServicesDialogContentMode => '內容模式';
+
+  @override
+  String get searchServicesDialogZone => '區域';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchTitle => '內建網頁讀取';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchDescription =>
+      '允許此供應商讀取 URL。開啟後會隱藏客戶端的 web_fetch 工具，避免重複工具。';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchCostNote => 'URL 會送到供應商，並由供應商計費。';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchAdvanced => '進階設定';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchSave => '儲存';
+
+  @override
+  String get searchSettingsSheetWebFetchMaxContentTokens => '最大內容 token 數';
+
+  @override
+  String get searchSettingsSheetWebFetchMaxUses => '最大使用次數';
+
+  @override
+  String get searchSettingsSheetWebFetchAllowedDomains => '允許的網域（逗號分隔）';
+
+  @override
+  String get searchSettingsSheetWebFetchBlockedDomains => '封鎖的網域（逗號分隔）';
+
+  @override
+  String get searchSettingsSheetWebFetchEngine => '引擎（OpenRouter，可選）';
 }

@@ -5828,4 +5828,84 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get oauthLogoutConfirm =>
       'Sign out of this account? The synced model list is kept.';
+
+  @override
+  String get searchServiceNameAnySearch => 'AnySearch';
+
+  @override
+  String get searchServiceNameDeepSeekSearch => 'DeepSeek Search';
+
+  @override
+  String get searchServiceNameParallel => 'Parallel';
+
+  @override
+  String get searchServiceNameYou => 'You.com';
+
+  @override
+  String get searchServiceNameExaMcp => 'Exa MCP';
+
+  @override
+  String get searchProviderAnySearchDescription =>
+      'AnySearch unified search API. Works without a key on the free per-IP quota.';
+
+  @override
+  String get searchProviderDeepSeekSearchDescription =>
+      'DeepSeek Search API with optional page fetch. Billed per successful call.';
+
+  @override
+  String get searchProviderParallelDescription =>
+      'Parallel AI search with fast and advanced modes, plus page extraction.';
+
+  @override
+  String get searchProviderYouDescription =>
+      'You.com Search API with highlights or snippets, plus page contents.';
+
+  @override
+  String get searchProviderExaMcpDescription =>
+      'Exa\'s hosted MCP server. API key optional; page fetch and search share one endpoint.';
+
+  @override
+  String get searchServicesDialogMode => 'Mode';
+
+  @override
+  String get searchServicesDialogContentMode => 'Content mode';
+
+  @override
+  String get searchServicesDialogZone => 'Zone';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchTitle => 'Built-in web fetch';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchDescription =>
+      'Let this provider read URLs. While on, the client web_fetch tool is hidden to avoid duplicate tools.';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchCostNote =>
+      'URLs are sent to the provider and billed by it.';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchAdvanced => 'Advanced settings';
+
+  @override
+  String get searchSettingsSheetBuiltinFetchSave => 'Save';
+
+  @override
+  String get searchSettingsSheetWebFetchMaxContentTokens =>
+      'Max content tokens';
+
+  @override
+  String get searchSettingsSheetWebFetchMaxUses => 'Max uses';
+
+  @override
+  String get searchSettingsSheetWebFetchAllowedDomains =>
+      'Allowed domains (comma separated)';
+
+  @override
+  String get searchSettingsSheetWebFetchBlockedDomains =>
+      'Blocked domains (comma separated)';
+
+  @override
+  String get searchSettingsSheetWebFetchEngine =>
+      'Engine (OpenRouter, optional)';
 }

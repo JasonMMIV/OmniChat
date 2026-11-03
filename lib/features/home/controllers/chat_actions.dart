@@ -1292,6 +1292,7 @@ class ChatActions {
               extraHeaders: ctx.extraHeaders,
               extraBody: ctx.extraBody,
               stream: ctx.streamOutput,
+              webFetchEnabled: ctx.settings.webFetchEnabled,
               requestId: conversationId,
               imageAspectRatio: ctx.settings.imageAspectRatio,
             );

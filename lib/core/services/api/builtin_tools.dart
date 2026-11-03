@@ -5,6 +5,7 @@ import '../../providers/settings_provider.dart';
 abstract class BuiltInToolNames {
   // Common
   static const search = 'search';
+  static const webFetch = 'web_fetch';
 
   // Google/Gemini specific
   static const urlContext = 'url_context';
@@ -22,6 +23,8 @@ abstract class BuiltInToolNames {
     switch (lower) {
       case 'urlcontext':
         return urlContext;
+      case 'webfetch':
+        return webFetch;
       case 'codeexecution':
         return codeExecution;
       case 'codeinterpreter':
@@ -57,9 +60,7 @@ abstract class BuiltInToolNames {
     try {
       final ov = cfg?.modelOverrides[modelId];
       if (ov is Map<String, dynamic>) {
-        final raw = (ov['apiModelId'] ?? ov['api_model_id'])
-            ?.toString()
-            .trim();
+        final raw = (ov['apiModelId'] ?? ov['api_model_id'])?.toString().trim();
         if (raw != null && raw.isNotEmpty) return raw;
       }
     } catch (_) {}
@@ -71,6 +72,7 @@ abstract class BuiltInToolNames {
     final remaining = Set<String>.from(tools);
     const preferredOrder = <String>[
       BuiltInToolNames.search,
+      BuiltInToolNames.webFetch,
       BuiltInToolNames.urlContext,
       BuiltInToolNames.codeExecution,
       BuiltInToolNames.youtube,
@@ -90,7 +92,9 @@ abstract class BuiltInToolNames {
 abstract class BuiltInToolsHelper {
   /// Check if a provider supports built-in tools configuration.
   static bool supportsBuiltInTools(ProviderKind kind) {
-    return kind == ProviderKind.google || kind == ProviderKind.openai || kind == ProviderKind.neuralwatt;
+    return kind == ProviderKind.google ||
+        kind == ProviderKind.openai ||
+        kind == ProviderKind.neuralwatt;
   }
 
   /// Check if the provider/model combination supports search tool.
@@ -110,9 +114,21 @@ abstract class BuiltInToolsHelper {
         // OpenAI requires Responses API, or Grok models
         if (isOpenRouterProvider(cfg)) return cfg?.useResponseApi != true;
         if (useResponseApi) return true;
-        if (modelId != null && modelId.toLowerCase().contains('grok')) return true;
+        if (modelId != null && modelId.toLowerCase().contains('grok'))
+          return true;
         return false;
     }
+  }
+
+  /// Whether the provider/baseUrl is the official Anthropic API. Server-side
+  /// tools are only available there; Claude-compatible relays (DeepSeek,
+  /// gateways, custom proxies) must not receive them.
+  static bool isOfficialAnthropicEndpoint(ProviderConfig? cfg) {
+    if (cfg == null) return false;
+    final raw = cfg.baseUrl.trim();
+    if (raw.isEmpty) return true;
+    final host = Uri.tryParse(raw)?.host.toLowerCase() ?? '';
+    return host == 'api.anthropic.com';
   }
 
   /// Whether the provider/baseUrl is an OpenRouter endpoint.
@@ -164,12 +180,97 @@ abstract class BuiltInToolsHelper {
         }
         if (upstreamModelId.toLowerCase().contains('grok')) return true;
         if (cfg.useResponseApi == true) {
-          return _isOpenAIResponsesBuiltInSearchSupportedModel(
-            upstreamModelId,
-          );
+          return _isOpenAIResponsesBuiltInSearchSupportedModel(upstreamModelId);
         }
         return false;
     }
+  }
+
+  /// Whether the provider/model supports a provider-side web fetch tool.
+  ///
+  /// This reports capability only; the user still has to opt in through the
+  /// model's `builtInTools` list.
+  static bool supportsNativeWebFetch({
+    required ProviderConfig? cfg,
+    required String? modelId,
+  }) {
+    if (cfg == null || (modelId ?? '').trim().isEmpty) return false;
+    final kind = ProviderConfig.classify(
+      cfg.id,
+      explicitType: cfg.providerType,
+    );
+    switch (kind) {
+      case ProviderKind.google:
+        return true;
+      case ProviderKind.claude:
+        return isOfficialAnthropicEndpoint(cfg);
+      case ProviderKind.neuralwatt:
+      case ProviderKind.openai:
+        return isOpenRouterProvider(cfg) && cfg.useResponseApi != true;
+    }
+  }
+
+  /// Whether the model's built-in web fetch is both supported and enabled.
+  static bool isNativeWebFetchEnabled({
+    required ProviderConfig? cfg,
+    required String? modelId,
+  }) {
+    if (!supportsNativeWebFetch(cfg: cfg, modelId: modelId)) return false;
+    final builtIns = _builtInToolsFor(cfg!, modelId!);
+    final kind = ProviderConfig.classify(
+      cfg.id,
+      explicitType: cfg.providerType,
+    );
+    switch (kind) {
+      case ProviderKind.google:
+        return builtIns.contains(BuiltInToolNames.urlContext);
+      case ProviderKind.claude:
+        return builtIns.contains(BuiltInToolNames.webFetch);
+      case ProviderKind.neuralwatt:
+      case ProviderKind.openai:
+        return isOpenRouterProvider(cfg) &&
+            cfg.useResponseApi != true &&
+            builtIns.contains(BuiltInToolNames.webFetch);
+    }
+  }
+
+  /// Whether a provider-side search tool is enabled for this model.
+  ///
+  /// Gemini is special: any Gemini built-in disables function declarations,
+  /// so `url_context` / `code_execution` also suppress the client search tool.
+  static bool isNativeWebSearchEnabled({
+    required ProviderConfig? cfg,
+    required String? modelId,
+  }) {
+    if (cfg == null || (modelId ?? '').trim().isEmpty) return false;
+    final builtIns = _builtInToolsFor(cfg, modelId!);
+    final kind = ProviderConfig.classify(
+      cfg.id,
+      explicitType: cfg.providerType,
+    );
+    switch (kind) {
+      case ProviderKind.google:
+        return builtIns.contains(BuiltInToolNames.search) ||
+            builtIns.contains(BuiltInToolNames.urlContext) ||
+            builtIns.contains(BuiltInToolNames.codeExecution) ||
+            builtIns.contains(BuiltInToolNames.youtube);
+      case ProviderKind.claude:
+        return builtIns.contains(BuiltInToolNames.search);
+      case ProviderKind.neuralwatt:
+      case ProviderKind.openai:
+        return isOpenRouterProvider(cfg) &&
+            cfg.useResponseApi != true &&
+            builtIns.contains(BuiltInToolNames.search);
+    }
+  }
+
+  static Set<String> _builtInToolsFor(ProviderConfig cfg, String modelId) {
+    try {
+      final ov = cfg.modelOverrides[modelId];
+      if (ov is Map)
+        return BuiltInToolNames.parseAndNormalize(ov['builtInTools']);
+    } catch (_) {}
+    return const <String>{};
   }
 
   static bool _isOpenAIResponsesBuiltInSearchSupportedModel(String? modelId) {
@@ -249,6 +350,52 @@ abstract class BuiltInToolsHelper {
         : 'web_search_20250305';
   }
 
+  /// Anthropic beta header value for a pinned web-fetch tool version, or
+  /// null for the stable `web_fetch` alias.
+  static String? claudeWebFetchBetaHeader(String toolType) {
+    switch (toolType) {
+      case 'web_fetch_20250910':
+        return 'web-fetch-2025-09-10';
+      case 'web_fetch_20251119':
+        return 'web-fetch-2025-11-19';
+      case 'web_fetch_20260209':
+        return 'web-fetch-2026-02-09';
+      case 'web_fetch_20260309':
+        return 'web-fetch-2026-03-09';
+      case 'web_fetch_20260318':
+        return 'web-fetch-2026-03-18';
+      default:
+        return null;
+    }
+  }
+
+  /// The Claude web fetch server tool type. `web_fetch` is the stable alias;
+  /// pinned beta versions require the matching anthropic-beta header.
+  static String claudeBuiltInFetchToolType({
+    required ProviderConfig? cfg,
+    required String? modelId,
+  }) {
+    if (cfg == null || (modelId ?? '').trim().isEmpty) return 'web_fetch';
+    final rawOv = cfg.modelOverrides[modelId!];
+    final ov = rawOv is Map ? rawOv : null;
+    final rawWf = ov?['webFetch'];
+    if (rawWf is! Map) return 'web_fetch';
+    final wf = rawWf.cast<String, dynamic>();
+    final version = (wf['toolVersion'] ?? wf['tool_version'] ?? '')
+        .toString()
+        .trim();
+    if (version.isEmpty) return 'web_fetch';
+    const allowed = <String>{
+      'web_fetch',
+      'web_fetch_20250910',
+      'web_fetch_20251119',
+      'web_fetch_20260209',
+      'web_fetch_20260309',
+      'web_fetch_20260318',
+    };
+    return allowed.contains(version) ? version : 'web_fetch';
+  }
+
   /// Get active built-in tools from model overrides.
   static BuiltInToolsState getActiveTools({
     required ProviderConfig? cfg,
@@ -258,12 +405,16 @@ abstract class BuiltInToolsHelper {
       return const BuiltInToolsState();
     }
 
-    final kind = ProviderConfig.classify(cfg.id, explicitType: cfg.providerType);
+    final kind = ProviderConfig.classify(
+      cfg.id,
+      explicitType: cfg.providerType,
+    );
     final rawOv = cfg.modelOverrides[modelId];
     final ov = rawOv is Map ? rawOv : null;
     final builtInSet = BuiltInToolNames.parseAndNormalize(ov?['builtInTools']);
 
     bool searchActive = builtInSet.contains(BuiltInToolNames.search);
+    bool webFetchActive = false;
     bool codeExecutionActive = false;
     bool urlContextActive = false;
     bool youtubeActive = false;
@@ -274,13 +425,27 @@ abstract class BuiltInToolsHelper {
       codeExecutionActive = builtInSet.contains(BuiltInToolNames.codeExecution);
       urlContextActive = builtInSet.contains(BuiltInToolNames.urlContext);
       youtubeActive = builtInSet.contains(BuiltInToolNames.youtube);
+      webFetchActive = urlContextActive;
     } else if (kind == ProviderKind.openai || kind == ProviderKind.neuralwatt) {
-      codeInterpreterActive = builtInSet.contains(BuiltInToolNames.codeInterpreter);
-      imageGenerationActive = builtInSet.contains(BuiltInToolNames.imageGeneration);
+      codeInterpreterActive = builtInSet.contains(
+        BuiltInToolNames.codeInterpreter,
+      );
+      imageGenerationActive = builtInSet.contains(
+        BuiltInToolNames.imageGeneration,
+      );
+      webFetchActive =
+          isOpenRouterProvider(cfg) &&
+          cfg.useResponseApi != true &&
+          builtInSet.contains(BuiltInToolNames.webFetch);
+    } else if (kind == ProviderKind.claude) {
+      webFetchActive =
+          isOfficialAnthropicEndpoint(cfg) &&
+          builtInSet.contains(BuiltInToolNames.webFetch);
     }
 
     return BuiltInToolsState(
       searchActive: searchActive,
+      webFetchActive: webFetchActive,
       codeExecutionActive: codeExecutionActive,
       urlContextActive: urlContextActive,
       youtubeActive: youtubeActive,
@@ -293,6 +458,7 @@ abstract class BuiltInToolsHelper {
 /// State class representing active built-in tools.
 class BuiltInToolsState {
   final bool searchActive;
+  final bool webFetchActive;
   final bool codeExecutionActive;
   final bool urlContextActive;
   final bool youtubeActive;
@@ -301,6 +467,7 @@ class BuiltInToolsState {
 
   const BuiltInToolsState({
     this.searchActive = false,
+    this.webFetchActive = false,
     this.codeExecutionActive = false,
     this.urlContextActive = false,
     this.youtubeActive = false,
@@ -309,8 +476,10 @@ class BuiltInToolsState {
   });
 
   /// Returns true if any Gemini-specific built-in tool is active.
-  bool get anyGeminiToolActive => codeExecutionActive || urlContextActive || youtubeActive;
+  bool get anyGeminiToolActive =>
+      codeExecutionActive || urlContextActive || youtubeActive;
 
   /// Returns true if any built-in tool that conflicts with MCP is active.
-  bool get anyMcpConflictingToolActive => searchActive || codeExecutionActive || urlContextActive;
+  bool get anyMcpConflictingToolActive =>
+      searchActive || codeExecutionActive || urlContextActive;
 }

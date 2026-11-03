@@ -8,6 +8,7 @@ import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
 import '../../providers/model_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../api/builtin_tools.dart';
 import '../api/chat_api_service.dart';
 import '../search/search_tool_service.dart';
 import 'chat_service.dart';
@@ -26,6 +27,7 @@ class ChatTurnRequest {
     this.maxTokens,
     required this.toolDefs,
     this.onToolCall,
+    this.webFetchEnabled = true,
   });
 
   final ProviderConfig config;
@@ -37,6 +39,7 @@ class ChatTurnRequest {
   final int? maxTokens;
   final List<Map<String, dynamic>> toolDefs;
   final ToolCallHandler? onToolCall;
+  final bool webFetchEnabled;
 }
 
 /// 進行中 LLM turn 的控制 handle。
@@ -143,8 +146,8 @@ class ChatTurnService {
     bool includeToolMessages = false,
   }) {
     final tIndex = conversation.truncateIndex;
-    final List<ChatMessage> sourceAll = (tIndex >= 0 &&
-            tIndex < messages.length)
+    final List<ChatMessage> sourceAll =
+        (tIndex >= 0 && tIndex < messages.length)
         ? messages.sublist(tIndex)
         : List<ChatMessage>.of(messages);
 
@@ -221,16 +224,14 @@ class ChatTurnService {
           // carry no echo (same reasoning stream the transport echoes;
           // DeepSeek thinking mode requires the field on the replayed
           // assistant tool_calls message).
-          if (reasoningContent == null &&
-              (m.reasoningText ?? '').isNotEmpty) {
+          if (reasoningContent == null && (m.reasoningText ?? '').isNotEmpty) {
             reasoningContent = m.reasoningText;
           }
           out.add(<String, dynamic>{
             'role': 'assistant',
             'content': '\n\n',
             'tool_calls': calls,
-            if (reasoningContent != null)
-              'reasoning_content': reasoningContent,
+            if (reasoningContent != null) 'reasoning_content': reasoningContent,
             if (reasoningDetails.isNotEmpty)
               'reasoning_details': reasoningDetails,
           });
@@ -282,7 +283,7 @@ class ChatTurnService {
     }
 
     final supportsTools = isToolModel(settings, providerKey, modelId);
-    final hasBuiltInSearch = _hasBuiltInSearch(providerKey, modelId);
+    final hasBuiltInSearch = _hasBuiltInSearch(settings, providerKey, modelId);
 
     final List<Map<String, dynamic>> toolDefs = <Map<String, dynamic>>[];
     ToolCallHandler? onToolCall;
@@ -311,6 +312,12 @@ class ChatTurnService {
       };
     }
 
+    var webFetchEnabled = true;
+    try {
+      webFetchEnabled = settings.webFetchEnabled;
+    } on NoSuchMethodError {
+      // Test doubles may not implement every SettingsProvider getter.
+    }
     return ChatTurnRequest(
       config: settings.getProviderConfig(providerKey),
       modelId: modelId,
@@ -321,6 +328,7 @@ class ChatTurnService {
       maxTokens: assistant?.maxTokens,
       toolDefs: toolDefs,
       onToolCall: onToolCall,
+      webFetchEnabled: webFetchEnabled,
     );
   }
 
@@ -340,7 +348,9 @@ class ChatTurnService {
     // 安全網：若 _run 因任何原因失敗（理論上不會），確保 handle.done 仍會完成，
     // 避免呼叫端（voice chat 的 _sendToLLM）卡在 await handle.done。
     unawaited(
-      _run(handle, request, onChunk, onError, onRetry).catchError((Object e) async {
+      _run(handle, request, onChunk, onError, onRetry).catchError((
+        Object e,
+      ) async {
         onError?.call(e.toString());
         await handle._finish();
       }),
@@ -371,6 +381,7 @@ class ChatTurnService {
       extraHeaders: null,
       extraBody: null,
       stream: true,
+      webFetchEnabled: request.webFetchEnabled,
       imageAspectRatio: null,
     );
     handle._sub = stream.listen(
@@ -436,7 +447,7 @@ class ChatTurnService {
     if (ov != null) {
       final abilities =
           (ov['abilities'] as List?)?.map((e) => e.toString()).toList() ??
-              const <String>[];
+          const <String>[];
       if (abilities.map((e) => e.toLowerCase()).contains('tool')) return true;
     }
     final inferred = ModelRegistry.infer(
@@ -445,13 +456,18 @@ class ChatTurnService {
     return inferred.abilities.contains(ModelAbility.tool);
   }
 
-  /// Gemini 內建搜尋判定（集中單一 helper，自 voice_chat_screen 搬移）。
-  ///
-  /// TODO: 改為查 ModelRegistry.infer abilities（需先定義「builtInSearch」能力，
-  /// 避免把 tool 能力誤判為內建搜尋）。
-  static bool _hasBuiltInSearch(String providerKey, String modelId) {
-    return providerKey == 'google' &&
-        (modelId.contains('1.5') || modelId.contains('gemini-pro'));
+  /// Provider-side search / Gemini built-in detection for the voice turn.
+  /// Uses the same `builtInTools` truth source as text generation.
+  static bool _hasBuiltInSearch(
+    SettingsProvider settings,
+    String providerKey,
+    String modelId,
+  ) {
+    final cfg = settings.getProviderConfig(providerKey);
+    return BuiltInToolsHelper.isNativeWebSearchEnabled(
+      cfg: cfg,
+      modelId: modelId,
+    );
   }
 
   /// 版本收斂：同一 groupId 的訊息只保留使用者選定（或最後）版本。
@@ -459,7 +475,8 @@ class ChatTurnService {
     List<ChatMessage> items,
     Map<String, int> versionSelections,
   ) {
-    final Map<String, List<ChatMessage>> byGroup = <String, List<ChatMessage>>{};
+    final Map<String, List<ChatMessage>> byGroup =
+        <String, List<ChatMessage>>{};
     final List<String> order = <String>[];
     for (final m in items) {
       final gid = (m.groupId ?? m.id);

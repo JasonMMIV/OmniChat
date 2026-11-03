@@ -10,7 +10,6 @@ import 'package:meta/meta.dart';
 import '../../logger.dart';
 import '../auth/oauth.dart';
 import '../auth/oauth_client.dart';
-import '../models/models.dart';
 import 'event_source.dart';
 import 'transport.dart';
 
@@ -269,9 +268,24 @@ class StreamableHttpClientTransport implements ClientTransport {
       }
 
       if (response.statusCode >= 400) {
-        throw McpError(
-          'HTTP ${response.statusCode}: ${response.reasonPhrase}',
-        );
+        // Complete the pending JSON-RPC request with an error instead of
+        // throwing into the transport's error stream. `Client` only subscribes
+        // `onMessage`, so a thrown transport error never completes the
+        // request future and the caller hangs until its timeout.
+        final errorMessage =
+            'HTTP ${response.statusCode}: ${response.reasonPhrase}';
+        if (requestId != null) {
+          _messageController.add({
+            'jsonrpc': '2.0',
+            'id': requestId,
+            'error': {'code': -32000, 'message': errorMessage},
+          });
+        } else {
+          // No caller is waiting on a notification; log instead of emitting an
+          // unhandled stream error.
+          _logger.warning(errorMessage);
+        }
+        return;
       }
 
       // Check content type

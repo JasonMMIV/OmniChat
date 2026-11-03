@@ -56,6 +56,8 @@ class WebFetchTool {
   static const Map<String, String> aliases = <String, String>{
     'read_page': toolName,
     'fetch_url': toolName,
+    // Kelivo's in-memory MCP tool name (legacy prompts / conversations).
+    'kelivo_fetch': toolName,
     'fetch_html': toolName,
     'fetch_markdown': toolName,
     'fetch_txt': toolName,
@@ -174,7 +176,8 @@ class WebFetchTool {
       final host = _settings.globalProxyHost.trim();
       if (host.isNotEmpty && port > 0) {
         final username = _settings.globalProxyUsername.trim();
-        final key = 'proxy|$host|$port|$username|'
+        final key =
+            'proxy|$host|$port|$username|'
             '${_settings.globalProxyPassword}|$allowPrivate';
         return _coreCache.putIfAbsent(
           key,
@@ -219,10 +222,7 @@ class WebFetchTool {
   }) async {
     _Args parsed;
     try {
-      parsed = _Args.parse(
-        args,
-        defaultRaw: invokedName == 'fetch_html',
-      );
+      parsed = _Args.parse(args, defaultRaw: invokedName == 'fetch_html');
     } on _ToolFailure catch (failure) {
       return _failure(failure);
     }
@@ -321,34 +321,36 @@ class WebFetchTool {
     try {
       if (policy.cacheable && parsed.startIndex == 0) {
         WebFetchOutcome? createdOutcome;
-        outcome = await _cache.dedupe(cacheKey, () async {
-          final value = await _sourceService.fetch(
-            request: request,
-            settings: _settings,
-            localCore: _localCore,
-          );
-          createdOutcome = value;
-          _cache.store(
-            url: cacheKey,
-            result: value.result,
-            source: value.source,
-            canonicalUrl: _cacheKey(value.result.finalUrl),
-          );
-          return value.result;
-        }).then((result) {
-          // The creating call keeps its escalation metadata. A concurrent
-          // deduped caller never saw the provider attempt, so it only gets
-          // the source that the cache recorded.
-          final created = createdOutcome;
-          if (created != null) return created;
-          final entry = _cache.lookup(cacheKey);
-          final source = entry?.source ?? 'local';
-          return WebFetchOutcome(
-            result: result,
-            source: source,
-            sourceName: _displayNameFor(source),
-          );
-        });
+        outcome = await _cache
+            .dedupe(cacheKey, () async {
+              final value = await _sourceService.fetch(
+                request: request,
+                settings: _settings,
+                localCore: _localCore,
+              );
+              createdOutcome = value;
+              _cache.store(
+                url: cacheKey,
+                result: value.result,
+                source: value.source,
+                canonicalUrl: _cacheKey(value.result.finalUrl),
+              );
+              return value.result;
+            })
+            .then((result) {
+              // The creating call keeps its escalation metadata. A concurrent
+              // deduped caller never saw the provider attempt, so it only gets
+              // the source that the cache recorded.
+              final created = createdOutcome;
+              if (created != null) return created;
+              final entry = _cache.lookup(cacheKey);
+              final source = entry?.source ?? 'local';
+              return WebFetchOutcome(
+                result: result,
+                source: source,
+                sourceName: _displayNameFor(source),
+              );
+            });
       } else {
         outcome = await _sourceService.fetch(
           request: request,
@@ -385,11 +387,12 @@ class WebFetchTool {
     for (final adapter in providerFetchAdapters) {
       if (adapter.type == source) return adapter.displayName;
     }
-    return source;
+    // Capability providers (MCP) are not in the REST adapter table.
+    const capabilityNames = <String, String>{'exa_mcp': 'Exa MCP'};
+    return capabilityNames[source] ?? source;
   }
 
-  FetchResult _resultFromCache(FetchCacheEntry entry, Uri url) =>
-      entry.result;
+  FetchResult _resultFromCache(FetchCacheEntry entry, Uri url) => entry.result;
 
   /// Stable cache key: drop fragments/default-port noise and a trailing slash
   /// so the same page reaches the same entry regardless of URL spelling.
@@ -439,7 +442,9 @@ class WebFetchTool {
       start--;
     }
     var end = math.min(start + maxLength, total);
-    if (end < total && end > start && _isHighSurrogate(content.codeUnitAt(end - 1))) {
+    if (end < total &&
+        end > start &&
+        _isHighSurrogate(content.codeUnitAt(end - 1))) {
       if (end - start <= 1) {
         end = math.min(end + 1, total);
       } else {
@@ -646,8 +651,7 @@ class WebFetchTool {
     while (value.isNotEmpty) {
       final last = value[value.length - 1];
       final open = pairs[last];
-      if (open != null &&
-          _countChar(value, open) < _countChar(value, last)) {
+      if (open != null && _countChar(value, open) < _countChar(value, last)) {
         value = value.substring(0, value.length - 1).trimRight();
         continue;
       }
@@ -858,10 +862,7 @@ class _Args {
     if (value == null) return defaultValue;
     if (value is int) return value;
     if (value is num && value == value.roundToDouble()) return value.toInt();
-    throw _ToolFailure(
-      'invalid_arguments',
-      '$name must be an integer.',
-    );
+    throw _ToolFailure('invalid_arguments', '$name must be an integer.');
   }
 
   static bool _parseBool(dynamic value, {required bool defaultValue}) {
@@ -872,10 +873,7 @@ class _Args {
       if (lower == 'true') return true;
       if (lower == 'false') return false;
     }
-    throw const _ToolFailure(
-      'invalid_arguments',
-      'raw must be true or false.',
-    );
+    throw const _ToolFailure('invalid_arguments', 'raw must be true or false.');
   }
 }
 

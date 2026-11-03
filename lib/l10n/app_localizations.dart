@@ -10967,6 +10967,144 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sign out of this account? The synced model list is kept.'**
   String get oauthLogoutConfirm;
+
+  /// No description provided for @searchServiceNameAnySearch.
+  ///
+  /// In en, this message translates to:
+  /// **'AnySearch'**
+  String get searchServiceNameAnySearch;
+
+  /// No description provided for @searchServiceNameDeepSeekSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'DeepSeek Search'**
+  String get searchServiceNameDeepSeekSearch;
+
+  /// No description provided for @searchServiceNameParallel.
+  ///
+  /// In en, this message translates to:
+  /// **'Parallel'**
+  String get searchServiceNameParallel;
+
+  /// No description provided for @searchServiceNameYou.
+  ///
+  /// In en, this message translates to:
+  /// **'You.com'**
+  String get searchServiceNameYou;
+
+  /// No description provided for @searchServiceNameExaMcp.
+  ///
+  /// In en, this message translates to:
+  /// **'Exa MCP'**
+  String get searchServiceNameExaMcp;
+
+  /// No description provided for @searchProviderAnySearchDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'AnySearch unified search API. Works without a key on the free per-IP quota.'**
+  String get searchProviderAnySearchDescription;
+
+  /// No description provided for @searchProviderDeepSeekSearchDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'DeepSeek Search API with optional page fetch. Billed per successful call.'**
+  String get searchProviderDeepSeekSearchDescription;
+
+  /// No description provided for @searchProviderParallelDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Parallel AI search with fast and advanced modes, plus page extraction.'**
+  String get searchProviderParallelDescription;
+
+  /// No description provided for @searchProviderYouDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'You.com Search API with highlights or snippets, plus page contents.'**
+  String get searchProviderYouDescription;
+
+  /// No description provided for @searchProviderExaMcpDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Exa\'s hosted MCP server. API key optional; page fetch and search share one endpoint.'**
+  String get searchProviderExaMcpDescription;
+
+  /// No description provided for @searchServicesDialogMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Mode'**
+  String get searchServicesDialogMode;
+
+  /// No description provided for @searchServicesDialogContentMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Content mode'**
+  String get searchServicesDialogContentMode;
+
+  /// No description provided for @searchServicesDialogZone.
+  ///
+  /// In en, this message translates to:
+  /// **'Zone'**
+  String get searchServicesDialogZone;
+
+  /// No description provided for @searchSettingsSheetBuiltinFetchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in web fetch'**
+  String get searchSettingsSheetBuiltinFetchTitle;
+
+  /// No description provided for @searchSettingsSheetBuiltinFetchDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Let this provider read URLs. While on, the client web_fetch tool is hidden to avoid duplicate tools.'**
+  String get searchSettingsSheetBuiltinFetchDescription;
+
+  /// No description provided for @searchSettingsSheetBuiltinFetchCostNote.
+  ///
+  /// In en, this message translates to:
+  /// **'URLs are sent to the provider and billed by it.'**
+  String get searchSettingsSheetBuiltinFetchCostNote;
+
+  /// No description provided for @searchSettingsSheetBuiltinFetchAdvanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced settings'**
+  String get searchSettingsSheetBuiltinFetchAdvanced;
+
+  /// No description provided for @searchSettingsSheetBuiltinFetchSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get searchSettingsSheetBuiltinFetchSave;
+
+  /// No description provided for @searchSettingsSheetWebFetchMaxContentTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'Max content tokens'**
+  String get searchSettingsSheetWebFetchMaxContentTokens;
+
+  /// No description provided for @searchSettingsSheetWebFetchMaxUses.
+  ///
+  /// In en, this message translates to:
+  /// **'Max uses'**
+  String get searchSettingsSheetWebFetchMaxUses;
+
+  /// No description provided for @searchSettingsSheetWebFetchAllowedDomains.
+  ///
+  /// In en, this message translates to:
+  /// **'Allowed domains (comma separated)'**
+  String get searchSettingsSheetWebFetchAllowedDomains;
+
+  /// No description provided for @searchSettingsSheetWebFetchBlockedDomains.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked domains (comma separated)'**
+  String get searchSettingsSheetWebFetchBlockedDomains;
+
+  /// No description provided for @searchSettingsSheetWebFetchEngine.
+  ///
+  /// In en, this message translates to:
+  /// **'Engine (OpenRouter, optional)'**
+  String get searchSettingsSheetWebFetchEngine;
 }
 
 class _AppLocalizationsDelegate

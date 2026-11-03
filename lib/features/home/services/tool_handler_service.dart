@@ -14,6 +14,7 @@ import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/file/file_tool_service.dart';
 import '../../../core/services/agent/approval.dart';
+import '../../../core/services/api/builtin_tools.dart';
 import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
 import '../../../core/services/logging/flutter_logger.dart';
 import '../../../core/services/tools/tool_result_caps.dart';
@@ -179,16 +180,37 @@ class ToolHandlerService {
   }) {
     final List<Map<String, dynamic>> toolDefs = <Map<String, dynamic>>[];
     final supportsTools = isToolModel(providerKey, modelId);
+    ProviderConfig? cfg;
+    try {
+      cfg = settings.getProviderConfig(providerKey);
+    } on NoSuchMethodError {
+      // Test doubles / cold-start fakes may not implement every provider API;
+      // treat an unavailable config as "no native tools".
+      cfg = null;
+    }
+    final nativeWebSearch = BuiltInToolsHelper.isNativeWebSearchEnabled(
+      cfg: cfg,
+      modelId: modelId,
+    );
+    final nativeWebFetch = BuiltInToolsHelper.isNativeWebFetchEnabled(
+      cfg: cfg,
+      modelId: modelId,
+    );
 
-    // Search tool (skip when Gemini built-in search is active)
-    if (settings.searchEnabled && !hasBuiltInSearch && supportsTools) {
+    // Search tool (skip when a provider-side search / Gemini built-in is
+    // active; Gemini built-ins disable function declarations entirely).
+    if (settings.searchEnabled &&
+        !hasBuiltInSearch &&
+        !nativeWebSearch &&
+        supportsTools) {
       toolDefs.add(SearchToolService.getToolDefinition());
     }
 
     // Web fetch: one built-in tool (`web_fetch`). Legacy fetch_* names are
     // accepted by the handler only; they are never advertised (WEB_FETCH_PLAN
-    // §5.1–5.2).
-    if (settings.webFetchEnabled && supportsTools) {
+    // §5.1–5.2). A provider-side fetch replaces the client schema but the
+    // handler stays available for old conversations / old tool calls.
+    if (settings.webFetchEnabled && !nativeWebFetch && supportsTools) {
       toolDefs.add(WebFetchTool.getToolDefinition());
     }
 
@@ -251,11 +273,11 @@ class ToolHandlerService {
         'name': skillToolName,
         'description':
             'Load a skill by name to get its full instructions. Skills provide reusable '
-                'behaviors and domain-specific knowledge.\n\n'
-                'The following are the pre-loaded skills available:\n'
-                '$availableSkillsXml\n\n'
-                'Note: You can load any skill by name, including ones installed during this '
-                'session. The skill is always read fresh from disk.',
+            'behaviors and domain-specific knowledge.\n\n'
+            'The following are the pre-loaded skills available:\n'
+            '$availableSkillsXml\n\n'
+            'Note: You can load any skill by name, including ones installed during this '
+            'session. The skill is always read fresh from disk.',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -570,11 +592,7 @@ class ToolHandlerService {
               state: ApprovalDecision.allow,
               resolvedPath: approvedResolvedPath,
             )
-          : _classifyApproval(
-              name,
-              args,
-              workspacePath: effectiveWorkspace,
-            );
+          : _classifyApproval(name, args, workspacePath: effectiveWorkspace);
       if (decision.state == ApprovalDecision.ask ||
           decision.state == ApprovalDecision.deny) {
         if (messageId != null && conversationId != null) {
@@ -586,8 +604,7 @@ class ToolHandlerService {
               // match exactly the event the synthetic toolResults upsert
               // writes (legacy path has no id here; the fallback matcher
               // in upsertToolEvent keeps that path working).
-              id:
-                  (toolCallId != null && toolCallId.trim().isNotEmpty)
+              id: (toolCallId != null && toolCallId.trim().isNotEmpty)
                   ? toolCallId
                   : decision.toolCallId,
               name: name,
@@ -634,10 +651,7 @@ class ToolHandlerService {
           // Workspace zero-residue plan Phase 1: oversized results are
           // capped in memory (head/tail + re-query guidance) instead of
           // being persisted under {workspace}/.omnichat/.
-          return ToolResultCaps.cap(
-            toolName: name,
-            result: result.text,
-          );
+          return ToolResultCaps.cap(toolName: name, result: result.text);
         } catch (e, st) {
           // Never let an unexpected file-tool failure break the conversation.
           FlutterLogger.log(
@@ -718,8 +732,7 @@ class ToolHandlerService {
             return jsonEncode({
               'type': 'tool_error',
               'error': 'invalid_name',
-              'message':
-                  'The skill tool requires a non-empty "name" argument.',
+              'message': 'The skill tool requires a non-empty "name" argument.',
               'available_skills': _invocableSkillNames(skills),
               'tool': name,
             });
@@ -735,7 +748,7 @@ class ToolHandlerService {
               'error': 'skill_not_found',
               'message':
                   'No model-invocable skill named "$requested" is installed. '
-                      'Do not retry with a guessed name.',
+                  'Do not retry with a guessed name.',
               'available_skills': _invocableSkillNames(skills),
               'tool': name,
             });
@@ -809,9 +822,7 @@ class ToolHandlerService {
                 name: name,
                 arguments: args,
                 content: fetched.text,
-                extras: <String, dynamic>{
-                  'webFetchSource': fetched.sourceName,
-                },
+                extras: <String, dynamic>{'webFetchSource': fetched.sourceName},
               );
             } catch (_) {
               // The badge is best-effort UI metadata — never fail the fetch.
@@ -821,11 +832,7 @@ class ToolHandlerService {
         }
 
         // Memory tools
-        final memoryResult = await _handleMemoryToolCall(
-          name,
-          args,
-          assistant,
-        );
+        final memoryResult = await _handleMemoryToolCall(name, args, assistant);
         if (memoryResult != null) {
           return memoryResult;
         }
@@ -979,11 +986,12 @@ class ToolHandlerService {
   static List<String> _invocableSkillNames(
     Map<String, SkillDefinition> skills,
   ) {
-    final names = skills.values
-        .where((s) => !s.disableModelInvocation)
-        .map((s) => s.name)
-        .toList()
-      ..sort();
+    final names =
+        skills.values
+            .where((s) => !s.disableModelInvocation)
+            .map((s) => s.name)
+            .toList()
+          ..sort();
     return names;
   }
 
@@ -1023,7 +1031,6 @@ class ToolHandlerService {
 
     return null;
   }
-
 }
 
 /// The outcome of the P1-1 approval classification for one tool call.
