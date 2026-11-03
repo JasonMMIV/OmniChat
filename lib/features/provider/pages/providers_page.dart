@@ -23,6 +23,7 @@ import '../../../shared/widgets/ios_tile_button.dart';
 import '../../../shared/widgets/ios_checkbox.dart';
 import '../widgets/provider_avatar.dart';
 import '../widgets/provider_balance_text.dart';
+import '../widgets/oauth_usage_percent_text.dart';
 
 class ProvidersPage extends StatefulWidget {
   const ProvidersPage({super.key, this.initialSelectedKey});
@@ -585,9 +586,20 @@ class _ProviderRow extends StatelessWidget {
                             ),
                           ],
                         ),
-                        ProviderBalanceText(
-                          providerKey: provider.keyName,
-                          style: TextStyle(fontSize: 11, color: color.withOpacity(0.55)),
+                        Row(
+                          children: [
+                            OAuthUsagePercentText(
+                              providerKey: provider.keyName,
+                              style: TextStyle(fontSize: 11, color: color.withOpacity(0.55)),
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: ProviderBalanceText(
+                                providerKey: provider.keyName,
+                                style: TextStyle(fontSize: 11, color: color.withOpacity(0.55)),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

@@ -1,8 +1,10 @@
 // Modified for OmniChat on 2026-11-01. See THIRD_PARTY_NOTICES.md.
 //
 // Account card for the OAuth detail page: identity, plan, and usage windows.
-// Usage lives only on this page (plan Q4) — never in the sidebar or the model
-// picker.
+// This stays the only place that renders every window and its reset time; the
+// rest of the app shows just the compact `OAuthUsagePercentText` summary
+// (plan Q4 was revised on 2026-11-03 to allow that single number next to the
+// provider name in the model picker and the provider list).
 
 import 'package:flutter/material.dart';
 

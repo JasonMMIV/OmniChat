@@ -17,6 +17,7 @@ import 'model_detail_sheet.dart';
 import '../../provider/pages/provider_detail_page.dart';
 import '../../provider/pages/oauth_provider_detail_page.dart';
 import '../../provider/widgets/provider_balance_text.dart';
+import '../../provider/widgets/oauth_usage_percent_text.dart';
 import '../../provider/widgets/provider_avatar.dart';
 
 class ModelSelection {
@@ -767,11 +768,17 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.6)),
             ),
           ),
-          if (row.providerKey != null)
+          if (row.providerKey != null) ...[
+            OAuthUsagePercentText(
+              providerKey: row.providerKey!,
+              style: TextStyle(fontSize: 11, color: cs.primary.withOpacity(0.8)),
+            ),
+            const SizedBox(width: 6),
             ProviderBalanceText(
               providerKey: row.providerKey!,
               style: TextStyle(fontSize: 11, color: cs.primary.withOpacity(0.8)),
             ),
+          ],
         ],
       ),
     );
@@ -1014,6 +1021,10 @@ class _ProviderChipState extends State<_ProviderChip> {
             if (widget.providerKey != null) ...[
               const SizedBox(height: 2),
               ProviderBalanceText(
+                providerKey: widget.providerKey!,
+                style: TextStyle(fontSize: 10, color: labelColor.withOpacity(0.55)),
+              ),
+              OAuthUsagePercentText(
                 providerKey: widget.providerKey!,
                 style: TextStyle(fontSize: 10, color: labelColor.withOpacity(0.55)),
               ),
@@ -1661,6 +1672,11 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
             ),
           ),
           if (providerKey != null) ...[
+            OAuthUsagePercentText(
+              providerKey: providerKey,
+              style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.45)),
+            ),
+            const SizedBox(width: 6),
             ProviderBalanceText(
               providerKey: providerKey,
               style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.45)),

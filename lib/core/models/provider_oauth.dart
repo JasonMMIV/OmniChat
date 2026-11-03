@@ -399,6 +399,45 @@ class OAuthUsage {
   final DateTime? fetchedAt;
 
   bool get isEmpty => windows.isEmpty;
+
+  /// The single window surfaced outside the account card (model-picker
+  /// headers, provider list): a bare percentage next to the provider name.
+  ///
+  /// Preference follows the billing period, longest first — `monthly`, then
+  /// Kimi's `total`, then weekly, then the 5-hour `session`. Per-model and
+  /// per-product windows (`weekly_scoped`, `limit-*`, Grok product rows) only
+  /// surface when nothing else was reported, because they describe one model
+  /// rather than the account. Ties inside one tier pick the highest percentage
+  /// (the window closest to its limit). ChatGPT reports only `session` (5h) and
+  /// `weekly` today, so it surfaces the weekly window.
+  ///
+  /// The value is the provider's own utilization percentage — identical to the
+  /// number the account card renders — never a `100 - x` remainder.
+  OAuthUsageWindow? get summaryWindow {
+    OAuthUsageWindow? best;
+    var bestRank = 1 << 30;
+    for (final window in windows) {
+      final rank = _summaryRank(window.kind);
+      final current = best;
+      if (current == null ||
+          rank < bestRank ||
+          (rank == bestRank && window.percent > current.percent)) {
+        best = window;
+        bestRank = rank;
+      }
+    }
+    return best;
+  }
+
+  static int _summaryRank(String kind) => switch (kind) {
+    'monthly' => 0,
+    'total' => 1,
+    'weekly' || 'seven_day' || 'weekly_all' => 2,
+    'session' || 'five_hour' => 3,
+    'usage' => 4, // Codex window whose reported duration could not be classified.
+    'weekly_scoped' => 6,
+    _ => kind.startsWith('limit-') ? 6 : 5,
+  };
 }
 
 class OAuthModelEntry {
