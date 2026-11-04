@@ -1,0 +1,51 @@
+name: SDK Floor
+
+# The project declares `environment.sdk: ^3.11.0`; Flutter 3.41.0 was the first
+# stable release carrying Dart 3.11. Keep a dedicated floor job so the declared
+# minimum is not silently untested after the main workflows moved to 3.47.6.
+on:
+  workflow_dispatch:
+  # Weekly canary; a floor break should not block unrelated PRs.
+  schedule:
+    - cron: '0 3 * * 1'
+  push:
+    branches: [master]
+    paths:
+      - pubspec.yaml
+      - .github/workflows/sdk-floor.yml
+
+permissions:
+  contents: read
+
+jobs:
+  sdk-floor:
+    name: Flutter 3.41 / Dart 3.11 floor
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter 3.41
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.9'
+          channel: stable
+          cache: true
+
+      - name: Show toolchain
+        run: |
+          flutter --version
+          dart --version
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze app sources
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings lib
+
+      - name: Run floor smoke tests
+        run: >
+          flutter test
+          test/markdown_render_policy_test.dart
+          test/markdown_surface_contrast_test.dart
+          test/long_image_export_plan_test.dart

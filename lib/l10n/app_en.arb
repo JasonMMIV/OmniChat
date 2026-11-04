@@ -981,6 +981,16 @@
   "messageExportSheetBatchMarkdownSubtitle": "Batch Markdown",
   "messageExportSheetBatchTxtSubtitle": "Batch TXT",
   "messageExportSheetBatchExportImageSubtitle": "Batch Image",
+  "messageExportSheetSegmentedImage": "Segmented image",
+  "messageExportSheetSegmentedImageSubtitle": "Split long content into multiple images",
+  "messageExportSheetImageDownscaled": "Image was downscaled to {ratio} to fit the size limit.",
+  "@messageExportSheetImageDownscaled": {
+    "placeholders": {
+      "ratio": {
+        "type": "String"
+      }
+    }
+  },
   "exportDisclaimerAiGenerated": "AI Generated",
   "messageExportSheetExporting": "Exporting",
   "messageEditDialogTitle": "Edit Message",

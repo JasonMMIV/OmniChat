@@ -2257,6 +2257,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messageExportSheetBatchExportImageSubtitle => 'Batch Image';
 
   @override
+  String get messageExportSheetSegmentedImage => 'Segmented image';
+
+  @override
+  String get messageExportSheetSegmentedImageSubtitle =>
+      'Split long content into multiple images';
+
+  @override
+  String messageExportSheetImageDownscaled(String ratio) {
+    return 'Image was downscaled to $ratio to fit the size limit.';
+  }
+
+  @override
   String get exportDisclaimerAiGenerated => 'AI Generated';
 
   @override

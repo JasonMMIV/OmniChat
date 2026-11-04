@@ -1,6 +1,7 @@
 # OmniChat Markdown 與內容渲染：kelivo 1.3.2–1.3.4 導入評估與實作計畫
 
-> **文件狀態**：實作中——Phase 0（護欄）與 Phase 1A（P0 穩定性）核心完成；Phase 1B 大部分完成（長圖 tiling／capture freeze、code cache／串流、Markdown 預覽本地化與 per-preview 隔離）；Gate 1 依賴/build spike 技術通過（APK +14.4 MB），剩實機量測、截圖/視覺 QA 與 Gate 2（2026-11-04 進度更新）  
+> **文件狀態**：實作中——Phase 0（護欄）與 Phase 1A（P0 穩定性）核心完成；Phase 1B 大部分完成（長圖 tiling／capture freeze、code cache／串流、Markdown 預覽本地化與 per-preview 隔離）；Gate 1 依賴/build spike 技術通過（APK +14.4 MB）；Gate 2 依產品決策暫緩、不 ship（2026-11-04）；剩實機量測與截圖/視覺 QA。  
+> **2026-11-04 產品決策**：Modern Pipeline 暫緩、不 ship；不建立 `markdown_pipeline_v1`、不 bump SDK、不合併 1.4 override。Phase 3 以下保留為未來需求觸發時的 spike 計畫；決策全文見維護手冊 §7.6。  
 > **日期**：2026-11-04（初版 2026-11-03；最後進度更新 2026-11-04）  
 > **適用版本**：OmniChat v1.27.0+  
 > **目標平台**：Windows（x64 / ARM64）、Android（arm64-v8a）；macOS / Linux / iOS 非本輪驗收目標  
@@ -59,7 +60,7 @@
 | Phase 0 護欄 | 🟡 大部分完成 | fixture corpus、env-guarded benchmark、`flutter analyze`／回歸測試已綠；Windows/Android 實機 baseline 與 `markdown_pipeline_v1` flag 尚未做 |
 | Phase 1A P0 穩定性 | 🟢 核心完成 | Mermaid render-complete/strict/negative cache、公式裁切、`MarkdownSurfaceScope`（聊天氣泡 + AI Team + export）已落地；4 背景 × 3 氣泡對比矩陣已自動化（`markdown_surface_contrast_test`，24 組），截圖/實機 smoke 待補 |
 | Phase 1B P0 匯出／串流 | 🟢 大部分完成 | 長圖 tiling + 進度／取消 + 縮圖預覽 + runtime flag、code palette/cache、串流 fast path／code deferral、Markdown 預覽本地化已完成（local classic vendor + per-preview `preview_*` 子目錄 + `loadFile`）；長圖 freeze／遠端圖片 settle 已補，記憶體量測與實機 smoke 待補 |
-| Phase 2–5 | 🟡 部分開始 | GitHub alerts、directives、inline HTML 子集、Markdown／inline SVG 與 PlantUML guard legacy fallback 已落地；Gate 1 依賴/build spike 已完成（技術通過、APK +14.4 MB），Gate 2 與長訊息硬化未開始 |
+| Phase 2–5 | 🟡 部分開始 | GitHub alerts、directives、inline HTML 子集、Markdown／inline SVG 與 PlantUML guard legacy fallback 已落地；Gate 1 依賴/build spike 已完成（技術通過、APK +14.4 MB）；Gate 2 依產品決策暫緩；使用者訊息 policy、桌布 scrim、長圖分段匯出、AI Team 窄版 QA 與 SDK floor CI 已落地；長訊息硬化待排程 |
 
 **本輪落地（2026-11-04）**
 
@@ -93,7 +94,7 @@
 
 **刻意延後**
 
-- `markdown_pipeline_v1`／Gate 2：modern pipeline 尚未開始，flag 先不建立空殼；Gate 1 只驗證依賴與 build。
+- `markdown_pipeline_v1`／Gate 2：**2026-11-04 產品決策暫緩、不 ship**；不建立 flag 空殼、不 bump SDK；未來重啟條件見維護手冊 §7.6。Gate 1 只驗證依賴與 build。
 - 4 背景 × 3 氣泡截圖/實機視覺 QA、Windows/Android 實機 smoke。
 - 長圖記憶體總帳與 release 實機 baseline。
 
@@ -1101,7 +1102,9 @@ dependency_overrides:
     path: ./dependencies/speech_to_text_windows
 ```
 
-### Phase 3：modern pipeline 平權 spike（Gate 2，7–10 人日）
+### Phase 3：modern pipeline 平權 spike（Gate 2，7–10 人日；**2026-11-04 產品決策：暫緩，不 ship**）
+
+> 以下保留為未來重啟時的執行清單；目前不排程、不建立 feature flag。重啟門檻與比較基準見維護手冊 §7.6。
 
 - [ ] 移除 `components` 與 `inlineComponents`，只留 `blockComponents`；確認進入 plusparse。
 - [ ] 依 §4.2 對照表逐項接 builder：
@@ -1133,7 +1136,8 @@ dependency_overrides:
 
 > **2026-11-04 現況**：GitHub alerts、directives 與 inline HTML 安全子集 legacy fallback 已先行落地（五類型 + danger、custom title、l10n、標題 4.5:1 對比矩陣、SelectCopy 標題排除；b/i/u/s/mark/code/kbd/sub/sup/span/font/br；p/ul/ol/li/blockquote/pre/hr/div/section/基本 table，含巢狀 list）；table colspan/rowspan、`pre` 高亮與 modern builder 平權仍待。
 
-- [ ] **決策：user message（`enableUserMarkdown`）與 AI Team 是否啟用新語法**（建議預設：user 輸入關閉 alerts/directives，HTML 只讀；見 §0.3）。
+- [x] **決策（2026-11-04）**：user message 只開標準 Markdown（bold／list／code／math／table／link），關閉 alerts／directives／raw HTML／inline SVG；AI Team 維持完整安全 parity（alerts／directives／HTML／SVG）。見 §0.3、維護手冊 §7.6。
+- [x] 實作 user-message 標準 Markdown policy（`MarkdownRenderPolicy.standard`；`DangerousHtmlMd` 仍常駐以丟棄主動內容）與 AI Team 窄版視覺 QA（300 px + textScale 1.5）。
 - [x] GitHub alerts（legacy fallback 已於 2026-11-04 落地：五種類型、custom title、body、標題排除 SelectCopy；modern `alertBuilder` 待 Gate 2 平權）。
 - [x] Directives（legacy 已於 2026-11-04 落地：`DirectiveBlockMd` + `MarkdownCalloutCard`，支援 `:::note/tip/important/warning/caution/danger`、custom title、未知名稱保留 children、串流未閉合 partial；modern `MarkdownBlockSyntax` 待 Gate 2）。
 - [x] Inline HTML 白名單（legacy：`InlineHtmlMd` + `DangerousHtmlMd`；b/strong、i/em、u、s/del、mark、code、kbd、sub/sup、span[style]、font[color]、br；p/ul/ol/li/blockquote/pre/hr/div/section/table（無 colspan/rowspan）；script/iframe/img 等主動內容丟棄；`<a>` 只允許 http/https/mailto/tel）。
@@ -1148,12 +1152,14 @@ dependency_overrides:
 
 ### Phase 5：長訊息/效能硬化與決策（3–5 人日）
 
-- [ ] modern `SliverGptMarkdown` 或 block-level lazy（若 Gate 2 通過）。
+- [x] 長圖超限 UX：自動降 `effectivePixelRatio` 後顯示提示；新增「分段圖片」匯出（`LongImageExporter.exportSegments`，每頁 8 MP，ImageViewerPage 多圖檢視）。
+- [x] default assistant + 桌布柔和 scrim（`assistantWallpaperScrimColor`；table/code/details 維持不透明）。
+- [ ] modern `SliverGptMarkdown` 或 block-level lazy（僅在未來重啟 Gate 2 且通過後）。
 - [ ] 200 KB 訊息、100 則會話、Android 中階機 benchmark。
 - [ ] 修正 regression；更新 `OmniChat 專案開發與維護手冊.md` §3.9/§4/§5。
-- [ ] 決定：
-  - modern 穩定 → 預設 modern、標記 legacy deprecated、下個 release 刪除。
-  - modern 不穩 → 啟動 markstream 移植計畫（另立文件，30–50 人日）。
+- [ ] （若未來重啟 Gate 2）決定：
+  - modern 穩定 → 先 opt-in beta，再預設 modern、標記 legacy deprecated。
+  - modern 不穩 → 不 ship，維持 legacy；markstream 另案評估（30–50 人日）。
 - [ ] 更新 `THIRD_PARTY_NOTICES.md`（gpt_markdown、vendored JS、若移植 markstream）。
 
 ### 5.1 里程碑
@@ -1170,7 +1176,7 @@ dependency_overrides:
 
 > 若只做 P0（M1+M2）即可拿到大部分使用者價值：約 18–25 人日。
 
-**2026-11-04 進度**：M1 核心完成（4 背景 × 3 氣泡對比矩陣已自動化；截圖/實機 QA 待補）；M2 大部分完成（Markdown 預覽本地化與 per-preview 隔離、capture freeze、遠端 settle 已完成；記憶體量測/實機待補）；M3–M6 未開始。
+**2026-11-04 進度**：M1 核心完成（4 背景 × 3 氣泡對比矩陣已自動化；截圖/實機 QA 待補）；M2 大部分完成（Markdown 預覽本地化與 per-preview 隔離、capture freeze、遠端 settle 已完成；記憶體量測/實機待補）；M3 完成（Gate 1 技術通過）；M4 Gate 2 依產品決策暫緩；M5 追加落地使用者訊息 policy、桌布 scrim、長圖分段匯出、AI Team 窄版 QA 與 SDK floor CI；M6 待排程。
 
 ---
 
@@ -1307,7 +1313,7 @@ Windows/Android 手動：
 
 **若只做 P0（建議先 ship）**：18–25 人日，約 3–4 週（1 人）或 2–2.5 週（2 人）。
 
-**2026-11-04 現況**：Phase 0 護欄與 Phase 1A 核心完成；Phase 1B 的長圖/code cache/串流/預覽本地化（含 per-preview 隔離）與 capture freeze/遠端 settle 完成，剩記憶體量測/實機 baseline；Phase 2–5 未開始。剩餘 P0 主要是實機 baseline 與截圖/視覺 QA。
+**2026-11-04 現況**：Phase 0 護欄與 Phase 1A 核心完成；Phase 1B 的長圖/code cache/串流/預覽本地化（含 per-preview 隔離）與 capture freeze/遠端 settle 完成，剩記憶體量測/實機 baseline；Phase 2–5 的 legacy 功能與產品決策（使用者訊息 policy、桌布 scrim、長圖分段、AI Team 窄版 QA、SDK floor CI）已落地；Gate 2 暫緩。剩餘 P0 主要是實機 baseline 與截圖/視覺 QA。
 
 > 估算為 rough order-of-magnitude（±30%）。Phase 4 的 alerts/directives/HTML/SVG 若 Gate 2 通過（gpt_markdown 1.4 已提供）取下限；Gate 2 失敗時全走 legacy 自建（最貴路徑）取上限 6–9 人日——單一 3–5 人日的估算會低估 Gate 2 失敗的實際代價。
 

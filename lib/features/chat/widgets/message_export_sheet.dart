@@ -15,6 +15,7 @@ import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
 import 'image_preview_sheet.dart';
+import '../pages/image_viewer_page.dart';
 
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/models/chat_message.dart';
@@ -27,6 +28,7 @@ import '../../../core/models/assistant.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/web/web_fetch_tool.dart';
 import '../../../utils/sandbox_path_resolver.dart';
+import '../../../shared/markdown/markdown_render_policy.dart';
 import '../../../shared/markdown/markdown_surface_scope.dart';
 import '../../../shared/widgets/markdown_with_highlight.dart';
 import '../../../shared/widgets/export_capture_scope.dart';
@@ -279,6 +281,90 @@ Future<LongImageExportResult?> _renderAndSaveChatImage(
   );
 }
 
+Future<LongImageSegmentedExportResult?> _renderAndSaveMessageImageSegments(
+  BuildContext context,
+  ChatMessage message, {
+  bool showThinkingAndToolCards = false,
+  bool expandThinkingContent = false,
+  LongImageProgressCallback? onProgress,
+  bool Function()? isCancelled,
+}) async {
+  final cs = Theme.of(context).colorScheme;
+  final settings = context.read<SettingsProvider>();
+  final l10n = AppLocalizations.of(context)!;
+  try {
+    final codes = extractMermaidCodes(message.content);
+    await preRenderMermaidCodesForExport(context, codes);
+  } catch (_) {}
+
+  final bool isDesktop = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+  final content = ExportCaptureScope(
+    enabled: true,
+    child: _ExportedMessageCard(
+      message: message,
+      title:
+          context.read<ChatService>().getConversation(message.conversationId)?.title ??
+          l10n.messageExportSheetDefaultTitle,
+      cs: cs,
+      chatFontScale: settings.chatFontScale,
+      showThinkingAndToolCards: showThinkingAndToolCards,
+      expandThinkingContent: expandThinkingContent,
+      isDesktop: isDesktop,
+    ),
+  );
+  return LongImageExporter.exportSegments(
+    context,
+    _freezeExportContext(context, settings, content),
+    width: isDesktop ? 720 : 480,
+    pixelRatio: isDesktop ? 2.0 : 3.0,
+    onProgress: onProgress,
+    isCancelled: isCancelled,
+  );
+}
+
+Future<LongImageSegmentedExportResult?> _renderAndSaveChatImageSegments(
+  BuildContext context,
+  Conversation conversation,
+  List<ChatMessage> messages, {
+  bool showThinkingAndToolCards = false,
+  bool expandThinkingContent = false,
+  LongImageProgressCallback? onProgress,
+  bool Function()? isCancelled,
+}) async {
+  final cs = Theme.of(context).colorScheme;
+  final settings = context.read<SettingsProvider>();
+  final l10n = AppLocalizations.of(context)!;
+  try {
+    final codes = messages.map((m) => extractMermaidCodes(m.content)).expand((e) => e).toList();
+    await preRenderMermaidCodesForExport(context, codes);
+  } catch (_) {}
+
+  final bool isDesktop = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+  final content = ExportCaptureScope(
+    enabled: true,
+    child: _ExportedChatImage(
+      conversationTitle: (conversation.title.trim().isNotEmpty)
+          ? conversation.title
+          : l10n.messageExportSheetDefaultTitle,
+      cs: cs,
+      chatFontScale: settings.chatFontScale,
+      messages: messages,
+      timestamp: conversation.updatedAt,
+      showThinkingAndToolCards: showThinkingAndToolCards,
+      expandThinkingContent: expandThinkingContent,
+      isDesktop: isDesktop,
+    ),
+  );
+  return LongImageExporter.exportSegments(
+    context,
+    _freezeExportContext(context, settings, content),
+    width: isDesktop ? 720 : 480,
+    pixelRatio: isDesktop ? 2.0 : 3.0,
+    onProgress: onProgress,
+    isCancelled: isCancelled,
+  );
+}
+
 // Single-shot fallback (kept for LONG_IMAGE_TILING=false).
 Future<File?> _renderWidgetSingleShot(
   BuildContext context,
@@ -386,7 +472,9 @@ Future<LongImageExportResult?> _renderWidgetDirectly(
 }) async {
   if (!kLongImageTilingEnabled || !tilingEnabled) {
     final file = await _renderWidgetSingleShot(context, content, width: width, pixelRatio: pixelRatio);
-    return file == null ? null : LongImageExportResult(file: file);
+    return file == null
+        ? null
+        : LongImageExportResult(file: file, effectivePixelRatio: pixelRatio, requestedPixelRatio: pixelRatio);
   }
   return LongImageExporter.export(
     context,
@@ -644,6 +732,22 @@ class _ExportDialogState extends State<_ExportDialog> {
     );
   }
 
+  Future<void> _onExportSegmentedImage() async {
+    if (_exporting) return;
+    if (mounted) await Navigator.of(context).maybePop();
+    await _runSegmentedImageExport(
+      widget.parentContext,
+      render: (onProgress, isCancelled) => _renderAndSaveMessageImageSegments(
+        widget.parentContext,
+        widget.message,
+        showThinkingAndToolCards: _showThinkingAndToolCards,
+        expandThinkingContent: _expandThinkingContent,
+        onProgress: onProgress,
+        isCancelled: isCancelled,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -703,6 +807,12 @@ class _ExportDialogState extends State<_ExportDialog> {
                           title: l10n.messageExportSheetExportImage,
                           subtitle: l10n.messageExportSheetSingleExportImageSubtitle,
                           onTap: _exporting ? null : _onExportImage,
+                        ),
+                        _ExportOptionTile(
+                          icon: Lucide.Layers,
+                          title: l10n.messageExportSheetSegmentedImage,
+                          subtitle: l10n.messageExportSheetSegmentedImageSubtitle,
+                          onTap: _exporting ? null : _onExportSegmentedImage,
                         ),
                         const SizedBox(height: 8),
                         Padding(
@@ -939,6 +1049,23 @@ class _BatchExportDialogState extends State<_BatchExportDialog> {
     );
   }
 
+  Future<void> _onExportSegmentedImage() async {
+    if (_exporting) return;
+    if (mounted) await Navigator.of(context).maybePop();
+    await _runSegmentedImageExport(
+      widget.parentContext,
+      render: (onProgress, isCancelled) => _renderAndSaveChatImageSegments(
+        widget.parentContext,
+        widget.conversation,
+        widget.messages,
+        showThinkingAndToolCards: _showThinkingAndToolCards,
+        expandThinkingContent: _expandThinkingContent,
+        onProgress: onProgress,
+        isCancelled: isCancelled,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -998,6 +1125,12 @@ class _BatchExportDialogState extends State<_BatchExportDialog> {
                           title: l10n.messageExportSheetExportImage,
                           subtitle: l10n.messageExportSheetBatchExportImageSubtitle,
                           onTap: _exporting ? null : _onExportImage,
+                        ),
+                        _ExportOptionTile(
+                          icon: Lucide.Layers,
+                          title: l10n.messageExportSheetSegmentedImage,
+                          subtitle: l10n.messageExportSheetSegmentedImageSubtitle,
+                          onTap: _exporting ? null : _onExportSegmentedImage,
                         ),
                         const SizedBox(height: 8),
                         Padding(
@@ -1333,6 +1466,30 @@ class _BatchExportSheetState extends State<_BatchExportSheet> {
     }
   }
 
+  Future<void> _onExportSegmentedImage() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      await _runSegmentedImageExport(
+        widget.parentContext,
+        render: (onProgress, isCancelled) => _renderAndSaveChatImageSegments(
+          widget.parentContext,
+          widget.conversation,
+          widget.messages,
+          showThinkingAndToolCards: _showThinkingAndToolCards,
+          expandThinkingContent: _expandThinkingContent,
+          onProgress: onProgress,
+          isCancelled: isCancelled,
+        ),
+        beforePreview: () async {
+          if (mounted) await Navigator.of(context).maybePop();
+        },
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -1398,6 +1555,16 @@ class _BatchExportSheetState extends State<_BatchExportSheet> {
                         ? null
                         : () {
                             _onExportImage();
+                          },
+                  ),
+                  _ExportOptionTile(
+                    icon: Lucide.Layers,
+                    title: l10n.messageExportSheetSegmentedImage,
+                    subtitle: l10n.messageExportSheetSegmentedImageSubtitle,
+                    onTap: _exporting
+                        ? null
+                        : () {
+                            _onExportSegmentedImage();
                           },
                   ),
                   const SizedBox(height: 8),
@@ -1696,6 +1863,29 @@ class _ExportSheetState extends State<_ExportSheet> {
     }
   }
 
+  Future<void> _onExportSegmentedImage() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      await _runSegmentedImageExport(
+        widget.parentContext,
+        render: (onProgress, isCancelled) => _renderAndSaveMessageImageSegments(
+          widget.parentContext,
+          widget.message,
+          showThinkingAndToolCards: _showThinkingAndToolCards,
+          expandThinkingContent: _expandThinkingContent,
+          onProgress: onProgress,
+          isCancelled: isCancelled,
+        ),
+        beforePreview: () async {
+          if (mounted) await Navigator.of(context).maybePop();
+        },
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -1761,6 +1951,16 @@ class _ExportSheetState extends State<_ExportSheet> {
                         ? null
                         : () {
                             _onExportImage();
+                          },
+                  ),
+                  _ExportOptionTile(
+                    icon: Lucide.Layers,
+                    title: l10n.messageExportSheetSegmentedImage,
+                    subtitle: l10n.messageExportSheetSegmentedImageSubtitle,
+                    onTap: _exporting
+                        ? null
+                        : () {
+                            _onExportSegmentedImage();
                           },
                   ),
                   const SizedBox(height: 8),
@@ -1935,7 +2135,10 @@ class _ExportedMessageCard extends StatelessWidget {
             style: TextStyle(fontSize: contentFontSize, height: 1.5),
             child: MarkdownSurfaceScope(
               surface: MarkdownSurface.fromColorScheme(cs),
-              child: MarkdownWithCodeHighlight(text: mdText.toString()),
+              child: MarkdownWithCodeHighlight(
+                text: mdText.toString(),
+                renderPolicy: isAssistant ? MarkdownRenderPolicy.full : MarkdownRenderPolicy.standard,
+              ),
             ),
           )
         : Text('—', style: TextStyle(color: bubbleFg.withOpacity(0.5)));
@@ -2237,7 +2440,10 @@ class _ExportedBubble extends StatelessWidget {
             style: TextStyle(fontSize: contentFontSize, height: 1.5),
             child: MarkdownSurfaceScope(
               surface: MarkdownSurface.fromColorScheme(cs),
-              child: MarkdownWithCodeHighlight(text: mdText.toString()),
+              child: MarkdownWithCodeHighlight(
+                text: mdText.toString(),
+                renderPolicy: isAssistant ? MarkdownRenderPolicy.full : MarkdownRenderPolicy.standard,
+              ),
             ),
           )
         : Text('—', style: TextStyle(color: bubbleFg.withOpacity(0.5)));
@@ -2633,6 +2839,11 @@ Future<bool> _runImageExport(
     );
     return false;
   }
+  if (exportResult.wasDownscaled) {
+    final l10n = AppLocalizations.of(context)!;
+    final ratio = exportResult.effectivePixelRatio!.toStringAsFixed(1);
+    showAppSnackBar(context, message: l10n.messageExportSheetImageDownscaled('${ratio}x'), type: NotificationType.info);
+  }
   if (beforePreview != null) await beforePreview();
   try {
     await showImagePreviewSheet(context, file: exportResult.file, previewFile: exportResult.previewFile);
@@ -2645,6 +2856,68 @@ Future<bool> _runImageExport(
       } catch (_) {}
     }
   }
+  return true;
+}
+
+/// Runs a segmented image export and opens the multi-image viewer.
+Future<bool> _runSegmentedImageExport(
+  BuildContext context, {
+  required Future<LongImageSegmentedExportResult?> Function(
+    LongImageProgressCallback? onProgress,
+    bool Function()? isCancelled,
+  )
+  render,
+  Future<void> Function()? beforePreview,
+}) async {
+  final progress = ValueNotifier<LongImageProgress?>(null);
+  final cancel = ValueNotifier<bool>(false);
+  LongImageSegmentedExportResult? result;
+  var cancelled = false;
+  try {
+    await _runWithExportingOverlay(
+      context,
+      () async {
+        result = await render((value) => progress.value = value, () => cancel.value);
+      },
+      progress: progress,
+      onCancel: () {
+        cancel.value = true;
+        progress.value = null;
+      },
+    );
+    cancelled = cancel.value;
+  } catch (e) {
+    cancelled = cancel.value;
+    if (!cancelled) {
+      final l10n = AppLocalizations.of(context)!;
+      final message = e is LongImageTooLargeException
+          ? l10n.messageExportSheetImageTooLarge(e.sizeLabel)
+          : l10n.messageExportSheetExportFailed('$e');
+      showAppSnackBar(context, message: message, type: NotificationType.error);
+    }
+    return false;
+  } finally {
+    progress.dispose();
+    cancel.dispose();
+  }
+
+  if (cancelled) return false;
+  final exportResult = result;
+  if (exportResult == null || exportResult.files.isEmpty) {
+    final l10n = AppLocalizations.of(context)!;
+    showAppSnackBar(
+      context,
+      message: l10n.messageExportSheetExportFailed('render error'),
+      type: NotificationType.error,
+    );
+    return false;
+  }
+  if (beforePreview != null) await beforePreview();
+  await Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => ImageViewerPage(images: exportResult.files.map((file) => file.path).toList(growable: false)),
+    ),
+  );
   return true;
 }
 

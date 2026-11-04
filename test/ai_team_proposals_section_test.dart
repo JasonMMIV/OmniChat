@@ -6,6 +6,7 @@ import 'package:OmniChat/features/chat/widgets/ai_team_proposals_section.dart';
 import 'package:OmniChat/core/providers/settings_provider.dart';
 import 'package:OmniChat/l10n/app_localizations.dart';
 import 'package:OmniChat/shared/markdown/markdown_surface_scope.dart';
+import 'package:OmniChat/shared/widgets/markdown_callout_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -69,5 +70,56 @@ void main() {
     expect(scopeFinder, findsOneWidget);
     final scope = tester.widget<MarkdownSurfaceScope>(scopeFinder);
     expect(scope.surface.onSurface, equals(const Color(0xFF7E7F83)));
+  });
+
+  testWidgets('narrow proposal cards keep rich blocks overflow-free', (WidgetTester tester) async {
+    final sampleData = jsonEncode([
+      {
+        'providerKey': 'openai',
+        'modelId': 'gpt-4o',
+        'content': '> [!NOTE]\n> Narrow alert body.\n\n'
+            '| Name | Value |\n| --- | --- |\n| Alpha | 1 |\n\n'
+            '```dart\nfinal value = 1;\n```',
+        'reasoning': '',
+        'toolCalls': [],
+      }
+    ]);
+
+    final settings = SettingsProvider();
+    tester.view.physicalSize = const Size(300, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<SettingsProvider>.value(
+        value: settings,
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh', 'TW'),
+          theme: ThemeData.light(),
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.5)),
+                child: SizedBox(width: 300, child: AiTeamProposalsSection(data: sampleData)),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final titleFinder = find.byWidgetPredicate(
+      (w) => w is Text && (w.data == '協作過程' || w.data == '协作过程' || w.data == 'Collaboration Process'),
+    );
+    expect(titleFinder, findsOneWidget);
+    await tester.tap(titleFinder);
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(MarkdownCalloutCard), findsOneWidget);
   });
 }

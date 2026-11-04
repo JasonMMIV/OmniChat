@@ -4367,6 +4367,24 @@ abstract class AppLocalizations {
   /// **'Batch Image'**
   String get messageExportSheetBatchExportImageSubtitle;
 
+  /// No description provided for @messageExportSheetSegmentedImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Segmented image'**
+  String get messageExportSheetSegmentedImage;
+
+  /// No description provided for @messageExportSheetSegmentedImageSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Split long content into multiple images'**
+  String get messageExportSheetSegmentedImageSubtitle;
+
+  /// No description provided for @messageExportSheetImageDownscaled.
+  ///
+  /// In en, this message translates to:
+  /// **'Image was downscaled to {ratio} to fit the size limit.'**
+  String messageExportSheetImageDownscaled(String ratio);
+
   /// No description provided for @exportDisclaimerAiGenerated.
   ///
   /// In en, this message translates to:

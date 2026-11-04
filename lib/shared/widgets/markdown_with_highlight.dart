@@ -33,6 +33,7 @@ import '../markdown/markdown_code_cache.dart';
 import '../markdown/markdown_html_policy.dart';
 import '../markdown/markdown_code_palette.dart';
 import '../markdown/markdown_math.dart';
+import '../markdown/markdown_render_policy.dart';
 import '../markdown/markdown_surface_scope.dart';
 import 'ios_tactile.dart';
 import 'mermaid_failure_cache.dart';
@@ -56,6 +57,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     this.onCitationTap,
     this.baseStyle,
     this.isStreaming = false,
+    this.renderPolicy = MarkdownRenderPolicy.full,
   });
 
   final String text;
@@ -70,6 +72,10 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
   // keeps existing static-content call sites unchanged.
   final bool isStreaming;
 
+  /// Per-surface feature switches. Assistant/AI Team default to [full]; user
+  /// messages pass [MarkdownRenderPolicy.standard].
+  final MarkdownRenderPolicy renderPolicy;
+
   // Tunable: list scaling compensation exponent.
   // When chat scale s != 1.0, lists often feel slightly off compared to body.
   // We apply s^(1-k) instead of s to the list rows to gently normalize.
@@ -80,6 +86,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
     final cs = Theme.of(context).colorScheme;
+    final policy = renderPolicy;
     // Only override the inherited text style when a scope actually exists;
     // export/AI-Team call sites keep their ambient DefaultTextStyle color.
     final mdSurface = MarkdownSurfaceScope.maybeOf(context);
@@ -90,6 +97,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       enableMath: settings.enableMathRendering,
       enableDollarLatex: settings.enableDollarLatex,
       streaming: isStreaming,
+      maskHtmlTags: policy.blockHtml,
     );
     // Base text style (can be overridden by caller)
     final baseTextStyle = (baseStyle ?? Theme.of(context).textTheme.bodyMedium)?.copyWith(
@@ -107,7 +115,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     final hrIdx = components.indexWhere((c) => c is HrLine);
     if (hrIdx != -1) components[hrIdx] = SoftHrLine();
     final bqIdx = components.indexWhere((c) => c is BlockQuote);
-    if (bqIdx != -1) components[bqIdx] = ModernBlockQuote();
+    if (bqIdx != -1) components[bqIdx] = ModernBlockQuote(allowAlerts: policy.alerts);
     final cbIdx = components.indexWhere((c) => c is CheckBoxMd);
     if (cbIdx != -1) components[cbIdx] = ModernCheckBoxMd();
     final rbIdx = components.indexWhere((c) => c is RadioButtonMd);
@@ -139,17 +147,17 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     components.insert(0, AtxHeadingMd());
     // :::note / :::warning cards (legacy fallback). Kept below the fenced
     // code renderer so `:::` lines inside code fences stay literal code.
-    components.insert(0, DirectiveBlockMd());
+    if (policy.directives) components.insert(0, DirectiveBlockMd());
     // Basic block HTML (p/ul/ol/blockquote/pre/hr). Fenced code and details are
     // registered above this so their contents keep priority.
-    components.insert(0, HtmlBlockMd());
+    if (policy.blockHtml) components.insert(0, HtmlBlockMd());
     // Ensure fenced code blocks take precedence over headings and other blocks
     // so lines like "# comment" inside code fences are not parsed as headings.
     components.insert(0, FencedCodeBlockMd(isStreaming: isStreaming, enableMath: settings.enableMathRendering));
     // HTML <details>/<summary> collapsible blocks (kelivo v1.1.13 port).
     // Registered ahead of fences; fenced-code content is protected by the
     // <details>/<summary> tag-start mask applied in preprocessFences.
-    components.insert(0, DetailsHtmlMd());
+    if (policy.blockHtml) components.insert(0, DetailsHtmlMd());
     // Inline components: keep defaults but make link parsing line-scoped
     final inlineComponents = List<MarkdownComponent>.from(MarkdownComponent.inlineComponents);
     final linkIdxInline = inlineComponents.indexWhere((c) => c is ATagMd);
@@ -163,10 +171,13 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     final htmlInsertAt = highlightedIdx == -1 ? inlineComponents.length : highlightedIdx + 1;
     // Keep anchors before the inline-tag renderer so `<a><b>x</b></a>` is
     // consumed as one link instead of leaving literal <a> markers behind.
-    inlineComponents.insert(htmlInsertAt, HtmlAnchorMd());
-    inlineComponents.insert(htmlInsertAt + 1, InlineSvgMd());
-    inlineComponents.insert(htmlInsertAt + 2, InlineHtmlMd());
-    inlineComponents.insert(htmlInsertAt + 3, DangerousHtmlMd());
+    final richInline = <MarkdownComponent>[
+      if (policy.inlineHtml) HtmlAnchorMd(),
+      if (policy.inlineSvg) InlineSvgMd(),
+      if (policy.inlineHtml) InlineHtmlMd(),
+      DangerousHtmlMd(),
+    ];
+    inlineComponents.insertAll(htmlInsertAt, richInline);
     // codeBuilder handles rendering. A custom BlockMd for fences can
     // interfere with block segmentation in some cases.
     // Resolve user preferred code font family (default to monospace)
@@ -703,7 +714,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
   /// Replaces every `$` that appears inside an inline code span (`` `...` ``)
   /// or a fenced code block (``` ... ```) with [codeDollarMask] so that
   /// [preprocessFences] never misparses code content as LaTeX math.
-  static String _maskDollarsInCode(String input) {
+  static String _maskDollarsInCode(String input, {bool maskHtmlTags = true}) {
     const dollar = 0x24; // '$'
     final n = input.length;
     final inCode = List<bool>.filled(n, false);
@@ -743,7 +754,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     for (var i = 0; i < n; i++) {
       if (inCode[i]) {
         buf.write(codeDollarMask);
-      } else if (inFencePos[i] && _isFencedHtmlTagStart(input, i)) {
+      } else if (maskHtmlTags && inFencePos[i] && _isFencedHtmlTagStart(input, i)) {
         // Shield <details>/<summary tag starts from DetailsHtmlMd block parsing
         // (kelivo v1.1.17 port); single-char mask preserves string lengths.
         buf.write(fencedHtmlTagStartMask);
@@ -759,6 +770,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     required bool enableMath,
     required bool enableDollarLatex,
     bool streaming = false,
+    bool maskHtmlTags = true,
   }) {
     // Normalize newlines to simplify regex handling
     var out = input.replaceAll('\r\n', '\n');
@@ -786,7 +798,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     // conversions below. Runs unconditionally (also protects the $$ display-math
     // normalization that follows) and is restored at render time via
     // unmaskCodeDollars in the code render paths.
-    out = _maskDollarsInCode(out);
+    out = _maskDollarsInCode(out, maskHtmlTags: maskHtmlTags);
 
     // Normalize inline $...$ math into \( ... \) so it always matches the LaTeX
     // renderer (even when vendors emit single-dollar math mixed with prose).
@@ -892,17 +904,31 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     required bool enableMath,
     required bool enableDollarLatex,
     required bool streaming,
+    bool maskHtmlTags = true,
   }) {
     if (streaming) {
-      return preprocessFences(input, enableMath: enableMath, enableDollarLatex: enableDollarLatex, streaming: true);
+      return preprocessFences(
+        input,
+        enableMath: enableMath,
+        enableDollarLatex: enableDollarLatex,
+        streaming: true,
+        maskHtmlTags: maskHtmlTags,
+      );
     }
-    final key = '${enableMath ? 1 : 0}${enableDollarLatex ? 1 : 0}|${input.length}|${input.hashCode}';
+    final key =
+        '${enableMath ? 1 : 0}${enableDollarLatex ? 1 : 0}${maskHtmlTags ? 1 : 0}|${input.length}|${input.hashCode}';
     final entry = _preprocessCache.remove(key);
     if (entry != null && entry.input == input) {
       _preprocessCache[key] = entry; // LRU refresh
       return entry.output;
     }
-    final out = preprocessFences(input, enableMath: enableMath, enableDollarLatex: enableDollarLatex, streaming: false);
+    final out = preprocessFences(
+      input,
+      enableMath: enableMath,
+      enableDollarLatex: enableDollarLatex,
+      streaming: false,
+      maskHtmlTags: maskHtmlTags,
+    );
     _preprocessCache[key] = _PreprocessEntry(input: input, output: out);
     while (_preprocessCache.length > _preprocessCacheMaxEntries) {
       _preprocessCache.remove(_preprocessCache.keys.first);
@@ -1306,13 +1332,26 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                   border: Border(bottom: BorderSide(color: cs.outlineVariant.withOpacity(0.28), width: 1.0)),
                 ),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(width: 2),
-                    Text(
-                      MarkdownWithCodeHighlight._displayLanguage(context, widget.language),
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurface, height: 1.0),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 88),
+                      child: Text(
+                        MarkdownWithCodeHighlight._displayLanguage(context, widget.language),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurface, height: 1.0),
+                      ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Wrap(
+                        alignment: WrapAlignment.end,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 4,
+                        runSpacing: 2,
+                        children: [
                     if (_isPreviewable(widget.language))
                       InkWell(
                         onTap: () async {
@@ -1384,6 +1423,7 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                           child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Lucide.Eye, size: 14, color: cs.onSurface.withOpacity(0.6)),
                               const SizedBox(width: 6),
@@ -1422,6 +1462,7 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Lucide.Copy, size: 14, color: cs.onSurface.withOpacity(0.6)),
                             const SizedBox(width: 6),
@@ -1437,12 +1478,14 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 6),
                     AnimatedRotation(
                       turns: _expanded ? 0.25 : 0.0, // right -> down
                       duration: const Duration(milliseconds: 180),
                       curve: Curves.easeOutCubic,
                       child: Icon(Lucide.ChevronRight, size: 16, color: cs.onSurface.withOpacity(0.7)),
+                    ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -2940,11 +2983,13 @@ class _MarkdownTableToolbar extends StatelessWidget {
         // without it the overlay is painted on a distant Material ancestor
         // and gets hidden behind the surrounding backgrounds.
         type: MaterialType.transparency,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
+        child: Wrap(
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 6,
+          runSpacing: 4,
           children: [
             CodeBlockDownloadButton(onTap: onExport),
-            const SizedBox(width: 6),
             InkWell(
               onTap: onCopy,
               splashColor: Platform.isIOS ? Colors.transparent : null,
@@ -3758,6 +3803,12 @@ class LabelValueLineMd extends InlineMd {
 
 // Modern, app-styled block quote with soft background and accent border
 class ModernBlockQuote extends InlineMd {
+  ModernBlockQuote({this.allowAlerts = true});
+
+  /// When false, `> [!NOTE]` stays a normal blockquote instead of becoming an
+  /// alert card (user-message standard Markdown policy).
+  final bool allowAlerts;
+
   @override
   bool get inline => false;
 
@@ -3780,7 +3831,7 @@ class ModernBlockQuote extends InlineMd {
       }
     }
     final data = sb.toString().trim();
-    final alert = parseMarkdownAlert(data);
+    final alert = allowAlerts ? parseMarkdownAlert(data) : null;
     if (alert != null) {
       return _alertSpan(context, alert, config);
     }

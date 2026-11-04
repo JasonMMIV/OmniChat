@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -114,6 +115,59 @@ void main() {
 
     final small = LongImageExporter.previewSizeFor(width: 800, height: 2000);
     expect(small, isNull);
+  });
+
+  test('segmented plan keeps every page within the page pixel budget', () {
+    final plan = LongImageSegmentPlan.fromContent(
+      width: 480,
+      height: 100000,
+      requestedPixelRatio: 3,
+    );
+
+    expect(plan.widthPx, 1440);
+    expect(plan.heightPx, 300000);
+    expect(plan.pageHeightPx, lessThanOrEqualTo(LongImageSegmentPlan.defaultPagePixels ~/ plan.widthPx));
+    expect(plan.pageCount, greaterThan(1));
+    expect(plan.widthPx * plan.pageHeightPx, lessThanOrEqualTo(LongImageSegmentPlan.defaultPagePixels));
+    expect(plan.pageCount * plan.pageHeightPx, greaterThanOrEqualTo(plan.heightPx));
+  });
+
+  test('segmented plan uses one page for short content', () {
+    final plan = LongImageSegmentPlan.fromContent(
+      width: 480,
+      height: 1000,
+      requestedPixelRatio: 3,
+    );
+
+    expect(plan.pageCount, 1);
+    expect(plan.pageHeightPx, plan.heightPx);
+  });
+
+  test('segmented plan rejects invalid dimensions', () {
+    expect(
+      () => LongImageSegmentPlan.fromContent(
+        width: 0,
+        height: 100,
+        requestedPixelRatio: 3,
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('export result reports when the requested ratio was clamped', () {
+    final downscaled = LongImageExportResult(
+      file: File('downscaled.png'),
+      effectivePixelRatio: 1.5,
+      requestedPixelRatio: 3,
+    );
+    final unchanged = LongImageExportResult(
+      file: File('unchanged.png'),
+      effectivePixelRatio: 3,
+      requestedPixelRatio: 3,
+    );
+
+    expect(downscaled.wasDownscaled, isTrue);
+    expect(unchanged.wasDownscaled, isFalse);
   });
 
   test('rejects invalid dimensions', () {

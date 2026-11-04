@@ -23,7 +23,12 @@ class LongImageProgress {
 typedef LongImageProgressCallback = void Function(LongImageProgress progress);
 
 class LongImageExportResult {
-  const LongImageExportResult({required this.file, this.previewFile});
+  const LongImageExportResult({
+    required this.file,
+    this.previewFile,
+    this.effectivePixelRatio,
+    this.requestedPixelRatio,
+  });
 
   /// Full-resolution PNG for saving/sharing.
   final File file;
@@ -31,6 +36,35 @@ class LongImageExportResult {
   /// Downscaled PNG for fast preview (null when the full image is already
   /// small enough to decode comfortably).
   final File? previewFile;
+
+  /// Ratio actually used after the pixel-budget clamp, when known.
+  final double? effectivePixelRatio;
+
+  /// Ratio requested by the export caller, when known.
+  final double? requestedPixelRatio;
+
+  bool get wasDownscaled {
+    final effective = effectivePixelRatio;
+    final requested = requestedPixelRatio;
+    return effective != null && requested != null && effective + 0.01 < requested;
+  }
+}
+
+class LongImageSegmentedExportResult {
+  const LongImageSegmentedExportResult({
+    required this.files,
+    required this.widthPx,
+    required this.pageHeightPx,
+    required this.totalHeightPx,
+  });
+
+  /// One PNG per vertical page, in reading order.
+  final List<File> files;
+  final int widthPx;
+  final int pageHeightPx;
+  final int totalHeightPx;
+
+  int get pageCount => files.length;
 }
 
 class LongImageTooLargeException implements Exception {
@@ -145,6 +179,59 @@ class LongImageTilePlan {
       sourceHeight: sourceHeight,
       destTop: destTop,
       destHeight: destBottom - destTop,
+    );
+  }
+}
+
+class LongImageSegmentPlan {
+  const LongImageSegmentPlan({
+    required this.widthPx,
+    required this.heightPx,
+    required this.pixelRatio,
+    required this.pageHeightPx,
+    required this.pageCount,
+  });
+
+  final int widthPx;
+  final int heightPx;
+  final double pixelRatio;
+
+  /// Maximum height of one output page in pixels.
+  final int pageHeightPx;
+  final int pageCount;
+
+  /// Keep each output page comfortably below the single-image budget so the
+  /// composed page plus its tiles do not hit the low-end Android OOM ceiling.
+  static const int defaultPagePixels = 8000000;
+
+  factory LongImageSegmentPlan.fromContent({
+    required double width,
+    required double height,
+    required double requestedPixelRatio,
+    int maxPixelsPerPage = defaultPagePixels,
+  }) {
+    if (width <= 0 || height <= 0 || requestedPixelRatio <= 0) {
+      throw ArgumentError('Invalid segmented long image size');
+    }
+    if (maxPixelsPerPage <= 0) {
+      throw ArgumentError('Invalid page pixel budget');
+    }
+
+    final widthPx = math.max(1, (width * requestedPixelRatio).floor());
+    final heightPx = math.max(1, (height * requestedPixelRatio).floor());
+    final maxPageHeight = math.max(1, maxPixelsPerPage ~/ widthPx);
+    if (maxPageHeight < 64) {
+      throw LongImageTooLargeException(widthPx: widthPx, heightPx: heightPx, maxPixels: maxPixelsPerPage);
+    }
+    final pageHeightPx = math.min(heightPx, maxPageHeight);
+    final pageCount = math.max(1, (heightPx / pageHeightPx).ceil());
+
+    return LongImageSegmentPlan(
+      widthPx: widthPx,
+      heightPx: heightPx,
+      pixelRatio: requestedPixelRatio,
+      pageHeightPx: pageHeightPx,
+      pageCount: pageCount,
     );
   }
 }
@@ -434,7 +521,12 @@ class LongImageExporter {
       }
 
       onProgress?.call(const LongImageProgress(stage: LongImageExportStage.encoding, current: 1, total: 1));
-      return LongImageExportResult(file: file, previewFile: previewFile);
+      return LongImageExportResult(
+        file: file,
+        previewFile: previewFile,
+        effectivePixelRatio: plan.effectivePixelRatio,
+        requestedPixelRatio: pixelRatio,
+      );
     } finally {
       entry.remove();
       // The overlay entry is removed on the next frame; disposing the
@@ -447,6 +539,229 @@ class LongImageExporter {
       controller.dispose();
       _disposeTiles(tileImages);
       composed?.dispose();
+    }
+  }
+
+  /// Exports long content as multiple vertical PNG pages.
+  ///
+  /// Each page is kept within [LongImageSegmentPlan.defaultPagePixels] so a
+  /// document that cannot fit into one image remains exportable without
+  /// allocating one giant RGBA buffer. The requested pixel ratio is preserved;
+  /// pages are split by height instead of silently reducing quality.
+  static Future<LongImageSegmentedExportResult?> exportSegments(
+    BuildContext context,
+    Widget content, {
+    required double width,
+    double pixelRatio = 3.0,
+    int? maxPixelsPerPage,
+    LongImageProgressCallback? onProgress,
+    bool Function()? isCancelled,
+    String filePrefix = 'chat-export',
+  }) async {
+    final overlay = Overlay.maybeOf(context);
+    if (overlay == null) return null;
+
+    final boundaryKey = GlobalKey();
+    final contentKey = GlobalKey();
+    final controller = ScrollController();
+    final viewportHeight = ValueNotifier<double>(LongImageTilePlan.maxTilePx / pixelRatio);
+    final freezeTickers = ValueNotifier<bool>(false);
+
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (ctx) {
+        return Positioned(
+          left: -10000,
+          top: -10000,
+          child: RepaintBoundary(
+            key: boundaryKey,
+            child: ValueListenableBuilder<double>(
+              valueListenable: viewportHeight,
+              builder: (_, height, __) => Container(
+                width: width,
+                height: height,
+                color: Theme.of(ctx).colorScheme.background,
+                child: SingleChildScrollView(
+                  controller: controller,
+                  physics: const NeverScrollableScrollPhysics(),
+                  child: KeyedSubtree(
+                    key: contentKey,
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: ValueListenableBuilder<bool>(
+                        valueListenable: freezeTickers,
+                        builder: (_, frozen, __) => TickerMode(enabled: !frozen, child: content),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    overlay.insert(entry);
+
+    final pageTiles = <ui.Image>[];
+    final files = <File>[];
+    var succeeded = false;
+    try {
+      // Let the overlay build, lay out and paint before measuring.
+      await WidgetsBinding.instance.endOfFrame;
+      await WidgetsBinding.instance.endOfFrame;
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+
+      final imageSettleDeadline = DateTime.now().add(const Duration(seconds: 4));
+      final preMeasureWait = imageSettleDeadline.difference(DateTime.now());
+      await _waitForImages(
+        timeout: preMeasureWait > const Duration(seconds: 2) ? const Duration(seconds: 2) : preMeasureWait,
+        isCancelled: isCancelled,
+      );
+      if (isCancelled?.call() ?? false) return null;
+
+      freezeTickers.value = true;
+      await WidgetsBinding.instance.endOfFrame;
+
+      final contentSize = contentKey.currentContext?.size;
+      if (contentSize == null || contentSize.height <= 0) return null;
+
+      final plan = LongImageSegmentPlan.fromContent(
+        width: width,
+        height: contentSize.height,
+        requestedPixelRatio: pixelRatio,
+        maxPixelsPerPage: maxPixelsPerPage ?? LongImageSegmentPlan.defaultPagePixels,
+      );
+      final tileLogicalHeight = LongImageTilePlan.maxTilePx / plan.pixelRatio;
+      if ((viewportHeight.value - tileLogicalHeight).abs() > 0.5) {
+        viewportHeight.value = tileLogicalHeight;
+        await WidgetsBinding.instance.endOfFrame;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+
+      final boundary = boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return null;
+
+      final dir = await getTemporaryDirectory();
+      final stamp = DateTime.now().millisecondsSinceEpoch;
+      final paint = Paint()..filterQuality = FilterQuality.medium;
+
+      for (var page = 0; page < plan.pageCount; page++) {
+        if (isCancelled?.call() ?? false) return null;
+
+        final pageStartPx = page * plan.pageHeightPx;
+        final pageEndPx = math.min(plan.heightPx, pageStartPx + plan.pageHeightPx);
+        final pageHeightPx = pageEndPx - pageStartPx;
+        if (pageHeightPx <= 0) break;
+
+        final pageStartLogical = pageStartPx / plan.pixelRatio;
+        final pageEndLogical = math.min(pageEndPx / plan.pixelRatio, contentSize.height);
+        final recorder = ui.PictureRecorder();
+        final canvas = Canvas(recorder);
+        var nextDestTop = 0;
+        var tileIndex = 0;
+
+        for (
+          var tileStart = pageStartLogical;
+          tileStart < pageEndLogical - 0.0001;
+          tileStart += tileLogicalHeight, tileIndex++
+        ) {
+          if (isCancelled?.call() ?? false) return null;
+
+          final tileEnd = math.min(tileStart + tileLogicalHeight, pageEndLogical);
+          final maxScroll = controller.hasClients ? controller.position.maxScrollExtent : 0.0;
+          final scrollOffset = math.min(tileStart, math.max(0.0, maxScroll));
+          controller.jumpTo(scrollOffset);
+          SchedulerBinding.instance.scheduleFrame();
+          await SchedulerBinding.instance.endOfFrame;
+          await Future<void>.delayed(const Duration(milliseconds: 16));
+          if (DateTime.now().isBefore(imageSettleDeadline)) {
+            await _waitForImages(timeout: imageSettleDeadline.difference(DateTime.now()), isCancelled: isCancelled);
+          }
+          if (isCancelled?.call() ?? false) return null;
+
+          final attempts = page == 0 && tileIndex == 0 ? 5 : 2;
+          final retryDelay = page == 0 && tileIndex == 0 ? 200 : 120;
+          ui.Image? tile;
+          for (var retry = 0; retry < attempts; retry++) {
+            try {
+              tile = await boundary.toImage(pixelRatio: plan.pixelRatio);
+              break;
+            } catch (_) {
+              await Future<void>.delayed(Duration(milliseconds: retryDelay));
+            }
+          }
+          if (tile == null) return null;
+          pageTiles.add(tile);
+
+          final sourceTop = ((tileStart - scrollOffset) * plan.pixelRatio).round();
+          final sourceBottom = ((tileEnd - scrollOffset) * plan.pixelRatio).round();
+          final sourceHeight = sourceBottom - sourceTop;
+          final destBottom = math.min(pageHeightPx, math.max(0, ((tileEnd * plan.pixelRatio).round() - pageStartPx)));
+          final destHeight = destBottom - nextDestTop;
+          if (sourceHeight <= 0 || destHeight <= 0) {
+            nextDestTop = destBottom;
+            continue;
+          }
+
+          final src = Rect.fromLTWH(0, sourceTop.toDouble(), tile.width.toDouble(), sourceHeight.toDouble());
+          final dst = Rect.fromLTWH(0, nextDestTop.toDouble(), plan.widthPx.toDouble(), destHeight.toDouble());
+          canvas.drawImageRect(tile, src, dst, paint);
+          nextDestTop = destBottom;
+        }
+
+        if (nextDestTop <= 0) break;
+        final picture = recorder.endRecording();
+        onProgress?.call(
+          LongImageProgress(stage: LongImageExportStage.rendering, current: page + 1, total: plan.pageCount),
+        );
+        late final ui.Image composedPage;
+        try {
+          composedPage = await picture.toImage(plan.widthPx, pageHeightPx);
+        } finally {
+          picture.dispose();
+        }
+        _disposeTiles(pageTiles);
+
+        onProgress?.call(
+          LongImageProgress(stage: LongImageExportStage.encoding, current: page + 1, total: plan.pageCount),
+        );
+        final file = File('${dir.path}/$filePrefix-$stamp-${page + 1}.png');
+        try {
+          final data = await composedPage.toByteData(format: ui.ImageByteFormat.png);
+          if (data == null) return null;
+          await file.writeAsBytes(data.buffer.asUint8List());
+          files.add(file);
+        } finally {
+          composedPage.dispose();
+        }
+      }
+
+      if (files.isEmpty) return null;
+      succeeded = true;
+      return LongImageSegmentedExportResult(
+        files: files,
+        widthPx: plan.widthPx,
+        pageHeightPx: plan.pageHeightPx,
+        totalHeightPx: plan.heightPx,
+      );
+    } finally {
+      entry.remove();
+      try {
+        await WidgetsBinding.instance.endOfFrame;
+      } catch (_) {}
+      viewportHeight.dispose();
+      freezeTickers.dispose();
+      controller.dispose();
+      _disposeTiles(pageTiles);
+      if (!succeeded) {
+        for (final file in files) {
+          try {
+            await file.delete();
+          } catch (_) {}
+        }
+      }
     }
   }
 }

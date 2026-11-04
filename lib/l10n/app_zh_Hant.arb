@@ -697,6 +697,16 @@
   "messageExportSheetExportImage": "匯出為圖片",
   "messageExportSheetSingleExportImageSubtitle": "將該訊息渲染為 PNG 圖片",
   "messageExportSheetBatchExportImageSubtitle": "將選中的訊息渲染為 PNG 圖片",
+  "messageExportSheetSegmentedImage": "分段圖片",
+  "messageExportSheetSegmentedImageSubtitle": "將長內容拆成多張圖片",
+  "messageExportSheetImageDownscaled": "圖片已自動降至 {ratio} 以符合大小限制。",
+  "@messageExportSheetImageDownscaled": {
+    "placeholders": {
+      "ratio": {
+        "type": "String"
+      }
+    }
+  },
   "messageExportSheetShowThinkingAndToolCards": "顯示深度思考卡片與工具卡片",
   "messageExportSheetShowThinkingContent": "顯示思考內容",
   "messageExportSheetDateTimeWithSecondsPattern": "yyyy年M月d日 HH:mm:ss",

@@ -21,6 +21,8 @@ version: 1.27.0+110
 environment:
   # enough_convert 1.7.1 requires Dart >= 3.11.0.
   sdk: ^3.11.0
+  # Flutter 3.41 is the first stable release with Dart 3.11.
+  flutter: ">=3.41.0"
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions

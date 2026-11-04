@@ -2240,6 +2240,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messageExportSheetBatchExportImageSubtitle => '将选中的消息渲染为 PNG 图片';
 
   @override
+  String get messageExportSheetSegmentedImage => '分段图片';
+
+  @override
+  String get messageExportSheetSegmentedImageSubtitle => '将长内容拆成多张图片';
+
+  @override
+  String messageExportSheetImageDownscaled(String ratio) {
+    return '图片已自动降至 $ratio 以符合大小限制。';
+  }
+
+  @override
   String get exportDisclaimerAiGenerated => '内容由 AI 生成，请仔细甄别';
 
   @override
@@ -7988,6 +7999,17 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get messageExportSheetBatchExportImageSubtitle => '将选中的消息渲染为 PNG 图片';
 
   @override
+  String get messageExportSheetSegmentedImage => '分段图片';
+
+  @override
+  String get messageExportSheetSegmentedImageSubtitle => '将长内容拆成多张图片';
+
+  @override
+  String messageExportSheetImageDownscaled(String ratio) {
+    return '图片已自动降至 $ratio 以符合大小限制。';
+  }
+
+  @override
   String get exportDisclaimerAiGenerated => '内容由 AI 生成，请仔细甄别';
 
   @override
@@ -13634,6 +13656,17 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get messageExportSheetBatchExportImageSubtitle => '將選中的訊息渲染為 PNG 圖片';
+
+  @override
+  String get messageExportSheetSegmentedImage => '分段圖片';
+
+  @override
+  String get messageExportSheetSegmentedImageSubtitle => '將長內容拆成多張圖片';
+
+  @override
+  String messageExportSheetImageDownscaled(String ratio) {
+    return '圖片已自動降至 $ratio 以符合大小限制。';
+  }
 
   @override
   String get exportDisclaimerAiGenerated => '內容由 AI 生成，請仔細甄別';

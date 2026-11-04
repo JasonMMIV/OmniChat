@@ -39,6 +39,7 @@ import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/providers/tts_provider.dart';
 import '../../../shared/widgets/markdown_with_highlight.dart';
+import '../../../shared/markdown/markdown_render_policy.dart';
 import '../../../shared/markdown/markdown_surface_scope.dart';
 import '../../../shared/widgets/snackbar.dart';
 import 'ai_team_proposals_section.dart';
@@ -936,6 +937,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                   fontSize: baseUser,
                                   height: 1.45,
                                 ),
+                                renderPolicy: MarkdownRenderPolicy.standard,
                               ),
                             );
                           } else {
@@ -1330,7 +1332,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   }) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final style = context.watch<SettingsProvider>().chatMessageBackgroundStyle;
+    final settings = context.watch<SettingsProvider>();
+    final style = settings.chatMessageBackgroundStyle;
     // P0 contrast: tell Markdown how it is painted (solid bubble, frosted, or
     // bare over a chat wallpaper) so body ink stays legible. Solid/default user
     // bubbles keep the plain theme ink; only translucent/bare cases get the
@@ -1363,6 +1366,12 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       surface: mdSurface,
       child: child,
     );
+    final wallpaperScrim = isBareOverWallpaper
+        ? assistantWallpaperScrimColor(
+            cs,
+            maskStrength: settings.chatBackgroundMaskStrength,
+          )
+        : null;
     BorderRadius radius = BorderRadius.circular(16);
     switch (style) {
       case ChatMessageBackgroundStyle.frosted:
@@ -1411,6 +1420,16 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               color: isDark
                   ? cs.primary.withOpacity(0.15)
                   : cs.primary.withOpacity(0.08),
+              borderRadius: radius,
+            ),
+            child: scopedChild,
+          );
+        }
+        if (wallpaperScrim != null) {
+          return Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            decoration: BoxDecoration(
+              color: wallpaperScrim,
               borderRadius: radius,
             ),
             child: scopedChild,

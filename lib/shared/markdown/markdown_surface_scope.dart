@@ -1,5 +1,18 @@
 import 'package:flutter/material.dart';
 
+/// Soft scrim for a bare assistant message painted over a chat wallpaper.
+///
+/// The alpha is deliberately high enough that [ColorScheme.onSurface] keeps
+/// its contrast over bright/dark wallpapers; the text shadow remains as a
+/// secondary safety net. Table/code/details surfaces stay fully opaque.
+Color assistantWallpaperScrimColor(ColorScheme cs, {double maskStrength = 0}) {
+  final base = cs.brightness == Brightness.dark ? 0.88 : 0.84;
+  // The wallpaper mask already darkens/tints the backdrop; avoid stacking a
+  // full-strength scrim on top of an almost-opaque user mask.
+  final alpha = (base - 0.08 * maskStrength.clamp(0.0, 1.0)).clamp(0.0, 1.0);
+  return cs.surface.withValues(alpha: alpha);
+}
+
 /// Paired surface/ink values for Markdown blocks.
 ///
 /// The scope exists so Markdown widgets do not have to guess which background

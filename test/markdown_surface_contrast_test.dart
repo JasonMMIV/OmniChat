@@ -82,6 +82,31 @@ void main() {
     expect(cases, 24);
   });
 
+  test('assistant wallpaper scrim keeps body ink at 4.5:1', () {
+    const lightBackgrounds = <Color>[Color(0xFFFFFFFF), Color(0xFFE8EEF7), Color(0xFFF6E7D7), Color(0xFFE7F6EC)];
+    const darkBackgrounds = <Color>[Color(0xFF121212), Color(0xFF1E2A38), Color(0xFF2A1F2D), Color(0xFF1F2A22)];
+
+    var cases = 0;
+    for (final brightness in Brightness.values) {
+      final cs = ColorScheme.fromSeed(seedColor: const Color(0xFF4C6FFF), brightness: brightness);
+      final scrim = assistantWallpaperScrimColor(cs);
+      final backgrounds = brightness == Brightness.light ? lightBackgrounds : darkBackgrounds;
+      for (final wallpaper in backgrounds) {
+        final effective = Color.alphaBlend(scrim, wallpaper);
+        final ratio = _contrastRatio(cs.onSurface, effective);
+        expect(
+          ratio,
+          greaterThanOrEqualTo(4.5),
+          reason:
+              '${brightness.name} scrim over #${wallpaper.toARGB32().toRadixString(16)} was '
+              '${ratio.toStringAsFixed(2)}:1',
+        );
+        cases++;
+      }
+    }
+    expect(cases, 8);
+  });
+
   test('alert titles meet 4.5:1 on their tinted cards', () {
     var cases = 0;
     for (final brightness in Brightness.values) {
