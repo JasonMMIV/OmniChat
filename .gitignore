@@ -33,6 +33,9 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+# Local dependency override used by the Gate 1 gpt_markdown 1.4 spike.
+# Contents are documented in docs/markdown_rendering_import_plan.md.
+/pubspec_overrides.yaml
 
 # Symbolication related
 app.*.symbols

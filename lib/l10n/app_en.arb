@@ -1386,6 +1386,7 @@
   "displaySettingsPageEnableUserMarkdownTitle": "Markdown",
   "displaySettingsPageEnableReasoningMarkdownTitle": "Reasoning",
   "displaySettingsPageAutoCollapseCodeBlockTitle": "Collapse Code",
+  "displaySettingsPageLongImageTilingTitle": "Tiled Long-Image Export",
   "displaySettingsPageMobileCodeBlockWrapTitle": "Wrap",
   "displaySettingsPageAutoCollapseCodeBlockLinesTitle": "Lines",
   "displaySettingsPageAutoCollapseCodeBlockLinesUnit": "lines",
@@ -1745,6 +1746,14 @@
       }
     }
   },
+  "messageExportSheetImageTooLarge": "The image is too large ({size}). Export Markdown or split the export.",
+  "@messageExportSheetImageTooLarge": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
   "messageExportSheetFormatTitle": "Format",
   "multiKeyPageTitle": "Keys",
   "multiKeyPageDeleteErrorsTooltip": "Delete errors",
@@ -1796,6 +1805,9 @@
   "codeBlockPreviewButton": "Preview",
   "codeBlockDownloadButton": "Download",
   "htmlPreviewNotSupportedOnLinux": "Not on Linux",
+  "htmlPreviewLoadTimeout": "Preview took too long to load.",
+  "htmlPreviewLoadFailed": "Preview could not be loaded.",
+  "htmlPreviewRetry": "Retry",
   "codeBlockCollapsedLines": "{n} lines",
   "@codeBlockCollapsedLines": {
     "placeholders": {
@@ -2237,6 +2249,11 @@
   "chatMessageWidgetFileActions": "File actions",
   "markdownTableLabel": "Table",
   "markdownTableExportMarkdownButton": "Export Markdown",
+  "markdownAlertNoteTitle": "Note",
+  "markdownAlertTipTitle": "Tip",
+  "markdownAlertImportantTitle": "Important",
+  "markdownAlertWarningTitle": "Warning",
+  "markdownAlertCautionTitle": "Caution",
   "mermaidImageTab": "Image",
   "mermaidCodeTab": "Code",
   "webView2NotAvailableTitle": "WebView2 unavailable",

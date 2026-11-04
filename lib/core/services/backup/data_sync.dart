@@ -1451,6 +1451,8 @@ class SharedPreferencesAsync {
     'window_pos_y_v1',
     'window_maximized_v1',
     'display_chat_font_scale_v1',
+    // Long-image export tiling: memory limits differ per device; never sync.
+    'long_image_tiling_v1',
   };
 
   static Future<SharedPreferencesAsync> get instance async {

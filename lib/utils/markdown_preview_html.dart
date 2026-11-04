@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 class MarkdownPreviewHtmlBuilder {
+  static String? _templateCache;
+
   static Future<String> buildFromMarkdown(BuildContext context, String markdown) async {
     final cs = Theme.of(context).colorScheme;
-    final template = await rootBundle.loadString('assets/html/mark.html');
+    final template = _templateCache ??= await rootBundle.loadString('assets/html/mark.html');
     return template
+        .replaceAll('{{BASE_HREF}}', '../')
         .replaceAll('{{MARKDOWN_BASE64}}', base64Encode(utf8.encode(markdown)))
         .replaceAll('{{BACKGROUND_COLOR}}', _toCssHex(cs.background))
         .replaceAll('{{ON_BACKGROUND_COLOR}}', _toCssHex(cs.onBackground))
@@ -32,4 +35,3 @@ extension Base64X on String {
   String base64EncodeString() => base64Encode(utf8.encode(this));
   String base64DecodeString() => utf8.decode(base64Decode(this));
 }
-

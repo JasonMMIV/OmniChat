@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../l10n/app_localizations.dart';
+import '../../utils/markdown_preview_assets.dart';
 
 class WebViewPage extends StatefulWidget {
   const WebViewPage({super.key, this.url, this.contentBase64});
@@ -25,6 +27,7 @@ class _WebViewPageState extends State<WebViewPage> {
   bool _canGoForward = false;
   final List<_ConsoleMessage> _console = <_ConsoleMessage>[];
   bool _consoleOpen = false;
+  File? _contentFile;
 
   @override
   void initState() {
@@ -74,7 +77,9 @@ class _WebViewPageState extends State<WebViewPage> {
       } else {
         final data = widget.contentBase64 ?? '';
         final html = data.isEmpty ? '<!doctype html><html><body></body></html>' : utf8.decode(base64Decode(data));
-        await _controller.loadHtmlString(html);
+        final file = await MarkdownPreviewAssets.instance.writeHtml(html);
+        _contentFile = file;
+        await _controller.loadFile(file.path);
       }
     } catch (_) {
       // WebView2 Runtime missing / load failure (W-C04): inform the user and
@@ -93,6 +98,12 @@ class _WebViewPageState extends State<WebViewPage> {
       Navigator.of(context).maybePop();
       return;
     }
+  }
+
+  @override
+  void dispose() {
+    unawaited(MarkdownPreviewAssets.instance.deleteHtml(_contentFile));
+    super.dispose();
   }
 
   void _onConsoleMessage(JavaScriptMessage msg) {

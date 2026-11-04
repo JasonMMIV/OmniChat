@@ -68,7 +68,11 @@ Future<MessageMoreAction?> showMessageMoreSheet(BuildContext context, ChatMessag
             final html = await MarkdownPreviewHtmlBuilder.buildFromMarkdown(context, processed);
             // After menu close, open as desktop dialog
             Future.delayed(const Duration(milliseconds: 40), () {
-              showHtmlPreviewDesktopDialog(context, html: html);
+              showHtmlPreviewDesktopDialog(
+                context,
+                html: html,
+                isMarkdown: true,
+              );
             });
           } catch (e) {
             showAppSnackBar(context, message: e.toString(), type: NotificationType.error);

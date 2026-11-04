@@ -5865,6 +5865,12 @@ abstract class AppLocalizations {
   /// **'Collapse Code'**
   String get displaySettingsPageAutoCollapseCodeBlockTitle;
 
+  /// No description provided for @displaySettingsPageLongImageTilingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tiled Long-Image Export'**
+  String get displaySettingsPageLongImageTilingTitle;
+
   /// No description provided for @displaySettingsPageMobileCodeBlockWrapTitle.
   ///
   /// In en, this message translates to:
@@ -7590,6 +7596,12 @@ abstract class AppLocalizations {
   /// **'Failed: {error}'**
   String messageExportSheetExportFailed(String error);
 
+  /// No description provided for @messageExportSheetImageTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'The image is too large ({size}). Export Markdown or split the export.'**
+  String messageExportSheetImageTooLarge(String size);
+
   /// No description provided for @messageExportSheetFormatTitle.
   ///
   /// In en, this message translates to:
@@ -7811,6 +7823,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Not on Linux'**
   String get htmlPreviewNotSupportedOnLinux;
+
+  /// No description provided for @htmlPreviewLoadTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview took too long to load.'**
+  String get htmlPreviewLoadTimeout;
+
+  /// No description provided for @htmlPreviewLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview could not be loaded.'**
+  String get htmlPreviewLoadFailed;
+
+  /// No description provided for @htmlPreviewRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get htmlPreviewRetry;
 
   /// No description provided for @codeBlockCollapsedLines.
   ///
@@ -9881,6 +9911,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Export Markdown'**
   String get markdownTableExportMarkdownButton;
+
+  /// No description provided for @markdownAlertNoteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Note'**
+  String get markdownAlertNoteTitle;
+
+  /// No description provided for @markdownAlertTipTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tip'**
+  String get markdownAlertTipTitle;
+
+  /// No description provided for @markdownAlertImportantTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Important'**
+  String get markdownAlertImportantTitle;
+
+  /// No description provided for @markdownAlertWarningTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Warning'**
+  String get markdownAlertWarningTitle;
+
+  /// No description provided for @markdownAlertCautionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Caution'**
+  String get markdownAlertCautionTitle;
 
   /// No description provided for @mermaidImageTab.
   ///

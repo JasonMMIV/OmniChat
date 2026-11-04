@@ -3091,6 +3091,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get displaySettingsPageAutoCollapseCodeBlockTitle => 'Collapse Code';
 
   @override
+  String get displaySettingsPageLongImageTilingTitle =>
+      'Tiled Long-Image Export';
+
+  @override
   String get displaySettingsPageMobileCodeBlockWrapTitle => 'Wrap';
 
   @override
@@ -3992,6 +3996,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String messageExportSheetImageTooLarge(String size) {
+    return 'The image is too large ($size). Export Markdown or split the export.';
+  }
+
+  @override
   String get messageExportSheetFormatTitle => 'Format';
 
   @override
@@ -4105,6 +4114,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get htmlPreviewNotSupportedOnLinux => 'Not on Linux';
+
+  @override
+  String get htmlPreviewLoadTimeout => 'Preview took too long to load.';
+
+  @override
+  String get htmlPreviewLoadFailed => 'Preview could not be loaded.';
+
+  @override
+  String get htmlPreviewRetry => 'Retry';
 
   @override
   String codeBlockCollapsedLines(int n) {
@@ -5197,6 +5215,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get markdownTableExportMarkdownButton => 'Export Markdown';
+
+  @override
+  String get markdownAlertNoteTitle => 'Note';
+
+  @override
+  String get markdownAlertTipTitle => 'Tip';
+
+  @override
+  String get markdownAlertImportantTitle => 'Important';
+
+  @override
+  String get markdownAlertWarningTitle => 'Warning';
+
+  @override
+  String get markdownAlertCautionTitle => 'Caution';
 
   @override
   String get mermaidImageTab => 'Image';

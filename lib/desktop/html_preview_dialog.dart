@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_windows/webview_windows.dart' as winweb;
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:io' as io;
@@ -11,9 +12,15 @@ import '../l10n/app_localizations.dart';
 import '../icons/lucide_adapter.dart';
 import '../shared/widgets/snackbar.dart';
 import '../shared/widgets/ios_tactile.dart';
+import '../utils/markdown_preview_assets.dart';
 import 'dart:convert';
 
-Future<void> showHtmlPreviewDesktopDialog(BuildContext context, {required String html, bool isXml = false}) async {
+Future<void> showHtmlPreviewDesktopDialog(
+  BuildContext context, {
+  required String html,
+  bool isXml = false,
+  required bool isMarkdown,
+}) async {
   if (Platform.isLinux) {
     final l10n = AppLocalizations.of(context)!;
     showAppSnackBar(context, message: l10n.htmlPreviewNotSupportedOnLinux, type: NotificationType.warning);
@@ -22,17 +29,18 @@ Future<void> showHtmlPreviewDesktopDialog(BuildContext context, {required String
   await showDialog(
     context: context,
     barrierDismissible: true,
-    builder: (ctx) => _HtmlPreviewDialog(html: html, isXml: isXml),
+    builder: (ctx) => _HtmlPreviewDialog(html: html, isXml: isXml, isMarkdown: isMarkdown),
   );
 }
 
 class _HtmlPreviewDialog extends StatefulWidget {
-  const _HtmlPreviewDialog({required this.html, this.isXml = false});
+  const _HtmlPreviewDialog({required this.html, this.isXml = false, required this.isMarkdown});
   final String html;
   // When true, the content is XML/SVG and is loaded as a standalone XML
   // document so the browser renders its native collapsible tree (or the SVG
   // graphic). HTML wrapping/theme injection is skipped for XML.
   final bool isXml;
+  final bool isMarkdown;
 
   @override
   State<_HtmlPreviewDialog> createState() => _HtmlPreviewDialogState();
@@ -86,7 +94,9 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
       if (_disposed) return;
       _initialized = true;
       _winCtrl = c;
-      try { await c.setBackgroundColor(const Color(0x00000000)); } catch (_) {}
+      try {
+        await c.setBackgroundColor(const Color(0x00000000));
+      } catch (_) {}
       if (_disposed) return;
       // Listen to web messages (console bridge)
       _msgSub = _winCtrl!.webMessage.listen((event) {
@@ -99,7 +109,12 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
             text = (e.content?.toString() ?? e.toString());
           }
           final obj = json.decode(text) as Map<String, dynamic>;
-          _pushConsole(level: (obj['level']?.toString() ?? 'log').toUpperCase(), message: obj['message']?.toString() ?? '', source: obj['source']?.toString(), line: (obj['line'] as num?)?.toInt());
+          _pushConsole(
+            level: (obj['level']?.toString() ?? 'log').toUpperCase(),
+            message: obj['message']?.toString() ?? '',
+            source: obj['source']?.toString(),
+            line: (obj['line'] as num?)?.toInt(),
+          );
         } catch (_) {}
       });
       if (_disposed) {
@@ -113,14 +128,22 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
       if (_disposed) return;
       final c = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..addJavaScriptChannel('Console', onMessageReceived: (m) {
-          try {
-            final obj = json.decode(m.message) as Map<String, dynamic>;
-            _pushConsole(level: (obj['level']?.toString() ?? 'log').toUpperCase(), message: obj['message']?.toString() ?? '', source: obj['source']?.toString(), line: (obj['line'] as num?)?.toInt());
-          } catch (_) {
-            _pushConsole(level: 'LOG', message: m.message);
-          }
-        });
+        ..addJavaScriptChannel(
+          'Console',
+          onMessageReceived: (m) {
+            try {
+              final obj = json.decode(m.message) as Map<String, dynamic>;
+              _pushConsole(
+                level: (obj['level']?.toString() ?? 'log').toUpperCase(),
+                message: obj['message']?.toString() ?? '',
+                source: obj['source']?.toString(),
+                line: (obj['line'] as num?)?.toInt(),
+              );
+            } catch (_) {
+              _pushConsole(level: 'LOG', message: m.message);
+            }
+          },
+        );
       _flutterCtrl = c;
       _ready = true;
       if (mounted) setState(() {});
@@ -142,11 +165,11 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
     return '''<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><style>html,body{background:${bg};color:${fg};margin:0;padding:0}.container{padding:12px}img,video,canvas,iframe{max-width:100%;height:auto}pre,code{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, \"Liberation Mono\", monospace;}</style></head><body><div class="container">${input}</div></body></html>''';
   }
 
-  Future<String> _writeTempFile(String content, String extension) async {
+  Future<io.File> _writeTempFile(String content, String extension) async {
     final dir = await getTemporaryDirectory();
-    final file = io.File('${dir.path}/preview_${DateTime.now().millisecondsSinceEpoch}$extension');
+    final file = io.File('${dir.path}/preview_${DateTime.now().microsecondsSinceEpoch}$extension');
     await file.writeAsString(content, flush: true);
-    return file.path;
+    return file;
   }
 
   /// C-S04: preview_*.html/.xml temp files used to accumulate forever.
@@ -159,25 +182,43 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
     try {
       final f = io.File(old);
       if (f.existsSync()) f.deleteSync();
-    } catch (_) {/* file may still be held briefly by the webview; ignore */}
+      final parent = f.parent;
+      if (p.basename(parent.path).startsWith('preview_') && parent.existsSync()) {
+        parent.deleteSync(recursive: true);
+      }
+    } catch (_) {
+      /* file may still be held briefly by the webview; ignore */
+    }
   }
 
-  void _openInBrowser() {
-    final ext = widget.isXml ? '.xml' : '.html';
-    _writeTempFile(widget.html, ext).then((path) async {
-      if (!mounted) return;
-      final ok = await launchUrl(Uri.file(path), mode: LaunchMode.externalApplication);
-      if (!ok && mounted) {
-        showAppSnackBar(context,
-            message: AppLocalizations.of(context)!.webView2NotAvailableMessage,
-            type: NotificationType.error);
-      }
-    });
+  Future<void> _openInBrowser() async {
+    String path;
+    if (widget.isXml) {
+      path = (await _writeTempFile(widget.html, '.xml')).path;
+    } else if (widget.isMarkdown) {
+      // Keep the HTML beside vendor/ so relative scripts/CSS/fonts resolve.
+      // This file is intentionally not tracked/deleted: the external browser
+      // may still be reading it after this dialog closes.
+      path = (await MarkdownPreviewAssets.instance.writeExternalHtml(widget.html)).path;
+    } else {
+      path = (await _writeTempFile(widget.html, '.html')).path;
+    }
+    if (!mounted) return;
+    final ok = await launchUrl(Uri.file(path), mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      showAppSnackBar(
+        context,
+        message: AppLocalizations.of(context)!.webView2NotAvailableMessage,
+        type: NotificationType.error,
+      );
+    }
   }
 
   void _openWebView2Download() {
-    launchUrl(Uri.parse('https://developer.microsoft.com/microsoft-edge/webview2/'),
-        mode: LaunchMode.externalApplication);
+    launchUrl(
+      Uri.parse('https://developer.microsoft.com/microsoft-edge/webview2/'),
+      mode: LaunchMode.externalApplication,
+    );
   }
 
   Future<void> _loadWithTheme() async {
@@ -185,7 +226,7 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
     if (widget.isXml) {
       // Native XML document view: no theme dependence, load once.
       if (_xmlLoaded) return;
-      final path = await _writeTempFile(widget.html, '.xml');
+      final path = (await _writeTempFile(widget.html, '.xml')).path;
       _deleteOldTempFile(); // C-S04
       _tempFilePath = path;
       if (Platform.isWindows) {
@@ -201,13 +242,15 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
     if (_loadedOnce && _lastDark == isDark) return; // no change
     _lastDark = isDark;
     final html = _wrapWithTheme(widget.html, isDark: isDark);
+    final file = widget.isMarkdown
+        ? await MarkdownPreviewAssets.instance.writeHtml(html)
+        : await _writeTempFile(html, '.html');
+    _deleteOldTempFile(); // C-S04
+    _tempFilePath = file.path;
     if (Platform.isWindows) {
-      final path = await _writeTempFile(html, '.html');
-      _deleteOldTempFile(); // C-S04
-      _tempFilePath = path;
-      await _winCtrl?.loadUrl(Uri.file(path).toString());
+      await _winCtrl?.loadUrl(Uri.file(file.path).toString());
     } else {
-      await _flutterCtrl?.loadHtmlString(html);
+      await _flutterCtrl?.loadFile(file.path);
     }
     _loadedOnce = true;
     if (mounted) setState(() {});
@@ -218,7 +261,9 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     // Keep content updated with theme changes
-    WidgetsBinding.instance.addPostFrameCallback((_) { _loadWithTheme(); });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadWithTheme();
+    });
     return Dialog(
       elevation: 12,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -237,7 +282,10 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
                   child: Row(
                     children: [
                       // Left title
-                      Text(l10n.assistantEditPreviewTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                      Text(
+                        l10n.assistantEditPreviewTitle,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      ),
                       const Spacer(),
                       // Right function buttons
                       IosIconButton(
@@ -276,12 +324,16 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
                                   children: [
                                     Icon(Icons.warning_amber_rounded, size: 36, color: cs.error),
                                     const SizedBox(height: 12),
-                                    Text(l10n.webView2NotAvailableTitle,
-                                        style: Theme.of(context).textTheme.titleMedium),
+                                    Text(
+                                      l10n.webView2NotAvailableTitle,
+                                      style: Theme.of(context).textTheme.titleMedium,
+                                    ),
                                     const SizedBox(height: 8),
-                                    Text(l10n.webView2NotAvailableMessage,
-                                        textAlign: TextAlign.center,
-                                        style: Theme.of(context).textTheme.bodyMedium),
+                                    Text(
+                                      l10n.webView2NotAvailableMessage,
+                                      textAlign: TextAlign.center,
+                                      style: Theme.of(context).textTheme.bodyMedium,
+                                    ),
                                     const SizedBox(height: 16),
                                     Wrap(
                                       spacing: 8,
@@ -326,22 +378,38 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
     );
   }
 
+  void _pushConsole({required String level, required String message, String? source, int? line}) {
+    if (!mounted) return;
+    setState(() {
+      _console.add(_ConsoleMessage(level: level, message: message, source: source, line: line));
+      if (_console.length > 128) {
+        _console.removeRange(0, _console.length - 128);
+      }
+    });
+  }
+
   @override
   void dispose() {
     // Mark disposed FIRST so that any in-flight _init() continuation, after
     // its next await, observes the flag and exits without touching COM.
     _disposed = true;
-    try { _msgSub?.cancel(); } catch (_) {}
+    try {
+      _msgSub?.cancel();
+    } catch (_) {}
     // C-S04: clean up the preview_*.html/.xml temp file backing this dialog.
     // Note: files opened via _openInBrowser are deliberately NOT tracked/deleted
     // since the external browser may still read them.
-    try { _deleteOldTempFile(); } catch (_) {}
+    try {
+      _deleteOldTempFile();
+    } catch (_) {}
     // Only synchronously dispose the native controller when initialize() has
     // already completed. Disposing while initialize() is still pending races
     // the COM heap (source of 0xc0000374 ntdll crashes traced in v1.5.29).
     // If init is still in flight, leave native cleanup to Dart GC.
     if (_initialized && _winCtrl != null) {
-      try { _winCtrl!.dispose(); } catch (_) {}
+      try {
+        _winCtrl!.dispose();
+      } catch (_) {}
     }
     super.dispose();
   }
@@ -355,10 +423,14 @@ extension _ConsoleDialogExt on _HtmlPreviewDialogState {
       barrierDismissible: true,
       barrierColor: Colors.black.withOpacity(0.25),
       barrierLabel: 'console-logs',
-      pageBuilder: (ctx, _, __) => _ConsoleDialog(title: l10n.messageWebViewConsoleLogs, messages: List<_ConsoleMessage>.from(_console)),
+      pageBuilder: (ctx, _, __) =>
+          _ConsoleDialog(title: l10n.messageWebViewConsoleLogs, messages: List<_ConsoleMessage>.from(_console)),
       transitionBuilder: (ctx, anim, _, child) {
         final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
-        return FadeTransition(opacity: curved, child: ScaleTransition(scale: Tween<double>(begin: 0.98, end: 1).animate(curved), child: child));
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(scale: Tween<double>(begin: 0.98, end: 1).animate(curved), child: child),
+        );
       },
     );
   }
@@ -405,31 +477,41 @@ class _ConsoleDialog extends StatelessWidget {
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: Builder(builder: (context) {
-                      final listView = ListView.builder(
-                        itemCount: messages.length,
-                        itemBuilder: (ctx, i) {
-                          final m = messages[i];
-                          Color c;
-                          switch (m.level) {
-                            case 'ERROR': c = cs.error; break;
-                            case 'WARN':
-                            case 'WARNING': c = cs.secondary; break;
-                            default: c = cs.onSurface; break;
-                          }
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Text(
-                              '${m.level}: ${m.message}\nSource: ${m.source ?? ''}${m.line != null ? ':${m.line}' : ''}',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: c, fontFamily: 'monospace'),
-                            ),
-                          );
-                        },
-                      );
-                      return defaultTargetPlatform == TargetPlatform.windows
-                          ? listView
-                          : SelectionArea(child: listView);
-                    }),
+                    child: Builder(
+                      builder: (context) {
+                        final listView = ListView.builder(
+                          itemCount: messages.length,
+                          itemBuilder: (ctx, i) {
+                            final m = messages[i];
+                            Color c;
+                            switch (m.level) {
+                              case 'ERROR':
+                                c = cs.error;
+                                break;
+                              case 'WARN':
+                              case 'WARNING':
+                                c = cs.secondary;
+                                break;
+                              default:
+                                c = cs.onSurface;
+                                break;
+                            }
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Text(
+                                '${m.level}: ${m.message}\nSource: ${m.source ?? ''}${m.line != null ? ':${m.line}' : ''}',
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.bodySmall?.copyWith(color: c, fontFamily: 'monospace'),
+                              ),
+                            );
+                          },
+                        );
+                        return defaultTargetPlatform == TargetPlatform.windows
+                            ? listView
+                            : SelectionArea(child: listView);
+                      },
+                    ),
                   ),
                 ),
               ],
@@ -447,18 +529,6 @@ class _ConsoleMessage {
   final String message;
   final String? source;
   final int? line;
-}
-
-extension on _HtmlPreviewDialogState {
-  void _pushConsole({required String level, required String message, String? source, int? line}) {
-    if (!mounted) return;
-    setState(() {
-      _console.add(_ConsoleMessage(level: level, message: message, source: source, line: line));
-      if (_console.length > 128) {
-        _console.removeRange(0, _console.length - 128);
-      }
-    });
-  }
 }
 
 // (Bottom sheet version removed; desktop uses custom dialog.)

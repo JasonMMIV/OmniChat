@@ -1188,6 +1188,14 @@ class RenderingSettingsPage extends StatelessWidget {
             _iosDivider(context),
             _iosSwitchRow(context, icon: Lucide.WrapText, label: l10n.displaySettingsPageMobileCodeBlockWrapTitle, value: sp.mobileCodeBlockWrap, onChanged: (v) => context.read<SettingsProvider>().setMobileCodeBlockWrap(v)),
           ],
+          _iosDivider(context),
+          _iosSwitchRow(
+            context,
+            icon: Lucide.Maximize2,
+            label: l10n.displaySettingsPageLongImageTilingTitle,
+            value: sp.longImageTilingEnabled,
+            onChanged: (v) => context.read<SettingsProvider>().setLongImageTilingEnabled(v),
+          ),
         ]),
       ]),
     );

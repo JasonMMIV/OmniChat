@@ -64,3 +64,52 @@ shaping, usage parsing) and changes the following for OmniChat:
 
 These derivative files remain licensed under AGPL-3.0. The app registers the
 same notice in the in-app license page (`LicenseRegistry` in `lib/main.dart`).
+
+## Markdown preview vendor assets
+
+`assets/html/mark.html` loads the following vendored browser libraries from
+`assets/html/vendor/` so Markdown preview works offline (no CDN/ES-module
+requests). They are unmodified except `markdown-it-katex.min.js`, which is the
+`@vscode/markdown-it-katex` ESM bundle wrapped as a classic IIFE with esbuild.
+
+| Package | Version | License | Source |
+|:--|:--|:--|:--|
+| markdown-it | 14.0.0 | MIT | https://github.com/markdown-it/markdown-it |
+| markdown-it-task-lists | 2.1.1 | ISC | https://github.com/revin/markdown-it-task-lists |
+| @vscode/markdown-it-katex | 1.1.2 | MIT | https://github.com/microsoft/markdown-it-katex |
+| KaTeX (JS, CSS, fonts) | 0.16.8 | MIT | https://github.com/KaTeX/KaTeX |
+| highlight.js | 11.9.0 | BSD-3-Clause | https://github.com/highlightjs/highlight.js |
+| DOMPurify | 3.2.4 | Apache-2.0 OR MPL-2.0 | https://github.com/cure53/DOMPurify |
+| js-base64 | 3.7.5 | BSD-3-Clause | https://github.com/dankogai/js-base64 |
+| Mermaid | existing app asset | MIT | https://github.com/mermaid-js/mermaid |
+
+See `assets/html/vendor/README.md` for exact file names, versions and the
+reproduction command.
+
+## Markdown rendering dependencies
+
+Production dependencies used by the Markdown renderer:
+
+| Package | Version | License | Source |
+|:--|:--|:--|:--|
+| gpt_markdown | 1.3.0 | BSD-3-Clause | https://github.com/useval/gpt_markdown |
+| flutter_svg | 2.3.0 | MIT | https://pub.dev/packages/flutter_svg |
+
+The following packages are pulled in only by the `gpt_markdown` 1.4.0 Gate 1
+spike in `pubspec_overrides.yaml`. They are not part of the production
+dependency set until the modern pipeline is accepted and the override is
+removed.
+
+| Package | Version | License | Source |
+|:--|:--|:--|:--|
+| gpt_markdown | 1.4.0 | BSD-3-Clause | https://github.com/useval/gpt_markdown |
+| material_ui | 1.10.0 | BSD-3-Clause | https://github.com/flutter/packages |
+| val_latex_flutter | 0.1.3 | BSD-3-Clause; Latin Modern fonts under GUST Font License | https://pub.dev/packages/val_latex_flutter |
+| val_latex | 0.1.3 | BSD-3-Clause | https://pub.dev/packages/val_latex |
+| val_highlight | 0.1.1 | BSD-3-Clause | https://pub.dev/packages/val_highlight |
+| val_highlight_flutter | 0.1.1 | BSD-3-Clause | https://pub.dev/packages/val_highlight_flutter |
+
+The bundled Latin Modern font license is available at
+`fonts/latin-modern/GUST-FONT-LICENSE.txt` in the `val_latex_flutter` package.
+If Gate 1 is reverted, remove the 1.4.0 spike rows together with the override;
+the production `gpt_markdown` 1.3.0 and `flutter_svg` entries remain.

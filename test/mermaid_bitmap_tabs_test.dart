@@ -12,6 +12,7 @@ import 'package:OmniChat/core/providers/settings_provider.dart';
 import 'package:OmniChat/features/chat/pages/image_viewer_page.dart';
 import 'package:OmniChat/l10n/app_localizations.dart';
 import 'package:OmniChat/shared/widgets/markdown_with_highlight.dart';
+import 'package:OmniChat/shared/widgets/mermaid_failure_cache.dart';
 import 'package:OmniChat/shared/widgets/mermaid_image_cache.dart';
 
 /// 1x1 transparent PNG so the bitmap path resolves without a codec error.
@@ -51,6 +52,7 @@ void main() {
   setUp(() {
     FlutterSecureStorage.setMockInitialValues({});
     SharedPreferences.setMockInitialValues({});
+    MermaidFailureCache.instance.clearAll();
   });
 
   testWidgets('renders image/code tabs and header actions', (tester) async {

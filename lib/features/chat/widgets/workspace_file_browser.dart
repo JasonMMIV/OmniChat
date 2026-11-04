@@ -227,12 +227,21 @@ class _WorkspaceFileBrowserState extends State<WorkspaceFileBrowser> {
         defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.linux;
     if (isDesktop) {
-      await showHtmlPreviewDesktopDialog(context, html: html, isXml: isXml);
+      await showHtmlPreviewDesktopDialog(
+        context,
+        html: html,
+        isXml: isXml,
+        isMarkdown: ext == 'md' || ext == 'markdown',
+      );
       return;
     }
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => HtmlPreviewPage(html: html, isXml: isXml),
+        builder: (_) => HtmlPreviewPage(
+          html: html,
+          isXml: isXml,
+          isMarkdown: ext == 'md' || ext == 'markdown',
+        ),
       ),
     );
   }

@@ -10,6 +10,7 @@ void main() {
   const fontScaleKey = 'display_chat_font_scale_v1';
   const windowWidthKey = 'window_width_v1';
   const privateHostsKey = 'web_fetch_allow_private_hosts_v1';
+  const longImageTilingKey = 'long_image_tiling_v1';
   const normalKey = 'some_regular_setting_v1';
 
   setUp(() {
@@ -17,6 +18,7 @@ void main() {
       fontScaleKey: 1.4,
       windowWidthKey: 1200,
       privateHostsKey: false,
+      longImageTilingKey: false,
       normalKey: 'hello',
     });
   });
@@ -34,6 +36,11 @@ void main() {
         isFalse,
         reason: 'allowing private hosts is device/network specific',
       );
+      expect(
+        map.containsKey(longImageTilingKey),
+        isFalse,
+        reason: 'long-image tiling depends on device memory limits',
+      );
       expect(map[normalKey], 'hello');
     });
 
@@ -43,6 +50,7 @@ void main() {
         fontScaleKey: 0.8,
         windowWidthKey: 800,
         privateHostsKey: true,
+        longImageTilingKey: true,
         normalKey: 'world',
       });
 
@@ -51,6 +59,7 @@ void main() {
           reason: 'local-only keys must not be overwritten by sync restore');
       expect(stored.getInt(windowWidthKey), 1200);
       expect(stored.getBool(privateHostsKey), isFalse);
+      expect(stored.getBool(longImageTilingKey), isFalse);
       expect(stored.getString(normalKey), 'world');
     });
 

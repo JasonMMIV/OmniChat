@@ -35,7 +35,13 @@ class _MermaidInlineWindowsViewState extends State<_MermaidInlineWindowsView> {
   double _height = 200;
   String? _lastThemeVarsSig;
   String? _tempFilePath;
-  Completer<String?>? _exportCompleter;
+
+  // Render-complete protocol (plan §3.8/§4.5): HTML reports `rendered` after
+  // mermaid.run settles; exports carry a requestId so late replies are dropped.
+  Completer<void> _renderedCompleter = Completer<void>();
+  final Map<int, Completer<String?>> _pendingExports = <int, Completer<String?>>{};
+  int _nextExportId = 1;
+  bool _renderFailed = false;
   Timer? _heightDebounce;
   // Race-safe init/dispose guards (v1.5.29 Fix C):
   // _controller.initialize() is asynchronous (it spawns native WebView2 COM
@@ -111,10 +117,22 @@ class _MermaidInlineWindowsViewState extends State<_MermaidInlineWindowsView> {
             try { MermaidHeightCache.put(widget.code, _height); } catch (_) {}
           });
         }
+      } else if (type == 'rendered') {
+        if (map['ok'] != true) _renderFailed = true;
+        if (!_renderedCompleter.isCompleted) {
+          _renderedCompleter.complete();
+        }
+      } else if (type == 'error') {
+        _renderFailed = true;
+        if (!_renderedCompleter.isCompleted) {
+          _renderedCompleter.complete();
+        }
       } else if (type == 'export') {
         final b64 = map['data'] as String?;
-        if (_exportCompleter != null && !(_exportCompleter!.isCompleted)) {
-          _exportCompleter!.complete(b64?.isNotEmpty == true ? b64 : null);
+        final requestId = (map['requestId'] as num?)?.toInt();
+        final completer = requestId == null ? null : _pendingExports[requestId];
+        if (completer != null && !completer.isCompleted) {
+          completer.complete(b64?.isNotEmpty == true ? b64 : null);
         }
       }
     } catch (_) {}
@@ -147,6 +165,7 @@ class _MermaidInlineWindowsViewState extends State<_MermaidInlineWindowsView> {
   }
 
   Future<void> _loadHtml() async {
+    _resetRenderState();
     try {
       final mermaidJs = await rootBundle.loadString('assets/mermaid.min.js');
       final html = _buildWindowsHtml(widget.code, widget.dark, mermaidJs, widget.themeVars);
@@ -171,17 +190,56 @@ class _MermaidInlineWindowsViewState extends State<_MermaidInlineWindowsView> {
     return entries.map((e) => '${e.key}=${e.value}').join('&');
   }
 
+  /// Resets render state when the HTML is (re)loaded. Old in-flight exports
+  /// must not resolve against the new page.
+  void _resetRenderState() {
+    _renderFailed = false;
+    if (!_renderedCompleter.isCompleted) _renderedCompleter.complete();
+    _renderedCompleter = Completer<void>();
+    for (final c in _pendingExports.values) {
+      if (!c.isCompleted) c.complete(null);
+    }
+    _pendingExports.clear();
+
+  }
+
   Future<Uint8List?> exportPngBytes() async {
+    // If the HTML is reloaded (code/theme change) while we wait, the old
+    // completer resolves without a render; wait for the new page instead of
+    // failing the export. Bounded by a 10 s deadline across reloads.
+    final stopwatch = Stopwatch()..start();
+    var reloads = 0;
+    while (true) {
+      final rendered = _renderedCompleter;
+      final remaining = const Duration(seconds: 10) - stopwatch.elapsed;
+      if (remaining <= Duration.zero) return null;
+      final wait = remaining < const Duration(seconds: 5)
+          ? remaining
+          : const Duration(seconds: 5);
+      try {
+        await rendered.future.timeout(wait);
+      } catch (_) {
+        return null;
+      }
+      if (identical(rendered, _renderedCompleter)) break;
+      // Reloaded while waiting; wait for the new page, but never spin hot.
+      reloads++;
+      if (reloads >= 4) return null;
+      await Future<void>.delayed(const Duration(milliseconds: 16));
+    }
+    if (_renderFailed) return null;
+    final id = _nextExportId++;
+    final completer = Completer<String?>();
+    _pendingExports[id] = completer;
     try {
-      _exportCompleter = Completer<String?>();
-      _controller.executeScript('exportSvgToPng();');
-      final b64 = await _exportCompleter!.future.timeout(const Duration(seconds: 8));
+      _controller.executeScript('exportSvgToPng($id);');
+      final b64 = await completer.future.timeout(const Duration(seconds: 5));
       if (b64 == null || b64.isEmpty) return null;
       return base64Decode(b64);
     } catch (_) {
       return null;
     } finally {
-      _exportCompleter = null;
+      _pendingExports.remove(id);
     }
   }
 
@@ -194,6 +252,11 @@ class _MermaidInlineWindowsViewState extends State<_MermaidInlineWindowsView> {
     _heightDebounce = null;
     try { _msgSub?.cancel(); } catch (_) {}
     _msgSub = null;
+    if (!_renderedCompleter.isCompleted) _renderedCompleter.complete();
+    for (final c in _pendingExports.values) {
+      if (!c.isCompleted) c.complete(null);
+    }
+    _pendingExports.clear();
     // Only synchronously dispose the native controller when initialize() has
     // already completed. Calling dispose() while initialize() is still in
     // flight races the COM heap and is the source of the 0xc0000374
@@ -254,10 +317,10 @@ class _MermaidInlineWindowsViewState extends State<_MermaidInlineWindowsView> {
           }
         }catch(e){}
       }
-      function exportSvgToPng(){
+      function exportSvgToPng(requestId){
         try{
           const svg = document.querySelector('.mermaid svg');
-          if(!svg){ sendExport(''); return; }
+          if(!svg){ sendExport('', requestId); return; }
           let w = 0, h = 0;
           try {
             if (svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width && svg.viewBox.baseVal.height) {
@@ -292,13 +355,13 @@ class _MermaidInlineWindowsViewState extends State<_MermaidInlineWindowsView> {
             const b64 = data.split(',')[1] || '';
             sendExport(b64);
           };
-          img.onerror = function(){ sendExport(''); };
+          img.onerror = function(){ sendExport('', requestId); };
           img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(xml)));
-        }catch(e){ sendExport(''); }
+        }catch(e){ sendExport('', requestId); }
       }
-      function sendExport(b64){
+      function sendExport(b64, requestId){
         if (window.chrome && window.chrome.webview) {
-          window.chrome.webview.postMessage(JSON.stringify({type:'export', data: b64}));
+          window.chrome.webview.postMessage(JSON.stringify({type:'export', requestId: requestId, data: b64}));
         }
       }
       if (window.chrome && window.chrome.webview) {
@@ -306,15 +369,25 @@ class _MermaidInlineWindowsViewState extends State<_MermaidInlineWindowsView> {
           try {
             const data = JSON.parse(event.data || '{}');
             if (data.action === 'export') {
-              exportSvgToPng();
+              exportSvgToPng(data.requestId);
             } else if (data.action === 'height') {
               postHeight();
             }
           } catch (_) {}
         });
       }
-      mermaid.initialize({ startOnLoad:false, theme: '${dark ? 'dark' : 'default'}', securityLevel:'loose', fontFamily: 'inherit', themeVariables: ${themeVarsJson} });
-      mermaid.run({ querySelector: '.mermaid' }).then(postHeight).catch(postHeight);
+      function sendLifecycle(type, extra){
+        try {
+          if (window.chrome && window.chrome.webview) {
+            window.chrome.webview.postMessage(JSON.stringify(Object.assign({type: type}, extra || {})));
+          }
+        } catch(_) {}
+      }
+      sendLifecycle('ready');
+      // securityLevel 'strict' is safe on mermaid 10.6.1: <br> in labels still
+      // renders as a real line break (verified 2026-11-04; no <br> rewrite).
+      mermaid.initialize({ startOnLoad:false, theme: '${dark ? 'dark' : 'default'}', securityLevel:'strict', fontFamily: 'inherit', themeVariables: ${themeVarsJson} });
+      mermaid.run({ querySelector: '.mermaid' }).then(function(){ postHeight(); sendLifecycle('rendered', {ok: true}); }).catch(function(e){ postHeight(); sendLifecycle('rendered', {ok: false, message: String(e && e.message ? e.message : e)}); });
       window.addEventListener('resize', postHeight);
       document.addEventListener('DOMContentLoaded', postHeight);
       setTimeout(postHeight, 200);
@@ -409,7 +482,11 @@ class _MermaidInlineWebView extends StatefulWidget {
 class _MermaidInlineWebViewState extends State<_MermaidInlineWebView> {
   late final WebViewController _controller;
   double _height = 160;
-  Completer<String?>? _exportCompleter;
+
+  Completer<void> _renderedCompleter = Completer<void>();
+  final Map<int, Completer<String?>> _pendingExports = <int, Completer<String?>>{};
+  int _nextExportId = 1;
+  bool _renderFailed = false;
   String? _lastThemeVarsSig;
   Timer? _heightDebounce;
 
@@ -437,10 +514,30 @@ class _MermaidInlineWebViewState extends State<_MermaidInlineWebView> {
           });
         }
       })
+      ..addJavaScriptChannel('LifecycleChannel', onMessageReceived: (JavaScriptMessage msg) {
+        try {
+          final map = json.decode(msg.message) as Map<String, dynamic>;
+          if (map['type'] == 'rendered') {
+            if (map['ok'] != true) _renderFailed = true;
+            if (!_renderedCompleter.isCompleted) {
+              _renderedCompleter.complete();
+            }
+          }
+        } catch (_) {}
+      })
       ..addJavaScriptChannel('ExportChannel', onMessageReceived: (JavaScriptMessage msg) {
-        if (_exportCompleter != null && !(_exportCompleter!.isCompleted)) {
-          final b64 = msg.message;
-          _exportCompleter!.complete(b64.isEmpty ? null : b64);
+        String? b64;
+        int? requestId;
+        try {
+          final map = json.decode(msg.message) as Map<String, dynamic>;
+          b64 = map['data'] as String?;
+          requestId = (map['requestId'] as num?)?.toInt();
+        } catch (_) {
+          b64 = msg.message;
+        }
+        final completer = requestId == null ? null : _pendingExports[requestId];
+        if (completer != null && !completer.isCompleted) {
+          completer.complete((b64 == null || b64.isEmpty) ? null : b64);
         }
       });
     _loadHtml();
@@ -476,6 +573,7 @@ class _MermaidInlineWebViewState extends State<_MermaidInlineWebView> {
   }
 
   Future<void> _loadHtml() async {
+    _resetRenderState();
     // Load mermaid script from assets and inline it to avoid external requests.
     final mermaidJs = await rootBundle.loadString('assets/mermaid.min.js');
     final html = _buildHtml(widget.code, widget.dark, mermaidJs, widget.themeVars);
@@ -525,10 +623,10 @@ class _MermaidInlineWebViewState extends State<_MermaidInlineWebView> {
           HeightChannel.postMessage(String(h));
         }catch(e){/*ignore*/}
       }
-      window.exportSvgToPng = function(){
+      window.exportSvgToPng = function(requestId){
         try{
           const svg = document.querySelector('.mermaid svg');
-          if(!svg){ ExportChannel.postMessage(''); return; }
+          if(!svg){ ExportChannel.postMessage(JSON.stringify({requestId: requestId, data: ''})); return; }
           let w = 0, h = 0;
           try {
             if (svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width && svg.viewBox.baseVal.height) {
@@ -561,16 +659,22 @@ class _MermaidInlineWebViewState extends State<_MermaidInlineWebView> {
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
             const data = canvas.toDataURL('image/png');
             const b64 = data.split(',')[1] || '';
-            ExportChannel.postMessage(b64);
+            ExportChannel.postMessage(JSON.stringify({requestId: requestId, data: b64}));
           };
-          img.onerror = function(){ ExportChannel.postMessage(''); };
+          img.onerror = function(){ ExportChannel.postMessage(JSON.stringify({requestId: requestId, data: ''})); };
           img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(xml)));
         }catch(e){
-          ExportChannel.postMessage('');
+          ExportChannel.postMessage(JSON.stringify({requestId: requestId, data: ''}));
         }
       };
-      mermaid.initialize({ startOnLoad:false, theme: '${dark ? 'dark' : 'default'}', securityLevel:'loose', fontFamily: 'inherit', themeVariables: ${themeVarsJson} });
-      mermaid.run({ querySelector: '.mermaid' }).then(postHeight).catch(postHeight);
+      function sendLifecycle(type, extra){
+        try { LifecycleChannel.postMessage(JSON.stringify(Object.assign({type: type}, extra || {}))); } catch(_) {}
+      }
+      sendLifecycle('ready');
+      // securityLevel 'strict' is safe on mermaid 10.6.1: <br> in labels still
+      // renders as a real line break (verified 2026-11-04; no <br> rewrite).
+      mermaid.initialize({ startOnLoad:false, theme: '${dark ? 'dark' : 'default'}', securityLevel:'strict', fontFamily: 'inherit', themeVariables: ${themeVarsJson} });
+      mermaid.run({ querySelector: '.mermaid' }).then(function(){ postHeight(); sendLifecycle('rendered', {ok: true}); }).catch(function(e){ postHeight(); sendLifecycle('rendered', {ok: false, message: String(e && e.message ? e.message : e)}); });
       window.addEventListener('resize', postHeight);
       document.addEventListener('DOMContentLoaded', postHeight);
       setTimeout(postHeight, 200);
@@ -595,11 +699,8 @@ class _MermaidInlineWebViewState extends State<_MermaidInlineWebView> {
 
   Future<bool> exportPng() async {
     try {
-      _exportCompleter = Completer<String?>();
-      await _controller.runJavaScript('exportSvgToPng();');
-      final b64 = await _exportCompleter!.future.timeout(const Duration(seconds: 8));
-      if (b64 == null || b64.isEmpty) return false;
-      final bytes = base64Decode(b64);
+      final bytes = await exportPngBytes();
+      if (bytes == null || bytes.isEmpty) return false;
       // Desktop: Save As dialog (use existing file_picker, same as image viewer)
       if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
         final suggested = 'mermaid_${DateTime.now().millisecondsSinceEpoch}.png';
@@ -629,8 +730,6 @@ class _MermaidInlineWebViewState extends State<_MermaidInlineWebView> {
       return false;
     } catch (_) {
       return false;
-    } finally {
-      _exportCompleter = null;
     }
   }
 
@@ -638,21 +737,64 @@ class _MermaidInlineWebViewState extends State<_MermaidInlineWebView> {
   void dispose() {
     try { _heightDebounce?.cancel(); } catch (_) {}
     _heightDebounce = null;
+    if (!_renderedCompleter.isCompleted) _renderedCompleter.complete();
+    for (final c in _pendingExports.values) {
+      if (!c.isCompleted) c.complete(null);
+    }
+    _pendingExports.clear();
     super.dispose();
   }
 
+  /// Resets render state when the HTML is (re)loaded. Old in-flight exports
+  /// must not resolve against the new page.
+  void _resetRenderState() {
+    _renderFailed = false;
+    if (!_renderedCompleter.isCompleted) _renderedCompleter.complete();
+    _renderedCompleter = Completer<void>();
+    for (final c in _pendingExports.values) {
+      if (!c.isCompleted) c.complete(null);
+    }
+    _pendingExports.clear();
+
+  }
+
   Future<Uint8List?> exportPngBytes() async {
+    // If the HTML is reloaded (code/theme change) while we wait, the old
+    // completer resolves without a render; wait for the new page instead of
+    // failing the export. Bounded by a 10 s deadline across reloads.
+    final stopwatch = Stopwatch()..start();
+    var reloads = 0;
+    while (true) {
+      final rendered = _renderedCompleter;
+      final remaining = const Duration(seconds: 10) - stopwatch.elapsed;
+      if (remaining <= Duration.zero) return null;
+      final wait = remaining < const Duration(seconds: 5)
+          ? remaining
+          : const Duration(seconds: 5);
+      try {
+        await rendered.future.timeout(wait);
+      } catch (_) {
+        return null;
+      }
+      if (identical(rendered, _renderedCompleter)) break;
+      // Reloaded while waiting; wait for the new page, but never spin hot.
+      reloads++;
+      if (reloads >= 4) return null;
+      await Future<void>.delayed(const Duration(milliseconds: 16));
+    }
+    if (_renderFailed) return null;
+    final id = _nextExportId++;
+    final completer = Completer<String?>();
+    _pendingExports[id] = completer;
     try {
-      _exportCompleter = Completer<String?>();
-      await _controller.runJavaScript('exportSvgToPng();');
-      final b64 = await _exportCompleter!.future.timeout(const Duration(seconds: 8));
+      await _controller.runJavaScript('exportSvgToPng($id);');
+      final b64 = await completer.future.timeout(const Duration(seconds: 5));
       if (b64 == null || b64.isEmpty) return null;
-      final bytes = base64Decode(b64);
-      return bytes;
+      return base64Decode(b64);
     } catch (_) {
       return null;
     } finally {
-      _exportCompleter = null;
+      _pendingExports.remove(id);
     }
   }
 }

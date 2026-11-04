@@ -3065,6 +3065,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get displaySettingsPageAutoCollapseCodeBlockTitle => '自动折叠代码块';
 
   @override
+  String get displaySettingsPageLongImageTilingTitle => '长图分块导出';
+
+  @override
   String get displaySettingsPageMobileCodeBlockWrapTitle => '移动端代码块自动换行';
 
   @override
@@ -3957,6 +3960,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String messageExportSheetImageTooLarge(String size) {
+    return '图片过大（$size）。请改用 Markdown 或分段导出。';
+  }
+
+  @override
   String get messageExportSheetFormatTitle => '导出格式';
 
   @override
@@ -4070,6 +4078,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get htmlPreviewNotSupportedOnLinux => 'Linux 暂不支持 HTML 预览';
+
+  @override
+  String get htmlPreviewLoadTimeout => '预览加载超时。';
+
+  @override
+  String get htmlPreviewLoadFailed => '预览加载失败。';
+
+  @override
+  String get htmlPreviewRetry => '重试';
 
   @override
   String codeBlockCollapsedLines(int n) {
@@ -5150,6 +5167,21 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get markdownTableExportMarkdownButton => '导出 Markdown';
+
+  @override
+  String get markdownAlertNoteTitle => '注意';
+
+  @override
+  String get markdownAlertTipTitle => '提示';
+
+  @override
+  String get markdownAlertImportantTitle => '重要';
+
+  @override
+  String get markdownAlertWarningTitle => '警告';
+
+  @override
+  String get markdownAlertCautionTitle => '小心';
 
   @override
   String get mermaidImageTab => '图形';
@@ -8772,6 +8804,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get displaySettingsPageAutoCollapseCodeBlockTitle => '自动折叠代码块';
 
   @override
+  String get displaySettingsPageLongImageTilingTitle => '长图分块导出';
+
+  @override
   String get displaySettingsPageMobileCodeBlockWrapTitle => '移动端代码块自动换行';
 
   @override
@@ -9664,6 +9699,11 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
+  String messageExportSheetImageTooLarge(String size) {
+    return '图片过大（$size）。请改用 Markdown 或分段导出。';
+  }
+
+  @override
   String get messageExportSheetFormatTitle => '导出格式';
 
   @override
@@ -9777,6 +9817,15 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get htmlPreviewNotSupportedOnLinux => 'Linux 暂不支持 HTML 预览';
+
+  @override
+  String get htmlPreviewLoadTimeout => '预览加载超时。';
+
+  @override
+  String get htmlPreviewLoadFailed => '预览加载失败。';
+
+  @override
+  String get htmlPreviewRetry => '重试';
 
   @override
   String codeBlockCollapsedLines(int n) {
@@ -10761,6 +10810,21 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get markdownTableExportMarkdownButton => '导出 Markdown';
+
+  @override
+  String get markdownAlertNoteTitle => '注意';
+
+  @override
+  String get markdownAlertTipTitle => '提示';
+
+  @override
+  String get markdownAlertImportantTitle => '重要';
+
+  @override
+  String get markdownAlertWarningTitle => '警告';
+
+  @override
+  String get markdownAlertCautionTitle => '小心';
 
   @override
   String get mermaidImageTab => '图形';
@@ -14389,6 +14453,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get displaySettingsPageAutoCollapseCodeBlockTitle => '自動摺疊程式碼區塊';
 
   @override
+  String get displaySettingsPageLongImageTilingTitle => '長圖分塊匯出';
+
+  @override
   String get displaySettingsPageMobileCodeBlockWrapTitle => '行動端程式碼區塊自動換行';
 
   @override
@@ -15282,6 +15349,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
+  String messageExportSheetImageTooLarge(String size) {
+    return '圖片過大（$size）。請改用 Markdown 或分段匯出。';
+  }
+
+  @override
   String get messageExportSheetFormatTitle => '匯出格式';
 
   @override
@@ -15395,6 +15467,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get htmlPreviewNotSupportedOnLinux => 'Linux 暫不支援 HTML 預覽';
+
+  @override
+  String get htmlPreviewLoadTimeout => '預覽載入逾時。';
+
+  @override
+  String get htmlPreviewLoadFailed => '預覽載入失敗。';
+
+  @override
+  String get htmlPreviewRetry => '重試';
 
   @override
   String codeBlockCollapsedLines(int n) {
@@ -16472,6 +16553,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get markdownTableExportMarkdownButton => '匯出 Markdown';
+
+  @override
+  String get markdownAlertNoteTitle => '注意';
+
+  @override
+  String get markdownAlertTipTitle => '提示';
+
+  @override
+  String get markdownAlertImportantTitle => '重要';
+
+  @override
+  String get markdownAlertWarningTitle => '警告';
+
+  @override
+  String get markdownAlertCautionTitle => '小心';
 
   @override
   String get mermaidImageTab => '圖形';

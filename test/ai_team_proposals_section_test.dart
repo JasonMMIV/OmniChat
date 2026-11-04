@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:OmniChat/features/chat/widgets/ai_team_proposals_section.dart';
 import 'package:OmniChat/core/providers/settings_provider.dart';
 import 'package:OmniChat/l10n/app_localizations.dart';
+import 'package:OmniChat/shared/markdown/markdown_surface_scope.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -59,5 +60,14 @@ void main() {
     final Container container = tester.widget(containerFinder);
     final decoration = container.decoration as BoxDecoration?;
     expect(decoration?.color, equals(Colors.transparent));
+
+    // Expand the proposal and verify Markdown gets an explicit surface scope
+    // instead of falling back to the ambient ColorScheme.
+    await tester.tap(titleFinder);
+    await tester.pumpAndSettle();
+    final scopeFinder = find.byType(MarkdownSurfaceScope);
+    expect(scopeFinder, findsOneWidget);
+    final scope = tester.widget<MarkdownSurfaceScope>(scopeFinder);
+    expect(scope.surface.onSurface, equals(const Color(0xFF7E7F83)));
   });
 }

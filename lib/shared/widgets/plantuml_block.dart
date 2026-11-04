@@ -1,12 +1,14 @@
 import 'dart:ui' show PointerDeviceKind;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../theme/app_font_weights.dart';
 import '../../utils/plantuml_encoder.dart';
 import '../../icons/lucide_adapter.dart';
 import 'package:OmniChat/l10n/app_localizations.dart';
+import '../../core/services/web/ssrf_guard.dart';
 import 'snackbar.dart';
+import 'safe_svg_image.dart';
 import 'code_block_download_button.dart';
 import 'export_capture_scope.dart';
 import 'dart:io';
@@ -15,8 +17,10 @@ enum _PlantUMLTab { image, code }
 
 class PlantUMLBlock extends StatefulWidget {
   final String code;
+  final SsrfGuard? guard;
+  final http.Client Function()? httpClientFactory;
 
-  const PlantUMLBlock({super.key, required this.code});
+  const PlantUMLBlock({super.key, required this.code, this.guard, this.httpClientFactory});
 
   @override
   State<PlantUMLBlock> createState() => _PlantUMLBlockState();
@@ -58,8 +62,7 @@ class _PlantUMLBlockState extends State<PlantUMLBlock> {
   }
 
   // Save the diagram source as a .puml file.
-  Future<void> _downloadCode() =>
-      saveCodeBlockToFile(context, widget.code, 'puml');
+  Future<void> _downloadCode() => saveCodeBlockToFile(context, widget.code, 'puml');
 
   @override
   Widget build(BuildContext context) {
@@ -69,19 +72,10 @@ class _PlantUMLBlockState extends State<PlantUMLBlock> {
     final exporting = ExportCaptureScope.of(context);
 
     // Use theme-tinted surfaces so headers follow the current theme color.
-    final Color bodyBg = Color.alphaBlend(
-      cs.primary.withValues(alpha: isDark ? 0.06 : 0.03),
-      cs.surface,
-    );
-    final Color headerBg = Color.alphaBlend(
-      cs.primary.withValues(alpha: isDark ? 0.16 : 0.10),
-      cs.surface,
-    );
+    final Color bodyBg = Color.alphaBlend(cs.primary.withValues(alpha: isDark ? 0.06 : 0.03), cs.surface);
+    final Color headerBg = Color.alphaBlend(cs.primary.withValues(alpha: isDark ? 0.16 : 0.10), cs.surface);
     final palette = _PlantUMLTabPalette(
-      track: Color.alphaBlend(
-        cs.primary.withValues(alpha: isDark ? 0.10 : 0.06),
-        cs.surface,
-      ),
+      track: Color.alphaBlend(cs.primary.withValues(alpha: isDark ? 0.10 : 0.06), cs.surface),
       selected: cs.surface,
       textPrimary: cs.onSurface,
       textSecondary: cs.onSurface.withValues(alpha: 0.6),
@@ -111,10 +105,7 @@ class _PlantUMLBlockState extends State<PlantUMLBlock> {
               decoration: BoxDecoration(
                 border: Border(
                   bottom: _expanded
-                      ? BorderSide(
-                          color: cs.outlineVariant.withValues(alpha: 0.28),
-                          width: 1.0,
-                        )
+                      ? BorderSide(color: cs.outlineVariant.withValues(alpha: 0.28), width: 1.0)
                       : BorderSide.none,
                 ),
               ),
@@ -122,17 +113,11 @@ class _PlantUMLBlockState extends State<PlantUMLBlock> {
                 children: [
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsetsDirectional.only(
-                        start: 12,
-                        end: 10,
-                      ),
+                      padding: const EdgeInsetsDirectional.only(start: 12, end: 10),
                       child: Align(
                         alignment: AlignmentDirectional.centerStart,
                         child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: palette.track,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                          decoration: BoxDecoration(color: palette.track, borderRadius: BorderRadius.circular(8)),
                           child: Padding(
                             padding: const EdgeInsets.all(2),
                             child: Row(
@@ -142,17 +127,13 @@ class _PlantUMLBlockState extends State<PlantUMLBlock> {
                                   label: l10n.mermaidImageTab,
                                   selected: _selectedTab == _PlantUMLTab.image,
                                   palette: palette,
-                                  onTap: () => setState(
-                                    () => _selectedTab = _PlantUMLTab.image,
-                                  ),
+                                  onTap: () => setState(() => _selectedTab = _PlantUMLTab.image),
                                 ),
                                 _PlantUMLTabButton(
                                   label: l10n.mermaidCodeTab,
                                   selected: _selectedTab == _PlantUMLTab.code,
                                   palette: palette,
-                                  onTap: () => setState(
-                                    () => _selectedTab = _PlantUMLTab.code,
-                                  ),
+                                  onTap: () => setState(() => _selectedTab = _PlantUMLTab.code),
                                 ),
                               ],
                             ),
@@ -165,40 +146,25 @@ class _PlantUMLBlockState extends State<PlantUMLBlock> {
                     // Copy action
                     InkWell(
                       onTap: () async {
-                        await Clipboard.setData(
-                          ClipboardData(text: widget.code),
-                        );
+                        await Clipboard.setData(ClipboardData(text: widget.code));
                         if (mounted) {
                           showAppSnackBar(
                             context,
-                            message: AppLocalizations.of(
-                              context,
-                            )!.chatMessageWidgetCopiedToClipboard,
+                            message: AppLocalizations.of(context)!.chatMessageWidgetCopiedToClipboard,
                             type: NotificationType.success,
                           );
                         }
                       },
                       splashColor: Platform.isIOS ? Colors.transparent : null,
-                      highlightColor: Platform.isIOS
-                          ? Colors.transparent
-                          : null,
+                      highlightColor: Platform.isIOS ? Colors.transparent : null,
                       hoverColor: Platform.isIOS ? Colors.transparent : null,
-                      overlayColor: Platform.isIOS
-                          ? const MaterialStatePropertyAll(Colors.transparent)
-                          : null,
+                      overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
                       borderRadius: BorderRadius.circular(6),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 6,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                         child: Row(
                           children: [
-                            Icon(
-                              Lucide.Copy,
-                              size: 14,
-                              color: cs.onSurface.withValues(alpha: 0.6),
-                            ),
+                            Icon(Lucide.Copy, size: 14, color: cs.onSurface.withValues(alpha: 0.6)),
                             const SizedBox(width: 6),
                             Text(
                               l10n.shareProviderSheetCopyButton,
@@ -219,13 +185,9 @@ class _PlantUMLBlockState extends State<PlantUMLBlock> {
                     InkWell(
                       onTap: () => setState(() => _expanded = !_expanded),
                       splashColor: Platform.isIOS ? Colors.transparent : null,
-                      highlightColor: Platform.isIOS
-                          ? Colors.transparent
-                          : null,
+                      highlightColor: Platform.isIOS ? Colors.transparent : null,
                       hoverColor: Platform.isIOS ? Colors.transparent : null,
-                      overlayColor: Platform.isIOS
-                          ? const MaterialStatePropertyAll(Colors.transparent)
-                          : null,
+                      overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
                       borderRadius: BorderRadius.circular(6),
                       child: Padding(
                         padding: const EdgeInsets.all(6),
@@ -233,11 +195,7 @@ class _PlantUMLBlockState extends State<PlantUMLBlock> {
                           turns: _expanded ? 0.25 : 0.0,
                           duration: const Duration(milliseconds: 180),
                           curve: Curves.easeOutCubic,
-                          child: Icon(
-                            Lucide.ChevronRight,
-                            size: 16,
-                            color: cs.onSurface.withValues(alpha: 0.7),
-                          ),
+                          child: Icon(Lucide.ChevronRight, size: 16, color: cs.onSurface.withValues(alpha: 0.7)),
                         ),
                       ),
                     ),
@@ -254,11 +212,7 @@ class _PlantUMLBlockState extends State<PlantUMLBlock> {
             switchOutCurve: Curves.easeInCubic,
             transitionBuilder: (child, anim) => FadeTransition(
               opacity: anim,
-              child: SizeTransition(
-                sizeFactor: anim,
-                alignment: Alignment.topCenter,
-                child: child,
-              ),
+              child: SizeTransition(sizeFactor: anim, alignment: Alignment.topCenter, child: child),
             ),
             child: _expanded
                 ? Container(
@@ -296,13 +250,18 @@ class _PlantUMLBlockState extends State<PlantUMLBlock> {
     return Padding(
       key: const ValueKey('plantuml-image-body'),
       padding: const EdgeInsets.all(8),
-      child: SvgPicture.network(
-        _imageUrl,
-        fit: BoxFit.contain,
-        placeholderBuilder: (context) =>
-            _PlantUMLLoadingView(textSecondary: palette.textSecondary),
-        errorBuilder: (context, error, stackTrace) =>
-            _PlantUMLErrorView(textTertiary: palette.textSecondary),
+      child: LayoutBuilder(
+        builder: (context, constraints) => SafeSvgImage(
+          source: _imageUrl,
+          width: constraints.maxWidth,
+          height: constraints.maxHeight.isFinite ? constraints.maxHeight : null,
+          byteLimit: 2 * 1024 * 1024,
+          timeout: const Duration(seconds: 10),
+          guard: widget.guard,
+          clientFactory: widget.httpClientFactory,
+          placeholderBuilder: (_) => _PlantUMLLoadingView(textSecondary: palette.textSecondary),
+          errorBuilder: (_) => _PlantUMLErrorView(textTertiary: palette.textSecondary),
+        ),
       ),
     );
   }
@@ -331,12 +290,7 @@ class _PlantUMLBlockState extends State<PlantUMLBlock> {
               scrollDirection: Axis.horizontal,
               child: SelectableText(
                 widget.code,
-                style: TextStyle(
-                  color: palette.textPrimary,
-                  fontFamily: 'monospace',
-                  fontSize: 13,
-                  height: 1.5,
-                ),
+                style: TextStyle(color: palette.textPrimary, fontFamily: 'monospace', fontSize: 13, height: 1.5),
               ),
             ),
           ),
@@ -361,12 +315,7 @@ class _PlantUMLTabPalette {
 }
 
 class _PlantUMLTabButton extends StatefulWidget {
-  const _PlantUMLTabButton({
-    required this.label,
-    required this.selected,
-    required this.palette,
-    required this.onTap,
-  });
+  const _PlantUMLTabButton({required this.label, required this.selected, required this.palette, required this.onTap});
 
   final String label;
   final bool selected;
@@ -383,16 +332,12 @@ class _PlantUMLTabButtonState extends State<_PlantUMLTabButton> {
 
   @override
   Widget build(BuildContext context) {
-    final baseColor = widget.selected
-        ? widget.palette.selected
-        : Colors.transparent;
+    final baseColor = widget.selected ? widget.palette.selected : Colors.transparent;
     final hoverColor = Color.alphaBlend(
       widget.palette.textPrimary.withValues(alpha: _pressed ? 0.10 : 0.06),
       baseColor,
     );
-    final bg = widget.selected || _pressed || _hovered
-        ? hoverColor
-        : Colors.transparent;
+    final bg = widget.selected || _pressed || _hovered ? hoverColor : Colors.transparent;
 
     return Semantics(
       button: true,
@@ -415,22 +360,15 @@ class _PlantUMLTabButtonState extends State<_PlantUMLTabButton> {
             duration: const Duration(milliseconds: 160),
             curve: Curves.easeOutCubic,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(6),
-            ),
+            decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
             child: SelectionContainer.disabled(
               child: Text(
                 widget.label,
                 style: TextStyle(
                   fontSize: 13,
                   height: 1.35,
-                  fontWeight: widget.selected
-                      ? AppFontWeights.semibold
-                      : AppFontWeights.medium,
-                  color: widget.selected
-                      ? widget.palette.textPrimary
-                      : widget.palette.textSecondary,
+                  fontWeight: widget.selected ? AppFontWeights.semibold : AppFontWeights.medium,
+                  color: widget.selected ? widget.palette.textPrimary : widget.palette.textSecondary,
                 ),
               ),
             ),
@@ -449,14 +387,7 @@ class _PlantUMLLoadingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: SizedBox(
-        width: 24,
-        height: 24,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: textSecondary,
-        ),
-      ),
+      child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: textSecondary)),
     );
   }
 }
@@ -468,8 +399,6 @@ class _PlantUMLErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Icon(Lucide.ImageOff, size: 48, color: textTertiary),
-    );
+    return Center(child: Icon(Lucide.ImageOff, size: 48, color: textTertiary));
   }
 }

@@ -5,15 +5,12 @@ import 'package:provider/provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../shared/markdown/markdown_surface_scope.dart';
 import '../../../shared/widgets/markdown_with_highlight.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 
 class AiTeamProposalsSection extends StatefulWidget {
-  const AiTeamProposalsSection({
-    super.key,
-    required this.data,
-    this.isStreaming = false,
-  });
+  const AiTeamProposalsSection({super.key, required this.data, this.isStreaming = false});
 
   final String data;
   final bool isStreaming;
@@ -62,14 +59,11 @@ class _AiTeamProposalsSectionState extends State<AiTeamProposalsSection> {
 
     final l10n = AppLocalizations.of(context)!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardTextColor =
-        isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
+    final cardTextColor = isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
 
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        color: Colors.transparent,
-      ),
+      decoration: const BoxDecoration(color: Colors.transparent),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -86,19 +80,11 @@ class _AiTeamProposalsSectionState extends State<AiTeamProposalsSection> {
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
               child: Row(
                 children: [
-                  Icon(
-                    Lucide.Users,
-                    size: 18,
-                    color: cardTextColor,
-                  ),
+                  Icon(Lucide.Users, size: 18, color: cardTextColor),
                   const SizedBox(width: 8),
                   Text(
                     l10n.aiTeamFinalAnswerLabel,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.normal,
-                      color: cardTextColor,
-                    ),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.normal, color: cardTextColor),
                   ),
                   const SizedBox(width: 6),
                   Text(
@@ -114,11 +100,7 @@ class _AiTeamProposalsSectionState extends State<AiTeamProposalsSection> {
                     turns: _expanded ? 0.25 : 0.0,
                     duration: const Duration(milliseconds: 220),
                     curve: Curves.easeInOutCubic,
-                    child: Icon(
-                      Lucide.ChevronRight,
-                      size: 18,
-                      color: cardTextColor,
-                    ),
+                    child: Icon(Lucide.ChevronRight, size: 18, color: cardTextColor),
                   ),
                 ],
               ),
@@ -131,25 +113,27 @@ class _AiTeamProposalsSectionState extends State<AiTeamProposalsSection> {
             firstChild: const SizedBox(height: 0),
             secondChild: Padding(
               padding: const EdgeInsets.fromLTRB(4, 2, 4, 4),
-              child: Builder(builder: (context) {
-                final content = RepaintBoundary(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      for (int i = 0; i < visibleProposals.length; i++) ...[
-                        if (i > 0)
-                          Divider(
-                            height: 12,
-                            thickness: 0.5,
-                            color: isDark ? const Color(0x22FFFFFF) : const Color(0x1A000000),
-                          ),
-                        _buildProposalBlock(context, i, visibleProposals[i]),
+              child: Builder(
+                builder: (context) {
+                  final content = RepaintBoundary(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (int i = 0; i < visibleProposals.length; i++) ...[
+                          if (i > 0)
+                            Divider(
+                              height: 12,
+                              thickness: 0.5,
+                              color: isDark ? const Color(0x22FFFFFF) : const Color(0x1A000000),
+                            ),
+                          _buildProposalBlock(context, i, visibleProposals[i]),
+                        ],
                       ],
-                    ],
-                  ),
-                );
-                return widget.isStreaming ? content : SelectionArea(child: content);
-              }),
+                    ),
+                  );
+                  return widget.isStreaming ? content : SelectionArea(child: content);
+                },
+              ),
             ),
           ),
         ],
@@ -210,79 +194,70 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardTextColor =
-        isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
+    final cs = Theme.of(context).colorScheme;
+    final cardTextColor = isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
     final l10n = AppLocalizations.of(context)!;
     final hasReasoning = widget.reasoning.trim().isNotEmpty;
     final hasToolCalls = widget.toolCalls.isNotEmpty;
 
-    final TextStyle baseStyle = TextStyle(
-      fontSize: 12.5,
-      height: 1.32,
-      color: cardTextColor,
-    );
+    final TextStyle baseStyle = TextStyle(fontSize: 12.5, height: 1.32, color: cardTextColor);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Proposal header
-        Text(
-          '${widget.label} (${widget.subtitle})',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.normal,
-            color: cardTextColor,
-          ),
-        ),
-        const SizedBox(height: 4),
-
-        // Thinking section (collapsible, default collapsed)
-        if (hasReasoning) ...[
-          _buildCollapsibleSection(
-            context,
-            icon: Lucide.Brain,
-            label: l10n.aiTeamThinkingLabel,
-            expanded: _thinkingExpanded,
-            onToggle: () => setState(() => _thinkingExpanded = !_thinkingExpanded),
-            cardTextColor: cardTextColor,
-            child: MarkdownWithCodeHighlight(
-              text: widget.reasoning,
-              baseStyle: baseStyle,
-              isStreaming: widget.isStreaming,
-            ),
+    return MarkdownSurfaceScope(
+      surface: MarkdownSurface(surface: cs.surface, onSurface: cardTextColor, onSurfaceVariant: cs.onSurfaceVariant),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Proposal header
+          Text(
+            '${widget.label} (${widget.subtitle})',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: cardTextColor),
           ),
           const SizedBox(height: 4),
-        ],
 
-        // Tool calls section (collapsible, default collapsed)
-        if (hasToolCalls) ...[
-          _buildCollapsibleSection(
-            context,
-            icon: Lucide.Wrench,
-            label: l10n.aiTeamToolCallsLabel,
-            expanded: _toolsExpanded,
-            onToggle: () => setState(() => _toolsExpanded = !_toolsExpanded),
-            cardTextColor: cardTextColor,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final tc in widget.toolCalls) ...[
-                  _buildToolCallItem(context, tc, cardTextColor),
-                  if (tc != widget.toolCalls.last) const SizedBox(height: 4),
+          // Thinking section (collapsible, default collapsed)
+          if (hasReasoning) ...[
+            _buildCollapsibleSection(
+              context,
+              icon: Lucide.Brain,
+              label: l10n.aiTeamThinkingLabel,
+              expanded: _thinkingExpanded,
+              onToggle: () => setState(() => _thinkingExpanded = !_thinkingExpanded),
+              cardTextColor: cardTextColor,
+              child: MarkdownWithCodeHighlight(
+                text: widget.reasoning,
+                baseStyle: baseStyle,
+                isStreaming: widget.isStreaming,
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
+
+          // Tool calls section (collapsible, default collapsed)
+          if (hasToolCalls) ...[
+            _buildCollapsibleSection(
+              context,
+              icon: Lucide.Wrench,
+              label: l10n.aiTeamToolCallsLabel,
+              expanded: _toolsExpanded,
+              onToggle: () => setState(() => _toolsExpanded = !_toolsExpanded),
+              cardTextColor: cardTextColor,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final tc in widget.toolCalls) ...[
+                    _buildToolCallItem(context, tc, cardTextColor),
+                    if (tc != widget.toolCalls.last) const SizedBox(height: 4),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-        ],
+            const SizedBox(height: 4),
+          ],
 
-        // Final answer (always visible)
-        MarkdownWithCodeHighlight(
-          text: widget.content,
-          baseStyle: baseStyle,
-          isStreaming: widget.isStreaming,
-        ),
-      ],
+          // Final answer (always visible)
+          MarkdownWithCodeHighlight(text: widget.content, baseStyle: baseStyle, isStreaming: widget.isStreaming),
+        ],
+      ),
     );
   }
 
@@ -296,9 +271,7 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
     required Widget child,
   }) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.transparent,
-      ),
+      decoration: const BoxDecoration(color: Colors.transparent),
       margin: const EdgeInsets.only(bottom: 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -314,11 +287,7 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
                   const SizedBox(width: 6),
                   Text(
                     label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.normal,
-                      color: cardTextColor,
-                    ),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: cardTextColor),
                   ),
                   const Spacer(),
                   AnimatedRotation(
@@ -330,34 +299,22 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
               ),
             ),
           ),
-          if (expanded)
-            Padding(
-              padding: const EdgeInsets.only(left: 4, right: 4, bottom: 4, top: 2),
-              child: child,
-            ),
+          if (expanded) Padding(padding: const EdgeInsets.only(left: 4, right: 4, bottom: 4, top: 2), child: child),
         ],
       ),
     );
   }
 
-  Widget _buildToolCallItem(
-    BuildContext context,
-    Map<String, dynamic> tc,
-    Color cardTextColor,
-  ) {
+  Widget _buildToolCallItem(BuildContext context, Map<String, dynamic> tc, Color cardTextColor) {
     final name = tc['name'] as String? ?? '';
     final arguments = tc['arguments'];
     final result = tc['result'] as String?;
 
-    final argsStr = arguments is String
-        ? arguments
-        : (arguments is Map ? jsonEncode(arguments) : arguments.toString());
+    final argsStr = arguments is String ? arguments : (arguments is Map ? jsonEncode(arguments) : arguments.toString());
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-      decoration: const BoxDecoration(
-        color: Colors.transparent,
-      ),
+      decoration: const BoxDecoration(color: Colors.transparent),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -367,11 +324,7 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
               const SizedBox(width: 6),
               Text(
                 name,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.normal,
-                  color: cardTextColor,
-                ),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: cardTextColor),
               ),
             ],
           ),
@@ -381,11 +334,7 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
               argsStr,
               maxLines: 5,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                fontFamily: 'monospace',
-                color: cardTextColor.withValues(alpha: 0.8),
-              ),
+              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: cardTextColor.withValues(alpha: 0.8)),
             ),
           ],
           if (result != null && result.trim().isNotEmpty) ...[
@@ -394,11 +343,7 @@ class _CollapsibleProposalBlockState extends State<_CollapsibleProposalBlock> {
               result,
               maxLines: 8,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                fontFamily: 'monospace',
-                color: cardTextColor.withValues(alpha: 0.7),
-              ),
+              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: cardTextColor.withValues(alpha: 0.7)),
             ),
           ],
         ],

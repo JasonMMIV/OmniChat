@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="{{BASE_HREF}}">
     <title>Markdown Preview</title>
 
-    <!-- KaTeX for LaTeX math rendering -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
-
-    <!-- Highlight.js for syntax highlighting -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/atom-one-dark.min.css">
+    <!-- Local KaTeX / highlight.js styles (offline; no CDN). -->
+    <link rel="stylesheet" href="vendor/katex.min.css">
+    <link rel="stylesheet" href="vendor/atom-one-dark.min.css">
 
     <style>
         body {
@@ -92,81 +91,78 @@
 <body>
     <div id="content"></div>
 
-    <script type="module">
-        import MarkdownIt from 'https://esm.sh/markdown-it@14.0.0';
-        import vscodemarkdownItKatex from 'https://esm.sh/@vscode/markdown-it-katex'
-        import markdownItTaskLists from 'https://esm.sh/markdown-it-task-lists@2.1.1';
-        import katex from 'https://esm.sh/katex@0.16.8';
-        import hljs from 'https://esm.sh/highlight.js@11.9.0';
-        import mermaid from 'https://esm.sh/mermaid@10.6.1';
-        import { Base64 } from 'https://esm.sh/js-base64@3.7.5';
-        import DOMPurify from 'https://esm.sh/dompurify@3.2.4';
+    <!-- Classic UMD/IIFE scripts: no ES modules, so file:// loading works on
+         Windows WebView2 and Android WebView without a server or CORS setup. -->
+    <script src="vendor/markdown-it.min.js"></script>
+    <script src="vendor/markdown-it-task-lists.min.js"></script>
+    <script src="vendor/katex.min.js"></script>
+    <script src="vendor/markdown-it-katex.min.js"></script>
+    <script src="vendor/highlight.min.js"></script>
+    <script src="vendor/mermaid.min.js"></script>
+    <script src="vendor/purify.min.js"></script>
+    <script src="vendor/base64.min.js"></script>
 
-        const md = new MarkdownIt({
-            html: true, xhtmlOut: false, breaks: false, langPrefix: 'language-', linkify: true, typographer: true, quotes: '“”‘’',
-            highlight: function (str, lang) {
-                if (lang && hljs.getLanguage(lang)) {
-                    try { return '<pre class="hljs"><code>' + hljs.highlight(str, { language: lang, ignoreIllegals: true }).value + '</code></pre>'; } catch (__) {}
+    <script>
+        (async function () {
+        try {
+            const md = new window.markdownit({
+                html: true, xhtmlOut: false, breaks: false, langPrefix: 'language-', linkify: true, typographer: true, quotes: '“”‘’',
+                highlight: function (str, lang) {
+                    if (lang && window.hljs.getLanguage(lang)) {
+                        try { return '<pre class="hljs"><code>' + window.hljs.highlight(str, { language: lang, ignoreIllegals: true }).value + '</code></pre>'; } catch (__) {}
+                    }
+                    return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>';
                 }
-                return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>';
-            }
-        });
-        md.use(vscodemarkdownItKatex);
-        md.use(markdownItTaskLists, { enabled: true, label: true, labelAfter: true });
-
-        const defaultFenceRenderer = md.renderer.rules.fence || function(tokens, idx, options, env, renderer) {
-            return renderer.renderToken(tokens, idx, options);
-        };
-        md.renderer.rules.fence = function(tokens, idx, options, env, renderer) {
-            const token = tokens[idx];
-            const info = token.info ? md.utils.unescapeAll(token.info).trim() : '';
-            if (info === 'mermaid') {
-                const id = 'mermaid-' + Math.random().toString(36).substr(2, 9);
-                // C-S02: escape mermaid source so raw HTML inside a ```mermaid fence can never execute;
-                // mermaid.run() reads textContent, where entities are already decoded.
-                return `<div class="mermaid" id="${id}">${md.utils.escapeHtml(token.content.trim())}</div>\n`;
-            }
-            return defaultFenceRenderer(tokens, idx, options, env, renderer);
-        };
-
-        mermaid.initialize({ startOnLoad: false, theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default', securityLevel: 'loose', fontFamily: 'inherit' });
-
-        const markdownBase64 = `{{MARKDOWN_BASE64}}`;
-        let markdownContent = Base64.decode(markdownBase64);
-        markdownContent = markdownContent.replace(/\\\[([\s\S]*?)\\\]/g, (match, content) => { return '\n$$\n' + content.trim() + '\n$$\n'; });
-        markdownContent = markdownContent.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
-
-        // C-S02: sanitize rendered HTML before injecting. markdown-it runs with html:true,
-        // so LLM output could carry <script>/onerror payloads; DOMPurify strips them while
-        // keeping KaTeX (MathML), SVG and task-list markup intact.
-        function sanitizeRenderedHtml(dirtyHtml) {
-            return DOMPurify.sanitize(dirtyHtml, {
-                USE_PROFILES: { html: true, svg: true, mathml: true },
-                ADD_ATTR: ['target', 'rel']
             });
-        }
+            md.use(window.markdownItKatex);
+            md.use(window.markdownitTaskLists, { enabled: true, label: true, labelAfter: true });
 
-        async function renderMarkdown() {
-            try {
-                const html = sanitizeRenderedHtml(md.render(markdownContent));
-                document.getElementById('content').innerHTML = html;
-                const mermaidElements = document.querySelectorAll('.mermaid');
-                if (mermaidElements.length > 0) { await mermaid.run({ nodes: mermaidElements }); }
-                document.querySelectorAll('.math.inline').forEach(el => { try { katex.render(el.textContent, el, { throwOnError: false, errorColor: '#cc0000' }); } catch (e) { console.warn('KaTeX inline render error:', e); } });
-                document.querySelectorAll('.math.block').forEach(el => { try { katex.render(el.textContent, el, { displayMode: true, throwOnError: false, errorColor: '#cc0000' }); } catch (e) { console.warn('KaTeX block render error:', e); } });
-                document.querySelectorAll('a[href^="http"]').forEach(link => { link.target = '_blank'; link.rel = 'noopener noreferrer'; });
-            } catch (error) {
-                console.error('Error rendering markdown:', error);
-                const errEl = document.createElement('p');
-                errEl.textContent = 'Error rendering markdown content: ' + error.message; // C-S02: no innerHTML for untrusted message
-                document.getElementById('content').appendChild(errEl);
+            const defaultFenceRenderer = md.renderer.rules.fence || function(tokens, idx, options, env, renderer) {
+                return renderer.renderToken(tokens, idx, options);
+            };
+            md.renderer.rules.fence = function(tokens, idx, options, env, renderer) {
+                const token = tokens[idx];
+                const info = token.info ? md.utils.unescapeAll(token.info).trim() : '';
+                if (info === 'mermaid') {
+                    const id = 'mermaid-' + Math.random().toString(36).substr(2, 9);
+                    // C-S02: escape mermaid source so raw HTML inside a ```mermaid fence can never execute;
+                    // mermaid.run() reads textContent, where entities are already decoded.
+                    return `<div class="mermaid" id="${id}">${md.utils.escapeHtml(token.content.trim())}</div>\n`;
+                }
+                return defaultFenceRenderer(tokens, idx, options, env, renderer);
+            };
+
+            window.mermaid.initialize({ startOnLoad: false, theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default', securityLevel: 'strict', fontFamily: 'inherit' });
+
+            const markdownBase64 = `{{MARKDOWN_BASE64}}`;
+            let markdownContent = window.Base64.decode(markdownBase64);
+            markdownContent = markdownContent.replace(/\\\[([\s\S]*?)\\\]/g, (match, content) => { return '\n$$\n' + content.trim() + '\n$$\n'; });
+            markdownContent = markdownContent.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
+
+            // C-S02: sanitize rendered HTML before injecting. markdown-it runs with html:true,
+            // so LLM output could carry <script>/onerror payloads; DOMPurify strips them while
+            // keeping KaTeX (MathML), SVG and task-list markup intact.
+            function sanitizeRenderedHtml(dirtyHtml) {
+                return window.DOMPurify.sanitize(dirtyHtml, {
+                    USE_PROFILES: { html: true, svg: true, mathml: true },
+                    ADD_ATTR: ['target', 'rel']
+                });
             }
+
+            const html = sanitizeRenderedHtml(md.render(markdownContent));
+            document.getElementById('content').innerHTML = html;
+            const mermaidElements = document.querySelectorAll('.mermaid');
+            if (mermaidElements.length > 0) { await window.mermaid.run({ nodes: mermaidElements }); }
+            document.querySelectorAll('.math.inline').forEach(el => { try { window.katex.render(el.textContent, el, { throwOnError: false, errorColor: '#cc0000' }); } catch (e) { console.warn('KaTeX inline render error:', e); } });
+            document.querySelectorAll('.math.block').forEach(el => { try { window.katex.render(el.textContent, el, { displayMode: true, throwOnError: false, errorColor: '#cc0000' }); } catch (e) { console.warn('KaTeX block render error:', e); } });
+            document.querySelectorAll('a[href^="http"]').forEach(link => { link.target = '_blank'; link.rel = 'noopener noreferrer'; });
+        } catch (error) {
+            console.error('Error rendering markdown:', error);
+            const errEl = document.createElement('p');
+            errEl.textContent = 'Error rendering markdown content: ' + error.message; // C-S02: no innerHTML for untrusted message
+            document.getElementById('content').appendChild(errEl);
         }
-        renderMarkdown();
-    </script>
-    <script nomodule>
-        alert('您的系统WebView不支持 ES Modules，请升级WebView或者系统!');
+        })();
     </script>
 </body>
 </html>
-

@@ -6,8 +6,7 @@ class Lucide {
   static const IconData ListTree = lucide.LucideIcons.listTree;
   static const IconData ListChecks = lucide.LucideIcons.listChecks;
   static const IconData Menu = lucide.LucideIcons.menu;
-  static const IconData MessageCirclePlus =
-      lucide.LucideIcons.messageCirclePlus;
+  static const IconData MessageCirclePlus = lucide.LucideIcons.messageCirclePlus;
   static const IconData Box = lucide.LucideIcons.box;
   static const IconData Globe = lucide.LucideIcons.earth;
   static const IconData Earth = lucide.LucideIcons.earth;
@@ -36,12 +35,16 @@ class Lucide {
   static const IconData Database = lucide.LucideIcons.database;
   static const IconData HardDrive = lucide.LucideIcons.hardDrive;
   static const IconData BadgeInfo = lucide.LucideIcons.badgeInfo;
+  static const IconData Info = lucide.LucideIcons.info;
+  static const IconData Lightbulb = lucide.LucideIcons.lightbulb;
+  static const IconData CircleAlert = lucide.LucideIcons.circleAlert;
+  static const IconData TriangleAlert = lucide.LucideIcons.triangleAlert;
+  static const IconData OctagonAlert = lucide.LucideIcons.octagonAlert;
   static const IconData Library = lucide.LucideIcons.library;
   static const IconData Share2 = lucide.LucideIcons.share2;
   static const IconData Share = lucide.LucideIcons.share;
   static const IconData Bookmark = lucide.LucideIcons.bookmark;
-  static const IconData MessageCircleWarning =
-      lucide.LucideIcons.messageCircleWarning;
+  static const IconData MessageCircleWarning = lucide.LucideIcons.messageCircleWarning;
   static const IconData ChevronDown = lucide.LucideIcons.chevronDown;
   static const IconData Import = lucide.LucideIcons.import;
   static const IconData GripHorizontal = lucide.LucideIcons.gripHorizontal;
@@ -118,8 +121,7 @@ class Lucide {
   static const IconData HeartPulse = lucide.LucideIcons.heartPulse;
   static const IconData Sun = lucide.LucideIcons.sun;
   static const IconData Moon = lucide.LucideIcons.moon;
-  static const IconData MessageCircleMore =
-      lucide.LucideIcons.messageCircleMore;
+  static const IconData MessageCircleMore = lucide.LucideIcons.messageCircleMore;
   static const IconData CaseSensitive = lucide.LucideIcons.caseSensitive;
   static const IconData TextInitial = lucide.LucideIcons.textInitial;
   static const IconData eclipse = lucide.LucideIcons.eclipse;

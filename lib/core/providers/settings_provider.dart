@@ -203,6 +203,11 @@ class SettingsProvider extends ChangeNotifier {
   static const String _imageAspectRatioKey = 'image_aspect_ratio_v1';
   // Network request logging (debug)
   static const String _requestLogEnabledKey = 'request_log_enabled_v1';
+
+  /// Long-image export tiling kill-switch. Device-local: memory limits and
+  /// export performance differ per device, so this preference must never
+  /// ride along through backup/restore.
+  static const String _longImageTilingKey = 'long_image_tiling_v1';
   // Flutter runtime logging (debug)
   static const String _flutterLogEnabledKey = 'flutter_log_enabled_v1';
   // Desktop topic panel placement + right sidebar open state
@@ -811,6 +816,7 @@ class SettingsProvider extends ChangeNotifier {
         (prefs.getStringList(_workspaceToolsDisabledKey) ?? const <String>[])
             .toSet();
     _showMessageNavButtons = prefs.getBool(_displayShowMessageNavKey) ?? true;
+    _longImageTilingEnabled = prefs.getBool(_longImageTilingKey) ?? true;
     _showProviderInModelCapsule =
         prefs.getBool(_displayShowProviderInModelCapsuleKey) ?? true;
     _hapticsOnGenerate = prefs.getBool(_displayHapticsOnGenerateKey) ?? false;
@@ -3502,6 +3508,18 @@ Synthesize your reasoning and research into a final response. The structure shou
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_displayKeepAssistantListExpandedOnSidebarCloseKey, v);
+  }
+
+  // Display: long-image export tiling (device-local memory/performance).
+  // Disabling it falls back to the legacy single-shot capture path.
+  bool _longImageTilingEnabled = true;
+  bool get longImageTilingEnabled => _longImageTilingEnabled;
+  Future<void> setLongImageTilingEnabled(bool v) async {
+    if (_longImageTilingEnabled == v) return;
+    _longImageTilingEnabled = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_longImageTilingKey, v);
   }
 
   // Network: request logging (debug)

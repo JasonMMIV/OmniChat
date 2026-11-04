@@ -16,13 +16,20 @@ import '../../../utils/clipboard_images.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import 'dart:ui' as ui;
 
-Future<void> showImagePreviewSheet(BuildContext context, {required File file}) async {
+Future<void> showImagePreviewSheet(
+  BuildContext context, {
+  required File file,
+  File? previewFile,
+}) async {
   // On desktop platforms, show a custom dialog instead of bottom sheet
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     await showDialog<void>(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => _ImagePreviewDesktopDialog(file: file),
+      builder: (ctx) => _ImagePreviewDesktopDialog(
+        file: file,
+        previewFile: previewFile,
+      ),
     );
     return;
   }
@@ -37,14 +44,15 @@ Future<void> showImagePreviewSheet(BuildContext context, {required File file}) a
     ),
     builder: (ctx) => SafeArea(
       top: false,
-      child: _ImagePreviewSheet(file: file),
+      child: _ImagePreviewSheet(file: file, previewFile: previewFile),
     ),
   );
 }
 
 class _ImagePreviewDesktopDialog extends StatefulWidget {
-  const _ImagePreviewDesktopDialog({required this.file});
+  const _ImagePreviewDesktopDialog({required this.file, this.previewFile});
   final File file;
+  final File? previewFile;
 
   @override
   State<_ImagePreviewDesktopDialog> createState() => _ImagePreviewDesktopDialogState();
@@ -302,7 +310,10 @@ class _ImagePreviewDesktopDialogState extends State<_ImagePreviewDesktopDialog> 
                             side: BorderSide(color: cs.outline.withOpacity(0.08)),
                           ),
                           clipBehavior: Clip.antiAlias,
-                          child: Image.file(widget.file, fit: BoxFit.contain),
+                          child: Image.file(
+                            widget.previewFile ?? widget.file,
+                            fit: BoxFit.contain,
+                          ),
                         ),
                       ),
                     ),
@@ -318,8 +329,9 @@ class _ImagePreviewDesktopDialogState extends State<_ImagePreviewDesktopDialog> 
 }
 
 class _ImagePreviewSheet extends StatefulWidget {
-  const _ImagePreviewSheet({required this.file});
+  const _ImagePreviewSheet({required this.file, this.previewFile});
   final File file;
+  final File? previewFile;
 
   @override
   State<_ImagePreviewSheet> createState() => _ImagePreviewSheetState();
@@ -547,7 +559,7 @@ class _ImagePreviewSheetState extends State<_ImagePreviewSheet> {
                                   ),
                                   clipBehavior: Clip.antiAlias,
                                   child: Image.file(
-                                    widget.file,
+                                    widget.previewFile ?? widget.file,
                                     fit: BoxFit.contain,
                                   ),
                                 ),

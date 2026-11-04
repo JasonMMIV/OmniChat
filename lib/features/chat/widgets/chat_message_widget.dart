@@ -39,6 +39,7 @@ import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/providers/tts_provider.dart';
 import '../../../shared/widgets/markdown_with_highlight.dart';
+import '../../../shared/markdown/markdown_surface_scope.dart';
 import '../../../shared/widgets/snackbar.dart';
 import 'ai_team_proposals_section.dart';
 import 'cowork_tool_cards.dart';
@@ -1330,6 +1331,38 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final style = context.watch<SettingsProvider>().chatMessageBackgroundStyle;
+    // P0 contrast: tell Markdown how it is painted (solid bubble, frosted, or
+    // bare over a chat wallpaper) so body ink stays legible. Solid/default user
+    // bubbles keep the plain theme ink; only translucent/bare cases get the
+    // subtle text shadow (plan §3.10).
+    final checkAssistantWallpaper =
+        !isUser && style == ChatMessageBackgroundStyle.defaultStyle;
+    String assistantBackground = '';
+    if (checkAssistantWallpaper) {
+      try {
+        // Match the wallpaper actually painted by
+        // HomePage._buildChatBackground, which uses currentAssistant.
+        assistantBackground =
+            (context.watch<AssistantProvider>().currentAssistant?.background ?? '')
+                .trim();
+      } catch (_) {
+        assistantBackground = '';
+      }
+    }
+    final isBareOverWallpaper =
+        checkAssistantWallpaper && assistantBackground.isNotEmpty;
+    final mdSurface = MarkdownSurface(
+      surface: cs.surface,
+      onSurface: cs.onSurface,
+      onSurfaceVariant: cs.onSurfaceVariant,
+      isTranslucent:
+          style == ChatMessageBackgroundStyle.frosted || isBareOverWallpaper,
+      hasWallpaper: isBareOverWallpaper,
+    );
+    final scopedChild = MarkdownSurfaceScope(
+      surface: mdSurface,
+      child: child,
+    );
     BorderRadius radius = BorderRadius.circular(16);
     switch (style) {
       case ChatMessageBackgroundStyle.frosted:
@@ -1348,7 +1381,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                   width: 0.8,
                 ),
               ),
-              child: Padding(padding: const EdgeInsets.all(12), child: child),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: scopedChild,
+              ),
             ),
           ),
         );
@@ -1363,7 +1399,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             ),
           ),
           padding: const EdgeInsets.all(12),
-          child: child,
+          child: scopedChild,
         );
       case ChatMessageBackgroundStyle.defaultStyle:
       default:
@@ -1377,10 +1413,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                   : cs.primary.withOpacity(0.08),
               borderRadius: radius,
             ),
-            child: child,
+            child: scopedChild,
           );
         }
-        return child;
+        return scopedChild;
     }
   }
 
@@ -1635,12 +1671,21 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     }
     if (!mounted) return;
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      await showHtmlPreviewDesktopDialog(context, html: html, isXml: isXml);
+      await showHtmlPreviewDesktopDialog(
+        context,
+        html: html,
+        isXml: isXml,
+        isMarkdown: ext == 'md' || ext == 'markdown',
+      );
       return;
     }
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => HtmlPreviewPage(html: html, isXml: isXml),
+        builder: (_) => HtmlPreviewPage(
+          html: html,
+          isXml: isXml,
+          isMarkdown: ext == 'md' || ext == 'markdown',
+        ),
       ),
     );
   }

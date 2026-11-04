@@ -3,17 +3,15 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
-import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
 import 'image_preview_sheet.dart';
@@ -29,8 +27,10 @@ import '../../../core/models/assistant.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/web/web_fetch_tool.dart';
 import '../../../utils/sandbox_path_resolver.dart';
+import '../../../shared/markdown/markdown_surface_scope.dart';
 import '../../../shared/widgets/markdown_with_highlight.dart';
 import '../../../shared/widgets/export_capture_scope.dart';
+import '../../../shared/widgets/long_image_exporter.dart';
 import '../../../shared/widgets/mermaid_exporter.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../shared/widgets/ios_tactile.dart';
@@ -41,10 +41,7 @@ import '../../../utils/avatar_cache.dart';
 import 'chat_message_widget.dart' show ToolUIPart;
 
 // Regular expression to extract thinking content from message
-final RegExp thinkingRegex = RegExp(
-  r"<(?:think|thought)>([\s\S]*?)(?:</(?:think|thought)>|$)",
-  dotAll: true,
-);
+final RegExp thinkingRegex = RegExp(r"<(?:think|thought)>([\s\S]*?)(?:</(?:think|thought)>|$)", dotAll: true);
 
 // Shared helpers
 String _guessImageMime(String path) {
@@ -87,14 +84,13 @@ String? _modelDisplayName(BuildContext context, ChatMessage msg) {
   return name ?? (fallback.isNotEmpty ? fallback : baseId);
 }
 
-
 String _getRoleName(BuildContext context, ChatMessage msg) {
   final l10n = AppLocalizations.of(context)!;
   if (msg.role == 'user') {
     final userProvider = context.read<UserProvider>();
     return userProvider.name;
   } else if (msg.role == 'assistant') {
-    // Check if using assistant  
+    // Check if using assistant
     final assistant = context.read<AssistantProvider>().currentAssistant;
     if (assistant != null && assistant.useAssistantAvatar == true && assistant.name.trim().isNotEmpty) {
       return assistant.name.trim();
@@ -118,7 +114,7 @@ _Parsed _parseContent(String raw) {
   int idx = 0;
   while (idx < raw.length) {
     // Fast path: only try to parse when current char is '['
-    if (raw.codeUnitAt(idx) == 0x5B /* '[' */) {
+    if (raw.codeUnitAt(idx) == 0x5B /* '[' */ ) {
       final sub = raw.substring(idx);
       // [image:...]
       final mImg = RegExp(r"^\[image:([^\]]+)\]").firstMatch(sub);
@@ -175,11 +171,28 @@ String _softBreakMd(String input) {
   return out.toString();
 }
 
-Future<File?> _renderAndSaveMessageImage(
+/// Snapshots the inherited values the exported tree watches (settings, theme,
+/// media query) so Provider-mediated notifications during the long capture do
+/// not rebuild different tiles with different content. Direct listeners on the
+/// notifier (e.g. ListenableBuilder) are not covered.
+Widget _freezeExportContext(BuildContext context, SettingsProvider settings, Widget child) {
+  return Provider<SettingsProvider>.value(
+    value: settings,
+    child: MediaQuery(
+      data: MediaQuery.of(context),
+      child: Theme(data: Theme.of(context), child: child),
+    ),
+  );
+}
+
+Future<LongImageExportResult?> _renderAndSaveMessageImage(
   BuildContext context,
   ChatMessage message, {
   bool showThinkingAndToolCards = false,
   bool expandThinkingContent = false,
+  required bool tilingEnabled,
+  LongImageProgressCallback? onProgress,
+  bool Function()? isCancelled,
 }) async {
   final cs = Theme.of(context).colorScheme;
   final settings = context.read<SettingsProvider>();
@@ -196,52 +209,44 @@ Future<File?> _renderAndSaveMessageImage(
   final content = ExportCaptureScope(
     enabled: true,
     child: _ExportedMessageCard(
-    message: message,
-    title: context.read<ChatService>().getConversation(message.conversationId)?.title ?? l10n.messageExportSheetDefaultTitle,
-    cs: cs,
-    chatFontScale: settings.chatFontScale,
-    showThinkingAndToolCards: showThinkingAndToolCards,
-    expandThinkingContent: expandThinkingContent,
-    isDesktop: isDesktop,
+      message: message,
+      title:
+          context.read<ChatService>().getConversation(message.conversationId)?.title ??
+          l10n.messageExportSheetDefaultTitle,
+      cs: cs,
+      chatFontScale: settings.chatFontScale,
+      showThinkingAndToolCards: showThinkingAndToolCards,
+      expandThinkingContent: expandThinkingContent,
+      isDesktop: isDesktop,
     ),
   );
   return _renderWidgetDirectly(
     context,
-    content,
+    _freezeExportContext(context, settings, content),
     width: isDesktop ? 720 : 480,
     pixelRatio: isDesktop ? 2.0 : 3.0,
+    tilingEnabled: tilingEnabled,
+    onProgress: onProgress,
+    isCancelled: isCancelled,
   );
 }
 
-Rect _shareAnchorRect(BuildContext context) {
-  try {
-    final box = context.findRenderObject() as RenderBox?;
-    if (box != null && box.hasSize && box.size.width > 0 && box.size.height > 0) {
-      final offset = box.localToGlobal(Offset.zero);
-      return offset & box.size;
-    }
-  } catch (_) {}
-  final size = MediaQuery.sizeOf(context);
-  final center = Offset(size.width / 2, size.height / 2);
-  return Rect.fromCenter(center: center, width: 1, height: 1);
-}
-
-Future<File?> _renderAndSaveChatImage(
+Future<LongImageExportResult?> _renderAndSaveChatImage(
   BuildContext context,
   Conversation conversation,
   List<ChatMessage> messages, {
   bool showThinkingAndToolCards = false,
   bool expandThinkingContent = false,
+  required bool tilingEnabled,
+  LongImageProgressCallback? onProgress,
+  bool Function()? isCancelled,
 }) async {
   final cs = Theme.of(context).colorScheme;
   final settings = context.read<SettingsProvider>();
   final l10n = AppLocalizations.of(context)!;
   // Pre-render all mermaid diagrams found in selected messages
   try {
-    final codes = messages
-        .map((m) => extractMermaidCodes(m.content))
-        .expand((e) => e)
-        .toList();
+    final codes = messages.map((m) => extractMermaidCodes(m.content)).expand((e) => e).toList();
     await preRenderMermaidCodesForExport(context, codes);
   } catch (_) {}
 
@@ -251,84 +256,88 @@ Future<File?> _renderAndSaveChatImage(
   final content = ExportCaptureScope(
     enabled: true,
     child: _ExportedChatImage(
-    conversationTitle: (conversation.title.trim().isNotEmpty) ? conversation.title : l10n.messageExportSheetDefaultTitle,
-    cs: cs,
-    chatFontScale: settings.chatFontScale,
-    messages: messages,
-    timestamp: conversation.updatedAt,
-    showThinkingAndToolCards: showThinkingAndToolCards,
-    expandThinkingContent: expandThinkingContent,
-    isDesktop: isDesktop,
+      conversationTitle: (conversation.title.trim().isNotEmpty)
+          ? conversation.title
+          : l10n.messageExportSheetDefaultTitle,
+      cs: cs,
+      chatFontScale: settings.chatFontScale,
+      messages: messages,
+      timestamp: conversation.updatedAt,
+      showThinkingAndToolCards: showThinkingAndToolCards,
+      expandThinkingContent: expandThinkingContent,
+      isDesktop: isDesktop,
     ),
   );
   return _renderWidgetDirectly(
     context,
-    content,
+    _freezeExportContext(context, settings, content),
     width: isDesktop ? 720 : 480,
     pixelRatio: isDesktop ? 2.0 : 3.0,
+    tilingEnabled: tilingEnabled,
+    onProgress: onProgress,
+    isCancelled: isCancelled,
   );
 }
 
-// New direct rendering approach without pagination
-Future<File?> _renderWidgetDirectly(
+// Single-shot fallback (kept for LONG_IMAGE_TILING=false).
+Future<File?> _renderWidgetSingleShot(
   BuildContext context,
   Widget content, {
   double width = 480, // 宽度*3
   double pixelRatio = 3.0,
 }) async {
   final overlay = Overlay.of(context);
-  if (overlay == null) return null;
-  
+
   final boundaryKey = GlobalKey();
   final completer = Completer<void>();
-  
+
   late OverlayEntry entry;
-  entry = OverlayEntry(builder: (ctx) {
-    // Schedule the completion after multiple frames to ensure rendering
-    int frameCount = 0;
-    void scheduleCompletion() {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        frameCount++;
-        if (frameCount < 3) {
-          // Wait for 3 frames to ensure complete rendering
-          scheduleCompletion();
-        } else if (!completer.isCompleted) {
-          completer.complete();
-        }
-      });
-    }
-    scheduleCompletion();
-    
-    return Positioned(
-      left: -10000, // Position far offscreen
-      top: -10000,
-      child: RepaintBoundary(
-        key: boundaryKey,
-        child: Container(
-          width: width,
-          color: Theme.of(ctx).colorScheme.background,
-          child: Material(
-            type: MaterialType.transparency,
-            child: content,
+  entry = OverlayEntry(
+    builder: (ctx) {
+      // Schedule the completion after multiple frames to ensure rendering
+      int frameCount = 0;
+      void scheduleCompletion() {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          frameCount++;
+          if (frameCount < 3) {
+            // Wait for 3 frames to ensure complete rendering
+            scheduleCompletion();
+          } else if (!completer.isCompleted) {
+            completer.complete();
+          }
+        });
+      }
+
+      scheduleCompletion();
+
+      return Positioned(
+        left: -10000, // Position far offscreen
+        top: -10000,
+        child: RepaintBoundary(
+          key: boundaryKey,
+          child: Container(
+            width: width,
+            color: Theme.of(ctx).colorScheme.background,
+            child: Material(type: MaterialType.transparency, child: content),
           ),
         ),
-      ),
-    );
-  });
-  
+      );
+    },
+  );
+
   overlay.insert(entry);
-  
+
+  ui.Image? image;
   try {
     // Wait for the widget to be ready
     await completer.future;
     // Additional delay to ensure everything is painted
     await Future<void>.delayed(const Duration(milliseconds: 500));
-    
+
     final boundary = boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
     if (boundary == null) return null;
 
     // Try to capture the image with retries
-    ui.Image? image;
     for (int retry = 0; retry < 10; retry++) {
       try {
         image = await boundary.toImage(pixelRatio: pixelRatio);
@@ -342,159 +351,52 @@ Future<File?> _renderWidgetDirectly(
         await Future<void>.delayed(const Duration(milliseconds: 200));
       }
     }
-    
+
     if (image == null) return null;
-    
+
     // Convert to PNG
     final data = await image.toByteData(format: ui.ImageByteFormat.png);
     if (data == null) return null;
-    
+
     // Save to file
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/chat-export-${DateTime.now().millisecondsSinceEpoch}.png');
     await file.writeAsBytes(data.buffer.asUint8List());
-    
+
     return file;
   } finally {
+    image?.dispose();
     entry.remove();
   }
 }
 
-// Keep the old paginated version for reference but renamed
-Future<File?> _renderAndSavePagedOld(
+const bool kLongImageTilingEnabled = bool.fromEnvironment('LONG_IMAGE_TILING', defaultValue: true);
+
+/// Compile-time kill switch for tiled export. Tiling is also disabled at
+/// runtime when `long_image_tiling_v1` is off (Display → Rendering), which
+/// selects the previous single-shot capture path.
+Future<LongImageExportResult?> _renderWidgetDirectly(
   BuildContext context,
   Widget content, {
-  double width = 480, // 宽度*3
-  double pageHeight = 1600,
+  double width = 480,
   double pixelRatio = 3.0,
+  bool tilingEnabled = true,
+  LongImageProgressCallback? onProgress,
+  bool Function()? isCancelled,
 }) async {
-  final overlay = Overlay.of(context);
-  if (overlay == null) return null;
-  final boundaryKey = GlobalKey();
-  final contentKey = GlobalKey();
-  final controller = ScrollController();
-  
-  // Create a completer to signal when the widget is ready
-  final completer = Completer<void>();
-  
-  late OverlayEntry entry;
-  entry = OverlayEntry(builder: (ctx) {
-    // Schedule a callback after the frame is built
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!completer.isCompleted) {
-        completer.complete();
-      }
-    });
-    
-    return Material(
-      type: MaterialType.transparency,
-      child: IgnorePointer(
-        ignoring: true,
-        child: Opacity(
-          opacity: 0.001,
-          child: Align(
-            alignment: Alignment.topLeft,
-            child: RepaintBoundary(
-              key: boundaryKey,
-              child: SizedBox(
-                width: width,
-                height: pageHeight,
-                child: SingleChildScrollView(
-                  controller: controller,
-                  child: KeyedSubtree(key: contentKey, child: content),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  });
-  
-  overlay.insert(entry);
-  
-  try {
-    // Wait for the initial frame to be ready
-    await completer.future;
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    
-    final contentSize = contentKey.currentContext?.size;
-    if (contentSize == null) return null;
-    
-    final totalHeight = contentSize.height;
-    final pages = (totalHeight / pageHeight).ceil().clamp(1, 200);
-    final images = <ui.Image>[];
-    final drawHeights = <int>[];
-    
-    for (int i = 0; i < pages; i++) {
-      final offset = i * pageHeight;
-      controller.jumpTo(offset);
-      
-      // Wait for the scroll to complete and the new content to render
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-      
-      // Force a frame
-      SchedulerBinding.instance.scheduleFrameCallback((_) {});
-      await SchedulerBinding.instance.endOfFrame;
-      
-      final boundary = boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) break;
-      
-      // Capture with retry logic
-      ui.Image? img;
-      for (int retry = 0; retry < 5; retry++) {
-        try {
-          img = await boundary.toImage(pixelRatio: pixelRatio);
-          break;
-        } catch (e) {
-          // Wait and retry
-          await Future<void>.delayed(const Duration(milliseconds: 100));
-          SchedulerBinding.instance.scheduleFrameCallback((_) {});
-          await SchedulerBinding.instance.endOfFrame;
-        }
-      }
-      
-      if (img == null) continue;
-      
-      images.add(img);
-      final drawn = drawHeights.fold<int>(0, (a, b) => a + b);
-      final remaining = (totalHeight * pixelRatio).round() - drawn;
-      final h = remaining <= 0 ? 0 : math.min(img.height, remaining);
-      drawHeights.add(h);
-    }
-    
-    if (images.isEmpty) return null;
-    
-    final composedHeightPx = drawHeights.fold<int>(0, (a, b) => a + b);
-    final widthPx = (width * pixelRatio).round();
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    double y = 0;
-    
-    for (int i = 0; i < images.length; i++) {
-      final ui.Image page = images[i];
-      final int drawH = drawHeights[i];
-      if (drawH <= 0) break;
-      final src = Rect.fromLTWH(0, 0, page.width.toDouble(), drawH.toDouble());
-      final dst = Rect.fromLTWH(0, y, widthPx.toDouble(), drawH.toDouble());
-      canvas.drawImageRect(page, src, dst, Paint());
-      y += drawH.toDouble();
-    }
-    
-    final pic = recorder.endRecording();
-    final img = await pic.toImage(widthPx, composedHeightPx);
-    final data = await img.toByteData(format: ui.ImageByteFormat.png);
-    if (data == null) return null;
-    
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/chat-export-${DateTime.now().millisecondsSinceEpoch}.png');
-    await file.writeAsBytes(data.buffer.asUint8List());
-    return file;
-  } finally {
-    entry.remove();
+  if (!kLongImageTilingEnabled || !tilingEnabled) {
+    final file = await _renderWidgetSingleShot(context, content, width: width, pixelRatio: pixelRatio);
+    return file == null ? null : LongImageExportResult(file: file);
   }
+  return LongImageExporter.export(
+    context,
+    content,
+    width: width,
+    pixelRatio: pixelRatio,
+    onProgress: onProgress,
+    isCancelled: isCancelled,
+  );
 }
-
 
 Future<void> showMessageExportSheet(BuildContext context, ChatMessage message) async {
   // The export renders full tool cards; the SQLite facade loads tool bodies
@@ -527,9 +429,7 @@ Future<void> showMessageExportSheet(BuildContext context, ChatMessage message) a
     context: context,
     isScrollControlled: true,
     backgroundColor: cs.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
     builder: (ctx) {
       return SafeArea(
         top: false,
@@ -567,9 +467,7 @@ Future<void> showChatExportSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: cs.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
     builder: (ctx) {
       return SafeArea(
         top: false,
@@ -610,7 +508,9 @@ class _ExportDialogState extends State<_ExportDialog> {
       final service = pctx.read<ChatService>();
       final convo = service.getConversation(msg.conversationId);
       final l10n = AppLocalizations.of(pctx)!;
-      final title = ((convo?.title ?? '').trim().isNotEmpty) ? (convo?.title ?? '') : l10n.messageExportSheetDefaultTitle;
+      final title = ((convo?.title ?? '').trim().isNotEmpty)
+          ? (convo?.title ?? '')
+          : l10n.messageExportSheetDefaultTitle;
       final time = _formatTime(pctx, msg.timestamp);
 
       final parsed = _parseContent(msg.content);
@@ -666,11 +566,7 @@ class _ExportDialogState extends State<_ExportDialog> {
     } catch (e) {
       final pctx = widget.parentContext;
       final l10n = AppLocalizations.of(pctx)!;
-      showAppSnackBar(
-        pctx,
-        message: l10n.messageExportSheetExportFailed('$e'),
-        type: NotificationType.error,
-      );
+      showAppSnackBar(pctx, message: l10n.messageExportSheetExportFailed('$e'), type: NotificationType.error);
     }
   }
 
@@ -684,7 +580,9 @@ class _ExportDialogState extends State<_ExportDialog> {
       final service = pctx.read<ChatService>();
       final convo = service.getConversation(msg.conversationId);
       final l10n = AppLocalizations.of(pctx)!;
-      final title = ((convo?.title ?? '').trim().isNotEmpty) ? (convo?.title ?? '') : l10n.messageExportSheetDefaultTitle;
+      final title = ((convo?.title ?? '').trim().isNotEmpty)
+          ? (convo?.title ?? '')
+          : l10n.messageExportSheetDefaultTitle;
       final time = _formatTime(pctx, msg.timestamp);
 
       final parsed = _parseContent(msg.content);
@@ -723,39 +621,27 @@ class _ExportDialogState extends State<_ExportDialog> {
     } catch (e) {
       final pctx = widget.parentContext;
       final l10n = AppLocalizations.of(pctx)!;
-      showAppSnackBar(
-        pctx,
-        message: l10n.messageExportSheetExportFailed('$e'),
-        type: NotificationType.error,
-      );
+      showAppSnackBar(pctx, message: l10n.messageExportSheetExportFailed('$e'), type: NotificationType.error);
     }
   }
 
   Future<void> _onExportImage() async {
     if (_exporting) return;
+    final tilingEnabled = widget.parentContext.read<SettingsProvider>().longImageTilingEnabled;
     // Close dialog first to avoid overlapping UI
     if (mounted) await Navigator.of(context).maybePop();
-    try {
-      File? file;
-      await _runWithExportingOverlay(widget.parentContext, () async {
-        file = await _renderAndSaveMessageImage(
-          widget.parentContext,
-          widget.message,
-          showThinkingAndToolCards: _showThinkingAndToolCards,
-          expandThinkingContent: _expandThinkingContent,
-        );
-      });
-      if (file == null) throw 'render error';
-      await showImagePreviewSheet(widget.parentContext, file: file!);
-      return;
-    } catch (e) {
-      final l10n = AppLocalizations.of(widget.parentContext)!;
-      showAppSnackBar(
+    await _runImageExport(
+      widget.parentContext,
+      render: (onProgress, isCancelled) => _renderAndSaveMessageImage(
         widget.parentContext,
-        message: l10n.messageExportSheetExportFailed('$e'),
-        type: NotificationType.error,
-      );
-    }
+        widget.message,
+        showThinkingAndToolCards: _showThinkingAndToolCards,
+        expandThinkingContent: _expandThinkingContent,
+        tilingEnabled: tilingEnabled,
+        onProgress: onProgress,
+        isCancelled: isCancelled,
+      ),
+    );
   }
 
   @override
@@ -776,7 +662,14 @@ class _ExportDialogState extends State<_ExportDialog> {
                 padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
                 child: Row(
                   children: [
-                    Expanded(child: Text(l10n.messageExportSheetFormatTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    Expanded(
+                      child: Text(
+                        l10n.messageExportSheetFormatTitle,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                     IconButton(
                       tooltip: l10n.mcpPageClose,
                       icon: Icon(Lucide.X, size: 18, color: cs.onSurface.withOpacity(0.75)),
@@ -850,7 +743,8 @@ class _ExportDialogState extends State<_ExportDialog> {
     );
   }
 
-  Widget _buildSwitchRow(BuildContext context, {
+  Widget _buildSwitchRow(
+    BuildContext context, {
     required String title,
     required bool value,
     required ValueChanged<bool>? onChanged,
@@ -864,17 +758,10 @@ class _ExportDialogState extends State<_ExportDialog> {
           Expanded(
             child: Text(
               title,
-              style: TextStyle(
-                fontSize: 14,
-                color: isEnabled ? cs.onSurface : cs.onSurface.withOpacity(0.4),
-              ),
+              style: TextStyle(fontSize: 14, color: isEnabled ? cs.onSurface : cs.onSurface.withOpacity(0.4)),
             ),
           ),
-          IosSwitch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: cs.primary,
-          ),
+          IosSwitch(value: value, onChanged: onChanged, activeColor: cs.primary),
         ],
       ),
     );
@@ -961,11 +848,7 @@ class _BatchExportDialogState extends State<_BatchExportDialog> {
         await File(savePath).parent.create(recursive: true);
         await File(savePath).writeAsString(buf.toString());
       } catch (e) {
-        showAppSnackBar(
-          pctx,
-          message: l10n.messageExportSheetExportFailed('$e'),
-          type: NotificationType.error,
-        );
+        showAppSnackBar(pctx, message: l10n.messageExportSheetExportFailed('$e'), type: NotificationType.error);
         return;
       }
       showAppSnackBar(
@@ -976,11 +859,7 @@ class _BatchExportDialogState extends State<_BatchExportDialog> {
     } catch (e) {
       final pctx = widget.parentContext;
       final l10n = AppLocalizations.of(pctx)!;
-      showAppSnackBar(
-        pctx,
-        message: l10n.messageExportSheetExportFailed('$e'),
-        type: NotificationType.error,
-      );
+      showAppSnackBar(pctx, message: l10n.messageExportSheetExportFailed('$e'), type: NotificationType.error);
     }
   }
 
@@ -1025,11 +904,7 @@ class _BatchExportDialogState extends State<_BatchExportDialog> {
         await File(savePath).parent.create(recursive: true);
         await File(savePath).writeAsString(buf.toString());
       } catch (e) {
-        showAppSnackBar(
-          pctx,
-          message: l10n.messageExportSheetExportFailed('$e'),
-          type: NotificationType.error,
-        );
+        showAppSnackBar(pctx, message: l10n.messageExportSheetExportFailed('$e'), type: NotificationType.error);
         return;
       }
       showAppSnackBar(
@@ -1040,40 +915,28 @@ class _BatchExportDialogState extends State<_BatchExportDialog> {
     } catch (e) {
       final pctx = widget.parentContext;
       final l10n = AppLocalizations.of(pctx)!;
-      showAppSnackBar(
-        pctx,
-        message: l10n.messageExportSheetExportFailed('$e'),
-        type: NotificationType.error,
-      );
+      showAppSnackBar(pctx, message: l10n.messageExportSheetExportFailed('$e'), type: NotificationType.error);
     }
   }
 
   Future<void> _onExportImage() async {
     if (_exporting) return;
+    final tilingEnabled = widget.parentContext.read<SettingsProvider>().longImageTilingEnabled;
     // Close dialog first to avoid overlapping UI
     if (mounted) await Navigator.of(context).maybePop();
-    try {
-      File? file;
-      await _runWithExportingOverlay(widget.parentContext, () async {
-        file = await _renderAndSaveChatImage(
-          widget.parentContext,
-          widget.conversation,
-          widget.messages,
-          showThinkingAndToolCards: _showThinkingAndToolCards,
-          expandThinkingContent: _expandThinkingContent,
-        );
-      });
-      if (file == null) throw 'render error';
-      await showImagePreviewSheet(widget.parentContext, file: file!);
-      return;
-    } catch (e) {
-      final l10n = AppLocalizations.of(widget.parentContext)!;
-      showAppSnackBar(
+    await _runImageExport(
+      widget.parentContext,
+      render: (onProgress, isCancelled) => _renderAndSaveChatImage(
         widget.parentContext,
-        message: l10n.messageExportSheetExportFailed('$e'),
-        type: NotificationType.error,
-      );
-    }
+        widget.conversation,
+        widget.messages,
+        showThinkingAndToolCards: _showThinkingAndToolCards,
+        expandThinkingContent: _expandThinkingContent,
+        tilingEnabled: tilingEnabled,
+        onProgress: onProgress,
+        isCancelled: isCancelled,
+      ),
+    );
   }
 
   @override
@@ -1094,7 +957,14 @@ class _BatchExportDialogState extends State<_BatchExportDialog> {
                 padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
                 child: Row(
                   children: [
-                    Expanded(child: Text(l10n.messageExportSheetFormatTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    Expanded(
+                      child: Text(
+                        l10n.messageExportSheetFormatTitle,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                     IconButton(
                       tooltip: l10n.mcpPageClose,
                       icon: Icon(Lucide.X, size: 18, color: cs.onSurface.withOpacity(0.75)),
@@ -1168,7 +1038,8 @@ class _BatchExportDialogState extends State<_BatchExportDialog> {
     );
   }
 
-  Widget _buildSwitchRow(BuildContext context, {
+  Widget _buildSwitchRow(
+    BuildContext context, {
     required String title,
     required bool value,
     required ValueChanged<bool>? onChanged,
@@ -1182,17 +1053,10 @@ class _BatchExportDialogState extends State<_BatchExportDialog> {
           Expanded(
             child: Text(
               title,
-              style: TextStyle(
-                fontSize: 14,
-                color: isEnabled ? cs.onSurface : cs.onSurface.withOpacity(0.4),
-              ),
+              style: TextStyle(fontSize: 14, color: isEnabled ? cs.onSurface : cs.onSurface.withOpacity(0.4)),
             ),
           ),
-          IosSwitch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: cs.primary,
-          ),
+          IosSwitch(value: value, onChanged: onChanged, activeColor: cs.primary),
         ],
       ),
     );
@@ -1238,19 +1102,15 @@ class _BatchExportSheetState extends State<_BatchExportSheet> {
 
   Future<void> _onExportMarkdown() async {
     if (_exporting) return;
-    
+
     // Dismiss dialog immediately
     if (mounted) Navigator.of(context).maybePop();
-    
+
     setState(() => _exporting = true);
     try {
       if (mounted) {
         final l10n = AppLocalizations.of(context)!;
-        showAppSnackBar(
-          context,
-          message: l10n.messageExportSheetExporting,
-          type: NotificationType.info,
-        );
+        showAppSnackBar(context, message: l10n.messageExportSheetExporting, type: NotificationType.info);
       }
       final ctx = context;
       final conv = widget.conversation;
@@ -1310,11 +1170,7 @@ class _BatchExportSheetState extends State<_BatchExportSheet> {
           await File(savePath).writeAsString(buf.toString());
         } catch (e) {
           if (!mounted) return;
-          showAppSnackBar(
-            context,
-            message: l10n.messageExportSheetExportFailed('$e'),
-            type: NotificationType.error,
-          );
+          showAppSnackBar(context, message: l10n.messageExportSheetExportFailed('$e'), type: NotificationType.error);
           return;
         }
         if (mounted) {
@@ -1349,11 +1205,7 @@ class _BatchExportSheetState extends State<_BatchExportSheet> {
     } catch (e) {
       if (mounted) {
         final l10n = AppLocalizations.of(context)!;
-        showAppSnackBar(
-          context,
-          message: l10n.messageExportSheetExportFailed('$e'),
-          type: NotificationType.error,
-        );
+        showAppSnackBar(context, message: l10n.messageExportSheetExportFailed('$e'), type: NotificationType.error);
       }
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -1370,11 +1222,7 @@ class _BatchExportSheetState extends State<_BatchExportSheet> {
     try {
       if (mounted) {
         final l10n = AppLocalizations.of(context)!;
-        showAppSnackBar(
-          context,
-          message: l10n.messageExportSheetExporting,
-          type: NotificationType.info,
-        );
+        showAppSnackBar(context, message: l10n.messageExportSheetExporting, type: NotificationType.info);
       }
       final ctx = context;
       final conv = widget.conversation;
@@ -1416,11 +1264,7 @@ class _BatchExportSheetState extends State<_BatchExportSheet> {
           await File(savePath).writeAsString(buf.toString());
         } catch (e) {
           if (!mounted) return;
-          showAppSnackBar(
-            context,
-            message: l10n.messageExportSheetExportFailed('$e'),
-            type: NotificationType.error,
-          );
+          showAppSnackBar(context, message: l10n.messageExportSheetExportFailed('$e'), type: NotificationType.error);
           return;
         }
         if (mounted) {
@@ -1454,11 +1298,7 @@ class _BatchExportSheetState extends State<_BatchExportSheet> {
     } catch (e) {
       if (mounted) {
         final l10n = AppLocalizations.of(context)!;
-        showAppSnackBar(
-          context,
-          message: l10n.messageExportSheetExportFailed('$e'),
-          type: NotificationType.error,
-        );
+        showAppSnackBar(context, message: l10n.messageExportSheetExportFailed('$e'), type: NotificationType.error);
       }
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -1468,28 +1308,25 @@ class _BatchExportSheetState extends State<_BatchExportSheet> {
   Future<void> _onExportImage() async {
     if (_exporting) return;
     setState(() => _exporting = true);
+    final tilingEnabled = widget.parentContext.read<SettingsProvider>().longImageTilingEnabled;
     try {
-      File? file;
-      await _runWithExportingOverlay(widget.parentContext, () async {
-        file = await _renderAndSaveChatImage(
+      await _runImageExport(
+        widget.parentContext,
+        render: (onProgress, isCancelled) => _renderAndSaveChatImage(
           widget.parentContext,
           widget.conversation,
           widget.messages,
           showThinkingAndToolCards: _showThinkingAndToolCards,
           expandThinkingContent: _expandThinkingContent,
-        );
-      });
-      if (file == null) throw 'render error';
-      // After generation, close current sheet then open preview
-      if (mounted) await Navigator.of(context).maybePop();
-      await showImagePreviewSheet(widget.parentContext, file: file!);
-      return; // do not fall through to setState after pop
-    } catch (e) {
-      final l10n = AppLocalizations.of(widget.parentContext)!;
-      showAppSnackBar(
-        widget.parentContext,
-        message: l10n.messageExportSheetExportFailed('$e'),
-        type: NotificationType.error,
+          tilingEnabled: tilingEnabled,
+          onProgress: onProgress,
+          isCancelled: isCancelled,
+        ),
+        beforePreview: () async {
+          // Close the sheet before opening the preview, otherwise maybePop
+          // would dismiss the preview itself.
+          if (mounted) await Navigator.of(context).maybePop();
+        },
       );
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -1512,10 +1349,22 @@ class _BatchExportSheetState extends State<_BatchExportSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
-              child: Container(width: 40, height: 4, decoration: BoxDecoration(color: cs.onSurface.withOpacity(0.2), borderRadius: BorderRadius.circular(999))),
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: cs.onSurface.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
             ),
             const SizedBox(height: 10),
-            Center(child: Text(l10n.messageExportSheetFormatTitle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
+            Center(
+              child: Text(
+                l10n.messageExportSheetFormatTitle,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+            ),
             const SizedBox(height: 10),
             Expanded(
               child: ListView(
@@ -1525,25 +1374,31 @@ class _BatchExportSheetState extends State<_BatchExportSheet> {
                     icon: Lucide.BookOpenText,
                     title: l10n.messageExportSheetMarkdown,
                     subtitle: l10n.messageExportSheetBatchMarkdownSubtitle,
-                    onTap: _exporting ? null : () {
-                      _onExportMarkdown();
-                    },
+                    onTap: _exporting
+                        ? null
+                        : () {
+                            _onExportMarkdown();
+                          },
                   ),
                   _ExportOptionTile(
                     icon: Lucide.FileText,
                     title: l10n.messageExportSheetPlainText,
                     subtitle: l10n.messageExportSheetBatchTxtSubtitle,
-                    onTap: _exporting ? null : () {
-                      _onExportTxt();
-                    },
+                    onTap: _exporting
+                        ? null
+                        : () {
+                            _onExportTxt();
+                          },
                   ),
                   _ExportOptionTile(
                     icon: Lucide.Image,
                     title: l10n.messageExportSheetExportImage,
                     subtitle: l10n.messageExportSheetBatchExportImageSubtitle,
-                    onTap: _exporting ? null : () {
-                      _onExportImage();
-                    },
+                    onTap: _exporting
+                        ? null
+                        : () {
+                            _onExportImage();
+                          },
                   ),
                   const SizedBox(height: 8),
                   // Image export options
@@ -1568,11 +1423,13 @@ class _BatchExportSheetState extends State<_BatchExportSheet> {
                           context,
                           title: l10n.messageExportSheetShowThinkingContent,
                           value: _expandThinkingContent,
-                          onChanged: _showThinkingAndToolCards ? (v) {
-                            setState(() {
-                              _expandThinkingContent = v;
-                            });
-                          } : null,
+                          onChanged: _showThinkingAndToolCards
+                              ? (v) {
+                                  setState(() {
+                                    _expandThinkingContent = v;
+                                  });
+                                }
+                              : null,
                         ),
                       ],
                     ),
@@ -1586,7 +1443,8 @@ class _BatchExportSheetState extends State<_BatchExportSheet> {
     );
   }
 
-  Widget _buildSwitchRow(BuildContext context, {
+  Widget _buildSwitchRow(
+    BuildContext context, {
     required String title,
     required bool value,
     required ValueChanged<bool>? onChanged,
@@ -1600,17 +1458,10 @@ class _BatchExportSheetState extends State<_BatchExportSheet> {
           Expanded(
             child: Text(
               title,
-              style: TextStyle(
-                fontSize: 14,
-                color: isEnabled ? cs.onSurface : cs.onSurface.withOpacity(0.4),
-              ),
+              style: TextStyle(fontSize: 14, color: isEnabled ? cs.onSurface : cs.onSurface.withOpacity(0.4)),
             ),
           ),
-          IosSwitch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: cs.primary,
-          ),
+          IosSwitch(value: value, onChanged: onChanged, activeColor: cs.primary),
         ],
       ),
     );
@@ -1644,7 +1495,9 @@ class _ExportSheetState extends State<_ExportSheet> {
       final service = ctx.read<ChatService>();
       final convo = service.getConversation(msg.conversationId);
       final l10n = AppLocalizations.of(ctx)!;
-      final title = ((convo?.title ?? '').trim().isNotEmpty) ? (convo?.title ?? '') : l10n.messageExportSheetDefaultTitle;
+      final title = ((convo?.title ?? '').trim().isNotEmpty)
+          ? (convo?.title ?? '')
+          : l10n.messageExportSheetDefaultTitle;
       final time = _formatTime(ctx, msg.timestamp);
 
       final parsed = _parseContent(msg.content);
@@ -1727,11 +1580,7 @@ class _ExportSheetState extends State<_ExportSheet> {
     } catch (e) {
       if (mounted) {
         final l10n = AppLocalizations.of(context)!;
-        showAppSnackBar(
-          context,
-          message: l10n.messageExportSheetExportFailed('$e'),
-          type: NotificationType.error,
-        );
+        showAppSnackBar(context, message: l10n.messageExportSheetExportFailed('$e'), type: NotificationType.error);
       }
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -1747,7 +1596,9 @@ class _ExportSheetState extends State<_ExportSheet> {
       final service = ctx.read<ChatService>();
       final convo = service.getConversation(msg.conversationId);
       final l10n = AppLocalizations.of(ctx)!;
-      final title = ((convo?.title ?? '').trim().isNotEmpty) ? (convo?.title ?? '') : l10n.messageExportSheetDefaultTitle;
+      final title = ((convo?.title ?? '').trim().isNotEmpty)
+          ? (convo?.title ?? '')
+          : l10n.messageExportSheetDefaultTitle;
       final time = _formatTime(ctx, msg.timestamp);
 
       final parsed = _parseContent(msg.content);
@@ -1811,11 +1662,7 @@ class _ExportSheetState extends State<_ExportSheet> {
     } catch (e) {
       if (mounted) {
         final l10n = AppLocalizations.of(context)!;
-        showAppSnackBar(
-          context,
-          message: l10n.messageExportSheetExportFailed('$e'),
-          type: NotificationType.error,
-        );
+        showAppSnackBar(context, message: l10n.messageExportSheetExportFailed('$e'), type: NotificationType.error);
       }
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -1825,26 +1672,24 @@ class _ExportSheetState extends State<_ExportSheet> {
   Future<void> _onExportImage() async {
     if (_exporting) return;
     setState(() => _exporting = true);
+    final tilingEnabled = widget.parentContext.read<SettingsProvider>().longImageTilingEnabled;
     try {
-      File? file;
-      await _runWithExportingOverlay(widget.parentContext, () async {
-        file = await _renderAndSaveMessageImage(
+      await _runImageExport(
+        widget.parentContext,
+        render: (onProgress, isCancelled) => _renderAndSaveMessageImage(
           widget.parentContext,
           widget.message,
           showThinkingAndToolCards: _showThinkingAndToolCards,
           expandThinkingContent: _expandThinkingContent,
-        );
-      });
-      if (file == null) throw 'render error';
-      if (mounted) await Navigator.of(context).maybePop();
-      await showImagePreviewSheet(widget.parentContext, file: file!);
-      return;
-    } catch (e) {
-      final l10n = AppLocalizations.of(widget.parentContext)!;
-      showAppSnackBar(
-        widget.parentContext,
-        message: l10n.messageExportSheetExportFailed('$e'),
-        type: NotificationType.error,
+          tilingEnabled: tilingEnabled,
+          onProgress: onProgress,
+          isCancelled: isCancelled,
+        ),
+        beforePreview: () async {
+          // Close the sheet before opening the preview, otherwise maybePop
+          // would dismiss the preview itself.
+          if (mounted) await Navigator.of(context).maybePop();
+        },
       );
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -1867,10 +1712,22 @@ class _ExportSheetState extends State<_ExportSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
-              child: Container(width: 40, height: 4, decoration: BoxDecoration(color: cs.onSurface.withOpacity(0.2), borderRadius: BorderRadius.circular(999))),
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: cs.onSurface.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
             ),
             const SizedBox(height: 10),
-            Center(child: Text(l10n.messageExportSheetFormatTitle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
+            Center(
+              child: Text(
+                l10n.messageExportSheetFormatTitle,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+            ),
             const SizedBox(height: 10),
             Expanded(
               child: ListView(
@@ -1880,25 +1737,31 @@ class _ExportSheetState extends State<_ExportSheet> {
                     icon: Lucide.BookOpenText,
                     title: l10n.messageExportSheetMarkdown,
                     subtitle: l10n.messageExportSheetSingleMarkdownSubtitle,
-                    onTap: _exporting ? null : () {
-                      _onExportMarkdown();
-                    },
+                    onTap: _exporting
+                        ? null
+                        : () {
+                            _onExportMarkdown();
+                          },
                   ),
                   _ExportOptionTile(
                     icon: Lucide.FileText,
                     title: l10n.messageExportSheetPlainText,
                     subtitle: l10n.messageExportSheetSingleTxtSubtitle,
-                    onTap: _exporting ? null : () {
-                      _onExportTxt();
-                    },
+                    onTap: _exporting
+                        ? null
+                        : () {
+                            _onExportTxt();
+                          },
                   ),
                   _ExportOptionTile(
                     icon: Lucide.Image,
                     title: l10n.messageExportSheetExportImage,
                     subtitle: l10n.messageExportSheetSingleExportImageSubtitle,
-                    onTap: _exporting ? null : () {
-                      _onExportImage();
-                    },
+                    onTap: _exporting
+                        ? null
+                        : () {
+                            _onExportImage();
+                          },
                   ),
                   const SizedBox(height: 8),
                   // Image export options
@@ -1923,11 +1786,13 @@ class _ExportSheetState extends State<_ExportSheet> {
                           context,
                           title: l10n.messageExportSheetShowThinkingContent,
                           value: _expandThinkingContent,
-                          onChanged: _showThinkingAndToolCards ? (v) {
-                            setState(() {
-                              _expandThinkingContent = v;
-                            });
-                          } : null,
+                          onChanged: _showThinkingAndToolCards
+                              ? (v) {
+                                  setState(() {
+                                    _expandThinkingContent = v;
+                                  });
+                                }
+                              : null,
                         ),
                       ],
                     ),
@@ -1941,7 +1806,8 @@ class _ExportSheetState extends State<_ExportSheet> {
     );
   }
 
-  Widget _buildSwitchRow(BuildContext context, {
+  Widget _buildSwitchRow(
+    BuildContext context, {
     required String title,
     required bool value,
     required ValueChanged<bool>? onChanged,
@@ -1955,17 +1821,10 @@ class _ExportSheetState extends State<_ExportSheet> {
           Expanded(
             child: Text(
               title,
-              style: TextStyle(
-                fontSize: 14,
-                color: isEnabled ? cs.onSurface : cs.onSurface.withOpacity(0.4),
-              ),
+              style: TextStyle(fontSize: 14, color: isEnabled ? cs.onSurface : cs.onSurface.withOpacity(0.4)),
             ),
           ),
-          IosSwitch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: cs.primary,
-          ),
+          IosSwitch(value: value, onChanged: onChanged, activeColor: cs.primary),
         ],
       ),
     );
@@ -1996,7 +1855,6 @@ class _ExportedMessageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isAssistant = message.role == 'assistant';
     final headerFg = cs.onSurface;
-    final headerBg = cs.surface;
     final bubbleBg = cs.primary.withOpacity(0.08);
     final bubbleFg = cs.onSurface;
     final time = DateFormat('yyyy-MM-dd HH:mm').format(message.timestamp);
@@ -2018,13 +1876,15 @@ class _ExportedMessageCard extends StatelessWidget {
         final events = chatService.getToolEvents(message.id);
         if (events.isNotEmpty) {
           toolParts = events
-              .map((e) => ToolUIPart(
-                    id: (e['id'] ?? '').toString(),
-                    toolName: (e['name'] ?? '').toString(),
-                    arguments: (e['arguments'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{},
-                    content: (e['content']?.toString().isNotEmpty == true) ? e['content'].toString() : null,
-                    loading: !(e['content']?.toString().isNotEmpty == true),
-                  ))
+              .map(
+                (e) => ToolUIPart(
+                  id: (e['id'] ?? '').toString(),
+                  toolName: (e['name'] ?? '').toString(),
+                  arguments: (e['arguments'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{},
+                  content: (e['content']?.toString().isNotEmpty == true) ? e['content'].toString() : null,
+                  loading: !(e['content']?.toString().isNotEmpty == true),
+                ),
+              )
               .toList();
         }
       } catch (_) {}
@@ -2042,10 +1902,7 @@ class _ExportedMessageCard extends StatelessWidget {
         // Extract thinking content from <think> tags
         final thinkingMatches = thinkingRegex.allMatches(message.content);
         if (thinkingMatches.isNotEmpty) {
-          final texts = thinkingMatches
-              .map((m) => (m.group(1) ?? '').trim())
-              .where((s) => s.isNotEmpty)
-              .toList();
+          final texts = thinkingMatches.map((m) => (m.group(1) ?? '').trim()).where((s) => s.isNotEmpty).toList();
           // Create segments with sequential toolStartIndex
           for (int i = 0; i < texts.length; i++) {
             reasoningSegments.add({
@@ -2058,10 +1915,7 @@ class _ExportedMessageCard extends StatelessWidget {
         }
         // Also check reasoningText field
         else if (message.reasoningText != null && message.reasoningText!.isNotEmpty) {
-          reasoningSegments.add({
-            'text': message.reasoningText!,
-            'toolStartIndex': 0,
-          });
+          reasoningSegments.add({'text': message.reasoningText!, 'toolStartIndex': 0});
         }
       }
     }
@@ -2079,7 +1933,10 @@ class _ExportedMessageCard extends StatelessWidget {
     final Widget contentWidget = (mdText.toString().trim().isNotEmpty)
         ? DefaultTextStyle.merge(
             style: TextStyle(fontSize: contentFontSize, height: 1.5),
-            child: MarkdownWithCodeHighlight(text: mdText.toString()),
+            child: MarkdownSurfaceScope(
+              surface: MarkdownSurface.fromColorScheme(cs),
+              child: MarkdownWithCodeHighlight(text: mdText.toString()),
+            ),
           )
         : Text('—', style: TextStyle(color: bubbleFg.withOpacity(0.5)));
 
@@ -2089,9 +1946,7 @@ class _ExportedMessageCard extends StatelessWidget {
 
     return MediaQuery(
       // Respect chat font scale for export rendering
-      data: MediaQuery.of(context).copyWith(
-        textScaleFactor: MediaQuery.of(context).textScaleFactor * chatFontScale,
-      ),
+      data: MediaQuery.of(context).copyWith(textScaleFactor: MediaQuery.of(context).textScaleFactor * chatFontScale),
       child: Container(
         margin: EdgeInsets.all(containerMargin),
         padding: EdgeInsets.all(containerPadding),
@@ -2113,7 +1968,10 @@ class _ExportedMessageCard extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             // Timestamp under title, aligned with title
-            Text(time, style: TextStyle(fontSize: timeFontSize, color: headerFg.withOpacity(0.6))),
+            Text(
+              time,
+              style: TextStyle(fontSize: timeFontSize, color: headerFg.withOpacity(0.6)),
+            ),
             SizedBox(height: isDesktop ? 10.0 : 12.0),
             // Message body styled like chat
             if (isAssistant) ...[
@@ -2129,12 +1987,14 @@ class _ExportedMessageCard extends StatelessWidget {
 
                     // Add the reasoning segment (if any text)
                     if (text.isNotEmpty) {
-                      mixedContent.add(_ExportThinkingCard(
-                        thinkingText: text,
-                        cs: cs,
-                        expanded: expandThinkingContent,
-                        isDesktop: isDesktop,
-                      ));
+                      mixedContent.add(
+                        _ExportThinkingCard(
+                          thinkingText: text,
+                          cs: cs,
+                          expanded: expandThinkingContent,
+                          isDesktop: isDesktop,
+                        ),
+                      );
                       mixedContent.add(SizedBox(height: isDesktop ? 6.0 : 8.0));
                     }
 
@@ -2232,9 +2092,7 @@ class _ExportedChatImage extends StatelessWidget {
     final double containerPadding = isDesktop ? 5.0 : 6.0;
 
     return MediaQuery(
-      data: MediaQuery.of(context).copyWith(
-        textScaleFactor: MediaQuery.of(context).textScaleFactor * chatFontScale,
-      ),
+      data: MediaQuery.of(context).copyWith(textScaleFactor: MediaQuery.of(context).textScaleFactor * chatFontScale),
       child: ClipRect(
         child: Container(
           margin: EdgeInsets.all(containerMargin),
@@ -2248,32 +2106,36 @@ class _ExportedChatImage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-            // Title (no icon, no bordered container)
-            Text(
-              conversationTitle,
-              style: TextStyle(fontSize: titleFontSize, fontWeight: FontWeight.w700, color: cs.onSurface.withOpacity(0.95)),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-            ),
-            const SizedBox(height: 2),
-            // Timestamp under title, aligned with title
-            Text(
-              DateFormat('yyyy-MM-dd HH:mm').format(timestamp),
-              style: TextStyle(fontSize: timeFontSize, color: cs.onSurface.withOpacity(0.6)),
-            ),
-            SizedBox(height: isDesktop ? 10.0 : 12.0),
-            for (final m in messages) ...[
-              _ExportedBubble(
-                message: m,
-                cs: cs,
-                showThinkingAndToolCards: showThinkingAndToolCards,
-                expandThinkingContent: expandThinkingContent,
-                isDesktop: isDesktop,
+              // Title (no icon, no bordered container)
+              Text(
+                conversationTitle,
+                style: TextStyle(
+                  fontSize: titleFontSize,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface.withOpacity(0.95),
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
-              SizedBox(height: isDesktop ? 6.0 : 8.0),
-            ],
-            SizedBox(height: isDesktop ? 10.0 : 12.0),
-            _ExportDisclaimer(isDesktop: isDesktop),
+              const SizedBox(height: 2),
+              // Timestamp under title, aligned with title
+              Text(
+                DateFormat('yyyy-MM-dd HH:mm').format(timestamp),
+                style: TextStyle(fontSize: timeFontSize, color: cs.onSurface.withOpacity(0.6)),
+              ),
+              SizedBox(height: isDesktop ? 10.0 : 12.0),
+              for (final m in messages) ...[
+                _ExportedBubble(
+                  message: m,
+                  cs: cs,
+                  showThinkingAndToolCards: showThinkingAndToolCards,
+                  expandThinkingContent: expandThinkingContent,
+                  isDesktop: isDesktop,
+                ),
+                SizedBox(height: isDesktop ? 6.0 : 8.0),
+              ],
+              SizedBox(height: isDesktop ? 10.0 : 12.0),
+              _ExportDisclaimer(isDesktop: isDesktop),
             ],
           ),
         ),
@@ -2317,13 +2179,15 @@ class _ExportedBubble extends StatelessWidget {
         final events = chatService.getToolEvents(message.id);
         if (events.isNotEmpty) {
           toolParts = events
-              .map((e) => ToolUIPart(
-                    id: (e['id'] ?? '').toString(),
-                    toolName: (e['name'] ?? '').toString(),
-                    arguments: (e['arguments'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{},
-                    content: (e['content']?.toString().isNotEmpty == true) ? e['content'].toString() : null,
-                    loading: !(e['content']?.toString().isNotEmpty == true),
-                  ))
+              .map(
+                (e) => ToolUIPart(
+                  id: (e['id'] ?? '').toString(),
+                  toolName: (e['name'] ?? '').toString(),
+                  arguments: (e['arguments'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{},
+                  content: (e['content']?.toString().isNotEmpty == true) ? e['content'].toString() : null,
+                  loading: !(e['content']?.toString().isNotEmpty == true),
+                ),
+              )
               .toList();
         }
       } catch (_) {}
@@ -2341,10 +2205,7 @@ class _ExportedBubble extends StatelessWidget {
         // Extract thinking content from <think> tags
         final thinkingMatches = thinkingRegex.allMatches(message.content);
         if (thinkingMatches.isNotEmpty) {
-          final texts = thinkingMatches
-              .map((m) => (m.group(1) ?? '').trim())
-              .where((s) => s.isNotEmpty)
-              .toList();
+          final texts = thinkingMatches.map((m) => (m.group(1) ?? '').trim()).where((s) => s.isNotEmpty).toList();
           // Create segments with sequential toolStartIndex
           for (int i = 0; i < texts.length; i++) {
             reasoningSegments.add({
@@ -2357,10 +2218,7 @@ class _ExportedBubble extends StatelessWidget {
         }
         // Also check reasoningText field
         else if (message.reasoningText != null && message.reasoningText!.isNotEmpty) {
-          reasoningSegments.add({
-            'text': message.reasoningText!,
-            'toolStartIndex': 0,
-          });
+          reasoningSegments.add({'text': message.reasoningText!, 'toolStartIndex': 0});
         }
       }
     }
@@ -2377,7 +2235,10 @@ class _ExportedBubble extends StatelessWidget {
     final Widget contentWidget = (mdText.toString().trim().isNotEmpty)
         ? DefaultTextStyle.merge(
             style: TextStyle(fontSize: contentFontSize, height: 1.5),
-            child: MarkdownWithCodeHighlight(text: mdText.toString()),
+            child: MarkdownSurfaceScope(
+              surface: MarkdownSurface.fromColorScheme(cs),
+              child: MarkdownWithCodeHighlight(text: mdText.toString()),
+            ),
           )
         : Text('—', style: TextStyle(color: bubbleFg.withOpacity(0.5)));
 
@@ -2392,12 +2253,9 @@ class _ExportedBubble extends StatelessWidget {
 
           // Add the reasoning segment (if any text)
           if (text.isNotEmpty) {
-            mixedContent.add(_ExportThinkingCard(
-              thinkingText: text,
-              cs: cs,
-              expanded: expandThinkingContent,
-              isDesktop: isDesktop,
-            ));
+            mixedContent.add(
+              _ExportThinkingCard(thinkingText: text, cs: cs, expanded: expandThinkingContent, isDesktop: isDesktop),
+            );
             mixedContent.add(SizedBox(height: isDesktop ? 6.0 : 8.0));
           }
 
@@ -2450,10 +2308,7 @@ class _ExportedBubble extends StatelessWidget {
         constraints: BoxConstraints(maxWidth: isDesktop ? 600.0 : 680.0),
         child: Container(
           padding: EdgeInsets.all(isDesktop ? 10.0 : 12.0),
-          decoration: BoxDecoration(
-            color: bubbleBg,
-            borderRadius: BorderRadius.circular(isDesktop ? 12.0 : 16.0),
-          ),
+          decoration: BoxDecoration(color: bubbleBg, borderRadius: BorderRadius.circular(isDesktop ? 12.0 : 16.0)),
           child: contentWidget,
         ),
       ),
@@ -2551,9 +2406,16 @@ class _ModelIconSmall extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(color: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : cs.primary.withOpacity(0.1), shape: BoxShape.circle),
+      decoration: BoxDecoration(
+        color: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : cs.primary.withOpacity(0.1),
+        shape: BoxShape.circle,
+      ),
       alignment: Alignment.center,
-      child: SizedBox(width: size * 0.64, height: size * 0.64, child: Center(child: inner is SvgPicture || inner is Image ? inner : FittedBox(child: inner))),
+      child: SizedBox(
+        width: size * 0.64,
+        height: size * 0.64,
+        child: Center(child: inner is SvgPicture || inner is Image ? inner : FittedBox(child: inner)),
+      ),
     );
   }
 }
@@ -2574,19 +2436,33 @@ class _AssistantAvatarSmall extends StatelessWidget {
           builder: (ctx, snap) {
             final p = snap.data;
             if (p != null && File(p).existsSync()) {
-              return ClipOval(child: Image.file(File(p), width: size, height: size, fit: BoxFit.cover));
+              return ClipOval(
+                child: Image.file(File(p), width: size, height: size, fit: BoxFit.cover),
+              );
             }
             return ClipOval(
-              child: Image.network(av, width: size, height: size, fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _assistantInitial(cs, assistant?.name ?? '')),
+              child: Image.network(
+                av,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _assistantInitial(cs, assistant?.name ?? ''),
+              ),
             );
           },
         );
       }
       if (av.startsWith('/') || av.contains(':')) {
         final fixed = SandboxPathResolver.fix(av);
-        return ClipOval(child: Image.file(File(fixed), width: size, height: size, fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _assistantInitial(cs, assistant?.name ?? '')));
+        return ClipOval(
+          child: Image.file(
+            File(fixed),
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _assistantInitial(cs, assistant?.name ?? ''),
+          ),
+        );
       }
       // treat as emoji or single char label
       return Container(
@@ -2607,7 +2483,10 @@ class _AssistantAvatarSmall extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(color: cs.primary.withOpacity(0.1), shape: BoxShape.circle),
       alignment: Alignment.center,
-      child: Text(ch, style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, fontSize: size * 0.5)),
+      child: Text(
+        ch,
+        style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, fontSize: size * 0.5),
+      ),
     );
   }
 }
@@ -2634,7 +2513,12 @@ class _ExportDisclaimer extends StatelessWidget {
   }
 }
 
-Future<void> _runWithExportingOverlay(BuildContext context, Future<void> Function() task) async {
+Future<void> _runWithExportingOverlay(
+  BuildContext context,
+  Future<void> Function() task, {
+  ValueListenable<LongImageProgress?>? progress,
+  VoidCallback? onCancel,
+}) async {
   final cs = Theme.of(context).colorScheme;
   final l10n = AppLocalizations.of(context)!;
   // Show overlay first
@@ -2658,6 +2542,34 @@ Future<void> _runWithExportingOverlay(BuildContext context, Future<void> Functio
                 l10n.messageExportSheetExporting,
                 style: TextStyle(fontSize: 14, color: cs.onSurface.withOpacity(0.8)),
               ),
+              if (progress != null) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: 180,
+                  child: ValueListenableBuilder<LongImageProgress?>(
+                    valueListenable: progress,
+                    builder: (_, value, __) => Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        LinearProgressIndicator(
+                          value: value?.fraction,
+                          minHeight: 4,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${((value?.fraction ?? 0) * 100).round()}%',
+                          style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              if (onCancel != null) ...[
+                const SizedBox(height: 4),
+                TextButton(onPressed: onCancel, child: Text(MaterialLocalizations.of(ctx).cancelButtonLabel)),
+              ],
             ],
           ),
         ),
@@ -2669,6 +2581,71 @@ Future<void> _runWithExportingOverlay(BuildContext context, Future<void> Functio
   } finally {
     Navigator.of(context, rootNavigator: true).pop();
   }
+}
+
+/// Runs an image export with progress/cancel UI and previews the result.
+/// Returns true when a preview was opened.
+Future<bool> _runImageExport(
+  BuildContext context, {
+  required Future<LongImageExportResult?> Function(LongImageProgressCallback? onProgress, bool Function()? isCancelled)
+  render,
+  Future<void> Function()? beforePreview,
+}) async {
+  final progress = ValueNotifier<LongImageProgress?>(null);
+  final cancel = ValueNotifier<bool>(false);
+  LongImageExportResult? result;
+  var cancelled = false;
+  try {
+    await _runWithExportingOverlay(
+      context,
+      () async {
+        result = await render((value) => progress.value = value, () => cancel.value);
+      },
+      progress: progress,
+      onCancel: () {
+        cancel.value = true;
+        progress.value = null; // avoid showing a stale percentage
+      },
+    );
+    cancelled = cancel.value;
+  } catch (e) {
+    cancelled = cancel.value;
+    if (!cancelled) {
+      final l10n = AppLocalizations.of(context)!;
+      final message = e is LongImageTooLargeException
+          ? l10n.messageExportSheetImageTooLarge(e.sizeLabel)
+          : l10n.messageExportSheetExportFailed('$e');
+      showAppSnackBar(context, message: message, type: NotificationType.error);
+    }
+    return false;
+  } finally {
+    progress.dispose();
+    cancel.dispose();
+  }
+  if (cancelled) return false;
+  final exportResult = result;
+  if (exportResult == null) {
+    final l10n = AppLocalizations.of(context)!;
+    showAppSnackBar(
+      context,
+      message: l10n.messageExportSheetExportFailed('render error'),
+      type: NotificationType.error,
+    );
+    return false;
+  }
+  if (beforePreview != null) await beforePreview();
+  try {
+    await showImagePreviewSheet(context, file: exportResult.file, previewFile: exportResult.previewFile);
+  } finally {
+    // The preview is only a display cache; the full-resolution file remains.
+    final previewFile = exportResult.previewFile;
+    if (previewFile != null) {
+      try {
+        await previewFile.delete();
+      } catch (_) {}
+    }
+  }
+  return true;
 }
 
 class _Parsed {
@@ -2686,12 +2663,7 @@ class _DocRef {
 }
 
 class _ExportOptionTile extends StatelessWidget {
-  const _ExportOptionTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.onTap,
-  });
+  const _ExportOptionTile({required this.icon, required this.title, required this.subtitle, this.onTap});
   final IconData icon;
   final String title;
   final String subtitle;
@@ -2774,7 +2746,6 @@ class _ExportThinkingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = cs.primaryContainer.withOpacity(isDark ? 0.25 : 0.30);
-    final fg = cs.onPrimaryContainer;
     final l10n = AppLocalizations.of(context)!;
     final cleanedText = _sanitizeThinkingText(thinkingText);
 
@@ -2786,10 +2757,7 @@ class _ExportThinkingCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(borderRadius),
-      ),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(borderRadius)),
       padding: EdgeInsets.symmetric(horizontal: isDesktop ? 8.0 : 10.0, vertical: isDesktop ? 6.0 : 8.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2808,11 +2776,7 @@ class _ExportThinkingCard extends StatelessWidget {
                 SizedBox(width: isDesktop ? 6.0 : 8.0),
                 Text(
                   l10n.chatMessageWidgetDeepThinking,
-                  style: TextStyle(
-                    fontSize: headerFontSize,
-                    fontWeight: FontWeight.w700,
-                    color: cs.secondary,
-                  ),
+                  style: TextStyle(fontSize: headerFontSize, fontWeight: FontWeight.w700, color: cs.secondary),
                 ),
               ],
             ),
@@ -2828,12 +2792,7 @@ class _ExportThinkingCard extends StatelessWidget {
                   height: 1.32,
                   leadingDistribution: TextLeadingDistribution.proportional,
                 ),
-                strutStyle: StrutStyle(
-                  forceStrutHeight: true,
-                  fontSize: contentFontSize,
-                  height: 1.32,
-                  leading: 0,
-                ),
+                strutStyle: StrutStyle(forceStrutHeight: true, fontSize: contentFontSize, height: 1.32, leading: 0),
                 textHeightBehavior: const TextHeightBehavior(
                   applyHeightToFirstAscent: false,
                   applyHeightToLastDescent: false,
@@ -2846,7 +2805,6 @@ class _ExportThinkingCard extends StatelessWidget {
     );
   }
 }
-
 
 // Tool card widget for export
 class _ExportToolCard extends StatelessWidget {
@@ -2909,11 +2867,13 @@ class _ExportToolCard extends StatelessWidget {
     final double borderRadius = isDesktop ? 12.0 : 16.0;
 
     return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(borderRadius),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(borderRadius)),
+      padding: EdgeInsets.fromLTRB(
+        isDesktop ? 12.0 : 16.0,
+        isDesktop ? 10.0 : 12.0,
+        isDesktop ? 10.0 : 12.0,
+        isDesktop ? 10.0 : 12.0,
       ),
-      padding: EdgeInsets.fromLTRB(isDesktop ? 12.0 : 16.0, isDesktop ? 10.0 : 12.0, isDesktop ? 10.0 : 12.0, isDesktop ? 10.0 : 12.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -2928,11 +2888,7 @@ class _ExportToolCard extends StatelessWidget {
           Expanded(
             child: Text(
               _titleFor(context, part.toolName, part.arguments),
-              style: TextStyle(
-                fontSize: fontSize,
-                fontWeight: FontWeight.w700,
-                color: cs.secondary,
-              ),
+              style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w700, color: cs.secondary),
             ),
           ),
         ],
