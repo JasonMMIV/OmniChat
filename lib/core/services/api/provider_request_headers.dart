@@ -4,6 +4,7 @@
 
 import '../../models/provider_oauth.dart';
 import '../../providers/settings_provider.dart';
+import 'opencode.dart';
 
 /// Session attribution headers shared by the chat wrapper and the non-chat
 /// OAuth endpoints. Never random per request — a stable conversation id is what
@@ -16,7 +17,16 @@ Map<String, String> providerSessionHeaders(
 }) {
   final provider = config.oauthProvider;
   final session = (sessionId ?? '').trim();
-  if (provider == null) return const <String, String>{};
+  if (provider == null) {
+    if (!isOpenCodeBaseUrl(config.baseUrl)) return const <String, String>{};
+    return openCodeSessionHeaders(
+      providerId: config.id,
+      baseUrl: config.baseUrl,
+      conversationId: conversationId,
+      sessionId: sessionId,
+      requestId: requestId,
+    );
+  }
   switch (provider) {
     case OAuthProvider.chatgpt:
       return <String, String>{

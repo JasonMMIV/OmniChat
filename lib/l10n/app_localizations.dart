@@ -11183,6 +11183,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Engine (OpenRouter, optional)'**
   String get searchSettingsSheetWebFetchEngine;
+
+  /// No description provided for @openCodeErrorMissingSession.
+  ///
+  /// In en, this message translates to:
+  /// **'OpenCode rejected the request because the session header was missing. Please update OmniChat.'**
+  String get openCodeErrorMissingSession;
+
+  /// No description provided for @openCodeErrorFreeTier.
+  ///
+  /// In en, this message translates to:
+  /// **'OpenCode free models only work in the official OpenCode client. Use a paid or Go model.'**
+  String get openCodeErrorFreeTier;
+
+  /// No description provided for @openCodeErrorInsufficientBalance.
+  ///
+  /// In en, this message translates to:
+  /// **'Your OpenCode balance is insufficient.'**
+  String get openCodeErrorInsufficientBalance;
+
+  /// No description provided for @openCodeErrorProtocolUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This model does not support the current API protocol. Try enabling the Responses API.'**
+  String get openCodeErrorProtocolUnsupported;
 }
 
 class _AppLocalizationsDelegate

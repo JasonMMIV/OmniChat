@@ -821,6 +821,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         config: cfg,
         modelId: mdlId,
         prompt: prompt,
+        sessionId: conversationId,
         thinkingBudget: settings.titleGenerationThinkingBudgetFor(
           assistant?.thinkingBudget,
         ),

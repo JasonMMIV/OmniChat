@@ -84,6 +84,7 @@ class AgentOrchestrator {
     Map<String, dynamic>? extraBody,
     required bool streamOutput,
     required String requestId,
+    String? sessionId,
     String? imageAspectRatio,
     AgentLoopOptions options = const AgentLoopOptions(),
     AgentLoopHooks hooks = const AgentLoopHooks(),
@@ -109,6 +110,7 @@ class AgentOrchestrator {
           extraBody: extraBody,
           streamOutput: streamOutput,
           requestId: requestId,
+          sessionId: sessionId,
           imageAspectRatio: imageAspectRatio,
         ));
     await for (final event in runAgentLoop(
@@ -176,6 +178,7 @@ class AgentOrchestrator {
     Map<String, dynamic>? extraBody,
     required bool streamOutput,
     required String requestId,
+    String? sessionId,
     String? imageAspectRatio,
   }) async {
     return ChatApiService.sendMessageStream(
@@ -194,6 +197,7 @@ class AgentOrchestrator {
       extraBody: extraBody,
       stream: streamOutput,
       requestId: requestId,
+      sessionId: sessionId,
       imageAspectRatio: imageAspectRatio,
     );
   }

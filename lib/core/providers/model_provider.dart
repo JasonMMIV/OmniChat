@@ -10,6 +10,7 @@ import '../services/network/dio_http_client.dart';
 import '../services/api_key_manager.dart';
 import '../services/model_catalog/model_catalog.dart';
 import '../services/model_catalog/model_catalog_service.dart';
+import '../services/api/opencode.dart';
 import 'package:OmniChat/secrets/fallback.dart';
 import '../services/api/google_service_account_auth.dart';
 import '../services/auth/provider_oauth_service.dart';
@@ -99,14 +100,30 @@ class ModelRegistry {
   /// same-named model resolves to its own catalog entry first.
   static ModelInfo inferForProvider(ModelInfo base, ProviderConfig cfg) {
     final catalog = ModelCatalog.instance;
-    return _inferWithCatalog(
-      base,
+    final normalizedId = isOpenCodeBaseUrl(cfg.baseUrl)
+        ? normalizeOpenCodeModelId(base.id)
+        : base.id;
+    final probe = normalizedId == base.id
+        ? base
+        : base.copyWith(id: normalizedId);
+    final inferred = _inferWithCatalog(
+      probe,
       catalog?.lookup(
         providerId: cfg.catalogProviderId,
         host: cfg.catalogHost,
-        modelId: base.id,
+        modelId: normalizedId,
       ),
     );
+    // Keep the user's logical id/display name; only the capability probe uses
+    // the bare upstream id. An empty base name must not erase a catalog name.
+    return normalizedId == base.id
+        ? inferred
+        : inferred.copyWith(
+            id: base.id,
+            displayName: base.displayName.isEmpty
+                ? inferred.displayName
+                : base.displayName,
+          );
   }
 
   static ModelInfo _inferWithCatalog(ModelInfo base, CatalogModel? catalog) {
@@ -700,8 +717,17 @@ class ProviderManager {
 
   /// Refresh the models.dev catalog when it is older than 30 days, reusing the
   /// provider's proxy client. Never throws; failures keep the current catalog.
+  ///
+  /// OpenCode is refreshed first on its own 1-day cadence; the overlay is what
+  /// carries Console/Zen/Go-only models that models.dev may not know yet.
   static void refreshCatalogIfStale(ProviderConfig cfg, {int days = 30}) {
     _runCatalogRefresh((client) async {
+      if (isOpenCodeBaseUrl(cfg.baseUrl)) {
+        await ModelCatalogService.instance.refreshOpenCodeIfStale(
+          days: 1,
+          client: client,
+        );
+      }
       await ModelCatalogService.instance.refreshIfStale(
         days: days,
         client: client,
@@ -713,6 +739,14 @@ class ProviderManager {
   /// can pick up its window/capabilities. Catalog hits skip the request.
   static void refreshCatalogForModel(ProviderConfig cfg, String apiModelId) {
     _runCatalogRefresh((client) async {
+      if (isOpenCodeBaseUrl(cfg.baseUrl)) {
+        await ModelCatalogService.instance.refreshOpenCodeForModel(
+          apiModelId,
+          providerId: cfg.catalogProviderId,
+          host: cfg.catalogHost,
+          client: client,
+        );
+      }
       await ModelCatalogService.instance.refreshForModel(
         apiModelId,
         client: client,

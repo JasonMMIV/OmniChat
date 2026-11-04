@@ -557,6 +557,7 @@ class HomeViewModel extends ChangeNotifier {
         config: cfg,
         modelId: mdlId,
         prompt: prompt,
+        sessionId: convo.id,
       )).trim();
 
       if (summary.isEmpty) return 'empty_summary';
@@ -797,6 +798,7 @@ class HomeViewModel extends ChangeNotifier {
         config: cfg,
         modelId: mdlId,
         prompt: prompt,
+        sessionId: convo.id,
         thinkingBudget: settings.titleGenerationThinkingBudgetFor(
           assistant?.thinkingBudget,
         ),
@@ -908,6 +910,7 @@ class HomeViewModel extends ChangeNotifier {
         config: cfg,
         modelId: mdlId,
         prompt: prompt,
+        sessionId: convo.id,
       )).trim();
 
       if (summary.isNotEmpty) {

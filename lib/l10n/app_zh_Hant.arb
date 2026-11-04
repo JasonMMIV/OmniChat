@@ -2010,5 +2010,9 @@
   "searchSettingsSheetWebFetchMaxUses": "最大使用次數",
   "searchSettingsSheetWebFetchAllowedDomains": "允許的網域（逗號分隔）",
   "searchSettingsSheetWebFetchBlockedDomains": "封鎖的網域（逗號分隔）",
-  "searchSettingsSheetWebFetchEngine": "引擎（OpenRouter，可選）"
+  "searchSettingsSheetWebFetchEngine": "引擎（OpenRouter，可選）",
+  "openCodeErrorMissingSession": "OpenCode 因缺少工作階段標頭而拒絕請求，請更新 OmniChat。",
+  "openCodeErrorFreeTier": "OpenCode 免費模型僅限官方用戶端使用，請改用付費或 Go 模型。",
+  "openCodeErrorInsufficientBalance": "OpenCode 餘額不足。",
+  "openCodeErrorProtocolUnsupported": "此模型不支援目前的 API 協定，請嘗試啟用 Responses API。"
 }

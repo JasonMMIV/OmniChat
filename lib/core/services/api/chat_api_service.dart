@@ -20,6 +20,9 @@ import '../../utils/reasoning_capabilities.dart';
 import '../../utils/reasoning_overrides.dart';
 import 'reasoning_wire.dart';
 import 'builtin_tools.dart';
+import 'opencode.dart';
+import 'provider_request_headers.dart';
+import 'provider_session_client.dart';
 import 'stream_interruption.dart';
 import 'stream_retry_policy.dart';
 import 'transient_stream_error.dart';
@@ -631,14 +634,19 @@ class ChatApiService {
   /// outbound HTTP requests and vendor-specific heuristics. Otherwise the
   /// logical `modelId` key is treated as the upstream id (backwards compatible).
   static String _apiModelId(ProviderConfig cfg, String modelId) {
+    var resolved = modelId;
     try {
       final ov = cfg.modelOverrides[modelId];
       if (ov is Map<String, dynamic>) {
         final raw = (ov['apiModelId'] ?? ov['api_model_id'])?.toString().trim();
-        if (raw != null && raw.isNotEmpty) return raw;
+        if (raw != null && raw.isNotEmpty) {
+          resolved = raw;
+        }
       }
     } catch (_) {}
-    return modelId;
+    return isOpenCodeBaseUrl(cfg.baseUrl)
+        ? normalizeOpenCodeModelId(resolved)
+        : resolved;
   }
 
   static String _apiKeyForRequest(ProviderConfig cfg, String modelId) {
@@ -1218,7 +1226,16 @@ class ChatApiService {
         redactSensitiveBody: isOAuth,
       );
     }
-    if (!isOAuth) return inner;
+    if (!isOAuth) {
+      final headers = providerSessionHeaders(
+        cfg,
+        sessionId: sessionId,
+        conversationId: sessionId,
+        requestId: requestId,
+      );
+      if (headers.isEmpty) return inner;
+      return ProviderSessionClient(inner: inner, headers: headers);
+    }
     // Single interception point for every chat/utility request (plan C1).
     return OAuthHttpClient(
       inner: inner,

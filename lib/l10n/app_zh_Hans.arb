@@ -1981,5 +1981,9 @@
   "searchSettingsSheetWebFetchMaxUses": "最大使用次数",
   "searchSettingsSheetWebFetchAllowedDomains": "允许的域名（逗号分隔）",
   "searchSettingsSheetWebFetchBlockedDomains": "封锁的域名（逗号分隔）",
-  "searchSettingsSheetWebFetchEngine": "引擎（OpenRouter，可选）"
+  "searchSettingsSheetWebFetchEngine": "引擎（OpenRouter，可选）",
+  "openCodeErrorMissingSession": "OpenCode 因缺少会话标头而拒绝了请求，请更新 OmniChat。",
+  "openCodeErrorFreeTier": "OpenCode 免费模型仅限官方客户端使用，请改用付费或 Go 模型。",
+  "openCodeErrorInsufficientBalance": "OpenCode 余额不足。",
+  "openCodeErrorProtocolUnsupported": "此模型不支持当前的 API 协议，请尝试启用 Responses API。"
 }

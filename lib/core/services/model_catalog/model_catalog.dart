@@ -98,11 +98,11 @@ class ModelCatalog {
     required Map<String, CatalogModel> byCanonicalId,
     required Map<String, List<CatalogModel>> byNormalizedId,
     required Map<String, String> providerByHost,
-  })  : _byProviderId = byProviderId,
-        _byModelId = byModelId,
-        _byCanonicalId = byCanonicalId,
-        _byNormalizedId = byNormalizedId,
-        _providerByHost = providerByHost;
+  }) : _byProviderId = byProviderId,
+       _byModelId = byModelId,
+       _byCanonicalId = byCanonicalId,
+       _byNormalizedId = byNormalizedId,
+       _providerByHost = providerByHost;
 
   /// Active catalog. `null` until [loadFromJsonString] (or a test) sets it.
   static ModelCatalog? instance;
@@ -179,8 +179,9 @@ class ModelCatalog {
           byCanonicalId.putIfAbsent(key, () => model);
           final canonicalNormalized = normalizeModelId(canonicalRaw);
           if (canonicalNormalized.isNotEmpty) {
-            (byNormalizedId[canonicalNormalized] ??= <CatalogModel>[])
-                .add(model);
+            (byNormalizedId[canonicalNormalized] ??= <CatalogModel>[]).add(
+              model,
+            );
           }
         }
       }
@@ -196,11 +197,7 @@ class ModelCatalog {
     );
   }
 
-  static CatalogModel? _parseModel(
-    String modelId,
-    String providerId,
-    Map raw,
-  ) {
+  static CatalogModel? _parseModel(String modelId, String providerId, Map raw) {
     int? readInt(Object? value) =>
         value is num && value > 0 ? value.toInt() : null;
 
@@ -208,8 +205,9 @@ class ModelCatalog {
     final limit = limitRaw is Map ? limitRaw : const <String, dynamic>{};
 
     final modalitiesRaw = raw['modalities'];
-    final modalities =
-        modalitiesRaw is Map ? modalitiesRaw : const <String, dynamic>{};
+    final modalities = modalitiesRaw is Map
+        ? modalitiesRaw
+        : const <String, dynamic>{};
     final inputRaw = modalities['input'];
     final outputRaw = modalities['output'];
     final inputModalities = inputRaw is List
@@ -274,8 +272,7 @@ class ModelCatalog {
       imageOutput: outputModalities.contains('image'),
       toolCall: raw['tool_call'] is bool ? raw['tool_call'] as bool : null,
       reasoning: raw['reasoning'] is bool ? raw['reasoning'] as bool : null,
-      temperatureSupported:
-          temperatureRaw is bool ? temperatureRaw : null,
+      temperatureSupported: temperatureRaw is bool ? temperatureRaw : null,
       interleaved: interleaved,
       interleavedField: interleavedField,
       efforts: efforts,
@@ -331,32 +328,21 @@ class ModelCatalog {
   }
 
   /// Compaction window: `limit.input` (input cap) wins over `limit.context`.
-  int? windowTokens(
-    String modelId, {
-    String? providerId,
-    String? host,
-  }) {
+  int? windowTokens(String modelId, {String? providerId, String? host}) {
     final model = lookup(providerId: providerId, host: host, modelId: modelId);
     return model?.effectiveInputWindow;
   }
 
-  int? outputTokens(
-    String modelId, {
-    String? providerId,
-    String? host,
-  }) =>
+  int? outputTokens(String modelId, {String? providerId, String? host}) =>
       lookup(providerId: providerId, host: host, modelId: modelId)?.output;
 
-  Set<String> efforts(
-    String modelId, {
-    String? providerId,
-    String? host,
-  }) =>
+  Set<String> efforts(String modelId, {String? providerId, String? host}) =>
       lookup(providerId: providerId, host: host, modelId: modelId)?.efforts ??
       const <String>{};
 
   /// All models for a provider (used by tests and diagnostics).
-  int get modelCount => _byModelId.values.fold(0, (sum, list) => sum + list.length);
+  int get modelCount =>
+      _byModelId.values.fold(0, (sum, list) => sum + list.length);
 
   int get providerCount => _byProviderId.length;
 }
@@ -389,6 +375,17 @@ String normalizeHost(String? raw) {
     }
   }
   return host;
+}
+
+/// Lowercased path of a base URL, tolerating a missing scheme.
+String _catalogUrlPath(String? raw) {
+  final value = (raw ?? '').trim();
+  if (value.isEmpty) return '';
+  var uri = Uri.tryParse(value);
+  if (uri == null || uri.host.isEmpty) {
+    uri = Uri.tryParse('https://$value');
+  }
+  return (uri?.path ?? '').toLowerCase();
 }
 
 /// Normalize a model id for step 5 of the lookup ladder. Only one vendor/
@@ -428,6 +425,7 @@ String? resolveCatalogProviderId({
   String? providerName,
   String? host,
   String? providerType,
+  String? baseUrl,
 }) {
   final catalog = ModelCatalog.instance;
   if (catalog == null) return null;
@@ -441,7 +439,16 @@ String? resolveCatalogProviderId({
   if (known(pid)) return pid;
   final pname = (providerName ?? '').trim().toLowerCase();
   if (known(pname)) return pname;
-  final normalizedHost = normalizeHost(host);
+  final normalizedHost = normalizeHost(host ?? baseUrl);
+  // Both OpenCode providers publish the same host; only the base path tells
+  // Zen (`/zen/v1`) and Go (`/zen/go/v1`) apart.
+  if (normalizedHost == 'opencode.ai') {
+    final path = _catalogUrlPath(baseUrl);
+    final go = path.contains('/go/') || path.endsWith('/go');
+    final preferred = go ? 'opencode-go' : 'opencode';
+    if (known(preferred)) return preferred;
+    if (known('opencode')) return 'opencode';
+  }
   if (normalizedHost.isNotEmpty) {
     final viaHost = catalog._providerByHost[normalizedHost];
     if (viaHost != null) return viaHost;
@@ -456,6 +463,96 @@ String? resolveCatalogProviderId({
     default:
       return null;
   }
+}
+
+/// Keep only the requested provider entries from a catalog payload.
+String filterCatalogProviders(String rawJson, Set<String> providerIds) {
+  final decoded = jsonDecodeCatalog(rawJson);
+  final wanted = <String>{
+    for (final id in providerIds)
+      if (id.trim().isNotEmpty) id.trim().toLowerCase(),
+  };
+  if (wanted.isEmpty) return '{}';
+  final kept = <String, dynamic>{};
+  for (final entry in decoded.entries) {
+    final key = entry.key.trim().toLowerCase();
+    if (!wanted.contains(key) || entry.value is! Map) continue;
+    kept[key] = entry.value;
+  }
+  return convert.jsonEncode(kept);
+}
+
+/// Ensure [alias] exists by copying [source]'s provider entry when missing.
+///
+/// OpenCode's catalog currently ships both `opencode` and `opencode-go`; this
+/// keeps the Zen lookup working if upstream ever drops the `opencode` key.
+String ensureCatalogProviderAlias(
+  String json, {
+  required String alias,
+  required String source,
+}) {
+  final aliasKey = alias.trim().toLowerCase();
+  final sourceKey = source.trim().toLowerCase();
+  if (aliasKey.isEmpty || sourceKey.isEmpty) return json;
+  final decoded = jsonDecodeCatalog(json);
+  if (decoded.containsKey(aliasKey)) return json;
+  final sourceValue = decoded[sourceKey];
+  if (sourceValue is! Map) return json;
+  return convert.jsonEncode(<String, dynamic>{
+    ...decoded,
+    aliasKey: sourceValue,
+  });
+}
+
+/// Merge [overlayJson] provider/model entries over [baseJson].
+///
+/// Overlay models win by case-insensitive id; base-only models are retained.
+/// Provider-level fields from the overlay win when present.
+String mergeCatalogJson(String baseJson, String overlayJson) {
+  final base = jsonDecodeCatalog(baseJson);
+  final overlay = jsonDecodeCatalog(overlayJson);
+  final merged = <String, dynamic>{};
+  for (final entry in base.entries) {
+    merged[entry.key.trim().toLowerCase()] = entry.value;
+  }
+
+  for (final entry in overlay.entries) {
+    final key = entry.key.trim().toLowerCase();
+    if (key.isEmpty || entry.value is! Map) continue;
+    final overlayProvider = Map<String, dynamic>.from(entry.value as Map);
+    final baseRaw = merged[key];
+    if (baseRaw is! Map) {
+      merged[key] = overlayProvider;
+      continue;
+    }
+    final baseProvider = Map<String, dynamic>.from(baseRaw);
+    final baseModels = baseProvider['models'];
+    final overlayModels = overlayProvider['models'];
+    final models = <String, dynamic>{};
+    if (baseModels is Map) {
+      for (final model in baseModels.entries) {
+        models[model.key.toString()] = model.value;
+      }
+    }
+    if (overlayModels is Map) {
+      final overlayIds = overlayModels.keys
+          .map((id) => id.toString().trim().toLowerCase())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      models.removeWhere(
+        (id, _) => overlayIds.contains(id.trim().toLowerCase()),
+      );
+      for (final model in overlayModels.entries) {
+        models[model.key.toString()] = model.value;
+      }
+    }
+    merged[key] = <String, dynamic>{
+      ...baseProvider,
+      ...overlayProvider,
+      if (models.isNotEmpty) 'models': models,
+    };
+  }
+  return convert.jsonEncode(merged);
 }
 
 Map<String, dynamic> jsonDecodeCatalog(String json) {

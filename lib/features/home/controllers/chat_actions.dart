@@ -13,6 +13,8 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/services/api/learned_context_windows.dart';
+import '../../../core/services/api/opencode.dart';
+import '../../../core/services/api/opencode_errors.dart';
 import '../../../core/services/api/transient_stream_error.dart';
 import '../../../core/services/auth/oauth_errors.dart';
 import '../../../core/services/auth/oauth_failure.dart';
@@ -1275,6 +1277,7 @@ class ChatActions {
               extraBody: ctx.extraBody,
               streamOutput: ctx.streamOutput,
               requestId: conversationId,
+              sessionId: conversationId,
               imageAspectRatio: ctx.settings.imageAspectRatio,
             )
           : ChatApiService.sendMessageStream(
@@ -1294,6 +1297,7 @@ class ChatActions {
               stream: ctx.streamOutput,
               webFetchEnabled: ctx.settings.webFetchEnabled,
               requestId: conversationId,
+              sessionId: conversationId,
               imageAspectRatio: ctx.settings.imageAspectRatio,
             );
 
@@ -1625,6 +1629,7 @@ class ChatActions {
       extraBody: extraBody,
       stream: streamOutput,
       requestId: '${conversationId}_proposer',
+      sessionId: conversationId,
       imageAspectRatio: null,
     );
 
@@ -2462,11 +2467,24 @@ class ChatActions {
         l10n?.oauthChatRecoveryNotice ??
         'This turn stopped because the account needed to sign in again.';
     final bool oauthDisabled = e is OAuthDisabledException;
+    final bool isOpenCode = isOpenCodeBaseUrl(state.ctx.config.baseUrl);
+    final OpenCodeErrorKind openCodeErrorKind = isOpenCode
+        ? classifyOpenCodeError(e)
+        : OpenCodeErrorKind.none;
+    final String? openCodeNotice = switch (openCodeErrorKind) {
+      OpenCodeErrorKind.missingSession => l10n?.openCodeErrorMissingSession,
+      OpenCodeErrorKind.freeTier => l10n?.openCodeErrorFreeTier,
+      OpenCodeErrorKind.insufficientBalance =>
+        l10n?.openCodeErrorInsufficientBalance,
+      OpenCodeErrorKind.protocolUnsupported =>
+        l10n?.openCodeErrorProtocolUnsupported,
+      OpenCodeErrorKind.none => null,
+    };
     final errorText = oauthLoginRequired
         ? oauthNotice
         : oauthDisabled
         ? (l10n?.oauthDisabledNotice ?? e.toString())
-        : e.toString();
+        : (openCodeNotice ?? e.toString());
     final isRetriesExhausted =
         e is TransientStreamError && e.isRetriesExhausted;
 

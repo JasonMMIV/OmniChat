@@ -5953,4 +5953,20 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get searchSettingsSheetWebFetchEngine =>
       'Engine (OpenRouter, optional)';
+
+  @override
+  String get openCodeErrorMissingSession =>
+      'OpenCode rejected the request because the session header was missing. Please update OmniChat.';
+
+  @override
+  String get openCodeErrorFreeTier =>
+      'OpenCode free models only work in the official OpenCode client. Use a paid or Go model.';
+
+  @override
+  String get openCodeErrorInsufficientBalance =>
+      'Your OpenCode balance is insufficient.';
+
+  @override
+  String get openCodeErrorProtocolUnsupported =>
+      'This model does not support the current API protocol. Try enabling the Responses API.';
 }

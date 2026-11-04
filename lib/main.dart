@@ -97,9 +97,10 @@ Future<void> main() async {
       try {
         await McpProvider.applyLegacyFetchMigration();
       } catch (_) {}
-      // models.dev catalog (plan batch 1 §6.2): cache/snapshot only, never a
-      // startup network call. A slow parse must not block launch — callers
-      // fall back to the regex/1M rules until the catalog lands.
+      // models.dev catalog + OpenCode overlay (plan batch 1 §6.2): cache and
+      // bundled snapshots only, never a startup network call. A slow parse
+      // must not block launch — callers fall back to the regex/1M rules until
+      // the catalog lands.
       try {
         await ModelCatalogService.instance.ensureLoaded().timeout(
           const Duration(seconds: 3),

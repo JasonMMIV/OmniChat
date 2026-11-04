@@ -130,6 +130,7 @@ class TranslationService {
         messages: [
           {'role': 'user', 'content': prompt}
         ],
+        sessionId: message.id,
       );
 
       final buffer = StringBuffer();

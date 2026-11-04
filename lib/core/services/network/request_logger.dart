@@ -148,6 +148,8 @@ class RequestLogger {
       'x-msh-device-id',
       'x-msh-access-token',
       'x-msh-sign',
+      // OpenCode conversation identity. Opaque, but still a queryable id.
+      'x-opencode-session',
     };
     return <String, String>{
       for (final entry in headers.entries)

@@ -28,6 +28,7 @@ class ChatTurnRequest {
     required this.toolDefs,
     this.onToolCall,
     this.webFetchEnabled = true,
+    this.conversationId,
   });
 
   final ProviderConfig config;
@@ -40,6 +41,7 @@ class ChatTurnRequest {
   final List<Map<String, dynamic>> toolDefs;
   final ToolCallHandler? onToolCall;
   final bool webFetchEnabled;
+  final String? conversationId;
 }
 
 /// 進行中 LLM turn 的控制 handle。
@@ -329,6 +331,7 @@ class ChatTurnService {
       toolDefs: toolDefs,
       onToolCall: onToolCall,
       webFetchEnabled: webFetchEnabled,
+      conversationId: conversation.id,
     );
   }
 
@@ -382,6 +385,7 @@ class ChatTurnService {
       extraBody: null,
       stream: true,
       webFetchEnabled: request.webFetchEnabled,
+      sessionId: request.conversationId,
       imageAspectRatio: null,
     );
     handle._sub = stream.listen(

@@ -4407,11 +4407,27 @@ class ProviderConfig {
     return ProviderKind.openai;
   }
 
+  /// Exact preset keys only: `OpenCode`, `OpenCode Zen`, `OpenCode Go` and
+  /// their hyphen/underscore variants. A user-created provider that merely
+  /// mentions OpenCode must not inherit the built-in gateway or lose its
+  /// balance endpoint.
+  static bool _isOpenCodePresetKey(String key) {
+    return RegExp(
+      r'^opencode(?:[\s_-]*(?:zen|go))?$',
+      caseSensitive: false,
+    ).hasMatch(key.trim());
+  }
+
   static String _defaultBase(String key) {
     final k = key.toLowerCase();
     if (k.contains('tensdaq')) return 'https://tensdaq-api.x-aio.com/v1';
     if (k.contains('neuralwatt')) return 'https://api.neuralwatt.com/v1';
     if (k.contains('openrouter')) return 'https://openrouter.ai/api/v1';
+    if (_isOpenCodePresetKey(key)) {
+      return RegExp(r'opencode[\s_-]*go').hasMatch(k)
+          ? 'https://opencode.ai/zen/go/v1'
+          : 'https://opencode.ai/zen/v1';
+    }
     if (k.contains('aihubmix')) return 'https://aihubmix.com/v1';
     if (RegExp(r'qwen|aliyun|dashscope').hasMatch(k))
       return 'https://dashscope.aliyuncs.com/compatible-mode/v1';
@@ -4587,22 +4603,28 @@ class ProviderConfig {
           keyManagement: const KeyManagementConfig(),
           aihubmixAppCodeEnabled: lowerKey.contains('aihubmix'),
           balanceEnabled:
-              lowerKey.contains('aihubmix') ||
-              lowerKey.contains('deepseek') ||
-              lowerKey.contains('openrouter') ||
-              lowerKey.contains('moonshot'),
-          balanceApiPath: lowerKey.contains('openrouter')
-              ? '/credits'
-              : (lowerKey.contains('moonshot')
-                    ? '/users/me/balance'
-                    : (lowerKey.contains('deepseek')
-                          ? '/user/balance'
-                          : '/user/info')),
-          balanceResultKey: lowerKey.contains('openrouter')
-              ? 'data.total_credits - data.total_usage'
-              : (lowerKey.contains('aihubmix') || lowerKey.contains('deepseek')
-                    ? 'balance_infos[0].total_balance'
-                    : 'data.available_balance'),
+              !_isOpenCodePresetKey(key) &&
+              (lowerKey.contains('aihubmix') ||
+                  lowerKey.contains('deepseek') ||
+                  lowerKey.contains('openrouter') ||
+                  lowerKey.contains('moonshot')),
+          balanceApiPath: _isOpenCodePresetKey(key)
+              ? ''
+              : (lowerKey.contains('openrouter')
+                    ? '/credits'
+                    : (lowerKey.contains('moonshot')
+                          ? '/users/me/balance'
+                          : (lowerKey.contains('deepseek')
+                                ? '/user/balance'
+                                : '/user/info'))),
+          balanceResultKey: _isOpenCodePresetKey(key)
+              ? ''
+              : (lowerKey.contains('openrouter')
+                    ? 'data.total_credits - data.total_usage'
+                    : (lowerKey.contains('aihubmix') ||
+                              lowerKey.contains('deepseek')
+                          ? 'balance_infos[0].total_balance'
+                          : 'data.available_balance')),
           claudePromptCachingEnabled: false,
         );
     }
@@ -4628,5 +4650,6 @@ extension ProviderConfigCatalogHints on ProviderConfig {
     providerName: name,
     host: catalogHost,
     providerType: providerType?.name,
+    baseUrl: baseUrl,
   );
 }

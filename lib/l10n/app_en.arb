@@ -2576,5 +2576,9 @@
   "searchSettingsSheetWebFetchMaxUses": "Max uses",
   "searchSettingsSheetWebFetchAllowedDomains": "Allowed domains (comma separated)",
   "searchSettingsSheetWebFetchBlockedDomains": "Blocked domains (comma separated)",
-  "searchSettingsSheetWebFetchEngine": "Engine (OpenRouter, optional)"
+  "searchSettingsSheetWebFetchEngine": "Engine (OpenRouter, optional)",
+  "openCodeErrorMissingSession": "OpenCode rejected the request because the session header was missing. Please update OmniChat.",
+  "openCodeErrorFreeTier": "OpenCode free models only work in the official OpenCode client. Use a paid or Go model.",
+  "openCodeErrorInsufficientBalance": "Your OpenCode balance is insufficient.",
+  "openCodeErrorProtocolUnsupported": "This model does not support the current API protocol. Try enabling the Responses API."
 }

@@ -5867,6 +5867,20 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get searchSettingsSheetWebFetchEngine => '引擎（OpenRouter，可选）';
+
+  @override
+  String get openCodeErrorMissingSession =>
+      'OpenCode 因缺少会话标头而拒绝了请求，请更新 OmniChat。';
+
+  @override
+  String get openCodeErrorFreeTier => 'OpenCode 免费模型仅限官方客户端使用，请改用付费或 Go 模型。';
+
+  @override
+  String get openCodeErrorInsufficientBalance => 'OpenCode 余额不足。';
+
+  @override
+  String get openCodeErrorProtocolUnsupported =>
+      '此模型不支持当前的 API 协议，请尝试启用 Responses API。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -11521,6 +11535,20 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get searchSettingsSheetWebFetchEngine => '引擎（OpenRouter，可选）';
+
+  @override
+  String get openCodeErrorMissingSession =>
+      'OpenCode 因缺少会话标头而拒绝了请求，请更新 OmniChat。';
+
+  @override
+  String get openCodeErrorFreeTier => 'OpenCode 免费模型仅限官方客户端使用，请改用付费或 Go 模型。';
+
+  @override
+  String get openCodeErrorInsufficientBalance => 'OpenCode 余额不足。';
+
+  @override
+  String get openCodeErrorProtocolUnsupported =>
+      '此模型不支持当前的 API 协议，请尝试启用 Responses API。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -17275,4 +17303,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get searchSettingsSheetWebFetchEngine => '引擎（OpenRouter，可選）';
+
+  @override
+  String get openCodeErrorMissingSession =>
+      'OpenCode 因缺少工作階段標頭而拒絕請求，請更新 OmniChat。';
+
+  @override
+  String get openCodeErrorFreeTier => 'OpenCode 免費模型僅限官方用戶端使用，請改用付費或 Go 模型。';
+
+  @override
+  String get openCodeErrorInsufficientBalance => 'OpenCode 餘額不足。';
+
+  @override
+  String get openCodeErrorProtocolUnsupported =>
+      '此模型不支援目前的 API 協定，請嘗試啟用 Responses API。';
 }
