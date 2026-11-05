@@ -564,7 +564,8 @@ class HomePageController extends ChangeNotifier {
       onStateChanged: () => notifyListeners(),
       getSettingsProvider: () => _context.read<SettingsProvider>(),
       getCurrentConversationId: () => currentConversation?.id,
-      onStreamTick: () => _scrollCtrl.autoScrollToBottomIfNeeded(),
+      onStreamTick: () =>
+          _scrollCtrl.autoScrollToBottomIfNeeded(streaming: true),
     );
   }
 

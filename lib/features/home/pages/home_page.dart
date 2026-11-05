@@ -18,9 +18,7 @@ import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/providers/skills_provider.dart';
 import '../../../core/models/skill.dart';
-import '../../../core/models/backup.dart';
 import '../../../core/services/android_background.dart';
-import '../../../core/services/backup/data_sync.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/storage/chat_storage_gate.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
@@ -310,23 +308,21 @@ class _HomePageState extends State<HomePage>
 
     final chatService = context.read<ChatService>();
     final backup = File(path);
-    await chatService.validateChatBackup(backup);
-    await chatService.resetChatStorage();
-    await DataSync(chatService: chatService).restoreFromLocalFile(
-      backup,
-      // Recovery replaces chat rows only. Keep local uploads/images/avatars in
-      // place instead of deleting them during a failed-recovery retry.
-      const WebDavConfig(includeFiles: false),
-      mode: RestoreMode.overwrite,
-      restoreSettings: false,
-    );
+    // Chats-only transactional restore: the archive is validated and imported
+    // into a staging database, which is published before any live row is
+    // touched. A failure leaves the existing chat data in place.
+    final result = await chatService.restoreChatBackup(backup);
     if (!mounted) return false;
     await _initializeChat();
     if (!mounted) return false;
     showAppSnackBar(
       context,
-      message: l10n.chatStorageRecoveryRestoreDone,
-      type: NotificationType.success,
+      message: result.settingsApplied
+          ? l10n.chatStorageRecoveryRestoreDone
+          : (result.settingsError ?? l10n.chatStorageRecoveryRestoreDone),
+      type: result.settingsApplied
+          ? NotificationType.success
+          : NotificationType.warning,
     );
     return true;
   }

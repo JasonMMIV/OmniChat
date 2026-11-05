@@ -24,10 +24,24 @@ class ChatDatabaseFiles {
   File get upgrading => File(p.join(_dir, 'chat_v2.sqlite.upgrading'));
   File get previous => File(p.join(_dir, 'chat_v2.sqlite.previous'));
 
+  /// Staging database built by a transactional restore. It is published with
+  /// the same family rename rules as a migration/upgrade.
+  File get restoring => File(p.join(_dir, 'chat_v2.sqlite.restoring'));
+
   File get installationReceipt =>
       File(p.join(_dir, 'chat_v2.installation.json'));
   File get migrationReceipt => File(p.join(_dir, 'chat_v2.migration.json'));
   File get publishIntent => File(p.join(_dir, 'chat_v2.publish-intent.json'));
+
+  /// Durable commit journal for a transactional restore. It must be recovered
+  /// before the installation gate runs; while it exists the gate must not
+  /// delete `.previous`/`.replaced-*` recovery material.
+  File get restoreJournal =>
+      File(p.join(_dir, 'chat_v2.restore-journal.json'));
+  File get restoreSettingsSnapshot =>
+      File(p.join(_dir, 'restore_settings_snapshot.json'));
+  File get restoreSettingsPending =>
+      File(p.join(_dir, 'restore_settings_pending.json'));
   File get resetMarker => File(p.join(_dir, 'chat_v2.reset'));
   File get legacyImportDisabled =>
       File(p.join(_dir, 'chat_v2.legacy_import_disabled'));
@@ -55,6 +69,9 @@ class ChatDatabaseFiles {
     upgrading,
     File('${upgrading.path}-wal'),
     File('${upgrading.path}-shm'),
+    restoring,
+    File('${restoring.path}-wal'),
+    File('${restoring.path}-shm'),
     previous,
     File('${previous.path}-wal'),
     File('${previous.path}-shm'),
@@ -128,6 +145,25 @@ class ChatDatabaseFiles {
     }
   }
 
+  /// Moves a database family (base + WAL/SHM) as a unit. Refuses to overwrite
+  /// an existing destination: recovery material is never replaced silently.
+  Future<void> moveFamily(File from, File to) async {
+    if (!await from.exists()) return;
+    if (!await to.parent.exists()) {
+      await to.parent.create(recursive: true);
+    }
+    if (await to.exists()) {
+      throw FileSystemException('Destination already exists', to.path);
+    }
+    await from.rename(to.path);
+    for (final suffix in const <String>['-wal', '-shm']) {
+      final sidecar = File('${from.path}$suffix');
+      if (await sidecar.exists()) {
+        await sidecar.rename('${to.path}$suffix');
+      }
+    }
+  }
+
   /// Atomically writes a small JSON receipt/marker: temp file, flush, rename.
   Future<void> writeJsonAtomically(
     File target,
@@ -146,7 +182,19 @@ class ChatDatabaseFiles {
     // File.rename replaces an existing file atomically on the supported
     // platforms. Deleting the old receipt first would leave a crash window
     // with no intent/receipt at all, after files may already have moved.
-    await tmp.rename(target.path);
+    // Windows can transiently report `Access is denied` when the previous
+    // receipt was just closed (indexer/AV), so retry with bounded backoff.
+    var delayMs = 20;
+    for (var attempt = 0; ; attempt++) {
+      try {
+        await tmp.rename(target.path);
+        return;
+      } on FileSystemException {
+        if (attempt >= 4) rethrow;
+        await Future<void>.delayed(Duration(milliseconds: delayMs));
+        delayMs *= 2;
+      }
+    }
   }
 
   Future<Map<String, dynamic>?> readJson(File file) async {

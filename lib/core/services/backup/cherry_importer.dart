@@ -2,13 +2,21 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:path/path.dart' as p;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart'
+    hide SharedPreferencesAsync;
+import 'package:uuid/uuid.dart';
 import '../../models/backup.dart';
 import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
+import '../../models/file_record.dart';
+import '../../models/workspace_config.dart';
 import '../../providers/settings_provider.dart';
 import '../chat/chat_service.dart';
+import '../chat/storage/chat_backup_restorer.dart';
+import '../chat/storage/chat_database_files.dart';
+import '../chat/storage/restore_journal.dart';
 import '../../../utils/app_directories.dart';
+import 'backup_preferences.dart';
 
 class CherryImportResult {
   final int providers;
@@ -25,6 +33,19 @@ class CherryImportResult {
   });
 }
 
+/// Cherry topics converted into this app's shapes (plan §3 Phase 1c), ready
+/// for the staging database or the merge apply.
+class _CherryConversion {
+  final List<Conversation> conversations;
+  final Map<String, List<ChatMessage>> messagesByConversation;
+  final int extraSaved;
+  const _CherryConversion({
+    required this.conversations,
+    required this.messagesByConversation,
+    required this.extraSaved,
+  });
+}
+
 class CherryImporter {
   CherryImporter._();
 
@@ -32,6 +53,11 @@ class CherryImporter {
   static const String _providersKey = 'provider_configs_v1';
   static const String _providersOrderKey = 'providers_order_v1';
   static const String _assistantsKey = 'assistants_v1';
+
+  /// Test seam: fail after the first materialized attachment file (plan §3
+  /// Phase 1c tests).
+  static bool debugFailOnMaterialize = false;
+  static bool _debugMaterializePending = false;
 
   static Future<CherryImportResult> importFromCherryStudio({
     required File file,
@@ -179,25 +205,7 @@ class CherryImporter {
       }
     }
 
-    // 5) Import providers into Settings (SharedPreferences)
-    final importedProviders = await _importProviders(
-      cherryProviders,
-      settings,
-      mode,
-    );
-
-    // 6) Import assistants (persist to SharedPreferences, restart recommended)
-    final importedAssistants = await _importAssistants(cherryAssistants, mode);
-
-    // If overwrite, clear chats/files BEFORE writing any uploads to avoid deletion later
-    if (!chatService.initialized) {
-      await chatService.init();
-    }
-    if (mode == RestoreMode.overwrite) {
-      await chatService.clearAllData();
-    }
-
-    // 7) Prepare files (only if referenced by messages)
+    // Shared pure inputs for both modes (parsed above, no side effects yet).
     final filesById = <String, Map<String, dynamic>>{
       for (final f in cherryFiles)
         if (f is Map && f['id'] != null)
@@ -225,13 +233,6 @@ class CherryImporter {
       final fid = (fileObj?['id'] ?? '').toString();
       if (fid.isNotEmpty) usedFileIds.add(fid);
     }
-
-    // Write referenced files into Documents/upload and build path map
-    final pathsByFileId = await _materializeFiles(
-      filesById,
-      usedFileIds,
-      backupArchive: file,
-    );
 
     // Build mapping of extra attachments (images/files) in message_blocks (not represented in message.files)
     final Map<String, List<_PendingAttachmentRef>> pendingAttachmentsByMessage =
@@ -271,23 +272,245 @@ class CherryImporter {
       }
     }
 
-    // 8) Import topics & messages into ChatService
-    final convCountAndMsgCount = await _importConversations(
+    if (mode == RestoreMode.overwrite) {
+      // Plan §3 Phase 1c: no `clearAllData()`. The export was fully parsed
+      // above, attachments are staged, and the live database and uploads are
+      // replaced only at the transactional commit point.
+      return _importOverwrite(
+        file: file,
+        chatService: chatService,
+        cherryProviders: cherryProviders,
+        cherryAssistants: cherryAssistants,
+        topicMeta: topicMeta,
+        topicMessages: topicMessages,
+        blockTexts: blockTextByMessageId,
+        filesById: filesById,
+        usedFileIds: usedFileIds,
+        pendingAttachmentsByMessage: pendingAttachmentsByMessage,
+      );
+    }
+    return _importMerge(
+      file: file,
+      chatService: chatService,
+      cherryProviders: cherryProviders,
+      cherryAssistants: cherryAssistants,
+      topicMeta: topicMeta,
+      topicMessages: topicMessages,
+      blockTexts: blockTextByMessageId,
+      filesById: filesById,
+      usedFileIds: usedFileIds,
+      pendingAttachmentsByMessage: pendingAttachmentsByMessage,
+    );
+  }
+
+  // ---------- overwrite (transactional, plan §3 Phase 1c) ----------
+
+  /// Overwrite import: attachments are materialized into the restore staging
+  /// directory (same volume), the chats replace the live database through the
+  /// transactional staging/publish path (no `clearAllData()`), and the
+  /// providers/assistants prefs are written only after the commit. A prefs
+  /// failure rolls back to the captured snapshot, so a failed import leaves
+  /// the previous conversations, uploads and settings in place.
+  static Future<CherryImportResult> _importOverwrite({
+    required File file,
+    required ChatService chatService,
+    required List<dynamic> cherryProviders,
+    required List<dynamic> cherryAssistants,
+    required Map<String, Map<String, dynamic>> topicMeta,
+    required Map<String, List<Map<String, dynamic>>> topicMessages,
+    required Map<String, String> blockTexts,
+    required Map<String, Map<String, dynamic>> filesById,
+    required Set<String> usedFileIds,
+    required Map<String, List<_PendingAttachmentRef>>
+    pendingAttachmentsByMessage,
+  }) async {
+    final appData = await AppDirectories.getAppDataDirectory();
+    final restoreId = const Uuid().v4();
+    final stagingRoot = Directory(
+      p.join(appData.path, 'restore_staging_$restoreId'),
+    );
+    final stagingUpload = Directory(p.join(stagingRoot.path, 'upload'));
+    final liveUpload = await AppDirectories.getUploadDirectory();
+    final files = ChatDatabaseFiles(appData);
+
+    try {
+      // Materialize referenced attachments into the staging upload directory;
+      // content markers already point at the live upload paths they will
+      // occupy after the swap.
+      final pathsByFileId = await _materializeFiles(
+        filesById,
+        usedFileIds,
+        writeDir: stagingUpload,
+        contentDir: liveUpload,
+        backupArchive: file,
+      );
+
+      final converted = await _convertTopics(
+        topicMeta: topicMeta,
+        topicMessages: topicMessages,
+        filePaths: pathsByFileId,
+        blockTexts: blockTexts,
+        pendingAttachmentsByMessage: pendingAttachmentsByMessage,
+        skipMessageIds: const <String>{},
+        writeDir: stagingUpload,
+        contentDir: liveUpload,
+      );
+
+      final payload = ChatBackupPayload(
+        conversations: converted.conversations,
+        messagesByConversation: converted.messagesByConversation,
+        toolEvents: const <String, List<Map<String, dynamic>>>{},
+        geminiThoughtSigs: const <String, String>{},
+        workspaceBindings: const <String, WorkspaceConfig>{},
+        fileRecords: const <String, List<FileRecord>>{},
+        settings: null,
+        archiveSha256: await sha256File(file),
+      );
+
+      // Register the staged upload directory so the transactional restore
+      // swaps it together with the database commit point.
+      final stagedFiles = <String, RestoreJournalEntry>{};
+      if (await _directoryHasFiles(stagingUpload)) {
+        stagedFiles['upload'] = RestoreJournalEntry(
+          livePath: liveUpload.path,
+          stagingPath: stagingUpload.path,
+          previousPath: p.join(
+            appData.path,
+            '.previous-restore-$restoreId',
+            'upload',
+          ),
+          staged: true,
+        );
+      }
+
+      final result = await chatService.restoreChatsPayload(
+        payload,
+        restoreId: restoreId,
+        stagedFiles: stagedFiles,
+      );
+
+      // The transaction removes the staging root on success and rollback;
+      // clear a leftover empty root when no files were staged.
+      try {
+        if (await stagingRoot.exists()) {
+          await stagingRoot.delete(recursive: true);
+        }
+      } catch (_) {}
+
+      // Prefs are applied only after the chat commit; a failure rolls back to
+      // the snapshot so the previous providers/assistants survive.
+      final snapshot = await SharedPreferencesAsync.captureKeys(
+        const [_providersKey, _providersOrderKey, _assistantsKey],
+      );
+      try {
+        final providerCount = await _applyOverwriteProviders(cherryProviders);
+        final assistantCount = await _applyOverwriteAssistants(
+          cherryAssistants,
+        );
+        return CherryImportResult(
+          providers: providerCount,
+          assistants: assistantCount,
+          conversations: result.restoredConversations,
+          messages: result.restoredMessages,
+          files: pathsByFileId.length + converted.extraSaved,
+        );
+      } catch (error) {
+        await SharedPreferencesAsync.restoreKeys(snapshot);
+        rethrow;
+      }
+    } catch (error) {
+      // Without a journal the transaction never took ownership of the staging
+      // directory; remove it so a failed import leaves no leftovers. With a
+      // journal the restore's own rollback already handled it.
+      if (!await files.restoreJournal.exists()) {
+        try {
+          if (await stagingRoot.exists()) {
+            await stagingRoot.delete(recursive: true);
+          }
+        } catch (_) {}
+      }
+      rethrow;
+    }
+  }
+
+  // ---------- merge (unchanged semantics) ----------
+
+  /// Merge import: existing conversations win, only missing messages are
+  /// added, attachments materialize into the live upload directory, and write
+  /// errors propagate to the caller.
+  static Future<CherryImportResult> _importMerge({
+    required File file,
+    required ChatService chatService,
+    required List<dynamic> cherryProviders,
+    required List<dynamic> cherryAssistants,
+    required Map<String, Map<String, dynamic>> topicMeta,
+    required Map<String, List<Map<String, dynamic>>> topicMessages,
+    required Map<String, String> blockTexts,
+    required Map<String, Map<String, dynamic>> filesById,
+    required Set<String> usedFileIds,
+    required Map<String, List<_PendingAttachmentRef>>
+    pendingAttachmentsByMessage,
+  }) async {
+    // Prefs first (unchanged merge order).
+    final importedProviders = await _importProviders(cherryProviders);
+    final importedAssistants = await _importAssistants(cherryAssistants);
+
+    if (!chatService.initialized) await chatService.init();
+    await chatService.ensureAllMessagesLoaded();
+    final existingConvs = chatService.getAllConversations();
+    final existingConvIds = existingConvs.map((c) => c.id).toSet();
+    final existingMsgIds = <String>{};
+    for (final c in existingConvs) {
+      for (final m in chatService.getMessages(c.id)) {
+        existingMsgIds.add(m.id);
+      }
+    }
+
+    final liveUpload = await AppDirectories.getUploadDirectory();
+    final pathsByFileId = await _materializeFiles(
+      filesById,
+      usedFileIds,
+      writeDir: liveUpload,
+      contentDir: liveUpload,
+      backupArchive: file,
+    );
+    final converted = await _convertTopics(
       topicMeta: topicMeta,
       topicMessages: topicMessages,
       filePaths: pathsByFileId,
-      chatService: chatService,
-      mode: mode,
-      blockTexts: blockTextByMessageId,
+      blockTexts: blockTexts,
       pendingAttachmentsByMessage: pendingAttachmentsByMessage,
+      skipMessageIds: existingMsgIds,
+      writeDir: liveUpload,
+      contentDir: liveUpload,
     );
+
+    int convCount = 0;
+    int msgCount = 0;
+    for (var i = 0; i < converted.conversations.length; i++) {
+      final conversation = converted.conversations[i];
+      final messages =
+          converted.messagesByConversation[conversation.id] ??
+          const <ChatMessage>[];
+      if (existingConvIds.contains(conversation.id)) {
+        // Only add new messages (already filtered by skipMessageIds).
+        for (final m in messages) {
+          await chatService.addMessageDirectly(conversation.id, m);
+          msgCount += 1;
+        }
+      } else {
+        await chatService.restoreConversation(conversation, messages);
+        convCount += 1;
+        msgCount += messages.length;
+      }
+    }
 
     return CherryImportResult(
       providers: importedProviders,
       assistants: importedAssistants,
-      conversations: convCountAndMsgCount.$1,
-      messages: convCountAndMsgCount.$2,
-      files: pathsByFileId.length + convCountAndMsgCount.$3,
+      conversations: convCount,
+      messages: msgCount,
+      files: pathsByFileId.length + converted.extraSaved,
     );
   }
 
@@ -345,11 +568,10 @@ class CherryImporter {
     throw Exception('Unable to read Cherry backup file');
   }
 
-  static Future<int> _importProviders(
+  /// Pure provider parsing shared by the overwrite and merge branches.
+  static Map<String, Map<String, dynamic>> _parseCherryProviders(
     List<dynamic> cherryProviders,
-    SettingsProvider settings,
-    RestoreMode mode,
-  ) async {
+  ) {
     // Build imported map id -> ProviderConfig JSON-like
     final imported = <String, Map<String, dynamic>>{};
 
@@ -453,14 +675,27 @@ class CherryImporter {
       };
       imported[id] = map;
     }
+    return imported;
+  }
 
+  /// Overwrite branch of the provider import: replaces the stored providers
+  /// with the export's.
+  static Future<int> _applyOverwriteProviders(
+    List<dynamic> cherryProviders,
+  ) async {
+    final imported = _parseCherryProviders(cherryProviders);
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_providersKey, jsonEncode(imported));
+    await prefs.setStringList(_providersOrderKey, imported.keys.toList());
+    return imported.length;
+  }
 
-    if (mode == RestoreMode.overwrite) {
-      await prefs.setString(_providersKey, jsonEncode(imported));
-      await prefs.setStringList(_providersOrderKey, imported.keys.toList());
-      return imported.length;
-    }
+  /// Merge-mode provider import: combines the export's providers into the
+  /// stored map without removing any. Overwrite goes through
+  /// [_applyOverwriteProviders] after the chat commit (plan §3 Phase 1c).
+  static Future<int> _importProviders(List<dynamic> cherryProviders) async {
+    final imported = _parseCherryProviders(cherryProviders);
+    final prefs = await SharedPreferences.getInstance();
 
     // merge mode: merge into existing providers without removing any
     Map<String, dynamic> current = const <String, dynamic>{};
@@ -510,10 +745,10 @@ class CherryImporter {
     return imported.length;
   }
 
-  static Future<int> _importAssistants(
+  /// Pure assistant parsing shared by the overwrite and merge branches.
+  static List<Map<String, dynamic>> _parseCherryAssistants(
     List<dynamic> cherryAssistants,
-    RestoreMode mode,
-  ) async {
+  ) {
     // Map to our Assistant JSON list (as stored by Assistant.encodeList)
     final out = <Map<String, dynamic>>[];
     for (final a in cherryAssistants) {
@@ -548,12 +783,26 @@ class CherryImporter {
       };
       out.add(json);
     }
+    return out;
+  }
 
+  /// Overwrite branch of the assistant import: replaces the stored
+  /// assistants with the export's.
+  static Future<int> _applyOverwriteAssistants(
+    List<dynamic> cherryAssistants,
+  ) async {
+    final out = _parseCherryAssistants(cherryAssistants);
     final prefs = await SharedPreferences.getInstance();
-    if (mode == RestoreMode.overwrite) {
-      await prefs.setString(_assistantsKey, jsonEncode(out));
-      return out.length;
-    }
+    await prefs.setString(_assistantsKey, jsonEncode(out));
+    return out.length;
+  }
+
+  /// Merge-mode assistant import: merges by id, updates systemPrompt/model
+  /// fields when the export carries non-empty values. Overwrite goes through
+  /// [_applyOverwriteAssistants] after the chat commit (plan §3 Phase 1c).
+  static Future<int> _importAssistants(List<dynamic> cherryAssistants) async {
+    final out = _parseCherryAssistants(cherryAssistants);
+    final prefs = await SharedPreferences.getInstance();
 
     // merge: merge by id; update systemPrompt if provided, keep other local values
     List<dynamic> existing = const <dynamic>[];
@@ -587,13 +836,37 @@ class CherryImporter {
     return out.length;
   }
 
+  /// Writes one materialized attachment under [dir], creating the directory
+  /// only when there is something to write (plan §3 Phase 1c overwrite
+  /// staging). Throws through [debugFailOnMaterialize] after the first write.
+  static Future<void> _writeStagedFile(
+    Directory dir,
+    String path,
+    List<int> bytes,
+  ) async {
+    if (!await dir.exists()) await dir.create(recursive: true);
+    await File(path).writeAsBytes(bytes, flush: true);
+    // The per-strategy try/catch blocks around the write sites swallow
+    // exceptions, so the seam surfaces through [_materializeFiles] instead.
+    if (debugFailOnMaterialize) {
+      debugFailOnMaterialize = false;
+      _debugMaterializePending = true;
+    }
+  }
+
+  /// Materializes the referenced Cherry attachments under [writeDir] and
+  /// returns the path each file id will occupy at [contentDir] (the live
+  /// upload directory). For overwrite imports [writeDir] is the restore
+  /// staging directory, so the live upload directory is untouched until the
+  /// transactional swap (plan §3 Phase 1c).
   static Future<Map<String, String>> _materializeFiles(
     Map<String, Map<String, dynamic>> filesById,
     Set<String> usedIds, {
+    required Directory writeDir,
+    required Directory contentDir,
     File? backupArchive,
   }) async {
-    final uploadDir = await AppDirectories.getUploadDirectory();
-    if (!await uploadDir.exists()) await uploadDir.create(recursive: true);
+    _debugMaterializePending = false;
 
     // If a ZIP is provided, index entries under common folders for quick lookup
     Map<String, ArchiveFile>? filesIndexByBase;
@@ -702,11 +975,12 @@ class CherryImporter {
           ? safeName
           : (ext.isNotEmpty ? 'file.$ext' : 'file');
       final fileName = 'cherry_${id}_$fn';
-      final outPath = p.join(uploadDir.path, fileName);
+      final outPath = p.join(writeDir.path, fileName);
+      final livePath = _contentPath(writeDir, contentDir, outPath);
 
       // If already written, reuse path
       if (await File(outPath).exists()) {
-        result[id] = outPath;
+        result[id] = livePath;
         continue;
       }
 
@@ -720,16 +994,16 @@ class CherryImporter {
           final idx = b64.indexOf('base64,');
           if (idx != -1) b64 = b64.substring(idx + 7);
           final bytes = base64.decode(b64);
-          await File(outPath).writeAsBytes(bytes);
-          result[id] = outPath;
+          await _writeStagedFile(writeDir, outPath, bytes);
+          result[id] = livePath;
           continue;
         }
       } catch (_) {}
 
       try {
         if (contentStr.isNotEmpty) {
-          await File(outPath).writeAsString(contentStr);
-          result[id] = outPath;
+          await _writeStagedFile(writeDir, outPath, utf8.encode(contentStr));
+          result[id] = livePath;
           continue;
         }
       } catch (_) {}
@@ -757,8 +1031,8 @@ class CherryImporter {
                 filesIndexByRel.containsKey(key)) {
               final entry = filesIndexByRel[key]!;
               final bytes = entry.content as List<int>;
-              await File(outPath).writeAsBytes(bytes);
-              result[id] = outPath;
+              await _writeStagedFile(writeDir, outPath, bytes);
+              result[id] = livePath;
               done = true;
             }
             if (!done &&
@@ -766,8 +1040,8 @@ class CherryImporter {
                 diskFilesIndexByRel.containsKey(key)) {
               final src = diskFilesIndexByRel[key]!;
               final bytes = await File(src).readAsBytes();
-              await File(outPath).writeAsBytes(bytes);
-              result[id] = outPath;
+              await _writeStagedFile(writeDir, outPath, bytes);
+              result[id] = livePath;
               done = true;
             }
             if (done) break;
@@ -793,8 +1067,8 @@ class CherryImporter {
               filesIndexByBase.containsKey(base)) {
             final entry = filesIndexByBase[base]!;
             final bytes = entry.content as List<int>;
-            await File(outPath).writeAsBytes(bytes);
-            result[id] = outPath;
+            await _writeStagedFile(writeDir, outPath, bytes);
+            result[id] = livePath;
             done = true;
           }
           if (!done &&
@@ -802,8 +1076,8 @@ class CherryImporter {
               diskFilesIndexByBase.containsKey(base)) {
             final src = diskFilesIndexByBase[base]!;
             final bytes = await File(src).readAsBytes();
-            await File(outPath).writeAsBytes(bytes);
-            result[id] = outPath;
+            await _writeStagedFile(writeDir, outPath, bytes);
+            result[id] = livePath;
             done = true;
           }
           if (done) break;
@@ -824,68 +1098,88 @@ class CherryImporter {
         if (filesIndexById != null && filesIndexById.containsKey(id)) {
           final entry = filesIndexById[id]!;
           final bytes = entry.content as List<int>;
-          await File(outPath).writeAsBytes(bytes);
-          result[id] = outPath;
+          await _writeStagedFile(writeDir, outPath, bytes);
+          result[id] = livePath;
           continue;
         }
         if (filesIndexByBase != null && filesIndexByBase.containsKey(idPlus)) {
           final entry = filesIndexByBase[idPlus]!;
           final bytes = entry.content as List<int>;
-          await File(outPath).writeAsBytes(bytes);
-          result[id] = outPath;
+          await _writeStagedFile(writeDir, outPath, bytes);
+          result[id] = livePath;
           continue;
         }
         if (diskFilesIndexById != null && diskFilesIndexById.containsKey(id)) {
           final src = diskFilesIndexById[id]!;
           final bytes = await File(src).readAsBytes();
-          await File(outPath).writeAsBytes(bytes);
-          result[id] = outPath;
+          await _writeStagedFile(writeDir, outPath, bytes);
+          result[id] = livePath;
           continue;
         }
         if (diskFilesIndexByBase != null &&
             diskFilesIndexByBase.containsKey(idPlus)) {
           final src = diskFilesIndexByBase[idPlus]!;
           final bytes = await File(src).readAsBytes();
-          await File(outPath).writeAsBytes(bytes);
-          result[id] = outPath;
+          await _writeStagedFile(writeDir, outPath, bytes);
+          result[id] = livePath;
           continue;
         }
       } catch (_) {}
 
       // If neither available, we cannot materialize this file; skip (message will fall back to URL/none)
     }
+    if (_debugMaterializePending) {
+      _debugMaterializePending = false;
+      throw const FileSystemException('Injected materialize failure (debug)');
+    }
     return result;
   }
 
-  // Returns (conversations, messages, extraFilesSaved)
-  static Future<(int, int, int)> _importConversations({
+  /// Content marker path for a file written under [writeDir]: markers must
+  /// reference the final live location ([contentDir]) so they remain valid
+  /// after the staging swap.
+  static String _contentPath(
+    Directory writeDir,
+    Directory contentDir,
+    String writtenPath,
+  ) {
+    if (writeDir.path == contentDir.path) return writtenPath;
+    final rel = p.relative(writtenPath, from: writeDir.path);
+    return p.join(contentDir.path, rel);
+  }
+
+  static Future<bool> _directoryHasFiles(Directory directory) async {
+    if (!await directory.exists()) return false;
+    try {
+      await for (final entity in directory.list(
+        recursive: true,
+        followLinks: false,
+      )) {
+        if (entity is File) return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  /// Converts Cherry topics into this app's conversations and messages
+  /// (plan §3 Phase 1c). New attachment files are written under [writeDir]
+  /// (the restore staging directory for overwrite imports, the live upload
+  /// directory for merge) while content markers point at [contentDir] so they
+  /// stay valid after the staging swap. [skipMessageIds] filters
+  /// already-present messages (merge mode); overwrite passes an empty set.
+  static Future<_CherryConversion> _convertTopics({
     required Map<String, Map<String, dynamic>> topicMeta,
     required Map<String, List<Map<String, dynamic>>> topicMessages,
     required Map<String, String> filePaths,
-    required ChatService chatService,
-    required RestoreMode mode,
     required Map<String, String> blockTexts,
     required Map<String, List<_PendingAttachmentRef>>
     pendingAttachmentsByMessage,
+    required Set<String> skipMessageIds,
+    required Directory writeDir,
+    required Directory contentDir,
   }) async {
-    if (!chatService.initialized) await chatService.init();
-
-    // Build map of existing conv ids for merge
-    if (mode == RestoreMode.merge) {
-      await chatService.ensureAllMessagesLoaded();
-    }
-    final existingConvs = chatService.getAllConversations();
-    final existingConvIds = existingConvs.map((c) => c.id).toSet();
-    final existingMsgIds = <String>{};
-    if (mode == RestoreMode.merge) {
-      for (final c in existingConvs) {
-        final msgs = chatService.getMessages(c.id);
-        for (final m in msgs) existingMsgIds.add(m.id);
-      }
-    }
-
-    int convCount = 0;
-    int msgCount = 0;
+    final conversations = <Conversation>[];
+    final messagesByConversation = <String, List<ChatMessage>>{};
     int extraSaved = 0; // number of files saved from base64/data urls
 
     for (final entry in topicMessages.entries) {
@@ -916,8 +1210,7 @@ class CherryImporter {
       for (final m in msgsRaw) {
         final msgId = (m['id'] ?? '').toString();
         if (msgId.isEmpty) continue;
-        if (mode == RestoreMode.merge && existingMsgIds.contains(msgId))
-          continue;
+        if (skipMessageIds.contains(msgId)) continue;
         final roleRaw = (m['role'] ?? 'user').toString();
         final role = (roleRaw == 'system')
             ? 'assistant'
@@ -1008,14 +1301,17 @@ class CherryImporter {
               );
             }
           } else if (ref.dataUrl != null) {
-            final savedPath = await _saveDataUrlToUpload(ref.dataUrl!);
-            if (savedPath != null) {
+            final saved = await _saveDataUrlToUpload(
+              ref.dataUrl!,
+              dir: writeDir,
+            );
+            if (saved != null) {
               extraSaved += 1;
               attachmentLines.add(
                 _formatAttachmentLine(
                   role,
                   ref.isImage,
-                  savedPath,
+                  _contentPath(writeDir, contentDir, saved),
                   ref.name ?? (ref.isImage ? 'image' : 'file'),
                   ref.mime ??
                       (ref.isImage ? 'image/png' : 'application/octet-stream'),
@@ -1049,14 +1345,14 @@ class CherryImporter {
             final s = (item ?? '').toString();
             if (s.isEmpty) continue;
             if (s.startsWith('data:image')) {
-              final saved = await _saveDataUrlToUpload(s);
+              final saved = await _saveDataUrlToUpload(s, dir: writeDir);
               if (saved != null) {
                 extraSaved += 1;
                 attachmentLines.add(
                   _formatAttachmentLine(
                     role,
                     true,
-                    saved,
+                    _contentPath(writeDir, contentDir, saved),
                     'image',
                     'image/png',
                   ),
@@ -1070,6 +1366,7 @@ class CherryImporter {
               // raw base64 without prefix
               final saved = await _saveDataUrlToUpload(
                 'data:image/png;base64,$s',
+                dir: writeDir,
               );
               if (saved != null) {
                 extraSaved += 1;
@@ -1077,7 +1374,7 @@ class CherryImporter {
                   _formatAttachmentLine(
                     role,
                     true,
-                    saved,
+                    _contentPath(writeDir, contentDir, saved),
                     'image',
                     'image/png',
                   ),
@@ -1092,14 +1389,14 @@ class CherryImporter {
           final dataUrls = _extractDataImageUrls(content);
           if (dataUrls.isNotEmpty) {
             for (final du in dataUrls) {
-              final saved = await _saveDataUrlToUpload(du);
+              final saved = await _saveDataUrlToUpload(du, dir: writeDir);
               if (saved != null) {
                 extraSaved += 1;
                 attachmentLines.add(
                   _formatAttachmentLine(
                     role,
                     true,
-                    saved,
+                    _contentPath(writeDir, contentDir, saved),
                     'image',
                     'image/png',
                   ),
@@ -1137,29 +1434,24 @@ class CherryImporter {
         updatedAt = times.last;
       }
 
-      // Persist
-      if (mode == RestoreMode.merge && existingConvIds.contains(topicId)) {
-        // Only add new messages
-        for (final m in messages) {
-          await chatService.addMessageDirectly(topicId, m);
-          msgCount += 1;
-        }
-      } else {
-        final conv = Conversation(
+      conversations.add(
+        Conversation(
           id: topicId,
           title: title,
           createdAt: createdAt,
           updatedAt: updatedAt,
           isPinned: pinned,
           assistantId: assistantId,
-        );
-        await chatService.restoreConversation(conv, messages);
-        convCount += 1;
-        msgCount += messages.length;
-      }
+        ),
+      );
+      messagesByConversation[topicId] = messages;
     }
 
-    return (convCount, msgCount, extraSaved);
+    return _CherryConversion(
+      conversations: conversations,
+      messagesByConversation: messagesByConversation,
+      extraSaved: extraSaved,
+    );
   }
 
   static String _formatAttachmentLine(
@@ -1201,10 +1493,12 @@ class CherryImporter {
     return text.replaceAll(re, '');
   }
 
-  static Future<String?> _saveDataUrlToUpload(String dataUrl) async {
+  static Future<String?> _saveDataUrlToUpload(
+    String dataUrl, {
+    required Directory dir,
+  }) async {
     try {
-      final upload = await AppDirectories.getUploadDirectory();
-      if (!await upload.exists()) await upload.create(recursive: true);
+      if (!await dir.exists()) await dir.create(recursive: true);
       // Extract mime and data
       String mime = 'image/png';
       String payload = dataUrl;
@@ -1235,7 +1529,7 @@ class CherryImporter {
       }
       final fname =
           'cherry_img_${DateTime.now().millisecondsSinceEpoch}_${bytes.length}.$ext';
-      final out = File(p.join(upload.path, fname));
+      final out = File(p.join(dir.path, fname));
       await out.writeAsBytes(bytes);
       return out.path;
     } catch (_) {

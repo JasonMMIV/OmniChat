@@ -604,8 +604,15 @@ class _BackupPageState extends State<BackupPage> {
                           if (!mounted) return;
                           final mode = await _chooseImportModeDialog(context);
                           if (mode == null) return;
-                          await _runWithImportingOverlay(context, () => vm.restoreDropboxFromItem(dropboxCfg, item, mode: mode));
+                          final result = await _runWithImportingOverlay(context, () => vm.restoreDropboxFromItem(dropboxCfg, item, mode: mode));
                           if (!mounted) return;
+                          if (result != null && !result.settingsApplied) {
+                            showAppSnackBar(
+                              context,
+                              message: result.settingsError ?? 'Chat data was restored, but settings were not applied.',
+                              type: NotificationType.error,
+                            );
+                          }
                           await showDialog(
                             context: context,
                             builder: (dctx) => AlertDialog(
@@ -722,8 +729,15 @@ class _BackupPageState extends State<BackupPage> {
                           if (!mounted) return;
                           final mode = await _chooseImportModeDialog(context);
                           if (mode == null) return;
-                          await _runWithImportingOverlay(context, () => vm.restoreFromItem(item, mode: mode));
+                          final result = await _runWithImportingOverlay(context, () => vm.restoreFromItem(item, mode: mode));
                           if (!mounted) return;
+                          if (result != null && !result.settingsApplied) {
+                            showAppSnackBar(
+                              context,
+                              message: result.settingsError ?? 'Chat data was restored, but settings were not applied.',
+                              type: NotificationType.error,
+                            );
+                          }
                           await showDialog(
                             context: context,
                             builder: (dctx) => AlertDialog(
@@ -830,8 +844,15 @@ class _BackupPageState extends State<BackupPage> {
     
     if (mode == null) return;
     
-    await _runWithImportingOverlay(context, () => vm.restoreFromLocalFile(File(path), mode: mode));
+    final restoreResult = await _runWithImportingOverlay(context, () => vm.restoreFromLocalFile(File(path), mode: mode));
     if (!mounted) return;
+    if (restoreResult != null && !restoreResult.settingsApplied) {
+      showAppSnackBar(
+        context,
+        message: restoreResult.settingsError ?? 'Chat data was restored, but settings were not applied.',
+        type: NotificationType.error,
+      );
+    }
     await showDialog(
       context: context,
       builder: (dctx) => AlertDialog(

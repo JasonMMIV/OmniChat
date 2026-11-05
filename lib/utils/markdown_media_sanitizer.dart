@@ -81,7 +81,9 @@ class MarkdownMediaSanitizer {
     return sb.toString();
   }
 
-  /// Whether [url] should be treated as a local file path.
+  /// Whether [url] should be treated as a local file path. Also used by the
+  /// backup attachment preflight (plan §3 Phase 2) to pick filesystem
+  /// references out of chat contents.
   ///
   /// Protocol-relative (`//host/path`) and UNC (`\\host\share`) URLs are
   /// web/network locations. On Windows they resolve to SMB paths, and a
@@ -89,7 +91,6 @@ class MarkdownMediaSanitizer {
   /// (measured 10-25s per host). Remote `file://host/...` URIs are rejected
   /// for the same reason; only local absolute paths (and local `file://`
   /// URIs) are accepted.
-  @visibleForTesting
   static bool isLikelyLocalImagePath(String url) {
     final value = url.trim();
     if (value.isEmpty) return false;

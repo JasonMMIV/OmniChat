@@ -11,6 +11,7 @@ class DatabasePublishOutcome {
     required this.targetProbe,
     this.previousPath,
     this.replacedPath,
+    this.previousDatabaseId,
     this.error,
   });
 
@@ -19,6 +20,11 @@ class DatabasePublishOutcome {
   final DatabaseProbe targetProbe;
   final String? previousPath;
   final String? replacedPath;
+
+  /// Identity of the family actually preserved for this publish
+  /// (`previousPath` or `replacedPath`). A restore journal records it so a
+  /// later rollback only reinstates an identity-matching database.
+  final String? previousDatabaseId;
   final String? error;
 }
 
@@ -55,13 +61,23 @@ class DatabaseFamilyPublisher {
   static const String stagePublished = 'published';
   static const String stageVerified = 'verified';
 
+  /// Test seam: return a failure after the old target has been preserved and
+  /// the publish intent written, leaving the recovery path to decide.
+  static bool debugFailOnPublish = false;
+
+  /// Test seam: make publish-intent recovery fail closed once. Used to prove
+  /// that an unresolved restore keeps its journal and every file.
+  static bool debugForceFailClosedRecovery = false;
+
   /// Publishes [temp] as the live database. The temp database must already be
   /// complete, checkpointed, closed, and carry `migration_meta.publish_id`.
   Future<DatabasePublishOutcome> publish({
     required File temp,
     required String operation,
   }) async {
-    if (operation != 'migrate' && operation != 'upgrade') {
+    if (operation != 'migrate' &&
+        operation != 'upgrade' &&
+        operation != 'restore') {
       throw ArgumentError.value(operation, 'operation');
     }
 
@@ -144,6 +160,7 @@ class DatabaseFamilyPublisher {
 
     String? previousUsed;
     String? replacedPath;
+    String? preservedDatabaseId;
 
     // Preserve the current target before mutating it. If a `.previous` family
     // already exists, never overwrite it: move the target aside as
@@ -186,6 +203,7 @@ class DatabaseFamilyPublisher {
         );
       }
 
+      preservedDatabaseId = preserved?.databaseId;
       intent
         ..['stage'] = stageTargetPreserved
         ..['previousDatabaseId'] = preserved?.databaseId
@@ -194,6 +212,19 @@ class DatabaseFamilyPublisher {
         ..['previousSha256'] = preserved?.sha256Hex
         ..['updatedAtUtc'] = DateTime.now().toUtc().toIso8601String();
       await files.writeJsonAtomically(files.publishIntent, intent);
+    }
+
+    if (debugFailOnPublish) {
+      debugFailOnPublish = false;
+      return DatabasePublishOutcome(
+        success: false,
+        publishId: publishId,
+        targetProbe: targetProbe,
+        previousPath: previousUsed,
+        replacedPath: replacedPath,
+        previousDatabaseId: preservedDatabaseId,
+        error: 'Injected publish failure (debug).',
+      );
     }
 
     // A `-wal`/`-shm` whose base file is missing must never remain at the
@@ -228,18 +259,33 @@ class DatabaseFamilyPublisher {
     } catch (_) {}
     await files.deleteSidecars(temp);
 
+    final preservedPath = previousUsed ?? replacedPath;
+    final resolvedPreservedId = preservedDatabaseId ??
+        (preservedPath == null
+            ? null
+            : (await probeDatabase(File(preservedPath))).databaseId);
+
     return DatabasePublishOutcome(
       success: true,
       publishId: publishId,
       targetProbe: await probeDatabase(target),
       previousPath: previousUsed,
       replacedPath: replacedPath,
+      previousDatabaseId: resolvedPreservedId,
     );
   }
 
   /// Inspects `chat_v2.publish-intent.json` and completes/aborts a crashed
   /// publication. Never deletes both target and temp.
   Future<PublishRecovery> recoverIfNeeded() async {
+    if (debugForceFailClosedRecovery) {
+      debugForceFailClosedRecovery = false;
+      return const PublishRecovery(
+        resolved: false,
+        failClosed: true,
+        message: 'Injected unresolved publish recovery (debug).',
+      );
+    }
     if (!await files.publishIntent.exists()) {
       return const PublishRecovery(
         resolved: true,
@@ -538,24 +584,7 @@ class DatabaseFamilyPublisher {
     return verifySqliteFile(target);
   }
 
-  Future<void> _moveFamily(File from, File to) async {
-    if (!await from.exists()) return;
-    final destinationParent = to.parent;
-    if (!await destinationParent.exists()) {
-      await destinationParent.create(recursive: true);
-    }
-    if (await to.exists()) {
-      // Never overwrite a preserved family silently.
-      throw FileSystemException('Destination already exists', to.path);
-    }
-    await from.rename(to.path);
-    for (final suffix in const <String>['-wal', '-shm']) {
-      final sidecar = File('${from.path}$suffix');
-      if (await sidecar.exists()) {
-        await sidecar.rename('${to.path}$suffix');
-      }
-    }
-  }
+  Future<void> _moveFamily(File from, File to) => files.moveFamily(from, to);
 
   Future<void> _removeFamily(File base) async {
     await files.deleteFamily(base);

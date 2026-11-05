@@ -352,13 +352,19 @@ class DatabaseInstallationGate {
     // Defined "started successfully once": the target was verified and the
     // publish intent is gone. Keep .corrupt-* and publish-intent diagnostics.
     if (await files.publishIntent.exists()) return;
+    // A restore journal owns `.previous`/`.replaced-*` until its recovery has
+    // completed or rolled back. Deleting them here would destroy the only copy
+    // of the previous database.
+    if (await files.restoreJournal.exists()) return;
     await files.deleteFamily(files.previous);
     await files.deleteFamily(files.migrating);
     await files.deleteFamily(files.upgrading);
     try {
       await for (final entity in directory.list()) {
         final name = entity.uri.pathSegments.last;
-        if (entity is File && name.contains('.replaced-')) {
+        if (entity is File &&
+            (name.contains('.replaced-') ||
+                name.contains('.failed-restore-'))) {
           await entity.delete();
         }
       }

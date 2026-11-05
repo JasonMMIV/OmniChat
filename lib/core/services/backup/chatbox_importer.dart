@@ -1,14 +1,20 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart'
+    hide SharedPreferencesAsync;
 import 'package:uuid/uuid.dart';
 
 import '../../models/backup.dart';
 import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
+import '../../models/file_record.dart';
+import '../../models/workspace_config.dart';
 import '../../providers/settings_provider.dart';
 import '../chat/chat_service.dart';
+import '../chat/storage/chat_backup_restorer.dart';
+import '../chat/storage/chat_database_files.dart';
+import 'backup_preferences.dart';
 
 class ChatboxImportException implements Exception {
   final String message;
@@ -30,6 +36,20 @@ class ChatboxImportResult {
   });
 }
 
+/// One Chatbox session converted into this app's shapes with no side effects
+/// (plan §3 Phase 1c): the derived assistant JSON and its conversation
+/// threads in export order.
+class _ChatboxSession {
+  final String assistantId;
+  final Map<String, dynamic> assistantJson;
+  final List<({Conversation conversation, List<ChatMessage> messages})> threads;
+  const _ChatboxSession({
+    required this.assistantId,
+    required this.assistantJson,
+    required this.threads,
+  });
+}
+
 class ChatboxImporter {
   ChatboxImporter._();
 
@@ -43,6 +63,18 @@ class ChatboxImporter {
   static const String _collapsedKey =
       'assistant_tag_collapsed_v1'; // tagId -> bool
 
+  /// Every persisted key this importer may write. An overwrite import
+  /// captures them before applying anything so a failure can roll back
+  /// (plan §3 Phase 1c).
+  static const List<String> _importerPrefsKeys = <String>[
+    _providersKey,
+    _providersOrderKey,
+    _assistantsKey,
+    _tagsKey,
+    _assignKey,
+    _collapsedKey,
+  ];
+
   static Future<ChatboxImportResult> importFromChatbox({
     required File file,
     required RestoreMode mode,
@@ -51,45 +83,232 @@ class ChatboxImporter {
   }) async {
     final root = await _readChatboxBackupFile(file);
 
-    // Safety: avoid destructive overwrite when the export is incomplete.
     if (mode == RestoreMode.overwrite) {
-      final sessionsList = root['chat-sessions-list'];
-      if (sessionsList is! List || sessionsList.isEmpty) {
-        throw const ChatboxImportException(
-          'This Chatbox export does not include chat history. Re-export with "Chat History" enabled, or use merge mode.',
-        );
-      }
-      bool hasAnySessionObject = false;
-      for (final meta in sessionsList) {
-        if (meta is! Map) continue;
-        final id = (meta['id'] ?? '').toString().trim();
-        if (id.isEmpty) continue;
-        if (root['session:$id'] is Map) {
-          hasAnySessionObject = true;
-          break;
-        }
-      }
-      if (!hasAnySessionObject) {
-        throw const ChatboxImportException(
-          'This Chatbox export is missing session data (no "session:*" entries). Please export again and include chat history.',
-        );
+      // Safety: never replace live history with an export that does not
+      // contain chat history (plan §0.1.5).
+      _ensureChatHistoryPresent(root);
+      return _importOverwrite(root: root, file: file, chatService: chatService);
+    }
+    return _importMerge(root: root, chatService: chatService);
+  }
+
+  // ---------- overwrite (transactional, plan §3 Phase 1c) ----------
+
+  /// Overwrite import: the whole export is parsed first, the chats replace
+  /// the live database through the transactional staging/publish path (no
+  /// `clearAllData()`), and providers/assistants/tags are written only after
+  /// the commit. A prefs failure rolls back to the captured snapshot, so a
+  /// failed import leaves the previous conversations and settings in place.
+  static Future<ChatboxImportResult> _importOverwrite({
+    required Map<String, dynamic> root,
+    required File file,
+    required ChatService chatService,
+  }) async {
+    final sessions = _parseChatboxSessions(
+      root,
+      skipMessageIds: const <String>{},
+    );
+
+    // Threads are upserted by id (restoreConversation semantics), so a thread
+    // id repeated across sessions is replaced by the later one.
+    final conversationsById = <String, Conversation>{};
+    final messagesByConversation = <String, List<ChatMessage>>{};
+    final assistantIds = <String>[];
+    for (final session in sessions) {
+      assistantIds.add(session.assistantId);
+      for (final thread in session.threads) {
+        conversationsById[thread.conversation.id] = thread.conversation;
+        messagesByConversation[thread.conversation.id] = thread.messages;
       }
     }
 
-    final importedProviders = await _importProviders(root, mode);
-    final assistantConvRes = await _importAssistantsAndConversations(
-      root,
-      mode,
-      chatService,
+    final payload = ChatBackupPayload(
+      conversations: conversationsById.values.toList(growable: false),
+      messagesByConversation: messagesByConversation,
+      toolEvents: const <String, List<Map<String, dynamic>>>{},
+      geminiThoughtSigs: const <String, String>{},
+      workspaceBindings: const <String, WorkspaceConfig>{},
+      fileRecords: const <String, List<FileRecord>>{},
+      settings: null,
+      archiveSha256: await sha256File(file),
     );
-    await _tagImportedAssistants(assistantConvRes.assistantIds, mode);
+    final result = await chatService.restoreChatsPayload(payload);
+
+    // Prefs are applied only after the chat commit; a failure rolls back to
+    // the snapshot so the previous assistants/providers/tags survive.
+    final snapshot = await SharedPreferencesAsync.captureKeys(
+      _importerPrefsKeys,
+    );
+    try {
+      final providerCount = await _applyOverwriteProviders(root);
+      await _applyOverwriteAssistants(sessions);
+      await _tagImportedAssistants(assistantIds, RestoreMode.overwrite);
+      return ChatboxImportResult(
+        providers: providerCount,
+        assistants: assistantIds.toSet().length,
+        conversations: result.restoredConversations,
+        messages: result.restoredMessages,
+      );
+    } catch (error) {
+      await SharedPreferencesAsync.restoreKeys(snapshot);
+      rethrow;
+    }
+  }
+
+  /// Overwrite branch of the provider import: replaces the stored providers
+  /// with the export's. An export without provider configs must not wipe
+  /// existing local providers.
+  static Future<int> _applyOverwriteProviders(Map<String, dynamic> root) async {
+    final imported = _parseProviders(root);
+    if (imported.isEmpty) return 0;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_providersKey, jsonEncode(imported));
+    await prefs.setStringList(_providersOrderKey, imported.keys.toList());
+    return imported.length;
+  }
+
+  static Future<void> _applyOverwriteAssistants(
+    List<_ChatboxSession> sessions,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _assistantsKey,
+      jsonEncode(<Map<String, dynamic>>[
+        for (final session in sessions) session.assistantJson,
+      ]),
+    );
+  }
+
+  // ---------- merge (unchanged semantics) ----------
+
+  /// Merge import: existing conversations/assistants win, only missing rows
+  /// are added, and write errors propagate to the caller.
+  static Future<ChatboxImportResult> _importMerge({
+    required Map<String, dynamic> root,
+    required ChatService chatService,
+  }) async {
+    final importedProviders = await _mergeProviders(root);
+
+    if (!chatService.initialized) await chatService.init();
+    await chatService.ensureAllMessagesLoaded();
+    final existingConvs = chatService.getAllConversations();
+    final existingConvIds = existingConvs.map((c) => c.id).toSet();
+    final existingMsgIds = <String>{};
+    for (final c in existingConvs) {
+      for (final m in chatService.getMessages(c.id)) {
+        existingMsgIds.add(m.id);
+      }
+    }
+
+    final sessions = _parseChatboxSessions(
+      root,
+      skipMessageIds: existingMsgIds,
+    );
+    final prefs = await SharedPreferences.getInstance();
+
+    // For merge mode, we need to know what already exists.
+    final existingAssistantsById = <String, Map<String, dynamic>>{};
+    try {
+      final raw = prefs.getString(_assistantsKey);
+      if (raw != null && raw.isNotEmpty) {
+        final arr = jsonDecode(raw) as List<dynamic>;
+        for (final e in arr) {
+          if (e is Map && e['id'] != null) {
+            existingAssistantsById[e['id'].toString()] = e.map(
+              (k, v) => MapEntry(k.toString(), v),
+            );
+          }
+        }
+      }
+    } catch (_) {}
+
+    final mergedById = <String, Map<String, dynamic>>{}
+      ..addAll(existingAssistantsById);
+    final importedAssistantIds = <String>[];
+    int convCount = 0;
+    int msgCount = 0;
+
+    for (final session in sessions) {
+      final id = session.assistantId;
+      final assistantJson = session.assistantJson;
+      if (!existingAssistantsById.containsKey(id)) {
+        mergedById[id] = assistantJson;
+      } else {
+        // Merge: keep local assistant unless incoming contains non-empty
+        // system prompt / model fields.
+        final local = existingAssistantsById[id]!;
+        final incPrompt =
+            (assistantJson['systemPrompt'] as String?)?.trim() ?? '';
+        if (incPrompt.isNotEmpty) local['systemPrompt'] = incPrompt;
+        if (assistantJson['chatModelProvider'] != null) {
+          local['chatModelProvider'] = assistantJson['chatModelProvider'];
+        }
+        if (assistantJson['chatModelId'] != null) {
+          local['chatModelId'] = assistantJson['chatModelId'];
+        }
+        if (assistantJson['thinkingBudget'] != null) {
+          local['thinkingBudget'] = assistantJson['thinkingBudget'];
+        }
+        // Do not overwrite local avatar/background in merge mode.
+        mergedById[id] = local;
+      }
+      importedAssistantIds.add(id); // still tag it as chatbox source
+
+      for (final thread in session.threads) {
+        if (existingConvIds.contains(thread.conversation.id)) {
+          for (final m in thread.messages) {
+            await chatService.addMessageDirectly(thread.conversation.id, m);
+            msgCount += 1;
+          }
+        } else {
+          await chatService.restoreConversation(
+            thread.conversation,
+            thread.messages,
+          );
+          convCount += 1;
+          msgCount += thread.messages.length;
+        }
+      }
+    }
+
+    await prefs.setString(
+      _assistantsKey,
+      jsonEncode(mergedById.values.toList()),
+    );
+    await _tagImportedAssistants(importedAssistantIds, RestoreMode.merge);
 
     return ChatboxImportResult(
       providers: importedProviders,
-      assistants: assistantConvRes.assistants,
-      conversations: assistantConvRes.conversations,
-      messages: assistantConvRes.messages,
+      assistants: importedAssistantIds.toSet().length,
+      conversations: convCount,
+      messages: msgCount,
     );
+  }
+
+  /// Overwrite safety gate (plan §0.1.5): refuse to replace live history with
+  /// an export that carries no chat history.
+  static void _ensureChatHistoryPresent(Map<String, dynamic> root) {
+    final sessionsList = root['chat-sessions-list'];
+    if (sessionsList is! List || sessionsList.isEmpty) {
+      throw const ChatboxImportException(
+        'This Chatbox export does not include chat history. Re-export with "Chat History" enabled, or use merge mode.',
+      );
+    }
+    bool hasAnySessionObject = false;
+    for (final meta in sessionsList) {
+      if (meta is! Map) continue;
+      final id = (meta['id'] ?? '').toString().trim();
+      if (id.isEmpty) continue;
+      if (root['session:$id'] is Map) {
+        hasAnySessionObject = true;
+        break;
+      }
+    }
+    if (!hasAnySessionObject) {
+      throw const ChatboxImportException(
+        'This Chatbox export is missing session data (no "session:*" entries). Please export again and include chat history.',
+      );
+    }
   }
 
   // ---------- parsing ----------
@@ -138,14 +357,14 @@ class ChatboxImporter {
 
   // ---------- providers ----------
 
-  static Future<int> _importProviders(
+  /// Pure provider parsing shared by the overwrite and merge branches.
+  static Map<String, Map<String, dynamic>> _parseProviders(
     Map<String, dynamic> root,
-    RestoreMode mode,
-  ) async {
+  ) {
     final rawSettings = root['settings'];
-    if (rawSettings is! Map) return 0;
+    if (rawSettings is! Map) return const <String, Map<String, dynamic>>{};
     final providers = rawSettings['providers'];
-    if (providers is! Map) return 0;
+    if (providers is! Map) return const <String, Map<String, dynamic>>{};
 
     final imported = <String, Map<String, dynamic>>{};
     for (final entry in providers.entries) {
@@ -213,16 +432,12 @@ class ChatboxImporter {
         'keyManagement': const <String, dynamic>{},
       };
     }
+    return imported;
+  }
 
+  static Future<int> _mergeProviders(Map<String, dynamic> root) async {
+    final imported = _parseProviders(root);
     final prefs = await SharedPreferences.getInstance();
-
-    if (mode == RestoreMode.overwrite) {
-      // If the export does not include provider configs, don't wipe existing local providers.
-      if (imported.isEmpty) return 0;
-      await prefs.setString(_providersKey, jsonEncode(imported));
-      await prefs.setStringList(_providersOrderKey, imported.keys.toList());
-      return imported.length;
-    }
 
     Map<String, dynamic> current = const <String, dynamic>{};
     try {
@@ -273,67 +488,23 @@ class ChatboxImporter {
 
   // ---------- assistants + conversations ----------
 
-  static Future<_AssistantsConversationsResult>
-  _importAssistantsAndConversations(
-    Map<String, dynamic> root,
-    RestoreMode mode,
-    ChatService chatService,
-  ) async {
+  /// Pure conversion of a Chatbox export into this app's shapes with no side
+  /// effects (plan §3 Phase 1c). [skipMessageIds] is the merge-mode filter
+  /// for already-present message ids; overwrite passes an empty set.
+  static List<_ChatboxSession> _parseChatboxSessions(
+    Map<String, dynamic> root, {
+    required Set<String> skipMessageIds,
+  }) {
     final sessionsListRaw = root['chat-sessions-list'];
-    final sessionsList = sessionsListRaw is List
-        ? sessionsListRaw
-        : const <dynamic>[];
-
-    // Collect all session ids first so we can tag them later.
-    final importedAssistants = <Map<String, dynamic>>[];
-    final importedAssistantIds = <String>[];
-
-    // For merge mode, we need to know what already exists.
-    final prefs = await SharedPreferences.getInstance();
-    final existingAssistantsById = <String, Map<String, dynamic>>{};
-    if (mode == RestoreMode.merge) {
-      try {
-        final raw = prefs.getString(_assistantsKey);
-        if (raw != null && raw.isNotEmpty) {
-          final arr = jsonDecode(raw) as List<dynamic>;
-          for (final e in arr) {
-            if (e is Map && e['id'] != null) {
-              existingAssistantsById[e['id'].toString()] = e.map(
-                (k, v) => MapEntry(k.toString(), v),
-              );
-            }
-          }
-        }
-      } catch (_) {}
-    }
-
-    // Prepare chat service for conversation restore.
-    if (!chatService.initialized) await chatService.init();
-    if (mode == RestoreMode.overwrite) {
-      await chatService.clearAllData();
-    }
-
-    if (mode == RestoreMode.merge) {
-      await chatService.ensureAllMessagesLoaded();
-    }
-    final existingConvs = chatService.getAllConversations();
-    final existingConvIds = existingConvs.map((c) => c.id).toSet();
-    final existingMsgIds = <String>{};
-    if (mode == RestoreMode.merge) {
-      for (final c in existingConvs) {
-        final msgs = chatService.getMessages(c.id);
-        for (final m in msgs) existingMsgIds.add(m.id);
-      }
-    }
-
-    int convCount = 0;
-    int msgCount = 0;
+    final sessionsList =
+        sessionsListRaw is List ? sessionsListRaw : const <dynamic>[];
 
     // `__exported_at` is a good fallback timestamp base when message timestamps are missing.
     final exportedAt =
         _parseIsoDateTime((root['__exported_at'] ?? '').toString()) ??
         DateTime.now();
 
+    final sessions = <_ChatboxSession>[];
     for (final meta in sessionsList) {
       if (meta is! Map) continue;
       final id = (meta['id'] ?? '').toString().trim();
@@ -390,27 +561,6 @@ class ChatboxImporter {
         'presetMessages': const <dynamic>[],
         'regexRules': const <dynamic>[],
       };
-
-      final exists = existingAssistantsById.containsKey(id);
-      if (mode == RestoreMode.overwrite || !exists) {
-        importedAssistants.add(assistantJson);
-        importedAssistantIds.add(id);
-      } else {
-        // Merge: keep local assistant unless incoming contains non-empty system prompt / model fields.
-        final local = existingAssistantsById[id]!;
-        final incPrompt =
-            (assistantJson['systemPrompt'] as String?)?.trim() ?? '';
-        if (incPrompt.isNotEmpty) local['systemPrompt'] = incPrompt;
-        if (assistantJson['chatModelProvider'] != null)
-          local['chatModelProvider'] = assistantJson['chatModelProvider'];
-        if (assistantJson['chatModelId'] != null)
-          local['chatModelId'] = assistantJson['chatModelId'];
-        if (assistantJson['thinkingBudget'] != null)
-          local['thinkingBudget'] = assistantJson['thinkingBudget'];
-        // Do not overwrite local avatar/background in merge mode.
-        existingAssistantsById[id] = local;
-        importedAssistantIds.add(id); // still tag it as chatbox source
-      }
 
       // Conversations (topics)
       final threadsRaw = session['threads'];
@@ -487,6 +637,8 @@ class ChatboxImporter {
         }
       }
 
+      final sessionThreads =
+          <({Conversation conversation, List<ChatMessage> messages})>[];
       for (final t in effectiveThreads) {
         final tid = (t['id'] ?? '').toString().trim();
         if (tid.isEmpty) continue;
@@ -506,8 +658,7 @@ class ChatboxImporter {
           final msg = rawMsg.map((k, v) => MapEntry(k.toString(), v));
           final msgId = (msg['id'] ?? '').toString();
           if (msgId.isEmpty) continue;
-          if (mode == RestoreMode.merge && existingMsgIds.contains(msgId))
-            continue;
+          if (skipMessageIds.contains(msgId)) continue;
 
           final roleRaw = (msg['role'] ?? '').toString();
           final content = _extractMessageContent(msg, roleHint: roleRaw);
@@ -589,43 +740,18 @@ class ChatboxImporter {
           isPinned: starred,
           assistantId: id,
         );
-
-        if (mode == RestoreMode.merge && existingConvIds.contains(tid)) {
-          for (final m in messages) {
-            await chatService.addMessageDirectly(tid, m);
-            msgCount += 1;
-          }
-        } else {
-          await chatService.restoreConversation(conv, messages);
-          convCount += 1;
-          msgCount += messages.length;
-        }
+        sessionThreads.add((conversation: conv, messages: messages));
       }
-    }
 
-    if (mode == RestoreMode.overwrite) {
-      await prefs.setString(_assistantsKey, jsonEncode(importedAssistants));
-    } else {
-      // merge: preserve existing and add/update imported ones
-      final mergedById = <String, Map<String, dynamic>>{}
-        ..addAll(existingAssistantsById);
-      for (final a in importedAssistants) {
-        final id = (a['id'] ?? '').toString();
-        if (id.isEmpty) continue;
-        mergedById[id] = a;
-      }
-      await prefs.setString(
-        _assistantsKey,
-        jsonEncode(mergedById.values.toList()),
+      sessions.add(
+        _ChatboxSession(
+          assistantId: id,
+          assistantJson: assistantJson,
+          threads: sessionThreads,
+        ),
       );
     }
-
-    return _AssistantsConversationsResult(
-      assistants: importedAssistantIds.toSet().length,
-      conversations: convCount,
-      messages: msgCount,
-      assistantIds: importedAssistantIds,
-    );
+    return sessions;
   }
 
   // ---------- tags ----------
@@ -1053,17 +1179,4 @@ class _NormalizedHostAndPath {
   final String apiHost;
   final String apiPath;
   const _NormalizedHostAndPath({required this.apiHost, required this.apiPath});
-}
-
-class _AssistantsConversationsResult {
-  final int assistants;
-  final int conversations;
-  final int messages;
-  final List<String> assistantIds;
-  const _AssistantsConversationsResult({
-    required this.assistants,
-    required this.conversations,
-    required this.messages,
-    required this.assistantIds,
-  });
 }

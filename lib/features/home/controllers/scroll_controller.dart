@@ -59,6 +59,7 @@ class ChatScrollController {
   bool _autoScrollScheduled = false;
   bool _autoScrollForceNext = false;
   bool _autoScrollAnimateNext = true;
+  bool _autoScrollStreamingNext = false;
 
   /// Anchor for chained "jump to previous question" navigation.
   String? _lastJumpUserMessageId;
@@ -224,34 +225,51 @@ class ChatScrollController {
   }
 
   /// Auto-scroll to bottom if conditions are met.
-  void autoScrollToBottomIfNeeded() {
+  void autoScrollToBottomIfNeeded({bool streaming = false}) {
     final enabled = _getAutoScrollEnabled();
     if (!enabled && !_autoStickToBottom) return;
-    _scheduleAutoScrollToBottom(force: false);
+    _scheduleAutoScrollToBottom(force: false, streaming: streaming);
   }
 
   /// Schedule an auto-scroll to bottom (batched via post-frame callback).
-  void _scheduleAutoScrollToBottom({required bool force, bool animate = true}) {
+  void _scheduleAutoScrollToBottom({
+    required bool force,
+    bool animate = true,
+    bool streaming = false,
+  }) {
     if (!force) {
       final enabled = _getAutoScrollEnabled();
       if (!enabled && !_autoStickToBottom) return;
     }
     _autoScrollForceNext = _autoScrollForceNext || force;
     _autoScrollAnimateNext = _autoScrollAnimateNext && animate;
+    _autoScrollStreamingNext = _autoScrollStreamingNext || streaming;
     if (_autoScrollScheduled) return;
     _autoScrollScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _autoScrollScheduled = false;
       final forceNow = _autoScrollForceNext;
       final animateNow = _autoScrollAnimateNext;
+      final streamingNow = _autoScrollStreamingNext;
       _autoScrollForceNext = false;
       _autoScrollAnimateNext = true;
-      await _animateToBottom(force: forceNow, animate: animateNow);
+      _autoScrollStreamingNext = false;
+      await _animateToBottom(
+        force: forceNow,
+        animate: animateNow,
+        streaming: streamingNow,
+      );
     });
   }
 
-  /// Animate or jump to the bottom of the scroll view.
-  Future<void> _animateToBottom({required bool force, bool animate = true}) async {
+  /// Animate or jump to the bottom of the scroll view. During streaming, a
+  /// small distance uses `jumpTo` so the view keeps up with the chunks instead
+  /// of scheduling a new animation on every frame.
+  Future<void> _animateToBottom({
+    required bool force,
+    bool animate = true,
+    bool streaming = false,
+  }) async {
     try {
       if (!_scrollController.hasClients) return;
       if (!force) {
@@ -264,7 +282,13 @@ class ChatScrollController {
       // Prevent using controller while it is still attached to old/new list simultaneously
       if (_scrollController.positions.length != 1) {
         // Try again after microtask when the previous list detaches
-        Future.microtask(() => _animateToBottom(force: force, animate: animate));
+        Future.microtask(
+          () => _animateToBottom(
+            force: force,
+            animate: animate,
+            streaming: streaming,
+          ),
+        );
         return;
       }
       final pos = _scrollController.position;
@@ -277,7 +301,7 @@ class ChatScrollController {
         }
         return;
       }
-      if (!doAnimate) {
+      if (!doAnimate || (streaming && distance < 24)) {
         pos.jumpTo(max);
       } else {
         final durationMs = distance < 36 ? 120 : distance < 140 ? 180 : 240;

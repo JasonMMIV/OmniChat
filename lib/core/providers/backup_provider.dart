@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../models/backup.dart';
 import '../services/chat/chat_service.dart';
 import '../services/backup/data_sync.dart';
+import '../services/chat/storage/chat_backup_restorer.dart';
 
 class BackupProvider extends ChangeNotifier {
   final DataSync _dataSync;
@@ -85,17 +86,31 @@ class BackupProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> restoreFromItem(BackupFileItem item, {RestoreMode mode = RestoreMode.overwrite}) async {
+  String _restoreMessage(ChatRestoreResult? result) {
+    if (result != null && !result.settingsApplied) {
+      return result.settingsError ??
+          'Chat data was restored, but settings were not applied.';
+    }
+    return 'Restored';
+  }
+
+  Future<ChatRestoreResult?> restoreFromItem(BackupFileItem item, {RestoreMode mode = RestoreMode.overwrite}) async {
     _busy = true; _message = null; notifyListeners();
-    try { await _dataSync.restoreFromWebDav(_cfg, item, mode: mode); _message = 'Restored'; }
-    catch (e) { _message = e.toString(); }
+    try {
+      final result = await _dataSync.restoreFromWebDav(_cfg, item, mode: mode);
+      _message = _restoreMessage(result);
+      return result;
+    } catch (e) { _message = e.toString(); return null; }
     finally { _busy = false; notifyListeners(); }
   }
 
-  Future<void> restoreDropboxFromItem(DropboxConfig cfg, BackupFileItem item, {RestoreMode mode = RestoreMode.overwrite}) async {
+  Future<ChatRestoreResult?> restoreDropboxFromItem(DropboxConfig cfg, BackupFileItem item, {RestoreMode mode = RestoreMode.overwrite}) async {
     _busy = true; _message = null; notifyListeners();
-    try { await _dataSync.restoreFromDropbox(cfg, item, mode: mode); _message = 'Restored'; }
-    catch (e) { _message = e.toString(); }
+    try {
+      final result = await _dataSync.restoreFromDropbox(cfg, item, mode: mode);
+      _message = _restoreMessage(result);
+      return result;
+    } catch (e) { _message = e.toString(); return null; }
     finally { _busy = false; notifyListeners(); }
   }
 
@@ -118,7 +133,16 @@ class BackupProvider extends ChangeNotifier {
   }
 
   Future<File> exportToFile() => _dataSync.exportToFile(_cfg);
-  Future<void> restoreFromLocalFile(File file, {RestoreMode mode = RestoreMode.overwrite}) => _dataSync.restoreFromLocalFile(file, _cfg, mode: mode);
+
+  Future<ChatRestoreResult?> restoreFromLocalFile(File file, {RestoreMode mode = RestoreMode.overwrite}) async {
+    _busy = true; _message = null; notifyListeners();
+    try {
+      final result = await _dataSync.restoreFromLocalFile(file, _cfg, mode: mode);
+      _message = _restoreMessage(result);
+      return result;
+    } catch (e) { _message = e.toString(); return null; }
+    finally { _busy = false; notifyListeners(); }
+  }
 }
 
 

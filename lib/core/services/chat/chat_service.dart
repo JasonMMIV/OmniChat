@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:uuid/uuid.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../utils/app_directories.dart';
@@ -13,16 +14,24 @@ import '../../models/conversation.dart';
 import '../../models/file_record.dart';
 import '../../models/workspace_config.dart';
 import '../logging/flutter_logger.dart';
+import 'storage/chat_backup_restorer.dart';
+import 'storage/chat_database_files.dart';
 import 'storage/chat_repository.dart' show ChatStorageCounts;
 import 'storage/chat_storage.dart';
 import 'storage/chat_storage_gate.dart';
 import 'storage/chat_storage_recovery_service.dart';
+import 'storage/chat_maintenance_lock.dart';
 import 'storage/chat_storage_startup_status.dart';
+import 'storage/database_family_publisher.dart';
 import 'storage/database_installation_gate.dart'
     show ChatInstallationState, chatHiveFiles;
 import 'storage/hive_chat_storage.dart';
+import 'storage/file_restore_stager.dart';
 import 'storage/legacy_reimport_service.dart';
 import 'storage/message_part_codec.dart';
+import 'storage/restore_journal.dart';
+import 'storage/restore_journal_recovery.dart';
+import 'storage/settings_snapshot.dart';
 import 'storage/sqlite_chat_storage.dart';
 
 /// Runs when chat-storage migration actually starts and when initialization
@@ -85,6 +94,7 @@ class ChatService extends ChangeNotifier {
   bool _initialized = false;
   bool _disposed = false;
   Future<void>? _initFuture;
+  Future<ChatRestoreResult>? _restoreFuture;
   Future<LegacyReimportReport>? _reimportFuture;
   ChatMigrationBackupPrompt? _backupPrompt;
   ChatMigrationLifecycleCallback? _onMigrationStarted;
@@ -193,7 +203,7 @@ class ChatService extends ChangeNotifier {
     return completer.future;
   }
 
-  Future<void> _initialize() async {
+  Future<void> _initialize({bool recoverRestoreJournal = true}) async {
     _migrationKeepAliveStarted = false;
     _legacyHiveAvailable = false;
     _lastStorageGateResult = null;
@@ -218,6 +228,19 @@ class ChatService extends ChangeNotifier {
       // initialized even when SQLite is authoritative. Initializing the path
       // opens no chat box.
       Hive.init(appDataDir.path);
+
+      // A restore journal owns the preserved database and file directories
+      // until it is resolved. It must run before the installation gate, whose
+      // clean admission deletes `.previous`/`.replaced-*` material.
+      if (recoverRestoreJournal) {
+        final restoreRecovery = await RestoreJournalRecovery(
+          directory: appDataDir,
+          appVersion: await _appVersion(),
+        ).recoverIfNeeded();
+        if (restoreRecovery.failClosed) {
+          throw ChatStorageRestoreRequiredException(restoreRecovery.message);
+        }
+      }
 
       // The gate reports `checking` through `onMigrationProgress`; don't
       // publish a duplicate intermediate status before it runs.
@@ -1324,6 +1347,531 @@ class ChatService extends ChangeNotifier {
     }
   }
 
+
+  /// Serializes a restore with [init] and the recovery overlay's Retry.
+  bool get restoringBackup => _restoreFuture != null;
+
+  /// Transactional restore (§2.2). Builds a staging database, swaps staged
+  /// files, publishes the database (commit point), verifies the live store,
+  /// then applies settings. The live database is never cleared first.
+  Future<ChatRestoreResult> restoreChatBackup(
+    File archive, {
+    bool includeFiles = false,
+    bool restoreSettings = false,
+    void Function(String stage)? onStage,
+  }) =>
+      _enqueueRestore(
+        () => _runRestore(
+          archive,
+          includeFiles: includeFiles,
+          restoreSettings: restoreSettings,
+          onStage: onStage,
+        ),
+      );
+
+  /// Transactional replacement of the chat database with an in-memory payload
+  /// (third-party import overwrite path, plan §3 Phase 1c). Attachments may be
+  /// pre-staged by the caller under `restore_staging_<restoreId>`; the same
+  /// staging/publish commit protocol as [restoreChatBackup] applies.
+  Future<ChatRestoreResult> restoreChatsPayload(
+    ChatBackupPayload payload, {
+    String? restoreId,
+    Map<String, RestoreJournalEntry> stagedFiles =
+        const <String, RestoreJournalEntry>{},
+    void Function(String stage)? onStage,
+  }) =>
+      _enqueueRestore(
+        () => _runRestore(
+          null,
+          payloadOverride: payload,
+          restoreIdOverride: restoreId,
+          stagedFilesOverride: stagedFiles,
+          includeFiles: false,
+          restoreSettings: false,
+          onStage: onStage,
+        ),
+      );
+
+  /// Serializes restore operations with [init] and the recovery overlay's
+  /// Retry: a concurrent init()/overlay Retry joins this future instead of
+  /// running the gate while files or the database family are being swapped.
+  Future<ChatRestoreResult> _enqueueRestore(
+    Future<ChatRestoreResult> Function() operation,
+  ) async {
+    if (_disposed) {
+      throw const ChatRestoreException(
+        'disposed',
+        'The chat service is closed.',
+      );
+    }
+    if (_storageOverride != null && _storageOverride is! SqliteChatStorage) {
+      throw const ChatRestoreException(
+        'unsupported',
+        'Transactional restore requires the SQLite chat store.',
+      );
+    }
+
+    final running = _restoreFuture;
+    if (running != null) return running;
+    final runningInit = _initFuture;
+    if (runningInit != null) {
+      try {
+        await runningInit;
+      } catch (_) {}
+    }
+    final startedMeanwhile = _restoreFuture;
+    if (startedMeanwhile != null) return startedMeanwhile;
+
+    final completer = Completer<ChatRestoreResult>();
+    _restoreFuture = completer.future;
+    // A concurrent init()/overlay Retry joins this future instead of running
+    // the gate while files or the database family are being swapped.
+    _initFuture = completer.future;
+    scheduleMicrotask(() async {
+      try {
+        final result = await operation();
+        if (!completer.isCompleted) completer.complete(result);
+      } catch (error, stackTrace) {
+        if (!completer.isCompleted) {
+          completer.completeError(error, stackTrace);
+        }
+      } finally {
+        if (identical(_initFuture, completer.future)) _initFuture = null;
+        if (identical(_restoreFuture, completer.future)) _restoreFuture = null;
+      }
+    });
+    return completer.future;
+  }
+
+  Future<ChatRestoreResult> _runRestore(
+    File? archive, {
+    ChatBackupPayload? payloadOverride,
+    String? restoreIdOverride,
+    Map<String, RestoreJournalEntry> stagedFilesOverride =
+        const <String, RestoreJournalEntry>{},
+    required bool includeFiles,
+    required bool restoreSettings,
+    void Function(String stage)? onStage,
+  }) async {
+    final appData =
+        _appDataDirectory ?? await AppDirectories.getAppDataDirectory();
+    _appDataDirectory = appData;
+    final appVersion = await _appVersion();
+    final files = ChatDatabaseFiles(appData);
+    final restorer = ChatBackupRestorer(
+      directory: appData,
+      appVersion: appVersion,
+    );
+    final journalRecovery = RestoreJournalRecovery(
+      directory: appData,
+      appVersion: appVersion,
+    );
+
+    var stage = 'preflight';
+    RestoreJournal? journal;
+    FileRestoreStager? stager;
+    var committed = false;
+    var settingsApplied = true;
+    var keepForRecovery = false;
+    String? settingsError;
+
+    final lock = await ChatMaintenanceLock.acquire(
+      appData,
+      purpose: 'chat-backup-restore',
+      timeout: const Duration(seconds: 5),
+    );
+    try {
+      if (await files.restoreJournal.exists()) {
+        throw const ChatRestoreException(
+          'preflight',
+          'A previous restore is unfinished. Restart the app so it can be '
+          'completed or rolled back.',
+        );
+      }
+      final publisher = DatabaseFamilyPublisher(files, appVersion: appVersion);
+      final publishRecovery = await publisher.recoverIfNeeded();
+      if (publishRecovery.failClosed) {
+        throw ChatRestoreException('preflight', publishRecovery.message);
+      }
+      if (_initialized && await hasStreamingMessages()) {
+        throw const ChatRestoreException(
+          'preflight',
+          'Stop the active reply before restoring a backup.',
+        );
+      }
+
+      ChatBackupPayload payload;
+      if (payloadOverride != null) {
+        // Caller-built payloads (third-party importers) must satisfy the same
+        // rules as an archive parse before anything is staged.
+        restorer.validatePayload(payloadOverride);
+        payload = payloadOverride;
+      } else {
+        stage = 'parse';
+        onStage?.call(stage);
+        payload = await restorer.parseAndValidate(archive!);
+      }
+      final databaseId = await restorer.resolveDatabaseId();
+      final restoreId = restoreIdOverride ?? const Uuid().v4();
+      final publishId = const Uuid().v4();
+
+      journal = await RestoreJournal.begin(
+        files: files,
+        restoreId: restoreId,
+        archiveHash: payload.archiveSha256,
+        publishId: publishId,
+        stagingDatabaseId: databaseId,
+      );
+
+      stage = 'staging-db';
+      onStage?.call(stage);
+      await restorer.buildStagingDatabase(
+        payload: payload,
+        databaseId: databaseId,
+        publishId: publishId,
+      );
+      await journal.updateStage(RestoreJournal.stageStaged);
+
+      var swapFiles = false;
+      if (stagedFilesOverride.isNotEmpty) {
+        stage = 'staging-files';
+        onStage?.call(stage);
+        // The caller (third-party importers) already wrote the staged files
+        // under `restore_staging_<restoreId>`; register them so swap/rollback
+        // manage them together with the database transaction (plan §3 Phase
+        // 1c).
+        swapFiles = true;
+        stager = FileRestoreStager(
+          appDataDirectory: appData,
+          restoreId: restoreId,
+        );
+        await journal.setFileEntries(stagedFilesOverride);
+        await journal.updateStage(RestoreJournal.stageFilesStaged);
+      } else if (includeFiles) {
+        stage = 'staging-files';
+        onStage?.call(stage);
+        swapFiles = true;
+        stager = FileRestoreStager(
+          appDataDirectory: appData,
+          restoreId: restoreId,
+        );
+        final entries = await stager.stageArchive(archive!);
+        if (entries.isEmpty) {
+          swapFiles = false;
+          await stager.cleanup();
+          stager = null;
+        } else {
+          await journal.setFileEntries(entries);
+          await journal.updateStage(RestoreJournal.stageFilesStaged);
+        }
+      }
+
+      stage = 'detach';
+      onStage?.call(stage);
+      final oldTarget = await probeDatabase(files.database);
+      await _detachStorageForRecovery();
+
+      if (swapFiles && stager != null) {
+        stage = 'swap-files';
+        onStage?.call(stage);
+        await stager.swap(journal);
+        await journal.updateStage(RestoreJournal.stageFilesSwapped);
+      }
+
+      stage = 'publish';
+      onStage?.call(stage);
+      final outcome = await restorer.publishStaging();
+      if (!outcome.success) {
+        // Test seam: let a test force the unresolved branch before the
+        // publisher gets to decide.
+        final afterFailure = ChatBackupRestorer.debugAfterPublishFailure;
+        if (afterFailure != null) {
+          ChatBackupRestorer.debugAfterPublishFailure = null;
+          afterFailure();
+        }
+        final recovery = await publisher.recoverIfNeeded();
+        if (!recovery.resolved) {
+          await journal.updateStage(RestoreJournal.stagePublishUnresolved);
+          keepForRecovery = true;
+          throw ChatRestoreException(
+            'publish',
+            '${outcome.error ?? 'The restored database could not be published.'} '
+            'The restore journal was kept for the next startup.',
+          );
+        }
+        final recovered = await probeDatabase(files.database);
+        if (recovered.publishId != publishId) {
+          await journal.updateStage(RestoreJournal.stageRollingBack);
+          if (stager != null) await stager.rollback(journal);
+          await files.deleteFamily(files.restoring);
+          if (stager != null) await stager.cleanup();
+          await journal.discard();
+          journal = null;
+          await _initialize(recoverRestoreJournal: false);
+          throw ChatRestoreException(
+            'publish',
+            outcome.error ?? 'The restored database could not be published.',
+          );
+        }
+      }
+
+      committed = true;
+      // The publisher knows which family it actually preserved. Scanning for
+      // `.previous` would be wrong when an older `.previous` already existed
+      // and the target was kept as `.replaced-<publishId>` instead.
+      var preservedPath = outcome.previousPath ?? outcome.replacedPath;
+      var preservedDatabaseId = outcome.previousDatabaseId;
+      if (preservedPath == null) {
+        final preserved = await restorer.resolvePreservedFamily(
+          oldTarget,
+          publishId,
+        );
+        preservedPath = preserved.path;
+        preservedDatabaseId = preserved.databaseId;
+      } else if (preservedDatabaseId == null) {
+        preservedDatabaseId =
+            (await probeDatabase(File(preservedPath))).databaseId;
+      }
+      try {
+        await journal.notePublished(
+          preservedPath: preservedPath,
+          preservedDatabaseId: preservedDatabaseId,
+        );
+        await journal.updateStage(RestoreJournal.stageDbPublished);
+      } catch (error) {
+        // The database is already committed and verified; a journal write
+        // failure must not throw away working data. Recovery can still use
+        // the target's publishId.
+        FlutterLogger.log(
+          'Restore journal could not record the preserved family: $error',
+          tag: 'backup-restore',
+        );
+      }
+
+      stage = 'open';
+      onStage?.call(stage);
+      await _initialize(recoverRestoreJournal: false);
+      final storage = _storage;
+      if (storage is! SqliteChatStorage) {
+        throw const ChatRestoreException(
+          'open',
+          'The restored database was not opened by the SQLite store.',
+        );
+      }
+      final liveProbe = await probeDatabase(files.database);
+      if (liveProbe.publishId != publishId ||
+          liveProbe.databaseId != databaseId) {
+        throw const ChatRestoreException(
+          'open',
+          'The live database identity changed after publish.',
+        );
+      }
+      // Keep the pre-transactional restore contract: a caller may read the
+      // restored messages immediately after this method returns.
+      await storage.ensureAllMessagesLoaded();
+      restorer.verifyCounts(await storage.repository.counts(), payload);
+      await journal.updateStage(RestoreJournal.stageLiveVerified);
+
+      if (restoreSettings && payload.settings != null) {
+        stage = 'settings';
+        onStage?.call(stage);
+        // Settings are not transactional. Capture/stage/apply failures are a
+        // partial success; the committed chat data must never be rolled back
+        // because of them.
+        final settings = SettingsSnapshot(files);
+        try {
+          await settings.captureCurrent();
+          await settings.stageIncoming(payload.settings!);
+          await settings.applyPending();
+        } catch (error) {
+          settingsApplied = false;
+          settingsError =
+              'Chat data was restored, but settings could not be applied: '
+              '$error';
+          // The pending file is kept for retry; the pre-restore snapshot is
+          // not needed and may contain sensitive settings.
+          await settings.discardSnapshot();
+          FlutterLogger.log(settingsError, tag: 'backup-restore');
+        }
+        if (settingsApplied) {
+          try {
+            await journal.noteSettingsFiles(
+              snapshotPath: settings.previous.path,
+              pendingPath: settings.pending.path,
+            );
+          } catch (error) {
+            FlutterLogger.log(
+              'Restore journal could not record the settings files: $error',
+              tag: 'backup-restore',
+            );
+          }
+          try {
+            await journal.updateStage(RestoreJournal.stageSettingsApplied);
+          } catch (error) {
+            // Settings were applied successfully; a journal write failure must
+            // not turn a committed restore into a partial failure.
+            FlutterLogger.log(
+              'Restore journal could not record applied settings: $error',
+              tag: 'backup-restore',
+            );
+          }
+        }
+      }
+
+      stage = 'cleanup';
+      onStage?.call(stage);
+      try {
+        await journal.done();
+      } catch (error) {
+        FlutterLogger.log(
+          'Restore journal could not be marked done: $error',
+          tag: 'backup-restore',
+        );
+      }
+      await restorer.cleanupCommitted(
+        preservedPath: journal.preservedPath,
+        stagingDirectory: stager?.stagingRoot,
+        previousDirectory: stager?.previousRoot,
+      );
+      try {
+        await journal.discard();
+      } catch (error) {
+        FlutterLogger.log(
+          'Restore journal could not be removed: $error',
+          tag: 'backup-restore',
+        );
+      }
+      journal = null;
+
+      _currentConversationId = null;
+      _draftConversations.clear();
+      _draftWorkspaceConfigs.clear();
+      _setStorageInitStatus(
+        const ChatStorageInitStatus(phase: ChatStorageInitPhase.ready),
+      );
+      notifyListeners();
+
+      FlutterLogger.log(
+        'Restore committed: restoreId=$restoreId '
+        'conversations=${payload.conversations.length} '
+        'messages=${payload.messageCount} files=$swapFiles '
+        'settingsApplied=$settingsApplied',
+        tag: 'backup-restore',
+      );
+      return ChatRestoreResult(
+        restoredConversations: payload.conversations.length,
+        restoredMessages: payload.messageCount,
+        filesRestored: swapFiles,
+        settingsApplied: settingsApplied,
+        settingsError: settingsError,
+      );
+    } catch (error) {
+      final failureStage = error is ChatRestoreException ? error.stage : stage;
+      if (journal != null && keepForRecovery) {
+        // Fail closed: the publisher could not decide the database state, so
+        // keep the journal, staging database and every preserved family for
+        // the next startup.
+        _setStorageInitStatus(
+          ChatStorageInitStatus(
+            phase: ChatStorageInitPhase.failed,
+            message:
+                'The restore could not be resolved. Restart the app so the '
+                'journal can be completed or rolled back; no files were '
+                'deleted.',
+            canRetry: true,
+          ),
+        );
+        FlutterLogger.log(
+          'Restore left unresolved at $failureStage: $error',
+          tag: 'backup-restore',
+        );
+        if (error is ChatRestoreException) rethrow;
+        throw ChatRestoreException(
+          failureStage,
+          error.toString(),
+          cause: error,
+        );
+      }
+      if (journal != null) {
+        String? rollbackFailure;
+        try {
+          if (committed) {
+            await journal.updateStage(RestoreJournal.stageRollingBack);
+            await _detachStorageForRecovery();
+            final result = await journalRecovery.rollbackCommitted(journal);
+            if (result.failClosed) rollbackFailure = result.message;
+            journal = null;
+          } else {
+            if (stager != null) await stager.rollback(journal);
+            await files.deleteFamily(files.restoring);
+            if (stager != null) await stager.cleanup();
+            await journal.discard();
+            journal = null;
+          }
+        } catch (rollbackError) {
+          rollbackFailure = '$rollbackError';
+        }
+        if (rollbackFailure != null) {
+          _setStorageInitStatus(
+            ChatStorageInitStatus(
+              phase: ChatStorageInitPhase.failed,
+              message:
+                  'Restore failed and could not be rolled back cleanly: '
+                  '$rollbackFailure',
+              canRetry: true,
+            ),
+          );
+          throw ChatRestoreException(
+            failureStage,
+            'Restore failed and could not be rolled back cleanly: '
+            '$rollbackFailure',
+            cause: error,
+          );
+        }
+      }
+
+      if (!_initialized) {
+        try {
+          await _initialize(recoverRestoreJournal: false);
+        } catch (reopenError) {
+          FlutterLogger.log(
+            'Chat store could not be reopened after a failed restore: '
+            '$reopenError',
+            tag: 'backup-restore',
+          );
+        }
+      }
+      if (!_initialized) {
+        _markRecoveryFailed(error);
+      }
+      FlutterLogger.log(
+        'Restore failed at $failureStage: $error',
+        tag: 'backup-restore',
+      );
+      if (error is ChatRestoreException) rethrow;
+      throw ChatRestoreException(
+        failureStage,
+        error.toString(),
+        cause: error,
+      );
+    } finally {
+      await lock.release();
+    }
+  }
+
+  /// Re-applies staged backup settings after a partial-success restore.
+  Future<bool> retryRestoreSettings() async {
+    final appData =
+        _appDataDirectory ?? await AppDirectories.getAppDataDirectory();
+    final files = ChatDatabaseFiles(appData);
+    // Never apply staged settings while a restore is unresolved: the staged
+    // values may still be rolled back with that restore.
+    if (await files.restoreJournal.exists()) return false;
+    final applied = await SettingsSnapshot(files).applyPending();
+    if (applied) notifyListeners();
+    return applied;
+  }
+
   /// Explicitly recreate an empty SQLite store after the gate reported a
   /// missing/corrupt database. The legacy Hive files are preserved, but the
   /// reset sentinel prevents them from being imported into the new database.
@@ -1551,6 +2099,7 @@ class ChatService extends ChangeNotifier {
     _storage = null;
     _initialized = false;
     _initFuture = null;
+    _restoreFuture = null;
     _reimportFuture = null;
     _backupPrompt = null;
     _storageInitStatus = const ChatStorageInitStatus();

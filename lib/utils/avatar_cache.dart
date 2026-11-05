@@ -1,15 +1,23 @@
 import 'dart:io';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 import './app_directories.dart';
 
 class AvatarCache {
   AvatarCache._();
 
   static final Map<String, String?> _memo = <String, String?>{};
+  static final Map<String, Future<String?>> _inFlight =
+      <String, Future<String?>>{};
+  static final Map<String, DateTime> _negativeUntil = <String, DateTime>{};
+
+  /// Negative results are retried after a short TTL instead of being cached
+  /// for the lifetime of the process (temporary network failures).
+  static const Duration _negativeTtl = Duration(seconds: 30);
 
   static void clearMemory() {
     _memo.clear();
+    _inFlight.clear();
+    _negativeUntil.clear();
   }
 
   static Future<Directory> _cacheDir() async {
@@ -40,6 +48,23 @@ class AvatarCache {
   /// On failure, returns null.
   static Future<String?> getPath(String url) async {
     if (url.isEmpty) return null;
+    final inFlight = _inFlight[url];
+    if (inFlight != null) return inFlight;
+    final retryAfter = _negativeUntil[url];
+    if (retryAfter != null) {
+      if (DateTime.now().isBefore(retryAfter)) return null;
+      _negativeUntil.remove(url);
+    }
+    final future = _resolve(url);
+    _inFlight[url] = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_inFlight[url], future)) _inFlight.remove(url);
+    }
+  }
+
+  static Future<String?> _resolve(String url) async {
     if (_memo.containsKey(url)) {
       final cached = _memo[url];
       if (cached == null) return null;
@@ -69,11 +94,12 @@ class AvatarCache {
         return file.path;
       }
     } catch (_) {}
-    _memo[url] = null;
+    _negativeUntil[url] = DateTime.now().add(_negativeTtl);
     return null;
   }
 
   static Future<void> evict(String url) async {
+    _negativeUntil.remove(url);
     try {
       final dir = await _cacheDir();
       if (!await dir.exists()) return;

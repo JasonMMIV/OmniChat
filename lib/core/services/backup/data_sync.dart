@@ -7,7 +7,8 @@ import 'package:archive/archive.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart'
+    hide SharedPreferencesAsync;
 import 'package:xml/xml.dart';
 
 import '../../models/backup.dart';
@@ -16,9 +17,15 @@ import '../../models/conversation.dart';
 import '../../models/file_record.dart';
 import '../../models/workspace_config.dart';
 import '../chat/chat_service.dart';
+import '../chat/storage/chat_backup_restorer.dart';
+import '../logging/flutter_logger.dart';
 import '../../providers/mcp_provider.dart';
 import 'dropbox_auth_service.dart';
 import '../../../utils/app_directories.dart';
+import 'backup_preflight.dart';
+import 'backup_preferences.dart';
+
+export 'backup_preferences.dart';
 
 class DataSync {
   final ChatService chatService;
@@ -184,7 +191,7 @@ class DataSync {
     return items;
   }
 
-  Future<void> restoreFromDropbox(
+  Future<ChatRestoreResult?> restoreFromDropbox(
     DropboxConfig cfg,
     BackupFileItem item, {
     RestoreMode mode = RestoreMode.overwrite,
@@ -212,7 +219,7 @@ class DataSync {
     final tmpDir = await getTemporaryDirectory();
     final file = File(p.join(tmpDir.path, item.displayName));
     await file.writeAsBytes(res.bodyBytes);
-    await _restoreFromBackupFile(
+    final result = await _restoreFromBackupFile(
       file,
       WebDavConfig(
         includeChats: active.includeChats,
@@ -223,6 +230,7 @@ class DataSync {
     try {
       await file.delete();
     } catch (_) {}
+    return result;
   }
 
   Future<void> deleteDropboxBackupFile(
@@ -363,59 +371,50 @@ class DataSync {
         ArchiveFile('settings.json', settingsBytes.length, settingsBytes),
       );
 
+      Set<String> attachmentRefs = const <String>{};
       // chats.json is streamed to a temp file first. Building one enormous
       // String and then one Uint8List doubles peak memory for large histories.
       if (cfg.includeChats) {
-        chatsFile = await _exportChatsJsonFile();
+        final export = await _exportChatsJsonFile();
+        chatsFile = export.file;
+        attachmentRefs = export.attachmentRefs;
         await zip.addFile(chatsFile, 'chats.json');
       }
 
-      // files under upload/, images/, and avatars/. addFile streams each file;
-      // await it so close() cannot race the InputFileStream.
+      // files under upload/, images/, and avatars/. The manifest is built
+      // first so the attachment preflight (plan §3 Phase 2) can verify every
+      // chat-referenced file before anything is added to the zip. addFile
+      // streams each file; await it so close() cannot race the
+      // InputFileStream.
       if (cfg.includeFiles) {
-        final uploadDir = await _getUploadDir();
-        if (await uploadDir.exists()) {
-          final entries = uploadDir.listSync(
-            recursive: true,
-            followLinks: false,
+        final manifest = await _buildBackupFileManifest();
+        if (cfg.includeChats && attachmentRefs.isNotEmpty) {
+          final preflight = BackupFilePreflight.classify(
+            references: attachmentRefs,
+            manifest: manifest.map((entry) => entry.$1.path),
+            roots: <String>[
+              (await _getUploadDir()).path,
+              (await _getImagesDir()).path,
+              (await _getAvatarsDir()).path,
+            ],
           );
-          for (final ent in entries) {
-            if (ent is File) {
-              final rel = p.relative(ent.path, from: uploadDir.path);
-              final relPosix = rel.replaceAll('\\', '/');
-              await zip.addFile(ent, 'upload/$relPosix');
-            }
+          if (!preflight.ok) {
+            throw BackupPreflightException(
+              preflight.missingFiles,
+              preflight.notBackedUpPaths,
+            );
+          }
+          if (preflight.notBackedUpPaths.isNotEmpty) {
+            FlutterLogger.log(
+              'Backup preflight: ${preflight.notBackedUpPaths.length} '
+              'referenced path(s) live outside the backup scope '
+              '(upload/, images/, avatars/) and are not backed up by design.',
+              tag: 'backup',
+            );
           }
         }
-
-        final avatarsDir = await _getAvatarsDir();
-        if (await avatarsDir.exists()) {
-          final entries = avatarsDir.listSync(
-            recursive: true,
-            followLinks: false,
-          );
-          for (final ent in entries) {
-            if (ent is File) {
-              final rel = p.relative(ent.path, from: avatarsDir.path);
-              final relPosix = rel.replaceAll('\\', '/');
-              await zip.addFile(ent, 'avatars/$relPosix');
-            }
-          }
-        }
-
-        final imagesDir = await _getImagesDir();
-        if (await imagesDir.exists()) {
-          final entries = imagesDir.listSync(
-            recursive: true,
-            followLinks: false,
-          );
-          for (final ent in entries) {
-            if (ent is File) {
-              final rel = p.relative(ent.path, from: imagesDir.path);
-              final relPosix = rel.replaceAll('\\', '/');
-              await zip.addFile(ent, 'images/$relPosix');
-            }
-          }
+        for (final (file, name) in manifest) {
+          await zip.addFile(file, name);
         }
       }
 
@@ -583,7 +582,7 @@ class DataSync {
     return items;
   }
 
-  Future<void> restoreFromWebDav(
+  Future<ChatRestoreResult?> restoreFromWebDav(
     WebDavConfig cfg,
     BackupFileItem item, {
     RestoreMode mode = RestoreMode.overwrite,
@@ -595,10 +594,11 @@ class DataSync {
     final tmpDir = await getTemporaryDirectory();
     final file = File(p.join(tmpDir.path, item.displayName));
     await file.writeAsBytes(res.bodyBytes);
-    await _restoreFromBackupFile(file, cfg, mode: mode);
+    final result = await _restoreFromBackupFile(file, cfg, mode: mode);
     try {
       await file.delete();
     } catch (_) {}
+    return result;
   }
 
   Future<void> deleteWebDavBackupFile(
@@ -615,14 +615,14 @@ class DataSync {
 
   Future<File> exportToFile(WebDavConfig cfg) => prepareBackupFile(cfg);
 
-  Future<void> restoreFromLocalFile(
+  Future<ChatRestoreResult?> restoreFromLocalFile(
     File file,
     WebDavConfig cfg, {
     RestoreMode mode = RestoreMode.overwrite,
     bool restoreSettings = true,
   }) async {
     if (!await file.exists()) throw Exception('备份文件不存在');
-    await _restoreFromBackupFile(
+    return _restoreFromBackupFile(
       file,
       cfg,
       mode: mode,
@@ -649,13 +649,38 @@ class DataSync {
     return jsonEncode(map);
   }
 
+  /// Every file that will be added to the backup zip under upload/, avatars/
+  /// and images/, in the same order as before (plan §3 Phase 2).
+  Future<List<(File, String)>> _buildBackupFileManifest() async {
+    final sections = <(Future<Directory> Function(), String)>[
+      (_getUploadDir, 'upload'),
+      (_getAvatarsDir, 'avatars'),
+      (_getImagesDir, 'images'),
+    ];
+    final manifest = <(File, String)>[];
+    for (final (dirGetter, name) in sections) {
+      final dir = await dirGetter();
+      if (!await dir.exists()) continue;
+      final entries = dir.listSync(recursive: true, followLinks: false);
+      for (final ent in entries) {
+        if (ent is! File) continue;
+        final rel = p.relative(ent.path, from: dir.path);
+        final relPosix = rel.replaceAll('\\', '/');
+        manifest.add((ent, '$name/$relPosix'));
+      }
+    }
+    return manifest;
+  }
+
   /// Streams the v3 chats shape into a temp file.
   ///
   /// Messages, tool events, and file records are emitted one entry at a time;
   /// only the small workspace/signature maps are assembled in memory. The
   /// caller adds the file to the zip and deletes it. The JSON shape and merge
-  /// semantics are unchanged from the previous eager exporter.
-  Future<File> _exportChatsJsonFile() async {
+  /// semantics are unchanged from the previous eager exporter. The local
+  /// attachment references (message content markers and file record paths)
+  /// are collected for the backup attachment preflight (plan §3 Phase 2).
+  Future<({File file, Set<String> attachmentRefs})> _exportChatsJsonFile() async {
     if (!chatService.initialized) {
       await chatService.init();
     }
@@ -667,6 +692,12 @@ class DataSync {
     final messagesByConversation = <String, List<ChatMessage>>{
       for (final c in conversations) c.id: chatService.getMessages(c.id),
     };
+    final attachmentRefs = <String>{};
+    for (final messages in messagesByConversation.values) {
+      for (final message in messages) {
+        BackupFilePreflight.collectFromContent(message.content, attachmentRefs);
+      }
+    }
     final workspaces = <String, String>{};
     final workspaceBindings = <String, Map<String, dynamic>>{};
     for (final c in conversations) {
@@ -714,7 +745,7 @@ class DataSync {
       sink.write(',"fileRecords":');
       _writeJsonMap(
         sink,
-        _fileRecordEntries(conversations, messagesByConversation),
+        _fileRecordEntries(conversations, messagesByConversation, attachmentRefs),
       );
       sink.write('}');
     } catch (_) {
@@ -734,7 +765,7 @@ class DataSync {
       } catch (_) {}
       rethrow;
     }
-    return output;
+    return (file: output, attachmentRefs: attachmentRefs);
   }
 
   void _writeJsonList(StringSink sink, Iterable<Object?> values) {
@@ -779,11 +810,15 @@ class DataSync {
   Iterable<MapEntry<String, Object?>> _fileRecordEntries(
     List<Conversation> conversations,
     Map<String, List<ChatMessage>> messagesByConversation,
+    Set<String> attachmentRefs,
   ) sync* {
     for (final c in conversations) {
       for (final m in messagesByConversation[c.id] ?? const <ChatMessage>[]) {
         final records = chatService.getMessageFileRecords(m.id);
         if (records.isEmpty) continue;
+        for (final record in records) {
+          attachmentRefs.add(record.path);
+        }
         yield MapEntry<String, Object?>(
           m.id,
           records.map((record) => record.toJson()).toList(growable: false),
@@ -808,12 +843,26 @@ class DataSync {
     sink.write('}');
   }
 
-  Future<void> _restoreFromBackupFile(
+  Future<ChatRestoreResult?> _restoreFromBackupFile(
     File file,
     WebDavConfig cfg, {
     RestoreMode mode = RestoreMode.overwrite,
     bool restoreSettings = true,
   }) async {
+    // Overwrite restores run through the transactional staging/publish path:
+    // nothing in the live database or attachment directories is cleared
+    // before the new database is committed and verified. Merge keeps its
+    // non-destructive merge semantics below, but errors are not swallowed.
+    if (mode == RestoreMode.overwrite &&
+        cfg.includeChats &&
+        await ChatBackupRestorer.containsChats(file)) {
+      return chatService.restoreChatBackup(
+        file,
+        includeFiles: cfg.includeFiles,
+        restoreSettings: restoreSettings,
+      );
+    }
+
     // Extract to temp
     final tmp = await getTemporaryDirectory();
     final extractDir = Directory(
@@ -1074,7 +1123,9 @@ class DataSync {
             // Skip existing non-mergeable keys to preserve user preferences
           }
         }
-      } catch (_) {}
+      } catch (error) {
+        throw Exception('Settings restore failed: $error');
+      }
     }
 
     // Restore chats
@@ -1171,31 +1222,23 @@ class DataSync {
           }
           // Tool events
           for (final entry in toolEvents.entries) {
-            try {
-              await chatService.setToolEvents(entry.key, entry.value);
-            } catch (_) {}
+            await chatService.setToolEvents(entry.key, entry.value);
           }
           for (final entry in geminiThoughtSigs.entries) {
-            try {
-              await chatService.setGeminiThoughtSignature(
-                entry.key,
-                entry.value,
-              );
-            } catch (_) {}
+            await chatService.setGeminiThoughtSignature(
+              entry.key,
+              entry.value,
+            );
           }
           for (final entry in workspaceBindings.entries) {
-            try {
-              await chatService.setConversationWorkspaceConfig(
-                entry.key,
-                entry.value,
-              );
-            } catch (_) {}
+            await chatService.setConversationWorkspaceConfig(
+              entry.key,
+              entry.value,
+            );
           }
           for (final entry in fileRecords.entries) {
             for (final record in entry.value) {
-              try {
-                await chatService.addMessageFileRecord(entry.key, record);
-              } catch (_) {}
+              await chatService.addMessageFileRecord(entry.key, record);
             }
           }
         } else {
@@ -1240,9 +1283,7 @@ class DataSync {
           for (final entry in toolEvents.entries) {
             final existing = chatService.getToolEvents(entry.key);
             if (existing.isEmpty) {
-              try {
-                await chatService.setToolEvents(entry.key, entry.value);
-              } catch (_) {}
+              await chatService.setToolEvents(entry.key, entry.value);
             }
           }
           for (final entry in geminiThoughtSigs.entries) {
@@ -1250,35 +1291,31 @@ class DataSync {
               entry.key,
             );
             if (existingSig == null || existingSig.isEmpty) {
-              try {
-                await chatService.setGeminiThoughtSignature(
-                  entry.key,
-                  entry.value,
-                );
-              } catch (_) {}
+              await chatService.setGeminiThoughtSignature(
+                entry.key,
+                entry.value,
+              );
             }
           }
           for (final entry in workspaceBindings.entries) {
             if (chatService.getConversationWorkspaceConfig(entry.key) == null) {
-              try {
-                await chatService.setConversationWorkspaceConfig(
-                  entry.key,
-                  entry.value,
-                );
-              } catch (_) {}
+              await chatService.setConversationWorkspaceConfig(
+                entry.key,
+                entry.value,
+              );
             }
           }
           for (final entry in fileRecords.entries) {
             if (chatService.getMessageFileRecords(entry.key).isEmpty) {
               for (final record in entry.value) {
-                try {
-                  await chatService.addMessageFileRecord(entry.key, record);
-                } catch (_) {}
+                await chatService.addMessageFileRecord(entry.key, record);
               }
             }
           }
         }
-      } catch (_) {}
+      } catch (error) {
+        throw Exception('Chat history restore failed: $error');
+      }
     }
 
     // Restore files
@@ -1428,82 +1465,6 @@ class DataSync {
     try {
       await extractDir.delete(recursive: true);
     } catch (_) {}
-  }
-}
-
-// ===== SharedPreferences async snapshot/restore helpers =====
-class SharedPreferencesAsync {
-  SharedPreferencesAsync._();
-  static SharedPreferencesAsync? _inst;
-  // Local-only UI state stays on device and is excluded from backups/restores.
-  static const _localOnlyKeys = {
-    // Web fetch: "allow private hosts" is device/network specific and must
-    // never ride along through a backup (WEB_FETCH_PLAN.md §5.12).
-    'web_fetch_allow_private_hosts_v1',
-    'learned_context_windows_v1',
-    'learned_output_caps_v1',
-    // models.dev catalog refresh bookkeeping: device-local cache metadata.
-    'model_catalog_fetched_at_v1',
-    'model_catalog_etag_v1',
-    'window_width_v1',
-    'window_height_v1',
-    'window_pos_x_v1',
-    'window_pos_y_v1',
-    'window_maximized_v1',
-    'display_chat_font_scale_v1',
-    // Long-image export tiling: memory limits differ per device; never sync.
-    'long_image_tiling_v1',
-  };
-
-  static Future<SharedPreferencesAsync> get instance async {
-    _inst ??= SharedPreferencesAsync._();
-    return _inst!;
-  }
-
-  Future<Map<String, dynamic>> snapshot() async {
-    final prefs = await SharedPreferences.getInstance();
-    final keys = prefs.getKeys();
-    final map = <String, dynamic>{};
-    for (final k in keys) {
-      if (_localOnlyKeys.contains(k)) continue;
-      map[k] = prefs.get(k);
-    }
-    return map;
-  }
-
-  Future<void> restore(Map<String, dynamic> data) async {
-    final prefs = await SharedPreferences.getInstance();
-    for (final entry in data.entries) {
-      final k = entry.key;
-      final v = entry.value;
-      if (_localOnlyKeys.contains(k)) continue;
-      if (v is bool)
-        await prefs.setBool(k, v);
-      else if (v is int)
-        await prefs.setInt(k, v);
-      else if (v is double)
-        await prefs.setDouble(k, v);
-      else if (v is String)
-        await prefs.setString(k, v);
-      else if (v is List) {
-        await prefs.setStringList(k, v.whereType<String>().toList());
-      }
-    }
-  }
-
-  Future<void> restoreSingle(String key, dynamic value) async {
-    if (_localOnlyKeys.contains(key)) return;
-    final prefs = await SharedPreferences.getInstance();
-    if (value is bool)
-      await prefs.setBool(key, value);
-    else if (value is int)
-      await prefs.setInt(key, value);
-    else if (value is double)
-      await prefs.setDouble(key, value);
-    else if (value is String)
-      await prefs.setString(key, value);
-    else if (value is List) {
-      await prefs.setStringList(key, value.whereType<String>().toList());
-    }
+    return null;
   }
 }
