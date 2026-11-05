@@ -19,10 +19,10 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.28.0+111
 
 environment:
-  # enough_convert 1.7.1 requires Dart >= 3.11.0.
-  sdk: ^3.11.0
-  # Flutter 3.41 is the first stable release with Dart 3.11.
-  flutter: ">=3.41.0"
+  # record 7.x is the binding dependency: Dart >= 3.12 / Flutter >= 3.44.
+  # The SDK floor job pins Flutter 3.44.9 to keep this declared minimum honest.
+  sdk: ^3.12.0
+  flutter: ">=3.44.0"
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions

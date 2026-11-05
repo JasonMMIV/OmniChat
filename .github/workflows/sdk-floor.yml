@@ -1,8 +1,9 @@
 name: SDK Floor
 
-# The project declares `environment.sdk: ^3.11.0`; Flutter 3.41.0 was the first
-# stable release carrying Dart 3.11. Keep a dedicated floor job so the declared
-# minimum is not silently untested after the main workflows moved to 3.47.6.
+# The project declares `environment.sdk: ^3.12.0` / Flutter >= 3.44. `record`
+# 7.x is the binding dependency (Flutter 3.44 / Dart 3.12). Keep a dedicated
+# floor job so the declared minimum is not silently untested after the main
+# workflows moved to 3.47.6.
 on:
   workflow_dispatch:
   # Weekly canary; a floor break should not block unrelated PRs.
@@ -19,16 +20,16 @@ permissions:
 
 jobs:
   sdk-floor:
-    name: Flutter 3.41 / Dart 3.11 floor
+    name: Flutter 3.44 / Dart 3.12 floor
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Flutter 3.41
+      - name: Set up Flutter 3.44
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.9'
+          flutter-version: '3.44.9'
           channel: stable
           cache: true
 
