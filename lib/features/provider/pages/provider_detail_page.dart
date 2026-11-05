@@ -2107,7 +2107,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                   value: !_autoVersionDisabled,
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   onChanged: (value) async {
-                    setState(() => _autoVersionDisabled = value);
+                    // `value` is the switch's desired on/off state; the stored
+                    // flag means "disabled", so it is the inverse.
+                    setState(() => _autoVersionDisabled = !value);
                     await _save();
                     if (value) unawaited(_commitBaseUrl());
                   },
