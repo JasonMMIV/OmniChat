@@ -12,6 +12,7 @@ import 'package:OmniChat/core/models/backup.dart';
 import 'package:OmniChat/core/models/chat_message.dart';
 import 'package:OmniChat/core/models/conversation.dart';
 import 'package:OmniChat/core/models/file_record.dart';
+import 'package:OmniChat/core/models/message_usage.dart';
 import 'package:OmniChat/core/models/workspace_config.dart';
 import 'package:OmniChat/core/services/backup/backup_preflight.dart';
 import 'package:OmniChat/core/services/backup/data_sync.dart';
@@ -24,6 +25,8 @@ Future<File> _writeRestoreZip(
   String? uploadName,
   String? uploadContent,
   bool emptyUploadDirectory = false,
+  MessageUsage? usage,
+  String role = 'user',
 }) async {
   final conversation = Conversation(
     id: 'restore-chat',
@@ -33,10 +36,11 @@ Future<File> _writeRestoreZip(
   );
   final message = ChatMessage(
     id: 'restore-message',
-    role: 'user',
+    role: role,
     content: 'hello from backup',
     conversationId: conversation.id,
     timestamp: DateTime.utc(2026, 1, 1),
+    usageMetaJson: usage == null ? null : jsonEncode(usage.toJson()),
   );
   final chats = <String, dynamic>{
     'version': 3,
@@ -141,6 +145,9 @@ void main() {
       content: 'world',
       conversationId: 'chat-1',
       reasoningText: 'think',
+      usageMetaJson: jsonEncode(
+        const MessageUsage(costUsd: 0.0041, billingSource: 'balance').toJson(),
+      ),
     );
     await conversations.put(conversation.id, conversation);
     await messages.putAll(<String, ChatMessage>{
@@ -190,6 +197,13 @@ void main() {
     expect(chats['version'], 3);
     expect((chats['conversations'] as List).single['id'], 'chat-1');
     expect((chats['messages'] as List), hasLength(2));
+    final exportedAssistant =
+        (chats['messages'] as List).firstWhere(
+              (message) => (message as Map)['id'] == 'a',
+            )
+            as Map;
+    expect(exportedAssistant['usageMeta']['costUsd'], 0.0041);
+    expect(exportedAssistant['usageMeta']['billingSource'], 'balance');
     expect((chats['toolEvents'] as Map)['a'], hasLength(1));
     expect((chats['geminiThoughtSigs'] as Map)['a'], 'thought-signature');
     expect((chats['workspaces'] as Map)['chat-1'], '/tmp/workspace');
@@ -303,6 +317,40 @@ void main() {
     );
   });
 
+  test('restore preserves OpenCode usage metadata', () async {
+    const usage = MessageUsage(
+      costUsd: 0.0041,
+      listCostUsd: 0.005,
+      billingSource: 'balance',
+      inputTokens: 13,
+      outputTokens: 10,
+    );
+    final backup = await _writeRestoreZip(
+      tempDir,
+      usage: usage,
+      role: 'assistant',
+    );
+    final storage = SqliteChatStorage(
+      directory: appDir,
+      appVersion: 'test',
+      background: false,
+    );
+    final service = ChatService(storage: storage);
+    addTearDown(service.close);
+    await service.init();
+
+    await DataSync(chatService: service).restoreFromLocalFile(
+      backup,
+      const WebDavConfig(includeFiles: false),
+      mode: RestoreMode.overwrite,
+      restoreSettings: false,
+    );
+
+    final restored = service.getMessages('restore-chat').single;
+    expect(restored.usageMeta?.costUsd, 0.0041);
+    expect(restored.usageMeta?.billingSource, 'balance');
+  });
+
   test('restore with files replaces uploads from the archive', () async {
     final uploadDir = Directory(p.join(appDir.path, 'upload'));
     await uploadDir.create(recursive: true);
@@ -400,95 +448,86 @@ void main() {
     },
   );
 
-  test(
-    'prepareBackupFile fails with a structured list when a referenced '
-    'upload file is missing',
-    () async {
-      final storage = SqliteChatStorage(
-        directory: appDir,
-        appVersion: 'test',
-        background: false,
-      );
-      final service = ChatService(storage: storage);
-      addTearDown(service.close);
-      await service.init();
+  test('prepareBackupFile fails with a structured list when a referenced '
+      'upload file is missing', () async {
+    final storage = SqliteChatStorage(
+      directory: appDir,
+      appVersion: 'test',
+      background: false,
+    );
+    final service = ChatService(storage: storage);
+    addTearDown(service.close);
+    await service.init();
 
-      final missingPath = p.join(appDir.path, 'upload', 'ghost.png');
-      await service.restoreConversation(
-        Conversation(id: 'chat-refs', title: 'Refs'),
-        <ChatMessage>[
-          ChatMessage(
-            id: 'ref-message',
-            role: 'user',
-            content: 'look [image:$missingPath]',
-            conversationId: 'chat-refs',
-          ),
-        ],
-      );
-
-      final sync = DataSync(chatService: service);
-      await expectLater(
-        sync.prepareBackupFile(
-          const WebDavConfig(includeChats: true, includeFiles: true),
+    final missingPath = p.join(appDir.path, 'upload', 'ghost.png');
+    await service.restoreConversation(
+      Conversation(id: 'chat-refs', title: 'Refs'),
+      <ChatMessage>[
+        ChatMessage(
+          id: 'ref-message',
+          role: 'user',
+          content: 'look [image:$missingPath]',
+          conversationId: 'chat-refs',
         ),
-        throwsA(
-          isA<BackupPreflightException>().having(
-            (error) => error.toString(),
-            'message',
-            contains(missingPath),
-          ),
-        ),
-      );
+      ],
+    );
 
-      // The failed backup must not leave a partial zip behind.
-      final leftovers = tempDir.listSync().whereType<File>().where(
-        (f) => p.basename(f.path).startsWith('omnichat_backup_'),
-      );
-      expect(leftovers, isEmpty);
-    },
-  );
-
-  test(
-    'prepareBackupFile succeeds when referenced uploads exist and outside '
-    'references do not fail',
-    () async {
-      final storage = SqliteChatStorage(
-        directory: appDir,
-        appVersion: 'test',
-        background: false,
-      );
-      final service = ChatService(storage: storage);
-      addTearDown(service.close);
-      await service.init();
-
-      final uploadDir = Directory(p.join(appDir.path, 'upload'));
-      await uploadDir.create(recursive: true);
-      final attached = File(p.join(uploadDir.path, 'present.png'));
-      await attached.writeAsString('png-bytes');
-      final outsidePath = p.join(p.dirname(appDir.path), 'outside.png');
-
-      await service.restoreConversation(
-        Conversation(id: 'chat-refs', title: 'Refs'),
-        <ChatMessage>[
-          ChatMessage(
-            id: 'ref-message',
-            role: 'user',
-            content: 'a [image:${attached.path}] b ![x]($outsidePath)',
-            conversationId: 'chat-refs',
-          ),
-        ],
-      );
-
-      final sync = DataSync(chatService: service);
-      final zipFile = await sync.prepareBackupFile(
+    final sync = DataSync(chatService: service);
+    await expectLater(
+      sync.prepareBackupFile(
         const WebDavConfig(includeChats: true, includeFiles: true),
-      );
+      ),
+      throwsA(
+        isA<BackupPreflightException>().having(
+          (error) => error.toString(),
+          'message',
+          contains(missingPath),
+        ),
+      ),
+    );
 
-      final archive = ZipDecoder().decodeBytes(await zipFile.readAsBytes());
-      expect(
-        archive.files.map((f) => f.name),
-        contains('upload/present.png'),
-      );
-    },
-  );
+    // The failed backup must not leave a partial zip behind.
+    final leftovers = tempDir.listSync().whereType<File>().where(
+      (f) => p.basename(f.path).startsWith('omnichat_backup_'),
+    );
+    expect(leftovers, isEmpty);
+  });
+
+  test('prepareBackupFile succeeds when referenced uploads exist and outside '
+      'references do not fail', () async {
+    final storage = SqliteChatStorage(
+      directory: appDir,
+      appVersion: 'test',
+      background: false,
+    );
+    final service = ChatService(storage: storage);
+    addTearDown(service.close);
+    await service.init();
+
+    final uploadDir = Directory(p.join(appDir.path, 'upload'));
+    await uploadDir.create(recursive: true);
+    final attached = File(p.join(uploadDir.path, 'present.png'));
+    await attached.writeAsString('png-bytes');
+    final outsidePath = p.join(p.dirname(appDir.path), 'outside.png');
+
+    await service.restoreConversation(
+      Conversation(id: 'chat-refs', title: 'Refs'),
+      <ChatMessage>[
+        ChatMessage(
+          id: 'ref-message',
+          role: 'user',
+          content: 'a [image:${attached.path}] b ![x]($outsidePath)',
+          conversationId: 'chat-refs',
+        ),
+      ],
+    );
+
+    final sync = DataSync(chatService: service);
+    final zipFile = await sync.prepareBackupFile(
+      const WebDavConfig(includeChats: true, includeFiles: true),
+    );
+
+    final archive = ZipDecoder().decodeBytes(await zipFile.readAsBytes());
+    expect(archive.files.map((f) => f.name), contains('upload/present.png'));
+  });
 }

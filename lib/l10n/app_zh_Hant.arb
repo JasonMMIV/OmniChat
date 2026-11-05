@@ -2014,5 +2014,20 @@
   "openCodeErrorMissingSession": "OpenCode 因缺少工作階段標頭而拒絕請求，請更新 OmniChat。",
   "openCodeErrorFreeTier": "OpenCode 免費模型僅限官方用戶端使用，請改用付費或 Go 模型。",
   "openCodeErrorInsufficientBalance": "OpenCode 餘額不足。",
-  "openCodeErrorProtocolUnsupported": "此模型不支援目前的 API 協定，請嘗試啟用 Responses API。"
+  "openCodeErrorProtocolUnsupported": "此模型不支援目前的 API 協定，請嘗試啟用 Responses API。",
+  "messageUsageTitle": "用量與成本",
+  "messageUsageTokens": "Token",
+  "messageUsageCostSection": "成本",
+  "messageUsageFree": "免費",
+  "messageUsageAllowance": "Go 配額",
+  "messageUsageListCost": "定價",
+  "messageUsageCost": "實際扣款",
+  "messageUsageEstimated": "估算",
+  "messageUsageBillingSource": "計費方式",
+  "messageUsageInputTokens": "輸入",
+  "messageUsageOutputTokens": "輸出",
+  "messageUsageReasoningTokens": "推理",
+  "messageUsageCacheReadTokens": "快取讀取",
+  "messageUsageCacheWrite5mTokens": "快取寫入 5m",
+  "messageUsageCacheWrite1hTokens": "快取寫入 1h"
 }

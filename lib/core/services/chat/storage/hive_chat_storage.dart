@@ -5,6 +5,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../../models/chat_message.dart';
 import '../../../models/conversation.dart';
+import '../../../models/message_usage.dart';
 import '../../../models/file_record.dart';
 import '../../../models/workspace_config.dart';
 import '../../../../utils/sandbox_path_resolver.dart';
@@ -46,6 +47,7 @@ class HiveChatStorage extends ChatStorage {
   final List<Future<void> Function()> _boxClosers = <Future<void> Function()>[];
 
   String _sigKey(String id) => 'sig_$id';
+  String _usageKey(String id) => 'usage:$id';
 
   @override
   ChatStorageBackend get backend => ChatStorageBackend.hive;
@@ -440,6 +442,7 @@ class HiveChatStorage extends ChatStorage {
     bool touchConversation = true,
   }) async {
     await _messagesBox.put(message.id, message);
+    await _persistUsageForMessage(message);
 
     final conversation = _conversationsBox.get(message.conversationId);
     if (conversation != null) {
@@ -460,6 +463,7 @@ class HiveChatStorage extends ChatStorage {
   @override
   Future<void> insertMessageAt(ChatMessage message, int ordinal) async {
     await _messagesBox.put(message.id, message);
+    await _persistUsageForMessage(message);
     final cached = _messagesCache[message.conversationId];
     if (cached != null) {
       cached.removeWhere((m) => m.id == message.id);
@@ -474,6 +478,7 @@ class HiveChatStorage extends ChatStorage {
     ChatMessage message,
   ) async {
     await _messagesBox.put(message.id, message);
+    await _persistUsageForMessage(message);
 
     final conversation = _conversationsBox.get(conversationId);
     if (conversation != null) {
@@ -512,6 +517,9 @@ class HiveChatStorage extends ChatStorage {
           try {
             await _toolEventsBox.delete(_sigKey(oldId));
           } catch (_) {}
+          try {
+            await _toolEventsBox.delete(_usageKey(oldId));
+          } catch (_) {}
         }
         try {
           await _messageFileRecordsBox.delete(oldId);
@@ -521,6 +529,7 @@ class HiveChatStorage extends ChatStorage {
     }
     for (final message in messages) {
       await _messagesBox.put(message.id, message);
+      await _persistUsageForMessage(message);
     }
     final restored = Conversation(
       id: conversation.id,
@@ -556,6 +565,7 @@ class HiveChatStorage extends ChatStorage {
     String? translation,
     String? reasoningSegmentsJson,
     String? aiTeamProposalsJson,
+    MessageUsage? usageMeta,
   }) async {
     final message = _messagesBox.get(messageId);
     if (message == null) return;
@@ -576,9 +586,18 @@ class HiveChatStorage extends ChatStorage {
       reasoningSegmentsJson:
           reasoningSegmentsJson ?? message.reasoningSegmentsJson,
       aiTeamProposalsJson: aiTeamProposalsJson ?? message.aiTeamProposalsJson,
+      usageMetaJson: usageMeta == null
+          ? message.usageMetaJson
+          : jsonEncode(usageMeta.toJson()),
     );
 
     await _messagesBox.put(messageId, updated);
+    if (usageMeta != null) {
+      await _toolEventsBox.put(
+        _usageKey(messageId),
+        jsonEncode(usageMeta.toJson()),
+      );
+    }
 
     final cached = _messagesCache[message.conversationId];
     if (cached != null) {
@@ -629,6 +648,9 @@ class HiveChatStorage extends ChatStorage {
       } catch (_) {}
       try {
         await _toolEventsBox.delete(_sigKey(message.id));
+      } catch (_) {}
+      try {
+        await _toolEventsBox.delete(_usageKey(message.id));
       } catch (_) {}
     }
     try {
@@ -814,6 +836,48 @@ class HiveChatStorage extends ChatStorage {
   }
 
   @override
+  MessageUsage? getOpenCodeUsage(String messageId) {
+    final value = _toolEventsBox.get(_usageKey(messageId));
+    if (value is String) {
+      final parsed = MessageUsage.tryParse(value);
+      if (parsed != null) return parsed;
+    }
+    return _messagesBox.get(messageId)?.usageMeta;
+  }
+
+  @override
+  Future<void> setOpenCodeUsage(String messageId, MessageUsage usage) async {
+    await _toolEventsBox.put(_usageKey(messageId), jsonEncode(usage.toJson()));
+    final message = _messagesBox.get(messageId);
+    if (message == null) return;
+    final updated = message.copyWith(usageMetaJson: jsonEncode(usage.toJson()));
+    await _messagesBox.put(messageId, updated);
+    final cached = _messagesCache[message.conversationId];
+    final index = cached?.indexWhere((m) => m.id == messageId) ?? -1;
+    if (cached != null && index >= 0) cached[index] = updated;
+  }
+
+  @override
+  Future<void> removeOpenCodeUsage(String messageId) async {
+    try {
+      await _toolEventsBox.delete(_usageKey(messageId));
+    } catch (_) {}
+    final message = _messagesBox.get(messageId);
+    if (message == null) return;
+    final updated = message.copyWith(usageMetaJson: null);
+    await _messagesBox.put(messageId, updated);
+    final cached = _messagesCache[message.conversationId];
+    final index = cached?.indexWhere((m) => m.id == messageId) ?? -1;
+    if (cached != null && index >= 0) cached[index] = updated;
+  }
+
+  Future<void> _persistUsageForMessage(ChatMessage message) async {
+    final usage = message.usageMeta;
+    if (usage == null) return;
+    await _toolEventsBox.put(_usageKey(message.id), jsonEncode(usage.toJson()));
+  }
+
+  @override
   List<FileRecord> getFileRecords(String messageId) {
     final value = _messageFileRecordsBox.get(messageId);
     if (value is! List) return const <FileRecord>[];
@@ -921,8 +985,10 @@ class HiveChatStorage extends ChatStorage {
         aiTeamProposalsJson: src.aiTeamProposalsJson,
         processStartedAt: src.processStartedAt,
         processFinishedAt: src.processFinishedAt,
+        usageMetaJson: src.usageMetaJson,
       );
       await _messagesBox.put(clone.id, clone);
+      await _persistUsageForMessage(clone);
       final records = getFileRecords(src.id);
       if (records.isNotEmpty) {
         await _messageFileRecordsBox.put(

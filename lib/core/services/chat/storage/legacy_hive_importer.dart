@@ -1034,10 +1034,12 @@ class LegacyHiveImporter {
         '${_sourceEventElements - _quarantinedEventElements}',
       );
     }
-    if (counts.providerArtifacts !=
-        _sourceSignatureKeys - _quarantinedSignatures) {
+    final importedSignatures = await repository.countProviderArtifactsOfKind(
+      kGeminiThoughtSignatureKind,
+    );
+    if (importedSignatures != _sourceSignatureKeys - _quarantinedSignatures) {
       failures.add(
-        'provider artifacts: destination ${counts.providerArtifacts} != '
+        'provider artifacts: destination $importedSignatures != '
         'source ${_sourceSignatureKeys - _quarantinedSignatures}',
       );
     }

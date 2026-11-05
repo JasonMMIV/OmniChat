@@ -11207,6 +11207,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This model does not support the current API protocol. Try enabling the Responses API.'**
   String get openCodeErrorProtocolUnsupported;
+
+  /// No description provided for @messageUsageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Usage & cost'**
+  String get messageUsageTitle;
+
+  /// No description provided for @messageUsageTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'Tokens'**
+  String get messageUsageTokens;
+
+  /// No description provided for @messageUsageCostSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Cost'**
+  String get messageUsageCostSection;
+
+  /// No description provided for @messageUsageFree.
+  ///
+  /// In en, this message translates to:
+  /// **'Free'**
+  String get messageUsageFree;
+
+  /// No description provided for @messageUsageAllowance.
+  ///
+  /// In en, this message translates to:
+  /// **'Go allowance'**
+  String get messageUsageAllowance;
+
+  /// No description provided for @messageUsageListCost.
+  ///
+  /// In en, this message translates to:
+  /// **'List price'**
+  String get messageUsageListCost;
+
+  /// No description provided for @messageUsageCost.
+  ///
+  /// In en, this message translates to:
+  /// **'Charged'**
+  String get messageUsageCost;
+
+  /// No description provided for @messageUsageEstimated.
+  ///
+  /// In en, this message translates to:
+  /// **'Estimated'**
+  String get messageUsageEstimated;
+
+  /// No description provided for @messageUsageBillingSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Billing'**
+  String get messageUsageBillingSource;
+
+  /// No description provided for @messageUsageInputTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'Input'**
+  String get messageUsageInputTokens;
+
+  /// No description provided for @messageUsageOutputTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'Output'**
+  String get messageUsageOutputTokens;
+
+  /// No description provided for @messageUsageReasoningTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'Reasoning'**
+  String get messageUsageReasoningTokens;
+
+  /// No description provided for @messageUsageCacheReadTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache read'**
+  String get messageUsageCacheReadTokens;
+
+  /// No description provided for @messageUsageCacheWrite5mTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache write 5m'**
+  String get messageUsageCacheWrite5mTokens;
+
+  /// No description provided for @messageUsageCacheWrite1hTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache write 1h'**
+  String get messageUsageCacheWrite1hTokens;
 }
 
 class _AppLocalizationsDelegate

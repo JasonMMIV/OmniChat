@@ -1,5 +1,6 @@
 import '../../../models/chat_message.dart';
 import '../../../models/conversation.dart';
+import '../../../models/message_usage.dart';
 import '../../../models/file_record.dart';
 import '../../../models/workspace_config.dart';
 import 'message_part_codec.dart';
@@ -130,6 +131,12 @@ abstract class ChatStorage {
 
   String? getGeminiThoughtSignature(String assistantMessageId);
 
+  MessageUsage? getOpenCodeUsage(String messageId);
+
+  Future<void> setOpenCodeUsage(String messageId, MessageUsage usage);
+
+  Future<void> removeOpenCodeUsage(String messageId);
+
   List<FileRecord> getFileRecords(String messageId);
 
   WorkspaceConfig? getWorkspaceConfig(String conversationId);
@@ -219,6 +226,7 @@ abstract class ChatStorage {
     String? translation,
     String? reasoningSegmentsJson,
     String? aiTeamProposalsJson,
+    MessageUsage? usageMeta,
   });
 
   /// Deletes one message/version, renumbers the conversation, and clamps the

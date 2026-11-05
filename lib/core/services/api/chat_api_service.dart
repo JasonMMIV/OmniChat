@@ -3625,7 +3625,7 @@ class ChatApiService {
                 completionTokens: completion,
                 cachedTokens: cached,
                 totalTokens: prompt + completion,
-              );
+              ).withOpenCodeUsage(u);
             }
           } catch (_) {}
           yield ChatStreamChunk(
@@ -3688,8 +3688,8 @@ class ChatApiService {
                 completionTokens: completion,
                 cachedTokens: cached,
                 totalTokens: prompt + completion,
-              );
-              aggUsage = (aggUsage ?? const TokenUsage()).merge(round);
+              ).withOpenCodeUsage(u);
+              aggUsage = (aggUsage ?? const TokenUsage()).accumulate(round);
             }
           } catch (_) {}
 
@@ -4176,6 +4176,8 @@ class ChatApiService {
               String contentAccum = ''; // Accumulate content for this round
               String reasoningAccum = '';
               dynamic reasoningDetailsAccum;
+              final usageBeforeRound = usage;
+              TokenUsage? roundUsage;
               await for (final ch in s2) {
                 buf2 += ch;
                 final lines2 = buf2.split('\n');
@@ -4191,6 +4193,27 @@ class ChatApiService {
                   try {
                     final o = jsonDecode(d);
                     if (o is Map &&
+                        o['choices'] is List &&
+                        (o['choices'] as List).isEmpty &&
+                        o['usage'] is Map) {
+                      final u = o['usage'] as Map;
+                      roundUsage = (roundUsage ?? const TokenUsage()).merge(
+                        TokenUsage(
+                          promptTokens: (u['prompt_tokens'] ?? 0) as int? ?? 0,
+                          completionTokens:
+                              (u['completion_tokens'] ?? 0) as int? ?? 0,
+                          cachedTokens:
+                              (u['prompt_tokens_details']?['cached_tokens'] ??
+                                      0)
+                                  as int? ??
+                              0,
+                        ).withOpenCodeUsage(u),
+                      );
+                      usage = (usageBeforeRound ?? const TokenUsage()).merge(
+                        roundUsage,
+                      );
+                      totalTokens = usage!.totalTokens;
+                    } else if (o is Map &&
                         o['choices'] is List &&
                         (o['choices'] as List).isNotEmpty) {
                       final c0 = (o['choices'] as List).first;
@@ -4208,12 +4231,15 @@ class ChatApiService {
                             (u['prompt_tokens_details']?['cached_tokens'] ?? 0)
                                 as int? ??
                             0;
-                        usage = (usage ?? const TokenUsage()).merge(
+                        roundUsage = (roundUsage ?? const TokenUsage()).merge(
                           TokenUsage(
                             promptTokens: prompt,
                             completionTokens: completion,
                             cachedTokens: cached,
-                          ),
+                          ).withOpenCodeUsage(u),
+                        );
+                        usage = (usageBeforeRound ?? const TokenUsage()).merge(
+                          roundUsage,
                         );
                         totalTokens = usage!.totalTokens;
                       }
@@ -4372,6 +4398,13 @@ class ChatApiService {
                     }
                   } catch (_) {}
                 }
+              }
+
+              if (roundUsage != null) {
+                usage = (usageBeforeRound ?? const TokenUsage()).accumulate(
+                  roundUsage,
+                );
+                totalTokens = usage!.totalTokens;
               }
 
               // After this follow-up round finishes: if tool calls again, execute and loop
@@ -4616,7 +4649,10 @@ class ChatApiService {
                 final inTok = (u['input_tokens'] ?? 0) as int;
                 final outTok = (u['output_tokens'] ?? 0) as int;
                 usage = (usage ?? const TokenUsage()).merge(
-                  TokenUsage(promptTokens: inTok, completionTokens: outTok),
+                  TokenUsage(
+                    promptTokens: inTok,
+                    completionTokens: outTok,
+                  ).withOpenCodeUsage(u),
                 );
                 totalTokens = usage!.totalTokens;
               }
@@ -4996,11 +5032,11 @@ class ChatApiService {
                           if (u2 != null) {
                             final inTok = (u2['input_tokens'] ?? 0) as int;
                             final outTok = (u2['output_tokens'] ?? 0) as int;
-                            usage = (usage ?? const TokenUsage()).merge(
+                            usage = (usage ?? const TokenUsage()).accumulate(
                               TokenUsage(
                                 promptTokens: inTok,
                                 completionTokens: outTok,
-                              ),
+                              ).withOpenCodeUsage(u2),
                             );
                             totalTokens = usage!.totalTokens;
                           }
@@ -5163,7 +5199,10 @@ class ChatApiService {
                   final inTok = (u['input_tokens'] ?? 0) as int;
                   final outTok = (u['output_tokens'] ?? 0) as int;
                   usage = (usage ?? const TokenUsage()).merge(
-                    TokenUsage(promptTokens: inTok, completionTokens: outTok),
+                    TokenUsage(
+                      promptTokens: inTok,
+                      completionTokens: outTok,
+                    ).withOpenCodeUsage(u),
                   );
                   totalTokens = usage!.totalTokens;
                 }
@@ -5403,7 +5442,7 @@ class ChatApiService {
                   promptTokens: prompt,
                   completionTokens: completion,
                   cachedTokens: cached,
-                ),
+                ).withOpenCodeUsage(u),
               );
               totalTokens = usage!.totalTokens;
             }
@@ -5641,6 +5680,8 @@ class ChatApiService {
               String contentAccum = '';
               String reasoningAccum = '';
               dynamic reasoningDetailsAccum;
+              final usageBeforeRound = usage;
+              TokenUsage? roundUsage;
               await for (final ch in s2) {
                 buf2 += ch;
                 final lines2 = buf2.split('\n');
@@ -5655,6 +5696,27 @@ class ChatApiService {
                   try {
                     final o = jsonDecode(d);
                     if (o is Map &&
+                        o['choices'] is List &&
+                        (o['choices'] as List).isEmpty &&
+                        o['usage'] is Map) {
+                      final u = o['usage'] as Map;
+                      roundUsage = (roundUsage ?? const TokenUsage()).merge(
+                        TokenUsage(
+                          promptTokens: (u['prompt_tokens'] ?? 0) as int? ?? 0,
+                          completionTokens:
+                              (u['completion_tokens'] ?? 0) as int? ?? 0,
+                          cachedTokens:
+                              (u['prompt_tokens_details']?['cached_tokens'] ??
+                                      0)
+                                  as int? ??
+                              0,
+                        ).withOpenCodeUsage(u),
+                      );
+                      usage = (usageBeforeRound ?? const TokenUsage()).merge(
+                        roundUsage,
+                      );
+                      totalTokens = usage!.totalTokens;
+                    } else if (o is Map &&
                         o['choices'] is List &&
                         (o['choices'] as List).isNotEmpty) {
                       final c0 = (o['choices'] as List).first;
@@ -5671,12 +5733,15 @@ class ChatApiService {
                             (u['prompt_tokens_details']?['cached_tokens'] ?? 0)
                                 as int? ??
                             0;
-                        usage = (usage ?? const TokenUsage()).merge(
+                        roundUsage = (roundUsage ?? const TokenUsage()).merge(
                           TokenUsage(
                             promptTokens: prompt,
                             completionTokens: completion,
                             cachedTokens: cached,
-                          ),
+                          ).withOpenCodeUsage(u),
+                        );
+                        usage = (usageBeforeRound ?? const TokenUsage()).merge(
+                          roundUsage,
                         );
                         totalTokens = usage!.totalTokens;
                       }
@@ -5862,6 +5927,12 @@ class ChatApiService {
                     }
                   } catch (_) {}
                 }
+              }
+              if (roundUsage != null) {
+                usage = (usageBeforeRound ?? const TokenUsage()).accumulate(
+                  roundUsage,
+                );
+                totalTokens = usage!.totalTokens;
               }
               if ((finishReason2 == 'tool_calls' || toolAcc2.isNotEmpty) &&
                   (onToolCall != null || exposeToolCallsOnly)) {
@@ -6223,6 +6294,8 @@ class ChatApiService {
                   String contentAccum = '';
                   String reasoningAccum = '';
                   dynamic reasoningDetailsAccum;
+                  final usageBeforeRound = usage;
+                  TokenUsage? roundUsage;
                   await for (final ch in s2) {
                     buf2 += ch;
                     final lines2 = buf2.split('\n');
@@ -6237,6 +6310,27 @@ class ChatApiService {
                       try {
                         final o = jsonDecode(d);
                         if (o is Map &&
+                            o['choices'] is List &&
+                            (o['choices'] as List).isEmpty &&
+                            o['usage'] is Map) {
+                          final u = o['usage'] as Map;
+                          roundUsage = (roundUsage ?? const TokenUsage()).merge(
+                            TokenUsage(
+                              promptTokens:
+                                  (u['prompt_tokens'] ?? 0) as int? ?? 0,
+                              completionTokens:
+                                  (u['completion_tokens'] ?? 0) as int? ?? 0,
+                              cachedTokens:
+                                  (u['prompt_tokens_details']?['cached_tokens'] ??
+                                          0)
+                                      as int? ??
+                                  0,
+                            ).withOpenCodeUsage(u),
+                          );
+                          usage = (usageBeforeRound ?? const TokenUsage())
+                              .merge(roundUsage);
+                          totalTokens = usage!.totalTokens;
+                        } else if (o is Map &&
                             o['choices'] is List &&
                             (o['choices'] as List).isNotEmpty) {
                           final c0 = (o['choices'] as List).first;
@@ -6256,13 +6350,16 @@ class ChatApiService {
                                         0)
                                     as int? ??
                                 0;
-                            usage = (usage ?? const TokenUsage()).merge(
-                              TokenUsage(
-                                promptTokens: prompt,
-                                completionTokens: completion,
-                                cachedTokens: cached,
-                              ),
-                            );
+                            roundUsage = (roundUsage ?? const TokenUsage())
+                                .merge(
+                                  TokenUsage(
+                                    promptTokens: prompt,
+                                    completionTokens: completion,
+                                    cachedTokens: cached,
+                                  ).withOpenCodeUsage(u),
+                                );
+                            usage = (usageBeforeRound ?? const TokenUsage())
+                                .merge(roundUsage);
                             totalTokens = usage!.totalTokens;
                           }
                           if (rc is String && rc.isNotEmpty) {
@@ -6425,6 +6522,12 @@ class ChatApiService {
                         }
                       } catch (_) {}
                     }
+                  }
+                  if (roundUsage != null) {
+                    usage = (usageBeforeRound ?? const TokenUsage()).accumulate(
+                      roundUsage,
+                    );
+                    totalTokens = usage!.totalTokens;
                   }
                   if ((finishReason2 == 'tool_calls' || toolAcc2.isNotEmpty) &&
                       onToolCall != null) {
@@ -7236,8 +7339,8 @@ class ChatApiService {
               completionTokens: outTok,
               cachedTokens: 0,
               totalTokens: inTok + outTok,
-            );
-            totalUsage = (totalUsage ?? const TokenUsage()).merge(round);
+            ).withOpenCodeUsage(u);
+            totalUsage = (totalUsage ?? const TokenUsage()).accumulate(round);
           }
         } catch (_) {}
         final content = (obj['content'] as List?) ?? const <dynamic>[];
@@ -7583,8 +7686,8 @@ class ChatApiService {
                       content: payload,
                     ),
                   ],
-                );              } else if (cb is Map &&
-                  (cb['type'] == 'web_fetch_tool_result')) {
+                );
+              } else if (cb is Map && (cb['type'] == 'web_fetch_tool_result')) {
                 // Keep the server result block for pause_turn continuation.
                 assistantBlocks.add(Map<String, dynamic>.from(cb));
                 final toolUseId = (cb['tool_use_id'] ?? '').toString();
@@ -7866,7 +7969,10 @@ class ChatApiService {
                 final inTok = (u['input_tokens'] ?? 0) as int;
                 final outTok = (u['output_tokens'] ?? 0) as int;
                 usage = (usage ?? const TokenUsage()).merge(
-                  TokenUsage(promptTokens: inTok, completionTokens: outTok),
+                  TokenUsage(
+                    promptTokens: inTok,
+                    completionTokens: outTok,
+                  ).withOpenCodeUsage(u),
                 );
                 roundTokens = usage!.totalTokens;
               }
@@ -7897,7 +8003,7 @@ class ChatApiService {
 
       // Merge usage across rounds for final token count
       if (usage != null)
-        totalUsage = (totalUsage ?? const TokenUsage()).merge(usage!);
+        totalUsage = (totalUsage ?? const TokenUsage()).accumulate(usage!);
 
       // If no client tool calls, decide whether to continue (pause_turn/server tool) or finalize
       if (_anthToolUse.isEmpty) {
@@ -8284,8 +8390,7 @@ class ChatApiService {
       if (builtIns.contains(BuiltInToolNames.codeExecution)) {
         toolsArr.add({'code_execution': {}});
       } else if (builtIns.contains(BuiltInToolNames.search) ||
-          (webFetchEnabled &&
-              builtIns.contains(BuiltInToolNames.urlContext))) {
+          (webFetchEnabled && builtIns.contains(BuiltInToolNames.urlContext))) {
         if (builtIns.contains(BuiltInToolNames.search))
           toolsArr.add({'google_search': {}});
         if (webFetchEnabled && builtIns.contains(BuiltInToolNames.urlContext))
@@ -8335,12 +8440,12 @@ class ChatApiService {
           if (u != null) {
             final prompt = (u['promptTokenCount'] ?? 0) as int? ?? 0;
             final completion = (u['candidatesTokenCount'] ?? 0) as int? ?? 0;
-            totalUsage = (totalUsage ?? const TokenUsage()).merge(
+            totalUsage = (totalUsage ?? const TokenUsage()).accumulate(
               TokenUsage(
                 promptTokens: prompt,
                 completionTokens: completion,
                 cachedTokens: 0,
-              ),
+              ).withOpenCodeUsage(u),
             );
           }
         } catch (_) {}
@@ -8928,7 +9033,7 @@ class ChatApiService {
                   promptTokens: (um['promptTokenCount'] ?? 0) as int,
                   completionTokens: (um['candidatesTokenCount'] ?? 0) as int,
                   totalTokens: (um['totalTokenCount'] ?? 0) as int,
-                ),
+                ).withOpenCodeUsage(um),
               );
               totalTokens = usage!.totalTokens;
             }
@@ -10258,7 +10363,7 @@ class ChatApiService {
       promptTokens: input,
       completionTokens: output,
       totalTokens: input + output,
-    );
+    ).withOpenCodeUsage(usage);
   }
 }
 

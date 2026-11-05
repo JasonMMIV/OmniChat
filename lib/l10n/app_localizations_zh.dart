@@ -5881,6 +5881,51 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get openCodeErrorProtocolUnsupported =>
       '此模型不支持当前的 API 协议，请尝试启用 Responses API。';
+
+  @override
+  String get messageUsageTitle => '用量与成本';
+
+  @override
+  String get messageUsageTokens => 'Token';
+
+  @override
+  String get messageUsageCostSection => '成本';
+
+  @override
+  String get messageUsageFree => '免费';
+
+  @override
+  String get messageUsageAllowance => 'Go 配额';
+
+  @override
+  String get messageUsageListCost => '定价';
+
+  @override
+  String get messageUsageCost => '实际扣款';
+
+  @override
+  String get messageUsageEstimated => '估算';
+
+  @override
+  String get messageUsageBillingSource => '计费方式';
+
+  @override
+  String get messageUsageInputTokens => '输入';
+
+  @override
+  String get messageUsageOutputTokens => '输出';
+
+  @override
+  String get messageUsageReasoningTokens => '推理';
+
+  @override
+  String get messageUsageCacheReadTokens => '缓存读取';
+
+  @override
+  String get messageUsageCacheWrite5mTokens => '缓存写入 5m';
+
+  @override
+  String get messageUsageCacheWrite1hTokens => '缓存写入 1h';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -11549,6 +11594,51 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   @override
   String get openCodeErrorProtocolUnsupported =>
       '此模型不支持当前的 API 协议，请尝试启用 Responses API。';
+
+  @override
+  String get messageUsageTitle => '用量与成本';
+
+  @override
+  String get messageUsageTokens => 'Token';
+
+  @override
+  String get messageUsageCostSection => '成本';
+
+  @override
+  String get messageUsageFree => '免费';
+
+  @override
+  String get messageUsageAllowance => 'Go 配额';
+
+  @override
+  String get messageUsageListCost => '定价';
+
+  @override
+  String get messageUsageCost => '实际扣款';
+
+  @override
+  String get messageUsageEstimated => '估算';
+
+  @override
+  String get messageUsageBillingSource => '计费方式';
+
+  @override
+  String get messageUsageInputTokens => '输入';
+
+  @override
+  String get messageUsageOutputTokens => '输出';
+
+  @override
+  String get messageUsageReasoningTokens => '推理';
+
+  @override
+  String get messageUsageCacheReadTokens => '缓存读取';
+
+  @override
+  String get messageUsageCacheWrite5mTokens => '缓存写入 5m';
+
+  @override
+  String get messageUsageCacheWrite1hTokens => '缓存写入 1h';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -17317,4 +17407,49 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get openCodeErrorProtocolUnsupported =>
       '此模型不支援目前的 API 協定，請嘗試啟用 Responses API。';
+
+  @override
+  String get messageUsageTitle => '用量與成本';
+
+  @override
+  String get messageUsageTokens => 'Token';
+
+  @override
+  String get messageUsageCostSection => '成本';
+
+  @override
+  String get messageUsageFree => '免費';
+
+  @override
+  String get messageUsageAllowance => 'Go 配額';
+
+  @override
+  String get messageUsageListCost => '定價';
+
+  @override
+  String get messageUsageCost => '實際扣款';
+
+  @override
+  String get messageUsageEstimated => '估算';
+
+  @override
+  String get messageUsageBillingSource => '計費方式';
+
+  @override
+  String get messageUsageInputTokens => '輸入';
+
+  @override
+  String get messageUsageOutputTokens => '輸出';
+
+  @override
+  String get messageUsageReasoningTokens => '推理';
+
+  @override
+  String get messageUsageCacheReadTokens => '快取讀取';
+
+  @override
+  String get messageUsageCacheWrite5mTokens => '快取寫入 5m';
+
+  @override
+  String get messageUsageCacheWrite1hTokens => '快取寫入 1h';
 }

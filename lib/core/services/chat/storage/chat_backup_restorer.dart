@@ -78,6 +78,13 @@ class ChatBackupPayload {
 
   int get signatureCount => geminiThoughtSigs.length;
 
+  /// Messages carrying OpenCode cost telemetry. Each one is restored as an
+  /// `opencode_usage_v1` provider artifact.
+  int get usageCount => messagesByConversation.values.fold(
+    0,
+    (sum, list) => sum + list.where((m) => m.usageMeta != null).length,
+  );
+
   int get fileRecordCount =>
       fileRecords.values.fold(0, (sum, list) => sum + list.length);
 
@@ -88,10 +95,8 @@ class ChatBackupPayload {
 /// publishes it through [DatabaseFamilyPublisher]. The live database is never
 /// cleared before the publish commit point.
 class ChatBackupRestorer {
-  ChatBackupRestorer({
-    required this.directory,
-    required this.appVersion,
-  }) : files = ChatDatabaseFiles(directory);
+  ChatBackupRestorer({required this.directory, required this.appVersion})
+    : files = ChatDatabaseFiles(directory);
 
   /// Test seam: throw after N imported conversations (0 disables).
   static int debugFailAfterConversations = 0;
@@ -164,7 +169,8 @@ class ChatBackupRestorer {
         final settingsBytes = settingsEntry.readBytes();
         if (settingsBytes != null && settingsBytes.isNotEmpty) {
           final decodedSettings = jsonDecode(utf8.decode(settingsBytes));
-          if (decodedSettings is Map<String, dynamic>) settings = decodedSettings;
+          if (decodedSettings is Map<String, dynamic>)
+            settings = decodedSettings;
         }
       }
     } on ChatRestoreException {
@@ -213,7 +219,7 @@ class ChatBackupRestorer {
           throw ChatRestoreException(
             'parse',
             'The import contains a message whose conversation is missing '
-            '(${message.id} -> ${message.conversationId}).',
+                '(${message.id} -> ${message.conversationId}).',
           );
         }
         if (!messageIds.add(message.id)) {
@@ -248,9 +254,7 @@ class ChatBackupRestorer {
           'The backup contains an invalid conversation entry.',
         );
       }
-      final conversation = Conversation.fromJson(
-        entry.cast<String, dynamic>(),
-      );
+      final conversation = Conversation.fromJson(entry.cast<String, dynamic>());
       if (!conversationIds.add(conversation.id)) {
         throw ChatRestoreException(
           'parse',
@@ -285,7 +289,7 @@ class ChatBackupRestorer {
           throw ChatRestoreException(
             'parse',
             'The backup contains a message whose conversation is missing '
-            '(${message.id} -> ${message.conversationId}).',
+                '(${message.id} -> ${message.conversationId}).',
           );
         }
         if (!messageIds.add(message.id)) {
@@ -375,9 +379,7 @@ class ChatBackupRestorer {
         for (final record in value) {
           if (record is! Map) continue;
           try {
-            records.add(
-              FileRecord.fromJson(Map<String, dynamic>.from(record)),
-            );
+            records.add(FileRecord.fromJson(Map<String, dynamic>.from(record)));
           } catch (_) {
             // A malformed optional record must not block the chat rows.
           }
@@ -497,7 +499,7 @@ class ChatBackupRestorer {
       }
 
       counts = await repository.counts();
-      verifyCounts(counts, payload);
+      await verifyCounts(counts, payload, repository);
       await db.checkpointAndTruncate();
     } catch (error) {
       failure = error;
@@ -532,7 +534,17 @@ class ChatBackupRestorer {
   }
 
   /// Verifies the staged row counts against the parsed payload.
-  void verifyCounts(ChatStorageCounts actual, ChatBackupPayload payload) {
+  Future<void> verifyCounts(
+    ChatStorageCounts actual,
+    ChatBackupPayload payload,
+    ChatRepository repository,
+  ) async {
+    final signatureArtifacts = await repository.countProviderArtifactsOfKind(
+      kGeminiThoughtSignatureKind,
+    );
+    final usageArtifacts = await repository.countProviderArtifactsOfKind(
+      kOpenCodeUsageKind,
+    );
     final mismatches = <String>[];
     if (actual.conversations != payload.conversations.length) {
       mismatches.add(
@@ -545,10 +557,13 @@ class ChatBackupRestorer {
     if (actual.parts != payload.partCount) {
       mismatches.add('tool parts ${actual.parts}/${payload.partCount}');
     }
-    if (actual.providerArtifacts != payload.signatureCount) {
+    if (signatureArtifacts != payload.signatureCount) {
       mismatches.add(
-        'signatures ${actual.providerArtifacts}/${payload.signatureCount}',
+        'signatures $signatureArtifacts/${payload.signatureCount}',
       );
+    }
+    if (usageArtifacts != payload.usageCount) {
+      mismatches.add('opencode usage $usageArtifacts/${payload.usageCount}');
     }
     if (actual.fileRecords != payload.fileRecordCount) {
       mismatches.add(
@@ -568,7 +583,7 @@ class ChatBackupRestorer {
       throw ChatRestoreException(
         'verify',
         'The restored row counts do not match the backup: '
-        '${mismatches.join(', ')}.',
+            '${mismatches.join(', ')}.',
       );
     }
   }

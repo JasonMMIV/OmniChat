@@ -5969,4 +5969,49 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get openCodeErrorProtocolUnsupported =>
       'This model does not support the current API protocol. Try enabling the Responses API.';
+
+  @override
+  String get messageUsageTitle => 'Usage & cost';
+
+  @override
+  String get messageUsageTokens => 'Tokens';
+
+  @override
+  String get messageUsageCostSection => 'Cost';
+
+  @override
+  String get messageUsageFree => 'Free';
+
+  @override
+  String get messageUsageAllowance => 'Go allowance';
+
+  @override
+  String get messageUsageListCost => 'List price';
+
+  @override
+  String get messageUsageCost => 'Charged';
+
+  @override
+  String get messageUsageEstimated => 'Estimated';
+
+  @override
+  String get messageUsageBillingSource => 'Billing';
+
+  @override
+  String get messageUsageInputTokens => 'Input';
+
+  @override
+  String get messageUsageOutputTokens => 'Output';
+
+  @override
+  String get messageUsageReasoningTokens => 'Reasoning';
+
+  @override
+  String get messageUsageCacheReadTokens => 'Cache read';
+
+  @override
+  String get messageUsageCacheWrite5mTokens => 'Cache write 5m';
+
+  @override
+  String get messageUsageCacheWrite1hTokens => 'Cache write 1h';
 }

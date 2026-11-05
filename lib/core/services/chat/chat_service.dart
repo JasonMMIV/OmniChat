@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import '../../../utils/app_directories.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../models/chat_message.dart';
+import '../../models/message_usage.dart';
 import '../../models/conversation.dart';
 import '../../models/file_record.dart';
 import '../../models/workspace_config.dart';
@@ -805,6 +806,7 @@ class ChatService extends ChangeNotifier {
     String? translation,
     String? reasoningSegmentsJson,
     String? aiTeamProposalsJson,
+    MessageUsage? usageMeta,
   }) async {
     if (!_initialized) return;
     await _storage!.updateMessage(
@@ -823,6 +825,7 @@ class ChatService extends ChangeNotifier {
       translation: translation,
       reasoningSegmentsJson: reasoningSegmentsJson,
       aiTeamProposalsJson: aiTeamProposalsJson,
+      usageMeta: usageMeta,
     );
     notifyListeners();
   }
@@ -844,6 +847,7 @@ class ChatService extends ChangeNotifier {
     String? translation,
     String? reasoningSegmentsJson,
     String? aiTeamProposalsJson,
+    MessageUsage? usageMeta,
   }) async {
     if (!_initialized) return;
     await _storage!.updateMessage(
@@ -862,6 +866,7 @@ class ChatService extends ChangeNotifier {
       translation: translation,
       reasoningSegmentsJson: reasoningSegmentsJson,
       aiTeamProposalsJson: aiTeamProposalsJson,
+      usageMeta: usageMeta,
     );
     // NOTE: deliberately no notifyListeners() during streaming.
   }
@@ -1134,6 +1139,23 @@ class ChatService extends ChangeNotifier {
     await _storage!.removeGeminiThoughtSignature(assistantMessageId);
   }
 
+  MessageUsage? getOpenCodeUsage(String messageId) {
+    if (!_initialized) return null;
+    return _storage!.getOpenCodeUsage(messageId);
+  }
+
+  Future<void> setOpenCodeUsage(String messageId, MessageUsage usage) async {
+    if (!_initialized) await init();
+    await _storage!.setOpenCodeUsage(messageId, usage);
+    notifyListeners();
+  }
+
+  Future<void> removeOpenCodeUsage(String messageId) async {
+    if (!_initialized) await init();
+    await _storage!.removeOpenCodeUsage(messageId);
+    notifyListeners();
+  }
+
   // ---------------------------------------------------------------------------
   // File records / workspace
   // ---------------------------------------------------------------------------
@@ -1347,7 +1369,6 @@ class ChatService extends ChangeNotifier {
     }
   }
 
-
   /// Serializes a restore with [init] and the recovery overlay's Retry.
   bool get restoringBackup => _restoreFuture != null;
 
@@ -1359,15 +1380,14 @@ class ChatService extends ChangeNotifier {
     bool includeFiles = false,
     bool restoreSettings = false,
     void Function(String stage)? onStage,
-  }) =>
-      _enqueueRestore(
-        () => _runRestore(
-          archive,
-          includeFiles: includeFiles,
-          restoreSettings: restoreSettings,
-          onStage: onStage,
-        ),
-      );
+  }) => _enqueueRestore(
+    () => _runRestore(
+      archive,
+      includeFiles: includeFiles,
+      restoreSettings: restoreSettings,
+      onStage: onStage,
+    ),
+  );
 
   /// Transactional replacement of the chat database with an in-memory payload
   /// (third-party import overwrite path, plan §3 Phase 1c). Attachments may be
@@ -1379,18 +1399,17 @@ class ChatService extends ChangeNotifier {
     Map<String, RestoreJournalEntry> stagedFiles =
         const <String, RestoreJournalEntry>{},
     void Function(String stage)? onStage,
-  }) =>
-      _enqueueRestore(
-        () => _runRestore(
-          null,
-          payloadOverride: payload,
-          restoreIdOverride: restoreId,
-          stagedFilesOverride: stagedFiles,
-          includeFiles: false,
-          restoreSettings: false,
-          onStage: onStage,
-        ),
-      );
+  }) => _enqueueRestore(
+    () => _runRestore(
+      null,
+      payloadOverride: payload,
+      restoreIdOverride: restoreId,
+      stagedFilesOverride: stagedFiles,
+      includeFiles: false,
+      restoreSettings: false,
+      onStage: onStage,
+    ),
+  );
 
   /// Serializes restore operations with [init] and the recovery overlay's
   /// Retry: a concurrent init()/overlay Retry joins this future instead of
@@ -1485,7 +1504,7 @@ class ChatService extends ChangeNotifier {
         throw const ChatRestoreException(
           'preflight',
           'A previous restore is unfinished. Restart the app so it can be '
-          'completed or rolled back.',
+              'completed or rolled back.',
         );
       }
       final publisher = DatabaseFamilyPublisher(files, appVersion: appVersion);
@@ -1596,7 +1615,7 @@ class ChatService extends ChangeNotifier {
           throw ChatRestoreException(
             'publish',
             '${outcome.error ?? 'The restored database could not be published.'} '
-            'The restore journal was kept for the next startup.',
+                'The restore journal was kept for the next startup.',
           );
         }
         final recovered = await probeDatabase(files.database);
@@ -1629,8 +1648,9 @@ class ChatService extends ChangeNotifier {
         preservedPath = preserved.path;
         preservedDatabaseId = preserved.databaseId;
       } else if (preservedDatabaseId == null) {
-        preservedDatabaseId =
-            (await probeDatabase(File(preservedPath))).databaseId;
+        preservedDatabaseId = (await probeDatabase(
+          File(preservedPath),
+        )).databaseId;
       }
       try {
         await journal.notePublished(
@@ -1669,7 +1689,11 @@ class ChatService extends ChangeNotifier {
       // Keep the pre-transactional restore contract: a caller may read the
       // restored messages immediately after this method returns.
       await storage.ensureAllMessagesLoaded();
-      restorer.verifyCounts(await storage.repository.counts(), payload);
+      await restorer.verifyCounts(
+        await storage.repository.counts(),
+        payload,
+        storage.repository,
+      );
       await journal.updateStage(RestoreJournal.stageLiveVerified);
 
       if (restoreSettings && payload.settings != null) {
@@ -1849,11 +1873,7 @@ class ChatService extends ChangeNotifier {
         tag: 'backup-restore',
       );
       if (error is ChatRestoreException) rethrow;
-      throw ChatRestoreException(
-        failureStage,
-        error.toString(),
-        cause: error,
-      );
+      throw ChatRestoreException(failureStage, error.toString(), cause: error);
     } finally {
       await lock.release();
     }

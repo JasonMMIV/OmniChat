@@ -1,5 +1,9 @@
+import 'dart:convert';
+
 import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
+
+import 'message_usage.dart';
 
 part 'chat_message.g.dart';
 
@@ -45,7 +49,7 @@ class ChatMessage extends HiveObject {
   // Translation field for translated content
   @HiveField(12)
   final String? translation;
-  
+
   // JSON encoded reasoning segments for multiple reasoning blocks
   @HiveField(13)
   final String? reasoningSegmentsJson;
@@ -90,6 +94,13 @@ class ChatMessage extends HiveObject {
   @HiveField(21)
   final DateTime? processStartedAt;
 
+  /// OpenCode cost/billing telemetry serialized as JSON. SQLite stores this
+  /// sidecar in `provider_artifacts`; Hive and backup JSON carry it directly.
+  @HiveField(22)
+  final String? usageMetaJson;
+
+  MessageUsage? get usageMeta => MessageUsage.tryParse(usageMetaJson);
+
   ChatMessage({
     String? id,
     required this.role,
@@ -113,10 +124,11 @@ class ChatMessage extends HiveObject {
     this.cachedTokens,
     this.processFinishedAt,
     this.processStartedAt,
-  })  : id = id ?? const Uuid().v4(),
-        timestamp = timestamp ?? DateTime.now(),
-        groupId = groupId ?? id,
-        version = version ?? 0;
+    this.usageMetaJson,
+  }) : id = id ?? const Uuid().v4(),
+       timestamp = timestamp ?? DateTime.now(),
+       groupId = groupId ?? id,
+       version = version ?? 0;
 
   ChatMessage copyWith({
     String? id,
@@ -141,6 +153,7 @@ class ChatMessage extends HiveObject {
     int? cachedTokens,
     DateTime? processFinishedAt,
     DateTime? processStartedAt,
+    Object? usageMetaJson = _unsetUsageMeta,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -156,7 +169,8 @@ class ChatMessage extends HiveObject {
       reasoningStartAt: reasoningStartAt ?? this.reasoningStartAt,
       reasoningFinishedAt: reasoningFinishedAt ?? this.reasoningFinishedAt,
       translation: translation ?? this.translation,
-      reasoningSegmentsJson: reasoningSegmentsJson ?? this.reasoningSegmentsJson,
+      reasoningSegmentsJson:
+          reasoningSegmentsJson ?? this.reasoningSegmentsJson,
       groupId: groupId ?? this.groupId,
       version: version ?? this.version,
       aiTeamProposalsJson: aiTeamProposalsJson ?? this.aiTeamProposalsJson,
@@ -165,6 +179,9 @@ class ChatMessage extends HiveObject {
       cachedTokens: cachedTokens ?? this.cachedTokens,
       processFinishedAt: processFinishedAt ?? this.processFinishedAt,
       processStartedAt: processStartedAt ?? this.processStartedAt,
+      usageMetaJson: identical(usageMetaJson, _unsetUsageMeta)
+          ? this.usageMetaJson
+          : usageMetaJson as String?,
     );
   }
 
@@ -192,6 +209,7 @@ class ChatMessage extends HiveObject {
       'cachedTokens': cachedTokens,
       'processFinishedAt': processFinishedAt?.toIso8601String(),
       'processStartedAt': processStartedAt?.toIso8601String(),
+      'usageMeta': usageMeta?.toJson(),
     };
   }
 
@@ -227,6 +245,16 @@ class ChatMessage extends HiveObject {
       processStartedAt: json['processStartedAt'] != null
           ? DateTime.parse(json['processStartedAt'] as String)
           : null,
+      usageMetaJson: _encodeUsageMeta(json['usageMeta']),
     );
   }
+}
+
+const Object _unsetUsageMeta = Object();
+
+String? _encodeUsageMeta(dynamic value) {
+  if (value == null) return null;
+  if (value is String) return value.trim().isEmpty ? null : value;
+  if (value is Map) return jsonEncode(value);
+  return null;
 }

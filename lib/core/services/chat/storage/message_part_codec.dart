@@ -6,6 +6,11 @@ const String kToolPartKind = 'tool';
 /// `provider_artifacts.kind` for the Gemini thought signature of a message.
 const String kGeminiThoughtSignatureKind = 'gemini_thought_signature';
 
+/// `provider_artifacts.kind` for OpenCode cost/billing telemetry. This keeps
+/// costs out of the schema-v1 `messages` table while preserving them in the
+/// existing artifact side table.
+const String kOpenCodeUsageKind = 'opencode_usage_v1';
+
 /// Closed approval-state set (`message_parts.approval_state`). Unknown/null
 /// values are normalized to [kApprovalAuto].
 const String kApprovalAuto = 'auto';

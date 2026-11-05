@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import '../../../models/chat_message.dart';
 import '../../../models/conversation.dart';
+import '../../../models/message_usage.dart';
 import '../../../models/file_record.dart';
 import '../../../models/workspace_config.dart';
 import 'app_database.dart';
@@ -48,6 +50,7 @@ class SqliteChatStorage extends ChatStorage {
   final Map<String, WorkspaceConfig> _workspaceConfigs =
       <String, WorkspaceConfig>{};
   final Map<String, String> _signatures = <String, String>{};
+  final Map<String, MessageUsage> _openCodeUsage = <String, MessageUsage>{};
   final Map<String, List<Map<String, dynamic>>> _toolEvents =
       <String, List<Map<String, dynamic>>>{};
   final Set<String> _loadedToolEventMessages = <String>{};
@@ -203,6 +206,28 @@ class SqliteChatStorage extends ChatStorage {
       _signatures[assistantMessageId];
 
   @override
+  MessageUsage? getOpenCodeUsage(String messageId) =>
+      _openCodeUsage[messageId] ?? _messageById[messageId]?.usageMeta;
+
+  @override
+  Future<void> setOpenCodeUsage(String messageId, MessageUsage usage) async {
+    await _repo.setProviderArtifact(
+      messageId,
+      kOpenCodeUsageKind,
+      jsonEncode(usage.toJson()),
+    );
+    _openCodeUsage[messageId] = usage;
+    _applyUsageToCache(messageId, usage);
+  }
+
+  @override
+  Future<void> removeOpenCodeUsage(String messageId) async {
+    await _repo.deleteProviderArtifact(messageId, kOpenCodeUsageKind);
+    _openCodeUsage.remove(messageId);
+    _applyUsageToCache(messageId, null);
+  }
+
+  @override
   List<FileRecord> getFileRecords(String messageId) =>
       _fileRecords[messageId] ?? const <FileRecord>[];
 
@@ -261,8 +286,9 @@ class SqliteChatStorage extends ChatStorage {
       _loadedMessageConversations.add(conversationId);
     }
     for (final message in messages) {
-      (_messages[message.conversationId] ??= <ChatMessage>[]).add(message);
-      _messageById[message.id] = message;
+      final decorated = _decorateUsage(message);
+      (_messages[message.conversationId] ??= <ChatMessage>[]).add(decorated);
+      _messageById[message.id] = decorated;
     }
   }
 
@@ -419,6 +445,12 @@ class SqliteChatStorage extends ChatStorage {
     bool touchConversation = true,
   }) async {
     await _repo.appendMessage(message, touchConversation: touchConversation);
+    final usage = message.usageMeta;
+    if (usage != null) {
+      _openCodeUsage[message.id] = usage;
+    } else {
+      _openCodeUsage.remove(message.id);
+    }
     final list = _messages[message.conversationId];
     if (list != null && !list.any((m) => m.id == message.id)) {
       list.add(message);
@@ -458,6 +490,12 @@ class SqliteChatStorage extends ChatStorage {
     ChatMessage message,
   ) async {
     await _repo.appendMessage(message, touchConversation: false);
+    final usage = message.usageMeta;
+    if (usage != null) {
+      _openCodeUsage[message.id] = usage;
+    } else {
+      _openCodeUsage.remove(message.id);
+    }
     final list = _messages[conversationId];
     if (list != null && !list.any((m) => m.id == message.id)) {
       list.add(message);
@@ -491,17 +529,27 @@ class SqliteChatStorage extends ChatStorage {
         _loadedSummaryMessages.remove(message.id);
         _fileRecords.remove(message.id);
         _signatures.remove(message.id);
+        _openCodeUsage.remove(message.id);
       }
     }
     _conversations[conversation.id] =
         await _repo.getConversation(conversation.id) ??
         conversation.copyWith(messageIds: messages.map((m) => m.id).toList());
-    _messages[conversation.id] = List.of(messages);
     _loadedMessageConversations.add(conversation.id);
+    final decorated = <ChatMessage>[];
     for (final message in messages) {
-      _messageById[message.id] = message;
+      final usage = message.usageMeta;
+      if (usage == null) {
+        _openCodeUsage.remove(message.id);
+      } else {
+        _openCodeUsage[message.id] = usage;
+      }
+      final next = _decorateUsage(message);
+      decorated.add(next);
+      _messageById[message.id] = next;
       _loadedToolEventMessages.remove(message.id);
     }
+    _messages[conversation.id] = decorated;
   }
 
   @override
@@ -521,6 +569,7 @@ class SqliteChatStorage extends ChatStorage {
     String? translation,
     String? reasoningSegmentsJson,
     String? aiTeamProposalsJson,
+    MessageUsage? usageMeta,
   }) async {
     await _repo.updateMessage(
       messageId,
@@ -539,6 +588,15 @@ class SqliteChatStorage extends ChatStorage {
       reasoningSegmentsJson: reasoningSegmentsJson,
       aiTeamProposalsJson: aiTeamProposalsJson,
     );
+
+    if (usageMeta != null) {
+      await _repo.setProviderArtifact(
+        messageId,
+        kOpenCodeUsageKind,
+        jsonEncode(usageMeta.toJson()),
+      );
+      _openCodeUsage[messageId] = usageMeta;
+    }
 
     final cached = _messageById[messageId];
     if (cached != null) {
@@ -564,6 +622,9 @@ class SqliteChatStorage extends ChatStorage {
               reasoningSegmentsJson ?? message.reasoningSegmentsJson,
           aiTeamProposalsJson:
               aiTeamProposalsJson ?? message.aiTeamProposalsJson,
+          usageMetaJson: usageMeta == null
+              ? message.usageMetaJson
+              : jsonEncode(usageMeta.toJson()),
         );
         _messageById[messageId] = messages[index];
       }
@@ -797,9 +858,18 @@ class SqliteChatStorage extends ChatStorage {
       versionSelections: versionSelections,
     );
     _conversations[conversation.id] = conversation;
+    _openCodeUsage.addAll(
+      _parseUsageArtifacts(
+        await _repo.allProviderArtifactsOfKind(kOpenCodeUsageKind),
+      ),
+    );
     final cloned = await _repo.getMessages(conversation.id);
-    _messages[conversation.id] = cloned;
+    final decorated = <ChatMessage>[];
     for (final message in cloned) {
+      decorated.add(_decorateUsage(message));
+    }
+    _messages[conversation.id] = decorated;
+    for (final message in decorated) {
       _messageById[message.id] = message;
     }
 
@@ -900,6 +970,7 @@ class SqliteChatStorage extends ChatStorage {
     _fileRecords.clear();
     _workspaceConfigs.clear();
     _signatures.clear();
+    _openCodeUsage.clear();
     _toolEvents.clear();
     _loadedToolEventMessages.clear();
     _toolSummaries.clear();
@@ -915,13 +986,53 @@ class SqliteChatStorage extends ChatStorage {
     _signatures.addAll(
       await _repo.allProviderArtifactsOfKind(kGeminiThoughtSignatureKind),
     );
+    _openCodeUsage.addAll(
+      _parseUsageArtifacts(
+        await _repo.allProviderArtifactsOfKind(kOpenCodeUsageKind),
+      ),
+    );
+  }
+
+  ChatMessage _decorateUsage(ChatMessage message) {
+    final usage = message.usageMeta ?? _openCodeUsage[message.id];
+    if (usage == null) return message;
+    return message.copyWith(usageMetaJson: jsonEncode(usage.toJson()));
+  }
+
+  Map<String, MessageUsage> _parseUsageArtifacts(Map<String, String> raw) {
+    final parsed = <String, MessageUsage>{};
+    for (final entry in raw.entries) {
+      final usage = MessageUsage.tryParse(entry.value);
+      if (usage != null) parsed[entry.key] = usage;
+    }
+    return parsed;
+  }
+
+  void _applyUsageToCache(String messageId, MessageUsage? usage) {
+    final cached = _messageById[messageId];
+    if (cached == null) return;
+    final updated = cached.copyWith(
+      usageMetaJson: usage == null ? null : jsonEncode(usage.toJson()),
+    );
+    _messageById[messageId] = updated;
+    final messages = _messages[cached.conversationId];
+    final index = messages?.indexWhere((m) => m.id == messageId) ?? -1;
+    if (messages != null && index >= 0) {
+      messages[index] = updated;
+    }
   }
 
   Future<void> _reloadConversation(String conversationId) async {
     final conversation = await _repo.getConversation(conversationId);
     if (conversation == null) {
+      final previous = _messages.remove(conversationId);
+      if (previous != null) {
+        for (final message in previous) {
+          _openCodeUsage.remove(message.id);
+        }
+      }
+      _loadedMessageConversations.remove(conversationId);
       _conversations.remove(conversationId);
-      _messages.remove(conversationId);
       return;
     }
     _conversations[conversationId] = conversation;
@@ -942,9 +1053,25 @@ class SqliteChatStorage extends ChatStorage {
       }
     }
     final messages = await _repo.getMessages(conversationId);
-    _messages[conversationId] = messages;
-    _loadedMessageConversations.add(conversationId);
+    // Drop usage entries only for rows that genuinely disappeared from this
+    // conversation. The artifact map is also the source for decorating the
+    // freshly loaded messages, so purging every previous id here would erase
+    // cost after any reload of an already-loaded conversation.
+    if (previous != null) {
+      final currentIds = messages.map((m) => m.id).toSet();
+      for (final message in previous) {
+        if (!currentIds.contains(message.id)) {
+          _openCodeUsage.remove(message.id);
+        }
+      }
+    }
+    final decorated = <ChatMessage>[];
     for (final message in messages) {
+      decorated.add(_decorateUsage(message));
+    }
+    _messages[conversationId] = decorated;
+    _loadedMessageConversations.add(conversationId);
+    for (final message in decorated) {
       _messageById[message.id] = message;
     }
     final conversation = await _repo.getConversation(conversationId);

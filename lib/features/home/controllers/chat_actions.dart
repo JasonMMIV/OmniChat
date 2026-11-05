@@ -418,25 +418,28 @@ class ChatActions {
         webFetchSource: parts[pIdx].webFetchSource,
       );
       streamController.toolParts[assistantMessageId] = parts;
-      streamController.streamingContentNotifier
-          .notifyToolPartsUpdated(assistantMessageId);
+      streamController.streamingContentNotifier.notifyToolPartsUpdated(
+        assistantMessageId,
+      );
     }
 
     // 3. Continue with a new assistant message (kelivo semantics: the
     // answered tool result replays into the next turn's context).
     final assistantMessage = await messageGenerationService
         .createAssistantPlaceholder(
-      conversationId: conversationId,
-      modelId: modelConfig.modelId!,
-      providerKey: modelConfig.providerKey!,
-    );
+          conversationId: conversationId,
+          modelId: modelConfig.modelId!,
+          providerKey: modelConfig.providerKey!,
+        );
     streamController.markStreamingStarted(assistantMessage.id);
     _messages.add(assistantMessage);
     onMessagesChanged?.call();
     _setConversationLoading(conversationId, true);
 
-    final supportsReasoning =
-        _isReasoningModel(modelConfig.providerKey!, modelConfig.modelId!);
+    final supportsReasoning = _isReasoningModel(
+      modelConfig.providerKey!,
+      modelConfig.modelId!,
+    );
     final enableReasoning =
         supportsReasoning &&
         _isReasoningEnabled(
@@ -449,16 +452,16 @@ class ChatActions {
 
     final prepared = await messageGenerationService
         .prepareApiMessagesWithInjections(
-      messages: _messages,
-      assistantMessageId: assistantMessage.id,
-      versionSelections: _versionSelections,
-      currentConversation: conv,
-      settings: settings,
-      assistant: assistant,
-      assistantId: assistant?.id,
-      providerKey: modelConfig.providerKey!,
-      modelId: modelConfig.modelId!,
-    );
+          messages: _messages,
+          assistantMessageId: assistantMessage.id,
+          versionSelections: _versionSelections,
+          currentConversation: conv,
+          settings: settings,
+          assistant: assistant,
+          assistantId: assistant?.id,
+          providerKey: modelConfig.providerKey!,
+          modelId: modelConfig.modelId!,
+        );
 
     final userImagePaths = messageGenerationService.buildUserImagePaths(
       input: null,
@@ -596,13 +599,15 @@ class ChatActions {
       conversationId: conversationId,
       messageId: assistantMessageId,
       workspacePath: await _workspacePathFor(conv),
-      approvedResolvedPath: (outsideWorkspace && (approvedPath ?? '').isNotEmpty)
+      approvedResolvedPath:
+          (outsideWorkspace && (approvedPath ?? '').isNotEmpty)
           ? approvedPath
           : null,
     );
     String result;
     try {
-      result = await handler?.call(name, args) ??
+      result =
+          await handler?.call(name, args) ??
           jsonEncode(<String, dynamic>{
             'type': 'tool_error',
             'error': 'execution_error',
@@ -648,17 +653,19 @@ class ChatActions {
     }
     final assistantMessage = await messageGenerationService
         .createAssistantPlaceholder(
-      conversationId: conv.id,
-      modelId: modelConfig.modelId!,
-      providerKey: modelConfig.providerKey!,
-    );
+          conversationId: conv.id,
+          modelId: modelConfig.modelId!,
+          providerKey: modelConfig.providerKey!,
+        );
     streamController.markStreamingStarted(assistantMessage.id);
     _messages.add(assistantMessage);
     onMessagesChanged?.call();
     _setConversationLoading(conv.id, true);
 
-    final supportsReasoning =
-        _isReasoningModel(modelConfig.providerKey!, modelConfig.modelId!);
+    final supportsReasoning = _isReasoningModel(
+      modelConfig.providerKey!,
+      modelConfig.modelId!,
+    );
     final enableReasoning =
         supportsReasoning &&
         _isReasoningEnabled(
@@ -671,16 +678,16 @@ class ChatActions {
 
     final prepared = await messageGenerationService
         .prepareApiMessagesWithInjections(
-      messages: _messages,
-      assistantMessageId: assistantMessage.id,
-      versionSelections: _versionSelections,
-      currentConversation: conv,
-      settings: settings,
-      assistant: assistant,
-      assistantId: assistant?.id,
-      providerKey: modelConfig.providerKey!,
-      modelId: modelConfig.modelId!,
-    );
+          messages: _messages,
+          assistantMessageId: assistantMessage.id,
+          versionSelections: _versionSelections,
+          currentConversation: conv,
+          settings: settings,
+          assistant: assistant,
+          assistantId: assistant?.id,
+          providerKey: modelConfig.providerKey!,
+          modelId: modelConfig.modelId!,
+        );
 
     final userImagePaths = messageGenerationService.buildUserImagePaths(
       input: null,
@@ -729,8 +736,7 @@ class ChatActions {
       webFetchSource: parts[idx].webFetchSource,
     );
     streamController.toolParts[messageId] = parts;
-    streamController.streamingContentNotifier
-        .notifyToolPartsUpdated(messageId);
+    streamController.streamingContentNotifier.notifyToolPartsUpdated(messageId);
   }
 
   Assistant? _assistantForConversation(Conversation conv) {
@@ -1043,6 +1049,7 @@ class ChatActions {
 
       // R3: persist pending AI Team proposals during aggregator phase
       final pendingProposals = _aiTeamPendingProposals.remove(streaming.id);
+      final usageMeta = streaming.usageMeta;
 
       await chatService.updateMessage(
         streaming.id,
@@ -1050,6 +1057,7 @@ class ChatActions {
         isStreaming: false,
         totalTokens: streaming.totalTokens,
         aiTeamProposalsJson: pendingProposals,
+        usageMeta: usageMeta,
       );
 
       final idx = _messages.indexWhere((m) => m.id == streaming!.id);
@@ -1058,6 +1066,9 @@ class ChatActions {
           isStreaming: false,
           totalTokens: streaming.totalTokens,
           aiTeamProposalsJson: pendingProposals,
+          usageMetaJson: usageMeta == null
+              ? _messages[idx].usageMetaJson
+              : jsonEncode(usageMeta.toJson()),
         );
         onMessagesChanged?.call();
       }
@@ -1193,7 +1204,9 @@ class ChatActions {
     // Dispatch on the pause kind: an approval pending resolves through the
     // approval path; an ask_user pending resolves through the answer path.
     // A bare resume (no toolCallId) just continues generation.
-    if (toolCallId != null && assistantMessageId != null && answerPayload != null) {
+    if (toolCallId != null &&
+        assistantMessageId != null &&
+        answerPayload != null) {
       final event = _toolEvent(assistantMessageId, toolCallId);
       final content = event?['content']?.toString();
       final isAskUser =
@@ -2161,6 +2174,15 @@ class ChatActions {
     if (chunk.usage != null) {
       state.usage = (state.usage ?? const TokenUsage()).merge(chunk.usage!);
       state.totalTokens = state.usage!.totalTokens;
+      final usageMeta = chunk.usage!.toMessageUsage();
+      if (usageMeta != null) {
+        final index = _messages.indexWhere((m) => m.id == state.messageId);
+        if (index != -1) {
+          _messages[index] = _messages[index].copyWith(
+            usageMetaJson: jsonEncode(usageMeta.toJson()),
+          );
+        }
+      }
     }
 
     String streamingProcessed = _transformAssistantContent(state);
@@ -2285,6 +2307,15 @@ class ChatActions {
     if (chunk.usage != null) {
       state.usage = (state.usage ?? const TokenUsage()).merge(chunk.usage!);
       state.totalTokens = state.usage!.totalTokens;
+      final usageMeta = chunk.usage!.toMessageUsage();
+      if (usageMeta != null) {
+        final index = _messages.indexWhere((m) => m.id == state.messageId);
+        if (index != -1) {
+          _messages[index] = _messages[index].copyWith(
+            usageMetaJson: jsonEncode(usageMeta.toJson()),
+          );
+        }
+      }
     }
 
     await _finishStreaming(state);
@@ -2368,9 +2399,9 @@ class ChatActions {
       final l10n = AppLocalizations.of(contextProvider);
       final note = softStop == 'max_steps'
           ? (l10n?.softStopMaxStepsNote ??
-              'The run reached its step limit and stopped; send a message to continue.')
+                'The run reached its step limit and stopped; send a message to continue.')
           : (l10n?.softStopTokenBudgetNote ??
-              'The run reached its token budget and stopped; send a message to continue.');
+                'The run reached its token budget and stopped; send a message to continue.');
       if (sanitizedContent.isNotEmpty) {
         sanitizedContent = '$sanitizedContent\n\n$note';
       } else {
@@ -2379,6 +2410,7 @@ class ChatActions {
     }
     // Extract pending AI Team proposals for persistence
     final pendingProposals = _aiTeamPendingProposals.remove(messageId);
+    final usageMeta = state.usage?.toMessageUsage();
     await chatService.updateMessage(
       messageId,
       content: sanitizedContent,
@@ -2388,6 +2420,7 @@ class ChatActions {
       cachedTokens: state.usage?.cachedTokens,
       isStreaming: false,
       aiTeamProposalsJson: pendingProposals,
+      usageMeta: usageMeta,
     );
 
     final index = _messages.indexWhere((m) => m.id == messageId);
@@ -2400,6 +2433,9 @@ class ChatActions {
         cachedTokens: state.usage?.cachedTokens,
         isStreaming: false,
         aiTeamProposalsJson: pendingProposals,
+        usageMetaJson: usageMeta == null
+            ? _messages[index].usageMetaJson
+            : jsonEncode(usageMeta.toJson()),
       );
       onMessagesChanged?.call();
     }
@@ -2530,12 +2566,14 @@ class ChatActions {
 
     // R2: Persist pending AI Team proposals on error
     final pendingProposals = _aiTeamPendingProposals.remove(messageId);
+    final usageMeta = state.usage?.toMessageUsage();
     await chatService.updateMessage(
       messageId,
       content: displayContent,
       totalTokens: state.totalTokens,
       isStreaming: false,
       aiTeamProposalsJson: pendingProposals,
+      usageMeta: usageMeta,
     );
 
     final index = _messages.indexWhere((m) => m.id == messageId);
@@ -2545,6 +2583,9 @@ class ChatActions {
         isStreaming: false,
         totalTokens: state.totalTokens,
         aiTeamProposalsJson: pendingProposals,
+        usageMetaJson: usageMeta == null
+            ? _messages[index].usageMetaJson
+            : jsonEncode(usageMeta.toJson()),
       );
       onMessagesChanged?.call();
     }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:intl/intl.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/models/chat_message.dart';
@@ -21,10 +22,14 @@ import '../../../shared/pages/webview_page.dart';
 import '../../../desktop/html_preview_dialog.dart';
 import 'dart:convert';
 
-enum MessageMoreAction { edit, fork, delete, share }
+enum MessageMoreAction { edit, fork, delete, share, usage }
 
-Future<MessageMoreAction?> showMessageMoreSheet(BuildContext context, ChatMessage message) async {
-  final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+Future<MessageMoreAction?> showMessageMoreSheet(
+  BuildContext context,
+  ChatMessage message,
+) async {
+  final isDesktop =
+      defaultTargetPlatform == TargetPlatform.macOS ||
       defaultTargetPlatform == TargetPlatform.windows ||
       defaultTargetPlatform == TargetPlatform.linux;
   if (!isDesktop) {
@@ -36,7 +41,8 @@ Future<MessageMoreAction?> showMessageMoreSheet(BuildContext context, ChatMessag
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => _MessageMoreSheet(message: message, parentContext: context),
+      builder: (ctx) =>
+          _MessageMoreSheet(message: message, parentContext: context),
     );
   }
 
@@ -57,6 +63,14 @@ Future<MessageMoreAction?> showMessageMoreSheet(BuildContext context, ChatMessag
           });
         },
       ),
+      if (message.usageMeta != null)
+        DesktopContextMenuItem(
+          icon: Lucide.Activity,
+          label: l10n.messageUsageTitle,
+          onTap: () {
+            selected = MessageMoreAction.usage;
+          },
+        ),
       DesktopContextMenuItem(
         icon: Lucide.BookOpenText,
         label: l10n.messageMoreSheetRenderWebView,
@@ -64,8 +78,12 @@ Future<MessageMoreAction?> showMessageMoreSheet(BuildContext context, ChatMessag
           try {
             final raw = message.content.trim();
             if (raw.isEmpty) return;
-            final processed = await MarkdownMediaSanitizer.inlineLocalImagesToBase64(raw);
-            final html = await MarkdownPreviewHtmlBuilder.buildFromMarkdown(context, processed);
+            final processed =
+                await MarkdownMediaSanitizer.inlineLocalImagesToBase64(raw);
+            final html = await MarkdownPreviewHtmlBuilder.buildFromMarkdown(
+              context,
+              processed,
+            );
             // After menu close, open as desktop dialog
             Future.delayed(const Duration(milliseconds: 40), () {
               showHtmlPreviewDesktopDialog(
@@ -75,7 +93,11 @@ Future<MessageMoreAction?> showMessageMoreSheet(BuildContext context, ChatMessag
               );
             });
           } catch (e) {
-            showAppSnackBar(context, message: e.toString(), type: NotificationType.error);
+            showAppSnackBar(
+              context,
+              message: e.toString(),
+              type: NotificationType.error,
+            );
           }
         },
       ),
@@ -83,29 +105,36 @@ Future<MessageMoreAction?> showMessageMoreSheet(BuildContext context, ChatMessag
         DesktopContextMenuItem(
           icon: Lucide.Pencil,
           label: l10n.messageMoreSheetEdit,
-          onTap: () { selected = MessageMoreAction.edit; },
+          onTap: () {
+            selected = MessageMoreAction.edit;
+          },
         ),
       DesktopContextMenuItem(
         icon: Lucide.Share,
         label: l10n.messageMoreSheetShare,
-        onTap: () { selected = MessageMoreAction.share; },
+        onTap: () {
+          selected = MessageMoreAction.share;
+        },
       ),
       DesktopContextMenuItem(
         icon: Lucide.GitFork,
         label: l10n.messageMoreSheetCreateBranch,
-        onTap: () { selected = MessageMoreAction.fork; },
+        onTap: () {
+          selected = MessageMoreAction.fork;
+        },
       ),
       DesktopContextMenuItem(
         icon: Lucide.Trash2,
         label: l10n.messageMoreSheetDelete,
         danger: true,
-        onTap: () { selected = MessageMoreAction.delete; },
+        onTap: () {
+          selected = MessageMoreAction.delete;
+        },
       ),
     ],
   );
   return selected;
 }
-
 
 class _MessageMoreSheet extends StatefulWidget {
   const _MessageMoreSheet({required this.message, required this.parentContext});
@@ -121,7 +150,9 @@ class _MessageMoreSheetState extends State<_MessageMoreSheet> {
 
   String _formatTime(BuildContext context, DateTime time) {
     final locale = Localizations.localeOf(context);
-    final fmt = locale.languageCode == 'zh' ? DateFormat('yyyy年M月d日 HH:mm:ss') : DateFormat('yyyy-MM-dd HH:mm:ss');
+    final fmt = locale.languageCode == 'zh'
+        ? DateFormat('yyyy年M月d日 HH:mm:ss')
+        : DateFormat('yyyy-MM-dd HH:mm:ss');
     return fmt.format(time);
   }
 
@@ -142,7 +173,9 @@ class _MessageMoreSheetState extends State<_MessageMoreSheet> {
           if (overrideName != null && overrideName.isNotEmpty) {
             name = overrideName;
           }
-          final apiId = (ov['apiModelId'] ?? ov['api_model_id'])?.toString().trim();
+          final apiId = (ov['apiModelId'] ?? ov['api_model_id'])
+              ?.toString()
+              .trim();
           if (apiId != null && apiId.isNotEmpty) {
             baseId = apiId;
           }
@@ -152,7 +185,9 @@ class _MessageMoreSheetState extends State<_MessageMoreSheet> {
       }
     }
 
-    final inferred = ModelRegistry.infer(ModelInfo(id: baseId, displayName: baseId));
+    final inferred = ModelRegistry.infer(
+      ModelInfo(id: baseId, displayName: baseId),
+    );
     final fallback = inferred.displayName.trim();
     return name ?? (fallback.isNotEmpty ? fallback : baseId);
   }
@@ -190,7 +225,11 @@ class _MessageMoreSheetState extends State<_MessageMoreSheet> {
               Expanded(
                 child: Text(
                   label,
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: fg),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: fg,
+                  ),
                 ),
               ),
             ],
@@ -243,10 +282,21 @@ class _MessageMoreSheetState extends State<_MessageMoreSheet> {
                         Navigator.of(context).pop();
                         // Schedule next frame with parent context to avoid stacking sheets
                         Future.delayed(const Duration(milliseconds: 40), () {
-                          showSelectCopySheet(widget.parentContext, message: widget.message);
+                          showSelectCopySheet(
+                            widget.parentContext,
+                            message: widget.message,
+                          );
                         });
                       },
                     ),
+                    if (widget.message.usageMeta != null)
+                      _actionItem(
+                        icon: Lucide.Activity,
+                        label: l10n.messageUsageTitle,
+                        onTap: () {
+                          Navigator.of(context).pop(MessageMoreAction.usage);
+                        },
+                      ),
                     _actionItem(
                       icon: Lucide.BookOpenText,
                       label: l10n.messageMoreSheetRenderWebView,
@@ -255,14 +305,27 @@ class _MessageMoreSheetState extends State<_MessageMoreSheet> {
                         try {
                           final raw = widget.message.content.trim();
                           if (raw.isEmpty) return;
-                          final processed = await MarkdownMediaSanitizer.inlineLocalImagesToBase64(raw);
-                          final html = await MarkdownPreviewHtmlBuilder.buildFromMarkdown(widget.parentContext, processed);
+                          final processed =
+                              await MarkdownMediaSanitizer.inlineLocalImagesToBase64(
+                                raw,
+                              );
+                          final html =
+                              await MarkdownPreviewHtmlBuilder.buildFromMarkdown(
+                                widget.parentContext,
+                                processed,
+                              );
                           final b64 = base64Encode(utf8.encode(html));
                           Navigator.of(widget.parentContext).push(
-                            MaterialPageRoute(builder: (_) => WebViewPage(contentBase64: b64)),
+                            MaterialPageRoute(
+                              builder: (_) => WebViewPage(contentBase64: b64),
+                            ),
                           );
                         } catch (e) {
-                          showAppSnackBar(context, message: e.toString(), type: NotificationType.error);
+                          showAppSnackBar(
+                            context,
+                            message: e.toString(),
+                            type: NotificationType.error,
+                          );
                         }
                       },
                     ),

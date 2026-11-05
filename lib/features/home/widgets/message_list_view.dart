@@ -11,6 +11,7 @@ import '../../../utils/platform_utils.dart';
 import '../../../shared/widgets/ios_checkbox.dart';
 import '../../chat/widgets/chat_message_widget.dart';
 import '../../chat/widgets/message_more_sheet.dart';
+import '../../chat/widgets/message_usage_sheet.dart';
 import '../controllers/stream_controller.dart' as stream_ctrl;
 import '../controllers/streaming_content_notifier.dart';
 import '../utils/chat_layout_constants.dart';
@@ -23,9 +24,14 @@ typedef OnRegenerateMessage = void Function(ChatMessage message);
 typedef OnResendMessage = void Function(ChatMessage message);
 typedef OnTranslateMessage = void Function(ChatMessage message);
 typedef OnEditMessage = void Function(ChatMessage message);
-typedef OnDeleteMessage = Future<void> Function(ChatMessage message, Map<String, List<ChatMessage>> byGroup);
+typedef OnDeleteMessage =
+    Future<void> Function(
+      ChatMessage message,
+      Map<String, List<ChatMessage>> byGroup,
+    );
 typedef OnForkConversation = Future<void> Function(ChatMessage message);
-typedef OnShareMessage = void Function(int messageIndex, List<ChatMessage> messages);
+typedef OnShareMessage =
+    void Function(int messageIndex, List<ChatMessage> messages);
 typedef OnSpeakMessage = Future<void> Function(ChatMessage message);
 
 /// Data class for reasoning UI state
@@ -52,10 +58,7 @@ class TranslationUiState {
   final bool expanded;
   final VoidCallback? onToggle;
 
-  const TranslationUiState({
-    this.expanded = true,
-    this.onToggle,
-  });
+  const TranslationUiState({this.expanded = true, this.onToggle});
 }
 
 /// Widget that displays the chat message list.
@@ -138,7 +141,8 @@ class MessageListView extends StatelessWidget {
   final void Function(String messageId, bool selected)? onToggleSelection;
   final void Function(String messageId)? onToggleReasoning;
   final void Function(String messageId)? onToggleTranslation;
-  final void Function(String messageId, int segmentIndex)? onToggleReasoningSegment;
+  final void Function(String messageId, int segmentIndex)?
+  onToggleReasoningSegment;
 
   /// 過程收褶: the process-group header was tapped on [messageId]'s group.
   /// The wrapping receives the open state the widget is currently rendering
@@ -149,16 +153,26 @@ class MessageListView extends StatelessWidget {
   final Widget Function()? buildPinnedStreamingIndicator;
 
   /// P1-3: submit an ask_user answer (resumes generation).
-  final void Function(String assistantMessageId, String toolCallId,
-      Map<String, dynamic> answerPayload)? onSubmitAskUserAnswer;
+  final void Function(
+    String assistantMessageId,
+    String toolCallId,
+    Map<String, dynamic> answerPayload,
+  )?
+  onSubmitAskUserAnswer;
 
   /// P1-1: resolve an approval-pending tool call (approve/deny, resumes).
-  final Future<void> Function(String assistantMessageId, String toolCallId,
-      {required bool approve, bool alwaysAllow})? onResolveApproval;
+  final Future<void> Function(
+    String assistantMessageId,
+    String toolCallId, {
+    required bool approve,
+    bool alwaysAllow,
+  })?
+  onResolveApproval;
 
   /// Collapse message versions to show only selected version per group.
   List<ChatMessage> _collapseVersions(List<ChatMessage> items) {
-    final Map<String, List<ChatMessage>> byGroup = <String, List<ChatMessage>>{};
+    final Map<String, List<ChatMessage>> byGroup =
+        <String, List<ChatMessage>>{};
     final List<String> order = <String>[];
     for (final m in items) {
       final gid = (m.groupId ?? m.id);
@@ -175,7 +189,9 @@ class MessageListView extends StatelessWidget {
     for (final gid in order) {
       final vers = byGroup[gid]!;
       final sel = versionSelections[gid];
-      final idx = (sel != null && sel >= 0 && sel < vers.length) ? sel : (vers.length - 1);
+      final idx = (sel != null && sel >= 0 && sel < vers.length)
+          ? sel
+          : (vers.length - 1);
       out.add(vers[idx]);
     }
     return out;
@@ -183,7 +199,8 @@ class MessageListView extends StatelessWidget {
 
   /// Group messages by their group ID for version navigation.
   Map<String, List<ChatMessage>> _groupMessages(List<ChatMessage> items) {
-    final Map<String, List<ChatMessage>> byGroup = <String, List<ChatMessage>>{};
+    final Map<String, List<ChatMessage>> byGroup =
+        <String, List<ChatMessage>>{};
     for (final m in items) {
       final gid = (m.groupId ?? m.id);
       byGroup.putIfAbsent(gid, () => <ChatMessage>[]).add(m);
@@ -198,17 +215,36 @@ class MessageListView extends StatelessWidget {
     final label = l10n.homePageClearContext;
     return Row(
       children: [
-        Expanded(child: Divider(color: cs.outlineVariant.withOpacity(0.6), height: 1, thickness: 1)),
+        Expanded(
+          child: Divider(
+            color: cs.outlineVariant.withOpacity(0.6),
+            height: 1,
+            thickness: 1,
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Text(label, style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: cs.onSurface.withOpacity(0.6),
+            ),
+          ),
         ),
-        Expanded(child: Divider(color: cs.outlineVariant.withOpacity(0.6), height: 1, thickness: 1)),
+        Expanded(
+          child: Divider(
+            color: cs.outlineVariant.withOpacity(0.6),
+            height: 1,
+            thickness: 1,
+          ),
+        ),
       ],
     );
   }
 
-  GlobalKey _keyForMessage(String id) => messageKeys.putIfAbsent(id, () => GlobalKey(debugLabel: 'msg:$id'));
+  GlobalKey _keyForMessage(String id) =>
+      messageKeys.putIfAbsent(id, () => GlobalKey(debugLabel: 'msg:$id'));
 
   @override
   Widget build(BuildContext context) {
@@ -250,7 +286,8 @@ class MessageListView extends StatelessWidget {
           return Stack(
             children: [
               NewChatEmptyState(currentConversation: currentConversation),
-              if (isPinnedIndicatorActive && buildPinnedStreamingIndicator != null)
+              if (isPinnedIndicatorActive &&
+                  buildPinnedStreamingIndicator != null)
                 buildPinnedStreamingIndicator!(),
             ],
           );
@@ -288,7 +325,8 @@ class MessageListView extends StatelessWidget {
         return Stack(
           children: [
             list,
-            if (isPinnedIndicatorActive && buildPinnedStreamingIndicator != null)
+            if (isPinnedIndicatorActive &&
+                buildPinnedStreamingIndicator != null)
               buildPinnedStreamingIndicator!(),
           ],
         );
@@ -312,8 +350,10 @@ class MessageListView extends StatelessWidget {
     final useAssist = assistant?.useAssistantAvatar == true;
     final showDivider = truncCollapsed >= 0 && index == truncCollapsed;
     final gid = (message.groupId ?? message.id);
-    final vers = (byGroup[gid] ?? const <ChatMessage>[]).toList()..sort((a, b) => a.version.compareTo(b.version));
-    int selectedIdx = versionSelections[gid] ?? (vers.isNotEmpty ? vers.length - 1 : 0);
+    final vers = (byGroup[gid] ?? const <ChatMessage>[]).toList()
+      ..sort((a, b) => a.version.compareTo(b.version));
+    int selectedIdx =
+        versionSelections[gid] ?? (vers.isNotEmpty ? vers.length - 1 : 0);
     final total = vers.length;
     if (selectedIdx < 0) selectedIdx = 0;
     if (total > 0 && selectedIdx > total - 1) selectedIdx = total - 1;
@@ -322,7 +362,8 @@ class MessageListView extends StatelessWidget {
     final effectiveIndex = showMsgNav ? selectedIdx : 0;
 
     // Check if this is a streaming message that should use ValueListenableBuilder
-    final isStreaming = message.isStreaming &&
+    final isStreaming =
+        message.isStreaming &&
         message.role == 'assistant' &&
         streamingContentNotifier != null &&
         streamingContentNotifier!.hasNotifier(message.id);
@@ -334,7 +375,8 @@ class MessageListView extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (selecting && (message.role == 'user' || message.role == 'assistant'))
+            if (selecting &&
+                (message.role == 'user' || message.role == 'assistant'))
               Padding(
                 padding: const EdgeInsets.only(left: 10, right: 6),
                 child: IosCheckbox(
@@ -348,7 +390,8 @@ class MessageListView extends StatelessWidget {
               child: Builder(
                 builder: (context) {
                   final textScale = MediaQuery.textScaleFactorOf(context);
-                  final baseMediaQuery = context.getInheritedWidgetOfExactType<MediaQuery>();
+                  final baseMediaQuery = context
+                      .getInheritedWidgetOfExactType<MediaQuery>();
                   final baseData = baseMediaQuery?.data;
                   return MediaQuery(
                     // Keep chat font scaling without rebuilding on keyboard insets.
@@ -431,15 +474,20 @@ class MessageListView extends StatelessWidget {
       valueListenable: streamingContentNotifier!.getNotifier(message.id),
       builder: (context, data, child) {
         // Use streaming content if available, otherwise fall back to message content
-        final displayContent = data.content.isNotEmpty ? data.content : message.content;
-        final displayTokens = data.totalTokens > 0 ? data.totalTokens : message.totalTokens;
+        final displayContent = data.content.isNotEmpty
+            ? data.content
+            : message.content;
+        final displayTokens = data.totalTokens > 0
+            ? data.totalTokens
+            : message.totalTokens;
         final retry = data.retryStatus;
 
         // Create a modified message with streaming content
         final streamingMessage = message.copyWith(
           content: displayContent,
           totalTokens: displayTokens,
-          aiTeamProposalsJson: data.aiTeamProposalsJson ?? message.aiTeamProposalsJson,
+          aiTeamProposalsJson:
+              data.aiTeamProposalsJson ?? message.aiTeamProposalsJson,
         );
 
         // Update reasoning text from streaming data while preserving expanded state from r
@@ -545,34 +593,54 @@ class MessageListView extends StatelessWidget {
       onNextVersion: (showMsgNav && selectedIdx < total - 1)
           ? () => onVersionChange?.call(gid, selectedIdx + 1)
           : null,
-      modelIcon: (!useAssist && message.role == 'assistant' && message.providerId != null && message.modelId != null)
-          ? CurrentModelIcon(providerKey: message.providerId, modelId: message.modelId, size: 30)
+      modelIcon:
+          (!useAssist &&
+              message.role == 'assistant' &&
+              message.providerId != null &&
+              message.modelId != null)
+          ? CurrentModelIcon(
+              providerKey: message.providerId,
+              modelId: message.modelId,
+              size: 30,
+            )
           : null,
-      showModelIcon: useAssist ? false : context.watch<SettingsProvider>().showModelIcon,
+      showModelIcon: useAssist
+          ? false
+          : context.watch<SettingsProvider>().showModelIcon,
       useAssistantAvatar: useAssist && message.role == 'assistant',
       assistantName: useAssist ? (assistant?.name ?? 'Assistant') : null,
       assistantAvatar: useAssist ? (assistant?.avatar ?? '') : null,
       showUserAvatar: context.watch<SettingsProvider>().showUserAvatar,
       showTokenStats: context.watch<SettingsProvider>().showTokenStats,
-      hideStreamingIndicator: isPinnedIndicatorActive && (message.id == pinnedStreamingMessageId),
+      hideStreamingIndicator:
+          isPinnedIndicatorActive && (message.id == pinnedStreamingMessageId),
       reasoningText: (message.role == 'assistant') ? (r?.text ?? '') : null,
-      reasoningExpanded: (message.role == 'assistant') ? (r?.expanded ?? false) : false,
-      reasoningLoading: (message.role == 'assistant') ? (r?.finishedAt == null && (r?.text.isNotEmpty == true)) : false,
+      reasoningExpanded: (message.role == 'assistant')
+          ? (r?.expanded ?? false)
+          : false,
+      reasoningLoading: (message.role == 'assistant')
+          ? (r?.finishedAt == null && (r?.text.isNotEmpty == true))
+          : false,
       reasoningStartAt: (message.role == 'assistant') ? r?.startAt : null,
       reasoningFinishedAt: (message.role == 'assistant') ? r?.finishedAt : null,
       // 過程收褶: the process group's end (last segment / tool call finished) —
       // the header timer's freeze anchor, distinct from the thinking end.
-      reasoningProcessFinishedAt:
-          (message.role == 'assistant') ? r?.processFinishedAt : null,
+      reasoningProcessFinishedAt: (message.role == 'assistant')
+          ? r?.processFinishedAt
+          : null,
       // …and its start: the first process event (first tool call OR first
       // thinking token), which a tool-only turn has no reasoning for.
-      reasoningProcessStartedAt:
-          (message.role == 'assistant') ? r?.processStartedAt : null,
+      reasoningProcessStartedAt: (message.role == 'assistant')
+          ? r?.processStartedAt
+          : null,
       onToggleReasoning: (message.role == 'assistant' && r != null)
           ? () => onToggleReasoning?.call(message.id)
           : null,
       translationExpanded: t?.expanded ?? true,
-      onToggleTranslation: (message.translation != null && message.translation!.isNotEmpty && t != null)
+      onToggleTranslation:
+          (message.translation != null &&
+              message.translation!.isNotEmpty &&
+              t != null)
           ? () => onToggleTranslation?.call(message.id)
           : null,
       // `/skill` load rows (2026-10-06): the assembly-time /skill injection
@@ -582,10 +650,18 @@ class MessageListView extends StatelessWidget {
       userInvokedSkillNames: message.role == 'assistant'
           ? _skillNamesFromPrecedingUserMessage(messages, index)
           : const <String>[],
-      onRegenerate: message.role == 'assistant' ? () => onRegenerateMessage?.call(message) : null,
-      onResend: message.role == 'user' ? () => onResendMessage?.call(message) : null,
-      onTranslate: message.role == 'assistant' ? () => onTranslateMessage?.call(message) : null,
-      onSpeak: message.role == 'assistant' ? () => onSpeakMessage?.call(message) : null,
+      onRegenerate: message.role == 'assistant'
+          ? () => onRegenerateMessage?.call(message)
+          : null,
+      onResend: message.role == 'user'
+          ? () => onResendMessage?.call(message)
+          : null,
+      onTranslate: message.role == 'assistant'
+          ? () => onTranslateMessage?.call(message)
+          : null,
+      onSpeak: message.role == 'assistant'
+          ? () => onSpeakMessage?.call(message)
+          : null,
       onEdit: (message.role == 'user' || message.role == 'assistant')
           ? () => onEditMessage?.call(message)
           : null,
@@ -602,8 +678,12 @@ class MessageListView extends StatelessWidget {
           await onForkConversation?.call(message);
         } else if (action == MessageMoreAction.share) {
           onShareMessage?.call(index, messages);
+        } else if (action == MessageMoreAction.usage) {
+          final usage = message.usageMeta;
+          if (usage != null) {
+            await showMessageUsageSheet(context, usage);
+          }
         }
-
       },
       toolParts: message.role == 'assistant' ? toolParts[message.id] : null,
       showOAuthRecovery:
@@ -626,13 +706,18 @@ class MessageListView extends StatelessWidget {
               return segments
                   .asMap()
                   .entries
-                  .map((entry) => ReasoningSegment(
-                        text: entry.value.text,
-                        expanded: entry.value.expanded,
-                        loading: entry.value.finishedAt == null && entry.value.text.isNotEmpty,
-                        onToggle: () => onToggleReasoningSegment?.call(message.id, entry.key),
-                        toolStartIndex: entry.value.toolStartIndex,
-                      ))
+                  .map(
+                    (entry) => ReasoningSegment(
+                      text: entry.value.text,
+                      expanded: entry.value.expanded,
+                      loading:
+                          entry.value.finishedAt == null &&
+                          entry.value.text.isNotEmpty,
+                      onToggle: () =>
+                          onToggleReasoningSegment?.call(message.id, entry.key),
+                      toolStartIndex: entry.value.toolStartIndex,
+                    ),
+                  )
                   .toList();
             })()
           : null,

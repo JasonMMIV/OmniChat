@@ -1985,5 +1985,20 @@
   "openCodeErrorMissingSession": "OpenCode 因缺少会话标头而拒绝了请求，请更新 OmniChat。",
   "openCodeErrorFreeTier": "OpenCode 免费模型仅限官方客户端使用，请改用付费或 Go 模型。",
   "openCodeErrorInsufficientBalance": "OpenCode 余额不足。",
-  "openCodeErrorProtocolUnsupported": "此模型不支持当前的 API 协议，请尝试启用 Responses API。"
+  "openCodeErrorProtocolUnsupported": "此模型不支持当前的 API 协议，请尝试启用 Responses API。",
+  "messageUsageTitle": "用量与成本",
+  "messageUsageTokens": "Token",
+  "messageUsageCostSection": "成本",
+  "messageUsageFree": "免费",
+  "messageUsageAllowance": "Go 配额",
+  "messageUsageListCost": "定价",
+  "messageUsageCost": "实际扣款",
+  "messageUsageEstimated": "估算",
+  "messageUsageBillingSource": "计费方式",
+  "messageUsageInputTokens": "输入",
+  "messageUsageOutputTokens": "输出",
+  "messageUsageReasoningTokens": "推理",
+  "messageUsageCacheReadTokens": "缓存读取",
+  "messageUsageCacheWrite5mTokens": "缓存写入 5m",
+  "messageUsageCacheWrite1hTokens": "缓存写入 1h"
 }

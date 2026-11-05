@@ -43,6 +43,7 @@ import '../../../shared/markdown/markdown_render_policy.dart';
 import '../../../shared/markdown/markdown_surface_scope.dart';
 import '../../../shared/widgets/snackbar.dart';
 import 'ai_team_proposals_section.dart';
+import 'message_stats_line.dart';
 import 'cowork_tool_cards.dart';
 import 'process_group_card.dart';
 import 'process_group_logic.dart';
@@ -154,11 +155,20 @@ class ChatMessageWidget extends StatefulWidget {
   // Hide streaming dots when pinned globally
   final bool hideStreamingIndicator;
   // P1-3: submit an ask_user answer (resumes generation)
-  final void Function(String assistantMessageId, String toolCallId,
-      Map<String, dynamic> answerPayload)? onSubmitAskUserAnswer;
+  final void Function(
+    String assistantMessageId,
+    String toolCallId,
+    Map<String, dynamic> answerPayload,
+  )?
+  onSubmitAskUserAnswer;
   // P1-1: resolve an approval-pending tool call (approve/deny, resumes)
-  final Future<void> Function(String assistantMessageId, String toolCallId,
-      {required bool approve, bool alwaysAllow})? onResolveApproval;
+  final Future<void> Function(
+    String assistantMessageId,
+    String toolCallId, {
+    required bool approve,
+    bool alwaysAllow,
+  })?
+  onResolveApproval;
   // `/skill` load rows (2026-10-06): names of the skills the user invoked via
   // `/skill <name>` in this turn's user message (derived by the message
   // list). Rendered as static 載入技能 rows above the process group — the
@@ -240,7 +250,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   final GlobalKey _translateBtnKey2 = GlobalKey();
   // Citations parsed from the persisted search tool results. The timeline
   // only holds summaries, so this is loaded on demand for the visible message.
-  List<Map<String, dynamic>> _loadedSearchItems = const <Map<String, dynamic>>[];
+  List<Map<String, dynamic>> _loadedSearchItems =
+      const <Map<String, dynamic>>[];
   String? _searchItemsMessageId;
   bool _searchItemsLoading = false;
 
@@ -475,43 +486,6 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     );
     final fallback = inferred.displayName.trim();
     return fallback.isNotEmpty ? fallback : baseId;
-  }
-
-  int _estimateTokens(String text) {
-    if (text.isEmpty) return 0;
-    int cjkCount = 0;
-    int otherCharCount = 0;
-    for (final char in text.runes) {
-      if ((char >= 0x4E00 && char <= 0x9FFF) ||
-          (char >= 0x3400 && char <= 0x4DBF) ||
-          (char >= 0x3000 && char <= 0x303F) ||
-          (char >= 0xFF00 && char <= 0xFFEF)) {
-        cjkCount++;
-      } else {
-        otherCharCount++;
-      }
-    }
-    return cjkCount + (otherCharCount / 4).ceil();
-  }
-
-  String _buildStatsText(ChatMessage message) {
-    final int tokens;
-    final bool isEstimated;
-    if (message.totalTokens != null && message.totalTokens! > 0) {
-      tokens = message.totalTokens!;
-      isEstimated = false;
-    } else {
-      final fullText = message.content + (message.reasoningText ?? '');
-      tokens = _estimateTokens(fullText);
-      isEstimated = true;
-    }
-
-    final tokenStr = isEstimated ? '~$tokens tokens' : '$tokens tokens';
-    final charCount = message.content.length;
-    if (charCount > 0) {
-      return '$tokenStr · $charCount 字';
-    }
-    return tokenStr;
   }
 
   @override
@@ -855,13 +829,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                           }
                           if (widget.showTokenStats) {
                             wrapChildren.add(
-                              Text(
-                                _buildStatsText(widget.message),
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: cs.onSurface.withOpacity(0.5),
-                                ),
-                              ),
+                              MessageStatsLine(message: widget.message),
                             );
                           }
                           return wrapChildren.isNotEmpty
@@ -909,13 +877,14 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               key: _userBubbleKey,
               constraints: BoxConstraints(
                 maxWidth: MediaQuery.sizeOf(context).width * 0.75,
-              ),                child: _buildBubbleContainer(
-                  context: context,
-                  isUser: true,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      if (visualText.isNotEmpty)
+              ),
+              child: _buildBubbleContainer(
+                context: context,
+                isUser: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (visualText.isNotEmpty)
                       Builder(
                         builder: (context) {
                           final bool isDesktop =
@@ -1346,7 +1315,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
         // Match the wallpaper actually painted by
         // HomePage._buildChatBackground, which uses currentAssistant.
         assistantBackground =
-            (context.watch<AssistantProvider>().currentAssistant?.background ?? '')
+            (context.watch<AssistantProvider>().currentAssistant?.background ??
+                    '')
                 .trim();
       } catch (_) {
         assistantBackground = '';
@@ -1362,10 +1332,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           style == ChatMessageBackgroundStyle.frosted || isBareOverWallpaper,
       hasWallpaper: isBareOverWallpaper,
     );
-    final scopedChild = MarkdownSurfaceScope(
-      surface: mdSurface,
-      child: child,
-    );
+    final scopedChild = MarkdownSurfaceScope(surface: mdSurface, child: child);
     final wallpaperScrim = isBareOverWallpaper
         ? assistantWallpaperScrimColor(
             cs,
@@ -1974,13 +1941,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                           }
                           if (widget.showTokenStats) {
                             wrapChildren.add(
-                              Text(
-                                _buildStatsText(widget.message),
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: cs.onSurface.withOpacity(0.5),
-                                ),
-                              ),
+                              MessageStatsLine(message: widget.message),
                             );
                           }
                           return wrapChildren.isNotEmpty
@@ -2014,8 +1975,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           // tool event exists), so without this the process area would show
           // nothing at all. One static row per invoked skill, gated by the
           // same display setting as tool cards.
-          if (widget.userInvokedSkillNames.isNotEmpty &&
-              settings.showToolCards)
+          if (widget.userInvokedSkillNames.isNotEmpty && settings.showToolCards)
             for (final skillName in widget.userInvokedSkillNames)
               _UserSkillLoadRow(skillName: skillName),
           // 過程收褶 (process folding, PLAN_PROCESS_FOLDING.md Phase 3): the
@@ -2056,11 +2016,12 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                   ? widget.reasoningText!
                   : extractedThinking;
               if (effectiveReasoningText.isNotEmpty) {
-                final bool inlineThink = (widget.reasoningText == null ||
+                final bool inlineThink =
+                    (widget.reasoningText == null ||
                     widget.reasoningText!.isEmpty);
                 final bool streamingThought = inlineThink
                     ? (isStreaming &&
-                        !widget.message.content.contains('</think>'))
+                          !widget.message.content.contains('</think>'))
                     : widget.reasoningLoading;
                 thoughts = [
                   ProcessThought(
@@ -2144,9 +2105,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 onToggle: widget.onToggleProcessGroup == null
                     ? null
                     : () => widget.onToggleProcessGroup!(
-                          resolvedOpen,
-                          model.forcedOpen,
-                        ),
+                        resolvedOpen,
+                        model.forcedOpen,
+                      ),
                 children: [
                   for (final entry in model.entries)
                     Padding(
@@ -3444,12 +3405,21 @@ class _ToolCallItem extends StatelessWidget {
   final String? assistantMessageId;
 
   /// P1-3: submit an ask_user answer (resumes generation).
-  final void Function(String assistantMessageId, String toolCallId,
-      Map<String, dynamic> answerPayload)? onSubmitAskUserAnswer;
+  final void Function(
+    String assistantMessageId,
+    String toolCallId,
+    Map<String, dynamic> answerPayload,
+  )?
+  onSubmitAskUserAnswer;
 
   /// P1-1: resolve an approval-pending call (approve/deny, resumes).
-  final Future<void> Function(String assistantMessageId, String toolCallId,
-      {required bool approve, bool alwaysAllow})? onResolveApproval;
+  final Future<void> Function(
+    String assistantMessageId,
+    String toolCallId, {
+    required bool approve,
+    bool alwaysAllow,
+  })?
+  onResolveApproval;
 
   IconData _iconFor(String name) {
     name = WebFetchTool.canonicalToolName(name);
@@ -3511,8 +3481,9 @@ class _ToolCallItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardTextColor =
-        isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
+    final cardTextColor = isDark
+        ? const Color(0xFF9E9EA4)
+        : const Color(0xFF7E7F83);
     final l10n = AppLocalizations.of(context)!;
 
     // P1-3: cowork tools render as dedicated interactive cards instead of the
@@ -3527,11 +3498,7 @@ class _ToolCallItem extends StatelessWidget {
         arguments: part.arguments,
         content: part.content,
         onAnswer: canResume
-            ? (payload) => submit!(
-                  assistantMessageId!,
-                  part.id,
-                  payload,
-                )
+            ? (payload) => submit!(assistantMessageId!, part.id, payload)
             : null,
       );
     }
@@ -3556,11 +3523,8 @@ class _ToolCallItem extends StatelessWidget {
           approve: true,
           alwaysAllow: alwaysAllow,
         ),
-        onDeny: () => onResolveApproval!(
-          assistantMessageId!,
-          part.id,
-          approve: false,
-        ),
+        onDeny: () =>
+            onResolveApproval!(assistantMessageId!, part.id, approve: false),
       );
     }
 
@@ -3708,9 +3672,7 @@ class _ToolCallItem extends StatelessWidget {
           if (detail != null) {
             final rawArguments = detail['arguments'];
             if (rawArguments is Map) {
-              arguments = rawArguments.map(
-                (k, v) => MapEntry(k.toString(), v),
-              );
+              arguments = rawArguments.map((k, v) => MapEntry(k.toString(), v));
             }
             content = detail['content']?.toString();
           }
@@ -3732,8 +3694,8 @@ class _ToolCallItem extends StatelessWidget {
     final resultText = (content ?? '').isNotEmpty
         ? content!
         : part.status == kPartStatusInterrupted
-            ? l10n.generationInterrupted
-            : l10n.chatMessageWidgetNoResultYet;
+        ? l10n.generationInterrupted
+        : l10n.chatMessageWidgetNoResultYet;
 
     final bool isDesktop =
         defaultTargetPlatform == TargetPlatform.macOS ||
@@ -4408,8 +4370,9 @@ class _ReasoningSectionState extends State<_ReasoningSection> {
     final l10n = AppLocalizations.of(context)!;
     final settings = context.watch<SettingsProvider>();
     final loading = widget.loading;
-    final cardTextColor =
-        isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
+    final cardTextColor = isDark
+        ? const Color(0xFF9E9EA4)
+        : const Color(0xFF7E7F83);
 
     final curve = const Cubic(0.2, 0.8, 0.2, 1);
 
@@ -4577,9 +4540,7 @@ class _ReasoningSectionState extends State<_ReasoningSection> {
       alignment: Alignment.topCenter,
       child: Container(
         width: double.infinity,
-        decoration: const BoxDecoration(
-          color: Colors.transparent,
-        ),
+        decoration: const BoxDecoration(color: Colors.transparent),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
           child: Column(

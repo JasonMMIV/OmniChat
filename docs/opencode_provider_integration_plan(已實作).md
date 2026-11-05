@@ -2,7 +2,8 @@
 
 > **版本**：v1.1  
 > **日期**：2026-11-05  
-> **狀態**：Phase 0–4、6、7 已實作並通過目標測試；Phase 5（成本）待實作（會碰目前進行中的 backup 重構）  
+> **狀態**：Phase 0–7 與 Phase 8 文件／自動化測試已完成；Phase 5 使用 `provider_artifacts(opencode_usage_v1)` 且不影響其他 provider 的 balance。實機驗收清單仍待真實 OpenCode key 執行。
+>
 > **範圍**：讓 OmniChat 以 API Key 直接使用 OpenCode Console／Zen（按量付費）與 OpenCode Go（訂閱）的推論端點；核心是 **`x-opencode-session` 工作階段標頭**、穩定的 conversation id 貫通、Provider 預設、**每則訊息的成本顯示**，以及 **`models.opencode.ai/api.json` 模型目錄同步（優先於 models.dev）**。  
 > **非範圍**：OpenCode 本機 `opencode serve` HTTP Server（`/session`、`/event`、`@opencode-ai/sdk`）、OpenCode 帳號 OAuth 訂閱登入、`opencode` CLI 程序整合、Console MCP（`https://opencode.ai/console/mcp`）、Provider 餘額（balance）API 與 UI 變更。  
 > **相關文件**：`OmniChat 專案開發與維護手冊.md` §3.5（多模型適配／推理）、§3.10（串流容錯）、§3.18（SQLite 儲存）、§3.19（Provider OAuth 與攔截點前例）、§4（架構決策）、§5（陷阱）、§7（現狀）  
@@ -53,6 +54,11 @@ Phase 0 純函式／契約
 | 1 | **內建兩個 preset**：`OpenCode Zen`、`OpenCode Go` | Phase 3（`_providers()`／`_defaultBase`／`defaultsFor`） |
 | 2 | **成本顯示納入本版**，且**不得影響其他 provider 的餘額顯示** | Phase 5；只新增 `MessageUsage` 與訊息統計，不改 `ProviderConfig.balance*`／`ProviderBalanceText` |
 | 3 | **`models.opencode.ai/api.json` 目錄同步納入本版**，且**優先於 models.dev** | Phase 6；per-model overlay merge，OpenCode 條目覆蓋同名 models.dev 條目 |
+| 4 | **`/models` 不送 `x-opencode-session`** | 2026-11-05 查證：官方文件與實測皆顯示 `/models` 為公開端點；session 檢查只在 inference POST。維持 `ModelProvider.listModels` 現狀 |
+| 5 | **OCR 暫不改 conversation-scoped session** | 接受 provider 級決定性 fallback；不影響主要聊天，列為已知限制 |
+| 6 | **成本明細加入 `MessageMoreSheet` 的「用量」入口** | 即使 `showTokenStats == false` 也能開啟用量與成本明細 |
+| 7 | **THIRD_PARTY_NOTICES 列 Kelivo OpenCode 衍生部分** | 與既有 Kelivo OAuth 註記並列 |
+| 8 | **v2 項目不做** | 對話級彙總、成本預估／匯出、prompt cache 觀測、`modelsPath` 等維持 Out of Scope |
 
 ### 0.2 為什麼不能只叫使用者「自己加自訂 header」
 
@@ -62,7 +68,7 @@ Phase 0 純函式／契約
 
 ### 0.3 實作現況（2026-11-05）
 
-**已完成（Phase 0–4、6、7）**
+**已完成（Phase 0–7）**
 
 - Phase 0：`lib/core/services/api/opencode.dart`（host 判定、session id、model id 正規化）、`provider_request_headers.dart` 的 OpenCode 分支。
 - Phase 1：`ProviderSessionClient` + `_clientFor` 單一注入點；覆蓋 chat／responses／claude／images／generateText／retry。
@@ -71,20 +77,12 @@ Phase 0 純函式／契約
 - Phase 4：`_apiModelId` 與 `ModelRegistry.inferForProvider` 都會剝除 `opencode/`／`opencode-go/` 前綴；模型清單本身零改動。
 - Phase 6：`ModelCatalogService` OpenCode overlay（`assets/model_catalog/opencode.json`、cache、ETag、1 天 stale）、`mergeCatalogJson`／`filterCatalogProviders`、Zen/Go base URL 路徑解析、`ModelProvider` 刷新觸發；建置工具 `tool/build_opencode_catalog.dart`。
 - Phase 7：`opencode_errors.dart` 錯誤分類、`chat_actions` 在地化提示、`RequestLogger` 遮罩 `x-opencode-session`。
+- Phase 5：`MessageUsage`、`usage.opencode` 解析、`TokenUsage` snapshot／accumulate、`provider_artifacts(opencode_usage_v1)` 持久化、備份依 kind 驗證、訊息統計列與用量明細 sheet。
 
 **驗證**
 
-- `flutter test` 目標測試全數通過：session／preset／balance／error／redaction／chat turn，以及 Phase 6 的 catalog merge／filter／Zen-Go 解析／overlay cache／refresh。
-- `flutter analyze` 對本次編輯檔案 0 error；全套 analyze 目前仍被既有 backup 重構的 `ChatRestoreResult` 未匯入阻擋（非本次變更）。
-
-**尚未完成**
-
-- Phase 5（成本顯示）：`MessageUsage`、`usage.opencode` 解析、`TokenUsage` 成本欄位、`provider_artifacts(opencode_usage_v1)` 持久化、備份 `verifyCounts` 按 kind 計數、訊息統計列與用量明細。
-
-**後續建議**
-
-- 先完成／穩定目前的 backup 重構（`backup_provider.dart` 的 `ChatRestoreResult` 匯入），再實作 Phase 5，以免與 `data_sync.dart`／`chat_backup_restorer.dart` 衝突。
-- Phase 6 已完成，不依賴 backup；Phase 5 是目前唯一未完成的主線。
+- `flutter test` 目標測試全數通過：session／preset／balance／error／redaction／chat turn、catalog merge／overlay refresh，以及成本解析／聚合／SQLite 重啟／備份還原。
+- `flutter analyze` 0 error；既有 warning 不在本次新增檔案。
 
 ---
 
@@ -157,7 +155,7 @@ String? sessionId,
 | G6 | 模型能力未知 | models.dev 未必收錄 Console 專有 id | OpenCode 目錄 overlay 優先；models.dev 補齊其他 provider | Phase 6 |
 | G7 | 成本沒有解析 | 各 transport 只讀 token 欄位 | 解析 `usage.opencode` 與 `usage.cost` | Phase 5 |
 | G8 | 成本沒有持久化 | `messages` 無成本欄、schema v1 不可升級 | 用 `provider_artifacts(kind=opencode_usage_v1)` 存 `MessageUsage` | Phase 5 |
-| G9 | 成本沒有顯示 | `_buildStatsText` 只顯示 tokens／字數 | 統計列追加成本；用量明細 sheet | Phase 5 |
+| G9 | 成本沒有顯示 | 統計列只顯示 tokens／字數 | `MessageStatsLine` 追加成本；用量明細 sheet | Phase 5 |
 | G10 | 備份會因新 artifact kind 驗證失敗 | `verifyCounts` 對比 provider_artifacts 總數 | 改為按 kind 計數；成本隨 `ChatMessage.toJson` 備份 | Phase 5 |
 | G11 | 餘額顯示可能被誤動 | `ProviderBalanceText` 只看 `balanceEnabled` | OpenCode preset 保持 `balanceEnabled: false`；加回歸測試 | Phase 5 |
 | G12 | 錯誤原文不友善 | `HTTP 400: {"type":"error","error":{"type":"MissingSessionID"...}}` 直接給使用者看 | 針對 `MissingSessionID`／`FreeTierError`／402／`ModelProtocolUnsupported` 給在地化提示 | Phase 7 |
@@ -484,7 +482,7 @@ if (provider == null) {
 
 **注意**：不要把 OAuth 分支的 `session` 改成 fallback `conversationId`；那會改變 ChatGPT／Claude 既有的 session 行為（手冊 §3.19）。
 
-**測試**：`test/core/services/api/opencode_test.dart`、`test/core/services/api/opencode_cost_test.dart`（見 §5）。
+**測試**：`test/core/services/api/opencode_test.dart`、`test/core/message_usage_test.dart`（見 §5）。
 
 **完成定義**：`providerSessionHeaders(非 OAuth OpenCode config)` 回傳兩個標頭；相似網域回空；OAuth 行為 byte-identical；成本 parser 對 Go／balance／free／byok 四種形狀皆正確。
 
@@ -628,7 +626,7 @@ _p('OpenCode Go', 'OpenCode Go', enabled: false, models: 0),
 ### Phase 4：模型清單與能力（1 人日）
 
 1. **模型清單**：`OpenAIProvider.listModels`（`lib/core/providers/model_provider.dart`）已用 `${cfg.baseUrl}/models` + Bearer，對 `/zen/v1/models` 與 `/zen/go/v1/models` 皆正確，**預期零改動**。
-   - 保險：對 OpenCode 額外送 `providerSessionHeaders(cfg, sessionId: stableId)`（有些閘道會對 `/models` 做同樣的 client 檢查；成本為零）。若不想改 `model_provider`，可跳過，列為可選。
+   - **已查證（2026-11-05）**：`GET /models` 不需要 `x-opencode-session`；官方文件範例未帶此標頭，且 `https://opencode.ai/zen/v1/models`／`/zen/go/v1/models` 無標頭即回 200。session 檢查只在 inference POST 上。因此**維持現狀，不额外送 header**。
 2. **id 正規化**：`ChatApiService._apiModelId(cfg, modelId)` 在回傳前，若 `isOpenCodeBaseUrl(cfg.baseUrl)` 則套 `normalizeOpenCodeModelId(raw)`。同時在 `ModelProvider` 的推斷路徑（`ModelRegistry.inferForProvider` 前）套同一函式，確保 catalog／regex 命中裸 id。
 3. **能力推斷**：Phase 6 的 OpenCode 目錄 overlay 會提供 context／modalities／tool_call／reasoning／reasoning_options；models.dev 與 regex 仍是最終回退。
 4. **推理檔位**：沿用 `ReasoningCapabilities`；`openai` transport 的 `none/low/medium/high/xhigh/max` 已能表達 Console 的 `reasoning_effort`。對「永遠推理」的模型：
@@ -748,16 +746,16 @@ Future<void> removeOpenCodeUsage(String messageId);
 
 **`lib/features/chat/widgets/chat_message_widget.dart`**：
 
-- `_buildStatsText` 保持現有 `tokens · 字` 主體；若 `message.usageMeta != null`，追加 ` · ${formatUsageSummary(usage)}`。
+- `buildMessageStatsText` 保持現有 `tokens · 字` 主體；若 `message.usageMeta != null`，追加 `buildUsageSummary` 的結果。
 - 兩個 call site（約 859、1978）的 `Text` 包一層 `GestureDetector`，點擊開啟用量明細 sheet；`Tooltip` 顯示完整摘要（桌面 hover／行動長按）。
-- `formatUsageSummary` 規則見 §2.6；`formatUsd` 放 `lib/utils/usd_format.dart`（純函式）。
+- `buildUsageSummary` 規則見 §2.6，放在 `lib/features/chat/widgets/message_stats_text.dart`（純函式）；`formatUsd` 放 `lib/utils/usd_format.dart`。實際渲染由 `MessageStatsLine` 負責。
 
 **新增** `lib/features/chat/widgets/message_usage_sheet.dart`：
 
 - 標題「用量與成本」。
 - tokens 區：input／output／reasoning／cache read／cache write 5m／1h。
 - 成本區：`cost`／`list_cost`／`allowance`／`billing_source`／`estimated`；Go 顯示「配額」與「定價」兩列。
-- 只在 `usage != null` 時可開啟；`showTokenStats == false` 時仍可從 `MessageMoreSheet` 的「用量」入口開啟（可選）。
+- 只在 `usage != null` 時可開啟；`showTokenStats == false` 時仍可從 `MessageMoreSheet` 的「用量」入口開啟（已實作）。
 
 **l10n**（Phase 5 追加）：
 
@@ -778,7 +776,7 @@ Future<void> removeOpenCodeUsage(String messageId);
 - 新增測試：
   - `ProviderConfig.defaultsFor('OpenCode Zen'/'OpenCode Go').balanceEnabled == false`。
   - `ProviderManager.getBalance(openCodeCfg)` 回 `''`（且不發 HTTP）。
-  - `_buildStatsText` 對沒有 `usageMeta` 的訊息輸出與現況完全相同（含 estimated token 路徑）。
+  - `MessageStatsLine` 對沒有 `usageMeta` 的訊息輸出與現況完全相同（含 estimated token 路徑）。
 
 **完成定義**：OpenCode 的 balance／free／Go／BYOK 四種回應都能在訊息統計列看到正確成本摘要；重啟後成本仍在；備份還原後成本仍在；其他 provider 的訊息與餘額畫面零變化。
 
@@ -935,18 +933,20 @@ final errorText = oauthLoginRequired
 
 ### Phase 8：文件、測試與驗收（0.5–1 人日）
 
-- `OmniChat 專案開發與維護手冊.md`：
-  - §3.5 新增小子節「OpenCode（Zen／Go）」：base URL、session header、protocol 翻譯、模型 id 正規化、成本遙測。
-  - §3.18 補「provider_artifacts 作為 OpenCode 成本側表」與備份計數改動。
-  - §4 新增決策：非 OAuth session 注入點、成本不進 SQLite schema、目錄 overlay 優先序。
-  - §5 新增陷阱：`MissingSessionID` 發生在路由前、Go 的 `cost` 為 0、免費模型 403、`/zen` 別名與 `/inference` 的 base 形狀差異。
-  - §7 更新現狀／路線圖。
-- `THIRD_PARTY_NOTICES.md`：若 header helper 直接改寫自 Kelivo，補上出處與 AGPL 註記；`assets/model_catalog/opencode.json` 的來源與授權（models.dev / OpenCode）補進 `NOTICE.md`。
-- 檔名完成後改為 `docs/opencode_provider_integration_plan(已實作).md`，並回填 §0.3。
+**狀態（2026-11-05）**：本計畫文件、`OmniChat 專案開發與維護手冊.md`、`THIRD_PARTY_NOTICES.md` 的 Kelivo 註記與下列自動化測試已完成；僅實機驗收仍待。
+
+- `THIRD_PARTY_NOTICES.md`：已補 `Kelivo — OpenCode session headers`，列出改寫檔案、AGPL-3.0 與修改範圍。
+- `assets/model_catalog/opencode.NOTICE.md`：已記錄 `models.opencode.ai/api.json` 來源與 models.dev 衍生關係。
+- 自動化測試：見 §5；所有列出的測試檔已存在並通過。
+- `OmniChat 專案開發與維護手冊.md`：已補 §3.5 §8（OpenCode Zen／Go）、§3.18 `provider_artifacts` 成本側表、§4 決策、§5.3 陷阱、§5.7 local-only keys 與 §7.7 整合紀錄。
+- 實機驗收：§6.5 Release Checklist 仍全部未勾選，需真實 OpenCode key。
+- 檔名：已改為 `docs/opencode_provider_integration_plan(已實作).md`。
 
 ---
 
 ## 5. 測試計畫
+
+**狀態（2026-11-05）**：T1–T37 與 §5.5 的成本摘要純函式、`MessageStatsLine` widget、sheet、mobile／desktop menu、餘額 widget 測試已完成；以下檔名已按實際落地位置更新。`ChatMessageWidget` 只保留 `if (showTokenStats)` 的既有轉接行，未另建大型 bubble fixture。
 
 ### 5.1 Session／Provider 單元測試
 
@@ -972,7 +972,7 @@ final errorText = oauthLoginRequired
 
 ### 5.2 成本解析與模型測試
 
-`test/core/services/api/opencode_cost_test.dart`：
+`test/core/message_usage_test.dart`：
 
 | # | 案例 | 期望 |
 |:---|:---|:---|
@@ -983,7 +983,7 @@ final errorText = oauthLoginRequired
 | T15 | 沒有 `opencode` 區塊 | `null`（其他 provider 零影響） |
 | T16 | `opencode.tokens` 的 reasoning／cache 欄位 | 映射到 `MessageUsage` |
 
-`test/core/models/token_usage_test.dart`（既有檔可擴充）：
+`test/core/message_usage_test.dart`（TokenUsage group）：
 
 | # | 案例 | 期望 |
 |:---|:---|:---|
@@ -994,7 +994,7 @@ final errorText = oauthLoginRequired
 
 ### 5.3 持久化與備份測試
 
-`test/core/services/chat/opencode_usage_storage_test.dart`：
+`test/core/chat_storage/opencode_usage_storage_test.dart`：
 
 | # | 案例 | 期望 |
 |:---|:---|:---|
@@ -1003,7 +1003,7 @@ final errorText = oauthLoginRequired
 | T23 | 版本複製 | 新版本 `usageMeta == null` |
 | T24 | `ChatMessage.toJson/fromJson` | `usageMeta` round-trip |
 
-`test/core/services/chat/opencode_usage_backup_test.dart`：
+`test/core/chat_storage/chat_backup_restorer_test.dart`、`test/data_sync_streaming_backup_test.dart`：
 
 | # | 案例 | 期望 |
 |:---|:---|:---|
@@ -1014,7 +1014,7 @@ final errorText = oauthLoginRequired
 
 ### 5.4 目錄測試
 
-`test/core/model_catalog_opencode_test.dart`：
+`test/core/opencode_catalog_test.dart`：
 
 | # | 案例 | 期望 |
 |:---|:---|:---|
@@ -1024,7 +1024,7 @@ final errorText = oauthLoginRequired
 | T32 | overlay 載入後 `lookup(providerId: 'opencode')` | 回 OpenCode 能力（reasoning efforts） |
 | T33 | 無 overlay | 與現有 models.dev 行為完全相同 |
 
-`test/core/services/model_catalog/opencode_catalog_service_test.dart`：
+`test/core/model_catalog_service_test.dart`：
 
 | # | 案例 | 期望 |
 |:---|:---|:---|
@@ -1035,13 +1035,13 @@ final errorText = oauthLoginRequired
 
 ### 5.5 UI／餘額回歸
 
-`test/chat_message_opencode_usage_test.dart`（widget）：
+`test/features/chat/message_stats_text_test.dart`、`test/features/chat/message_stats_line_test.dart`、`test/features/chat/message_usage_sheet_test.dart`、`test/features/chat/message_more_sheet_usage_test.dart`（widget／pure builder）：
 
 - 有 `usageMeta` 的訊息顯示成本摘要；無 `usageMeta` 的訊息輸出與現況相同。
 - Go 顯示「配額」；balance 顯示金額；free 顯示「免費」。
 - `showTokenStats == false` 時不顯示統計列（維持現狀）。
 
-`test/opencode_balance_isolation_test.dart`：
+`test/opencode_provider_preset_test.dart`、`test/opencode_balance_isolation_test.dart`（餘額隔離）：
 
 - `ProviderConfig.defaultsFor('OpenCode Zen'/'OpenCode Go').balanceEnabled == false`。
 - `ProviderManager.getBalance` 回 `''` 且不發 HTTP。
@@ -1053,16 +1053,15 @@ final errorText = oauthLoginRequired
 flutter analyze
 flutter test test/core/services/api/opencode_test.dart
 flutter test test/core/services/api/provider_session_client_test.dart
-flutter test test/core/services/api/opencode_cost_test.dart
-flutter test test/core/models/token_usage_test.dart
-flutter test test/core/services/chat/opencode_usage_storage_test.dart
-flutter test test/core/services/chat/opencode_usage_backup_test.dart
-flutter test test/core/model_catalog_opencode_test.dart
-flutter test test/core/services/model_catalog/opencode_catalog_service_test.dart
-flutter test test/chat_message_opencode_usage_test.dart
-flutter test test/opencode_balance_isolation_test.dart
-flutter test test/chat_api_opencode_session_test.dart
+flutter test test/core/message_usage_test.dart
+flutter test test/core/chat_storage/opencode_usage_storage_test.dart
+flutter test test/core/chat_storage/chat_backup_restorer_test.dart
+flutter test test/data_sync_streaming_backup_test.dart
+flutter test test/features/chat
+flutter test test/core/opencode_catalog_test.dart
+flutter test test/core/model_catalog_service_test.dart
 flutter test test/opencode_provider_preset_test.dart
+flutter test test/opencode_balance_isolation_test.dart
 flutter test test/request_logger_oauth_redaction_test.dart
 ```
 
@@ -1091,7 +1090,7 @@ flutter test test/request_logger_oauth_redaction_test.dart
 - `providerSessionHeaders` 的 OAuth 分支不動；`sendMessageStream` 只新增可選參數傳遞，不改簽章語義。
 - 備份格式沒有新 payload key；`usageMeta` 是 `ChatMessage` JSON 的可選欄位，舊備份缺少時為 null。
 - SQLite schema 維持 v1；成本走 `provider_artifacts`，不觸發 installation gate。
-- 其他 provider 的 `TokenUsage` 成本欄位為 null，`_buildStatsText` 與 balance UI 行為不變。
+- 其他 provider 的 `TokenUsage` 成本欄位為 null，`MessageStatsLine` 與 balance UI 行為不變。
 
 ---
 

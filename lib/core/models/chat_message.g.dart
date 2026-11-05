@@ -39,13 +39,14 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       cachedTokens: fields[19] as int?,
       processFinishedAt: fields[20] as DateTime?,
       processStartedAt: fields[21] as DateTime?,
+      usageMetaJson: fields[22] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ChatMessage obj) {
     writer
-      ..writeByte(22)
+      ..writeByte(23)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -89,7 +90,9 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       ..writeByte(20)
       ..write(obj.processFinishedAt)
       ..writeByte(21)
-      ..write(obj.processStartedAt);
+      ..write(obj.processStartedAt)
+      ..writeByte(22)
+      ..write(obj.usageMetaJson);
   }
 
   @override

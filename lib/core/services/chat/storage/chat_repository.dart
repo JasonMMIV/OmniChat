@@ -1166,6 +1166,16 @@ class ChatRepository {
     return {for (final row in rows) row.messageId: row.payload};
   }
 
+  Future<int> countProviderArtifactsOfKind(String kind) async {
+    final row = await db
+        .customSelect(
+          'SELECT COUNT(*) AS c FROM provider_artifacts WHERE kind = ?',
+          variables: [Variable.withString(kind)],
+        )
+        .getSingle();
+    return row.read<int>('c');
+  }
+
   Future<void> setProviderArtifact(
     String messageId,
     String kind,
@@ -1410,6 +1420,7 @@ class ChatRepository {
           aiTeamProposalsJson: src.aiTeamProposalsJson,
           processStartedAt: src.processStartedAt,
           processFinishedAt: src.processFinishedAt,
+          usageMetaJson: src.usageMetaJson,
         );
         await _insertMessage(clone, i);
         clonedIds.add(clone.id);
@@ -1707,6 +1718,18 @@ class ChatRepository {
     await db
         .into(db.messageRows)
         .insertOnConflictUpdate(_messageRow(message, ordinal));
+    final usage = message.usageMeta;
+    if (usage != null) {
+      await setProviderArtifact(
+        message.id,
+        kOpenCodeUsageKind,
+        jsonEncode(usage.toJson()),
+      );
+    } else {
+      // A restore/upsert of a message without cost must not leave a stale
+      // artifact from an earlier version of the same row.
+      await deleteProviderArtifact(message.id, kOpenCodeUsageKind);
+    }
   }
 
   Future<void> _touchConversation(String conversationId) async {

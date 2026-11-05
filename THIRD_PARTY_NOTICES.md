@@ -65,6 +65,34 @@ shaping, usage parsing) and changes the following for OmniChat:
 These derivative files remain licensed under AGPL-3.0. The app registers the
 same notice in the in-app license page (`LicenseRegistry` in `lib/main.dart`).
 
+## Kelivo — OpenCode session headers
+
+| Item | Value |
+|:--|:--|
+| Project | [Chevey339/kelivo](https://github.com/Chevey339/kelivo) |
+| Anchored commit | `054695a` (OpenCode session-header fix) |
+| License | GNU Affero General Public License v3.0 |
+| Ported | 2026-11-05, modified for OmniChat |
+
+### Ported / adapted files
+
+- `lib/core/services/api/opencode.dart`
+- `lib/core/services/api/provider_session_client.dart`
+- `lib/core/services/api/provider_request_headers.dart` (OpenCode branch;
+  the OAuth portion is covered by the section above)
+- `lib/core/services/api/chat_api_service.dart` (`_clientFor` wrapping and the
+  OpenCode model-id normalization hook)
+
+### Modifications
+
+- session IDs are stable per conversation and injected through a single
+  `_clientFor()` wrapper; OmniChat never sends a random per-request value;
+- the host match is exact (`opencode.ai`) and an explicit user header wins;
+- OpenCode model IDs strip the `opencode/` and `opencode-go/` prefixes;
+- error classification and localized copy are OmniChat-specific;
+- no Kelivo branding, package ids, URL schemes, assets or application ids are
+  carried over.
+
 ## Markdown preview vendor assets
 
 `assets/html/mark.html` loads the following vendored browser libraries from
