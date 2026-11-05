@@ -135,6 +135,27 @@ class _OAuthProviderDetailPageState extends State<OAuthProviderDetailPage> {
     }
   }
 
+  Future<void> _setModelEnabled(
+    ProviderConfig cfg,
+    String modelId,
+    bool enabled,
+  ) async {
+    final settings = context.read<SettingsProvider>();
+    await settings.setModelEnabled(cfg.id, modelId, enabled);
+    if (enabled || !mounted) return;
+    // A disabled model must not remain the assistant's active chat model.
+    // Pins and per-model overrides stay intact (setModelEnabled keeps them).
+    final assistants = context.read<AssistantProvider>();
+    for (final assistant in assistants.assistants) {
+      if (assistant.chatModelProvider == cfg.id &&
+          assistant.chatModelId == modelId) {
+        await assistants.updateAssistant(
+          assistant.copyWith(clearChatModel: true),
+        );
+      }
+    }
+  }
+
   Future<void> _signOut(ProviderConfig cfg) async {
     final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
@@ -369,6 +390,12 @@ class _OAuthProviderDetailPageState extends State<OAuthProviderDetailPage> {
                                   cfg,
                                   cfg.models[i],
                                 ),
+                                enabled: cfg.isModelEnabled(cfg.models[i]),
+                                onToggle: (enabled) => _setModelEnabled(
+                                  cfg,
+                                  cfg.models[i],
+                                  enabled,
+                                ),
                                 onTap: () => showModelDetailSheet(
                                   context,
                                   providerKey: cfg.id,
@@ -519,11 +546,15 @@ class _OAuthModelRow extends StatelessWidget {
   const _OAuthModelRow({
     required this.modelId,
     required this.displayName,
+    required this.enabled,
+    required this.onToggle,
     required this.onTap,
   });
 
   final String modelId;
   final String displayName;
+  final bool enabled;
+  final ValueChanged<bool> onToggle;
   final VoidCallback onTap;
 
   @override
@@ -555,9 +586,12 @@ class _OAuthModelRow extends StatelessWidget {
                   displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w600,
+                    color: enabled
+                        ? null
+                        : cs.onSurface.withOpacity(0.45),
                   ),
                 ),
                 if (showId) ...[
@@ -575,7 +609,9 @@ class _OAuthModelRow extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
+          IosSwitch(value: enabled, onChanged: onToggle),
+          const SizedBox(width: 4),
           Icon(
             Lucide.Settings2,
             size: 16,

@@ -141,11 +141,15 @@ class ChatTurnService {
   ///
   /// [includeToolMessages] 為 true 時，將已完成的 assistant 工具事件以
   /// OpenAI 中立格式（tool_calls + role:'tool'）重放，讓模型跨輪記住工具結果。
+  /// [includeGeminiThoughtSignatures] defaults to false: only
+  /// [prepareTurnRequest] opts in after resolving the target provider, so a
+  /// direct caller cannot leak a Gemini annotation to a non-Google transport.
   List<Map<String, dynamic>> buildApiMessages({
     required Conversation conversation,
     required List<ChatMessage> messages,
     required Map<String, int> versionSelections,
     bool includeToolMessages = false,
+    bool includeGeminiThoughtSignatures = false,
   }) {
     final tIndex = conversation.truncateIndex;
     final List<ChatMessage> sourceAll =
@@ -241,9 +245,23 @@ class ChatTurnService {
         }
       }
       if (m.content.isEmpty) continue;
+      final isAssistant = m.role == 'assistant';
+      var content = m.content;
+      final hasProvider = (m.providerId ?? '').trim().isNotEmpty;
+      if (isAssistant && includeGeminiThoughtSignatures) {
+        final signature = chatService.getGeminiThoughtSignature(m.id);
+        if (signature != null && signature.isNotEmpty) {
+          content = ChatApiService.appendGeminiThoughtSignature(
+            content,
+            signature,
+          );
+        }
+      }
       out.add(<String, dynamic>{
-        'role': m.role == 'assistant' ? 'assistant' : 'user',
-        'content': m.content,
+        'role': isAssistant ? 'assistant' : 'user',
+        'content': content,
+        if (isAssistant && hasProvider && includeGeminiThoughtSignatures)
+          '_provider_id': m.providerId,
       });
     }
     return out;
@@ -261,11 +279,19 @@ class ChatTurnService {
     required BuildContext context,
     required String userNickname,
   }) {
+    final targetConfig = settings.getProviderConfig(providerKey);
+    final includeGeminiThoughtSignatures =
+        ProviderConfig.classify(
+          targetConfig.id,
+          explicitType: targetConfig.providerType,
+        ) ==
+        ProviderKind.google;
     var apiMessages = buildApiMessages(
       conversation: conversation,
       messages: messages,
       versionSelections: versionSelections,
       includeToolMessages: settings.replayToolResults,
+      includeGeminiThoughtSignatures: includeGeminiThoughtSignatures,
     );
 
     // 注入 system prompt（placeholder 替換）
@@ -321,7 +347,7 @@ class ChatTurnService {
       // Test doubles may not implement every SettingsProvider getter.
     }
     return ChatTurnRequest(
-      config: settings.getProviderConfig(providerKey),
+      config: targetConfig,
       modelId: modelId,
       apiMessages: apiMessages,
       thinkingBudget: assistant?.thinkingBudget ?? settings.thinkingBudget,
@@ -403,6 +429,9 @@ class ChatTurnService {
           // fix; chat_actions._resetStreamForRetry does the same for
           // the main chat path).
           handle._resetContentForRetry();
+          unawaited(
+            chatService.removeGeminiThoughtSignature(handle.assistantMessageId),
+          );
           onRetry?.call(
             chunk.attempt!,
             chunk.maxAttempts ?? 3,
@@ -410,7 +439,19 @@ class ChatTurnService {
           );
           return;
         }
-        handle._appendChunk(chunk.content);
+        final captured = ChatApiService.stripGeminiThoughtSignature(
+          chunk.content,
+        );
+        final signature = captured.payload;
+        if (signature != null && signature.isNotEmpty) {
+          unawaited(
+            chatService.setGeminiThoughtSignature(
+              handle.assistantMessageId,
+              signature,
+            ),
+          );
+        }
+        handle._appendChunk(captured.cleaned);
         onChunk?.call(handle.fullContent);
         handle._schedulePersist();
       },

@@ -18,7 +18,10 @@ import '../../../utils/markdown_media_sanitizer.dart';
 import '../../../utils/unicode_sanitizer.dart';
 import '../../utils/reasoning_capabilities.dart';
 import '../../utils/reasoning_overrides.dart';
+import '../../utils/provider_url.dart';
 import 'reasoning_wire.dart';
+import 'reasoning_details_replay.dart';
+import 'gemini_signature_scope.dart';
 import 'builtin_tools.dart';
 import 'opencode.dart';
 import 'provider_request_headers.dart';
@@ -131,6 +134,41 @@ class ChatApiService {
   ) {
     return _repairOrphanToolMessages(messages);
   }
+
+  /// Test seam — verifies the provider provenance survives the signature
+  /// comment round-trip (G2).
+  @visibleForTesting
+  static String debugBuildGeminiThoughtSigComment({
+    String? textKey,
+    dynamic textValue,
+    String? providerScope,
+  }) {
+    return _buildGeminiThoughtSigComment(
+      textKey: textKey,
+      textValue: textValue,
+      providerScope: providerScope,
+    );
+  }
+
+  @visibleForTesting
+  static String? debugGeminiThoughtSigScope(String content) {
+    return _extractGeminiThoughtMeta(content).providerScope;
+  }
+
+  /// Shared artifact/wire carrier helpers. Artifacts store the bare JSON
+  /// payload; the neutral wire path still wraps it in the legacy comment so
+  /// every transport converter keeps its existing input contract.
+  static ({String cleaned, String? payload}) stripGeminiThoughtSignature(
+    String raw,
+  ) => stripGeminiThoughtSignatureComment(raw);
+
+  static String appendGeminiThoughtSignature(
+    String content,
+    String rawSignature,
+  ) => appendGeminiThoughtSignatureComment(content, rawSignature);
+
+  static String normalizeGeminiThoughtSignature(String rawSignature) =>
+      normalizeGeminiThoughtSignaturePayload(rawSignature);
 
   /// Truncate tool result contents in a message list for all API formats.
   /// - OpenAI: `role == 'tool'` → truncate `content`
@@ -514,6 +552,26 @@ class ChatApiService {
   static String _reasoningEchoValue(Object? v) {
     final s = v?.toString() ?? '';
     return s.isEmpty ? _reasoningEchoPlaceholder : s;
+  }
+
+  /// Applies the single-representation reasoning echo to a chat-completions
+  /// wire body. No-op for Responses/Claude/Google bodies (no `messages`).
+  static void _normalizeReasoningEchoBody(
+    Map<String, dynamic> body, {
+    required bool preserveDetails,
+    required bool needsText,
+  }) {
+    final raw = body['messages'];
+    if (raw is! List) return;
+    final messages = <Map<String, dynamic>>[];
+    for (final item in raw) {
+      if (item is Map) messages.add(item.cast<String, dynamic>());
+    }
+    normalizeReasoningEchoMessages(
+      messages,
+      preserveDetails: preserveDetails,
+      needsText: needsText,
+    );
   }
 
   /// messages pass through untouched so `tool_call_id`/`tool_calls` survive
@@ -917,6 +975,7 @@ class ChatApiService {
       } catch (_) {}
       String? textKey;
       dynamic textVal;
+      final scopeRaw = (data['scope'] ?? '').toString().trim();
       final text = data['text'];
       if (text is Map) {
         textKey = (text['k'] ?? text['key'])?.toString();
@@ -942,16 +1001,55 @@ class ChatApiService {
         textKey: textKey,
         textValue: textVal,
         images: images,
+        providerScope: scopeRaw.isEmpty ? null : scopeRaw,
       );
     } catch (_) {
       return _GeminiSignatureMeta(cleanedText: raw);
     }
   }
 
+  /// Endpoint + model identity of the currently targeted Gemini provider.
+  /// Signatures are only replayed to the exact endpoint/model that produced
+  /// them; a model switch within the same provider also starts unsigned.
+  static String _geminiProviderScope(ProviderConfig config, {String? modelId}) {
+    return geminiProviderScope(
+      providerId: config.id,
+      baseUrl: config.baseUrl,
+      vertexAI: config.vertexAI == true,
+      projectId: config.projectId,
+      location: config.location,
+      // `_sendGoogleStream` puts this exact id on the wire, so the scope must
+      // use the same token (not an apiModelId override).
+      modelId: modelId,
+    );
+  }
+
+  /// Drops a replayed signature when the assistant message came from another
+  /// Gemini endpoint. The visible text is always kept; only the signature
+  /// metadata is removed so a fresh replay can attach the documented
+  /// placeholder instead of failing with `400 Corrupted thought signature`.
+  static _GeminiSignatureMeta _signatureMetaForProvider(
+    _GeminiSignatureMeta meta, {
+    required ProviderConfig config,
+    required String targetScope,
+    required Map<String, dynamic> message,
+  }) {
+    if (!meta.hasAny) return meta;
+    final matches = geminiSignatureMatchesProvider(
+      signatureScope: meta.providerScope,
+      messageProviderId: (message['_provider_id'] ?? '').toString(),
+      targetScope: targetScope,
+      targetProviderId: config.id,
+    );
+    if (matches) return meta;
+    return _GeminiSignatureMeta(cleanedText: meta.cleanedText);
+  }
+
   static String _buildGeminiThoughtSigComment({
     String? textKey,
     dynamic textValue,
     List<Map<String, dynamic>> imageSigs = const <Map<String, dynamic>>[],
+    String? providerScope,
   }) {
     final imgs = imageSigs
         .where(
@@ -963,6 +1061,8 @@ class ChatApiService {
     final payload = <String, dynamic>{};
     if (hasText) payload['text'] = {'k': textKey, 'v': textValue};
     if (imgs.isNotEmpty) payload['images'] = imgs;
+    final scope = (providerScope ?? '').trim();
+    if (scope.isNotEmpty) payload['scope'] = scope;
     return '\n<!-- $_geminiThoughtSigTag:${jsonEncode(payload)} -->';
   }
 
@@ -1024,7 +1124,10 @@ class ChatApiService {
     }
   }
 
-  static String _collectThoughtSigCommentFromParts(List<dynamic> parts) {
+  static String _collectThoughtSigCommentFromParts(
+    List<dynamic> parts, {
+    String? providerScope,
+  }) {
     String? textKey;
     dynamic textVal;
     final images = <Map<String, dynamic>>[];
@@ -1057,6 +1160,7 @@ class ChatApiService {
       textKey: textKey,
       textValue: textVal,
       imageSigs: images,
+      providerScope: providerScope,
     );
   }
 
@@ -1644,13 +1748,15 @@ class ChatApiService {
     try {
       if (kind == ProviderKind.openai) {
         if (isOpenAIImageOutputModel(config, modelId)) return '';
-        final base = config.baseUrl.endsWith('/')
-            ? config.baseUrl.substring(0, config.baseUrl.length - 1)
-            : config.baseUrl;
-        final path = (config.useResponseApi == true)
-            ? '/responses'
-            : (config.chatPath ?? '/chat/completions');
-        final url = Uri.parse('$base$path');
+        final url = Uri.parse(
+          resolveProviderRequestUrl(
+            baseUrl: config.baseUrl,
+            providerType: 'openai',
+            modelId: upstreamModelId,
+            chatPath: config.chatPath,
+            useResponses: config.useResponseApi == true,
+          ).url,
+        );
         Map<String, dynamic> body;
         final effectiveInfo = _effectiveModelInfo(config, modelId);
         final isReasoning = effectiveInfo.abilities.contains(
@@ -1914,10 +2020,13 @@ class ChatApiService {
           return '';
         }
       } else if (kind == ProviderKind.claude) {
-        final base = config.baseUrl.endsWith('/')
-            ? config.baseUrl.substring(0, config.baseUrl.length - 1)
-            : config.baseUrl;
-        final url = Uri.parse('$base/messages');
+        final url = Uri.parse(
+          resolveProviderRequestUrl(
+            baseUrl: config.baseUrl,
+            providerType: 'claude',
+            modelId: upstreamModelId,
+          ).url,
+        );
         final isReasoning = _effectiveModelInfo(
           config,
           modelId,
@@ -1943,10 +2052,16 @@ class ChatApiService {
               thinkingBudget,
               config: config,
             );
+        final claudeCaps = reasoningCapabilitiesForCall(
+          ReasoningTransport.claude,
+          upstreamModelId,
+          config,
+        );
         final body = {
           'model': upstreamModelId,
           'max_tokens': 512,
-          if (!usesAdaptive) 'temperature': 0.3,
+          if (!usesAdaptive && !claudeCaps.samplingRequiresNone)
+            'temperature': 0.3,
           'messages': [
             {'role': 'user', 'content': safePrompt},
           ],
@@ -1991,20 +2106,14 @@ class ChatApiService {
         return '';
       } else {
         // Google
-        String url;
-        if (config.vertexAI == true &&
-            (config.location?.isNotEmpty == true) &&
-            (config.projectId?.isNotEmpty == true)) {
-          final loc = config.location!;
-          final proj = config.projectId!;
-          url =
-              'https://aiplatform.googleapis.com/v1/projects/$proj/locations/$loc/publishers/google/models/$upstreamModelId:generateContent';
-        } else {
-          final base = config.baseUrl.endsWith('/')
-              ? config.baseUrl.substring(0, config.baseUrl.length - 1)
-              : config.baseUrl;
-          url = '$base/models/$upstreamModelId:generateContent';
-        }
+        final url = resolveProviderRequestUrl(
+          baseUrl: config.baseUrl,
+          providerType: 'google',
+          modelId: upstreamModelId,
+          vertexAI: config.vertexAI == true,
+          location: config.location,
+          projectId: config.projectId,
+        ).url;
         final body = {
           'contents': [
             {
@@ -2465,7 +2574,11 @@ class ChatApiService {
       if (resolved.active) return resolved.thinking;
     }
     if (budget == 0 && !capabilities.thinkingAlwaysOn) {
-      return {'type': 'disabled'};
+      return {
+        'type': capabilities.claudeOffBetweenTools
+            ? 'between_tools'
+            : 'disabled',
+      };
     }
     if (_isDeepSeekClaudeCompatible(modelId, config: config)) {
       return {'type': 'enabled'};
@@ -2508,12 +2621,18 @@ class ChatApiService {
       );
       if (resolved.active) return resolved.outputConfig;
     }
-    if (effort == 'auto' || effort == 'off') return null;
     final capabilities = reasoningCapabilitiesForCall(
       ReasoningTransport.claude,
       modelId,
       config,
     );
+    if (effort == 'auto') return null;
+    if (effort == 'off') {
+      // Always-thinking models clamp Off to the lowest explicit tier; other
+      // models simply omit output_config while thinking is disabled.
+      if (!capabilities.thinkingAlwaysOn) return null;
+      return {'effort': capabilities.claudeOffEffort ?? 'low'};
+    }
     if (_isDeepSeekClaudeCompatible(modelId, config: config)) {
       return {'effort': effort == 'xhigh' || effort == 'max' ? 'max' : 'high'};
     }
@@ -2542,7 +2661,10 @@ class ChatApiService {
       );
       if (resolved.active) return resolved.usesAdaptive;
     }
-    if (budget == 0) return capabilities.thinkingAlwaysOn;
+    if (budget == 0) {
+      return capabilities.thinkingAlwaysOn ||
+          capabilities.claudeOffBetweenTools;
+    }
     return capabilities.supportsAdaptiveThinking;
   }
 
@@ -2767,13 +2889,15 @@ class ChatApiService {
     String? debugRequestId,
   }) async* {
     final upstreamModelId = _apiModelId(config, modelId);
-    final base = config.baseUrl.endsWith('/')
-        ? config.baseUrl.substring(0, config.baseUrl.length - 1)
-        : config.baseUrl;
-    final path = (config.useResponseApi == true)
-        ? '/responses'
-        : (config.chatPath ?? '/chat/completions');
-    final url = Uri.parse('$base$path');
+    final url = Uri.parse(
+      resolveProviderRequestUrl(
+        baseUrl: config.baseUrl,
+        providerType: 'openai',
+        modelId: upstreamModelId,
+        chatPath: config.chatPath,
+        useResponses: config.useResponseApi == true,
+      ).url,
+    );
     // OpenRouter server-side web fetch (chat-completions only). It is a
     // server tool in the normal `tools` array; `plugins:[{id:'web'}]` remains
     // the separate search plugin.
@@ -3546,6 +3670,11 @@ class ChatApiService {
             .toList(),
       );
     }
+    _normalizeReasoningEchoBody(
+      body,
+      preserveDetails: preserveReasoningDetails,
+      needsText: needsReasoningEcho,
+    );
     request.body = jsonEncode(body);
 
     final response = await client.send(request);
@@ -3740,7 +3869,9 @@ class ChatApiService {
                   if (preserveReasoningDetails &&
                       reasoningDetailsForTools is List &&
                       reasoningDetailsForTools.isNotEmpty)
-                    'reasoning_details': reasoningDetailsForTools,
+                    'reasoning_details': mergeReasoningDetails(
+                      reasoningDetailsForTools,
+                    ),
                 },
               );
             }
@@ -3810,8 +3941,9 @@ class ChatApiService {
             if (preserveReasoningDetails &&
                 reasoningDetailsForTools is List &&
                 reasoningDetailsForTools.isNotEmpty) {
-              assistantToolCallMsg['reasoning_details'] =
-                  reasoningDetailsForTools;
+              assistantToolCallMsg['reasoning_details'] = mergeReasoningDetails(
+                reasoningDetailsForTools,
+              );
             }
             next.add(assistantToolCallMsg);
             for (final r in results) {
@@ -3984,7 +4116,9 @@ class ChatApiService {
                   if (preserveReasoningDetails &&
                       reasoningDetailsBuffer is List &&
                       reasoningDetailsBuffer.isNotEmpty)
-                    'reasoning_details': reasoningDetailsBuffer,
+                    'reasoning_details': mergeReasoningDetails(
+                      reasoningDetailsBuffer,
+                    ),
                 },
               );
             }
@@ -4049,8 +4183,9 @@ class ChatApiService {
             if (preserveReasoningDetails &&
                 reasoningDetailsBuffer is List &&
                 reasoningDetailsBuffer.isNotEmpty) {
-              assistantToolCallMsg['reasoning_details'] =
-                  reasoningDetailsBuffer;
+              assistantToolCallMsg['reasoning_details'] = mergeReasoningDetails(
+                reasoningDetailsBuffer,
+              );
             }
             mm2.add(assistantToolCallMsg);
             for (final r in results) {
@@ -4156,6 +4291,11 @@ class ChatApiService {
               if (extraHeaders != null && extraHeaders.isNotEmpty)
                 headers2.addAll(extraHeaders);
               req2.headers.addAll(headers2);
+              _normalizeReasoningEchoBody(
+                body2,
+                preserveDetails: preserveReasoningDetails,
+                needsText: needsReasoningEcho,
+              );
               req2.body = jsonEncode(body2);
               final resp2 = await client.send(req2);
               if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
@@ -4312,12 +4452,16 @@ class ChatApiService {
                         }
                       }
                       if (preserveReasoningDetails) {
-                        final rd = delta?['reasoning_details'];
-                        if (rd is List && rd.isNotEmpty)
-                          reasoningDetailsAccum = rd;
-                        final rdMsg = message?['reasoning_details'];
-                        if (rdMsg is List && rdMsg.isNotEmpty)
-                          reasoningDetailsAccum = rdMsg;
+                        reasoningDetailsAccum = appendReasoningDetails(
+                          reasoningDetailsAccum,
+                          delta?['reasoning_details'],
+                          allowSnapshots: !host.contains('openrouter.ai'),
+                        );
+                        reasoningDetailsAccum = appendReasoningDetails(
+                          reasoningDetailsAccum,
+                          message?['reasoning_details'],
+                          allowSnapshots: !host.contains('openrouter.ai'),
+                        );
                       }
                       // Handle image outputs from OpenRouter-style deltas
                       // Possible shapes:
@@ -4493,7 +4637,7 @@ class ChatApiService {
                     reasoningDetailsAccum is List &&
                     reasoningDetailsAccum.isNotEmpty) {
                   nextAssistantToolCall['reasoning_details'] =
-                      reasoningDetailsAccum;
+                      mergeReasoningDetails(reasoningDetailsAccum);
                 }
                 currentMessages = _truncateToolResultsInMessages(
                   currentMessages,
@@ -4945,6 +5089,11 @@ class ChatApiService {
                   if (extraHeaders != null && extraHeaders.isNotEmpty)
                     headers2.addAll(extraHeaders);
                   req2.headers.addAll(headers2);
+                  _normalizeReasoningEchoBody(
+                    body2,
+                    preserveDetails: preserveReasoningDetails,
+                    needsText: needsReasoningEcho,
+                  );
                   req2.body = jsonEncode(body2);
                   final resp2 = await client.send(req2);
                   if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
@@ -5260,8 +5409,11 @@ class ChatApiService {
                   if (needsReasoningEcho) reasoningBuffer += rc;
                 }
                 if (preserveReasoningDetails) {
-                  final rd = delta['reasoning_details'];
-                  if (rd is List && rd.isNotEmpty) reasoningDetailsBuffer = rd;
+                  reasoningDetailsBuffer = appendReasoningDetails(
+                    reasoningDetailsBuffer,
+                    delta['reasoning_details'],
+                    allowSnapshots: !host.contains('openrouter.ai'),
+                  );
                 }
 
                 // images handling from delta (unchanged)
@@ -5324,9 +5476,11 @@ class ChatApiService {
               }
 
               if (preserveReasoningDetails && message != null) {
-                final rdMsg = message['reasoning_details'];
-                if (rdMsg is List && rdMsg.isNotEmpty)
-                  reasoningDetailsBuffer = rdMsg;
+                reasoningDetailsBuffer = appendReasoningDetails(
+                  reasoningDetailsBuffer,
+                  message['reasoning_details'],
+                  allowSnapshots: !host.contains('openrouter.ai'),
+                );
               }
 
               // 2) Fallback and merge: parse choices[0].message.content
@@ -5563,8 +5717,9 @@ class ChatApiService {
             if (preserveReasoningDetails &&
                 reasoningDetailsBuffer is List &&
                 reasoningDetailsBuffer.isNotEmpty) {
-              assistantToolCallMsg['reasoning_details'] =
-                  reasoningDetailsBuffer;
+              assistantToolCallMsg['reasoning_details'] = mergeReasoningDetails(
+                reasoningDetailsBuffer,
+              );
             }
             mm2.add(assistantToolCallMsg);
             for (final r in results) {
@@ -5661,6 +5816,11 @@ class ChatApiService {
               if (extraHeaders != null && extraHeaders.isNotEmpty)
                 headers2.addAll(extraHeaders);
               req2.headers.addAll(headers2);
+              _normalizeReasoningEchoBody(
+                body2,
+                preserveDetails: preserveReasoningDetails,
+                needsText: needsReasoningEcho,
+              );
               req2.body = jsonEncode(body2);
               final resp2 = await client.send(req2);
               if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
@@ -5887,12 +6047,16 @@ class ChatApiService {
                         }
                       }
                       if (preserveReasoningDetails) {
-                        final rd = delta?['reasoning_details'];
-                        if (rd is List && rd.isNotEmpty)
-                          reasoningDetailsAccum = rd;
-                        final rdMsg = message?['reasoning_details'];
-                        if (rdMsg is List && rdMsg.isNotEmpty)
-                          reasoningDetailsAccum = rdMsg;
+                        reasoningDetailsAccum = appendReasoningDetails(
+                          reasoningDetailsAccum,
+                          delta?['reasoning_details'],
+                          allowSnapshots: !host.contains('openrouter.ai'),
+                        );
+                        reasoningDetailsAccum = appendReasoningDetails(
+                          reasoningDetailsAccum,
+                          message?['reasoning_details'],
+                          allowSnapshots: !host.contains('openrouter.ai'),
+                        );
                       }
                     }
                     // XinLiu compatibility for follow-up requests too
@@ -6018,7 +6182,7 @@ class ChatApiService {
                     reasoningDetailsAccum is List &&
                     reasoningDetailsAccum.isNotEmpty) {
                   nextAssistantToolCall['reasoning_details'] =
-                      reasoningDetailsAccum;
+                      mergeReasoningDetails(reasoningDetailsAccum);
                 }
                 currentMessages = _truncateToolResultsInMessages(
                   currentMessages,
@@ -6116,7 +6280,9 @@ class ChatApiService {
                       if (preserveReasoningDetails &&
                           reasoningDetailsBuffer is List &&
                           reasoningDetailsBuffer.isNotEmpty)
-                        'reasoning_details': reasoningDetailsBuffer,
+                        'reasoning_details': mergeReasoningDetails(
+                          reasoningDetailsBuffer,
+                        ),
                     },
                   );
                 }
@@ -6177,7 +6343,7 @@ class ChatApiService {
                     reasoningDetailsBuffer is List &&
                     reasoningDetailsBuffer.isNotEmpty) {
                   assistantToolCallMsg['reasoning_details'] =
-                      reasoningDetailsBuffer;
+                      mergeReasoningDetails(reasoningDetailsBuffer);
                 }
                 mm2.add(assistantToolCallMsg);
                 for (final r in results) {
@@ -6275,6 +6441,11 @@ class ChatApiService {
                   if (extraHeaders != null && extraHeaders.isNotEmpty)
                     headers2.addAll(extraHeaders);
                   req2.headers.addAll(headers2);
+                  _normalizeReasoningEchoBody(
+                    body2,
+                    preserveDetails: preserveReasoningDetails,
+                    needsText: needsReasoningEcho,
+                  );
                   req2.body = jsonEncode(body2);
                   final resp2 = await client.send(req2);
                   if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
@@ -6480,12 +6651,16 @@ class ChatApiService {
                             }
                           }
                           if (preserveReasoningDetails) {
-                            final rd = delta?['reasoning_details'];
-                            if (rd is List && rd.isNotEmpty)
-                              reasoningDetailsAccum = rd;
-                            final rdMsg = message?['reasoning_details'];
-                            if (rdMsg is List && rdMsg.isNotEmpty)
-                              reasoningDetailsAccum = rdMsg;
+                            reasoningDetailsAccum = appendReasoningDetails(
+                              reasoningDetailsAccum,
+                              delta?['reasoning_details'],
+                              allowSnapshots: !host.contains('openrouter.ai'),
+                            );
+                            reasoningDetailsAccum = appendReasoningDetails(
+                              reasoningDetailsAccum,
+                              message?['reasoning_details'],
+                              allowSnapshots: !host.contains('openrouter.ai'),
+                            );
                           }
                         }
                         // XinLiu compatibility for follow-up requests too
@@ -6609,7 +6784,7 @@ class ChatApiService {
                         reasoningDetailsAccum is List &&
                         reasoningDetailsAccum.isNotEmpty) {
                       nextAssistantToolCall['reasoning_details'] =
-                          reasoningDetailsAccum;
+                          mergeReasoningDetails(reasoningDetailsAccum);
                     }
                     currentMessages = _truncateToolResultsInMessages(
                       currentMessages,
@@ -6928,10 +7103,13 @@ class ChatApiService {
   }) async* {
     final upstreamModelId = _apiModelId(config, modelId);
     // Endpoint and headers (constant across rounds)
-    final base = config.baseUrl.endsWith('/')
-        ? config.baseUrl.substring(0, config.baseUrl.length - 1)
-        : config.baseUrl;
-    final url = Uri.parse('$base/messages');
+    final url = Uri.parse(
+      resolveProviderRequestUrl(
+        baseUrl: config.baseUrl,
+        providerType: 'claude',
+        modelId: upstreamModelId,
+      ).url,
+    );
 
     final isReasoning = _effectiveModelInfo(
       config,
@@ -7200,6 +7378,11 @@ class ChatApiService {
           thinkingBudget,
           config: config,
         );
+    final claudeCaps = reasoningCapabilitiesForCall(
+      ReasoningTransport.claude,
+      upstreamModelId,
+      config,
+    );
 
     // === max_tokens negotiation ========================================
     // Anthropic requires `max_tokens` on every request, so unlike the
@@ -7255,8 +7438,12 @@ class ChatApiService {
           'cache_control': ProviderConfig.claudePromptCacheControl(
             config.claudePromptCachingTtl,
           ),
-        if (!usesAdaptive && temperature != null) 'temperature': temperature,
-        if (!usesAdaptive && topP != null) 'top_p': topP,
+        if (!usesAdaptive &&
+            !claudeCaps.samplingRequiresNone &&
+            temperature != null)
+          'temperature': temperature,
+        if (!usesAdaptive && !claudeCaps.samplingRequiresNone && topP != null)
+          'top_p': topP,
         if (allTools.isNotEmpty) 'tools': allTools,
         if (allTools.isNotEmpty) 'tool_choice': {'type': 'auto'},
         if (thinking != null) 'thinking': thinking,
@@ -8146,9 +8333,10 @@ class ChatApiService {
     bool webFetchEnabled = true,
     StreamAttemptFlags? flags,
   }) async* {
-    final bool _persistGeminiThoughtSigs = modelId.toLowerCase().contains(
-      'gemini-3',
+    final bool _persistGeminiThoughtSigs = isGeminiThoughtSignatureModel(
+      modelId,
     );
+    final String geminiScope = _geminiProviderScope(config, modelId: modelId);
     final builtIns = _builtInTools(config, modelId);
     final enableYoutube = builtIns.contains(BuiltInToolNames.youtube);
     // Non-streaming path: use generateContent
@@ -8159,18 +8347,14 @@ class ChatApiService {
         flags.finishReason = 'STOP';
       }
       final isVertex = config.vertexAI == true;
-      final base = config.baseUrl.endsWith('/')
-          ? config.baseUrl.substring(0, config.baseUrl.length - 1)
-          : config.baseUrl;
-      String url;
-      if (isVertex &&
-          (config.projectId?.isNotEmpty == true) &&
-          (config.location?.isNotEmpty == true)) {
-        url =
-            'https://aiplatform.googleapis.com/v1/projects/${config.projectId}/locations/${config.location}/publishers/google/models/$modelId:generateContent';
-      } else {
-        url = '$base/models/$modelId:generateContent';
-      }
+      final url = resolveProviderRequestUrl(
+        baseUrl: config.baseUrl,
+        providerType: 'google',
+        modelId: modelId,
+        vertexAI: isVertex,
+        location: config.location,
+        projectId: config.projectId,
+      ).url;
 
       // Convert messages to contents
       final contents = <Map<String, dynamic>>[];
@@ -8237,8 +8421,11 @@ class ChatApiService {
         final role = role0 == 'assistant' ? 'model' : 'user';
         final isLast = i == messages.length - 1;
         final parts = <Map<String, dynamic>>[];
-        final meta = _extractGeminiThoughtMeta(
-          (msg['content'] ?? '').toString(),
+        final meta = _signatureMetaForProvider(
+          _extractGeminiThoughtMeta((msg['content'] ?? '').toString()),
+          config: config,
+          targetScope: geminiScope,
+          message: msg,
         );
         final raw = meta.cleanedText;
         final seenSources = <String>{};
@@ -8554,7 +8741,10 @@ class ChatApiService {
         }
         var contentStr = buf.toString();
         if (_persistGeminiThoughtSigs) {
-          final metaComment = _collectThoughtSigCommentFromParts(parts);
+          final metaComment = _collectThoughtSigCommentFromParts(
+            parts,
+            providerScope: geminiScope,
+          );
           if (metaComment.isNotEmpty) contentStr += metaComment;
         }
         yield ChatStreamChunk(
@@ -8568,27 +8758,17 @@ class ChatApiService {
     }
 
     // Implement SSE streaming via :streamGenerateContent with alt=sse
-    // Build endpoint per Vertex vs Gemini
-    String baseUrl;
-    if (config.vertexAI == true &&
-        (config.location?.isNotEmpty == true) &&
-        (config.projectId?.isNotEmpty == true)) {
-      final loc = config.location!.trim();
-      final proj = config.projectId!.trim();
-      baseUrl =
-          'https://aiplatform.googleapis.com/v1/projects/$proj/locations/$loc/publishers/google/models/$modelId:streamGenerateContent';
-    } else {
-      final base = config.baseUrl.endsWith('/')
-          ? config.baseUrl.substring(0, config.baseUrl.length - 1)
-          : config.baseUrl;
-      baseUrl = '$base/models/$modelId:streamGenerateContent';
-    }
-
-    // Build query with alt=sse
-    final uriBase = Uri.parse(baseUrl);
-    final qp = Map<String, String>.from(uriBase.queryParameters);
-    qp['alt'] = 'sse';
-    final uri = uriBase.replace(queryParameters: qp);
+    final uri = Uri.parse(
+      resolveProviderRequestUrl(
+        baseUrl: config.baseUrl,
+        providerType: 'google',
+        modelId: modelId,
+        vertexAI: config.vertexAI == true,
+        location: config.location,
+        projectId: config.projectId,
+        isStream: true,
+      ).url,
+    );
     final isVertex = config.vertexAI == true;
 
     // Convert messages to Google contents format
@@ -8644,6 +8824,9 @@ class ChatApiService {
             parts.add(part);
           }
         }
+        if (_persistGeminiThoughtSigs) {
+          _ensureGeminiFunctionCallThoughtSig(parts);
+        }
         if (parts.isNotEmpty) {
           contents.add({'role': 'model', 'parts': parts});
         }
@@ -8652,7 +8835,12 @@ class ChatApiService {
       final role = role0 == 'assistant' ? 'model' : 'user';
       final isLast = i == messages.length - 1;
       final parts = <Map<String, dynamic>>[];
-      final meta = _extractGeminiThoughtMeta((msg['content'] ?? '').toString());
+      final meta = _signatureMetaForProvider(
+        _extractGeminiThoughtMeta((msg['content'] ?? '').toString()),
+        config: config,
+        targetScope: geminiScope,
+        message: msg,
+      );
       final raw = meta.cleanedText;
       final seenSources = <String>{};
       String normalizeSrc(String src) {
@@ -9431,6 +9619,7 @@ class ChatApiService {
                     textKey: responseTextThoughtSigKey,
                     textValue: responseTextThoughtSigVal,
                     imageSigs: responseImageThoughtSigs,
+                    providerScope: geminiScope,
                   );
                   if (metaComment.isNotEmpty) {
                     yield ChatStreamChunk(
@@ -9488,6 +9677,7 @@ class ChatApiService {
             textKey: responseTextThoughtSigKey,
             textValue: responseTextThoughtSigVal,
             imageSigs: responseImageThoughtSigs,
+            providerScope: geminiScope,
           );
           if (metaComment.isNotEmpty) {
             yield ChatStreamChunk(
@@ -10391,11 +10581,17 @@ class _GeminiSignatureMeta {
   final String? textKey;
   final dynamic textValue;
   final List<Map<String, dynamic>> images;
+
+  /// Provider + endpoint + model that produced the signature. Null on legacy
+  /// comments written before provenance was persisted.
+  final String? providerScope;
+
   const _GeminiSignatureMeta({
     required this.cleanedText,
     this.textKey,
     this.textValue,
     this.images = const <Map<String, dynamic>>[],
+    this.providerScope,
   });
 
   bool get hasText => (textKey ?? '').isNotEmpty && textValue != null;

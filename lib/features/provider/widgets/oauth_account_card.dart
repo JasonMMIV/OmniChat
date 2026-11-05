@@ -204,17 +204,15 @@ class _UsageBar extends StatelessWidget {
     final warn = window.isWarning;
     final color = warn ? Colors.red : cs.primary;
     final reset = window.resetsAt;
+    final title = window.advisory
+        ? '${l10n.oauthUsageAdvisory} · ${usageWindowLabel(l10n, window)}'
+        : usageWindowLabel(l10n, window);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Expanded(
-              child: Text(
-                usageWindowLabel(l10n, window),
-                style: const TextStyle(fontSize: 12),
-              ),
-            ),
+            Expanded(child: Text(title, style: const TextStyle(fontSize: 12))),
             Text(
               '${window.percent.round()}%',
               style: TextStyle(
@@ -279,6 +277,10 @@ String usageWindowLabel(AppLocalizations l10n, OAuthUsageWindow window) {
     case 'seven_day':
     case 'weekly_all':
       return l10n.oauthUsageWeekly;
+    case 'spend-cap':
+      return l10n.oauthUsageCredits;
+    case 'on-demand':
+      return l10n.oauthUsageOnDemand;
     case 'weekly_scoped':
       if (label != null && label.isNotEmpty) return label;
       return l10n.oauthUsageScoped;

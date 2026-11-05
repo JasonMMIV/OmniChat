@@ -255,7 +255,8 @@ void main() {
       );
 
       expect(body['thinking'], {'type': 'adaptive', 'display': 'summarized'});
-      expect(body.containsKey('output_config'), isFalse);
+      // Always-thinking Claude clamps Off to the lowest explicit effort.
+      expect(body['output_config'], {'effort': 'low'});
       expect(body.containsKey('temperature'), isFalse);
     },
   );

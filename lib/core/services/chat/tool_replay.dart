@@ -9,9 +9,13 @@ import 'todo_service.dart';
 /// * `write_todos` — its snapshot is injected at the system-prompt tail.
 /// * `workspace_snapshot` — retired P1-5 affordance, still present in old
 ///   persisted history.
+/// * `builtin_search` — UI/citation card for a provider-hosted search. The
+///   server already owns that call; replaying it as a client tool produces a
+///   dangling `tool_use`/`functionCall` with no matching result.
 const Set<String> kNonReplayableToolNames = <String>{
   todoToolName,
   'workspace_snapshot',
+  'builtin_search',
 };
 
 /// One replayable tool call/result pair.
@@ -90,7 +94,13 @@ List<ToolReplayPair> buildToolReplayPairs(
     final event = events[i];
     final name = (event['name'] ?? '').toString().trim();
     if (name.isEmpty) continue;
-    if (kNonReplayableToolNames.contains(name)) continue;
+    final eventId = (event['id'] ?? '').toString().trim();
+    // Hosted-search display cards can persist as id `builtin_search` while
+    // their display name is `search_web`; match either field.
+    if (kNonReplayableToolNames.contains(name) ||
+        kNonReplayableToolNames.contains(eventId)) {
+      continue;
+    }
 
     final rawContent = event['content'];
     final content = rawContent is String ? rawContent : null;

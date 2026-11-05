@@ -15,6 +15,7 @@ import 'package:OmniChat/secrets/fallback.dart';
 import '../services/api/google_service_account_auth.dart';
 import '../services/auth/provider_oauth_service.dart';
 import '../utils/reasoning_overrides.dart';
+import '../utils/provider_url.dart';
 
 enum ModelType { chat, embedding }
 
@@ -800,13 +801,15 @@ class ProviderManager {
           );
     try {
       if (kind == ProviderKind.openai) {
-        final base = cfg.baseUrl.endsWith('/')
-            ? cfg.baseUrl.substring(0, cfg.baseUrl.length - 1)
-            : cfg.baseUrl;
-        final path = (cfg.useResponseApi == true)
-            ? '/responses'
-            : (cfg.chatPath ?? '/chat/completions');
-        final url = Uri.parse('$base$path');
+        final url = Uri.parse(
+          resolveProviderRequestUrl(
+            baseUrl: cfg.baseUrl,
+            providerType: 'openai',
+            modelId: modelId,
+            chatPath: cfg.chatPath,
+            useResponses: cfg.useResponseApi == true,
+          ).url,
+        );
         final body = cfg.useResponseApi == true
             ? {
                 'model': modelId,
@@ -862,10 +865,13 @@ class ProviderManager {
         }
         return;
       } else if (kind == ProviderKind.claude) {
-        final base = cfg.baseUrl.endsWith('/')
-            ? cfg.baseUrl.substring(0, cfg.baseUrl.length - 1)
-            : cfg.baseUrl;
-        final url = Uri.parse('$base/messages');
+        final url = Uri.parse(
+          resolveProviderRequestUrl(
+            baseUrl: cfg.baseUrl,
+            providerType: 'claude',
+            modelId: modelId,
+          ).url,
+        );
         final body = {
           'model': modelId,
           'max_tokens': 8,
@@ -910,23 +916,15 @@ class ProviderManager {
           if (raw != null && raw.isNotEmpty) upstreamId = raw;
         } catch (_) {}
 
-        String url;
-        final endpoint = useStream
-            ? 'streamGenerateContent'
-            : 'generateContent';
-        if (cfg.vertexAI == true &&
-            (cfg.location?.isNotEmpty == true) &&
-            (cfg.projectId?.isNotEmpty == true)) {
-          final loc = cfg.location!;
-          final proj = cfg.projectId!;
-          url =
-              'https://aiplatform.googleapis.com/v1/projects/$proj/locations/$loc/publishers/google/models/$upstreamId:$endpoint';
-        } else {
-          final base = cfg.baseUrl.endsWith('/')
-              ? cfg.baseUrl.substring(0, cfg.baseUrl.length - 1)
-              : cfg.baseUrl;
-          url = '$base/models/$upstreamId:$endpoint';
-        }
+        final url = resolveProviderRequestUrl(
+          baseUrl: cfg.baseUrl,
+          providerType: 'google',
+          modelId: upstreamId,
+          vertexAI: cfg.vertexAI == true,
+          location: cfg.location,
+          projectId: cfg.projectId,
+          isStream: useStream,
+        ).url;
         // Determine if model outputs images (override wins; otherwise inference)
         bool wantsImageOutput = false;
         if (ov['output'] is List) {

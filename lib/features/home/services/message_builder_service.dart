@@ -127,6 +127,7 @@ class MessageBuilderService {
     bool includeToolMessages = false,
     bool enableAutoCompaction = false,
     String? compactionNextAction,
+    bool includeGeminiThoughtSignatures = true,
   }) {
     final tIndex = currentConversation?.truncateIndex ?? -1;
     final List<ChatMessage> sourceAll =
@@ -161,14 +162,24 @@ class MessageBuilderService {
 
     final out = <Map<String, dynamic>>[];
     if (headSource != null && headSource.isNotEmpty) {
-      final headApi = neutralMessagesFor(headSource, includeToolMessages);
+      final headApi = neutralMessagesFor(
+        headSource,
+        includeToolMessages,
+        includeGeminiThoughtSignatures: includeGeminiThoughtSignatures,
+      );
       final summary = compactHistoryMessages(
         headApi,
         nextActionOverride: compactionNextAction,
       );
       if (summary != null) out.add(summary);
     }
-    out.addAll(neutralMessagesFor(tailSource, includeToolMessages));
+    out.addAll(
+      neutralMessagesFor(
+        tailSource,
+        includeToolMessages,
+        includeGeminiThoughtSignatures: includeGeminiThoughtSignatures,
+      ),
+    );
 
     if (enableAutoCompaction) {
       applyToolResultMiddlePrune(out);
@@ -181,8 +192,9 @@ class MessageBuilderService {
   /// when [includeToolMessages] is set.
   List<Map<String, dynamic>> neutralMessagesFor(
     List<ChatMessage> source,
-    bool includeToolMessages,
-  ) {
+    bool includeToolMessages, {
+    bool includeGeminiThoughtSignatures = true,
+  }) {
     final out = <Map<String, dynamic>>[];
     for (final m in source) {
       if (includeToolMessages && m.role == 'assistant') {
@@ -269,13 +281,23 @@ class MessageBuilderService {
       }
 
       var content = m.content;
-      if (m.role == 'assistant' && geminiThoughtSignatureHandler != null) {
+      if (m.role == 'assistant' &&
+          includeGeminiThoughtSignatures &&
+          geminiThoughtSignatureHandler != null) {
         content = geminiThoughtSignatureHandler!(m, content);
       }
       if (content.isEmpty) continue;
       out.add(<String, dynamic>{
         'role': m.role == 'assistant' ? 'assistant' : 'user',
         'content': content,
+        // Provenance for Gemini thought-signature isolation (G2): only an
+        // assistant message produced by the same Google endpoint may replay
+        // its signature. Internal key; every non-Google transport rebuilds
+        // its wire maps from role/content and never forwards it.
+        if (includeGeminiThoughtSignatures &&
+            m.role == 'assistant' &&
+            (m.providerId ?? '').trim().isNotEmpty)
+          '_provider_id': m.providerId,
       });
     }
     return out;

@@ -30,6 +30,7 @@ AGPL-3.0 projects, as required by AGPL §5.
 - `lib/core/services/auth/oauth_http_client.dart`
 - `lib/core/services/auth/oauth_errors.dart`
 - `lib/core/services/api/provider_request_headers.dart`
+- `lib/core/services/api/reasoning_details_replay.dart` (OpenRouter `reasoning_details` merge/replay; modified for OmniChat)
 - `android/app/src/main/kotlin/com/psyche/omnichat/OAuthHandler.kt`
 - `android/app/src/main/kotlin/com/psyche/omnichat/OAuthAuthorizationActivity.kt`
 - `android/app/src/main/kotlin/com/psyche/omnichat/OAuthCallbackActivity.kt`

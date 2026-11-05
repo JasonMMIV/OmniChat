@@ -187,6 +187,25 @@ void main() {
     expect((override['reasoning'] as Map)['efforts'], <String>['low', 'high']);
   });
 
+  test('disabled models survive re-sync and stay out of enabledModels', () {
+    final merged = ProviderOAuthService.mergeSyncedModels(
+      _config().copyWith(disabledModels: const <String>{'synced-old'}),
+      const <OAuthModelEntry>[
+        OAuthModelEntry(id: 'synced-old', displayName: 'Old'),
+        OAuthModelEntry(id: 'claude-opus-5-5', displayName: 'Opus 5.5'),
+      ],
+      accountId: 'account-a',
+    );
+
+    expect(merged.disabledModels, contains('synced-old'));
+    expect(merged.enabledModels, isNot(contains('synced-old')));
+    expect(merged.enabledModels, contains('claude-opus-5-5'));
+    expect(
+      ProviderConfig.fromJson(merged.toJson()).disabledModels,
+      contains('synced-old'),
+    );
+  });
+
   test('empty sync result leaves the existing list untouched', () {
     final merged = ProviderOAuthService.mergeSyncedModels(
       _config(),

@@ -29,6 +29,39 @@ typedef OAuthLoginCompleted =
       OAuthProvider provider,
     );
 
+/// Localized "which step failed" text (plan O3). The raw server message stays
+/// authoritative; the stage label is prefixed so the user sees both.
+String describeOAuthLoginFailure(AppLocalizations? l10n, OAuthException e) {
+  final transportText = switch (e.transportFailure) {
+    OAuthFailureTransport.dns => l10n?.oauthTransportDns,
+    OAuthFailureTransport.tls => l10n?.oauthTransportTls,
+    OAuthFailureTransport.proxy => l10n?.oauthTransportProxy,
+    OAuthFailureTransport.connection => l10n?.oauthTransportConnection,
+    OAuthFailureTransport.connectionTimeout =>
+      l10n?.oauthTransportConnectionTimeout,
+    OAuthFailureTransport.sendTimeout => l10n?.oauthTransportSendTimeout,
+    OAuthFailureTransport.receiveTimeout => l10n?.oauthTransportReceiveTimeout,
+    OAuthFailureTransport.requestTimeout => l10n?.oauthTransportRequestTimeout,
+    OAuthFailureTransport.unknown => null,
+    null => null,
+  };
+  final message = transportText == null
+      ? e.message
+      : '${e.message} ($transportText)';
+  final stageText = switch (e.stage) {
+    OAuthStage.requestDeviceCode => l10n?.oauthStageRequestDeviceCode,
+    OAuthStage.waitDeviceAuthorization =>
+      l10n?.oauthStageWaitDeviceAuthorization,
+    OAuthStage.prepareBrowser => l10n?.oauthStagePrepareBrowser,
+    OAuthStage.browserAuthorization => l10n?.oauthStageBrowserAuthorization,
+    OAuthStage.exchangeToken => l10n?.oauthStageExchangeToken,
+    OAuthStage.refreshToken => l10n?.oauthStageRefreshToken,
+    null => null,
+  };
+  if (stageText == null || stageText.isEmpty) return message;
+  return '$stageText: $message';
+}
+
 class OAuthLoginPanel extends StatefulWidget {
   const OAuthLoginPanel({
     super.key,
@@ -125,7 +158,12 @@ class _OAuthLoginPanelState extends State<OAuthLoginPanel> {
         _activeProvider = null;
         _controller = null;
         // Cancelling is a user action, not a failure worth reporting back.
-        _error = e is OAuthLoginCancelled ? null : e.message;
+        _error = e is OAuthLoginCancelled
+            ? null
+            : describeOAuthLoginFailure(
+                mounted ? AppLocalizations.of(context) : null,
+                e,
+              );
       });
     } catch (e) {
       if (!mounted || !identical(_controller, controller)) return;

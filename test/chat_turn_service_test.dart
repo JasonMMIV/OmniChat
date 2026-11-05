@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:OmniChat/core/models/assistant.dart';
 import 'package:OmniChat/core/models/chat_message.dart';
 import 'package:OmniChat/core/models/conversation.dart';
-import 'package:OmniChat/core/providers/model_provider.dart';
 import 'package:OmniChat/core/providers/settings_provider.dart';
 import 'package:OmniChat/core/services/chat/chat_service.dart';
 import 'package:OmniChat/core/services/chat/chat_turn_service.dart';
@@ -27,6 +26,19 @@ class ToolEventChatService extends ChangeNotifier implements ChatService {
   @override
   List<Map<String, dynamic>> getToolEvents(String assistantMessageId) =>
       eventsByMessage[assistantMessageId] ?? const [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// ChatService stub for the Gemini signature replay test.
+class SignatureChatService extends ChangeNotifier implements ChatService {
+  SignatureChatService(this.signature);
+
+  final String? signature;
+
+  @override
+  String? getGeminiThoughtSignature(String assistantMessageId) => signature;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -58,6 +70,7 @@ ChatMessage _msg(
   String? groupId,
   int version = 0,
   String? reasoningText,
+  String? providerId,
 }) {
   return ChatMessage(
     id: id,
@@ -67,6 +80,7 @@ ChatMessage _msg(
     groupId: groupId,
     version: version,
     reasoningText: reasoningText,
+    providerId: providerId,
   );
 }
 
@@ -107,6 +121,45 @@ void main() {
       expect(api, hasLength(2));
       expect(api[0], {'role': 'user', 'content': 'hi'});
       expect(api[1], {'role': 'assistant', 'content': 'yo'});
+    });
+
+    test('replays an artifact signature as a legacy wire carrier', () {
+      final service = ChatTurnService(
+        chatService: SignatureChatService(
+          '{"text":{"k":"thoughtSignature","v":"sig"}}',
+        ),
+      );
+      final conversation = Conversation(title: 't');
+      final api = service.buildApiMessages(
+        conversation: conversation,
+        messages: [
+          _msg('assistant', 'hello', conversation.id, providerId: 'gemini'),
+        ],
+        versionSelections: {},
+        includeGeminiThoughtSignatures: true,
+      );
+
+      expect(api.single['content'], startsWith('hello'));
+      expect(api.single['content'], contains('gemini_thought_signatures:'));
+      expect(api.single['_provider_id'], 'gemini');
+    });
+
+    test('legacy rows without provider attribution stay replayable', () {
+      final service = ChatTurnService(
+        chatService: SignatureChatService(
+          '{"text":{"k":"thoughtSignature","v":"sig"}}',
+        ),
+      );
+      final conversation = Conversation(title: 't');
+      final api = service.buildApiMessages(
+        conversation: conversation,
+        messages: [_msg('assistant', 'hello', conversation.id)],
+        versionSelections: {},
+        includeGeminiThoughtSignatures: true,
+      );
+
+      expect(api.single['content'], contains('gemini_thought_signatures:'));
+      expect(api.single.containsKey('_provider_id'), isFalse);
     });
 
     test('collapses grouped versions to the selected one', () {
@@ -171,67 +224,74 @@ void main() {
       },
     );
 
-    testWidgets('leaves messages untouched when assistant has no system prompt',
-        (tester) async {
-      final context = await _pumpContext(tester);
-      final service = ChatTurnService(chatService: TestChatService());
-      final conversation = Conversation(title: 't');
-      const assistant = Assistant(id: 'a1', name: 'TestBot');
+    testWidgets(
+      'leaves messages untouched when assistant has no system prompt',
+      (tester) async {
+        final context = await _pumpContext(tester);
+        final service = ChatTurnService(chatService: TestChatService());
+        final conversation = Conversation(title: 't');
+        const assistant = Assistant(id: 'a1', name: 'TestBot');
 
-      final request = service.prepareTurnRequest(
-        conversation: conversation,
-        messages: [
-          _msg('user', 'hello', conversation.id),
-        ],
-        versionSelections: {},
-        providerKey: 'OpenAI',
-        modelId: 'gpt-4o',
-        settings: TestSettingsProvider(),
-        assistant: assistant,
-        context: context,
-        userNickname: 'tester',
-      );
+        final request = service.prepareTurnRequest(
+          conversation: conversation,
+          messages: [_msg('user', 'hello', conversation.id)],
+          versionSelections: {},
+          providerKey: 'OpenAI',
+          modelId: 'gpt-4o',
+          settings: TestSettingsProvider(),
+          assistant: assistant,
+          context: context,
+          userNickname: 'tester',
+        );
 
-      expect(request.apiMessages, hasLength(1));
-      expect(request.apiMessages.first['role'], 'user');
-      expect(request.apiMessages.first['content'], 'hello');
-    });
+        expect(request.apiMessages, hasLength(1));
+        expect(request.apiMessages.first['role'], 'user');
+        expect(request.apiMessages.first['content'], 'hello');
+      },
+    );
   });
 
   group('ChatTurnService.buildApiMessages tool replay reasoning echo', () {
-    test('falls back to the assistant reasoningText when events carry none',
-        () {
-      final service = ChatTurnService(
-        chatService: ToolEventChatService({
-          'a1': [
-            {
-              'id': 'call_1',
-              'name': 'web_search',
-              'arguments': {'query': 'x'},
-              'content': 'results',
-            },
+    test(
+      'falls back to the assistant reasoningText when events carry none',
+      () {
+        final service = ChatTurnService(
+          chatService: ToolEventChatService({
+            'a1': [
+              {
+                'id': 'call_1',
+                'name': 'web_search',
+                'arguments': {'query': 'x'},
+                'content': 'results',
+              },
+            ],
+          }),
+        );
+        final conversation = Conversation(title: 't', id: 'c1');
+        final api = service.buildApiMessages(
+          conversation: conversation,
+          messages: [
+            _msg('user', 'search x', conversation.id),
+            _msg(
+              'assistant',
+              '',
+              conversation.id,
+              id: 'a1',
+              reasoningText: 'thinking about the search',
+            ),
+            _msg('user', 'go on', conversation.id),
           ],
-        }),
-      );
-      final conversation = Conversation(title: 't', id: 'c1');
-      final api = service.buildApiMessages(
-        conversation: conversation,
-        messages: [
-          _msg('user', 'search x', conversation.id),
-          _msg('assistant', '', conversation.id,
-              id: 'a1', reasoningText: 'thinking about the search'),
-          _msg('user', 'go on', conversation.id),
-        ],
-        versionSelections: {},
-        includeToolMessages: true,
-      );
+          versionSelections: {},
+          includeToolMessages: true,
+        );
 
-      // user / assistant(tool_calls + reasoning_content) / tool / user
-      expect(api, hasLength(4));
-      final assistantMsg = api[1] as Map;
-      expect(assistantMsg['tool_calls'], hasLength(1));
-      expect(assistantMsg['reasoning_content'], 'thinking about the search');
-    });
+        // user / assistant(tool_calls + reasoning_content) / tool / user
+        expect(api, hasLength(4));
+        final assistantMsg = api[1] as Map;
+        expect(assistantMsg['tool_calls'], hasLength(1));
+        expect(assistantMsg['reasoning_content'], 'thinking about the search');
+      },
+    );
 
     test('event reasoning_content wins over the reasoningText fallback', () {
       final service = ChatTurnService(
@@ -252,8 +312,13 @@ void main() {
         conversation: conversation,
         messages: [
           _msg('user', 'search x', conversation.id),
-          _msg('assistant', '', conversation.id,
-              id: 'a1', reasoningText: 'message reasoning'),
+          _msg(
+            'assistant',
+            '',
+            conversation.id,
+            id: 'a1',
+            reasoningText: 'message reasoning',
+          ),
           _msg('user', 'go on', conversation.id),
         ],
         versionSelections: {},
@@ -264,63 +329,62 @@ void main() {
       expect(assistantMsg['reasoning_content'], 'event echo');
     });
 
-    test('§9.5.2: replays completed/denied pairs only, never dangling calls',
-        () {
-      final service = ChatTurnService(
-        chatService: ToolEventChatService({
-          'a1': [
-            {
-              'id': 'call_done',
-              'name': 'file_read',
-              'arguments': {'path': 'a.txt'},
-              'content': 'contents',
-            },
-            {
-              'id': 'call_denied',
-              'name': 'file_write',
-              'arguments': {'path': 'b.txt'},
-              'content': '{"type":"approval_denied"}',
-              'approvalState': 'denied',
-            },
-            {
-              'id': 'call_pending',
-              'name': 'file_delete',
-              'arguments': {'path': 'c.txt'},
-              'content': '{"type":"approval_required"}',
-              'approvalState': 'pending',
-            },
-            {
-              'id': 'call_interrupted',
-              'name': 'web_fetch',
-              'arguments': {'url': 'https://example.com'},
-              'content': null,
-              'approvalState': 'approved',
-            },
+    test(
+      '§9.5.2: replays completed/denied pairs only, never dangling calls',
+      () {
+        final service = ChatTurnService(
+          chatService: ToolEventChatService({
+            'a1': [
+              {
+                'id': 'call_done',
+                'name': 'file_read',
+                'arguments': {'path': 'a.txt'},
+                'content': 'contents',
+              },
+              {
+                'id': 'call_denied',
+                'name': 'file_write',
+                'arguments': {'path': 'b.txt'},
+                'content': '{"type":"approval_denied"}',
+                'approvalState': 'denied',
+              },
+              {
+                'id': 'call_pending',
+                'name': 'file_delete',
+                'arguments': {'path': 'c.txt'},
+                'content': '{"type":"approval_required"}',
+                'approvalState': 'pending',
+              },
+              {
+                'id': 'call_interrupted',
+                'name': 'web_fetch',
+                'arguments': {'url': 'https://example.com'},
+                'content': null,
+                'approvalState': 'approved',
+              },
+            ],
+          }),
+        );
+        final conversation = Conversation(title: 't', id: 'c1');
+        final api = service.buildApiMessages(
+          conversation: conversation,
+          messages: [
+            _msg('user', 'work', conversation.id),
+            _msg('assistant', '', conversation.id, id: 'a1'),
+            _msg('user', 'go on', conversation.id),
           ],
-        }),
-      );
-      final conversation = Conversation(title: 't', id: 'c1');
-      final api = service.buildApiMessages(
-        conversation: conversation,
-        messages: [
-          _msg('user', 'work', conversation.id),
-          _msg('assistant', '', conversation.id, id: 'a1'),
-          _msg('user', 'go on', conversation.id),
-        ],
-        versionSelections: {},
-        includeToolMessages: true,
-      );
+          versionSelections: {},
+          includeToolMessages: true,
+        );
 
-      final toolCalls = api[1]['tool_calls'] as List;
-      expect(toolCalls, hasLength(2));
-      final callIds = toolCalls.map((c) => c['id']).toSet();
-      expect(callIds, {'call_done', 'call_denied'});
-      final toolResults = api.where((m) => m['role'] == 'tool').toList();
-      expect(toolResults, hasLength(2));
-      expect(
-        toolResults.map((m) => m['tool_call_id']).toSet(),
-        callIds,
-      );
-    });
+        final toolCalls = api[1]['tool_calls'] as List;
+        expect(toolCalls, hasLength(2));
+        final callIds = toolCalls.map((c) => c['id']).toSet();
+        expect(callIds, {'call_done', 'call_denied'});
+        final toolResults = api.where((m) => m['role'] == 'tool').toList();
+        expect(toolResults, hasLength(2));
+        expect(toolResults.map((m) => m['tool_call_id']).toSet(), callIds);
+      },
+    );
   });
 }

@@ -189,6 +189,10 @@ class MessageGenerationService {
       includeToolMessages: settings.replayToolResults,
       enableAutoCompaction: settings.autoCompactionV1,
       compactionNextAction: todoNextAction,
+      includeGeminiThoughtSignatures: _isGoogleProviderKey(
+        settings,
+        providerKey,
+      ),
     );
 
     // Process user messages (documents, OCR, templates)
@@ -427,6 +431,14 @@ class MessageGenerationService {
       streamOutput: assistant?.streamOutput ?? true,
       generateTitleOnFinish: generateTitleOnFinish,
     );
+  }
+
+  /// Whether the target provider uses the Google Gemini wire. Thought
+  /// signatures must only travel back to the provider that produced them.
+  bool _isGoogleProviderKey(SettingsProvider settings, String providerKey) {
+    final cfg = settings.getProviderConfig(providerKey);
+    return ProviderConfig.classify(cfg.id, explicitType: cfg.providerType) ==
+        ProviderKind.google;
   }
 
   /// Get current model and provider from assistant or global settings.

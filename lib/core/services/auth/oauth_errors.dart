@@ -2,10 +2,41 @@
 
 import '../../models/provider_oauth.dart';
 
+/// Which step of a login failed (plan O3). The adapter fills this in at the
+/// moment of failure so the UI can say where the flow stopped.
+enum OAuthStage {
+  requestDeviceCode,
+  waitDeviceAuthorization,
+  prepareBrowser,
+  browserAuthorization,
+  exchangeToken,
+  refreshToken,
+}
+
+/// How a transport-level failure was classified (plan O3). DNS/TLS/proxy
+/// failures read differently from plain timeouts in the sign-in dialog.
+enum OAuthFailureTransport {
+  dns,
+  tls,
+  proxy,
+  connection,
+  connectionTimeout,
+  sendTimeout,
+  receiveTimeout,
+  requestTimeout,
+  unknown,
+}
+
 /// Base class for every failure the OAuth layer surfaces. Messages are already
 /// redacted (plan C5) — callers can show [message] as-is.
 class OAuthException implements Exception {
-  OAuthException(this.message, {this.provider, this.loginRequired = false});
+  OAuthException(
+    this.message, {
+    this.provider,
+    this.loginRequired = false,
+    this.stage,
+    this.transportFailure,
+  });
 
   final String message;
   final OAuthProvider? provider;
@@ -14,6 +45,12 @@ class OAuthException implements Exception {
   /// invalidated, credentials removed). The UI turns this into the recovery
   /// card instead of a transient error (plan C16).
   final bool loginRequired;
+
+  /// Login step where this error arose; null for non-login surfaces.
+  final OAuthStage? stage;
+
+  /// Transport classification when the failure was connection-level (plan O3).
+  final OAuthFailureTransport? transportFailure;
 
   @override
   String toString() => message;
@@ -86,6 +123,39 @@ class OAuthClientVersionTooOld extends OAuthException {
 /// as [loginRequired] — that would strand a user with working credentials in
 /// the recovery flow (plan C16).
 class OAuthTransportException extends OAuthException {
-  OAuthTransportException(String message, {super.provider})
-    : super(redactOAuthText(message));
+  OAuthTransportException(
+    String message, {
+    super.provider,
+    super.stage,
+    OAuthFailureTransport? transportFailure,
+  }) : super(
+         redactOAuthText(message),
+         transportFailure: transportFailure ?? classifyOAuthTransport(message),
+       );
+}
+
+/// Best-effort mapping of a raw message (or thrown object) onto a transport
+/// class. Callers that already know the kind pass the enum directly; this
+/// string heuristic only keeps already-thrown [OAuthTransportException]s
+/// informative when a helper rethrows them.
+OAuthFailureTransport classifyOAuthTransport(Object? error) {
+  final text = error.toString().toLowerCase();
+  if (text.contains('proxy') || text.contains('tunnel')) {
+    return OAuthFailureTransport.proxy;
+  }
+  if (text.contains('handshake') || text.contains('certificate')) {
+    return OAuthFailureTransport.tls;
+  }
+  if (text.contains('socket') ||
+      text.contains('connection') ||
+      text.contains('host') ||
+      text.contains('lookup')) {
+    return text.contains('timed out') || text.contains('timeout')
+        ? OAuthFailureTransport.requestTimeout
+        : OAuthFailureTransport.connection;
+  }
+  if (text.contains('timed out') || text.contains('timeout')) {
+    return OAuthFailureTransport.requestTimeout;
+  }
+  return OAuthFailureTransport.unknown;
 }

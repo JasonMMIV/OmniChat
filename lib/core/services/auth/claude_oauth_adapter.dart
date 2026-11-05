@@ -251,6 +251,7 @@ class ClaudeOAuthAdapter implements ProviderOAuthAdapter {
       result,
       provider: provider,
       label: 'Token exchange failed',
+      stage: OAuthStage.exchangeToken,
     );
     return _credentialsFromTokenResponse(
       result.json,
@@ -351,6 +352,7 @@ class ClaudeOAuthAdapter implements ProviderOAuthAdapter {
         provider: provider,
         label: 'Token refresh failed',
         loginRequiredOnAuthError: true,
+        stage: OAuthStage.refreshToken,
       );
     }
     final refreshed = _credentialsFromTokenResponse(

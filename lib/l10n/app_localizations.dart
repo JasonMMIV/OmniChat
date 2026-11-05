@@ -568,6 +568,30 @@ abstract class AppLocalizations {
   /// **'API Base URL'**
   String get providerDetailPageApiBaseUrlLabel;
 
+  /// No description provided for @providerDetailPageRequestUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Request URL'**
+  String get providerDetailPageRequestUrlLabel;
+
+  /// No description provided for @providerDetailPageAutoVersionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-fill version'**
+  String get providerDetailPageAutoVersionLabel;
+
+  /// No description provided for @providerDetailPageAutoVersionAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'API version added'**
+  String get providerDetailPageAutoVersionAdded;
+
+  /// No description provided for @providerDetailPageTestFailureDetailsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Server response'**
+  String get providerDetailPageTestFailureDetailsLabel;
+
   /// No description provided for @providerDetailPageLocationLabel.
   ///
   /// In en, this message translates to:
@@ -10224,6 +10248,12 @@ abstract class AppLocalizations {
   /// **'adaptive + output_config.effort'**
   String get modelDetailReasoningWireClaudeAdaptive;
 
+  /// No description provided for @modelDetailReasoningWireClaudeAdaptiveBetweenTools.
+  ///
+  /// In en, this message translates to:
+  /// **'adaptive / between_tools'**
+  String get modelDetailReasoningWireClaudeAdaptiveBetweenTools;
+
   /// No description provided for @modelDetailReasoningWireGeminiBudget.
   ///
   /// In en, this message translates to:
@@ -10956,6 +10986,24 @@ abstract class AppLocalizations {
   /// **'Model window'**
   String get oauthUsageScoped;
 
+  /// No description provided for @oauthUsageCredits.
+  ///
+  /// In en, this message translates to:
+  /// **'Credit meter'**
+  String get oauthUsageCredits;
+
+  /// No description provided for @oauthUsageOnDemand.
+  ///
+  /// In en, this message translates to:
+  /// **'On-demand'**
+  String get oauthUsageOnDemand;
+
+  /// No description provided for @oauthUsageAdvisory.
+  ///
+  /// In en, this message translates to:
+  /// **'Estimated'**
+  String get oauthUsageAdvisory;
+
   /// No description provided for @oauthUsageExtra.
   ///
   /// In en, this message translates to:
@@ -10967,6 +11015,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Resets {time}'**
   String oauthUsageResets(String time);
+
+  /// No description provided for @oauthStageRequestDeviceCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Requesting the device code'**
+  String get oauthStageRequestDeviceCode;
+
+  /// No description provided for @oauthStageWaitDeviceAuthorization.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for authorization'**
+  String get oauthStageWaitDeviceAuthorization;
+
+  /// No description provided for @oauthStagePrepareBrowser.
+  ///
+  /// In en, this message translates to:
+  /// **'Opening the sign-in page'**
+  String get oauthStagePrepareBrowser;
+
+  /// No description provided for @oauthStageBrowserAuthorization.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the sign-in page'**
+  String get oauthStageBrowserAuthorization;
+
+  /// No description provided for @oauthStageExchangeToken.
+  ///
+  /// In en, this message translates to:
+  /// **'Exchanging the code'**
+  String get oauthStageExchangeToken;
+
+  /// No description provided for @oauthStageRefreshToken.
+  ///
+  /// In en, this message translates to:
+  /// **'Refreshing the token'**
+  String get oauthStageRefreshToken;
+
+  /// No description provided for @oauthTransportDns.
+  ///
+  /// In en, this message translates to:
+  /// **'DNS lookup failed'**
+  String get oauthTransportDns;
+
+  /// No description provided for @oauthTransportTls.
+  ///
+  /// In en, this message translates to:
+  /// **'TLS handshake failed'**
+  String get oauthTransportTls;
+
+  /// No description provided for @oauthTransportProxy.
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy connection failed'**
+  String get oauthTransportProxy;
+
+  /// No description provided for @oauthTransportConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection failed'**
+  String get oauthTransportConnection;
+
+  /// No description provided for @oauthTransportConnectionTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection timed out'**
+  String get oauthTransportConnectionTimeout;
+
+  /// No description provided for @oauthTransportSendTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Request send timed out'**
+  String get oauthTransportSendTimeout;
+
+  /// No description provided for @oauthTransportReceiveTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Response timed out'**
+  String get oauthTransportReceiveTimeout;
+
+  /// No description provided for @oauthTransportRequestTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Request timed out'**
+  String get oauthTransportRequestTimeout;
 
   /// No description provided for @oauthRefreshUsage.
   ///

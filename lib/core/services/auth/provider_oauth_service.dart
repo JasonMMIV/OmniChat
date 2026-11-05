@@ -379,6 +379,8 @@ class ProviderOAuthService extends ChangeNotifier {
       throw OAuthTransportException(
         e.toString(),
         provider: config.oauthProvider,
+        transportFailure: classifyOAuthTransport(e),
+        stage: OAuthStage.refreshToken,
       );
     } finally {
       client.close();
@@ -598,6 +600,7 @@ class ProviderOAuthService extends ChangeNotifier {
         throw OAuthTransportException(
           e.toString(),
           provider: config.oauthProvider,
+          transportFailure: classifyOAuthTransport(e),
         );
       }
       return config;

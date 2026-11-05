@@ -248,6 +248,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get providerDetailPageApiBaseUrlLabel => 'API Base URL';
 
   @override
+  String get providerDetailPageRequestUrlLabel => 'Request URL';
+
+  @override
+  String get providerDetailPageAutoVersionLabel => 'Auto-fill version';
+
+  @override
+  String get providerDetailPageAutoVersionAdded => 'API version added';
+
+  @override
+  String get providerDetailPageTestFailureDetailsLabel => 'Server response';
+
+  @override
   String get providerDetailPageLocationLabel => 'Location';
 
   @override
@@ -5394,6 +5406,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'adaptive + output_config.effort';
 
   @override
+  String get modelDetailReasoningWireClaudeAdaptiveBetweenTools =>
+      'adaptive / between_tools';
+
+  @override
   String get modelDetailReasoningWireGeminiBudget => 'thinkingBudget';
 
   @override
@@ -5823,12 +5839,63 @@ class AppLocalizationsEn extends AppLocalizations {
   String get oauthUsageScoped => 'Model window';
 
   @override
+  String get oauthUsageCredits => 'Credit meter';
+
+  @override
+  String get oauthUsageOnDemand => 'On-demand';
+
+  @override
+  String get oauthUsageAdvisory => 'Estimated';
+
+  @override
   String get oauthUsageExtra => 'Extra usage';
 
   @override
   String oauthUsageResets(String time) {
     return 'Resets $time';
   }
+
+  @override
+  String get oauthStageRequestDeviceCode => 'Requesting the device code';
+
+  @override
+  String get oauthStageWaitDeviceAuthorization => 'Waiting for authorization';
+
+  @override
+  String get oauthStagePrepareBrowser => 'Opening the sign-in page';
+
+  @override
+  String get oauthStageBrowserAuthorization => 'Waiting for the sign-in page';
+
+  @override
+  String get oauthStageExchangeToken => 'Exchanging the code';
+
+  @override
+  String get oauthStageRefreshToken => 'Refreshing the token';
+
+  @override
+  String get oauthTransportDns => 'DNS lookup failed';
+
+  @override
+  String get oauthTransportTls => 'TLS handshake failed';
+
+  @override
+  String get oauthTransportProxy => 'Proxy connection failed';
+
+  @override
+  String get oauthTransportConnection => 'Connection failed';
+
+  @override
+  String get oauthTransportConnectionTimeout => 'Connection timed out';
+
+  @override
+  String get oauthTransportSendTimeout => 'Request send timed out';
+
+  @override
+  String get oauthTransportReceiveTimeout => 'Response timed out';
+
+  @override
+  String get oauthTransportRequestTimeout => 'Request timed out';
 
   @override
   String get oauthRefreshUsage => 'Refresh usage';

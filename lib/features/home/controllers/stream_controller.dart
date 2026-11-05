@@ -49,7 +49,8 @@ class StreamController {
 
   /// Lightweight notifier for streaming content updates.
   /// This avoids triggering full page rebuilds during streaming.
-  final StreamingContentNotifier streamingContentNotifier = StreamingContentNotifier();
+  final StreamingContentNotifier streamingContentNotifier =
+      StreamingContentNotifier();
 
   /// Set of message IDs currently being streamed.
   /// Used to suppress onStateChanged calls during streaming.
@@ -101,8 +102,7 @@ class StreamController {
       _reasoningSegments;
 
   /// Tool UI parts per assistant message.
-  final Map<String, List<ToolUIPart>> _toolParts =
-      <String, List<ToolUIPart>>{};
+  final Map<String, List<ToolUIPart>> _toolParts = <String, List<ToolUIPart>>{};
   Map<String, List<ToolUIPart>> get toolParts => _toolParts;
 
   /// Gemini thought signatures per assistant message.
@@ -157,10 +157,6 @@ class StreamController {
   /// Set of message IDs currently being sanitized.
   final Set<String> _inlineImageSanitizing = <String>{};
 
-  /// Regex to capture Gemini thought signature comments.
-  static final RegExp _geminiThoughtSigRe =
-      RegExp(r'<!--\s*gemini_thought_signatures:.*?-->', dotAll: true);
-
   // ============================================================================
   // Public Methods - State Access
   // ============================================================================
@@ -183,7 +179,10 @@ class StreamController {
       _reasoningSegments[messageId];
 
   /// Set reasoning segments for a message.
-  void setReasoningSegments(String messageId, List<ReasoningSegmentData> segments) {
+  void setReasoningSegments(
+    String messageId,
+    List<ReasoningSegmentData> segments,
+  ) {
     _reasoningSegments[messageId] = segments;
   }
 
@@ -230,34 +229,40 @@ class StreamController {
   // Gemini Thought Signature Handling
   // ============================================================================
 
-  /// Capture and strip Gemini thought signature from content.
+  /// Capture and strip Gemini thought signature from content. The persisted
+  /// artifact is the bare JSON payload; old full-comment artifacts are
+  /// normalized on the next write.
   String captureGeminiThoughtSignature(String content, String messageId) {
     if (content.isEmpty) return content;
-    final m = _geminiThoughtSigRe.firstMatch(content);
-    if (m != null) {
-      final sig = m.group(0) ?? '';
-      if (sig.isNotEmpty) {
-        if (_geminiThoughtSigs[messageId] != sig) {
-          _geminiThoughtSigs[messageId] = sig;
-          unawaited(_chatService.setGeminiThoughtSignature(messageId, sig));
-        }
+    final captured = ChatApiService.stripGeminiThoughtSignature(content);
+    final payload = captured.payload;
+    if (payload != null && payload.isNotEmpty) {
+      if (_geminiThoughtSigs[messageId] != payload) {
+        _geminiThoughtSigs[messageId] = payload;
+        unawaited(_chatService.setGeminiThoughtSignature(messageId, payload));
       }
-      content = content.replaceAll(_geminiThoughtSigRe, '').trimRight();
     }
-    return content;
+    return captured.cleaned;
+  }
+
+  /// Drop the signature captured by a failed attempt before a retry starts.
+  /// The regenerated text will not match the old signature, so replaying it
+  /// would trigger `400 Corrupted thought signature`.
+  void clearGeminiThoughtSignature(String messageId) {
+    _geminiThoughtSigs.remove(messageId);
+    unawaited(_chatService.removeGeminiThoughtSignature(messageId));
   }
 
   /// Append Gemini thought signature for API calls (when sending history).
-  String appendGeminiThoughtSignatureForApi(ChatMessage message, String content) {
-    String? sig = _geminiThoughtSigs[message.id];
-    sig ??= _chatService.getGeminiThoughtSignature(message.id);
-    if (sig != null &&
-        sig.isNotEmpty &&
-        !content.contains('gemini_thought_signatures:')) {
-      if (content.isEmpty) return sig;
-      return '$content\n$sig';
-    }
-    return content;
+  String appendGeminiThoughtSignatureForApi(
+    ChatMessage message,
+    String content,
+  ) {
+    final sig =
+        _geminiThoughtSigs[message.id] ??
+        _chatService.getGeminiThoughtSignature(message.id);
+    if (sig == null || sig.isEmpty) return content;
+    return ChatApiService.appendGeminiThoughtSignature(content, sig);
   }
 
   /// Clear Gemini thought signatures map.
@@ -272,13 +277,15 @@ class StreamController {
   /// Serialize reasoning segments to JSON string.
   String serializeReasoningSegments(List<ReasoningSegmentData> segments) {
     final list = segments
-        .map((s) => {
-              'text': s.text,
-              'startAt': s.startAt?.toIso8601String(),
-              'finishedAt': s.finishedAt?.toIso8601String(),
-              'expanded': s.expanded,
-              'toolStartIndex': s.toolStartIndex,
-            })
+        .map(
+          (s) => {
+            'text': s.text,
+            'startAt': s.startAt?.toIso8601String(),
+            'finishedAt': s.finishedAt?.toIso8601String(),
+            'expanded': s.expanded,
+            'toolStartIndex': s.toolStartIndex,
+          },
+        )
         .toList();
     return _encodeJson(list);
   }
@@ -291,8 +298,9 @@ class StreamController {
       return list.map((item) {
         final s = ReasoningSegmentData();
         s.text = item['text'] ?? '';
-        s.startAt =
-            item['startAt'] != null ? DateTime.parse(item['startAt']) : null;
+        s.startAt = item['startAt'] != null
+            ? DateTime.parse(item['startAt'])
+            : null;
         s.finishedAt = item['finishedAt'] != null
             ? DateTime.parse(item['finishedAt'])
             : null;
@@ -377,7 +385,9 @@ class StreamController {
   }
 
   /// Deduplicate raw persisted tool events.
-  List<Map<String, dynamic>> dedupeToolEvents(List<Map<String, dynamic>> events) {
+  List<Map<String, dynamic>> dedupeToolEvents(
+    List<Map<String, dynamic>> events,
+  ) {
     final completedNoIdBases = <String>{
       for (final e in events)
         if ((e['id']?.toString() ?? '').trim().isEmpty &&
@@ -393,7 +403,8 @@ class StreamController {
     for (final e in events) {
       final id = (e['id']?.toString() ?? '').trim();
       final name = (e['name']?.toString() ?? '');
-      final args = ((e['arguments'] as Map?)?.cast<String, dynamic>() ??
+      final args =
+          ((e['arguments'] as Map?)?.cast<String, dynamic>() ??
           const <String, dynamic>{});
       if (id.isEmpty &&
           !_hasToolContent(e['content']?.toString()) &&
@@ -444,7 +455,8 @@ class StreamController {
     String messageId,
     String conversationId,
     String content, {
-    required void Function(String messageId, String content, int totalTokens) updateMessageInList,
+    required void Function(String messageId, String content, int totalTokens)
+    updateMessageInList,
     required int totalTokens,
   }) {
     _pendingStreamContent[messageId] = content;
@@ -453,8 +465,9 @@ class StreamController {
     // Ensure notifier exists for this message
     streamingContentNotifier.getNotifier(messageId);
 
-    _streamThrottleTimers[messageId] ??=
-        Timer.periodic(_streamThrottleInterval, (_) {
+    _streamThrottleTimers[messageId] ??= Timer.periodic(_streamThrottleInterval, (
+      _,
+    ) {
       final pending = _pendingStreamContent[messageId];
       if (pending != null && getCurrentConversationId() == conversationId) {
         // Use latest totalTokens from mutable map (not the closure-captured value)
@@ -534,7 +547,7 @@ class StreamController {
     String? latestContent,
     bool immediate = false,
     required Future<void> Function(String messageId, String sanitizedContent)
-        onSanitized,
+    onSanitized,
   }) {
     // Quick pre-check to avoid needless timers
     final snapshot = latestContent ?? '';
@@ -584,7 +597,14 @@ class StreamController {
   Future<void> handleReasoningChunk(
     ChatStreamChunk chunk,
     StreamingState state, {
-    required Future<void> Function(String messageId, {String? reasoningText, DateTime? reasoningStartAt, DateTime? processStartedAt, String? reasoningSegmentsJson}) updateReasoningInDb,
+    required Future<void> Function(
+      String messageId, {
+      String? reasoningText,
+      DateTime? reasoningStartAt,
+      DateTime? processStartedAt,
+      String? reasoningSegmentsJson,
+    })
+    updateReasoningInDb,
   }) async {
     if ((chunk.reasoning ?? '').isEmpty || !state.ctx.supportsReasoning) return;
 
@@ -605,7 +625,8 @@ class StreamController {
       );
 
       // Add to reasoning segments for mixed display
-      final segments = _reasoningSegments[messageId] ?? <ReasoningSegmentData>[];
+      final segments =
+          _reasoningSegments[messageId] ?? <ReasoningSegmentData>[];
       if (segments.isEmpty) {
         final newSegment = ReasoningSegmentData();
         newSegment.text = chunk.reasoning!;
@@ -669,10 +690,20 @@ class StreamController {
   Future<void> handleToolCallsChunk(
     ChatStreamChunk chunk,
     StreamingState state, {
-    required Future<void> Function(String messageId, String json) updateReasoningSegmentsInDb,
-    required Future<void> Function(String messageId, List<Map<String, dynamic>> events) setToolEventsInDb,
-    required List<Map<String, dynamic>> Function(String messageId) getToolEventsFromDb,
-    required Future<void> Function(String messageId, {DateTime? processStartedAt}) updateReasoningInDb,
+    required Future<void> Function(String messageId, String json)
+    updateReasoningSegmentsInDb,
+    required Future<void> Function(
+      String messageId,
+      List<Map<String, dynamic>> events,
+    )
+    setToolEventsInDb,
+    required List<Map<String, dynamic>> Function(String messageId)
+    getToolEventsFromDb,
+    required Future<void> Function(
+      String messageId, {
+      DateTime? processStartedAt,
+    })
+    updateReasoningInDb,
   }) async {
     if ((chunk.toolCalls ?? const []).isEmpty) return;
 
@@ -681,7 +712,11 @@ class StreamController {
 
     // 過程收褶: a tool call can open the turn (tool-only models, or a
     // tool-first agent loop) — it is then the process start anchor.
-    await _stampProcessStarted(messageId, at: null, persist: updateReasoningInDb);
+    await _stampProcessStarted(
+      messageId,
+      at: null,
+      persist: updateReasoningInDb,
+    );
 
     // Finish any unfinished reasoning segment when tools start
     final segments = _reasoningSegments[messageId] ?? <ReasoningSegmentData>[];
@@ -707,12 +742,14 @@ class StreamController {
     // Add tool call placeholders
     final existing = List<ToolUIPart>.of(_toolParts[messageId] ?? const []);
     for (final c in chunk.toolCalls!) {
-      existing.add(ToolUIPart(
-        id: c.id,
-        toolName: c.name,
-        arguments: c.arguments,
-        loading: true,
-      ));
+      existing.add(
+        ToolUIPart(
+          id: c.id,
+          toolName: c.name,
+          arguments: c.arguments,
+          loading: true,
+        ),
+      );
     }
     if (getCurrentConversationId() == conversationId) {
       _toolParts[messageId] = dedupeToolPartsList(existing);
@@ -765,8 +802,19 @@ class StreamController {
   Future<void> handleToolResultsChunk(
     ChatStreamChunk chunk,
     StreamingState state, {
-    required Future<void> Function(String messageId, {required String id, required String name, required Map<String, dynamic> arguments, String? content}) upsertToolEventInDb,
-    required Future<void> Function(String messageId, {DateTime? processFinishedAt}) updateReasoningInDb,
+    required Future<void> Function(
+      String messageId, {
+      required String id,
+      required String name,
+      required Map<String, dynamic> arguments,
+      String? content,
+    })
+    upsertToolEventInDb,
+    required Future<void> Function(
+      String messageId, {
+      DateTime? processFinishedAt,
+    })
+    updateReasoningInDb,
     List<Map<String, dynamic>> Function(String messageId)? getToolEventsFromDb,
   }) async {
     if ((chunk.toolResults ?? const []).isEmpty) return;
@@ -807,16 +855,18 @@ class StreamController {
           webFetchSource: extras['webFetchSource']?.toString(),
         );
       } else {
-        parts.add(ToolUIPart(
-          id: r.id,
-          toolName: r.name,
-          arguments: r.arguments,
-          content: r.content,
-          loading: false,
-          searchProvider: extras['searchProvider']?.toString(),
-          searchFallbackFrom: extras['searchFallbackFrom']?.toString(),
-          webFetchSource: extras['webFetchSource']?.toString(),
-        ));
+        parts.add(
+          ToolUIPart(
+            id: r.id,
+            toolName: r.name,
+            arguments: r.arguments,
+            content: r.content,
+            loading: false,
+            searchProvider: extras['searchProvider']?.toString(),
+            searchFallbackFrom: extras['searchFallbackFrom']?.toString(),
+            webFetchSource: extras['webFetchSource']?.toString(),
+          ),
+        );
       }
       try {
         final args = (r.arguments is Map)
@@ -848,7 +898,14 @@ class StreamController {
   /// Finish reasoning segment when content starts arriving.
   Future<void> finishReasoningOnContent(
     StreamingState state, {
-    required Future<void> Function(String messageId, {String? reasoningText, DateTime? reasoningFinishedAt, DateTime? processFinishedAt, String? reasoningSegmentsJson}) updateReasoningInDb,
+    required Future<void> Function(
+      String messageId, {
+      String? reasoningText,
+      DateTime? reasoningFinishedAt,
+      DateTime? processFinishedAt,
+      String? reasoningSegmentsJson,
+    })
+    updateReasoningInDb,
   }) async {
     final messageId = state.messageId;
 
@@ -922,7 +979,11 @@ class StreamController {
   Future<void> _stampProcessStarted(
     String messageId, {
     required DateTime? at,
-    required Future<void> Function(String messageId, {DateTime? processStartedAt}) persist,
+    required Future<void> Function(
+      String messageId, {
+      DateTime? processStartedAt,
+    })
+    persist,
   }) async {
     final r = _reasoning[messageId] ?? ReasoningData();
     if (r.processStartedAt != null) {
@@ -944,7 +1005,11 @@ class StreamController {
   Future<void> _stampProcessFinished(
     String messageId, {
     required bool hasAnswerText,
-    required Future<void> Function(String messageId, {DateTime? processFinishedAt}) persist,
+    required Future<void> Function(
+      String messageId, {
+      DateTime? processFinishedAt,
+    })
+    persist,
   }) async {
     if (_groupIsLive(messageId, hasAnswerText)) return;
     final r = _reasoning[messageId];
@@ -972,7 +1037,14 @@ class StreamController {
   /// Finalize streaming and finish reasoning state.
   Future<void> finalizeReasoningState(
     String messageId, {
-    required Future<void> Function(String messageId, {String? reasoningText, DateTime? reasoningFinishedAt, DateTime? processFinishedAt, String? reasoningSegmentsJson}) updateReasoningInDb,
+    required Future<void> Function(
+      String messageId, {
+      String? reasoningText,
+      DateTime? reasoningFinishedAt,
+      DateTime? processFinishedAt,
+      String? reasoningSegmentsJson,
+    })
+    updateReasoningInDb,
   }) async {
     // Finish reasoning data
     final r = _reasoning[messageId];
@@ -1033,12 +1105,10 @@ class StreamController {
   /// - _handleStreamError (line 3954-3970)
   ///
   /// Returns true if any state was actually changed.
-  bool finishReasoningIfNeeded(
-    String messageId, {
-    bool forceCollapse = false,
-  }) {
+  bool finishReasoningIfNeeded(String messageId, {bool forceCollapse = false}) {
     bool changed = false;
-    final autoCollapse = forceCollapse || getSettingsProvider().autoCollapseThinking;
+    final autoCollapse =
+        forceCollapse || getSettingsProvider().autoCollapseThinking;
 
     // Finish main reasoning data (only when it first finishes, not on subsequent calls)
     final r = _reasoning[messageId];
@@ -1088,7 +1158,8 @@ class StreamController {
       DateTime? reasoningFinishedAt,
       DateTime? processFinishedAt,
       String? reasoningSegmentsJson,
-    }) updateReasoningInDb,
+    })
+    updateReasoningInDb,
   }) async {
     // 過程收褶 backstop: a run that ended without a clean idle transition
     // (error, cancel, empty answer, approval abort) still needs a frozen
@@ -1107,7 +1178,10 @@ class StreamController {
       );
     }
 
-    final changed = finishReasoningIfNeeded(messageId, forceCollapse: forceCollapse);
+    final changed = finishReasoningIfNeeded(
+      messageId,
+      forceCollapse: forceCollapse,
+    );
     if (!changed) return;
 
     // Persist reasoning data
@@ -1141,7 +1215,7 @@ class StreamController {
   void restoreMessageUiState(
     ChatMessage message, {
     required List<ToolPartSummary> Function(String messageId)
-        getToolPartSummariesFromDb,
+    getToolPartSummariesFromDb,
     required String? Function(String messageId) getGeminiThoughtSigFromDb,
   }) {
     if (message.role != 'assistant') return;
@@ -1151,7 +1225,8 @@ class StreamController {
     // Restore Gemini thought signature
     final storedSig = getGeminiThoughtSigFromDb(messageId);
     if (storedSig != null && storedSig.isNotEmpty) {
-      _geminiThoughtSigs[messageId] = storedSig;
+      _geminiThoughtSigs[messageId] =
+          ChatApiService.normalizeGeminiThoughtSignature(storedSig);
     }
 
     // Restore reasoning state
@@ -1194,7 +1269,8 @@ class StreamController {
                 // message itself is streaming. After the startup repair of a
                 // crashed run, the stale placeholder must not keep its tool
                 // row spinning forever.
-                loading: message.isStreaming &&
+                loading:
+                    message.isStreaming &&
                     summary.isPending &&
                     summary.eagerContent == null,
                 searchProvider: summary.searchProvider,
@@ -1207,7 +1283,9 @@ class StreamController {
     } catch (_) {}
 
     // Restore reasoning segments
-    final segments = deserializeReasoningSegments(message.reasoningSegmentsJson);
+    final segments = deserializeReasoningSegments(
+      message.reasoningSegmentsJson,
+    );
     if (segments.isNotEmpty) {
       _reasoningSegments[messageId] = segments;
     }

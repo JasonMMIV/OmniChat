@@ -2028,6 +2028,9 @@ class ChatActions {
   /// attempt if the model decides to use them again.
   void _resetStreamForRetry(stream_ctrl.StreamingState state) {
     final messageId = state.messageId;
+    // The retry regenerates the whole answer; a signature captured from the
+    // failed attempt no longer matches the new text and must not be replayed.
+    streamController.clearGeminiThoughtSignature(messageId);
     state.fullContentRaw = '';
     state.totalTokens = 0;
     state.usage = null;

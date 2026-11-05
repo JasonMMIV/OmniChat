@@ -34,6 +34,8 @@ class ReasoningWire {
   // Claude Messages dialects.
   static const String claudeBudget = 'claude.budget';
   static const String claudeAdaptive = 'claude.adaptive';
+  static const String claudeAdaptiveBetweenTools =
+      'claude.adaptive_between_tools';
   static const String claudeNone = 'claude.none';
 
   // Gemini generateContent dialects.
@@ -55,6 +57,7 @@ class ReasoningWire {
     responsesNone,
     claudeBudget,
     claudeAdaptive,
+    claudeAdaptiveBetweenTools,
     claudeNone,
     geminiBudget,
     geminiLevel,
@@ -134,7 +137,13 @@ class ReasoningWire {
       case ReasoningWireTransport.responses:
         return const <String>[auto, responsesEffort, responsesNone];
       case ReasoningWireTransport.claude:
-        return const <String>[auto, claudeBudget, claudeAdaptive, claudeNone];
+        return const <String>[
+          auto,
+          claudeBudget,
+          claudeAdaptive,
+          claudeAdaptiveBetweenTools,
+          claudeNone,
+        ];
       case ReasoningWireTransport.gemini:
         return const <String>[auto, geminiBudget, geminiLevel, geminiNone];
       case ReasoningWireTransport.chat:
@@ -356,8 +365,9 @@ void applyChatReasoningWire(
   final off = _isOff(thinkingBudget);
   final alwaysOn = caps.thinkingAlwaysOn;
   final effectiveOff = off && !alwaysOn;
-  final budget =
-      thinkingBudget != null && thinkingBudget > 0 ? thinkingBudget : null;
+  final budget = thinkingBudget != null && thinkingBudget > 0
+      ? thinkingBudget
+      : null;
 
   switch (selected) {
     case ReasoningWire.chatEffort:
@@ -372,11 +382,7 @@ void applyChatReasoningWire(
         body['reasoning_effort'] = effort;
       }
     case ReasoningWire.chatReasoningEffortObj:
-      final value = _offRespectingEffort(
-        caps,
-        off: off,
-        effort: effort,
-      );
+      final value = _offRespectingEffort(caps, off: off, effort: effort);
       if (value != null) body['reasoning'] = <String, dynamic>{'effort': value};
     case ReasoningWire.chatReasoningBudgetObj:
       if (effectiveOff) {
@@ -508,8 +514,9 @@ ClaudeWireConfig resolveClaudeReasoningWire({
 
   final off = _isOff(thinkingBudget);
   final effectiveOff = off && !caps.thinkingAlwaysOn;
-  final budget =
-      thinkingBudget != null && thinkingBudget > 0 ? thinkingBudget : null;
+  final budget = thinkingBudget != null && thinkingBudget > 0
+      ? thinkingBudget
+      : null;
 
   switch (selected) {
     case ReasoningWire.claudeBudget:
@@ -526,14 +533,20 @@ ClaudeWireConfig resolveClaudeReasoningWire({
               },
       );
     case ReasoningWire.claudeAdaptive:
+    case ReasoningWire.claudeAdaptiveBetweenTools:
       final useAdaptive = !effectiveOff;
-      // `off` is an internal tier id, not an Anthropic effort value; an
-      // always-thinking model falls back to its declared tier (or lets the
-      // provider pick by omitting output_config).
-      final adaptiveEffort = effort == 'off' ? caps.openAiOffFallback : effort;
-      final hasEffort = adaptiveEffort != null &&
+      // Anthropic's always-thinking models clamp Off to the lowest explicit
+      // effort instead of accepting a disabled thinking block.
+      final adaptiveEffort = effort == 'off'
+          ? (caps.claudeOffEffort ?? caps.openAiOffFallback)
+          : effort;
+      final hasEffort =
+          adaptiveEffort != null &&
           adaptiveEffort != 'auto' &&
           adaptiveEffort != 'off';
+      final offBetweenTools =
+          selected == ReasoningWire.claudeAdaptiveBetweenTools ||
+          caps.claudeOffBetweenTools;
       return ClaudeWireConfig(
         active: true,
         thinking: useAdaptive
@@ -541,7 +554,9 @@ ClaudeWireConfig resolveClaudeReasoningWire({
                 'type': 'adaptive',
                 'display': 'summarized',
               }
-            : const <String, dynamic>{'type': 'disabled'},
+            : <String, dynamic>{
+                'type': offBetweenTools ? 'between_tools' : 'disabled',
+              },
         outputConfig: useAdaptive && hasEffort
             ? <String, dynamic>{'effort': adaptiveEffort}
             : null,
@@ -557,6 +572,49 @@ ClaudeWireConfig resolveClaudeReasoningWire({
 // ============================================================================
 // Gemini generateContent
 // ============================================================================
+
+/// Parses the Gemini major generation from a model id (`gemini-4-argon` → 4).
+int? geminiModelGeneration(String modelId) {
+  final match = RegExp(
+    r'gemini-(\d+)',
+    caseSensitive: false,
+  ).firstMatch(modelId.trim());
+  return int.tryParse(match?.group(1) ?? '');
+}
+
+/// Gemini 3+ models use `thinkingLevel` and validate the thought signature on
+/// replayed `functionCall` parts. Gemini 4 keeps the same contract.
+bool isGeminiThoughtSignatureModel(String modelId) {
+  final generation = geminiModelGeneration(modelId);
+  return generation != null && generation >= 3;
+}
+
+/// Gemini 4 thinking ladder: low / medium / high. The model cannot disable
+/// thinking, so Off maps to the lowest tier instead of omitting the field.
+Map<String, dynamic> _gemini4ThinkingLevel({
+  required String modelId,
+  required int? thinkingBudget,
+}) {
+  final off = _isOff(thinkingBudget);
+  String level;
+  if (off) {
+    level = 'low';
+  } else if (thinkingBudget != null && thinkingBudget > 0) {
+    if (thinkingBudget < 8000) {
+      level = 'low';
+    } else if (thinkingBudget < 24000) {
+      level = 'medium';
+    } else {
+      level = 'high';
+    }
+  } else {
+    // The default is medium; the cyber-permissive variant defaults to high.
+    level = modelId.toLowerCase().contains('cyber-permissive')
+        ? 'high'
+        : 'medium';
+  }
+  return <String, dynamic>{'includeThoughts': true, 'thinkingLevel': level};
+}
 
 /// Returns the `thinkingConfig` map, or `null` to omit it.
 Map<String, dynamic>? resolveGeminiThinkingConfig({
@@ -581,7 +639,16 @@ Map<String, dynamic>? resolveGeminiThinkingConfig({
   if (selected == ReasoningWire.geminiNone) return null;
 
   final off = _isOff(thinkingBudget);
+  final generation = geminiModelGeneration(modelId) ?? 0;
   if (selected == ReasoningWire.geminiBudget) {
+    // Gemini 4 rejects `thinkingBudget` outright; route it through its
+    // low/medium/high ladder even when the user selected the budget dialect.
+    if (generation >= 4) {
+      return _gemini4ThinkingLevel(
+        modelId: modelId,
+        thinkingBudget: thinkingBudget,
+      );
+    }
     if (off) return const <String, dynamic>{'includeThoughts': false};
     return <String, dynamic>{
       'includeThoughts': true,
@@ -591,6 +658,12 @@ Map<String, dynamic>? resolveGeminiThinkingConfig({
   }
 
   // gemini.level
+  if (generation >= 4) {
+    return _gemini4ThinkingLevel(
+      modelId: modelId,
+      thinkingBudget: thinkingBudget,
+    );
+  }
   final isPro = modelId.contains(
     RegExp(r'gemini-3.*-pro(-preview)?', caseSensitive: false),
   );
@@ -619,6 +692,15 @@ Map<String, dynamic> autoGeminiThinkingConfig({
   required int? thinkingBudget,
 }) {
   final off = _isOff(thinkingBudget);
+  // Gemini 4 uses the same thinkingLevel dial but only exposes low/medium/
+  // high (no `minimal`, and thinking cannot be disabled).
+  final generation = geminiModelGeneration(modelId) ?? 0;
+  if (generation >= 4) {
+    return _gemini4ThinkingLevel(
+      modelId: modelId,
+      thinkingBudget: thinkingBudget,
+    );
+  }
   // Match gemini-3-pro, gemini-3-flash, gemini-3-lite and 3.x variants
   final isGemini3ProImage = modelId.contains(
     RegExp(r'gemini-3.*-pro-image(-preview)?', caseSensitive: false),
@@ -639,13 +721,31 @@ Map<String, dynamic> autoGeminiThinkingConfig({
   // Gemini 3 Pro: supports 'low' and 'high' only (no off)
   if (isGemini3Pro) {
     String level = 'high';
-    if (off || (thinkingBudget != null && thinkingBudget > 0 && thinkingBudget < 8000)) {
+    if (off ||
+        (thinkingBudget != null &&
+            thinkingBudget > 0 &&
+            thinkingBudget < 8000)) {
       level = 'low';
     }
     return <String, dynamic>{'includeThoughts': true, 'thinkingLevel': level};
   }
   // Gemini 3 Flash / Lite: supports 'minimal', 'low', 'medium', 'high'
   if (isGemini3FlashOrLite) {
+    String level = 'high';
+    if (off) {
+      level = 'minimal';
+    } else if (thinkingBudget != null && thinkingBudget > 0) {
+      if (thinkingBudget < 8000) {
+        level = 'low';
+      } else if (thinkingBudget < 24000) {
+        level = 'medium';
+      }
+    }
+    return <String, dynamic>{'includeThoughts': true, 'thinkingLevel': level};
+  }
+  // Any other Gemini 3.x variant still uses the level dial. Falling through
+  // to the 2.x branch would emit `thinkingBudget`, which Gemini 3 rejects.
+  if (generation >= 3) {
     String level = 'high';
     if (off) {
       level = 'minimal';

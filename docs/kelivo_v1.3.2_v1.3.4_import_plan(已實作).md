@@ -1,8 +1,8 @@
 # OmniChat 上游 kelivo v1.3.2 ~ v1.3.4 導入評估與計畫
 
-> **版本**：v1.0（初版評估）  
+> **版本**：v1.1（實作完成）  
 > **日期**：2026-11-05  
-> **狀態**：評估完成，待核定後依 Phase 順序實作  
+> **狀態**：Phase 0（G1 + G2）、Phase 1（C1／R1／R2／U1／O1）與 Phase 2（M1／M2／O2／O3）已全部實作；R3 經評估不導入（正式結案，見 §2.10／§6）
 > **範圍**：評估上游 [Chevey339/kelivo](https://github.com/Chevey339/kelivo) v1.3.2 ~ v1.3.4（含 v1.2.5 同線早期項目）與 OmniChat v1.27.0 的功能差距，並為需要導入的項目提出 OmniChat 原生實作計畫  
 > **非範圍**：上游 v1.3.3 的大型新功能（桌面 side panel、獨立 workspace web apps、IntelligentUI、Argon2id 備份加密等）；v1.3.4 的訊息儲存 AOT 修復（OmniChat 已有自己的 SQLite 儲存底座，見 §3.18／§6）  
 > **相關文件**：`OmniChat 專案開發與維護手冊.md` §3.5 / §3.11 / §3.19 / §5.3 / §7.4；`docs/speech_recognition_import_plan.md`（格式範本）
@@ -21,7 +21,7 @@
 | 2 | Thought signature 留在產生它的供應商；工具呼叫途中切換供應商/模型開新回覆（v1.3.3 `03f6e9f` / PR #1320） | **導入** | **P1** | OmniChat 簽章存於訊息文字註解、重放時不辨識 `providerId`，跨 Gemini 系供應商（官方 ↔ Vertex ↔ 聚合商）切換會重播他人簽章 → `Corrupted thought signature` 400（§2.2） |
 | 3a | 修正 Claude adaptive thinking 模式與模型預設值（v1.3.2 `5181bd6`） | **部分導入** | P2 | OmniChat 已有 adaptive+effort；缺 `between_tools` off 方言、快照日期版號守衛、opus-5.5 always-on（§2.3） |
 | 3b | 合成引用卡片不寫入歷史（v1.3.2 `3945725`） | **導入（小修）** | P2 | OmniChat 的 `builtin_search` 顯示用工具事件**未被重放排除**，會以 client `tool_use` 名義回送（§2.4） |
-| 4 | Responses API 工具歷史維持順序、保留工具圖片、重放前合併推理片段（v1.3.2 `9fa4bd8`/`a9b9ba9`/`bbeacf9`） | **部分導入** | P2 | kernel 路徑已原序重放；工具圖片不適用；**reasoning_details 有「覆寫式累加＋雙寫」缺陷**（§2.5） |
+| 4 | Responses API 工具歷史維持順序、保留工具圖片、重放前合併推理片段（v1.3.2 `9fa4bd8`/`a9b9ba9`/`bbeacf9`） | **部分導入** | P2 | kernel 路徑已原序重放；工具圖片不適用；**reasoning_details 有「覆寫式累加＋雙寫」缺陷**（§2.5）；R3 legacy 順序不導入（§2.10） |
 | 5 | DeepSeek 推理內容工具續接回顯（v1.2.5 `0f44150`） | 不需導入 | — | OmniChat 已更完整實作（輸入＋輸出雙側、非空 sentinel、§5.3 契約）（§2.6） |
 | 6 | App 版本變更後刷新 Codex 模型清單（v1.3.2 `290837e`）；GPT-5 推理預設修正；OpenRouter Auto 可啟用推理（`a5900dac`/`776b339`） | **部分導入** | P3 | Codex 刷新已實作；GPT-5 基礎型 regex 落空（靠目錄補）、OpenRouter `openrouter/auto` 能力判定落空（§2.7） |
 | 7 | 編輯供應商顯示實際請求 URL、自動補 API 版本、連線測試失敗說明原因（v1.3.3 `8be28e1`） | **導入** | P2 | OmniChat 三者皆無；純 UX/診斷改良、無協議風險（§2.8） |
@@ -55,7 +55,7 @@ Phase 2（P3 補強，可與發佈週期併行）
   ├─ M2 openrouter/auto 能力判定
   ├─ O2 OAuth 用量對齊（Codex spend_control / Grok on-demand+advisory / Kimi usages）
   ├─ O3 OAuth 登入失敗階段標籤（stage + transport 分類）
-  └─ R3（可選）legacy neutral 訊息的 Responses 順序微調
+  └─ R3（不導入）legacy neutral 訊息的 Responses 順序微調
 ```
 
 ### 0.4 工作量
@@ -64,8 +64,28 @@ Phase 2（P3 補強，可與發佈週期併行）
 |:--|:--|:--:|
 | Phase 0 | G1 + G2（含 artifacts 遷移與測試；僅行為修復約 2–3 人日） | 3–4 人日 |
 | Phase 1 | C1 + R1 + R2 + U1 + O1 | 5–7 人日 |
-| Phase 2 | M1 + M2 + O2 + O3 + R3 | 3–4 人日 |
+| Phase 2 | M1 + M2 + O2 + O3（R3 不導入） | 3–4 人日 |
 | **合計** | | **11–15 人日** |
+
+### 0.5 實作進度
+
+| 日期 | 階段 | 狀態 | 驗證 |
+|:--|:--|:--|:--|
+| 2026-11-05 | Phase 0（G1 + G2） | 完成 | `flutter test`: 1850 passed / 2 skipped；`dart analyze`（變更檔案）無 error |
+| 2026-11-05 | Phase 1（C1／R1／R2／U1／O1） | 完成 | `flutter test`: 1,871 passed / 2 skipped；Phase 1 目標測試 107 passed；`dart analyze`（變更檔案）無 error |
+| 2026-11-05 | Phase 2（M1／M2／O2／O3） | 完成 | `flutter test`: 1,874 passed / 2 skipped；`dart analyze`（lib + 變更檔案）0 errors |
+| 2026-11-05 | G2 收尾（artifacts 語音捕獲 + bare JSON） | 完成 | `flutter test`: 1,882 passed / 2 skipped；新增 helper／StreamController／ChatTurnService 測試 |
+
+- **G1**：`reasoning_wire.dart` 改以 generation 判定；Gemini 4（含 `cyber-permissive`、顯式 budget/level 方言）一律走 `thinkingLevel` low/medium/high；未知 3.x variant 不再落 `thinkingBudget`；`_persistGeminiThoughtSigs` 改認 major ≥ 3，streaming 與 non-streaming 的 tool-call 重放都會補 placeholder。
+- **G2**：簽章註解新增 `scope`（provider id + origin／Vertex project+location + request model）；Google 歷史重建只在 scope 相符時重放，否則保留純文字並由 placeholder 兜底；`MessageBuilderService` 只對 Google 目標附加簽章與 `_provider_id`，非 Google 請求不再夾帶簽章註解。**儲存層以 `provider_artifacts`（kind `gemini_thought_signature`）為正式來源（bare JSON）；串流與語音回合都會捕獲簽章並從訊息文字剝除；舊 annotation 讀取相容、首次捕獲時遷移（2026-11-05 補完）。**
+- **設計補充**：原計畫的 scope 為 provider+origin；實作加入 request model id（簽章為 model-bound，同一供應商切換模型也需重新開始）。
+- **已知限制**：legacy `providerId == null` 且註解無 scope 的舊訊息會被視為可重放（多 Google 供應商帳號下屬既有資料邊界）。
+- **C1**：Claude 版本改單一 `(family, major, minor)` 解析（快照日期／反序）；Sonnet 5.5+ Off→`between_tools`、Opus 5.5+／Fable／Mythos always-on Off→`effort: low`；4.7+／5.x 永遠剝除取樣參數；新增 `claude.adaptive_between_tools` 方言。
+- **R1**：新增 `reasoning_details_replay.dart`；串流累加改 snapshot-aware，持久化與 wire 回放前合併碎片，orphan signature 保留在持久化、回放前過濾；chat-completions 主請求與四條續輪在送出前收斂為單一表示（細節或純量）。
+- **R2**：`kNonReplayableToolNames` 加入 `builtin_search`，並同時比對 event id（Grok/OpenRouter 引用事件為 id `builtin_search`／name `search_web`）。
+- **U1**：新增 `provider_url.dart`（`normalizeProviderBaseUrl`／`ensureProviderApiVersion`／`resolveProviderRequestUrl`）與 `provider_test_failure.dart`；編輯頁顯示實際請求 URL、離開欄位自動補版本（Undo＋`autoVersionDisabled`）、連線測試顯示狀態／原因／URL／伺服器回應；chat 與 `testConnection` 的 OpenAI／Claude／Google URL 皆改用共用解析器。
+- **O1**：`ProviderConfig.disabledModels`＋`enabledModels`；`setModelEnabled` 清選取但保留 pin；OAuth 帳號頁模型列加開關；模型選擇器（含收藏釘選）與 `hasAnyActiveModel` 過濾停用模型；`mergeSyncedModels` 保留停用標記；刪除全部模型時一併清除。
+- **M1/M2**：base `gpt-5*` 走 {minimal/low/medium/high}＋Off→`minimal`；`openrouter/auto`／`auto` 可開推理撥盤（無 xhigh）。O2/O3 見 §2.7／§2.9。
 
 ---
 
@@ -100,7 +120,7 @@ Phase 2（P3 補強，可與發佈週期併行）
 | 項目 | commit | OmniChat 現況 |
 |:--|:--|:--|
 | Gemini 3.x 全走 thinkingLevel | `717dc0d6` | **已實作**（手冊 §3.5.1；`reasoning_wire.dart` `autoGeminiThinkingConfig`） |
-| 簽章改存 provider artifact | `27982ac7` | **未跟進**（仍存訊息文字註解）；SQLite 已預定義 `kGeminiThoughtSignatureKind` |
+| 簽章改存 provider artifact | `27982ac7` | **已實作**（早於本計畫：SQLite/Hive `provider_artifacts`；annotation 僅為 wire 載體；2026-11-05 補上語音回合捕獲與 bare JSON 正規化） |
 | DeepSeek 工具續接回顯 | `0f44150` | **已超越實作**（手冊 §5.3） |
 
 ### 1.4 v1.3.4（`4a7da9b`，2026-11-02）
@@ -133,16 +153,16 @@ Phase 2（P3 補強，可與發佈週期併行）
 
 **上游修了什麼**（`03f6e9f` / PR #1320）：每則 assistant 訊息帶 `providerId`；送請求時只有「訊息的產生者 == 目標 Google 供應商」才附簽章（artifact 或 metadata），否則清文字註解、剝 metadata 簽章，**持久化資料不動**（切回原供應商時簽章還在）。工具回合中途切換供應商/模型 → 以未簽章狀態重建請求（＝開新回覆），不再 `400 Corrupted thought signature`。
 
-**OmniChat 現況**
+**OmniChat 現況（2026-11-05 實作後）**
 
-- 簽章存於訊息文字 `<!-- gemini_thought_signatures:... -->`（`chat_api_service.dart:829-833` regex；stream 端 L8117/8214 寫入、Google 歷史重建 L8533/8634 讀取）。
-- 訊息模型已有 `providerId`（`lib/core/models/chat_message.dart` HiveField 5），但重放管線**未使用**它過濾簽章。
-- SQLite 已預定義 `provider_artifacts.kind = 'gemini_thought_signature'`（`message_part_codec.dart:7`）但 runtime 尚未使用 — 這是比上游更乾淨的落地點（不再污染訊息文字、任何傳輸都不用再剝註解）。
+- 簽章以 `provider_artifacts`（kind `gemini_thought_signature`、payload 為 bare JSON）為正式來源；串流與語音回合在收到 chunk 時捕獲並從訊息文字剝除，持久化內容不含 annotation。
+- 訊息模型已有 `providerId`（`lib/core/models/chat_message.dart` HiveField 5）；G2 以 `_provider_id` + provider/origin/model scope 過濾簽章，跨供應商或切換模型時不重放。
+- `<!-- gemini_thought_signatures:... -->` 只保留為 neutral wire 的 transient carrier 與 legacy fallback；`ChatApiService` 在重建 Google 歷史時優先讀 artifact 對應的註解，舊資料在首次捕獲時遷移。
 
 **導入方案**
 
 1. **行為修復（必做）**：`lib/features/home/services/message_builder_service.dart` / `chat_turn_service.dart` 組裝 neutral 訊息時，把「目標 Google 供應商 key」傳入（比照上游 `googleProviderId`）；`chat_api_service.dart` Google 歷史重建（L8533/8634）僅在 `msg.providerId == 當前 Google provider key`（或 `providerId == null` 的 legacy 訊息）時 `_extractGeminiThoughtMeta` 取簽章，否則使用 cleaned text、functionCall part 不附簽章（交由 `_ensureGeminiFunctionCallThoughtSig` 佔位兜底）。
-2. **儲存升級（建議同 phase）**：新訊息的簽章改寫入 `provider_artifacts`（kind `gemini_thought_signature`、payload 為 bare JSON），讀取時「artifact 優先、legacy 註解 fallback（讀後原樣保留）」；訊息文字不再新增註解。刪除/分叉訊息時 artifacts 隨訊息生命週期（M 系列已有契約）。
+2. ✅ **儲存升級（完成 2026-11-05）**：簽章以 `provider_artifacts`（kind `gemini_thought_signature`、payload 為 bare JSON）為正式來源；串流與語音回合（`ChatTurnService`）都在收到 chunk 時捕獲並從訊息文字剝除，持久化內容不含 annotation。讀取時 artifact 優先，legacy `<!-- gemini_thought_signatures:... -->` 僅作 wire fallback；刪除/分叉/備份沿用既有 artifact 生命週期。
 3. 模型中途切換：OmniChat 現行工具迴圈以 `ChatTurnService` 建構時固定的 `modelId` 跑完（`chat_turn_service.dart:22/34`，請求沿用同一 id），單回合內無切換入口，行為已等價上游「開新回覆」；跨回合切換由第 1 點覆蓋。**注意**：provider scope 不能只用 provider key — 同一 provider 改 baseUrl（AI Studio ↔ Vertex）key 不變，仍會重放他人簽章；應以 `providerId + 解析後 origin` 為鍵（與 U1 的 `resolveRequestUrl` 共用邏輯）。
 
 **測試**：新增 provider 切換協議測試（模擬 Vertex → 官方互切，斷言請求體不含他人簽章、含本家簽章；持久化訊息未被改動）；legacy 註解相容讀取測試。
@@ -181,9 +201,9 @@ Phase 2（P3 補強，可與發佈週期併行）
 - OpenRouter 推理模型已跨工具輪保留 `reasoning_details`（`chat_api_service.dart:2836` 起 `preserveReasoningDetails`），但累加是**覆寫式**：`reasoningDetailsAccum = rd`（L4274/4277，每個 delta 直接取代）— snapshot 型供應商正確，fragment 型供應商只剩最後一片。
 - 回顯雙寫：`lib/features/home/services/message_builder_service.dart:241-265`、`chat_turn_service.dart:213-236`、`stream_controller.dart:744-746` 同時附 `reasoning_content` 與 `reasoning_details`。
 
-**導入方案**
+**導入方案（已完成 2026-11-05）**
 
-1. 新增純 Dart `mergeReasoningDetails()`（比照上游規則：type/textKey/id/index/format 全同且未被簽章/opaque 條目打斷才合併；文字精確串接；orphan 簽章保留於持久化、回放前過濾），於串流 emit 點與重放 echo 前套用。
+1. ✅ 新增純 Dart `mergeReasoningDetails()`（比照上游規則：type/textKey/id/index/format 全同且未被簽章/opaque 條目打斷才合併；文字精確串接；orphan 簽章保留於持久化、回放前過濾），於串流 emit 點與重放 echo 前套用。
 2. echo 收斂為單一表示：OpenRouter host（或 `catalogInterleaved == 'reasoning_details'`）有結構化 details 時移除平行 `reasoning_content`；純量端點（native DeepSeek 等）unsigned 片段摺疊進 `reasoning_content`。
 3. 覆寫式累加改為「merge 後取代」，snapshot 供應商行為不變。
 
@@ -193,11 +213,11 @@ Phase 2（P3 補強，可與發佈週期併行）
 
 OmniChat 於 2026-09-12 起**超越上游**地實作：範圍是「每一條 assistant 訊息」（非僅 tool_calls）、輸出側寫入＋輸入側回填雙保險、非空 sentinel `'(no reasoning content)'`、5-Hook 全掛接（手冊 §5.3 契約 + `test/deepseek_claude_compat_test.dart` 等）。上游 `0f44150` 的「tool 輪也強制 echo」已被 OmniChat 的全量 echo 覆蓋。
 
-### 2.7 Codex 刷新 / GPT-5 預設 / OpenRouter Auto（P3，部分導入）
+### 2.7 Codex 刷新 / GPT-5 預設 / OpenRouter Auto（P3，部分導入；M1/M2 完成 2026-11-05）
 
 - **Codex 模型清單刷新：不需導入**。OmniChat 已有同構實作：`main.dart:187` 啟動呼叫 `syncOutdatedModels`；`provider_oauth_service.dart:628-655` 以 `credentials.modelsClientVersion` 比對 `ProviderOAuthConstants.codexClientVersion`、3 秒上限、失敗不動版本。維運提醒：上游已把 codex client version 升到 0.159.0（後端對舊版隱藏新模型），OmniChat 跟隨上游節奏更新常數即可。
-- **GPT-5 預設（M1，小修）**：`reasoning_capabilities.dart` `_openAiCapabilities` 只解析 `gpt-5.(\d+)`；`gpt-5`/`gpt-5-mini`/`gpt-5-nano` 落 `unsupported`（目錄有這些 id，能力靠目錄補，但 regex miss 時 `openAiOffFallback` 必為 null → Off 只能省略參數）。補一條 base-family 分支：efforts `{minimal, low, medium, high}`、`openAiOffFallback: 'minimal'`（對齊上游 `a5900dac`：Off 送最低文件檔位，不送 none）。
-- **OpenRouter Auto（M2，小修）**：`openrouter/auto` 模型 id 不命中任何能力 regex → 推理撥盤不可用；而 OmniChat 的 auto 鏈（`reasoning_wire.dart:222-240`）在使用者開啟撥盤時已會送 `reasoning:{enabled:true}`。補：`openrouter/auto` 給予能力條目（efforts 空、可停用），讓撥盤出現；保持「非破壞性」（使用者 custom body 仍最後合併）。
+- ✅ **GPT-5 預設（M1，完成）**：`reasoning_capabilities.dart` 現在將 base `gpt-5*`（無 minor）視為 reasoning-capable（xhigh + sampling none），不會落到 unsupported。
+- ✅ **OpenRouter Auto（M2，完成）**：`openrouter/auto`（及裸 `auto`）直接給 xhigh 能力條目，讓推理撥盤出現；wire 層已會送 `reasoning:{enabled:true}`。
 
 ### 2.8 U1：供應商編輯 URL 預覽 / API 版本補齊 / 測試失敗說明（P2，導入）
 
@@ -212,15 +232,15 @@ OmniChat 於 2026-09-12 起**超越上游**地實作：範圍是「每一條 ass
 
 **測試**：`provider_url` 純函式測試；URL 表單測試（貼上含 `/chat/completions` 尾巴、缺版號、尾斜線）；`ProviderTestFailure` 解析測試。
 
-### 2.9 O1/O2/O3：OAuth 三項（P2 + P3，部分導入）
+### 2.9 O1/O2/O3：OAuth 三項（P2 + P3，部分導入；O2/O3 完成 2026-11-05）
 
-- **O1 啟用模型記憶（P2）**：OmniChat `mergeSyncedModels`（`provider_oauth_service.dart:450-533`）對 provider 回傳的每個 model `if (!models.contains) models.add(...)` — **使用者刪除過的 oauth-synced 模型會在每次同步/登入時復活**（`syncOutdatedModels` 每次啟動都跑）；且帳號層只有單一 `ProviderConfig.enabled`（手冊 §3.19），無 per-model 開關。導入上游 `63c00ec` 的 `disabledModels`（Set<String>，隨 `provider_configs_v1` 備份、不進分享/QR）：`mergeSyncedModels` 保留之、模型暫時從目錄消失也保留標記；帳號詳情頁模型列加 per-model 開關；模型選擇器/`hasAnyActiveModel`/排程執行器過濾 `enabledModels`；停用時清當前選擇但保留 pin/reasoning/override（沿用 `clearSelectionsForModel` 語義）。
-- **O2 用量對齊（P3，需實機）**：OmniChat 已有四家 usage 解析＋視窗優先序（2026-11-03，手冊 §3.19）。補上游 `2c9027c` 的差集：Codex `spend_control.individual_limit`（新視窗型別 + `remaining`/`advisory` 欄位；credit 席位只依明確 `reached`）、Grok 週/月並存 + on-demand + `advisory`（推算百分比不當帳號封鎖）、Kimi `usages` 月視窗、Codex residency `no_constraint` 不送 header。**注意**：全部需要真實訂閱帳號驗證（手冊 §3.19 已列實機驗收為未完成項）。
-- **O3 登入失敗階段（P3）**：OmniChat `oauth_errors.dart` 有例外分類（cancel/timeout/rejected/browser/required/disabled/superseded/client-version/transport）＋登入流程 UI 有步驟狀態，但失敗時**沒有**結構化「哪一步 + 傳輸分類」。導入上游 `7cf72d8` 的 stage enum（requestDeviceCode/waitDeviceAuthorization/prepareBrowser/browserAuthorization/exchangeToken/refreshToken）+ transport 分類（dns/tls/proxy/timeout…，僅分類跨邊界、原文永不複製），`oauth_login_flow.dart` 錯誤文字改三行式（在地化階段標籤／摘要＋(HTTP nnn)／脫敏訊息）。l10n ×4。
+- ✅ **O1 啟用模型記憶（完成 2026-11-04）**：`ProviderConfig.disabledModels`／`enabledModels`；`mergeSyncedModels` 保留停用標記（不把使用者移除的 oauth-synced 模型復活）；帳號詳情頁 on/off、picker/收藏/`hasAnyActiveModel` 過濾同步、選擇清理。
+- ✅ **O2 用量對齊（完成）**：`OAuthUsageWindow` 增加 `used`/`limit`/`remaining`/`duration`/`unit`/`advisory`；`OAuthUsage` 增加 `resetCredits`/`allowed`/`limitReached`。Codex 解析 `spend_control.individual_limit`（spend-cap 視窗 + remaining + 只有 `reached` 才推 verdict）、reset_seconds；Grok 週/月並存（advisory）、on-demand、推算 0% 視窗僅為 advisory；Kimi 提供 used/limit 與視窗 duration。帳號卡顯示 `Estimated` 前綴、spend-cap / on-demand 標籤。真實帳號 smoke 仍在手冊 §3.19。
+- ✅ **O3 登入失敗階段（完成）**：`OAuthStage` 與 `OAuthFailureTransport` 列舉（requestDeviceCode/waitDeviceAuthorization/prepareBrowser/browserAuthorization/exchangeToken/refreshToken + dns/tls/proxy/connection/timeout…），`oauthHttpRequest`／`throwForOAuthFailure`／service catch 會標註，登入面板錯誤文字改`「階段: 內文 (transport)」`（在地化 ×4）。
 
-### 2.10 R3：Responses 順序微調（P3，可選）
+### 2.10 R3：Responses 順序微調（P3，**不導入**，正式結案）
 
-OmniChat kernel 路徑已以 `responses_output_items` 原樣重放（順序完美）；legacy neutral 路徑的 assistant 文字 item 排在其 function_call 批次之後（chronology 顛倒但 Responses API 寬容，且 OmniChat 把 tool_calls 與文字拆成兩則訊息，不存在上游「同訊息內交錯」的 bug）。**可選**：在 legacy 路徑比照 `assistantMessageIndex` 把空文字 tool_calls 訊息的文字 item 插到 calls 前；收益低，列為觀察項。
+OmniChat kernel 路徑已以 `responses_output_items` 原樣重放（順序完美）；只有 legacy neutral 路徑的 assistant 文字 item 會排在其 function_call 批次之後。此反轉不影響 `call_id` 配對、不產生 orphan、Responses API 現行也寬容，且只涵蓋 pre-kernel 舊歷史／非 agent 流程。修復需改動 legacy 轉換器（含孤兒 tool call/output 修復），收益低、回歸風險非零；上游 `assistantMessageIndex` 的資料形狀也與 OmniChat 的「tool_calls 與文字拆成兩則訊息」不同。**決議：不導入**；僅在 OpenAI 收緊時序校驗或 wire log 出現實際行為退化時重啟評估。
 
 ---
 
@@ -229,7 +249,7 @@ OmniChat kernel 路徑已以 `responses_output_items` 原樣重放（順序完�
 | Phase | 項目 | 主要檔案 | 資料/相容性 |
 |:--|:--|:--|:--|
 | 0 | G1 | `reasoning_wire.dart`、`chat_api_service.dart` | 無 schema 變更 |
-| 0 | G2 | `chat_api_service.dart`、`message_builder_service.dart`、`chat_turn_service.dart`、（建議）`chat_repository.dart`/`message_part_codec.dart` | 新寫入走 provider_artifacts；legacy 註解只讀不刪 |
+| 0 | G2 | `chat_api_service.dart`、`message_builder_service.dart`、`chat_turn_service.dart`、`chat_repository.dart`/`message_part_codec.dart` | provider_artifacts 為正式來源（bare JSON）；legacy annotation 僅 wire fallback，首次捕獲時遷移 |
 | 1 | C1 | `reasoning_wire.dart`、`reasoning_capabilities.dart` | 無 schema 變更 |
 | 1 | R1 | `chat_api_service.dart`、`message_builder_service.dart`、`chat_turn_service.dart`、新 `reasoning_details_replay.dart` | extras 形狀不變 |
 | 1 | R2 | `tool_replay.dart` | 一行 |
@@ -238,21 +258,21 @@ OmniChat kernel 路徑已以 `responses_output_items` 原樣重放（順序完�
 | 2 | M1/M2 | `reasoning_capabilities.dart` | 無 |
 | 2 | O2 | `provider_oauth_adapter.dart`、`provider_oauth.dart`、UI | `OAuthUsageWindow` 新 `remaining`/`advisory` |
 | 2 | O3 | 新 stage 常數、`oauth_errors.dart`、`oauth_login_flow.dart`、l10n ×4 | 無 |
-| 2 | R3 | `chat_api_service.dart` | 無 |
+| 2 | R3（不導入） | — | — |
 
 **遵循契約**：§5.3 的 5-Hook 全掛接規則（G1/C1 的任何參數處理須同步 generateText 主 body 1 處、sendMessageStream 主 body 1 處、body2 三種格式 3 處，共 5 處）；§5.5「嚴禁改動既有 HiveField，新欄位給預設值」；AGPL 來源標註：僅參考行為、以 OmniChat 原生重寫，不複製上游碼者免；若直接移植檔案須保留 `Ported from ... (AGPL-3.0), modified for OmniChat` 標頭並同步 `THIRD_PARTY_NOTICES.md`（依其既有慣例）。
 
 ## 4. 測試計畫
 
-- **既有迴歸**：`flutter test`（手冊 §7.6 最新驗證：1,709 passed / 2 skipped，2026-11-04）全數維持綠燈；重點守衛 `test/core/reasoning_wire_test.dart`、`test/reasoning_capabilities_test.dart`、`test/message_builder_replay_tool_test.dart`、`test/replay_tool_results_api_test.dart`、`test/claude_max_tokens_test.dart`、`test/deepseek_claude_compat_test.dart`、`test/core/services/auth/*`。
-- **新增**：gemini-4 wire/簽章保存、provider 切換協議測試、claude adaptive 版本解析/`between_tools`、reasoning_details round-trip、`builtin_search` 重放排除、`provider_url`/`ProviderTestFailure`、`disabledModels` 持久化與合併、OAuth usage 新視窗、stage 標籤。
+- **既有迴歸**：`flutter test`（最新一輪：1,882 passed / 2 skipped，2026-11-05）全數維持綠燈；重點守衛 `test/core/reasoning_wire_test.dart`、`test/reasoning_capabilities_test.dart`、`test/message_builder_replay_tool_test.dart`、`test/replay_tool_results_api_test.dart`、`test/claude_max_tokens_test.dart`、`test/deepseek_claude_compat_test.dart`、`test/core/services/auth/*`。
+- **新增**：gemini-4 wire/簽章保存、provider 切換協議測試、claude adaptive 版本解析/`between_tools`、reasoning_details round-trip、`builtin_search` 重放排除、`provider_url`/`ProviderTestFailure`、`disabledModels` 持久化與合併、OAuth usage 新視窗、stage 標籤、簽章 artifact bare JSON／StreamController 捕獲／語音回合重放。
 - **實機 smoke**：Gemini 4（`gemini-4-argon`）多輪工具＋跨 Gemini 系供應商切換；Claude 5.5（Sonnet）off 行為；OpenRouter auto；OAuth 四家（真實訂閱帳號，與 §3.19 未完成驗收合併執行）。
 - **平台**：Windows + Android 建置與 `flutter analyze`；不做 macOS/Linux/iOS 驗收（手冊口徑）。
 
 ## 5. 風險與相容性
 
 1. **G2 簽章隔離**：切換供應商後第一輪請求未附真簽章，仰賴 Google 對佔位值的容忍（現行 gemini-3 已驗證可行）；若 Gemini 4 嚴格拒收佔位值，fallback 是「無簽章時不重放 functionCall part、改以文字摘要」— 列為 Phase 0 內的備援開關。另兩個邊界：(a) 同一 provider 改 baseUrl（AI Studio ↔ Vertex）時 providerId 不變，scope 必須含解析後 origin，否則仍會重放；(b) legacy `providerId == null` 的舊訊息無來源可判，僅在單一 Google 供應商帳號下安全，多供應商使用者需以對話層 `lastProviderId` 補記或列為已知限制。
-2. **G2 artifacts 遷移**：只新增寫入路徑、legacy 只讀不洗資料，避免一次性遷移風險（比照手冊 §5.5 的保守慣例）。
+2. **G2 artifacts 遷移**：舊 annotation 於首次捕獲時轉存 artifact 並從該則訊息文字剝除；不做一次性全庫遷移，避免大量寫入風險（比照手冊 §5.5 的保守慣例）。
 3. **R1 合併規則**：文字串接必須精確（不加分隔、不去重），否則重放的思考內容失真；以向量測試釘住。
 4. **U1 `resolveRequestUrl`**：是行為不變重構，任何 URL 組裝差異都會被既有 chat 測試抓到；先寫 URL 快照測試再動手。
 5. **O1 disabledModels**：與既有「刪除模型」語義並存 — 刪除（models 列表移除）與停用（保留在列表、不進選擇器）同時提供；分享/QR 沿用 `apiKey 恆空 + oauth 標記` 既有脫敏，`disabledModels` 需加入分享白名單審核。
@@ -266,8 +286,9 @@ OmniChat kernel 路徑已以 `responses_output_items` 原樣重放（順序完�
 | v1.3.4 訊息儲存 AOT 修復 | OmniChat 聊天儲存已切換至自家 SQLite/Drift 底座（§3.18），上游 Hive 寫入迴圈的修復前提不存在 |
 | v1.3.4 Android 全選選單、iOS Live Activities、STT 提示色 | 與 OmniChat 自家輸入列/STT 樞紐實作不同源，無已知對應缺陷 |
 | Responses 工具圖片保留（`a9b9ba9`） | OmniChat 工具結果為純字串（24KB 讀取上限、32KB 裁剪門檻），尚無「工具結果帶圖片進上下文」的功能面 |
+| R3：Responses legacy 順序微調（`9fa4bd8`） | 僅影響 pre-kernel/legacy neutral 路徑；kernel 已原序重放，`call_id` 配對不受順序影響；收益低、動 legacy 轉換器有回歸風險（§2.10） |
 | Gemini code-execution ID 去重（PR #1270 子項） | OmniChat 未啟用 Gemini code execution server tool |
 
 ---
 
-**核定後動作**：Phase 0 開工前在本文件記錄核定日期與負責人；每個 Phase 完成後將本檔改名加 `（已實作）` 後綴並更新手冊 §3.5 / §3.11 / §3.19 對應小節（比照 §7.4 的上游導入紀錄慣例）。
+**核定紀錄**：2026-11-05，依使用者指示完成 Phase 0–2 實作；負責人：OmniChat 維護者。本檔標記為完成版並改名為 `kelivo_v1.3.2_v1.3.4_import_plan(已實作).md`；手冊 §3.11 已同步 Gemini 簽章儲存補注。R3 正式標記不導入。

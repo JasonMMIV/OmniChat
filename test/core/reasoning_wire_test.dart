@@ -87,38 +87,40 @@ void main() {
       expect(body.containsKey('reasoning_effort'), isFalse);
     });
 
-    test('chat.reasoning_effort_obj Off uses none or the declared fallback',
-        () {
-      final body = _body();
-      applyChatReasoningWire(
-        body,
-        wire: ReasoningWire.chatReasoningEffortObj,
-        host: 'api.openai.com',
-        upstreamModelId: 'm',
-        isReasoning: true,
-        thinkingBudget: 0,
-        caps: _caps,
-        isZhipu: false,
-        isMimo: false,
-      );
-      // `_caps` has no `none` tier, so Off falls back to the lowest
-      // supported tier (the wire has no "omit" spelling for this shape).
-      expect(body['reasoning'], {'effort': 'low'});
+    test(
+      'chat.reasoning_effort_obj Off uses none or the declared fallback',
+      () {
+        final body = _body();
+        applyChatReasoningWire(
+          body,
+          wire: ReasoningWire.chatReasoningEffortObj,
+          host: 'api.openai.com',
+          upstreamModelId: 'm',
+          isReasoning: true,
+          thinkingBudget: 0,
+          caps: _caps,
+          isZhipu: false,
+          isMimo: false,
+        );
+        // `_caps` has no `none` tier, so Off falls back to the lowest
+        // supported tier (the wire has no "omit" spelling for this shape).
+        expect(body['reasoning'], {'effort': 'low'});
 
-      final fallback = _body();
-      applyChatReasoningWire(
-        fallback,
-        wire: ReasoningWire.chatReasoningEffortObj,
-        host: 'api.openai.com',
-        upstreamModelId: 'm',
-        isReasoning: true,
-        thinkingBudget: 0,
-        caps: _alwaysOnCaps,
-        isZhipu: false,
-        isMimo: false,
-      );
-      expect(fallback['reasoning'], {'effort': 'low'});
-    });
+        final fallback = _body();
+        applyChatReasoningWire(
+          fallback,
+          wire: ReasoningWire.chatReasoningEffortObj,
+          host: 'api.openai.com',
+          upstreamModelId: 'm',
+          isReasoning: true,
+          thinkingBudget: 0,
+          caps: _alwaysOnCaps,
+          isZhipu: false,
+          isMimo: false,
+        );
+        expect(fallback['reasoning'], {'effort': 'low'});
+      },
+    );
 
     test('chat.reasoning_budget_obj writes enabled and max_tokens', () {
       final on = _body();
@@ -507,7 +509,7 @@ void main() {
       });
     });
 
-    test('claude.adaptive Off on an always-thinking model never sends off', () {
+    test('claude.adaptive Off on an always-thinking model clamps to low', () {
       final config = resolveClaudeReasoningWire(
         wire: ReasoningWire.claudeAdaptive,
         isReasoning: true,
@@ -515,13 +517,40 @@ void main() {
         caps: const ReasoningCapabilities(
           supportsAdaptiveThinking: true,
           thinkingAlwaysOn: true,
+          claudeOffEffort: 'low',
         ),
         effort: 'off',
       );
-      expect(config.thinking, {
-        'type': 'adaptive',
-        'display': 'summarized',
-      });
+      expect(config.thinking, {'type': 'adaptive', 'display': 'summarized'});
+      expect(config.outputConfig, {'effort': 'low'});
+    });
+
+    test('claude.adaptive Off on Sonnet 5.5 sends between_tools', () {
+      final config = resolveClaudeReasoningWire(
+        wire: ReasoningWire.claudeAdaptive,
+        isReasoning: true,
+        thinkingBudget: 0,
+        caps: const ReasoningCapabilities(
+          supportsAdaptiveThinking: true,
+          claudeOffBetweenTools: true,
+          samplingRequiresNone: true,
+        ),
+        effort: 'off',
+      );
+      expect(config.thinking, {'type': 'between_tools'});
+      expect(config.outputConfig, isNull);
+      expect(config.usesAdaptive, isFalse);
+    });
+
+    test('claude.adaptive_between_tools forces between_tools when Off', () {
+      final config = resolveClaudeReasoningWire(
+        wire: ReasoningWire.claudeAdaptiveBetweenTools,
+        isReasoning: true,
+        thinkingBudget: 0,
+        caps: _caps,
+        effort: 'off',
+      );
+      expect(config.thinking, {'type': 'between_tools'});
       expect(config.outputConfig, isNull);
     });
 
@@ -589,6 +618,88 @@ void main() {
         thinkingBudget: 0,
       );
       expect(flashOff, {'includeThoughts': true, 'thinkingLevel': 'minimal'});
+    });
+
+    test('auto routes Gemini 4 through its low/medium/high ladder', () {
+      Map<String, dynamic>? config(
+        int? budget, {
+        String id = 'gemini-4-argon',
+      }) {
+        return resolveGeminiThinkingConfig(
+          wire: null,
+          modelId: id,
+          isReasoning: true,
+          thinkingBudget: budget,
+        );
+      }
+
+      // Budget tiers map onto the three supported levels.
+      expect(config(2048), {'includeThoughts': true, 'thinkingLevel': 'low'});
+      expect(config(16000), {
+        'includeThoughts': true,
+        'thinkingLevel': 'medium',
+      });
+      expect(config(32000), {'includeThoughts': true, 'thinkingLevel': 'high'});
+
+      // Auto/default is medium; Gemini 4 cannot disable thinking, so Off
+      // clamps to the lowest tier instead of omitting thinkingConfig.
+      expect(config(null), {
+        'includeThoughts': true,
+        'thinkingLevel': 'medium',
+      });
+      expect(config(0), {'includeThoughts': true, 'thinkingLevel': 'low'});
+
+      // The cyber-permissive variant defaults to high.
+      expect(config(null, id: 'gemini-4-argon-cyber-permissive'), {
+        'includeThoughts': true,
+        'thinkingLevel': 'high',
+      });
+
+      // No Gemini 4 request may carry thinkingBudget.
+      for (final budget in [null, 0, 2048, 16000, 32000]) {
+        expect(config(budget)!.containsKey('thinkingBudget'), isFalse);
+      }
+    });
+
+    test('explicit Gemini 4 dialects stay on thinkingLevel', () {
+      final levelOff = resolveGeminiThinkingConfig(
+        wire: ReasoningWire.geminiLevel,
+        modelId: 'gemini-4-argon',
+        isReasoning: true,
+        thinkingBudget: 0,
+      );
+      expect(levelOff, {'includeThoughts': true, 'thinkingLevel': 'low'});
+
+      // Even an explicitly selected budget dialect must not emit the
+      // unsupported thinkingBudget key on Gemini 4.
+      final budgetDialect = resolveGeminiThinkingConfig(
+        wire: ReasoningWire.geminiBudget,
+        modelId: 'gemini-4-argon',
+        isReasoning: true,
+        thinkingBudget: 16000,
+      );
+      expect(budgetDialect, {
+        'includeThoughts': true,
+        'thinkingLevel': 'medium',
+      });
+    });
+
+    test('signature persistence covers every Gemini 3+ generation', () {
+      expect(isGeminiThoughtSignatureModel('gemini-3.5-flash'), isTrue);
+      expect(isGeminiThoughtSignatureModel('gemini-4-argon'), isTrue);
+      expect(isGeminiThoughtSignatureModel('models/gemini-4-argon'), isTrue);
+      expect(isGeminiThoughtSignatureModel('gemini-2.5-pro'), isFalse);
+    });
+
+    test('unknown Gemini 3 variants never fall back to thinkingBudget', () {
+      final body = resolveGeminiThinkingConfig(
+        wire: null,
+        modelId: 'gemini-3-ultimate',
+        isReasoning: true,
+        thinkingBudget: 16000,
+      );
+      expect(body, {'includeThoughts': true, 'thinkingLevel': 'medium'});
+      expect(body!.containsKey('thinkingBudget'), isFalse);
     });
 
     test('gemini.budget writes mask + thinkingBudget', () {
@@ -667,6 +778,7 @@ void main() {
         containsAll([
           ReasoningWire.claudeBudget,
           ReasoningWire.claudeAdaptive,
+          ReasoningWire.claudeAdaptiveBetweenTools,
           ReasoningWire.claudeNone,
         ]),
       );

@@ -247,6 +247,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get providerDetailPageApiBaseUrlLabel => 'API Base URL';
 
   @override
+  String get providerDetailPageRequestUrlLabel => '請求 URL';
+
+  @override
+  String get providerDetailPageAutoVersionLabel => '自動補齊版本';
+
+  @override
+  String get providerDetailPageAutoVersionAdded => '已補齊 API 版本';
+
+  @override
+  String get providerDetailPageTestFailureDetailsLabel => '伺服器回應';
+
+  @override
   String get providerDetailPageLocationLabel => '区域 Location';
 
   @override
@@ -5338,6 +5350,10 @@ class AppLocalizationsZh extends AppLocalizations {
       'adaptive + output_config.effort';
 
   @override
+  String get modelDetailReasoningWireClaudeAdaptiveBetweenTools =>
+      'adaptive／between_tools';
+
+  @override
   String get modelDetailReasoningWireGeminiBudget => 'thinkingBudget';
 
   @override
@@ -5743,12 +5759,63 @@ class AppLocalizationsZh extends AppLocalizations {
   String get oauthUsageScoped => '模型窗口';
 
   @override
+  String get oauthUsageCredits => '额度用量';
+
+  @override
+  String get oauthUsageOnDemand => '按需用量';
+
+  @override
+  String get oauthUsageAdvisory => '估算用量';
+
+  @override
   String get oauthUsageExtra => '额外用量';
 
   @override
   String oauthUsageResets(String time) {
     return '重置于 $time';
   }
+
+  @override
+  String get oauthStageRequestDeviceCode => '正在请求设备码';
+
+  @override
+  String get oauthStageWaitDeviceAuthorization => '等待授权确认';
+
+  @override
+  String get oauthStagePrepareBrowser => '打开登录页';
+
+  @override
+  String get oauthStageBrowserAuthorization => '等待登录页确认';
+
+  @override
+  String get oauthStageExchangeToken => '交换登录码';
+
+  @override
+  String get oauthStageRefreshToken => '刷新凭据';
+
+  @override
+  String get oauthTransportDns => '域名解析失败';
+
+  @override
+  String get oauthTransportTls => 'TLS 握手失败';
+
+  @override
+  String get oauthTransportProxy => '代理连接失败';
+
+  @override
+  String get oauthTransportConnection => '连接失败';
+
+  @override
+  String get oauthTransportConnectionTimeout => '连接超时';
+
+  @override
+  String get oauthTransportSendTimeout => '请求发送超时';
+
+  @override
+  String get oauthTransportReceiveTimeout => '响应超时';
+
+  @override
+  String get oauthTransportRequestTimeout => '请求超时';
 
   @override
   String get oauthRefreshUsage => '刷新用量';
@@ -6087,6 +6154,18 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get providerDetailPageApiBaseUrlLabel => 'API Base URL';
+
+  @override
+  String get providerDetailPageRequestUrlLabel => '请求 URL';
+
+  @override
+  String get providerDetailPageAutoVersionLabel => '自动补齐版本';
+
+  @override
+  String get providerDetailPageAutoVersionAdded => '已补齐 API 版本';
+
+  @override
+  String get providerDetailPageTestFailureDetailsLabel => '服务器响应';
 
   @override
   String get providerDetailPageLocationLabel => '区域 Location';
@@ -11051,6 +11130,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
       'adaptive + output_config.effort';
 
   @override
+  String get modelDetailReasoningWireClaudeAdaptiveBetweenTools =>
+      'adaptive／between_tools';
+
+  @override
   String get modelDetailReasoningWireGeminiBudget => 'thinkingBudget';
 
   @override
@@ -11456,12 +11539,63 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get oauthUsageScoped => '模型窗口';
 
   @override
+  String get oauthUsageCredits => '额度用量';
+
+  @override
+  String get oauthUsageOnDemand => '按需用量';
+
+  @override
+  String get oauthUsageAdvisory => '估算用量';
+
+  @override
   String get oauthUsageExtra => '额外用量';
 
   @override
   String oauthUsageResets(String time) {
     return '重置于 $time';
   }
+
+  @override
+  String get oauthStageRequestDeviceCode => '正在请求设备码';
+
+  @override
+  String get oauthStageWaitDeviceAuthorization => '等待授权确认';
+
+  @override
+  String get oauthStagePrepareBrowser => '打开登录页';
+
+  @override
+  String get oauthStageBrowserAuthorization => '等待登录页确认';
+
+  @override
+  String get oauthStageExchangeToken => '交换登录码';
+
+  @override
+  String get oauthStageRefreshToken => '刷新凭据';
+
+  @override
+  String get oauthTransportDns => '域名解析失败';
+
+  @override
+  String get oauthTransportTls => 'TLS 握手失败';
+
+  @override
+  String get oauthTransportProxy => '代理连接失败';
+
+  @override
+  String get oauthTransportConnection => '连接失败';
+
+  @override
+  String get oauthTransportConnectionTimeout => '连接超时';
+
+  @override
+  String get oauthTransportSendTimeout => '请求发送超时';
+
+  @override
+  String get oauthTransportReceiveTimeout => '响应超时';
+
+  @override
+  String get oauthTransportRequestTimeout => '请求超时';
 
   @override
   String get oauthRefreshUsage => '刷新用量';
@@ -11797,6 +11931,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get providerDetailPageApiBaseUrlLabel => 'API Base URL';
+
+  @override
+  String get providerDetailPageRequestUrlLabel => '請求 URL';
+
+  @override
+  String get providerDetailPageAutoVersionLabel => '自動補齊版本';
+
+  @override
+  String get providerDetailPageAutoVersionAdded => '已補齊 API 版本';
+
+  @override
+  String get providerDetailPageTestFailureDetailsLabel => '伺服器回應';
 
   @override
   String get providerDetailPageLocationLabel => '區域 Location';
@@ -16864,6 +17010,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
       'adaptive + output_config.effort';
 
   @override
+  String get modelDetailReasoningWireClaudeAdaptiveBetweenTools =>
+      'adaptive／between_tools';
+
+  @override
   String get modelDetailReasoningWireGeminiBudget => 'thinkingBudget';
 
   @override
@@ -17269,12 +17419,63 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get oauthUsageScoped => '模型視窗';
 
   @override
+  String get oauthUsageCredits => '額度用量';
+
+  @override
+  String get oauthUsageOnDemand => '按需用量';
+
+  @override
+  String get oauthUsageAdvisory => '估算用量';
+
+  @override
   String get oauthUsageExtra => '額外用量';
 
   @override
   String oauthUsageResets(String time) {
     return '重置於 $time';
   }
+
+  @override
+  String get oauthStageRequestDeviceCode => '正在請求裝置碼';
+
+  @override
+  String get oauthStageWaitDeviceAuthorization => '等待授權確認';
+
+  @override
+  String get oauthStagePrepareBrowser => '開啟登入頁';
+
+  @override
+  String get oauthStageBrowserAuthorization => '等待登入頁確認';
+
+  @override
+  String get oauthStageExchangeToken => '交換登入碼';
+
+  @override
+  String get oauthStageRefreshToken => '更新憑證';
+
+  @override
+  String get oauthTransportDns => '網域解析失敗';
+
+  @override
+  String get oauthTransportTls => 'TLS 交握失敗';
+
+  @override
+  String get oauthTransportProxy => '代理連線失敗';
+
+  @override
+  String get oauthTransportConnection => '連線失敗';
+
+  @override
+  String get oauthTransportConnectionTimeout => '連線逾時';
+
+  @override
+  String get oauthTransportSendTimeout => '請求送出逾時';
+
+  @override
+  String get oauthTransportReceiveTimeout => '回應逾時';
+
+  @override
+  String get oauthTransportRequestTimeout => '請求逾時';
 
   @override
   String get oauthRefreshUsage => '重新整理用量';

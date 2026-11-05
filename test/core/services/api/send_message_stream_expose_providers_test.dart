@@ -10,6 +10,7 @@ import 'dart:io';
 
 import 'package:OmniChat/core/providers/settings_provider.dart';
 import 'package:OmniChat/core/services/api/chat_api_service.dart';
+import 'package:OmniChat/core/services/api/gemini_signature_scope.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Server {
@@ -370,6 +371,179 @@ void main() {
         chunks.where((c) => (c.toolResults ?? const []).isNotEmpty),
         isEmpty,
       );
+    });
+  });
+
+  group('Gemini thought-signature isolation', () {
+    late _Server fix;
+
+    setUp(() async {
+      fix = _Server(
+        pathHint: 'generateContent',
+        sse: false,
+        responses: [
+          [
+            jsonEncode({
+              'candidates': [
+                {
+                  'content': {
+                    'role': 'model',
+                    'parts': [
+                      {'text': 'ok'},
+                    ],
+                  },
+                  'finishReason': 'STOP',
+                },
+              ],
+              'usageMetadata': {
+                'promptTokenCount': 1,
+                'candidatesTokenCount': 1,
+                'totalTokenCount': 2,
+              },
+            }),
+          ],
+        ],
+      );
+      await fix.start();
+    });
+
+    tearDown(() async {
+      await fix.stop();
+    });
+
+    ProviderConfig config() => ProviderConfig(
+      id: 'google-test',
+      enabled: true,
+      name: 'google-test',
+      apiKey: 'test-key',
+      baseUrl: fix.baseUrl,
+      providerType: ProviderKind.google,
+      models: const ['gemini-3.5-flash'],
+    );
+
+    Future<Map<String, dynamic>> send({
+      required String sourceProviderId,
+      required String signatureScope,
+    }) async {
+      final cfg = config();
+      fix.bodies.clear();
+      await ChatApiService.sendMessageStream(
+        config: cfg,
+        modelId: 'gemini-3.5-flash',
+        messages: [
+          {'role': 'user', 'content': 'hi'},
+          {
+            'role': 'assistant',
+            'content':
+                'answer\n<!-- gemini_thought_signatures:{"text":{"k":"thoughtSignature","v":"SIG_FROM_${sourceProviderId.toUpperCase()}"},"scope":"$signatureScope"} -->',
+            '_provider_id': sourceProviderId,
+          },
+          {'role': 'user', 'content': 'next'},
+        ],
+        stream: false,
+        requestId: 'g2-${sourceProviderId.hashCode}',
+      ).toList();
+      return fix.bodies.single;
+    }
+
+    test('a signature from another endpoint is dropped', () async {
+      final body = await send(
+        sourceProviderId: 'other',
+        signatureScope: 'other|http://other-provider:443|gemini-3.5-flash',
+      );
+      final wire = jsonEncode(body);
+      expect(wire, isNot(contains('SIG_FROM_OTHER')));
+      expect(wire, contains('answer'));
+      expect(body['contents'], isA<List<dynamic>>());
+    });
+
+    test('the same provider + model + origin replays its signature', () async {
+      final cfg = config();
+      final scope = geminiProviderScope(
+        providerId: cfg.id,
+        baseUrl: cfg.baseUrl,
+        modelId: 'gemini-3.5-flash',
+      );
+      final body = await send(sourceProviderId: cfg.id, signatureScope: scope);
+      expect(jsonEncode(body), contains('SIG_FROM_GOOGLE-TEST'));
+    });
+  });
+
+  group('Gemini streaming thought-signature placeholder', () {
+    late _Server fix;
+
+    setUp(() async {
+      fix = _Server(
+        pathHint: 'streamGenerateContent',
+        sse: true,
+        responses: [
+          [
+            'data: ${jsonEncode({
+              'candidates': [
+                {
+                  'content': {
+                    'role': 'model',
+                    'parts': [
+                      {'text': 'ok'},
+                    ],
+                  },
+                  'finishReason': 'STOP',
+                },
+              ],
+              'usageMetadata': {'promptTokenCount': 1, 'candidatesTokenCount': 1, 'totalTokenCount': 2},
+            })}',
+            '',
+          ],
+        ],
+      );
+      await fix.start();
+    });
+
+    tearDown(() async {
+      await fix.stop();
+    });
+
+    test('streaming tool-call replay gets the fallback signature', () async {
+      final cfg = ProviderConfig(
+        id: 'google-test',
+        enabled: true,
+        name: 'google-test',
+        apiKey: 'test-key',
+        baseUrl: fix.baseUrl,
+        providerType: ProviderKind.google,
+        models: const ['gemini-3.5-flash'],
+      );
+      await ChatApiService.sendMessageStream(
+        config: cfg,
+        modelId: 'gemini-3.5-flash',
+        messages: [
+          {'role': 'user', 'content': 'go'},
+          {
+            'role': 'assistant',
+            'content': '\n\n',
+            'tool_calls': [
+              {
+                'id': 'call_1',
+                'type': 'function',
+                'function': {'name': 'file_read', 'arguments': '{}'},
+              },
+            ],
+          },
+          {
+            'role': 'tool',
+            'name': 'file_read',
+            'tool_call_id': 'call_1',
+            'content': 'ok',
+          },
+          {'role': 'user', 'content': 'continue'},
+        ],
+        stream: true,
+        requestId: 'g2-stream-placeholder',
+      ).toList();
+
+      final wire = jsonEncode(fix.bodies.single);
+      expect(wire, contains('functionCall'));
+      expect(wire, contains('context_engineering_is_the_way_to_go'));
     });
   });
 }

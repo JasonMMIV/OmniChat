@@ -89,95 +89,98 @@ void main() {
       expect(kimi.normalizeOpenAiEffort('max'), 'max');
     });
 
-    test('covers the 2026-09 model wave: DeepSeek v4.1, GLM 5.3, GPT-5.6 Luna, Muse Spark, Gemini 3.8', () {
-      // DeepSeek v4.1 Flash: xhigh + max on the OpenAI-compatible transport.
-      final dsV4 = ReasoningCapabilities.forModel(
-        ReasoningTransport.openAi,
-        'deepseek-v4.1-flash',
-      );
-      final dsV3 = ReasoningCapabilities.forModel(
-        ReasoningTransport.openAi,
-        'deepseek-v3.2',
-      );
+    test(
+      'covers the 2026-09 model wave: DeepSeek v4.1, GLM 5.3, GPT-5.6 Luna, Muse Spark, Gemini 3.8',
+      () {
+        // DeepSeek v4.1 Flash: xhigh + max on the OpenAI-compatible transport.
+        final dsV4 = ReasoningCapabilities.forModel(
+          ReasoningTransport.openAi,
+          'deepseek-v4.1-flash',
+        );
+        final dsV3 = ReasoningCapabilities.forModel(
+          ReasoningTransport.openAi,
+          'deepseek-v3.2',
+        );
 
-      expect(dsV4.supportsXhigh, isTrue);
-      expect(dsV4.supportsMax, isTrue);
-      expect(dsV4.openAiEfforts, contains('max'));
-      expect(dsV3.supportsXhigh, isTrue);
-      expect(dsV3.supportsMax, isFalse);
+        expect(dsV4.supportsXhigh, isTrue);
+        expect(dsV4.supportsMax, isTrue);
+        expect(dsV4.openAiEfforts, contains('max'));
+        expect(dsV3.supportsXhigh, isTrue);
+        expect(dsV3.supportsMax, isFalse);
 
-      // GLM 5.3 / 5.3 Flash: xhigh-class effort, no max.
-      final glm53 = ReasoningCapabilities.forModel(
-        ReasoningTransport.openAi,
-        'glm-5.3',
-      );
-      final glm53Flash = ReasoningCapabilities.forModel(
-        ReasoningTransport.openAi,
-        'glm-5.3-flash',
-      );
+        // GLM 5.3 / 5.3 Flash: xhigh-class effort, no max.
+        final glm53 = ReasoningCapabilities.forModel(
+          ReasoningTransport.openAi,
+          'glm-5.3',
+        );
+        final glm53Flash = ReasoningCapabilities.forModel(
+          ReasoningTransport.openAi,
+          'glm-5.3-flash',
+        );
 
-      expect(glm53.supportsXhigh, isTrue);
-      expect(glm53.supportsMax, isFalse);
-      expect(glm53Flash.supportsXhigh, isTrue);
-      expect(glm53Flash.supportsMax, isFalse);
+        expect(glm53.supportsXhigh, isTrue);
+        expect(glm53.supportsMax, isFalse);
+        expect(glm53Flash.supportsXhigh, isTrue);
+        expect(glm53Flash.supportsMax, isFalse);
 
-      // GPT-5.6 Luna: full ladder incl. a real 'none' off-fallback, and it
-      // rejects sampling params while reasoning (official docs).
-      final luna = ReasoningCapabilities.forModel(
-        ReasoningTransport.openAi,
-        'gpt-5.6-luna',
-      );
+        // GPT-5.6 Luna: full ladder incl. a real 'none' off-fallback, and it
+        // rejects sampling params while reasoning (official docs).
+        final luna = ReasoningCapabilities.forModel(
+          ReasoningTransport.openAi,
+          'gpt-5.6-luna',
+        );
 
-      expect(luna.supportsXhigh, isTrue);
-      expect(luna.supportsMax, isTrue);
-      expect(luna.samplingRequiresNone, isTrue);
-      expect(luna.normalizeOpenAiEffort('off'), 'none');
-      expect(luna.openAiEfforts, containsAll(['none', 'xhigh', 'max']));
+        expect(luna.supportsXhigh, isTrue);
+        expect(luna.supportsMax, isTrue);
+        expect(luna.samplingRequiresNone, isTrue);
+        expect(luna.normalizeOpenAiEffort('off'), 'none');
+        expect(luna.openAiEfforts, containsAll(['none', 'xhigh', 'max']));
 
-      // Other 5.6 variants keep the generic xhigh+max shape.
-      final terra = ReasoningCapabilities.forModel(
-        ReasoningTransport.openAi,
-        'gpt-5.6-terra',
-      );
-      expect(terra.supportsXhigh, isTrue);
-      expect(terra.supportsMax, isTrue);
-      expect(terra.samplingRequiresNone, isFalse);
-      expect(terra.normalizeOpenAiEffort('off'), 'off');
+        // Other 5.6 variants keep the generic xhigh+max shape.
+        final terra = ReasoningCapabilities.forModel(
+          ReasoningTransport.openAi,
+          'gpt-5.6-terra',
+        );
+        expect(terra.supportsXhigh, isTrue);
+        expect(terra.supportsMax, isTrue);
+        expect(terra.samplingRequiresNone, isFalse);
+        expect(terra.normalizeOpenAiEffort('off'), 'off');
 
-      // Muse Spark (Meta Model API): always reasons, minimal..xhigh,
-      // off remaps to 'minimal', max not yet exposed.
-      final muse = ReasoningCapabilities.forModel(
-        ReasoningTransport.openAi,
-        'muse-spark-1.3',
-      );
+        // Muse Spark (Meta Model API): always reasons, minimal..xhigh,
+        // off remaps to 'minimal', max not yet exposed.
+        final muse = ReasoningCapabilities.forModel(
+          ReasoningTransport.openAi,
+          'muse-spark-1.3',
+        );
 
-      expect(muse.supportsXhigh, isTrue);
-      expect(muse.supportsMax, isFalse);
-      expect(muse.thinkingAlwaysOn, isTrue);
-      expect(muse.normalizeOpenAiEffort('off'), 'minimal');
-      expect(muse.normalizeOpenAiEffort('max'), 'xhigh');
-      expect(
-        muse.openAiEfforts,
-        containsAll(['minimal', 'low', 'medium', 'high', 'xhigh']),
-      );
+        expect(muse.supportsXhigh, isTrue);
+        expect(muse.supportsMax, isFalse);
+        expect(muse.thinkingAlwaysOn, isTrue);
+        expect(muse.normalizeOpenAiEffort('off'), 'minimal');
+        expect(muse.normalizeOpenAiEffort('max'), 'xhigh');
+        expect(
+          muse.openAiEfforts,
+          containsAll(['minimal', 'low', 'medium', 'high', 'xhigh']),
+        );
 
-      // Gemini 3.8 Flash on the Google transport: thinkingLevel dial with
-      // an xhigh-class ceiling (clamps to 'high' on the wire).
-      final gemini38 = ReasoningCapabilities.forModel(
-        ReasoningTransport.google,
-        'gemini-3.8-flash',
-      );
+        // Gemini 3.8 Flash on the Google transport: thinkingLevel dial with
+        // an xhigh-class ceiling (clamps to 'high' on the wire).
+        final gemini38 = ReasoningCapabilities.forModel(
+          ReasoningTransport.google,
+          'gemini-3.8-flash',
+        );
 
-      expect(gemini38.supportsXhigh, isTrue);
-      expect(gemini38.supportsMax, isFalse);
+        expect(gemini38.supportsXhigh, isTrue);
+        expect(gemini38.supportsMax, isFalse);
 
-      // Gemini 2.x stays unsupported (no thinkingLevel dial).
-      final gemini25 = ReasoningCapabilities.forModel(
-        ReasoningTransport.google,
-        'gemini-2.5-flash',
-      );
-      expect(gemini25.supportsXhigh, isFalse);
-    });
+        // Gemini 2.x stays unsupported (no thinkingLevel dial).
+        final gemini25 = ReasoningCapabilities.forModel(
+          ReasoningTransport.google,
+          'gemini-2.5-flash',
+        );
+        expect(gemini25.supportsXhigh, isFalse);
+      },
+    );
 
     test('keeps unsupported future OpenAI models conservative', () {
       final capabilities = ReasoningCapabilities.forModel(
@@ -221,6 +224,81 @@ void main() {
       expect(capabilities.supportsMax, isTrue);
       expect(capabilities.supportsAdaptiveThinking, isTrue);
       expect(capabilities.thinkingAlwaysOn, isTrue);
+      expect(capabilities.claudeOffEffort, 'low');
+    });
+
+    test('parses Claude snapshot dates and reversed version families', () {
+      final snapshot = ReasoningCapabilities.forModel(
+        ReasoningTransport.claude,
+        'claude-opus-4-20250514',
+      );
+      final reversed = ReasoningCapabilities.forModel(
+        ReasoningTransport.claude,
+        'anthropic/claude-5-5-haiku',
+      );
+
+      // The eight-digit snapshot suffix is not a minor version.
+      expect(snapshot.supportsAdaptiveThinking, isFalse);
+      expect(reversed.supportsAdaptiveThinking, isTrue);
+      expect(reversed.samplingRequiresNone, isTrue);
+    });
+
+    test('keeps OpenRouter Auto and GPT-5 base reasoning dials reachable', () {
+      final auto = ReasoningCapabilities.forModel(
+        ReasoningTransport.openAi,
+        'openrouter/auto',
+      );
+      final base = ReasoningCapabilities.forModel(
+        ReasoningTransport.openAi,
+        'gpt-5',
+      );
+      final minor = ReasoningCapabilities.forModel(
+        ReasoningTransport.openAi,
+        'gpt-5.5',
+      );
+
+      expect(auto.thinkingAlwaysOn, isFalse);
+      expect(auto.supportsXhigh, isFalse);
+      expect(base.samplingRequiresNone, isTrue);
+      expect(base.openAiOffFallback, 'minimal');
+      expect(minor.samplingRequiresNone, isTrue);
+    });
+
+    test('maps Sonnet 5.5 Off to between_tools, not disabled', () {
+      final capabilities = ReasoningCapabilities.forModel(
+        ReasoningTransport.claude,
+        'claude-sonnet-5-5',
+      );
+
+      expect(capabilities.supportsAdaptiveThinking, isTrue);
+      expect(capabilities.thinkingAlwaysOn, isFalse);
+      expect(capabilities.claudeOffBetweenTools, isTrue);
+      expect(capabilities.samplingRequiresNone, isTrue);
+    });
+
+    test('marks Opus 5.5 always-on and clamps Off to low effort', () {
+      final capabilities = ReasoningCapabilities.forModel(
+        ReasoningTransport.claude,
+        'claude-opus-5-5',
+      );
+
+      expect(capabilities.thinkingAlwaysOn, isTrue);
+      expect(capabilities.claudeOffBetweenTools, isFalse);
+      expect(capabilities.claudeOffEffort, 'low');
+    });
+
+    test('marks Claude 4.7+ adaptive-only for sampling stripping', () {
+      final opus47 = ReasoningCapabilities.forModel(
+        ReasoningTransport.claude,
+        'anthropic/claude-opus-4.7',
+      );
+      final sonnet46 = ReasoningCapabilities.forModel(
+        ReasoningTransport.claude,
+        'claude-sonnet-4.6',
+      );
+
+      expect(opus47.samplingRequiresNone, isTrue);
+      expect(sonnet46.samplingRequiresNone, isFalse);
     });
   });
 }

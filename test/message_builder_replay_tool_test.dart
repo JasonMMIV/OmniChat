@@ -45,6 +45,7 @@ ChatMessage _msg(
   String? groupId,
   int version = 0,
   String? reasoningText,
+  String? providerId,
 }) {
   return ChatMessage(
     id: id,
@@ -54,11 +55,53 @@ ChatMessage _msg(
     groupId: groupId,
     version: version,
     reasoningText: reasoningText,
+    providerId: providerId,
   );
 }
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('Gemini thought-signature provenance', () {
+    testWidgets('only Google targets receive the signature comment', (
+      tester,
+    ) async {
+      final context = await _pumpContext(tester);
+      final service = MessageBuilderService(
+        chatService: ToolEventChatService(const {}),
+        contextProvider: context,
+        geminiThoughtSignatureHandler: (message, content) =>
+            '$content\n<!--sig-->',
+      );
+      final conversation = Conversation(title: 't', id: 'c1');
+      final messages = [
+        _msg(
+          'assistant',
+          'hello',
+          'c1',
+          id: 'a1',
+          providerId: 'gemini',
+        ),
+      ];
+
+      final nonGoogle = service.buildApiMessages(
+        messages: messages,
+        versionSelections: const {},
+        currentConversation: conversation,
+        includeGeminiThoughtSignatures: false,
+      );
+      expect(nonGoogle.single['content'], 'hello');
+      expect(nonGoogle.single.containsKey('_provider_id'), isFalse);
+
+      final google = service.buildApiMessages(
+        messages: messages,
+        versionSelections: const {},
+        currentConversation: conversation,
+      );
+      expect(google.single['content'], contains('<!--sig-->'));
+      expect(google.single['_provider_id'], 'gemini');
+    });
+  });
 
   group('MessageBuilderService.buildApiMessages includeToolMessages', () {
     testWidgets('off by default: no tool replay', (tester) async {

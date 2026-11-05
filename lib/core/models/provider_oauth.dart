@@ -366,6 +366,12 @@ class OAuthUsageWindow {
     required this.percent,
     this.resetsAt,
     this.label,
+    this.used,
+    this.limit,
+    this.remaining,
+    this.duration,
+    this.unit,
+    this.advisory = false,
   });
 
   /// `session` / `weekly` / `monthly` / `weekly_scoped` / `usage` / `extra` …
@@ -378,6 +384,22 @@ class OAuthUsageWindow {
   /// Provider-supplied name for scoped windows (e.g. `Opus`).
   final String? label;
 
+  /// Raw meter values when the provider reports absolute amounts (plan O2).
+  /// The account card falls back to the derived [percent] when either is null.
+  final double? used;
+  final double? limit;
+  final double? remaining;
+
+  /// Raw window duration as reported by Codex plan windows.
+  final Duration? duration;
+
+  /// Metering unit for spend-cap windows (`credits`); informational.
+  final String? unit;
+
+  /// Inferred / estimated window the provider did not publish itself (plan O2:
+  /// advisory data is displayed but never blocks a request).
+  final bool advisory;
+
   bool get isWarning => percent >= 90;
 }
 
@@ -388,6 +410,9 @@ class OAuthUsage {
     this.extraSpentUsd,
     this.extraCurrency,
     this.fetchedAt,
+    this.resetCredits,
+    this.allowed,
+    this.limitReached,
   });
 
   final List<OAuthUsageWindow> windows;
@@ -397,6 +422,15 @@ class OAuthUsage {
   final double? extraSpentUsd;
   final String? extraCurrency;
   final DateTime? fetchedAt;
+
+  /// Codex credit reset tokens (plan O2). Informational today; the request
+  /// layer never derives a verdict from them.
+  final int? resetCredits;
+
+  /// Explicit backend verdict, only present when the provider reported one.
+  /// Advisory / inferred data must never force a block (plan O2).
+  final bool? allowed;
+  final bool? limitReached;
 
   bool get isEmpty => windows.isEmpty;
 
@@ -434,8 +468,11 @@ class OAuthUsage {
     'total' => 1,
     'weekly' || 'seven_day' || 'weekly_all' => 2,
     'session' || 'five_hour' => 3,
-    'usage' => 4, // Codex window whose reported duration could not be classified.
+    'usage' =>
+      4, // Codex window whose reported duration could not be classified.
+    'spend-cap' => 5,
     'weekly_scoped' => 6,
+    'on-demand' => 7,
     _ => kind.startsWith('limit-') ? 6 : 5,
   };
 }

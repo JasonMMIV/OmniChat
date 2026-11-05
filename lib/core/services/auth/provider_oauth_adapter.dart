@@ -241,11 +241,21 @@ Future<OAuthHttpResult> oauthHttpRequest(
     }
     return OAuthHttpResult(streamed.statusCode, decoded, raw);
   } on TimeoutException {
-    throw OAuthTransportException('Request timed out');
+    throw OAuthTransportException(
+      'Request timed out',
+      provider: null,
+      transportFailure: OAuthFailureTransport.requestTimeout,
+    );
   } on http.ClientException catch (e) {
-    throw OAuthTransportException(e.message);
+    throw OAuthTransportException(
+      e.message,
+      transportFailure: OAuthFailureTransport.connection,
+    );
   } catch (e) {
-    throw OAuthTransportException(e.toString());
+    throw OAuthTransportException(
+      e.toString(),
+      transportFailure: classifyOAuthTransport(e),
+    );
   }
 }
 
@@ -255,6 +265,7 @@ void throwForOAuthFailure(
   String label = 'Request failed',
   bool loginRequiredOnAuthError = false,
   Set<String> extraAuthCodes = const <String>{},
+  OAuthStage? stage,
 }) {
   if (result.ok) return;
   final code = result.errorCode ?? '';
@@ -278,6 +289,7 @@ void throwForOAuthFailure(
     message,
     provider: provider,
     loginRequired: loginRequiredOnAuthError && authFailure,
+    stage: stage,
   );
 }
 
@@ -398,6 +410,7 @@ class ChatGptOAuthAdapter implements ProviderOAuthAdapter {
         exchange,
         provider: provider,
         label: 'Token exchange failed',
+        stage: OAuthStage.exchangeToken,
       );
       final credentials = _credentialsFromTokenResponse(
         exchange.json,
@@ -432,6 +445,7 @@ class ChatGptOAuthAdapter implements ProviderOAuthAdapter {
         start,
         provider: provider,
         label: 'Device authorization failed',
+        stage: OAuthStage.requestDeviceCode,
       );
     }
     final userCode = (start.json['user_code'] ?? start.json['usercode'] ?? '')
@@ -495,6 +509,7 @@ class ChatGptOAuthAdapter implements ProviderOAuthAdapter {
             exchange,
             provider: provider,
             label: 'Token exchange failed',
+            stage: OAuthStage.exchangeToken,
           );
           controller.finish();
           return _credentialsFromTokenResponse(
@@ -519,6 +534,7 @@ class ChatGptOAuthAdapter implements ProviderOAuthAdapter {
           poll,
           provider: provider,
           label: 'Device authorization failed',
+          stage: OAuthStage.waitDeviceAuthorization,
         );
       }
     }
@@ -610,6 +626,7 @@ class ChatGptOAuthAdapter implements ProviderOAuthAdapter {
         provider: provider,
         label: 'Token refresh failed',
         loginRequiredOnAuthError: true,
+        stage: OAuthStage.refreshToken,
       );
     }
     final identity = _credentialsFromTokenResponse(
@@ -768,6 +785,7 @@ Future<ProviderOAuthCredentials> _deviceCodeLogin({
       start,
       provider: provider,
       label: 'Device authorization failed',
+      stage: OAuthStage.requestDeviceCode,
     );
   }
   final deviceCode = _string(start.json['device_code']);
@@ -852,6 +870,7 @@ Future<ProviderOAuthCredentials> _deviceCodeLogin({
       poll,
       provider: provider,
       label: 'Device sign-in failed',
+      stage: OAuthStage.waitDeviceAuthorization,
     );
   }
   throw OAuthLoginTimeout(provider: provider, hint: 'device code');
@@ -981,6 +1000,7 @@ class GrokOAuthAdapter implements ProviderOAuthAdapter {
         label: 'Token refresh failed',
         loginRequiredOnAuthError: true,
         extraAuthCodes: _refreshRotationErrors,
+        stage: OAuthStage.refreshToken,
       );
     }
     final next = _credentialsFromDeviceToken(
@@ -1125,15 +1145,14 @@ class GrokOAuthAdapter implements ProviderOAuthAdapter {
       ProviderOAuthConstants.grokBillingUrl,
       credentials,
     );
-    final monthly = parseGrokUsage(monthlyData);
-    if (monthly.windows.isNotEmpty) return monthly;
     final monthlyLimit = _number(
       _asMap(_asMap(monthlyData['config'])['monthlyLimit'])['val'],
     );
-    if (monthlyLimit == 0) {
-      return parseGrokUsage(creditsData, allowInferredWeekly: true);
-    }
-    return monthly;
+    return parseGrokUsage(
+      creditsData,
+      monthlyData: monthlyData,
+      allowInferredWeekly: monthlyLimit == 0,
+    );
   }
 
   @override
@@ -1216,6 +1235,7 @@ class KimiOAuthAdapter implements ProviderOAuthAdapter {
         label: 'Token refresh failed',
         loginRequiredOnAuthError: true,
         extraAuthCodes: _refreshRotationErrors,
+        stage: OAuthStage.refreshToken,
       );
     }
     final next = _credentialsFromDeviceToken(
@@ -1383,30 +1403,83 @@ bool? _kimiThinkingAlwaysOn(Map<String, dynamic> row) {
   return null;
 }
 
-/// Parses Grok's billing payload (weekly credits or monthly quota).
+/// Parses Grok's billing payload. With both the credits and the billing
+/// snapshot available the weekly and monthly meters coexist (plan O2); the
+/// inferred weekly 0% stays advisory and never blocks a request.
 OAuthUsage parseGrokUsage(
   Map<String, dynamic> json, {
+  Map<String, dynamic>? monthlyData,
   bool allowInferredWeekly = false,
 }) {
+  void addOnDemand(
+    Map<String, dynamic> config,
+    List<OAuthUsageWindow> windows,
+    DateTime? reset,
+  ) {
+    if (windows.any((w) => w.kind == 'on-demand')) return;
+    final cap = _number(_asMap(config['onDemandCap'])['val']);
+    final used = _number(_asMap(config['onDemandUsed'])['val']);
+    if (cap == null || cap <= 0 || used == null || used < 0) return;
+    windows.add(
+      OAuthUsageWindow(
+        kind: 'on-demand',
+        label: 'On-demand',
+        used: used,
+        limit: cap,
+        percent: (used / cap * 100).clamp(0, 100),
+        resetsAt: reset,
+      ),
+    );
+  }
+
   final data = _asMap(json['config']);
+  final monthly = monthlyData == null ? data : _asMap(monthlyData['config']);
   final windows = <OAuthUsageWindow>[];
   final period = _asMap(data['currentPeriod']);
   final start = _date(period['start']);
   final end = _date(period['end']);
-  final explicitPercent = _number(data['creditUsagePercent']);
-  final percent =
-      explicitPercent ??
-      ((data['isUnifiedBillingUser'] != true || allowInferredWeekly) &&
-              start != null &&
-              end != null &&
-              end.isAfter(start) &&
-              end.isAfter(DateTime.now()) &&
-              '${period['type']}'.toUpperCase().contains('WEEK')
-          ? 0.0
-          : null);
-  if (period.isNotEmpty && percent != null) {
+  final validWeekly =
+      start != null &&
+      end != null &&
+      end.isAfter(start) &&
+      '${period['type']}'.toUpperCase().contains('WEEK');
+  final inferred = _number(data['creditUsagePercent']) == null;
+  final rawPercent = _number(data['creditUsagePercent']);
+  double? weeklyPercent;
+  if (validWeekly) {
+    if (inferred) {
+      // Plan O2: only infer when the caller allows it AND the end is in the
+      // future. A stale period must not be presented as 0%.
+      if (end.isAfter(DateTime.now()) &&
+          (allowInferredWeekly || data['isUnifiedBillingUser'] != true)) {
+        weeklyPercent = 0;
+      }
+    } else if (rawPercent != null && rawPercent >= 0 && rawPercent <= 100) {
+      weeklyPercent = rawPercent;
+    }
+  }
+  final monthlyLimit = _number(_asMap(monthly['monthlyLimit'])['val']);
+  final monthlyUsed = _number(_asMap(monthly['used'])['val']);
+  final hasMonthly =
+      monthlyLimit != null &&
+      monthlyLimit > 0 &&
+      monthlyUsed != null &&
+      monthlyUsed >= 0;
+  final unified = data['isUnifiedBillingUser'] == true;
+  // Unified billing reports the weekly credit seat as advisory when the
+  // monthly quota is already exhausted (plan O2).
+  final advisory = unified && inferred && weeklyPercent != null && hasMonthly;
+  final showWeekly =
+      weeklyPercent != null &&
+      (!inferred || !unified || (!hasMonthly && monthlyLimit == 0));
+  if (showWeekly) {
     windows.add(
-      OAuthUsageWindow(kind: 'weekly', percent: percent, resetsAt: end),
+      OAuthUsageWindow(
+        kind: 'weekly',
+        percent: weeklyPercent,
+        resetsAt: end,
+        advisory: advisory,
+      ),
     );
     final products = data['productUsage'];
     if (products is List) {
@@ -1424,18 +1497,20 @@ OAuthUsage parseGrokUsage(
         );
       }
     }
-  } else {
-    final limit = _number(_asMap(data['monthlyLimit'])['val']);
-    final used = _number(_asMap(data['used'])['val']);
-    if (limit != null && limit > 0 && used != null) {
-      windows.add(
-        OAuthUsageWindow(
-          kind: 'monthly',
-          percent: used / limit * 100,
-          resetsAt: _date(data['billingPeriodEnd']),
-        ),
-      );
-    }
+    addOnDemand(data, windows, _date(data['tenantDailyEnd']) ?? end);
+  }
+  if (hasMonthly) {
+    windows.add(
+      OAuthUsageWindow(
+        kind: 'monthly',
+        used: monthlyUsed,
+        limit: monthlyLimit,
+        percent: (monthlyUsed / monthlyLimit * 100).clamp(0, 100),
+        resetsAt: _date(monthly['billingPeriodEnd']),
+        advisory: advisory,
+      ),
+    );
+    if (monthlyData != null) addOnDemand(monthly, windows, null);
   }
   return OAuthUsage(
     windows: windows,
@@ -1451,7 +1526,12 @@ OAuthUsage parseKimiUsage(
   required DateTime fetchedAt,
 }) {
   final windows = <OAuthUsageWindow>[];
-  void add(Map<String, dynamic> row, String kind, {String? label}) {
+  void add(
+    Map<String, dynamic> row,
+    String kind, {
+    String? label,
+    Duration? duration,
+  }) {
     if (row.isEmpty) return;
     final limit = _number(row['limit']);
     final remaining = _number(row['remaining']);
@@ -1468,22 +1548,40 @@ OAuthUsage parseKimiUsage(
         kind: kind,
         label: label,
         percent: percent,
+        used: used,
+        limit: limit,
+        duration: duration,
         resetsAt: _date(row['resetTime'] ?? row['reset_at']),
       ),
     );
   }
 
-  add(_asMap(json['usage']), 'weekly');
+  add(_asMap(json['usage']), 'weekly', duration: const Duration(days: 7));
   add(_asMap(json['totalQuota']), 'total');
   final limits = json['limits'];
   var index = 0;
   if (limits is List) {
     for (final raw in limits.whereType<Map>()) {
       final row = raw.cast<String, dynamic>();
+      final win = _asMap(row['window']);
+      final unit = _string(win['timeUnit'])?.toUpperCase() ?? '';
+      final multiplier = unit.contains('MINUTE')
+          ? 60
+          : unit.contains('HOUR')
+          ? 3600
+          : unit.contains('DAY')
+          ? 86400
+          : unit.contains('WEEK')
+          ? 604800
+          : 1;
+      final seconds = _number(win['duration']);
       add(
         _asMap(row['detail'] ?? row),
         'limit-${index++}',
         label: _string(row['name']),
+        duration: seconds == null
+            ? null
+            : Duration(seconds: (seconds * multiplier).toInt()),
       );
     }
   }
@@ -1520,32 +1618,120 @@ OAuthUsage parseCodexUsage(
   void addWindow(Object? raw) {
     final map = _asMap(raw);
     if (map.isEmpty) return;
-    final percentRaw = map['used_percent'] ?? map['percent'] ?? map['used'];
-    final percent = percentRaw is num
+    final used = _number(map['used']);
+    final limit = _number(map['limit']);
+    final remaining = _number(map['remaining']);
+    final percentRaw =
+        map['used_percent'] ?? map['percent_used'] ?? map['percent'];
+    var percent = percentRaw is num
         ? percentRaw.toDouble()
         : double.tryParse(percentRaw?.toString() ?? '');
+    percent ??= limit != null && limit > 0 && used != null
+        ? used / limit * 100
+        : (remaining != null && remaining <= 0 ? 100.0 : null);
     if (percent == null) return;
-    final resetRaw = map['reset_at'] ?? map['resets_at'];
-    DateTime? resetsAt;
-    if (resetRaw is num) {
-      resetsAt = DateTime.fromMillisecondsSinceEpoch(
-        resetRaw > 1000000000000 ? resetRaw.toInt() : resetRaw.toInt() * 1000,
-      );
-    } else if (resetRaw is String) {
-      resetsAt = DateTime.tryParse(resetRaw);
+    // Absolute keys are epochs or ISO timestamps; `reset_after_seconds` is a
+    // relative offset from the fetch time (plan O2's simpler rule).
+    final DateTime? resetsAt;
+    if (map['reset_at'] != null || map['resets_at'] != null) {
+      resetsAt = _date(map['reset_at'] ?? map['resets_at']);
+    } else {
+      final resetAfter = _number(map['reset_after_seconds']);
+      resetsAt = resetAfter == null
+          ? null
+          : fetchedAt.add(Duration(seconds: resetAfter.toInt()));
+    }
+    Duration? duration;
+    final rawSeconds = _number(
+      map['limit_window_seconds'] ??
+          map['limitWindowSeconds'] ??
+          map['window_seconds'] ??
+          map['windowSeconds'],
+    );
+    if (rawSeconds != null && rawSeconds > 0) {
+      duration = Duration(seconds: rawSeconds.toInt());
+    } else {
+      final rawMinutes = _number(map['window_minutes'] ?? map['windowMinutes']);
+      if (rawMinutes != null && rawMinutes > 0) {
+        duration = Duration(minutes: rawMinutes.toInt());
+      }
     }
     final kind = _codexWindowKind(map);
     windows.add(
-      OAuthUsageWindow(kind: kind, percent: percent, resetsAt: resetsAt),
+      OAuthUsageWindow(
+        kind: kind,
+        percent: percent,
+        resetsAt: resetsAt,
+        used: used,
+        limit: limit,
+        remaining: remaining,
+        duration: duration,
+      ),
     );
   }
 
   addWindow(rate['primary_window'] ?? rate['primary']);
   addWindow(rate['secondary_window'] ?? rate['secondary']);
+  // Credit-billed seats have no plan windows (plan O2). Surface the explicit
+  // spend control meter; the request layer derives no verdict from it.
+  final spendControl = _asMap(json['spend_control']);
+  final spend = _asMap(spendControl['individual_limit']);
+  final used = _number(spend['used']);
+  final limit = _number(spend['limit']);
+  final remaining = _number(spend['remaining']);
+  var percent = used != null && limit != null && limit > 0
+      ? used / limit * 100
+      : _number(spend['used_percent']);
+  percent ??= remaining != null && remaining <= 0 ? 100.0 : null;
+  if (percent != null) {
+    final resetAt = _date(spend['reset_at']);
+    final resetAfter = _number(spend['reset_after_seconds']);
+    windows.add(
+      OAuthUsageWindow(
+        kind: 'spend-cap',
+        percent: percent,
+        used: used,
+        limit: limit,
+        remaining: remaining,
+        resetsAt:
+            resetAt ??
+            (resetAfter == null
+                ? null
+                : fetchedAt.add(Duration(seconds: resetAfter.toInt()))),
+        unit: 'credits',
+      ),
+    );
+  }
   final plan = (json['plan_type'] ?? json['plan'] ?? '').toString();
+  final resetCredits = _number(
+    _asMap(json['rate_limit_reset_credits'])['available_count'],
+  );
+  final allowedRaw = _asMap(rate)['allowed'];
+  final limitReachedRaw = _asMap(rate)['limit_reached'];
+  final explicitAllowed = allowedRaw is bool ? allowedRaw : null;
+  final explicitLimit = limitReachedRaw is bool ? limitReachedRaw : null;
+  bool? creditAllowed() {
+    // Only trust explicit backend bits; never infer from a rounded percent.
+    final reached = spendControl['reached'] is bool
+        ? spendControl['reached'] as bool
+        : null;
+    if (!rate.containsKey('primary_window') &&
+        !rate.containsKey('primary') &&
+        (used != null || limit != null || remaining != null)) {
+      return reached == null ? null : !reached;
+    }
+    return null;
+  }
+
+  final segregated = creditAllowed();
   return OAuthUsage(
     windows: windows,
     planType: plan.isEmpty ? null : plan,
+    resetCredits: resetCredits == null
+        ? null
+        : resetCredits.clamp(0, double.maxFinite).toInt(),
+    allowed: explicitAllowed ?? segregated,
+    limitReached: explicitLimit ?? (segregated == null ? null : !segregated),
     fetchedAt: fetchedAt,
   );
 }

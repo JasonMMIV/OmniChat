@@ -168,5 +168,41 @@ void main() {
       expect(usage.windows.length, 1);
       expect(usage.windows.single.kind, 'session');
     });
+
+    test('adds the spend-cap window and derives a verdict only from reached', () {
+      final usage = parseCodexUsage(<String, dynamic>{
+        'spend_control': <String, dynamic>{
+          'individual_limit': <String, dynamic>{
+            'used': 12.0,
+            'limit': 24.0,
+            'remaining': 12.0,
+            'reset_after_seconds': 60,
+          },
+        },
+      }, fetchedAt: DateTime.utc(2026, 11, 1, 1));
+      expect(usage.windows.single.kind, 'spend-cap');
+      expect(usage.windows.single.percent, 50);
+      expect(usage.windows.single.used, 12.0);
+      expect(usage.windows.single.limit, 24.0);
+      expect(usage.windows.single.remaining, 12.0);
+      expect(usage.windows.single.resetsAt, DateTime.utc(2026, 11, 1, 1, 1));
+      // No plan window and no explicit `reached`: never infer a block.
+      expect(usage.allowed, isNull);
+      expect(usage.limitReached, isNull);
+    });
+
+    test('an explicit spend_control.reached drives the credit-seat verdict', () {
+      final usage = parseCodexUsage(<String, dynamic>{
+        'spend_control': <String, dynamic>{
+          'reached': true,
+          'individual_limit': <String, dynamic>{
+            'used': 24.0,
+            'limit': 24.0,
+          },
+        },
+      }, fetchedAt: DateTime.utc(2026, 11, 1));
+      expect(usage.allowed, isFalse);
+      expect(usage.limitReached, isTrue);
+    });
   });
 }

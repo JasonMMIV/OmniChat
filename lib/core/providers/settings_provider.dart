@@ -410,8 +410,9 @@ class SettingsProvider extends ChangeNotifier {
   Map<String, ProviderConfig> _providerConfigs = {};
   Map<String, ProviderConfig> get providerConfigs =>
       Map.unmodifiable(_providerConfigs);
-  bool get hasAnyActiveModel =>
-      _providerConfigs.values.any((c) => c.enabled && c.models.isNotEmpty);
+  bool get hasAnyActiveModel => _providerConfigs.values.any(
+    (c) => c.enabled && c.enabledModels.isNotEmpty,
+  );
   // Returns a config for the given key without mutating internal state when missing.
   // This avoids implicitly creating providers during read paths (e.g., rendering old chats).
   ProviderConfig getProviderConfig(String key, {String? defaultName}) {
@@ -2181,12 +2182,37 @@ class SettingsProvider extends ChangeNotifier {
     if (changed) notifyListeners();
   }
 
-  /// Clears global model selections that reference a specific model.
-  /// Used when a model is deleted from a provider.
-  Future<void> clearSelectionsForModel(
+  /// Enables/disables an OAuth-synced model without deleting it.
+  /// Disabling clears active selections but keeps the pin and overrides.
+  Future<void> setModelEnabled(
     String providerKey,
     String modelId,
+    bool enabled,
   ) async {
+    final config = _providerConfigs[providerKey];
+    if (config == null || !config.models.contains(modelId)) return;
+    final disabled = Set<String>.of(config.disabledModels);
+    final changed = enabled ? disabled.remove(modelId) : disabled.add(modelId);
+    if (!changed) return;
+    await setProviderConfig(
+      providerKey,
+      config.copyWith(disabledModels: disabled),
+    );
+    if (!enabled) {
+      await clearSelectionsForModel(providerKey, modelId, preservePinned: true);
+    }
+  }
+
+  /// Clears global model selections that reference a specific model.
+  /// Used when a model is deleted from a provider.
+  ///
+  /// [preservePinned] keeps a pinned model pinned when it is only being
+  /// disabled (temporarily hidden); deletion keeps the old behaviour.
+  Future<void> clearSelectionsForModel(
+    String providerKey,
+    String modelId, {
+    bool preservePinned = false,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     bool changed = false;
     if (_currentModelProvider == providerKey && _currentModelId == modelId) {
@@ -2228,9 +2254,10 @@ class SettingsProvider extends ChangeNotifier {
       await prefs.remove(_compressModelKey);
       changed = true;
     }
-    // Also remove from pinned if applicable
+    // Also remove from pinned if applicable (deletion), unless the caller is
+    // only disabling the model for now.
     final pinKey = '$providerKey::$modelId';
-    if (_pinnedModels.contains(pinKey)) {
+    if (!preservePinned && _pinnedModels.contains(pinKey)) {
       _pinnedModels.remove(pinKey);
       await prefs.setStringList(_pinnedModelsKey, _pinnedModels.toList());
       changed = true;
@@ -4025,6 +4052,14 @@ class ProviderConfig {
   // Google Vertex AI via service account JSON (paste or import)
   final String? serviceAccountJson; // google vertex ai only
   final List<String> models; // placeholder for future model management
+
+  /// Keep user choices separate from the catalog refreshed by OAuth discovery.
+  /// Disabled IDs survive re-sync even when a model temporarily disappears.
+  final Set<String> disabledModels;
+
+  /// User opted out of auto-appending `/v1` (or `/v1beta`) to an empty base
+  /// URL path. Missing/legacy configs keep auto-fill enabled.
+  final bool autoVersionDisabled;
   // Per-model overrides (by logical model key).
   // Each entry may point to an upstream/vendor model id via `apiModelId` so that
   // multiple logical models can share the same backend model with different params.
@@ -4095,6 +4130,8 @@ class ProviderConfig {
     this.projectId,
     this.serviceAccountJson,
     this.models = const [],
+    this.disabledModels = const <String>{},
+    this.autoVersionDisabled = false,
     this.modelOverrides = const {},
     this.proxyEnabled,
     this.proxyHost,
@@ -4117,6 +4154,14 @@ class ProviderConfig {
   });
 
   bool get isOAuth => oauthProvider != null;
+
+  /// Models the user can select. Deleted models are absent from [models];
+  /// disabled models stay in the catalog view but out of every picker.
+  Iterable<String> get enabledModels =>
+      models.where((id) => !disabledModels.contains(id));
+
+  bool isModelEnabled(String modelId) =>
+      models.contains(modelId) && !disabledModels.contains(modelId);
 
   /// Kimi Code advertises a per-model wire protocol. Resolve it before the
   /// transport is chosen so Anthropic-protocol models use `/messages` while
@@ -4149,6 +4194,8 @@ class ProviderConfig {
     projectId: projectId,
     serviceAccountJson: serviceAccountJson,
     models: models,
+    disabledModels: disabledModels,
+    autoVersionDisabled: autoVersionDisabled,
     modelOverrides: modelOverrides,
     proxyEnabled: proxyEnabled,
     proxyHost: proxyHost,
@@ -4187,6 +4234,8 @@ class ProviderConfig {
     String? projectId,
     String? serviceAccountJson,
     List<String>? models,
+    Set<String>? disabledModels,
+    bool? autoVersionDisabled,
     Map<String, dynamic>? modelOverrides,
     bool? proxyEnabled,
     String? proxyHost,
@@ -4222,6 +4271,8 @@ class ProviderConfig {
     projectId: projectId ?? this.projectId,
     serviceAccountJson: serviceAccountJson ?? this.serviceAccountJson,
     models: models != null ? uniqueModels(models) : uniqueModels(this.models),
+    disabledModels: disabledModels ?? this.disabledModels,
+    autoVersionDisabled: autoVersionDisabled ?? this.autoVersionDisabled,
     modelOverrides: modelOverrides ?? this.modelOverrides,
     proxyEnabled: proxyEnabled ?? this.proxyEnabled,
     proxyHost: proxyHost ?? this.proxyHost,
@@ -4264,6 +4315,8 @@ class ProviderConfig {
     'projectId': projectId,
     'serviceAccountJson': serviceAccountJson,
     'models': models,
+    if (disabledModels.isNotEmpty) 'disabledModels': disabledModels.toList(),
+    if (autoVersionDisabled) 'autoVersionDisabled': true,
     'modelOverrides': modelOverrides,
     'proxyEnabled': proxyEnabled,
     'proxyHost': proxyHost,
@@ -4319,6 +4372,10 @@ class ProviderConfig {
     models: uniqueModels(
       (json['models'] as List?)?.map((e) => e.toString()) ?? const [],
     ),
+    disabledModels:
+        (json['disabledModels'] as List?)?.map((e) => e.toString()).toSet() ??
+        const <String>{},
+    autoVersionDisabled: json['autoVersionDisabled'] as bool? ?? false,
     modelOverrides:
         (json['modelOverrides'] as Map?)?.map(
           (k, v) => MapEntry(k.toString(), v),

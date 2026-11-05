@@ -45,6 +45,8 @@ class ReasoningCapabilities {
     this.supportsAdaptiveThinking = false,
     this.thinkingAlwaysOn = false,
     this.samplingRequiresNone = false,
+    this.claudeOffBetweenTools = false,
+    this.claudeOffEffort,
     this.samplingUnsupported = false,
     this.openAiEfforts = const <String>{},
     this.openAiOffFallback,
@@ -55,6 +57,14 @@ class ReasoningCapabilities {
   final bool supportsAdaptiveThinking;
   final bool thinkingAlwaysOn;
   final bool samplingRequiresNone;
+
+  /// Claude Sonnet 5.5+ rejects `thinking: {type: disabled}`; its Off tier is
+  /// `between_tools` instead (Anthropic's lowest adaptive setting).
+  final bool claudeOffBetweenTools;
+
+  /// Effort to send when an always-thinking Claude model is switched off.
+  /// Anthropic clamps Off to the lowest explicit tier instead of disabling.
+  final String? claudeOffEffort;
 
   /// The model rejects temperature/top_p regardless of reasoning state
   /// (models.dev `temperature: false`). Distinct from
@@ -87,18 +97,19 @@ class ReasoningCapabilities {
     final efforts = catalog.efforts;
     final hasEfforts = efforts.isNotEmpty;
     return ReasoningCapabilities(
-      supportsXhigh:
-          hasEfforts ? efforts.contains('xhigh') : base.supportsXhigh,
+      supportsXhigh: hasEfforts
+          ? efforts.contains('xhigh')
+          : base.supportsXhigh,
       supportsMax: hasEfforts ? efforts.contains('max') : base.supportsMax,
       supportsAdaptiveThinking: base.supportsAdaptiveThinking,
       thinkingAlwaysOn: base.thinkingAlwaysOn,
       samplingRequiresNone: base.samplingRequiresNone,
+      claudeOffBetweenTools: base.claudeOffBetweenTools,
+      claudeOffEffort: base.claudeOffEffort,
       samplingUnsupported: samplingUnsupported,
       openAiEfforts: hasEfforts
           ? efforts
-          : (catalog.reasoning == true
-              ? const <String>{}
-              : base.openAiEfforts),
+          : (catalog.reasoning == true ? const <String>{} : base.openAiEfforts),
       openAiOffFallback: base.openAiOffFallback,
     );
   }
@@ -146,10 +157,7 @@ class ReasoningCapabilities {
   /// raw token budget; their wire mapping tops out at 'high', so the Xhigh
   /// tier is advertised for UI purposes and clamps to the same level.
   static ReasoningCapabilities _googleCapabilities(String id) {
-    final match = RegExp(
-      r'gemini-(\d+)',
-      caseSensitive: false,
-    ).firstMatch(id);
+    final match = RegExp(r'gemini-(\d+)', caseSensitive: false).firstMatch(id);
     final major = int.tryParse(match?.group(1) ?? '');
     if (major != null && major >= 3) {
       return const ReasoningCapabilities(supportsXhigh: true);
@@ -158,6 +166,26 @@ class ReasoningCapabilities {
   }
 
   static ReasoningCapabilities _openAiCapabilities(String id) {
+    // OpenRouter Auto routes each prompt to a capable model; its router may
+    // enable reasoning on its own, so the reasoning dial must be reachable
+    // (Off/Auto tiers at minimum). No xhigh tier is advertised here — the
+    // router decides which model handles the prompt, so a single documented
+    // effort set would be a guess (plan O2: “efforts 空、可停用”).
+    if (id == 'openrouter/auto' || id == 'auto') {
+      return const ReasoningCapabilities();
+    }
+    // GPT-5 base restores its own documented tiers rather than inheriting the
+    // 5.5 shape (plan M1).
+    if (RegExp(
+      r'(?:^|[/_:@])gpt-5(?:$|[-.@])(?![\d])',
+      caseSensitive: false,
+    ).hasMatch(id)) {
+      return const ReasoningCapabilities(
+        samplingRequiresNone: true,
+        openAiEfforts: <String>{'minimal', 'low', 'medium', 'high'},
+        openAiOffFallback: 'minimal',
+      );
+    }
     if (_containsModel(id, r'(?:^|[/_:@])kimi-k3(?:$|[-.])')) {
       return const ReasoningCapabilities(
         supportsMax: true,
@@ -254,36 +282,55 @@ class ReasoningCapabilities {
         supportsMax: true,
       );
     }
-    if (id.contains('fable') || id.contains('mythos')) {
-      return const ReasoningCapabilities(
-        supportsXhigh: true,
-        supportsMax: true,
-        supportsAdaptiveThinking: true,
-        thinkingAlwaysOn: true,
-      );
-    }
-    if (_containsModel(id, r'claude-(?:opus|sonnet)-5(?:$|[._:@/-])')) {
-      return const ReasoningCapabilities(
-        supportsXhigh: true,
-        supportsMax: true,
-        supportsAdaptiveThinking: true,
-      );
-    }
-    if (_containsModel(id, r'claude-opus-4[-.]7(?:$|[-.:@])') ||
-        _containsModel(id, r'claude-opus-4[-.]8(?:$|[-.:@])')) {
-      return const ReasoningCapabilities(
-        supportsXhigh: true,
-        supportsMax: true,
-        supportsAdaptiveThinking: true,
-      );
-    }
-    if (_containsModel(id, r'claude-(?:opus|sonnet)-4[-.]6(?:$|[-.:@])')) {
-      return const ReasoningCapabilities(
-        supportsMax: true,
-        supportsAdaptiveThinking: true,
-      );
-    }
-    return unsupported;
+    final isFable = id.contains('fable') || id.contains('mythos');
+    final version = _claudeVersion(id);
+    if (!isFable && version == null) return unsupported;
+
+    final major = version?.major ?? 5;
+    final minor = version?.minor ?? 0;
+    final family = version?.family ?? '';
+    final alwaysOn = isFable || (family == 'opus' && major == 5 && minor >= 5);
+    final adaptive = alwaysOn || major > 4 || (major == 4 && minor >= 6);
+    if (!adaptive) return unsupported;
+
+    // Claude 4.7+ rejects sampling parameters outright, not only while a
+    // thinking block is active.
+    final adaptiveOnly = alwaysOn || major > 4 || (major == 4 && minor >= 7);
+    final supportsXhigh =
+        isFable || major == 5 || (major == 4 && family == 'opus' && minor >= 7);
+    final supportsMax =
+        supportsXhigh ||
+        (major == 4 && (family == 'opus' || family == 'sonnet') && minor == 6);
+
+    return ReasoningCapabilities(
+      supportsXhigh: supportsXhigh,
+      supportsMax: supportsMax,
+      supportsAdaptiveThinking: true,
+      thinkingAlwaysOn: alwaysOn,
+      samplingRequiresNone: adaptiveOnly,
+      claudeOffBetweenTools: family == 'sonnet' && major == 5 && minor >= 5,
+      claudeOffEffort: alwaysOn ? 'low' : null,
+    );
+  }
+
+  /// Parses `claude-opus-4.8`, `claude-sonnet-5-5` and the reversed
+  /// `claude-5-5-haiku` form. Eight-digit snapshot dates are suffixes, never
+  /// minor versions (`claude-opus-4-20250514` is 4.0).
+  static ({String family, int major, int minor})? _claudeVersion(String id) {
+    final match = RegExp(
+      r'claude-(?:(opus|sonnet|haiku)-(\d+)(?:[.-](\d{1,2})(?!\d))?'
+      r'|(\d+)(?:[.-](\d{1,2})(?!\d))?-(opus|sonnet|haiku))'
+      r'(?:$|[._:@/-])',
+      caseSensitive: false,
+    ).firstMatch(id);
+    if (match == null) return null;
+    final major = int.tryParse(match.group(2) ?? match.group(4) ?? '');
+    if (major == null) return null;
+    return (
+      family: (match.group(1) ?? match.group(6) ?? '').toLowerCase(),
+      major: major,
+      minor: int.tryParse(match.group(3) ?? match.group(5) ?? '0') ?? 0,
+    );
   }
 
   static bool _containsModel(String id, String pattern) =>

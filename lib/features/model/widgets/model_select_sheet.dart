@@ -36,7 +36,7 @@ class _ModelProcessingData {
   final String currentModelKey;
   final List<String> providersOrder;
   final String? limitProviderKey;
-  
+
   _ModelProcessingData({
     required this.providerConfigs,
     required this.pinnedModels,
@@ -50,7 +50,7 @@ class _ModelProcessingResult {
   final Map<String, _ProviderGroup> groups;
   final List<_ModelItem> favItems;
   final List<String> orderedKeys;
-  
+
   _ModelProcessingResult({
     required this.groups,
     required this.favItems,
@@ -68,21 +68,24 @@ _ModelProcessingResult _processModelsInBackground(_ModelProcessingData data) {
   final providers = data.limitProviderKey == null
       ? data.providerConfigs
       : {
-    if (data.providerConfigs.containsKey(data.limitProviderKey))
-      data.limitProviderKey!: data.providerConfigs[data.limitProviderKey]!,
-  };
-  
+          if (data.providerConfigs.containsKey(data.limitProviderKey))
+            data.limitProviderKey!:
+                data.providerConfigs[data.limitProviderKey]!,
+        };
+
   // Build data map: providerKey -> (displayName, models)
   final Map<String, _ProviderGroup> groups = {};
-  
+
   providers.forEach((key, cfg) {
     // Skip disabled providers entirely so they can't be selected
     if (!(cfg['enabled'] as bool)) return;
     final models = cfg['models'] as List<dynamic>? ?? [];
     if (models.isEmpty) return;
-    
+
     final name = (cfg['name'] as String?) ?? '';
-    final overrides = (cfg['overrides'] as Map?)?.map((k, v) => MapEntry(k.toString(), v)) ?? const <String, dynamic>{};
+    final overrides =
+        (cfg['overrides'] as Map?)?.map((k, v) => MapEntry(k.toString(), v)) ??
+        const <String, dynamic>{};
     final list = <_ModelItem>[
       for (final id in models)
         () {
@@ -93,10 +96,14 @@ _ModelProcessingResult _processModelsInBackground(_ModelProcessingData data) {
           // logical key is a custom alias.
           String baseId = mid;
           if (ov != null) {
-            final raw = (ov['apiModelId'] ?? ov['api_model_id'])?.toString().trim();
+            final raw = (ov['apiModelId'] ?? ov['api_model_id'])
+                ?.toString()
+                .trim();
             if (raw != null && raw.isNotEmpty) baseId = raw;
           }
-          ModelInfo base = ModelRegistry.infer(ModelInfo(id: baseId, displayName: baseId));
+          ModelInfo base = ModelRegistry.infer(
+            ModelInfo(id: baseId, displayName: baseId),
+          );
           if (ov != null) {
             // display name override
             final n = (ov['name'] as String?)?.trim();
@@ -110,19 +117,24 @@ _ModelProcessingResult _processModelsInBackground(_ModelProcessingData data) {
             List<Modality>? input;
             if (ov['input'] is List) {
               input = [
-                for (final e in (ov['input'] as List)) (e.toString() == 'image' ? Modality.image : Modality.text)
+                for (final e in (ov['input'] as List))
+                  (e.toString() == 'image' ? Modality.image : Modality.text),
               ];
             }
             List<Modality>? output;
             if (ov['output'] is List) {
               output = [
-                for (final e in (ov['output'] as List)) (e.toString() == 'image' ? Modality.image : Modality.text)
+                for (final e in (ov['output'] as List))
+                  (e.toString() == 'image' ? Modality.image : Modality.text),
               ];
             }
             List<ModelAbility>? abilities;
             if (ov['abilities'] is List) {
               abilities = [
-                for (final e in (ov['abilities'] as List)) (e.toString() == 'reasoning' ? ModelAbility.reasoning : ModelAbility.tool)
+                for (final e in (ov['abilities'] as List))
+                  (e.toString() == 'reasoning'
+                      ? ModelAbility.reasoning
+                      : ModelAbility.tool),
               ];
             }
             base = base.copyWith(
@@ -142,11 +154,14 @@ _ModelProcessingResult _processModelsInBackground(_ModelProcessingData data) {
             selected: data.currentModelKey == '$key::$mid',
             asset: _assetForNameStatic(baseId),
           );
-        }()
+        }(),
     ];
-    groups[key] = _ProviderGroup(name: name.isNotEmpty ? name : key, items: list);
+    groups[key] = _ProviderGroup(
+      name: name.isNotEmpty ? name : key,
+      items: list,
+    );
   });
-  
+
   // Build favorites group (duplicate items)
   final favItems = <_ModelItem>[];
   for (final k in data.pinnedModels) {
@@ -156,20 +171,13 @@ _ModelProcessingResult _processModelsInBackground(_ModelProcessingData data) {
     final mid = parts.sublist(1).join('::');
     final g = groups[pk];
     if (g == null) continue;
-    final found = g.items.firstWhere(
-      (e) => e.id == mid,
-      orElse: () => _ModelItem(
-        providerKey: pk,
-        providerName: g.name,
-        id: mid,
-        info: ModelRegistry.infer(ModelInfo(id: mid, displayName: mid)),
-        pinned: true,
-        selected: data.currentModelKey == '$pk::$mid',
-      ),
-    );
-    favItems.add(found.copyWith(pinned: true));
+    // Only pinned models that survived the enabledModels filter. A disabled
+    // model keeps its pin, but must not reappear in the favourites section.
+    final index = g.items.indexWhere((e) => e.id == mid);
+    if (index < 0) continue;
+    favItems.add(g.items[index].copyWith(pinned: true));
   }
-  
+
   // Provider sections ordered by ProvidersPage order
   final orderedKeys = <String>[];
   for (final k in data.providersOrder) {
@@ -178,7 +186,7 @@ _ModelProcessingResult _processModelsInBackground(_ModelProcessingData data) {
   for (final k in groups.keys) {
     if (!orderedKeys.contains(k)) orderedKeys.add(k);
   }
-  
+
   return _ModelProcessingResult(
     groups: groups,
     favItems: favItems,
@@ -186,31 +194,42 @@ _ModelProcessingResult _processModelsInBackground(_ModelProcessingData data) {
   );
 }
 
-Future<ModelSelection?> showModelSelector(BuildContext context, {String? limitProviderKey}) async {
+Future<ModelSelection?> showModelSelector(
+  BuildContext context, {
+  String? limitProviderKey,
+}) async {
   if (_modelSelectorOpen) return null;
   _modelSelectorOpen = true;
   try {
-  // Desktop platforms use a custom dialog, mobile keeps the bottom sheet UX.
-  final platform = defaultTargetPlatform;
-  if (platform == TargetPlatform.macOS || platform == TargetPlatform.windows || platform == TargetPlatform.linux) {
-    return await _showDesktopModelSelector(context, limitProviderKey: limitProviderKey);
-  }
-  final cs = Theme.of(context).colorScheme;
-  return await showModalBottomSheet<ModelSelection>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: cs.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (ctx) => _ModelSelectSheet(limitProviderKey: limitProviderKey),
-  );
+    // Desktop platforms use a custom dialog, mobile keeps the bottom sheet UX.
+    final platform = defaultTargetPlatform;
+    if (platform == TargetPlatform.macOS ||
+        platform == TargetPlatform.windows ||
+        platform == TargetPlatform.linux) {
+      return await _showDesktopModelSelector(
+        context,
+        limitProviderKey: limitProviderKey,
+      );
+    }
+    final cs = Theme.of(context).colorScheme;
+    return await showModalBottomSheet<ModelSelection>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _ModelSelectSheet(limitProviderKey: limitProviderKey),
+    );
   } finally {
     _modelSelectorOpen = false;
   }
 }
 
-Future<void> showModelSelectSheet(BuildContext context, {bool updateAssistant = true}) async {
+Future<void> showModelSelectSheet(
+  BuildContext context, {
+  bool updateAssistant = true,
+}) async {
   final sel = await showModelSelector(context);
   if (sel != null) {
     if (updateAssistant) {
@@ -242,20 +261,25 @@ class _ModelSelectSheet extends StatefulWidget {
 
 class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   final TextEditingController _search = TextEditingController();
-  final DraggableScrollableController _sheetCtrl = DraggableScrollableController();
+  final DraggableScrollableController _sheetCtrl =
+      DraggableScrollableController();
   static const double _initialSize = 0.8;
   static const double _maxSize = 0.8;
   String _lastQuery = '';
   // ScrollablePositionedList controllers
   final ItemScrollController _itemScrollController = ItemScrollController();
-  final ItemPositionsListener _itemPositionsListener = ItemPositionsListener.create();
-  
+  final ItemPositionsListener _itemPositionsListener =
+      ItemPositionsListener.create();
+
   // Flattened rows + index maps for precise jumps
   final List<_ListRow> _rows = <_ListRow>[];
-  final Map<String, int> _headerIndexMap = <String, int>{}; // providerKey or '__fav__' -> index
-  final Map<String, int> _modelIndexMap = <String, int>{};  // 'pk::modelId' in provider sections -> index
-  final Map<String, int> _favModelIndexMap = <String, int>{}; // 'pk::modelId' in favorites -> index
-  
+  final Map<String, int> _headerIndexMap =
+      <String, int>{}; // providerKey or '__fav__' -> index
+  final Map<String, int> _modelIndexMap =
+      <String, int>{}; // 'pk::modelId' in provider sections -> index
+  final Map<String, int> _favModelIndexMap =
+      <String, int>{}; // 'pk::modelId' in favorites -> index
+
   // Async loading state
   bool _isLoading = true;
   Map<String, _ProviderGroup> _groups = {};
@@ -278,33 +302,36 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     try {
       final settings = context.read<SettingsProvider>();
       final assistant = context.read<AssistantProvider>().currentAssistant;
-      
+
       // Determine current model - use assistant's model if set, otherwise global default
-      final currentProvider = assistant?.chatModelProvider ?? settings.currentModelProvider;
+      final currentProvider =
+          assistant?.chatModelProvider ?? settings.currentModelProvider;
       final currentModelId = assistant?.chatModelId ?? settings.currentModelId;
-      final currentKey = (currentProvider != null && currentModelId != null) 
-          ? '$currentProvider::$currentModelId' 
+      final currentKey = (currentProvider != null && currentModelId != null)
+          ? '$currentProvider::$currentModelId'
           : '';
-      
+
       // Prepare data for background processing
       final processingData = _ModelProcessingData(
         providerConfigs: Map<String, dynamic>.from(
-          settings.providerConfigs.map((key, value) => MapEntry(key, {
-            'enabled': value.enabled,
-            'name': value.name,
-            'models': value.models,
-            'overrides': value.modelOverrides,
-          })),
+          settings.providerConfigs.map(
+            (key, value) => MapEntry(key, {
+              'enabled': value.enabled,
+              'name': value.name,
+              'models': value.enabledModels.toList(),
+              'overrides': value.modelOverrides,
+            }),
+          ),
         ),
         pinnedModels: settings.pinnedModels,
         currentModelKey: currentKey,
         providersOrder: settings.providersOrder,
         limitProviderKey: widget.limitProviderKey,
       );
-      
+
       // Process in background isolate
       final result = await compute(_processModelsInBackground, processingData);
-      
+
       if (mounted) {
         setState(() {
           _groups = result.groups;
@@ -322,46 +349,56 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     }
   }
 
-  Future<void> _expandSheetIfNeeded(double target, {Duration duration = const Duration(milliseconds: 300)}) async {
+  Future<void> _expandSheetIfNeeded(
+    double target, {
+    Duration duration = const Duration(milliseconds: 300),
+  }) async {
     // Safely attempt to read size and animate; ignore if controller not yet attached
     try {
       final current = _sheetCtrl.size;
       if (current < target) {
-        await _sheetCtrl.animateTo(target, duration: duration, curve: Curves.easeOutCubic);
+        await _sheetCtrl.animateTo(
+          target,
+          duration: duration,
+          curve: Curves.easeOutCubic,
+        );
         // allow a brief settle time after expansion
         await Future.delayed(const Duration(milliseconds: 100));
       }
     } catch (_) {}
   }
-  
+
   void _loadModelsSynchronously() {
     final settings = context.read<SettingsProvider>();
     final assistant = context.read<AssistantProvider>().currentAssistant;
-    
+
     // Determine current model - use assistant's model if set, otherwise global default
-    final currentProvider = assistant?.chatModelProvider ?? settings.currentModelProvider;
+    final currentProvider =
+        assistant?.chatModelProvider ?? settings.currentModelProvider;
     final currentModelId = assistant?.chatModelId ?? settings.currentModelId;
-    final currentKey = (currentProvider != null && currentModelId != null) 
-        ? '$currentProvider::$currentModelId' 
+    final currentKey = (currentProvider != null && currentModelId != null)
+        ? '$currentProvider::$currentModelId'
         : '';
-    
+
     final processingData = _ModelProcessingData(
       providerConfigs: Map<String, dynamic>.from(
-        settings.providerConfigs.map((key, value) => MapEntry(key, {
-          'enabled': value.enabled,
-          'name': value.name,
-          'models': value.models,
-          'overrides': value.modelOverrides,
-        })),
+        settings.providerConfigs.map(
+          (key, value) => MapEntry(key, {
+            'enabled': value.enabled,
+            'name': value.name,
+            'models': value.enabledModels.toList(),
+            'overrides': value.modelOverrides,
+          }),
+        ),
       ),
       pinnedModels: settings.pinnedModels,
       currentModelKey: currentKey,
       providersOrder: settings.providersOrder,
       limitProviderKey: widget.limitProviderKey,
     );
-    
+
     final result = _processModelsInBackground(processingData);
-    
+
     setState(() {
       _groups = result.groups;
       _favItems = result.favItems;
@@ -391,18 +428,22 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
 
     final settings = context.read<SettingsProvider>();
     final assistant = context.read<AssistantProvider>().currentAssistant;
-    
+
     // Use assistant's model if set, otherwise fall back to global default
     final pk = assistant?.chatModelProvider ?? settings.currentModelProvider;
     final mid = assistant?.chatModelId ?? settings.currentModelId;
     if (pk == null || mid == null) return;
 
     // Optionally expand a bit for better context
-    await _expandSheetIfNeeded(_initialSize.clamp(0.0, _maxSize), duration: const Duration(milliseconds: 200));
+    await _expandSheetIfNeeded(
+      _initialSize.clamp(0.0, _maxSize),
+      duration: const Duration(milliseconds: 200),
+    );
 
     // If current model is pinned and favorites section is visible, jump there first
     final currentKey = '${pk}::${mid}';
-    final bool showFavorites = widget.limitProviderKey == null && (_search.text.isEmpty);
+    final bool showFavorites =
+        widget.limitProviderKey == null && (_search.text.isEmpty);
     final bool isPinned = settings.pinnedModels.contains(currentKey);
 
     // Ensure the list is attached before attempting to scroll
@@ -451,7 +492,10 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   // Scroll to the first matching provider group when searching.
   Future<void> _scrollToFirstSearchGroup({bool initial = false}) async {
     // Expand a bit for better context
-    await _expandSheetIfNeeded(_initialSize.clamp(0.0, _maxSize), duration: const Duration(milliseconds: 200));
+    await _expandSheetIfNeeded(
+      _initialSize.clamp(0.0, _maxSize),
+      duration: const Duration(milliseconds: 200),
+    );
 
     if (!_itemScrollController.isAttached) {
       Future.delayed(const Duration(milliseconds: 60), () {
@@ -499,7 +543,8 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   bool _matchesSearch(String query, _ModelItem item, String providerName) {
     if (query.isEmpty) return true;
     final q = query.toLowerCase();
-    return item.id.toLowerCase().contains(q) || item.info.displayName.toLowerCase().contains(q);
+    return item.id.toLowerCase().contains(q) ||
+        item.info.displayName.toLowerCase().contains(q);
   }
 
   // Check if a provider should be shown based on search query (match display name only)
@@ -520,7 +565,9 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
       child: AnimatedPadding(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
         child: DraggableScrollableSheet(
           controller: _sheetCtrl,
           expand: false,
@@ -534,16 +581,27 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
                 Container(
                   decoration: BoxDecoration(
                     color: cs.surface,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
                   ),
                   child: Column(
                     children: [
                       // Header drag indicator
-                      Column(children: [
-                        const SizedBox(height: 8),
-                        Container(width: 40, height: 4, decoration: BoxDecoration(color: cs.onSurface.withOpacity(0.2), borderRadius: BorderRadius.circular(999))),
-                        const SizedBox(height: 8),
-                      ]),
+                      Column(
+                        children: [
+                          const SizedBox(height: 8),
+                          Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: cs.onSurface.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ),
                       // Fixed search field (iOS-like input style)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -552,10 +610,13 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
                           enabled: !_isLoading,
                           onChanged: (_) {
                             final q = _search.text.trim();
-                            final enteringSearch = _lastQuery.isEmpty && q.isNotEmpty;
+                            final enteringSearch =
+                                _lastQuery.isEmpty && q.isNotEmpty;
                             setState(() {});
                             if (enteringSearch) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) async {
+                              WidgetsBinding.instance.addPostFrameCallback((
+                                _,
+                              ) async {
                                 if (!mounted) return;
                                 await _scrollToFirstSearchGroup();
                               });
@@ -563,46 +624,86 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
                             _lastQuery = q;
                           },
                           // Ensure high-contrast input text in both themes
-                          style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
+                          style: TextStyle(
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : Colors.black87,
+                          ),
                           cursorColor: cs.primary,
                           decoration: InputDecoration(
                             hintText: l10n.modelSelectSheetSearchHint,
-                            prefixIcon: Icon(Lucide.Search, size: 18, color: cs.onSurface.withOpacity(_isLoading ? 0.35 : 0.6)),
+                            prefixIcon: Icon(
+                              Lucide.Search,
+                              size: 18,
+                              color: cs.onSurface.withOpacity(
+                                _isLoading ? 0.35 : 0.6,
+                              ),
+                            ),
                             // Use IconButton for reliable alignment at the far right
-                            suffixIcon: (widget.limitProviderKey == null && context.watch<SettingsProvider>().pinnedModels.isNotEmpty)
+                            suffixIcon:
+                                (widget.limitProviderKey == null &&
+                                    context
+                                        .watch<SettingsProvider>()
+                                        .pinnedModels
+                                        .isNotEmpty)
                                 ? ExcludeSemantics(
                                     child: IconButton(
-                                      icon: Icon(Lucide.Bookmark, size: 18, color: cs.onSurface.withOpacity(_isLoading ? 0.35 : 0.7)),
-                                      onPressed: _isLoading ? null : _jumpToFavorites,
+                                      icon: Icon(
+                                        Lucide.Bookmark,
+                                        size: 18,
+                                        color: cs.onSurface.withOpacity(
+                                          _isLoading ? 0.35 : 0.7,
+                                        ),
+                                      ),
+                                      onPressed: _isLoading
+                                          ? null
+                                          : _jumpToFavorites,
                                       splashColor: Colors.transparent,
                                       highlightColor: Colors.transparent,
                                       hoverColor: Colors.transparent,
-                                      tooltip: l10n.modelSelectSheetFavoritesSection,
+                                      tooltip:
+                                          l10n.modelSelectSheetFavoritesSection,
                                     ),
                                   )
                                 : null,
-                            suffixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                            suffixIconConstraints: const BoxConstraints(
+                              minWidth: 40,
+                              minHeight: 40,
+                            ),
                             isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
                             filled: true,
-                            fillColor: Theme.of(context).brightness == Brightness.dark
+                            fillColor:
+                                Theme.of(context).brightness == Brightness.dark
                                 ? Colors.white.withOpacity(0.10)
                                 : Colors.white.withOpacity(0.64),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4)),
+                              borderSide: BorderSide(
+                                color: cs.outlineVariant.withOpacity(0.4),
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4)),
+                              borderSide: BorderSide(
+                                color: cs.outlineVariant.withOpacity(0.4),
+                              ),
                             ),
                             disabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.25)),
+                              borderSide: BorderSide(
+                                color: cs.outlineVariant.withOpacity(0.25),
+                              ),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(color: cs.primary.withOpacity(0.5)),
+                              borderSide: BorderSide(
+                                color: cs.primary.withOpacity(0.5),
+                              ),
                             ),
                           ),
                         ),
@@ -614,9 +715,9 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
                 Expanded(
                   child: Container(
                     color: cs.surface, // Ensure background color continuity
-                    child: _isLoading 
-                      ? const Center(child: CircularProgressIndicator())
-                      : _buildContent(context),
+                    child: _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _buildContent(context),
                   ),
                 ),
                 // Fixed bottom tabs
@@ -688,9 +789,15 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         items = g.items;
       } else {
         final providerMatches = _providerMatchesSearch(query, g.name);
-        items = providerMatches ? g.items : g.items.where((e) => _matchesSearch(query, e, g.name)).toList();
+        items = providerMatches
+            ? g.items
+            : g.items.where((e) => _matchesSearch(query, e, g.name)).toList();
         if (favMatchedKeys.isNotEmpty) {
-          items = items.where((e) => !favMatchedKeys.contains('${e.providerKey}::${e.id}')).toList();
+          items = items
+              .where(
+                (e) => !favMatchedKeys.contains('${e.providerKey}::${e.id}'),
+              )
+              .toList();
         }
       }
       if (items.isEmpty) continue;
@@ -714,7 +821,11 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         if (row is _HeaderRow) {
           return _sectionHeader(context, row);
         } else if (row is _ModelRow) {
-          return _modelTile(context, row.item, showProviderLabel: row.showProviderLabel);
+          return _modelTile(
+            context,
+            row.item,
+            showProviderLabel: row.showProviderLabel,
+          );
         }
         return const SizedBox.shrink();
       },
@@ -735,7 +846,14 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
       for (final k in _orderedKeys) {
         final g = _groups[k];
         if (g != null) {
-          providerTabs.add(_providerTab(context, k, g.name, selected: k == selectedProviderKey));
+          providerTabs.add(
+            _providerTab(
+              context,
+              k,
+              g.name,
+              selected: k == selectedProviderKey,
+            ),
+          );
         }
       }
     }
@@ -765,18 +883,28 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
               row.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.6)),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface.withOpacity(0.6),
+              ),
             ),
           ),
           if (row.providerKey != null) ...[
             OAuthUsagePercentText(
               providerKey: row.providerKey!,
-              style: TextStyle(fontSize: 11, color: cs.primary.withOpacity(0.8)),
+              style: TextStyle(
+                fontSize: 11,
+                color: cs.primary.withOpacity(0.8),
+              ),
             ),
             const SizedBox(width: 6),
             ProviderBalanceText(
               providerKey: row.providerKey!,
-              style: TextStyle(fontSize: 11, color: cs.primary.withOpacity(0.8)),
+              style: TextStyle(
+                fontSize: 11,
+                color: cs.primary.withOpacity(0.8),
+              ),
             ),
           ],
         ],
@@ -784,12 +912,18 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     );
   }
 
-  Widget _modelTile(BuildContext context, _ModelItem m, {bool showProviderLabel = false}) {
+  Widget _modelTile(
+    BuildContext context,
+    _ModelItem m, {
+    bool showProviderLabel = false,
+  }) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final settings = context.read<SettingsProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = m.selected ? (isDark ? cs.primary.withOpacity(0.12) : cs.primary.withOpacity(0.08)) : cs.surface;
+    final bg = m.selected
+        ? (isDark ? cs.primary.withOpacity(0.12) : cs.primary.withOpacity(0.08))
+        : cs.surface;
     final effective = m.info; // precomputed effective info
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -799,9 +933,14 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
           borderRadius: BorderRadius.circular(14),
           pressedBlendStrength: 0.10,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          onTap: () => Navigator.of(context).pop(ModelSelection(m.providerKey, m.id)),
+          onTap: () =>
+              Navigator.of(context).pop(ModelSelection(m.providerKey, m.id)),
           onLongPress: () async {
-            await showModelDetailSheet(context, providerKey: m.providerKey, modelId: m.id);
+            await showModelDetailSheet(
+              context,
+              providerKey: m.providerKey,
+              modelId: m.id,
+            );
             if (mounted) {
               _isLoading = true;
               setState(() {});
@@ -811,66 +950,85 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
           child: SizedBox(
             width: double.infinity,
             child: Row(
-            children: [
-              _BrandAvatar(name: m.id, assetOverride: m.asset, size: 28),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (!showProviderLabel)
-                      Text(
-                        m.info.displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                      )
-                    else
-                      Text.rich(
-                        TextSpan(
-                          text: m.info.displayName,
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                          children: [
-                            TextSpan(
-                              text: ' | ${m.providerName}',
-                              style: TextStyle(
-                                color: cs.onSurface.withOpacity(0.6),
-                                fontSize: 12,
-                              ),
+              children: [
+                _BrandAvatar(name: m.id, assetOverride: m.asset, size: 28),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (!showProviderLabel)
+                        Text(
+                          m.info.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        )
+                      else
+                        Text.rich(
+                          TextSpan(
+                            text: m.info.displayName,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
                             ),
-                          ],
+                            children: [
+                              TextSpan(
+                                text: ' | ${m.providerName}',
+                                style: TextStyle(
+                                  color: cs.onSurface.withOpacity(0.6),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    const SizedBox(height: 4),
-                    _modelTagWrap(context, effective),
-                  ],
-                ),
-              ),
-              Builder(builder: (context) {
-                final pinnedNow = context.select<SettingsProvider, bool>((s) => s.isModelPinned(m.providerKey, m.id));
-                final icon = pinnedNow ? Icons.favorite : Icons.favorite_border;
-                return Tooltip(
-                  message: l10n.modelSelectSheetFavoriteTooltip,
-                  child: IosIconButton(
-                    icon: icon,
-                    size: 20,
-                    color: cs.primary,
-                    onTap: () => settings.togglePinModel(m.providerKey, m.id),
-                    padding: const EdgeInsets.all(6),
-                    minSize: 36,
+                      const SizedBox(height: 4),
+                      _modelTagWrap(context, effective),
+                    ],
                   ),
-                );
-              }),
-            ],
-          )),
+                ),
+                Builder(
+                  builder: (context) {
+                    final pinnedNow = context.select<SettingsProvider, bool>(
+                      (s) => s.isModelPinned(m.providerKey, m.id),
+                    );
+                    final icon = pinnedNow
+                        ? Icons.favorite
+                        : Icons.favorite_border;
+                    return Tooltip(
+                      message: l10n.modelSelectSheetFavoriteTooltip,
+                      child: IosIconButton(
+                        icon: icon,
+                        size: 20,
+                        color: cs.primary,
+                        onTap: () =>
+                            settings.togglePinModel(m.providerKey, m.id),
+                        padding: const EdgeInsets.all(6),
+                        minSize: 36,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _providerTab(BuildContext context, String key, String name, {bool selected = false}) {
+  Widget _providerTab(
+    BuildContext context,
+    String key,
+    String name, {
+    bool selected = false,
+  }) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -880,18 +1038,15 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         selected: selected,
         providerKey: key,
         borderColor: cs.outlineVariant.withOpacity(0.25),
-        onTap: () async { await _jumpToProvider(key); },
+        onTap: () async {
+          await _jumpToProvider(key);
+        },
         onLongPress: () async {
-          final cfg = context
-              .read<SettingsProvider>()
-              .providerConfigs[key];
+          final cfg = context.read<SettingsProvider>().providerConfigs[key];
           await Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => cfg?.oauthProvider != null
-                  ? OAuthProviderDetailPage(
-                      keyName: key,
-                      displayName: name,
-                    )
+                  ? OAuthProviderDetailPage(keyName: key, displayName: name)
                   : ProviderDetailPage(keyName: key, displayName: name),
             ),
           );
@@ -962,7 +1117,15 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
 }
 
 class _ProviderChip extends StatefulWidget {
-  const _ProviderChip({required this.avatar, required this.label, required this.onTap, this.onLongPress, this.borderColor, this.selected = false, this.providerKey});
+  const _ProviderChip({
+    required this.avatar,
+    required this.label,
+    required this.onTap,
+    this.onLongPress,
+    this.borderColor,
+    this.selected = false,
+    this.providerKey,
+  });
   final Widget avatar;
   final String label;
   final VoidCallback onTap;
@@ -986,10 +1149,13 @@ class _ProviderChipState extends State<_ProviderChip> {
     final Color baseBg = isSelected
         ? (isDark ? cs.primary.withOpacity(0.08) : cs.primary.withOpacity(0.05))
         : cs.surface;
-    final Color overlay = isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05);
+    final Color overlay = isDark
+        ? Colors.white.withOpacity(0.06)
+        : Colors.black.withOpacity(0.05);
     final Color bg = _pressed ? Color.alphaBlend(overlay, baseBg) : baseBg;
     // Slightly stronger border when selected; keep label color unchanged for subtlety
-    final Color borderColor = widget.borderColor ?? cs.outlineVariant.withOpacity(0.25);
+    final Color borderColor =
+        widget.borderColor ?? cs.outlineVariant.withOpacity(0.25);
     final Color labelColor = cs.onSurface;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -1015,18 +1181,31 @@ class _ProviderChipState extends State<_ProviderChip> {
               children: [
                 widget.avatar,
                 const SizedBox(width: 6),
-                Text(widget.label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: labelColor)),
+                Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: labelColor,
+                  ),
+                ),
               ],
             ),
             if (widget.providerKey != null) ...[
               const SizedBox(height: 2),
               ProviderBalanceText(
                 providerKey: widget.providerKey!,
-                style: TextStyle(fontSize: 10, color: labelColor.withOpacity(0.55)),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: labelColor.withOpacity(0.55),
+                ),
               ),
               OAuthUsagePercentText(
                 providerKey: widget.providerKey!,
-                style: TextStyle(fontSize: 10, color: labelColor.withOpacity(0.55)),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: labelColor.withOpacity(0.55),
+                ),
               ),
             ],
           ],
@@ -1050,18 +1229,36 @@ class _ModelItem {
   final bool pinned;
   final bool selected;
   final String? asset; // pre-resolved avatar asset for performance
-  _ModelItem({required this.providerKey, required this.providerName, required this.id, required this.info, this.pinned = false, this.selected = false, this.asset});
-  _ModelItem copyWith({bool? pinned, bool? selected}) => _ModelItem(providerKey: providerKey, providerName: providerName, id: id, info: info, pinned: pinned ?? this.pinned, selected: selected ?? this.selected, asset: asset);
+  _ModelItem({
+    required this.providerKey,
+    required this.providerName,
+    required this.id,
+    required this.info,
+    this.pinned = false,
+    this.selected = false,
+    this.asset,
+  });
+  _ModelItem copyWith({bool? pinned, bool? selected}) => _ModelItem(
+    providerKey: providerKey,
+    providerName: providerName,
+    id: id,
+    info: info,
+    pinned: pinned ?? this.pinned,
+    selected: selected ?? this.selected,
+    asset: asset,
+  );
 }
 
 // Virtualization entry: fixed height + lazy builder
 // Rows for flattened list
 abstract class _ListRow {}
+
 class _HeaderRow extends _ListRow {
   final String title;
   final String? providerKey;
   _HeaderRow(this.title, {this.providerKey});
 }
+
 class _ModelRow extends _ListRow {
   final _ModelItem item;
   final bool showProviderLabel;
@@ -1095,10 +1292,22 @@ class _BrandAvatar extends StatelessWidget {
           colorFilter: tint,
         );
       } else {
-        inner = Image.asset(asset, width: size * 0.62, height: size * 0.62, fit: BoxFit.contain);
+        inner = Image.asset(
+          asset,
+          width: size * 0.62,
+          height: size * 0.62,
+          fit: BoxFit.contain,
+        );
       }
     } else {
-      inner = Text(name.isNotEmpty ? name.characters.first.toUpperCase() : '?', style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, fontSize: size * 0.42));
+      inner = Text(
+        name.isNotEmpty ? name.characters.first.toUpperCase() : '?',
+        style: TextStyle(
+          color: cs.primary,
+          fontWeight: FontWeight.w700,
+          fontSize: size * 0.42,
+        ),
+      );
     }
     return Container(
       width: size,
@@ -1119,73 +1328,137 @@ Widget _modelTagWrap(BuildContext context, ModelInfo m) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
   List<Widget> chips = [];
   // type tag
-  chips.add(Container(
-    decoration: BoxDecoration(
-      color: isDark ? cs.primary.withOpacity(0.25) : cs.primary.withOpacity(0.15),
-      borderRadius: BorderRadius.circular(999),
-      border: Border.all(color: cs.primary.withOpacity(0.2), width: 0.5),
+  chips.add(
+    Container(
+      decoration: BoxDecoration(
+        color: isDark
+            ? cs.primary.withOpacity(0.25)
+            : cs.primary.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: cs.primary.withOpacity(0.2), width: 0.5),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      child: Text(
+        m.type == ModelType.chat
+            ? l10n.modelSelectSheetChatType
+            : l10n.modelSelectSheetEmbeddingType,
+        style: TextStyle(
+          fontSize: 11,
+          color: isDark ? cs.primary : cs.primary.withOpacity(0.9),
+          fontWeight: FontWeight.w500,
+        ),
+      ),
     ),
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    child: Text(m.type == ModelType.chat ? l10n.modelSelectSheetChatType : l10n.modelSelectSheetEmbeddingType, style: TextStyle(fontSize: 11, color: isDark ? cs.primary : cs.primary.withOpacity(0.9), fontWeight: FontWeight.w500)),
-  ));
+  );
   // modality tag capsule with icons (keep consistent with provider detail page)
-  chips.add(Container(
-    decoration: BoxDecoration(
-      color: isDark ? cs.tertiary.withOpacity(0.25) : cs.tertiary.withOpacity(0.15),
-      borderRadius: BorderRadius.circular(999),
-      border: Border.all(color: cs.tertiary.withOpacity(0.2), width: 0.5),
+  chips.add(
+    Container(
+      decoration: BoxDecoration(
+        color: isDark
+            ? cs.tertiary.withOpacity(0.25)
+            : cs.tertiary.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: cs.tertiary.withOpacity(0.2), width: 0.5),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final mod in m.input)
+            Padding(
+              padding: const EdgeInsets.only(right: 2),
+              child: Icon(
+                mod == Modality.text ? Lucide.Type : Lucide.Image,
+                size: 12,
+                color: isDark ? cs.tertiary : cs.tertiary.withOpacity(0.9),
+              ),
+            ),
+          Icon(
+            Lucide.ChevronRight,
+            size: 12,
+            color: isDark ? cs.tertiary : cs.tertiary.withOpacity(0.9),
+          ),
+          for (final mod in m.output)
+            Padding(
+              padding: const EdgeInsets.only(left: 2),
+              child: Icon(
+                mod == Modality.text ? Lucide.Type : Lucide.Image,
+                size: 12,
+                color: isDark ? cs.tertiary : cs.tertiary.withOpacity(0.9),
+              ),
+            ),
+        ],
+      ),
     ),
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      for (final mod in m.input)
-        Padding(
-          padding: const EdgeInsets.only(right: 2),
-          child: Icon(mod == Modality.text ? Lucide.Type : Lucide.Image, size: 12, color: isDark ? cs.tertiary : cs.tertiary.withOpacity(0.9)),
-        ),
-      Icon(Lucide.ChevronRight, size: 12, color: isDark ? cs.tertiary : cs.tertiary.withOpacity(0.9)),
-      for (final mod in m.output)
-        Padding(
-          padding: const EdgeInsets.only(left: 2),
-          child: Icon(mod == Modality.text ? Lucide.Type : Lucide.Image, size: 12, color: isDark ? cs.tertiary : cs.tertiary.withOpacity(0.9)),
-        ),
-    ]),
-  ));
+  );
   // abilities capsules
   for (final ab in m.abilities) {
     if (ab == ModelAbility.tool) {
-      chips.add(Container(
-        decoration: BoxDecoration(
-          color: isDark ? cs.primary.withOpacity(0.25) : cs.primary.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: cs.primary.withOpacity(0.2), width: 0.5),
+      chips.add(
+        Container(
+          decoration: BoxDecoration(
+            color: isDark
+                ? cs.primary.withOpacity(0.25)
+                : cs.primary.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: cs.primary.withOpacity(0.2), width: 0.5),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          child: Icon(
+            Lucide.Hammer,
+            size: 12,
+            color: isDark ? cs.primary : cs.primary.withOpacity(0.9),
+          ),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-        child: Icon(Lucide.Hammer, size: 12, color: isDark ? cs.primary : cs.primary.withOpacity(0.9)),
-      ));
+      );
     } else if (ab == ModelAbility.reasoning) {
-      chips.add(Container(
-        decoration: BoxDecoration(
-          color: isDark ? cs.secondary.withOpacity(0.3) : cs.secondary.withOpacity(0.18),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: cs.secondary.withOpacity(0.25), width: 0.5),
+      chips.add(
+        Container(
+          decoration: BoxDecoration(
+            color: isDark
+                ? cs.secondary.withOpacity(0.3)
+                : cs.secondary.withOpacity(0.18),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: cs.secondary.withOpacity(0.25),
+              width: 0.5,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          child: SvgPicture.asset(
+            'assets/icons/deepthink.svg',
+            width: 12,
+            height: 12,
+            colorFilter: ColorFilter.mode(
+              isDark ? cs.secondary : cs.secondary.withOpacity(0.9),
+              BlendMode.srcIn,
+            ),
+          ),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-        child: SvgPicture.asset('assets/icons/deepthink.svg', width: 12, height: 12, colorFilter: ColorFilter.mode(isDark ? cs.secondary : cs.secondary.withOpacity(0.9), BlendMode.srcIn)),
-      ));
+      );
     }
   }
-  return Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: chips);
+  return Wrap(
+    spacing: 6,
+    runSpacing: 6,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: chips,
+  );
 }
 
 // ===== Desktop dialog implementation =====
 
-Future<ModelSelection?> _showDesktopModelSelector(BuildContext context, {String? limitProviderKey}) async {
+Future<ModelSelection?> _showDesktopModelSelector(
+  BuildContext context, {
+  String? limitProviderKey,
+}) async {
   return showGeneralDialog<ModelSelection>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'model-select-desktop',
     barrierColor: Colors.black.withOpacity(0.25),
-    pageBuilder: (ctx, _, __) => _DesktopModelSelectDialogBody(limitProviderKey: limitProviderKey),
+    pageBuilder: (ctx, _, __) =>
+        _DesktopModelSelectDialogBody(limitProviderKey: limitProviderKey),
     transitionBuilder: (ctx, anim, _, child) {
       final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
       return FadeTransition(
@@ -1203,10 +1476,12 @@ class _DesktopModelSelectDialogBody extends StatefulWidget {
   const _DesktopModelSelectDialogBody({this.limitProviderKey});
   final String? limitProviderKey;
   @override
-  State<_DesktopModelSelectDialogBody> createState() => _DesktopModelSelectDialogBodyState();
+  State<_DesktopModelSelectDialogBody> createState() =>
+      _DesktopModelSelectDialogBodyState();
 }
 
-class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialogBody> {
+class _DesktopModelSelectDialogBodyState
+    extends State<_DesktopModelSelectDialogBody> {
   final TextEditingController _searchCtrl = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   bool _loading = true;
@@ -1215,11 +1490,15 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
   List<String> _orderedKeys = const [];
   // Flattened rows and precise index mapping for jump
   final ItemScrollController _itemScrollController = ItemScrollController();
-  final ItemPositionsListener _itemPositionsListener = ItemPositionsListener.create();
+  final ItemPositionsListener _itemPositionsListener =
+      ItemPositionsListener.create();
   final List<_ListRow> _rows = <_ListRow>[];
-  final Map<String, int> _headerIndexMap = <String, int>{}; // providerKey or '__fav__' -> index
-  final Map<String, int> _modelIndexMap = <String, int>{};  // 'pk::modelId' in provider sections -> index
-  final Map<String, int> _favModelIndexMap = <String, int>{}; // 'pk::modelId' in favorites -> index
+  final Map<String, int> _headerIndexMap =
+      <String, int>{}; // providerKey or '__fav__' -> index
+  final Map<String, int> _modelIndexMap =
+      <String, int>{}; // 'pk::modelId' in provider sections -> index
+  final Map<String, int> _favModelIndexMap =
+      <String, int>{}; // 'pk::modelId' in favorites -> index
   bool _autoScrolled = false; // auto-scroll once when dialog opens
 
   @override
@@ -1239,18 +1518,23 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
   Future<void> _loadModels() async {
     final settings = context.read<SettingsProvider>();
     final assistant = context.read<AssistantProvider>().currentAssistant;
-    final currentProvider = assistant?.chatModelProvider ?? settings.currentModelProvider;
+    final currentProvider =
+        assistant?.chatModelProvider ?? settings.currentModelProvider;
     final currentModelId = assistant?.chatModelId ?? settings.currentModelId;
-    final currentKey = (currentProvider != null && currentModelId != null) ? '$currentProvider::$currentModelId' : '';
+    final currentKey = (currentProvider != null && currentModelId != null)
+        ? '$currentProvider::$currentModelId'
+        : '';
 
     final data = _ModelProcessingData(
       providerConfigs: Map<String, dynamic>.from(
-        settings.providerConfigs.map((key, value) => MapEntry(key, {
-              'enabled': value.enabled,
-              'name': value.name,
-              'models': value.models,
-              'overrides': value.modelOverrides,
-            })),
+        settings.providerConfigs.map(
+          (key, value) => MapEntry(key, {
+            'enabled': value.enabled,
+            'name': value.name,
+            'models': value.enabledModels.toList(),
+            'overrides': value.modelOverrides,
+          }),
+        ),
       ),
       pinnedModels: settings.pinnedModels,
       currentModelKey: currentKey,
@@ -1278,7 +1562,8 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
   bool _matchesSearch(String query, _ModelItem item, String providerName) {
     if (query.isEmpty) return true;
     final q = query.toLowerCase();
-    return item.id.toLowerCase().contains(q) || item.info.displayName.toLowerCase().contains(q);
+    return item.id.toLowerCase().contains(q) ||
+        item.info.displayName.toLowerCase().contains(q);
   }
 
   bool _providerMatchesSearch(String query, String providerName) {
@@ -1294,6 +1579,7 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
       if (_searchFocusNode.hasFocus) return;
       FocusScope.of(context).requestFocus(_searchFocusNode);
     }
+
     if (defer) {
       WidgetsBinding.instance.addPostFrameCallback((_) => request());
     } else {
@@ -1358,9 +1644,15 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
         items = g.items;
       } else {
         final providerMatches = _providerMatchesSearch(query, g.name);
-        items = providerMatches ? g.items : g.items.where((e) => _matchesSearch(query, e, g.name)).toList();
+        items = providerMatches
+            ? g.items
+            : g.items.where((e) => _matchesSearch(query, e, g.name)).toList();
         if (favMatchedKeys.isNotEmpty) {
-          items = items.where((e) => !favMatchedKeys.contains('${e.providerKey}::${e.id}')).toList();
+          items = items
+              .where(
+                (e) => !favMatchedKeys.contains('${e.providerKey}::${e.id}'),
+              )
+              .toList();
         }
       }
       if (items.isEmpty) continue;
@@ -1384,14 +1676,20 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
 
     final dialog = Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 460, maxWidth: 620, maxHeight: 560),
+        constraints: const BoxConstraints(
+          minWidth: 460,
+          maxWidth: 620,
+          maxHeight: 560,
+        ),
         child: Material(
           color: cs.surface,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
             side: BorderSide(
-              color: isDark ? Colors.white.withOpacity(0.08) : cs.outlineVariant.withOpacity(0.25),
+              color: isDark
+                  ? Colors.white.withOpacity(0.08)
+                  : cs.outlineVariant.withOpacity(0.25),
               width: 1,
             ),
           ),
@@ -1417,21 +1715,55 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
                               hintText: l10n.modelSelectSheetSearchHint,
                               isDense: true,
                               filled: true,
-                              fillColor: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
-                              prefixIcon: Icon(Lucide.Search, size: 16, color: cs.onSurface.withOpacity(0.7)),
-                              suffixIcon: (widget.limitProviderKey == null && context.watch<SettingsProvider>().pinnedModels.isNotEmpty)
+                              fillColor: isDark
+                                  ? Colors.white10
+                                  : const Color(0xFFF2F3F5),
+                              prefixIcon: Icon(
+                                Lucide.Search,
+                                size: 16,
+                                color: cs.onSurface.withOpacity(0.7),
+                              ),
+                              suffixIcon:
+                                  (widget.limitProviderKey == null &&
+                                      context
+                                          .watch<SettingsProvider>()
+                                          .pinnedModels
+                                          .isNotEmpty)
                                   ? Tooltip(
-                                      message: l10n.modelSelectSheetFavoritesSection,
+                                      message:
+                                          l10n.modelSelectSheetFavoritesSection,
                                       child: IconButton(
-                                        icon: Icon(Lucide.Bookmark, size: 16, color: cs.onSurface.withOpacity(0.7)),
+                                        icon: Icon(
+                                          Lucide.Bookmark,
+                                          size: 16,
+                                          color: cs.onSurface.withOpacity(0.7),
+                                        ),
                                         onPressed: _jumpToFavorites,
                                       ),
                                     )
                                   : null,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.transparent)),
-                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.transparent)),
-                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: cs.primary.withOpacity(0.4))),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.transparent,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.transparent,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: cs.primary.withOpacity(0.4),
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 8,
+                              ),
                             ),
                           ),
                         ),
@@ -1488,7 +1820,11 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
           });
           return _providerHeader(context, providerKey, row.title);
         } else if (row is _ModelRow) {
-          return _desktopModelTile(context, row.item, showProviderLabel: row.showProviderLabel);
+          return _desktopModelTile(
+            context,
+            row.item,
+            showProviderLabel: row.showProviderLabel,
+          );
         }
         return const SizedBox.shrink();
       },
@@ -1514,7 +1850,8 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
     _rebuildRows();
 
     final currentKey = '$pk::$mid';
-    final bool showFavorites = widget.limitProviderKey == null && _searchCtrl.text.isEmpty;
+    final bool showFavorites =
+        widget.limitProviderKey == null && _searchCtrl.text.isEmpty;
     final bool isPinned = settings.pinnedModels.contains(currentKey);
 
     int? targetIndex;
@@ -1554,11 +1891,17 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
     }
   }
 
-  Widget _desktopModelTile(BuildContext context, _ModelItem m, {bool showProviderLabel = false}) {
+  Widget _desktopModelTile(
+    BuildContext context,
+    _ModelItem m, {
+    bool showProviderLabel = false,
+  }) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
-    final bg = m.selected ? (isDark ? cs.primary.withOpacity(0.12) : cs.primary.withOpacity(0.08)) : cs.surface;
+    final bg = m.selected
+        ? (isDark ? cs.primary.withOpacity(0.12) : cs.primary.withOpacity(0.08))
+        : cs.surface;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -1567,7 +1910,8 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
         borderRadius: BorderRadius.circular(14),
         pressedBlendStrength: 0.10,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        onTap: () => Navigator.of(context).pop(ModelSelection(m.providerKey, m.id)),
+        onTap: () =>
+            Navigator.of(context).pop(ModelSelection(m.providerKey, m.id)),
         child: Row(
           children: [
             _BrandAvatar(name: m.id, assetOverride: m.asset, size: 18),
@@ -1579,7 +1923,13 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
                   style: const TextStyle(fontSize: 12.5),
                   children: [
                     if (showProviderLabel)
-                      TextSpan(text: ' | ${m.providerName}', style: TextStyle(fontSize: 11.5, color: cs.onSurface.withOpacity(0.6))),
+                      TextSpan(
+                        text: ' | ${m.providerName}',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: cs.onSurface.withOpacity(0.6),
+                        ),
+                      ),
                   ],
                 ),
                 maxLines: 1,
@@ -1587,23 +1937,38 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
               ),
             ),
             const SizedBox(width: 6),
-            Row(children: _buildDesktopCapsules(context, m.info).map((w) => Padding(padding: const EdgeInsets.only(left: 4), child: w)).toList()),
+            Row(
+              children: _buildDesktopCapsules(context, m.info)
+                  .map(
+                    (w) => Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: w,
+                    ),
+                  )
+                  .toList(),
+            ),
             const SizedBox(width: 4),
-            Builder(builder: (context) {
-              final pinnedNow = context.select<SettingsProvider, bool>((s) => s.isModelPinned(m.providerKey, m.id));
-              final icon = pinnedNow ? Icons.favorite : Icons.favorite_border;
-              return Tooltip(
-                message: l10n.modelSelectSheetFavoriteTooltip,
-                child: IosIconButton(
-                  icon: icon,
-                  size: 16,
-                  color: cs.primary,
-                  onTap: () => context.read<SettingsProvider>().togglePinModel(m.providerKey, m.id),
-                  padding: const EdgeInsets.all(3),
-                  minSize: 26,
-                ),
-              );
-            }),
+            Builder(
+              builder: (context) {
+                final pinnedNow = context.select<SettingsProvider, bool>(
+                  (s) => s.isModelPinned(m.providerKey, m.id),
+                );
+                final icon = pinnedNow ? Icons.favorite : Icons.favorite_border;
+                return Tooltip(
+                  message: l10n.modelSelectSheetFavoriteTooltip,
+                  child: IosIconButton(
+                    icon: icon,
+                    size: 16,
+                    color: cs.primary,
+                    onTap: () => context
+                        .read<SettingsProvider>()
+                        .togglePinModel(m.providerKey, m.id),
+                    padding: const EdgeInsets.all(3),
+                    minSize: 26,
+                  ),
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -1627,17 +1992,43 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
         child: icon,
       );
     }
+
     if (info.input.contains(Modality.image)) {
-      caps.add(pillCapsule(Icon(Lucide.Eye, size: 11, color: cs.secondary), cs.secondary));
+      caps.add(
+        pillCapsule(
+          Icon(Lucide.Eye, size: 11, color: cs.secondary),
+          cs.secondary,
+        ),
+      );
     }
     if (info.output.contains(Modality.image)) {
-      caps.add(pillCapsule(Icon(Lucide.Image, size: 11, color: cs.tertiary), cs.tertiary));
+      caps.add(
+        pillCapsule(
+          Icon(Lucide.Image, size: 11, color: cs.tertiary),
+          cs.tertiary,
+        ),
+      );
     }
     for (final ab in info.abilities) {
       if (ab == ModelAbility.tool) {
-        caps.add(pillCapsule(Icon(Lucide.Hammer, size: 11, color: cs.primary), cs.primary));
+        caps.add(
+          pillCapsule(
+            Icon(Lucide.Hammer, size: 11, color: cs.primary),
+            cs.primary,
+          ),
+        );
       } else if (ab == ModelAbility.reasoning) {
-        caps.add(pillCapsule(SvgPicture.asset('assets/icons/deepthink.svg', width: 11, height: 11, colorFilter: ColorFilter.mode(cs.secondary, BlendMode.srcIn)), cs.secondary));
+        caps.add(
+          pillCapsule(
+            SvgPicture.asset(
+              'assets/icons/deepthink.svg',
+              width: 11,
+              height: 11,
+              colorFilter: ColorFilter.mode(cs.secondary, BlendMode.srcIn),
+            ),
+            cs.secondary,
+          ),
+        );
       }
     }
     return caps;
@@ -1652,13 +2043,24 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
         children: [
           Icon(Lucide.Bookmark, size: 14, color: cs.onSurface.withOpacity(0.6)),
           const SizedBox(width: 6),
-          Text(title, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.6))),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface.withOpacity(0.6),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _providerHeader(BuildContext context, String? providerKey, String displayName) {
+  Widget _providerHeader(
+    BuildContext context,
+    String? providerKey,
+    String displayName,
+  ) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
@@ -1668,18 +2070,29 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
           Expanded(
             child: Text(
               displayName,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurface.withOpacity(0.55), letterSpacing: 0.2),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: cs.onSurface.withOpacity(0.55),
+                letterSpacing: 0.2,
+              ),
             ),
           ),
           if (providerKey != null) ...[
             OAuthUsagePercentText(
               providerKey: providerKey,
-              style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.45)),
+              style: TextStyle(
+                fontSize: 11,
+                color: cs.onSurface.withOpacity(0.45),
+              ),
             ),
             const SizedBox(width: 6),
             ProviderBalanceText(
               providerKey: providerKey,
-              style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.45)),
+              style: TextStyle(
+                fontSize: 11,
+                color: cs.onSurface.withOpacity(0.45),
+              ),
             ),
             const SizedBox(width: 8),
             _IconBtn(
@@ -1691,7 +2104,8 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
                 Navigator.of(context).pop(); // close selector
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => ProvidersPage(initialSelectedKey: providerKey),
+                    builder: (_) =>
+                        ProvidersPage(initialSelectedKey: providerKey),
                   ),
                 );
               },
@@ -1712,13 +2126,23 @@ class _DesktopModelSelectDialogBodyState extends State<_DesktopModelSelectDialog
       return;
     }
     try {
-      await _itemScrollController.scrollTo(index: idx, duration: const Duration(milliseconds: 400), curve: Curves.easeOutCubic);
+      await _itemScrollController.scrollTo(
+        index: idx,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOutCubic,
+      );
     } catch (_) {}
   }
 }
 
 class _IconBtn extends StatefulWidget {
-  const _IconBtn({super.key, required this.icon, required this.onTap, this.size = 18, this.color});
+  const _IconBtn({
+    super.key,
+    required this.icon,
+    required this.onTap,
+    this.size = 18,
+    this.color,
+  });
   final IconData icon;
   final VoidCallback onTap;
   final double size;
@@ -1744,7 +2168,11 @@ class _IconBtnState extends State<_IconBtn> {
             color: _hover ? cs.onSurface.withOpacity(0.08) : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(widget.icon, size: widget.size, color: widget.color ?? cs.onSurface.withOpacity(0.7)),
+          child: Icon(
+            widget.icon,
+            size: widget.size,
+            color: widget.color ?? cs.onSurface.withOpacity(0.7),
+          ),
         ),
       ),
     );
