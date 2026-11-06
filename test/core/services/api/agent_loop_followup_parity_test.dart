@@ -1,22 +1,16 @@
-// Parity harness for Phase 0 (IMPORT_PLAN_COWORK.md P0-4 / P0-6.2).
+// Follow-up body parity for the agent-loop kernel (IMPORT_PLAN_COWORK.md
+// P0-4/P0-6.2, finalized by P0-3).
 //
-// Today the transport itself runs the multi-round tool loop: after a round
-// whose response contains tool calls it executes them via `onToolCall`, then
-// issues a *follow-up* request whose body is built from the sanitized initial
-// messages plus OpenAI-neutral `assistant(tool_calls)` + `role:'tool'`
-// messages (with provider reasoning-echo fields).
-//
-// Phase 0 moves that loop into `lib/core/services/agent/agent_loop.dart`
-// (kernel) and makes `ChatApiService.sendMessageStream` single-round. For the
-// follow-up bodies to stay byte-identical, the kernel's appended neutral
-// messages must equal what the legacy loop appended today. This test captures
-// the legacy follow-up body over an in-process HTTP server and asserts:
+// The transport is single-round: the kernel executes the round's tool calls and
+// composes the follow-up request from OpenAI-neutral messages
+// (`assistant(tool_calls)` + `role:'tool'`) plus the transport's reasoning-echo
+// fields (`assistantExtras`). This test drives the real kernel over an
+// in-process HTTP server and asserts:
 //
 //   1. the executed tool call matches the round's script,
 //   2. the follow-up `messages` equal the kernel's `AgentNeutralMessages`
-//      output — with the single documented delta being the DeepSeek
-//      `reasoning_content` echo the kernel must carry via its
-//      `assistantExtras` channel (P0-4).
+//      output plus the DeepSeek `reasoning_content` echo (P0-4),
+//   3. the following round's body is exactly the documented golden.
 //
 // Scenario: DeepSeek-style chat-completions (reasoning model, tool round →
 // final text round).
@@ -150,16 +144,19 @@ void main() {
     'follow-up body equals kernel neutral messages + reasoning echo',
     () async {
       final executed = <String>[];
-      final chunks = await ChatApiService.sendMessageStream(
-        config: _deepSeekConfig(fix.baseUrl),
-        modelId: 'deepseek-r',
+      final chunks = await runAgentLoop(
         messages: const [
           {'role': 'user', 'content': 'read a.txt'},
         ],
-        stream: false,
-        requestId: 'req-echo',
-        onToolCall: (name, args, {String? toolCallId}) async {
-          executed.add('$name:${args['path']}');
+        sendRound: (msgs) async => ChatApiService.sendMessageStream(
+          config: _deepSeekConfig(fix.baseUrl),
+          modelId: 'deepseek-r',
+          messages: msgs,
+          stream: false,
+          requestId: 'req-echo',
+        ),
+        onToolCall: (call) async {
+          executed.add('${call.name}:${call.arguments['path']}');
           return 'FILE_BODY_42';
         },
       ).toList();
@@ -169,7 +166,10 @@ void main() {
 
       // 2. A follow-up request was issued and completed.
       expect(fix.bodies, hasLength(2));
-      expect(chunks.last.isDone, isTrue);
+      expect(
+        chunks.whereType<AgentStreamEvent>().any((e) => e.chunk.isDone),
+        isTrue,
+      );
 
       // 3. Kernel parity: reconstruct what the kernel would have appended.
       const call = AgentToolCall(
@@ -188,9 +188,10 @@ void main() {
       final followUpMessages = fix.bodies[1]['messages'] as List<dynamic>;
       expect(followUpMessages, hasLength(3));
 
-      // The assistant tool_calls message matches the kernel's byte-for-byte,
-      // plus the DeepSeek reasoning_content echo (P0-4 gap the kernel carries
-      // via assistantExtras once wired in the driver).
+      // The assistant tool_calls message matches the kernel's neutral shape;
+      // the DeepSeek reasoning_content echo is merged by the kernel from the
+      // transport's `assistantExtras` (it is provider-owned, so the neutral
+      // builder itself does not carry it).
       final followUpAssistant = followUpMessages[1] as Map<String, dynamic>;
       expect(followUpAssistant['role'], 'assistant');
       expect(followUpAssistant['content'], '\n\n');
@@ -202,7 +203,8 @@ void main() {
       expect(
         kernelAssistant.containsKey('reasoning_content'),
         isFalse,
-        reason: 'echo is not yet threaded through runAgentLoop (P0-4)',
+        reason:
+            'the neutral builder stays provider-agnostic; extras ride the chunk',
       );
 
       // The role:'tool' message matches the kernel's byte-for-byte.
@@ -218,33 +220,11 @@ void main() {
   );
 
   test(
-    'kernel run (expose mode) issues byte-identical follow-up requests',
+    'kernel run issues the expected follow-up request body',
     () async {
-      // Phase 0 contract (P0-2/P0-4): running the agent-loop kernel with a
-      // single-round expose-mode transport must reproduce the legacy loop's
-      // follow-up body exactly — including the reasoning echo, which now
-      // rides the chunk's `assistantExtras` channel.
-
-      // 1. Capture the legacy two-round behavior as the reference.
-      var legacyExecuted = 0;
-      await ChatApiService.sendMessageStream(
-        config: _deepSeekConfig(fix.baseUrl),
-        modelId: 'deepseek-r',
-        messages: const [
-          {'role': 'user', 'content': 'read a.txt'},
-        ],
-        stream: false,
-        requestId: 'req-legacy',
-        onToolCall: (name, args, {String? toolCallId}) async {
-          legacyExecuted++;
-          return 'FILE_BODY_42';
-        },
-      ).toList();
-      expect(legacyExecuted, 1);
-      final legacyFollowUp = fix.bodies[1];
-
-      // 2. Run the kernel on the same scenario (expose transport, kernel
-      // drives execution and follow-up assembly).
+      // P0-2/P0-4 contract: the kernel's follow-up body is the parity
+      // contract — including the reasoning echo, which rides the chunk's
+      // `assistantExtras` channel.
       var kernelExecuted = 0;
       await runAgentLoop(
         messages: const [
@@ -256,8 +236,6 @@ void main() {
           messages: msgs,
           stream: false,
           requestId: 'req-kernel',
-          onToolCall: null,
-          exposeToolCallsOnly: true,
         ),
         onToolCall: (call) async {
           kernelExecuted++;
@@ -266,18 +244,27 @@ void main() {
       ).toList();
       expect(kernelExecuted, 1);
 
-      // bodies: [0]=legacy round1, [1]=legacy follow-up, [2]=kernel round1,
-      // [3]=kernel follow-up. The kernel's rounds must match the legacy's
-      // round-for-round (same initial body, same follow-up `messages`).
-      expect(fix.bodies, hasLength(4));
-      expect(fix.bodies[2], fix.bodies[0]);
-      final kernelFollowUp = fix.bodies[3];
-      // The follow-up `messages` payload is the parity contract and must be
-      // byte-identical (the kernel re-enters `sendMessageStream`, whose body
-      // legitimately carries its own `stream` flag — the legacy inline
-      // follow-up stripped that top-level key; providers treat an explicit
-      // false the same as an omitted key).
-      expect(kernelFollowUp['messages'], legacyFollowUp['messages']);
+      // bodies: [0]=round 1, [1]=follow-up.
+      expect(fix.bodies, hasLength(2));
+      final kernelFollowUp = fix.bodies[1];
+      const call = AgentToolCall(
+        toolCallId: 'call_1',
+        name: 'file_read',
+        arguments: <String, dynamic>{'path': 'a.txt'},
+      );
+      expect(kernelFollowUp['messages'], <Map<String, dynamic>>[
+        {'role': 'user', 'content': 'read a.txt'},
+        {
+          ...AgentNeutralMessages.assistantMessage(
+            calls: const <AgentToolCall>[call],
+          ),
+          'reasoning_content': 'let me think about reading the file',
+        },
+        AgentNeutralMessages.toolResultMessage(
+          call: call,
+          result: 'FILE_BODY_42',
+        ),
+      ]);
 
       // 3. The reasoning echo arrived via assistantExtras (P0-4 closed).
       final kernelMsgs = kernelFollowUp['messages'] as List<dynamic>;

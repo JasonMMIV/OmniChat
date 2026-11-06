@@ -21,19 +21,17 @@ import '../../../core/services/auth/oauth_errors.dart';
 import '../../../core/services/auth/oauth_failure.dart';
 import '../../../core/services/auth/oauth_recovery_registry.dart';
 import '../../../core/services/auth/provider_oauth_service.dart';
-import '../../../core/services/agent/agent_loop.dart';
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/agent/compaction/midrun_compactor.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/storage/message_part_codec.dart';
-import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant_regex.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
-import '../services/agent_orchestrator.dart';
+import '../../../core/services/agent/agent_orchestrator.dart';
 import '../services/attachment_modality_gate.dart';
 import '../services/message_generation_service.dart';
 import '../../../shared/widgets/snackbar.dart';
@@ -102,8 +100,8 @@ class ChatActions {
   final ProviderOAuthService oauthService;
   final OAuthRecoveryRegistry oauthRecoveryRegistry;
 
-  /// P0-2 agent-loop driver (kernel path behind the `agent_loop_v1`
-  /// kill-switch). Stateless per run.
+  /// P0-2/P0-3 agent-loop driver: the only generation path (the transport is
+  /// single-round). Stateless per run.
   final AgentOrchestrator _agentOrchestrator = AgentOrchestrator();
 
   // ============================================================================
@@ -1314,54 +1312,30 @@ class ChatActions {
     streamController.markStreamingStarted(state.messageId);
 
     try {
-      // P0-2 kill-switch: `agent_loop_v1` (default true) routes generation
-      // through the agent-loop kernel driver; `false` (or providers without
-      // kernel-path parity yet) keeps the legacy transport-level loop.
-      final useAgentLoop =
-          ctx.settings.agentLoopV1 &&
-          AgentOrchestrator.supportsKernelPath(ctx.config) &&
-          ctx.onToolCall != null;
-      final stream = useAgentLoop
-          ? _agentOrchestrator.run(
-              config: ctx.config,
-              modelId: ctx.modelId,
-              messages: ctx.apiMessages,
-              userImagePaths: ctx.userImagePaths,
-              thinkingBudget:
-                  assistant?.thinkingBudget ?? ctx.settings.thinkingBudget,
-              temperature: assistant?.temperature,
-              topP: assistant?.topP,
-              maxTokens: assistant?.maxTokens,
-              tools: ctx.toolDefs.isEmpty ? null : ctx.toolDefs,
-              onToolCall: ctx.onToolCall,
-              hooks: await _buildPhase1Hooks(ctx),
-              extraHeaders: ctx.extraHeaders,
-              extraBody: ctx.extraBody,
-              streamOutput: ctx.streamOutput,
-              requestId: conversationId,
-              sessionId: conversationId,
-              imageAspectRatio: ctx.settings.imageAspectRatio,
-            )
-          : ChatApiService.sendMessageStream(
-              config: ctx.config,
-              modelId: ctx.modelId,
-              messages: ctx.apiMessages,
-              userImagePaths: ctx.userImagePaths,
-              thinkingBudget:
-                  assistant?.thinkingBudget ?? ctx.settings.thinkingBudget,
-              temperature: assistant?.temperature,
-              topP: assistant?.topP,
-              maxTokens: assistant?.maxTokens,
-              tools: ctx.toolDefs.isEmpty ? null : ctx.toolDefs,
-              onToolCall: ctx.onToolCall,
-              extraHeaders: ctx.extraHeaders,
-              extraBody: ctx.extraBody,
-              stream: ctx.streamOutput,
-              webFetchEnabled: ctx.settings.webFetchEnabled,
-              requestId: conversationId,
-              sessionId: conversationId,
-              imageAspectRatio: ctx.settings.imageAspectRatio,
-            );
+      // P0-3: generation always runs through the agent-loop kernel driver.
+      // The `agent_loop_v1` kill-switch was retired once the kernel path
+      // soaked; the transport no longer owns tool execution or follow-ups.
+      final stream = _agentOrchestrator.run(
+        config: ctx.config,
+        modelId: ctx.modelId,
+        messages: ctx.apiMessages,
+        userImagePaths: ctx.userImagePaths,
+        thinkingBudget:
+            assistant?.thinkingBudget ?? ctx.settings.thinkingBudget,
+        temperature: assistant?.temperature,
+        topP: assistant?.topP,
+        maxTokens: assistant?.maxTokens,
+        tools: ctx.toolDefs.isEmpty ? null : ctx.toolDefs,
+        onToolCall: ctx.onToolCall,
+        hooks: await _buildPhase1Hooks(ctx),
+        extraHeaders: ctx.extraHeaders,
+        extraBody: ctx.extraBody,
+        webFetchEnabled: ctx.settings.webFetchEnabled,
+        streamOutput: ctx.streamOutput,
+        requestId: conversationId,
+        sessionId: conversationId,
+        imageAspectRatio: ctx.settings.imageAspectRatio,
+      );
 
       await _conversationStreams[conversationId]?.cancel();
       late final StreamSubscription<ChatStreamChunk> sub;
@@ -1676,7 +1650,9 @@ class ChatActions {
     _aiTeamCancelCompleter = Completer<void>();
     DateTime? reasoningStartAt;
 
-    final stream = ChatApiService.sendMessageStream(
+    // P0-3: proposers run through the kernel driver; the transport is
+    // single-round only and no longer executes tools itself.
+    final stream = _agentOrchestrator.run(
       config: config,
       modelId: modelId,
       messages: apiMessages,
@@ -1689,10 +1665,9 @@ class ChatActions {
       onToolCall: onToolCall,
       extraHeaders: extraHeaders,
       extraBody: extraBody,
-      stream: streamOutput,
+      streamOutput: streamOutput,
       requestId: '${conversationId}_proposer',
       sessionId: conversationId,
-      imageAspectRatio: null,
     );
 
     final proposerSub = stream.listen(

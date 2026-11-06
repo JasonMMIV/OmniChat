@@ -103,13 +103,6 @@ class SettingsProvider extends ChangeNotifier {
       'display_show_thinking_cards_v1';
   static const String _displayShowToolCardsKey = 'display_show_tool_cards_v1';
 
-  /// Kill-switch for the agent-loop v1 kernel path (IMPORT_PLAN_COWORK.md
-  /// P0-2). Default `true` = the new kernel loop drives generation;
-  /// `false` = the legacy transport-level multi-round loop. During the
-  /// strangler migration both paths coexist; the legacy path is removed
-  /// after one soak release.
-  static const String _agentLoopV1Key = 'agent_loop_v1';
-
   /// Kill-switch for P1-2 auto-compaction (L0 tool-result pruning + L1
   /// mechanical history compaction + the usage trigger). Default `true`.
   /// R0 (overflow trim-retry) intentionally has NO toggle — it is a
@@ -844,7 +837,6 @@ class SettingsProvider extends ChangeNotifier {
         prefs.getBool(_displayShowUserMessageActionsKey) ?? true;
     _showThinkingCards = prefs.getBool(_displayShowThinkingCardsKey) ?? true;
     _showToolCards = prefs.getBool(_displayShowToolCardsKey) ?? true;
-    _agentLoopV1 = prefs.getBool(_agentLoopV1Key) ?? true;
     _autoCompactionV1 = prefs.getBool(_autoCompactionV1Key) ?? true;
     _approvalStrictModeV1 = prefs.getBool(_approvalStrictModeV1Key) ?? false;
     // P1-1 v1.6: drop legacy MCP override keys (the MCP approval policy
@@ -3223,17 +3215,6 @@ Synthesize your reasoning and research into a final response. The structure shou
     await prefs.setBool(_skillsPreloadEnabledKey, v);
   }
 
-  // Kernel: agent-loop v1 kill-switch (default on; false = legacy loop)
-  bool _agentLoopV1 = true;
-  bool get agentLoopV1 => _agentLoopV1;
-  Future<void> setAgentLoopV1(bool v) async {
-    if (_agentLoopV1 == v) return;
-    _agentLoopV1 = v;
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_agentLoopV1Key, v);
-  }
-
   // Behavior: P1-2 auto-compaction kill-switch (default on)
   bool _autoCompactionV1 = true;
   bool get autoCompactionV1 => _autoCompactionV1;
@@ -4018,7 +3999,6 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._replayToolResults = _replayToolResults;
     copy._skillsPreloadEnabled = _skillsPreloadEnabled;
     copy._workspaceToolsDisabled = _workspaceToolsDisabled;
-    copy._agentLoopV1 = _agentLoopV1;
     copy._autoCompactionV1 = _autoCompactionV1;
     copy._showMessageNavButtons = _showMessageNavButtons;
     copy._showProviderInModelCapsule = _showProviderInModelCapsule;

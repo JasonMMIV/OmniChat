@@ -588,40 +588,6 @@ class ChatApiService {
     );
   }
 
-  /// messages pass through untouched so `tool_call_id`/`tool_calls` survive
-  /// multi-round tool loops.
-  static List<Map<String, dynamic>> _preserveToolStructuredMessages(
-    List<Map<String, dynamic>> messages, {
-    bool reasoningEcho = false,
-  }) {
-    final out = <Map<String, dynamic>>[];
-    for (final m in messages) {
-      final role = (m['role'] ?? 'user').toString();
-      final isToolRole = role == 'tool';
-      final hasToolCalls =
-          role == 'assistant' &&
-          m['tool_calls'] is List &&
-          (m['tool_calls'] as List).isNotEmpty;
-      if (isToolRole || hasToolCalls) {
-        out.add(Map<String, dynamic>.from(m));
-      } else {
-        // Plain assistant/user messages: keep only role+content, plus the
-        // vendor reasoning-echo fields for echo-capable models — DeepSeek
-        // thinking mode requires `reasoning_content` on EVERY assistant
-        // message in the request, not just `tool_calls` ones (wire-capture
-        // confirmed 2026-09-12: a trailing text-only assistant message
-        // without the field reproduces HTTP 400 "must be passed back").
-        out.add({
-          'role': role,
-          'content': m['content'] ?? '',
-          if (reasoningEcho && role == 'assistant')
-            'reasoning_content': _reasoningEchoValue(m['reasoning_content']),
-        });
-      }
-    }
-    return out;
-  }
-
   /// Prebuilt native-input parts for a neutral message, when the stored
   /// protocol matches this transport.
   static List<Map<String, dynamic>> _nativeInputPartsFor(
@@ -1374,6 +1340,15 @@ class ChatApiService {
       ? restoreClaudeOAuthToolName(name)
       : name;
 
+  /// Send exactly **one** request and stream its response.
+  ///
+  /// P0-3 contract: the transport never executes tools and never issues a
+  /// follow-up of its own. Any collected tool calls are surfaced as a
+  /// `toolCalls` chunk (with the provider's reasoning-echo extras) and the
+  /// stream then ends; the agent-loop kernel (`AgentOrchestrator`) executes
+  /// them and composes the next round. Provider-internal continuations that
+  /// are part of a single turn (Claude `pause_turn` / server tools, Gemini
+  /// built-in tools) stay inside the transport.
   static Stream<ChatStreamChunk> sendMessageStream({
     required ProviderConfig config,
     required String modelId,
@@ -1384,7 +1359,6 @@ class ChatApiService {
     double? topP,
     int? maxTokens,
     List<Map<String, dynamic>>? tools,
-    ToolCallHandler? onToolCall,
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     bool stream = true,
@@ -1393,21 +1367,6 @@ class ChatApiService {
     bool webFetchEnabled = true,
     String? requestId,
     String? imageAspectRatio,
-    // P0-3 single-round mode: when true the transport executes exactly one
-    // request per call, surfaces any collected tool calls as a `toolCalls`
-    // chunk and returns WITHOUT running them or issuing follow-up requests.
-    // The agent-loop kernel / driver owns execution and follow-up assembly.
-    // Default false = legacy multi-round transport loop, byte-identical.
-    //
-    // L1 contract (2026-09-13): every expose-mode return point syncs
-    // [StreamAttemptFlags.finishReason] (when the parser has not already
-    // captured one) before returning. Surfacing the tool calls IS the round's
-    // completion — without the marker the retry loop's silent-interruption
-    // detector would classify the cancelled round as a dropped SSE body and
-    // re-request it up to 4×, duplicating both the request and whatever
-    // content the model already streamed (standard voice mode answered the
-    // same question 4 times).
-    bool exposeToolCallsOnly = false,
     // Wire-capture diagnostics (2026-09-11): tag used by the on-error wire
     // logger so a failing request's exact JSON body can be correlated with
     // the conversation that produced it (e.g. a DeepSeek thinking-mode 400
@@ -1501,14 +1460,12 @@ class ChatApiService {
                 topP: topP,
                 maxTokens: maxTokens,
                 tools: tools,
-                onToolCall: onToolCall,
                 extraHeaders: extraHeaders,
                 extraBody: extraBody,
                 stream: stream,
                 webFetchEnabled: webFetchEnabled,
                 imageAspectRatio: imageAspectRatio,
                 flags: flags,
-                exposeToolCallsOnly: exposeToolCallsOnly,
                 debugRequestId: debugRequestId ?? rid,
               ),
               rid,
@@ -1529,13 +1486,11 @@ class ChatApiService {
                 topP: topP,
                 maxTokens: maxTokens,
                 tools: tools,
-                onToolCall: onToolCall,
                 extraHeaders: extraHeaders,
                 extraBody: extraBody,
                 stream: stream,
                 webFetchEnabled: webFetchEnabled,
                 flags: flags,
-                exposeToolCallsOnly: exposeToolCallsOnly,
               ),
               rid,
               flags,
@@ -1555,13 +1510,11 @@ class ChatApiService {
                 topP: topP,
                 maxTokens: maxTokens,
                 tools: tools,
-                onToolCall: onToolCall,
                 extraHeaders: extraHeaders,
                 extraBody: extraBody,
                 stream: stream,
                 webFetchEnabled: webFetchEnabled,
                 flags: flags,
-                exposeToolCallsOnly: exposeToolCallsOnly,
               ),
               rid,
               flags,
@@ -2240,11 +2193,9 @@ class ChatApiService {
       ],
       thinkingBudget: thinkingBudget,
       tools: null,
-      onToolCall: null,
       extraHeaders: extraHeaders,
       extraBody: extraBody,
       stream: true,
-      exposeToolCallsOnly: true,
       sessionId:
           sessionId ??
           oauthStableUuid('${config.id}:${config.baseUrl}:$modelId'),
@@ -2895,8 +2846,6 @@ class ChatApiService {
     double? topP,
     int? maxTokens,
     List<Map<String, dynamic>>? tools,
-    ToolCallHandler? onToolCall,
-    bool exposeToolCallsOnly = false,
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     bool stream = true,
@@ -2970,7 +2919,6 @@ class ChatApiService {
     // Custom reasoning wire (plan batch 2): resolved once per request and
     // threaded through every retry/follow-up body builder.
     final String? reasoningWire = reasoningWireForCall(config, modelId);
-    final bool hasReasoningWire = reasoningWire != null;
     final ReasoningCapabilities reasoningCaps = reasoningCapabilitiesForCall(
       ReasoningTransport.openAi,
       upstreamModelId,
@@ -3005,19 +2953,6 @@ class ChatApiService {
     }
 
     Map<String, dynamic> body;
-    // Chat-completions wire messages built below. Follow-up rounds reuse this
-    // serialized list instead of rebuilding from the neutral messages, which
-    // used to drop native/image parts (§7 F3). Declared at function scope
-    // because the body-building block is closed before the stream loop.
-    List<Map<String, dynamic>> chatWireMessages =
-        const <Map<String, dynamic>>[];
-    // Keep initial Responses request context so we can perform follow-up requests when tools are called
-    List<Map<String, dynamic>> responsesInitialInput =
-        const <Map<String, dynamic>>[];
-    List<Map<String, dynamic>> responsesToolsSpec =
-        const <Map<String, dynamic>>[];
-    String responsesInstructions = '';
-    List<dynamic>? responsesIncludeParam;
     if (config.useResponseApi == true) {
       final input = <Map<String, dynamic>>[];
       // Extract system messages into `instructions` (Responses API best practice)
@@ -3145,8 +3080,8 @@ class ChatApiService {
           // Kernel path: the round's raw output items are carried on the
           // neutral assistant message via `assistantExtras`; replay them
           // verbatim (message item included) and append any function_call
-          // items missing from the raw set — exactly what the legacy loop's
-          // `_withResponsesFunctionCallItems` does for its continuation.
+          // items missing from the raw set, so follow-up rounds stay
+          // byte-identical to the streamed response.
           final rawOutputItems = m['responses_output_items'];
           if (rawOutputItems is List && rawOutputItems.isNotEmpty) {
             final callInfos = <ToolCallInfo>[
@@ -3362,39 +3297,6 @@ class ChatApiService {
           ];
         }
       } catch (_) {}
-      // Save initial Responses context
-      try {
-        responsesInitialInput = List<Map<String, dynamic>>.from(
-          ((body as Map<String, dynamic>)['input'] as List).map(
-            (e) => (e as Map).cast<String, dynamic>(),
-          ),
-        );
-      } catch (_) {
-        responsesInitialInput = const <Map<String, dynamic>>[];
-      }
-      try {
-        if ((body as Map<String, dynamic>)['tools'] is List) {
-          responsesToolsSpec = List<Map<String, dynamic>>.from(
-            ((body as Map<String, dynamic>)['tools'] as List).map(
-              (e) => (e as Map).cast<String, dynamic>(),
-            ),
-          );
-        }
-      } catch (_) {
-        responsesToolsSpec = const <Map<String, dynamic>>[];
-      }
-      try {
-        responsesInstructions =
-            ((body as Map<String, dynamic>)['instructions'] ?? '').toString();
-      } catch (_) {
-        responsesInstructions = '';
-      }
-      try {
-        responsesIncludeParam =
-            (body as Map<String, dynamic>)['include'] as List?;
-      } catch (_) {
-        responsesIncludeParam = null;
-      }
     } else {
       final mm = <Map<String, dynamic>>[];
       for (int i = 0; i < messages.length; i++) {
@@ -3577,7 +3479,6 @@ class ChatApiService {
           });
         }
       }
-      chatWireMessages = mm;
       body = {
         'model': upstreamModelId,
         'messages': mm,
@@ -3811,19 +3712,13 @@ class ChatApiService {
           return;
         }
 
-        // Chat Completions non-stream with tool-calls follow-ups
-        List<Map<String, dynamic>> currentMessages =
-            List<Map<String, dynamic>>.from(
-              (body['messages'] as List?)?.map(
-                    (e) => (e as Map).cast<String, dynamic>(),
-                  ) ??
-                  const <Map<String, dynamic>>[],
-            );
+        // Chat Completions non-stream: one request, one round. Tool calls
+        // are surfaced for the agent-loop kernel, never executed here.
         TokenUsage? aggUsage;
-        Map<String, dynamic> lastObj = (obj is Map)
+        final Map<String, dynamic> lastObj = (obj is Map)
             ? (obj as Map).cast<String, dynamic>()
             : <String, dynamic>{};
-        while (true) {
+        {
           Map<String, dynamic>? c0;
           try {
             final choices = lastObj['choices'] as List?;
@@ -3874,8 +3769,7 @@ class ChatApiService {
               (msg['reasoning_content'] ?? msg['reasoning'])?.toString() ?? '';
           final reasoningDetailsForTools = msg['reasoning_details'];
           final tcs = (msg['tool_calls'] as List?) ?? const <dynamic>[];
-          if (tcs.isNotEmpty && (onToolCall != null || exposeToolCallsOnly)) {
-            final calls = <Map<String, dynamic>>[];
+          if (tcs.isNotEmpty) {
             final callInfos = <ToolCallInfo>[];
             for (int i = 0; i < tcs.length; i++) {
               final t = (tcs[i] as Map).cast<String, dynamic>();
@@ -3892,11 +3786,6 @@ class ChatApiService {
                 args = <String, dynamic>{};
               }
               callInfos.add(ToolCallInfo(id: id, name: name, arguments: args));
-              calls.add({
-                'id': id,
-                'type': 'function',
-                'function': {'name': name, 'arguments': jsonEncode(args)},
-              });
             }
             if (callInfos.isNotEmpty) {
               yield ChatStreamChunk(
@@ -3906,8 +3795,7 @@ class ChatApiService {
                 usage: aggUsage,
                 toolCalls: callInfos,
                 // Transport-owned echo policy: the agent-loop kernel merges
-                // these onto the follow-up assistant message (P0-2), matching
-                // the legacy loop's `assistantToolCallMsg` assembly below.
+                // these onto the follow-up assistant message (P0-2).
                 assistantExtras: <String, dynamic>{
                   if (needsReasoningEcho)
                     'reasoning_content': _reasoningEchoValue(reasoningForTools),
@@ -3920,110 +3808,16 @@ class ChatApiService {
                 },
               );
             }
-            if (exposeToolCallsOnly) {
-              // Single-round mode: surface the tool calls and stop; the
-              // agent-loop kernel executes them and composes the follow-up.
-              // A non-streaming JSON response is by definition a complete
-              // turn — sync the L1 silent-interruption detector so the
-              // cancelled round is never re-requested.
-              if (flags != null) {
-                flags.finishReason ??= 'tool_calls';
-                flags.hasUsage = flags.hasUsage || aggUsage != null;
-              }
-              return;
+            // Single round: surface the tool calls and stop; the agent-loop
+            // kernel executes them and composes the follow-up. A
+            // non-streaming JSON response is by definition a complete turn —
+            // sync the L1 silent-interruption detector so the cancelled round
+            // is never re-requested.
+            if (flags != null) {
+              flags.finishReason ??= 'tool_calls';
+              flags.hasUsage = flags.hasUsage || aggUsage != null;
             }
-            final results = <Map<String, dynamic>>[];
-            final resultsInfo = <ToolResultInfo>[];
-            for (final c in callInfos) {
-              final res =
-                  await onToolCall!(c.name, c.arguments, toolCallId: c.id) ??
-                  '';
-              results.add({'tool_call_id': c.id, 'content': res});
-              resultsInfo.add(
-                ToolResultInfo(
-                  id: c.id,
-                  name: c.name,
-                  arguments: c.arguments,
-                  content: res,
-                ),
-              );
-            }
-            if (resultsInfo.isNotEmpty) {
-              yield ChatStreamChunk(
-                content: '',
-                isDone: false,
-                totalTokens: aggUsage?.totalTokens ?? 0,
-                usage: aggUsage,
-                toolResults: resultsInfo,
-              );
-            }
-            // Follow-up request
-            final req = http.Request('POST', url);
-            final headers2 = <String, String>{
-              'Authorization': 'Bearer ${_apiKeyForRequest(config, modelId)}',
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            };
-            headers2.addAll(_customHeaders(config, modelId));
-            if (extraHeaders != null && extraHeaders.isNotEmpty)
-              headers2.addAll(extraHeaders);
-            req.headers.addAll(headers2);
-            messages = _truncateToolResultsInMessages(messages);
-            final next = _preserveToolStructuredMessages(
-              messages,
-              reasoningEcho: needsReasoningEcho,
-            );
-            final assistantToolCallMsg = <String, dynamic>{
-              'role': 'assistant',
-              'content': '\n\n',
-              'tool_calls': calls,
-            };
-            if (needsReasoningEcho) {
-              assistantToolCallMsg['reasoning_content'] = _reasoningEchoValue(
-                reasoningForTools,
-              );
-            }
-            if (preserveReasoningDetails &&
-                reasoningDetailsForTools is List &&
-                reasoningDetailsForTools.isNotEmpty) {
-              assistantToolCallMsg['reasoning_details'] = mergeReasoningDetails(
-                reasoningDetailsForTools,
-              );
-            }
-            next.add(assistantToolCallMsg);
-            for (final r in results) {
-              final id = r['tool_call_id'];
-              final name = calls.firstWhere(
-                (c) => c['id'] == id,
-                orElse: () => const {
-                  'function': {'name': ''},
-                },
-              )['function']['name'];
-              next.add({
-                'role': 'tool',
-                'tool_call_id': id,
-                'name': name,
-                'content': r['content'],
-              });
-            }
-            final reqBody = Map<String, dynamic>.from(body);
-            reqBody['messages'] = next;
-            reqBody.remove('stream');
-            req.body = jsonEncode(reqBody);
-            final resp2 = await client.send(req);
-            if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
-              final errorBody = await resp2.stream.bytesToString();
-              _logFailedWireBody(
-                debugRequestId,
-                'openai chat-completions non-stream tool follow-up',
-                req.body,
-              );
-              throw HttpException('HTTP ${resp2.statusCode}: $errorBody');
-            }
-            final txt2 = await resp2.stream.bytesToString();
-            lastObj = jsonDecode(txt2) as Map<String, dynamic>;
-            messages = next; // update transcript for next round
-            continue;
+            return;
           }
 
           // No tool calls -> final content
@@ -4056,9 +3850,9 @@ class ChatApiService {
               content = buf.toString();
             }
           }
-          // Non-stream legacy loop completion (no tool calls in this round).
-          // Same sync as the c0==null branch above: a full JSON response is
-          // a definitive turn end for the L1 silent-interrupt detector.
+          // Non-stream completion (no tool calls in this round). Same sync as
+          // the c0==null branch above: a full JSON response is a definitive
+          // turn end for the L1 silent-interrupt detector.
           if (flags != null) {
             flags.finishReason ??= 'stop';
             flags.hasUsage = flags.hasUsage || aggUsage != null;
@@ -4116,13 +3910,10 @@ class ChatApiService {
 
         final data = line.substring(5).trimLeft();
         if (data == '[DONE]') {
-          // If model streamed tool_calls but didn't include finish_reason on prior chunks,
-          // execute tool flow now and start follow-up request.
-          if ((onToolCall != null || exposeToolCallsOnly) &&
-              toolAcc.isNotEmpty) {
-            final calls = <Map<String, dynamic>>[];
+          // If the model streamed tool calls, surface them as a single round:
+          // the agent-loop kernel executes them and composes the follow-up.
+          if (toolAcc.isNotEmpty) {
             final callInfos = <ToolCallInfo>[];
-            final toolMsgs = <Map<String, dynamic>>[];
             toolAcc.forEach((idx, m) {
               final id = (m['id'] ?? 'call_$idx');
               final name = (m['name'] ?? '');
@@ -4134,12 +3925,6 @@ class ChatApiService {
                 args = <String, dynamic>{};
               }
               callInfos.add(ToolCallInfo(id: id, name: name, arguments: args));
-              calls.add({
-                'id': id,
-                'type': 'function',
-                'function': {'name': name, 'arguments': jsonEncode(args)},
-              });
-              toolMsgs.add({'__name': name, '__id': id, '__args': args});
             });
 
             if (callInfos.isNotEmpty) {
@@ -4152,9 +3937,8 @@ class ChatApiService {
                 totalTokens: usage?.totalTokens ?? approxTotal,
                 usage: usage,
                 toolCalls: callInfos,
-                // Transport-owned echo policy (P0-2): same fields the legacy
-                // loop writes onto `assistantToolCallMsg` below; the kernel
-                // forwards them onto its follow-up assistant message.
+                // Transport-owned echo policy (P0-2): the kernel forwards
+                // these onto its follow-up assistant message.
                 assistantExtras: <String, dynamic>{
                   if (needsReasoningEcho)
                     'reasoning_content': _reasoningEchoValue(reasoningBuffer),
@@ -4168,578 +3952,15 @@ class ChatApiService {
               );
             }
 
-            if (exposeToolCallsOnly) {
-              // Single-round expose mode: surface the tool calls and stop.
-              // [DONE] is a complete, unambiguous round end — sync the L1
-              // retry loop's silent-interruption detector so a cancelled
-              // single round is never misclassified as a dropped stream and
-              // re-requested (standard voice mode answered 4× regression,
-              // 2026-09-13).
-              if (flags != null) {
-                flags.finishReason ??= 'tool_calls';
-                flags.hasUsage = flags.hasUsage || usage != null;
-              }
-              return;
+            // Single round: surface the tool calls and stop. [DONE] is a
+            // complete, unambiguous round end — sync the L1 retry loop's
+            // silent-interruption detector so a cancelled round is never
+            // misclassified as a dropped stream and re-requested (standard
+            // voice mode answered 4× regression, 2026-09-13).
+            if (flags != null) {
+              flags.finishReason ??= 'tool_calls';
+              flags.hasUsage = flags.hasUsage || usage != null;
             }
-            // Execute tools and emit results
-            final results = <Map<String, dynamic>>[];
-            final resultsInfo = <ToolResultInfo>[];
-            for (final m in toolMsgs) {
-              final name = m['__name'] as String;
-              final id = m['__id'] as String;
-              final args = (m['__args'] as Map<String, dynamic>);
-              final res = await onToolCall!(name, args, toolCallId: id) ?? '';
-              results.add({'tool_call_id': id, 'content': res});
-              resultsInfo.add(
-                ToolResultInfo(
-                  id: id,
-                  name: name,
-                  arguments: args,
-                  content: res,
-                ),
-              );
-            }
-            if (resultsInfo.isNotEmpty) {
-              yield ChatStreamChunk(
-                content: '',
-                isDone: false,
-                totalTokens: usage?.totalTokens ?? 0,
-                usage: usage,
-                toolResults: resultsInfo,
-              );
-            }
-
-            // Build follow-up messages from the ALREADY-SERIALIZED
-            // chat-completions list (`mm`), not from the neutral messages.
-            // Rebuilding from neutral messages dropped every native part on
-            // the second round (§7 F3).
-            messages = _truncateToolResultsInMessages(messages);
-            final mm2 = _preserveToolStructuredMessages(
-              chatWireMessages.isEmpty ? messages : chatWireMessages,
-              reasoningEcho: needsReasoningEcho,
-            );
-            final assistantToolCallMsg = <String, dynamic>{
-              'role': 'assistant',
-              'content': '\n\n',
-              'tool_calls': calls,
-            };
-            if (needsReasoningEcho) {
-              assistantToolCallMsg['reasoning_content'] = _reasoningEchoValue(
-                reasoningBuffer,
-              );
-            }
-            if (preserveReasoningDetails &&
-                reasoningDetailsBuffer is List &&
-                reasoningDetailsBuffer.isNotEmpty) {
-              assistantToolCallMsg['reasoning_details'] = mergeReasoningDetails(
-                reasoningDetailsBuffer,
-              );
-            }
-            mm2.add(assistantToolCallMsg);
-            for (final r in results) {
-              final id = r['tool_call_id'];
-              final name = calls.firstWhere(
-                (c) => c['id'] == id,
-                orElse: () => const {
-                  'function': {'name': ''},
-                },
-              )['function']['name'];
-              mm2.add({
-                'role': 'tool',
-                'tool_call_id': id,
-                'name': name,
-                'content': r['content'],
-              });
-            }
-
-            // Follow-up request(s) with multi-round tool calls
-            var currentMessages = mm2;
-            while (true) {
-              final Map<String, dynamic> body2 = {
-                'model': upstreamModelId,
-                'messages': currentMessages,
-                'stream': true,
-                if (temperature != null) 'temperature': temperature,
-                if (topP != null) 'top_p': topP,
-                if (isReasoning && effort != 'off' && effort != 'auto')
-                  'reasoning_effort': effort,
-                if (tools != null && tools.isNotEmpty)
-                  'tools': _cleanToolsForCompatibility(tools),
-                if (tools != null && tools.isNotEmpty) 'tool_choice': 'auto',
-              };
-              _setMaxTokens(body2);
-              _removeKimiK3SamplingParams(body2, upstreamModelId);
-              _applyGpt55SamplingParams(
-                body2,
-                upstreamModelId: upstreamModelId,
-                isReasoning: isReasoning,
-                thinkingBudget: thinkingBudget,
-                config: config,
-              );
-              _applyOpenRouterClaudePromptCaching(
-                body2,
-                config: config,
-                upstreamModelId: upstreamModelId,
-              );
-              _normalizeMoonshotKimiChatBody(
-                body2,
-                upstreamModelId: upstreamModelId,
-                isReasoning: isReasoning,
-                thinkingBudget: thinkingBudget,
-                wire: reasoningWire,
-              );
-
-              // Apply the same vendor-specific reasoning settings as the original request
-              applyChatReasoningWire(
-                body2,
-                wire: reasoningWire,
-                host: host,
-                upstreamModelId: upstreamModelId,
-                isReasoning: isReasoning,
-                thinkingBudget: thinkingBudget,
-                caps: reasoningCaps,
-                isZhipu: isZhipu,
-                isMimo: isMimo,
-                effort: effort,
-              );
-              if (!hasReasoningWire) {
-                _applyDeepSeekThinkingKnob(
-                  body2,
-                  host: host,
-                  modelId: upstreamModelId,
-                  isReasoning: isReasoning,
-                  thinkingBudget: thinkingBudget,
-                );
-              }
-
-              // Ask for usage in streaming (when supported)
-              if (!host.contains('mistral.ai') &&
-                  !host.contains('openrouter')) {
-                body2['stream_options'] = {'include_usage': true};
-              }
-
-              // Apply custom body overrides
-              if (extraBodyCfg.isNotEmpty) {
-                body2.addAll(extraBodyCfg);
-              }
-              if (extraBody != null && extraBody.isNotEmpty) {
-                extraBody.forEach((k, v) {
-                  body2[k] = (v is String) ? _parseOverrideValue(v) : v;
-                });
-              }
-
-              final req2 = http.Request('POST', url);
-              final headers2 = <String, String>{
-                'Authorization': 'Bearer ${_apiKeyForRequest(config, modelId)}',
-                'Content-Type': 'application/json',
-                'Accept': 'text/event-stream',
-              };
-              // Apply custom headers
-              headers2.addAll(_customHeaders(config, modelId));
-              if (extraHeaders != null && extraHeaders.isNotEmpty)
-                headers2.addAll(extraHeaders);
-              req2.headers.addAll(headers2);
-              _normalizeReasoningEchoBody(
-                body2,
-                preserveDetails: preserveReasoningDetails,
-                needsText: needsReasoningEcho,
-              );
-              req2.body = jsonEncode(body2);
-              final resp2 = await client.send(req2);
-              if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
-                final errorBody = await resp2.stream.bytesToString();
-                _logFailedWireBody(
-                  debugRequestId,
-                  'openai chat-completions stream tool follow-up',
-                  req2.body,
-                );
-                throw HttpException('HTTP ${resp2.statusCode}: $errorBody');
-              }
-              final s2 = resp2.stream.transform(utf8.decoder);
-              String buf2 = '';
-              // Track potential subsequent tool calls
-              final Map<int, Map<String, String>> toolAcc2 =
-                  <int, Map<String, String>>{};
-              String? finishReason2;
-              String contentAccum = ''; // Accumulate content for this round
-              String reasoningAccum = '';
-              dynamic reasoningDetailsAccum;
-              final usageBeforeRound = usage;
-              TokenUsage? roundUsage;
-              await for (final ch in s2) {
-                buf2 += ch;
-                final lines2 = buf2.split('\n');
-                buf2 = lines2.last;
-                for (int j = 0; j < lines2.length - 1; j++) {
-                  final l = lines2[j].trim();
-                  if (l.isEmpty || !l.startsWith('data:')) continue;
-                  final d = l.substring(5).trimLeft();
-                  if (d == '[DONE]') {
-                    // This round finished; handle below
-                    continue;
-                  }
-                  try {
-                    final o = jsonDecode(d);
-                    if (o is Map &&
-                        o['choices'] is List &&
-                        (o['choices'] as List).isEmpty &&
-                        o['usage'] is Map) {
-                      final u = o['usage'] as Map;
-                      roundUsage = (roundUsage ?? const TokenUsage()).merge(
-                        TokenUsage(
-                          promptTokens: (u['prompt_tokens'] ?? 0) as int? ?? 0,
-                          completionTokens:
-                              (u['completion_tokens'] ?? 0) as int? ?? 0,
-                          cachedTokens:
-                              (u['prompt_tokens_details']?['cached_tokens'] ??
-                                      0)
-                                  as int? ??
-                              0,
-                        ).withOpenCodeUsage(u),
-                      );
-                      usage = (usageBeforeRound ?? const TokenUsage()).merge(
-                        roundUsage,
-                      );
-                      totalTokens = usage!.totalTokens;
-                    } else if (o is Map &&
-                        o['choices'] is List &&
-                        (o['choices'] as List).isNotEmpty) {
-                      final c0 = (o['choices'] as List).first;
-                      finishReason2 = c0['finish_reason'] as String?;
-                      final delta = c0['delta'] as Map?;
-                      final message = c0['message'] as Map?;
-                      final txt = delta?['content'];
-                      final rc =
-                          delta?['reasoning_content'] ?? delta?['reasoning'];
-                      final u = o['usage'];
-                      if (u != null) {
-                        final prompt = (u['prompt_tokens'] ?? 0) as int;
-                        final completion = (u['completion_tokens'] ?? 0) as int;
-                        final cached =
-                            (u['prompt_tokens_details']?['cached_tokens'] ?? 0)
-                                as int? ??
-                            0;
-                        roundUsage = (roundUsage ?? const TokenUsage()).merge(
-                          TokenUsage(
-                            promptTokens: prompt,
-                            completionTokens: completion,
-                            cachedTokens: cached,
-                          ).withOpenCodeUsage(u),
-                        );
-                        usage = (usageBeforeRound ?? const TokenUsage()).merge(
-                          roundUsage,
-                        );
-                        totalTokens = usage!.totalTokens;
-                      }
-                      // Capture Grok citations
-                      final gCitations = o['citations'];
-                      if (gCitations is List && gCitations.isNotEmpty) {
-                        final items = <Map<String, dynamic>>[];
-                        for (int k = 0; k < gCitations.length; k++) {
-                          final u = gCitations[k].toString();
-                          items.add({'index': k + 1, 'url': u, 'title': u});
-                        }
-                        if (items.isNotEmpty) {
-                          final payload = jsonEncode({'items': items});
-                          yield ChatStreamChunk(
-                            content: '',
-                            isDone: false,
-                            totalTokens: usage?.totalTokens ?? 0,
-                            usage: usage,
-                            toolResults: [
-                              ToolResultInfo(
-                                id: 'builtin_search',
-                                name: 'search_web',
-                                arguments: const <String, dynamic>{},
-                                content: payload,
-                              ),
-                            ],
-                          );
-                        }
-                      }
-                      if (rc is String && rc.isNotEmpty) {
-                        if (needsReasoningEcho) reasoningAccum += rc;
-                        yield ChatStreamChunk(
-                          content: '',
-                          reasoning: rc,
-                          isDone: false,
-                          totalTokens: 0,
-                          usage: usage,
-                        );
-                      }
-                      if (txt is String && txt.isNotEmpty) {
-                        contentAccum += txt; // Accumulate content
-                        yield ChatStreamChunk(
-                          content: txt,
-                          isDone: false,
-                          totalTokens: 0,
-                          usage: usage,
-                        );
-                      }
-                      // Fallback/merge: message.content in same chunk (if any)
-                      if (message != null && message['content'] != null) {
-                        final mc = message['content'];
-                        if (mc is String && mc.isNotEmpty) {
-                          contentAccum += mc;
-                          yield ChatStreamChunk(
-                            content: mc,
-                            isDone: false,
-                            totalTokens: 0,
-                            usage: usage,
-                          );
-                        }
-                      }
-                      if (message != null) {
-                        final rcMsg =
-                            message['reasoning_content'] ??
-                            message['reasoning'];
-                        if (rcMsg is String &&
-                            rcMsg.isNotEmpty &&
-                            needsReasoningEcho) {
-                          reasoningAccum += rcMsg;
-                        }
-                      }
-                      if (preserveReasoningDetails) {
-                        reasoningDetailsAccum = appendReasoningDetails(
-                          reasoningDetailsAccum,
-                          delta?['reasoning_details'],
-                          allowSnapshots: !host.contains('openrouter.ai'),
-                        );
-                        reasoningDetailsAccum = appendReasoningDetails(
-                          reasoningDetailsAccum,
-                          message?['reasoning_details'],
-                          allowSnapshots: !host.contains('openrouter.ai'),
-                        );
-                      }
-                      // Handle image outputs from OpenRouter-style deltas
-                      // Possible shapes:
-                      // - delta['images']: [ { type: 'image_url', image_url: { url: 'data:...' }, index: 0 }, ... ]
-                      // - delta['content']: [ { type: 'image_url', image_url: { url: '...' } }, { type: 'text', text: '...' } ]
-                      // - delta['image_url'] directly (less common)
-                      if (wantsImageOutput) {
-                        final List<dynamic> imageItems = <dynamic>[];
-                        final imgs = delta?['images'];
-                        if (imgs is List) imageItems.addAll(imgs);
-                        final contentArr = (txt is List)
-                            ? txt
-                            : (delta?['content'] as List?);
-                        if (contentArr is List) {
-                          for (final it in contentArr) {
-                            if (it is Map &&
-                                (it['type'] == 'image_url' ||
-                                    it['type'] == 'image')) {
-                              imageItems.add(it);
-                            }
-                          }
-                        }
-                        final singleImage = delta?['image_url'];
-                        if (singleImage is Map || singleImage is String) {
-                          imageItems.add({
-                            'type': 'image_url',
-                            'image_url': singleImage,
-                          });
-                        }
-                        if (imageItems.isNotEmpty) {
-                          final buf = StringBuffer();
-                          for (final it in imageItems) {
-                            if (it is! Map) continue;
-                            dynamic iu = it['image_url'];
-                            String? url;
-                            if (iu is String) {
-                              url = iu;
-                            } else if (iu is Map) {
-                              final u2 = iu['url'];
-                              if (u2 is String) url = u2;
-                            }
-                            if (url != null && url.isNotEmpty) {
-                              final md = '\n\n![image](' + url + ')';
-                              buf.write(md);
-                              contentAccum += md;
-                            }
-                          }
-                          final out = buf.toString();
-                          if (out.isNotEmpty) {
-                            yield ChatStreamChunk(
-                              content: out,
-                              isDone: false,
-                              totalTokens: 0,
-                              usage: usage,
-                            );
-                          }
-                        }
-                      }
-                      final tcs = delta?['tool_calls'] as List?;
-                      if (tcs != null) {
-                        for (final t in tcs) {
-                          final idx = (t['index'] as int?) ?? 0;
-                          final id = t['id'] as String?;
-                          final func = t['function'] as Map<String, dynamic>?;
-                          final name = func?['name'] as String?;
-                          final argsDelta = func?['arguments'] as String?;
-                          final entry = toolAcc2.putIfAbsent(
-                            idx,
-                            () => {'id': '', 'name': '', 'args': ''},
-                          );
-                          if (id != null) entry['id'] = id;
-                          if (name != null && name.isNotEmpty)
-                            entry['name'] = name;
-                          if (argsDelta != null && argsDelta.isNotEmpty)
-                            entry['args'] = (entry['args'] ?? '') + argsDelta;
-                        }
-                      }
-                    }
-                  } catch (_) {}
-                }
-              }
-
-              if (roundUsage != null) {
-                usage = (usageBeforeRound ?? const TokenUsage()).accumulate(
-                  roundUsage,
-                );
-                totalTokens = usage!.totalTokens;
-              }
-
-              // After this follow-up round finishes: if tool calls again, execute and loop
-              if ((finishReason2 == 'tool_calls' || toolAcc2.isNotEmpty) &&
-                  (onToolCall != null || exposeToolCallsOnly)) {
-                final calls2 = <Map<String, dynamic>>[];
-                final callInfos2 = <ToolCallInfo>[];
-                final toolMsgs2 = <Map<String, dynamic>>[];
-                toolAcc2.forEach((idx, m) {
-                  final id = (m['id'] ?? 'call_$idx');
-                  final name = (m['name'] ?? '');
-                  Map<String, dynamic> args;
-                  try {
-                    args = (jsonDecode(m['args'] ?? '{}') as Map)
-                        .cast<String, dynamic>();
-                  } catch (_) {
-                    args = <String, dynamic>{};
-                  }
-                  callInfos2.add(
-                    ToolCallInfo(id: id, name: name, arguments: args),
-                  );
-                  calls2.add({
-                    'id': id,
-                    'type': 'function',
-                    'function': {'name': name, 'arguments': jsonEncode(args)},
-                  });
-                  toolMsgs2.add({'__name': name, '__id': id, '__args': args});
-                });
-                if (callInfos2.isNotEmpty) {
-                  yield ChatStreamChunk(
-                    content: '',
-                    isDone: false,
-                    totalTokens: usage?.totalTokens ?? 0,
-                    usage: usage,
-                    toolCalls: callInfos2,
-                  );
-                }
-                if (exposeToolCallsOnly) {
-                  // Single-round expose mode: surface the tool calls and stop.
-                  // Follow-up round of the [DONE]-driven loop — same L1 sync
-                  // as the primary expose return.
-                  if (flags != null) {
-                    flags.finishReason ??= 'tool_calls';
-                    flags.hasUsage = flags.hasUsage || usage != null;
-                  }
-                  return;
-                }
-                final results2 = <Map<String, dynamic>>[];
-                final resultsInfo2 = <ToolResultInfo>[];
-                for (final m in toolMsgs2) {
-                  final name = m['__name'] as String;
-                  final id = m['__id'] as String;
-                  final args = (m['__args'] as Map<String, dynamic>);
-                  final res =
-                      await onToolCall!(name, args, toolCallId: id) ?? '';
-                  results2.add({'tool_call_id': id, 'content': res});
-                  resultsInfo2.add(
-                    ToolResultInfo(
-                      id: id,
-                      name: name,
-                      arguments: args,
-                      content: res,
-                    ),
-                  );
-                }
-                if (resultsInfo2.isNotEmpty) {
-                  yield ChatStreamChunk(
-                    content: '',
-                    isDone: false,
-                    totalTokens: usage?.totalTokens ?? 0,
-                    usage: usage,
-                    toolResults: resultsInfo2,
-                  );
-                }
-                // Append for next loop - including any content accumulated in this round
-                final nextAssistantToolCall = <String, dynamic>{
-                  'role': 'assistant',
-                  'content': '\n\n',
-                  'tool_calls': calls2,
-                };
-                if (needsReasoningEcho) {
-                  nextAssistantToolCall['reasoning_content'] =
-                      _reasoningEchoValue(reasoningAccum);
-                }
-                if (preserveReasoningDetails &&
-                    reasoningDetailsAccum is List &&
-                    reasoningDetailsAccum.isNotEmpty) {
-                  nextAssistantToolCall['reasoning_details'] =
-                      mergeReasoningDetails(reasoningDetailsAccum);
-                }
-                currentMessages = _truncateToolResultsInMessages(
-                  currentMessages,
-                );
-                currentMessages = [
-                  ...currentMessages,
-                  if (contentAccum.isNotEmpty)
-                    {'role': 'assistant', 'content': contentAccum},
-                  nextAssistantToolCall,
-                  for (final r in results2)
-                    {
-                      'role': 'tool',
-                      'tool_call_id': r['tool_call_id'],
-                      'name': calls2.firstWhere(
-                        (c) => c['id'] == r['tool_call_id'],
-                        orElse: () => const {
-                          'function': {'name': ''},
-                        },
-                      )['function']['name'],
-                      'content': r['content'],
-                    },
-                ];
-                // Continue loop
-                continue;
-              } else {
-                // No further tool calls; finish
-                // Legacy multi-round completion — the follow-up round's
-                // finish_reason (finishReason2) never passes through the
-                // per-chunk flags sync (that only runs for the primary
-                // round), so sync it here: a completed legacy tool loop is
-                // a definitive turn end. Without this the L1 retry loop's
-                // silent-interruption detector would classify the whole
-                // loop (tool round + answer round) as a dropped SSE body
-                // when the tool round carried no finish_reason, re-request
-                // it up to 4× and concatenate each attempt's answer onto
-                // the same message (standard voice mode answered 4×,
-                // 2026-09-13).
-                if (flags != null) {
-                  flags.finishReason ??= finishReason2 ?? 'stop';
-                  flags.hasUsage = flags.hasUsage || usage != null;
-                }
-                final approxTotal =
-                    approxPromptTokens +
-                    _approxTokensFromChars(approxCompletionChars);
-                yield ChatStreamChunk(
-                  content: '',
-                  isDone: true,
-                  totalTokens: usage?.totalTokens ?? approxTotal,
-                  usage: usage,
-                );
-                return;
-              }
-            }
-            // Should not reach here
             return;
           }
 
@@ -4936,11 +4157,9 @@ class ChatApiService {
               // Responses tool calling follow-up handling
               final bool hasRespCalls =
                   respToolCallsByIndex.isNotEmpty || toolAccResp.isNotEmpty;
-              if ((onToolCall != null || exposeToolCallsOnly) && hasRespCalls) {
+              if (hasRespCalls) {
                 // Prefer the indexed calls (with call_id); fallback to toolAccResp
-                final calls = <Map<String, dynamic>>[];
                 final callInfos = <ToolCallInfo>[];
-                final msgs = <Map<String, dynamic>>[]; // for executing tools
                 if (respToolCallsByIndex.isNotEmpty) {
                   final sorted = respToolCallsByIndex.keys.toList()..sort();
                   for (final idx in sorted) {
@@ -4961,11 +4180,6 @@ class ChatApiService {
                         arguments: args,
                       ),
                     );
-                    msgs.add({
-                      '__id': callId.isNotEmpty ? callId : 'call_$idx',
-                      '__name': name,
-                      '__args': args,
-                    });
                   }
                 } else {
                   int idx = 0;
@@ -4985,11 +4199,6 @@ class ChatApiService {
                         arguments: args,
                       ),
                     );
-                    msgs.add({
-                      '__id': id2,
-                      '__name': (m['name'] ?? ''),
-                      '__args': args,
-                    });
                     idx += 1;
                   });
                 }
@@ -5005,8 +4214,7 @@ class ChatApiService {
                     toolCalls: callInfos,
                     // Carry the round's raw output items (assistant `message`
                     // item included) so the kernel's follow-up can replay them
-                    // verbatim, matching the legacy loop's
-                    // `_withResponsesFunctionCallItems` continuation.
+                    // verbatim and append any missing function_call items.
                     assistantExtras: lastResponseOutputItems.isEmpty
                         ? null
                         : <String, dynamic>{
@@ -5014,363 +4222,14 @@ class ChatApiService {
                           },
                   );
                 }
-                if (exposeToolCallsOnly) {
-                  // Single-round expose mode: surface the tool calls and stop.
-                  // Responses transport: `response.completed` already synced
-                  // flags above; keep the fallback in case a vendor omits it.
-                  if (flags != null) {
-                    flags.finishReason ??= 'tool_calls';
-                    flags.hasUsage = flags.hasUsage || usage != null;
-                  }
-                  return;
-                }
-                final resultsInfo = <ToolResultInfo>[];
-                final followUpOutputs = <Map<String, dynamic>>[];
-                for (final m in msgs) {
-                  final nm = m['__name'] as String;
-                  final id2 = m['__id'] as String;
-                  final args = (m['__args'] as Map<String, dynamic>);
-                  final res =
-                      await onToolCall!(nm, args, toolCallId: id2) ?? '';
-                  resultsInfo.add(
-                    ToolResultInfo(
-                      id: id2,
-                      name: nm,
-                      arguments: args,
-                      content: res,
-                    ),
-                  );
-                  followUpOutputs.add({
-                    'type': 'function_call_output',
-                    'call_id': id2,
-                    'output': res,
-                  });
-                }
-                if (resultsInfo.isNotEmpty) {
-                  yield ChatStreamChunk(
-                    content: '',
-                    isDone: false,
-                    totalTokens: usage?.totalTokens ?? 0,
-                    usage: usage,
-                    toolResults: resultsInfo,
-                  );
-                }
-
-                // Build follow-up Responses request input
-                final responseOutputItems = _withResponsesFunctionCallItems(
-                  lastResponseOutputItems,
-                  callInfos,
-                );
-                List<Map<String, dynamic>> currentInput =
-                    <Map<String, dynamic>>[...responsesInitialInput];
-                if (responseOutputItems.isNotEmpty) {
-                  currentInput.addAll(responseOutputItems);
-                }
-                currentInput.addAll(followUpOutputs);
-
-                // Iteratively request until no more tool calls
-                for (int round = 0; round < 3; round++) {
-                  final body2 = <String, dynamic>{
-                    'model': upstreamModelId,
-                    'input': currentInput,
-                    'stream': true,
-                    if (responsesToolsSpec.isNotEmpty)
-                      'tools': responsesToolsSpec,
-                    if (responsesToolsSpec.isNotEmpty) 'tool_choice': 'auto',
-                    if (responsesInstructions.isNotEmpty)
-                      'instructions': responsesInstructions,
-                    if (temperature != null) 'temperature': temperature,
-                    if (topP != null) 'top_p': topP,
-                    if (maxTokens != null) 'max_output_tokens': maxTokens,
-                    if (isReasoning && effort != 'off')
-                      'reasoning': {
-                        'summary': 'auto',
-                        if (effort != 'auto') 'effort': effort,
-                      },
-                    if (responsesIncludeParam != null)
-                      'include': responsesIncludeParam,
-                  };
-                  applyResponsesReasoningWire(
-                    body2,
-                    wire: reasoningWire,
-                    isReasoning: isReasoning,
-                    thinkingBudget: thinkingBudget,
-                    caps: reasoningCaps,
-                    effort: effort,
-                  );
-                  _applyGpt55SamplingParams(
-                    body2,
-                    upstreamModelId: upstreamModelId,
-                    isReasoning: isReasoning,
-                    thinkingBudget: thinkingBudget,
-                    config: config,
-                  );
-
-                  // Apply overrides
-                  final extraCfg = _customBody(config, modelId);
-                  if (extraCfg.isNotEmpty) body2.addAll(extraCfg);
-                  if (extraBody != null && extraBody.isNotEmpty) {
-                    extraBody.forEach((k, v) {
-                      body2[k] = (v is String) ? _parseOverrideValue(v) : v;
-                    });
-                  }
-                  // Ensure tools are flattened
-                  try {
-                    if (body2['tools'] is List) {
-                      final raw = (body2['tools'] as List).cast<dynamic>();
-                      body2['tools'] = _toResponsesToolsFormat(
-                        raw
-                            .map((e) => (e as Map).cast<String, dynamic>())
-                            .toList(),
-                      );
-                    }
-                  } catch (_) {}
-
-                  final req2 = http.Request('POST', url);
-                  final headers2 = <String, String>{
-                    'Authorization':
-                        'Bearer ${_apiKeyForRequest(config, modelId)}',
-                    'Content-Type': 'application/json',
-                    'Accept': 'text/event-stream',
-                  };
-                  headers2.addAll(_customHeaders(config, modelId));
-                  if (extraHeaders != null && extraHeaders.isNotEmpty)
-                    headers2.addAll(extraHeaders);
-                  req2.headers.addAll(headers2);
-                  _normalizeReasoningEchoBody(
-                    body2,
-                    preserveDetails: preserveReasoningDetails,
-                    needsText: needsReasoningEcho,
-                  );
-                  req2.body = jsonEncode(body2);
-                  final resp2 = await client.send(req2);
-                  if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
-                    final errorBody = await resp2.stream.bytesToString();
-                    _logFailedWireBody(
-                      debugRequestId,
-                      'openai responses tool follow-up',
-                      req2.body,
-                    );
-                    throw HttpException('HTTP ${resp2.statusCode}: $errorBody');
-                  }
-                  final s2 = resp2.stream.transform(utf8.decoder);
-                  String buf2 = '';
-                  final Map<int, Map<String, String>> respCalls2 =
-                      <int, Map<String, String>>{};
-                  List<Map<String, dynamic>> outItems2 =
-                      const <Map<String, dynamic>>[];
-                  await for (final ch in s2) {
-                    buf2 += ch;
-                    final lines2 = buf2.split('\n');
-                    buf2 = lines2.last;
-                    for (int j = 0; j < lines2.length - 1; j++) {
-                      final l = lines2[j].trim();
-                      if (l.isEmpty || !l.startsWith('data:')) continue;
-                      final d = l.substring(5).trimLeft();
-                      if (d == '[DONE]') continue;
-                      try {
-                        final o = jsonDecode(d);
-                        if (o is Map &&
-                            (o['type'] ?? '') == 'response.output_text.delta') {
-                          final delta = (o['delta'] ?? '').toString();
-                          if (delta.isNotEmpty) {
-                            approxCompletionChars += delta.length;
-                            yield ChatStreamChunk(
-                              content: delta,
-                              isDone: false,
-                              totalTokens: 0,
-                              usage: usage,
-                            );
-                          }
-                        } else if (o is Map &&
-                            (o['type'] ?? '') == 'response.output_item.added') {
-                          final item = o['item'];
-                          final idx2 = (o['output_index'] ?? 0) as int;
-                          if (item is Map &&
-                              (item['type'] ?? '') == 'function_call') {
-                            respCalls2[idx2] = {
-                              'call_id': (item['call_id'] ?? '').toString(),
-                              'name': (item['name'] ?? '').toString(),
-                              'args': '',
-                            };
-                          }
-                        } else if (o is Map &&
-                            (o['type'] ?? '') ==
-                                'response.function_call_arguments.delta') {
-                          final idx2 = (o['output_index'] ?? 0) as int;
-                          final delta = (o['delta'] ?? '').toString();
-                          final entry = respCalls2.putIfAbsent(
-                            idx2,
-                            () => {'call_id': '', 'name': '', 'args': ''},
-                          );
-                          if (delta.isNotEmpty)
-                            entry['args'] = (entry['args'] ?? '') + delta;
-                        } else if (o is Map &&
-                            (o['type'] ?? '') == 'response.output_item.done') {
-                          final item = o['item'];
-                          final idx2 = (o['output_index'] ?? 0) as int;
-                          if (item is Map &&
-                              (item['type'] ?? '') == 'function_call') {
-                            final args = (item['arguments'] ?? '').toString();
-                            final entry = respCalls2.putIfAbsent(
-                              idx2,
-                              () => {
-                                'call_id': (item['call_id'] ?? '').toString(),
-                                'name': (item['name'] ?? '').toString(),
-                                'args': '',
-                              },
-                            );
-                            if (args.isNotEmpty) entry['args'] = args;
-                          }
-                        } else if (o is Map &&
-                            (o['type'] ?? '') == 'response.completed') {
-                          // usage
-                          final u2 = o['response']?['usage'];
-                          if (u2 != null) {
-                            final inTok = (u2['input_tokens'] ?? 0) as int;
-                            final outTok = (u2['output_tokens'] ?? 0) as int;
-                            usage = (usage ?? const TokenUsage()).accumulate(
-                              TokenUsage(
-                                promptTokens: inTok,
-                                completionTokens: outTok,
-                              ).withOpenCodeUsage(u2),
-                            );
-                            totalTokens = usage!.totalTokens;
-                          }
-                          // capture output items
-                          final out2 = o['response']?['output'];
-                          if (out2 is List) {
-                            outItems2 = [
-                              for (final it in out2)
-                                if (it is Map) (it.cast<String, dynamic>()),
-                            ];
-                          }
-                        }
-                      } catch (_) {}
-                    }
-                  }
-
-                  if (respCalls2.isEmpty) {
-                    // No further tool calls; finalize
-                    // Legacy Responses follow-up loop completion — the
-                    // follow-up round's `response.completed` does not pass
-                    // through the primary parser's flags sync, so mark the
-                    // completed loop here (same contract as the chat-
-                    // completions legacy loops above).
-                    if (flags != null) {
-                      flags.finishReason ??= 'completed';
-                      flags.hasUsage = flags.hasUsage || usage != null;
-                    }
-                    final approxTotal2 =
-                        approxPromptTokens +
-                        _approxTokensFromChars(approxCompletionChars);
-                    yield ChatStreamChunk(
-                      content: '',
-                      reasoning: null,
-                      isDone: true,
-                      totalTokens: usage?.totalTokens ?? approxTotal2,
-                      usage: usage,
-                    );
-                    return;
-                  }
-
-                  // Execute next round of tool calls
-                  final callInfos2 = <ToolCallInfo>[];
-                  final msgs2 = <Map<String, dynamic>>[];
-                  final sorted2 = respCalls2.keys.toList()..sort();
-                  for (final idx2 in sorted2) {
-                    final m2 = respCalls2[idx2]!;
-                    final callId2 = (m2['call_id'] ?? '').toString();
-                    final name2 = (m2['name'] ?? '').toString();
-                    Map<String, dynamic> args2;
-                    try {
-                      args2 = (jsonDecode(m2['args'] ?? '{}') as Map)
-                          .cast<String, dynamic>();
-                    } catch (_) {
-                      args2 = <String, dynamic>{};
-                    }
-                    callInfos2.add(
-                      ToolCallInfo(
-                        id: callId2.isNotEmpty ? callId2 : 'call_$idx2',
-                        name: name2,
-                        arguments: args2,
-                      ),
-                    );
-                    msgs2.add({
-                      '__id': callId2.isNotEmpty ? callId2 : 'call_$idx2',
-                      '__name': name2,
-                      '__args': args2,
-                    });
-                  }
-                  if (callInfos2.isNotEmpty) {
-                    final approxTotal =
-                        approxPromptTokens +
-                        _approxTokensFromChars(approxCompletionChars);
-                    yield ChatStreamChunk(
-                      content: '',
-                      isDone: false,
-                      totalTokens: usage?.totalTokens ?? approxTotal,
-                      usage: usage,
-                      toolCalls: callInfos2,
-                    );
-                  }
-                  final resultsInfo2 = <ToolResultInfo>[];
-                  final followUpOutputs2 = <Map<String, dynamic>>[];
-                  for (final m in msgs2) {
-                    final nm = m['__name'] as String;
-                    final id2 = m['__id'] as String;
-                    final args2 = (m['__args'] as Map<String, dynamic>);
-                    final res2 =
-                        await onToolCall!(nm, args2, toolCallId: id2) ?? '';
-                    resultsInfo2.add(
-                      ToolResultInfo(
-                        id: id2,
-                        name: nm,
-                        arguments: args2,
-                        content: res2,
-                      ),
-                    );
-                    followUpOutputs2.add({
-                      'type': 'function_call_output',
-                      'call_id': id2,
-                      'output': res2,
-                    });
-                  }
-                  if (resultsInfo2.isNotEmpty) {
-                    yield ChatStreamChunk(
-                      content: '',
-                      isDone: false,
-                      totalTokens: usage?.totalTokens ?? 0,
-                      usage: usage,
-                      toolResults: resultsInfo2,
-                    );
-                  }
-                  final responseOutputItems2 = _withResponsesFunctionCallItems(
-                    outItems2,
-                    callInfos2,
-                  );
-                  // Extend current input with this round's model output and our outputs
-                  if (responseOutputItems2.isNotEmpty) {
-                    currentInput.addAll(responseOutputItems2);
-                  }
-                  currentInput.addAll(followUpOutputs2);
-                }
-
-                // Safety
+                // Single-round mode: surface the tool calls and stop. The
+                // agent-loop kernel executes them and composes the follow-up.
+                // `response.completed` already synced flags above; keep the
+                // fallback in case a vendor omits it.
                 if (flags != null) {
-                  flags.finishReason ??= 'completed';
+                  flags.finishReason ??= 'tool_calls';
                   flags.hasUsage = flags.hasUsage || usage != null;
                 }
-                final approxTotal =
-                    approxPromptTokens +
-                    _approxTokensFromChars(approxCompletionChars);
-                yield ChatStreamChunk(
-                  content: '',
-                  reasoning: null,
-                  isDone: true,
-                  totalTokens: usage?.totalTokens ?? approxTotal,
-                  usage: usage,
-                );
                 return;
               }
 
@@ -5671,14 +4530,11 @@ class ChatApiService {
           // XinLiu compatibility: Execute tools immediately if we have finish_reason='tool_calls' and accumulated calls
           if (config.useResponseApi != true &&
               finishReason == 'tool_calls' &&
-              toolAcc.isNotEmpty &&
-              (onToolCall != null || exposeToolCallsOnly)) {
+              toolAcc.isNotEmpty) {
             // print('[ChatApi/XinLiu] Executing tools immediately (finishReason=tool_calls, toolAcc.size=${toolAcc.length})');
-            // Some providers (like XinLiu) return tool_calls with finish_reason='tool_calls' but no [DONE]
-            // Execute tools immediately in this case
-            final calls = <Map<String, dynamic>>[];
+            // Some providers (like XinLiu) return tool_calls with finish_reason='tool_calls' but no [DONE].
+            // The round ends here; the kernel executes the tools.
             final callInfos = <ToolCallInfo>[];
-            final toolMsgs = <Map<String, dynamic>>[];
             toolAcc.forEach((idx, m) {
               final id = (m['id'] ?? 'call_$idx');
               final name = (m['name'] ?? '');
@@ -5690,12 +4546,6 @@ class ChatApiService {
                 args = <String, dynamic>{};
               }
               callInfos.add(ToolCallInfo(id: id, name: name, arguments: args));
-              calls.add({
-                'id': id,
-                'type': 'function',
-                'function': {'name': name, 'arguments': jsonEncode(args)},
-              });
-              toolMsgs.add({'__name': name, '__id': id, '__args': args});
             });
             if (callInfos.isNotEmpty) {
               final approxTotal =
@@ -5707,1202 +4557,40 @@ class ChatApiService {
                 totalTokens: usage?.totalTokens ?? approxTotal,
                 usage: usage,
                 toolCalls: callInfos,
-              );
-            }
-            if (exposeToolCallsOnly) {
-              // Single-round expose mode: surface the tool calls and stop.
-              // Same L1 sync as the [DONE] expose return above: the vendor
-              // no-DONE fallback is a complete round, never a dropped stream.
-              if (flags != null) {
-                flags.finishReason ??= 'tool_calls';
-                flags.hasUsage = flags.hasUsage || usage != null;
-              }
-              return;
-            }
-            // Execute tools and emit results
-            final results = <Map<String, dynamic>>[];
-            final resultsInfo = <ToolResultInfo>[];
-            for (final m in toolMsgs) {
-              final name = m['__name'] as String;
-              final id = m['__id'] as String;
-              final args = (m['__args'] as Map<String, dynamic>);
-              final res = await onToolCall!(name, args, toolCallId: id) ?? '';
-              results.add({'tool_call_id': id, 'content': res});
-              resultsInfo.add(
-                ToolResultInfo(
-                  id: id,
-                  name: name,
-                  arguments: args,
-                  content: res,
-                ),
-              );
-            }
-            if (resultsInfo.isNotEmpty) {
-              yield ChatStreamChunk(
-                content: '',
-                isDone: false,
-                totalTokens: usage?.totalTokens ?? 0,
-                usage: usage,
-                toolResults: resultsInfo,
-              );
-            }
-            // Build follow-up messages from the ALREADY-SERIALIZED
-            // chat-completions list (`mm`), not from the neutral messages.
-            // Rebuilding from neutral messages dropped every native part on
-            // the second round (§7 F3).
-            messages = _truncateToolResultsInMessages(messages);
-            final mm2 = _preserveToolStructuredMessages(
-              chatWireMessages.isEmpty ? messages : chatWireMessages,
-              reasoningEcho: needsReasoningEcho,
-            );
-            final assistantToolCallMsg = <String, dynamic>{
-              'role': 'assistant',
-              'content': '\n\n',
-              'tool_calls': calls,
-            };
-            if (needsReasoningEcho) {
-              assistantToolCallMsg['reasoning_content'] = _reasoningEchoValue(
-                reasoningBuffer,
-              );
-            }
-            if (preserveReasoningDetails &&
-                reasoningDetailsBuffer is List &&
-                reasoningDetailsBuffer.isNotEmpty) {
-              assistantToolCallMsg['reasoning_details'] = mergeReasoningDetails(
-                reasoningDetailsBuffer,
-              );
-            }
-            mm2.add(assistantToolCallMsg);
-            for (final r in results) {
-              final id = r['tool_call_id'];
-              final name = calls.firstWhere(
-                (c) => c['id'] == id,
-                orElse: () => const {
-                  'function': {'name': ''},
-                },
-              )['function']['name'];
-              mm2.add({
-                'role': 'tool',
-                'tool_call_id': id,
-                'name': name,
-                'content': r['content'],
-              });
-            }
-            // Continue streaming with follow-up request
-            var currentMessages = mm2;
-            while (true) {
-              final Map<String, dynamic> body2 = {
-                'model': upstreamModelId,
-                'messages': currentMessages,
-                'stream': true,
-                if (temperature != null) 'temperature': temperature,
-                if (topP != null) 'top_p': topP,
-                if (isReasoning && effort != 'off' && effort != 'auto')
-                  'reasoning_effort': effort,
-                if (tools != null && tools.isNotEmpty)
-                  'tools': _cleanToolsForCompatibility(tools),
-                if (tools != null && tools.isNotEmpty) 'tool_choice': 'auto',
-              };
-              _setMaxTokens(body2);
-              _removeKimiK3SamplingParams(body2, upstreamModelId);
-              _applyGpt55SamplingParams(
-                body2,
-                upstreamModelId: upstreamModelId,
-                isReasoning: isReasoning,
-                thinkingBudget: thinkingBudget,
-                config: config,
-              );
-              _applyOpenRouterClaudePromptCaching(
-                body2,
-                config: config,
-                upstreamModelId: upstreamModelId,
-              );
-              _normalizeMoonshotKimiChatBody(
-                body2,
-                upstreamModelId: upstreamModelId,
-                isReasoning: isReasoning,
-                thinkingBudget: thinkingBudget,
-                wire: reasoningWire,
-              );
-              applyChatReasoningWire(
-                body2,
-                wire: reasoningWire,
-                host: host,
-                upstreamModelId: upstreamModelId,
-                isReasoning: isReasoning,
-                thinkingBudget: thinkingBudget,
-                caps: reasoningCaps,
-                isZhipu: isZhipu,
-                isMimo: isMimo,
-                effort: effort,
-              );
-              if (!hasReasoningWire) {
-                _applyDeepSeekThinkingKnob(
-                  body2,
-                  host: host,
-                  modelId: upstreamModelId,
-                  isReasoning: isReasoning,
-                  thinkingBudget: thinkingBudget,
-                );
-              }
-              if (!host.contains('mistral.ai') &&
-                  !host.contains('openrouter')) {
-                body2['stream_options'] = {'include_usage': true};
-              }
-              if (extraBodyCfg.isNotEmpty) {
-                body2.addAll(extraBodyCfg);
-              }
-              if (extraBody != null && extraBody.isNotEmpty) {
-                extraBody.forEach((k, v) {
-                  body2[k] = (v is String) ? _parseOverrideValue(v) : v;
-                });
-              }
-              final req2 = http.Request('POST', url);
-              final headers2 = <String, String>{
-                'Authorization': 'Bearer ${_effectiveApiKey(config)}',
-                'Content-Type': 'application/json',
-                'Accept': 'text/event-stream',
-              };
-              headers2.addAll(_customHeaders(config, modelId));
-              if (extraHeaders != null && extraHeaders.isNotEmpty)
-                headers2.addAll(extraHeaders);
-              req2.headers.addAll(headers2);
-              _normalizeReasoningEchoBody(
-                body2,
-                preserveDetails: preserveReasoningDetails,
-                needsText: needsReasoningEcho,
-              );
-              req2.body = jsonEncode(body2);
-              final resp2 = await client.send(req2);
-              if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
-                final errorBody = await resp2.stream.bytesToString();
-                _logFailedWireBody(
-                  debugRequestId,
-                  'openai chat-completions stream tool follow-up',
-                  req2.body,
-                );
-                throw HttpException('HTTP ${resp2.statusCode}: $errorBody');
-              }
-              final s2 = resp2.stream.transform(utf8.decoder);
-              String buf2 = '';
-              final Map<int, Map<String, String>> toolAcc2 =
-                  <int, Map<String, String>>{};
-              String? finishReason2;
-              String contentAccum = '';
-              String reasoningAccum = '';
-              dynamic reasoningDetailsAccum;
-              final usageBeforeRound = usage;
-              TokenUsage? roundUsage;
-              await for (final ch in s2) {
-                buf2 += ch;
-                final lines2 = buf2.split('\n');
-                buf2 = lines2.last;
-                for (int j = 0; j < lines2.length - 1; j++) {
-                  final l = lines2[j].trim();
-                  if (l.isEmpty || !l.startsWith('data:')) continue;
-                  final d = l.substring(5).trimLeft();
-                  if (d == '[DONE]') {
-                    continue;
-                  }
-                  try {
-                    final o = jsonDecode(d);
-                    if (o is Map &&
-                        o['choices'] is List &&
-                        (o['choices'] as List).isEmpty &&
-                        o['usage'] is Map) {
-                      final u = o['usage'] as Map;
-                      roundUsage = (roundUsage ?? const TokenUsage()).merge(
-                        TokenUsage(
-                          promptTokens: (u['prompt_tokens'] ?? 0) as int? ?? 0,
-                          completionTokens:
-                              (u['completion_tokens'] ?? 0) as int? ?? 0,
-                          cachedTokens:
-                              (u['prompt_tokens_details']?['cached_tokens'] ??
-                                      0)
-                                  as int? ??
-                              0,
-                        ).withOpenCodeUsage(u),
-                      );
-                      usage = (usageBeforeRound ?? const TokenUsage()).merge(
-                        roundUsage,
-                      );
-                      totalTokens = usage!.totalTokens;
-                    } else if (o is Map &&
-                        o['choices'] is List &&
-                        (o['choices'] as List).isNotEmpty) {
-                      final c0 = (o['choices'] as List).first;
-                      finishReason2 = c0['finish_reason'] as String?;
-                      final delta = c0['delta'] as Map?;
-                      final txt = delta?['content'];
-                      final rc =
-                          delta?['reasoning_content'] ?? delta?['reasoning'];
-                      final u = o['usage'];
-                      if (u != null) {
-                        final prompt = (u['prompt_tokens'] ?? 0) as int;
-                        final completion = (u['completion_tokens'] ?? 0) as int;
-                        final cached =
-                            (u['prompt_tokens_details']?['cached_tokens'] ?? 0)
-                                as int? ??
-                            0;
-                        roundUsage = (roundUsage ?? const TokenUsage()).merge(
-                          TokenUsage(
-                            promptTokens: prompt,
-                            completionTokens: completion,
-                            cachedTokens: cached,
-                          ).withOpenCodeUsage(u),
-                        );
-                        usage = (usageBeforeRound ?? const TokenUsage()).merge(
-                          roundUsage,
-                        );
-                        totalTokens = usage!.totalTokens;
-                      }
-                      // Capture Grok citations
-                      final gCitations = o['citations'];
-                      if (gCitations is List && gCitations.isNotEmpty) {
-                        final items = <Map<String, dynamic>>[];
-                        for (int k = 0; k < gCitations.length; k++) {
-                          final u = gCitations[k].toString();
-                          items.add({'index': k + 1, 'url': u, 'title': u});
-                        }
-                        if (items.isNotEmpty) {
-                          final payload = jsonEncode({'items': items});
-                          yield ChatStreamChunk(
-                            content: '',
-                            isDone: false,
-                            totalTokens: usage?.totalTokens ?? 0,
-                            usage: usage,
-                            toolResults: [
-                              ToolResultInfo(
-                                id: 'builtin_search',
-                                name: 'search_web',
-                                arguments: const <String, dynamic>{},
-                                content: payload,
-                              ),
-                            ],
-                          );
-                        }
-                      }
-                      if (rc is String && rc.isNotEmpty) {
-                        if (needsReasoningEcho) reasoningAccum += rc;
-                        yield ChatStreamChunk(
-                          content: '',
-                          reasoning: rc,
-                          isDone: false,
-                          totalTokens: 0,
-                          usage: usage,
-                        );
-                      }
-                      if (txt is String && txt.isNotEmpty) {
-                        contentAccum += txt;
-                        yield ChatStreamChunk(
-                          content: txt,
-                          isDone: false,
-                          totalTokens: 0,
-                          usage: usage,
-                        );
-                      }
-                      if (wantsImageOutput) {
-                        final List<dynamic> imageItems = <dynamic>[];
-                        final imgs = delta?['images'];
-                        if (imgs is List) imageItems.addAll(imgs);
-                        final contentArr = (txt is List)
-                            ? txt
-                            : (delta?['content'] as List?);
-                        if (contentArr is List) {
-                          for (final it in contentArr) {
-                            if (it is Map &&
-                                (it['type'] == 'image_url' ||
-                                    it['type'] == 'image')) {
-                              imageItems.add(it);
-                            }
-                          }
-                        }
-                        final singleImage = delta?['image_url'];
-                        if (singleImage is Map || singleImage is String) {
-                          imageItems.add({
-                            'type': 'image_url',
-                            'image_url': singleImage,
-                          });
-                        }
-                        if (imageItems.isNotEmpty) {
-                          final buf = StringBuffer();
-                          for (final it in imageItems) {
-                            if (it is! Map) continue;
-                            dynamic iu = it['image_url'];
-                            String? url;
-                            if (iu is String) {
-                              url = iu;
-                            } else if (iu is Map) {
-                              final u2 = iu['url'];
-                              if (u2 is String) url = u2;
-                            }
-                            if (url != null && url.isNotEmpty) {
-                              final md = '\n\n![image](' + url + ')';
-                              buf.write(md);
-                              contentAccum += md;
-                            }
-                          }
-                          final out = buf.toString();
-                          if (out.isNotEmpty) {
-                            yield ChatStreamChunk(
-                              content: out,
-                              isDone: false,
-                              totalTokens: 0,
-                              usage: usage,
-                            );
-                          }
-                        }
-                      }
-                      final tcs = delta?['tool_calls'] as List?;
-                      if (tcs != null) {
-                        for (final t in tcs) {
-                          final idx = (t['index'] as int?) ?? 0;
-                          final id = t['id'] as String?;
-                          final func = t['function'] as Map<String, dynamic>?;
-                          final name = func?['name'] as String?;
-                          final argsDelta = func?['arguments'] as String?;
-                          final entry = toolAcc2.putIfAbsent(
-                            idx,
-                            () => {'id': '', 'name': '', 'args': ''},
-                          );
-                          if (id != null) entry['id'] = id;
-                          if (name != null && name.isNotEmpty)
-                            entry['name'] = name;
-                          if (argsDelta != null && argsDelta.isNotEmpty)
-                            entry['args'] = (entry['args'] ?? '') + argsDelta;
-                        }
-                      }
-
-                      // Fallback/merge: message.content in same chunk (if any)
-                      final message = c0['message'] as Map?;
-                      if (message != null && message['content'] != null) {
-                        final mc = message['content'];
-                        if (mc is String && mc.isNotEmpty) {
-                          contentAccum += mc;
-                          yield ChatStreamChunk(
-                            content: mc,
-                            isDone: false,
-                            totalTokens: 0,
-                            usage: usage,
-                          );
-                        }
-                      }
-                      if (message != null) {
-                        final rcMsg =
-                            message['reasoning_content'] ??
-                            message['reasoning'];
-                        if (rcMsg is String &&
-                            rcMsg.isNotEmpty &&
-                            needsReasoningEcho) {
-                          reasoningAccum += rcMsg;
-                        }
-                      }
-                      if (preserveReasoningDetails) {
-                        reasoningDetailsAccum = appendReasoningDetails(
-                          reasoningDetailsAccum,
-                          delta?['reasoning_details'],
-                          allowSnapshots: !host.contains('openrouter.ai'),
-                        );
-                        reasoningDetailsAccum = appendReasoningDetails(
-                          reasoningDetailsAccum,
-                          message?['reasoning_details'],
-                          allowSnapshots: !host.contains('openrouter.ai'),
-                        );
-                      }
-                    }
-                    // XinLiu compatibility for follow-up requests too
-                    final rootToolCalls2 = o['tool_calls'] as List?;
-                    if (rootToolCalls2 != null) {
-                      for (final t in rootToolCalls2) {
-                        if (t is! Map) continue;
-                        final id = (t['id'] ?? '').toString();
-                        final type = (t['type'] ?? 'function').toString();
-                        if (type != 'function') continue;
-                        final func = t['function'] as Map<String, dynamic>?;
-                        if (func == null) continue;
-                        final name = (func['name'] ?? '').toString();
-                        final argsStr = (func['arguments'] ?? '').toString();
-                        if (name.isEmpty) continue;
-                        final idx = toolAcc2.length;
-                        final entry = toolAcc2.putIfAbsent(
-                          idx,
-                          () => {
-                            'id': id.isEmpty ? 'call_$idx' : id,
-                            'name': name,
-                            'args': argsStr,
-                          },
-                        );
-                        if (id.isNotEmpty) entry['id'] = id;
-                        entry['name'] = name;
-                        entry['args'] = argsStr;
-                      }
-                      if (rootToolCalls2.isNotEmpty) {
-                        finishReason2 = 'tool_calls';
-                      }
-                    }
-                  } catch (_) {}
-                }
-              }
-              if (roundUsage != null) {
-                usage = (usageBeforeRound ?? const TokenUsage()).accumulate(
-                  roundUsage,
-                );
-                totalTokens = usage!.totalTokens;
-              }
-              if ((finishReason2 == 'tool_calls' || toolAcc2.isNotEmpty) &&
-                  (onToolCall != null || exposeToolCallsOnly)) {
-                final calls2 = <Map<String, dynamic>>[];
-                final callInfos2 = <ToolCallInfo>[];
-                final toolMsgs2 = <Map<String, dynamic>>[];
-                toolAcc2.forEach((idx, m) {
-                  final id = (m['id'] ?? 'call_$idx');
-                  final name = (m['name'] ?? '');
-                  Map<String, dynamic> args;
-                  try {
-                    args = (jsonDecode(m['args'] ?? '{}') as Map)
-                        .cast<String, dynamic>();
-                  } catch (_) {
-                    args = <String, dynamic>{};
-                  }
-                  callInfos2.add(
-                    ToolCallInfo(id: id, name: name, arguments: args),
-                  );
-                  calls2.add({
-                    'id': id,
-                    'type': 'function',
-                    'function': {'name': name, 'arguments': jsonEncode(args)},
-                  });
-                  toolMsgs2.add({'__name': name, '__id': id, '__args': args});
-                });
-                if (callInfos2.isNotEmpty) {
-                  yield ChatStreamChunk(
-                    content: '',
-                    isDone: false,
-                    totalTokens: usage?.totalTokens ?? 0,
-                    usage: usage,
-                    toolCalls: callInfos2,
-                  );
-                }
-                if (exposeToolCallsOnly) {
-                  // Single-round expose mode: surface the tool calls and stop.
-                  // Follow-up round of the [DONE]-driven loop — same L1 sync
-                  // as the primary expose return.
-                  if (flags != null) {
-                    flags.finishReason ??= 'tool_calls';
-                    flags.hasUsage = flags.hasUsage || usage != null;
-                  }
-                  return;
-                }
-                final results2 = <Map<String, dynamic>>[];
-                final resultsInfo2 = <ToolResultInfo>[];
-                for (final m in toolMsgs2) {
-                  final name = m['__name'] as String;
-                  final id = m['__id'] as String;
-                  final args = (m['__args'] as Map<String, dynamic>);
-                  final res =
-                      await onToolCall!(name, args, toolCallId: id) ?? '';
-                  results2.add({'tool_call_id': id, 'content': res});
-                  resultsInfo2.add(
-                    ToolResultInfo(
-                      id: id,
-                      name: name,
-                      arguments: args,
-                      content: res,
+                // Transport-owned echo policy (P0-2): the kernel forwards
+                // these onto its follow-up assistant message (DeepSeek /
+                // Kimi / GLM tool continuations need them).
+                assistantExtras: <String, dynamic>{
+                  if (needsReasoningEcho)
+                    'reasoning_content': _reasoningEchoValue(reasoningBuffer),
+                  if (preserveReasoningDetails &&
+                      reasoningDetailsBuffer is List &&
+                      reasoningDetailsBuffer.isNotEmpty)
+                    'reasoning_details': mergeReasoningDetails(
+                      reasoningDetailsBuffer,
                     ),
-                  );
-                }
-                if (resultsInfo2.isNotEmpty) {
-                  yield ChatStreamChunk(
-                    content: '',
-                    isDone: false,
-                    totalTokens: usage?.totalTokens ?? 0,
-                    usage: usage,
-                    toolResults: resultsInfo2,
-                  );
-                }
-                final nextAssistantToolCall = <String, dynamic>{
-                  'role': 'assistant',
-                  'content': '\n\n',
-                  'tool_calls': calls2,
-                };
-                if (needsReasoningEcho) {
-                  nextAssistantToolCall['reasoning_content'] =
-                      _reasoningEchoValue(reasoningAccum);
-                }
-                if (preserveReasoningDetails &&
-                    reasoningDetailsAccum is List &&
-                    reasoningDetailsAccum.isNotEmpty) {
-                  nextAssistantToolCall['reasoning_details'] =
-                      mergeReasoningDetails(reasoningDetailsAccum);
-                }
-                currentMessages = _truncateToolResultsInMessages(
-                  currentMessages,
-                );
-                currentMessages = [
-                  ...currentMessages,
-                  if (contentAccum.isNotEmpty)
-                    {'role': 'assistant', 'content': contentAccum},
-                  nextAssistantToolCall,
-                  for (final r in results2)
-                    {
-                      'role': 'tool',
-                      'tool_call_id': r['tool_call_id'],
-                      'name': calls2.firstWhere(
-                        (c) => c['id'] == r['tool_call_id'],
-                        orElse: () => const {
-                          'function': {'name': ''},
-                        },
-                      )['function']['name'],
-                      'content': r['content'],
-                    },
-                ];
-                continue;
-              } else {
-                // Legacy no-DONE follow-up loop completion — same flags
-                // sync as the [DONE]-driven loop above.
-                if (flags != null) {
-                  flags.finishReason ??= finishReason2 ?? 'stop';
-                  flags.hasUsage = flags.hasUsage || usage != null;
-                }
-                final approxTotal =
-                    approxPromptTokens +
-                    _approxTokensFromChars(approxCompletionChars);
-                yield ChatStreamChunk(
-                  content: '',
-                  isDone: true,
-                  totalTokens: usage?.totalTokens ?? approxTotal,
-                  usage: usage,
-                );
-                return;
-              }
+                },
+              );
             }
+            // Single round: surface the tool calls and stop. Same L1 sync as
+            // the [DONE] return above: the vendor no-DONE fallback is a
+            // complete round, never a dropped stream. The kernel executes the
+            // tools and composes the follow-up.
+            if (flags != null) {
+              flags.finishReason ??= 'tool_calls';
+              flags.hasUsage = flags.hasUsage || usage != null;
+            }
+            return;
           }
-          // XinLiu compatibility: Don't end early if we have accumulated tool calls
+          // XinLiu compatibility: don't end early when tool calls were
+          // accumulated. Some providers (XinLiu/iflow.cn) return tool_calls
+          // with finish_reason='stop' and may not send a [DONE] marker; the
+          // round still ends at the surface.
           if (config.useResponseApi != true &&
               finishReason != null &&
-              finishReason != 'tool_calls') {
-            final bool hasPendingToolCalls =
-                toolAcc.isNotEmpty || toolAccResp.isNotEmpty;
-            if (hasPendingToolCalls) {
-              // Some providers (like XinLiu/iflow.cn) may return tool_calls with finish_reason='stop'
-              // and may not send a [DONE] marker. Execute tools immediately in this case.
-              if ((onToolCall != null || exposeToolCallsOnly) &&
-                  toolAcc.isNotEmpty) {
-                final calls = <Map<String, dynamic>>[];
-                final callInfos = <ToolCallInfo>[];
-                final toolMsgs = <Map<String, dynamic>>[];
-                toolAcc.forEach((idx, m) {
-                  final id = (m['id'] ?? 'call_$idx');
-                  final name = (m['name'] ?? '');
-                  Map<String, dynamic> args;
-                  try {
-                    args = (jsonDecode(m['args'] ?? '{}') as Map)
-                        .cast<String, dynamic>();
-                  } catch (_) {
-                    args = <String, dynamic>{};
-                  }
-                  callInfos.add(
-                    ToolCallInfo(id: id, name: name, arguments: args),
-                  );
-                  calls.add({
-                    'id': id,
-                    'type': 'function',
-                    'function': {'name': name, 'arguments': jsonEncode(args)},
-                  });
-                  toolMsgs.add({'__name': name, '__id': id, '__args': args});
-                });
-                if (callInfos.isNotEmpty) {
-                  final approxTotal =
-                      approxPromptTokens +
-                      _approxTokensFromChars(approxCompletionChars);
-                  yield ChatStreamChunk(
-                    content: '',
-                    isDone: false,
-                    totalTokens: usage?.totalTokens ?? approxTotal,
-                    usage: usage,
-                    toolCalls: callInfos,
-                    // Transport-owned echo policy (P0-2): mirror the legacy
-                    // `assistantToolCallMsg` fields (no-DONE vendor fallback).
-                    assistantExtras: <String, dynamic>{
-                      if (needsReasoningEcho)
-                        'reasoning_content': _reasoningEchoValue(
-                          reasoningBuffer,
-                        ),
-                      if (preserveReasoningDetails &&
-                          reasoningDetailsBuffer is List &&
-                          reasoningDetailsBuffer.isNotEmpty)
-                        'reasoning_details': mergeReasoningDetails(
-                          reasoningDetailsBuffer,
-                        ),
-                    },
-                  );
-                }
-                if (exposeToolCallsOnly) {
-                  // Single-round mode: surfaced above, stop before execution.
-                  // No-DONE vendor streams may never set `finishReason`
-                  // otherwise — a definitive round end, not an interruption.
-                  if (flags != null) {
-                    flags.finishReason ??= 'tool_calls';
-                    flags.hasUsage = flags.hasUsage || usage != null;
-                  }
-                  return;
-                }
-                // Execute tools and emit results
-                final results = <Map<String, dynamic>>[];
-                final resultsInfo = <ToolResultInfo>[];
-                for (final m in toolMsgs) {
-                  final name = m['__name'] as String;
-                  final id = m['__id'] as String;
-                  final args = (m['__args'] as Map<String, dynamic>);
-                  final res =
-                      await onToolCall!(name, args, toolCallId: id) ?? '';
-                  results.add({'tool_call_id': id, 'content': res});
-                  resultsInfo.add(
-                    ToolResultInfo(
-                      id: id,
-                      name: name,
-                      arguments: args,
-                      content: res,
-                    ),
-                  );
-                }
-                if (resultsInfo.isNotEmpty) {
-                  yield ChatStreamChunk(
-                    content: '',
-                    isDone: false,
-                    totalTokens: usage?.totalTokens ?? 0,
-                    usage: usage,
-                    toolResults: resultsInfo,
-                  );
-                }
-                // Build follow-up messages from the already-serialized list
-                // (§7 F3).
-                messages = _truncateToolResultsInMessages(messages);
-                final mm2 = _preserveToolStructuredMessages(
-                  chatWireMessages.isEmpty ? messages : chatWireMessages,
-                  reasoningEcho: needsReasoningEcho,
-                );
-                final assistantToolCallMsg = <String, dynamic>{
-                  'role': 'assistant',
-                  'content': '\n\n',
-                  'tool_calls': calls,
-                };
-                if (needsReasoningEcho) {
-                  assistantToolCallMsg['reasoning_content'] =
-                      _reasoningEchoValue(reasoningBuffer);
-                }
-                if (preserveReasoningDetails &&
-                    reasoningDetailsBuffer is List &&
-                    reasoningDetailsBuffer.isNotEmpty) {
-                  assistantToolCallMsg['reasoning_details'] =
-                      mergeReasoningDetails(reasoningDetailsBuffer);
-                }
-                mm2.add(assistantToolCallMsg);
-                for (final r in results) {
-                  final id = r['tool_call_id'];
-                  final name = calls.firstWhere(
-                    (c) => c['id'] == id,
-                    orElse: () => const {
-                      'function': {'name': ''},
-                    },
-                  )['function']['name'];
-                  mm2.add({
-                    'role': 'tool',
-                    'tool_call_id': id,
-                    'name': name,
-                    'content': r['content'],
-                  });
-                }
-                // Continue streaming with follow-up request - reuse existing multi-round logic from [DONE] handler
-                var currentMessages = mm2;
-                while (true) {
-                  final Map<String, dynamic> body2 = {
-                    'model': upstreamModelId,
-                    'messages': currentMessages,
-                    'stream': true,
-                    if (temperature != null) 'temperature': temperature,
-                    if (topP != null) 'top_p': topP,
-                    if (isReasoning && effort != 'off' && effort != 'auto')
-                      'reasoning_effort': effort,
-                    if (tools != null && tools.isNotEmpty)
-                      'tools': _cleanToolsForCompatibility(tools),
-                    if (tools != null && tools.isNotEmpty)
-                      'tool_choice': 'auto',
-                  };
-                  _setMaxTokens(body2);
-                  _removeKimiK3SamplingParams(body2, upstreamModelId);
-                  _applyGpt55SamplingParams(
-                    body2,
-                    upstreamModelId: upstreamModelId,
-                    isReasoning: isReasoning,
-                    thinkingBudget: thinkingBudget,
-                    config: config,
-                  );
-                  _applyOpenRouterClaudePromptCaching(
-                    body2,
-                    config: config,
-                    upstreamModelId: upstreamModelId,
-                  );
-                  _normalizeMoonshotKimiChatBody(
-                    body2,
-                    upstreamModelId: upstreamModelId,
-                    isReasoning: isReasoning,
-                    thinkingBudget: thinkingBudget,
-                    wire: reasoningWire,
-                  );
-                  applyChatReasoningWire(
-                    body2,
-                    wire: reasoningWire,
-                    host: host,
-                    upstreamModelId: upstreamModelId,
-                    isReasoning: isReasoning,
-                    thinkingBudget: thinkingBudget,
-                    caps: reasoningCaps,
-                    isZhipu: isZhipu,
-                    isMimo: isMimo,
-                    effort: effort,
-                  );
-                  if (!hasReasoningWire) {
-                    _applyDeepSeekThinkingKnob(
-                      body2,
-                      host: host,
-                      modelId: upstreamModelId,
-                      isReasoning: isReasoning,
-                      thinkingBudget: thinkingBudget,
-                    );
-                  }
-                  if (!host.contains('mistral.ai') &&
-                      !host.contains('openrouter')) {
-                    body2['stream_options'] = {'include_usage': true};
-                  }
-                  if (extraBodyCfg.isNotEmpty) {
-                    body2.addAll(extraBodyCfg);
-                  }
-                  if (extraBody != null && extraBody.isNotEmpty) {
-                    extraBody.forEach((k, v) {
-                      body2[k] = (v is String) ? _parseOverrideValue(v) : v;
-                    });
-                  }
-                  final req2 = http.Request('POST', url);
-                  final headers2 = <String, String>{
-                    'Authorization': 'Bearer ${_effectiveApiKey(config)}',
-                    'Content-Type': 'application/json',
-                    'Accept': 'text/event-stream',
-                  };
-                  headers2.addAll(_customHeaders(config, modelId));
-                  if (extraHeaders != null && extraHeaders.isNotEmpty)
-                    headers2.addAll(extraHeaders);
-                  req2.headers.addAll(headers2);
-                  _normalizeReasoningEchoBody(
-                    body2,
-                    preserveDetails: preserveReasoningDetails,
-                    needsText: needsReasoningEcho,
-                  );
-                  req2.body = jsonEncode(body2);
-                  final resp2 = await client.send(req2);
-                  if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
-                    final errorBody = await resp2.stream.bytesToString();
-                    _logFailedWireBody(
-                      debugRequestId,
-                      'openai vendor follow-up (deepseek knob branch)',
-                      req2.body,
-                    );
-                    throw HttpException('HTTP ${resp2.statusCode}: $errorBody');
-                  }
-                  final s2 = resp2.stream.transform(utf8.decoder);
-                  String buf2 = '';
-                  final Map<int, Map<String, String>> toolAcc2 =
-                      <int, Map<String, String>>{};
-                  String? finishReason2;
-                  String contentAccum = '';
-                  String reasoningAccum = '';
-                  dynamic reasoningDetailsAccum;
-                  final usageBeforeRound = usage;
-                  TokenUsage? roundUsage;
-                  await for (final ch in s2) {
-                    buf2 += ch;
-                    final lines2 = buf2.split('\n');
-                    buf2 = lines2.last;
-                    for (int j = 0; j < lines2.length - 1; j++) {
-                      final l = lines2[j].trim();
-                      if (l.isEmpty || !l.startsWith('data:')) continue;
-                      final d = l.substring(5).trimLeft();
-                      if (d == '[DONE]') {
-                        continue;
-                      }
-                      try {
-                        final o = jsonDecode(d);
-                        if (o is Map &&
-                            o['choices'] is List &&
-                            (o['choices'] as List).isEmpty &&
-                            o['usage'] is Map) {
-                          final u = o['usage'] as Map;
-                          roundUsage = (roundUsage ?? const TokenUsage()).merge(
-                            TokenUsage(
-                              promptTokens:
-                                  (u['prompt_tokens'] ?? 0) as int? ?? 0,
-                              completionTokens:
-                                  (u['completion_tokens'] ?? 0) as int? ?? 0,
-                              cachedTokens:
-                                  (u['prompt_tokens_details']?['cached_tokens'] ??
-                                          0)
-                                      as int? ??
-                                  0,
-                            ).withOpenCodeUsage(u),
-                          );
-                          usage = (usageBeforeRound ?? const TokenUsage())
-                              .merge(roundUsage);
-                          totalTokens = usage!.totalTokens;
-                        } else if (o is Map &&
-                            o['choices'] is List &&
-                            (o['choices'] as List).isNotEmpty) {
-                          final c0 = (o['choices'] as List).first;
-                          finishReason2 = c0['finish_reason'] as String?;
-                          final delta = c0['delta'] as Map?;
-                          final txt = delta?['content'];
-                          final rc =
-                              delta?['reasoning_content'] ??
-                              delta?['reasoning'];
-                          final u = o['usage'];
-                          if (u != null) {
-                            final prompt = (u['prompt_tokens'] ?? 0) as int;
-                            final completion =
-                                (u['completion_tokens'] ?? 0) as int;
-                            final cached =
-                                (u['prompt_tokens_details']?['cached_tokens'] ??
-                                        0)
-                                    as int? ??
-                                0;
-                            roundUsage = (roundUsage ?? const TokenUsage())
-                                .merge(
-                                  TokenUsage(
-                                    promptTokens: prompt,
-                                    completionTokens: completion,
-                                    cachedTokens: cached,
-                                  ).withOpenCodeUsage(u),
-                                );
-                            usage = (usageBeforeRound ?? const TokenUsage())
-                                .merge(roundUsage);
-                            totalTokens = usage!.totalTokens;
-                          }
-                          if (rc is String && rc.isNotEmpty) {
-                            if (needsReasoningEcho) reasoningAccum += rc;
-                            yield ChatStreamChunk(
-                              content: '',
-                              reasoning: rc,
-                              isDone: false,
-                              totalTokens: 0,
-                              usage: usage,
-                            );
-                          }
-                          if (txt is String && txt.isNotEmpty) {
-                            contentAccum += txt;
-                            yield ChatStreamChunk(
-                              content: txt,
-                              isDone: false,
-                              totalTokens: 0,
-                              usage: usage,
-                            );
-                          }
-                          if (wantsImageOutput) {
-                            final List<dynamic> imageItems = <dynamic>[];
-                            final imgs = delta?['images'];
-                            if (imgs is List) imageItems.addAll(imgs);
-                            final contentArr = (txt is List)
-                                ? txt
-                                : (delta?['content'] as List?);
-                            if (contentArr is List) {
-                              for (final it in contentArr) {
-                                if (it is Map &&
-                                    (it['type'] == 'image_url' ||
-                                        it['type'] == 'image')) {
-                                  imageItems.add(it);
-                                }
-                              }
-                            }
-                            final singleImage = delta?['image_url'];
-                            if (singleImage is Map || singleImage is String) {
-                              imageItems.add({
-                                'type': 'image_url',
-                                'image_url': singleImage,
-                              });
-                            }
-                            if (imageItems.isNotEmpty) {
-                              final buf = StringBuffer();
-                              for (final it in imageItems) {
-                                if (it is! Map) continue;
-                                dynamic iu = it['image_url'];
-                                String? url;
-                                if (iu is String) {
-                                  url = iu;
-                                } else if (iu is Map) {
-                                  final u2 = iu['url'];
-                                  if (u2 is String) url = u2;
-                                }
-                                if (url != null && url.isNotEmpty) {
-                                  final md = '\n\n![image](' + url + ')';
-                                  buf.write(md);
-                                  contentAccum += md;
-                                }
-                              }
-                              final out = buf.toString();
-                              if (out.isNotEmpty) {
-                                yield ChatStreamChunk(
-                                  content: out,
-                                  isDone: false,
-                                  totalTokens: 0,
-                                  usage: usage,
-                                );
-                              }
-                            }
-                          }
-                          final tcs = delta?['tool_calls'] as List?;
-                          if (tcs != null) {
-                            for (final t in tcs) {
-                              final idx = (t['index'] as int?) ?? 0;
-                              final id = t['id'] as String?;
-                              final func =
-                                  t['function'] as Map<String, dynamic>?;
-                              final name = func?['name'] as String?;
-                              final argsDelta = func?['arguments'] as String?;
-                              final entry = toolAcc2.putIfAbsent(
-                                idx,
-                                () => {'id': '', 'name': '', 'args': ''},
-                              );
-                              if (id != null) entry['id'] = id;
-                              if (name != null && name.isNotEmpty)
-                                entry['name'] = name;
-                              if (argsDelta != null && argsDelta.isNotEmpty)
-                                entry['args'] =
-                                    (entry['args'] ?? '') + argsDelta;
-                            }
-                          }
-
-                          // Fallback/merge: message.content in same chunk (if any)
-                          final message = c0['message'] as Map?;
-                          if (message != null && message['content'] != null) {
-                            final mc = message['content'];
-                            if (mc is String && mc.isNotEmpty) {
-                              contentAccum += mc;
-                              yield ChatStreamChunk(
-                                content: mc,
-                                isDone: false,
-                                totalTokens: 0,
-                                usage: usage,
-                              );
-                            }
-                          }
-                          if (message != null) {
-                            final rcMsg =
-                                message['reasoning_content'] ??
-                                message['reasoning'];
-                            if (rcMsg is String &&
-                                rcMsg.isNotEmpty &&
-                                needsReasoningEcho) {
-                              reasoningAccum += rcMsg;
-                            }
-                          }
-                          if (preserveReasoningDetails) {
-                            reasoningDetailsAccum = appendReasoningDetails(
-                              reasoningDetailsAccum,
-                              delta?['reasoning_details'],
-                              allowSnapshots: !host.contains('openrouter.ai'),
-                            );
-                            reasoningDetailsAccum = appendReasoningDetails(
-                              reasoningDetailsAccum,
-                              message?['reasoning_details'],
-                              allowSnapshots: !host.contains('openrouter.ai'),
-                            );
-                          }
-                        }
-                        // XinLiu compatibility for follow-up requests too
-                        final rootToolCalls2 = o['tool_calls'] as List?;
-                        if (rootToolCalls2 != null) {
-                          for (final t in rootToolCalls2) {
-                            if (t is! Map) continue;
-                            final id = (t['id'] ?? '').toString();
-                            final type = (t['type'] ?? 'function').toString();
-                            if (type != 'function') continue;
-                            final func = t['function'] as Map<String, dynamic>?;
-                            if (func == null) continue;
-                            final name = (func['name'] ?? '').toString();
-                            final argsStr = (func['arguments'] ?? '')
-                                .toString();
-                            if (name.isEmpty) continue;
-                            final idx = toolAcc2.length;
-                            final entry = toolAcc2.putIfAbsent(
-                              idx,
-                              () => {
-                                'id': id.isEmpty ? 'call_$idx' : id,
-                                'name': name,
-                                'args': argsStr,
-                              },
-                            );
-                            if (id.isNotEmpty) entry['id'] = id;
-                            entry['name'] = name;
-                            entry['args'] = argsStr;
-                          }
-                          if (rootToolCalls2.isNotEmpty &&
-                              finishReason2 == null) {
-                            finishReason2 = 'tool_calls';
-                          }
-                        }
-                      } catch (_) {}
-                    }
-                  }
-                  if (roundUsage != null) {
-                    usage = (usageBeforeRound ?? const TokenUsage()).accumulate(
-                      roundUsage,
-                    );
-                    totalTokens = usage!.totalTokens;
-                  }
-                  if ((finishReason2 == 'tool_calls' || toolAcc2.isNotEmpty) &&
-                      onToolCall != null) {
-                    final calls2 = <Map<String, dynamic>>[];
-                    final callInfos2 = <ToolCallInfo>[];
-                    final toolMsgs2 = <Map<String, dynamic>>[];
-                    toolAcc2.forEach((idx, m) {
-                      final id = (m['id'] ?? 'call_$idx');
-                      final name = (m['name'] ?? '');
-                      Map<String, dynamic> args;
-                      try {
-                        args = (jsonDecode(m['args'] ?? '{}') as Map)
-                            .cast<String, dynamic>();
-                      } catch (_) {
-                        args = <String, dynamic>{};
-                      }
-                      callInfos2.add(
-                        ToolCallInfo(id: id, name: name, arguments: args),
-                      );
-                      calls2.add({
-                        'id': id,
-                        'type': 'function',
-                        'function': {
-                          'name': name,
-                          'arguments': jsonEncode(args),
-                        },
-                      });
-                      toolMsgs2.add({
-                        '__name': name,
-                        '__id': id,
-                        '__args': args,
-                      });
-                    });
-                    if (callInfos2.isNotEmpty) {
-                      yield ChatStreamChunk(
-                        content: '',
-                        isDone: false,
-                        totalTokens: usage?.totalTokens ?? 0,
-                        usage: usage,
-                        toolCalls: callInfos2,
-                      );
-                    }
-                    final results2 = <Map<String, dynamic>>[];
-                    final resultsInfo2 = <ToolResultInfo>[];
-                    for (final m in toolMsgs2) {
-                      final name = m['__name'] as String;
-                      final id = m['__id'] as String;
-                      final args = (m['__args'] as Map<String, dynamic>);
-                      final res = await onToolCall(name, args) ?? '';
-                      results2.add({'tool_call_id': id, 'content': res});
-                      resultsInfo2.add(
-                        ToolResultInfo(
-                          id: id,
-                          name: name,
-                          arguments: args,
-                          content: res,
-                        ),
-                      );
-                    }
-                    if (resultsInfo2.isNotEmpty) {
-                      yield ChatStreamChunk(
-                        content: '',
-                        isDone: false,
-                        totalTokens: usage?.totalTokens ?? 0,
-                        usage: usage,
-                        toolResults: resultsInfo2,
-                      );
-                    }
-                    final nextAssistantToolCall = <String, dynamic>{
-                      'role': 'assistant',
-                      'content': '\n\n',
-                      'tool_calls': calls2,
-                    };
-                    if (needsReasoningEcho) {
-                      nextAssistantToolCall['reasoning_content'] =
-                          reasoningAccum;
-                    }
-                    if (preserveReasoningDetails &&
-                        reasoningDetailsAccum is List &&
-                        reasoningDetailsAccum.isNotEmpty) {
-                      nextAssistantToolCall['reasoning_details'] =
-                          mergeReasoningDetails(reasoningDetailsAccum);
-                    }
-                    currentMessages = _truncateToolResultsInMessages(
-                      currentMessages,
-                    );
-                    currentMessages = [
-                      ...currentMessages,
-                      if (contentAccum.isNotEmpty)
-                        {'role': 'assistant', 'content': contentAccum},
-                      nextAssistantToolCall,
-                      for (final r in results2)
-                        {
-                          'role': 'tool',
-                          'tool_call_id': r['tool_call_id'],
-                          'name': calls2.firstWhere(
-                            (c) => c['id'] == r['tool_call_id'],
-                            orElse: () => const {
-                              'function': {'name': ''},
-                            },
-                          )['function']['name'],
-                          'content': r['content'],
-                        },
-                    ];
-                    continue;
-                  } else {
-                    // Legacy deep no-DONE follow-up loop completion — same
-                    // flags sync as the loops above.
-                    if (flags != null) {
-                      flags.finishReason ??= finishReason2 ?? 'stop';
-                      flags.hasUsage = flags.hasUsage || usage != null;
-                    }
-                    final approxTotal =
-                        approxPromptTokens +
-                        _approxTokensFromChars(approxCompletionChars);
-                    yield ChatStreamChunk(
-                      content: '',
-                      isDone: true,
-                      totalTokens: usage?.totalTokens ?? approxTotal,
-                      usage: usage,
-                    );
-                    return;
-                  }
-                }
-              }
-            } else if (host.contains('openrouter.ai')) {
-            } else {
-              // final approxTotal = approxPromptTokens + _approxTokensFromChars(approxCompletionChars);
-              // yield ChatStreamChunk(
-              //   content: '',
-              //   isDone: false,
-              //   totalTokens: usage?.totalTokens ?? approxTotal,
-              //   usage: usage,
-              // );
-              // return;
-            }
-          }
-
-          // If model finished with tool_calls, execute them and follow-up
-          if (false &&
-              config.useResponseApi != true &&
-              finishReason == 'tool_calls' &&
-              onToolCall != null) {
-            // Build messages for follow-up
-            final calls = <Map<String, dynamic>>[];
-            // Emit UI tool call placeholders
+              finishReason != 'tool_calls' &&
+              toolAcc.isNotEmpty) {
             final callInfos = <ToolCallInfo>[];
-            final toolMsgs = <Map<String, dynamic>>[];
             toolAcc.forEach((idx, m) {
               final id = (m['id'] ?? 'call_$idx');
               final name = (m['name'] ?? '');
@@ -6914,177 +4602,37 @@ class ChatApiService {
                 args = <String, dynamic>{};
               }
               callInfos.add(ToolCallInfo(id: id, name: name, arguments: args));
-              calls.add({
-                'id': id,
-                'type': 'function',
-                'function': {'name': name, 'arguments': jsonEncode(args)},
-              });
-              toolMsgs.add({'__name': name, '__id': id, '__args': args});
             });
-
             if (callInfos.isNotEmpty) {
+              final approxTotal =
+                  approxPromptTokens +
+                  _approxTokensFromChars(approxCompletionChars);
               yield ChatStreamChunk(
                 content: '',
                 isDone: false,
-                totalTokens: usage?.totalTokens ?? 0,
+                totalTokens: usage?.totalTokens ?? approxTotal,
                 usage: usage,
                 toolCalls: callInfos,
-              );
-            }
-
-            // Execute tools
-            final results = <Map<String, dynamic>>[];
-            final resultsInfo = <ToolResultInfo>[];
-            for (final m in toolMsgs) {
-              final name = m['__name'] as String;
-              final id = m['__id'] as String;
-              final args = (m['__args'] as Map<String, dynamic>);
-              final res = await onToolCall(name, args) ?? '';
-              results.add({'tool_call_id': id, 'content': res});
-              resultsInfo.add(
-                ToolResultInfo(
-                  id: id,
-                  name: name,
-                  arguments: args,
-                  content: res,
-                ),
-              );
-            }
-
-            if (resultsInfo.isNotEmpty) {
-              yield ChatStreamChunk(
-                content: '',
-                isDone: false,
-                totalTokens: usage?.totalTokens ?? 0,
-                usage: usage,
-                toolResults: resultsInfo,
-              );
-            }
-
-            // Follow-up request with assistant tool_calls + tool messages
-            final mm2 = _preserveToolStructuredMessages(
-              messages,
-              reasoningEcho: needsReasoningEcho,
-            );
-            final assistantToolCallMsg = <String, dynamic>{
-              'role': 'assistant',
-              'content': '\n\n',
-              'tool_calls': calls,
-            };
-            if (needsReasoningEcho) {
-              assistantToolCallMsg['reasoning_content'] = _reasoningEchoValue(
-                reasoningBuffer,
-              );
-            }
-            mm2.add(assistantToolCallMsg);
-            for (final r in results) {
-              final id = r['tool_call_id'];
-              final name = calls.firstWhere(
-                (c) => c['id'] == id,
-                orElse: () => const {
-                  'function': {'name': ''},
+                // Transport-owned echo policy (P0-2): the kernel forwards
+                // these onto its follow-up assistant message.
+                assistantExtras: <String, dynamic>{
+                  if (needsReasoningEcho)
+                    'reasoning_content': _reasoningEchoValue(reasoningBuffer),
+                  if (preserveReasoningDetails &&
+                      reasoningDetailsBuffer is List &&
+                      reasoningDetailsBuffer.isNotEmpty)
+                    'reasoning_details': mergeReasoningDetails(
+                      reasoningDetailsBuffer,
+                    ),
                 },
-              )['function']['name'];
-              mm2.add({
-                'role': 'tool',
-                'tool_call_id': id,
-                'name': name,
-                'content': r['content'],
-              });
-            }
-
-            final Map<String, dynamic> body2 = {
-              'model': upstreamModelId,
-              'messages': mm2,
-              'stream': true,
-              if (tools != null && tools.isNotEmpty)
-                'tools': _cleanToolsForCompatibility(tools),
-              if (tools != null && tools.isNotEmpty) 'tool_choice': 'auto',
-            };
-
-            final request2 = http.Request('POST', url);
-            request2.headers.addAll({
-              'Authorization': 'Bearer ${_apiKeyForRequest(config, modelId)}',
-              'Content-Type': 'application/json',
-              'Accept': 'text/event-stream',
-            });
-            request2.body = jsonEncode(body2);
-            final resp2 = await client.send(request2);
-            if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
-              final errorBody = await resp2.stream.bytesToString();
-              _logFailedWireBody(
-                debugRequestId,
-                'openai vendor root-tool_calls follow-up',
-                request2.body,
               );
-              throw HttpException('HTTP ${resp2.statusCode}: $errorBody');
             }
-            final s2 = resp2.stream.transform(utf8.decoder);
-            String buf2 = '';
-            await for (final ch in s2) {
-              buf2 += ch;
-              final lines2 = buf2.split('\n');
-              buf2 = lines2.last;
-              for (int j = 0; j < lines2.length - 1; j++) {
-                final l = lines2[j].trim();
-                if (l.isEmpty || !l.startsWith('data:')) continue;
-                final d = l.substring(5).trimLeft();
-                if (d == '[DONE]') {
-                  // Vendor root-tool_calls follow-up completion — [DONE] is
-                  // a definitive end; sync the flags like the loops above.
-                  if (flags != null) {
-                    flags.finishReason ??= 'stop';
-                    flags.hasUsage = flags.hasUsage || usage != null;
-                  }
-                  yield ChatStreamChunk(
-                    content: '',
-                    isDone: true,
-                    totalTokens: usage?.totalTokens ?? 0,
-                    usage: usage,
-                  );
-                  return;
-                }
-                try {
-                  final o = jsonDecode(d);
-                  if (o is Map &&
-                      o['choices'] is List &&
-                      (o['choices'] as List).isNotEmpty) {
-                    final first = (o['choices'] as List).first as Map?;
-                    final delta = first?['delta'] as Map?;
-                    final message = first?['message'] as Map?;
-                    final txt = delta?['content'];
-                    final rc =
-                        delta?['reasoning_content'] ?? delta?['reasoning'];
-                    if (rc is String && rc.isNotEmpty) {
-                      yield ChatStreamChunk(
-                        content: '',
-                        reasoning: rc,
-                        isDone: false,
-                        totalTokens: 0,
-                        usage: usage,
-                      );
-                    }
-                    if (txt is String && txt.isNotEmpty) {
-                      yield ChatStreamChunk(
-                        content: txt,
-                        isDone: false,
-                        totalTokens: 0,
-                        usage: usage,
-                      );
-                    }
-                    if (message != null &&
-                        message['content'] is String &&
-                        (message['content'] as String).isNotEmpty) {
-                      yield ChatStreamChunk(
-                        content: message['content'] as String,
-                        isDone: false,
-                        totalTokens: 0,
-                        usage: usage,
-                      );
-                    }
-                  }
-                } catch (_) {}
-              }
+            // Single round: surfaced above, stop before execution. No-DONE
+            // vendor streams may never set `finishReason` otherwise — a
+            // definitive round end, not an interruption.
+            if (flags != null) {
+              flags.finishReason ??= 'tool_calls';
+              flags.hasUsage = flags.hasUsage || usage != null;
             }
             return;
           }
@@ -7145,8 +4693,6 @@ class ChatApiService {
     double? topP,
     int? maxTokens,
     List<Map<String, dynamic>>? tools,
-    ToolCallHandler? onToolCall,
-    bool exposeToolCallsOnly = false,
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     bool stream = true,
@@ -7206,11 +4752,10 @@ class ChatApiService {
         if (text.trim().isNotEmpty && text.trim() != '\n\n') {
           blocks.add({'type': 'text', 'text': text});
         }
-        // P0-3: re-attach thinking blocks preserved by the expose-mode round
+        // P0-3: re-attach thinking blocks preserved by the tool-call round
         // (carried on the neutral assistant message via `assistantExtras`).
         // Anthropic requires the thinking block (with its signature) to be
-        // echoed when thinking is enabled, exactly as the legacy loop's
-        // `assistantBlocks` did.
+        // echoed when thinking is enabled.
         final thinking = m['claude_thinking_blocks'];
         if (thinking is List) {
           for (final tb in thinking.whereType<Map>()) {
@@ -7250,8 +4795,13 @@ class ChatApiService {
         m,
         NativeInputProtocol.claude,
       );
-      if (isLast &&
-          ((userImagePaths?.isNotEmpty == true) || nativeBlocks.isNotEmpty) &&
+      // Native parts (`_native_input`) are per-message: they must survive
+      // every round, not only while the message is last. The kernel's
+      // follow-up appends assistant/tool messages after the user turn, so a
+      // last-only gate would silently drop documents on round 2 (F3).
+      final wantsImageTransform =
+          isLast && userImagePaths?.isNotEmpty == true;
+      if ((wantsImageTransform || nativeBlocks.isNotEmpty) &&
           (m['role'] == 'user') &&
           (m['content'] is String)) {
         final parts = <Map<String, dynamic>>[];
@@ -7470,7 +5020,13 @@ class ChatApiService {
             : claudeMaxTokensInitial);
     int maxTokensAttempts = 0;
 
-    while (true) {
+    // Bounded loop: `pause_turn` / server-tool rounds continue the SAME turn
+    // (provider-internal continuation, not a client tool loop). One
+    // continuation max — the agent-loop kernel owns client tool execution.
+    // `max_tokens` negotiation `continue`s through the same loop, so the
+    // iteration bound is generous; `maxTokensAttempts` is the real limiter.
+    var pauseTurnRounds = 0;
+    for (var round = 0; round < 8; round++) {
       // Prepare request body per round
       // Anthropic requires `thinking.budget_tokens` to stay strictly below
       // `max_tokens`; a negotiated or learned ceiling below the requested
@@ -7636,8 +5192,7 @@ class ChatApiService {
             }
           }
         }
-        if (toolUses.isNotEmpty &&
-            (onToolCall != null || exposeToolCallsOnly)) {
+        if (toolUses.isNotEmpty) {
           final callInfos = <ToolCallInfo>[];
           for (final e in toolUses.entries) {
             callInfos.add(
@@ -7667,55 +5222,15 @@ class ChatApiService {
             toolCalls: callInfos,
             assistantExtras: claudeThinkingExtras,
           );
-          if (exposeToolCallsOnly) {
-            // Single-round expose mode: surface the tool calls and stop.
-            // A non-streaming JSON response is by definition a complete
-            // turn — sync the L1 silent-interruption detector so the
-            // cancelled round is never re-requested.
-            if (flags != null) {
-              flags.finishReason ??= 'end_turn';
-              flags.hasUsage = flags.hasUsage || totalUsage != null;
-            }
-            return;
+          // Single round: surface the tool calls and stop. A non-streaming
+          // JSON response is by definition a complete turn — sync the L1
+          // silent-interruption detector so the cancelled round is never
+          // re-requested. The agent-loop kernel executes the tools.
+          if (flags != null) {
+            flags.finishReason ??= 'end_turn';
+            flags.hasUsage = flags.hasUsage || totalUsage != null;
           }
-          final results = <Map<String, dynamic>>[];
-          final resultsInfo = <ToolResultInfo>[];
-          for (final e in toolUses.entries) {
-            final name = (e.value['name'] ?? '').toString();
-            final args = (e.value['args'] as Map<String, dynamic>);
-            final res = await onToolCall!(name, args, toolCallId: e.key) ?? '';
-            results.add({
-              'type': 'tool_result',
-              'tool_use_id': e.key,
-              'content': res,
-            });
-            resultsInfo.add(
-              ToolResultInfo(
-                id: e.key,
-                name: name,
-                arguments: args,
-                content: res,
-              ),
-            );
-          }
-          if (resultsInfo.isNotEmpty) {
-            yield ChatStreamChunk(
-              content: '',
-              isDone: false,
-              totalTokens: (totalUsage?.totalTokens ?? 0),
-              usage: totalUsage,
-              toolResults: resultsInfo,
-            );
-          }
-          // Extend convo: assistant + user tool_result, loop
-          final assistantMsg = {
-            'role': 'assistant',
-            'content': assistantBlocks,
-          };
-          final userToolMsg = {'role': 'user', 'content': results};
-          convo = _truncateToolResultsInMessages(convo);
-          convo = [...convo, assistantMsg, userToolMsg];
-          continue; // next round
+          return;
         }
         // No tool use -> return final text
         yield ChatStreamChunk(
@@ -7738,8 +5253,6 @@ class ChatApiService {
           <String, Map<String, dynamic>>{}; // id -> {name, args}
       final Map<int, String> _cliIndexToId =
           <int, String>{}; // client tool: index -> id
-      final Map<String, String> _toolResultsContent =
-          <String, String>{}; // id -> result text
       final List<Map<String, dynamic>> assistantBlocks =
           <Map<String, dynamic>>[];
       final StringBuffer textBuf = StringBuffer();
@@ -7839,24 +5352,8 @@ class ChatApiService {
                     'input': {},
                   });
                   if (idx2 >= 0) _cliIndexToId[idx2] = id;
-                  // Emit placeholder tool-call card immediately. Skipped in
-                  // single-round expose mode: the round-end surface yields
-                  // one chunk with the fully-assembled arguments instead.
-                  if (!exposeToolCallsOnly) {
-                    yield ChatStreamChunk(
-                      content: '',
-                      isDone: false,
-                      totalTokens: roundTokens,
-                      usage: usage,
-                      toolCalls: [
-                        ToolCallInfo(
-                          id: id,
-                          name: name,
-                          arguments: const <String, dynamic>{},
-                        ),
-                      ],
-                    );
-                  }
+                  // Single-round: the round-end surface yields one chunk with
+                  // the fully-assembled arguments instead of a placeholder.
                 }
               } else if (cb is Map && (cb['type'] == 'server_tool_use')) {
                 final id = (cb['id'] ?? '').toString();
@@ -7869,26 +5366,7 @@ class ChatApiService {
                   _srvIndexToBlock[idx2] = assistantBlocks.length;
                   assistantBlocks.add(Map<String, dynamic>.from(cb));
                 }
-                // Emit placeholder for server tools that have a dedicated UI
-                // card; skip the code_execution companion tool. Skipped in
-                // expose mode — the round-end surface owns tool-call emission.
-                if (id.isNotEmpty &&
-                    (name == 'web_search' || name == 'web_fetch') &&
-                    !exposeToolCallsOnly) {
-                  yield ChatStreamChunk(
-                    content: '',
-                    isDone: false,
-                    totalTokens: roundTokens,
-                    usage: usage,
-                    toolCalls: [
-                      ToolCallInfo(
-                        id: id,
-                        name: name == 'web_fetch' ? 'web_fetch' : 'search_web',
-                        arguments: const <String, dynamic>{},
-                      ),
-                    ],
-                  );
-                }
+                // Single-round: the round-end surface owns tool-call emission.
               } else if (cb is Map &&
                   (cb['type'] == 'web_search_tool_result')) {
                 // Emit simplified search results to UI
@@ -8152,31 +5630,9 @@ class ChatApiService {
                     break;
                   }
                 }
-                // Emit tool result to UI (placeholder was emitted at start).
-                // In expose mode we skip execution here; all calls are
-                // surfaced once after the round (see below).
-                if (onToolCall != null && !exposeToolCallsOnly) {
-                  final res = await onToolCall(name, args) ?? '';
-                  _toolResultsContent[id] = res;
-                  yield ChatStreamChunk(
-                    content: '',
-                    isDone: false,
-                    totalTokens: roundTokens,
-                    toolResults: [
-                      ToolResultInfo(
-                        id: id,
-                        name: name,
-                        arguments: args,
-                        content: res,
-                      ),
-                    ],
-                    usage: usage,
-                  );
-                }
+                // Client tool execution belongs to the agent-loop kernel.
               } else {
-                if (idx != null &&
-                    _srvIndexToId.containsKey(idx) &&
-                    !exposeToolCallsOnly) {
+                if (idx != null && _srvIndexToId.containsKey(idx)) {
                   final sid = _srvIndexToId[idx]!;
                   Map<String, dynamic> args;
                   try {
@@ -8206,6 +5662,9 @@ class ChatApiService {
                               ? 'web_fetch'
                               : 'search_web',
                           arguments: args,
+                          // Server-side execution: display-only for the UI —
+                          // the kernel must not run it as a client tool.
+                          execute: false,
                         ),
                       ],
                     );
@@ -8264,7 +5723,8 @@ class ChatApiService {
             ) &&
             _srvIndexToId.isNotEmpty;
         final sr = _lastStopReason ?? '';
-        if (sr == 'pause_turn' || hadServerTool) {
+        if ((sr == 'pause_turn' || hadServerTool) && pauseTurnRounds == 0) {
+          pauseTurnRounds += 1;
           // Continue this turn with assistant content only
           convo = [
             ...convo,
@@ -8272,80 +5732,31 @@ class ChatApiService {
           ];
           // Loop to next round
           continue;
-        } else {
-          // Surface the stop reason to the L1 retry loop for silent
-          // interruption detection. Claude always sends `message_stop`,
-          // so [finishReason] will normally be set here — the retry loop
-          // only fires on a truly dropped connection.
-          if (flags != null) {
-            flags.finishReason = _lastStopReason;
-            flags.hasUsage = (totalUsage ?? usage) != null;
-          }
-          yield ChatStreamChunk(
-            content: '',
-            isDone: true,
-            totalTokens: (totalUsage?.totalTokens ?? roundTokens),
-            usage: totalUsage ?? usage,
-            finishReason: _lastStopReason,
-            hasUsage: (totalUsage ?? usage) != null,
-          );
-          return;
         }
-      }
-
-      // Single-round expose mode: surface every collected tool call once and
-      // stop without executing them or building the follow-up request.
-      if (exposeToolCallsOnly) {
-        final exposed = <ToolCallInfo>[];
-        for (final entry in _anthToolUse.entries) {
-          final name = (entry.value['name'] ?? '').toString();
-          Map<String, dynamic> args;
-          try {
-            args = (jsonDecode((entry.value['args'] ?? '{}') as String) as Map)
-                .cast<String, dynamic>();
-          } catch (_) {
-            args = <String, dynamic>{};
-          }
-          exposed.add(ToolCallInfo(id: entry.key, name: name, arguments: args));
-        }
-        if (exposed.isNotEmpty) {
-          // P0-3: carry this round's thinking blocks (with signatures) so the
-          // agent-loop kernel can echo them on the follow-up assistant
-          // message — Anthropic rejects tool-continuation requests that drop
-          // the thinking block when thinking is enabled.
-          final thinkingBlocks = <Map<String, dynamic>>[
-            for (final b in assistantBlocks)
-              if (b is Map &&
-                  (b['type'] == 'thinking' || b['type'] == 'redacted_thinking'))
-                Map<String, dynamic>.from(b),
-          ];
-          yield ChatStreamChunk(
-            content: '',
-            isDone: false,
-            totalTokens: (totalUsage?.totalTokens ?? roundTokens),
-            usage: totalUsage ?? usage,
-            toolCalls: exposed,
-            assistantExtras: thinkingBlocks.isEmpty
-                ? null
-                : <String, dynamic>{'claude_thinking_blocks': thinkingBlocks},
-          );
-        }
-        // Claude always sends `message_stop` (synced into flags above when
-        // message_delta carried a stop_reason); the fallback guards against
-        // a vendor variant that ends the SSE body without one. Either way
-        // this is a definitive round end — sync the L1 silent-interruption
-        // detector so the cancelled round is never re-requested.
+        // Surface the stop reason to the L1 retry loop for silent
+        // interruption detection. Claude always sends `message_stop`,
+        // so [finishReason] will normally be set here — the retry loop
+        // only fires on a truly dropped connection.
         if (flags != null) {
-          flags.finishReason ??= _lastStopReason ?? 'tool_use';
-          flags.hasUsage = flags.hasUsage || (totalUsage ?? usage) != null;
+          flags.finishReason = _lastStopReason;
+          flags.hasUsage = (totalUsage ?? usage) != null;
         }
+        yield ChatStreamChunk(
+          content: '',
+          isDone: true,
+          totalTokens: (totalUsage?.totalTokens ?? roundTokens),
+          usage: totalUsage ?? usage,
+          finishReason: _lastStopReason,
+          hasUsage: (totalUsage ?? usage) != null,
+        );
         return;
       }
 
-      // Build tool_result blocks in a single user message (parallel-safe)
-      final toolResultsBlocks = <Map<String, dynamic>>[];
+      // Single-round: surface every collected tool call once and stop without
+      // executing them — the agent-loop kernel runs them and builds the
+      // tool_result continuation.
+      final exposed = <ToolCallInfo>[];
       for (final entry in _anthToolUse.entries) {
-        final id = entry.key;
         final name = (entry.value['name'] ?? '').toString();
         Map<String, dynamic> args;
         try {
@@ -8354,26 +5765,56 @@ class ChatApiService {
         } catch (_) {
           args = <String, dynamic>{};
         }
-        String res = _toolResultsContent[id] ?? '';
-        if (res.isEmpty && onToolCall != null) {
-          res = await onToolCall(name, args) ?? '';
-        }
-        toolResultsBlocks.add({
-          'type': 'tool_result',
-          'tool_use_id': id,
-          if (res.isNotEmpty) 'content': res,
-        });
+        exposed.add(ToolCallInfo(id: entry.key, name: name, arguments: args));
       }
-
-      // Extend conversation: assistant content (with tool_use blocks) + user tool_results
-      convo = _truncateToolResultsInMessages(convo);
-      convo = [
-        ...convo,
-        {'role': 'assistant', 'content': assistantBlocks},
-        {'role': 'user', 'content': toolResultsBlocks},
-      ];
-      // Loop to next round; the next response will stream more assistant content
+      if (exposed.isNotEmpty) {
+        // P0-3: carry this round's thinking blocks (with signatures) so the
+        // agent-loop kernel can echo them on the follow-up assistant
+        // message — Anthropic rejects tool-continuation requests that drop
+        // the thinking block when thinking is enabled.
+        final thinkingBlocks = <Map<String, dynamic>>[
+          for (final b in assistantBlocks)
+            if (b is Map &&
+                (b['type'] == 'thinking' || b['type'] == 'redacted_thinking'))
+              Map<String, dynamic>.from(b),
+        ];
+        yield ChatStreamChunk(
+          content: '',
+          isDone: false,
+          totalTokens: (totalUsage?.totalTokens ?? roundTokens),
+          usage: totalUsage ?? usage,
+          toolCalls: exposed,
+          assistantExtras: thinkingBlocks.isEmpty
+              ? null
+              : <String, dynamic>{'claude_thinking_blocks': thinkingBlocks},
+        );
+      }
+      // Claude always sends `message_stop` (synced into flags above when
+      // message_delta carried a stop_reason); the fallback guards against
+      // a vendor variant that ends the SSE body without one. Either way this
+      // is a definitive round end — sync the L1 silent-interruption detector
+      // so the cancelled round is never re-requested.
+      if (flags != null) {
+        flags.finishReason ??= _lastStopReason ?? 'tool_use';
+        flags.hasUsage = flags.hasUsage || (totalUsage ?? usage) != null;
+      }
+      return;
     }
+
+    // Safety net: the max_tokens negotiation cap (2) and the pause_turn cap
+    // (1) make the round bound above exhaustive, so this is unreachable.
+    // Emit a terminal chunk anyway — a silent generator end would leave the
+    // UI streaming forever.
+    if (flags != null) {
+      flags.finishReason ??= 'end_turn';
+      flags.hasUsage = totalUsage != null;
+    }
+    yield ChatStreamChunk(
+      content: '',
+      isDone: true,
+      totalTokens: totalUsage?.totalTokens ?? 0,
+      usage: totalUsage,
+    );
   }
 
   static Stream<ChatStreamChunk> _sendGoogleStream(
@@ -8387,8 +5828,6 @@ class ChatApiService {
     double? topP,
     int? maxTokens,
     List<Map<String, dynamic>>? tools,
-    ToolCallHandler? onToolCall,
-    bool exposeToolCallsOnly = false,
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
     bool stream = true,
@@ -8458,8 +5897,7 @@ class ChatApiService {
             final part = _googleFunctionCallPartFromToolCall(tc);
             if (part != null) {
               // P0-3: re-attach the per-call thought signature carried via
-              // `assistantExtras`, matching the legacy loop's
-              // `part[thoughtSigKey] = thoughtSigVal`.
+              // `assistantExtras`.
               final callId = (tc['id'] ?? '').toString();
               if (thoughtSigs is Map && thoughtSigs[callId] is Map) {
                 final sig = (thoughtSigs[callId] as Map)
@@ -8600,9 +6038,6 @@ class ChatApiService {
         contents.add({'role': role, 'parts': parts});
       }
 
-      final effective = _effectiveModelInfo(config, modelId);
-      final isReasoning = effective.abilities.contains(ModelAbility.reasoning);
-
       // Map OpenAI-style tools to Gemini functionDeclarations (MCP)
       List<Map<String, dynamic>>? geminiTools;
       if (tools != null && tools.isNotEmpty) {
@@ -8679,7 +6114,7 @@ class ChatApiService {
       TokenUsage? totalUsage;
       List<Map<String, dynamic>> currentContents =
           List<Map<String, dynamic>>.from(contents);
-      while (true) {
+      {
         final req = http.Request('POST', Uri.parse(url));
         req.headers.addAll(headers);
         final body = Map<String, dynamic>.from(baseBody);
@@ -8722,22 +6157,20 @@ class ChatApiService {
           (e) => (e is Map) && e.containsKey('functionCall'),
           orElse: () => null,
         );
-        if (fc is Map &&
-            fc['functionCall'] is Map &&
-            (onToolCall != null || exposeToolCallsOnly)) {
+        if (fc is Map && fc['functionCall'] is Map) {
           final call = (fc['functionCall'] as Map).cast<String, dynamic>();
           final name = (call['name'] ?? '').toString();
           final args =
               (call['args'] as Map?)?.cast<String, dynamic>() ??
               const <String, dynamic>{};
-          // Prefer the API-provided functionCall id (the legacy loop keeps
-          // the raw response `parts` verbatim, so the kernel path must match
-          // the vendor id to keep the follow-up byte-identical).
+          // Prefer the API-provided functionCall id: the follow-up replays
+          // the response `parts` verbatim, so the vendor id keeps it
+          // byte-identical.
           final vendorCallId = (call['id'] ?? '').toString().trim();
           final callId = vendorCallId.isNotEmpty ? vendorCallId : 'fn_0';
-          // Capture the raw part's thought signature (Gemini 3): the legacy
-          // follow-up preserves the response `parts` verbatim, so the kernel
-          // path must carry the same sig via `assistantExtras`.
+          // Capture the raw part's thought signature (Gemini 3): the follow-up
+          // replays the response `parts` verbatim, so it must carry the same
+          // sig via `assistantExtras`.
           String? sigKey;
           dynamic sigVal;
           if (fc.containsKey('thoughtSignature')) {
@@ -8761,49 +6194,15 @@ class ChatApiService {
                     },
                   },
           );
-          if (exposeToolCallsOnly) {
-            // Single-round expose mode: surface the tool calls and stop.
-            // A non-streaming generateContent response is by definition a
-            // complete turn — sync the L1 silent-interruption detector so
-            // the cancelled round is never re-requested.
-            if (flags != null) {
-              flags.finishReason ??= 'STOP';
-              flags.hasUsage = flags.hasUsage || totalUsage != null;
-            }
-            return;
+          // Single round: surface the tool calls and stop. A non-streaming
+          // generateContent response is by definition a complete turn — sync
+          // the L1 silent-interruption detector so the cancelled round is
+          // never re-requested. The agent-loop kernel executes the tools.
+          if (flags != null) {
+            flags.finishReason ??= 'STOP';
+            flags.hasUsage = flags.hasUsage || totalUsage != null;
           }
-          final res = await onToolCall!(name, args, toolCallId: callId) ?? '';
-          yield ChatStreamChunk(
-            content: '',
-            isDone: false,
-            totalTokens: totalUsage?.totalTokens ?? 0,
-            usage: totalUsage,
-            toolResults: [
-              ToolResultInfo(
-                id: callId,
-                name: name,
-                arguments: args,
-                content: res,
-              ),
-            ],
-          );
-          currentContents = _truncateToolResultsInMessages(currentContents);
-          currentContents = [
-            ...currentContents,
-            {'role': 'model', 'parts': parts},
-            {
-              'role': 'user',
-              'parts': [
-                {
-                  'functionResponse': {
-                    'name': name,
-                    'response': {'result': res},
-                  },
-                },
-              ],
-            },
-          ];
-          continue;
+          return;
         }
         final buf = StringBuffer();
         for (final p in parts) {
@@ -9032,7 +6431,6 @@ class ChatApiService {
     final wantsImageOutput = effective.output.contains(Modality.image);
     bool _expectImage = wantsImageOutput;
     bool _receivedImage = false;
-    final off = _isOff(thinkingBudget);
 
     // Map OpenAI-style tools to Gemini functionDeclarations (MCP)
     List<Map<String, dynamic>>? geminiTools;
@@ -9117,7 +6515,9 @@ class ChatApiService {
       return out;
     }
 
-    while (true) {
+    // Single round: one streamGenerateContent request per call. The agent-loop
+    // kernel executes any surfaced function calls and composes the follow-up.
+    {
       final gen = <String, dynamic>{
         if (temperature != null) 'temperature': temperature,
         if (topP != null) 'topP': topP,
@@ -9187,13 +6587,10 @@ class ChatApiService {
 
       final sse = resp.stream.transform(utf8.decoder);
       String buffer = '';
-      // Collect any function calls in this round
-      final List<Map<String, dynamic>> calls =
-          <Map<String, dynamic>>[]; // {id,name,args,res}
-      // True when expose mode surfaced a tool call: the round must then end
+      // True when this round surfaced a function call: the round then ends
       // WITHOUT a trailing isDone chunk (the kernel / driver synthesizes the
-      // terminal chunk), matching the other providers' expose contract.
-      bool exposeSurfacedCalls = false;
+      // terminal chunk), matching the other providers' single-round contract.
+      bool toolCallsSurfaced = false;
 
       // Track thought signature across chunks (Gemini 3 requirement)
       String? persistentThoughtSigKey;
@@ -9470,8 +6867,7 @@ class ChatApiService {
                       ],
                       // P0-3: carry the per-call thought signature (Gemini 3)
                       // so the kernel can echo it on the follow-up
-                      // functionCall part, matching the legacy loop's
-                      // `part[thoughtSigKey] = thoughtSigVal`.
+                      // functionCall part.
                       assistantExtras: thoughtSigKey == null
                           ? null
                           : <String, dynamic>{
@@ -9483,39 +6879,9 @@ class ChatApiService {
                               },
                             },
                     );
-                    String resText = '';
-                    if (onToolCall != null && !exposeToolCallsOnly) {
-                      resText = await onToolCall(name, args) ?? '';
-                      yield ChatStreamChunk(
-                        content: '',
-                        isDone: false,
-                        totalTokens: totalTokens,
-                        usage: usage,
-                        toolResults: [
-                          ToolResultInfo(
-                            id: id,
-                            name: name,
-                            arguments: args,
-                            content: resText,
-                          ),
-                        ],
-                      );
-                    }
-                    // In expose mode the tool call was already surfaced as a
-                    // chunk above; leave `calls` empty so the round finalizes
-                    // instead of issuing a follow-up request.
-                    if (!exposeToolCallsOnly) {
-                      calls.add({
-                        'id': id,
-                        'name': name,
-                        'args': args,
-                        'result': resText,
-                        'thoughtSigKey': thoughtSigKey,
-                        'thoughtSigVal': thoughtSigVal,
-                      });
-                    } else {
-                      exposeSurfacedCalls = true;
-                    }
+                    // Single-round: the call was surfaced above; the kernel
+                    // executes it and composes the functionResponse turn.
+                    toolCallsSurfaced = true;
                   }
                 }
                 // Capture explicit finish reason if present
@@ -9643,11 +7009,10 @@ class ChatApiService {
               }
 
               // If server signaled finish, end stream immediately (unless
-              // expose mode already surfaced tool calls — the kernel owns
-              // the terminal chunk there).
+              // this round already surfaced tool calls — the kernel owns the
+              // terminal chunk there).
               if (finishReason != null &&
-                  calls.isEmpty &&
-                  !exposeSurfacedCalls &&
+                  !toolCallsSurfaced &&
                   (!_expectImage || _receivedImage)) {
                 // Emit final citations if any not emitted
                 if (_builtinCitations.isNotEmpty) {
@@ -9733,104 +7098,50 @@ class ChatApiService {
         );
       }
 
-      if (calls.isEmpty) {
-        if (exposeSurfacedCalls) {
-          // Single-round expose mode: the tool calls were already surfaced
-          // as chunks above; end the round without a terminal chunk (the
-          // kernel / driver synthesizes it) and without looping. Sync the
-          // L1 silent-interruption detector: when the vendor never sent an
-          // explicit `finishReason`, the surface itself is a definitive
-          // round end — never re-request the cancelled round.
-          if (flags != null) {
-            flags.finishReason ??= 'STOP';
-            flags.hasUsage = flags.hasUsage || usage != null;
-          }
-          return;
-        }
-        // No tool calls; this round finished
-        if (_persistGeminiThoughtSigs) {
-          final metaComment = _buildGeminiThoughtSigComment(
-            textKey: responseTextThoughtSigKey,
-            textValue: responseTextThoughtSigVal,
-            imageSigs: responseImageThoughtSigs,
-            providerScope: geminiScope,
-          );
-          if (metaComment.isNotEmpty) {
-            yield ChatStreamChunk(
-              content: metaComment,
-              isDone: false,
-              totalTokens: totalTokens,
-              usage: usage,
-            );
-          }
-        }
-        // Surface the usage presence to the L1 retry loop. [finishReason]
-        // is synced inline at the capture site (Gemini's `fr` is declared
-        // inside the per-chunk scope, not visible here).
+      if (toolCallsSurfaced) {
+        // The tool calls were already surfaced as chunks above; end the round
+        // without a terminal chunk (the kernel / driver synthesizes it). Sync
+        // the L1 silent-interruption detector: when the vendor never sent an
+        // explicit `finishReason`, the surface itself is a definitive round
+        // end — never re-request the cancelled round.
         if (flags != null) {
-          flags.hasUsage = usage != null;
+          flags.finishReason ??= 'STOP';
+          flags.hasUsage = flags.hasUsage || usage != null;
         }
-        yield ChatStreamChunk(
-          content: '',
-          isDone: true,
-          totalTokens: totalTokens,
-          usage: usage,
-          hasUsage: usage != null,
-        );
         return;
       }
-
-      // Append model functionCall(s) and user functionResponse(s) to conversation, then loop
-      convo = _truncateToolResultsInMessages(convo);
-      for (final c in calls) {
-        final name = (c['name'] ?? '').toString();
-        final args =
-            (c['args'] as Map<String, dynamic>? ?? const <String, dynamic>{});
-        final resText = (c['result'] ?? '').toString();
-        final thoughtSigKey = c['thoughtSigKey'] as String?;
-        final thoughtSigVal = c['thoughtSigVal'];
-
-        // Add the model's functionCall turn. Keep the call id inside the
-        // functionCall part so later rounds can match functionResponse to it.
-        final callId = (c['id'] ?? '').toString().trim();
-        final part = <String, dynamic>{
-          'functionCall': {
-            'name': name,
-            'args': args,
-            if (callId.isNotEmpty) 'id': callId,
-          },
-        };
-        if (thoughtSigKey != null && thoughtSigVal != null) {
-          part[thoughtSigKey] = thoughtSigVal;
+      // No tool calls; this round finished
+      if (_persistGeminiThoughtSigs) {
+        final metaComment = _buildGeminiThoughtSigComment(
+          textKey: responseTextThoughtSigKey,
+          textValue: responseTextThoughtSigVal,
+          imageSigs: responseImageThoughtSigs,
+          providerScope: geminiScope,
+        );
+        if (metaComment.isNotEmpty) {
+          yield ChatStreamChunk(
+            content: metaComment,
+            isDone: false,
+            totalTokens: totalTokens,
+            usage: usage,
+          );
         }
-
-        convo.add({
-          'role': 'model',
-          'parts': [part],
-        });
-        // Prepare JSON response object
-        Map<String, dynamic> responseObj;
-        try {
-          responseObj = (jsonDecode(resText) as Map).cast<String, dynamic>();
-        } catch (_) {
-          // Wrap plain text result
-          responseObj = {'result': resText};
-        }
-        // Add user's functionResponse turn, echoing the call id it answers.
-        convo.add({
-          'role': 'user',
-          'parts': [
-            {
-              'functionResponse': {
-                'name': name,
-                'response': responseObj,
-                if (callId.isNotEmpty) 'id': callId,
-              },
-            },
-          ],
-        });
       }
-      // Continue while(true) for next round
+      // Surface the usage presence to the L1 retry loop. [finishReason]
+      // is synced inline at the capture site (Gemini's `fr` is declared
+      // inside the per-chunk scope, not visible here).
+      if (flags != null) {
+        flags.hasUsage = usage != null;
+      }
+      yield ChatStreamChunk(
+        content: '',
+        isDone: true,
+        totalTokens: totalTokens,
+        usage: usage,
+        hasUsage: usage != null,
+      );
+      return;
+
     }
   }
 

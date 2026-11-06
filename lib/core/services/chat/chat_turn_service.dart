@@ -8,6 +8,7 @@ import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
 import '../../providers/model_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../agent/agent_orchestrator.dart';
 import '../api/builtin_tools.dart';
 import '../api/chat_api_service.dart';
 import '../search/search_tool_service.dart';
@@ -133,9 +134,14 @@ class ChatTurnHandle {
 ///    取消模式。
 /// 5. Streaming 持久化節流（見 [ChatTurnHandle._schedulePersist]）。
 class ChatTurnService {
-  ChatTurnService({required this.chatService});
+  ChatTurnService({required this.chatService, AgentOrchestrator? orchestrator})
+    : _orchestrator = orchestrator ?? AgentOrchestrator();
 
   final ChatService chatService;
+
+  /// P0-3: voice turns run through the same kernel driver as text chat — the
+  /// transport is single-round only and never executes tools itself.
+  final AgentOrchestrator _orchestrator;
 
   /// 3.2-1：Context 組裝 — truncateIndex 裁切 → 版本收斂 → 過濾空內容 → API messages。
   ///
@@ -409,9 +415,9 @@ class ChatTurnService {
     void Function(String error)? onError,
     void Function(int attempt, int maxAttempts, String errorKind)? onRetry,
   ) async {
-    // sendMessageStream 是 async*：呼叫本身不會同步丟錯，錯誤皆由 stream
-    // onError 處理，因此不需 try/catch 包覆。
-    final stream = ChatApiService.sendMessageStream(
+    // The kernel driver is async* as well: creation never throws synchronously,
+    // transport errors arrive through the stream's onError.
+    final stream = _orchestrator.run(
       config: request.config,
       modelId: request.modelId,
       messages: request.apiMessages,
@@ -424,10 +430,10 @@ class ChatTurnService {
       onToolCall: request.onToolCall,
       extraHeaders: null,
       extraBody: null,
-      stream: true,
       webFetchEnabled: request.webFetchEnabled,
+      streamOutput: true,
+      requestId: request.conversationId ?? handle.assistantMessageId,
       sessionId: request.conversationId,
-      imageAspectRatio: null,
     );
     handle._sub = stream.listen(
       (chunk) {

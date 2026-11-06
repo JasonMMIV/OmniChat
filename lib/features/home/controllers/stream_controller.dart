@@ -761,9 +761,9 @@ class StreamController {
     try {
       final prev = getToolEventsFromDb(messageId);
       // P1-3 fix (write side, 2026-09-11): the toolCalls chunk carries the
-      // round's reasoning-echo fields (transport-owned policy; both the
-      // agent-loop expose mode and the legacy loop populate
-      // assistantExtras here). Persist them onto the placeholder event so
+      // round's reasoning-echo fields (transport-owned policy; the
+      // single-round transport populates assistantExtras). Persist them onto
+      // the placeholder event so
       // the §3.11 cross-turn replay can re-attach `reasoning_content` —
       // DeepSeek-family thinking mode rejects a resumed request whose
       // replayed assistant `tool_calls` message lacks the field (HTTP 400:

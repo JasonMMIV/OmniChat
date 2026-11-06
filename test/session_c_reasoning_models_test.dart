@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:OmniChat/core/providers/model_provider.dart';
 import 'package:OmniChat/core/providers/settings_provider.dart';
+import 'package:OmniChat/core/services/agent/agent_loop.dart';
 import 'package:OmniChat/core/services/api/chat_api_service.dart';
 
 ProviderConfig _openAiResponsesConfig(String baseUrl) => ProviderConfig(
@@ -29,7 +30,7 @@ ProviderConfig _zhipuConfig(String baseUrl) => ProviderConfig(
 );
 
 Future<List<Map<String, dynamic>>> _sendResponsesToolCallAndCaptureRequestBodies(
-  Future<List<dynamic>> Function(String baseUrl) sendRequest, {
+  Future<void> Function(String baseUrl) sendRequest, {
   List<Map<String, dynamic>> completedOutput = const [
     {
       'type': 'function_call',
@@ -139,28 +140,33 @@ void main() {
         final requestBodies =
             await _sendResponsesToolCallAndCaptureRequestBodies(
               completedOutput: const <Map<String, dynamic>>[],
-              (baseUrl) {
-                return ChatApiService.sendMessageStream(
-                  config: _openAiResponsesConfig(baseUrl),
-                  modelId: 'gpt-5.5',
-                  messages: const [
+              (baseUrl) async {
+                // P0-3: the transport is single-round; the kernel executes the
+                // tool and composes the follow-up body.
+                await for (final _ in runAgentLoop(
+                  messages: <Map<String, dynamic>>[
                     {'role': 'user', 'content': 'hi'},
                   ],
-                  tools: const [
-                    {
-                      'type': 'function',
-                      'function': {
-                        'name': 'lookup',
-                        'description': 'Lookup test data',
-                        'parameters': {
-                          'type': 'object',
-                          'properties': <String, dynamic>{},
+                  sendRound: (msgs) async => ChatApiService.sendMessageStream(
+                    config: _openAiResponsesConfig(baseUrl),
+                    modelId: 'gpt-5.5',
+                    messages: msgs,
+                    tools: const [
+                      {
+                        'type': 'function',
+                        'function': {
+                          'name': 'lookup',
+                          'description': 'Lookup test data',
+                          'parameters': {
+                            'type': 'object',
+                            'properties': <String, dynamic>{},
+                          },
                         },
                       },
-                    },
-                  ],
-                  onToolCall: (_, __, {toolCallId}) async => '{"result":"ok"}',
-                ).toList();
+                    ],
+                  ),
+                  onToolCall: (call) async => '{"result":"ok"}',
+                )) {}
               },
             );
 
@@ -260,30 +266,36 @@ void main() {
       });
 
       final baseUrl = 'http://${server.address.address}:${server.port}/v1';
-      final chunks = await ChatApiService.sendMessageStream(
-        config: _zhipuConfig(baseUrl),
-        modelId: 'glm-5.2',
-        messages: const [
+      // P0-3: drive the kernel; it executes the tool and composes the follow-up
+      // request, whose body must still echo the round's reasoning_content.
+      var sawDone = false;
+      await for (final event in runAgentLoop(
+        messages: <Map<String, dynamic>>[
           {'role': 'user', 'content': '今天几号？'},
         ],
-        tools: const [
-          {
-            'type': 'function',
-            'function': {
-              'name': 'date',
-              'description': 'Get current date',
-              'parameters': {
-                'type': 'object',
-                'properties': <String, dynamic>{},
+        sendRound: (msgs) async => ChatApiService.sendMessageStream(
+          config: _zhipuConfig(baseUrl),
+          modelId: 'glm-5.2',
+          messages: msgs,
+          tools: const [
+            {
+              'type': 'function',
+              'function': {
+                'name': 'date',
+                'description': 'Get current date',
+                'parameters': {
+                  'type': 'object',
+                  'properties': <String, dynamic>{},
+                },
               },
             },
-          },
-        ],
-        thinkingBudget: 1024,
-        onToolCall: (name, args, {toolCallId}) async {
-          return '2026-06-15';
-        },
-      ).toList();
+          ],
+          thinkingBudget: 1024,
+        ),
+        onToolCall: (call) async => '2026-06-15',
+      )) {
+        if (event is AgentStreamEvent && event.chunk.isDone) sawDone = true;
+      }
 
       final secondBody = await secondRequestCompleter.future;
       final messages = (secondBody['messages'] as List)
@@ -294,7 +306,7 @@ void main() {
         (m) => m['role'] == 'assistant' && m['tool_calls'] is List,
       );
 
-      expect(chunks.last.isDone, isTrue);
+      expect(sawDone, isTrue);
       expect(secondBody['thinking'], {'type': 'enabled'});
       expect(secondBody.containsKey('reasoning_effort'), isFalse);
       expect(assistantToolMessage['reasoning_content'], '先获取当前日期');
@@ -306,5 +318,123 @@ void main() {
         },
       ]);
     });
+
+    test(
+      'glm-5.2 tool continuation without [DONE] still echoes reasoning_content',
+      () async {
+        // Regression (P0-3): the no-DONE vendor fallback
+        // (`finish_reason == 'tool_calls'` with no `[DONE]` sentinel) must
+        // attach `assistantExtras`, otherwise the kernel's follow-up drops
+        // reasoning_content and DeepSeek/GLM thinking mode returns HTTP 400.
+        final secondRequestCompleter = Completer<Map<String, dynamic>>();
+        var requestCount = 0;
+
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() async {
+          await server.close(force: true);
+        });
+
+        server.listen((request) async {
+          requestCount += 1;
+          final body =
+              jsonDecode(await utf8.decoder.bind(request).join())
+                  as Map<String, dynamic>;
+          request.response.statusCode = HttpStatus.ok;
+          request.response.headers.contentType = ContentType(
+            'text',
+            'event-stream',
+            charset: 'utf-8',
+          );
+
+          if (requestCount == 1) {
+            // Tool round with finish_reason but NO [DONE].
+            request.response.write(
+              'data: ${jsonEncode({
+                'id': 'cmpl-glm52-tool-nodone',
+                'object': 'chat.completion.chunk',
+                'created': 0,
+                'model': 'glm-5.2',
+                'choices': [
+                  {
+                    'index': 0,
+                    'delta': {
+                      'role': 'assistant',
+                      'reasoning_content': '先获取当前日期',
+                      'tool_calls': [
+                        {
+                          'index': 0,
+                          'id': 'call_date',
+                          'type': 'function',
+                          'function': {'name': 'date', 'arguments': '{}'},
+                        },
+                      ],
+                    },
+                    'finish_reason': 'tool_calls',
+                  },
+                ],
+              })}\n\n',
+            );
+          } else {
+            if (!secondRequestCompleter.isCompleted) {
+              secondRequestCompleter.complete(body);
+            }
+            request.response.write(
+              'data: ${jsonEncode({
+                'id': 'cmpl-glm52-final',
+                'object': 'chat.completion.chunk',
+                'created': 0,
+                'model': 'glm-5.2',
+                'choices': [
+                  {
+                    'index': 0,
+                    'delta': {'role': 'assistant', 'content': '今天是 2026-06-15'},
+                    'finish_reason': 'stop',
+                  },
+                ],
+              })}\n\n',
+            );
+            request.response.write('data: [DONE]\n\n');
+          }
+          await request.response.close();
+        });
+
+        final baseUrl = 'http://${server.address.address}:${server.port}/v1';
+        await for (final _ in runAgentLoop(
+          messages: <Map<String, dynamic>>[
+            {'role': 'user', 'content': '今天几号？'},
+          ],
+          sendRound: (msgs) async => ChatApiService.sendMessageStream(
+            config: _zhipuConfig(baseUrl),
+            modelId: 'glm-5.2',
+            messages: msgs,
+            tools: const [
+              {
+                'type': 'function',
+                'function': {
+                  'name': 'date',
+                  'description': 'Get current date',
+                  'parameters': {
+                    'type': 'object',
+                    'properties': <String, dynamic>{},
+                  },
+                },
+              },
+            ],
+            thinkingBudget: 1024,
+          ),
+          onToolCall: (call) async => '2026-06-15',
+        )) {}
+
+        final secondBody = await secondRequestCompleter.future;
+        final messages = (secondBody['messages'] as List)
+            .cast<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
+        final assistantToolMessage = messages.firstWhere(
+          (m) => m['role'] == 'assistant' && m['tool_calls'] is List,
+        );
+        expect(assistantToolMessage['reasoning_content'], '先获取当前日期');
+      },
+    );
   });
 }

@@ -4,9 +4,9 @@
 // (`lib/core/services/agent/agent_loop.dart`) and the existing transport +
 // UI pipeline:
 //
-//   - `sendRound` is a single-round `ChatApiService.sendMessageStream` call
-//     with `exposeToolCallsOnly: true` — one transport request per kernel
-//     round, tools surfaced but NOT executed by the transport.
+//   - `sendRound` is a single-round `ChatApiService.sendMessageStream` call —
+//     one transport request per kernel round, tools surfaced but NOT executed
+//     by the transport.
 //   - the kernel executes tools via the injected legacy handler
 //     (`(name, args) => String`, the same contract `chat_actions` uses
 //     today) and composes the follow-up messages.
@@ -17,45 +17,26 @@
 //     `emitCalls`) update tool cards exactly as before, and the run's end
 //     becomes a terminal `isDone` chunk.
 //
-// Kill-switch: `SettingsProvider.agentLoopV1` (default `true`). During the
-// strangler migration both paths coexist; the legacy transport loop is
-// removed after one soak release (IMPORT_PLAN_COWORK.md P0-3 後段). Callers
-// that have not been parity-verified against the kernel path (per-provider
-// reasoning-echo / Responses continuation) fall back to the legacy loop via
-// [AgentOrchestrator.supportsKernelPath].
+// P0-3: the `agent_loop_v1` kill-switch has been retired and the legacy
+// transport tool loops are gone — this driver is the only generation path.
+// The transport is now strictly one request per call: it parses the response,
+// surfaces tool calls (with the provider's reasoning-echo extras) and returns.
+// Every provider was parity-verified before the loops were removed (OpenAI
+// chat-completions incl. Responses and the no-DONE fallback, Claude thinking
+// echo and pause_turn/server-tool continuation, Gemini thought signatures, and
+// Neuralwatt on the OpenAI wire).
 
 import 'dart:async';
 import 'dart:convert';
 
-import '../../../core/providers/settings_provider.dart';
-import '../../../core/services/agent/agent_loop.dart';
-import '../../../core/services/api/chat_api_service.dart';
-import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
+import '../../providers/settings_provider.dart';
+import 'agent_loop.dart';
+import '../api/chat_api_service.dart';
 
 /// Loop driver: owns the kernel instance, the transport binding and the tool
 /// execution adapter. Stateless per run — a fresh [run] call drives a fresh
 /// kernel loop.
 class AgentOrchestrator {
-  /// Whether the kernel path is safe for this provider *today*.
-  ///
-  /// Phase-0 parity coverage (P0-2/P0-3): OpenAI chat-completions
-  /// (non-stream + SSE stream + no-DONE vendor fallback), the Responses API
-  /// (`output_item` continuation replay), Claude (non-stream + streaming,
-  /// thinking-block echo) and Gemini (non-stream + streaming,
-  /// thought-signature echo) are byte-verified against the legacy loop
-  /// (`agent_loop_provider_parity_test.dart`).
-  ///
-  /// Still excluded: Neuralwatt (classified as OpenAI-compatible by the
-  /// transport, but its tool-loop shape has not been parity-verified). It
-  /// keeps the legacy transport loop regardless of the `agent_loop_v1`
-  /// kill-switch.
-  static bool supportsKernelPath(ProviderConfig config) {
-    final kind = config.providerType;
-    return kind == ProviderKind.openai ||
-        kind == ProviderKind.claude ||
-        kind == ProviderKind.google;
-  }
-
   /// Drive one agent run and re-emit the kernel's events as the chunk stream
   /// the existing UI / persistence pipeline consumes.
   ///
@@ -82,6 +63,7 @@ class AgentOrchestrator {
     ToolCallHandler? onToolCall,
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
+    bool webFetchEnabled = true,
     required bool streamOutput,
     required String requestId,
     String? sessionId,
@@ -93,6 +75,11 @@ class AgentOrchestrator {
     )?
     sendRound,
   }) async* {
+    assert(
+      onToolCall != null || tools == null || tools.isEmpty,
+      'tools require an onToolCall handler: the kernel would otherwise feed '
+      'empty tool results back to the model.',
+    );
     final toolHandler = onToolCall ?? noopToolHandler;
     final round =
         sendRound ??
@@ -108,6 +95,7 @@ class AgentOrchestrator {
           tools: tools,
           extraHeaders: extraHeaders,
           extraBody: extraBody,
+          webFetchEnabled: webFetchEnabled,
           streamOutput: streamOutput,
           requestId: requestId,
           sessionId: sessionId,
@@ -162,8 +150,8 @@ class AgentOrchestrator {
     }
   }
 
-  /// Single-round transport binding: one `sendMessageStream` call with
-  /// `exposeToolCallsOnly: true` (tools surfaced, never executed here).
+  /// Single-round transport binding: one `sendMessageStream` call (tools
+  /// surfaced, never executed here).
   Future<Stream<ChatStreamChunk>> sendRoundImpl({
     required ProviderConfig config,
     required String modelId,
@@ -176,6 +164,7 @@ class AgentOrchestrator {
     List<Map<String, dynamic>>? tools,
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
+    bool webFetchEnabled = true,
     required bool streamOutput,
     required String requestId,
     String? sessionId,
@@ -191,10 +180,9 @@ class AgentOrchestrator {
       topP: topP,
       maxTokens: maxTokens,
       tools: tools,
-      onToolCall: null, // The kernel executes tools, not the transport.
-      exposeToolCallsOnly: true,
       extraHeaders: extraHeaders,
       extraBody: extraBody,
+      webFetchEnabled: webFetchEnabled,
       stream: streamOutput,
       requestId: requestId,
       sessionId: sessionId,

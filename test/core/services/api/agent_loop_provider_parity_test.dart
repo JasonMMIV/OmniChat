@@ -1,17 +1,15 @@
 // Per-provider follow-up parity for the agent-loop kernel (IMPORT_PLAN_COWORK.md
 // P0-3 後段).
 //
-// The legacy transport loop preserves provider continuation state on its
-// follow-up request:
+// The kernel's follow-up request must preserve provider continuation state:
 //   - Claude: thinking / redacted_thinking blocks (with signatures) must be
 //     echoed when thinking is enabled, or Anthropic rejects the request;
 //   - Gemini 3: the functionCall part must carry its thought signature.
 //
-// In expose mode the transport now attaches that state to the toolCalls chunk
+// The transport is single-round: it attaches that state to the toolCalls chunk
 // via `assistantExtras`, the kernel merges it onto the neutral assistant
-// message, and the per-provider converters re-attach it. These tests run the
-// legacy loop and the kernel on the same scenario and assert the follow-up
-// request bodies are equal round-for-round.
+// message, and the per-provider converters re-attach it. These tests drive
+// `runAgentLoop` and assert the shapes of the follow-up request bodies.
 
 import 'dart:convert';
 import 'dart:io';
@@ -130,42 +128,10 @@ void main() {
     );
 
     test(
-      'kernel follow-up echoes the thinking block like the legacy loop',
+      'kernel follow-up echoes the thinking block',
       () async {
-        // 1. Legacy loop as reference.
-        await ChatApiService.sendMessageStream(
-          config: claudeConfig(),
-          modelId: 'claude-test',
-          messages: const [
-            {'role': 'user', 'content': 'read c.txt'},
-          ],
-          stream: false,
-          requestId: 'legacy-claude',
-          onToolCall: (name, args, {String? toolCallId}) async => 'FILE_BODY_42',
-        ).toList();
-        expect(fix.bodies, hasLength(2));
-        final legacyFollowUp = fix.bodies[1];
-
-        // The legacy follow-up must itself carry the thinking block — guard
-        // against a fixture that accidentally drops it.
-        final legacyAssistant =
-            (legacyFollowUp['messages'] as List).lastWhere(
-                  (m) => m is Map && m['role'] == 'assistant',
-                )
-                as Map<String, dynamic>;
-        expect(
-          legacyAssistant['content'],
-          contains(
-            predicate(
-              (b) =>
-                  b is Map &&
-                  b['type'] == 'thinking' &&
-                  b['signature'] == 'sig_abc123',
-            ),
-          ),
-        );
-
-        // 2. Kernel run on the same scenario.
+        // P0-3: transport is single-round; the kernel echoes the thinking
+        // block on its follow-up assistant message.
         await runAgentLoop(
           messages: const [
             {'role': 'user', 'content': 'read c.txt'},
@@ -176,17 +142,49 @@ void main() {
             messages: msgs,
             stream: false,
             requestId: 'kernel-claude',
-            onToolCall: null,
-            exposeToolCallsOnly: true,
           ),
           onToolCall: (call) async => 'FILE_BODY_42',
         ).toList();
 
-        // bodies: [0]=legacy r1, [1]=legacy follow-up, [2]=kernel r1,
-        // [3]=kernel follow-up.
-        expect(fix.bodies, hasLength(4));
-        expect(fix.bodies[2], fix.bodies[0]);
-        expect(fix.bodies[3]['messages'], legacyFollowUp['messages']);
+        expect(fix.bodies, hasLength(2));
+        final followUp = fix.bodies[1];
+        final messages = (followUp['messages'] as List)
+            .cast<Map>()
+            .map((m) => m.cast<String, dynamic>())
+            .toList();
+
+        // Full golden shape: user turn, assistant (thinking + tool_use),
+        // user tool_result. Any converter drift fails here.
+        expect(messages, hasLength(3));
+        expect(messages[0]['role'], 'user');
+        expect(messages[1]['role'], 'assistant');
+        expect(
+          (messages[1]['content'] as List)
+              .map((b) => (b as Map).cast<String, dynamic>())
+              .toList(),
+          <Map<String, dynamic>>[
+            <String, dynamic>{
+              'type': 'thinking',
+              'thinking': 'let me think about the file',
+              'signature': 'sig_abc123',
+            },
+            <String, dynamic>{
+              'type': 'tool_use',
+              'id': 'toolu_1',
+              'name': 'file_read',
+              'input': <String, dynamic>{'path': 'c.txt'},
+            },
+          ],
+        );
+        expect(messages[2]['role'], 'user');
+        expect(
+          (messages[2]['content'] as List).single,
+          <String, dynamic>{
+            'type': 'tool_result',
+            'tool_use_id': 'toolu_1',
+            'content': 'FILE_BODY_42',
+          },
+        );
       },
     );
   });
@@ -258,31 +256,10 @@ void main() {
     );
 
     test(
-      'kernel follow-up carries the thought signature like the legacy loop',
+      'kernel follow-up carries the thought signature',
       () async {
-        // 1. Legacy loop as reference.
-        await ChatApiService.sendMessageStream(
-          config: googleConfig(),
-          modelId: 'gemini-3-test',
-          messages: const [
-            {'role': 'user', 'content': 'read d.txt'},
-          ],
-          stream: false,
-          requestId: 'legacy-gemini',
-          onToolCall: (name, args, {String? toolCallId}) async => 'FILE_BODY_42',
-        ).toList();
-        expect(fix.bodies, hasLength(2));
-        final legacyFollowUp = fix.bodies[1];
-
-        // The legacy follow-up's model turn must carry the thought signature.
-        final legacyModelTurns = (legacyFollowUp['contents'] as List).where(
-          (m) => m is Map && m['role'] == 'model',
-        );
-        expect(legacyModelTurns, isNotEmpty);
-        final parts = (legacyModelTurns.first as Map)['parts'] as List;
-        expect(parts.first, containsPair('thoughtSignature', 'sig_xyz789'));
-
-        // 2. Kernel run on the same scenario.
+        // P0-3: the transport is single-round; the kernel owns the follow-up
+        // and must re-attach the thought signature to the functionCall part.
         await runAgentLoop(
           messages: const [
             {'role': 'user', 'content': 'read d.txt'},
@@ -293,15 +270,45 @@ void main() {
             messages: msgs,
             stream: false,
             requestId: 'kernel-gemini',
-            onToolCall: null,
-            exposeToolCallsOnly: true,
           ),
           onToolCall: (call) async => 'FILE_BODY_42',
         ).toList();
 
-        expect(fix.bodies, hasLength(4));
-        expect(fix.bodies[2], fix.bodies[0]);
-        expect(fix.bodies[3]['contents'], legacyFollowUp['contents']);
+        expect(fix.bodies, hasLength(2));
+        final followUp = fix.bodies[1];
+        final contents = (followUp['contents'] as List)
+            .cast<Map>()
+            .map((m) => m.cast<String, dynamic>())
+            .toList();
+        final modelIndex = contents.indexWhere((m) => m['role'] == 'model');
+        expect(modelIndex, isNonNegative);
+        // Exact golden: functionCall (with its vendor id) + thought signature.
+        expect(
+          (contents[modelIndex]['parts'] as List).first,
+          <String, dynamic>{
+            'functionCall': <String, dynamic>{
+              'name': 'file_read',
+              'args': <String, dynamic>{'path': 'd.txt'},
+              'id': 'fc_1',
+            },
+            'thoughtSignature': 'sig_xyz789',
+          },
+        );
+        // The tool result is replayed as a functionResponse turn.
+        final functionResponse = contents.lastWhere(
+          (m) => (m['parts'] as List).any(
+            (p) => p is Map && p['functionResponse'] is Map,
+          ),
+        );
+        expect(
+          (functionResponse['parts'] as List).first,
+          <String, dynamic>{
+            'functionResponse': <String, dynamic>{
+              'name': 'file_read',
+              'response': <String, dynamic>{'result': 'FILE_BODY_42'},
+            },
+          },
+        );
       },
     );
   });
@@ -377,37 +384,9 @@ void main() {
     );
 
     test(
-      'kernel follow-up replays the raw output items like the legacy loop',
+      'kernel follow-up replays the raw output items',
       () async {
-        // 1. Legacy loop as reference.
-        await ChatApiService.sendMessageStream(
-          config: responsesConfig(),
-          modelId: 'gpt-test',
-          messages: const [
-            {'role': 'user', 'content': 'read r.txt'},
-          ],
-          stream: true,
-          requestId: 'legacy-responses',
-          onToolCall: (name, args, {String? toolCallId}) async => 'FILE_BODY_42',
-        ).toList();
-        expect(fix.bodies, hasLength(2));
-        final legacyFollowUp = fix.bodies[1];
-
-        // The legacy follow-up input must replay the assistant message item
-        // verbatim — guard against a fixture that accidentally drops it.
-        final legacyInput = legacyFollowUp['input'] as List;
-        expect(
-          legacyInput,
-          contains(predicate((i) => i is Map && i['type'] == 'message')),
-        );
-        expect(
-          legacyInput,
-          contains(
-            predicate((i) => i is Map && i['type'] == 'function_call_output'),
-          ),
-        );
-
-        // 2. Kernel run on the same scenario.
+        // P0-3: the transport is single-round; the kernel owns the follow-up.
         await runAgentLoop(
           messages: const [
             {'role': 'user', 'content': 'read r.txt'},
@@ -418,17 +397,46 @@ void main() {
             messages: msgs,
             stream: true,
             requestId: 'kernel-responses',
-            onToolCall: null,
-            exposeToolCallsOnly: true,
           ),
           onToolCall: (call) async => 'FILE_BODY_42',
         ).toList();
 
-        // bodies: [0]=legacy r1, [1]=legacy follow-up, [2]=kernel r1,
-        // [3]=kernel follow-up.
-        expect(fix.bodies, hasLength(4));
-        expect(fix.bodies[2], fix.bodies[0]);
-        expect(fix.bodies[3]['input'], legacyFollowUp['input']);
+        expect(fix.bodies, hasLength(2));
+        final followUpInput = (fix.bodies[1]['input'] as List)
+            .cast<Map>()
+            .map((i) => i.cast<String, dynamic>())
+            .toList();
+
+        // Golden ordering: user turn → raw assistant `message` item →
+        // replayed `function_call` → tool `function_call_output`.
+        final messageIndex = followUpInput.indexWhere(
+          (i) => i['type'] == 'message',
+        );
+        final callIndex = followUpInput.indexWhere(
+          (i) => i['type'] == 'function_call' && i['call_id'] == 'call_r1',
+        );
+        final outputIndex = followUpInput.indexWhere(
+          (i) => i['type'] == 'function_call_output' && i['call_id'] == 'call_r1',
+        );
+        expect(messageIndex, isNonNegative);
+        expect(callIndex, greaterThan(messageIndex));
+        expect(outputIndex, greaterThan(callIndex));
+
+        // The raw assistant message item is replayed verbatim.
+        final assistantItem = followUpInput[messageIndex];
+        expect(assistantItem['role'], 'assistant');
+        expect(
+          (assistantItem['content'] as List).first,
+          <String, dynamic>{
+            'type': 'output_text',
+            'text': 'let me read r.txt',
+          },
+        );
+        // The tool output carries the kernel's executed result.
+        expect(
+          followUpInput[outputIndex]['output'],
+          'FILE_BODY_42',
+        );
       },
     );
   });

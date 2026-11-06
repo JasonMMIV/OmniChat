@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:OmniChat/core/providers/settings_provider.dart';
+import 'package:OmniChat/core/services/agent/agent_loop.dart';
 import 'package:OmniChat/core/services/api/chat_api_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -119,9 +120,9 @@ void main() {
       'type': 'input_audio',
       'input_audio': {'data': 'AAAA', 'format': 'wav'},
     };
-    await ChatApiService.sendMessageStream(
-      config: _config(fix.baseUrl),
-      modelId: 'gpt-test',
+    // P0-3: the transport is single-round; the agent-loop kernel composes the
+    // follow-up from the neutral messages (native parts included).
+    await for (final _ in runAgentLoop(
       messages: [
         {'role': 'system', 'content': 'sys'},
         {
@@ -133,19 +134,27 @@ void main() {
           },
         },
       ],
-      tools: const [
-        {
-          'type': 'function',
-          'function': {
-            'name': 'file_read',
-            'description': 'read a file',
-            'parameters': {'type': 'object', 'properties': <String, dynamic>{}},
+      sendRound: (msgs) async => ChatApiService.sendMessageStream(
+        config: _config(fix.baseUrl),
+        modelId: 'gpt-test',
+        messages: msgs,
+        tools: const [
+          {
+            'type': 'function',
+            'function': {
+              'name': 'file_read',
+              'description': 'read a file',
+              'parameters': {
+                'type': 'object',
+                'properties': <String, dynamic>{},
+              },
+            },
           },
-        },
-      ],
-      onToolCall: (name, args, {toolCallId}) async => '{"ok":true}',
-      requestId: 'native-followup',
-    ).toList();
+        ],
+        requestId: 'native-followup',
+      ),
+      onToolCall: (call) async => '{"ok":true}',
+    )) {}
 
     expect(fix.bodies, hasLength(2));
     for (final body in fix.bodies) {

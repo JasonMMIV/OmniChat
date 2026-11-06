@@ -1,9 +1,10 @@
-// Per-provider single-round expose tests (IMPORT_PLAN_COWORK.md P0-3).
+// Per-provider single-round transport tests (IMPORT_PLAN_COWORK.md P0-3).
 //
 // Same contract as `send_message_stream_expose_test.dart` but across the
-// Claude and Gemini transports: with `exposeToolCallsOnly: true` each call
-// must be exactly one request, surface tool calls once, and never execute
-// them.
+// Claude and Gemini transports: each call is exactly one request, surfaces
+// tool calls once, and never executes them. Provider-internal continuations
+// that belong to the same turn (Claude `pause_turn` / server tools) are still
+// allowed and covered below.
 
 import 'dart:convert';
 import 'dart:io';
@@ -58,7 +59,89 @@ class _Server {
 }
 
 void main() {
-  group('Claude exposeToolCallsOnly', () {
+  group('Claude pause_turn continuation', () {
+    late _Server fix;
+
+    List<String> _textRound(String text, String stopReason) => [
+      'data: ${jsonEncode({
+        'type': 'content_block_start',
+        'index': 0,
+        'content_block': {'type': 'text', 'text': ''},
+      })}',
+      '',
+      'data: ${jsonEncode({
+        'type': 'content_block_delta',
+        'index': 0,
+        'delta': {'type': 'text_delta', 'text': text},
+      })}',
+      '',
+      'data: ${jsonEncode({'type': 'content_block_stop', 'index': 0})}',
+      '',
+      'data: ${jsonEncode({
+        'type': 'message_delta',
+        'delta': {'stop_reason': stopReason},
+        'usage': {'input_tokens': 5, 'output_tokens': 5},
+      })}',
+      '',
+      'data: ${jsonEncode({'type': 'message_stop'})}',
+      '',
+    ];
+
+    setUp(() async {
+      fix = _Server(
+        pathHint: 'messages',
+        sse: true,
+        responses: [
+          _textRound('Searching...', 'pause_turn'),
+          _textRound('Done.', 'end_turn'),
+        ],
+      );
+      await fix.start();
+    });
+
+    tearDown(() async {
+      await fix.stop();
+    });
+
+    test('one internal continuation, then the turn finishes', () async {
+      final config = ProviderConfig(
+        id: 'claude-test',
+        enabled: true,
+        name: 'claude-test',
+        apiKey: 'test-key',
+        baseUrl: fix.baseUrl,
+        providerType: ProviderKind.claude,
+        models: const ['claude-test'],
+      );
+
+      final chunks = await ChatApiService.sendMessageStream(
+        config: config,
+        modelId: 'claude-test',
+        messages: const [
+          {'role': 'user', 'content': 'search something'},
+        ],
+        stream: true,
+        requestId: 'pause-turn',
+      ).toList();
+
+      // Exactly one internal continuation request — not a client tool loop.
+      expect(fix.bodies, hasLength(2));
+      // The continuation replays the assistant turn produced by round 1.
+      final secondMessages = (fix.bodies[1]['messages'] as List).cast<Map>();
+      final assistant = secondMessages.lastWhere(
+        (m) => m['role'] == 'assistant',
+      );
+      expect((assistant['content'] as List).first, {
+        'type': 'text',
+        'text': 'Searching...',
+      });
+
+      expect(chunks.map((c) => c.content).join(), contains('Done.'));
+      expect(chunks.last.isDone, isTrue);
+    });
+  });
+
+  group('Claude single-round tool surface', () {
     late _Server fix;
 
     setUp(() async {
@@ -104,9 +187,8 @@ void main() {
     );
 
     test(
-      'non-stream tool_use round: one request, surfaced, not executed',
+      'non-stream tool_use round: one request, surfaced, never executed',
       () async {
-        var executed = 0;
         final chunks = await ChatApiService.sendMessageStream(
           config: _claudeConfig(),
           modelId: 'claude-test',
@@ -115,14 +197,8 @@ void main() {
           ],
           stream: false,
           requestId: 'expose-claude-ns',
-          exposeToolCallsOnly: true,
-          onToolCall: (name, args, {String? toolCallId}) async {
-            executed++;
-            return 'BODY';
-          },
         ).toList();
 
-        expect(executed, 0);
         expect(fix.bodies, hasLength(1));
         final callChunks = chunks
             .where((c) => (c.toolCalls ?? const []).isNotEmpty)
@@ -136,7 +212,7 @@ void main() {
     );
   });
 
-  group('Claude streaming exposeToolCallsOnly', () {
+  group('Claude streaming single-round tool surface', () {
     late _Server fix;
 
     setUp(() async {
@@ -193,9 +269,8 @@ void main() {
     );
 
     test(
-      'stream tool_use round: one request, surfaced, not executed',
+      'stream tool_use round: one request, surfaced, never executed',
       () async {
-        var executed = 0;
         final chunks = await ChatApiService.sendMessageStream(
           config: _claudeConfig(),
           modelId: 'claude-test',
@@ -204,14 +279,8 @@ void main() {
           ],
           stream: true,
           requestId: 'expose-claude-st',
-          exposeToolCallsOnly: true,
-          onToolCall: (name, args, {String? toolCallId}) async {
-            executed++;
-            return 'BODY';
-          },
         ).toList();
 
-        expect(executed, 0);
         expect(fix.bodies, hasLength(1));
         final callChunks = chunks
             .where((c) => (c.toolCalls ?? const []).isNotEmpty)
@@ -225,7 +294,7 @@ void main() {
     );
   });
 
-  group('Gemini exposeToolCallsOnly', () {
+  group('Gemini single-round tool surface', () {
     late _Server fix;
 
     setUp(() async {
@@ -278,9 +347,8 @@ void main() {
     );
 
     test(
-      'non-stream functionCall round: one request, surfaced, not executed',
+      'non-stream functionCall round: one request, surfaced, never executed',
       () async {
-        var executed = 0;
         final chunks = await ChatApiService.sendMessageStream(
           config: _googleConfig(),
           modelId: 'gemini-test',
@@ -289,14 +357,8 @@ void main() {
           ],
           stream: false,
           requestId: 'expose-gemini-ns',
-          exposeToolCallsOnly: true,
-          onToolCall: (name, args, {String? toolCallId}) async {
-            executed++;
-            return 'BODY';
-          },
         ).toList();
 
-        expect(executed, 0);
         expect(fix.bodies, hasLength(1));
         final callChunks = chunks
             .where((c) => (c.toolCalls ?? const []).isNotEmpty)
@@ -341,7 +403,6 @@ void main() {
       );
       await fix.start();
 
-      var executed = 0;
       final chunks = await ChatApiService.sendMessageStream(
         config: _googleConfig(),
         modelId: 'gemini-test',
@@ -350,14 +411,8 @@ void main() {
         ],
         stream: true,
         requestId: 'expose-gemini-st',
-        exposeToolCallsOnly: true,
-        onToolCall: (name, args, {String? toolCallId}) async {
-          executed++;
-          return 'BODY';
-        },
       ).toList();
 
-      expect(executed, 0, reason: 'expose mode must never execute tools');
       expect(fix.bodies, hasLength(1), reason: 'no follow-up request allowed');
       final callChunks = chunks
           .where((c) => (c.toolCalls ?? const []).isNotEmpty)
@@ -544,6 +599,155 @@ void main() {
       final wire = jsonEncode(fix.bodies.single);
       expect(wire, contains('functionCall'));
       expect(wire, contains('context_engineering_is_the_way_to_go'));
+    });
+  });
+
+  group('Claude provider-native server tools', () {
+    late _Server fix;
+
+    setUp(() async {
+      fix = _Server(
+        pathHint: 'messages',
+        sse: true,
+        responses: [
+          [
+            'data: ${jsonEncode({
+              'type': 'content_block_start',
+              'index': 0,
+              'content_block': {
+                'type': 'server_tool_use',
+                'id': 'srvtoolu_1',
+                'name': 'web_search',
+              },
+            })}',
+            '',
+            'data: ${jsonEncode({
+              'type': 'content_block_delta',
+              'index': 0,
+              'delta': {
+                'type': 'input_json_delta',
+                'partial_json': '{"query":"x"}',
+              },
+            })}',
+            '',
+            'data: ${jsonEncode({'type': 'content_block_stop', 'index': 0})}',
+            '',
+            'data: ${jsonEncode({
+              'type': 'content_block_start',
+              'index': 1,
+              'content_block': {
+                'type': 'web_search_tool_result',
+                'tool_use_id': 'srvtoolu_1',
+                'content': [
+                  {
+                    'type': 'web_search_result',
+                    'title': 'T',
+                    'url': 'https://example.com',
+                  },
+                ],
+              },
+            })}',
+            '',
+            'data: ${jsonEncode({'type': 'content_block_stop', 'index': 1})}',
+            '',
+            'data: ${jsonEncode({
+              'type': 'message_delta',
+              // Anthropic pauses the turn when a server tool needs to continue.
+              'delta': {'stop_reason': 'pause_turn'},
+              'usage': {'input_tokens': 5, 'output_tokens': 5},
+            })}',
+            '',
+            'data: ${jsonEncode({'type': 'message_stop'})}',
+            '',
+          ],
+          [
+            'data: ${jsonEncode({
+              'type': 'content_block_start',
+              'index': 0,
+              'content_block': {'type': 'text', 'text': ''},
+            })}',
+            '',
+            'data: ${jsonEncode({
+              'type': 'content_block_delta',
+              'index': 0,
+              'delta': {'type': 'text_delta', 'text': 'Done.'},
+            })}',
+            '',
+            'data: ${jsonEncode({'type': 'content_block_stop', 'index': 0})}',
+            '',
+            'data: ${jsonEncode({
+              'type': 'message_delta',
+              'delta': {'stop_reason': 'end_turn'},
+              'usage': {'input_tokens': 5, 'output_tokens': 5},
+            })}',
+            '',
+            'data: ${jsonEncode({'type': 'message_stop'})}',
+            '',
+          ],
+        ],
+      );
+      await fix.start();
+    });
+
+    tearDown(() async {
+      await fix.stop();
+    });
+
+    test('server tool is display-only and never executable by the kernel', () async {
+      final config = ProviderConfig(
+        id: 'claude-test',
+        enabled: true,
+        name: 'claude-test',
+        apiKey: 'test-key',
+        baseUrl: fix.baseUrl,
+        providerType: ProviderKind.claude,
+        models: const ['claude-test'],
+        modelOverrides: const {
+          'claude-test': {
+            'type': 'chat',
+            'input': ['text'],
+            'output': ['text'],
+            'abilities': ['tool'],
+          },
+        },
+      );
+
+      final chunks = await ChatApiService.sendMessageStream(
+        config: config,
+        modelId: 'claude-test',
+        messages: const [
+          {'role': 'user', 'content': 'search it'},
+        ],
+        stream: true,
+        requestId: 'server-tool',
+      ).toList();
+
+      // The transport continued the same turn internally (pause_turn-like
+      // server-tool continuation), so two requests are expected.
+      expect(fix.bodies, hasLength(2));
+
+      final callChunks = chunks
+          .where((c) => (c.toolCalls ?? const []).isNotEmpty)
+          .toList();
+      expect(callChunks, hasLength(1));
+      final call = callChunks.single.toolCalls!.single;
+      expect(call.id, 'srvtoolu_1');
+      expect(call.name, 'search_web');
+      expect(
+        call.execute,
+        isFalse,
+        reason: 'server tools already ran inside the provider turn',
+      );
+
+      // The server result is surfaced for the UI under the same id.
+      final resultChunks = chunks
+          .where((c) => (c.toolResults ?? const []).isNotEmpty)
+          .toList();
+      expect(resultChunks, isNotEmpty);
+      expect(resultChunks.single.toolResults!.single.id, 'srvtoolu_1');
+
+      expect(chunks.map((c) => c.content).join(), contains('Done.'));
+      expect(chunks.last.isDone, isTrue);
     });
   });
 }

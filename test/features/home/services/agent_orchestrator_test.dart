@@ -13,7 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:OmniChat/core/providers/settings_provider.dart';
 import 'package:OmniChat/core/services/agent/agent_loop.dart';
 import 'package:OmniChat/core/services/api/chat_stream_chunk.dart';
-import 'package:OmniChat/features/home/services/agent_orchestrator.dart';
+import 'package:OmniChat/core/services/agent/agent_orchestrator.dart';
 
 ProviderConfig _config({bool responses = false}) => ProviderConfig(
   id: 't',
@@ -203,6 +203,51 @@ void main() {
     },
   );
 
+  test(
+    'a failing follow-up round never re-executes the previous round\'s tool '
+    '(C2 regression)',
+    () async {
+      // P0-3: the transport owns only ONE request per round, so its L1 retry
+      // can never replay a tool side effect. The kernel executes the tool
+      // exactly once; a later round error aborts the run instead of re-running
+      // the tool chain (legacy loop replayed `file_append`/search twice).
+      var executions = 0;
+      var round = 0;
+      final stream = AgentOrchestrator().run(
+        config: _config(),
+        modelId: 'm',
+        requestId: 't-side-effect',
+        streamOutput: true,
+        messages: const [
+          {'role': 'user', 'content': 'append once'},
+        ],
+        onToolCall: (name, args, {String? toolCallId}) async {
+          executions++;
+          return 'OK';
+        },
+        sendRound: (msgs) async {
+          round++;
+          if (round == 1) {
+            return Stream<ChatStreamChunk>.fromIterable(<ChatStreamChunk>[
+              _tools(),
+            ]);
+          }
+          throw Exception('HTTP 503');
+        },
+      );
+
+      Object? error;
+      try {
+        await for (final _ in stream) {}
+      } catch (e) {
+        error = e;
+      }
+      expect(error, isA<Exception>());
+      expect(round, 2, reason: 'the follow-up round was attempted once');
+      expect(executions, 1, reason: 'the tool side effect ran exactly once');
+    },
+  );
+
   test('P1-4: handler receives the provider tool-call id', () async {
     String? seenId;
     await AgentOrchestrator()
@@ -225,39 +270,23 @@ void main() {
     expect(seenId, 'c1');
   });
 
-  test('supportsKernelPath: OpenAI/Claude/Gemini/Responses yes', () {
-    expect(AgentOrchestrator.supportsKernelPath(_config()), isTrue);
-    expect(
-      AgentOrchestrator.supportsKernelPath(_config(responses: true)),
-      isTrue,
+  test('tools without a handler fail fast instead of feeding empty results', () {
+    final stream = AgentOrchestrator().run(
+      config: _config(),
+      modelId: 'm',
+      requestId: 't-assert',
+      streamOutput: true,
+      messages: const [
+        {'role': 'user', 'content': 'hi'},
+      ],
+      tools: const <Map<String, dynamic>>[
+        {
+          'type': 'function',
+          'function': {'name': 'file_read'},
+        },
+      ],
+      sendRound: (msgs) async => const Stream<ChatStreamChunk>.empty(),
     );
-    expect(
-      AgentOrchestrator.supportsKernelPath(
-        ProviderConfig(
-          id: 'c',
-          enabled: true,
-          name: 'c',
-          apiKey: 'k',
-          baseUrl: 'http://127.0.0.1:1',
-          providerType: ProviderKind.claude,
-          models: const ['m'],
-        ),
-      ),
-      isTrue,
-    );
-    expect(
-      AgentOrchestrator.supportsKernelPath(
-        ProviderConfig(
-          id: 'g',
-          enabled: true,
-          name: 'g',
-          apiKey: 'k',
-          baseUrl: 'http://127.0.0.1:1',
-          providerType: ProviderKind.google,
-          models: const ['m'],
-        ),
-      ),
-      isTrue,
-    );
+    expect(stream, emitsError(isA<AssertionError>()));
   });
 }

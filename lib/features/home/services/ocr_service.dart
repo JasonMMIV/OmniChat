@@ -81,7 +81,6 @@ class OcrService {
       topP: null,
       maxTokens: null,
       tools: null,
-      onToolCall: null,
       extraHeaders: null,
       extraBody: null,
       stream: false,

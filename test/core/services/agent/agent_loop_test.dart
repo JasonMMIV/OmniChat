@@ -82,6 +82,53 @@ void main() {
       },
     );
 
+    test(
+      'provider-native server tool calls are surfaced but never executed',
+      () async {
+        // Claude web_search / web_fetch are executed by the provider inside
+        // the same turn (the transport continues it and emits its own
+        // toolResults). The chunk must reach the UI, but the kernel must not
+        // run it again nor append a client tool_result for a server id.
+        final transport = _FakeRoundTransport(<List<ChatStreamChunk>>[
+          <ChatStreamChunk>[
+            _tools(<ToolCallInfo>[
+              ToolCallInfo(
+                id: 'srvtoolu_1',
+                name: 'search_web',
+                arguments: const <String, dynamic>{'query': 'x'},
+                execute: false,
+              ),
+            ]),
+            _text('Search answer'),
+            _done(),
+          ],
+        ]);
+
+        var executions = 0;
+        final events = await runAgentLoop(
+          messages: <Map<String, dynamic>>[
+            <String, dynamic>{'role': 'user', 'content': 'search'},
+          ],
+          sendRound: transport.send,
+          onToolCall: (_) async {
+            executions++;
+            return 'CLIENT_RESULT';
+          },
+        ).toList();
+
+        expect(executions, 0);
+        expect(transport.calls, 1, reason: 'no follow-up round is dispatched');
+        expect(events.whereType<AgentToolExecutedEvent>(), isEmpty);
+        // The chunk still passes through so the UI renders the tool card.
+        final surfaced = events
+            .whereType<AgentStreamEvent>()
+            .where((e) => (e.chunk.toolCalls ?? const []).isNotEmpty)
+            .toList();
+        expect(surfaced, hasLength(1));
+        expect(surfaced.single.chunk.toolCalls!.single.id, 'srvtoolu_1');
+      },
+    );
+
     test('multi-round run executes tools once, appends neutral follow-up '
         'messages and finishes on the text round', () async {
       final transport = _FakeRoundTransport(<List<ChatStreamChunk>>[

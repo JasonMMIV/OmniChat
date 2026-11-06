@@ -16,6 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:OmniChat/core/models/provider_oauth.dart';
+import 'package:OmniChat/core/services/agent/agent_loop.dart';
 import 'package:OmniChat/core/services/api/learned_context_windows.dart';
 import 'package:OmniChat/core/services/api/learned_max_output_caps.dart';
 import 'package:OmniChat/core/providers/settings_provider.dart';
@@ -271,8 +272,14 @@ void main() {
       ]);
       addTearDown(server.close);
 
-      final text = await _drain(
-        ChatApiService.sendMessageStream(
+      // P0-3: the transport is single-round; the agent-loop kernel executes
+      // the tool and composes the follow-up itself.
+      final textBuffer = StringBuffer();
+      await for (final event in runAgentLoop(
+        messages: <Map<String, dynamic>>[
+          <String, dynamic>{'role': 'user', 'content': 'search it'},
+        ],
+        sendRound: (msgs) async => ChatApiService.sendMessageStream(
           config: _codexConfig(
             '${server.localBase}/backend-api/codex',
             overrides: <String, dynamic>{
@@ -282,16 +289,19 @@ void main() {
             },
           ),
           modelId: 'gpt-5.2',
-          messages: <Map<String, dynamic>>[
-            <String, dynamic>{'role': 'user', 'content': 'search it'},
-          ],
+          messages: msgs,
           temperature: 0.3,
           topP: 0.9,
           maxTokens: 500,
-          onToolCall: (name, args, {toolCallId}) async => 'tool result',
           sessionId: 'conv-2',
         ),
-      );
+        onToolCall: (call) async => 'tool result',
+      )) {
+        if (event is AgentStreamEvent && event.chunk.content.isNotEmpty) {
+          textBuffer.write(event.chunk.content);
+        }
+      }
+      final text = textBuffer.toString();
 
       expect(text, 'Result: ok');
       expect(server.requests, hasLength(2));

@@ -302,7 +302,7 @@ Stream<AgentLoopEvent> runAgentLoop({
     final calls = <AgentToolCall>[];
     // Transport-owned provider extras (reasoning echo policy) to merge onto
     // the follow-up assistant message; last non-null chunk wins (the toolCalls
-    // chunk carries the round's accumulated echo fields in expose mode).
+    // chunk carries the round's accumulated echo fields).
     Map<String, dynamic>? roundExtras;
     final round = await sendRound(working);
     await for (final chunk in round) {
@@ -323,6 +323,11 @@ Stream<AgentLoopEvent> runAgentLoop({
       }
       if ((chunk.toolCalls ?? const []).isNotEmpty) {
         for (final tc in chunk.toolCalls!) {
+          // Provider-native server tools (Claude web_search / web_fetch) are
+          // already executed inside the transport's turn; their chunk is for
+          // the UI only. Executing them again would duplicate the call and
+          // append a client tool_result for a server-generated id.
+          if (!tc.execute) continue;
           calls.add(
             AgentToolCall(
               toolCallId: tc.id,

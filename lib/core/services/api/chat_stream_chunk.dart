@@ -54,12 +54,13 @@ class ChatStreamChunk {
   final bool hasUsage;
 
   // --- Agent-loop kernel contract ---
-  // Populated ONLY in expose mode (`exposeToolCallsOnly: true`) by the
-  // transport, which owns the provider-specific reasoning-echo policy
-  // (e.g. DeepSeek-family `reasoning_content`, OpenRouter
-  // `reasoning_details`). The kernel forwards these verbatim onto the
-  // follow-up assistant `tool_calls` message so multi-round tool calling
-  // stays byte-identical to the legacy loop. UI consumers ignore this field.
+  // Populated by the (single-round) transport on its `toolCalls` chunk. The
+  // transport owns the provider-specific reasoning-echo policy (e.g.
+  // DeepSeek-family `reasoning_content`, OpenRouter `reasoning_details`,
+  // Claude thinking blocks, Gemini thought signatures). The kernel forwards
+  // these verbatim onto the follow-up assistant `tool_calls` message so
+  // multi-round tool calling is provider-valid. UI consumers ignore this
+  // field.
   final Map<String, dynamic>? assistantExtras;
 
   // --- P0-5 soft-stop reason ---
@@ -96,7 +97,23 @@ class ToolCallInfo {
   final String id;
   final String name;
   final Map<String, dynamic> arguments;
-  ToolCallInfo({required this.id, required this.name, required this.arguments});
+
+  /// Whether the agent-loop kernel should execute this call.
+  ///
+  /// Defaults to `true` (client tool). The transport sets it to `false` for
+  /// **provider-native server tools** that it already executed inside the
+  /// same turn (Claude `web_search` / `web_fetch`): the chunk still drives
+  /// the UI tool card, but the kernel must not run it again or append a
+  /// client tool_result for a server-generated id (the transport's own
+  /// `toolResults` chunk carries the server result).
+  final bool execute;
+
+  ToolCallInfo({
+    required this.id,
+    required this.name,
+    required this.arguments,
+    this.execute = true,
+  });
 }
 
 /// The completed result of a tool call, surfaced in

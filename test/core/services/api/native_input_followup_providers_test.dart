@@ -1,17 +1,19 @@
 // Native attachment follow-up parity for the non-OpenAI-chat transports.
 //
 // The OpenAI chat body2 path is covered by `native_input_followup_test.dart`.
-// These tests pin the other three continuation strategies:
+// These tests pin the kernel's per-provider follow-up strategies (the
+// transport is single-round since P0-3):
 //   - Responses: the serialized `responsesInitialInput` is replayed verbatim;
-//   - Claude: `convo` starts from the converted `initialMessages` (document
-//     blocks included) and appends tool rounds;
-//   - Gemini: `convo` starts from the converted `contents` (inline_data
-//     included) and appends function rounds.
+//   - Claude: the converted `initialMessages` (document blocks included) are
+//     re-sent and the tool round appended;
+//   - Gemini: the converted `contents` (inline_data included) are re-sent and
+//     the function round appended.
 
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:OmniChat/core/providers/settings_provider.dart';
+import 'package:OmniChat/core/services/agent/agent_loop.dart';
 import 'package:OmniChat/core/services/api/chat_api_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -149,9 +151,8 @@ void main() {
         useResponseApi: true,
         models: const ['gpt-test'],
       );
-      await ChatApiService.sendMessageStream(
-        config: config,
-        modelId: 'gpt-test',
+      // P0-3: transport is single-round; the kernel composes the follow-up.
+      await for (final _ in runAgentLoop(
         messages: [
           _nativeMessage('responses', <String, dynamic>{
             'type': 'input_file',
@@ -159,20 +160,28 @@ void main() {
             'file_data': 'data:application/pdf;base64,AA==',
           }),
         ],
-        stream: true,
-        requestId: 'responses-native',
-        tools: const [
-          {
-            'type': 'function',
-            'function': {
-              'name': 'file_read',
-              'description': 'read',
-              'parameters': {'type': 'object', 'properties': <String, dynamic>{}},
+        sendRound: (msgs) async => ChatApiService.sendMessageStream(
+          config: config,
+          modelId: 'gpt-test',
+          messages: msgs,
+          stream: true,
+          requestId: 'responses-native',
+          tools: const [
+            {
+              'type': 'function',
+              'function': {
+                'name': 'file_read',
+                'description': 'read',
+                'parameters': {
+                  'type': 'object',
+                  'properties': <String, dynamic>{},
+                },
+              },
             },
-          },
-        ],
-        onToolCall: (name, args, {toolCallId}) async => 'ok',
-      ).toList();
+          ],
+        ),
+        onToolCall: (call) async => 'ok',
+      )) {}
 
       expect(fix.bodies, hasLength(2));
       for (final body in fix.bodies) {
@@ -237,9 +246,8 @@ void main() {
         providerType: ProviderKind.claude,
         models: const ['claude-test'],
       );
-      await ChatApiService.sendMessageStream(
-        config: config,
-        modelId: 'claude-test',
+      // P0-3: transport is single-round; the kernel composes the follow-up.
+      await for (final _ in runAgentLoop(
         messages: [
           _nativeMessage('claude', <String, dynamic>{
             'type': 'document',
@@ -251,20 +259,28 @@ void main() {
             },
           }),
         ],
-        stream: false,
-        requestId: 'claude-native',
-        tools: const [
-          {
-            'type': 'function',
-            'function': {
-              'name': 'file_read',
-              'description': 'read',
-              'parameters': {'type': 'object', 'properties': <String, dynamic>{}},
+        sendRound: (msgs) async => ChatApiService.sendMessageStream(
+          config: config,
+          modelId: 'claude-test',
+          messages: msgs,
+          stream: false,
+          requestId: 'claude-native',
+          tools: const [
+            {
+              'type': 'function',
+              'function': {
+                'name': 'file_read',
+                'description': 'read',
+                'parameters': {
+                  'type': 'object',
+                  'properties': <String, dynamic>{},
+                },
+              },
             },
-          },
-        ],
-        onToolCall: (name, args, {toolCallId}) async => 'ok',
-      ).toList();
+          ],
+        ),
+        onToolCall: (call) async => 'ok',
+      )) {}
 
       expect(fix.bodies, hasLength(2));
       for (final body in fix.bodies) {
@@ -346,28 +362,35 @@ void main() {
         providerType: ProviderKind.google,
         models: const ['gemini-test'],
       );
-      await ChatApiService.sendMessageStream(
-        config: config,
-        modelId: 'gemini-test',
+      // P0-3: transport is single-round; the kernel composes the follow-up.
+      await for (final _ in runAgentLoop(
         messages: [
           _nativeMessage('gemini', <String, dynamic>{
             'inline_data': {'mime_type': 'application/pdf', 'data': 'AA=='},
           }),
         ],
-        stream: false,
-        requestId: 'gemini-native',
-        tools: const [
-          {
-            'type': 'function',
-            'function': {
-              'name': 'file_read',
-              'description': 'read',
-              'parameters': {'type': 'object', 'properties': <String, dynamic>{}},
+        sendRound: (msgs) async => ChatApiService.sendMessageStream(
+          config: config,
+          modelId: 'gemini-test',
+          messages: msgs,
+          stream: false,
+          requestId: 'gemini-native',
+          tools: const [
+            {
+              'type': 'function',
+              'function': {
+                'name': 'file_read',
+                'description': 'read',
+                'parameters': {
+                  'type': 'object',
+                  'properties': <String, dynamic>{},
+                },
+              },
             },
-          },
-        ],
-        onToolCall: (name, args, {toolCallId}) async => 'ok',
-      ).toList();
+          ],
+        ),
+        onToolCall: (call) async => 'ok',
+      )) {}
 
       expect(fix.bodies, hasLength(2));
       for (final body in fix.bodies) {
