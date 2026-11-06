@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 
 import '../../../utils/app_directories.dart';
 import '../chat/document_text_extractor.dart';
+import 'edit_matchers.dart';
 import 'markdown_pdf_converter.dart';
 
 class FileToolResult {
@@ -158,13 +159,13 @@ class FileToolService {
       ),
       definition(
         'file_edit',
-        'Replace exact UTF-8 text in one existing workspace file. By default the old text must match exactly once.',
+        'Replace UTF-8 text in one existing workspace file. Matching is exact first; if the exact text is missing, indentation-tolerant line matching is used. By default the old text must match exactly once.',
         {
           'path': pathProperty,
           'old_text': {
             'type': 'string',
             'description':
-                'Exact text to find. This is not a regular expression.',
+                'Text to find, copied verbatim from file_read. This is not a regular expression.',
           },
           'new_text': {
             'type': 'string',
@@ -1111,52 +1112,40 @@ class FileToolService {
 
     final snapshot = await _readMutableFile(file);
     final original = snapshot.content;
-    final occurrences = _countOccurrences(original, oldText);
-    if (occurrences == 0) {
+    final matched = findEditMatches(original, oldText, newText);
+    if (matched.isEmpty) {
       return const FileToolResult(
-        text: 'Error: The old_text was not found; the file was not changed.',
+        text:
+            'Error: The old_text was not found; the file was not changed. '
+            'Re-read the file with file_read and copy the exact text '
+            '(including indentation) into old_text.',
       );
     }
-    if (!replaceAll && occurrences != 1) {
+    final strategy = matched.strategy!;
+    if (!replaceAll && matched.count != 1) {
       return FileToolResult(
         text:
-            'Error: old_text matched $occurrences times. Provide more context or set replace_all=true.',
+            'Error: old_text matched ${matched.count} times '
+            '(matcher: ${strategy.wireName}). Provide more context or set replace_all=true.',
       );
     }
 
-    final estimatedSize =
-        snapshot.bytes.length +
-        (newTextBytes.length - oldTextBytes.length) * occurrences;
-    if (estimatedSize > maxWriteBytes) {
+    final updated = applyEditMatches(
+      original,
+      replaceAll ? matched.matches : <EditMatch>[matched.matches.first],
+    );
+    if (utf8.encode(updated).length > maxWriteBytes) {
       return const FileToolResult(
         text: 'Error: The resulting file would exceed the 512 KB limit.',
       );
     }
-
-    final updated = replaceAll
-        ? original.replaceAll(oldText, newText)
-        : original.replaceRange(
-            original.indexOf(oldText),
-            original.indexOf(oldText) + oldText.length,
-            newText,
-          );
     return await _writeModifiedText(
       path,
       updated,
       action: 'Edited',
       expectedBytes: snapshot.bytes,
+      matchStrategy: strategy.wireName,
     );
-  }
-
-  static int _countOccurrences(String source, String needle) {
-    var count = 0;
-    var start = 0;
-    while (true) {
-      final index = source.indexOf(needle, start);
-      if (index < 0) return count;
-      count++;
-      start = index + needle.length;
-    }
   }
 
   static Future<FileToolResult> _patch(
@@ -1216,6 +1205,7 @@ class FileToolService {
     String content, {
     required String action,
     required List<int> expectedBytes,
+    String? matchStrategy,
   }) async {
     final bytes = utf8.encode(content);
     if (bytes.length > maxWriteBytes) {
@@ -1232,8 +1222,11 @@ class FileToolService {
     }
     await _atomicReplace(file, bytes);
     final size = await file.length();
+    final strategySuffix = matchStrategy == null
+        ? ''
+        : ' [matcher: $matchStrategy]';
     return FileToolResult(
-      text: '$action ${p.basename(path)} ($size bytes).',
+      text: '$action ${p.basename(path)} ($size bytes)$strategySuffix.',
       createdOrModifiedFilePath: path,
       fileName: p.basename(path),
       fileSizeBytes: size,
