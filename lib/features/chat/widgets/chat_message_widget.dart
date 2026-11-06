@@ -3425,10 +3425,15 @@ class _ToolCallItem extends StatelessWidget {
     name = WebFetchTool.canonicalToolName(name);
     switch (name) {
       case 'create_memory':
+      case 'memory_update':
         return Lucide.bookHeart;
+      case 'memory_read':
+        return Lucide.Library;
       case 'edit_memory':
+      case 'memory_edit':
         return Lucide.bookHeart;
       case 'delete_memory':
+      case 'memory_delete':
         return Lucide.bookDashed;
       case 'search_web':
         return Lucide.Earth;
@@ -3453,11 +3458,16 @@ class _ToolCallItem extends StatelessWidget {
     name = WebFetchTool.canonicalToolName(name);
     switch (name) {
       case 'create_memory':
-        return l10n.chatMessageWidgetCreateMemory;
+      case 'memory_update':
+        return l10n.chatMessageWidgetMemoryUpdate;
+      case 'memory_read':
+        return l10n.chatMessageWidgetMemoryRead;
       case 'edit_memory':
-        return l10n.chatMessageWidgetEditMemory;
+      case 'memory_edit':
+        return l10n.chatMessageWidgetMemoryEdit;
       case 'delete_memory':
-        return l10n.chatMessageWidgetDeleteMemory;
+      case 'memory_delete':
+        return l10n.chatMessageWidgetMemoryDelete;
       case 'search_web':
         final q = (args['query'] ?? '').toString();
         return l10n.chatMessageWidgetWebSearch(q);

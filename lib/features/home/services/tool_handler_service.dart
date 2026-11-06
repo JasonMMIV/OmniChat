@@ -22,6 +22,9 @@ import '../../../core/services/web/web_fetch_tool.dart';
 import '../../../core/services/skills/skill_service.dart';
 import '../../../core/models/file_record.dart';
 import '../../../core/models/skill.dart';
+import '../../../core/models/memory_entry.dart';
+import '../../../core/services/memory/memory_tool_handler.dart';
+import '../../../core/services/memory/memory_tools.dart';
 
 /// 工具调用处理服务
 ///
@@ -216,7 +219,11 @@ class ToolHandlerService {
 
     // Memory tools
     if (assistant?.enableMemory == true && supportsTools) {
-      toolDefs.addAll(_buildMemoryToolDefinitions());
+      toolDefs.addAll(
+        _buildMemoryToolDefinitions(
+          allowScopeParameter: allowsMemoryToolScope(assistant),
+        ),
+      );
     }
 
     // P1-3 + tool toggles: the 15 file tools and the write_todos / ask_user
@@ -390,65 +397,18 @@ class ToolHandlerService {
     ];
   }
 
-  /// Build memory tool definitions (create/edit/delete).
-  List<Map<String, dynamic>> _buildMemoryToolDefinitions() {
-    return [
-      {
-        'type': 'function',
-        'function': {
-          'name': 'create_memory',
-          'description': 'create a memory record',
-          'parameters': {
-            'type': 'object',
-            'properties': {
-              'content': {
-                'type': 'string',
-                'description': 'The content of the memory record',
-              },
-            },
-            'required': ['content'],
-          },
-        },
-      },
-      {
-        'type': 'function',
-        'function': {
-          'name': 'edit_memory',
-          'description': 'update a memory record',
-          'parameters': {
-            'type': 'object',
-            'properties': {
-              'id': {
-                'type': 'integer',
-                'description': 'The id of the memory record',
-              },
-              'content': {
-                'type': 'string',
-                'description': 'The content of the memory record',
-              },
-            },
-            'required': ['id', 'content'],
-          },
-        },
-      },
-      {
-        'type': 'function',
-        'function': {
-          'name': 'delete_memory',
-          'description': 'delete a memory record',
-          'parameters': {
-            'type': 'object',
-            'properties': {
-              'id': {
-                'type': 'integer',
-                'description': 'The id of the memory record',
-              },
-            },
-            'required': ['id'],
-          },
-        },
-      },
-    ];
+  /// Build memory tool definitions (memory_read/update/edit/delete).
+  List<Map<String, dynamic>> _buildMemoryToolDefinitions({
+    required bool allowScopeParameter,
+  }) => MemoryTools.definitions(
+    allowScopeParameter: allowScopeParameter,
+  );
+
+  /// The model may pick a scope only under the `toolDefault*` policies.
+  static bool allowsMemoryToolScope(Assistant? assistant) {
+    final scope = assistant?.memoryWriteScope;
+    return scope == MemoryWriteScope.toolDefaultGlobal ||
+        scope == MemoryWriteScope.toolDefaultAssistant;
   }
 
   /// Build MCP tool definitions from connected servers.
@@ -832,7 +792,7 @@ class ToolHandlerService {
         }
 
         // Memory tools
-        final memoryResult = await _handleMemoryToolCall(name, args, assistant);
+        final memoryResult = await handleMemoryToolCall(name, args, assistant);
         if (memoryResult != null) {
           return memoryResult;
         }
@@ -995,41 +955,34 @@ class ToolHandlerService {
     return names;
   }
 
-  /// Handle memory tool calls (create/edit/delete).
+  /// Handle memory tool calls (memory_read/update/edit/delete).
+  ///
+  /// Delegates to [MemoryToolHandler], which owns the JSON contract and the
+  /// argument validation. Legacy `create_memory` / `edit_memory` /
+  /// `delete_memory` names stay resolvable for history replay (M2-4).
   ///
   /// Returns null if the tool is not a memory tool or memory is not enabled.
-  Future<String?> _handleMemoryToolCall(
+  Future<String?> handleMemoryToolCall(
     String name,
     Map<String, dynamic> args,
     Assistant? assistant,
   ) async {
-    if (assistant?.enableMemory != true) return null;
-
+    if (!MemoryToolHandler.handles(name, assistant)) return null;
     try {
-      final mp = contextProvider.read<MemoryProvider>();
-
-      if (name == 'create_memory') {
-        final content = (args['content'] ?? '').toString();
-        if (content.isEmpty) return '';
-        final m = await mp.add(assistantId: assistant!.id, content: content);
-        return m.content;
-      } else if (name == 'edit_memory') {
-        final id = (args['id'] as num?)?.toInt() ?? -1;
-        final content = (args['content'] ?? '').toString();
-        if (id <= 0 || content.isEmpty) return '';
-        final m = await mp.update(id: id, content: content);
-        return m?.content ?? '';
-      } else if (name == 'delete_memory') {
-        final id = (args['id'] as num?)?.toInt() ?? -1;
-        if (id <= 0) return '';
-        final ok = await mp.delete(id: id);
-        return ok ? 'deleted' : '';
-      }
-    } catch (_) {
-      // Ignore memory operation errors
+      final provider = contextProvider.read<MemoryProvider>();
+      return await MemoryToolHandler.handle(name, args, assistant, provider);
+    } catch (e, st) {
+      FlutterLogger.log(
+        'Memory tool "$name" failed: $e\n$st',
+        tag: 'memory-tool',
+      );
+      return jsonEncode(<String, dynamic>{
+        'error': 'tool_error',
+        'code': 'execution_error',
+        'message': e.toString(),
+        'tool': name,
+      });
     }
-
-    return null;
   }
 }
 

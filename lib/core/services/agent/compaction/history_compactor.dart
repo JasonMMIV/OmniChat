@@ -194,13 +194,16 @@ String summarizeToolCall(String toolName, Map<String, dynamic> args) {
       final query = (args['query'] ?? '').toString().trim();
       return query.isNotEmpty ? 'web search for "$query"' : 'web search';
     case 'create_memory':
+    case 'memory_update':
+      return 'updated a memory';
     case 'edit_memory':
+    case 'memory_edit':
+      return 'edited a memory';
     case 'delete_memory':
-      return '${toolName == 'create_memory'
-          ? 'created'
-          : toolName == 'edit_memory'
-              ? 'edited'
-              : 'deleted'} a memory';
+    case 'memory_delete':
+      return 'archived a memory';
+    case 'memory_read':
+      return 'read memories';
     default:
       return 'used tool $toolName';
   }

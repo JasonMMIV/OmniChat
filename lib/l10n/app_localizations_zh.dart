@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -5993,6 +5994,147 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get messageUsageCacheWrite1hTokens => '缓存写入 1h';
+
+  @override
+  String get settingsPageMemory => '记忆';
+
+  @override
+  String get memorySettingsTitle => '记忆';
+
+  @override
+  String get memorySettingsMaxItemsTitle => '每类型注入条数';
+
+  @override
+  String memorySettingsMaxItemsSubtitle(int count) {
+    return '当前上限：$count。超出的条目会让该类型改为摘要模式，模型可用 memory_read 分页查看。';
+  }
+
+  @override
+  String get memorySettingsFullInjectionTitle => '全量注入';
+
+  @override
+  String get memorySettingsFullInjectionSubtitle => '勾选的类型不受每类型条数上限限制。';
+
+  @override
+  String get memorySettingsOrganizeModelTitle => '整理模型';
+
+  @override
+  String get memorySettingsOrganizeModelSubtitle => '仅供手动「整理记忆」使用。';
+
+  @override
+  String memorySettingsMigrated(int count) {
+    return '已导入 $count 条旧版记忆';
+  }
+
+  @override
+  String get memorySettingsCustom => '自定义…';
+
+  @override
+  String get memorySettingsGlobalEntriesTitle => '全局记忆';
+
+  @override
+  String get memorySettingsNotSet => '未设置';
+
+  @override
+  String get memorySettingsReset => '重置';
+
+  @override
+  String get memoryWriteScopeTitle => '写入范围';
+
+  @override
+  String get memoryWriteScopeAlwaysGlobal => '一律全局';
+
+  @override
+  String get memoryWriteScopeAlwaysAssistant => '一律本助手';
+
+  @override
+  String get memoryWriteScopeToolDefaultGlobal => '模型可选（默认全局）';
+
+  @override
+  String get memoryWriteScopeToolDefaultAssistant => '模型可选（默认本助手）';
+
+  @override
+  String get memoryDedupeTitle => '去重模式';
+
+  @override
+  String get memoryDedupeStrict => '严格（完全匹配）';
+
+  @override
+  String get memoryDedupeLlm => '智能（LLM 合并）';
+
+  @override
+  String get memoryOrganizeButton => '整理记忆';
+
+  @override
+  String get memoryOrganizeRunning => '整理中…';
+
+  @override
+  String get memoryOrganizeNoModel => '请先在设置 → 记忆选择整理模型。';
+
+  @override
+  String get memoryOrganizeNoModelShort => '未选模型';
+
+  @override
+  String get memoryOrganizeNoHistory => '此助手尚无对话记录。';
+
+  @override
+  String get memoryOrganizeFailed => '整理记忆失败，请稍后再试。';
+
+  @override
+  String get memoryOrganizeGated => '没有值得长期记录的新内容。';
+
+  @override
+  String memoryOrganizeSummary(int extracted, int merged, int skipped) {
+    return '抽取 $extracted、合并 $merged、跳过 $skipped';
+  }
+
+  @override
+  String get memoryArchivedTitle => '已归档';
+
+  @override
+  String get memoryRestore => '恢复';
+
+  @override
+  String get memoryDeleteForever => '永久删除';
+
+  @override
+  String get memoryEditType => '类型';
+
+  @override
+  String get memoryEditScope => '范围';
+
+  @override
+  String get memoryEditContentHint => '记忆内容';
+
+  @override
+  String get memoryTypeIdentity => '身份';
+
+  @override
+  String get memoryTypeWorkflow => '工作流程';
+
+  @override
+  String get memoryTypeVoice => '语气';
+
+  @override
+  String get memoryTypeInstruction => '指令';
+
+  @override
+  String get memoryScopeGlobal => '全局';
+
+  @override
+  String get memoryScopeAssistant => '助手';
+
+  @override
+  String get chatMessageWidgetMemoryRead => '读取记忆';
+
+  @override
+  String get chatMessageWidgetMemoryUpdate => '更新记忆';
+
+  @override
+  String get chatMessageWidgetMemoryEdit => '编辑记忆';
+
+  @override
+  String get chatMessageWidgetMemoryDelete => '归档记忆';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -11773,6 +11915,147 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get messageUsageCacheWrite1hTokens => '缓存写入 1h';
+
+  @override
+  String get settingsPageMemory => '记忆';
+
+  @override
+  String get memorySettingsTitle => '记忆';
+
+  @override
+  String get memorySettingsMaxItemsTitle => '每类型注入条数';
+
+  @override
+  String memorySettingsMaxItemsSubtitle(int count) {
+    return '当前上限：$count。超出的条目会让该类型改为摘要模式，模型可用 memory_read 分页查看。';
+  }
+
+  @override
+  String get memorySettingsFullInjectionTitle => '全量注入';
+
+  @override
+  String get memorySettingsFullInjectionSubtitle => '勾选的类型不受每类型条数上限限制。';
+
+  @override
+  String get memorySettingsOrganizeModelTitle => '整理模型';
+
+  @override
+  String get memorySettingsOrganizeModelSubtitle => '仅供手动「整理记忆」使用。';
+
+  @override
+  String memorySettingsMigrated(int count) {
+    return '已导入 $count 条旧版记忆';
+  }
+
+  @override
+  String get memorySettingsCustom => '自定义…';
+
+  @override
+  String get memorySettingsGlobalEntriesTitle => '全局记忆';
+
+  @override
+  String get memorySettingsNotSet => '未设置';
+
+  @override
+  String get memorySettingsReset => '重置';
+
+  @override
+  String get memoryWriteScopeTitle => '写入范围';
+
+  @override
+  String get memoryWriteScopeAlwaysGlobal => '一律全局';
+
+  @override
+  String get memoryWriteScopeAlwaysAssistant => '一律本助手';
+
+  @override
+  String get memoryWriteScopeToolDefaultGlobal => '模型可选（默认全局）';
+
+  @override
+  String get memoryWriteScopeToolDefaultAssistant => '模型可选（默认本助手）';
+
+  @override
+  String get memoryDedupeTitle => '去重模式';
+
+  @override
+  String get memoryDedupeStrict => '严格（完全匹配）';
+
+  @override
+  String get memoryDedupeLlm => '智能（LLM 合并）';
+
+  @override
+  String get memoryOrganizeButton => '整理记忆';
+
+  @override
+  String get memoryOrganizeRunning => '整理中…';
+
+  @override
+  String get memoryOrganizeNoModel => '请先在设置 → 记忆选择整理模型。';
+
+  @override
+  String get memoryOrganizeNoModelShort => '未选模型';
+
+  @override
+  String get memoryOrganizeNoHistory => '此助手尚无对话记录。';
+
+  @override
+  String get memoryOrganizeFailed => '整理记忆失败，请稍后再试。';
+
+  @override
+  String get memoryOrganizeGated => '没有值得长期记录的新内容。';
+
+  @override
+  String memoryOrganizeSummary(int extracted, int merged, int skipped) {
+    return '抽取 $extracted、合并 $merged、跳过 $skipped';
+  }
+
+  @override
+  String get memoryArchivedTitle => '已归档';
+
+  @override
+  String get memoryRestore => '恢复';
+
+  @override
+  String get memoryDeleteForever => '永久删除';
+
+  @override
+  String get memoryEditType => '类型';
+
+  @override
+  String get memoryEditScope => '范围';
+
+  @override
+  String get memoryEditContentHint => '记忆内容';
+
+  @override
+  String get memoryTypeIdentity => '身份';
+
+  @override
+  String get memoryTypeWorkflow => '工作流程';
+
+  @override
+  String get memoryTypeVoice => '语气';
+
+  @override
+  String get memoryTypeInstruction => '指令';
+
+  @override
+  String get memoryScopeGlobal => '全局';
+
+  @override
+  String get memoryScopeAssistant => '助手';
+
+  @override
+  String get chatMessageWidgetMemoryRead => '读取记忆';
+
+  @override
+  String get chatMessageWidgetMemoryUpdate => '更新记忆';
+
+  @override
+  String get chatMessageWidgetMemoryEdit => '编辑记忆';
+
+  @override
+  String get chatMessageWidgetMemoryDelete => '归档记忆';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -17653,4 +17936,145 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get messageUsageCacheWrite1hTokens => '快取寫入 1h';
+
+  @override
+  String get settingsPageMemory => '記憶';
+
+  @override
+  String get memorySettingsTitle => '記憶';
+
+  @override
+  String get memorySettingsMaxItemsTitle => '每類型注入條數';
+
+  @override
+  String memorySettingsMaxItemsSubtitle(int count) {
+    return '目前上限：$count。超出的條目會讓該類型改為摘要模式，模型可用 memory_read 分頁查看。';
+  }
+
+  @override
+  String get memorySettingsFullInjectionTitle => '全量注入';
+
+  @override
+  String get memorySettingsFullInjectionSubtitle => '勾選的類型不受每類型條數上限限制。';
+
+  @override
+  String get memorySettingsOrganizeModelTitle => '整理模型';
+
+  @override
+  String get memorySettingsOrganizeModelSubtitle => '僅供手動「整理記憶」使用。';
+
+  @override
+  String memorySettingsMigrated(int count) {
+    return '已匯入 $count 條舊版記憶';
+  }
+
+  @override
+  String get memorySettingsCustom => '自訂…';
+
+  @override
+  String get memorySettingsGlobalEntriesTitle => '全域記憶';
+
+  @override
+  String get memorySettingsNotSet => '未設定';
+
+  @override
+  String get memorySettingsReset => '重設';
+
+  @override
+  String get memoryWriteScopeTitle => '寫入範圍';
+
+  @override
+  String get memoryWriteScopeAlwaysGlobal => '一律全域';
+
+  @override
+  String get memoryWriteScopeAlwaysAssistant => '一律本助理';
+
+  @override
+  String get memoryWriteScopeToolDefaultGlobal => '模型可選（預設全域）';
+
+  @override
+  String get memoryWriteScopeToolDefaultAssistant => '模型可選（預設本助理）';
+
+  @override
+  String get memoryDedupeTitle => '去重模式';
+
+  @override
+  String get memoryDedupeStrict => '嚴格（完全相符）';
+
+  @override
+  String get memoryDedupeLlm => '智慧（LLM 合併）';
+
+  @override
+  String get memoryOrganizeButton => '整理記憶';
+
+  @override
+  String get memoryOrganizeRunning => '整理中…';
+
+  @override
+  String get memoryOrganizeNoModel => '請先在設定 → 記憶選擇整理模型。';
+
+  @override
+  String get memoryOrganizeNoModelShort => '未選模型';
+
+  @override
+  String get memoryOrganizeNoHistory => '此助理尚無對話紀錄。';
+
+  @override
+  String get memoryOrganizeFailed => '整理記憶失敗，請稍後再試。';
+
+  @override
+  String get memoryOrganizeGated => '沒有值得長期記錄的新內容。';
+
+  @override
+  String memoryOrganizeSummary(int extracted, int merged, int skipped) {
+    return '抽取 $extracted、合併 $merged、略過 $skipped';
+  }
+
+  @override
+  String get memoryArchivedTitle => '已封存';
+
+  @override
+  String get memoryRestore => '恢復';
+
+  @override
+  String get memoryDeleteForever => '永久刪除';
+
+  @override
+  String get memoryEditType => '類型';
+
+  @override
+  String get memoryEditScope => '範圍';
+
+  @override
+  String get memoryEditContentHint => '記憶內容';
+
+  @override
+  String get memoryTypeIdentity => '身分';
+
+  @override
+  String get memoryTypeWorkflow => '工作流程';
+
+  @override
+  String get memoryTypeVoice => '語氣';
+
+  @override
+  String get memoryTypeInstruction => '指令';
+
+  @override
+  String get memoryScopeGlobal => '全域';
+
+  @override
+  String get memoryScopeAssistant => '助理';
+
+  @override
+  String get chatMessageWidgetMemoryRead => '讀取記憶';
+
+  @override
+  String get chatMessageWidgetMemoryUpdate => '更新記憶';
+
+  @override
+  String get chatMessageWidgetMemoryEdit => '編輯記憶';
+
+  @override
+  String get chatMessageWidgetMemoryDelete => '封存記憶';
 }

@@ -278,6 +278,7 @@ class ChatTurnService {
     required Assistant? assistant,
     required BuildContext context,
     required String userNickname,
+    String? memoryBlock,
   }) {
     final targetConfig = settings.getProviderConfig(providerKey);
     final includeGeminiThoughtSignatures =
@@ -308,6 +309,20 @@ class ChatTurnService {
         vars,
       );
       apiMessages.insert(0, {'role': 'system', 'content': sys});
+    }
+
+    // Voice path reads memory only (M2-7): no memory tools are registered and
+    // nothing is written from the realtime call flow.
+    if (memoryBlock != null && memoryBlock.trim().isNotEmpty) {
+      if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
+        apiMessages[0]['content'] =
+            '${apiMessages[0]['content'] ?? ''}\n\n${memoryBlock.trim()}';
+      } else {
+        apiMessages.insert(0, {
+          'role': 'system',
+          'content': memoryBlock.trim(),
+        });
+      }
     }
 
     final supportsTools = isToolModel(settings, providerKey, modelId);

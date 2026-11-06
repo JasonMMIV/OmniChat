@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../models/backup.dart';
 import '../services/chat/chat_service.dart';
 import '../services/backup/data_sync.dart';
+import '../services/logging/flutter_logger.dart';
 import '../services/chat/storage/chat_backup_restorer.dart';
 
 class BackupProvider extends ChangeNotifier {
@@ -15,10 +16,15 @@ class BackupProvider extends ChangeNotifier {
   bool _busy = false;
   String? _message;
 
+  /// Called after a successful restore. The memory provider uses this to drop
+  /// its process-local cache so restored entries appear without a restart.
+  final Future<void> Function()? onRestored;
+
   BackupProvider({
     required ChatService chatService,
     WebDavConfig? initialConfig,
     DropboxConfig? initialDropboxConfig,
+    this.onRestored,
   })  : _dataSync = DataSync(chatService: chatService),
         _cfg = initialConfig ?? const WebDavConfig(),
         _dropboxCfg = initialDropboxConfig ?? const DropboxConfig();
@@ -86,6 +92,19 @@ class BackupProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> _notifyRestored() async {
+    final callback = onRestored;
+    if (callback == null) return;
+    try {
+      await callback();
+    } catch (e, st) {
+      FlutterLogger.log(
+        'Backup restore callback failed: $e\n$st',
+        tag: 'backup',
+      );
+    }
+  }
+
   String _restoreMessage(ChatRestoreResult? result) {
     if (result != null && !result.settingsApplied) {
       return result.settingsError ??
@@ -98,6 +117,7 @@ class BackupProvider extends ChangeNotifier {
     _busy = true; _message = null; notifyListeners();
     try {
       final result = await _dataSync.restoreFromWebDav(_cfg, item, mode: mode);
+      if (result != null) await _notifyRestored();
       _message = _restoreMessage(result);
       return result;
     } catch (e) { _message = e.toString(); return null; }
@@ -108,6 +128,7 @@ class BackupProvider extends ChangeNotifier {
     _busy = true; _message = null; notifyListeners();
     try {
       final result = await _dataSync.restoreFromDropbox(cfg, item, mode: mode);
+      if (result != null) await _notifyRestored();
       _message = _restoreMessage(result);
       return result;
     } catch (e) { _message = e.toString(); return null; }
@@ -138,6 +159,7 @@ class BackupProvider extends ChangeNotifier {
     _busy = true; _message = null; notifyListeners();
     try {
       final result = await _dataSync.restoreFromLocalFile(file, _cfg, mode: mode);
+      if (result != null) await _notifyRestored();
       _message = _restoreMessage(result);
       return result;
     } catch (e) { _message = e.toString(); return null; }

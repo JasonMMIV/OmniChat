@@ -13,6 +13,7 @@ import '../../../core/services/agent/compaction/context_trim.dart';
 import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
 import '../../../core/services/api/learned_context_windows.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/chat/chat_turn_service.dart';
 import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/skills/skill_invocations.dart';
 import '../../../core/services/skills/skill_service.dart';
@@ -221,6 +222,12 @@ class MessageGenerationService {
       apiMessages,
       assistant,
       currentConversationId: currentConversation?.id,
+      settings: settings,
+      supportsTools: ChatTurnService.isToolModel(
+        settings,
+        providerKey,
+        modelId,
+      ),
     );
 
     final hasBuiltInSearch = messageBuilderService.hasGeminiBuiltInTools(

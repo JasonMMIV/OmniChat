@@ -248,6 +248,8 @@ class MyApp extends StatelessWidget {
             chatService: ctx.read<ChatService>(),
             initialConfig: ctx.read<SettingsProvider>().webDavConfig,
             initialDropboxConfig: ctx.read<SettingsProvider>().dropboxConfig,
+            // Restored memories must be visible without an app restart.
+            onRestored: () => ctx.read<MemoryProvider>().reload(),
           ),
         ),
       ],

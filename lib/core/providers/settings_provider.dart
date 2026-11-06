@@ -1,11 +1,15 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import 'dart:io';
+
 import 'package:socks5_proxy/socks_client.dart' as socks;
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'dart:async';
 import 'dart:convert';
+
 import '../services/search/search_service.dart';
 import '../services/search/search_dispatch.dart';
 import '../services/web/provider_adapters.dart';
@@ -20,6 +24,8 @@ import '../models/api_keys.dart';
 import '../models/backup.dart';
 import '../models/provider_oauth.dart';
 import '../models/workspace_config.dart';
+import '../models/memory_entry.dart';
+import '../services/memory/memory_block_builder.dart';
 import '../services/haptics.dart';
 import '../services/screen_wakelock.dart';
 import '../../utils/app_directories.dart';
@@ -255,6 +261,16 @@ class SettingsProvider extends ChangeNotifier {
   static const String _newChatCachedAiGreetingKey =
       'new_chat_cached_ai_greeting_v1';
   static const String _ocrEnabledKey = 'ocr_enabled_v1';
+  // Memory subsystem (docs/記憶功能改善實作計畫(已實作).md M2-5 / M3-1). All synced via
+  // backup (not `_localOnlyKeys`).
+  static const String _memoryInjectionMaxItemsKey =
+      'memory_injection_max_items_v1';
+  static const String _memoryFullInjectionTypesKey =
+      'memory_full_injection_types_v1';
+  static const String _memoryOrganizeModelKey = 'memory_organize_model_v1';
+  static const String _memoryOrganizeThinkingEnabledKey =
+      'memory_organize_thinking_enabled_v1';
+  static const String _memoryOrganizeLastRunKey = 'memory_organize_last_run_v2';
   static const String _deepResearchEnabledKey = 'learning_mode_enabled_v1';
   static const String _deepResearchPromptKey = 'learning_mode_prompt_v1';
   static const String _searchServicesKey = 'search_services_v1';
@@ -744,6 +760,37 @@ class SettingsProvider extends ChangeNotifier {
     if (_ocrModelProvider == null || _ocrModelId == null) {
       _ocrEnabled = false;
     }
+    // load memory injection governance
+    _memoryInjectionMaxItems =
+        prefs.getInt(_memoryInjectionMaxItemsKey) ??
+        MemoryBlockBuilder.defaultMaxItemsPerType;
+    _memoryFullInjectionTypes = <MemoryType>{
+      for (final name
+          in prefs.getStringList(_memoryFullInjectionTypesKey) ??
+              const <String>[])
+        if (MemoryType.values.any((t) => t.name == name))
+          MemoryType.values.firstWhere((t) => t.name == name),
+    };
+    // load memory organize model
+    final memorySel = prefs.getString(_memoryOrganizeModelKey);
+    if (memorySel != null && memorySel.contains('::')) {
+      final parts = memorySel.split('::');
+      if (parts.length >= 2) {
+        _memoryOrganizeModelProvider = parts[0];
+        _memoryOrganizeModelId = parts.sublist(1).join('::');
+      }
+    }
+    _memoryOrganizeThinkingEnabled =
+        prefs.getBool(_memoryOrganizeThinkingEnabledKey) ?? true;
+    try {
+      final rawLastRun = prefs.getString(_memoryOrganizeLastRunKey);
+      if (rawLastRun != null && rawLastRun.trim().isNotEmpty) {
+        final decoded = jsonDecode(rawLastRun);
+        if (decoded is Map) {
+          _memoryOrganizeLastRun = decoded.cast<String, dynamic>();
+        }
+      }
+    } catch (_) {}
     // load summary model
     final summarySel = prefs.getString(_summaryModelKey);
     if (summarySel != null && summarySel.contains('::')) {
@@ -2167,6 +2214,12 @@ class SettingsProvider extends ChangeNotifier {
       await prefs.setBool(_ocrEnabledKey, false);
       changed = true;
     }
+    if (_memoryOrganizeModelProvider == providerKey) {
+      _memoryOrganizeModelProvider = null;
+      _memoryOrganizeModelId = null;
+      await prefs.remove(_memoryOrganizeModelKey);
+      changed = true;
+    }
     if (_summaryModelProvider == providerKey) {
       _summaryModelProvider = null;
       _summaryModelId = null;
@@ -2242,6 +2295,13 @@ class SettingsProvider extends ChangeNotifier {
       await prefs.setBool(_ocrEnabledKey, false);
       changed = true;
     }
+    if (_memoryOrganizeModelProvider == providerKey &&
+        _memoryOrganizeModelId == modelId) {
+      _memoryOrganizeModelProvider = null;
+      _memoryOrganizeModelId = null;
+      await prefs.remove(_memoryOrganizeModelKey);
+      changed = true;
+    }
     if (_summaryModelProvider == providerKey && _summaryModelId == modelId) {
       _summaryModelProvider = null;
       _summaryModelId = null;
@@ -2304,6 +2364,14 @@ class SettingsProvider extends ChangeNotifier {
       _compressModelProvider = null;
       _compressModelId = null;
       await prefs.remove(_compressModelKey);
+    }
+    if (_memoryOrganizeModelProvider == key) {
+      _memoryOrganizeModelProvider = null;
+      _memoryOrganizeModelId = null;
+      // The last-run status line would otherwise point at a deleted model.
+      _memoryOrganizeLastRun = <String, dynamic>{};
+      await prefs.remove(_memoryOrganizeModelKey);
+      await prefs.remove(_memoryOrganizeLastRunKey);
     }
 
     // Remove pinned models for this provider
@@ -2423,8 +2491,7 @@ You need to summarize the conversation between user and assistant into a short t
       ? '${_translateModelProvider!}::${_translateModelId!}'
       : null;
 
-  static const String defaultTranslatePrompt =
-      '''You are a translation expert, skilled in translating various languages, and maintaining accuracy, faithfulness, and elegance in translation.
+  static const String defaultTranslatePrompt = '''You are a translation expert, skilled in translating various languages, and maintaining accuracy, faithfulness, and elegance in translation.
 Next, I will send you text. Please translate it into {target_lang}, and return the translation result directly, without adding any explanations or other content.
 
 Please translate the <source_text> section:
@@ -2538,8 +2605,7 @@ Please translate the <source_text> section:
   String? _newChatCustomLogoFileName;
   String? get newChatCustomLogoFileName => _newChatCustomLogoFileName;
 
-  String _newChatTextType =
-      'aiGreeting'; // 'presetGreeting' | 'aiGreeting' | 'modelName' | 'none' | 'custom'
+  String _newChatTextType = 'aiGreeting'; // 'presetGreeting' | 'aiGreeting' | 'modelName' | 'none' | 'custom'
   String get newChatTextType => _newChatTextType;
 
   String _newChatCustomText = '';
@@ -2589,6 +2655,89 @@ Please translate the <source_text> section:
     } else {
       await prefs.setString(_newChatCachedAiGreetingKey, greeting);
     }
+  }
+
+  // Memory injection governance + manual organizer (M2-5 / M3-1)
+  int _memoryInjectionMaxItems = MemoryBlockBuilder.defaultMaxItemsPerType;
+  Set<MemoryType> _memoryFullInjectionTypes = <MemoryType>{};
+  String? _memoryOrganizeModelProvider;
+  String? _memoryOrganizeModelId;
+  bool _memoryOrganizeThinkingEnabled = true;
+  Map<String, dynamic> _memoryOrganizeLastRun = <String, dynamic>{};
+
+  int get memoryInjectionMaxItems => _memoryInjectionMaxItems;
+  Set<MemoryType> get memoryFullInjectionTypes =>
+      Set<MemoryType>.unmodifiable(_memoryFullInjectionTypes);
+  String? get memoryOrganizeModelProvider => _memoryOrganizeModelProvider;
+  String? get memoryOrganizeModelId => _memoryOrganizeModelId;
+  bool get memoryOrganizeThinkingEnabled => _memoryOrganizeThinkingEnabled;
+  String? get memoryOrganizeModelKey =>
+      (_memoryOrganizeModelProvider != null && _memoryOrganizeModelId != null)
+      ? '${_memoryOrganizeModelProvider!}::${_memoryOrganizeModelId!}'
+      : null;
+  Map<String, dynamic> get memoryOrganizeLastRun =>
+      Map<String, dynamic>.unmodifiable(_memoryOrganizeLastRun);
+
+  Future<void> setMemoryInjectionMaxItems(int value) async {
+    final clamped = MemoryBlockBuilder.clampMaxItems(value);
+    if (_memoryInjectionMaxItems == clamped) return;
+    _memoryInjectionMaxItems = clamped;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_memoryInjectionMaxItemsKey, clamped);
+  }
+
+  Future<void> setMemoryFullInjectionTypes(Set<MemoryType> types) async {
+    _memoryFullInjectionTypes = Set<MemoryType>.of(types);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _memoryFullInjectionTypesKey,
+      _memoryFullInjectionTypes.map((t) => t.name).toList(),
+    );
+  }
+
+  Future<void> setMemoryOrganizeModel(
+    String providerKey,
+    String modelId,
+  ) async {
+    _memoryOrganizeModelProvider = providerKey;
+    _memoryOrganizeModelId = modelId;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_memoryOrganizeModelKey, '$providerKey::$modelId');
+  }
+
+  Future<void> resetMemoryOrganizeModel() async {
+    _memoryOrganizeModelProvider = null;
+    _memoryOrganizeModelId = null;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_memoryOrganizeModelKey);
+  }
+
+  Future<void> setMemoryOrganizeThinkingEnabled(bool enabled) async {
+    if (_memoryOrganizeThinkingEnabled == enabled) return;
+    _memoryOrganizeThinkingEnabled = enabled;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_memoryOrganizeThinkingEnabledKey, enabled);
+  }
+
+  Future<void> setMemoryOrganizeLastRun(
+    String assistantId,
+    Map<String, dynamic> result,
+  ) async {
+    _memoryOrganizeLastRun = <String, dynamic>{
+      ..._memoryOrganizeLastRun,
+      assistantId: result,
+    };
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _memoryOrganizeLastRunKey,
+      jsonEncode(_memoryOrganizeLastRun),
+    );
   }
 
   // OCR model, prompt and toggle
@@ -2669,8 +2818,7 @@ Do not interpret or translate—only transcribe and describe what is visually pr
       ? '${_summaryModelProvider!}::${_summaryModelId!}'
       : null;
 
-  static const String defaultSummaryPrompt =
-      '''I will give you user messages from a conversation in the `<messages>` block.
+  static const String defaultSummaryPrompt = '''I will give you user messages from a conversation in the `<messages>` block.
 Generate or update a brief summary of the user's questions and intentions.
 
 1. The summary should be in the same language as the user messages
@@ -2726,8 +2874,7 @@ Generate or update a brief summary of the user's questions and intentions.
       ? '${_compressModelProvider!}::${_compressModelId!}'
       : null;
 
-  static const String defaultCompressPrompt =
-      '''Provide a detailed summary of the following conversation for continuing in a new session.
+  static const String defaultCompressPrompt = '''Provide a detailed summary of the following conversation for continuing in a new session.
 
 The new session will not have access to the original conversation history, so preserve all context needed to continue seamlessly.
 
@@ -2910,8 +3057,7 @@ Synthesize your reasoning and research into a final response. The structure shou
       setDeepResearchPrompt(defaultDeepResearchPrompt);
 
   // Reasoning strength / thinking budget
-  int?
-  _thinkingBudget; // null = not set, use provider defaults; -1 = auto; 0 = off; >0 = budget tokens
+  int? _thinkingBudget; // null = not set, use provider defaults; -1 = auto; 0 = off; >0 = budget tokens
   int? get thinkingBudget => _thinkingBudget;
   Future<void> setThinkingBudget(int? budget) async {
     _thinkingBudget = budget;

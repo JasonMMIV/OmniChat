@@ -11429,6 +11429,276 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cache write 1h'**
   String get messageUsageCacheWrite1hTokens;
+
+  /// No description provided for @settingsPageMemory.
+  ///
+  /// In en, this message translates to:
+  /// **'Memory'**
+  String get settingsPageMemory;
+
+  /// No description provided for @memorySettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Memory'**
+  String get memorySettingsTitle;
+
+  /// No description provided for @memorySettingsMaxItemsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Entries injected per type'**
+  String get memorySettingsMaxItemsTitle;
+
+  /// No description provided for @memorySettingsMaxItemsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Current cap: {count}. Extra entries switch that type to summary mode; the model can page through them with memory_read.'**
+  String memorySettingsMaxItemsSubtitle(int count);
+
+  /// No description provided for @memorySettingsFullInjectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Inject all entries'**
+  String get memorySettingsFullInjectionTitle;
+
+  /// No description provided for @memorySettingsFullInjectionSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected types ignore the per-type cap.'**
+  String get memorySettingsFullInjectionSubtitle;
+
+  /// No description provided for @memorySettingsOrganizeModelTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Organize model'**
+  String get memorySettingsOrganizeModelTitle;
+
+  /// No description provided for @memorySettingsOrganizeModelSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Only used by the manual Organize memory action.'**
+  String get memorySettingsOrganizeModelSubtitle;
+
+  /// No description provided for @memorySettingsMigrated.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported {count} legacy memories'**
+  String memorySettingsMigrated(int count);
+
+  /// No description provided for @memorySettingsCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom…'**
+  String get memorySettingsCustom;
+
+  /// No description provided for @memorySettingsGlobalEntriesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Global memories'**
+  String get memorySettingsGlobalEntriesTitle;
+
+  /// No description provided for @memorySettingsNotSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Not set'**
+  String get memorySettingsNotSet;
+
+  /// No description provided for @memorySettingsReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get memorySettingsReset;
+
+  /// No description provided for @memoryWriteScopeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Write scope'**
+  String get memoryWriteScopeTitle;
+
+  /// No description provided for @memoryWriteScopeAlwaysGlobal.
+  ///
+  /// In en, this message translates to:
+  /// **'Always global'**
+  String get memoryWriteScopeAlwaysGlobal;
+
+  /// No description provided for @memoryWriteScopeAlwaysAssistant.
+  ///
+  /// In en, this message translates to:
+  /// **'Always this assistant'**
+  String get memoryWriteScopeAlwaysAssistant;
+
+  /// No description provided for @memoryWriteScopeToolDefaultGlobal.
+  ///
+  /// In en, this message translates to:
+  /// **'Model chooses (default global)'**
+  String get memoryWriteScopeToolDefaultGlobal;
+
+  /// No description provided for @memoryWriteScopeToolDefaultAssistant.
+  ///
+  /// In en, this message translates to:
+  /// **'Model chooses (default this assistant)'**
+  String get memoryWriteScopeToolDefaultAssistant;
+
+  /// No description provided for @memoryDedupeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Dedupe mode'**
+  String get memoryDedupeTitle;
+
+  /// No description provided for @memoryDedupeStrict.
+  ///
+  /// In en, this message translates to:
+  /// **'Strict (exact match)'**
+  String get memoryDedupeStrict;
+
+  /// No description provided for @memoryDedupeLlm.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart (LLM merge)'**
+  String get memoryDedupeLlm;
+
+  /// No description provided for @memoryOrganizeButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Organize memory'**
+  String get memoryOrganizeButton;
+
+  /// No description provided for @memoryOrganizeRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Organizing…'**
+  String get memoryOrganizeRunning;
+
+  /// No description provided for @memoryOrganizeNoModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Select an organize model in Settings → Memory first.'**
+  String get memoryOrganizeNoModel;
+
+  /// No description provided for @memoryOrganizeNoModelShort.
+  ///
+  /// In en, this message translates to:
+  /// **'No model'**
+  String get memoryOrganizeNoModelShort;
+
+  /// No description provided for @memoryOrganizeNoHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'No conversation history for this assistant yet.'**
+  String get memoryOrganizeNoHistory;
+
+  /// No description provided for @memoryOrganizeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Memory organization failed. Try again later.'**
+  String get memoryOrganizeFailed;
+
+  /// No description provided for @memoryOrganizeGated.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing new worth remembering.'**
+  String get memoryOrganizeGated;
+
+  /// No description provided for @memoryOrganizeSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Extracted {extracted}, merged {merged}, skipped {skipped}'**
+  String memoryOrganizeSummary(int extracted, int merged, int skipped);
+
+  /// No description provided for @memoryArchivedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Archived'**
+  String get memoryArchivedTitle;
+
+  /// No description provided for @memoryRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore'**
+  String get memoryRestore;
+
+  /// No description provided for @memoryDeleteForever.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete permanently'**
+  String get memoryDeleteForever;
+
+  /// No description provided for @memoryEditType.
+  ///
+  /// In en, this message translates to:
+  /// **'Type'**
+  String get memoryEditType;
+
+  /// No description provided for @memoryEditScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Scope'**
+  String get memoryEditScope;
+
+  /// No description provided for @memoryEditContentHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Memory content'**
+  String get memoryEditContentHint;
+
+  /// No description provided for @memoryTypeIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Identity'**
+  String get memoryTypeIdentity;
+
+  /// No description provided for @memoryTypeWorkflow.
+  ///
+  /// In en, this message translates to:
+  /// **'Workflow'**
+  String get memoryTypeWorkflow;
+
+  /// No description provided for @memoryTypeVoice.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice'**
+  String get memoryTypeVoice;
+
+  /// No description provided for @memoryTypeInstruction.
+  ///
+  /// In en, this message translates to:
+  /// **'Instruction'**
+  String get memoryTypeInstruction;
+
+  /// No description provided for @memoryScopeGlobal.
+  ///
+  /// In en, this message translates to:
+  /// **'Global'**
+  String get memoryScopeGlobal;
+
+  /// No description provided for @memoryScopeAssistant.
+  ///
+  /// In en, this message translates to:
+  /// **'Assistant'**
+  String get memoryScopeAssistant;
+
+  /// No description provided for @chatMessageWidgetMemoryRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Read memories'**
+  String get chatMessageWidgetMemoryRead;
+
+  /// No description provided for @chatMessageWidgetMemoryUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Updated memory'**
+  String get chatMessageWidgetMemoryUpdate;
+
+  /// No description provided for @chatMessageWidgetMemoryEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edited memory'**
+  String get chatMessageWidgetMemoryEdit;
+
+  /// No description provided for @chatMessageWidgetMemoryDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Archived memory'**
+  String get chatMessageWidgetMemoryDelete;
 }
 
 class _AppLocalizationsDelegate

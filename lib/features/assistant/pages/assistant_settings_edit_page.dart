@@ -26,6 +26,8 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/memory_provider.dart';
+import '../../../core/models/memory_entry.dart';
+import '../../../core/services/memory/memory_organize_service.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/haptics.dart';
 import '../../../l10n/app_localizations.dart';
@@ -179,158 +181,16 @@ class _MemoryTab extends StatelessWidget {
   const _MemoryTab({required this.assistantId});
   final String assistantId;
 
-  Future<void> _showAddEditSheet(
+  Future<void> _showMemoryEditor(
     BuildContext context, {
-    int? id,
-    String initial = '',
+    MemoryEntry? entry,
+    MemoryScope defaultScope = MemoryScope.assistant,
   }) async {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final controller = TextEditingController(text: initial);
-    // Desktop: custom dialog; Mobile: keep bottom sheet
-    final platform = Theme.of(context).platform;
-    final isDesktop =
-        platform == TargetPlatform.macOS ||
-        platform == TargetPlatform.linux ||
-        platform == TargetPlatform.windows;
-    if (isDesktop) {
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: true,
-        builder: (ctx) {
-          return Dialog(
-            backgroundColor: cs.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            insetPadding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 24,
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(
-                    height: 44,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              l10n.assistantEditMemoryDialogTitle,
-                              style: const TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: MaterialLocalizations.of(
-                              ctx,
-                            ).closeButtonTooltip,
-                            icon: const Icon(Lucide.X, size: 18),
-                            color: cs.onSurface,
-                            onPressed: () => Navigator.of(ctx).maybePop(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        TextField(
-                          controller: controller,
-                          minLines: 3,
-                          maxLines: 8,
-                          decoration: InputDecoration(
-                            hintText: l10n.assistantEditMemoryDialogHint,
-                            filled: true,
-                            fillColor:
-                                Theme.of(ctx).brightness == Brightness.dark
-                                ? Colors.white10
-                                : const Color(0xFFF7F7F9),
-                            border: OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: cs.outlineVariant.withOpacity(0.2),
-                              ),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: cs.primary.withOpacity(0.5),
-                              ),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          autofocus: true,
-                          onSubmitted: (_) async {
-                            final text = controller.text.trim();
-                            if (text.isEmpty) return;
-                            final mp = context.read<MemoryProvider>();
-                            if (id == null) {
-                              await mp.add(
-                                assistantId: assistantId,
-                                content: text,
-                              );
-                            } else {
-                              await mp.update(id: id, content: text);
-                            }
-                            if (context.mounted) Navigator.of(ctx).pop();
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            _IosButton(
-                              label: l10n.assistantEditEmojiDialogCancel,
-                              onTap: () => Navigator.of(ctx).pop(),
-                              filled: false,
-                              neutral: true,
-                              dense: true,
-                            ),
-                            const SizedBox(width: 8),
-                            _IosButton(
-                              label: l10n.assistantEditEmojiDialogSave,
-                              onTap: () async {
-                                final text = controller.text.trim();
-                                if (text.isEmpty) return;
-                                final mp = context.read<MemoryProvider>();
-                                if (id == null) {
-                                  await mp.add(
-                                    assistantId: assistantId,
-                                    content: text,
-                                  );
-                                } else {
-                                  await mp.update(id: id, content: text);
-                                }
-                                if (context.mounted) Navigator.of(ctx).pop();
-                              },
-                              filled: true,
-                              neutral: false,
-                              dense: true,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-      return;
-    }
+    final controller = TextEditingController(text: entry?.content ?? '');
+    var type = entry?.type ?? MemoryType.identity;
+    var scope = entry?.scope ?? defaultScope;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -341,97 +201,385 @@ class _MemoryTab extends StatelessWidget {
       builder: (ctx) {
         final bottom = MediaQuery.of(ctx).viewInsets.bottom;
         return SafeArea(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          child: StatefulBuilder(
+            builder: (ctx, setSheetState) {
+              Widget chipsRow({
+                required String label,
+                required List<Widget> chips,
+              }) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface.withOpacity(0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(spacing: 8, runSpacing: 8, children: chips),
+                ],
+              );
+              Widget choiceChip(String text, bool selected, VoidCallback onTap) =>
+                  ChoiceChip(
+                    label: Text(text, style: const TextStyle(fontSize: 12)),
+                    selected: selected,
+                    onSelected: (_) => onTap(),
+                  );
+              return Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Lucide.Library, size: 18, color: cs.primary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        l10n.assistantEditMemoryDialogTitle,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
+                    Row(
+                      children: [
+                        Icon(Lucide.Library, size: 18, color: cs.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            l10n.assistantEditMemoryDialogTitle,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    chipsRow(
+                      label: l10n.memoryEditType,
+                      chips: [
+                        for (final t in MemoryType.values)
+                          choiceChip(_typeLabel(l10n, t), t == type, () {
+                            setSheetState(() => type = t);
+                          }),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    chipsRow(
+                      label: l10n.memoryEditScope,
+                      chips: [
+                        choiceChip(
+                          l10n.memoryScopeAssistant,
+                          scope == MemoryScope.assistant,
+                          () {
+                            setSheetState(() {
+                              scope = MemoryScope.assistant;
+                            });
+                          },
+                        ),
+                        choiceChip(
+                          l10n.memoryScopeGlobal,
+                          scope == MemoryScope.global,
+                          () {
+                            setSheetState(() => scope = MemoryScope.global);
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: controller,
+                      minLines: 2,
+                      maxLines: 12,
+                      decoration: InputDecoration(
+                        hintText: l10n.memoryEditContentHint,
+                        filled: true,
+                        fillColor: Theme.of(ctx).brightness == Brightness.dark
+                            ? Colors.white10
+                            : const Color(0xFFF7F7F9),
+                        border: OutlineInputBorder(
+                          borderSide: BorderSide(
+                            color: cs.outlineVariant.withOpacity(0.2),
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: BorderSide(
+                            color: cs.primary.withOpacity(0.5),
+                          ),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: controller,
-                  minLines: 1,
-                  maxLines: 16,
-                  decoration: InputDecoration(
-                    hintText: l10n.assistantEditMemoryDialogHint,
-                    filled: true,
-                    fillColor: Theme.of(ctx).brightness == Brightness.dark
-                        ? Colors.white10
-                        : const Color(0xFFF7F7F9),
-                    border: OutlineInputBorder(
-                      borderSide: BorderSide(
-                        color: cs.outlineVariant.withOpacity(0.2),
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(
-                        color: cs.primary.withOpacity(0.5),
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _IosButton(
-                        label: l10n.assistantEditEmojiDialogCancel,
-                        icon: Lucide.X,
-                        onTap: () => Navigator.of(ctx).pop(),
-                        filled: false,
-                        neutral: true,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _IosButton(
-                        label: l10n.assistantEditEmojiDialogSave,
-                        icon: Lucide.Check,
-                        onTap: () async {
-                          final text = controller.text.trim();
-                          if (text.isEmpty) return;
-                          final mp = context.read<MemoryProvider>();
-                          if (id == null) {
-                            await mp.add(
-                              assistantId: assistantId,
-                              content: text,
-                            );
-                          } else {
-                            await mp.update(id: id, content: text);
-                          }
-                          if (context.mounted) Navigator.of(ctx).pop();
-                        },
-                        filled: true,
-                        neutral: false,
-                      ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _IosButton(
+                            label: l10n.assistantEditEmojiDialogCancel,
+                            icon: Lucide.X,
+                            onTap: () => Navigator.of(ctx).pop(),
+                            filled: false,
+                            neutral: true,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _IosButton(
+                            label: l10n.assistantEditEmojiDialogSave,
+                            icon: Lucide.Check,
+                            onTap: () async {
+                              final text = controller.text.trim();
+                              if (text.isEmpty) return;
+                              final mp = context.read<MemoryProvider>();
+                              if (entry == null) {
+                                await mp.add(
+                                  scope: scope,
+                                  assistantId: scope == MemoryScope.assistant
+                                      ? assistantId
+                                      : null,
+                                  type: type,
+                                  content: text,
+                                );
+                              } else {
+                                await mp.updateEntry(
+                                  entry.id,
+                                  content: text,
+                                  type: type,
+                                  scope: scope,
+                                  assistantId: scope == MemoryScope.assistant
+                                      ? assistantId
+                                      : null,
+                                );
+                              }
+                              if (context.mounted) Navigator.of(ctx).pop();
+                            },
+                            filled: true,
+                            neutral: false,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
         );
       },
     );
   }
 
+  Future<void> _showWriteScopePicker(
+    BuildContext context,
+    Assistant assistant,
+  ) async {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final scope in MemoryWriteScope.values)
+              ListTile(
+                title: Text(_writeScopeLabel(l10n, scope)),
+                trailing: assistant.memoryWriteScope == scope
+                    ? Icon(Lucide.Check, size: 18, color: cs.primary)
+                    : null,
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await context.read<AssistantProvider>().updateAssistant(
+                    assistant.copyWith(memoryWriteScope: scope),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showDedupePicker(
+    BuildContext context,
+    Assistant assistant,
+  ) async {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final mode in MemoryDedupeMode.values)
+              ListTile(
+                title: Text(
+                  mode == MemoryDedupeMode.llm
+                      ? l10n.memoryDedupeLlm
+                      : l10n.memoryDedupeStrict,
+                ),
+                trailing: assistant.memoryDedupeMode == mode
+                    ? Icon(Lucide.Check, size: 18, color: cs.primary)
+                    : null,
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await context.read<AssistantProvider>().updateAssistant(
+                    assistant.copyWith(memoryDedupeMode: mode),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _organizeMemory(BuildContext context) async {
+    final settings = context.read<SettingsProvider>();
+    final ap = context.read<AssistantProvider>();
+    final assistant = ap.getById(assistantId);
+    if (assistant == null) return;
+    final result = await MemoryOrganizeService.organize(
+      assistant: assistant,
+      settings: settings,
+      chatService: context.read<ChatService>(),
+      memoryProvider: context.read<MemoryProvider>(),
+    );
+    await settings.setMemoryOrganizeLastRun(
+      assistantId,
+      result.toLastRun(settings.memoryOrganizeModelId ?? ''),
+    );
+    if (!context.mounted) return;
+    final l = AppLocalizations.of(context)!;
+    final message = switch (result.error) {
+      'no_model' => l.memoryOrganizeNoModel,
+      'no_history' => l.memoryOrganizeNoHistory,
+      'busy' => l.memoryOrganizeRunning,
+      null => result.gated
+          ? l.memoryOrganizeGated
+          : l.memoryOrganizeSummary(
+              result.extracted,
+              result.merged,
+              result.skipped,
+            ),
+      _ => l.memoryOrganizeFailed,
+    };
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  /// Compact last-run line: time · model · localized error (if any).
+  String? _lastRunText(
+    AppLocalizations l10n,
+    Map<String, dynamic>? lastRun,
+  ) {
+    if (lastRun == null) return null;
+    final at = DateTime.tryParse((lastRun['at'] ?? '').toString());
+    final model = (lastRun['model'] ?? '').toString().trim();
+    final error = (lastRun['error'] ?? '').toString();
+    final errorText = switch (error) {
+      'no_model' => l10n.memoryOrganizeNoModel,
+      'no_history' => l10n.memoryOrganizeNoHistory,
+      'request_failed' => l10n.memoryOrganizeFailed,
+      'parse_failed' => l10n.memoryOrganizeFailed,
+      _ => '',
+    };
+    final parts = <String>[
+      if (at != null) _formatLocalDateTime(at),
+      if (model.isNotEmpty) model,
+      if (errorText.isNotEmpty) errorText,
+    ];
+    return parts.isEmpty ? null : parts.join(' · ');
+  }
+
+  String _formatLocalDateTime(DateTime value) {
+    final local = value.toLocal();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${local.year}-${two(local.month)}-${two(local.day)} '
+        '${two(local.hour)}:${two(local.minute)}';
+  }
+
+  String _typeLabel(AppLocalizations l10n, MemoryType type) => switch (type) {
+    MemoryType.identity => l10n.memoryTypeIdentity,
+    MemoryType.workflow => l10n.memoryTypeWorkflow,
+    MemoryType.voice => l10n.memoryTypeVoice,
+    MemoryType.instruction => l10n.memoryTypeInstruction,
+  };
+
+  String _writeScopeLabel(AppLocalizations l10n, MemoryWriteScope scope) =>
+      switch (scope) {
+        MemoryWriteScope.alwaysGlobal => l10n.memoryWriteScopeAlwaysGlobal,
+        MemoryWriteScope.alwaysAssistant =>
+          l10n.memoryWriteScopeAlwaysAssistant,
+        MemoryWriteScope.toolDefaultGlobal =>
+          l10n.memoryWriteScopeToolDefaultGlobal,
+        MemoryWriteScope.toolDefaultAssistant =>
+          l10n.memoryWriteScopeToolDefaultAssistant,
+      };
+
+  Widget _memoryValueRow(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required String value,
+    VoidCallback? onTap,
+    Widget? below,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    final enabled = onTap != null;
+    final row = _TactileRow(
+      onTap: onTap,
+      pressedScale: 0.99,
+      builder: (pressed) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: !enabled
+                  ? cs.onSurface.withOpacity(0.3)
+                  : pressed
+                  ? cs.primary.withOpacity(0.8)
+                  : cs.primary,
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(label, style: const TextStyle(fontSize: 14))),
+            const SizedBox(width: 8),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 12.5,
+                color: cs.onSurface.withOpacity(enabled ? 0.6 : 0.35),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Lucide.ChevronRight,
+              size: 16,
+              color: cs.onSurface.withOpacity(enabled ? 0.35 : 0.15),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (below == null) return row;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        row,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(42, 0, 14, 12),
+          child: below,
+        ),
+      ],
+    );
+  }
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -440,13 +588,21 @@ class _MemoryTab extends StatelessWidget {
     final ap = context.watch<AssistantProvider>();
     final a = ap.getById(assistantId)!;
     final mp = context.watch<MemoryProvider>();
+    final settings = context.watch<SettingsProvider>();
     // Ensure provider loads persisted memories once
     try {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         mp.initialize();
       });
     } catch (_) {}
-    final memories = mp.getForAssistant(assistantId);
+    final memories = mp.forAssistant(assistantId, includeArchived: false);
+    final archivedMemories = mp
+        .forAssistant(assistantId, includeArchived: true)
+        .where((m) => m.isArchived)
+        .toList();
+    final lastRun =
+        settings.memoryOrganizeLastRun[assistantId] as Map<String, dynamic>?;
+    final lastRunText = _lastRunText(l10n, lastRun);
 
     // Align the section card visuals with the basic settings page iOS-style list cards
     Widget sectionCard({
@@ -503,6 +659,66 @@ class _MemoryTab extends StatelessWidget {
           ),
         ),
 
+        if (a.enableMemory)
+          sectionCard(
+            child: Column(
+              children: [
+                _memoryValueRow(
+                  context,
+                  icon: Lucide.Globe,
+                  label: l10n.memoryWriteScopeTitle,
+                  value: _writeScopeLabel(l10n, a.memoryWriteScope),
+                  onTap: () => _showWriteScopePicker(context, a),
+                ),
+                _iosDivider(context),
+                _memoryValueRow(
+                  context,
+                  icon: Lucide.Library,
+                  label: l10n.memoryDedupeTitle,
+                  value: a.memoryDedupeMode == MemoryDedupeMode.llm
+                      ? l10n.memoryDedupeLlm
+                      : l10n.memoryDedupeStrict,
+                  onTap: () => _showDedupePicker(context, a),
+                ),
+                _iosDivider(context),
+                ValueListenableBuilder<bool>(
+                  valueListenable: MemoryOrganizeService.running,
+                  builder: (context, running, _) {
+                    final hasModel = settings.memoryOrganizeModelId != null;
+                    return _memoryValueRow(
+                      context,
+                      icon: Lucide.WandSparkles,
+                      label: running
+                          ? l10n.memoryOrganizeRunning
+                          : l10n.memoryOrganizeButton,
+                      value: !hasModel
+                          ? l10n.memoryOrganizeNoModelShort
+                          : lastRun == null
+                          ? '—'
+                          : l10n.memoryOrganizeSummary(
+                              lastRun['extracted'] as int? ?? 0,
+                              lastRun['merged'] as int? ?? 0,
+                              lastRun['skipped'] as int? ?? 0,
+                            ),
+                      onTap: !hasModel || running
+                          ? null
+                          : () => _organizeMemory(context),
+                      below: lastRunText == null
+                          ? null
+                          : Text(
+                              lastRunText,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: cs.onSurface.withOpacity(0.55),
+                              ),
+                            ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+
         // Manage memories header with add button
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -518,7 +734,7 @@ class _MemoryTab extends StatelessWidget {
                 ),
               ),
               _TactileRow(
-                onTap: () => _showAddEditSheet(context),
+                onTap: () => _showMemoryEditor(context),
                 pressedScale: 0.97,
                 builder: (pressed) {
                   final color = pressed
@@ -556,13 +772,15 @@ class _MemoryTab extends StatelessWidget {
             ),
           ),
 
-        // Memory list
+        // Active memories
         ...memories.map((m) {
           return Padding(
             padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
             child: Container(
               decoration: BoxDecoration(
-                color: isDark ? Colors.white10 : Colors.white.withOpacity(0.96),
+                color: isDark
+                    ? Colors.white10
+                    : Colors.white.withOpacity(0.96),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: cs.outlineVariant.withOpacity(isDark ? 0.08 : 0.06),
@@ -571,36 +789,83 @@ class _MemoryTab extends StatelessWidget {
               ),
               child: Padding(
                 padding: const EdgeInsets.all(12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        m.content,
-                        maxLines: 5,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 14),
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: cs.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            _typeLabel(l10n, m.type),
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              color: cs.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          m.scope == MemoryScope.global
+                              ? l10n.memoryScopeGlobal
+                              : l10n.memoryScopeAssistant,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            color: cs.onSurface.withOpacity(0.55),
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          m.updatedAt.microsecondsSinceEpoch <= 0
+                              ? ''
+                              : '${m.updatedAt.toLocal().year.toString().padLeft(4, '0')}-'
+                                    '${m.updatedAt.toLocal().month.toString().padLeft(2, '0')}-'
+                                    '${m.updatedAt.toLocal().day.toString().padLeft(2, '0')}',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            color: cs.onSurface.withOpacity(0.45),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 6),
-                    _TactileIconButton(
-                      icon: Lucide.Pencil,
-                      size: 18,
-                      color: cs.primary,
-                      onTap: () => _showAddEditSheet(
-                        context,
-                        id: m.id,
-                        initial: m.content,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    _TactileIconButton(
-                      icon: Lucide.Trash2,
-                      size: 18,
-                      color: cs.error,
-                      onTap: () async {
-                        await context.read<MemoryProvider>().delete(id: m.id);
-                      },
+                    const SizedBox(height: 6),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            m.content,
+                            maxLines: 5,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        _TactileIconButton(
+                          icon: Lucide.Pencil,
+                          size: 18,
+                          color: cs.primary,
+                          onTap: () =>
+                              _showMemoryEditor(context, entry: m),
+                        ),
+                        const SizedBox(width: 6),
+                        _TactileIconButton(
+                          icon: Lucide.Box,
+                          size: 18,
+                          color: cs.onSurface.withOpacity(0.55),
+                          onTap: () async {
+                            await context.read<MemoryProvider>().archive(m.id);
+                          },
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -608,6 +873,82 @@ class _MemoryTab extends StatelessWidget {
             ),
           );
         }),
+
+        if (archivedMemories.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 4),
+            child: Text(
+              l10n.memoryArchivedTitle,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          ...archivedMemories.map((m) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white10
+                      : Colors.white.withOpacity(0.96),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: cs.outlineVariant.withOpacity(
+                      isDark ? 0.08 : 0.06,
+                    ),
+                    width: 0.6,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        m.content,
+                        maxLines: 4,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: cs.onSurface.withOpacity(0.6),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          TextButton.icon(
+                            onPressed: () async {
+                              await context
+                                  .read<MemoryProvider>()
+                                  .restore(m.id);
+                            },
+                            icon: const Icon(Lucide.RotateCcw, size: 16),
+                            label: Text(l10n.memoryRestore),
+                          ),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: () async {
+                              await context
+                                  .read<MemoryProvider>()
+                                  .deletePermanently(m.id);
+                            },
+                            icon: const Icon(Lucide.Trash2, size: 16),
+                            label: Text(l10n.memoryDeleteForever),
+                            style: TextButton.styleFrom(
+                              foregroundColor: cs.error,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
 
         // Summaries section
         Padding(

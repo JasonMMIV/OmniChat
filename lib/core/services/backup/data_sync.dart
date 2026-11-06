@@ -16,6 +16,7 @@ import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
 import '../../models/file_record.dart';
 import '../../models/workspace_config.dart';
+import '../memory_store.dart';
 import '../chat/chat_service.dart';
 import '../chat/storage/chat_backup_restorer.dart';
 import '../logging/flutter_logger.dart';
@@ -911,6 +912,7 @@ class DataSync {
             'assistant_tags_v1', // Ordered tag list [{id,name}]
             'assistant_tag_map_v1', // assistantId -> tagId
             'assistant_tag_collapsed_v1', // tagId -> bool
+            'memory_entries_v2', // typed long-term memory entries
           };
 
           for (final entry in map.entries) {
@@ -1036,6 +1038,18 @@ class DataSync {
                 } catch (e) {
                   // If merge fails, keep existing
                 }
+              } else if (key == 'memory_entries_v2') {
+                // Merge by (scope, assistantId, normalized content); on a
+                // conflict the newer updatedAt wins (M2-6).
+                try {
+                  final merged = MemoryStore.mergePayloads(
+                    existing[key] as String?,
+                    newValue as String?,
+                  );
+                  await prefs.restoreSingle(key, merged);
+                } catch (_) {
+                  // If merge fails, keep existing
+                }
               } else if (key == 'assistant_tags_v1') {
                 // Merge tag list by id; keep existing order, append new tags at end (incoming order)
                 try {
@@ -1126,6 +1140,8 @@ class DataSync {
       } catch (error) {
         throw Exception('Settings restore failed: $error');
       }
+      // The in-memory memory cache must not survive a restore.
+      await MemoryStore.invalidateCache();
     }
 
     // Restore chats

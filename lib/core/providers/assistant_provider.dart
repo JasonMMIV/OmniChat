@@ -5,6 +5,7 @@ import 'dart:io';
 import '../../utils/sandbox_path_resolver.dart';
 import '../models/assistant.dart';
 import '../models/assistant_regex.dart';
+import '../services/memory_store.dart';
 import '../models/preset_message.dart';
 import '../../l10n/app_localizations.dart';
 import '../../utils/avatar_cache.dart';
@@ -406,6 +407,11 @@ class AssistantProvider extends ChangeNotifier {
       _currentAssistantId = _assistants.isNotEmpty ? _assistants.first.id : null;
     }
     await _persist();
+    // Hygiene (M2-6): drop the deleted assistant's scoped memories, archived
+    // ones included, so they cannot linger as orphans.
+    try {
+      await MemoryStore.deleteOrphanAssistantMemories(id);
+    } catch (_) {}
     final prefs = await SharedPreferences.getInstance();
     if (_currentAssistantId != null) {
       await prefs.setString(_currentAssistantKey, _currentAssistantId!);

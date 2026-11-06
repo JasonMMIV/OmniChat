@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'preset_message.dart';
 import 'assistant_regex.dart';
 import 'workspace_config.dart';
+import 'memory_entry.dart';
 
 class Assistant {
   final String id;
@@ -32,6 +33,10 @@ class Assistant {
   // Memory features
   final bool enableMemory; // assistant memory feature switch
   final bool enableRecentChatsReference; // include recent chat titles in prompt
+  final MemoryWriteScope
+  memoryWriteScope; // how tool writes choose global vs assistant scope
+  final MemoryDedupeMode
+  memoryDedupeMode; // dedupe strategy for the manual organizer
   // Preset conversation messages (ordered)
   final List<PresetMessage> presetMessages;
   // Regex replacement rules (per assistant)
@@ -61,6 +66,8 @@ class Assistant {
     this.customBody = const <Map<String, String>>[],
     this.enableMemory = false,
     this.enableRecentChatsReference = false,
+    this.memoryWriteScope = MemoryWriteScope.toolDefaultAssistant,
+    this.memoryDedupeMode = MemoryDedupeMode.llm,
     this.presetMessages = const <PresetMessage>[],
     this.regexRules = const <AssistantRegex>[],
   });
@@ -89,6 +96,8 @@ class Assistant {
     List<Map<String, String>>? customBody,
     bool? enableMemory,
     bool? enableRecentChatsReference,
+    MemoryWriteScope? memoryWriteScope,
+    MemoryDedupeMode? memoryDedupeMode,
     List<PresetMessage>? presetMessages,
     List<AssistantRegex>? regexRules,
     bool clearChatModel = false,
@@ -125,6 +134,8 @@ class Assistant {
       enableMemory: enableMemory ?? this.enableMemory,
       enableRecentChatsReference:
           enableRecentChatsReference ?? this.enableRecentChatsReference,
+      memoryWriteScope: memoryWriteScope ?? this.memoryWriteScope,
+      memoryDedupeMode: memoryDedupeMode ?? this.memoryDedupeMode,
       presetMessages: presetMessages ?? this.presetMessages,
       regexRules: regexRules ?? this.regexRules,
     );
@@ -154,6 +165,8 @@ class Assistant {
     'customBody': customBody,
     'enableMemory': enableMemory,
     'enableRecentChatsReference': enableRecentChatsReference,
+    'memoryWriteScope': memoryWriteScope.name,
+    'memoryDedupeMode': memoryDedupeMode.name,
     'presetMessages': PresetMessage.encodeList(presetMessages),
     'regexRules': AssistantRegex.encodeList(regexRules),
   };
@@ -216,6 +229,16 @@ class Assistant {
     enableMemory: json['enableMemory'] as bool? ?? false,
     enableRecentChatsReference:
         json['enableRecentChatsReference'] as bool? ?? false,
+    memoryWriteScope: _enumByName(
+      MemoryWriteScope.values,
+      json['memoryWriteScope'],
+      MemoryWriteScope.toolDefaultAssistant,
+    ),
+    memoryDedupeMode: _enumByName(
+      MemoryDedupeMode.values,
+      json['memoryDedupeMode'],
+      MemoryDedupeMode.llm,
+    ),
     presetMessages: (() {
       try {
         return PresetMessage.decodeList(json['presetMessages']);
@@ -231,6 +254,14 @@ class Assistant {
       }
     })(),
   );
+
+  static T _enumByName<T extends Enum>(List<T> values, Object? raw, T fallback) {
+    final name = (raw ?? '').toString().trim().toLowerCase();
+    for (final v in values) {
+      if (v.name.toLowerCase() == name) return v;
+    }
+    return fallback;
+  }
 
   static String encodeList(List<Assistant> list) =>
       jsonEncode(list.map((e) => e.toJson()).toList());

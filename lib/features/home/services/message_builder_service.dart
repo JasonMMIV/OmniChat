@@ -15,6 +15,9 @@ import '../../../core/services/chat/prompt_transformer.dart';
 import '../../../core/services/chat/tool_replay.dart';
 import '../../../core/services/instruction_injection_store.dart';
 import '../../../core/services/search/search_tool_service.dart';
+import '../../../core/models/memory_entry.dart';
+import '../../../core/services/memory/memory_block_builder.dart';
+import '../../../core/services/logging/flutter_logger.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/services/api/builtin_tools.dart';
 import '../../../core/services/agent/compaction/history_compactor.dart';
@@ -527,55 +530,55 @@ file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPT
     }
   }
 
-  /// Inject memory prompts and recent chats reference into apiMessages.
+  /// Inject the long-term memory block and the recent-chats reference into
+  /// apiMessages.
+  ///
+  /// Deterministic block assembly (M2-3): the injected text only changes when
+  /// a memory changes, never per turn. Tool instructions are only appended
+  /// when the target model supports tools (M1-3) — the memory body itself is
+  /// still injected as reference data.
   Future<void> injectMemoryAndRecentChats(
     List<Map<String, dynamic>> apiMessages,
     Assistant? assistant, {
     String? currentConversationId,
+    SettingsProvider? settings,
+    bool supportsTools = false,
   }) async {
-    try {
-      if (assistant?.enableMemory == true) {
+    if (assistant?.enableMemory == true) {
+      try {
         final mp = contextProvider.read<MemoryProvider>();
-        final mems = mp.getForAssistant(assistant!.id);
-        final buf = StringBuffer();
-        buf.writeln('## Memories');
-        buf.writeln(
-          'These are memories that you can reference in the future conversations.',
-        );
-        buf.writeln('<memories>');
-        for (final m in mems) {
-          buf.writeln('<record>');
-          buf.writeln('<id>${m.id}</id>');
-          buf.writeln('<content>${m.content}</content>');
-          buf.writeln('</record>');
+        // P0-1: a cold start that goes straight to chat must still inject
+        // persisted memories. initialize() is single-flight and cached.
+        await mp.initialize();
+        SettingsProvider? effectiveSettings = settings;
+        if (effectiveSettings == null) {
+          try {
+            effectiveSettings = contextProvider.read<SettingsProvider>();
+          } catch (_) {}
         }
-        buf.writeln('</memories>');
-        buf.writeln('''
-## Memory Tool
-你是一个无状态的大模型，你无法存储记忆，因此为了记住信息，你需要使用**记忆工具**。
-你可以使用 `create_memory`, `edit_memory`, `delete_memory` 工具创建、更新或删除记忆。
-- 如果记忆中没有相关信息，请使用 create_memory 创建一条新的记录。
-- 如果已有相关记录，请使用 edit_memory 更新内容。
-- 若记忆过时或无用，请使用 delete_memory 删除。
-这些记忆会自动包含在未来的对话上下文中，在<memories>标签内。
-请勿在记忆中存储敏感信息，敏感信息包括：用户的民族、宗教信仰、性取向、政治观点及党派归属、性生活、犯罪记录等。
-在与用户聊天过程中，你可以像一个私人秘书一样**主动的**记录用户相关的信息到记忆里，包括但不限于：
-- 用户昵称/姓名
-- 年龄/性别/兴趣爱好
-- 计划事项等
-- 聊天风格偏好
-- 工作相关
-- 首次聊天时间
-- ...
-请主动调用工具记录，而不是需要用户要求。
-记忆如果包含日期信息，请包含在内，请使用绝对时间格式，并且当前时间是 ${DateTime.now().toIso8601String()}。
-无需告知用户你已更改记忆记录，也不要在对话中直接显示记忆内容，除非用户主动要求。
-相似或相关的记忆应合并为一条记录，而不要重复记录，过时记录应删除。
-你可以在和用户闲聊的时候暗示用户你能记住东西。
-''');
-        appendToSystemMessage(apiMessages, buf.toString());
+        final block = MemoryBlockBuilder.build(
+          entries: mp.visibleFor(assistant!.id),
+          maxItemsPerType: effectiveSettings?.memoryInjectionMaxItems ??
+              MemoryBlockBuilder.defaultMaxItemsPerType,
+          fullInjectionTypes:
+              effectiveSettings?.memoryFullInjectionTypes ??
+              const <MemoryType>{},
+          // Fail-closed: callers must opt in explicitly; a forgotten argument
+          // must never advertise tools to a non-tool model.
+          includeToolInstructions: supportsTools,
+        );
+        if (block.isNotEmpty) {
+          appendToSystemMessage(apiMessages, block);
+        }
+      } catch (e, st) {
+        FlutterLogger.log(
+          'Memory injection failed: $e\n$st',
+          tag: 'memory-injection',
+        );
       }
-      if (assistant?.enableRecentChatsReference == true) {
+    }
+    if (assistant?.enableRecentChatsReference == true) {
+      try {
         final chats = chatService.getAllConversations();
         final relevantChats = chats
             .where(
@@ -606,8 +609,13 @@ file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPT
           sb.writeln('</recent_chats>');
           appendToSystemMessage(apiMessages, sb.toString());
         }
+      } catch (e, st) {
+        FlutterLogger.log(
+          'Recent chats injection failed: $e\n$st',
+          tag: 'memory-injection',
+        );
       }
-    } catch (_) {}
+    }
   }
 
   /// Inject search tool usage prompt into apiMessages.

@@ -16,6 +16,7 @@ import '../../../shared/animations/widgets.dart';
 import '../../../core/services/haptics.dart';
 import '../../../core/models/backup.dart';
 import '../../../core/providers/backup_provider.dart';
+import '../../../core/providers/memory_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../shared/widgets/ios_switch.dart';
@@ -258,6 +259,9 @@ class _BackupPageState extends State<BackupPage> {
         chatService: context.read<ChatService>(),
         initialConfig: settings.webDavConfig,
         initialDropboxConfig: settings.dropboxConfig,
+        // This page-local instance performs the actual restores, so it must
+        // refresh the memory cache too (not just the app-level provider).
+        onRestored: () => context.read<MemoryProvider>().reload(),
       ),
       child: Builder(builder: (context) {
         final vm = context.watch<BackupProvider>();

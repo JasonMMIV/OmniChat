@@ -3,13 +3,16 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/widgets.dart';
+import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
 
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/providers/memory_provider.dart';
 import '../../../core/providers/tts_provider.dart';
+import '../../../core/services/memory/memory_block_builder.dart';
 import '../../../core/providers/user_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/chat_turn_service.dart';
@@ -542,6 +545,24 @@ class VoiceChatController extends ChangeNotifier {
       final turnMessages = chatService.getMessages(currentConversationId);
       await chatService.ensureToolEventsLoaded(turnMessages.map((m) => m.id));
 
+      // Read-side memory injection (M2-7): the realtime voice flow never
+      // registers memory tools and never writes; it only gets the same
+      // deterministic memory block as text chat.
+      String? memoryBlock;
+      try {
+        if (assistant?.enableMemory == true) {
+          final mp = _context.read<MemoryProvider>();
+          await mp.initialize();
+          final block = MemoryBlockBuilder.build(
+            entries: mp.visibleFor(assistant!.id),
+            maxItemsPerType: settings.memoryInjectionMaxItems,
+            fullInjectionTypes: settings.memoryFullInjectionTypes,
+            includeToolInstructions: false,
+          );
+          if (block.isNotEmpty) memoryBlock = block;
+        }
+      } catch (_) {}
+
       final request = _turnService.prepareTurnRequest(
         conversation: currentConversation,
         messages: turnMessages,
@@ -552,6 +573,7 @@ class VoiceChatController extends ChangeNotifier {
         assistant: assistant,
         context: _context,
         userNickname: _userProvider.name,
+        memoryBlock: memoryBlock,
       );
 
       final handle = _turnService.startTurn(

@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -6081,4 +6082,152 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get messageUsageCacheWrite1hTokens => 'Cache write 1h';
+
+  @override
+  String get settingsPageMemory => 'Memory';
+
+  @override
+  String get memorySettingsTitle => 'Memory';
+
+  @override
+  String get memorySettingsMaxItemsTitle => 'Entries injected per type';
+
+  @override
+  String memorySettingsMaxItemsSubtitle(int count) {
+    return 'Current cap: $count. Extra entries switch that type to summary mode; the model can page through them with memory_read.';
+  }
+
+  @override
+  String get memorySettingsFullInjectionTitle => 'Inject all entries';
+
+  @override
+  String get memorySettingsFullInjectionSubtitle =>
+      'Selected types ignore the per-type cap.';
+
+  @override
+  String get memorySettingsOrganizeModelTitle => 'Organize model';
+
+  @override
+  String get memorySettingsOrganizeModelSubtitle =>
+      'Only used by the manual Organize memory action.';
+
+  @override
+  String memorySettingsMigrated(int count) {
+    return 'Imported $count legacy memories';
+  }
+
+  @override
+  String get memorySettingsCustom => 'Custom…';
+
+  @override
+  String get memorySettingsGlobalEntriesTitle => 'Global memories';
+
+  @override
+  String get memorySettingsNotSet => 'Not set';
+
+  @override
+  String get memorySettingsReset => 'Reset';
+
+  @override
+  String get memoryWriteScopeTitle => 'Write scope';
+
+  @override
+  String get memoryWriteScopeAlwaysGlobal => 'Always global';
+
+  @override
+  String get memoryWriteScopeAlwaysAssistant => 'Always this assistant';
+
+  @override
+  String get memoryWriteScopeToolDefaultGlobal =>
+      'Model chooses (default global)';
+
+  @override
+  String get memoryWriteScopeToolDefaultAssistant =>
+      'Model chooses (default this assistant)';
+
+  @override
+  String get memoryDedupeTitle => 'Dedupe mode';
+
+  @override
+  String get memoryDedupeStrict => 'Strict (exact match)';
+
+  @override
+  String get memoryDedupeLlm => 'Smart (LLM merge)';
+
+  @override
+  String get memoryOrganizeButton => 'Organize memory';
+
+  @override
+  String get memoryOrganizeRunning => 'Organizing…';
+
+  @override
+  String get memoryOrganizeNoModel =>
+      'Select an organize model in Settings → Memory first.';
+
+  @override
+  String get memoryOrganizeNoModelShort => 'No model';
+
+  @override
+  String get memoryOrganizeNoHistory =>
+      'No conversation history for this assistant yet.';
+
+  @override
+  String get memoryOrganizeFailed =>
+      'Memory organization failed. Try again later.';
+
+  @override
+  String get memoryOrganizeGated => 'Nothing new worth remembering.';
+
+  @override
+  String memoryOrganizeSummary(int extracted, int merged, int skipped) {
+    return 'Extracted $extracted, merged $merged, skipped $skipped';
+  }
+
+  @override
+  String get memoryArchivedTitle => 'Archived';
+
+  @override
+  String get memoryRestore => 'Restore';
+
+  @override
+  String get memoryDeleteForever => 'Delete permanently';
+
+  @override
+  String get memoryEditType => 'Type';
+
+  @override
+  String get memoryEditScope => 'Scope';
+
+  @override
+  String get memoryEditContentHint => 'Memory content';
+
+  @override
+  String get memoryTypeIdentity => 'Identity';
+
+  @override
+  String get memoryTypeWorkflow => 'Workflow';
+
+  @override
+  String get memoryTypeVoice => 'Voice';
+
+  @override
+  String get memoryTypeInstruction => 'Instruction';
+
+  @override
+  String get memoryScopeGlobal => 'Global';
+
+  @override
+  String get memoryScopeAssistant => 'Assistant';
+
+  @override
+  String get chatMessageWidgetMemoryRead => 'Read memories';
+
+  @override
+  String get chatMessageWidgetMemoryUpdate => 'Updated memory';
+
+  @override
+  String get chatMessageWidgetMemoryEdit => 'Edited memory';
+
+  @override
+  String get chatMessageWidgetMemoryDelete => 'Archived memory';
 }
