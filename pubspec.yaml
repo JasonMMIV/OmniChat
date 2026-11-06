@@ -19,10 +19,11 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.28.0+111
 
 environment:
-  # record 7.x is the binding dependency: Dart >= 3.12 / Flutter >= 3.44.
-  # The SDK floor job pins Flutter 3.44.9 to keep this declared minimum honest.
-  sdk: ^3.12.0
-  flutter: ">=3.44.0"
+  # sqlite3 3.8 needs meta ^1.19.0 (via hooks -> record_use), while Flutter
+  # 3.44 pins meta 1.18.0. Flutter 3.47 is the first stable line that allows it.
+  # The SDK floor job pins Flutter 3.47.0 to keep this declared minimum honest.
+  sdk: ^3.13.0
+  flutter: ">=3.47.0"
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
