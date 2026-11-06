@@ -10,6 +10,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 import 'package:open_filex/open_filex.dart';
+
+import '../../../core/services/api/attachment_kind.dart';
+import '../../../shared/widgets/audio_clip_player.dart';
+import 'user_attachment_card.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
@@ -1014,90 +1018,19 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                         spacing: 8,
                         runSpacing: 8,
                         children: parsed.docs.map((d) {
-                          return Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(10),
-                              overlayColor: MaterialStateProperty.resolveWith(
-                                (states) => cs.primary.withOpacity(
-                                  states.contains(MaterialState.pressed)
-                                      ? 0.14
-                                      : 0.08,
-                                ),
-                              ),
-                              splashColor: cs.primary.withOpacity(0.18),
-                              onTap: () async {
-                                try {
-                                  final fixed = SandboxPathResolver.fix(d.path);
-                                  final f = File(fixed);
-                                  if (!(await f.exists())) {
-                                    showAppSnackBar(
-                                      context,
-                                      message: l10n
-                                          .chatMessageWidgetFileNotFound(
-                                            d.fileName,
-                                          ),
-                                      type: NotificationType.error,
-                                    );
-                                    return;
-                                  }
-                                  final res = await OpenFilex.open(
-                                    fixed,
-                                    type: d.mime,
-                                  );
-                                  if (res.type != ResultType.done) {
-                                    showAppSnackBar(
-                                      context,
-                                      message: l10n
-                                          .chatMessageWidgetCannotOpenFile(
-                                            res.message ?? res.type.toString(),
-                                          ),
-                                      type: NotificationType.error,
-                                    );
-                                  }
-                                } catch (e) {
-                                  showAppSnackBar(
-                                    context,
-                                    message: l10n
-                                        .chatMessageWidgetOpenFileError(
-                                          e.toString(),
-                                        ),
-                                    type: NotificationType.error,
-                                  );
-                                }
-                              },
-                              child: Ink(
-                                decoration: BoxDecoration(
-                                  color: isDark ? Colors.white12 : cs.surface,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 8,
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.insert_drive_file,
-                                        size: 16,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      ConstrainedBox(
-                                        constraints: const BoxConstraints(
-                                          maxWidth: 180,
-                                        ),
-                                        child: Text(
-                                          d.fileName,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
+                          // Audio gets an inline player; everything else keeps a
+                          // document card that can show an unavailable state.
+                          if (attachmentKindFor(d.mime, d.fileName) ==
+                              AttachmentKind.audio) {
+                            return AudioClipPlayer(
+                              path: d.path,
+                              fileName: d.fileName,
+                            );
+                          }
+                          return UserAttachmentCard(
+                            path: d.path,
+                            fileName: d.fileName,
+                            mime: d.mime,
                           );
                         }).toList(),
                       ),

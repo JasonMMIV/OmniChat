@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../../core/services/api/builtin_tools.dart';
+import '../../../core/services/api/native_input_policy.dart';
 import '../../../core/services/api/reasoning_wire.dart';
 import '../../../core/utils/reasoning_overrides.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -12,6 +13,7 @@ import '../../../shared/widgets/snackbar.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../shared/widgets/ios_tile_button.dart';
+import 'modality_badge.dart';
 
 Future<bool?> showModelDetailSheet(
   BuildContext context, {
@@ -100,6 +102,13 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
   final Set<Modality> _output = {Modality.text};
   final Set<ModelAbility> _abilities = {};
 
+  // Native audio/PDF transport (multimodal plan B5). `null` = follow the
+  // host/provider default; a bool is an explicit per-model override.
+  bool? _nativePdf;
+  bool? _nativeAudio;
+  late final bool _nativePdfAuto;
+  late final bool _nativeAudioAuto;
+
   // Advanced (UI only)
   final List<_HeaderKV> _headers = [];
   final List<_BodyKV> _bodies = [];
@@ -146,6 +155,8 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
       providerType: _providerKind.name,
       useResponseApi: modelCfg.useResponseApi == true,
     );
+    _nativePdfAuto = nativePdfDefaultFor(modelCfg);
+    _nativeAudioAuto = nativeAudioDefaultFor(modelCfg);
     _showBuiltinToolsTab =
         _providerKind == ProviderKind.google ||
         _providerKind == ProviderKind.openai ||
@@ -211,30 +222,19 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
           _type = ModelType.embedding;
         else if (t == 'chat')
           _type = ModelType.chat;
-        final inArr =
-            (ov['input'] as List?)?.map((e) => e.toString()).toList() ?? [];
-        final outArr =
-            (ov['output'] as List?)?.map((e) => e.toString()).toList() ?? [];
-        final abArr =
-            (ov['abilities'] as List?)?.map((e) => e.toString()).toList() ?? [];
+        // Shared parser + legacy migration (multimodal plan §7 F7): unknown
+        // values are skipped, and a pre-multimodal override's implicit
+        // `text,image` list must not hide the catalog's audio/pdf/video.
+        final effective = ModelRegistry.applyOverride(base, ov);
         _input
           ..clear()
-          ..addAll(
-            inArr.map((e) => e == 'image' ? Modality.image : Modality.text),
-          );
+          ..addAll(effective.input);
         _output
           ..clear()
-          ..addAll(
-            outArr.map((e) => e == 'image' ? Modality.image : Modality.text),
-          );
+          ..addAll(effective.output);
         _abilities
           ..clear()
-          ..addAll(
-            abArr.map(
-              (e) =>
-                  e == 'reasoning' ? ModelAbility.reasoning : ModelAbility.tool,
-            ),
-          );
+          ..addAll(effective.abilities);
         // headers/body
         final rawHdrs = ov['headers'];
         final hdrs = (rawHdrs is List) ? rawHdrs : const <dynamic>[];
@@ -256,6 +256,10 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
             _bodies.add(kv);
           }
         }
+        final rawNativePdf = ov['nativePdf'];
+        _nativePdf = rawNativePdf is bool ? rawNativePdf : null;
+        final rawNativeAudio = ov['nativeAudio'];
+        _nativeAudio = rawNativeAudio is bool ? rawNativeAudio : null;
         final imApi = ov['useImagesApi'];
         _useImagesApi = imApi is bool ? imApi : true;
         _useAspectRatioParam = (ov['useAspectRatioParam'] == true);
@@ -556,17 +560,9 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
             children: [
               _label(context, l10n.modelDetailSheetInputModesLabel),
               const SizedBox(height: 6),
-              _SegmentedMulti(
-                options: [
-                  l10n.modelDetailSheetTextMode,
-                  l10n.modelDetailSheetImageMode,
-                ],
-                isSelected: [
-                  _input.contains(Modality.text),
-                  _input.contains(Modality.image),
-                ],
-                onChanged: (idx) => setState(() {
-                  final mod = idx == 0 ? Modality.text : Modality.image;
+              _ModalityMulti(
+                selected: _input,
+                onToggle: (mod) => setState(() {
                   if (_input.contains(mod)) {
                     _input.remove(mod);
                     if (_input.isEmpty) _input.add(Modality.text);
@@ -578,17 +574,13 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
               const SizedBox(height: 12),
               _label(context, l10n.modelDetailSheetOutputModesLabel),
               const SizedBox(height: 6),
-              _SegmentedMulti(
-                options: [
-                  l10n.modelDetailSheetTextMode,
-                  l10n.modelDetailSheetImageMode,
-                ],
-                isSelected: [
-                  _output.contains(Modality.text),
-                  _output.contains(Modality.image),
-                ],
-                onChanged: (idx) => setState(() {
-                  final mod = idx == 0 ? Modality.text : Modality.image;
+              _ModalityMulti(
+                selected: _output,
+                // Output stays text/image: no chat transport streams native
+                // audio/video, and showing those would imply they do
+                // (multimodal plan §2.1-5).
+                modalities: const [Modality.text, Modality.image],
+                onToggle: (mod) => setState(() {
                   if (_output.contains(mod)) {
                     _output.remove(mod);
                     if (_output.isEmpty) _output.add(Modality.text);
@@ -598,6 +590,27 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
                 }),
               ),
               const SizedBox(height: 12),
+              if (_input.contains(Modality.pdf) ||
+                  _input.contains(Modality.audio)) ...[
+                const SizedBox(height: 12),
+                _label(context, l10n.modelDetailSheetNativeInputLabel),
+                const SizedBox(height: 6),
+                if (_input.contains(Modality.pdf))
+                  _NativeInputToggle(
+                    title: l10n.modelDetailSheetNativePdfTool,
+                    description: l10n.modelDetailSheetNativePdfToolDescription,
+                    value: _nativePdf ?? _nativePdfAuto,
+                    onChanged: (v) => setState(() => _nativePdf = v),
+                  ),
+                if (_input.contains(Modality.audio))
+                  _NativeInputToggle(
+                    title: l10n.modelDetailSheetNativeAudioTool,
+                    description:
+                        l10n.modelDetailSheetNativeAudioToolDescription,
+                    value: _nativeAudio ?? _nativeAudioAuto,
+                    onChanged: (v) => setState(() => _nativeAudio = v),
+                  ),
+              ],
               _label(context, l10n.modelDetailSheetAbilitiesLabel),
               const SizedBox(height: 6),
               _SegmentedMulti(
@@ -1423,15 +1436,16 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
       'apiModelId': apiModelId,
       'name': _nameCtrl.text.trim(),
       'type': _type == ModelType.chat ? 'chat' : 'embedding',
-      'input': _input
-          .map((e) => e == Modality.image ? 'image' : 'text')
-          .toList(),
-      'output': _output
-          .map((e) => e == Modality.image ? 'image' : 'text')
-          .toList(),
+      'input': _input.map(ModelRegistry.modalityToCatalogValue).toList(),
+      // Marks the list as post-multimodal so an explicit removal of
+      // audio/pdf/video is respected instead of being re-merged on load.
+      'inputV': ModelRegistry.inputOverrideVersion,
+      'output': _output.map(ModelRegistry.modalityToCatalogValue).toList(),
       'abilities': _abilities
           .map((e) => e == ModelAbility.reasoning ? 'reasoning' : 'tool')
           .toList(),
+      if (_nativePdf != null) 'nativePdf': _nativePdf,
+      if (_nativeAudio != null) 'nativeAudio': _nativeAudio,
       'headers': headers,
       'body': bodies,
       if (oauthProtocol is String && oauthProtocol.trim().isNotEmpty)
@@ -1643,6 +1657,147 @@ class _SegmentedSingle extends StatelessWidget {
                   Expanded(child: chip(i)),
               ],
             ),
+    );
+  }
+}
+
+/// Per-model native transport toggle. The switch reflects the effective
+/// policy (auto host gate when no override is stored) and writes an explicit
+/// bool on first tap.
+class _NativeInputToggle extends StatelessWidget {
+  const _NativeInputToggle({
+    required this.title,
+    required this.description,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String title;
+  final String description;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white10 : cs.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.35,
+                    color: cs.onSurface.withOpacity(0.62),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          IosSwitch(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+}
+
+/// Multi-select pill row for input/output modalities. A `Wrap` (instead of
+/// the fixed segmented row) keeps five options readable on mobile widths.
+class _ModalityMulti extends StatelessWidget {
+  const _ModalityMulti({
+    required this.selected,
+    required this.onToggle,
+    this.modalities = Modality.values,
+  });
+
+  final Set<Modality> selected;
+  final ValueChanged<Modality> onToggle;
+  final List<Modality> modalities;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context)!;
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final mod in modalities)
+          Builder(
+            builder: (context) {
+              final on = selected.contains(mod);
+              final bg = on
+                  ? (isDark
+                        ? cs.primary.withOpacity(0.24)
+                        : cs.primary.withOpacity(0.14))
+                  : (isDark ? Colors.white10 : cs.surface);
+              final fg = on
+                  ? cs.primary
+                  : cs.onSurface.withOpacity(0.62);
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => onToggle(mod),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: bg,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: on
+                            ? cs.primary.withOpacity(0.45)
+                            : cs.outlineVariant.withOpacity(0.35),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(modalityIcon(mod), size: 14, color: fg),
+                        const SizedBox(width: 5),
+                        Text(
+                          modalityLabel(l10n, mod),
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: on ? FontWeight.w600 : FontWeight.w500,
+                            color: fg,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+      ],
     );
   }
 }

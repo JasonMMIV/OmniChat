@@ -12,6 +12,7 @@ import '../../../core/services/agent/compaction/compaction_trigger.dart';
 import '../../../core/services/agent/compaction/context_trim.dart';
 import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
 import '../../../core/services/api/learned_context_windows.dart';
+import '../../../core/services/api/native_input_policy.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/chat_turn_service.dart';
 import '../../../core/services/chat/todo_service.dart';
@@ -120,6 +121,9 @@ class MessageGenerationService {
     required String? assistantId,
     required String providerKey,
     required String modelId,
+    // AI Team (and any other multi-model fan-out) must not use the selected
+    // model's native-input capability for every proposer (plan §7 F10).
+    bool enableNativeInputs = true,
   }) async {
     // Tool replay reads full events synchronously. The timeline only preloads
     // summaries, so fetch the full bodies for this slice before assembly
@@ -196,9 +200,19 @@ class MessageGenerationService {
       ),
     );
 
-    // Process user messages (documents, OCR, templates)
+    // Process user messages (documents, OCR, templates). Native audio/PDF
+    // parts are resolved here so the transport only appends prebuilt parts
+    // (the size guard / base64 work happens exactly once per request).
+    final nativePolicy = enableNativeInputs
+        ? resolveNativeInputPolicy(settings, providerKey, modelId)
+        : NativeInputPolicy.disabled;
     final lastUserImagePaths = await messageBuilderService
-        .processUserMessagesForApi(apiMessages, settings, assistant);
+        .processUserMessagesForApi(
+          apiMessages,
+          settings,
+          assistant,
+          nativePolicy: nativePolicy,
+        );
 
     // Inject prompts and the effective per-conversation file workspace.
     final workspaceResolution = currentConversation == null

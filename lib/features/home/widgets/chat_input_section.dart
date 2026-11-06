@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/services/api/native_input_policy.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
@@ -139,6 +140,24 @@ class ChatInputSection extends StatelessWidget {
     final builtinSearchActive = _isBuiltinSearchActive(settings, a, pk, mid);
 
     final isDesktop = _isDesktopPlatform(context);
+    final aiTeamProvider = context.watch<AiTeamProvider>();
+    final aiTeamEnabled = aiTeamProvider.enabled;
+    // Policy resolution is not free (config lookup + catalog inference); only
+    // run it when an audio attachment is actually in the composer.
+    var audioInputSupported = true;
+    if (mediaController.hasAudioAttachments && pk != null && mid != null) {
+      try {
+        audioInputSupported =
+            resolveNativeInputPolicy(settings, pk, mid).nativeAudio &&
+            nativeInputsEnabledForAiTeam(
+              aiTeamEnabled: aiTeamEnabled,
+              hasProposers: aiTeamProvider.hasProposers,
+            );
+      } catch (_) {
+        // Unknown capability must not paint every audio chip as unsupported.
+        audioInputSupported = true;
+      }
+    }
 
     return ChatInputBar(
       key: inputBarKey,
@@ -219,7 +238,8 @@ class ChatInputSection extends StatelessWidget {
                 .isNotEmpty
           : false,
       onToggleAiTeam: onToggleAiTeam,
-      aiTeamActive: context.watch<AiTeamProvider>().enabled,
+      aiTeamActive: aiTeamEnabled,
+      audioInputSupported: audioInputSupported,
       showMoreButton: !isTablet,
       onClearContext: isTablet ? onClearContext : null,
       onCompressContext: isTablet ? onCompressContext : null,

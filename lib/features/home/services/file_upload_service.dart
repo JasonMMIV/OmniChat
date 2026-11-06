@@ -253,6 +253,18 @@ class FileUploadService {
   /// 根据文件扩展名推断 MIME 类型
   String inferMimeByExtension(String name) {
     final lower = name.toLowerCase();
+    // Audio (multimodal plan §7 F2: audio must never fall through to the
+    // text/plain guess, which made `.mp3` picker picks UTF-8 mojibake).
+    if (lower.endsWith('.mp3')) return 'audio/mpeg';
+    if (lower.endsWith('.m4a')) return 'audio/mp4';
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    if (lower.endsWith('.aac')) return 'audio/aac';
+    if (lower.endsWith('.ogg') || lower.endsWith('.oga')) return 'audio/ogg';
+    if (lower.endsWith('.opus')) return 'audio/opus';
+    if (lower.endsWith('.flac')) return 'audio/flac';
+    if (lower.endsWith('.aiff') || lower.endsWith('.aif')) return 'audio/aiff';
+    if (lower.endsWith('.amr')) return 'audio/amr';
+    if (lower.endsWith('.pcm')) return 'audio/pcm';
     // Video
     if (lower.endsWith('.mp4')) return 'video/mp4';
     if (lower.endsWith('.mpeg') || lower.endsWith('.mpg')) return 'video/mpeg';
@@ -281,7 +293,10 @@ class FileUploadService {
     if (lower.endsWith('.json')) return 'application/json';
     if (lower.endsWith('.js')) return 'application/javascript';
     if (lower.endsWith('.txt') || lower.endsWith('.md')) return 'text/plain';
-    return 'text/plain';
+    // Unknown binaries must never be labelled text/plain: the document
+    // extractor would UTF-8 decode them into mojibake and replay it every
+    // turn (multimodal plan §7 F2).
+    return 'application/octet-stream';
   }
 
   /// 分享檔案的 MIME：先判圖片／影音，再交給既有副檔名表；未知二進位檔

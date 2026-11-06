@@ -30,6 +30,7 @@ import 'stream_interruption.dart';
 import 'stream_retry_policy.dart';
 import 'transient_stream_error.dart';
 import 'chat_stream_chunk.dart';
+import 'native_input_parts.dart';
 import 'claude_max_tokens.dart';
 import 'context_overflow.dart';
 import 'learned_context_windows.dart';
@@ -129,6 +130,13 @@ class ChatApiService {
   /// Test seam — expose the pairing heal so the orphaned-tool-message
   /// regression (DeepSeek v4 HTTP 400, wire-capture 2026-09-13) stays fixed.
   @visibleForTesting
+  /// Test hook for the chat-completions wire-shape guard. Native blocks must
+  /// survive (multimodal plan §7 F4) while unknown blocks stay dropped.
+  @visibleForTesting
+  static List<Map<String, dynamic>> debugNormalizeOpenAiCompatContent(
+    List<Map<String, dynamic>> messages,
+  ) => _normalizeOpenAiCompatMessageContent(messages);
+
   static List<Map<String, dynamic>> debugRepairOrphanToolMessages(
     List<Map<String, dynamic>> messages,
   ) {
@@ -469,7 +477,13 @@ class ChatApiService {
         final text = (part['text'] ?? '').toString();
         sawText = true;
         out.add(<String, dynamic>{'type': 'text', 'text': text});
-      } else if (type == 'image_url' || type == 'video_url') {
+      } else if (type == 'image_url' ||
+          type == 'video_url' ||
+          type == 'input_audio' ||
+          type == 'file') {
+        // input_audio / file are the native audio + PDF blocks built at
+        // assembly time. Without this allowlist the guard silently dropped
+        // them (multimodal plan §7 F4).
         out.add(Map<String, dynamic>.from(part));
       } else if (type == 'input_image') {
         // Responses-API-style input_image: convert to the chat-completions
@@ -606,6 +620,25 @@ class ChatApiService {
       }
     }
     return out;
+  }
+
+  /// Prebuilt native-input parts for a neutral message, when the stored
+  /// protocol matches this transport.
+  static List<Map<String, dynamic>> _nativeInputPartsFor(
+    Map<String, dynamic> message,
+    NativeInputProtocol protocol,
+  ) {
+    final raw = message['_native_input'];
+    if (raw is! Map) return const <Map<String, dynamic>>[];
+    if ((raw['protocol'] ?? '').toString() != protocol.name) {
+      return const <Map<String, dynamic>>[];
+    }
+    final parts = raw['parts'];
+    if (parts is! List) return const <Map<String, dynamic>>[];
+    return <Map<String, dynamic>>[
+      for (final part in parts)
+        if (part is Map) Map<String, dynamic>.from(part),
+    ];
   }
 
   /// Anthropic rejects empty text in tool_result content, so substitute a
@@ -823,43 +856,16 @@ class ChatApiService {
     final base = ModelRegistry.infer(
       ModelInfo(id: upstreamId, displayName: upstreamId),
     );
-    final ov = _modelOverride(cfg, modelId);
-    ModelType? type;
-    final t = (ov['type'] as String?) ?? '';
-    if (t == 'embedding')
-      type = ModelType.embedding;
-    else if (t == 'chat')
-      type = ModelType.chat;
-    List<Modality>? input;
-    if (ov['input'] is List) {
-      input = [
-        for (final e in (ov['input'] as List))
-          (e.toString() == 'image' ? Modality.image : Modality.text),
-      ];
-    }
-    List<Modality>? output;
-    if (ov['output'] is List) {
-      output = [
-        for (final e in (ov['output'] as List))
-          (e.toString() == 'image' ? Modality.image : Modality.text),
-      ];
-    }
-    List<ModelAbility>? abilities;
-    if (ov['abilities'] is List) {
-      abilities = [
-        for (final e in (ov['abilities'] as List))
-          (e.toString() == 'reasoning'
-              ? ModelAbility.reasoning
-              : ModelAbility.tool),
-      ];
-    }
-    return base.copyWith(
-      type: type ?? base.type,
-      input: input ?? base.input,
-      output: output ?? base.output,
-      abilities: abilities ?? base.abilities,
-    );
+    // Single override parser (multimodal plan §7 F7): unknown modality values
+    // are skipped instead of silently collapsing to text.
+    return ModelRegistry.applyOverride(base, _modelOverride(cfg, modelId));
   }
+
+  /// Public view of the effective (catalog + override) model info. Used by the
+  /// attachment modality gate and the native-input policy resolver so they
+  /// agree with the transport without duplicating the parser.
+  static ModelInfo effectiveModelInfo(ProviderConfig cfg, String modelId) =>
+      _effectiveModelInfo(cfg, modelId);
 
   static String _mimeFromPath(String path) {
     final lower = path.toLowerCase();
@@ -878,6 +884,19 @@ class ChatApiService {
     if (lower.endsWith('.wmv')) return 'video/x-ms-wmv';
     if (lower.endsWith('.webm')) return 'video/webm';
     if (lower.endsWith('.3gp') || lower.endsWith('.3gpp')) return 'video/3gpp';
+    // Audio / document types: returning image/png here used to mislabel PDF
+    // and audio data URIs (multimodal plan §7 F12).
+    if (lower.endsWith('.mp3')) return 'audio/mpeg';
+    if (lower.endsWith('.m4a')) return 'audio/mp4';
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    if (lower.endsWith('.aac')) return 'audio/aac';
+    if (lower.endsWith('.ogg') || lower.endsWith('.oga')) return 'audio/ogg';
+    if (lower.endsWith('.opus')) return 'audio/opus';
+    if (lower.endsWith('.flac')) return 'audio/flac';
+    if (lower.endsWith('.aiff') || lower.endsWith('.aif')) return 'audio/aiff';
+    if (lower.endsWith('.amr')) return 'audio/amr';
+    if (lower.endsWith('.pcm')) return 'audio/pcm';
+    if (lower.endsWith('.pdf')) return 'application/pdf';
     return 'image/png';
   }
 
@@ -2986,6 +3005,12 @@ class ChatApiService {
     }
 
     Map<String, dynamic> body;
+    // Chat-completions wire messages built below. Follow-up rounds reuse this
+    // serialized list instead of rebuilding from the neutral messages, which
+    // used to drop native/image parts (§7 F3). Declared at function scope
+    // because the body-building block is closed before the stream loop.
+    List<Map<String, dynamic>> chatWireMessages =
+        const <Map<String, dynamic>>[];
     // Keep initial Responses request context so we can perform follow-up requests when tools are called
     List<Map<String, dynamic>> responsesInitialInput =
         const <Map<String, dynamic>>[];
@@ -3189,11 +3214,18 @@ class ChatApiService {
         // For the last user message, also attach the last assistant image if available
         final shouldAttachAssistantImage =
             isLast && (m['role'] == 'user') && lastAssistantImageUrl != null;
+        // Prebuilt `input_file` items (multimodal plan B3). Responses has no
+        // native audio input, so only PDFs are present here.
+        final nativeParts = _nativeInputPartsFor(
+          m,
+          NativeInputProtocol.responses,
+        );
 
         if (hasMarkdownImages ||
             hasCustomImages ||
             hasAttachedImages ||
-            shouldAttachAssistantImage) {
+            shouldAttachAssistantImage ||
+            nativeParts.isNotEmpty) {
           final parsed = await _parseTextAndImages(
             raw,
             allowRemoteImages: canImageInput,
@@ -3260,6 +3292,7 @@ class ChatApiService {
           if (shouldAttachAssistantImage && lastAssistantImageUrl != null) {
             addImage(lastAssistantImageUrl);
           }
+          if (nativeParts.isNotEmpty) parts.addAll(nativeParts);
           // Use proper message object format for assistant messages
           if (isAssistant) {
             input.add({
@@ -3428,8 +3461,18 @@ class ChatApiService {
             hasMultimodalEligibleRole && raw.contains('[image:');
         final hasAttachedImages =
             isLast && (userImagePaths?.isNotEmpty == true) && (role == 'user');
+        // Native audio/PDF parts were serialized at assembly time. Appending
+        // the ready-made blocks here keeps the base64 work (and its budget
+        // guard) out of every retry/follow-up round.
+        final nativeParts = _nativeInputPartsFor(
+          m,
+          NativeInputProtocol.openAiChat,
+        );
 
-        if (hasMarkdownImages || hasCustomImages || hasAttachedImages) {
+        if (hasMarkdownImages ||
+            hasCustomImages ||
+            hasAttachedImages ||
+            nativeParts.isNotEmpty) {
           final parsed = await _parseTextAndImages(
             raw,
             allowRemoteImages: canImageInput,
@@ -3485,6 +3528,7 @@ class ChatApiService {
             }
             addImageUrl(url);
           }
+          if (nativeParts.isNotEmpty) parts.addAll(nativeParts);
           // DeepSeek v4.1 Flash (wire-capture 2026-09-12, Android) rejects a
           // `content` array that contains NO text block with HTTP 400
           // `param: messages.N.content` — OpenAI tolerates image-only arrays,
@@ -3533,6 +3577,7 @@ class ChatApiService {
           });
         }
       }
+      chatWireMessages = mm;
       body = {
         'model': upstreamModelId,
         'messages': mm,
@@ -4164,10 +4209,13 @@ class ChatApiService {
               );
             }
 
-            // Build follow-up messages
+            // Build follow-up messages from the ALREADY-SERIALIZED
+            // chat-completions list (`mm`), not from the neutral messages.
+            // Rebuilding from neutral messages dropped every native part on
+            // the second round (§7 F3).
             messages = _truncateToolResultsInMessages(messages);
             final mm2 = _preserveToolStructuredMessages(
-              messages,
+              chatWireMessages.isEmpty ? messages : chatWireMessages,
               reasoningEcho: needsReasoningEcho,
             );
             final assistantToolCallMsg = <String, dynamic>{
@@ -5698,10 +5746,13 @@ class ChatApiService {
                 toolResults: resultsInfo,
               );
             }
-            // Build follow-up messages
+            // Build follow-up messages from the ALREADY-SERIALIZED
+            // chat-completions list (`mm`), not from the neutral messages.
+            // Rebuilding from neutral messages dropped every native part on
+            // the second round (§7 F3).
             messages = _truncateToolResultsInMessages(messages);
             final mm2 = _preserveToolStructuredMessages(
-              messages,
+              chatWireMessages.isEmpty ? messages : chatWireMessages,
               reasoningEcho: needsReasoningEcho,
             );
             final assistantToolCallMsg = <String, dynamic>{
@@ -6324,10 +6375,11 @@ class ChatApiService {
                     toolResults: resultsInfo,
                   );
                 }
-                // Build follow-up messages
+                // Build follow-up messages from the already-serialized list
+                // (§7 F3).
                 messages = _truncateToolResultsInMessages(messages);
                 final mm2 = _preserveToolStructuredMessages(
-                  messages,
+                  chatWireMessages.isEmpty ? messages : chatWireMessages,
                   reasoningEcho: needsReasoningEcho,
                 );
                 final assistantToolCallMsg = <String, dynamic>{
@@ -7180,6 +7232,9 @@ class ChatApiService {
       nonSystemMessages.add({
         'role': role.isEmpty ? 'user' : role,
         'content': m['content'] ?? '',
+        // Carried so the last-message block builder can append the prebuilt
+        // `document` blocks (multimodal plan B3).
+        if (m['_native_input'] != null) '_native_input': m['_native_input'],
       });
     }
 
@@ -7191,23 +7246,30 @@ class ChatApiService {
       // Only string-content user messages can be image-transformed. Replayed
       // tool_result messages carry List content (blocks) — never run them
       // through the image pipeline or their blocks get replaced.
+      final nativeBlocks = _nativeInputPartsFor(
+        m,
+        NativeInputProtocol.claude,
+      );
       if (isLast &&
-          (userImagePaths?.isNotEmpty == true) &&
+          ((userImagePaths?.isNotEmpty == true) || nativeBlocks.isNotEmpty) &&
           (m['role'] == 'user') &&
           (m['content'] is String)) {
         final parts = <Map<String, dynamic>>[];
         final text = (m['content'] ?? '').toString();
         if (text.isNotEmpty) parts.add({'type': 'text', 'text': text});
-        for (final p in userImagePaths!) {
-          if (p.startsWith('http') || p.startsWith('data:')) {
-            parts.add({'type': 'text', 'text': p});
-          } else {
-            final mime = _mimeFromPath(p);
-            final b64 = await _encodeBase64File(p, withPrefix: false);
-            parts.add({
-              'type': 'image',
-              'source': {'type': 'base64', 'media_type': mime, 'data': b64},
-            });
+        if (nativeBlocks.isNotEmpty) parts.addAll(nativeBlocks);
+        if (userImagePaths != null) {
+          for (final p in userImagePaths) {
+            if (p.startsWith('http') || p.startsWith('data:')) {
+              parts.add({'type': 'text', 'text': p});
+            } else {
+              final mime = _mimeFromPath(p);
+              final b64 = await _encodeBase64File(p, withPrefix: false);
+              parts.add({
+                'type': 'image',
+                'source': {'type': 'base64', 'media_type': mime, 'data': b64},
+              });
+            }
           }
         }
         initialMessages.add({'role': 'user', 'content': parts});
@@ -8442,7 +8504,14 @@ class ChatApiService {
         final hasCustomImages = raw.contains('[image:');
         final hasAttachedImages =
             isLast && role == 'user' && (userImagePaths?.isNotEmpty == true);
-        if (hasMarkdownImages || hasCustomImages || hasAttachedImages) {
+        final nativeParts = _nativeInputPartsFor(
+          msg,
+          NativeInputProtocol.gemini,
+        );
+        if (hasMarkdownImages ||
+            hasCustomImages ||
+            hasAttachedImages ||
+            nativeParts.isNotEmpty) {
           final parsed = await _parseTextAndImages(
             raw,
             // Gemini API 目前无法直接拉取远程 http(s) 图片
@@ -8500,6 +8569,7 @@ class ChatApiService {
               }
             }
           }
+          if (nativeParts.isNotEmpty) parts.addAll(nativeParts);
         } else {
           if (raw.isNotEmpty) parts.add({'text': raw});
         }
@@ -8854,11 +8924,16 @@ class ChatApiService {
 
       // Only parse images if there are images to process
       final hasMarkdownImages = raw.contains('![') && raw.contains('](');
-      final hasCustomImages = raw.contains('[image:');
-      final hasAttachedImages =
+      final hasCustomImages = raw.contains('[image:');      final hasAttachedImages =
           isLast && role == 'user' && (userImagePaths?.isNotEmpty == true);
-
-      if (hasMarkdownImages || hasCustomImages || hasAttachedImages) {
+      final nativeParts = _nativeInputPartsFor(
+        msg,
+        NativeInputProtocol.gemini,
+      );
+      if (hasMarkdownImages ||
+          hasCustomImages ||
+          hasAttachedImages ||
+          nativeParts.isNotEmpty) {
         final parsed = await _parseTextAndImages(
           raw,
           // Gemini API 目前无法直接拉取远程 http(s) 图片
@@ -8919,6 +8994,7 @@ class ChatApiService {
             }
           }
         }
+        if (nativeParts.isNotEmpty) parts.addAll(nativeParts);
       } else {
         // No images, use simple text content
         if (raw.isNotEmpty) parts.add({'text': raw});

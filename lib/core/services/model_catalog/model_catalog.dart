@@ -26,6 +26,7 @@ class CatalogModel {
     this.output,
     this.imageInput = false,
     this.imageOutput = false,
+    this.inputModalities = const <String>{},
     this.toolCall,
     this.reasoning,
     this.temperatureSupported,
@@ -51,6 +52,12 @@ class CatalogModel {
 
   final bool imageInput;
   final bool imageOutput;
+
+  /// Raw `modalities.input` values (`text` / `image` / `audio` / `video` /
+  /// `pdf`). Kept as strings because this library is intentionally pure Dart
+  /// and must not import the provider layer's `Modality` enum (it would form
+  /// a cycle). `ModelRegistry` maps these into `Modality`.
+  final Set<String> inputModalities;
 
   /// `tool_call` / `reasoning`: `null` means the catalog has no opinion
   /// (unknown), which is different from an explicit `false`.
@@ -270,6 +277,7 @@ class ModelCatalog {
       output: readInt(limit['output']),
       imageInput: inputModalities.contains('image'),
       imageOutput: outputModalities.contains('image'),
+      inputModalities: inputModalities,
       toolCall: raw['tool_call'] is bool ? raw['tool_call'] as bool : null,
       reasoning: raw['reasoning'] is bool ? raw['reasoning'] as bool : null,
       temperatureSupported: temperatureRaw is bool ? temperatureRaw : null,

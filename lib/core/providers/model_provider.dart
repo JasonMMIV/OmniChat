@@ -19,7 +19,14 @@ import '../utils/provider_url.dart';
 
 enum ModelType { chat, embedding }
 
-enum Modality { text, image }
+/// Input/output modalities. Values and order intentionally match the
+/// models.dev catalog strings and upstream Kelivo's `Modality` enum, so a
+/// catalog value maps 1:1 (`Modality.values.byName`).
+///
+/// Only input modalities are ever advertised in the UI badges; `audio` /
+/// `video` in a catalog output list must not imply native chat audio output
+/// (multimodal plan §2.1-5).
+enum Modality { text, image, audio, video, pdf }
 
 enum ModelAbility { tool, reasoning }
 
@@ -77,6 +84,24 @@ class ModelRegistry {
         .replaceAll(' ', ''),
     caseSensitive: false,
   );
+  // Audio-input families that predate catalog coverage / appear under
+  // aggregator ids the catalog does not know. Only consulted on a catalog
+  // miss (the catalog hit returns early below).
+  static final RegExp audioInput = RegExp(
+    r'(qwen.*(omni|audio)|gemini.*(audio|native-audio|omni)|gpt-4o.*audio|step.*audio|glm.*(omni|audio))',
+    caseSensitive: false,
+  );
+  // Native PDF input families (Claude / Gemini / GPT-4.1+ / Grok).
+  static final RegExp pdfInput = RegExp(
+    r'(claude|gemini-\d|gpt-(4\.1|4o|5)|grok-\d)',
+    caseSensitive: false,
+  );
+  // Native video-input families.
+  static final RegExp videoInput = RegExp(
+    r'(gemini-\d|qwen.*(vl|omni)|minimax-m3|doubao|step-3|glm-4.?v)',
+    caseSensitive: false,
+  );
+
   static final RegExp reasoning = RegExp(
     (r'(gpt-oss|gpt-5(?!-chat)|o\d|'
             r'gemini-(?:2\.5|3).*|gemini-(?:flash-latest|pro-latest)|'
@@ -91,6 +116,105 @@ class ModelRegistry {
         .replaceAll(' ', ''),
     caseSensitive: false,
   );
+
+  /// Map a models.dev catalog modality string to [Modality]. Unknown values
+  /// return null — they must never silently become `text` (plan §7 F7).
+  static Modality? modalityFromCatalogValue(String raw) {
+    final value = raw.trim().toLowerCase();
+    for (final m in Modality.values) {
+      if (m.name == value) return m;
+    }
+    return null;
+  }
+
+  static String modalityToCatalogValue(Modality m) => m.name;
+
+  /// Version stamped on `modelOverrides[id]['input']` by the model detail
+  /// sheet. Missing/older means the override predates audio/video/pdf and
+  /// must not be treated as an intentional exclusion of those modalities.
+  static const int inputOverrideVersion = 2;
+
+  /// Shared parser for `modelOverrides[id]['input' | 'output']`.
+  ///
+  /// Returns null when the key is absent / not a list, so callers keep the
+  /// inferred list. Unknown entries are skipped (not mapped to `text`, which
+  /// used to silently downgrade audio/video/pdf).
+  static List<Modality>? parseModalities(Object? raw) {
+    if (raw is! List) return null;
+    final out = <Modality>[];
+    for (final entry in raw) {
+      final mod = modalityFromCatalogValue(entry.toString());
+      if (mod != null && !out.contains(mod)) out.add(mod);
+    }
+    return out.isEmpty ? null : out;
+  }
+
+  /// Shared parser for `modelOverrides[id]['abilities']`.
+  static List<ModelAbility>? parseAbilities(Object? raw) {
+    if (raw is! List) return null;
+    final out = <ModelAbility>[];
+    for (final entry in raw) {
+      final value = entry.toString().trim().toLowerCase();
+      final ability = switch (value) {
+        'reasoning' => ModelAbility.reasoning,
+        'tool' => ModelAbility.tool,
+        _ => null,
+      };
+      if (ability != null && !out.contains(ability)) out.add(ability);
+    }
+    return out.isEmpty ? null : out;
+  }
+
+  /// Apply the user's per-model override on top of an inferred [ModelInfo].
+  ///
+  /// This is the single override reader for the transport, the model picker,
+  /// the provider page and the model detail sheet (multimodal plan §7 F7).
+  static ModelInfo applyOverride(ModelInfo base, Map? override) {
+    if (override == null) return base;
+    ModelType? type;
+    final rawType = (override['type'] as String?)?.trim().toLowerCase();
+    if (rawType == 'embedding') {
+      type = ModelType.embedding;
+    } else if (rawType == 'chat') {
+      type = ModelType.chat;
+    }
+    final name = (override['name'] as String?)?.trim();
+    final input = parseModalities(override['input']);
+    final output = parseModalities(override['output']);
+    final abilities = parseAbilities(override['abilities']);
+
+    // Legacy override migration (multimodal rollout): before the Modality
+    // enum grew, every saved model detail wrote `input: ['text','image']`.
+    // Those values cannot represent an intentional audio/video/pdf exclusion,
+    // so merge the inferred new modalities back in. A version-2 override is
+    // respected verbatim (the user can explicitly remove them).
+    List<Modality>? effectiveInput;
+    if (input != null) {
+      effectiveInput = List<Modality>.of(input);
+      final version = override['inputV'];
+      final legacy =
+          version is! num || version.toInt() < inputOverrideVersion;
+      if (legacy) {
+        for (final modality in base.input) {
+          final isNewDimension =
+              modality == Modality.audio ||
+              modality == Modality.video ||
+              modality == Modality.pdf;
+          if (isNewDimension && !effectiveInput.contains(modality)) {
+            effectiveInput.add(modality);
+          }
+        }
+      }
+    }
+
+    return base.copyWith(
+      displayName: (name != null && name.isNotEmpty) ? name : base.displayName,
+      type: type ?? base.type,
+      input: effectiveInput ?? base.input,
+      output: output ?? base.output,
+      abilities: abilities ?? base.abilities,
+    );
+  }
 
   /// Infer capabilities for a model, consulting the models.dev catalog first
   /// (global model id) and falling back to the built-in regexes on a miss.
@@ -160,6 +284,12 @@ class ModelRegistry {
       if (catalog.imageInput && !inMods.contains(Modality.image)) {
         inMods.add(Modality.image);
       }
+      // Multimodal plan A1: the catalog already carries audio/video/pdf —
+      // project them instead of dropping the data on the floor.
+      for (final raw in catalog.inputModalities) {
+        final mod = modalityFromCatalogValue(raw);
+        if (mod != null && !inMods.contains(mod)) inMods.add(mod);
+      }
       if (catalog.toolCall == true) {
         if (!ab.contains(ModelAbility.tool)) ab.add(ModelAbility.tool);
       } else if (catalog.toolCall == false) {
@@ -176,6 +306,16 @@ class ModelRegistry {
     }
     if (vision.hasMatch(id)) {
       if (!inMods.contains(Modality.image)) inMods.add(Modality.image);
+    }
+    // Multimodal plan A1: minimal family rules, catalog-miss only.
+    if (audioInput.hasMatch(id) && !inMods.contains(Modality.audio)) {
+      inMods.add(Modality.audio);
+    }
+    if (pdfInput.hasMatch(id) && !inMods.contains(Modality.pdf)) {
+      inMods.add(Modality.pdf);
+    }
+    if (videoInput.hasMatch(id) && !inMods.contains(Modality.video)) {
+      inMods.add(Modality.video);
     }
     if (tool.hasMatch(id) && !ab.contains(ModelAbility.tool))
       ab.add(ModelAbility.tool);

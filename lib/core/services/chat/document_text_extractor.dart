@@ -80,6 +80,13 @@ class DocumentTextExtractor {
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
         return await _extractXlsx(path);
       }
+      // Binary media has no textual representation. Returning empty (rather
+      // than UTF-8 decoding the bytes into mojibake) makes every caller skip
+      // it cleanly — multimodal plan §7 F2: audio used to be decoded as text
+      // and replayed in the prompt on every turn.
+      if (mime.startsWith('audio/') || mime.startsWith('video/')) {
+        return '';
+      }
       // Fallback: read as text
       final file = File(fixedPath);
       final bytes = await file.readAsBytes();

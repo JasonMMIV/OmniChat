@@ -14,6 +14,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../provider/pages/providers_page.dart';
 import 'model_detail_sheet.dart';
+import 'modality_badge.dart';
 import '../../provider/pages/provider_detail_page.dart';
 import '../../provider/pages/oauth_provider_detail_page.dart';
 import '../../provider/widgets/provider_balance_text.dart';
@@ -101,50 +102,11 @@ _ModelProcessingResult _processModelsInBackground(_ModelProcessingData data) {
                 .trim();
             if (raw != null && raw.isNotEmpty) baseId = raw;
           }
-          ModelInfo base = ModelRegistry.infer(
-            ModelInfo(id: baseId, displayName: baseId),
+          // Single shared override parser (multimodal plan §7 F7).
+          ModelInfo base = ModelRegistry.applyOverride(
+            ModelRegistry.infer(ModelInfo(id: baseId, displayName: baseId)),
+            ov,
           );
-          if (ov != null) {
-            // display name override
-            final n = (ov['name'] as String?)?.trim();
-            // type override
-            ModelType? type;
-            final t = (ov['type'] as String?)?.trim();
-            if (t != null) {
-              type = (t == 'embedding') ? ModelType.embedding : ModelType.chat;
-            }
-            // modality override
-            List<Modality>? input;
-            if (ov['input'] is List) {
-              input = [
-                for (final e in (ov['input'] as List))
-                  (e.toString() == 'image' ? Modality.image : Modality.text),
-              ];
-            }
-            List<Modality>? output;
-            if (ov['output'] is List) {
-              output = [
-                for (final e in (ov['output'] as List))
-                  (e.toString() == 'image' ? Modality.image : Modality.text),
-              ];
-            }
-            List<ModelAbility>? abilities;
-            if (ov['abilities'] is List) {
-              abilities = [
-                for (final e in (ov['abilities'] as List))
-                  (e.toString() == 'reasoning'
-                      ? ModelAbility.reasoning
-                      : ModelAbility.tool),
-              ];
-            }
-            base = base.copyWith(
-              displayName: (n != null && n.isNotEmpty) ? n : base.displayName,
-              type: type ?? base.type,
-              input: input ?? base.input,
-              output: output ?? base.output,
-              abilities: abilities ?? base.abilities,
-            );
-          }
           return _ModelItem(
             providerKey: key,
             providerName: name.isNotEmpty ? name : key,
@@ -1368,7 +1330,7 @@ Widget _modelTagWrap(BuildContext context, ModelInfo m) {
             Padding(
               padding: const EdgeInsets.only(right: 2),
               child: Icon(
-                mod == Modality.text ? Lucide.Type : Lucide.Image,
+                modalityIcon(mod),
                 size: 12,
                 color: isDark ? cs.tertiary : cs.tertiary.withOpacity(0.9),
               ),
@@ -1382,7 +1344,7 @@ Widget _modelTagWrap(BuildContext context, ModelInfo m) {
             Padding(
               padding: const EdgeInsets.only(left: 2),
               child: Icon(
-                mod == Modality.text ? Lucide.Type : Lucide.Image,
+                modalityIcon(mod),
                 size: 12,
                 color: isDark ? cs.tertiary : cs.tertiary.withOpacity(0.9),
               ),

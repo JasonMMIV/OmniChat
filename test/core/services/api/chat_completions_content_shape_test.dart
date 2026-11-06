@@ -294,6 +294,35 @@ void main() {
     );
   });
 
+  test('native input_audio / file blocks survive the shape guard', () {
+    final normalized = ChatApiService.debugNormalizeOpenAiCompatContent([
+      <String, dynamic>{
+        'role': 'user',
+        'content': <Map<String, dynamic>>[
+          {'type': 'text', 'text': 'listen'},
+          {
+            'type': 'input_audio',
+            'input_audio': {'data': 'AAAA', 'format': 'wav'},
+          },
+          {
+            'type': 'file',
+            'file': {'filename': 'a.pdf', 'file_data': 'data:application/pdf;base64,AA=='},
+          },
+          {'type': 'mystery_block', 'x': 1},
+        ],
+      },
+    ]);
+    final content = (normalized.single['content'] as List).cast<Map>();
+    expect(content.any((b) => b['type'] == 'text'), isTrue);
+    expect(content.any((b) => b['type'] == 'input_audio'), isTrue);
+    expect(content.any((b) => b['type'] == 'file'), isTrue);
+    expect(
+      content.any((b) => b['type'] == 'mystery_block'),
+      isFalse,
+      reason: 'unknown blocks must still be dropped',
+    );
+  });
+
   test('plain string messages pass through untouched', () async {
     await ChatApiService.sendMessageStream(
       config: _deepseekConfig(fix.baseUrl),

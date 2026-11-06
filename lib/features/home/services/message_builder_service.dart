@@ -19,7 +19,13 @@ import '../../../core/models/memory_entry.dart';
 import '../../../core/services/memory/memory_block_builder.dart';
 import '../../../core/services/logging/flutter_logger.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
+import '../../../core/services/api/attachment_kind.dart';
 import '../../../core/services/api/builtin_tools.dart';
+import '../../../core/services/api/native_input_parts.dart';
+import '../../../core/services/api/native_input_policy.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/snackbar.dart';
+import '../../../utils/sandbox_path_resolver.dart';
 import '../../../core/services/agent/compaction/history_compactor.dart';
 import '../../../core/services/agent/compaction/tool_pairing.dart';
 import '../../../core/services/agent/compaction/tool_result_pruner.dart';
@@ -33,6 +39,26 @@ import '../../../utils/markdown_media_sanitizer.dart';
 String toolResultContentForModel(String? content) {
   if (content == null) return '';
   return content;
+}
+
+/// Resolve the text content of a user message after attachment markers were
+/// processed.
+///
+/// - non-empty text wins;
+/// - empty text with native parts stays empty (the wire parts carry the turn);
+/// - empty text with no native parts gets the localized placeholder, so the
+///   request never contains an empty user turn (Gemini `parts: []`, Claude
+///   empty content, strict OpenAI validators). Historical turns use the same
+///   placeholder: dropping them can leave a leading assistant turn, which
+///   Gemini/relays reject.
+String resolveUserMessageContent({
+  required String content,
+  required bool hasNativeParts,
+  required String emptyPlaceholder,
+}) {
+  if (content.isNotEmpty) return content;
+  if (hasNativeParts) return '';
+  return emptyPlaceholder;
 }
 
 /// Service for building API messages from conversation state.
@@ -358,8 +384,9 @@ class MessageBuilderService {
   Future<List<String>> processUserMessagesForApi(
     List<Map<String, dynamic>> apiMessages,
     SettingsProvider settings,
-    Assistant? assistant,
-  ) async {
+    Assistant? assistant, {
+    NativeInputPolicy? nativePolicy,
+  }) async {
     final bool ocrActive =
         settings.ocrEnabled &&
         settings.ocrModelProvider != null &&
@@ -416,9 +443,50 @@ class MessageBuilderService {
         cleanedUser = cleanedUser.replaceAll(RegExp(r"\[image:.*?\]"), '');
       }
 
+      // Native audio/PDF profile (multimodal plan B1). Only the last user
+      // message is sent natively; historical attachments keep the existing
+      // text-extraction path. Video is deliberately excluded — it already
+      // travels through `userImagePaths` and would otherwise be sent twice
+      // (§7 F5).
+      final nativeTargets = <NativeAttachment>[];
+      final nativePaths = <String>{};
+      if (nativePolicy != null &&
+          nativePolicy.enabled &&
+          i == lastUserIdx) {
+        for (final d in parsedUser.documents) {
+          final kind = attachmentKindFor(d.mime, d.fileName);
+          final wantsAudio =
+              kind == AttachmentKind.audio && nativePolicy.nativeAudio;
+          final wantsPdf =
+              kind == AttachmentKind.pdf && nativePolicy.nativePdf;
+          if (!wantsAudio && !wantsPdf) continue;
+          nativePaths.add(d.path);
+          nativeTargets.add(
+            NativeAttachment(
+              path: d.path,
+              name: d.fileName,
+              mime: attachmentMimeFor(d.mime, d.fileName),
+              kind: kind,
+            ),
+          );
+        }
+      }
+
       final filePrompts = StringBuffer();
       for (final d in parsedUser.documents) {
-        if (d.mime.toLowerCase().startsWith('video/')) continue;
+        // Video is handled by the multimodal image/video path; audio has no
+        // textual representation. Extracting either used to UTF-8 decode the
+        // binary into mojibake and replay it on every turn (§7 F2).
+        // Skips audio/video (no text representation) and native PDFs
+        // (already travelling as a document block — plan B5).
+        if (!shouldExtractAttachmentText(
+          path: d.path,
+          mime: d.mime,
+          name: d.fileName,
+          nativePaths: nativePaths,
+        )) {
+          continue;
+        }
         final text = await readDocument(d);
         if (text == null || text.trim().isEmpty) continue;
         filePrompts.writeln('## user sent a file: ${d.fileName}');
@@ -449,11 +517,67 @@ class MessageBuilderService {
         }
       }
 
-      apiMessages[i]['content'] = merged.isEmpty ? cleanedUser : merged;
+      apiMessages[i]['content'] = resolveUserMessageContent(
+        content: merged.isEmpty ? cleanedUser : merged,
+        hasNativeParts: nativeTargets.isNotEmpty,
+        emptyPlaceholder: _emptyUserMessagePlaceholder(),
+      );
+
+      if (nativeTargets.isNotEmpty) {
+        final built = await NativeInputParts.build(
+          protocol: nativePolicy!.protocol,
+          attachments: nativeTargets,
+          baseUrl: nativePolicy.baseUrl,
+          fixPath: SandboxPathResolver.fix,
+        );
+        if (built.parts.isEmpty) {
+          // The only content was a native attachment that failed the guard
+          // (too large / unreadable). Keep the turn non-empty so the request
+          // stays valid on Gemini/Claude while the snackbar explains why.
+          apiMessages[i]['content'] = resolveUserMessageContent(
+            content: (apiMessages[i]['content'] ?? '').toString(),
+            hasNativeParts: false,
+            emptyPlaceholder: _emptyUserMessagePlaceholder(),
+          );
+        }
+        if (built.parts.isNotEmpty) {
+          apiMessages[i]['_native_input'] = <String, dynamic>{
+            'protocol': nativePolicy.protocol.name,
+            'parts': built.parts,
+          };
+          // Neutral attachment profile kept alongside the wire parts so a
+          // future image-context governor has one hook (plan §2.6). Transport
+          // code reads only `_native_input`; this key is never serialized.
+          apiMessages[i]['_attachments'] = <Map<String, dynamic>>[
+            for (final a in nativeTargets) a.toMap(),
+          ];
+        }
+        if (built.hasErrors) {
+          FlutterLogger.log(
+            'Native attachment skipped: '
+            '${built.errors.map((e) => e.toString()).join('; ')}',
+            tag: 'multimodal',
+          );
+          if (contextProvider.mounted) {
+            final l10n = AppLocalizations.of(contextProvider);
+            final first = built.errors.first;
+            showAppSnackBar(
+              contextProvider,
+              message: l10n == null
+                  ? first.toString()
+                  : _attachmentErrorText(l10n, first),
+              type: NotificationType.warning,
+            );
+          }
+        }
+      }
     }
 
-    // Apply message template to last user message
-    if (lastUserIdx != -1) {
+    // Apply message template to last user message. A native-only turn has an
+    // empty text body — wrapping the template around it would inject
+    // boilerplate before/after the audio/PDF parts.
+    if (lastUserIdx != -1 &&
+        (apiMessages[lastUserIdx]['content'] ?? '').toString().isNotEmpty) {
       final userText = (apiMessages[lastUserIdx]['content'] ?? '').toString();
       final templ =
           (assistant?.messageTemplate ?? '{{ message }}').trim().isEmpty
@@ -469,6 +593,26 @@ class MessageBuilderService {
     }
 
     return lastUserImagePaths ?? <String>[];
+  }
+
+  /// Placeholder used when the current user turn has no text and no sendable
+  /// native attachment. Keeping a non-empty turn prevents provider 400s while
+  /// the gate/snackbar already told the user the attachment was not sent.
+  String _emptyUserMessagePlaceholder() {
+    return AppLocalizations.of(contextProvider)?.attachmentOmittedPlaceholder ??
+        '(attachment omitted)';
+  }
+
+  /// Localized, human-readable reason for a skipped native attachment.
+  String _attachmentErrorText(AppLocalizations l10n, NativeInputError error) {
+    final reason = switch (error.code) {
+      NativeInputError.tooLarge => l10n.attachmentErrorTooLarge,
+      NativeInputError.unavailable => l10n.attachmentErrorUnavailable,
+      NativeInputError.unsupportedFormat => l10n.attachmentErrorUnsupportedFormat,
+      NativeInputError.unsupportedProvider => l10n.attachmentErrorUnsupportedProvider,
+      _ => error.detail,
+    };
+    return l10n.attachmentSkippedNotice(error.fileName, reason);
   }
 
   /// Default OCR text wrapper

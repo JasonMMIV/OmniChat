@@ -668,6 +668,14 @@
   "modelDetailSheetInputModesLabel": "Input",
   "modelDetailSheetTextMode": "Text",
   "modelDetailSheetImageMode": "Image",
+  "modelDetailSheetAudioMode": "Audio",
+  "modelDetailSheetVideoMode": "Video",
+  "modelDetailSheetPdfMode": "PDF",
+  "modelDetailSheetNativeInputLabel": "Native input",
+  "modelDetailSheetNativePdfTool": "Send PDFs natively",
+  "modelDetailSheetNativePdfToolDescription": "Send the PDF as a document block instead of extracted text. Text extraction stays the fallback for providers without native support.",
+  "modelDetailSheetNativeAudioTool": "Send audio natively",
+  "modelDetailSheetNativeAudioToolDescription": "Send audio attachments as audio blocks. Requires a model with audio input and a provider that accepts them.",
   "modelDetailSheetOutputModesLabel": "Output",
   "modelDetailSheetAbilitiesLabel": "Abilities",
   "modelDetailSheetToolsAbility": "Tools",
@@ -803,6 +811,35 @@
   "chatMessageWidgetCopiedToClipboard": "Copied",
   "messageMoreSheetEdit": "Edit",
   "messageMoreSheetDelete": "Delete",
+  "unsupportedAttachmentStripped": "This model has no audio input; {count} audio attachment(s) will not be sent.",
+  "@unsupportedAttachmentStripped": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "attachmentSkippedNotice": "Attachment \"{fileName}\" was not sent: {reason}",
+  "@attachmentSkippedNotice": {
+    "placeholders": {
+      "fileName": {
+        "type": "String"
+      },
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "attachmentErrorTooLarge": "file exceeds the 10 MB native limit",
+  "attachmentErrorUnavailable": "file is missing or unreadable",
+  "attachmentErrorUnsupportedFormat": "unsupported audio format",
+  "attachmentErrorUnsupportedProvider": "this provider does not support native input",
+  "attachmentOmittedPlaceholder": "(attachment not sent)",
+  "attachmentNotSupportedByModel": "This model cannot receive audio attachments.",
+  "attachmentAudioLabel": "Audio",
+  "attachmentUnavailable": "Attachment unavailable",
+  "attachmentPlay": "Play",
+  "attachmentPause": "Pause",
   "chatMessageWidgetFileNotFound": "Not found: {fileName}",
   "@chatMessageWidgetFileNotFound": {
     "placeholders": {

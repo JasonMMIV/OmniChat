@@ -21,6 +21,9 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/services/search/search_service.dart';
 import '../../../core/services/api/builtin_tools.dart';
 import '../../../core/services/api/chat_api_service.dart';
+import '../../../core/services/api/attachment_kind.dart';
+import '../../../shared/widgets/audio_clip_player.dart';
+import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../utils/app_directories.dart';
@@ -83,6 +86,15 @@ class ChatInputBarController {
     _pendingFiles.clear();
     _state?._clearFiles();
   }
+
+  /// Whether the composer currently holds an audio attachment. Lets the
+  /// parent resolve the (non-trivial) audio policy only when it matters.
+  bool get hasAudioAttachments {
+    final docs = <DocumentAttachment>[...?_state?._docs, ..._pendingFiles];
+    return docs.any(
+      (d) => attachmentKindFor(d.mime, d.fileName) == AttachmentKind.audio,
+    );
+  }
 }
 
 class ChatInputBar extends StatefulWidget {
@@ -137,6 +149,7 @@ class ChatInputBar extends StatefulWidget {
     this.onToggleDictationPause,
     this.isEditing = false,
     this.onCancelEdit,
+    this.audioInputSupported = true,
   });
 
   final ValueChanged<ChatInputData>? onSend;
@@ -188,6 +201,11 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback? onToggleDictationPause;
   final bool isEditing;
   final VoidCallback? onCancelEdit;
+
+  /// Whether the active model/provider can actually send audio attachments
+  /// (capability + host policy + AI Team gate). Drives the composer warning
+  /// chip; send-time stripping is independent.
+  final bool audioInputSupported;
 
   @override
   State<ChatInputBar> createState() => _ChatInputBarState();
@@ -1729,6 +1747,17 @@ class _ChatInputBarState extends State<ChatInputBar>
 
   String _inferMimeByExtension(String name) {
     final lower = name.toLowerCase();
+    // Audio (multimodal plan §7 F2 — audio must not become text/plain).
+    if (lower.endsWith('.mp3')) return 'audio/mpeg';
+    if (lower.endsWith('.m4a')) return 'audio/mp4';
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    if (lower.endsWith('.aac')) return 'audio/aac';
+    if (lower.endsWith('.ogg') || lower.endsWith('.oga')) return 'audio/ogg';
+    if (lower.endsWith('.opus')) return 'audio/opus';
+    if (lower.endsWith('.flac')) return 'audio/flac';
+    if (lower.endsWith('.aiff') || lower.endsWith('.aif')) return 'audio/aiff';
+    if (lower.endsWith('.amr')) return 'audio/amr';
+    if (lower.endsWith('.pcm')) return 'audio/pcm';
     // Video
     if (lower.endsWith('.mp4')) return 'video/mp4';
     if (lower.endsWith('.mov')) return 'video/quicktime';
@@ -1915,46 +1944,56 @@ class _ChatInputBarState extends State<ChatInputBar>
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (context, idx) {
                     final d = _docs[idx];
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.white12
-                            : theme.colorScheme.surface,
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: isDark ? [] : AppShadows.soft,
-                      ),
-                      child: Row(
+                    final isAudio =
+                        attachmentKindFor(d.mime, d.fileName) ==
+                        AttachmentKind.audio;
+                    final unsupportedAudio =
+                        isAudio && !widget.audioInputSupported;
+                    final removeButton = GestureDetector(
+                      onTap: () async {
+                        setState(() => _docs.removeAt(idx));
+                        // Best-effort delete the persisted attachment. Async so
+                        // the UI isolate is never blocked (§5.1-6).
+                        try {
+                          final f = File(SandboxPathResolver.fix(d.path));
+                          if (await f.exists()) await f.delete();
+                        } catch (_) {}
+                      },
+                      child: const Icon(Icons.close, size: 16),
+                    );
+                    if (isAudio) {
+                      return Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.insert_drive_file, size: 18),
-                          const SizedBox(width: 6),
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 180),
-                            child: Text(
-                              d.fileName,
-                              overflow: TextOverflow.ellipsis,
+                          AudioClipPlayer(
+                            path: d.path,
+                            fileName: d.fileName,
+                            compact: true,
+                          ),
+                          if (unsupportedAudio)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 2),
+                              child: Tooltip(
+                                message:
+                                    AppLocalizations.of(context)
+                                        ?.attachmentNotSupportedByModel ??
+                                    '',
+                                child: Icon(
+                                  Icons.warning_amber_rounded,
+                                  size: 15,
+                                  color: theme.colorScheme.error,
+                                ),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          GestureDetector(
-                            onTap: () {
-                              setState(() => _docs.removeAt(idx));
-                              // best-effort delete persisted attachment
-                              try {
-                                final f = File(d.path);
-                                if (f.existsSync()) {
-                                  f.deleteSync();
-                                }
-                              } catch (_) {}
-                            },
-                            child: const Icon(Icons.close, size: 16),
-                          ),
+                          const SizedBox(width: 2),
+                          removeButton,
                         ],
-                      ),
+                      );
+                    }
+                    return _ComposerDocChip(
+                      path: d.path,
+                      fileName: d.fileName,
+                      removeButton: removeButton,
                     );
                   },
                 ),
@@ -2796,6 +2835,97 @@ class _SendButton extends StatelessWidget {
                 : Icon(icon, key: const ValueKey('send'), size: 22, color: fg),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Composer chip for a non-audio document. Checks availability
+/// asynchronously and renders a greyed "unavailable" state for missing files
+/// (deleted upload, restored backup without `includeFiles`, stale path).
+class _ComposerDocChip extends StatefulWidget {
+  const _ComposerDocChip({
+    required this.path,
+    required this.fileName,
+    required this.removeButton,
+  });
+
+  final String path;
+  final String fileName;
+  final Widget removeButton;
+
+  @override
+  State<_ComposerDocChip> createState() => _ComposerDocChipState();
+}
+
+class _ComposerDocChipState extends State<_ComposerDocChip> {
+  bool? _available;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    var ok = false;
+    try {
+      ok = await File(SandboxPathResolver.fix(widget.path)).exists();
+    } catch (_) {
+      ok = false;
+    }
+    if (!mounted) return;
+    setState(() => _available = ok);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context);
+    final missing = _available == false;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white12 : cs.surface,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: isDark ? [] : AppShadows.soft,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            missing
+                ? Icons.insert_drive_file_outlined
+                : Icons.insert_drive_file,
+            size: 18,
+            color: missing ? cs.error.withOpacity(0.8) : null,
+          ),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 180),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.fileName,
+                  overflow: TextOverflow.ellipsis,
+                  style: missing
+                      ? TextStyle(color: cs.onSurface.withOpacity(0.5))
+                      : null,
+                ),
+                if (missing)
+                  Text(
+                    l10n?.attachmentUnavailable ?? 'Unavailable',
+                    style: TextStyle(fontSize: 10.5, color: cs.error),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          widget.removeButton,
+        ],
       ),
     );
   }

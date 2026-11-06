@@ -1623,6 +1623,32 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelDetailSheetImageMode => '图片';
 
   @override
+  String get modelDetailSheetAudioMode => '音频';
+
+  @override
+  String get modelDetailSheetVideoMode => '视频';
+
+  @override
+  String get modelDetailSheetPdfMode => 'PDF';
+
+  @override
+  String get modelDetailSheetNativeInputLabel => '原生输入';
+
+  @override
+  String get modelDetailSheetNativePdfTool => '原生发送 PDF';
+
+  @override
+  String get modelDetailSheetNativePdfToolDescription =>
+      '以文档区块发送 PDF，而不是萃取文字。不支持原生输入的供应商仍会自动退回文字萃取。';
+
+  @override
+  String get modelDetailSheetNativeAudioTool => '原生发送音频';
+
+  @override
+  String get modelDetailSheetNativeAudioToolDescription =>
+      '将音频附件以音频区块发送。需要模型具备音频输入能力，且供应商接受该格式。';
+
+  @override
   String get modelDetailSheetOutputModesLabel => '输出模式';
 
   @override
@@ -1996,6 +2022,46 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get messageMoreSheetDelete => '删除';
+
+  @override
+  String unsupportedAttachmentStripped(int count) {
+    return '此模型不支持音频输入，$count 个音频附件不会发送。';
+  }
+
+  @override
+  String attachmentSkippedNotice(String fileName, String reason) {
+    return '附件「$fileName」未送出：$reason';
+  }
+
+  @override
+  String get attachmentErrorTooLarge => '文件超过 10 MB 原生上限';
+
+  @override
+  String get attachmentErrorUnavailable => '文件不存在或无法读取';
+
+  @override
+  String get attachmentErrorUnsupportedFormat => '不支持的音频格式';
+
+  @override
+  String get attachmentErrorUnsupportedProvider => '此服务商不支持原生输入';
+
+  @override
+  String get attachmentOmittedPlaceholder => '（附件未送出）';
+
+  @override
+  String get attachmentNotSupportedByModel => '目前模型不支援音訊附件。';
+
+  @override
+  String get attachmentAudioLabel => '音频';
+
+  @override
+  String get attachmentUnavailable => '附件不可用';
+
+  @override
+  String get attachmentPlay => '播放';
+
+  @override
+  String get attachmentPause => '暂停';
 
   @override
   String chatMessageWidgetFileNotFound(String fileName) {
@@ -7649,6 +7715,32 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get modelDetailSheetImageMode => '图片';
 
   @override
+  String get modelDetailSheetAudioMode => '音频';
+
+  @override
+  String get modelDetailSheetVideoMode => '视频';
+
+  @override
+  String get modelDetailSheetPdfMode => 'PDF';
+
+  @override
+  String get modelDetailSheetNativeInputLabel => '原生输入';
+
+  @override
+  String get modelDetailSheetNativePdfTool => '原生发送 PDF';
+
+  @override
+  String get modelDetailSheetNativePdfToolDescription =>
+      '以文档区块发送 PDF，而不是提取文字。不支持原生输入的提供商仍会自动退回文字提取。';
+
+  @override
+  String get modelDetailSheetNativeAudioTool => '原生发送音频';
+
+  @override
+  String get modelDetailSheetNativeAudioToolDescription =>
+      '将音频附件以音频区块发送。需要模型具备音频输入能力，且提供商接受该格式。';
+
+  @override
   String get modelDetailSheetOutputModesLabel => '输出模式';
 
   @override
@@ -8022,6 +8114,46 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get messageMoreSheetDelete => '删除';
+
+  @override
+  String unsupportedAttachmentStripped(int count) {
+    return '此模型不支持音频输入，$count 个音频附件不会发送。';
+  }
+
+  @override
+  String attachmentSkippedNotice(String fileName, String reason) {
+    return '附件「$fileName」未发送：$reason';
+  }
+
+  @override
+  String get attachmentErrorTooLarge => '文件超过 10 MB 原生上限';
+
+  @override
+  String get attachmentErrorUnavailable => '文件不存在或无法读取';
+
+  @override
+  String get attachmentErrorUnsupportedFormat => '不支持的音频格式';
+
+  @override
+  String get attachmentErrorUnsupportedProvider => '此提供商不支持原生输入';
+
+  @override
+  String get attachmentOmittedPlaceholder => '（附件未发送）';
+
+  @override
+  String get attachmentNotSupportedByModel => '当前模型不支持音频附件。';
+
+  @override
+  String get attachmentAudioLabel => '音频';
+
+  @override
+  String get attachmentUnavailable => '附件不可用';
+
+  @override
+  String get attachmentPlay => '播放';
+
+  @override
+  String get attachmentPause => '暂停';
 
   @override
   String chatMessageWidgetFileNotFound(String fileName) {
@@ -13576,6 +13708,32 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get modelDetailSheetImageMode => '圖片';
 
   @override
+  String get modelDetailSheetAudioMode => '音訊';
+
+  @override
+  String get modelDetailSheetVideoMode => '影片';
+
+  @override
+  String get modelDetailSheetPdfMode => 'PDF';
+
+  @override
+  String get modelDetailSheetNativeInputLabel => '原生輸入';
+
+  @override
+  String get modelDetailSheetNativePdfTool => '原生傳送 PDF';
+
+  @override
+  String get modelDetailSheetNativePdfToolDescription =>
+      '以文件區塊傳送 PDF，而不是擷取文字。不支援原生輸入的供應商仍會自動退回文字擷取。';
+
+  @override
+  String get modelDetailSheetNativeAudioTool => '原生傳送音訊';
+
+  @override
+  String get modelDetailSheetNativeAudioToolDescription =>
+      '將音訊附件以音訊區塊傳送。需要模型具備音訊輸入能力，且供應商接受該格式。';
+
+  @override
   String get modelDetailSheetOutputModesLabel => '輸出模式';
 
   @override
@@ -13948,6 +14106,46 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get messageMoreSheetDelete => '刪除';
+
+  @override
+  String unsupportedAttachmentStripped(int count) {
+    return '此模型不支援音訊輸入，$count 個音訊附件不會送出。';
+  }
+
+  @override
+  String attachmentSkippedNotice(String fileName, String reason) {
+    return '附件「$fileName」未送出：$reason';
+  }
+
+  @override
+  String get attachmentErrorTooLarge => '檔案超過 10 MB 原生上限';
+
+  @override
+  String get attachmentErrorUnavailable => '檔案不存在或無法讀取';
+
+  @override
+  String get attachmentErrorUnsupportedFormat => '不支援的音訊格式';
+
+  @override
+  String get attachmentErrorUnsupportedProvider => '此供應商不支援原生輸入';
+
+  @override
+  String get attachmentOmittedPlaceholder => '（附件未送出）';
+
+  @override
+  String get attachmentNotSupportedByModel => '目前模型不支援音訊附件。';
+
+  @override
+  String get attachmentAudioLabel => '音訊';
+
+  @override
+  String get attachmentUnavailable => '附件不可用';
+
+  @override
+  String get attachmentPlay => '播放';
+
+  @override
+  String get attachmentPause => '暫停';
 
   @override
   String chatMessageWidgetFileNotFound(String fileName) {

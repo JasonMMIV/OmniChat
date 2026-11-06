@@ -4209,7 +4209,10 @@ class ProviderConfig {
   // Per-model overrides (by logical model key).
   // Each entry may point to an upstream/vendor model id via `apiModelId` so that
   // multiple logical models can share the same backend model with different params.
-  // {'<key>': {'apiModelId': String?, 'name': String?, 'type': 'chat'|'embedding', 'input': ['text','image'], 'output': [...], 'abilities': ['tool','reasoning']}}
+  // {'<key>': {'apiModelId': String?, 'name': String?, 'type': 'chat'|'embedding',
+  //   'input': ['text','image','audio','video','pdf'], 'inputV': int?,
+  //   'output': [...], 'abilities': ['tool','reasoning'],
+  //   'nativePdf': bool?, 'nativeAudio': bool?}}
   final Map<String, dynamic> modelOverrides;
   // Per-provider proxy
   final bool? proxyEnabled;

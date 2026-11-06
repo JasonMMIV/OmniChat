@@ -16,6 +16,7 @@ import '../../../core/providers/model_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../model/widgets/model_detail_sheet.dart';
 import '../../model/widgets/model_select_sheet.dart';
+import '../../model/widgets/modality_badge.dart';
 import '../widgets/share_provider_sheet.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../../l10n/app_localizations.dart';
@@ -3537,45 +3538,11 @@ class _ModelCard extends StatelessWidget {
     final cfg = context.watch<SettingsProvider>().getProviderConfig(
       providerKey,
     );
-    final ov = cfg.modelOverrides[modelId] as Map?;
-    if (ov == null) return base;
-    ModelType? type;
-    final t = (ov['type'] as String?) ?? '';
-    if (t == 'embedding')
-      type = ModelType.embedding;
-    else if (t == 'chat')
-      type = ModelType.chat;
-    List<Modality>? input;
-    if (ov['input'] is List) {
-      input = [
-        for (final e in (ov['input'] as List))
-          (e.toString() == 'image' ? Modality.image : Modality.text),
-      ];
-    }
-    List<Modality>? output;
-    if (ov['output'] is List) {
-      output = [
-        for (final e in (ov['output'] as List))
-          (e.toString() == 'image' ? Modality.image : Modality.text),
-      ];
-    }
-    List<ModelAbility>? abilities;
-    if (ov['abilities'] is List) {
-      abilities = [
-        for (final e in (ov['abilities'] as List))
-          (e.toString() == 'reasoning'
-              ? ModelAbility.reasoning
-              : ModelAbility.tool),
-      ];
-    }
-    return base.copyWith(
-      displayName: (ov['name'] as String?)?.isNotEmpty == true
-          ? ov['name'] as String
-          : base.displayName,
-      type: type ?? base.type,
-      input: input ?? base.input,
-      output: output ?? base.output,
-      abilities: abilities ?? base.abilities,
+    // Single shared override parser (multimodal plan §7 F7): audio/video/pdf
+    // survive instead of collapsing into text.
+    return ModelRegistry.applyOverride(
+      base,
+      cfg.modelOverrides[modelId] as Map?,
     );
   }
 
@@ -4022,42 +3989,9 @@ ModelInfo _effectiveFor(
     providerKey,
     defaultName: providerDisplayName,
   );
-  final ov = cfg.modelOverrides[base.id] as Map?;
-  if (ov == null) return base;
-  ModelType? type;
-  final t = (ov['type'] as String?) ?? '';
-  if (t == 'embedding')
-    type = ModelType.embedding;
-  else if (t == 'chat')
-    type = ModelType.chat;
-  List<Modality>? input;
-  if (ov['input'] is List) {
-    input = [
-      for (final e in (ov['input'] as List))
-        (e.toString() == 'image' ? Modality.image : Modality.text),
-    ];
-  }
-  List<Modality>? output;
-  if (ov['output'] is List) {
-    output = [
-      for (final e in (ov['output'] as List))
-        (e.toString() == 'image' ? Modality.image : Modality.text),
-    ];
-  }
-  List<ModelAbility>? abilities;
-  if (ov['abilities'] is List) {
-    abilities = [
-      for (final e in (ov['abilities'] as List))
-        (e.toString() == 'reasoning'
-            ? ModelAbility.reasoning
-            : ModelAbility.tool),
-    ];
-  }
-  return base.copyWith(
-    type: type ?? base.type,
-    input: input ?? base.input,
-    output: output ?? base.output,
-    abilities: abilities ?? base.abilities,
+  return ModelRegistry.applyOverride(
+    base,
+    cfg.modelOverrides[base.id] as Map?,
   );
 }
 
@@ -4109,7 +4043,7 @@ Widget _modelTagWrap(BuildContext context, ModelInfo m) {
             Padding(
               padding: const EdgeInsets.only(right: 2),
               child: Icon(
-                mod == Modality.text ? Lucide.Type : Lucide.Image,
+                modalityIcon(mod),
                 size: 12,
                 color: isDark ? cs.tertiary : cs.tertiary.withOpacity(0.9),
               ),
@@ -4123,7 +4057,7 @@ Widget _modelTagWrap(BuildContext context, ModelInfo m) {
             Padding(
               padding: const EdgeInsets.only(left: 2),
               child: Icon(
-                mod == Modality.text ? Lucide.Type : Lucide.Image,
+                modalityIcon(mod),
                 size: 12,
                 color: isDark ? cs.tertiary : cs.tertiary.withOpacity(0.9),
               ),

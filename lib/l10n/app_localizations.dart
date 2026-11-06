@@ -3221,6 +3221,54 @@ abstract class AppLocalizations {
   /// **'Image'**
   String get modelDetailSheetImageMode;
 
+  /// No description provided for @modelDetailSheetAudioMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio'**
+  String get modelDetailSheetAudioMode;
+
+  /// No description provided for @modelDetailSheetVideoMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get modelDetailSheetVideoMode;
+
+  /// No description provided for @modelDetailSheetPdfMode.
+  ///
+  /// In en, this message translates to:
+  /// **'PDF'**
+  String get modelDetailSheetPdfMode;
+
+  /// No description provided for @modelDetailSheetNativeInputLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Native input'**
+  String get modelDetailSheetNativeInputLabel;
+
+  /// No description provided for @modelDetailSheetNativePdfTool.
+  ///
+  /// In en, this message translates to:
+  /// **'Send PDFs natively'**
+  String get modelDetailSheetNativePdfTool;
+
+  /// No description provided for @modelDetailSheetNativePdfToolDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Send the PDF as a document block instead of extracted text. Text extraction stays the fallback for providers without native support.'**
+  String get modelDetailSheetNativePdfToolDescription;
+
+  /// No description provided for @modelDetailSheetNativeAudioTool.
+  ///
+  /// In en, this message translates to:
+  /// **'Send audio natively'**
+  String get modelDetailSheetNativeAudioTool;
+
+  /// No description provided for @modelDetailSheetNativeAudioToolDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Send audio attachments as audio blocks. Requires a model with audio input and a provider that accepts them.'**
+  String get modelDetailSheetNativeAudioToolDescription;
+
   /// No description provided for @modelDetailSheetOutputModesLabel.
   ///
   /// In en, this message translates to:
@@ -3946,6 +3994,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete'**
   String get messageMoreSheetDelete;
+
+  /// No description provided for @unsupportedAttachmentStripped.
+  ///
+  /// In en, this message translates to:
+  /// **'This model has no audio input; {count} audio attachment(s) will not be sent.'**
+  String unsupportedAttachmentStripped(int count);
+
+  /// No description provided for @attachmentSkippedNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachment \"{fileName}\" was not sent: {reason}'**
+  String attachmentSkippedNotice(String fileName, String reason);
+
+  /// No description provided for @attachmentErrorTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'file exceeds the 10 MB native limit'**
+  String get attachmentErrorTooLarge;
+
+  /// No description provided for @attachmentErrorUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'file is missing or unreadable'**
+  String get attachmentErrorUnavailable;
+
+  /// No description provided for @attachmentErrorUnsupportedFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'unsupported audio format'**
+  String get attachmentErrorUnsupportedFormat;
+
+  /// No description provided for @attachmentErrorUnsupportedProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'this provider does not support native input'**
+  String get attachmentErrorUnsupportedProvider;
+
+  /// No description provided for @attachmentOmittedPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'(attachment not sent)'**
+  String get attachmentOmittedPlaceholder;
+
+  /// No description provided for @attachmentNotSupportedByModel.
+  ///
+  /// In en, this message translates to:
+  /// **'This model cannot receive audio attachments.'**
+  String get attachmentNotSupportedByModel;
+
+  /// No description provided for @attachmentAudioLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio'**
+  String get attachmentAudioLabel;
+
+  /// No description provided for @attachmentUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachment unavailable'**
+  String get attachmentUnavailable;
+
+  /// No description provided for @attachmentPlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get attachmentPlay;
+
+  /// No description provided for @attachmentPause.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause'**
+  String get attachmentPause;
 
   /// No description provided for @chatMessageWidgetFileNotFound.
   ///

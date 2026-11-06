@@ -1639,6 +1639,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelDetailSheetImageMode => 'Image';
 
   @override
+  String get modelDetailSheetAudioMode => 'Audio';
+
+  @override
+  String get modelDetailSheetVideoMode => 'Video';
+
+  @override
+  String get modelDetailSheetPdfMode => 'PDF';
+
+  @override
+  String get modelDetailSheetNativeInputLabel => 'Native input';
+
+  @override
+  String get modelDetailSheetNativePdfTool => 'Send PDFs natively';
+
+  @override
+  String get modelDetailSheetNativePdfToolDescription =>
+      'Send the PDF as a document block instead of extracted text. Text extraction stays the fallback for providers without native support.';
+
+  @override
+  String get modelDetailSheetNativeAudioTool => 'Send audio natively';
+
+  @override
+  String get modelDetailSheetNativeAudioToolDescription =>
+      'Send audio attachments as audio blocks. Requires a model with audio input and a provider that accepts them.';
+
+  @override
   String get modelDetailSheetOutputModesLabel => 'Output';
 
   @override
@@ -2010,6 +2036,48 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get messageMoreSheetDelete => 'Delete';
+
+  @override
+  String unsupportedAttachmentStripped(int count) {
+    return 'This model has no audio input; $count audio attachment(s) will not be sent.';
+  }
+
+  @override
+  String attachmentSkippedNotice(String fileName, String reason) {
+    return 'Attachment \"$fileName\" was not sent: $reason';
+  }
+
+  @override
+  String get attachmentErrorTooLarge => 'file exceeds the 10 MB native limit';
+
+  @override
+  String get attachmentErrorUnavailable => 'file is missing or unreadable';
+
+  @override
+  String get attachmentErrorUnsupportedFormat => 'unsupported audio format';
+
+  @override
+  String get attachmentErrorUnsupportedProvider =>
+      'this provider does not support native input';
+
+  @override
+  String get attachmentOmittedPlaceholder => '(attachment not sent)';
+
+  @override
+  String get attachmentNotSupportedByModel =>
+      'This model cannot receive audio attachments.';
+
+  @override
+  String get attachmentAudioLabel => 'Audio';
+
+  @override
+  String get attachmentUnavailable => 'Attachment unavailable';
+
+  @override
+  String get attachmentPlay => 'Play';
+
+  @override
+  String get attachmentPause => 'Pause';
 
   @override
   String chatMessageWidgetFileNotFound(String fileName) {

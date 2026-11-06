@@ -13,6 +13,7 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/services/api/learned_context_windows.dart';
+import '../../../core/services/api/native_input_policy.dart';
 import '../../../core/services/api/opencode.dart';
 import '../../../core/services/api/opencode_errors.dart';
 import '../../../core/services/api/transient_stream_error.dart';
@@ -33,7 +34,9 @@ import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant_regex.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
 import '../services/agent_orchestrator.dart';
+import '../services/attachment_modality_gate.dart';
 import '../services/message_generation_service.dart';
+import '../../../shared/widgets/snackbar.dart';
 import '../../chat/widgets/chat_message_widget.dart';
 import 'chat_controller.dart';
 import 'generation_controller.dart';
@@ -254,6 +257,46 @@ class ChatActions {
       effModelId = aiTeamConfig.aggregator!.modelId;
     }
 
+    // AI Team fan-out cannot use one selected model's native capability for
+    // every proposer (§7 F10).
+    final nativeInputsEnabled = nativeInputsEnabledForAiTeam(
+      aiTeamEnabled: aiTeam.enabled,
+      hasProposers: aiTeam.hasProposers,
+    );
+
+    // Attachment modality gate (multimodal plan C1): warn up front when the
+    // selected model has no audio input. The card is kept in the message; the
+    // assembler omits the audio part (no mojibake, no provider 400).
+    try {
+      final gateInfo = ChatApiService.effectiveModelInfo(
+        settings.getProviderConfig(effProviderKey),
+        effModelId,
+      );
+      final nativePolicy = resolveNativeInputPolicy(
+        settings,
+        effProviderKey,
+        effModelId,
+      );
+      final unsupportedAudio = AttachmentModalityGate.unsupported(
+        input.documents,
+        gateInfo,
+        nativeAudioEnabled:
+            nativePolicy.nativeAudio && nativeInputsEnabled,
+      );
+      if (unsupportedAudio.isNotEmpty) {
+        final l10n = AppLocalizations.of(contextProvider);
+        if (l10n != null) {
+          showAppSnackBar(
+            contextProvider,
+            message: l10n.unsupportedAttachmentStripped(
+              unsupportedAudio.length,
+            ),
+            type: NotificationType.warning,
+          );
+        }
+      }
+    } catch (_) {}
+
     // Create user message
     final userMessage = await messageGenerationService.createUserMessage(
       conversationId: conversation.id,
@@ -305,6 +348,7 @@ class ChatActions {
           assistantId: assistantId,
           providerKey: effProviderKey,
           modelId: effModelId,
+          enableNativeInputs: nativeInputsEnabled,
         );
 
     // Build user image paths
@@ -911,6 +955,10 @@ class ChatActions {
       effProviderKey = aiTeamConfig.aggregator!.providerKey;
       effModelId = aiTeamConfig.aggregator!.modelId;
     }
+    final nativeInputsEnabled = nativeInputsEnabledForAiTeam(
+      aiTeamEnabled: aiTeam.enabled,
+      hasProposers: aiTeam.hasProposers,
+    );
 
     // Create assistant message placeholder (new version)
     final assistantMessage = await messageGenerationService
@@ -976,6 +1024,7 @@ class ChatActions {
           assistantId: assistantId,
           providerKey: effProviderKey,
           modelId: effModelId,
+          enableNativeInputs: nativeInputsEnabled,
         );
 
     // Build user image paths
