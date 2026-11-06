@@ -39,7 +39,18 @@ jobs:
           dart --version
 
       - name: Resolve dependencies
-        run: flutter pub get
+        run: |
+          set -o pipefail
+          flutter pub get 2>&1 | tee pub-get.log
+
+      # Job logs are not public for this repository; surface the solver error in
+      # the check annotation so a red floor run is diagnosable without signing in.
+      - name: Report dependency resolution failure
+        if: failure()
+        run: |
+          if [ ! -f pub-get.log ]; then exit 0; fi
+          msg=$(tail -n 25 pub-get.log | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=flutter pub get failed::$msg"
 
       - name: Analyze app sources
         run: flutter analyze --no-fatal-infos --no-fatal-warnings lib
