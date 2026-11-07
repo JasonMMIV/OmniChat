@@ -202,8 +202,7 @@ expose 模式斷言（只驗證 URL／headers／body，不驗證工具執行）�
 9. **Step 8 — `_sendGoogleStream`**（146 + 715 行）：Gemini 測試。
 10. **Step 9 — 參數清除**：`onToolCall`／`exposeToolCallsOnly` 自四個簽名移除；六個呼叫點更新；
     legacy-only 測試刪除或改寫。
-11. **Step 10 — 收尾**：手冊 §3.10（L1 職責界線）、§7.2（roadmap）、計畫 §0.4 更新；
-    `STORE_REVIEW_PLAN.md` 不需動（無新能力）。
+11. **Step 10 — 收尾**：手冊 §3.10（L1 職責界線）、§7.2（roadmap）、計畫 §0.4 更新。
 
 **每步驗證指令**
 

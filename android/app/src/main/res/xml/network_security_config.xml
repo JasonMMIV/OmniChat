@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  OmniChat network security configuration (STORE_REVIEW_PLAN W-F01).
+  OmniChat network security configuration.
 
   - Public internet: cleartext (HTTP) is DISABLED -> HTTPS only.
   - Cleartext is explicitly whitelisted only for local development /
