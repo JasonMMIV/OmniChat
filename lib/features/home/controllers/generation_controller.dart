@@ -152,6 +152,7 @@ class GenerationController {
     String? messageId,
     String? workspacePath,
     String? approvedResolvedPath,
+    String? approvedShellCommand,
   }) {
     return toolHandlerService.buildToolCallHandler(
       settings,
@@ -160,8 +161,12 @@ class GenerationController {
       messageId: messageId,
       workspacePath: workspacePath,
       approvedResolvedPath: approvedResolvedPath,
+      approvedShellCommand: approvedShellCommand,
     );
   }
+
+  /// Stop every shell process tree started by the current tool handler.
+  void cancelActiveShellRuns() => toolHandlerService.cancelActiveShellRuns();
 
   // ============================================================================
   // Custom Headers/Body Builders

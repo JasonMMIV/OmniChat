@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/chat/ask_user_models.dart';
+import '../../../core/services/shell/tool_run_registry.dart';
 import '../../../core/services/chat/todo_service.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
@@ -257,6 +258,12 @@ class ApprovalToolCard extends StatelessWidget {
     final toolName = (approval['tool'] ?? part.toolName).toString();
     final resolvedPath = (approval['resolved_path'] ?? '').toString();
     final outside = approval['outside_workspace'] == true;
+    final shellCommand = (approval['shell_command'] ?? '').toString();
+    final shellBlockedPrograms = <String>[
+      for (final program
+          in (approval['shell_blocked_programs'] as List? ?? const []))
+        program.toString(),
+    ];
 
     return IosCardPress(
       borderRadius: BorderRadius.circular(10),
@@ -345,6 +352,57 @@ class ApprovalToolCard extends StatelessWidget {
                 ],
               ),
             ),
+          // P1-6: the full command is the thing the user is approving — show
+          // it verbatim, plus which programs "always allow" would add.
+          if (shellCommand.isNotEmpty && !_isDenied && !_isTimeout) ...[
+            const SizedBox(height: 2),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0x14000000)
+                    : const Color(0x0A000000),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.approvalShellCommand,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: cardTextColor.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  SelectableText(
+                    shellCommand,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                      height: 1.35,
+                      color: cardTextColor,
+                    ),
+                  ),
+                  if (shellBlockedPrograms.isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      l10n.approvalShellAlwaysAllowHint(
+                        shellBlockedPrograms.join(', '),
+                      ),
+                      style: TextStyle(
+                        fontSize: 11,
+                        height: 1.3,
+                        color: cardTextColor.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
           // P1-1: unified-diff preview for file_edit calls (before execution).
           if ((approval['preview_diff'] ?? '').toString().trim().isNotEmpty &&
               !_isDenied &&
@@ -403,6 +461,64 @@ class ApprovalToolCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// P1-6: live shell output on the executing tool card. Reads the
+/// process-lifetime ToolRun registry; after a reload the registry is empty
+/// and the card falls back to the persisted final tool event (documented
+/// degradation — no live tail across restarts).
+class ShellLiveTail extends StatelessWidget {
+  const ShellLiveTail({
+    super.key,
+    required this.toolCallId,
+    required this.color,
+  });
+
+  final String toolCallId;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    // The ToolRun may be created after this card's first build (the tool
+    // event can render before execute() reaches the registry). Listen to the
+    // registry as well as the run so the tail appears without a parent rebuild.
+    return AnimatedBuilder(
+      animation: ToolRunRegistry.instance,
+      builder: (context, _) {
+        final run = ToolRunRegistry.instance.findByToolCallId(toolCallId);
+        if (run == null) return const SizedBox.shrink();
+        return AnimatedBuilder(
+          animation: run,
+          builder: (context, _) {
+            final text = run.tail(lines: 6);
+            if (text.trim().isEmpty) return const SizedBox.shrink();
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            return Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0x14000000)
+                    : const Color(0x0A000000),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                text,
+                maxLines: 6,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                  height: 1.35,
+                  color: color.withValues(alpha: 0.8),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

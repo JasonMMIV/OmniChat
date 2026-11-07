@@ -93,8 +93,11 @@ class AgentLoopHooks {
   });
 
   /// Called before each round is dispatched, with the current step index,
-  /// the neutral messages accumulated so far and the token usage accumulated
-  /// so far. Returning `false` stops the run with
+  /// the neutral messages accumulated so far and the **cumulative** token
+  /// usage across the run. The cumulative value is a budget signal, not the
+  /// size of the next prompt — drivers that need prompt size must estimate it
+  /// from [messages] (or use the last round's `usage.promptTokens`).
+  /// Returning `false` stops the run with
   /// [AgentRunStopReason.stoppedByHook] before any request is sent.
   final Future<bool> Function(
     int stepIndex,

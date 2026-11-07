@@ -2,10 +2,10 @@
 //
 // The prep-time trigger evaluates once before a run starts; a long-running
 // agent loop can still cross the trigger mid-flight. The kernel's
-// `onRoundStart` hook carries `tokensSoFar` (cumulative usage across
-// rounds), so the same formula is re-evaluated at every round boundary
-// (plan §P1-2: "mid-run 重評估留給 kernel onRoundStart hook（已帶
-// tokensSoFar，公式直接復用）").
+// `onRoundStart` hook carries cumulative `tokensSoFar` (a budget signal, not
+// a prompt size); the driver estimates the next prompt from the working list
+// and the last measured `usage.promptTokens`, then re-runs the same formula at
+// every round boundary.
 //
 // When the trigger fires, the OLDER portion of the loop's working message
 // list — everything before the newest verbatim tail — is rewritten into the
@@ -30,13 +30,13 @@ import 'tool_pairing.dart';
 ///
 /// [messages] is the loop's working list — the assembled apiMessages (with
 /// the system message at index 0) plus the rounds' appended neutral
-/// assistant/tool messages. [tokensSoFar] is the cumulative token usage the
-/// kernel has observed so far (the conservative proxy for the next round's
-/// prompt size). The formula, floor, tail budget and pair caps are the
-/// prep-time ones, reused verbatim.
+/// assistant/tool messages. [promptTokens] is the estimated size of the NEXT
+/// round's prompt (see [estimateCompactionPromptTokens]); it is deliberately
+/// not the kernel's cumulative usage counter. The formula, floor, tail budget
+/// and pair caps are the prep-time ones, reused verbatim.
 bool applyMidRunCompaction(
   List<Map<String, dynamic>> messages, {
-  required int tokensSoFar,
+  required int promptTokens,
   required String modelId,
   required int? learnedWindowTokens,
   String? providerId,
@@ -47,7 +47,7 @@ bool applyMidRunCompaction(
 
   // Floor: no speculative compaction under 140k tokens — the same fixed
   // floor as prep-time evaluation (v1.4).
-  if (tokensSoFar < compactionFloorTokens) return false;
+  if (promptTokens < compactionFloorTokens) return false;
 
   final window = resolveContextWindowTokens(
     modelId,
@@ -61,7 +61,7 @@ bool applyMidRunCompaction(
     host: host,
   );
   final trigger = compactionTriggerTokens(window, outputTokens);
-  if (tokensSoFar <= trigger) return false;
+  if (promptTokens <= trigger) return false;
 
   // The system message (index 0 of the assembled apiMessages) is never
   // compacted — system prompts and injections must survive every round.
@@ -111,16 +111,53 @@ bool applyMidRunCompaction(
   );
   if (summary == null) return false;
 
-  final head = <Map<String, dynamic>>[
-    if (start == 1) messages.first,
-    summary,
-  ];
+  final head = <Map<String, dynamic>>[if (start == 1) messages.first, summary];
   final tail = messages.sublist(boundary);
   messages
     ..clear()
     ..addAll(head)
     ..addAll(tail);
   return true;
+}
+
+/// Estimate the size of the next round's prompt for mid-run compaction.
+///
+/// The kernel's `tokensSoFar` is cumulative across rounds and must never be
+/// used here: a 6-round run with a 100k prompt would otherwise look like
+/// 600k. The measured prompt is the last round's real `usage.promptTokens`;
+/// the working-list estimate covers the tool results appended since then.
+int estimateCompactionPromptTokens({
+  required List<Map<String, dynamic>> messages,
+  required int measuredPromptTokens,
+}) {
+  final estimated = estimateApiMessagesTokens(messages);
+  return estimated > measuredPromptTokens ? estimated : measuredPromptTokens;
+}
+
+/// Mid-run entry point used by the kernel hook. It derives the prompt-size
+/// input and applies the same floor/trigger/boundary rules as the pure
+/// compactor, so callers cannot accidentally feed the cumulative counter.
+bool maybeApplyMidRunCompaction(
+  List<Map<String, dynamic>> messages, {
+  required int measuredPromptTokens,
+  required bool enabled,
+  required String modelId,
+  required int? learnedWindowTokens,
+  String? providerId,
+  String? host,
+}) {
+  if (!enabled) return false;
+  return applyMidRunCompaction(
+    messages,
+    promptTokens: estimateCompactionPromptTokens(
+      messages: messages,
+      measuredPromptTokens: measuredPromptTokens,
+    ),
+    modelId: modelId,
+    learnedWindowTokens: learnedWindowTokens,
+    providerId: providerId,
+    host: host,
+  );
 }
 
 bool _hasToolCalls(Map<String, dynamic> message) {

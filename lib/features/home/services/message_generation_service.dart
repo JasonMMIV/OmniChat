@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
+
 import '../../../core/models/assistant.dart';
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
@@ -29,8 +31,10 @@ import 'message_builder_service.dart';
 
 /// Callback types for UI updates from MessageGenerationService
 typedef OnMessagesChanged = void Function();
-typedef OnConversationLoadingChanged =
-    void Function(String conversationId, bool loading);
+typedef OnConversationLoadingChanged = void Function(
+  String conversationId,
+  bool loading,
+);
 typedef OnScrollToBottom = void Function();
 typedef OnShowError = void Function(String message);
 typedef OnShowWarning = void Function(String message);
@@ -169,7 +173,7 @@ class MessageGenerationService {
       }
       final learned = await LearnedContextWindows.lookup(providerKey, modelId);
       final catalogCfg = settings.getProviderConfig(providerKey);
-      final trigger = evaluateCompactionTrigger(
+      final trigger = evaluatePrepTimeCompaction(
         messages: messages,
         measuredPromptTokens: measured,
         modelId: modelId,
@@ -179,7 +183,7 @@ class MessageGenerationService {
         estimateMessageTokens: _estimateRawMessageTokens,
         hasToolEvents: (m) => chatService.getToolEvents(m.id).isNotEmpty,
       );
-      if (trigger.overTrigger &&
+      if (trigger.shouldCompact &&
           trigger.boundaryIndex > conv.compactBeforeIndex) {
         await chatService.setCompactBeforeIndex(conv.id, trigger.boundaryIndex);
         conversation = conv.copyWith(compactBeforeIndex: trigger.boundaryIndex);

@@ -921,6 +921,10 @@
     }
   },
   "approvalPendingPill": "Pending",
+  "pendingAgentRunTitle": "Previous task unfinished",
+  "pendingAgentRunBody": "Progress was saved. You can continue from the last checkpoint.",
+  "pendingAgentRunResume": "Resume",
+  "pendingAgentRunReview": "Review",
   "approvalOutsideWorkspace": "Outside workspace: {path}",
   "@approvalOutsideWorkspace": {
     "placeholders": {
@@ -932,6 +936,36 @@
   "approvalApprove": "Approve",
   "approvalAlwaysAllow": "Always allow",
   "approvalDeny": "Deny",
+  "developerModeTitle": "Developer mode",
+  "developerModeMasterTitle": "Enable command execution",
+  "developerModeMasterSubtitle": "Adds the shell_run tool to desktop chats. Commands run with your user permissions outside the workspace sandbox. Android is not supported.",
+  "developerModeDesktopOnly": "Command execution is only available on Windows, macOS, and Linux.",
+  "developerModeWarning": "Only enable this if you understand that the model can run commands on this computer. Every command outside the allowlist still asks for approval.",
+  "developerModeAllowlistTitle": "Command allowlist",
+  "developerModeAllowlistSubtitle": "Programs that run without an approval card. Anything else asks first. Compound commands check every segment.",
+  "developerModeAddProgram": "Add program",
+  "developerModeAddProgramHint": "e.g. cargo",
+  "developerModeRemoveProgram": "Remove",
+  "developerModeAllowlistEmpty": "No programs are allowlisted. Every command will ask for approval.",
+  "developerModeDetected": "Found on PATH",
+  "developerModeNotDetected": "Not found on PATH",
+  "approvalShellCommand": "Command",
+  "approvalShellAlwaysAllowHint": "Always allow adds these programs to the allowlist: {programs}",
+  "@approvalShellAlwaysAllowHint": {
+    "placeholders": {
+      "programs": {
+        "type": "String"
+      }
+    }
+  },
+  "chatMessageWidgetShellRun": "Run: {command}",
+  "@chatMessageWidgetShellRun": {
+    "placeholders": {
+      "command": {
+        "type": "String"
+      }
+    }
+  },
   "approvalSettingsTitle": "Tool approval policy",
   "approvalStrictModeTitle": "Strict mode",
   "approvalStrictModeSubtitle": "Deny every tool call that would otherwise ask for approval, instead of showing a prompt.",

@@ -4,8 +4,12 @@
 // usage persisted per message (`ChatMessage.promptTokens`). Formula and
 // floor come from the plan: `trigger = min(0.7W, W - reserve(W, out))` with
 // the models.dev catalog window and output cap (learned windows win), and
-// contexts under 140k tokens get no speculative compaction. `cache_expiry` is
-// deferred to Phase 2 (v1.4).
+// contexts under 140k tokens get no speculative compaction.
+//
+// `cache_expiry` is the second, OR-ed path: once the last successful request
+// is at least 30 minutes old, the provider's prompt cache is cold, so the
+// compaction no longer costs a prefix invalidation. It skips the trigger
+// threshold but still requires the 140k floor and the same safe boundary.
 //
 // When the trigger fires, the boundary walk collects the newest verbatim
 // tail (K=8 tool-bearing assistant rounds, 10k token budget) in the RAW
@@ -24,6 +28,11 @@ import 'context_trim.dart';
 /// DEFAULT_CACHE_EXPIRY_MIN_TOKENS, fixed value per v1.4).
 const int compactionFloorTokens = 140_000;
 
+/// Idle age after which a successful request's prompt cache is considered
+/// cold. The activity anchor is the latest successful assistant message, not
+/// the conversation's `updatedAt` (which also moves on failures/cancels).
+const Duration cacheExpiryIdleThreshold = Duration(minutes: 30);
+
 /// Verbatim-tail budget, in estimated tokens (chars/3 ruler).
 const int tailBudgetTokens = 10_000;
 
@@ -39,7 +48,8 @@ typedef RawMessageTokensFn = int Function(ChatMessage message);
 typedef HasToolEventsFn = bool Function(ChatMessage message);
 
 class CompactionTriggerResult {
-  /// Whether the measured usage is over the trigger.
+  /// Whether the token/cache-expiry condition fired. This can be true with
+  /// `boundaryIndex == -1`; use [shouldCompact] for the combined verdict.
   final bool overTrigger;
 
   /// Raw-space boundary for the `compactBeforeIndex` marker: messages
@@ -52,16 +62,44 @@ class CompactionTriggerResult {
     required this.boundaryIndex,
   });
 
+  /// Whether the trigger fired AND a safe boundary exists. Callers should use
+  /// this instead of reading [overTrigger] alone: `overTrigger` can be true
+  /// with `boundaryIndex == -1` when no safe cut point was found.
+  bool get shouldCompact => overTrigger && boundaryIndex > 0;
+
   static const CompactionTriggerResult none = CompactionTriggerResult(
     overTrigger: false,
     boundaryIndex: -1,
   );
 }
 
+/// Returns the completion time of the latest successful request in [messages].
+///
+/// `promptTokens` is persisted only after a request actually produced usage,
+/// so failed/retry-only assistant rows (which carry no usage) do not move this
+/// anchor. `processFinishedAt` is preferred when available: for turns with a
+/// final text response it is stamped when that text starts, and for tool-only
+/// turns the finish backstop stamps it at completion. It is the best available
+/// proxy, not the exact usage-persist time; at a 30-minute threshold that
+/// approximation is deliberate (no schema bump). Otherwise the message
+/// timestamp is used.
+DateTime? latestSuccessfulRequestAt(List<ChatMessage> messages) {
+  for (var i = messages.length - 1; i >= 0; i--) {
+    final message = messages[i];
+    if (message.role != 'assistant' || message.isStreaming) continue;
+    if ((message.promptTokens ?? 0) <= 0) continue;
+    return message.processFinishedAt ?? message.timestamp;
+  }
+  return null;
+}
+
 /// Evaluate the compaction trigger for the raw message list of a
 /// conversation. [messages] is the FULL raw list (the live user prompt is
 /// the newest entry). [measuredPromptTokens] is the persisted
 /// `promptTokens` of the latest assistant message that has one.
+///
+/// [lastSuccessfulRequestAt] enables the cache-expiry path; [now] is
+/// injectable for deterministic tests.
 CompactionTriggerResult evaluateCompactionTrigger({
   required List<ChatMessage> messages,
   required int? measuredPromptTokens,
@@ -71,6 +109,8 @@ CompactionTriggerResult evaluateCompactionTrigger({
   String? host,
   required RawMessageTokensFn estimateMessageTokens,
   required HasToolEventsFn hasToolEvents,
+  DateTime? lastSuccessfulRequestAt,
+  DateTime? now,
 }) {
   if (messages.isEmpty) return CompactionTriggerResult.none;
   if (measuredPromptTokens == null || measuredPromptTokens <= 0) {
@@ -93,11 +133,12 @@ CompactionTriggerResult evaluateCompactionTrigger({
     host: host,
   );
   final trigger = compactionTriggerTokens(window, outputTokens);
-  if (measuredPromptTokens <= trigger) {
-    return CompactionTriggerResult(
-      overTrigger: false,
-      boundaryIndex: -1,
-    );
+  final clock = now ?? DateTime.now();
+  final cacheExpired =
+      lastSuccessfulRequestAt != null &&
+      clock.difference(lastSuccessfulRequestAt) >= cacheExpiryIdleThreshold;
+  if (measuredPromptTokens <= trigger && !cacheExpired) {
+    return CompactionTriggerResult(overTrigger: false, boundaryIndex: -1);
   }
 
   // Boundary walk (AnyBuff splitTail semantics): the live user prompt and
@@ -139,7 +180,8 @@ CompactionTriggerResult evaluateCompactionTrigger({
 
   // Snap the boundary back to a version-group start so collapsing versions
   // independently on either side can never split a group.
-  while (boundary > 0 && _sameGroup(messages[boundary - 1], messages[boundary])) {
+  while (boundary > 0 &&
+      _sameGroup(messages[boundary - 1], messages[boundary])) {
     boundary--;
   }
   if (boundary <= 0) {
@@ -147,6 +189,34 @@ CompactionTriggerResult evaluateCompactionTrigger({
   }
 
   return CompactionTriggerResult(overTrigger: true, boundaryIndex: boundary);
+}
+
+/// Prep-time entry point: evaluates the trigger AND derives the cache-expiry
+/// anchor from the message list. Kept separate from [evaluateCompactionTrigger]
+/// so the wiring (rather than only the pure formula) is testable.
+CompactionTriggerResult evaluatePrepTimeCompaction({
+  required List<ChatMessage> messages,
+  required int? measuredPromptTokens,
+  required String modelId,
+  required int? learnedWindowTokens,
+  String? providerId,
+  String? host,
+  required RawMessageTokensFn estimateMessageTokens,
+  required HasToolEventsFn hasToolEvents,
+  DateTime? now,
+}) {
+  return evaluateCompactionTrigger(
+    messages: messages,
+    measuredPromptTokens: measuredPromptTokens,
+    modelId: modelId,
+    learnedWindowTokens: learnedWindowTokens,
+    providerId: providerId,
+    host: host,
+    estimateMessageTokens: estimateMessageTokens,
+    hasToolEvents: hasToolEvents,
+    lastSuccessfulRequestAt: latestSuccessfulRequestAt(messages),
+    now: now,
+  );
 }
 
 bool _sameGroup(ChatMessage a, ChatMessage b) {

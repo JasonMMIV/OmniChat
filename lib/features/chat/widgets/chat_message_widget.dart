@@ -3376,6 +3376,8 @@ class _ToolCallItem extends StatelessWidget {
         return Lucide.Search;
       case 'skill':
         return Lucide.WandSparkles;
+      case 'shell_run':
+        return Lucide.Terminal;
       default:
         return Lucide.Wrench;
     }
@@ -3414,6 +3416,11 @@ class _ToolCallItem extends StatelessWidget {
         return skillName.isEmpty
             ? l10n.chatMessageWidgetToolCall(name)
             : l10n.chatMessageWidgetSkillLoad(skillName);
+      case 'shell_run':
+        final command = (args['command'] ?? '').toString();
+        return command.isEmpty
+            ? l10n.chatMessageWidgetToolCall(name)
+            : l10n.chatMessageWidgetShellRun(command);
       default:
         return isResult
             ? l10n.chatMessageWidgetToolResult(name)
@@ -3545,6 +3552,14 @@ class _ToolCallItem extends StatelessWidget {
                     ],
                   ],
                 ),
+                if (part.toolName == 'shell_run' && part.loading)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: ShellLiveTail(
+                      toolCallId: part.id,
+                      color: cardTextColor,
+                    ),
+                  ),
                 if (part.toolName == 'search_web' &&
                     (part.searchFallbackFrom ?? '').isNotEmpty &&
                     (part.searchProvider ?? '').isNotEmpty) ...[

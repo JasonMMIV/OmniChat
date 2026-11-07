@@ -2157,6 +2157,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get approvalPendingPill => '待审批';
 
   @override
+  String get pendingAgentRunTitle => '上次任务尚未完成';
+
+  @override
+  String get pendingAgentRunBody => '执行进度已保存，可从中断处继续。';
+
+  @override
+  String get pendingAgentRunResume => '继续任务';
+
+  @override
+  String get pendingAgentRunReview => '查看';
+
+  @override
   String approvalOutsideWorkspace(String path) {
     return '工作区之外：$path';
   }
@@ -2169,6 +2181,60 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get approvalDeny => '拒绝';
+
+  @override
+  String get developerModeTitle => '开发者模式';
+
+  @override
+  String get developerModeMasterTitle => '启用命令执行';
+
+  @override
+  String get developerModeMasterSubtitle =>
+      '在桌面对话中加入 shell_run 工具。命令会以你的用户权限在工作区沙盒之外执行。Android 不支持。';
+
+  @override
+  String get developerModeDesktopOnly => '命令执行仅支持 Windows、macOS 与 Linux。';
+
+  @override
+  String get developerModeWarning => '仅在你了解模型可以在此电脑上执行命令时启用。允许列表之外的每个命令仍会要求审批。';
+
+  @override
+  String get developerModeAllowlistTitle => '命令允许列表';
+
+  @override
+  String get developerModeAllowlistSubtitle =>
+      '免审批即可执行的程序。其他程序一律先询问。复合命令会逐段检查。';
+
+  @override
+  String get developerModeAddProgram => '添加程序';
+
+  @override
+  String get developerModeAddProgramHint => '例如 cargo';
+
+  @override
+  String get developerModeRemoveProgram => '移除';
+
+  @override
+  String get developerModeAllowlistEmpty => '允许列表是空的，每个命令都会要求审批。';
+
+  @override
+  String get developerModeDetected => '已在 PATH 中找到';
+
+  @override
+  String get developerModeNotDetected => '在 PATH 中找不到';
+
+  @override
+  String get approvalShellCommand => '命令';
+
+  @override
+  String approvalShellAlwaysAllowHint(String programs) {
+    return '总是允许会将这些程序加入允许列表：$programs';
+  }
+
+  @override
+  String chatMessageWidgetShellRun(String command) {
+    return '运行：$command';
+  }
 
   @override
   String get approvalSettingsTitle => '工具审批政策';
@@ -8249,6 +8315,18 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get approvalPendingPill => '待审批';
 
   @override
+  String get pendingAgentRunTitle => '上次任务尚未完成';
+
+  @override
+  String get pendingAgentRunBody => '执行进度已保存，可从中断处继续。';
+
+  @override
+  String get pendingAgentRunResume => '继续任务';
+
+  @override
+  String get pendingAgentRunReview => '查看';
+
+  @override
   String approvalOutsideWorkspace(String path) {
     return '工作区之外：$path';
   }
@@ -8261,6 +8339,60 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get approvalDeny => '拒绝';
+
+  @override
+  String get developerModeTitle => '开发者模式';
+
+  @override
+  String get developerModeMasterTitle => '启用命令执行';
+
+  @override
+  String get developerModeMasterSubtitle =>
+      '在桌面对话中加入 shell_run 工具。命令会以你的用户权限在工作区沙盒之外执行。Android 不支持。';
+
+  @override
+  String get developerModeDesktopOnly => '命令执行仅支持 Windows、macOS 与 Linux。';
+
+  @override
+  String get developerModeWarning => '仅在你了解模型可以在此电脑上执行命令时启用。允许列表之外的每个命令仍会要求审批。';
+
+  @override
+  String get developerModeAllowlistTitle => '命令允许列表';
+
+  @override
+  String get developerModeAllowlistSubtitle =>
+      '免审批即可执行的程序。其他程序一律先询问。复合命令会逐段检查。';
+
+  @override
+  String get developerModeAddProgram => '添加程序';
+
+  @override
+  String get developerModeAddProgramHint => '例如 cargo';
+
+  @override
+  String get developerModeRemoveProgram => '移除';
+
+  @override
+  String get developerModeAllowlistEmpty => '允许列表是空的，每个命令都会要求审批。';
+
+  @override
+  String get developerModeDetected => '已在 PATH 中找到';
+
+  @override
+  String get developerModeNotDetected => '在 PATH 中找不到';
+
+  @override
+  String get approvalShellCommand => '命令';
+
+  @override
+  String approvalShellAlwaysAllowHint(String programs) {
+    return '总是允许会将这些程序加入允许列表：$programs';
+  }
+
+  @override
+  String chatMessageWidgetShellRun(String command) {
+    return '运行：$command';
+  }
 
   @override
   String get approvalSettingsTitle => '工具审批政策';
@@ -14241,6 +14373,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get approvalPendingPill => '待審批';
 
   @override
+  String get pendingAgentRunTitle => '上次任務尚未完成';
+
+  @override
+  String get pendingAgentRunBody => '執行進度已保存，可從中斷處繼續。';
+
+  @override
+  String get pendingAgentRunResume => '繼續任務';
+
+  @override
+  String get pendingAgentRunReview => '查看';
+
+  @override
   String approvalOutsideWorkspace(String path) {
     return '工作區之外：$path';
   }
@@ -14253,6 +14397,60 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get approvalDeny => '拒絕';
+
+  @override
+  String get developerModeTitle => '開發者模式';
+
+  @override
+  String get developerModeMasterTitle => '啟用命令執行';
+
+  @override
+  String get developerModeMasterSubtitle =>
+      '在桌面對話中加入 shell_run 工具。命令會以你的使用者權限在工作區沙盒之外執行。Android 不支援。';
+
+  @override
+  String get developerModeDesktopOnly => '命令執行僅支援 Windows、macOS 與 Linux。';
+
+  @override
+  String get developerModeWarning => '僅在你了解模型可以在此電腦上執行命令時啟用。允許清單之外的每個命令仍會要求審批。';
+
+  @override
+  String get developerModeAllowlistTitle => '命令允許清單';
+
+  @override
+  String get developerModeAllowlistSubtitle =>
+      '免審批即可執行的程式。其他程式一律先詢問。複合命令會逐段檢查。';
+
+  @override
+  String get developerModeAddProgram => '新增程式';
+
+  @override
+  String get developerModeAddProgramHint => '例如 cargo';
+
+  @override
+  String get developerModeRemoveProgram => '移除';
+
+  @override
+  String get developerModeAllowlistEmpty => '允許清單是空的，每個命令都會要求審批。';
+
+  @override
+  String get developerModeDetected => '已在 PATH 中找到';
+
+  @override
+  String get developerModeNotDetected => '在 PATH 中找不到';
+
+  @override
+  String get approvalShellCommand => '命令';
+
+  @override
+  String approvalShellAlwaysAllowHint(String programs) {
+    return '永遠允許會將這些程式加入允許清單：$programs';
+  }
+
+  @override
+  String chatMessageWidgetShellRun(String command) {
+    return '執行：$command';
+  }
 
   @override
   String get approvalSettingsTitle => '工具審批政策';

@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io' show Directory, File;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show TargetPlatform;
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
+
 import '../../../l10n/app_localizations.dart';
 import '../../../main.dart';
 import '../../../shared/widgets/interactive_drawer.dart';
@@ -585,9 +587,8 @@ class _HomePageState extends State<HomePage>
         await _controller.createNewConversationAnimated();
       }
       if (!mounted) return;
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (context) => LiveCallScreen()));
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (context) => LiveCallScreen()));
       return;
     }
     if (_controller.currentConversation == null) {
@@ -595,9 +596,8 @@ class _HomePageState extends State<HomePage>
     }
     if (!mounted) return;
     // Navigate to the voice chat screen
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (context) => VoiceChatScreen()));
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (context) => VoiceChatScreen()));
   }
 
   Future<void> _openWorkspace() async {
@@ -713,6 +713,7 @@ class _HomePageState extends State<HomePage>
           ),
           child: Column(
             children: [
+              _buildPendingAgentRunBanner(context),
               Expanded(
                 child: Builder(
                   builder: (context) {
@@ -845,6 +846,7 @@ class _HomePageState extends State<HomePage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _buildPendingAgentRunBanner(context),
               Expanded(
                 child: FadeTransition(
                   opacity: _controller.convoFade,
@@ -1020,6 +1022,65 @@ class _HomePageState extends State<HomePage>
     );
   }
 
+  Widget _buildPendingAgentRunBanner(BuildContext context) {
+    final checkpoint = _controller.pendingAgentRun;
+    if (checkpoint == null) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final action = checkpoint.hasPendingUserAction
+        ? l10n.pendingAgentRunReview
+        : l10n.pendingAgentRunResume;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Material(
+        color: cs.secondaryContainer,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+          child: Row(
+            children: [
+              Icon(
+                Icons.history_rounded,
+                size: 20,
+                color: cs.onSecondaryContainer,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.pendingAgentRunTitle,
+                      style: Theme.of(context).textTheme.titleSmall
+                          ?.copyWith(color: cs.onSecondaryContainer),
+                    ),
+                    Text(
+                      l10n.pendingAgentRunBody,
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: cs.onSecondaryContainer),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: _controller.resumingPendingAgentRun
+                    ? null
+                    : _controller.resumePendingAgentRun,
+                child: Text(action),
+              ),
+              IconButton(
+                tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                onPressed: _controller.dismissPendingAgentRun,
+                icon: const Icon(Icons.close, size: 18),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildMessageListView(
     BuildContext context, {
     required EdgeInsetsGeometry dividerPadding,
@@ -1113,9 +1174,8 @@ class _HomePageState extends State<HomePage>
       onMore: _toggleTools,
       onSelectModel: () => showModelSelectSheet(context),
       onLongPressSelectModel: () {
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const ProvidersPage()));
+        Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const ProvidersPage()));
       },
       onOpenMcp: () {
         final a = context.read<AssistantProvider>().currentAssistant;
@@ -1132,9 +1192,8 @@ class _HomePageState extends State<HomePage>
         }
       },
       onLongPressMcp: () {
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const McpPage()));
+        Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const McpPage()));
       },
       onOpenSearch: _openSearchSettings,
       onConfigureReasoning: () async {
@@ -1171,9 +1230,8 @@ class _HomePageState extends State<HomePage>
       onStop: _controller.cancelStreaming,
       onQuickPhrase: _showQuickPhraseMenu,
       onLongPressQuickPhrase: () {
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const QuickPhrasesPage()));
+        Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const QuickPhrasesPage()));
       },
       onToggleOcr: () async {
         final sp = context.read<SettingsProvider>();
@@ -1286,14 +1344,12 @@ class _HomePageState extends State<HomePage>
                       vertical: 16,
                     ),
                     decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.surface.withOpacity(0.95),
+                      color: Theme.of(context).colorScheme.surface
+                          .withOpacity(0.95),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.primary.withOpacity(0.4),
+                        color: Theme.of(context).colorScheme.primary
+                            .withOpacity(0.4),
                         width: 2,
                       ),
                     ),
@@ -1479,9 +1535,8 @@ class _HomePageState extends State<HomePage>
   }
 
   void _openAiTeamSettings() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const AiTeamPage()));
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const AiTeamPage()));
   }
 
   void _toggleTools(List<DesktopContextMenuItem>? overflowItems) {
@@ -1673,9 +1728,8 @@ class _CompressContextOptionsDialogState
       }
     }
 
-    Navigator.of(
-      context,
-    ).pop(CompressContextOptions(mode: _mode, maxChars: maxChars));
+    Navigator.of(context)
+        .pop(CompressContextOptions(mode: _mode, maxChars: maxChars));
   }
 
   @override

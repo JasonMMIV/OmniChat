@@ -10,6 +10,7 @@ import '../../../utils/app_directories.dart';
 import '../chat/document_text_extractor.dart';
 import 'edit_matchers.dart';
 import 'markdown_pdf_converter.dart';
+import 'session_outputs.dart';
 
 class FileToolResult {
   const FileToolResult({
@@ -313,12 +314,32 @@ class FileToolService {
     Map<String, dynamic> args,
     String? workspacePath, {
     String? approvedOutsidePath,
+    String? sessionOutputsRoot,
   }) async {
+    // P1-6: the session-outputs zone is READ-ONLY. file_read / file_search
+    // may enter it; every mutating tool is rejected before any filesystem
+    // operation (the zone lives outside the workspace on purpose).
+    if (toolName != 'file_read' && toolName != 'file_search') {
+      for (final key in const ['path', 'source', 'destination']) {
+        final value = args[key];
+        if (value is String && SessionOutputs.isSessionPath(value)) {
+          return const FileToolResult(
+            text:
+                'Error: The session-outputs zone is read-only. Read it with file_read or file_search.',
+          );
+        }
+      }
+    }
     try {
       final workspace = await _prepareWorkspace(workspacePath);
       switch (toolName) {
         case 'file_read':
-          return await _read(args, workspace, approvedOutsidePath);
+          return await _read(
+            args,
+            workspace,
+            approvedOutsidePath,
+            sessionOutputsRoot,
+          );
         case 'file_write':
           return await _write(
             args,
@@ -360,7 +381,12 @@ class FileToolService {
             move: false,
           );
         case 'file_search':
-          return await _search(args, workspace, approvedOutsidePath);
+          return await _search(
+            args,
+            workspace,
+            approvedOutsidePath,
+            sessionOutputsRoot,
+          );
         case 'file_extract_text':
           return await _extractText(args, workspace, approvedOutsidePath);
         case 'file_extract_zip':
@@ -608,12 +634,19 @@ class FileToolService {
     Map<String, dynamic> args,
     String workspace,
     String? approvedOutsidePath,
+    String? sessionOutputsRoot,
   ) async {
-    final path = _resolveToolPath(
-      _requiredString(args, 'path'),
-      workspace,
-      approvedOutsidePath,
-    );
+    final rawPath = _requiredString(args, 'path');
+    final sessionPath = sessionOutputsRoot == null
+        ? null
+        : SessionOutputs.resolveFromRoot(rawPath, sessionOutputsRoot);
+    if (SessionOutputs.isSessionPath(rawPath) && sessionPath == null) {
+      return const FileToolResult(
+        text: 'Error: Invalid session-outputs path.',
+      );
+    }
+    final path = sessionPath?.absolutePath ??
+        _resolveToolPath(rawPath, workspace, approvedOutsidePath);
     final file = File(path);
     if (!await file.exists()) {
       return FileToolResult(text: 'Error: File not found.');
@@ -1685,13 +1718,20 @@ class FileToolService {
     Map<String, dynamic> args,
     String workspace,
     String? approvedOutsidePath,
+    String? sessionOutputsRoot,
   ) async {
     final pattern = _requiredString(args, 'pattern');
-    final start = _resolveToolPath(
-      (args['path'] ?? '').toString(),
-      workspace,
-      approvedOutsidePath,
-    );
+    final rawPath = (args['path'] ?? '').toString();
+    final sessionPath = sessionOutputsRoot == null
+        ? null
+        : SessionOutputs.resolveFromRoot(rawPath, sessionOutputsRoot);
+    if (SessionOutputs.isSessionPath(rawPath) && sessionPath == null) {
+      return const FileToolResult(
+        text: 'Error: Invalid session-outputs path.',
+      );
+    }
+    final start = sessionPath?.absolutePath ??
+        _resolveToolPath(rawPath, workspace, approvedOutsidePath);
     final directory = Directory(start);
     if (!await directory.exists()) {
       return const FileToolResult(text: 'Error: Directory not found.');
@@ -1714,7 +1754,12 @@ class FileToolService {
           ? regex!.hasMatch(name) || regex.hasMatch(relative)
           : relative.toLowerCase().contains(pattern.toLowerCase());
       if (matched) {
-        matches.add(p.relative(entity.path, from: workspace));
+        matches.add(
+          sessionPath != null
+              ? '${SessionOutputs.modelPrefix}'
+                    '${p.relative(entity.path, from: sessionPath.rootPath).replaceAll('\\', '/')}'
+              : p.relative(entity.path, from: workspace),
+        );
         if (matches.length >= maxSearchResults) {
           scanTruncated = true;
           break;

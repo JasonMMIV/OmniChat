@@ -129,8 +129,12 @@ String buildApprovalPendingContent({
   Map<String, dynamic> arguments = const {},
   DateTime? requestedAt,
   String? previewDiff,
+  Map<String, dynamic> extra = const <String, dynamic>{},
 }) {
   return jsonEncode(<String, dynamic>{
+    // P1-6: policy-specific fields (shell command/programs) are added first
+    // so they can never override the approval protocol keys below.
+    ...extra,
     'type': approvalRequiredType,
     'tool': toolName,
     if (resolvedPath != null) 'resolved_path': resolvedPath,

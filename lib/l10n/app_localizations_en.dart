@@ -2173,6 +2173,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get approvalPendingPill => 'Pending';
 
   @override
+  String get pendingAgentRunTitle => 'Previous task unfinished';
+
+  @override
+  String get pendingAgentRunBody =>
+      'Progress was saved. You can continue from the last checkpoint.';
+
+  @override
+  String get pendingAgentRunResume => 'Resume';
+
+  @override
+  String get pendingAgentRunReview => 'Review';
+
+  @override
   String approvalOutsideWorkspace(String path) {
     return 'Outside workspace: $path';
   }
@@ -2185,6 +2198,63 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get approvalDeny => 'Deny';
+
+  @override
+  String get developerModeTitle => 'Developer mode';
+
+  @override
+  String get developerModeMasterTitle => 'Enable command execution';
+
+  @override
+  String get developerModeMasterSubtitle =>
+      'Adds the shell_run tool to desktop chats. Commands run with your user permissions outside the workspace sandbox. Android is not supported.';
+
+  @override
+  String get developerModeDesktopOnly =>
+      'Command execution is only available on Windows, macOS, and Linux.';
+
+  @override
+  String get developerModeWarning =>
+      'Only enable this if you understand that the model can run commands on this computer. Every command outside the allowlist still asks for approval.';
+
+  @override
+  String get developerModeAllowlistTitle => 'Command allowlist';
+
+  @override
+  String get developerModeAllowlistSubtitle =>
+      'Programs that run without an approval card. Anything else asks first. Compound commands check every segment.';
+
+  @override
+  String get developerModeAddProgram => 'Add program';
+
+  @override
+  String get developerModeAddProgramHint => 'e.g. cargo';
+
+  @override
+  String get developerModeRemoveProgram => 'Remove';
+
+  @override
+  String get developerModeAllowlistEmpty =>
+      'No programs are allowlisted. Every command will ask for approval.';
+
+  @override
+  String get developerModeDetected => 'Found on PATH';
+
+  @override
+  String get developerModeNotDetected => 'Not found on PATH';
+
+  @override
+  String get approvalShellCommand => 'Command';
+
+  @override
+  String approvalShellAlwaysAllowHint(String programs) {
+    return 'Always allow adds these programs to the allowlist: $programs';
+  }
+
+  @override
+  String chatMessageWidgetShellRun(String command) {
+    return 'Run: $command';
+  }
 
   @override
   String get approvalSettingsTitle => 'Tool approval policy';

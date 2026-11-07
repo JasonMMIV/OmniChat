@@ -1,10 +1,12 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/token_usage.dart';
+import '../../../core/services/agent/checkpoint/agent_run_journal.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
-import '../../../core/services/agent/agent_loop.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/storage/message_part_codec.dart';
 import '../../chat/widgets/chat_message_widget.dart';
@@ -465,20 +467,21 @@ class StreamController {
     // Ensure notifier exists for this message
     streamingContentNotifier.getNotifier(messageId);
 
-    _streamThrottleTimers[messageId] ??= Timer.periodic(_streamThrottleInterval, (
-      _,
-    ) {
-      final pending = _pendingStreamContent[messageId];
-      if (pending != null && getCurrentConversationId() == conversationId) {
-        // Use latest totalTokens from mutable map (not the closure-captured value)
-        final tokens = _pendingTotalTokens[messageId] ?? 0;
-        // Use lightweight notifier instead of full page rebuild
-        streamingContentNotifier.updateContent(messageId, pending, tokens);
-        // Also update the message list data (without triggering rebuild)
-        updateMessageInList(messageId, pending, tokens);
-        onStreamTick?.call();
-      }
-    });
+    _streamThrottleTimers[messageId] ??= Timer.periodic(
+      _streamThrottleInterval,
+      (_) {
+        final pending = _pendingStreamContent[messageId];
+        if (pending != null && getCurrentConversationId() == conversationId) {
+          // Use latest totalTokens from mutable map (not the closure-captured value)
+          final tokens = _pendingTotalTokens[messageId] ?? 0;
+          // Use lightweight notifier instead of full page rebuild
+          streamingContentNotifier.updateContent(messageId, pending, tokens);
+          // Also update the message list data (without triggering rebuild)
+          updateMessageInList(messageId, pending, tokens);
+          onStreamTick?.call();
+        }
+      },
+    );
   }
 
   /// Get pending stream content for a message.
@@ -1407,6 +1410,16 @@ class StreamingState {
   /// terminal chunk (`max_steps` / `token_budget`). Appended to the
   /// persisted content as a localized footnote at finish time.
   String? softStopReason;
+
+  /// P2-1: durable journal for this run. The journal owns checkpoint state
+  /// (step, cumulative tokens, pending tools, run fence), so terminal
+  /// handlers only forward the outcome.
+  AgentRunJournal? agentJournal;
+
+  /// P1-2: largest `usage.promptTokens` observed during this run. Mid-run
+  /// compaction uses it as the measured prompt baseline; the kernel's
+  /// cumulative `tokensSoFar` is reserved for the token budget.
+  int agentPromptTokens = 0;
 
   String get messageId => ctx.assistantMessage.id;
   String get conversationId => ctx.assistantMessage.conversationId;

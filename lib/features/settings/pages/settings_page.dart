@@ -21,6 +21,7 @@ import '../../skills/pages/skills_page.dart';
 import 'memory_settings_page.dart';
 import '../../ai_team/pages/ai_team_page.dart';
 import '../../approval/pages/approval_settings_page.dart';
+import 'developer_mode_page.dart';
 import 'network_proxy_page.dart';
 import 'storage_space_page.dart';
 import 'hotkeys_settings_page.dart';
@@ -350,6 +351,19 @@ class SettingsPage extends StatelessWidget {
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => const ApprovalSettingsPage(),
+                    ),
+                  );
+                },
+              ),
+              _iosDivider(context),
+              _iosNavRow(
+                context,
+                icon: Lucide.Terminal,
+                label: l10n.developerModeTitle,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const DeveloperModePage(),
                     ),
                   );
                 },

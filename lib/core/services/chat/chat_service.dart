@@ -14,7 +14,9 @@ import '../../models/message_usage.dart';
 import '../../models/conversation.dart';
 import '../../models/file_record.dart';
 import '../../models/workspace_config.dart';
+import '../agent/checkpoint/agent_run_checkpoint_store.dart';
 import '../logging/flutter_logger.dart';
+import '../file/session_outputs.dart';
 import 'storage/chat_backup_restorer.dart';
 import 'storage/chat_database_files.dart';
 import 'storage/chat_repository.dart' show ChatStorageCounts;
@@ -581,6 +583,8 @@ class ChatService extends ChangeNotifier {
       _draftConversations.remove(id);
       _draftWorkspaceConfigs.remove(id);
       if (_currentConversationId == id) _currentConversationId = null;
+      await SessionOutputs.deleteConversation(id);
+      await _clearAgentRunCheckpoint(id);
       return true;
     }
 
@@ -588,6 +592,10 @@ class ChatService extends ChangeNotifier {
     if (conversation == null) return false;
 
     await _storage!.deleteConversation(id);
+    // P1-6: shell output files are app-private and must not outlive their
+    // conversation (retention alone would keep them up to 7 days).
+    await SessionOutputs.deleteConversation(id);
+    await _clearAgentRunCheckpoint(id);
     if (cleanup) await _cleanupOrphanUploads();
     if (_currentConversationId == id) _currentConversationId = null;
     return true;
@@ -1635,6 +1643,9 @@ class ChatService extends ChangeNotifier {
       }
 
       committed = true;
+      // The restored database has different message ids; any local checkpoint
+      // from the pre-restore installation is no longer actionable.
+      await _clearAllAgentRunCheckpoints();
       // The publisher knows which family it actually preserved. Scanning for
       // `.previous` would be wrong when an older `.previous` already existed
       // and the target was kept as `.replaced-<publishId>` instead.
@@ -1648,9 +1659,8 @@ class ChatService extends ChangeNotifier {
         preservedPath = preserved.path;
         preservedDatabaseId = preserved.databaseId;
       } else if (preservedDatabaseId == null) {
-        preservedDatabaseId = (await probeDatabase(
-          File(preservedPath),
-        )).databaseId;
+        preservedDatabaseId = (await probeDatabase(File(preservedPath)))
+            .databaseId;
       }
       try {
         await journal.notePublished(
@@ -1900,6 +1910,7 @@ class ChatService extends ChangeNotifier {
     try {
       final recovery = await _recoveryService();
       await recovery.resetToFreshDatabase();
+      await _clearAllAgentRunCheckpoints();
       await init();
     } catch (error) {
       _markRecoveryFailed(error);
@@ -1914,6 +1925,7 @@ class ChatService extends ChangeNotifier {
     try {
       final recovery = await _recoveryService();
       await recovery.clearForLegacyImport();
+      await _clearAllAgentRunCheckpoints();
       await init();
     } catch (error) {
       _markRecoveryFailed(error);
@@ -2027,10 +2039,27 @@ class ChatService extends ChangeNotifier {
     await _afterClearRows(deleteUploads: false);
   }
 
+  Future<void> _clearAgentRunCheckpoint(String conversationId) async {
+    try {
+      await AgentRunCheckpointStore.instance.delete(conversationId);
+    } catch (_) {}
+  }
+
+  Future<void> _clearAllAgentRunCheckpoints() async {
+    try {
+      await AgentRunCheckpointStore.instance.clearAll();
+    } catch (_) {}
+  }
+
   Future<void> _afterClearRows({required bool deleteUploads}) async {
     _draftConversations.clear();
     _draftWorkspaceConfigs.clear();
     _currentConversationId = null;
+    await _clearAllAgentRunCheckpoints();
+    // Shell outputs are keyed by conversation id and are not part of a chat
+    // backup. A reset or restore must remove them so old output_file paths
+    // cannot reappear in a restored conversation.
+    await SessionOutputs.clearAll();
     if (deleteUploads) {
       try {
         final uploadDir = await AppDirectories.getUploadDirectory();

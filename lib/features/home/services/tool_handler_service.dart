@@ -14,6 +14,10 @@ import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/file/file_tool_service.dart';
 import '../../../core/services/agent/approval.dart';
+import '../../../core/services/file/session_outputs.dart';
+import '../../../core/services/shell/shell_policy.dart';
+import '../../../core/services/shell/cli_process_supervisor.dart';
+import '../../../core/services/shell/shell_run_service.dart';
 import '../../../core/services/api/builtin_tools.dart';
 import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
 import '../../../core/services/logging/flutter_logger.dart';
@@ -47,6 +51,18 @@ class ToolHandlerService {
   /// from `SettingsProvider.approvalAlwaysAllowed` whenever a handler is
   /// built). Keys are `workspace-out:{resolvedPath}`.
   Set<String> _approvalAlwaysAllowed = <String>{};
+
+  /// Shell runs started by this handler, so the stop button can terminate
+  /// their process trees instead of waiting for the command timeout.
+  final Set<CliCancellationToken> _activeShellCancellations =
+      <CliCancellationToken>{};
+
+  void cancelActiveShellRuns() {
+    for (final token in _activeShellCancellations.toList()) {
+      token.cancel();
+    }
+    _activeShellCancellations.clear();
+  }
 
   // ============================================================================
   // Tool Schema Sanitization
@@ -307,13 +323,33 @@ class ToolHandlerService {
     required bool workspaceEnabled,
   }) {
     if (!workspaceEnabled) return const [];
-    return <Map<String, dynamic>>[
+    final definitions = <Map<String, dynamic>>[
       ...FileToolService.getToolDefinitions(),
       ..._buildCoworkToolDefinitions(),
-    ].where((def) {
+    ];
+    // P1-6: shell_run is registered only when developer mode is on, the
+    // platform is desktop, and at least one allowlisted program exists on
+    // PATH (readiness gate). The per-tool toggle is applied by the filter
+    // below like every other workspace tool.
+    if (_shellToolReady(settings)) {
+      definitions.add(ShellRunService.getToolDefinition());
+    }
+    return definitions.where((def) {
       final name = ((def['function'] as Map)['name'] ?? '').toString();
       return name.isNotEmpty && settings.isWorkspaceToolEnabled(name);
     }).toList();
+  }
+
+  /// Tolerates test doubles that only implement the workspace-toggle API.
+  static bool _shellToolReady(SettingsProvider settings) {
+    try {
+      return ShellRunService.isReady(
+        developerMode: settings.developerModeV1,
+        allowlist: settings.shellAllowlist,
+      );
+    } catch (_) {
+      return false;
+    }
   }
 
   /// P1-3 Cowork tools: write_todos (log-only plan snapshot) and ask_user
@@ -495,6 +531,7 @@ class ToolHandlerService {
     String? messageId,
     String? workspacePath,
     String? approvedResolvedPath,
+    String? approvedShellCommand,
   }) {
     // P1-1 v1.6: refresh the "always allow" policy snapshot from settings so
     // persisted workspace-out overrides are actually consulted (the set
@@ -529,7 +566,7 @@ class ToolHandlerService {
       // the sandbox root the same way FileToolService does so the approval
       // policy classifies the same path the executor will use.
       String? effectiveWorkspace;
-      if (name.startsWith('file_')) {
+      if (name.startsWith('file_') || name == ShellRunService.toolName) {
         if (workspacePath == null || workspacePath.trim().isEmpty) {
           return 'Error: Workspace is disabled for this conversation.';
         }
@@ -547,12 +584,25 @@ class ToolHandlerService {
       // and marks the event Pending so the card offers Approve / Deny. An
       // approved resume (`approvedResolvedPath` set) skips classification:
       // the user's decision IS the gate, and the call executes once below.
-      final decision = name.startsWith('file_') && approvedResolvedPath != null
-          ? _PendingDecision(
-              state: ApprovalDecision.allow,
-              resolvedPath: approvedResolvedPath,
-            )
-          : _classifyApproval(name, args, workspacePath: effectiveWorkspace);
+      // Shell approval is scoped to the exact command from the pending event;
+      // a different payload must go through policy again.
+      final shellCommand = (args['command'] ?? '').toString();
+      final shellApproved =
+          approvedShellCommand != null &&
+          shellCommand.trim().isNotEmpty &&
+          approvedShellCommand.trim() == shellCommand.trim();
+      final decision = name == ShellRunService.toolName && shellApproved
+          ? _PendingDecision.allow()
+          : name.startsWith('file_') && approvedResolvedPath != null
+              ? _PendingDecision(
+                  state: ApprovalDecision.allow,
+                  resolvedPath: approvedResolvedPath,
+                )
+              : _classifyApproval(
+                  name,
+                  args,
+                  workspacePath: effectiveWorkspace,
+                );
       if (decision.state == ApprovalDecision.ask ||
           decision.state == ApprovalDecision.deny) {
         if (messageId != null && conversationId != null) {
@@ -579,13 +629,51 @@ class ToolHandlerService {
         return decision.content;
       }
 
+      if (name == ShellRunService.toolName) {
+        final cancellation = CliCancellationToken();
+        _activeShellCancellations.add(cancellation);
+        try {
+          return await ShellRunService.execute(
+            args,
+            workspacePath: effectiveWorkspace ?? workspacePath ?? '',
+            developerMode: settings.developerModeV1,
+            allowlist: settings.shellAllowlist,
+            strictMode: settings.approvalStrictModeV1,
+            conversationId: conversationId,
+            toolCallId: toolCallId,
+            approvedCommand: shellApproved ? shellCommand : null,
+            cancellation: cancellation,
+          );
+        } catch (e, st) {
+          FlutterLogger.log(
+            'Shell tool "$name" failed: $e\n$st',
+            tag: 'shell-tool',
+          );
+          return jsonEncode(<String, dynamic>{
+            'type': 'tool_error',
+            'error': 'execution_error',
+            'message': e.toString(),
+            'tool': name,
+          });
+        } finally {
+          _activeShellCancellations.remove(cancellation);
+        }
+      }
+
       if (name.startsWith('file_')) {
         try {
+          final rawTarget =
+              (args['path'] ?? args['source'] ?? args['destination'] ?? '')
+                  .toString();
+          final sessionOutputsRoot = SessionOutputs.isSessionPath(rawTarget)
+              ? (await SessionOutputs.rootDirectory()).path
+              : null;
           final result = await FileToolService.execute(
             name,
             args,
             workspacePath,
             approvedOutsidePath: decision.resolvedPath,
+            sessionOutputsRoot: sessionOutputsRoot,
           );
           if (result.createdOrModifiedFilePath != null && messageId != null) {
             try {
@@ -849,6 +937,76 @@ class ToolHandlerService {
     final alwaysAllowed = _approvalAlwaysAllowed;
     final strict = settings?.approvalStrictModeV1 ?? false;
 
+    // --- P1-6 shell_run: allowlist / ask / deny (ADR-A9) ---
+    if (name == ShellRunService.toolName) {
+      if (settings == null || !settings.developerModeV1) {
+        return _PendingDecision(
+          state: ApprovalDecision.deny,
+          toolCallId: _approvalCallId(name),
+          content: jsonEncode(<String, dynamic>{
+            'type': 'tool_error',
+            'error': 'developer_mode_disabled',
+            'message':
+                'Developer mode is off. Enable it in the approval settings before running shell commands.',
+            'tool': name,
+          }),
+        );
+      }
+      if (!ShellRunService.isPlatformSupported) {
+        return _PendingDecision(
+          state: ApprovalDecision.deny,
+          toolCallId: _approvalCallId(name),
+          content: jsonEncode(<String, dynamic>{
+            'type': 'tool_error',
+            'error': 'unsupported_platform',
+            'message': 'shell_run is only available on desktop platforms.',
+            'tool': name,
+          }),
+        );
+      }
+      if (workspacePath == null || workspacePath.trim().isEmpty) {
+        return _PendingDecision(
+          state: ApprovalDecision.deny,
+          toolCallId: _approvalCallId(name),
+          content: jsonEncode(<String, dynamic>{
+            'type': 'tool_error',
+            'error': 'workspace_disabled',
+            'message': 'Workspace is disabled for this conversation.',
+            'tool': name,
+          }),
+        );
+      }
+      final command = (args['command'] ?? '').toString().trim();
+      final policy = ShellPolicy.decide(
+        command: command,
+        allowlist: settings.shellAllowlist,
+        strictMode: strict,
+      );
+      if (policy.decision == ShellPolicyDecision.allow) {
+        return _PendingDecision.allow();
+      }
+      if (policy.decision == ShellPolicyDecision.deny) {
+        return _PendingDecision(
+          state: ApprovalDecision.deny,
+          toolCallId: _approvalCallId(name),
+          content: buildApprovalDeniedContent(toolName: name),
+        );
+      }
+      return _PendingDecision(
+        state: ApprovalDecision.ask,
+        toolCallId: _approvalCallId(name),
+        content: buildApprovalPendingContent(
+          toolName: name,
+          arguments: args,
+          extra: <String, dynamic>{
+            'shell_command': command,
+            'shell_programs': policy.programs,
+            'shell_blocked_programs': policy.blockedPrograms,
+          },
+        ),
+      );
+    }
+
     // --- Workspace (file_*) tools: sandbox boundary → ask (ADR-A8 v1.5) ---
     if (name.startsWith('file_')) {
       if (workspacePath == null || workspacePath.trim().isEmpty) {
@@ -930,7 +1088,8 @@ class ToolHandlerService {
   bool _isWorkspaceToolGloballyDisabled(String name) {
     if (!name.startsWith('file_') &&
         name != todoToolName &&
-        name != askUserToolName) {
+        name != askUserToolName &&
+        name != ShellRunService.toolName) {
       return false;
     }
     final settings = _safeReadSettings();

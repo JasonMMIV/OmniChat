@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
+
 import '../../../core/models/ai_team_config.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/models/chat_input_data.dart';
@@ -23,6 +25,8 @@ import '../../../core/services/auth/oauth_recovery_registry.dart';
 import '../../../core/services/auth/provider_oauth_service.dart';
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/agent/compaction/midrun_compactor.dart';
+import '../../../core/services/shell/shell_policy.dart';
+import '../../../core/services/shell/shell_run_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/storage/message_part_codec.dart';
@@ -32,6 +36,10 @@ import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant_regex.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
 import '../../../core/services/agent/agent_orchestrator.dart';
+import '../../../core/services/agent/checkpoint/agent_run_checkpoint.dart';
+import '../../../core/services/agent/checkpoint/agent_run_checkpoint_store.dart';
+import '../../../core/services/agent/checkpoint/agent_run_journal.dart';
+import '../../../core/services/logging/flutter_logger.dart';
 import '../services/attachment_modality_gate.dart';
 import '../services/message_generation_service.dart';
 import '../../../shared/widgets/snackbar.dart';
@@ -84,9 +92,13 @@ class ChatActions {
     required this.contextProvider,
     ProviderOAuthService? oauthService,
     OAuthRecoveryRegistry? oauthRecoveryRegistry,
+    AgentRunCheckpointStore? checkpointStore,
+    AgentRunFence? runFence,
   }) : oauthService = oauthService ?? ProviderOAuthService.instance,
        oauthRecoveryRegistry =
-           oauthRecoveryRegistry ?? OAuthRecoveryRegistry.instance;
+           oauthRecoveryRegistry ?? OAuthRecoveryRegistry.instance,
+       _checkpointStore = checkpointStore ?? AgentRunCheckpointStore.instance,
+       _runFence = runFence ?? AgentRunFence.instance;
 
   final ChatService chatService;
   final ChatController chatController;
@@ -94,6 +106,8 @@ class ChatActions {
   final GenerationController generationController;
   final MessageGenerationService messageGenerationService;
   final BuildContext contextProvider;
+  final AgentRunCheckpointStore _checkpointStore;
+  final AgentRunFence _runFence;
 
   /// Subscription-account state and per-message auth failures (plan M4).
   /// Injected in tests; defaults to the app-wide singletons in production.
@@ -151,6 +165,10 @@ class ChatActions {
 
   /// Called when streaming finishes.
   VoidCallback? onStreamFinished;
+
+  /// Called after a durable agent-run checkpoint is written or cleared, so
+  /// the UI can refresh the resume banner without waiting for a restart.
+  VoidCallback? onRunCheckpointChanged;
 
   // ============================================================================
   // Private Helpers
@@ -278,8 +296,7 @@ class ChatActions {
       final unsupportedAudio = AttachmentModalityGate.unsupported(
         input.documents,
         gateInfo,
-        nativeAudioEnabled:
-            nativePolicy.nativeAudio && nativeInputsEnabled,
+        nativeAudioEnabled: nativePolicy.nativeAudio && nativeInputsEnabled,
       );
       if (unsupportedAudio.isNotEmpty) {
         final l10n = AppLocalizations.of(contextProvider);
@@ -398,6 +415,7 @@ class ChatActions {
   ) async {
     final conv = _currentConversation;
     if (conv == null || conv.id != conversationId) return null;
+    if (_loadingConversationIds.contains(conversationId)) return null;
     // The timeline preloads summaries only; this resume path reads the full
     // events (questions/answers), so load them first.
     await chatService.ensureToolEventsLoaded([assistantMessageId]);
@@ -549,6 +567,7 @@ class ChatActions {
   }) async {
     final conv = _currentConversation;
     if (conv == null || conv.id != conversationId) return null;
+    if (_loadingConversationIds.contains(conversationId)) return null;
 
     // The timeline preloads summaries only; approval needs the full event.
     await chatService.ensureToolEventsLoaded([assistantMessageId]);
@@ -596,14 +615,26 @@ class ChatActions {
     // the pending payload so future calls to the same concrete resolved path
     // skip the card (the policy snapshot reads it back on the next run).
     if (alwaysAllow && approve) {
-      final resolvedPath = pendingPayload?['resolved_path']?.toString();
-      if (resolvedPath != null && resolvedPath.trim().isNotEmpty) {
-        try {
-          await contextProvider
-              .read<SettingsProvider>()
-              .addApprovalAlwaysAllowed('workspace-out:$resolvedPath');
-        } catch (_) {}
-      }
+      try {
+        final settings = contextProvider.read<SettingsProvider>();
+        if (name == ShellRunService.toolName) {
+          // P1-6: shell "always allow" writes every program of the command
+          // back into the developer-mode allowlist (compound commands add
+          // each segment's program).
+          for (final program in ShellPolicy.programsIn(
+            (args['command'] ?? '').toString(),
+          )) {
+            await settings.addShellAllowlistEntry(program);
+          }
+        } else {
+          final resolvedPath = pendingPayload?['resolved_path']?.toString();
+          if (resolvedPath != null && resolvedPath.trim().isNotEmpty) {
+            await settings.addApprovalAlwaysAllowed(
+              'workspace-out:$resolvedPath',
+            );
+          }
+        }
+      } catch (_) {}
     }
 
     // Deny: record the denial and continue with the denial JSON as the
@@ -645,11 +676,14 @@ class ChatActions {
           (outsideWorkspace && (approvedPath ?? '').isNotEmpty)
           ? approvedPath
           : null,
+      approvedShellCommand: name == ShellRunService.toolName
+          ? (args['command'] ?? '').toString()
+          : null,
     );
     String result;
     try {
       result =
-          await handler?.call(name, args) ??
+          await handler?.call(name, args, toolCallId: toolCallId) ??
           jsonEncode(<String, dynamic>{
             'type': 'tool_error',
             'error': 'execution_error',
@@ -1063,9 +1097,21 @@ class ChatActions {
     final cid = conversation?.id;
     if (cid == null) return;
 
+    // P2-1: a deliberate stop is not a resumable interruption. Invalidate
+    // the run fence first so a late journal write cannot recreate the row
+    // after it is deleted below. Only delete the row when there was actually
+    // active work: `regenerateAtMessage` calls this first, and a paused run
+    // must not be wiped by an unrelated regenerate tap.
+    var hadActiveWork = _runFence.cancel(cid);
+
+    // A foreground shell command is part of the generation: stopping it must
+    // terminate the process tree immediately, not wait for its timeout.
+    generationController.cancelActiveShellRuns();
+
     // AI Team: cancel proposer phase if active (I3 + R1: complete cancel completer before cancel)
     if (_aiTeamInProposalPhase) {
       _aiTeamCancelled = true;
+      hadActiveWork = true;
       if (_aiTeamCancelCompleter != null &&
           !_aiTeamCancelCompleter!.isCompleted) {
         _aiTeamCancelCompleter!.complete();
@@ -1078,6 +1124,7 @@ class ChatActions {
 
     // Cancel active stream for current conversation only
     final sub = _conversationStreams.remove(cid);
+    if (sub != null) hadActiveWork = true;
     await sub?.cancel();
     ChatApiService.cancelRequest(cid);
 
@@ -1153,6 +1200,13 @@ class ChatActions {
     } else {
       _setConversationLoading(cid, false);
     }
+
+    // Delete only after the stream was asked to stop; the fence above makes
+    // any in-flight terminal handler a no-op.
+    if (hadActiveWork) {
+      await _clearRunCheckpointBestEffort(cid);
+      onRunCheckpointChanged?.call();
+    }
   }
 
   // ============================================================================
@@ -1174,62 +1228,128 @@ class ChatActions {
   ///    softStopReason — the card is the user-facing surface.
   /// 2. **Mid-run compaction re-evaluation** (P1-2) — the prep-time trigger
   ///    only runs before a run starts; a long loop can still cross the
-  ///    trigger mid-flight. The hook re-evaluates the same formula with the
-  ///    kernel's cumulative `tokensSoFar` and compacts the working list in
-  ///    place (projection only, ADR-A6) when it fires.
-  Future<stream_ctrl.AgentLoopHooks> _buildPhase1Hooks(
-    stream_ctrl.GenerationContext ctx,
-  ) async {
-    final assistantMessageId = ctx.assistantMessage.id;
-
-    bool hasUnresolvedPendingEvent() {
-      try {
-        for (final e in chatService.getToolEvents(assistantMessageId)) {
-          final state = (e['approvalState'] ?? '').toString();
-          final content = e['content']?.toString();
-          if (state == approvalStatePending) return true;
-          // ask_user cards created before an answer upserts the content:
-          // the pending content JSON is the marker (the state field is
-          // absent for legacy events).
-          final parsedAsk = parseAskUserContent(content);
-          if (parsedAsk != null && parsedAsk['type'] == askUserPendingType) {
-            return true;
-          }
-        }
-      } catch (_) {}
-      return false;
+  ///    trigger mid-flight. The hook estimates the next prompt (measured
+  ///    `usage.promptTokens` vs working-list estimate) and compacts the
+  ///    working list in place (projection only, ADR-A6) when it fires. The
+  ///    kernel's cumulative `tokensSoFar` is reserved for the token budget.
+  /// P2-1: unresolved approval / ask_user tool events for [assistantMessageId].
+  /// The events are the authoritative pause source; the journal only mirrors
+  /// them so a restarted app can route the user back to the card.
+  ///
+  /// Throws when the events are not loaded; [_resolvePendingTools] turns that
+  /// into an explicit "unknown" result instead of a misleading empty list
+  /// (which would look like "no pending tools" and could clear a pause).
+  List<AgentRunPendingTool> _pendingToolsFromEvents(String assistantMessageId) {
+    final out = <AgentRunPendingTool>[];
+    final seen = <String>{};
+    for (final e in chatService.getToolEvents(assistantMessageId)) {
+      final id = (e['id'] ?? '').toString().trim();
+      if (id.isEmpty || !seen.add(id)) continue;
+      final name = (e['name'] ?? '').toString();
+      final approvalState = (e['approvalState'] ?? '').toString();
+      if (approvalState == approvalStatePending) {
+        out.add(AgentRunPendingTool(id: id, name: name, kind: 'approval'));
+        continue;
+      }
+      // ask_user cards created before an answer upsert the content: the
+      // pending content JSON is the marker (the state field is absent for
+      // legacy events).
+      final parsedAsk = parseAskUserContent(e['content']?.toString());
+      if (parsedAsk != null && parsedAsk['type'] == askUserPendingType) {
+        out.add(AgentRunPendingTool(id: id, name: name, kind: 'ask_user'));
+      }
     }
+    return out;
+  }
+
+  /// Resolve the authoritative pending state, loading lazy tool events first.
+  /// A read failure is "unknown", never "none": terminal classification must
+  /// keep the existing checkpoint rather than delete a paused run.
+  Future<AgentRunPendingSnapshot> _resolvePendingTools(
+    String assistantMessageId,
+  ) async {
+    try {
+      await chatService.ensureToolEventsLoaded([assistantMessageId]);
+      return AgentRunPendingSnapshot.known(
+        _pendingToolsFromEvents(assistantMessageId),
+      );
+    } catch (e) {
+      FlutterLogger.log(
+        'Could not read pending tool state for $assistantMessageId: $e',
+        tag: 'agent-checkpoint',
+      );
+      return const AgentRunPendingSnapshot.unknown();
+    }
+  }
+
+  Future<void> _clearRunCheckpointBestEffort(String conversationId) async {
+    try {
+      await _checkpointStore.delete(conversationId);
+    } catch (e) {
+      FlutterLogger.log(
+        'Agent-run checkpoint cleanup failed: $e',
+        tag: 'agent-checkpoint',
+      );
+    }
+  }
+
+  Future<stream_ctrl.AgentLoopHooks> _buildPhase1Hooks(
+    stream_ctrl.StreamingState state,
+  ) async {
+    final ctx = state.ctx;
+    final assistantMessageId = ctx.assistantMessage.id;
+    final journal = state.agentJournal ??= AgentRunJournal(
+      store: _checkpointStore,
+      conversationId: state.conversationId,
+      assistantMessageId: assistantMessageId,
+      resolvePending: () => _resolvePendingTools(assistantMessageId),
+      fence: _runFence,
+    );
 
     return stream_ctrl.AgentLoopHooks(
       onRoundStart: (stepIndex, messages, tokensSoFar) async {
-        // Duty 1 — approval / ask_user pause (checked first: a pending
-        // card means the user must decide before any further model call).
-        if (stepIndex > 0 && hasUnresolvedPendingEvent()) {
-          return false;
-        }
-        // Duty 2 — mid-run compaction (P1-2): same formula as the prep-time
-        // trigger, reusing the kernel's cumulative token counter.
-        try {
-          if (ctx.settings.autoCompactionV1) {
+        // P2-1: this must finish before the round is dispatched. The journal
+        // is the durable boundary; a write failure disables it for the rest
+        // of the session instead of failing the generation.
+        final shouldContinue = await journal.onRoundStart(
+          stepIndex,
+          tokensSoFar,
+        );
+        if (!shouldContinue) return false;
+
+        // Duty 2 — mid-run compaction (P1-2). Step 0 was already evaluated
+        // by the prep-time trigger; re-evaluating it here would duplicate
+        // the projection. Use the prompt-size estimate, never the kernel's
+        // cumulative token counter (that counter is a budget signal).
+        if (stepIndex > 0) {
+          try {
             final learned = await LearnedContextWindows.lookup(
               ctx.providerKey,
               ctx.modelId,
             );
             final catalogCfg = ctx.settings.getProviderConfig(ctx.providerKey);
-            applyMidRunCompaction(
+            final compacted = maybeApplyMidRunCompaction(
               messages,
-              tokensSoFar: tokensSoFar,
+              measuredPromptTokens: state.agentPromptTokens,
+              enabled: ctx.settings.autoCompactionV1,
               modelId: ctx.modelId,
               learnedWindowTokens: learned,
               providerId: catalogCfg.catalogProviderId,
               host: catalogCfg.catalogHost,
             );
+            if (compacted) {
+              // The measured max belongs to the pre-compaction prompt;
+              // keeping it would re-trigger the same projection every round.
+              // The next boundary re-estimates from the compacted list.
+              state.agentPromptTokens = 0;
+            }
+          } catch (_) {
+            // Compaction is a best-effort projection; never veto the run.
           }
-        } catch (_) {
-          // Compaction is a best-effort projection; never veto the run.
         }
         return true;
       },
+      onRoundEnd: (stepIndex, executed) => journal.onRoundEnd(stepIndex),
     );
   }
 
@@ -1238,8 +1358,8 @@ class ChatActions {
   /// lives in the persisted tool events (the approval/answer upsert is the
   /// checkpoint), so the fresh assistant message simply replays the
   /// conversation with the resolved event included — the same mechanism the
-  /// approval and ask_user resume paths use today. This single entry point
-  /// is what a future P2-1 checkpoint store will call on app restart.
+  /// approval and ask_user resume paths use today. The startup banner (P2-1)
+  /// and the future P3-3 task list call this entry point.
   Future<ChatMessage?> resumeRun(
     String conversationId, {
     String? assistantMessageId,
@@ -1248,6 +1368,10 @@ class ChatActions {
     bool alwaysAllow = false,
     Map<String, dynamic>? answerPayload,
   }) async {
+    // Never start a second placeholder/request for a conversation that is
+    // already generating; the banner can outlive the run it belongs to.
+    if (_loadingConversationIds.contains(conversationId)) return null;
+
     // Dispatch on the pause kind: an approval pending resolves through the
     // approval path; an ask_user pending resolves through the answer path.
     // A bare resume (no toolCallId) just continues generation.
@@ -1286,8 +1410,10 @@ class ChatActions {
     }
     // Bare resume: continue the paused conversation with a fresh assistant
     // message (same continuation as the resume paths, no tool to resolve).
+    final conv = _currentConversation;
+    if (conv == null || conv.id != conversationId) return null;
     return _continueAfterApproval(
-      conv: _currentConversation!,
+      conv: conv,
       answeredAssistantMessageId: assistantMessageId ?? '',
     );
   }
@@ -1327,7 +1453,7 @@ class ChatActions {
         maxTokens: assistant?.maxTokens,
         tools: ctx.toolDefs.isEmpty ? null : ctx.toolDefs,
         onToolCall: ctx.onToolCall,
-        hooks: await _buildPhase1Hooks(ctx),
+        hooks: await _buildPhase1Hooks(state),
         extraHeaders: ctx.extraHeaders,
         extraBody: ctx.extraBody,
         webFetchEnabled: ctx.settings.webFetchEnabled,
@@ -2173,6 +2299,12 @@ class ChatActions {
       getToolEventsFromDb: (String messageId) =>
           chatService.getToolEvents(messageId),
     );
+    // The tool event write completed inside the callback above; only now is
+    // the tool-result boundary durable enough to advance the journal. The
+    // journal writes immediately only when a pending card appears (or is
+    // resolved); ordinary results are batched into onRoundEnd so a tool-heavy
+    // round does not flush the box once per call.
+    await state.agentJournal?.onToolResults();
   }
 
   /// Handle content chunk from stream (non-done).
@@ -2201,6 +2333,10 @@ class ChatActions {
     if (chunk.usage != null) {
       state.usage = (state.usage ?? const TokenUsage()).merge(chunk.usage!);
       state.totalTokens = state.usage!.totalTokens;
+      final promptTokens = chunk.usage!.promptTokens;
+      if (promptTokens > state.agentPromptTokens) {
+        state.agentPromptTokens = promptTokens;
+      }
       final usageMeta = chunk.usage!.toMessageUsage();
       if (usageMeta != null) {
         final index = _messages.indexWhere((m) => m.id == state.messageId);
@@ -2334,6 +2470,10 @@ class ChatActions {
     if (chunk.usage != null) {
       state.usage = (state.usage ?? const TokenUsage()).merge(chunk.usage!);
       state.totalTokens = state.usage!.totalTokens;
+      final promptTokens = chunk.usage!.promptTokens;
+      if (promptTokens > state.agentPromptTokens) {
+        state.agentPromptTokens = promptTokens;
+      }
       final usageMeta = chunk.usage!.toMessageUsage();
       if (usageMeta != null) {
         final index = _messages.indexWhere((m) => m.id == state.messageId);
@@ -2346,6 +2486,7 @@ class ChatActions {
     }
 
     await _finishStreaming(state);
+    await _finishRunJournal(state);
 
     // Notify for background notification if needed
     onStreamFinished?.call();
@@ -2641,9 +2782,28 @@ class ChatActions {
           },
     );
 
+    final journal = state.agentJournal;
+    if (journal != null && !journal.isEnded) {
+      await journal.onError();
+      onRunCheckpointChanged?.call();
+    }
+
     await _conversationStreams.remove(conversationId)?.cancel();
     onStreamError?.call(errorText);
     onStreamFinished?.call();
+  }
+
+  /// Classify the run's terminal state exactly once.
+  ///
+  /// Called from both the terminal-chunk path (`_handleStreamFinish`, which
+  /// cancels the subscription before the stream's own `onDone` can fire) and
+  /// the stream `onDone` path. The journal's ended flag makes the second call
+  /// a no-op.
+  Future<void> _finishRunJournal(stream_ctrl.StreamingState state) async {
+    final journal = state.agentJournal;
+    if (journal == null || journal.isEnded) return;
+    await journal.onDone(softStopReason: state.softStopReason);
+    onRunCheckpointChanged?.call();
   }
 
   /// Handle stream done callback.
@@ -2660,6 +2820,12 @@ class ChatActions {
         generateTitle: state.ctx.generateTitleOnFinish,
       );
     }
+
+    // P2-1 terminal classification. This also runs from _handleStreamFinish
+    // because that path cancels the subscription before `onDone` can fire;
+    // the journal is idempotent via its ended flag.
+    await _finishRunJournal(state);
+
     onStreamFinished?.call();
     await _conversationStreams.remove(conversationId)?.cancel();
   }

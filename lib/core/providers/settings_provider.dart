@@ -34,6 +34,7 @@ import '../../utils/avatar_cache.dart';
 import '../utils/reasoning_capabilities.dart';
 import '../utils/reasoning_overrides.dart';
 import '../services/model_catalog/model_catalog.dart';
+import '../services/shell/shell_policy.dart';
 
 // Desktop: topic list position
 enum DesktopTopicPosition { left, right }
@@ -117,6 +118,15 @@ class SettingsProvider extends ChangeNotifier {
   /// the MCP policy source was removed 2026-09-10). Not in `_localOnlyKeys`:
   /// approval grants are user intent and sync across devices.
   static const String _approvalAlwaysAllowedKey = 'approval_always_allowed_v1';
+
+  /// P1-6 desktop developer mode: the master switch for `shell_run`.
+  /// Desktop-only in effect (the tool is never advertised on Android), but
+  /// synced through backup like any other user intent preference.
+  static const String _developerModeV1Key = 'developer_mode_v1';
+
+  /// P1-6 shell allowlist: executable names that run without an approval
+  /// card. Synced through backup (approval grants are user intent).
+  static const String _shellAllowlistKey = 'shell_allowlist_v1';
 
   /// P1-5 (removed 2026-09-10): legacy snapshot kill-switch key, dropped on
   /// load so it does not linger in SharedPreferences.
@@ -846,6 +856,9 @@ class SettingsProvider extends ChangeNotifier {
         (prefs.getStringList(_approvalAlwaysAllowedKey) ?? const <String>[])
             .where((k) => !k.startsWith('mcp:') && !k.startsWith('mcp-server:'))
             .toSet();
+    _developerModeV1 = prefs.getBool(_developerModeV1Key) ?? false;
+    _shellAllowlist = prefs.getStringList(_shellAllowlistKey) ??
+        List<String>.of(ShellPolicy.defaultAllowlist);
     // P1-5 removed 2026-09-10: drop the legacy snapshot kill-switch key.
     await prefs.remove(_legacyWorkspaceSnapshotsV1Key);
     _autoCollapseThinking =
@@ -3257,6 +3270,53 @@ Synthesize your reasoning and research into a final response. The structure shou
     await prefs.setStringList(
       _approvalAlwaysAllowedKey,
       _approvalAlwaysAllowed.toList(),
+    );
+  }
+
+  // P1-6: desktop developer mode + shell allowlist (both synced prefs).
+  bool _developerModeV1 = false;
+  bool get developerModeV1 => _developerModeV1;
+
+  Future<void> setDeveloperModeV1(bool v) async {
+    if (_developerModeV1 == v) return;
+    _developerModeV1 = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_developerModeV1Key, v);
+  }
+
+  List<String> _shellAllowlist = List<String>.of(
+    ShellPolicy.defaultAllowlist,
+  );
+  List<String> get shellAllowlist => List<String>.unmodifiable(
+    _shellAllowlist,
+  );
+
+  Future<void> setShellAllowlist(Iterable<String> programs) async {
+    final next = <String>[];
+    for (final program in programs) {
+      final normalized = ShellPolicy.normalizeProgram(program);
+      if (normalized.isEmpty || next.contains(normalized)) continue;
+      next.add(normalized);
+    }
+    if (setEquals(next.toSet(), _shellAllowlist.toSet())) return;
+    _shellAllowlist = next;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_shellAllowlistKey, next);
+  }
+
+  Future<void> addShellAllowlistEntry(String program) async {
+    final normalized = ShellPolicy.normalizeProgram(program);
+    if (normalized.isEmpty || _shellAllowlist.contains(normalized)) return;
+    await setShellAllowlist(<String>[..._shellAllowlist, normalized]);
+  }
+
+  Future<void> removeShellAllowlistEntry(String program) async {
+    final normalized = ShellPolicy.normalizeProgram(program);
+    if (!_shellAllowlist.contains(normalized)) return;
+    await setShellAllowlist(
+      _shellAllowlist.where((entry) => entry != normalized),
     );
   }
 

@@ -1,9 +1,9 @@
 // P1-2 mid-run compaction (IMPORT_PLAN_COWORK.md P1-2 / P0-2 Phase-1 hooks):
-// the kernel's `onRoundStart` re-evaluates the prep-time trigger with the
-// cumulative `tokensSoFar` and rewrites the working list in place. Tests
-// lock the trigger reuse, the tail-walk boundary rules (never cross a user
-// prompt, pair caps, legal cut), the system-message exemption, and the
-// no-op cases below the floor/trigger.
+// the driver re-evaluates the prep-time trigger at round boundaries using an
+// estimate of the NEXT prompt (measured prompt + working-list estimate), not
+// the kernel's cumulative token counter. Tests lock the trigger reuse, the
+// tail-walk boundary rules (never cross a user prompt, pair caps, legal cut),
+// the system-message exemption, and the no-op cases below the floor/trigger.
 library;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -26,38 +26,33 @@ const String _catalogFixture = '''
 ''';
 
 Map<String, dynamic> _user(String text) => <String, dynamic>{
-      'role': 'user',
-      'content': text,
-    };
+  'role': 'user',
+  'content': text,
+};
 
 Map<String, dynamic> _assistant(String text) => <String, dynamic>{
-      'role': 'assistant',
-      'content': text,
-    };
+  'role': 'assistant',
+  'content': text,
+};
 
-Map<String, dynamic> _assistantWithToolCall(String id) =>
-    <String, dynamic>{
-      'role': 'assistant',
-      'content': '\n\n',
-      'tool_calls': [
-        {
-          'id': id,
-          'type': 'function',
-          'function': {
-            'name': 'file_read',
-            'arguments': '{"path":"a.txt"}',
-          },
-        }
-      ],
-    };
+Map<String, dynamic> _assistantWithToolCall(String id) => <String, dynamic>{
+  'role': 'assistant',
+  'content': '\n\n',
+  'tool_calls': [
+    {
+      'id': id,
+      'type': 'function',
+      'function': {'name': 'file_read', 'arguments': '{"path":"a.txt"}'},
+    },
+  ],
+};
 
-Map<String, dynamic> _toolResult(String id, String body) =>
-    <String, dynamic>{
-      'role': 'tool',
-      'tool_call_id': id,
-      'name': 'file_read',
-      'content': body,
-    };
+Map<String, dynamic> _toolResult(String id, String body) => <String, dynamic>{
+  'role': 'tool',
+  'tool_call_id': id,
+  'name': 'file_read',
+  'content': body,
+};
 
 void main() {
   setUp(() => ModelCatalog.loadFromJsonString(_catalogFixture));
@@ -73,7 +68,7 @@ void main() {
       final before = List.of(messages);
       final changed = applyMidRunCompaction(
         messages,
-        tokensSoFar: 10_000,
+        promptTokens: 10_000,
         modelId: 'unknown-model',
         learnedWindowTokens: null,
       );
@@ -81,7 +76,7 @@ void main() {
       expect(messages.length, before.length);
     });
 
-    test('no-op under the trigger (tokensSoFar <= trigger)', () {
+    test('no-op under the trigger (promptTokens <= trigger)', () {
       final messages = <Map<String, dynamic>>[
         {'role': 'system', 'content': 'sys'},
         _user('hello'),
@@ -90,7 +85,7 @@ void main() {
       // Claude 200k window / 64k output → trigger 136k (plan locked).
       final changed = applyMidRunCompaction(
         messages,
-        tokensSoFar: 136_000,
+        promptTokens: 136_000,
         modelId: 'claude-sonnet-4-5-20250929',
         learnedWindowTokens: null,
       );
@@ -107,7 +102,7 @@ void main() {
       ];
       final changed = applyMidRunCompaction(
         messages,
-        tokensSoFar: 200_000,
+        promptTokens: 200_000,
         modelId: 'claude-sonnet-4-5-20250929',
         learnedWindowTokens: null,
       );
@@ -137,7 +132,7 @@ void main() {
       ];
       applyMidRunCompaction(
         messages,
-        tokensSoFar: 200_000,
+        promptTokens: 200_000,
         modelId: 'claude-sonnet-4-5-20250929',
         learnedWindowTokens: null,
       );
@@ -157,16 +152,18 @@ void main() {
       ];
       applyMidRunCompaction(
         messages,
-        tokensSoFar: 200_000,
+        promptTokens: 200_000,
         modelId: 'claude-sonnet-4-5-20250929',
         learnedWindowTokens: null,
       );
       // The pair (assistant tool_calls + tool result) must survive as a
       // unit — the first message of the tail must not be a role:'tool'.
-      final firstToolIdx = messages
-          .indexWhere((m) => m['role'] == 'tool' && m['tool_call_id'] == 'call_1');
-      final firstCallIdx = messages
-          .indexWhere((m) => m['role'] == 'assistant' && m['tool_calls'] != null);
+      final firstToolIdx = messages.indexWhere(
+        (m) => m['role'] == 'tool' && m['tool_call_id'] == 'call_1',
+      );
+      final firstCallIdx = messages.indexWhere(
+        (m) => m['role'] == 'assistant' && m['tool_calls'] != null,
+      );
       expect(firstCallIdx, greaterThan(0));
       expect(firstToolIdx, firstCallIdx + 1);
     });
@@ -176,7 +173,7 @@ void main() {
       expect(
         applyMidRunCompaction(
           messages,
-          tokensSoFar: 500_000,
+          promptTokens: 500_000,
           modelId: 'claude-sonnet-4-5-20250929',
           learnedWindowTokens: null,
         ),
@@ -192,7 +189,7 @@ void main() {
       expect(
         applyMidRunCompaction(
           messages,
-          tokensSoFar: 500_000,
+          promptTokens: 500_000,
           modelId: 'claude-sonnet-4-5-20250929',
           learnedWindowTokens: null,
         ),
@@ -201,20 +198,20 @@ void main() {
     });
 
     test('learned window lowers the trigger (window ceiling wins)', () {
-      // Unknown model → 1M fallback → trigger 700k: a tokensSoFar of 150k
+      // Unknown model → 1M fallback → trigger 700k: a promptTokens of 150k
       // (above the 140k floor) would NOT fire. A learned 32k window drops
       // the trigger to 16k (0.5W guard), so the same run now compacts.
       List<Map<String, dynamic>> build() => <Map<String, dynamic>>[
-            {'role': 'system', 'content': 'sys'},
-            _user('turn-1 question'),
-            _assistant('turn-1 answer'),
-            _user('turn-2 question'),
-            _assistant('turn-2 answer'),
-          ];
+        {'role': 'system', 'content': 'sys'},
+        _user('turn-1 question'),
+        _assistant('turn-1 answer'),
+        _user('turn-2 question'),
+        _assistant('turn-2 answer'),
+      ];
       expect(
         applyMidRunCompaction(
           build(),
-          tokensSoFar: 150_000,
+          promptTokens: 150_000,
           modelId: 'never-seen-model',
           learnedWindowTokens: null,
         ),
@@ -223,7 +220,7 @@ void main() {
       expect(
         applyMidRunCompaction(
           build(),
-          tokensSoFar: 150_000,
+          promptTokens: 150_000,
           modelId: 'never-seen-model',
           learnedWindowTokens: 32_000,
         ),
@@ -235,6 +232,95 @@ void main() {
       // 360 chars of content ≈ 120 tokens; verified indirectly through the
       // public estimateTextTokens ruler consistency.
       expect(estimateTextTokens('x' * 360), 120);
+    });
+  });
+
+  group('prompt-size estimation', () {
+    test('measured prompt wins when the working list is smaller', () {
+      final messages = <Map<String, dynamic>>[
+        {'role': 'system', 'content': 'sys'},
+        _user('hello'),
+      ];
+      expect(
+        estimateCompactionPromptTokens(
+          messages: messages,
+          measuredPromptTokens: 100_000,
+        ),
+        100_000,
+      );
+    });
+
+    test('working-list estimate wins when tool results grow the prompt', () {
+      final messages = <Map<String, dynamic>>[
+        {'role': 'system', 'content': 'sys'},
+        _user('x' * 600_000),
+      ];
+      expect(
+        estimateCompactionPromptTokens(
+          messages: messages,
+          measuredPromptTokens: 100_000,
+        ),
+        greaterThan(100_000),
+      );
+    });
+
+    test('a 100k prompt does not compact a 200k-window run', () {
+      final messages = <Map<String, dynamic>>[
+        {'role': 'system', 'content': 'sys'},
+        _user('turn-1'),
+        _assistant('answer'),
+        _user('live'),
+      ];
+      // The cumulative counter after six 100k rounds would be 600k, but the
+      // actual prompt is still ~100k: mid-run compaction must not fire.
+      expect(
+        maybeApplyMidRunCompaction(
+          messages,
+          measuredPromptTokens: 100_000,
+          enabled: true,
+          modelId: 'claude-sonnet-4-5-20250929',
+          learnedWindowTokens: null,
+        ),
+        isFalse,
+      );
+    });
+
+    test('a genuinely oversized working list compacts', () {
+      final messages = <Map<String, dynamic>>[
+        {'role': 'system', 'content': 'sys'},
+        _user('old'),
+        _assistant('x' * 600_000),
+        _user('live'),
+      ];
+      expect(
+        maybeApplyMidRunCompaction(
+          messages,
+          measuredPromptTokens: 0,
+          enabled: true,
+          modelId: 'claude-sonnet-4-5-20250929',
+          learnedWindowTokens: null,
+        ),
+        isTrue,
+      );
+    });
+
+    test('disabled auto-compaction is a no-op', () {
+      final messages = <Map<String, dynamic>>[
+        {'role': 'system', 'content': 'sys'},
+        _user('old'),
+        _assistant('x' * 600_000),
+        _user('live'),
+      ];
+      expect(
+        maybeApplyMidRunCompaction(
+          messages,
+          measuredPromptTokens: 0,
+          enabled: false,
+          modelId: 'claude-sonnet-4-5-20250929',
+          learnedWindowTokens: null,
+        ),
+        isFalse,
+      );
     });
   });
 }
