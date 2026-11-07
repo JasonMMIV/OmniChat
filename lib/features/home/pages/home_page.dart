@@ -31,7 +31,6 @@ import '../../../utils/platform_utils.dart';
 import '../../../desktop/search_provider_popover.dart';
 import '../../../desktop/reasoning_budget_popover.dart';
 import '../../../desktop/mcp_servers_popover.dart';
-import '../../../desktop/mini_map_popover.dart';
 import '../../../desktop/workspace_popover.dart';
 import '../../../desktop/quick_phrase_popover.dart';
 import '../../../desktop/instruction_injection_popover.dart';
@@ -57,7 +56,7 @@ import '../../assistant/widgets/mcp_assistant_sheet.dart';
 import '../../quick_phrase/pages/quick_phrases_page.dart';
 import '../../quick_phrase/widgets/quick_phrase_menu.dart';
 import '../widgets/chat_input_bar.dart';
-import '../widgets/mini_map_sheet.dart';
+import '../widgets/mini_map_popover.dart';
 import '../widgets/instruction_injection_sheet.dart';
 import '../../ai_team/pages/ai_team_page.dart';
 import '../../chat/widgets/workspace_sheet.dart';
@@ -101,7 +100,7 @@ class _HomePageState extends State<HomePage>
   final ChatInputBarController _mediaController = ChatInputBarController();
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _inputBarKey = GlobalKey();
-  final GlobalKey _topMiniMapKey = GlobalKey();
+  final GlobalKey _scrollMiniMapKey = GlobalKey();
   final GlobalKey _topWorkspaceKey = GlobalKey();
   StreamSubscription<String>? _processTextSub;
   StreamSubscription<void>? _incomingShareSub;
@@ -660,7 +659,6 @@ class _HomePageState extends State<HomePage>
   }) {
     return HomeMobileScaffold(
       scaffoldKey: _scaffoldKey,
-      miniMapKey: _topMiniMapKey,
       drawerController: _drawerController,
       assistantPickerCloseTick: _assistantPickerCloseTick,
       loadingConversationIds: _controller.loadingConversationIds,
@@ -672,23 +670,6 @@ class _HomePageState extends State<HomePage>
       },
       onNewConversation: () async {
         await _controller.createNewConversationAnimated();
-      },
-      onOpenMiniMap: () async {
-        final collapsed = _controller.collapseVersions(_controller.messages);
-        String? selectedId;
-        if (PlatformUtils.isDesktop) {
-          selectedId = await showDesktopMiniMapPopover(
-            context,
-            anchorKey: _topMiniMapKey,
-            messages: collapsed,
-          );
-        } else {
-          selectedId = await showMiniMapSheet(context, collapsed);
-        }
-        if (!mounted) return;
-        if (selectedId != null && selectedId.isNotEmpty) {
-          await _controller.scrollToMessageId(selectedId);
-        }
       },
       onCreateNewConversation: () async {
         await _controller.createNewConversationAnimated();
@@ -786,7 +767,6 @@ class _HomePageState extends State<HomePage>
 
     return HomeDesktopScaffold(
       scaffoldKey: _scaffoldKey,
-      miniMapKey: _topMiniMapKey,
       workspaceKey: _topWorkspaceKey,
       assistantPickerCloseTick: _assistantPickerCloseTick,
       loadingConversationIds: _controller.loadingConversationIds,
@@ -808,23 +788,6 @@ class _HomePageState extends State<HomePage>
       onCreateNewConversation: () async {
         await _controller.createNewConversationAnimated();
         if (mounted) _controller.forceScrollToBottomSoon(animate: false);
-      },
-      onOpenMiniMap: () async {
-        final collapsed = _controller.collapseVersions(_controller.messages);
-        String? selectedId;
-        if (PlatformUtils.isDesktop) {
-          selectedId = await showDesktopMiniMapPopover(
-            context,
-            anchorKey: _topMiniMapKey,
-            messages: collapsed,
-          );
-        } else {
-          selectedId = await showMiniMapSheet(context, collapsed);
-        }
-        if (!mounted) return;
-        if (selectedId != null && selectedId.isNotEmpty) {
-          await _controller.scrollToMessageId(selectedId);
-        }
       },
       onSidebarWidthChanged: _controller.updateSidebarWidth,
       onSidebarWidthChangeEnd: _controller.saveSidebarWidth,
@@ -1237,23 +1200,6 @@ class _HomePageState extends State<HomePage>
         final sp = context.read<SettingsProvider>();
         await sp.setOcrEnabled(!sp.ocrEnabled);
       },
-      onOpenMiniMap: () async {
-        final collapsed = _controller.collapseVersions(_controller.messages);
-        String? selectedId;
-        if (PlatformUtils.isDesktop) {
-          selectedId = await showDesktopMiniMapPopover(
-            context,
-            anchorKey: _inputBarKey,
-            messages: collapsed,
-          );
-        } else {
-          selectedId = await showMiniMapSheet(context, collapsed);
-        }
-        if (!mounted) return;
-        if (selectedId != null && selectedId.isNotEmpty) {
-          await _controller.scrollToMessageId(selectedId);
-        }
-      },
       onPickCamera: _controller.onPickCamera,
       onPickPhotos: _controller.onPickPhotos,
       onUploadFiles: _controller.onPickFiles,
@@ -1293,6 +1239,19 @@ class _HomePageState extends State<HomePage>
     );
   }
 
+  Future<void> _openMiniMap() async {
+    final collapsed = _controller.collapseVersions(_controller.messages);
+    final selectedId = await showMiniMapPopover(
+      context,
+      anchorKey: _scrollMiniMapKey,
+      messages: collapsed,
+    );
+    if (!mounted) return;
+    if (selectedId != null && selectedId.isNotEmpty) {
+      await _controller.scrollToMessageId(selectedId);
+    }
+  }
+
   Widget _buildScrollButtons() {
     return Builder(
       builder: (context) {
@@ -1303,6 +1262,9 @@ class _HomePageState extends State<HomePage>
           return const SizedBox.shrink();
         return ScrollNavButtonsPanel(
           visible: _controller.scrollCtrl.showNavButtons,
+          miniMapKey: _scrollMiniMapKey,
+          miniMapTooltip: AppLocalizations.of(context)!.miniMapTooltip,
+          onOpenMiniMap: _openMiniMap,
           bottomOffset: _controller.inputBarHeight + 12,
           onScrollToTop: _controller.scrollToTop,
           onPreviousMessage: _controller.jumpToPreviousQuestion,

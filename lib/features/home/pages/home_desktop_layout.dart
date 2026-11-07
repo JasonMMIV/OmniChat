@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -25,7 +26,6 @@ class HomeDesktopScaffold extends StatelessWidget {
   const HomeDesktopScaffold({
     super.key,
     required this.scaffoldKey,
-    this.miniMapKey,
     this.workspaceKey,
     required this.assistantPickerCloseTick,
     required this.loadingConversationIds,
@@ -43,7 +43,6 @@ class HomeDesktopScaffold extends StatelessWidget {
     required this.onSelectConversation,
     required this.onNewConversation,
     required this.onCreateNewConversation,
-    this.onOpenMiniMap,
     required this.onSidebarWidthChanged,
     required this.onSidebarWidthChangeEnd,
     required this.onRightSidebarWidthChanged,
@@ -54,7 +53,6 @@ class HomeDesktopScaffold extends StatelessWidget {
   });
 
   final GlobalKey<ScaffoldState> scaffoldKey;
-  final GlobalKey? miniMapKey;
   final GlobalKey? workspaceKey;
   final ValueNotifier<int> assistantPickerCloseTick;
   final Set<String> loadingConversationIds;
@@ -74,7 +72,6 @@ class HomeDesktopScaffold extends StatelessWidget {
   final void Function(String id) onSelectConversation;
   final VoidCallback onNewConversation;
   final Future<void> Function() onCreateNewConversation;
-  final VoidCallback? onOpenMiniMap;
   final void Function(double dx) onSidebarWidthChanged;
   final VoidCallback onSidebarWidthChangeEnd;
   final void Function(double dx) onRightSidebarWidthChanged;
@@ -330,16 +327,6 @@ class HomeDesktopScaffold extends StatelessWidget {
 
   List<Widget> _buildActions(BuildContext context, bool topicsOnRight) {
     return [
-      if (onOpenMiniMap != null)
-        IosIconButton(
-          key: miniMapKey,
-          size: 28,
-          padding: const EdgeInsets.all(8),
-          minSize: 48,
-          icon: Lucide.Map,
-          onTap: onOpenMiniMap,
-          semanticLabel: AppLocalizations.of(context)!.miniMapTooltip,
-        ),
       if (onOpenWorkspace != null)
         IosIconButton(
           key: workspaceKey,
@@ -472,150 +459,6 @@ class DesktopBackgroundLayer extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Scroll navigation buttons for desktop (same as mobile but with different padding)
-class DesktopScrollNavigationButtons extends StatelessWidget {
-  const DesktopScrollNavigationButtons({
-    super.key,
-    required this.showJumpToBottom,
-    required this.inputBarHeight,
-    required this.hasMessages,
-    required this.onScrollToBottom,
-    required this.onScrollToPreviousQuestion,
-  });
-
-  final bool showJumpToBottom;
-  final double inputBarHeight;
-  final bool hasMessages;
-  final VoidCallback onScrollToBottom;
-  final VoidCallback onScrollToPreviousQuestion;
-
-  @override
-  Widget build(BuildContext context) {
-    final showSetting = context.watch<SettingsProvider>().showMessageNavButtons;
-    if (!showSetting || !hasMessages) return const SizedBox.shrink();
-
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bottomOffset = inputBarHeight + 12;
-
-    return Stack(
-      children: [
-        // Scroll to bottom button
-        Align(
-          alignment: Alignment.bottomRight,
-          child: SafeArea(
-            top: false,
-            bottom: false,
-            child: IgnorePointer(
-              ignoring: !showJumpToBottom,
-              child: AnimatedScale(
-                scale: showJumpToBottom ? 1.0 : 0.9,
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  opacity: showJumpToBottom ? 1 : 0,
-                  child: Padding(
-                    padding: EdgeInsets.only(right: 16, bottom: bottomOffset),
-                    child: _DesktopScrollButton(
-                      isDark: isDark,
-                      icon: Lucide.ChevronDown,
-                      onTap: onScrollToBottom,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        // Scroll to previous question button
-        Align(
-          alignment: Alignment.bottomRight,
-          child: SafeArea(
-            top: false,
-            bottom: false,
-            child: IgnorePointer(
-              ignoring: !showJumpToBottom,
-              child: AnimatedScale(
-                scale: showJumpToBottom ? 1.0 : 0.9,
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  opacity: showJumpToBottom ? 1 : 0,
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      right: 16,
-                      bottom: bottomOffset + 52,
-                    ),
-                    child: _DesktopScrollButton(
-                      isDark: isDark,
-                      icon: Lucide.ChevronUp,
-                      onTap: onScrollToPreviousQuestion,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DesktopScrollButton extends StatelessWidget {
-  const _DesktopScrollButton({
-    required this.isDark,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final bool isDark;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipOval(
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark
-                ? Colors.white.withOpacity(0.06)
-                : Colors.white.withOpacity(0.07),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: isDark
-                  ? Colors.white.withOpacity(0.10)
-                  : Theme.of(context).colorScheme.outline.withOpacity(0.20),
-              width: 1,
-            ),
-          ),
-          child: Material(
-            type: MaterialType.transparency,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Icon(
-                  icon,
-                  size: 18,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

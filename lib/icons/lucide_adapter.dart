@@ -114,6 +114,7 @@ class Lucide {
   static const IconData Paperclip = lucide.LucideIcons.paperclip;
   static const IconData ChevronUp = lucide.LucideIcons.chevronUp;
   static const IconData Map = lucide.LucideIcons.map;
+  static const IconData TableOfContents = lucide.LucideIcons.tableOfContents;
   static const IconData SquarePen = lucide.LucideIcons.squarePen;
   static const IconData info = lucide.LucideIcons.info;
   static const IconData Zap = lucide.LucideIcons.zap;

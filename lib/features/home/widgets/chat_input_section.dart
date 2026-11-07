@@ -21,8 +21,10 @@ import 'model_icon.dart';
 typedef IsToolModelCallback = bool Function(String providerKey, String modelId);
 
 /// Callback for checking if a model supports reasoning.
-typedef IsReasoningModelCallback =
-    bool Function(String providerKey, String modelId);
+typedef IsReasoningModelCallback = bool Function(
+  String providerKey,
+  String modelId,
+);
 
 /// Callback for checking if reasoning is enabled.
 typedef IsReasoningEnabledCallback = bool Function(int? budget);
@@ -55,7 +57,6 @@ class ChatInputSection extends StatelessWidget {
     this.onQuickPhrase,
     this.onLongPressQuickPhrase,
     this.onToggleOcr,
-    this.onOpenMiniMap,
     this.onPickCamera,
     this.onPickPhotos,
     this.onUploadFiles,
@@ -101,7 +102,6 @@ class ChatInputSection extends StatelessWidget {
   final VoidCallback? onQuickPhrase;
   final VoidCallback? onLongPressQuickPhrase;
   final VoidCallback? onToggleOcr;
-  final VoidCallback? onOpenMiniMap;
   final VoidCallback? onPickCamera;
   final VoidCallback? onPickPhotos;
   final VoidCallback? onUploadFiles;
@@ -213,8 +213,6 @@ class ChatInputSection extends StatelessWidget {
       onStopDictation: onStopDictation,
       onToggleDictationPause: onToggleDictationPause,
       // Tablet-specific parameters
-      showMiniMapButton: false,
-      onOpenMiniMap: null,
       onPickCamera: isTablet ? (isDesktop ? null : onPickCamera) : null,
       onPickPhotos: isTablet ? (isDesktop ? null : onPickPhotos) : null,
       onUploadFiles: isTablet ? onUploadFiles : null,

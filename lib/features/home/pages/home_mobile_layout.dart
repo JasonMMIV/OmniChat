@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -26,7 +27,6 @@ class HomeMobileScaffold extends StatelessWidget {
   const HomeMobileScaffold({
     super.key,
     required this.scaffoldKey,
-    this.miniMapKey,
     required this.drawerController,
     required this.assistantPickerCloseTick,
     required this.loadingConversationIds,
@@ -35,14 +35,12 @@ class HomeMobileScaffold extends StatelessWidget {
     required this.onDismissKeyboard,
     required this.onSelectConversation,
     required this.onNewConversation,
-    required this.onOpenMiniMap,
     required this.onCreateNewConversation,
     this.onOpenWorkspace,
     required this.body,
   });
 
   final GlobalKey<ScaffoldState> scaffoldKey;
-  final GlobalKey? miniMapKey;
   final InteractiveDrawerController drawerController;
   final ValueNotifier<int> assistantPickerCloseTick;
   final Set<String> loadingConversationIds;
@@ -51,7 +49,6 @@ class HomeMobileScaffold extends StatelessWidget {
   final VoidCallback onDismissKeyboard;
   final void Function(String id) onSelectConversation;
   final VoidCallback onNewConversation;
-  final VoidCallback onOpenMiniMap;
   final Future<void> Function() onCreateNewConversation;
   final VoidCallback? onOpenWorkspace;
   final Widget body;
@@ -167,14 +164,6 @@ class HomeMobileScaffold extends StatelessWidget {
         ],
       ),
       actions: [
-        IosIconButton(
-          key: miniMapKey,
-          size: 24,
-          minSize: 44,
-          onTap: onOpenMiniMap,
-          semanticLabel: AppLocalizations.of(context)!.miniMapTooltip,
-          icon: Lucide.Map,
-        ),
         if (onOpenWorkspace != null)
           IosIconButton(
             size: 24,
@@ -259,150 +248,6 @@ class MobileBackgroundLayer extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Scroll navigation buttons (scroll to bottom + scroll to previous question)
-class ScrollNavigationButtons extends StatelessWidget {
-  const ScrollNavigationButtons({
-    super.key,
-    required this.showJumpToBottom,
-    required this.inputBarHeight,
-    required this.hasMessages,
-    required this.onScrollToBottom,
-    required this.onScrollToPreviousQuestion,
-  });
-
-  final bool showJumpToBottom;
-  final double inputBarHeight;
-  final bool hasMessages;
-  final VoidCallback onScrollToBottom;
-  final VoidCallback onScrollToPreviousQuestion;
-
-  @override
-  Widget build(BuildContext context) {
-    final showSetting = context.watch<SettingsProvider>().showMessageNavButtons;
-    if (!showSetting || !hasMessages) return const SizedBox.shrink();
-
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bottomOffset = inputBarHeight + 12;
-
-    return Stack(
-      children: [
-        // Scroll to bottom button
-        Align(
-          alignment: Alignment.bottomRight,
-          child: SafeArea(
-            top: false,
-            bottom: false,
-            child: IgnorePointer(
-              ignoring: !showJumpToBottom,
-              child: AnimatedScale(
-                scale: showJumpToBottom ? 1.0 : 0.9,
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  opacity: showJumpToBottom ? 1 : 0,
-                  child: Padding(
-                    padding: EdgeInsets.only(right: 16, bottom: bottomOffset),
-                    child: _ScrollButton(
-                      isDark: isDark,
-                      icon: Lucide.ChevronDown,
-                      onTap: onScrollToBottom,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        // Scroll to previous question button
-        Align(
-          alignment: Alignment.bottomRight,
-          child: SafeArea(
-            top: false,
-            bottom: false,
-            child: IgnorePointer(
-              ignoring: !showJumpToBottom,
-              child: AnimatedScale(
-                scale: showJumpToBottom ? 1.0 : 0.9,
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  opacity: showJumpToBottom ? 1 : 0,
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      right: 16,
-                      bottom: bottomOffset + 52,
-                    ),
-                    child: _ScrollButton(
-                      isDark: isDark,
-                      icon: Lucide.ChevronUp,
-                      onTap: onScrollToPreviousQuestion,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ScrollButton extends StatelessWidget {
-  const _ScrollButton({
-    required this.isDark,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final bool isDark;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipOval(
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark
-                ? Colors.white.withOpacity(0.06)
-                : Colors.white.withOpacity(0.07),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: isDark
-                  ? Colors.white.withOpacity(0.10)
-                  : Theme.of(context).colorScheme.outline.withOpacity(0.20),
-              width: 1,
-            ),
-          ),
-          child: Material(
-            type: MaterialType.transparency,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(
-                  icon,
-                  size: 20,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

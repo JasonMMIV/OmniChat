@@ -121,8 +121,6 @@ class ChatInputBar extends StatefulWidget {
     this.showMcpButton = false,
     this.mcpActive = false,
     this.searchEnabled = false,
-    this.showMiniMapButton = false,
-    this.onOpenMiniMap,
     this.onPickCamera,
     this.onPickPhotos,
     this.onUploadFiles,
@@ -173,8 +171,6 @@ class ChatInputBar extends StatefulWidget {
   final bool showMcpButton;
   final bool mcpActive;
   final bool searchEnabled;
-  final bool showMiniMapButton;
-  final VoidCallback? onOpenMiniMap;
   final VoidCallback? onPickCamera;
   final VoidCallback? onPickPhotos;
   final VoidCallback? onUploadFiles;
@@ -1439,25 +1435,6 @@ class _ChatInputBarState extends State<ChatInputBar>
                   icon: Lucide.workflow,
                   label: l10n.contextManagement,
                   onTap: showContextMenu,
-                ),
-              ),
-            );
-          }
-
-          if (widget.showMiniMapButton) {
-            actions.add(
-              _OverflowAction(
-                id: 'minimap',
-                width: normalButtonW,
-                builder: () => _CompactIconButton(
-                  tooltip: l10n.miniMapTooltip,
-                  icon: Lucide.Map,
-                  onTap: widget.onOpenMiniMap,
-                ),
-                menu: DesktopContextMenuItem(
-                  icon: Lucide.Map,
-                  label: l10n.miniMapTooltip,
-                  onTap: widget.onOpenMiniMap,
                 ),
               ),
             );

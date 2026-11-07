@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+
 import '../../../icons/lucide_adapter.dart';
 
-/// Glassy scroll navigation buttons panel with 4 buttons arranged vertically.
+/// Glassy scroll navigation buttons panel with 5 buttons arranged vertically.
 ///
 /// Buttons (from top to bottom):
 /// - Scroll to top (chevrons-up)
 /// - Previous user message (chevron-up)
+/// - Mini-map (table-of-contents)
 /// - Next user message (chevron-down)
 /// - Scroll to bottom (chevrons-down)
 ///
@@ -15,23 +17,31 @@ class ScrollNavButtonsPanel extends StatelessWidget {
   const ScrollNavButtonsPanel({
     super.key,
     required this.visible,
+    required this.miniMapKey,
+    required this.miniMapTooltip,
+    required this.onOpenMiniMap,
     required this.onScrollToTop,
     required this.onPreviousMessage,
     required this.onNextMessage,
     required this.onScrollToBottom,
     this.bottomOffset = 80,
     this.iconSize = 16,
+    this.miniMapIconSize = 17,
     this.buttonPadding = 6,
     this.buttonSpacing = 8,
   });
 
   final bool visible;
+  final GlobalKey miniMapKey;
+  final String miniMapTooltip;
+  final VoidCallback onOpenMiniMap;
   final VoidCallback onScrollToTop;
   final VoidCallback onPreviousMessage;
   final VoidCallback onNextMessage;
   final VoidCallback onScrollToBottom;
   final double bottomOffset;
   final double iconSize;
+  final double miniMapIconSize;
   final double buttonPadding;
   final double buttonSpacing;
 
@@ -39,6 +49,7 @@ class ScrollNavButtonsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final iconColor = isDark ? Colors.white : Colors.black87;
+    final miniMapColor = Theme.of(context).colorScheme.primary;
 
     return Align(
       alignment: Alignment.bottomRight,
@@ -78,6 +89,20 @@ class ScrollNavButtonsPanel extends StatelessWidget {
                       onTap: onPreviousMessage,
                     ),
                     SizedBox(height: buttonSpacing),
+                    Tooltip(
+                      message: miniMapTooltip,
+                      child: _GlassyCircleButton(
+                        key: miniMapKey,
+                        icon: Lucide.TableOfContents,
+                        iconSize: miniMapIconSize,
+                        iconColor: miniMapColor,
+                        padding: buttonPadding,
+                        isDark: isDark,
+                        onTap: onOpenMiniMap,
+                        semanticLabel: miniMapTooltip,
+                      ),
+                    ),
+                    SizedBox(height: buttonSpacing),
                     _GlassyCircleButton(
                       icon: Lucide.ChevronDown,
                       iconSize: iconSize,
@@ -110,12 +135,14 @@ class ScrollNavButtonsPanel extends StatelessWidget {
 /// Uses simple opacity instead of expensive BackdropFilter for better performance.
 class _GlassyCircleButton extends StatelessWidget {
   const _GlassyCircleButton({
+    super.key,
     required this.icon,
     required this.iconSize,
     required this.iconColor,
     required this.padding,
     required this.isDark,
     required this.onTap,
+    this.semanticLabel,
   });
 
   final IconData icon;
@@ -124,6 +151,7 @@ class _GlassyCircleButton extends StatelessWidget {
   final double padding;
   final bool isDark;
   final VoidCallback onTap;
+  final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -139,13 +167,13 @@ class _GlassyCircleButton extends StatelessWidget {
               : Theme.of(context).colorScheme.outline.withOpacity(0.20),
           width: 1,
         ),
-         //  boxShadow: [
-         //    BoxShadow(
-         //      color: Colors.black.withOpacity(0.01),
-         //      blurRadius: 8,
-         //      offset: const Offset(0, 2),
-         //    ),
-         // ],
+        //  boxShadow: [
+        //    BoxShadow(
+        //      color: Colors.black.withOpacity(0.01),
+        //      blurRadius: 8,
+        //      offset: const Offset(0, 2),
+        //    ),
+        // ],
       ),
       child: Material(
         type: MaterialType.transparency,
@@ -159,6 +187,7 @@ class _GlassyCircleButton extends StatelessWidget {
               icon,
               size: iconSize,
               color: iconColor,
+              semanticLabel: semanticLabel,
             ),
           ),
         ),

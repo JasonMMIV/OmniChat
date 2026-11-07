@@ -9,7 +9,7 @@ void main() {
     dotAll: true,
   );
 
-  // Stripping regex (mini_map_sheet.dart, mini_map_popover.dart)
+  // Stripping regex (mini_map_pairs.dart)
   final strippingRe = RegExp(
     r'<(?:think|thought)>[\s\S]*?<\/(?:think|thought)>',
     caseSensitive: false,
