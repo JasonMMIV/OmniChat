@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/todo_service.dart';
+import '../../../core/services/dev/dev_preview_tools.dart';
 import '../../../core/services/file/file_tool_service.dart';
 import '../../../core/services/shell/shell_run_service.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -25,8 +26,9 @@ class _WorkspaceToolEntry {
   final IconData icon;
 }
 
-/// Global workspace tools switchboard: the 15 built-in file tools plus the
-/// write_todos and ask_user decision tools, each with its own toggle.
+/// Global workspace tools switchboard: the 15 built-in file tools, the
+/// write_todos / ask_user decision tools and the live-preview console reader,
+/// each with its own toggle.
 ///
 /// Only reachable from the workspace menu while the workspace is enabled —
 /// a disabled workspace keeps every tool off regardless of these toggles.
@@ -67,6 +69,15 @@ class WorkspaceToolsPage extends StatelessWidget {
         name: askUserToolName,
         description: 'Ask the user questions when a decision is needed.',
         icon: Lucide.MessageCircle,
+      ),
+      // P2-4: reads console errors captured by the live site preview.
+      _WorkspaceToolEntry(
+        name: devConsoleErrorsToolName,
+        description:
+            (DevPreviewTools.getConsoleErrorsDefinition()['function']
+                    as Map)['description']
+                .toString(),
+        icon: Lucide.Monitor,
       ),
       // P1-6: the shell tool appears only when the model will actually receive
       // it — desktop, developer mode, and the allowlist PATH readiness gate.

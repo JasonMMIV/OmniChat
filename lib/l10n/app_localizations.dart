@@ -12155,6 +12155,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Archived memory'**
   String get chatMessageWidgetMemoryDelete;
+
+  /// No description provided for @devPreviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Site preview'**
+  String get devPreviewTitle;
+
+  /// No description provided for @devPreviewMenuEntry.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview site'**
+  String get devPreviewMenuEntry;
+
+  /// No description provided for @devPreviewOpenInPanel.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in preview panel'**
+  String get devPreviewOpenInPanel;
+
+  /// No description provided for @devPreviewEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing open yet'**
+  String get devPreviewEmptyTitle;
+
+  /// No description provided for @devPreviewEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview a real page, not just a file. CSS, JS, images and fonts load from the workspace root, and the page reloads automatically after edits.'**
+  String get devPreviewEmptyHint;
+
+  /// No description provided for @devPreviewEntryPoints.
+  ///
+  /// In en, this message translates to:
+  /// **'HTML pages in this workspace'**
+  String get devPreviewEntryPoints;
+
+  /// No description provided for @devPreviewNoEntryPoints.
+  ///
+  /// In en, this message translates to:
+  /// **'No HTML files found yet. Ask the model to create index.html, then rescan.'**
+  String get devPreviewNoEntryPoints;
+
+  /// No description provided for @devPreviewRescan.
+  ///
+  /// In en, this message translates to:
+  /// **'Rescan'**
+  String get devPreviewRescan;
+
+  /// No description provided for @devPreviewOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not start the preview server. Check that the workspace folder is accessible, then retry.'**
+  String get devPreviewOpenFailed;
+
+  /// No description provided for @devPreviewSessionClosed.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview server stopped. Reopen the preview to continue.'**
+  String get devPreviewSessionClosed;
+
+  /// No description provided for @devPreviewWorkspaceMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable the workspace for this conversation first.'**
+  String get devPreviewWorkspaceMissing;
+
+  /// No description provided for @devPreviewNotSupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Site preview is not available on Linux. Open the page in your browser instead.'**
+  String get devPreviewNotSupported;
+
+  /// No description provided for @devPreviewConsoleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Console'**
+  String get devPreviewConsoleTitle;
+
+  /// No description provided for @devPreviewConsoleErrors.
+  ///
+  /// In en, this message translates to:
+  /// **'Errors'**
+  String get devPreviewConsoleErrors;
+
+  /// No description provided for @devPreviewConsoleWarnings.
+  ///
+  /// In en, this message translates to:
+  /// **'Warnings'**
+  String get devPreviewConsoleWarnings;
+
+  /// No description provided for @devPreviewConsoleAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get devPreviewConsoleAll;
+
+  /// No description provided for @devPreviewConsoleClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear console'**
+  String get devPreviewConsoleClear;
+
+  /// No description provided for @devPreviewConsoleClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide console'**
+  String get devPreviewConsoleClose;
+
+  /// No description provided for @devPreviewViewportDesktop.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop'**
+  String get devPreviewViewportDesktop;
+
+  /// No description provided for @devPreviewViewportTablet.
+  ///
+  /// In en, this message translates to:
+  /// **'Tablet'**
+  String get devPreviewViewportTablet;
+
+  /// No description provided for @devPreviewViewportMobile.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone'**
+  String get devPreviewViewportMobile;
 }
 
 class _AppLocalizationsDelegate

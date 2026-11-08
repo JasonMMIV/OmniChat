@@ -45,7 +45,7 @@
 | P2-1 | Checkpoint 持久化（durable-before-dispatch） | deepseek-harness | ✅（2026-11-07：`agent_runs_v1`＋啟動恢復橫幅；見 §2.4） | v1.30.x |
 | P2-2 | 背景長任務（桌面托盤 + Android 前景服務） | 既有基建 + P2-1 | ⬜ | v1.31.x |
 | P2-3 | 子代理（`spawn_subagent`） | AnyBuff agents/ + AiTeamController | ⬜ | v1.31.x |
-| P2-4 | Mini dev server + Live 預覽 | 既有 `html_preview_*` + 新 dev server | ⬜ | v1.31.x |
+| P2-4 | Mini dev server + Live 預覽 | 既有 `html_preview_*` + 新 dev server | ✅（2026-11-08：loopback 靜態伺服器、SSE 重整、`get_console_errors`、分頁面板；見 §2.7） | v1.31.x |
 | P2-5 | Proot on Android（**stretch**；kelivo `sandbox/`＋AnyBuff `android/` engine 為對照實作） | 藍圖已內化於 §2.8（原 CLI v4 §七/§十五）+ kelivo v1.3.0+ | ⬜ | 視需求 |
 | P2-6(L3) | 工作區檔案地圖注入（**僅 L3**；L2 LLM 摘要不採） | AnyBuff `truncate-file-tree` 概念 | ⬜ | v1.32.x |
 | P2-7 | kelivo 資料模型對齊（**可選**） | kelivo `a43b79f` | ⬜ | 視需求 |
@@ -104,7 +104,7 @@
     └──→ P3-3 跨會話任務恢復（以 agent_runs_v1 為資料源）
 
 【Wave D：「製作網站」閉環】
-  P2-4 Dev server + Live 預覽 ──→ P3-1 瀏覽器 QA（要有持續開著的頁面才有得驗證）
+  P2-4 Dev server + Live 預覽（✅ 2026-11-08）──→ P3-1 瀏覽器 QA（要有持續開著的頁面才有得驗證）
 
 【Wave E：上下文治理補強（互相獨立，可穿插）】
   P1-2 尾款 cache_expiry（✅）｜ P2-6 L3 檔案地圖
@@ -279,11 +279,13 @@
 
 ---
 
-### 2.7 P2-4 Mini dev server + Live 預覽 ⬜
+### 2.7 P2-4 Mini dev server + Live 預覽 ✅【2026-11-08 完成】
 
-**目標**：「製作網站」反饋閉環自動化——模型第一次能「看見自己作品的運行結果」：寫檔 → 頁面自動重整 → console 錯誤回到模型 → 自修。
+> **落地紀錄（2026-11-08）**：新增 `lib/core/services/dev/`——`dev_server_service.dart`（loopback IPv4、port 0、MIME 查表、`FileToolService.resolveSafePath` 邊界＋dotfile 阻擋、Host／Origin 檢查、HTML 注入橋、SSE reload、console 環形緩衝、Directory.watch＋工具明確通知的 250 ms debounce、租約制 session）、`dev_mime.dart`、`dev_preview_tools.dart`（`get_console_errors`，levels/limit、無 session 回 `preview_not_running`、`ToolResultCaps` 32KB）、`dev_preview_controller.dart`（分頁、入口點探索、console 事件）。UI：`DevPreviewPanel`（分頁 chips、reload／外部瀏覽器／console 抽屜、Errors／Warnings／All 篩選與錯誤徽章、HTML 入口 chips、桌面 viewport preset Full／768／390、點狀背景＋卡片化預覽）＋`DevPreviewPage`（行動）＋`dev_preview_dialog.dart`（桌面 dialog，依 `MediaQuery` 夾限）。入口：工作區 popover／sheet「預覽網站」、檔案瀏覽器 Play 與 `.html/.htm` 點擊／右鍵、Workspace Tools 頁新增工具列。`ToolHandlerService` 在 10 個變更型 `file_*` 與 `shell_run`（`changed_files` 非空）後 `notifyWorkspaceChanged`；`get_console_errors` 免審批並納入 disabled 檢查。平台：Windows `webview_windows`、其餘 `webview_flutter`、Linux 不提供；Android cleartext 例外已存在，macOS 加 `NSAllowsLocalNetworking`＋Release `network.server`，iOS 加 `NSAllowsLocalNetworking`。零新 prefs key／零落盤。l10n ×4（21 keys）。測試：`dev_server_service_test`（22）、`dev_preview_controller_test`（8）、`dev_console_tool_test`（4），合計 34 案；`workspace_tools_toggle_test` 更新為 18 工具。`dart analyze lib` 0 errors。**2026-11-08 review 修正**：reload 時清空 console 舊錯誤（避免模型把上一版錯誤當成修復失敗）、retry 以新 port 重建 tab URL、共用 session 被其他工作區搶走時顯示「已停止」與 retry、`DevServerConsoleClearedEvent`、reload 後自動刷新入口清單、目錄列表 href 逐段 percent-encode、dialog 依 `MediaQuery` 夾限、`DevServerService.start` single-flight、shell 僅在 `changed_files` 非空時觸發 reload、移除未使用的 `/__omnichat/state`（避免露出絕對路徑）、`<header>` 誤判為 `<head>` 的注入回歸。與計畫差異：入口點探索深度 3／上限 80、目錄列表上限 500、HTML >16 MB 不注入、dotfile（含 `.well-known`）一律 404；預覽面板採 dialog／頁而非常駐側欄。
+>
+> **目標**：「製作網站」反饋閉環自動化——模型第一次能「看見自己作品的運行結果」：寫檔 → 頁面自動重整 → console 錯誤回到模型 → 自修。
 
-**現況**：`html_preview_dialog.dart` / `html_preview_page.dart` 已存在，為**單檔**靜態預覽——解析不了相對路徑引用的 CSS/JS/圖片，**根本無法預覽一個站**。
+**現況（開工前）**：`html_preview_dialog.dart` / `html_preview_page.dart` 已存在，為**單檔**靜態預覽——解析不了相對路徑引用的 CSS/JS/圖片，**根本無法預覽一個站**。**仍保留**：訊息內 HTML/SVG/XML 與 Markdown 預覽走原路徑；工作區 `.html/.htm` 改走 dev server。
 
 **實作內容**：
 1. 新 `dev_server_service.dart`：`127.0.0.1` **隨機埠**靜態伺服整個 workspace（MIME 類型表、路徑 traversal 防護——`..`/symlink 一律拒，比照 zip-slip 教訓；**僅綁 loopback**、workspace disabled 時不啟動）。

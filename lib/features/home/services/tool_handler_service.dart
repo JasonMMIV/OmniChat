@@ -12,6 +12,8 @@ import '../../../core/services/search/search_tool_service.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
+import '../../../core/services/dev/dev_preview_tools.dart';
+import '../../../core/services/dev/dev_server_service.dart';
 import '../../../core/services/file/file_tool_service.dart';
 import '../../../core/services/file/unified_diff.dart';
 import '../../../core/services/agent/approval.dart';
@@ -327,6 +329,10 @@ class ToolHandlerService {
     final definitions = <Map<String, dynamic>>[
       ...FileToolService.getToolDefinitions(),
       ..._buildCoworkToolDefinitions(),
+      // P2-4: console output of the live site preview. Always advertised with
+      // the workspace tools; the handler explains how to open the preview
+      // when no session is running.
+      DevPreviewTools.getConsoleErrorsDefinition(),
     ];
     // P1-6: shell_run is registered only when developer mode is on, the
     // platform is desktop, and at least one allowlisted program exists on
@@ -339,6 +345,33 @@ class ToolHandlerService {
       final name = ((def['function'] as Map)['name'] ?? '').toString();
       return name.isNotEmpty && settings.isWorkspaceToolEnabled(name);
     }).toList();
+  }
+
+  /// File tools that can change the served tree; the dev preview reloads
+  /// after these succeed so the model sees its own edits immediately.
+  static const Set<String> _workspaceMutatingFileTools = <String>{
+    'file_write',
+    'file_append',
+    'file_edit',
+    'file_patch',
+    'file_delete',
+    'file_move',
+    'file_copy',
+    'file_mkdir',
+    'file_create_pdf',
+    'file_extract_zip',
+  };
+
+  /// True when a `shell_run` payload reports at least one changed file.
+  static bool _shellResultChangedFiles(String result) {
+    try {
+      final decoded = jsonDecode(result);
+      if (decoded is Map) {
+        final changed = decoded['changed_files'];
+        return changed is List && changed.isNotEmpty;
+      }
+    } catch (_) {}
+    return false;
   }
 
   /// Tolerates test doubles that only implement the workspace-toggle API.
@@ -634,7 +667,7 @@ class ToolHandlerService {
         final cancellation = CliCancellationToken();
         _activeShellCancellations.add(cancellation);
         try {
-          return await ShellRunService.execute(
+          final result = await ShellRunService.execute(
             args,
             workspacePath: effectiveWorkspace ?? workspacePath ?? '',
             developerMode: settings.developerModeV1,
@@ -645,6 +678,14 @@ class ToolHandlerService {
             approvedCommand: shellApproved ? shellCommand : null,
             cancellation: cancellation,
           );
+          // Reload only when the command actually changed files: a read-only
+          // `git status` must not reload the preview mid-turn.
+          if (_shellResultChangedFiles(result)) {
+            DevServerService.instance.notifyWorkspaceChanged(
+              effectiveWorkspace ?? workspacePath,
+            );
+          }
+          return result;
         } catch (e, st) {
           FlutterLogger.log(
             'Shell tool "$name" failed: $e\n$st',
@@ -715,6 +756,11 @@ class ToolHandlerService {
             text: capped,
             diff: result.diff,
           );
+          if (_workspaceMutatingFileTools.contains(name)) {
+            DevServerService.instance.notifyWorkspaceChanged(
+              effectiveWorkspace ?? workspacePath,
+            );
+          }
           return capped;
         } catch (e, st) {
           // Never let an unexpected file-tool failure break the conversation.
@@ -776,6 +822,12 @@ class ToolHandlerService {
             'instruction':
                 'These questions are now shown to the user as interactive answer cards. End your turn now and wait — the structured answers will arrive with the user next input. Do not invent or assume answers.',
           });
+        }
+
+        // P2-4: console output captured by the live site preview. Read-only;
+        // returns a structured tool_error when no preview panel is open.
+        if (name == devConsoleErrorsToolName) {
+          return DevPreviewTools.handleGetConsoleErrors(args);
         }
 
         // Agent Skills: `skill` — load one skill's full instructions. Read
@@ -977,8 +1029,10 @@ class ToolHandlerService {
     Map<String, dynamic> args, {
     String? workspacePath,
   }) {
-    // Non-callable decision tools and in-sandbox flows skip the engine.
-    if (name == askUserToolName || name == todoToolName) {
+    // Non-callable decision/read-only tools skip the engine.
+    if (name == askUserToolName ||
+        name == todoToolName ||
+        name == devConsoleErrorsToolName) {
       return _PendingDecision.allow();
     }
 
@@ -1138,7 +1192,8 @@ class ToolHandlerService {
     if (!name.startsWith('file_') &&
         name != todoToolName &&
         name != askUserToolName &&
-        name != ShellRunService.toolName) {
+        name != ShellRunService.toolName &&
+        name != devConsoleErrorsToolName) {
       return false;
     }
     final settings = _safeReadSettings();

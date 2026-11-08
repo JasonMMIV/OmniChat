@@ -71,6 +71,11 @@ class TestSettingsProvider extends ChangeNotifier
   @override
   bool isWorkspaceToolEnabled(String toolName) => true;
 
+  /// P3-4/P1-6: file tools read the global developer-mode flag for the write
+  /// limit; this double keeps the default (512 KB) behaviour.
+  @override
+  bool get developerModeV1 => false;
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

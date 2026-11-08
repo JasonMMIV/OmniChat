@@ -6503,4 +6503,73 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatMessageWidgetMemoryDelete => 'Archived memory';
+
+  @override
+  String get devPreviewTitle => 'Site preview';
+
+  @override
+  String get devPreviewMenuEntry => 'Preview site';
+
+  @override
+  String get devPreviewOpenInPanel => 'Open in preview panel';
+
+  @override
+  String get devPreviewEmptyTitle => 'Nothing open yet';
+
+  @override
+  String get devPreviewEmptyHint =>
+      'Preview a real page, not just a file. CSS, JS, images and fonts load from the workspace root, and the page reloads automatically after edits.';
+
+  @override
+  String get devPreviewEntryPoints => 'HTML pages in this workspace';
+
+  @override
+  String get devPreviewNoEntryPoints =>
+      'No HTML files found yet. Ask the model to create index.html, then rescan.';
+
+  @override
+  String get devPreviewRescan => 'Rescan';
+
+  @override
+  String get devPreviewOpenFailed =>
+      'Could not start the preview server. Check that the workspace folder is accessible, then retry.';
+
+  @override
+  String get devPreviewSessionClosed =>
+      'Preview server stopped. Reopen the preview to continue.';
+
+  @override
+  String get devPreviewWorkspaceMissing =>
+      'Enable the workspace for this conversation first.';
+
+  @override
+  String get devPreviewNotSupported =>
+      'Site preview is not available on Linux. Open the page in your browser instead.';
+
+  @override
+  String get devPreviewConsoleTitle => 'Console';
+
+  @override
+  String get devPreviewConsoleErrors => 'Errors';
+
+  @override
+  String get devPreviewConsoleWarnings => 'Warnings';
+
+  @override
+  String get devPreviewConsoleAll => 'All';
+
+  @override
+  String get devPreviewConsoleClear => 'Clear console';
+
+  @override
+  String get devPreviewConsoleClose => 'Hide console';
+
+  @override
+  String get devPreviewViewportDesktop => 'Desktop';
+
+  @override
+  String get devPreviewViewportTablet => 'Tablet';
+
+  @override
+  String get devPreviewViewportMobile => 'Phone';
 }

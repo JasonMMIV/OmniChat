@@ -10,6 +10,7 @@ import '../core/providers/settings_provider.dart';
 import '../core/services/chat/chat_service.dart';
 import '../core/services/workspace/workspace_resolver.dart';
 import '../features/chat/pages/workspace_tools_page.dart';
+import '../features/chat/widgets/dev_preview_launcher.dart';
 import '../features/chat/widgets/workspace_file_browser.dart';
 import '../features/chat/widgets/workspace_settings_dialog.dart';
 import '../icons/lucide_adapter.dart';
@@ -202,6 +203,18 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
     );
   }
 
+  Future<void> _openPreview() async {
+    if (_closing) return;
+    final path = _workspacePath;
+    if (path == null || _resolution?.enabled != true) return;
+    // Capture the navigator before _close(): closing removes the popover's
+    // OverlayEntry, which unmounts this State.
+    final navigator = Navigator.of(context);
+    await _close();
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    await showDevPreview(navigator.context, workspacePath: path);
+  }
+
   Future<void> _openBrowser() async {
     if (_closing) return;
     final path = _workspacePath;
@@ -368,6 +381,12 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
                                     leading: const Icon(Lucide.FileText),
                                     title: Text(l10n.workspaceFiles),
                                     onTap: _openBrowser,
+                                  ),
+                                  ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: const Icon(Lucide.Monitor),
+                                    title: Text(l10n.devPreviewMenuEntry),
+                                    onTap: _busy ? null : _openPreview,
                                   ),
                                 ],
                               ],

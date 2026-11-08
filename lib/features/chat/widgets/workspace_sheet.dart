@@ -12,6 +12,7 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import '../pages/workspace_tools_page.dart';
+import 'dev_preview_launcher.dart';
 import 'workspace_file_browser.dart';
 import 'workspace_settings_dialog.dart';
 
@@ -148,6 +149,15 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
         builder: (_) => WorkspaceToolsPage(workspacePath: workspacePath),
       ),
     );
+  }
+
+  Future<void> _openPreview() async {
+    final path = _workspacePath;
+    if (path == null || _resolution?.enabled != true) return;
+    final navigator = Navigator.of(context);
+    Navigator.of(context).pop();
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    await showDevPreview(navigator.context, workspacePath: path);
   }
 
   Future<void> _openBrowser() async {
@@ -295,6 +305,12 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
                       leading: const Icon(Lucide.FileText),
                       title: Text(l10n.workspaceFiles),
                       onTap: _openBrowser,
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Lucide.Monitor),
+                      title: Text(l10n.devPreviewMenuEntry),
+                      onTap: _busy ? null : _openPreview,
                     ),
                   ],
                 ],

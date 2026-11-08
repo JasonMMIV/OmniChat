@@ -6393,6 +6393,71 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatMessageWidgetMemoryDelete => '归档记忆';
+
+  @override
+  String get devPreviewTitle => '网站预览';
+
+  @override
+  String get devPreviewMenuEntry => '预览网站';
+
+  @override
+  String get devPreviewOpenInPanel => '在预览面板打开';
+
+  @override
+  String get devPreviewEmptyTitle => '还没有打开任何页面';
+
+  @override
+  String get devPreviewEmptyHint =>
+      '预览真正的页面，而不只是单个文件。CSS、JS、图片与字体都从工作区根目录加载，编辑后会自动重新整理。';
+
+  @override
+  String get devPreviewEntryPoints => '此工作区中的 HTML 页面';
+
+  @override
+  String get devPreviewNoEntryPoints =>
+      '尚未找到 HTML 文件。请让模型先建立 index.html，然后重新扫描。';
+
+  @override
+  String get devPreviewRescan => '重新扫描';
+
+  @override
+  String get devPreviewOpenFailed => '无法启动预览服务器。请确认工作区文件夹可访问后重试。';
+
+  @override
+  String get devPreviewSessionClosed => '预览服务器已停止，请重新打开预览。';
+
+  @override
+  String get devPreviewWorkspaceMissing => '请先为此对话启用工作区。';
+
+  @override
+  String get devPreviewNotSupported => 'Linux 不支持网站预览，请改用浏览器打开页面。';
+
+  @override
+  String get devPreviewConsoleTitle => '控制台';
+
+  @override
+  String get devPreviewConsoleErrors => '错误';
+
+  @override
+  String get devPreviewConsoleWarnings => '警告';
+
+  @override
+  String get devPreviewConsoleAll => '全部';
+
+  @override
+  String get devPreviewConsoleClear => '清除控制台';
+
+  @override
+  String get devPreviewConsoleClose => '隐藏控制台';
+
+  @override
+  String get devPreviewViewportDesktop => '桌面';
+
+  @override
+  String get devPreviewViewportTablet => '平板';
+
+  @override
+  String get devPreviewViewportMobile => '手机';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -12572,6 +12637,71 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get chatMessageWidgetMemoryDelete => '归档记忆';
+
+  @override
+  String get devPreviewTitle => '网站预览';
+
+  @override
+  String get devPreviewMenuEntry => '预览网站';
+
+  @override
+  String get devPreviewOpenInPanel => '在预览面板打开';
+
+  @override
+  String get devPreviewEmptyTitle => '还没有打开任何页面';
+
+  @override
+  String get devPreviewEmptyHint =>
+      '预览真正的页面，而不只是单个文件。CSS、JS、图片与字体都从工作区根目录加载，编辑后会自动刷新。';
+
+  @override
+  String get devPreviewEntryPoints => '此工作区中的 HTML 页面';
+
+  @override
+  String get devPreviewNoEntryPoints =>
+      '尚未找到 HTML 文件。请让模型先创建 index.html，然后重新扫描。';
+
+  @override
+  String get devPreviewRescan => '重新扫描';
+
+  @override
+  String get devPreviewOpenFailed => '无法启动预览服务器。请确认工作区文件夹可访问后重试。';
+
+  @override
+  String get devPreviewSessionClosed => '预览服务器已停止，请重新打开预览。';
+
+  @override
+  String get devPreviewWorkspaceMissing => '请先为此对话启用工作区。';
+
+  @override
+  String get devPreviewNotSupported => 'Linux 不支持网站预览，请改用浏览器打开页面。';
+
+  @override
+  String get devPreviewConsoleTitle => '控制台';
+
+  @override
+  String get devPreviewConsoleErrors => '错误';
+
+  @override
+  String get devPreviewConsoleWarnings => '警告';
+
+  @override
+  String get devPreviewConsoleAll => '全部';
+
+  @override
+  String get devPreviewConsoleClear => '清除控制台';
+
+  @override
+  String get devPreviewConsoleClose => '隐藏控制台';
+
+  @override
+  String get devPreviewViewportDesktop => '桌面';
+
+  @override
+  String get devPreviewViewportTablet => '平板';
+
+  @override
+  String get devPreviewViewportMobile => '手机';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -18851,4 +18981,69 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatMessageWidgetMemoryDelete => '封存記憶';
+
+  @override
+  String get devPreviewTitle => '網站預覽';
+
+  @override
+  String get devPreviewMenuEntry => '預覽網站';
+
+  @override
+  String get devPreviewOpenInPanel => '在預覽面板開啟';
+
+  @override
+  String get devPreviewEmptyTitle => '還沒有開啟任何頁面';
+
+  @override
+  String get devPreviewEmptyHint =>
+      '預覽真正的頁面，而不只是單一檔案。CSS、JS、圖片與字型都從工作區根目錄載入，編輯後會自動重新整理。';
+
+  @override
+  String get devPreviewEntryPoints => '此工作區中的 HTML 頁面';
+
+  @override
+  String get devPreviewNoEntryPoints =>
+      '尚未找到 HTML 檔案。請讓模型先建立 index.html，然後重新掃描。';
+
+  @override
+  String get devPreviewRescan => '重新掃描';
+
+  @override
+  String get devPreviewOpenFailed => '無法啟動預覽伺服器。請確認工作區資料夾可存取後重試。';
+
+  @override
+  String get devPreviewSessionClosed => '預覽伺服器已停止，請重新開啟預覽。';
+
+  @override
+  String get devPreviewWorkspaceMissing => '請先為此對話啟用工作區。';
+
+  @override
+  String get devPreviewNotSupported => 'Linux 不支援網站預覽，請改用瀏覽器開啟頁面。';
+
+  @override
+  String get devPreviewConsoleTitle => '主控台';
+
+  @override
+  String get devPreviewConsoleErrors => '錯誤';
+
+  @override
+  String get devPreviewConsoleWarnings => '警告';
+
+  @override
+  String get devPreviewConsoleAll => '全部';
+
+  @override
+  String get devPreviewConsoleClear => '清除主控台';
+
+  @override
+  String get devPreviewConsoleClose => '隱藏主控台';
+
+  @override
+  String get devPreviewViewportDesktop => '桌面';
+
+  @override
+  String get devPreviewViewportTablet => '平板';
+
+  @override
+  String get devPreviewViewportMobile => '手機';
 }

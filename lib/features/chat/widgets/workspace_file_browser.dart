@@ -20,6 +20,7 @@ import '../../../utils/markdown_preview_html.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../pages/html_preview_page.dart';
 import '../pages/image_viewer_page.dart';
+import 'dev_preview_launcher.dart';
 
 class WorkspaceFileBrowser extends StatefulWidget {
   const WorkspaceFileBrowser({
@@ -56,8 +57,6 @@ class _WorkspaceFileBrowserState extends State<WorkspaceFileBrowser> {
     'json',
     'csv',
     'tsv',
-    'html',
-    'htm',
     'xml',
     'svg',
     'yaml',
@@ -154,6 +153,31 @@ class _WorkspaceFileBrowserState extends State<WorkspaceFileBrowser> {
     });
   }
 
+  /// Opens the live site preview at [relativePath] (or the current directory
+  /// when omitted) so relative CSS/JS/images resolve from the workspace root.
+  Future<void> _openPreview([String? relativePath]) async {
+    String? initial = relativePath;
+    if (initial == null || initial.trim().isEmpty) {
+      // Directory entry: prefer its index.html, otherwise let the dev server
+      // render a directory listing (still better than a dead end).
+      final candidate = File(
+        p.join(widget.workspacePath, _relativePath, 'index.html'),
+      );
+      if (await candidate.exists()) {
+        initial = p.join(_relativePath, 'index.html').replaceAll('\\', '/');
+      } else {
+        final relative = _relativePath.replaceAll('\\', '/');
+        initial = relative.isEmpty ? null : '$relative/';
+      }
+    }
+    if (!mounted) return;
+    await showDevPreview(
+      context,
+      workspacePath: widget.workspacePath,
+      initialPath: initial,
+    );
+  }
+
   Future<void> _previewFile(FileSystemEntity entry) async {
     final l10n = AppLocalizations.of(context)!;
     final fixed = SandboxPathResolver.fix(entry.path);
@@ -171,6 +195,16 @@ class _WorkspaceFileBrowserState extends State<WorkspaceFileBrowser> {
 
     final fileName = p.basename(entry.path);
     final ext = _fileExtension(fileName);
+
+    // HTML belongs to the live preview server: a single-file load cannot
+    // resolve the sibling CSS/JS/images a real site references.
+    if (ext == 'html' || ext == 'htm') {
+      final relative = p
+          .relative(entry.path, from: widget.workspacePath)
+          .replaceAll('\\', '/');
+      await _openPreview(relative);
+      return;
+    }
 
     if (_previewableImageExts.contains(ext)) {
       if (!mounted) return;
@@ -371,7 +405,20 @@ class _WorkspaceFileBrowserState extends State<WorkspaceFileBrowser> {
         defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.linux;
 
+    final isHtmlFile =
+        _fileExtension(p.basename(entry.path)) == 'html' ||
+        _fileExtension(p.basename(entry.path)) == 'htm';
     final items = <DesktopContextMenuItem>[
+      if (isHtmlFile)
+        DesktopContextMenuItem(
+          icon: Lucide.Play,
+          label: l10n.devPreviewOpenInPanel,
+          onTap: () => _openPreview(
+            p
+                .relative(entry.path, from: widget.workspacePath)
+                .replaceAll('\\', '/'),
+          ),
+        ),
       DesktopContextMenuItem(
         icon: Lucide.FolderOpen,
         label: l10n.chatMessageWidgetShowInFolder,
@@ -444,6 +491,11 @@ class _WorkspaceFileBrowserState extends State<WorkspaceFileBrowser> {
             ? null
             : IconButton(icon: const Icon(Lucide.ArrowLeft), onPressed: _goUp),
         actions: [
+          IconButton(
+            icon: const Icon(Lucide.Play),
+            tooltip: l10n.devPreviewMenuEntry,
+            onPressed: () => _openPreview(),
+          ),
           IconButton(
             icon: const Icon(Lucide.RefreshCw),
             onPressed: () => setState(_reload),
