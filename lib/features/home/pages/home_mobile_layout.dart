@@ -10,7 +10,6 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import '../../../l10n/app_localizations.dart';
-import '../../../core/services/agent/checkpoint/agent_run_checkpoint.dart';
 import '../../../shared/widgets/interactive_drawer.dart';
 import '../widgets/side_drawer.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -37,7 +36,6 @@ class HomeMobileScaffold extends StatelessWidget {
     required this.onSelectConversation,
     required this.onNewConversation,
     this.onExportConversations,
-    this.onResumeAgentRun,
     required this.onCreateNewConversation,
     this.onOpenWorkspace,
     required this.body,
@@ -53,7 +51,6 @@ class HomeMobileScaffold extends StatelessWidget {
   final void Function(String id) onSelectConversation;
   final VoidCallback onNewConversation;
   final Future<void> Function(List<String> ids)? onExportConversations;
-  final Future<bool> Function(AgentRunCheckpoint checkpoint)? onResumeAgentRun;
   final Future<void> Function() onCreateNewConversation;
   final VoidCallback? onOpenWorkspace;
   final Widget body;
@@ -83,7 +80,6 @@ class HomeMobileScaffold extends StatelessWidget {
           if (closeDrawer) drawerController.close();
         },
         onExportConversations: onExportConversations,
-        onResumeAgentRun: onResumeAgentRun,
       ),
       child: Scaffold(
         key: scaffoldKey,

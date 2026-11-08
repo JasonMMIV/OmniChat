@@ -7,7 +7,6 @@ import 'package:http/http.dart' as http;
 import '../../../icons/lucide_adapter.dart';
 import 'package:provider/provider.dart';
 import '../../../core/services/chat/chat_service.dart';
-import '../../../core/services/agent/checkpoint/agent_run_checkpoint.dart';
 import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/models/chat_item.dart';
@@ -20,9 +19,7 @@ import '../../../core/providers/update_provider.dart';
 import '../../../core/models/assistant.dart';
 import '../../assistant/pages/assistant_settings_edit_page.dart';
 import '../../chat/pages/chat_history_page.dart';
-import '../../agent/pages/agent_tasks_page.dart';
 import '../../../desktop/chat_history_dialog.dart';
-import '../../../desktop/agent_tasks_dialog.dart';
 import 'package:flutter/services.dart';
 import 'dart:io' show File;
 import 'dart:math' as math;
@@ -56,7 +53,6 @@ class SideDrawer extends StatefulWidget {
     this.onSelectConversation,
     this.onNewConversation,
     this.onExportConversations,
-    this.onResumeAgentRun,
     this.closePickerTicker,
     this.loadingConversationIds = const <String>{},
     this.embedded = false,
@@ -71,11 +67,6 @@ class SideDrawer extends StatefulWidget {
   final FutureOr<void> Function({bool closeDrawer})? onNewConversation;
   final FutureOr<void> Function(List<String> conversationIds)?
       onExportConversations;
-
-  /// P3-3: resumes a task chosen from the unfinished-task surface. Returns
-  /// false when the row is stale/unavailable so the list can stay open.
-  final Future<bool> Function(AgentRunCheckpoint checkpoint)?
-      onResumeAgentRun;
   final ValueNotifier<int>? closePickerTicker;
   final Set<String> loadingConversationIds;
   final bool
@@ -1346,27 +1337,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          // P3-3: global unfinished-task surface. Desktop opens
-                          // a dialog; mobile pushes a full page.
-                          if (widget.onResumeAgentRun != null)
-                            SizedBox(
-                              width: 44,
-                              height: 44,
-                              child: Center(
-                                child: Tooltip(
-                                  message: l10n.agentTasksTitle,
-                                  child: IosIconButton(
-                                    size: 24,
-                                    color: textBase,
-                                    icon: Lucide.ListChecks,
-                                    semanticLabel: l10n.agentTasksTitle,
-                                    padding: const EdgeInsets.all(8),
-                                    onTap: () => _openAgentTasks(context),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          const SizedBox(width: 8),
                           // 设置按钮（圆形，无水波纹）
                           SizedBox(
                             width: 44,
@@ -1439,27 +1409,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       backgroundColor: cs.surface,
       width: MediaQuery.sizeOf(context).width,
       child: inner,
-    );
-  }
-
-  Future<void> _openAgentTasks(BuildContext context) async {
-    final callback = widget.onResumeAgentRun;
-    if (callback == null) return;
-    if (_isDesktop) {
-      await showAgentTasksDesktopDialog(
-        context,
-        activeConversationIds: widget.loadingConversationIds,
-        onResumeTask: (task) => callback(task.checkpoint),
-      );
-      return;
-    }
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => AgentTasksPage(
-          activeConversationIds: widget.loadingConversationIds,
-          onResumeTask: (task) => callback(task.checkpoint),
-        ),
-      ),
     );
   }
 

@@ -69,6 +69,15 @@ class TranslationData {
 /// - Layout selection (mobile vs tablet)
 /// - Building the UI tree
 class HomePageController extends ChangeNotifier {
+  /// The live chat-home controller, set while a HomePage exists on screen.
+  ///
+  /// Routes pushed on the root navigator (e.g. the settings page's
+  /// unfinished-task entry) cannot reach this controller through context, but
+  /// the resume flow is owned by its chat stack. Null when no HomePage is
+  /// alive (e.g. widget tests) — callers hide the entry in that case.
+  static HomePageController? _current;
+  static HomePageController? get maybeCurrent => _current;
+
   HomePageController({
     required BuildContext context,
     required TickerProvider vsync,
@@ -86,6 +95,7 @@ class HomePageController extends ChangeNotifier {
        _inputController = inputController,
        _mediaController = mediaController,
        _scrollController = scrollController {
+    _current = this;
     _initialize();
   }
 
@@ -1958,6 +1968,7 @@ class HomePageController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    if (_current == this) _current = null;
     _cancelDictationWatchdog();
     // 若仍在聽寫（含暫停以外的聆聽中狀態），釋放麥克風。
     _stopDictationEngine();

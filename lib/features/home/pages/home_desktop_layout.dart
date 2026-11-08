@@ -10,7 +10,6 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import '../../../l10n/app_localizations.dart';
-import '../../../core/services/agent/checkpoint/agent_run_checkpoint.dart';
 import '../widgets/side_drawer.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/user_provider.dart';
@@ -44,7 +43,6 @@ class HomeDesktopScaffold extends StatelessWidget {
     required this.onSelectConversation,
     required this.onNewConversation,
     this.onExportConversations,
-    this.onResumeAgentRun,
     required this.onCreateNewConversation,
     required this.onSidebarWidthChanged,
     required this.onSidebarWidthChangeEnd,
@@ -75,7 +73,6 @@ class HomeDesktopScaffold extends StatelessWidget {
   final void Function(String id) onSelectConversation;
   final VoidCallback onNewConversation;
   final Future<void> Function(List<String> ids)? onExportConversations;
-  final Future<bool> Function(AgentRunCheckpoint checkpoint)? onResumeAgentRun;
   final Future<void> Function() onCreateNewConversation;
   final void Function(double dx) onSidebarWidthChanged;
   final VoidCallback onSidebarWidthChangeEnd;
@@ -163,7 +160,6 @@ class HomeDesktopScaffold extends StatelessWidget {
       onSelectConversation: (id, {closeDrawer = true}) =>
           onSelectConversation(id),
       onExportConversations: onExportConversations,
-      onResumeAgentRun: onResumeAgentRun,
     );
 
     return AnimatedContainer(
