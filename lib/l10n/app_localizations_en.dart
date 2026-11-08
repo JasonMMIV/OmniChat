@@ -2189,6 +2189,74 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pendingAgentRunReview => 'Review';
 
   @override
+  String get agentTasksTitle => 'Unfinished tasks';
+
+  @override
+  String get agentTasksEmptyTitle => 'Nothing to resume';
+
+  @override
+  String get agentTasksEmptyBody =>
+      'Tasks that pause for approval or are interrupted will appear here.';
+
+  @override
+  String get agentTasksReasonApproval => 'Waiting for approval';
+
+  @override
+  String get agentTasksReasonAskUser => 'Waiting for your answer';
+
+  @override
+  String get agentTasksReasonInterrupted => 'Interrupted';
+
+  @override
+  String get agentTasksReasonRunning => 'Interrupted mid-run';
+
+  @override
+  String get agentTasksReasonSoftStopped => 'Stopped at limit';
+
+  @override
+  String get agentTasksReasonSoftStopSteps => 'Step limit reached';
+
+  @override
+  String get agentTasksReasonSoftStopTokens => 'Token budget reached';
+
+  @override
+  String agentTasksStep(int step) {
+    return 'Step $step';
+  }
+
+  @override
+  String agentTasksPendingTool(String name) {
+    return 'Pending: $name';
+  }
+
+  @override
+  String agentTasksSavedAt(String time) {
+    return 'Saved $time';
+  }
+
+  @override
+  String get agentTasksResume => 'Resume';
+
+  @override
+  String get agentTasksReview => 'Review';
+
+  @override
+  String get agentTasksRunning => 'Running';
+
+  @override
+  String get agentTasksOpen => 'Open';
+
+  @override
+  String get agentTasksLoadFailed => 'Couldn\'t load unfinished tasks.';
+
+  @override
+  String get agentTasksRetry => 'Retry';
+
+  @override
+  String get agentTasksUnavailable =>
+      'This task is no longer available. Try refreshing the list.';
+
+  @override
   String approvalOutsideWorkspace(String path) {
     return 'Outside workspace: $path';
   }
@@ -2331,6 +2399,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatMessageWidgetResult => 'Result';
+
+  @override
+  String get chatMessageWidgetDiff => 'Changes';
 
   @override
   String chatMessageWidgetCitationsCount(int count) {
@@ -5368,6 +5439,42 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get workspaceFiles => 'Files';
+
+  @override
+  String get workspaceDiskUsageTitle => 'Disk usage';
+
+  @override
+  String workspaceDiskUsageSummary(String size, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count files',
+      one: '1 file',
+    );
+    return '$size · $_temp0';
+  }
+
+  @override
+  String get workspaceDiskUsageHint =>
+      'Workspace files only; the app\'s `.omnichat/` directory is excluded.';
+
+  @override
+  String get workspaceDiskUsageLoading => 'Measuring workspace usage…';
+
+  @override
+  String get workspaceDiskUsageError => 'Unable to measure this workspace.';
+
+  @override
+  String workspaceDiskUsagePartial(int count) {
+    return 'Partial scan: stopped after $count entries.';
+  }
+
+  @override
+  String get workspaceDiskUsageRefresh => 'Refresh disk usage';
+
+  @override
+  String get workspaceToolsDeveloperWriteLimit =>
+      'Developer mode raises the per-file write limit to 2 MB (default 512 KB).';
 
   @override
   String get workspaceSelectFolderDialogTitle => 'Select workspace';

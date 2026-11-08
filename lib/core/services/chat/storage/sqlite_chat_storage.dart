@@ -1137,6 +1137,8 @@ class SqliteChatStorage extends ChatStorage {
               'searchFallbackFrom',
             ),
             webFetchSource: _metadataValue(row.metadataJson, 'webFetchSource'),
+            diffAdded: _metadataIntValue(row.metadataJson, 'diffAdded'),
+            diffRemoved: _metadataIntValue(row.metadataJson, 'diffRemoved'),
           ),
         );
       }
@@ -1150,6 +1152,12 @@ class SqliteChatStorage extends ChatStorage {
   String? _metadataValue(String? metadataJson, String key) {
     final map = decodeJsonMap(metadataJson);
     return map[key]?.toString();
+  }
+
+  int? _metadataIntValue(String? metadataJson, String key) {
+    final raw = decodeJsonMap(metadataJson)[key];
+    if (raw is num) return raw.toInt();
+    return int.tryParse(raw?.toString() ?? '');
   }
 
   ChatMessage? _findCachedMessage(String messageId) => _messageById[messageId];

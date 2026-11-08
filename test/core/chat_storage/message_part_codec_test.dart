@@ -207,4 +207,40 @@ void main() {
       expect(event['webFetchSource'], 'Local');
     });
   });
+
+  group('diff summary', () {
+    test('carries full diff counts without eager content', () {
+      final summary = toolPartSummaryFromEvent(
+        event: {
+          'id': 'call_1',
+          'name': 'file_write',
+          'arguments': {'path': 'a.txt'},
+          'content': 'Wrote a.txt (6 bytes).',
+          'diffAdded': 2,
+          'diffRemoved': 1,
+        },
+        messageId: 'm1',
+        ordinal: 3,
+      );
+      expect(summary.diffAdded, 2);
+      expect(summary.diffRemoved, 1);
+      expect(summary.eagerContent, isNull);
+    });
+
+    test('missing or malformed counts stay null', () {
+      final summary = toolPartSummaryFromEvent(
+        event: {
+          'id': 'call_2',
+          'name': 'file_write',
+          'arguments': <String, dynamic>{},
+          'content': 'ok',
+          'diffAdded': 'nope',
+        },
+        messageId: 'm1',
+        ordinal: 4,
+      );
+      expect(summary.diffAdded, isNull);
+      expect(summary.diffRemoved, isNull);
+    });
+  });
 }

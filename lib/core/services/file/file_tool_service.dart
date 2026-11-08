@@ -10,6 +10,7 @@ import '../../../utils/app_directories.dart';
 import '../chat/document_text_extractor.dart';
 import 'edit_matchers.dart';
 import 'markdown_pdf_converter.dart';
+import 'unified_diff.dart';
 import 'session_outputs.dart';
 
 class FileToolResult {
@@ -18,12 +19,17 @@ class FileToolResult {
     this.createdOrModifiedFilePath,
     this.fileName,
     this.fileSizeBytes,
+    this.diff,
   });
 
   final String text;
   final String? createdOrModifiedFilePath;
   final String? fileName;
   final int? fileSizeBytes;
+
+  /// P1-1 tail: post-execution unified diff (null for read-only/binary or
+  /// oversized changes). UI-only; never added to the model-facing text.
+  final UnifiedDiff? diff;
 }
 
 class FileToolSecurityException implements Exception {
@@ -46,11 +52,22 @@ class FileToolService {
   /// service must bound the data held by the UI and Hive before that happens.
   // Keep the complete result below ChatApiService's 32K-character tool-result
   // budget even for ASCII-heavy source files. The extra room covers metadata.
-  static const int defaultReadBytes = 16 * 1024;
+  // P3-4: the default window equals the cap so a large file needs the fewest
+  // round trips while the result still fits the transport budget.
+  static const int defaultReadBytes = 24 * 1024;
   static const int maxReadBytes = 24 * 1024;
   static const int maxWriteBytes = 512 * 1024;
+
+  /// P3-4: developer mode is an explicit per-call opt-in from the tool
+  /// handler. The default sandbox floor stays at [maxWriteBytes]; an approval
+  /// never raises it (ADR-A8), and only the user's developer-mode switch does.
+  static const int developerMaxWriteBytes = 2 * 1024 * 1024;
   static const int maxListedEntries = 1000;
   static const int maxSearchResults = 1000;
+
+  /// P1-1 tail: diff inputs above this size are skipped (the tool still
+  /// succeeds; only the viewer's change section is unavailable).
+  static const int maxDiffTextBytes = 256 * 1024;
   static const int maxSearchEntries = 10000;
 
   /// Default and hard maximum sizes for one file_extract_text response.
@@ -129,7 +146,7 @@ class FileToolService {
           'limit': {
             'type': 'integer',
             'description':
-                'Optional number of bytes to read. Defaults to 16384 and is capped at 24576.',
+                'Optional number of bytes to read. Defaults to and is capped at 24576 bytes.',
           },
         },
         ['path'],
@@ -272,7 +289,7 @@ class FileToolService {
           'content': {
             'type': 'string',
             'description':
-                'Markdown content to render as the PDF body. Keep it under 512 KB.',
+                'Markdown content to render as the PDF body. Keep it under 512 KB (2 MB in developer mode).',
           },
         },
         ['path', 'content'],
@@ -309,13 +326,20 @@ class FileToolService {
   /// path arguments resolve to this concrete absolute path instead of the
   /// sandbox boundary. Type/size hard floors (blocked extensions, 512 KB
   /// caps) are enforced by each operation and are NOT relaxed by approval.
+  ///
+  /// [developerMode] is passed by the tool handler from the user's developer
+  /// switch. It raises the per-file write ceiling to
+  /// [developerMaxWriteBytes]; every other sandbox rule is unchanged.
   static Future<FileToolResult> execute(
     String toolName,
     Map<String, dynamic> args,
     String? workspacePath, {
     String? approvedOutsidePath,
     String? sessionOutputsRoot,
+    bool developerMode = false,
   }) async {
+    final writeLimit =
+        developerMode ? developerMaxWriteBytes : maxWriteBytes;
     // P1-6: the session-outputs zone is READ-ONLY. file_read / file_search
     // may enter it; every mutating tool is rejected before any filesystem
     // operation (the zone lives outside the workspace on purpose).
@@ -346,6 +370,7 @@ class FileToolService {
             workspace,
             approvedOutsidePath,
             append: false,
+            writeLimit: writeLimit,
           );
         case 'file_append':
           return await _write(
@@ -353,11 +378,22 @@ class FileToolService {
             workspace,
             approvedOutsidePath,
             append: true,
+            writeLimit: writeLimit,
           );
         case 'file_edit':
-          return await _edit(args, workspace, approvedOutsidePath);
+          return await _edit(
+            args,
+            workspace,
+            approvedOutsidePath,
+            writeLimit: writeLimit,
+          );
         case 'file_patch':
-          return await _patch(args, workspace, approvedOutsidePath);
+          return await _patch(
+            args,
+            workspace,
+            approvedOutsidePath,
+            writeLimit: writeLimit,
+          );
         case 'file_delete':
           return await _delete(args, workspace, approvedOutsidePath);
         case 'file_list':
@@ -392,7 +428,12 @@ class FileToolService {
         case 'file_extract_zip':
           return await _extractZip(args, workspace, approvedOutsidePath);
         case 'file_create_pdf':
-          return await _createPdf(args, workspace, approvedOutsidePath);
+          return await _createPdf(
+            args,
+            workspace,
+            approvedOutsidePath,
+            writeLimit: writeLimit,
+          );
         default:
           return FileToolResult(text: 'Error: Unknown file tool "$toolName".');
       }
@@ -628,6 +669,13 @@ class FileToolService {
       return value.toInt();
     }
     throw ArgumentError('The $key argument must be an integer.');
+  }
+
+  static String _formatByteLimit(int bytes) {
+    if (bytes >= 1024 * 1024 && bytes % (1024 * 1024) == 0) {
+      return '${bytes ~/ (1024 * 1024)} MB';
+    }
+    return '${(bytes / 1024).ceil()} KB';
   }
 
   static Future<FileToolResult> _read(
@@ -997,8 +1045,9 @@ class FileToolService {
   static Future<FileToolResult> _createPdf(
     Map<String, dynamic> args,
     String workspace,
-    String? approvedOutsidePath,
-  ) async {
+    String? approvedOutsidePath, {
+    required int writeLimit,
+  }) async {
     final path = _resolveToolPath(
       _requiredString(args, 'path'),
       workspace,
@@ -1013,9 +1062,10 @@ class FileToolService {
     if (content.trim().isEmpty) {
       return const FileToolResult(text: 'Error: The content is empty.');
     }
-    if (utf8.encode(content).length > maxWriteBytes) {
-      return const FileToolResult(
-        text: 'Error: The content exceeds the 512 KB limit.',
+    if (utf8.encode(content).length > writeLimit) {
+      return FileToolResult(
+        text:
+            'Error: The content exceeds the ${_formatByteLimit(writeLimit)} limit.',
       );
     }
 
@@ -1107,8 +1157,9 @@ class FileToolService {
   static Future<FileToolResult> _edit(
     Map<String, dynamic> args,
     String workspace,
-    String? approvedOutsidePath,
-  ) async {
+    String? approvedOutsidePath, {
+    required int writeLimit,
+  }) async {
     final path = _resolveToolPath(
       _requiredString(args, 'path'),
       workspace,
@@ -1129,21 +1180,22 @@ class FileToolService {
       );
     }
 
-    if (oldText.length > maxWriteBytes || newText.length > maxWriteBytes) {
-      return const FileToolResult(
-        text: 'Error: The edit text arguments exceed the 512 KB limit.',
+    if (oldText.length > writeLimit || newText.length > writeLimit) {
+      return FileToolResult(
+        text:
+            'Error: The edit text arguments exceed the ${_formatByteLimit(writeLimit)} limit.',
       );
     }
     final oldTextBytes = utf8.encode(oldText);
     final newTextBytes = utf8.encode(newText);
-    if (oldTextBytes.length + newTextBytes.length > maxWriteBytes) {
-      return const FileToolResult(
+    if (oldTextBytes.length + newTextBytes.length > writeLimit) {
+      return FileToolResult(
         text:
-            'Error: The combined edit text arguments exceed the 512 KB limit.',
+            'Error: The combined edit text arguments exceed the ${_formatByteLimit(writeLimit)} limit.',
       );
     }
 
-    final snapshot = await _readMutableFile(file);
+    final snapshot = await _readMutableFile(file, maxBytes: writeLimit);
     final original = snapshot.content;
     final matched = findEditMatches(original, oldText, newText);
     if (matched.isEmpty) {
@@ -1167,9 +1219,10 @@ class FileToolService {
       original,
       replaceAll ? matched.matches : <EditMatch>[matched.matches.first],
     );
-    if (utf8.encode(updated).length > maxWriteBytes) {
-      return const FileToolResult(
-        text: 'Error: The resulting file would exceed the 512 KB limit.',
+    if (utf8.encode(updated).length > writeLimit) {
+      return FileToolResult(
+        text:
+            'Error: The resulting file would exceed the ${_formatByteLimit(writeLimit)} limit.',
       );
     }
     return await _writeModifiedText(
@@ -1178,14 +1231,18 @@ class FileToolService {
       action: 'Edited',
       expectedBytes: snapshot.bytes,
       matchStrategy: strategy.wireName,
+      writeLimit: writeLimit,
+      workspace: workspace,
+      previousText: original,
     );
   }
 
   static Future<FileToolResult> _patch(
     Map<String, dynamic> args,
     String workspace,
-    String? approvedOutsidePath,
-  ) async {
+    String? approvedOutsidePath, {
+    required int writeLimit,
+  }) async {
     final path = _resolveToolPath(
       _requiredString(args, 'path'),
       workspace,
@@ -1193,9 +1250,10 @@ class FileToolService {
     );
     _rejectBlockedExtension(path);
     final patch = _requiredTextArgument(args, 'patch', allowEmpty: false);
-    if (utf8.encode(patch).length > maxWriteBytes) {
-      return const FileToolResult(
-        text: 'Error: The patch exceeds the 512 KB limit.',
+    if (utf8.encode(patch).length > writeLimit) {
+      return FileToolResult(
+        text:
+            'Error: The patch exceeds the ${_formatByteLimit(writeLimit)} limit.',
       );
     }
 
@@ -1203,7 +1261,7 @@ class FileToolService {
     if (!await file.exists()) {
       return const FileToolResult(text: 'Error: File not found.');
     }
-    final snapshot = await _readMutableFile(file);
+    final snapshot = await _readMutableFile(file, maxBytes: writeLimit);
     final parsed = _parseUnifiedPatch(patch);
     final updated = _applyUnifiedPatch(snapshot.content, parsed);
     return await _writeModifiedText(
@@ -1211,17 +1269,25 @@ class FileToolService {
       updated,
       action: 'Patched',
       expectedBytes: snapshot.bytes,
+      writeLimit: writeLimit,
+      workspace: workspace,
+      previousText: snapshot.content,
     );
   }
 
-  static Future<_MutableFileSnapshot> _readMutableFile(File file) async {
+  static Future<_MutableFileSnapshot> _readMutableFile(
+    File file, {
+    required int maxBytes,
+  }) async {
     final type = FileSystemEntity.typeSync(file.path, followLinks: false);
     if (type != FileSystemEntityType.file) {
       throw ArgumentError('The target must be a regular file.');
     }
     final bytes = await file.readAsBytes();
-    if (bytes.length > maxWriteBytes) {
-      throw ArgumentError('The target file exceeds the 512 KB edit limit.');
+    if (bytes.length > maxBytes) {
+      throw ArgumentError(
+        'The target file exceeds the ${_formatByteLimit(maxBytes)} edit limit.',
+      );
     }
     try {
       return _MutableFileSnapshot(
@@ -1238,12 +1304,16 @@ class FileToolService {
     String content, {
     required String action,
     required List<int> expectedBytes,
+    required int writeLimit,
+    required String workspace,
+    required String previousText,
     String? matchStrategy,
   }) async {
     final bytes = utf8.encode(content);
-    if (bytes.length > maxWriteBytes) {
-      return const FileToolResult(
-        text: 'Error: The resulting file would exceed the 512 KB limit.',
+    if (bytes.length > writeLimit) {
+      return FileToolResult(
+        text:
+            'Error: The resulting file would exceed the ${_formatByteLimit(writeLimit)} limit.',
       );
     }
     final file = File(path);
@@ -1263,7 +1333,45 @@ class FileToolService {
       createdOrModifiedFilePath: path,
       fileName: p.basename(path),
       fileSizeBytes: size,
+      diff: _buildDiff(previousText, content, path, workspace),
     );
+  }
+
+  /// Best-effort UTF-8 read used only for diff generation. Returns null for
+  /// missing/oversized/binary files so callers skip the diff instead of
+  /// failing the tool.
+  static Future<String?> _readTextForDiff(File file) async {
+    try {
+      if (!await file.exists()) return '';
+      final length = await file.length();
+      if (length > maxDiffTextBytes) return null;
+      final bytes = await file.readAsBytes();
+      if (bytes.contains(0)) return null;
+      return utf8.decode(bytes, allowMalformed: false);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static UnifiedDiff? _buildDiff(
+    String? before,
+    String after,
+    String path,
+    String workspace,
+  ) {
+    if (before == null || before == after) return null;
+    // A NUL byte means binary content; render no diff rather than embedding
+    // control characters in the detail view.
+    if (before.contains('\u0000') || after.contains('\u0000')) return null;
+    if (utf8.encode(before).length > maxDiffTextBytes ||
+        utf8.encode(after).length > maxDiffTextBytes) {
+      return null;
+    }
+    final displayPath = p
+        .relative(path, from: workspace)
+        .replaceAll('\\', '/');
+    final diff = computeUnifiedDiff(before, after, path: displayPath);
+    return diff.isEmpty ? null : diff;
   }
 
   static bool _bytesEqual(List<int> left, List<int> right) {
@@ -1510,6 +1618,7 @@ class FileToolService {
     String workspace,
     String? approvedOutsidePath, {
     required bool append,
+    required int writeLimit,
   }) async {
     final path = _resolveToolPath(
       _requiredString(args, 'path'),
@@ -1528,10 +1637,15 @@ class FileToolService {
     if (append && !await file.exists()) {
       return const FileToolResult(text: 'Error: File not found.');
     }
+    // P1-1 tail: capture the pre-write text for the post-execution diff.
+    // Read failures (binary/oversized) simply disable the diff — the write
+    // itself is unaffected.
+    final before = await _readTextForDiff(file);
     final existingLength = append ? await file.length() : 0;
-    if (existingLength + bytes.length > maxWriteBytes) {
-      return const FileToolResult(
-        text: 'Error: File size would exceed the 512 KB limit.',
+    if (existingLength + bytes.length > writeLimit) {
+      return FileToolResult(
+        text:
+            'Error: File size would exceed the ${_formatByteLimit(writeLimit)} limit.',
       );
     }
     await file.parent.create(recursive: true);
@@ -1548,12 +1662,14 @@ class FileToolService {
       await file.writeAsBytes(bytes, flush: true);
     }
     final size = await file.length();
+    final after = append ? (before == null ? null : '$before$content') : content;
     return FileToolResult(
       text:
           '${append ? 'Appended to' : 'Wrote'} ${p.basename(path)} ($size bytes).',
       createdOrModifiedFilePath: path,
       fileName: p.basename(path),
       fileSizeBytes: size,
+      diff: after == null ? null : _buildDiff(before, after, path, workspace),
     );
   }
 
@@ -1578,10 +1694,14 @@ class FileToolService {
     }
     if (type == FileSystemEntityType.directory) {
       await Directory(path).delete();
-    } else {
-      await File(path).delete();
+      return FileToolResult(text: 'Deleted ${p.basename(path)}.');
     }
-    return FileToolResult(text: 'Deleted ${p.basename(path)}.');
+    final before = await _readTextForDiff(File(path));
+    await File(path).delete();
+    return FileToolResult(
+      text: 'Deleted ${p.basename(path)}.',
+      diff: before == null ? null : _buildDiff(before, '', path, workspace),
+    );
   }
 
   static Future<FileToolResult> _list(

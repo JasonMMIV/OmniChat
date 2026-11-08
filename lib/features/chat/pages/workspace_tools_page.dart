@@ -10,6 +10,7 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../settings/pages/developer_mode_page.dart';
 import '../../../shared/widgets/ios_switch.dart';
+import '../widgets/workspace_disk_usage_card.dart';
 
 /// One row of the workspace tools switchboard.
 class _WorkspaceToolEntry {
@@ -30,7 +31,11 @@ class _WorkspaceToolEntry {
 /// Only reachable from the workspace menu while the workspace is enabled —
 /// a disabled workspace keeps every tool off regardless of these toggles.
 class WorkspaceToolsPage extends StatelessWidget {
-  const WorkspaceToolsPage({super.key});
+  const WorkspaceToolsPage({super.key, this.workspacePath});
+
+  /// Current conversation workspace, used by the P3-4 disk usage card. The
+  /// page stays usable without it (the card is simply omitted).
+  final String? workspacePath;
 
   @override
   Widget build(BuildContext context) {
@@ -81,15 +86,35 @@ class WorkspaceToolsPage extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
           children: [
+            if (workspacePath != null && workspacePath!.trim().isNotEmpty) ...[
+              WorkspaceDiskUsageCard(workspacePath: workspacePath),
+              const SizedBox(height: 12),
+            ],
             Padding(
               padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
-              child: Text(
-                l10n.workspaceToolsDescription,
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.4,
-                  color: cs.onSurface.withOpacity(0.62),
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.workspaceToolsDescription,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: cs.onSurface.withOpacity(0.62),
+                    ),
+                  ),
+                  if (settings.developerModeV1) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      l10n.workspaceToolsDeveloperWriteLimit,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: cs.primary.withValues(alpha: 0.82),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
             for (final entry in entries)

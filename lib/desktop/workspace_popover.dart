@@ -192,10 +192,13 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
     // Capture the navigator before _close(): closing removes the popover's
     // OverlayEntry, which unmounts this State (same pattern as _openBrowser).
     final navigator = Navigator.of(context);
+    final workspacePath = _workspacePath;
     await _close();
     await Future<void>.delayed(const Duration(milliseconds: 80));
     await navigator.push(
-      MaterialPageRoute(builder: (_) => const WorkspaceToolsPage()),
+      MaterialPageRoute(
+        builder: (_) => WorkspaceToolsPage(workspacePath: workspacePath),
+      ),
     );
   }
 

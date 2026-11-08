@@ -920,30 +920,45 @@ class HomePageController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// P2-1: route the user back to the interrupted conversation. Pending
-  /// approval / ask_user cards are the resume surface, so those only navigate;
-  /// a bare interrupted run continues through the existing [ChatActions.resumeRun].
+  /// P2-1: route the user back to the newest interrupted conversation.
   Future<void> resumePendingAgentRun() async {
     final cached = _pendingAgentRun;
-    if (cached == null || _resumingPendingAgentRun) return;
+    if (cached == null) return;
+    await resumeAgentRun(cached);
+  }
+
+  /// P3-3: resume any task from the global unfinished-task surface, not only
+  /// the startup banner's newest row. Pending approval / ask_user cards are
+  /// the resume surface, so those only navigate; a bare interrupted run
+  /// continues through the existing [ChatActions.resumeRun].
+  Future<bool> resumeAgentRun(AgentRunCheckpoint target) async {
+    if (_resumingPendingAgentRun) return false;
     _resumingPendingAgentRun = true;
     notifyListeners();
     try {
-      // Re-read the journal: the banner can be stale (the run completed in
-      // this session, or another window already resumed it). Never start a
-      // bare resume from a row that no longer exists.
+      // Re-read the journal: the list can be stale (the run completed in this
+      // session, or another window already resumed it). Never start a bare
+      // resume from a row that no longer exists.
       final checkpoint = await AgentRunCheckpointStore.instance.load(
-        cached.conversationId,
+        target.conversationId,
       );
       if (checkpoint == null) {
         _clearPendingAgentRun();
-        return;
+        return false;
       }
       if (loadingConversationIds.contains(checkpoint.conversationId)) {
-        // A generation is already active for this conversation; never open a
-        // second placeholder/request.
-        return;
+        // A generation is already active for this conversation. Never open a
+        // second request; open the running conversation instead, so tapping a
+        // "Running" task is never a silent no-op.
+        if (currentConversation?.id != checkpoint.conversationId) {
+          await switchConversationAnimated(checkpoint.conversationId);
+        }
+        _clearPendingAgentRun();
+        return true;
       }
+      // `getConversation` returns null before storage is ready as well as for
+      // a deleted row. Never delete a checkpoint on the ambiguous null.
+      if (!_chatService.initialized) return false;
       final conversation = _chatService.getConversation(
         checkpoint.conversationId,
       );
@@ -952,52 +967,49 @@ class HomePageController extends ChangeNotifier {
           checkpoint.conversationId,
         );
         _clearPendingAgentRun();
-        return;
+        return false;
       }
       if (currentConversation?.id != checkpoint.conversationId) {
         await switchConversationAnimated(checkpoint.conversationId);
       }
       if (checkpoint.hasPendingUserAction) {
         // The approval / ask_user card in the timeline is the action point.
-        _pendingAgentRun = null;
-        return;
+        _clearPendingAgentRun();
+        return true;
       }
       _pendingAgentRun = checkpoint;
       final resumed = await _viewModel.chatActions.resumeRun(
         checkpoint.conversationId,
       );
       if (resumed != null) {
-        _pendingAgentRun = null;
-      } else {
-        final l10n = AppLocalizations.of(_context);
-        if (l10n != null) {
-          showAppSnackBar(
-            _context,
-            message: l10n.generationInterrupted,
-            type: NotificationType.warning,
-          );
-        }
+        _clearPendingAgentRun();
+        return true;
       }
+      _showInterruptedAgentRun();
+      return false;
     } catch (e) {
       // Keep the checkpoint so the user can retry after fixing the cause.
       FlutterLogger.log(
-        'Pending agent-run resume failed: $e',
+        'Agent-run resume failed: $e',
         tag: 'agent-checkpoint',
       );
-      if (!_disposed) {
-        final l10n = AppLocalizations.of(_context);
-        if (l10n != null) {
-          showAppSnackBar(
-            _context,
-            message: l10n.generationInterrupted,
-            type: NotificationType.warning,
-          );
-        }
-      }
+      _showInterruptedAgentRun();
+      return false;
     } finally {
       _resumingPendingAgentRun = false;
       if (!_disposed) notifyListeners();
     }
+  }
+
+  void _showInterruptedAgentRun() {
+    if (_disposed) return;
+    final l10n = AppLocalizations.of(_context);
+    if (l10n == null) return;
+    showAppSnackBar(
+      _context,
+      message: l10n.generationInterrupted,
+      type: NotificationType.warning,
+    );
   }
 
   void initDesktopUi() {

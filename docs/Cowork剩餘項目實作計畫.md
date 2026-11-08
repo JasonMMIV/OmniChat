@@ -50,10 +50,10 @@
 | P2-6(L3) | 工作區檔案地圖注入（**僅 L3**；L2 LLM 摘要不採） | AnyBuff `truncate-file-tree` 概念 | ⬜ | v1.32.x |
 | P2-7 | kelivo 資料模型對齊（**可選**） | kelivo `a43b79f` | ⬜ | 視需求 |
 | P3-1 | 瀏覽器 QA 工具（Playwright via MCP，桌面限定） | MCP + Playwright | ⬜ | v1.32.x |
-| P3-3 | 跨會話任務恢復（「進行中任務」頁） | P2-1 延伸 | ⬜ | v1.32.x |
-| P3-4 | 上限再校準 + 磁碟預算（dev mode 寫入 2MB 級） | — | ⬜ | v1.32.x |
-| P3-5 | Plan Mode（先規劃 → 人批 → 再執行） | deepseek plan-mode | ⬜ | v1.33.x |
-| P1-1(尾) | 執行後全檔 diff viewer（原計畫歸 Phase 3；Myers unified diff） | RikkaHub `diffOf` + kelivo `unified_diff` | ⬜ | 隨 P1-6 後 |
+| P3-3 | 跨會話任務恢復（「進行中任務」頁） | P2-1 延伸 | ✅（2026-11-08：清單頁＋桌面 dialog／行動頁雙入口；見 §2.12） | v1.32.x |
+| P3-4 | 上限再校準 + 磁碟預算（dev mode 寫入 2MB 級） | — | ✅（2026-11-08：dev mode 2MB、Tools 頁磁碟用量、`file_read` 24KB 預設窗口；見 §2.13） | v1.32.x |
+| ~~P3-5~~ | ~~Plan Mode（先規劃 → 人批 → 再執行）~~ **不實作**（見 §2.14 裁示） | deepseek plan-mode | ❌ 已移除 | — |
+| P1-1(尾) | 執行後全檔 diff viewer（原計畫歸 Phase 3；Myers unified diff） | RikkaHub `diffOf` + kelivo `unified_diff` | ✅（2026-11-08：Myers unified diff、卡片 ±N、展開全檔變更；見 §2.15） | v1.29.x |
 
 ### 0.5 kelivo workspace 導入裁示（2026-11-06）
 
@@ -110,7 +110,7 @@
   P1-2 尾款 cache_expiry（✅）｜ P2-6 L3 檔案地圖
 
 【Wave F：擴充與拋光】
-  P2-3 子代理 ｜ P3-5 Plan Mode ｜ P1-1 尾款 diff viewer
+  P2-3 子代理 ｜ P1-1 尾款 diff viewer（✅）
 
 【Stretch / 可選】
   P2-5 Proot（stretch） ｜ P2-7 kelivo 對齊（可選）
@@ -374,9 +374,13 @@
 
 ---
 
-### 2.12 P3-3 跨會話任務恢復（「進行中任務」頁）⬜
+### 2.12 P3-3 跨會話任務恢復（「進行中任務」頁）✅【2026-11-08 完成】
 
 **目標**：以 P2-1 的 `agent_runs_v1` 為資料源，做全域「**進行中任務**」頁——列出所有對話中未完成的 agent run（跨對話、跨日期），點入即 resume。把恢復能力從「崩潰保險」（啟動橫幅只覆蓋單點）升級為**可發現的任務管理面**；也是 P2-2 背景任務的自然收件匣。
+
+**落地紀錄（2026-11-08）**：`AgentRunCheckpointStore.listAll()`（newest-first、沿用 corrupt row sweep）；`AgentRunTask`／`AgentRunTaskReason` 把 `phase`＋`pendingTools` 投影為 approval／ask_user／interrupted／running／soft-stop；`AgentRunTaskService` 讀時聚合、刪除對話已不存在的 stale checkpoint（lookup 失敗視為 unknown，保留任務）；`AgentTasksView` 提供載入／空狀態／列（對話名、原因、pending tool、step、最後儲存時間），`AgentTasksPage`（行動）與 `showAgentTasksDesktopDialog`（桌面）共用同一視圖。側欄底部新增 `ListChecks` 入口：桌面開 dialog、行動推頁。`HomePageController.resumeAgentRun(checkpoint)` 承接任意列（pending 卡只導航回時間軸、bare run 走既有 `ChatActions.resumeRun`），啟動橫幅改為其薄包裝。無新增持久化、無 schema 變更。l10n ×4。測試：`test/agent_checkpoint/agent_run_task_test.dart`（reason 映射／排序／跨對話聚合／stale 清理／lookup 失敗保留／空 journal）與 `agent_tasks_view_test.dart`（空狀態／列渲染／點擊回呼）；四檔合計 30 案全綠。**呈現差異**：桌面入口沿用既有 chat-history dialog 慣例（計畫原稱 popover），與行動頁共用同一 `AgentTasksView`。
+
+**後續修正（2026-11-08）**：任務列以 `loadingConversationIds` 區分執行中任務，顯示 Running／Open，點擊只導航到該對話，不重複啟動請求；stale／載入失敗不再靜默關閉，清單保留並顯示錯誤與重試。`ChatService.getConversation` 在未初始化時視為 unknown，不再誤刪 checkpoint；pending tool 依 reason 優先顯示 ask_user。
 
 **實作內容**：清單頁（桌面 popover + 行動頁，比照 Workspace Tools 的雙入口慣例）——每列顯示對話名/任務起點/中斷原因（approval pending / crashed / soft-stop）；點入 → 導航對話 → `resumeRun`；run 完成/取消後移除。
 
@@ -386,7 +390,7 @@
 
 ---
 
-### 2.13 P3-4 上限再校準 + 磁碟預算 ⬜
+### 2.13 P3-4 上限再校準 + 磁碟預算 ✅【2026-11-08 完成】
 
 **目標**：讓開發者模式**名實相符**——現行上限是為「一般使用者的沙盒」設計的（實測常數：`maxWriteBytes = 512KB`、`maxReadBytes = 24KB`、單次工具回傳 32,768 字元），真實 coding 場景（資料檔、設計資產、大型 JSON fixtures）會不斷撞牆。
 
@@ -395,26 +399,33 @@
 2. **磁碟預算顯示**：工作區佔用可視化（Workspace Tools 頁/設定）——放寬上限後的配套責任（零殘留政策的誠信配套）。
 3. **`file_read` 分頁體驗優化**：24KB 窗口 + offset/limit 的翻頁效率（檔案變大後成為模型讀大檔的實際瓶頸）。
 
+**落地紀錄（2026-11-08）**：
+- `FileToolService.execute(..., developerMode: ...)` 由 `ToolHandlerService` 注入 `SettingsProvider.developerModeV1`；預設仍為 `maxWriteBytes = 512KB`，dev mode 使用 `developerMaxWriteBytes = 2MB`。`file_write`／`file_append`／`file_edit`／`file_patch`／`file_create_pdf` 與其錯誤訊息同步採用實際上限；審批不會改變上限（ADR-A8）。
+- `WorkspaceDiskUsageService.measure()` 非同步掃描工作區（不跟隨連結、排除根目錄 `.omnichat/`、上限 50,000 項目並回報 `truncated`）；`WorkspaceDiskUsageCard` 顯示總量／檔案數／partial 狀態與重新整理，掛在 `WorkspaceToolsPage` 頂部；桌面 popover 與行動 sheet 將目前 workspace path 傳入 Tools 頁。dev mode 開啟時 Tools 頁另顯示 2MB 提示。
+- `file_read` 預設窗口由 16KB 提高為 24KB（等於既有上限），維持單次結果低於 32,768 字元；`offset`／`limit`／`next_offset`／`has_more` 契約不變。
+- l10n ×4 新增 disk usage 與 dev-mode 寫入上限提示。
+- 測試：`test/file_tool_developer_limits_test.dart`（預設 512KB、dev 600KB 成功、2MB 上限、append 邊界）、`test/workspace_disk_usage_test.dart`（總量／`.omnichat/` 排除／截斷／格式化）；既有 `file_read` 邊界測試維持通過。
+- 後續修正（2026-11-08）：partial 訊息改用 `scannedEntryCount`（實際掃描 entry 數，不再借用 `fileCount`）；`formatWorkspaceBytes` 修正 1023.95KB 顯示 1024KB 的進位邊界；新增 `ToolHandlerService` developer-mode 接線、24KB 預設窗口與磁碟卡 widget 測試。
+
 **依賴 P1-6**——本質是 dev mode 的參數校正，P1-6 落地後才有意義。
 
 **測試**：dev mode 開/關的上限行為（關閉時回 512KB）、磁碟預算計算（含 `.omnichat/` 排除）、分頁邊界。
 
 ---
 
-### 2.14 P3-5 Plan Mode ⬜
+### 2.14 P3-5 Plan Mode ❌【2026-11-08 裁示不實作】
 
-**目標**：先規劃（模型產出計畫）→ 人批 → 再執行的模式切換。
+**裁示**：不實作。截至 2026 年，模型能力已大幅提升，能穩定自行「先規劃再動手」；獨立的 plan mode 帶來額外的模式狀態、批准中斷與恢復成本，收益已低於流程摩擦，主流 coding harness 也已陸續移除 plan mode。需要先看計畫時，既有 `write_todos` 計畫卡＋一般對話確認已足夠，不再新增一套模式切換與工具閘門。
 
-**實作內容**：
-1. 模式切換 UI（chat 輸入列，比照思考檔位慣例）——Plan 模式下模型只產出計畫、不執行副作用工具。
-2. 計畫呈現與批准：復用 P1-3 `write_todos` 快照形狀 + ask_user/審批共用「中斷 → 決定 → 恢復」管線（P1-1 已備）；批准後計畫轉 todo 快照、切回執行模式續跑。
-3. 藍圖：deepseek-harness `plan/plan-mode`（資料模型已在附A 對照表）。
+**原規劃（保留供追溯，不再執行）**：先規劃（模型產出計畫）→ 人批 → 再執行的模式切換；輸入列模式切換、Plan 模式下停用副作用工具、批准後計畫轉 todo 並切回執行模式、拒絕後修訂計畫。
 
-**測試**：Plan 模式下副作用工具被拒（結構化提示「先出計畫」）、批准 → 計畫轉 todo → 執行模式、拒絕 → 修訂計畫、模式切換不破壞進行中 run。
+**未落地**：裁示前僅鋪底、未接線；鋪底的 `plan_mode.dart`、`SettingsProvider.planModeEnabled` 與 system prompt 注入均已還原，未產生持久化鍵值或 UI 變更。
 
 ---
 
-### 2.15 P1-1(尾) 執行後全檔 diff viewer ⬜
+### 2.15 P1-1(尾) 執行後全檔 diff viewer ✅【2026-11-08 完成】
+
+**落地紀錄（2026-11-08）**：新增 `lib/core/services/file/unified_diff.dart`——`diffutil_dart` 5.0.0 的 Myers 核心 + update replay 還原行序，輸出標準 hunks（context 3、`--- a/…`/`+++ b/…`）、`addedLines`/`removedLines` 全量計數與 64KB 尾端截斷（`... (N more lines)`；極端上限只留 header）。`FileToolResult.diff` 於 write/append/edit/patch/delete 前後擷取（>256KB 或二進位靜默跳過，不影響工具結果）；`ToolHandlerService` 在結果 upsert 前把 `diffText`/`diffAdded`/`diffRemoved`/`diffTruncated` 寫入 tool event extras（列入 preserved keys）。時間軸 summary 只載入 `json_extract($.diffAdded/diffRemoved)`，工具卡標題顯示 `+N/−N`；展開時 `loadToolEventDetail` 取 `diffText`，桌面 dialog／行動 sheet 以唯讀等寬區塊顯示（`chatMessageWidgetDiff`，l10n ×4）。審批卡預覽依裁定仍用 `buildEditPreviewDiff`，未換芯、不共用來源。測試：`unified_diff_test`（15）、`file_tool_diff_test`（9）、`tool_handler_diff_extras_test`（1）、codec summary（2）全綠；既有 `file_tool_service_test`（67）與 dev-mode handler 測試亦全綠；`flutter analyze --no-pub` 0 errors。
 
 P1-1 落地時 `file_edit` 已有**預覽 diff**（`buildEditPreviewDiff`：確定性行級 old/new 塊、**無 LCS**——多處修改時不可讀）；**執行後全檔 diff** 留待本項——工具卡展開顯示執行後的完整變更。
 
@@ -509,7 +520,7 @@ flutter test                    # 新增測試 + 既有回歸（700+ 案全綠�
 | §5.1 Windows 穩定性 | 新增子節「外部程序治理」（`Process.start` + collectors 先於 wait、超 cap 持續 drain、Job Object tree-kill、環境 allowlist、cp950/`chcp 65001`、secret 遮蔽） | P1-6 |
 | §3.1 工作區沙盒檔案系統 | 措辭更新：「預設沙盒；沙盒外寫入需逐次明示核准；黑名單與容量上限不隨核准放寬」；新增唯讀 session-outputs zone（`file_read`/`file_search` 可進、寫入拒）＋ retention（20 檔/7 天） | P1-6 |
 | §5.7 `_localOnlyKeys` | 新鍵值歸類審查（`developer_mode_v1`/allowlist 同步；`agent_runs_v1` 本地） | P1-6 / P2-1 |
-| §3.14 Agent Runtime | checkpoint、背景任務、子代理、Plan Mode 各小節隨落地補記 | P2-1 起 |
+| §3.14 Agent Runtime | checkpoint、背景任務、子代理各小節隨落地補記 | P2-1 起 |
 | §7 現狀與待辦 | 各項完成後更新 roadmap（並標記本計畫為 Cowork 剩餘項目的權威清單） | 每版本 |
 | §3.1 檔案工具 | `file_edit` 匹配策略（三段降級、ambiguous 策略標示）隨落地補記 | P1-8 |
 
@@ -520,7 +531,7 @@ flutter test                    # 新增測試 + 既有回歸（700+ 案全綠�
 | 參考 | 用於 |
 |:--|:--|
 | **AnyBuff**（本機 `C:\Users\w2bn1\GitHub\Anybuff`） | P1-2 尾款 cache_expiry（`compact-history.ts` 自帶觸發器）、P2-3 子代理（`agents/` template）、P2-6 L3（`truncate-file-tree` 概念）、**P2-5 Android proot 沙盒**（`android/` engine——ProotRunner bind 全景＋`/proc` 偽造＋孤兒清掃、DirectAccess §4.6 AFA direct-bind registry＋可移除卷映射＋copy flow fallback、RootfsInstaller/SafeTarExtractor——細節見 §2.8 對照實作段；同譜系抄設計不抄碼） |
-| **deepseek-harness**（github.com/deepseek-ai/deepseek-harness） | P2-1 checkpoint（`session-checkpoint-policy` + `SessionWriteBehind`）、P3-5 Plan Mode（`plan/plan-mode`） |
+| **deepseek-harness**（github.com/deepseek-ai/deepseek-harness） | P2-1 checkpoint（`session-checkpoint-policy` + `SessionWriteBehind`）；P3-5 Plan Mode（`plan/plan-mode`）已裁示不實作 |
 | **kelivo**（`/tmp/kelivo-upstream`；**workspace 調查基準**：`/tmp/kelivo-ws-survey` @ `51777f7`，workspace 為 v1.3.0+） | P0-3（providers 分層對照）、P2-7 資料模型與 trace 回放；**workspace（AGPL-3.0，同譜系 fork 慣例已存在）**：P1-8 `edit_matchers`、P1-6 增量（ToolRun／shell payload／`output_buffer.dart` offloader＋retention／環境旗標／`timeout_seconds`）、§2.15 `unified_diff`、P2-5 `sandbox/` 對照、§2.17 `file_link_resolver`／`workspace_session_sync`／`view_image`——native/channel 層抄設計不抄碼 |
 | **RikkaHub**（`/tmp/rikkahub`） | P2-5 Proot（`workspace/` 模組）、P1-1 尾款 diff（`WorkspaceToolUIs.diffOf`）——Kotlin，抄決策與語意，不抄代碼 |
 | **CLI 工具整合計畫 v4**（已吸收進本計畫：P2-5 藍圖＋F-Droid 條款→§2.8 內化藍圖；§五/§六執行契約、§十三測試矩陣→§2.2。原文 2026-11-06 起封存於 D:\Softwares\Omnichat\Archive） | 自計畫 v1.3 起**不需回查**（僅歷史歸屬） |

@@ -293,6 +293,24 @@ void main() {
     });
   });
 
+  test('uses the 24 KB default read window', () async {
+    final file = File('${workspace.path}/default-window.txt');
+    await file.writeAsBytes(
+      utf8.encode('x' * (FileToolService.defaultReadBytes + 1)),
+    );
+
+    final result = await FileToolService.execute('file_read', {
+      'path': 'default-window.txt',
+    }, workspace.path);
+
+    expect(result.text, contains('Read bytes 0-${FileToolService.defaultReadBytes}'));
+    expect(result.text, contains('has_more=true'));
+    expect(
+      result.text,
+      contains('next_offset=${FileToolService.defaultReadBytes}'),
+    );
+  });
+
   test('reads bounded segments and supports continuation offsets', () async {
     final file = File('${workspace.path}/large.txt');
     await file.writeAsBytes(

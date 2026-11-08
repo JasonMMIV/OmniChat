@@ -3163,6 +3163,45 @@ class _DocRef {
   _DocRef({required this.path, required this.fileName, required this.mime});
 }
 
+/// P1-1 tail: the post-execution change section shared by the desktop dialog
+/// and the mobile sheet. Rendered from the persisted unified diff only.
+Widget _buildToolDiffSection(BuildContext context, String diffText) {
+  final l10n = AppLocalizations.of(context)!;
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final cs = Theme.of(context).colorScheme;
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        l10n.chatMessageWidgetDiff,
+        style: TextStyle(
+          fontSize: 12,
+          color: cs.onSurface.withOpacity(0.6),
+        ),
+      ),
+      const SizedBox(height: 6),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white10 : const Color(0xFFF7F7F9),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+        ),
+        child: SelectableText(
+          diffText,
+          style: const TextStyle(
+            fontSize: 11.5,
+            fontFamily: 'monospace',
+            height: 1.35,
+          ),
+        ),
+      ),
+      const SizedBox(height: 12),
+    ],
+  );
+}
+
 // UI data for MCP tool calls/results
 class ToolUIPart {
   final String id;
@@ -3199,6 +3238,12 @@ class ToolUIPart {
   /// (`Local` or a Tier-2 provider), null otherwise.
   final String? webFetchSource;
 
+  /// P1-1 tail: post-execution diff totals (card title) and the rendered
+  /// unified diff body once loaded for the detail dialog.
+  final int? diffAdded;
+  final int? diffRemoved;
+  final String? diffText;
+
   const ToolUIPart({
     required this.id,
     required this.toolName,
@@ -3212,6 +3257,9 @@ class ToolUIPart {
     this.searchProvider,
     this.searchFallbackFrom,
     this.webFetchSource,
+    this.diffAdded,
+    this.diffRemoved,
+    this.diffText,
   }) : contentLoaded = contentLoaded ?? (content != null),
        contentLength = contentLength ?? (content?.length ?? 0);
 }
@@ -3550,6 +3598,18 @@ class _ToolCallItem extends StatelessWidget {
                         color: cardTextColor,
                       ),
                     ],
+                    // P1-1 tail: full added/removed totals from the
+                    // post-execution unified diff (never the truncated view).
+                    if (part.diffAdded != null || part.diffRemoved != null) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        '+${part.diffAdded ?? 0} −${part.diffRemoved ?? 0}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: cardTextColor,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 if (part.toolName == 'shell_run' && part.loading)
@@ -3619,7 +3679,18 @@ class _ToolCallItem extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     var arguments = part.arguments;
     var content = part.content;
-    if (!part.contentLoaded) {
+    var diffText = part.diffText ?? '';
+    // Restored parts start without a body; live parts already carry content,
+    // but the rendered diff is only persisted in metadata, so a file-tool
+    // detail is fetched when the diff is still missing.
+    final needsDetail =
+        !part.contentLoaded ||
+        (part.toolName.startsWith('file_') &&
+            diffText.isEmpty &&
+            (part.diffAdded != null || part.diffRemoved != null) &&
+            (assistantMessageId ?? '').isNotEmpty &&
+            part.id.isNotEmpty);
+    if (needsDetail) {
       final messageId = assistantMessageId ?? '';
       if (messageId.isNotEmpty && part.id.isNotEmpty) {
         try {
@@ -3633,6 +3704,7 @@ class _ToolCallItem extends StatelessWidget {
               arguments = rawArguments.map((k, v) => MapEntry(k.toString(), v));
             }
             content = detail['content']?.toString();
+            diffText = detail['diffText']?.toString() ?? diffText;
           }
         } catch (_) {
           if (!context.mounted) return;
@@ -3737,6 +3809,8 @@ class _ToolCallItem extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                if (diffText.trim().isNotEmpty)
+                                  _buildToolDiffSection(context, diffText),
                                 Text(
                                   l10n.chatMessageWidgetArguments,
                                   style: TextStyle(
@@ -3852,6 +3926,8 @@ class _ToolCallItem extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 12),
+                    if (diffText.trim().isNotEmpty)
+                      _buildToolDiffSection(context, diffText),
                     Text(
                       l10n.chatMessageWidgetArguments,
                       style: TextStyle(

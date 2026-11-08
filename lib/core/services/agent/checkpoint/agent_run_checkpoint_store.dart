@@ -75,11 +75,11 @@ class AgentRunCheckpointStore implements AgentRunCheckpointSink {
     return checkpoint;
   }
 
-  /// Newest actionable checkpoint across all conversations. Corrupt rows are
-  /// swept as they are encountered.
-  Future<AgentRunCheckpoint?> latest() async {
+  /// All actionable checkpoints, newest first. Corrupt rows are swept as they
+  /// are encountered, exactly like [latest].
+  Future<List<AgentRunCheckpoint>> listAll() async {
     final box = await _ensureBox();
-    AgentRunCheckpoint? newest;
+    final checkpoints = <AgentRunCheckpoint>[];
     var deleted = false;
     for (final key in box.keys.toList()) {
       if (key is! String) {
@@ -102,12 +102,17 @@ class AgentRunCheckpointStore implements AgentRunCheckpointSink {
         }
         continue;
       }
-      if (newest == null || checkpoint.updatedAtMs > newest.updatedAtMs) {
-        newest = checkpoint;
-      }
+      checkpoints.add(checkpoint);
     }
     if (deleted) await box.flush();
-    return newest;
+    checkpoints.sort((a, b) => b.updatedAtMs.compareTo(a.updatedAtMs));
+    return checkpoints;
+  }
+
+  /// Newest actionable checkpoint across all conversations.
+  Future<AgentRunCheckpoint?> latest() async {
+    final checkpoints = await listAll();
+    return checkpoints.isEmpty ? null : checkpoints.first;
   }
 
   Future<void> delete(String conversationId) async {

@@ -2172,6 +2172,72 @@ class AppLocalizationsZh extends AppLocalizations {
   String get pendingAgentRunReview => '查看';
 
   @override
+  String get agentTasksTitle => '进行中任务';
+
+  @override
+  String get agentTasksEmptyTitle => '没有可继续的任务';
+
+  @override
+  String get agentTasksEmptyBody => '暂停等待审批或中断的任务会显示在这里。';
+
+  @override
+  String get agentTasksReasonApproval => '等待审批';
+
+  @override
+  String get agentTasksReasonAskUser => '等待你的回答';
+
+  @override
+  String get agentTasksReasonInterrupted => '已中断';
+
+  @override
+  String get agentTasksReasonRunning => '执行中断';
+
+  @override
+  String get agentTasksReasonSoftStopped => '已达上限停止';
+
+  @override
+  String get agentTasksReasonSoftStopSteps => '已达步数上限';
+
+  @override
+  String get agentTasksReasonSoftStopTokens => '已达 Token 预算';
+
+  @override
+  String agentTasksStep(int step) {
+    return '第 $step 步';
+  }
+
+  @override
+  String agentTasksPendingTool(String name) {
+    return '待处理：$name';
+  }
+
+  @override
+  String agentTasksSavedAt(String time) {
+    return '保存于 $time';
+  }
+
+  @override
+  String get agentTasksResume => '继续';
+
+  @override
+  String get agentTasksReview => '查看';
+
+  @override
+  String get agentTasksRunning => '执行中';
+
+  @override
+  String get agentTasksOpen => '打开';
+
+  @override
+  String get agentTasksLoadFailed => '无法加载未完成任务。';
+
+  @override
+  String get agentTasksRetry => '重试';
+
+  @override
+  String get agentTasksUnavailable => '此任务已不可用，请刷新列表。';
+
+  @override
   String approvalOutsideWorkspace(String path) {
     return '工作区之外：$path';
   }
@@ -2308,6 +2374,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatMessageWidgetResult => '结果';
+
+  @override
+  String get chatMessageWidgetDiff => '变更';
 
   @override
   String chatMessageWidgetCitationsCount(int count) {
@@ -5314,6 +5383,35 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get workspaceFiles => '文件';
+
+  @override
+  String get workspaceDiskUsageTitle => '磁盘用量';
+
+  @override
+  String workspaceDiskUsageSummary(String size, int count) {
+    return '$size · $count 个文件';
+  }
+
+  @override
+  String get workspaceDiskUsageHint => '仅计入工作区文件；已排除 App 的 `.omnichat/` 目录。';
+
+  @override
+  String get workspaceDiskUsageLoading => '正在计算工作区用量…';
+
+  @override
+  String get workspaceDiskUsageError => '无法计算此工作区的用量。';
+
+  @override
+  String workspaceDiskUsagePartial(int count) {
+    return '仅部分扫描：停在 $count 个项目。';
+  }
+
+  @override
+  String get workspaceDiskUsageRefresh => '刷新磁盘用量';
+
+  @override
+  String get workspaceToolsDeveloperWriteLimit =>
+      '开发者模式会将单文件写入上限提高到 2 MB（默认 512 KB）。';
 
   @override
   String get workspaceSelectFolderDialogTitle => '选择工作区';
@@ -8358,6 +8456,72 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get pendingAgentRunReview => '查看';
 
   @override
+  String get agentTasksTitle => '进行中任务';
+
+  @override
+  String get agentTasksEmptyTitle => '没有可继续的任务';
+
+  @override
+  String get agentTasksEmptyBody => '暂停等待审批或中断的任务会显示在这里。';
+
+  @override
+  String get agentTasksReasonApproval => '等待审批';
+
+  @override
+  String get agentTasksReasonAskUser => '等待你的回答';
+
+  @override
+  String get agentTasksReasonInterrupted => '已中断';
+
+  @override
+  String get agentTasksReasonRunning => '执行中断';
+
+  @override
+  String get agentTasksReasonSoftStopped => '已达上限停止';
+
+  @override
+  String get agentTasksReasonSoftStopSteps => '已达步数上限';
+
+  @override
+  String get agentTasksReasonSoftStopTokens => '已达 Token 预算';
+
+  @override
+  String agentTasksStep(int step) {
+    return '第 $step 步';
+  }
+
+  @override
+  String agentTasksPendingTool(String name) {
+    return '待处理：$name';
+  }
+
+  @override
+  String agentTasksSavedAt(String time) {
+    return '保存于 $time';
+  }
+
+  @override
+  String get agentTasksResume => '继续';
+
+  @override
+  String get agentTasksReview => '查看';
+
+  @override
+  String get agentTasksRunning => '执行中';
+
+  @override
+  String get agentTasksOpen => '打开';
+
+  @override
+  String get agentTasksLoadFailed => '无法加载未完成任务。';
+
+  @override
+  String get agentTasksRetry => '重试';
+
+  @override
+  String get agentTasksUnavailable => '此任务已不可用，请刷新列表。';
+
+  @override
   String approvalOutsideWorkspace(String path) {
     return '工作区之外：$path';
   }
@@ -8494,6 +8658,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get chatMessageWidgetResult => '结果';
+
+  @override
+  String get chatMessageWidgetDiff => '变更';
 
   @override
   String chatMessageWidgetCitationsCount(int count) {
@@ -11395,6 +11562,35 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get workspaceFiles => '文件';
+
+  @override
+  String get workspaceDiskUsageTitle => '磁盘用量';
+
+  @override
+  String workspaceDiskUsageSummary(String size, int count) {
+    return '$size · $count 个文件';
+  }
+
+  @override
+  String get workspaceDiskUsageHint => '仅计入工作区文件；已排除 App 的 `.omnichat/` 目录。';
+
+  @override
+  String get workspaceDiskUsageLoading => '正在计算工作区用量…';
+
+  @override
+  String get workspaceDiskUsageError => '无法计算此工作区的用量。';
+
+  @override
+  String workspaceDiskUsagePartial(int count) {
+    return '仅部分扫描：停在 $count 个项目。';
+  }
+
+  @override
+  String get workspaceDiskUsageRefresh => '刷新磁盘用量';
+
+  @override
+  String get workspaceToolsDeveloperWriteLimit =>
+      '开发者模式会将单文件写入上限提高到 2 MB（默认 512 KB）。';
 
   @override
   String get workspaceSelectFolderDialogTitle => '选择工作区';
@@ -14444,6 +14640,72 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get pendingAgentRunReview => '查看';
 
   @override
+  String get agentTasksTitle => '進行中任務';
+
+  @override
+  String get agentTasksEmptyTitle => '沒有可繼續的任務';
+
+  @override
+  String get agentTasksEmptyBody => '暫停等待審批或中斷的任務會顯示在這裡。';
+
+  @override
+  String get agentTasksReasonApproval => '等待審批';
+
+  @override
+  String get agentTasksReasonAskUser => '等待你的回答';
+
+  @override
+  String get agentTasksReasonInterrupted => '已中斷';
+
+  @override
+  String get agentTasksReasonRunning => '執行中斷';
+
+  @override
+  String get agentTasksReasonSoftStopped => '已達上限停止';
+
+  @override
+  String get agentTasksReasonSoftStopSteps => '已達步數上限';
+
+  @override
+  String get agentTasksReasonSoftStopTokens => '已達 Token 預算';
+
+  @override
+  String agentTasksStep(int step) {
+    return '第 $step 步';
+  }
+
+  @override
+  String agentTasksPendingTool(String name) {
+    return '待處理：$name';
+  }
+
+  @override
+  String agentTasksSavedAt(String time) {
+    return '儲存於 $time';
+  }
+
+  @override
+  String get agentTasksResume => '繼續';
+
+  @override
+  String get agentTasksReview => '查看';
+
+  @override
+  String get agentTasksRunning => '執行中';
+
+  @override
+  String get agentTasksOpen => '開啟';
+
+  @override
+  String get agentTasksLoadFailed => '無法載入未完成任務。';
+
+  @override
+  String get agentTasksRetry => '重試';
+
+  @override
+  String get agentTasksUnavailable => '此任務已無法使用，請重新整理清單。';
+
+  @override
   String approvalOutsideWorkspace(String path) {
     return '工作區之外：$path';
   }
@@ -14580,6 +14842,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatMessageWidgetResult => '結果';
+
+  @override
+  String get chatMessageWidgetDiff => '變更';
 
   @override
   String chatMessageWidgetCitationsCount(int count) {
@@ -17576,6 +17841,35 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get workspaceFiles => '檔案';
+
+  @override
+  String get workspaceDiskUsageTitle => '磁碟用量';
+
+  @override
+  String workspaceDiskUsageSummary(String size, int count) {
+    return '$size · $count 個檔案';
+  }
+
+  @override
+  String get workspaceDiskUsageHint => '僅計入工作區檔案；已排除 App 的 `.omnichat/` 目錄。';
+
+  @override
+  String get workspaceDiskUsageLoading => '正在計算工作區用量…';
+
+  @override
+  String get workspaceDiskUsageError => '無法計算此工作區的用量。';
+
+  @override
+  String workspaceDiskUsagePartial(int count) {
+    return '僅部分掃描：停在 $count 個項目。';
+  }
+
+  @override
+  String get workspaceDiskUsageRefresh => '重新整理磁碟用量';
+
+  @override
+  String get workspaceToolsDeveloperWriteLimit =>
+      '開發者模式會將單檔寫入上限提高到 2 MB（預設 512 KB）。';
 
   @override
   String get workspaceSelectFolderDialogTitle => '選擇工作區';

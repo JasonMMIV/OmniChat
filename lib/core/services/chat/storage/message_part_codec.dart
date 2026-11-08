@@ -59,6 +59,11 @@ const List<String> kPreservedToolEventExtraKeys = <String>[
   'webFetchSource',
   'reasoning_content',
   'reasoning_details',
+  // P1-1 tail: post-execution unified diff (UI-only).
+  'diffText',
+  'diffAdded',
+  'diffRemoved',
+  'diffTruncated',
 ];
 
 /// Normalizes a legacy approval state to the closed set. `null` and unknown
@@ -272,6 +277,8 @@ class ToolPartSummary {
     this.searchProvider,
     this.searchFallbackFrom,
     this.webFetchSource,
+    this.diffAdded,
+    this.diffRemoved,
   });
 
   final int partId;
@@ -303,6 +310,10 @@ class ToolPartSummary {
   final String? searchProvider;
   final String? searchFallbackFrom;
   final String? webFetchSource;
+
+  /// P1-1 tail: full added/removed line counts of the post-execution diff.
+  final int? diffAdded;
+  final int? diffRemoved;
 
   bool get contentLoaded => eagerContent != null;
   bool get hasContent => contentLengthChars > 0;
@@ -372,7 +383,14 @@ ToolPartSummary toolPartSummaryFromEvent({
     searchProvider: event['searchProvider']?.toString(),
     searchFallbackFrom: event['searchFallbackFrom']?.toString(),
     webFetchSource: event['webFetchSource']?.toString(),
+    diffAdded: _asInt(event['diffAdded']),
+    diffRemoved: _asInt(event['diffRemoved']),
   );
+}
+
+int? _asInt(Object? value) {
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '');
 }
 
 /// Canonical JSON: object keys sorted recursively, so source/destination

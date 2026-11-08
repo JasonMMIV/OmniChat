@@ -4247,6 +4247,126 @@ abstract class AppLocalizations {
   /// **'Review'**
   String get pendingAgentRunReview;
 
+  /// No description provided for @agentTasksTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unfinished tasks'**
+  String get agentTasksTitle;
+
+  /// No description provided for @agentTasksEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing to resume'**
+  String get agentTasksEmptyTitle;
+
+  /// No description provided for @agentTasksEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Tasks that pause for approval or are interrupted will appear here.'**
+  String get agentTasksEmptyBody;
+
+  /// No description provided for @agentTasksReasonApproval.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for approval'**
+  String get agentTasksReasonApproval;
+
+  /// No description provided for @agentTasksReasonAskUser.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for your answer'**
+  String get agentTasksReasonAskUser;
+
+  /// No description provided for @agentTasksReasonInterrupted.
+  ///
+  /// In en, this message translates to:
+  /// **'Interrupted'**
+  String get agentTasksReasonInterrupted;
+
+  /// No description provided for @agentTasksReasonRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Interrupted mid-run'**
+  String get agentTasksReasonRunning;
+
+  /// No description provided for @agentTasksReasonSoftStopped.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopped at limit'**
+  String get agentTasksReasonSoftStopped;
+
+  /// No description provided for @agentTasksReasonSoftStopSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Step limit reached'**
+  String get agentTasksReasonSoftStopSteps;
+
+  /// No description provided for @agentTasksReasonSoftStopTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'Token budget reached'**
+  String get agentTasksReasonSoftStopTokens;
+
+  /// No description provided for @agentTasksStep.
+  ///
+  /// In en, this message translates to:
+  /// **'Step {step}'**
+  String agentTasksStep(int step);
+
+  /// No description provided for @agentTasksPendingTool.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending: {name}'**
+  String agentTasksPendingTool(String name);
+
+  /// No description provided for @agentTasksSavedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved {time}'**
+  String agentTasksSavedAt(String time);
+
+  /// No description provided for @agentTasksResume.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume'**
+  String get agentTasksResume;
+
+  /// No description provided for @agentTasksReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Review'**
+  String get agentTasksReview;
+
+  /// No description provided for @agentTasksRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Running'**
+  String get agentTasksRunning;
+
+  /// No description provided for @agentTasksOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get agentTasksOpen;
+
+  /// No description provided for @agentTasksLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load unfinished tasks.'**
+  String get agentTasksLoadFailed;
+
+  /// No description provided for @agentTasksRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get agentTasksRetry;
+
+  /// No description provided for @agentTasksUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This task is no longer available. Try refreshing the list.'**
+  String get agentTasksUnavailable;
+
   /// No description provided for @approvalOutsideWorkspace.
   ///
   /// In en, this message translates to:
@@ -4486,6 +4606,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Result'**
   String get chatMessageWidgetResult;
+
+  /// No description provided for @chatMessageWidgetDiff.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes'**
+  String get chatMessageWidgetDiff;
 
   /// No description provided for @chatMessageWidgetCitationsCount.
   ///
@@ -10169,6 +10295,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Files'**
   String get workspaceFiles;
+
+  /// No description provided for @workspaceDiskUsageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Disk usage'**
+  String get workspaceDiskUsageTitle;
+
+  /// No description provided for @workspaceDiskUsageSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{size} · {count, plural, =1{1 file} other{{count} files}}'**
+  String workspaceDiskUsageSummary(String size, int count);
+
+  /// No description provided for @workspaceDiskUsageHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace files only; the app\'s `.omnichat/` directory is excluded.'**
+  String get workspaceDiskUsageHint;
+
+  /// No description provided for @workspaceDiskUsageLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Measuring workspace usage…'**
+  String get workspaceDiskUsageLoading;
+
+  /// No description provided for @workspaceDiskUsageError.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to measure this workspace.'**
+  String get workspaceDiskUsageError;
+
+  /// No description provided for @workspaceDiskUsagePartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Partial scan: stopped after {count} entries.'**
+  String workspaceDiskUsagePartial(int count);
+
+  /// No description provided for @workspaceDiskUsageRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh disk usage'**
+  String get workspaceDiskUsageRefresh;
+
+  /// No description provided for @workspaceToolsDeveloperWriteLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Developer mode raises the per-file write limit to 2 MB (default 512 KB).'**
+  String get workspaceToolsDeveloperWriteLimit;
 
   /// No description provided for @workspaceSelectFolderDialogTitle.
   ///

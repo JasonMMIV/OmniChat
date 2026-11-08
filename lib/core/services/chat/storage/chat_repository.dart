@@ -903,6 +903,8 @@ class ChatRepository {
     final searchProvider = _metadataText(r'$.searchProvider');
     final searchFallbackFrom = _metadataText(r'$.searchFallbackFrom');
     final webFetchSource = _metadataText(r'$.webFetchSource');
+    final diffAdded = _metadataInt(r'$.diffAdded');
+    final diffRemoved = _metadataInt(r'$.diffRemoved');
     final query = db.selectOnly(db.messageParts)
       ..addColumns([
         db.messageParts.partId,
@@ -918,6 +920,8 @@ class ChatRepository {
         searchProvider,
         searchFallbackFrom,
         webFetchSource,
+        diffAdded,
+        diffRemoved,
         contentLength,
         argumentsLength,
         argumentsPreview,
@@ -941,12 +945,21 @@ class ChatRepository {
           searchProvider: searchProvider,
           searchFallbackFrom: searchFallbackFrom,
           webFetchSource: webFetchSource,
+          diffAdded: diffAdded,
+          diffRemoved: diffRemoved,
         ),
     ];
   }
 
   FunctionCallExpression<String> _metadataText(String path) {
     return FunctionCallExpression<String>('json_extract', [
+      db.messageParts.metadataJson,
+      Constant(path),
+    ]);
+  }
+
+  FunctionCallExpression<int> _metadataInt(String path) {
+    return FunctionCallExpression<int>('json_extract', [
       db.messageParts.metadataJson,
       Constant(path),
     ]);
@@ -981,6 +994,8 @@ class ChatRepository {
     final searchProvider = _metadataText(r'$.searchProvider');
     final searchFallbackFrom = _metadataText(r'$.searchFallbackFrom');
     final webFetchSource = _metadataText(r'$.webFetchSource');
+    final diffAdded = _metadataInt(r'$.diffAdded');
+    final diffRemoved = _metadataInt(r'$.diffRemoved');
 
     final result = <ToolPartSummary>[];
     for (var start = 0; start < ids.length; start += 500) {
@@ -1003,6 +1018,8 @@ class ChatRepository {
           searchProvider,
           searchFallbackFrom,
           webFetchSource,
+          diffAdded,
+          diffRemoved,
           contentLength,
           argumentsLength,
           argumentsPreview,
@@ -1028,6 +1045,8 @@ class ChatRepository {
             searchProvider: searchProvider,
             searchFallbackFrom: searchFallbackFrom,
             webFetchSource: webFetchSource,
+            diffAdded: diffAdded,
+            diffRemoved: diffRemoved,
           ),
       ]);
     }
@@ -1117,6 +1136,8 @@ class ChatRepository {
     required Expression<String> searchProvider,
     required Expression<String> searchFallbackFrom,
     required Expression<String> webFetchSource,
+    required Expression<int> diffAdded,
+    required Expression<int> diffRemoved,
   }) {
     final status = row.read(db.messageParts.status) ?? kPartStatusPending;
     final contentChars = row.read(contentLength) ?? 0;
@@ -1141,6 +1162,8 @@ class ChatRepository {
       searchProvider: row.read(searchProvider),
       searchFallbackFrom: row.read(searchFallbackFrom),
       webFetchSource: row.read(webFetchSource),
+      diffAdded: row.read(diffAdded),
+      diffRemoved: row.read(diffRemoved),
     );
   }
 

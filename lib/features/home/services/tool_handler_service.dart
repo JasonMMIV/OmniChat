@@ -13,6 +13,7 @@ import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/todo_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/file/file_tool_service.dart';
+import '../../../core/services/file/unified_diff.dart';
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/file/session_outputs.dart';
 import '../../../core/services/shell/shell_policy.dart';
@@ -674,6 +675,7 @@ class ToolHandlerService {
             workspacePath,
             approvedOutsidePath: decision.resolvedPath,
             sessionOutputsRoot: sessionOutputsRoot,
+            developerMode: settings.developerModeV1,
           );
           if (result.createdOrModifiedFilePath != null && messageId != null) {
             try {
@@ -699,7 +701,21 @@ class ToolHandlerService {
           // Workspace zero-residue plan Phase 1: oversized results are
           // capped in memory (head/tail + re-query guidance) instead of
           // being persisted under {workspace}/.omnichat/.
-          return ToolResultCaps.cap(toolName: name, result: result.text);
+          final capped = ToolResultCaps.cap(
+            toolName: name,
+            result: result.text,
+          );
+          // P1-1 tail: persist the UI-only diff extras before the stream's
+          // result upsert (which preserves them for the card/detail view).
+          await _persistFileDiffExtras(
+            messageId: messageId,
+            toolCallId: toolCallId,
+            name: name,
+            args: args,
+            text: capped,
+            diff: result.diff,
+          );
+          return capped;
         } catch (e, st) {
           // Never let an unexpected file-tool failure break the conversation.
           FlutterLogger.log(
@@ -914,6 +930,39 @@ class ToolHandlerService {
         });
       }
     };
+  }
+
+  /// P1-1 tail: attach the post-execution unified diff to the tool event as
+  /// UI-only extras. The model-facing content is unchanged; the card title
+  /// reads the counts and the expanded dialog renders [diffText].
+  Future<void> _persistFileDiffExtras({
+    required String? messageId,
+    required String? toolCallId,
+    required String name,
+    required Map<String, dynamic> args,
+    required String text,
+    required UnifiedDiff? diff,
+  }) async {
+    if (diff == null || messageId == null) return;
+    final id = (toolCallId ?? '').trim();
+    if (id.isEmpty) return;
+    try {
+      await chatService.upsertToolEvent(
+        messageId,
+        id: id,
+        name: name,
+        arguments: args,
+        content: text,
+        extras: <String, dynamic>{
+          'diffText': diff.render(),
+          'diffAdded': diff.addedLines,
+          'diffRemoved': diff.removedLines,
+          if (diff.truncated) 'diffTruncated': true,
+        },
+      );
+    } catch (_) {
+      // UI-only metadata: never fail the tool result because of it.
+    }
   }
 
   // ==========================================================================

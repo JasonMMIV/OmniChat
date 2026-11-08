@@ -672,6 +672,7 @@ class _HomePageState extends State<HomePage>
         await _controller.createNewConversationAnimated();
       },
       onExportConversations: _controller.exportConversations,
+      onResumeAgentRun: (checkpoint) => _controller.resumeAgentRun(checkpoint),
       onCreateNewConversation: () async {
         await _controller.createNewConversationAnimated();
         if (mounted) {
@@ -787,6 +788,7 @@ class _HomePageState extends State<HomePage>
         await _controller.createNewConversationAnimated();
       },
       onExportConversations: _controller.exportConversations,
+      onResumeAgentRun: (checkpoint) => _controller.resumeAgentRun(checkpoint),
       onCreateNewConversation: () async {
         await _controller.createNewConversationAnimated();
         if (mounted) _controller.forceScrollToBottomSoon(animate: false);

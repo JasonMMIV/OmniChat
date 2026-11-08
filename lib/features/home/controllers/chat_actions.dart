@@ -476,6 +476,9 @@ class ChatActions {
         searchProvider: parts[pIdx].searchProvider,
         searchFallbackFrom: parts[pIdx].searchFallbackFrom,
         webFetchSource: parts[pIdx].webFetchSource,
+        diffAdded: parts[pIdx].diffAdded,
+        diffRemoved: parts[pIdx].diffRemoved,
+        diffText: parts[pIdx].diffText,
       );
       streamController.toolParts[assistantMessageId] = parts;
       streamController.streamingContentNotifier.notifyToolPartsUpdated(
@@ -810,6 +813,9 @@ class ChatActions {
       searchProvider: parts[idx].searchProvider,
       searchFallbackFrom: parts[idx].searchFallbackFrom,
       webFetchSource: parts[idx].webFetchSource,
+      diffAdded: parts[idx].diffAdded,
+      diffRemoved: parts[idx].diffRemoved,
+      diffText: parts[idx].diffText,
     );
     streamController.toolParts[messageId] = parts;
     streamController.streamingContentNotifier.notifyToolPartsUpdated(messageId);

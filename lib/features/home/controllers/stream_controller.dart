@@ -365,21 +365,28 @@ class StreamController {
     List<Map<String, dynamic>> Function(String messageId)? getToolEventsFromDb,
   ) {
     if (getToolEventsFromDb == null) return const <String, dynamic>{};
-    // Only search_web currently carries UI-only extras — short-circuit so
+    // search_web and the file tools carry UI-only extras — short-circuit so
     // the tool-event box is never read for unrelated tools (avoids extra
     // Hive reads per result in long agent runs).
-    if (name != 'search_web') return const <String, dynamic>{};
+    if (name != 'search_web' && !name.startsWith('file_')) {
+      return const <String, dynamic>{};
+    }
     try {
-      for (final e in getToolEventsFromDb(messageId)) {
+      final events = getToolEventsFromDb(messageId);
+      Map<String, dynamic> extrasOf(Map<String, dynamic> e) => {
+        for (final key in ChatService.preservedToolEventExtraKeys)
+          if (e[key] != null) key: e[key],
+      };
+      // Exact id wins across the whole list: a no-id legacy event with the
+      // same tool name must never shadow the event that owns the extras.
+      for (final e in events) {
         final eid = (e['id']?.toString() ?? '').trim();
-        final matches = eid.isNotEmpty
-            ? eid == resultId
-            : (e['name']?.toString() ?? '') == name;
-        if (matches) {
-          return <String, dynamic>{
-            for (final key in ChatService.preservedToolEventExtraKeys)
-              if (e[key] != null) key: e[key],
-          };
+        if (eid.isNotEmpty && eid == resultId) return extrasOf(e);
+      }
+      for (final e in events) {
+        final eid = (e['id']?.toString() ?? '').trim();
+        if (eid.isEmpty && (e['name']?.toString() ?? '') == name) {
+          return extrasOf(e);
         }
       }
     } catch (_) {}
@@ -856,6 +863,13 @@ class StreamController {
           searchProvider: extras['searchProvider']?.toString(),
           searchFallbackFrom: extras['searchFallbackFrom']?.toString(),
           webFetchSource: extras['webFetchSource']?.toString(),
+          diffAdded: extras['diffAdded'] is num
+              ? (extras['diffAdded'] as num).toInt()
+              : null,
+          diffRemoved: extras['diffRemoved'] is num
+              ? (extras['diffRemoved'] as num).toInt()
+              : null,
+          diffText: extras['diffText']?.toString(),
         );
       } else {
         parts.add(
@@ -868,6 +882,13 @@ class StreamController {
             searchProvider: extras['searchProvider']?.toString(),
             searchFallbackFrom: extras['searchFallbackFrom']?.toString(),
             webFetchSource: extras['webFetchSource']?.toString(),
+            diffAdded: extras['diffAdded'] is num
+                ? (extras['diffAdded'] as num).toInt()
+                : null,
+            diffRemoved: extras['diffRemoved'] is num
+                ? (extras['diffRemoved'] as num).toInt()
+                : null,
+            diffText: extras['diffText']?.toString(),
           ),
         );
       }
@@ -1279,6 +1300,8 @@ class StreamController {
                 searchProvider: summary.searchProvider,
                 searchFallbackFrom: summary.searchFallbackFrom,
                 webFetchSource: summary.webFetchSource,
+                diffAdded: summary.diffAdded,
+                diffRemoved: summary.diffRemoved,
               ),
             )
             .toList();

@@ -140,10 +140,13 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
 
   Future<void> _openToolsPage() async {
     final navigator = Navigator.of(context);
+    final workspacePath = _workspacePath;
     Navigator.of(context).pop();
     await Future<void>.delayed(const Duration(milliseconds: 80));
     await navigator.push(
-      MaterialPageRoute(builder: (_) => const WorkspaceToolsPage()),
+      MaterialPageRoute(
+        builder: (_) => WorkspaceToolsPage(workspacePath: workspacePath),
+      ),
     );
   }
 
