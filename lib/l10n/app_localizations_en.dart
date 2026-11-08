@@ -3387,6 +3387,40 @@ class AppLocalizationsEn extends AppLocalizations {
   String get displaySettingsPageReplayToolResultsTitle => 'Replay Tool Results';
 
   @override
+  String get displaySettingsPageAnswerReviewTitle => 'Answer Review';
+
+  @override
+  String get displaySettingsPageAnswerReviewDescription =>
+      'Review the draft before the final answer is sent and fix major issues once';
+
+  @override
+  String get displaySettingsPageAnswerReviewOptionOff => 'Off';
+
+  @override
+  String get displaySettingsPageAnswerReviewOptionSmart => 'Smart';
+
+  @override
+  String get displaySettingsPageAnswerReviewOptionAlways => 'Always';
+
+  @override
+  String get displaySettingsPageAnswerReviewSmartHint =>
+      'Only when tool results, long answers, code, numbers, or URLs are present';
+
+  @override
+  String get displaySettingsPageAnswerReviewCostHint =>
+      'Review adds one model request and may increase latency and token cost';
+
+  @override
+  String get chatAnswerReviewInProgress => 'Reviewing answer…';
+
+  @override
+  String get chatAnswerReviewRevising => 'Revising answer…';
+
+  @override
+  String get chatAnswerReviewFailedOpen =>
+      'Review unavailable; original answer kept';
+
+  @override
   String get displaySettingsPageShowUpdatesTitle => 'Updates';
 
   @override

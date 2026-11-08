@@ -9,6 +9,7 @@ import '../../models/conversation.dart';
 import '../../providers/model_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../agent/agent_orchestrator.dart';
+import '../agent/answer_review.dart';
 import '../api/builtin_tools.dart';
 import '../api/chat_api_service.dart';
 import '../search/search_tool_service.dart';
@@ -434,6 +435,10 @@ class ChatTurnService {
       streamOutput: true,
       requestId: request.conversationId ?? handle.assistantMessageId,
       sessionId: request.conversationId,
+      // Answer Review v1: the voice path is an explicit opt-out (§5.2
+      // invariant 11). The default is off too — this marker only guards
+      // against a future default flip.
+      answerReview: const AnswerReviewConfig.off(),
     );
     handle._sub = stream.listen(
       (chunk) {

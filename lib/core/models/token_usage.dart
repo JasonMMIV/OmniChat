@@ -45,6 +45,27 @@ class TokenUsage {
     );
   }
 
+  /// Additive union used by the answer-review phase (§8.4 of
+  /// docs/answer_review_plan.md): every column is summed, an all-zero total
+  /// falls back to prompt + completion, and cost snapshots accumulate via
+  /// [MessageUsage.accumulate].
+  ///
+  /// Do NOT use [merge] here — merge is the streaming max semantics and
+  /// recomputes `totalTokens` as prompt + completion, which would erase the
+  /// kernel's multi-round cumulative total.
+  TokenUsage sum(TokenUsage other) {
+    final p = promptTokens + other.promptTokens;
+    final c = completionTokens + other.completionTokens;
+    final t = totalTokens + other.totalTokens;
+    return TokenUsage(
+      promptTokens: p,
+      completionTokens: c,
+      cachedTokens: cachedTokens + other.cachedTokens,
+      totalTokens: t > 0 ? t : p + c,
+      messageUsage: MessageUsage.accumulate(messageUsage, other.messageUsage),
+    );
+  }
+
   /// Token counts still follow the streaming max semantics; costs are summed.
   /// Use this only at multi-round tool aggregation points.
   TokenUsage accumulate(TokenUsage other) {

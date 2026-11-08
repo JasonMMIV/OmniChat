@@ -6375,6 +6375,66 @@ abstract class AppLocalizations {
   /// **'Replay Tool Results'**
   String get displaySettingsPageReplayToolResultsTitle;
 
+  /// No description provided for @displaySettingsPageAnswerReviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Answer Review'**
+  String get displaySettingsPageAnswerReviewTitle;
+
+  /// No description provided for @displaySettingsPageAnswerReviewDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Review the draft before the final answer is sent and fix major issues once'**
+  String get displaySettingsPageAnswerReviewDescription;
+
+  /// No description provided for @displaySettingsPageAnswerReviewOptionOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get displaySettingsPageAnswerReviewOptionOff;
+
+  /// No description provided for @displaySettingsPageAnswerReviewOptionSmart.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart'**
+  String get displaySettingsPageAnswerReviewOptionSmart;
+
+  /// No description provided for @displaySettingsPageAnswerReviewOptionAlways.
+  ///
+  /// In en, this message translates to:
+  /// **'Always'**
+  String get displaySettingsPageAnswerReviewOptionAlways;
+
+  /// No description provided for @displaySettingsPageAnswerReviewSmartHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Only when tool results, long answers, code, numbers, or URLs are present'**
+  String get displaySettingsPageAnswerReviewSmartHint;
+
+  /// No description provided for @displaySettingsPageAnswerReviewCostHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Review adds one model request and may increase latency and token cost'**
+  String get displaySettingsPageAnswerReviewCostHint;
+
+  /// No description provided for @chatAnswerReviewInProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Reviewing answer…'**
+  String get chatAnswerReviewInProgress;
+
+  /// No description provided for @chatAnswerReviewRevising.
+  ///
+  /// In en, this message translates to:
+  /// **'Revising answer…'**
+  String get chatAnswerReviewRevising;
+
+  /// No description provided for @chatAnswerReviewFailedOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Review unavailable; original answer kept'**
+  String get chatAnswerReviewFailedOpen;
+
   /// No description provided for @displaySettingsPageShowUpdatesTitle.
   ///
   /// In en, this message translates to:

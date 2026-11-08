@@ -46,6 +46,30 @@ class StreamingContentNotifier {
         uiVersion: current.uiVersion,
         aiTeamProposalsJson: current.aiTeamProposalsJson,
         retryStatus: current.retryStatus,
+        reviewPhase: current.reviewPhase,
+      );
+    }
+  }
+
+  /// Update the Answer Review v1 phase indicator (`reviewing` /
+  /// `revising` / `revision_failed`, or `null` to clear it). The bubble
+  /// renders an inline pill above the streamed content — same mechanism as
+  /// [updateRetryStatus].
+  void updateReviewPhase(String messageId, String? phase) {
+    final notifier = _notifiers[messageId];
+    if (notifier != null) {
+      final current = notifier.value;
+      notifier.value = StreamingContentData(
+        content: current.content,
+        totalTokens: current.totalTokens,
+        reasoningText: current.reasoningText,
+        reasoningStartAt: current.reasoningStartAt,
+        reasoningFinishedAt: current.reasoningFinishedAt,
+        toolPartsVersion: current.toolPartsVersion,
+        uiVersion: current.uiVersion,
+        aiTeamProposalsJson: current.aiTeamProposalsJson,
+        retryStatus: current.retryStatus,
+        reviewPhase: phase,
       );
     }
   }
@@ -73,6 +97,7 @@ class StreamingContentNotifier {
         uiVersion: current.uiVersion,
         aiTeamProposalsJson: current.aiTeamProposalsJson,
         retryStatus: status,
+        reviewPhase: current.reviewPhase,
       );
     }
   }
@@ -96,6 +121,7 @@ class StreamingContentNotifier {
         uiVersion: current.uiVersion,
         aiTeamProposalsJson: current.aiTeamProposalsJson,
         retryStatus: current.retryStatus,
+        reviewPhase: current.reviewPhase,
       );
     }
   }
@@ -116,6 +142,7 @@ class StreamingContentNotifier {
         uiVersion: current.uiVersion,
         aiTeamProposalsJson: current.aiTeamProposalsJson,
         retryStatus: current.retryStatus,
+        reviewPhase: current.reviewPhase,
       );
     }
   }
@@ -136,6 +163,7 @@ class StreamingContentNotifier {
         uiVersion: current.uiVersion + 1,
         aiTeamProposalsJson: current.aiTeamProposalsJson,
         retryStatus: current.retryStatus,
+        reviewPhase: current.reviewPhase,
       );
     }
   }
@@ -156,6 +184,7 @@ class StreamingContentNotifier {
         uiVersion: current.uiVersion,
         aiTeamProposalsJson: proposalsJson,
         retryStatus: current.retryStatus,
+        reviewPhase: current.reviewPhase,
       );
     }
   }
@@ -216,6 +245,7 @@ class StreamingContentData {
     this.uiVersion = 0,
     this.aiTeamProposalsJson,
     this.retryStatus,
+    this.reviewPhase,
   });
 
   final String content;
@@ -233,6 +263,10 @@ class StreamingContentData {
   /// attempt, or post-retry success).
   final RetryStatus? retryStatus;
 
+  /// Answer Review v1 phase; `null` when no review indicator is showing
+  /// (`reviewing` / `revising` / `revision_failed` otherwise).
+  final String? reviewPhase;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -246,7 +280,8 @@ class StreamingContentData {
           toolPartsVersion == other.toolPartsVersion &&
           uiVersion == other.uiVersion &&
           aiTeamProposalsJson == other.aiTeamProposalsJson &&
-          retryStatus == other.retryStatus;
+          retryStatus == other.retryStatus &&
+          reviewPhase == other.reviewPhase;
 
   @override
   int get hashCode =>
@@ -258,5 +293,6 @@ class StreamingContentData {
       toolPartsVersion.hashCode ^
       uiVersion.hashCode ^
       aiTeamProposalsJson.hashCode ^
-      retryStatus.hashCode;
+      retryStatus.hashCode ^
+      reviewPhase.hashCode;
 }

@@ -25,12 +25,26 @@
 // chat-completions incl. Responses and the no-DONE fallback, Claude thinking
 // echo and pause_turn/server-tool continuation, Gemini thought signatures, and
 // Neuralwatt on the OpenAI wire).
+//
+// Answer Review v1 (docs/answer_review_plan.md): the driver now also owns the
+// post-finish review phase. Every transport terminal (tool rounds included)
+// is held back (hold-latest) instead of forwarded; after the kernel reports
+// `finished`, the captured last-round draft is reviewed by the same model and
+// — only on a REVISE verdict — rewritten once. The UI still observes exactly
+// one terminal `isDone`, whose usage is the main run plus the review/revision
+// subset. With the review off, the released terminal is behaviorally
+// identical to today's pass-through (single-round runs byte-for-byte).
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
+import 'dart:math' as math;
 
+import '../../models/answer_review.dart';
+import '../../models/token_usage.dart';
 import '../../providers/settings_provider.dart';
 import 'agent_loop.dart';
+import 'answer_review.dart';
 import '../api/chat_api_service.dart';
 
 /// Loop driver: owns the kernel instance, the transport binding and the tool
@@ -46,10 +60,16 @@ class AgentOrchestrator {
   /// through to the kernel; hooks let callers observe round boundaries (soft
   /// budget, Phase-1 approval pause/resume, compression triggers).
   ///
-  /// The stream ends with a terminal `isDone` chunk carrying the run's
+  /// The stream ends with a single terminal `isDone` chunk carrying the run's
   /// cumulative token usage; when the kernel stops early (max steps / budget
   /// / hook veto) the same terminal chunk is emitted so the UI finalizes the
   /// message bubble as it does today.
+  ///
+  /// [answerReview] enables the post-finish review phase (Answer Review v1).
+  /// [reviewSendRound] is a test seam replacing the review / revision
+  /// transport binding; when null the real [sendRoundImpl] is used with the
+  /// review parameter contract (text-only, `_review` request id, sanitized
+  /// extra body).
   Stream<ChatStreamChunk> run({
     required ProviderConfig config,
     required String modelId,
@@ -70,6 +90,11 @@ class AgentOrchestrator {
     String? imageAspectRatio,
     AgentLoopOptions options = const AgentLoopOptions(),
     AgentLoopHooks hooks = const AgentLoopHooks(),
+    AnswerReviewConfig answerReview = const AnswerReviewConfig.off(),
+    Future<Stream<ChatStreamChunk>> Function(
+      List<Map<String, dynamic>> messages,
+    )?
+    reviewSendRound,
     Future<Stream<ChatStreamChunk>> Function(
       List<Map<String, dynamic>> messages,
     )?
@@ -101,6 +126,54 @@ class AgentOrchestrator {
           sessionId: sessionId,
           imageAspectRatio: imageAspectRatio,
         ));
+
+    // Internal review/revision transport binding (§10.3): text-only, the
+    // `_review` request-id suffix (cancelStreaming cancels it), images are
+    // NOT re-sent (they already travelled with the main run), and the extra
+    // body is sanitized of every tool / stream / request-shape override.
+    Future<Stream<ChatStreamChunk>> reviewRound({
+      required List<Map<String, dynamic>> reviewMessages,
+      required bool stream,
+      int? maxTokensOverride,
+    }) async {
+      final injected = reviewSendRound;
+      if (injected != null) return injected(reviewMessages);
+      return sendRoundImpl(
+        config: config,
+        modelId: modelId,
+        messages: reviewMessages,
+        userImagePaths: null,
+        imageAspectRatio: null,
+        thinkingBudget: thinkingBudget,
+        temperature: temperature,
+        topP: topP,
+        maxTokens: maxTokensOverride,
+        tools: null,
+        extraHeaders: extraHeaders,
+        extraBody: sanitizeReviewExtraBody(extraBody),
+        webFetchEnabled: false,
+        streamOutput: stream,
+        requestId: '${requestId}_review',
+        sessionId: sessionId,
+      );
+    }
+
+    // Answer Review v1 bookkeeping: the last round's draft (tool-round
+    // preambles are dropped), the held transport terminal (hold-latest) and
+    // the review/revision usage subset folded into the final terminal.
+    final draft = StringBuffer();
+    ChatStreamChunk? heldTerminal;
+    var reviewUsage = const TokenUsage();
+
+    // Driver-side per-round usage total: a round's real total is the MAX
+    // usage-carrying chunk of that round (every transport reports cumulative
+    // per-round usage — Gemini even repeats it on every delta, where the
+    // kernel's additive `tokensUsed` over-counts). Rounds are summed. This
+    // feeds the terminal's base total (§8.4) without inheriting the kernel's
+    // per-chunk additive quirk.
+    var roundMaxUsageTotal = 0;
+    var usageAcrossRounds = 0;
+
     await for (final event in runAgentLoop(
       messages: messages,
       sendRound: round,
@@ -114,26 +187,65 @@ class AgentOrchestrator {
     )) {
       switch (event) {
         case AgentStreamEvent(:final chunk):
-          // Transport chunks (content / reasoning / usage / retry status /
-          // toolCalls / synthetic toolResults) pass through untouched.
-          yield chunk;
+          if (chunk.errorKind != null) {
+            // L1 retry in the main run: the attempt is re-issued and the
+            // whole answer regenerates, so the draft restarts blank (§5.3).
+            draft.clear();
+            heldTerminal = null;
+            roundMaxUsageTotal = 0;
+          }
+          // Per-round usage max (see the comment above usageAcrossRounds).
+          final roundTotal = chunk.usage?.totalTokens ?? chunk.totalTokens;
+          if (roundTotal > roundMaxUsageTotal) roundMaxUsageTotal = roundTotal;
+          if (chunk.isDone) {
+            // Answer Review v1: EVERY transport terminal (tool rounds
+            // included) is held back and the next one overwrites it
+            // (hold-latest). The UI used to swallow tool-round terminals via
+            // the hasLoadingTool guard; holding them here is equivalent and
+            // lets the driver release exactly ONE terminal. The terminal's
+            // text still reaches the UI through a content-only chunk (usage
+            // keeps riding the held terminal).
+            if (chunk.content.isNotEmpty) {
+              draft.write(chunk.content);
+              yield ChatStreamChunk(
+                content: chunk.content,
+                reasoning: chunk.reasoning,
+                isDone: false,
+                totalTokens: 0,
+              );
+            }
+            heldTerminal = chunk.copyWith(content: '');
+          } else {
+            if (chunk.content.isNotEmpty) draft.write(chunk.content);
+            yield chunk;
+          }
         case AgentToolExecutedEvent():
           // The kernel already re-emits a synthetic toolResults chunk for the
           // UI (options.emitCalls); nothing to do here.
           break;
         case AgentRoundFinishedEvent():
-          // Boundary bookkeeping is handled by hooks; nothing to re-emit.
-          break;
-        case AgentRunFinishedEvent(:final reason, :final tokensUsed):
+          // Tool-round boundary: the preamble is not the final answer —
+          // restart the draft from blank (§5.2 invariant 4) and bank the
+          // round's usage total.
+          draft.clear();
+          usageAcrossRounds += roundMaxUsageTotal;
+          roundMaxUsageTotal = 0;
+        case AgentRunFinishedEvent(
+          :final reason,
+          :final messages,
+          :final executedCallCount,
+          :final tokensUsed,
+        ):
           if (reason != AgentRunStopReason.finished) {
             // Early stop: the transport never emitted a terminal chunk for
             // the final round, so synthesize one so the UI finalizes the
-            // message exactly as on normal completion. `finished` already
-            // delivered its own isDone chunk through the transport.
-            // P0-5: max-steps / token-budget stops are surfaced to the user
-            // via a localized footnote (ADR-A4 soft-gate semantics); hook
-            // vetoes (approval pause) carry no reason — the approval card
-            // is the user-facing surface for those.
+            // message exactly as on normal completion. Any held tool-round
+            // terminal is discarded — early stops are never reviewed
+            // (§5.2 invariant 1). P0-5: max-steps / token-budget stops are
+            // surfaced to the user via a localized footnote (ADR-A4
+            // soft-gate semantics); hook vetoes (approval pause) carry no
+            // reason — the approval card is the user-facing surface.
+            heldTerminal = null;
             yield ChatStreamChunk(
               content: '',
               isDone: true,
@@ -144,7 +256,231 @@ class AgentOrchestrator {
                 _ => null,
               },
             );
+            return;
           }
+
+          if (heldTerminal == null) {
+            // Anomalous: the transport never delivered a terminal for the
+            // final round. Synthesize one so the bubble still finalizes and
+            // skip the review entirely.
+            yield ChatStreamChunk(
+              content: '',
+              isDone: true,
+              totalTokens: tokensUsed,
+            );
+            return;
+          }
+
+          // Base total for the released terminal (§8.4): the run's true
+          // cumulative, measured max-per-round (see usageAcrossRounds above).
+          // The kernel's additive `tokensUsed` is only accurate when each
+          // round emits a single usage chunk; transports that repeat the
+          // cumulative usage on every delta (Gemini / Claude merges) would
+          // inflate it N× — prefer the per-round max sum and fall back to the
+          // kernel value only when nothing was observed at all.
+          final observedTotal =
+              usageAcrossRounds + roundMaxUsageTotal;
+          final baseTokensUsed = observedTotal > 0 ? observedTotal : tokensUsed;
+
+          final draftText = draft.toString();
+          if (!answerReview.enabled ||
+              !shouldReviewDraft(
+                mode: answerReview.mode,
+                draft: draftText,
+                executedCallCount: executedCallCount,
+              )) {
+            developer.log(
+              'answer_review.skip reason='
+              '${!answerReview.enabled ? answerReview.mode.value : (draftText.trim().isEmpty ? 'empty' : 'gate')}',
+              name: 'answer_review',
+            );
+            yield _releaseHeldTerminal(
+              held: heldTerminal,
+              tokensUsed: baseTokensUsed,
+              reviewUsage: reviewUsage,
+              reviewed: false,
+            );
+            return;
+          }
+
+          developer.log(
+            'answer_review.start mode=${answerReview.mode.value} '
+            'executedCalls=$executedCallCount draftChars=${draftText.length}',
+            name: 'answer_review',
+          );
+
+          // --- Review call (fail-open; §5.1) ---
+          yield ChatStreamChunk(
+            content: '',
+            isDone: false,
+            totalTokens: 0,
+            reviewPhase: kReviewPhaseReviewing,
+          );
+          final reviewWatch = Stopwatch()..start();
+          final reviewCollected = await _collectRound(
+            reviewRound(
+              reviewMessages: buildReviewTurn(
+                working: messages,
+                draft: draftText,
+              ),
+              stream: false,
+              maxTokensOverride: answerReview.maxReviewTokens,
+            ),
+            timeout: answerReview.reviewTimeout,
+          );
+          reviewUsage = reviewUsage.sum(reviewCollected.resolvedUsage);
+
+          final reviewOutcome = _verdictFromCollected(reviewCollected);
+          if (reviewOutcome == null) {
+            // Timeout / transport error / empty response: keep the draft and
+            // close with a non-reviewed terminal (§3.2 outcome 3).
+            yield _releaseHeldTerminal(
+              held: heldTerminal,
+              tokensUsed: baseTokensUsed,
+              reviewUsage: reviewUsage,
+              reviewed: false,
+            );
+            return;
+          }
+          final verdict = reviewOutcome.verdict;
+          reviewWatch.stop();
+          var blockers = 0;
+          var majors = 0;
+          for (final issue in verdict.issues) {
+            if (issue.severity == 'blocker') {
+              blockers++;
+            } else if (issue.severity == 'major') {
+              majors++;
+            }
+          }
+          developer.log(
+            'answer_review.verdict verdict=${verdict.verdict} '
+            'issues=${verdict.issues.length} blockers=$blockers '
+            'majors=$majors latencyMs=${reviewWatch.elapsedMilliseconds} '
+            'tokens=${reviewCollected.resolvedUsage.totalTokens}',
+            name: 'answer_review',
+          );
+
+          if (!verdict.isRevise) {
+            // PASS: release the draft untouched. `reviewed` is only true when
+            // the verdict JSON actually parsed — a malformed (fail-open PASS)
+            // response never completed the review (§8.1).
+            yield _releaseHeldTerminal(
+              held: heldTerminal,
+              tokensUsed: baseTokensUsed,
+              reviewUsage: reviewUsage,
+              reviewed: reviewOutcome.completed,
+            );
+            return;
+          }
+
+          // --- Revision call (text-only stream; at most once; §5.2) ---
+          yield ChatStreamChunk(
+            content: '',
+            isDone: false,
+            totalTokens: 0,
+            reviewPhase: kReviewPhaseRevising,
+          );
+          final revisionCollected = _CollectedRound();
+          var revisionFailed = false;
+          try {
+            final revisionStream = _withDeadline(
+              await reviewRound(
+                reviewMessages: buildRevisionTurn(
+                  working: messages,
+                  draft: draftText,
+                  issuesJson: verdict.blockingIssuesJson(),
+                ),
+                stream: true,
+                // The revision rewrites the full answer — it keeps the main
+                // run's output budget, not the short verdict cap.
+                maxTokensOverride: maxTokens,
+              ),
+              timeout: answerReview.reviewTimeout,
+            );
+            await for (final chunk in revisionStream) {
+              revisionCollected.add(chunk);
+              if (chunk.errorKind != null) {
+                // L1 retry inside the revision round: drop the status chunk
+                // and clear the half-revised text from the UI without
+                // touching the main run's usage / tool cards (§5.3).
+                yield ChatStreamChunk(
+                  content: '',
+                  isDone: false,
+                  totalTokens: 0,
+                  replaceContent: true,
+                );
+              } else if (chunk.isDone) {
+                // The revision's own terminal is never forwarded — the
+                // driver composes the single final terminal (§5.2 invariant
+                // 2).
+              } else if (chunk.content.isNotEmpty) {
+                // Text-only forwarding: the revision round's reasoning echo
+                // must NOT append onto the main run's finished thinking
+                // timeline.
+                yield ChatStreamChunk(
+                  content: chunk.content,
+                  isDone: false,
+                  totalTokens: 0,
+                );
+              }
+            }
+          } on TimeoutException {
+            revisionCollected.errored = true;
+            revisionFailed = true;
+          } catch (_) {
+            revisionCollected.errored = true;
+            revisionFailed = true;
+          }
+          reviewUsage = reviewUsage.sum(revisionCollected.resolvedUsage);
+
+          if (revisionFailed ||
+              !revisionCollected.ok) {
+            // Fail-open: revision errored / timed out / came back empty /
+            // truncated. Restore the original draft via a replace-content
+            // chunk, then close with a non-reviewed terminal (§8.3 D.4).
+            developer.log(
+              'answer_review.fail_open reason=revision '
+              'sawTerminal=${revisionCollected.sawTerminal} '
+              'chars=${revisionCollected.content.trim().length}',
+              name: 'answer_review',
+            );
+            developer.log(
+              'answer_review.revision ok=false',
+              name: 'answer_review',
+            );
+            yield ChatStreamChunk(
+              content: '',
+              isDone: false,
+              totalTokens: 0,
+              reviewPhase: kReviewPhaseRevisionFailed,
+            );
+            yield ChatStreamChunk(
+              content: draftText,
+              isDone: false,
+              totalTokens: 0,
+              replaceContent: true,
+            );
+            yield _releaseHeldTerminal(
+              held: heldTerminal,
+              tokensUsed: baseTokensUsed,
+              reviewUsage: reviewUsage,
+              reviewed: false,
+            );
+            return;
+          }
+
+          developer.log(
+            'answer_review.revision ok=true chars='
+            '${revisionCollected.content.trim().length}',
+            name: 'answer_review',
+          );
+          yield _releaseHeldTerminal(
+            held: heldTerminal,
+            tokensUsed: baseTokensUsed,
+            reviewUsage: reviewUsage,
+            reviewed: true,
+          );
           return;
       }
     }
@@ -189,6 +525,186 @@ class AgentOrchestrator {
       imageAspectRatio: imageAspectRatio,
     );
   }
+}
+
+/// Collect one internal (review / revision) transport round into a content +
+/// usage snapshot. The returned future resolves when the stream completes or
+/// errors; the wall-clock [timeout] cancels the inner subscription first and
+/// then resolves with a timed-out snapshot so the provider request cannot
+/// keep burning tokens in the background (§5.1 timeout semantics).
+Future<_CollectedRound> _collectRound(
+  Future<Stream<ChatStreamChunk>> roundFuture, {
+  required Duration timeout,
+}) async {
+  final completer = Completer<_CollectedRound>();
+  final collected = _CollectedRound();
+  StreamSubscription<ChatStreamChunk>? sub;
+  try {
+    sub = (await roundFuture).listen(
+      collected.add,
+      onError: (Object e) {
+        collected.errored = true;
+        if (!completer.isCompleted) completer.complete(collected);
+      },
+      onDone: () {
+        if (!completer.isCompleted) completer.complete(collected);
+      },
+      cancelOnError: true,
+    );
+  } catch (e) {
+    // The transport call itself threw (request build / connect failure).
+    collected.errored = true;
+    return collected;
+  }
+  return completer.future.timeout(timeout, onTimeout: () async {
+    await sub?.cancel();
+    collected.errored = true;
+    collected.timedOut = true;
+    return collected;
+  });
+}
+
+/// Wrap a stream with a wall-clock deadline: on timeout the inner
+/// subscription is cancelled and a [TimeoutException] surfaces to the
+/// `await for` consumer. Used by the revision round, whose deltas stream
+/// through while the deadline still applies to the whole response.
+Stream<ChatStreamChunk> _withDeadline(
+  Stream<ChatStreamChunk> source, {
+  required Duration timeout,
+}) {
+  late StreamController<ChatStreamChunk> controller;
+  StreamSubscription<ChatStreamChunk>? sub;
+  Timer? timer;
+  controller = StreamController<ChatStreamChunk>(
+    onListen: () {
+      timer = Timer(timeout, () async {
+        await sub?.cancel();
+        controller.addError(TimeoutException('answer_review deadline', timeout));
+        await controller.close();
+      });
+      sub = source.listen(
+        controller.add,
+        onError: controller.addError,
+        onDone: () {
+          timer?.cancel();
+          controller.close();
+        },
+        cancelOnError: true,
+      );
+    },
+    onPause: () => sub?.pause(),
+    onResume: () => sub?.resume(),
+    onCancel: () {
+      timer?.cancel();
+      return sub?.cancel();
+    },
+  );
+  return controller.stream;
+}
+
+/// Interpret a collected review round as a verdict, or null for a fail-open
+/// (timeout / transport error / empty body). A malformed body parses as a
+/// PASS verdict inside [parseReviewVerdict] (§7.4) but still reports
+/// `completed: false`, so the released terminal keeps `reviewed: false`
+/// (§8.1: reviewed means the review ran to completion).
+({ReviewVerdict verdict, bool completed})? _verdictFromCollected(
+  _CollectedRound collected,
+) {
+  if (collected.timedOut) {
+    developer.log('answer_review.fail_open reason=timeout', name: 'answer_review');
+    return null;
+  }
+  if (collected.errored) {
+    developer.log('answer_review.fail_open reason=error', name: 'answer_review');
+    return null;
+  }
+  if (!collected.sawTerminal || collected.content.trim().isEmpty) {
+    developer.log('answer_review.fail_open reason=empty', name: 'answer_review');
+    return null;
+  }
+  final verdict = parseReviewVerdict(collected.content);
+  if (!verdict.parsed) {
+    developer.log(
+      'answer_review.fail_open reason=parse rawLength=${collected.content.length}',
+      name: 'answer_review',
+    );
+  }
+  return (verdict: verdict, completed: verdict.parsed);
+}
+
+/// Compose the single final terminal from the held transport terminal
+/// (§8.4): usage = (held.usage ?? zero) + reviewUsage (additive `sum`),
+/// totalTokens = max(held.totalTokens, kernel cumulative) + reviewUsage.total
+/// (prompt + completion fallback). [reviewUsage] rides along as the
+/// display-only subset — the UI must not add it a second time.
+ChatStreamChunk _releaseHeldTerminal({
+  required ChatStreamChunk held,
+  required int tokensUsed,
+  required TokenUsage reviewUsage,
+  required bool reviewed,
+}) {
+  final reviewTotal =
+      reviewUsage.totalTokens > 0
+      ? reviewUsage.totalTokens
+      : reviewUsage.promptTokens + reviewUsage.completionTokens;
+  final hasReviewUsage =
+      reviewTotal > 0 ||
+      reviewUsage.cachedTokens > 0 ||
+      reviewUsage.messageUsage != null;
+  final baseTotal = math.max(held.totalTokens, tokensUsed);
+  final TokenUsage? usage = (held.usage == null && !hasReviewUsage)
+      ? held.usage
+      : (held.usage ?? const TokenUsage()).sum(reviewUsage);
+  return held.copyWith(
+    isDone: true,
+    totalTokens: baseTotal + reviewTotal,
+    usage: usage,
+    reviewed: reviewed,
+    reviewUsage: hasReviewUsage ? reviewUsage : null,
+  );
+}
+
+/// Accumulator for one internal round: content, the LAST usage snapshot (or
+/// the largest per-chunk total when a provider omits structured usage) and
+/// the terminal / error flags. Streaming usage snapshots are never summed
+/// chunk-by-chunk (§5.2 invariant 9).
+class _CollectedRound {
+  final StringBuffer _content = StringBuffer();
+  TokenUsage _usage = const TokenUsage();
+  int _maxTotal = 0;
+  bool sawTerminal = false;
+  bool errored = false;
+  bool timedOut = false;
+
+  void add(ChatStreamChunk chunk) {
+    if (chunk.errorKind != null) {
+      // L1 retry inside the internal round: the attempt re-issues the whole
+      // request, so the previously collected text restarts from blank (§5.3).
+      _content.clear();
+      return;
+    }
+    if (chunk.content.isNotEmpty) _content.write(chunk.content);
+    if (chunk.usage != null) _usage = chunk.usage!;
+    if (chunk.totalTokens > _maxTotal) _maxTotal = chunk.totalTokens;
+    if (chunk.isDone) sawTerminal = true;
+  }
+
+  String get content => _content.toString();
+
+  TokenUsage get resolvedUsage {
+    if (_usage.totalTokens > 0 ||
+        _usage.promptTokens > 0 ||
+        _usage.completionTokens > 0 ||
+        _usage.messageUsage != null) {
+      return _usage;
+    }
+    if (_maxTotal > 0) return TokenUsage(totalTokens: _maxTotal);
+    return const TokenUsage();
+  }
+
+  /// A revision succeeded only when the stream completed with a terminal and
+  /// produced a non-empty answer; anything else fail-opens back to the draft.
+  bool get ok => sawTerminal && !errored && content.trim().isNotEmpty;
 }
 
 /// Fallback tool handler used when a caller has no real handler: surfaces a

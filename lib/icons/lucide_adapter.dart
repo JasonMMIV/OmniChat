@@ -37,6 +37,7 @@ class Lucide {
   static const IconData Database = lucide.LucideIcons.database;
   static const IconData HardDrive = lucide.LucideIcons.hardDrive;
   static const IconData BadgeInfo = lucide.LucideIcons.badgeInfo;
+  static const IconData ScanSearch = lucide.LucideIcons.scanSearch;
   static const IconData Info = lucide.LucideIcons.info;
   static const IconData Lightbulb = lucide.LucideIcons.lightbulb;
   static const IconData CircleAlert = lucide.LucideIcons.circleAlert;

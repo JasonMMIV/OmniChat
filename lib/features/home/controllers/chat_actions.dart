@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
@@ -36,6 +37,7 @@ import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant_regex.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
 import '../../../core/services/agent/agent_orchestrator.dart';
+import '../../../core/services/agent/answer_review.dart';
 import '../../../core/services/agent/checkpoint/agent_run_checkpoint.dart';
 import '../../../core/services/agent/checkpoint/agent_run_checkpoint_store.dart';
 import '../../../core/services/agent/checkpoint/agent_run_journal.dart';
@@ -1133,6 +1135,10 @@ class ChatActions {
     if (sub != null) hadActiveWork = true;
     await sub?.cancel();
     ChatApiService.cancelRequest(cid);
+    // Answer Review v1: the internal review / revision round runs under a
+    // `${cid}_review` request id (mirrors the `${cid}_proposer` convention)
+    // so a deliberate stop also aborts the in-flight review request.
+    ChatApiService.cancelRequest('${cid}_review');
 
     // Find the latest assistant streaming message within current conversation and mark it finished
     ChatMessage? streaming;
@@ -1435,8 +1441,18 @@ class ChatActions {
   }
 
   /// Execute generation with the given context.
-  Future<void> _executeGeneration(stream_ctrl.GenerationContext ctx) async {
+  Future<void> _executeGeneration(
+    stream_ctrl.GenerationContext ctx, {
+    // Answer Review v1 (docs/answer_review_plan.md): the AI Team aggregator
+    // passes `false` — proposals must never be reviewed (§5.2 invariant 11).
+    bool enableAnswerReview = true,
+  }) async {
     final state = stream_ctrl.StreamingState(ctx);
+    // Review is streaming-chat-only (§5.2 invariant 12): non-streaming runs
+    // and the opt-out callers keep the off config.
+    final answerReview = (enableAnswerReview && ctx.streamOutput)
+        ? AnswerReviewConfig(mode: ctx.settings.answerReviewMode)
+        : const AnswerReviewConfig.off();
     final assistant = ctx.assistant;
     final conversationId = state.conversationId;
 
@@ -1467,6 +1483,7 @@ class ChatActions {
         requestId: conversationId,
         sessionId: conversationId,
         imageAspectRatio: ctx.settings.imageAspectRatio,
+        answerReview: answerReview,
       );
 
       await _conversationStreams[conversationId]?.cancel();
@@ -1749,7 +1766,7 @@ class ChatActions {
     );
 
     // Execute aggregator generation (standard flow, subscription registered in _conversationStreams per K1)
-    await _executeGeneration(aggCtx);
+    await _executeGeneration(aggCtx, enableAnswerReview: false);
   }
 
   /// Run a single proposer silently (no UI push), return map with content/reasoning/toolCalls.
@@ -2136,6 +2153,14 @@ class ChatActions {
       return;
     }
 
+    // Answer Review v1 status chunk (reviewing / revising /
+    // revision_failed). Routed away from the content accumulator — status
+    // chunks never carry content (§9.3).
+    if (chunk.reviewPhase != null) {
+      await _handleReviewPhaseChunk(chunk, state);
+      return;
+    }
+
     final chunkContent = chunk.content.isNotEmpty
         ? streamController.captureGeminiThoughtSignature(
             chunk.content,
@@ -2171,6 +2196,71 @@ class ChatActions {
     } else {
       await _handleContentChunk(chunk, state, chunkContent);
     }
+  }
+
+  /// Answer Review v1 status chunk handler (§9.3): switches the review
+  /// indicator and, on `revising`, backs up + clears the on-screen draft.
+  /// Usage / totalTokens / tool cards are intentionally untouched.
+  Future<void> _handleReviewPhaseChunk(
+    ChatStreamChunk chunk,
+    stream_ctrl.StreamingState state,
+  ) async {
+    final phase = chunk.reviewPhase!;
+    switch (phase) {
+      case kReviewPhaseReviewing:
+        state.answerReview.beginReviewing();
+        streamController.streamingContentNotifier.updateReviewPhase(
+          state.messageId,
+          kReviewPhaseReviewing,
+        );
+        break;
+      case kReviewPhaseRevising:
+        // Back up the draft BEFORE anything clears it so a cancel / error
+        // mid-revision can restore what the user saw.
+        state.answerReview.beginRevision(state.fullContentRaw);
+        // The revised text replaces the draft: a signature captured from the
+        // draft no longer matches the new text, and the throttle timer must
+        // not race with the revision's content writes.
+        streamController.clearGeminiThoughtSignature(state.messageId);
+        streamController.cancelThrottleTimer(state.messageId);
+        state.fullContentRaw = '';
+        // DB and `_messages` keep the draft during the revision (§9.4): a
+        // cancel or crash must never lose the original answer in favor of a
+        // half-revised stream. Only the live notifier shows the revision.
+        streamController.streamingContentNotifier.updateReviewPhase(
+          state.messageId,
+          kReviewPhaseRevising,
+        );
+        streamController.streamingContentNotifier.updateContent(
+          state.messageId,
+          '',
+          state.totalTokens,
+        );
+        break;
+      case kReviewPhaseRevisionFailed:
+        state.answerReview.markRevisionFailed();
+        streamController.streamingContentNotifier.updateReviewPhase(
+          state.messageId,
+          kReviewPhaseRevisionFailed,
+        );
+        break;
+    }
+  }
+
+  /// Restore the backed-up draft when a run ends (done / error) mid-revision
+  /// (§9.6). The normal terminal path clears the backup via `finish()` and
+  /// needs no restore.
+  void _restoreReviewDraftIfNeeded(stream_ctrl.StreamingState state) {
+    if (!state.answerReview.needsDraftRestore) return;
+    final draft = state.answerReview.takeDraftForRestore();
+    state.fullContentRaw = draft;
+    // Display the processed form (assistant regexes), keep the raw text in
+    // `fullContentRaw` — `_finishStreaming` re-processes it for persistence.
+    streamController.streamingContentNotifier.updateContent(
+      state.messageId,
+      _transformAssistantContent(state, draft),
+      state.totalTokens,
+    );
   }
 
   /// Reset the streaming UI / throttle state in preparation for a fresh
@@ -2322,7 +2412,23 @@ class ChatActions {
     final messageId = state.messageId;
     final conversationId = state.conversationId;
 
-    state.fullContentRaw += chunkContent;
+    // Answer Review v1 (§9.4): while any review phase is active — revising,
+    // and also the post-`revision_failed` draft restore — the DB and
+    // `_messages` keep the original draft; only `fullContentRaw` and the
+    // live notifier advance. A cancel / crash mid-revision therefore always
+    // persists the draft, never a half-revised answer.
+    final reviewPhaseActive = state.answerReview.phase != null;
+
+    if (chunk.replaceContent) {
+      // Fail-open draft restore (or defensive whole-text replacement):
+      // replace instead of append, and reset the signature / throttle state
+      // so the restored text is not polluted by revision-era captures.
+      state.fullContentRaw = chunkContent;
+      streamController.clearGeminiThoughtSignature(state.messageId);
+      streamController.cancelThrottleTimer(state.messageId);
+    } else {
+      state.fullContentRaw += chunkContent;
+    }
     // Clear the retry indicator as soon as the new attempt starts
     // streaming real content. Otherwise the "重試中… 1/3" badge would
     // persist on top of the response, confusing the user.
@@ -2344,7 +2450,7 @@ class ChatActions {
         state.agentPromptTokens = promptTokens;
       }
       final usageMeta = chunk.usage!.toMessageUsage();
-      if (usageMeta != null) {
+      if (usageMeta != null && !reviewPhaseActive) {
         final index = _messages.indexWhere((m) => m.id == state.messageId);
         if (index != -1) {
           _messages[index] = _messages[index].copyWith(
@@ -2355,70 +2461,86 @@ class ChatActions {
     }
 
     String streamingProcessed = _transformAssistantContent(state);
-    if (streamingProcessed.contains('data:image') &&
-        streamingProcessed.contains('base64,')) {
-      try {
-        final sanitized =
-            await MarkdownMediaSanitizer.replaceInlineBase64Images(
-              streamingProcessed,
-            );
-        if (sanitized != streamingProcessed) {
-          streamingProcessed = sanitized;
-          state.fullContentRaw = sanitized;
+    if (!reviewPhaseActive) {
+      if (streamingProcessed.contains('data:image') &&
+          streamingProcessed.contains('base64,')) {
+        try {
+          final sanitized =
+              await MarkdownMediaSanitizer.replaceInlineBase64Images(
+                streamingProcessed,
+              );
+          if (sanitized != streamingProcessed) {
+            streamingProcessed = sanitized;
+            state.fullContentRaw = sanitized;
+          }
+        } catch (e) {
+          // ignore
         }
-      } catch (e) {
-        // ignore
+      }
+      onScheduleImageSanitize?.call(
+        messageId,
+        streamingProcessed,
+        immediate: true,
+      );
+      // Use silent update to avoid triggering ChatService.notifyListeners()
+      // which would cause side_drawer and other widgets to rebuild
+      await chatService.updateMessageSilent(
+        messageId,
+        content: streamingProcessed,
+        totalTokens: state.totalTokens,
+        promptTokens: state.usage?.promptTokens,
+        completionTokens: state.usage?.completionTokens,
+        cachedTokens: state.usage?.cachedTokens,
+      );
+
+      if (state.ctx.streamOutput &&
+          _currentConversation?.id == conversationId) {
+        final index = _messages.indexWhere((m) => m.id == messageId);
+        if (index != -1) {
+          _messages[index] = _messages[index].copyWith(
+            content: streamingProcessed,
+            totalTokens: state.totalTokens,
+            promptTokens: state.usage?.promptTokens,
+            completionTokens: state.usage?.completionTokens,
+            cachedTokens: state.usage?.cachedTokens,
+          );
+          // NOTE: Do NOT call onMessagesChanged here!
+          // Streaming content updates are handled by StreamingContentNotifier
+          // via ValueListenableBuilder, which only rebuilds the streaming message widget.
+          // Calling onMessagesChanged would trigger a full page rebuild and cause lag.
+        }
       }
     }
-    onScheduleImageSanitize?.call(
-      messageId,
-      streamingProcessed,
-      immediate: true,
-    );
-    // Use silent update to avoid triggering ChatService.notifyListeners()
-    // which would cause side_drawer and other widgets to rebuild
-    await chatService.updateMessageSilent(
-      messageId,
-      content: streamingProcessed,
-      totalTokens: state.totalTokens,
-      promptTokens: state.usage?.promptTokens,
-      completionTokens: state.usage?.completionTokens,
-      cachedTokens: state.usage?.cachedTokens,
-    );
 
-    if (state.ctx.streamOutput && _currentConversation?.id == conversationId) {
-      final index = _messages.indexWhere((m) => m.id == messageId);
-      if (index != -1) {
-        _messages[index] = _messages[index].copyWith(
-          content: streamingProcessed,
-          totalTokens: state.totalTokens,
-          promptTokens: state.usage?.promptTokens,
-          completionTokens: state.usage?.completionTokens,
-          cachedTokens: state.usage?.cachedTokens,
-        );
-        // NOTE: Do NOT call onMessagesChanged here!
-        // Streaming content updates are handled by StreamingContentNotifier
-        // via ValueListenableBuilder, which only rebuilds the streaming message widget.
-        // Calling onMessagesChanged would trigger a full page rebuild and cause lag.
-      }
-    }
-
-    // End reasoning when content starts
-    if (state.ctx.streamOutput && chunkContent.isNotEmpty) {
+    // End reasoning when content starts (never during the review phases —
+    // the reasoning timeline belongs to the main run, not the rewrite).
+    if (state.ctx.streamOutput &&
+        chunkContent.isNotEmpty &&
+        !reviewPhaseActive) {
       await _finishReasoningOnContent(state);
     }
 
     // Schedule throttled UI update via StreamController
     if (state.ctx.streamOutput) {
-      streamController.scheduleThrottledUpdate(
-        messageId,
-        conversationId,
-        streamingProcessed,
-        totalTokens: state.totalTokens,
-        updateMessageInList: (id, content, tokens) {
-          onContentUpdated?.call(id, content, tokens);
-        },
-      );
+      if (reviewPhaseActive) {
+        // Live notifier only: no throttle timer, no `onContentUpdated`
+        // (conversation-list) writes during the revision (§9.4).
+        streamController.streamingContentNotifier.updateContent(
+          messageId,
+          streamingProcessed,
+          state.totalTokens,
+        );
+      } else {
+        streamController.scheduleThrottledUpdate(
+          messageId,
+          conversationId,
+          streamingProcessed,
+          totalTokens: state.totalTokens,
+          updateMessageInList: (id, content, tokens) {
+            onContentUpdated?.call(id, content, tokens);
+          },
+        );
+      }
     }
   }
 
@@ -2470,12 +2592,20 @@ class ChatActions {
       return;
     }
 
-    if (chunk.totalTokens > 0) {
-      state.totalTokens = chunk.totalTokens;
+    final terminalTotal = chunk.totalTokens;
+    if (terminalTotal > 0) {
+      state.totalTokens = math.max(state.totalTokens, terminalTotal);
     }
     if (chunk.usage != null) {
       state.usage = (state.usage ?? const TokenUsage()).merge(chunk.usage!);
-      state.totalTokens = state.usage!.totalTokens;
+      // TokenUsage.merge() recomputes totalTokens as prompt + completion.
+      // The driver's terminal carries the multi-round cumulative (and, with
+      // the answer review, the review-summed usage) — keep the largest of
+      // the observed values instead of letting the merge shrink it (§9.5).
+      state.totalTokens = math.max(
+        math.max(state.totalTokens, terminalTotal),
+        state.usage!.totalTokens,
+      );
       final promptTokens = chunk.usage!.promptTokens;
       if (promptTokens > state.agentPromptTokens) {
         state.agentPromptTokens = promptTokens;
@@ -2490,6 +2620,19 @@ class ChatActions {
         }
       }
     }
+
+    // Answer Review v1 (§9.5): fold the terminal's review outcome in and
+    // clear the live indicator. `reviewUsage` is the additive subset of
+    // `chunk.usage` — recorded for display only, never re-added.
+    state.answerReview.finish(
+      reviewed: chunk.reviewed,
+      reviewTokens: chunk.reviewUsage?.totalTokens ?? 0,
+    );
+    state.reviewTokens = chunk.reviewUsage?.totalTokens ?? 0;
+    streamController.streamingContentNotifier.updateReviewPhase(
+      messageId,
+      null,
+    );
 
     await _finishStreaming(state);
     await _finishRunJournal(state);
@@ -2698,6 +2841,11 @@ class ChatActions {
     final isRetriesExhausted =
         e is TransientStreamError && e.isRetriesExhausted;
 
+    // Answer Review v1 (§9.6): restore the backed-up draft BEFORE the error
+    // message is composed so the note is appended to the original answer,
+    // not to a half-revised stream.
+    _restoreReviewDraftIfNeeded(state);
+
     // Mark streaming as ended to allow UI rebuilds again
     streamController.markStreamingEnded(messageId);
 
@@ -2815,6 +2963,11 @@ class ChatActions {
   /// Handle stream done callback.
   Future<void> _handleStreamDone(stream_ctrl.StreamingState state) async {
     final conversationId = state.conversationId;
+
+    // Answer Review v1 (§9.6): a stream that ended mid-revision (e.g. the
+    // driver never released its terminal) restores the backed-up draft so
+    // `_finishStreaming` below persists the original answer.
+    _restoreReviewDraftIfNeeded(state);
 
     // Ensure streaming is marked as ended
     streamController.markStreamingEnded(state.messageId);

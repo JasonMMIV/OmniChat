@@ -20,6 +20,7 @@ import '../services/live/live_api_models_service.dart';
 import '../services/live/live_api_key_store.dart';
 import '../services/network/request_logger.dart';
 import '../services/logging/flutter_logger.dart';
+import '../models/answer_review.dart';
 import '../models/api_keys.dart';
 import '../models/backup.dart';
 import '../models/provider_oauth.dart';
@@ -136,6 +137,11 @@ class SettingsProvider extends ChangeNotifier {
       'display_auto_collapse_thinking_v1';
   static const String _displayReplayToolResultsKey =
       'display_replay_tool_results_v1';
+  // Answer Review v1 (docs/answer_review_plan.md §4.1): off | smart | always.
+  // User intent preference — intentionally NOT in `_localOnlyKeys`
+  // (backup_preferences.dart): like `developer_mode_v1` it should travel
+  // with backups across devices.
+  static const String _answerReviewModeKey = 'answer_review_v1';
   // Agent Skills: preload skill descriptions into the LLM context (registers
   // the `skill` tool). Global behavior preference — synced via backup, NOT in
   // `_localOnlyKeys` (PLAN_AGENT_SKILLS.md §5).
@@ -864,6 +870,9 @@ class SettingsProvider extends ChangeNotifier {
     _autoCollapseThinking =
         prefs.getBool(_displayAutoCollapseThinkingKey) ?? true;
     _replayToolResults = prefs.getBool(_displayReplayToolResultsKey) ?? true;
+    _answerReviewMode = AnswerReviewModeCodec.fromValue(
+      prefs.getString(_answerReviewModeKey),
+    );
     _skillsPreloadEnabled = prefs.getBool(_skillsPreloadEnabledKey) ?? true;
     _workspaceToolsDisabled =
         (prefs.getStringList(_workspaceToolsDisabledKey) ?? const <String>[])
@@ -3215,6 +3224,18 @@ Synthesize your reasoning and research into a final response. The structure shou
     await prefs.setBool(_displayReplayToolResultsKey, v);
   }
 
+  // Behavior: Answer Review v1 — audit the draft before the final answer is
+  // released, rewriting once on blocker/major issues (default off).
+  AnswerReviewMode _answerReviewMode = AnswerReviewMode.off;
+  AnswerReviewMode get answerReviewMode => _answerReviewMode;
+  Future<void> setAnswerReviewMode(AnswerReviewMode mode) async {
+    if (_answerReviewMode == mode) return;
+    _answerReviewMode = mode;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_answerReviewModeKey, mode.value);
+  }
+
   // Agent Skills: preload skill descriptions (default on — zero-config).
   // Off = no `skill` tool and no `<available_skills>` in the context; the
   // `/skill <name>` command keeps working through the message-assembly path.
@@ -4004,6 +4025,7 @@ Synthesize your reasoning and research into a final response. The structure shou
     SearchDispatchMode? searchDispatchMode,
     bool? searchEnabled,
     bool? searchAutoTestOnLaunch,
+    AnswerReviewMode? answerReviewMode,
   }) {
     final copy = SettingsProvider();
     copy._academicConfig = academicConfig ?? _academicConfig;
@@ -4057,6 +4079,7 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._showToolCards = _showToolCards;
     copy._autoCollapseThinking = _autoCollapseThinking;
     copy._replayToolResults = _replayToolResults;
+    copy._answerReviewMode = answerReviewMode ?? _answerReviewMode;
     copy._skillsPreloadEnabled = _skillsPreloadEnabled;
     copy._workspaceToolsDisabled = _workspaceToolsDisabled;
     copy._autoCompactionV1 = _autoCompactionV1;

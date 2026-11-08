@@ -5,6 +5,7 @@ import '../../../core/models/chat_message.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
+import '../../../core/services/agent/answer_review.dart';
 import '../../../core/services/skills/skill_invocations.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/platform_utils.dart';
@@ -524,6 +525,8 @@ class MessageListView extends StatelessWidget {
                   maxAttempts: retry.maxAttempts,
                   isSilentInterrupt: retry.isSilentInterrupt,
                 ),
+              if (data.reviewPhase != null)
+                _ReviewIndicator(phase: data.reviewPhase!),
               _buildChatMessageWidget(
                 context,
                 message: streamingMessage,
@@ -721,6 +724,60 @@ class MessageListView extends StatelessWidget {
                   .toList();
             })()
           : null,
+    );
+  }
+}
+
+/// Inline Answer Review v1 indicator rendered above the streaming message
+/// bubble (docs/answer_review_plan.md §9.7). Shows the review phase while it
+/// is in flight; `reviewed=true` renders no persistent badge (v1).
+class _ReviewIndicator extends StatelessWidget {
+  const _ReviewIndicator({required this.phase});
+
+  final String phase;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.primary;
+    final failed = phase == kReviewPhaseRevisionFailed;
+    final label = switch (phase) {
+      kReviewPhaseRevising => l10n.chatAnswerReviewRevising,
+      kReviewPhaseRevisionFailed => l10n.chatAnswerReviewFailedOpen,
+      _ => l10n.chatAnswerReviewInProgress,
+    };
+    return Container(
+      margin: const EdgeInsets.only(left: 12, bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          failed
+              ? Icon(Icons.info_outline, size: 12, color: color)
+              : SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(color),
+                  ),
+                ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

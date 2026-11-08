@@ -11,6 +11,7 @@ import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/storage/message_part_codec.dart';
 import '../../chat/widgets/chat_message_widget.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
+import 'answer_review_stream_state.dart';
 import 'streaming_content_notifier.dart';
 
 export 'streaming_content_notifier.dart';
@@ -1443,6 +1444,15 @@ class StreamingState {
   /// compaction uses it as the measured prompt baseline; the kernel's
   /// cumulative `tokensSoFar` is reserved for the token budget.
   int agentPromptTokens = 0;
+
+  /// Answer Review v1 (docs/answer_review_plan.md §9.1): per-run phase state
+  /// (reviewing / revising / revision_failed) plus the draft backup the
+  /// cancel / error paths restore.
+  final AnswerReviewStreamState answerReview = AnswerReviewStreamState();
+
+  /// Review + revision tokens from the terminal's `reviewUsage` subset.
+  /// Memory-only; never persisted.
+  int reviewTokens = 0;
 
   String get messageId => ctx.assistantMessage.id;
   String get conversationId => ctx.assistantMessage.conversationId;

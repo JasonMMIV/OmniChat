@@ -73,6 +73,27 @@ class ChatStreamChunk {
   // approval card is the user-facing surface for those.
   final String? softStopReason;
 
+  // --- Answer Review v1 (docs/answer_review_plan.md §8) ---
+  // Status chunk marker: 'reviewing' / 'revising' / 'revision_failed'. Only
+  // ever set on a non-done chunk with empty content; the UI routes it to the
+  // review indicator instead of the content accumulator.
+  final String? reviewPhase;
+
+  // When true, [content] REPLACES the accumulated streaming text instead of
+  // being appended (used by the fail-open path to restore the original draft
+  // after a failed revision). Defensive whole-text replacement only.
+  final bool replaceContent;
+
+  // Terminal-only flag: true when the review phase ran to completion and the
+  // final answer was applied (PASS or a successful revision). Never
+  // persisted; v1 shows no persistent "reviewed" badge.
+  final bool reviewed;
+
+  // Terminal-only: the review + revision token usage. Already included in
+  // [usage] (it is the additive subset); surfaced for display / logging so
+  // the UI must not add it a second time.
+  final TokenUsage? reviewUsage;
+
   ChatStreamChunk({
     required this.content,
     this.reasoning,
@@ -89,7 +110,59 @@ class ChatStreamChunk {
     this.hasUsage = false,
     this.assistantExtras,
     this.softStopReason,
+    this.reviewPhase,
+    this.replaceContent = false,
+    this.reviewed = false,
+    this.reviewUsage,
   });
+
+  /// Copy with the answer-review / terminal composition fields the driver
+  /// needs. Nullable fields cannot be reset to null (the review flow never
+  /// needs that); `content`, `usage`, `totalTokens` and the retry metadata
+  /// keep their original semantics.
+  ChatStreamChunk copyWith({
+    String? content,
+    String? reasoning,
+    bool? isDone,
+    int? totalTokens,
+    TokenUsage? usage,
+    List<ToolCallInfo>? toolCalls,
+    List<ToolResultInfo>? toolResults,
+    String? errorKind,
+    int? attempt,
+    int? maxAttempts,
+    int? nextRetryInMs,
+    String? finishReason,
+    bool? hasUsage,
+    Map<String, dynamic>? assistantExtras,
+    String? softStopReason,
+    String? reviewPhase,
+    bool? replaceContent,
+    bool? reviewed,
+    TokenUsage? reviewUsage,
+  }) {
+    return ChatStreamChunk(
+      content: content ?? this.content,
+      reasoning: reasoning ?? this.reasoning,
+      isDone: isDone ?? this.isDone,
+      totalTokens: totalTokens ?? this.totalTokens,
+      usage: usage ?? this.usage,
+      toolCalls: toolCalls ?? this.toolCalls,
+      toolResults: toolResults ?? this.toolResults,
+      errorKind: errorKind ?? this.errorKind,
+      attempt: attempt ?? this.attempt,
+      maxAttempts: maxAttempts ?? this.maxAttempts,
+      nextRetryInMs: nextRetryInMs ?? this.nextRetryInMs,
+      finishReason: finishReason ?? this.finishReason,
+      hasUsage: hasUsage ?? this.hasUsage,
+      assistantExtras: assistantExtras ?? this.assistantExtras,
+      softStopReason: softStopReason ?? this.softStopReason,
+      reviewPhase: reviewPhase ?? this.reviewPhase,
+      replaceContent: replaceContent ?? this.replaceContent,
+      reviewed: reviewed ?? this.reviewed,
+      reviewUsage: reviewUsage ?? this.reviewUsage,
+    );
+  }
 }
 
 /// A tool call the model asked to run, surfaced in [ChatStreamChunk.toolCalls].

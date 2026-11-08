@@ -3349,6 +3349,39 @@ class AppLocalizationsZh extends AppLocalizations {
   String get displaySettingsPageReplayToolResultsTitle => '跨轮重放工具结果';
 
   @override
+  String get displaySettingsPageAnswerReviewTitle => '回答前审查';
+
+  @override
+  String get displaySettingsPageAnswerReviewDescription =>
+      '在最终回答送出前检查草稿；发现重大问题时自动修正一次';
+
+  @override
+  String get displaySettingsPageAnswerReviewOptionOff => '关闭';
+
+  @override
+  String get displaySettingsPageAnswerReviewOptionSmart => '智能';
+
+  @override
+  String get displaySettingsPageAnswerReviewOptionAlways => '每次';
+
+  @override
+  String get displaySettingsPageAnswerReviewSmartHint =>
+      '仅在有工具结果、长回答、代码、数字或网址时执行';
+
+  @override
+  String get displaySettingsPageAnswerReviewCostHint =>
+      '审查会多一次模型请求，可能增加延迟与 token 费用';
+
+  @override
+  String get chatAnswerReviewInProgress => '正在审查回答…';
+
+  @override
+  String get chatAnswerReviewRevising => '正在修正回答…';
+
+  @override
+  String get chatAnswerReviewFailedOpen => '审查未完成，已保留原回答';
+
+  @override
   String get displaySettingsPageShowUpdatesTitle => '显示更新';
 
   @override
@@ -9689,6 +9722,39 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get displaySettingsPageReplayToolResultsTitle => '跨轮重放工具结果';
 
   @override
+  String get displaySettingsPageAnswerReviewTitle => '回答前审查';
+
+  @override
+  String get displaySettingsPageAnswerReviewDescription =>
+      '在最终回答送出前检查草稿；发现重大问题时自动修正一次';
+
+  @override
+  String get displaySettingsPageAnswerReviewOptionOff => '关闭';
+
+  @override
+  String get displaySettingsPageAnswerReviewOptionSmart => '智能';
+
+  @override
+  String get displaySettingsPageAnswerReviewOptionAlways => '每次';
+
+  @override
+  String get displaySettingsPageAnswerReviewSmartHint =>
+      '仅在有工具结果、长回答、代码、数字或网址时执行';
+
+  @override
+  String get displaySettingsPageAnswerReviewCostHint =>
+      '审查会多一次模型请求，可能增加延迟与 token 费用';
+
+  @override
+  String get chatAnswerReviewInProgress => '正在审查回答…';
+
+  @override
+  String get chatAnswerReviewRevising => '正在修正回答…';
+
+  @override
+  String get chatAnswerReviewFailedOpen => '审查未完成，已保留原回答';
+
+  @override
   String get displaySettingsPageShowUpdatesTitle => '显示更新';
 
   @override
@@ -15937,6 +16003,39 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get displaySettingsPageReplayToolResultsTitle => '跨輪重放工具結果';
+
+  @override
+  String get displaySettingsPageAnswerReviewTitle => '回答前審查';
+
+  @override
+  String get displaySettingsPageAnswerReviewDescription =>
+      '在最終回答送出前檢查草稿；發現重大問題時自動修正一次';
+
+  @override
+  String get displaySettingsPageAnswerReviewOptionOff => '關閉';
+
+  @override
+  String get displaySettingsPageAnswerReviewOptionSmart => '智慧';
+
+  @override
+  String get displaySettingsPageAnswerReviewOptionAlways => '每次';
+
+  @override
+  String get displaySettingsPageAnswerReviewSmartHint =>
+      '只在有工具結果、長回答、程式碼、數字或網址時執行';
+
+  @override
+  String get displaySettingsPageAnswerReviewCostHint =>
+      '審查會多一次模型請求，可能增加延遲與 token 費用';
+
+  @override
+  String get chatAnswerReviewInProgress => '審查回答中…';
+
+  @override
+  String get chatAnswerReviewRevising => '正在修正回答…';
+
+  @override
+  String get chatAnswerReviewFailedOpen => '審查未完成，已保留原回答';
 
   @override
   String get displaySettingsPageShowUpdatesTitle => '顯示更新';
