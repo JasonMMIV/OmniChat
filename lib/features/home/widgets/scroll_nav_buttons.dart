@@ -49,7 +49,6 @@ class ScrollNavButtonsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final iconColor = isDark ? Colors.white : Colors.black87;
-    final miniMapColor = Theme.of(context).colorScheme.primary;
 
     return Align(
       alignment: Alignment.bottomRight,
@@ -95,7 +94,7 @@ class ScrollNavButtonsPanel extends StatelessWidget {
                         key: miniMapKey,
                         icon: Lucide.TableOfContents,
                         iconSize: miniMapIconSize,
-                        iconColor: miniMapColor,
+                        iconColor: iconColor,
                         padding: buttonPadding,
                         isDark: isDark,
                         onTap: onOpenMiniMap,
