@@ -729,6 +729,26 @@
   "messageExportSheetExportImage": "匯出為圖片",
   "messageExportSheetSingleExportImageSubtitle": "將該訊息渲染為 PNG 圖片",
   "messageExportSheetBatchExportImageSubtitle": "將選中的訊息渲染為 PNG 圖片",
+  "messageExportSheetBatchConversationsTitle": "匯出 {count} 個對話",
+  "@messageExportSheetBatchConversationsTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageExportSheetBatchConversationMarkdownSubtitle": "將每個對話匯出為 Markdown 檔案",
+  "messageExportSheetBatchConversationTxtSubtitle": "將每個對話匯出為 TXT 檔案",
+  "messageExportSheetBatchConversationImageSubtitle": "將每個對話渲染為 PNG 圖片",
+  "messageExportSheetChooseExportFolder": "選擇匯出資料夾",
+  "messageExportSheetExportedCount": "已匯出 {count} 個檔案",
+  "@messageExportSheetExportedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "messageExportSheetSegmentedImage": "分段圖片",
   "messageExportSheetSegmentedImageSubtitle": "將長內容拆成多張圖片",
   "messageExportSheetImageDownscaled": "圖片已自動降至 {ratio} 以符合大小限制。",
@@ -773,6 +793,7 @@
   },
   "sideDrawerMenuUnpin": "取消置頂",
   "sideDrawerMenuRegenerateTitle": "重新生成標題",
+  "sideDrawerMenuExport": "匯出",
   "sideDrawerMenuMoveTo": "移動到",
   "sideDrawerMenuDelete": "刪除",
   "sideDrawerDeleteSnackbar": "已刪除「{title}」",

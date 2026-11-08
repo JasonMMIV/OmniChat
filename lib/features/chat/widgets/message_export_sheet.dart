@@ -565,6 +565,79 @@ Future<void> showChatExportSheet(
   );
 }
 
+/// A conversation together with the messages that should be exported.
+class ChatExportBundle {
+  const ChatExportBundle({required this.conversation, required this.messages});
+
+  final Conversation conversation;
+  final List<ChatMessage> messages;
+}
+
+/// Opens the export-format picker for whole conversations.
+///
+/// This is the sidebar "Export" entry point: the message-selection step used by
+/// the per-message Share action is skipped, and every user/assistant message of
+/// each conversation is exported. A single conversation reuses the regular
+/// batch sheet; two or more use a compact "pick one format, save one file each"
+/// panel.
+Future<void> showConversationsExportSheet(
+  BuildContext context, {
+  required List<ChatExportBundle> bundles,
+}) async {
+  if (bundles.isEmpty) return;
+  if (bundles.length == 1) {
+    await showChatExportSheet(
+      context,
+      conversation: bundles.first.conversation,
+      selectedMessages: bundles.first.messages,
+    );
+    return;
+  }
+  final cs = Theme.of(context).colorScheme;
+  try {
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (ctx) => Dialog(
+          elevation: 12,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: _MultiConversationExportPanel(
+            bundles: bundles,
+            parentContext: context,
+            inSheet: false,
+          ),
+        ),
+      );
+      return;
+    }
+  } catch (_) {
+    // Fall back to the bottom sheet below.
+  }
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: cs.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (ctx) => SafeArea(
+      top: false,
+      child: _MultiConversationExportPanel(
+        bundles: bundles,
+        parentContext: context,
+        inSheet: true,
+      ),
+    ),
+  );
+}
+
 // Desktop dialog: single message export
 class _ExportDialog extends StatefulWidget {
   const _ExportDialog({required this.message, required this.parentContext});
@@ -3178,4 +3251,588 @@ class _ExportToolCard extends StatelessWidget {
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Sidebar export: whole conversations (one format, one file per conversation)
+// ---------------------------------------------------------------------------
+
+enum _MultiConversationExportFormat { markdown, txt, image }
+
+class _MultiConversationExportPanel extends StatefulWidget {
+  const _MultiConversationExportPanel({
+    required this.bundles,
+    required this.parentContext,
+    required this.inSheet,
+  });
+
+  final List<ChatExportBundle> bundles;
+  final BuildContext parentContext;
+  final bool inSheet;
+
+  @override
+  State<_MultiConversationExportPanel> createState() =>
+      _MultiConversationExportPanelState();
+}
+
+class _MultiConversationExportPanelState
+    extends State<_MultiConversationExportPanel> {
+  bool _exporting = false;
+  bool _showThinkingAndToolCards = false;
+  bool _expandThinkingContent = false;
+
+  Future<void> _start(_MultiConversationExportFormat format) async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    final parentContext = widget.parentContext;
+    final bundles = widget.bundles;
+    final showThinkingAndToolCards = _showThinkingAndToolCards;
+    final expandThinkingContent = _expandThinkingContent;
+    // Close the picker before save dialogs / the progress overlay appear.
+    if (mounted) {
+      final popped = await Navigator.of(context).maybePop();
+      if (!popped) {
+        if (mounted) setState(() => _exporting = false);
+        return;
+      }
+    }
+    await _runMultiConversationExport(
+      parentContext,
+      bundles,
+      format: format,
+      showThinkingAndToolCards: showThinkingAndToolCards,
+      expandThinkingContent: expandThinkingContent,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(16, widget.inSheet ? 8 : 12, 8, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.messageExportSheetFormatTitle,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                tooltip: l10n.mcpPageClose,
+                icon: Icon(
+                  Lucide.X,
+                  size: 18,
+                  color: cs.onSurface.withOpacity(0.75),
+                ),
+                onPressed: () => Navigator.of(context).maybePop(),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            l10n.messageExportSheetBatchConversationsTitle(
+              widget.bundles.length,
+            ),
+            style: TextStyle(
+              fontSize: 13,
+              color: cs.onSurface.withOpacity(0.7),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Flexible(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _ExportOptionTile(
+                  icon: Lucide.BookOpenText,
+                  title: l10n.messageExportSheetMarkdown,
+                  subtitle:
+                      l10n.messageExportSheetBatchConversationMarkdownSubtitle,
+                  onTap: _exporting
+                      ? null
+                      : () => _start(_MultiConversationExportFormat.markdown),
+                ),
+                _ExportOptionTile(
+                  icon: Lucide.FileText,
+                  title: l10n.messageExportSheetPlainText,
+                  subtitle: l10n.messageExportSheetBatchConversationTxtSubtitle,
+                  onTap: _exporting
+                      ? null
+                      : () => _start(_MultiConversationExportFormat.txt),
+                ),
+                _ExportOptionTile(
+                  icon: Lucide.Image,
+                  title: l10n.messageExportSheetExportImage,
+                  subtitle:
+                      l10n.messageExportSheetBatchConversationImageSubtitle,
+                  onTap: _exporting
+                      ? null
+                      : () => _start(_MultiConversationExportFormat.image),
+                ),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Column(
+                    children: [
+                      _buildSwitchRow(
+                        context,
+                        title: l10n.messageExportSheetShowThinkingAndToolCards,
+                        value: _showThinkingAndToolCards,
+                        onChanged: (v) {
+                          setState(() {
+                            _showThinkingAndToolCards = v;
+                            if (!v) _expandThinkingContent = false;
+                          });
+                        },
+                      ),
+                      _buildSwitchRow(
+                        context,
+                        title: l10n.messageExportSheetShowThinkingContent,
+                        value: _expandThinkingContent,
+                        onChanged: _showThinkingAndToolCards
+                            ? (v) => setState(
+                                  () => _expandThinkingContent = v,
+                                )
+                            : null,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    if (widget.inSheet) {
+      return ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.8,
+        ),
+        child: content,
+      );
+    }
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minWidth: 480,
+        maxWidth: 720,
+        maxHeight: 560,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Material(color: cs.surface, child: content),
+      ),
+    );
+  }
+
+  Widget _buildSwitchRow(
+    BuildContext context, {
+    required String title,
+    required bool value,
+    required ValueChanged<bool>? onChanged,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    final isEnabled = onChanged != null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 14,
+                color: isEnabled ? cs.onSurface : cs.onSurface.withOpacity(0.4),
+              ),
+            ),
+          ),
+          IosSwitch(
+            value: value,
+            onChanged: onChanged,
+            activeColor: cs.primary,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> _runMultiConversationExport(
+  BuildContext context,
+  List<ChatExportBundle> bundles, {
+  required _MultiConversationExportFormat format,
+  required bool showThinkingAndToolCards,
+  required bool expandThinkingContent,
+}) async {
+  if (format == _MultiConversationExportFormat.image) {
+    await _exportBundlesAsImages(
+      context,
+      bundles,
+      showThinkingAndToolCards: showThinkingAndToolCards,
+      expandThinkingContent: expandThinkingContent,
+    );
+    return;
+  }
+  await _exportBundlesAsText(context, bundles, format: format);
+}
+
+Future<void> _exportBundlesAsText(
+  BuildContext context,
+  List<ChatExportBundle> bundles, {
+  required _MultiConversationExportFormat format,
+}) async {
+  final l10n = AppLocalizations.of(context)!;
+  final isDesktop =
+      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+  final ext = format == _MultiConversationExportFormat.markdown ? 'md' : 'txt';
+
+  // Pick the destination before doing any rendering work.
+  String? directory;
+  if (isDesktop) {
+    try {
+      directory = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: l10n.messageExportSheetChooseExportFolder,
+      );
+    } catch (e) {
+      if (context.mounted) {
+        showAppSnackBar(
+          context,
+          message: l10n.messageExportSheetExportFailed('$e'),
+          type: NotificationType.error,
+        );
+      }
+      return;
+    }
+    if (directory == null) return; // user cancelled
+  }
+
+  showAppSnackBar(
+    context,
+    message: l10n.messageExportSheetExporting,
+    type: NotificationType.info,
+  );
+
+  // Build everything before touching the filesystem so a bad message cannot
+  // leave a half-written batch behind.
+  final payloads = <_ConversationExportPayload>[];
+  try {
+    for (final bundle in bundles) {
+      final content = format == _MultiConversationExportFormat.markdown
+          ? await _buildConversationMarkdown(context, bundle)
+          : await _buildConversationTxt(context, bundle);
+      payloads.add(
+        _ConversationExportPayload(
+          title: _conversationExportTitle(context, bundle.conversation),
+          content: content,
+        ),
+      );
+    }
+  } catch (e) {
+    if (context.mounted) {
+      showAppSnackBar(
+        context,
+        message: l10n.messageExportSheetExportFailed('$e'),
+        type: NotificationType.error,
+      );
+    }
+    return;
+  }
+
+  final stamp = _exportFileTimestamp();
+  var saved = 0;
+  try {
+    for (var i = 0; i < payloads.length; i++) {
+      final payload = payloads[i];
+      final name =
+          '${_sanitizeExportFileName(payload.title)}-$stamp-$i.$ext';
+      if (isDesktop && directory != null) {
+        final target = File(p.join(directory, name));
+        await target.parent.create(recursive: true);
+        await target.writeAsString(payload.content);
+        saved++;
+      } else {
+        final savePath = await FilePicker.platform.saveFile(
+          dialogTitle: l10n.backupPageExportToFile,
+          fileName: name,
+          type: FileType.custom,
+          allowedExtensions: [ext],
+          bytes: Uint8List.fromList(utf8.encode(payload.content)),
+        );
+        if (savePath != null) saved++;
+      }
+    }
+  } catch (e) {
+    if (context.mounted) {
+      showAppSnackBar(
+        context,
+        message: l10n.messageExportSheetExportFailed('$e'),
+        type: NotificationType.error,
+      );
+    }
+    return;
+  }
+
+  if (context.mounted && saved > 0) {
+    showAppSnackBar(
+      context,
+      message: l10n.messageExportSheetExportedCount(saved),
+      type: NotificationType.success,
+    );
+  }
+}
+
+Future<void> _exportBundlesAsImages(
+  BuildContext context,
+  List<ChatExportBundle> bundles, {
+  required bool showThinkingAndToolCards,
+  required bool expandThinkingContent,
+}) async {
+  final l10n = AppLocalizations.of(context)!;
+  final settings = context.read<SettingsProvider>();
+  final isDesktop =
+      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+
+  // Pick the destination before rendering so a cancelled picker costs no work.
+  String? directory;
+  if (isDesktop) {
+    try {
+      directory = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: l10n.messageExportSheetChooseExportFolder,
+      );
+    } catch (e) {
+      if (context.mounted) {
+        showAppSnackBar(
+          context,
+          message: l10n.messageExportSheetExportFailed('$e'),
+          type: NotificationType.error,
+        );
+      }
+      return;
+    }
+    if (directory == null) return; // user cancelled
+  }
+
+  final stamp = _exportFileTimestamp();
+  final progress = ValueNotifier<LongImageProgress?>(null);
+  final cancel = ValueNotifier<bool>(false);
+  var saved = 0;
+  try {
+    await _runWithExportingOverlay(
+      context,
+      () async {
+        for (var i = 0; i < bundles.length; i++) {
+          if (cancel.value) break;
+          final bundle = bundles[i];
+          final result = await _renderAndSaveChatImage(
+            context,
+            bundle.conversation,
+            bundle.messages,
+            showThinkingAndToolCards: showThinkingAndToolCards,
+            expandThinkingContent: expandThinkingContent,
+            tilingEnabled: settings.longImageTilingEnabled,
+            onProgress: (value) {
+              // Scale each conversation's 0..1 fraction into the batch's
+              // overall progress so the overlay does not restart at zero.
+              progress.value = LongImageProgress(
+                stage: value.stage,
+                current: i * 100 + (value.fraction * 100).round(),
+                total: bundles.length * 100,
+              );
+            },
+            isCancelled: () => cancel.value,
+          );
+          if (result == null) continue;
+          try {
+            final title = _conversationExportTitle(
+              context,
+              bundle.conversation,
+            );
+            final name = '${_sanitizeExportFileName(title)}-$stamp-$i.png';
+            final bytes = await result.file.readAsBytes();
+            if (isDesktop && directory != null) {
+              final target = File(p.join(directory, name));
+              await target.parent.create(recursive: true);
+              await target.writeAsBytes(bytes);
+              saved++;
+            } else {
+              final savePath = await FilePicker.platform.saveFile(
+                dialogTitle: l10n.backupPageExportToFile,
+                fileName: name,
+                type: FileType.custom,
+                allowedExtensions: const ['png'],
+                bytes: bytes,
+              );
+              if (savePath != null) saved++;
+            }
+          } finally {
+            try {
+              await result.file.delete();
+            } catch (_) {}
+            final preview = result.previewFile;
+            if (preview != null) {
+              try {
+                await preview.delete();
+              } catch (_) {}
+            }
+          }
+        }
+      },
+      progress: progress,
+      onCancel: () {
+        cancel.value = true;
+        progress.value = null;
+      },
+    );
+  } catch (e) {
+    if (!cancel.value && context.mounted) {
+      final message = e is LongImageTooLargeException
+          ? l10n.messageExportSheetImageTooLarge(e.sizeLabel)
+          : l10n.messageExportSheetExportFailed('$e');
+      showAppSnackBar(context, message: message, type: NotificationType.error);
+    }
+    return;
+  } finally {
+    progress.dispose();
+    cancel.dispose();
+  }
+
+  if (context.mounted && saved > 0) {
+    showAppSnackBar(
+      context,
+      message: l10n.messageExportSheetExportedCount(saved),
+      type: NotificationType.success,
+    );
+  }
+}
+
+class _ConversationExportPayload {
+  const _ConversationExportPayload({
+    required this.title,
+    required this.content,
+  });
+
+  final String title;
+  final String content;
+}
+
+String _conversationExportTitle(
+  BuildContext context,
+  Conversation conversation,
+) {
+  final title = conversation.title.trim();
+  if (title.isNotEmpty) return title;
+  return AppLocalizations.of(context)!.messageExportSheetDefaultTitle;
+}
+
+Future<String> _buildConversationMarkdown(
+  BuildContext context,
+  ChatExportBundle bundle,
+) async {
+  final l10n = AppLocalizations.of(context)!;
+  final title = _conversationExportTitle(context, bundle.conversation);
+  final buf = StringBuffer();
+  buf.writeln('# $title');
+  buf.writeln('');
+  for (final msg in bundle.messages) {
+    final time = DateFormat(
+      l10n.messageExportSheetDateTimeWithSecondsPattern,
+    ).format(msg.timestamp);
+    buf.writeln('> $time · ${_getRoleName(context, msg)}');
+    buf.writeln('');
+    final parsed = _parseContent(msg.content);
+    if (parsed.text.isNotEmpty) {
+      buf.writeln(parsed.text);
+      buf.writeln('');
+    }
+    for (final path in parsed.images) {
+      final fixed = SandboxPathResolver.fix(path);
+      try {
+        final file = File(fixed);
+        if (await file.exists()) {
+          final bytes = await file.readAsBytes();
+          final b64 = base64Encode(bytes);
+          final mime = _guessImageMime(fixed);
+          buf.writeln('![](data:$mime;base64,$b64)');
+        } else {
+          buf.writeln('![image]($fixed)');
+        }
+      } catch (_) {
+        buf.writeln('![image]($fixed)');
+      }
+      buf.writeln('');
+    }
+    for (final doc in parsed.docs) {
+      buf.writeln('- ${doc.fileName}  `${doc.mime}`');
+    }
+    buf.writeln('\n---\n');
+  }
+  return buf.toString();
+}
+
+Future<String> _buildConversationTxt(
+  BuildContext context,
+  ChatExportBundle bundle,
+) async {
+  final l10n = AppLocalizations.of(context)!;
+  final title = _conversationExportTitle(context, bundle.conversation);
+  final buf = StringBuffer();
+  buf.writeln(title);
+  buf.writeln('');
+  for (final msg in bundle.messages) {
+    final time = DateFormat(
+      l10n.messageExportSheetDateTimeWithSecondsPattern,
+    ).format(msg.timestamp);
+    buf.writeln('$time · ${_getRoleName(context, msg)}');
+    buf.writeln('');
+    final parsed = _parseContent(msg.content);
+    if (parsed.text.isNotEmpty) {
+      buf.writeln(parsed.text);
+      buf.writeln('');
+    }
+    for (final doc in parsed.docs) {
+      buf.writeln('- ${doc.fileName} (${doc.mime})');
+    }
+    buf.writeln('\n---\n');
+  }
+  return buf.toString();
+}
+
+String _exportFileTimestamp() {
+  final now = DateTime.now();
+  String two(int v) => v.toString().padLeft(2, '0');
+  final millis = now.millisecond.toString().padLeft(3, '0');
+  return '${now.year}${two(now.month)}${two(now.day)}-'
+      '${two(now.hour)}${two(now.minute)}${two(now.second)}-$millis';
+}
+
+String _sanitizeExportFileName(String input) {
+  var name = input
+      .replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1F]'), '_')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  name = name.replaceAll(RegExp(r'[. ]+$'), '');
+  if (name.isEmpty) name = 'chat';
+  if (name.length > 60) {
+    name = name.substring(0, 60).trim();
+  }
+  name = name.replaceAll(RegExp(r'[. ]+$'), '');
+  if (name.isEmpty) name = 'chat';
+  return name;
 }

@@ -71,7 +71,7 @@ String _baseNameOf(String path) {
 }
 
 /// Download header action button, styled to match the Copy/Preview actions in
-/// code block headers.
+/// code block headers. Icon-only; the localized label is the tooltip.
 class CodeBlockDownloadButton extends StatelessWidget {
   const CodeBlockDownloadButton({super.key, required this.onTap});
 
@@ -80,35 +80,24 @@ class CodeBlockDownloadButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
-      splashColor: Platform.isIOS ? Colors.transparent : null,
-      highlightColor: Platform.isIOS ? Colors.transparent : null,
-      hoverColor: Platform.isIOS ? Colors.transparent : null,
-      overlayColor: Platform.isIOS
-          ? const MaterialStatePropertyAll(Colors.transparent)
-          : null,
-      borderRadius: BorderRadius.circular(6),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Lucide.Download,
-              size: 14,
-              color: cs.onSurface.withOpacity(0.6),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              AppLocalizations.of(context)!.codeBlockDownloadButton,
-              style: TextStyle(
-                fontSize: 12,
-                color: cs.onSurface.withOpacity(0.6),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+    return Tooltip(
+      message: AppLocalizations.of(context)!.codeBlockDownloadButton,
+      child: InkWell(
+        onTap: onTap,
+        splashColor: Platform.isIOS ? Colors.transparent : null,
+        highlightColor: Platform.isIOS ? Colors.transparent : null,
+        hoverColor: Platform.isIOS ? Colors.transparent : null,
+        overlayColor: Platform.isIOS
+            ? const MaterialStatePropertyAll(Colors.transparent)
+            : null,
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(
+            Lucide.Download,
+            size: 14,
+            color: cs.onSurface.withOpacity(0.6),
+          ),
         ),
       ),
     );

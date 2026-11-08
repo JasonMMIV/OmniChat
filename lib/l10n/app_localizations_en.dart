@@ -404,6 +404,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sideDrawerMenuRegenerateTitle => 'Regenerate Title';
 
   @override
+  String get sideDrawerMenuExport => 'Export';
+
+  @override
   String get sideDrawerMenuMoveTo => 'Move to...';
 
   @override
@@ -2406,6 +2409,31 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get messageExportSheetBatchExportImageSubtitle => 'Batch Image';
+
+  @override
+  String messageExportSheetBatchConversationsTitle(int count) {
+    return 'Export $count conversations';
+  }
+
+  @override
+  String get messageExportSheetBatchConversationMarkdownSubtitle =>
+      'Export each conversation as a Markdown file';
+
+  @override
+  String get messageExportSheetBatchConversationTxtSubtitle =>
+      'Export each conversation as a TXT file';
+
+  @override
+  String get messageExportSheetBatchConversationImageSubtitle =>
+      'Render each conversation as a PNG image';
+
+  @override
+  String get messageExportSheetChooseExportFolder => 'Choose export folder';
+
+  @override
+  String messageExportSheetExportedCount(int count) {
+    return 'Exported $count files';
+  }
 
   @override
   String get messageExportSheetSegmentedImage => 'Segmented image';

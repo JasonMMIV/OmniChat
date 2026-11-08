@@ -862,6 +862,12 @@ abstract class AppLocalizations {
   /// **'Regenerate Title'**
   String get sideDrawerMenuRegenerateTitle;
 
+  /// No description provided for @sideDrawerMenuExport.
+  ///
+  /// In en, this message translates to:
+  /// **'Export'**
+  String get sideDrawerMenuExport;
+
   /// No description provided for @sideDrawerMenuMoveTo.
   ///
   /// In en, this message translates to:
@@ -4630,6 +4636,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Batch Image'**
   String get messageExportSheetBatchExportImageSubtitle;
+
+  /// No description provided for @messageExportSheetBatchConversationsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export {count} conversations'**
+  String messageExportSheetBatchConversationsTitle(int count);
+
+  /// No description provided for @messageExportSheetBatchConversationMarkdownSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export each conversation as a Markdown file'**
+  String get messageExportSheetBatchConversationMarkdownSubtitle;
+
+  /// No description provided for @messageExportSheetBatchConversationTxtSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export each conversation as a TXT file'**
+  String get messageExportSheetBatchConversationTxtSubtitle;
+
+  /// No description provided for @messageExportSheetBatchConversationImageSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Render each conversation as a PNG image'**
+  String get messageExportSheetBatchConversationImageSubtitle;
+
+  /// No description provided for @messageExportSheetChooseExportFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose export folder'**
+  String get messageExportSheetChooseExportFolder;
+
+  /// No description provided for @messageExportSheetExportedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Exported {count} files'**
+  String messageExportSheetExportedCount(int count);
 
   /// No description provided for @messageExportSheetSegmentedImage.
   ///

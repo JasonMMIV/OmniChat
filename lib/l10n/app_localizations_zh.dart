@@ -401,6 +401,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sideDrawerMenuRegenerateTitle => '重新生成标题';
 
   @override
+  String get sideDrawerMenuExport => '导出';
+
+  @override
   String get sideDrawerMenuMoveTo => '移动到';
 
   @override
@@ -2383,6 +2386,31 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get messageExportSheetBatchExportImageSubtitle => '将选中的消息渲染为 PNG 图片';
+
+  @override
+  String messageExportSheetBatchConversationsTitle(int count) {
+    return '导出 $count 个对话';
+  }
+
+  @override
+  String get messageExportSheetBatchConversationMarkdownSubtitle =>
+      '将每个对话导出为 Markdown 文件';
+
+  @override
+  String get messageExportSheetBatchConversationTxtSubtitle =>
+      '将每个对话导出为 TXT 文件';
+
+  @override
+  String get messageExportSheetBatchConversationImageSubtitle =>
+      '将每个对话渲染为 PNG 图片';
+
+  @override
+  String get messageExportSheetChooseExportFolder => '选择导出文件夹';
+
+  @override
+  String messageExportSheetExportedCount(int count) {
+    return '已导出 $count 个文件';
+  }
 
   @override
   String get messageExportSheetSegmentedImage => '分段图片';
@@ -6565,6 +6593,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get sideDrawerMenuRegenerateTitle => '重新生成标题';
 
   @override
+  String get sideDrawerMenuExport => '导出';
+
+  @override
   String get sideDrawerMenuMoveTo => '移动到';
 
   @override
@@ -8541,6 +8572,31 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get messageExportSheetBatchExportImageSubtitle => '将选中的消息渲染为 PNG 图片';
+
+  @override
+  String messageExportSheetBatchConversationsTitle(int count) {
+    return '导出 $count 个对话';
+  }
+
+  @override
+  String get messageExportSheetBatchConversationMarkdownSubtitle =>
+      '将每个对话导出为 Markdown 文件';
+
+  @override
+  String get messageExportSheetBatchConversationTxtSubtitle =>
+      '将每个对话导出为 TXT 文件';
+
+  @override
+  String get messageExportSheetBatchConversationImageSubtitle =>
+      '将每个对话渲染为 PNG 图片';
+
+  @override
+  String get messageExportSheetChooseExportFolder => '选择导出文件夹';
+
+  @override
+  String messageExportSheetExportedCount(int count) {
+    return '已导出 $count 个文件';
+  }
 
   @override
   String get messageExportSheetSegmentedImage => '分段图片';
@@ -12624,6 +12680,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get sideDrawerMenuRegenerateTitle => '重新生成標題';
 
   @override
+  String get sideDrawerMenuExport => '匯出';
+
+  @override
   String get sideDrawerMenuMoveTo => '移動到';
 
   @override
@@ -14599,6 +14658,31 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get messageExportSheetBatchExportImageSubtitle => '將選中的訊息渲染為 PNG 圖片';
+
+  @override
+  String messageExportSheetBatchConversationsTitle(int count) {
+    return '匯出 $count 個對話';
+  }
+
+  @override
+  String get messageExportSheetBatchConversationMarkdownSubtitle =>
+      '將每個對話匯出為 Markdown 檔案';
+
+  @override
+  String get messageExportSheetBatchConversationTxtSubtitle =>
+      '將每個對話匯出為 TXT 檔案';
+
+  @override
+  String get messageExportSheetBatchConversationImageSubtitle =>
+      '將每個對話渲染為 PNG 圖片';
+
+  @override
+  String get messageExportSheetChooseExportFolder => '選擇匯出資料夾';
+
+  @override
+  String messageExportSheetExportedCount(int count) {
+    return '已匯出 $count 個檔案';
+  }
 
   @override
   String get messageExportSheetSegmentedImage => '分段圖片';

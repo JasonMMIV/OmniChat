@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:OmniChat/core/providers/settings_provider.dart';
+import 'package:OmniChat/icons/lucide_adapter.dart';
 import 'package:OmniChat/l10n/app_localizations.dart';
 import 'package:OmniChat/shared/markdown/markdown_math.dart';
 import 'package:OmniChat/shared/widgets/markdown_with_highlight.dart';
@@ -113,7 +114,7 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byType(ScrollableBlockMath), findsNothing);
     expect(find.text('math'), findsOneWidget);
-    expect(find.text('Copy'), findsOneWidget);
+    expect(find.byIcon(Lucide.Copy), findsOneWidget);
     expect(find.textContaining('invalid', findRichText: true), findsOneWidget);
   });
 

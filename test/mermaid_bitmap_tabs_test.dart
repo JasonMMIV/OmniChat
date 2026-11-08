@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:OmniChat/core/providers/settings_provider.dart';
 import 'package:OmniChat/features/chat/pages/image_viewer_page.dart';
+import 'package:OmniChat/icons/lucide_adapter.dart';
 import 'package:OmniChat/l10n/app_localizations.dart';
 import 'package:OmniChat/shared/widgets/markdown_with_highlight.dart';
 import 'package:OmniChat/shared/widgets/mermaid_failure_cache.dart';
@@ -64,9 +65,9 @@ void main() {
     // Tabs (en locale) replace the old 'mermaid' text label.
     expect(find.text('Image'), findsOneWidget);
     expect(find.text('Code'), findsOneWidget);
-    // Header actions: copy label + labeled download.
-    expect(find.text('Copy'), findsOneWidget);
-    expect(find.text('Download'), findsOneWidget);
+    // Header actions: icon-only copy + download (labels in tooltips).
+    expect(find.byIcon(Lucide.Copy), findsOneWidget);
+    expect(find.byIcon(Lucide.Download), findsOneWidget);
     // The bitmap image is the default tab (no live WebView, no browser button).
     expect(find.byKey(const ValueKey('mermaid-preview-body')), findsOneWidget);
     expect(find.text('Open'), findsNothing);

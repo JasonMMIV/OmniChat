@@ -1367,6 +1367,51 @@ class HomePageController extends ChangeNotifier {
     startMessageSelection(messageIndex: messageIndex, messageList: messageList);
   }
 
+  /// Opens the export-format sheet for whole conversations.
+  ///
+  /// This is the sidebar "Export" entry point: it skips the message-selection
+  /// step used by [shareMessage] and exports every user/assistant message of
+  /// each conversation. A single conversation opens the regular export sheet;
+  /// multiple conversations open the batch panel (one format, one file each).
+  Future<void> exportConversations(List<String> conversationIds) async {
+    final bundles = <ChatExportBundle>[];
+    for (final id in conversationIds) {
+      final conversation = _chatService.getConversation(id);
+      if (conversation == null) continue;
+      try {
+        await _chatService.ensureConversationLoaded(id);
+      } catch (_) {
+        continue;
+      }
+      if (!_context.mounted) return;
+      List<ChatMessage> stored;
+      try {
+        stored = List<ChatMessage>.of(_chatService.getMessages(id));
+      } catch (_) {
+        continue;
+      }
+      // Use the conversation's own persisted version selections; the
+      // controller's in-memory map only describes the currently open chat.
+      final collapsed = _messageBuilderService.collapseVersions(
+        stored,
+        _chatService.getVersionSelections(id),
+      );
+      final messages = collapsed
+          .where((m) => m.role == 'user' || m.role == 'assistant')
+          .toList(growable: false);
+      if (messages.isEmpty) continue;
+      try {
+        await _chatService.ensureToolEventsLoaded(messages.map((m) => m.id));
+      } catch (_) {}
+      bundles.add(
+        ChatExportBundle(conversation: conversation, messages: messages),
+      );
+    }
+    if (bundles.isEmpty) return;
+    if (!_context.mounted) return;
+    await showConversationsExportSheet(_context, bundles: bundles);
+  }
+
   void startMessageSelection({
     required int messageIndex,
     required List<ChatMessage> messageList,

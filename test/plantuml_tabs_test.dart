@@ -197,9 +197,9 @@ void main() {
     // Tabs (en locale).
     expect(find.text('Image'), findsOneWidget);
     expect(find.text('Code'), findsOneWidget);
-    // Header actions: copy label + download button.
-    expect(find.text('Copy'), findsOneWidget);
-    expect(find.text('Download'), findsOneWidget);
+    // Header actions: icon-only copy + download (labels in tooltips).
+    expect(find.byIcon(Lucide.Copy), findsOneWidget);
+    expect(find.byIcon(Lucide.Download), findsOneWidget);
     // Image view is the default tab.
     expect(find.byKey(const ValueKey('plantuml-image-body')), findsOneWidget);
     expect(find.byType(SafeSvgImage), findsOneWidget);

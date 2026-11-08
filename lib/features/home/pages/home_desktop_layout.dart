@@ -42,6 +42,7 @@ class HomeDesktopScaffold extends StatelessWidget {
     required this.onToggleRightSidebar,
     required this.onSelectConversation,
     required this.onNewConversation,
+    this.onExportConversations,
     required this.onCreateNewConversation,
     required this.onSidebarWidthChanged,
     required this.onSidebarWidthChangeEnd,
@@ -71,6 +72,7 @@ class HomeDesktopScaffold extends StatelessWidget {
   final VoidCallback onToggleRightSidebar;
   final void Function(String id) onSelectConversation;
   final VoidCallback onNewConversation;
+  final Future<void> Function(List<String> ids)? onExportConversations;
   final Future<void> Function() onCreateNewConversation;
   final void Function(double dx) onSidebarWidthChanged;
   final VoidCallback onSidebarWidthChangeEnd;
@@ -157,6 +159,7 @@ class HomeDesktopScaffold extends StatelessWidget {
       onNewConversation: ({closeDrawer = true}) => onNewConversation(),
       onSelectConversation: (id, {closeDrawer = true}) =>
           onSelectConversation(id),
+      onExportConversations: onExportConversations,
     );
 
     return AnimatedContainer(
@@ -330,9 +333,9 @@ class HomeDesktopScaffold extends StatelessWidget {
       if (onOpenWorkspace != null)
         IosIconButton(
           key: workspaceKey,
-          size: 28,
+          size: 26,
           padding: const EdgeInsets.all(8),
-          minSize: 48,
+          minSize: 46,
           icon: Lucide.FolderCode,
           onTap: onOpenWorkspace,
           semanticLabel: AppLocalizations.of(context)!.workspaceTitle,
@@ -348,9 +351,9 @@ class HomeDesktopScaffold extends StatelessWidget {
         ),
       const SizedBox(width: 2),
       IosIconButton(
-        size: 28,
+        size: 26,
         padding: const EdgeInsets.all(8),
-        minSize: 48,
+        minSize: 46,
         icon: Lucide.MessageCirclePlus,
         onTap: () async {
           await onCreateNewConversation();

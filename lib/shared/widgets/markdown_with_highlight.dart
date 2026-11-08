@@ -381,9 +381,10 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
         final cs = Theme.of(ctx).colorScheme;
         final isDark = Theme.of(ctx).brightness == Brightness.dark;
         final mdSurface = MarkdownSurfaceScope.of(ctx);
-        final borderColor = cs.outlineVariant.withOpacity(isDark ? 0.22 : 0.28);
-        // Blend header background with the same surface the table body uses.
-        final headerBg = Color.alphaBlend(cs.primary.withOpacity(isDark ? 0.14 : 0.08), mdSurface.surface);
+        final borderColor = mdSurface.onSurface.withOpacity(isDark ? 0.16 : 0.22);
+        // Blend a neutral ink-based header tint with the same surface the table
+        // body uses, keeping the table in the same monochrome family as the text.
+        final headerBg = Color.alphaBlend(mdSurface.onSurface.withOpacity(isDark ? 0.10 : 0.06), mdSurface.surface);
         final headerStyle = (style).copyWith(
           fontWeight: FontWeight.w600,
           // Ensure header text adapts to theme changes
@@ -1420,29 +1421,18 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                         hoverColor: Platform.isIOS ? Colors.transparent : null,
                         overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
                         borderRadius: BorderRadius.circular(6),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Lucide.Eye, size: 14, color: cs.onSurface.withOpacity(0.6)),
-                              const SizedBox(width: 6),
-                              Text(
-                                AppLocalizations.of(context)!.codeBlockPreviewButton,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: cs.onSurface.withOpacity(0.6),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                        child: Tooltip(
+                          message: AppLocalizations.of(context)!.codeBlockPreviewButton,
+                          child: Padding(
+                            padding: const EdgeInsets.all(6),
+                            child: Icon(Lucide.Eye, size: 14, color: cs.onSurface.withOpacity(0.6)),
                           ),
                         ),
                       ),
                     // Download action: save the block as a file. Shown on every
                     // code block (the Copy button is always available).
                     CodeBlockDownloadButton(onTap: _downloadCode),
-                    // Copy action: icon + label ("复制"/localized)
+                    // Copy action (icon-only; the localized label is the tooltip)
                     InkWell(
                       onTap: () async {
                         await Clipboard.setData(ClipboardData(text: widget.code));
@@ -1459,22 +1449,11 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                       hoverColor: Platform.isIOS ? Colors.transparent : null,
                       overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
                       borderRadius: BorderRadius.circular(6),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Lucide.Copy, size: 14, color: cs.onSurface.withOpacity(0.6)),
-                            const SizedBox(width: 6),
-                            Text(
-                              AppLocalizations.of(context)!.shareProviderSheetCopyButton,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: cs.onSurface.withOpacity(0.6),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                      child: Tooltip(
+                        message: AppLocalizations.of(context)!.shareProviderSheetCopyButton,
+                        child: Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: Icon(Lucide.Copy, size: 14, color: cs.onSurface.withOpacity(0.6)),
                         ),
                       ),
                     ),
@@ -2230,21 +2209,11 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                       hoverColor: Platform.isIOS ? Colors.transparent : null,
                       overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
                       borderRadius: BorderRadius.circular(6),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                        child: Row(
-                          children: [
-                            Icon(Lucide.Copy, size: 14, color: cs.onSurface.withValues(alpha: 0.6)),
-                            const SizedBox(width: 6),
-                            Text(
-                              l10n.shareProviderSheetCopyButton,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: cs.onSurface.withValues(alpha: 0.6),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                      child: Tooltip(
+                        message: l10n.shareProviderSheetCopyButton,
+                        child: Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: Icon(Lucide.Copy, size: 14, color: cs.onSurface.withValues(alpha: 0.6)),
                         ),
                       ),
                     ),
@@ -2261,21 +2230,11 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                       borderRadius: BorderRadius.circular(6),
                       child: Opacity(
                         opacity: actionBytes == null || actionBytes.isEmpty ? 0.4 : 1.0,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                          child: Row(
-                            children: [
-                              Icon(Lucide.Download, size: 14, color: cs.onSurface.withValues(alpha: 0.6)),
-                              const SizedBox(width: 6),
-                              Text(
-                                l10n.codeBlockDownloadButton,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: cs.onSurface.withValues(alpha: 0.6),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                        child: Tooltip(
+                          message: l10n.codeBlockDownloadButton,
+                          child: Padding(
+                            padding: const EdgeInsets.all(6),
+                            child: Icon(Lucide.Download, size: 14, color: cs.onSurface.withValues(alpha: 0.6)),
                           ),
                         ),
                       ),
@@ -2941,7 +2900,6 @@ bool _isClosingOrSentencePunctuation(int codeUnit) {
 /// Wraps a rendered markdown table with download CSV and copy actions
 /// positioned below the table.
 Widget _wrapTableWithToolbar(BuildContext ctx, List<CustomTableRow> rows, Widget table) {
-  final cs = Theme.of(ctx).colorScheme;
   final mdSurface = MarkdownSurfaceScope.of(ctx);
   return Padding(
     padding: const EdgeInsets.symmetric(vertical: 6),
@@ -2955,7 +2913,7 @@ Widget _wrapTableWithToolbar(BuildContext ctx, List<CustomTableRow> rows, Widget
           clipBehavior: Clip.antiAlias,
           foregroundDecoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+            border: Border.all(color: mdSurface.onSurface.withOpacity(0.12)),
           ),
           child: table,
         ),
@@ -2997,18 +2955,11 @@ class _MarkdownTableToolbar extends StatelessWidget {
               hoverColor: Platform.isIOS ? Colors.transparent : null,
               overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
               borderRadius: BorderRadius.circular(6),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Lucide.Copy, size: 14, color: cs.onSurface.withOpacity(0.6)),
-                    const SizedBox(width: 6),
-                    Text(
-                      l10n.shareProviderSheetCopyButton,
-                      style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6), fontWeight: FontWeight.w600),
-                    ),
-                  ],
+              child: Tooltip(
+                message: l10n.shareProviderSheetCopyButton,
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Icon(Lucide.Copy, size: 14, color: cs.onSurface.withOpacity(0.6)),
                 ),
               ),
             ),

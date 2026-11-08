@@ -181,7 +181,11 @@ class HtmlBlockMd extends BlockMd {
       child: Table(
         defaultColumnWidth: const IntrinsicColumnWidth(),
         defaultVerticalAlignment: TableCellVerticalAlignment.top,
-        border: TableBorder.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.25)),
+        border: TableBorder.all(
+          color: surface.onSurface.withValues(
+            alpha: Theme.of(context).brightness == Brightness.dark ? 0.16 : 0.22,
+          ),
+        ),
         children: [
           for (final cells in cellsByRow)
             TableRow(

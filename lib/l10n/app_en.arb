@@ -158,6 +158,7 @@
   },
   "sideDrawerMenuUnpin": "Unpin",
   "sideDrawerMenuRegenerateTitle": "Regenerate Title",
+  "sideDrawerMenuExport": "Export",
   "sideDrawerMenuMoveTo": "Move to...",
   "sideDrawerMenuDelete": "Delete",
   "sideDrawerDeleteSnackbar": "Deleted \"{title}\"",
@@ -1056,6 +1057,26 @@
   "messageExportSheetBatchMarkdownSubtitle": "Batch Markdown",
   "messageExportSheetBatchTxtSubtitle": "Batch TXT",
   "messageExportSheetBatchExportImageSubtitle": "Batch Image",
+  "messageExportSheetBatchConversationsTitle": "Export {count} conversations",
+  "@messageExportSheetBatchConversationsTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageExportSheetBatchConversationMarkdownSubtitle": "Export each conversation as a Markdown file",
+  "messageExportSheetBatchConversationTxtSubtitle": "Export each conversation as a TXT file",
+  "messageExportSheetBatchConversationImageSubtitle": "Render each conversation as a PNG image",
+  "messageExportSheetChooseExportFolder": "Choose export folder",
+  "messageExportSheetExportedCount": "Exported {count} files",
+  "@messageExportSheetExportedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "messageExportSheetSegmentedImage": "Segmented image",
   "messageExportSheetSegmentedImageSubtitle": "Split long content into multiple images",
   "messageExportSheetImageDownscaled": "Image was downscaled to {ratio} to fit the size limit.",

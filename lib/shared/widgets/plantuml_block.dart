@@ -162,19 +162,9 @@ class _PlantUMLBlockState extends State<PlantUMLBlock> {
                       borderRadius: BorderRadius.circular(6),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                        child: Row(
-                          children: [
-                            Icon(Lucide.Copy, size: 14, color: cs.onSurface.withValues(alpha: 0.6)),
-                            const SizedBox(width: 6),
-                            Text(
-                              l10n.shareProviderSheetCopyButton,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: cs.onSurface.withValues(alpha: 0.6),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                        child: Tooltip(
+                          message: l10n.shareProviderSheetCopyButton,
+                          child: Icon(Lucide.Copy, size: 14, color: cs.onSurface.withValues(alpha: 0.6)),
                         ),
                       ),
                     ),

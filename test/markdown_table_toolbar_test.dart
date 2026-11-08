@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:OmniChat/core/providers/settings_provider.dart';
+import 'package:OmniChat/icons/lucide_adapter.dart';
 import 'package:OmniChat/l10n/app_localizations.dart';
 import 'package:OmniChat/shared/widgets/markdown_with_highlight.dart';
 
@@ -71,14 +72,14 @@ void main() {
 
     // Toolbar label is removed (empty).
     expect(find.text('Table'), findsNothing);
-    // Copy and download actions.
-    expect(find.text('Copy'), findsOneWidget);
-    expect(find.text('Download'), findsOneWidget);
+    // Copy and download actions (icon-only; localized labels in tooltips).
+    expect(find.byIcon(Lucide.Copy), findsOneWidget);
+    expect(find.byIcon(Lucide.Download), findsOneWidget);
 
     // Verify actions are placed below the Table
     final tableBottom = tester.getBottomLeft(find.byType(Table)).dy;
-    final copyTop = tester.getTopLeft(find.text('Copy')).dy;
-    final downloadTop = tester.getTopLeft(find.text('Download')).dy;
+    final copyTop = tester.getTopLeft(find.byIcon(Lucide.Copy)).dy;
+    final downloadTop = tester.getTopLeft(find.byIcon(Lucide.Download)).dy;
     expect(copyTop, greaterThanOrEqualTo(tableBottom));
     expect(downloadTop, greaterThanOrEqualTo(tableBottom));
   });
@@ -88,7 +89,7 @@ void main() {
     final sp = await _loadedProvider();
     await _pumpMd(tester, sp, _tableMd);
 
-    await tester.tap(find.text('Copy'));
+    await tester.tap(find.byIcon(Lucide.Copy));
     // Let the snackbar enter/exit animations finish before the test ends:
     // settle the entrance, fire the 3s auto-dismiss timer, then settle the exit.
     await tester.pumpAndSettle();
@@ -103,7 +104,7 @@ void main() {
     final sp = await _loadedProvider();
     await _pumpMd(tester, sp, '| X | Y |\n| --- | --- |\n| \$P(A|B)\$ | \$|x|\$ |');
 
-    await tester.tap(find.text('Copy'));
+    await tester.tap(find.byIcon(Lucide.Copy));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
@@ -121,8 +122,8 @@ void main() {
     // overlays only render when a Material ancestor sits right above them.
     // Without it the overlay is painted on a distant Material and hidden
     // behind the surrounding backgrounds (no hover effect on Windows).
-    for (final label in const ['Copy', 'Download']) {
-      final element = tester.element(find.text(label));
+    for (final icon in const [Lucide.Copy, Lucide.Download]) {
+      final element = tester.element(find.byIcon(icon));
       Material? nearest;
       element.visitAncestorElements((ancestor) {
         final widget = ancestor.widget;
@@ -132,13 +133,36 @@ void main() {
         }
         return true;
       });
-      expect(nearest, isNotNull, reason: 'No Material ancestor for "$label"');
+      expect(nearest, isNotNull, reason: 'No Material ancestor for "$icon"');
       expect(
         nearest!.type,
         MaterialType.transparency,
-        reason: 'Ink overlay for "$label" must paint on the local surface',
+        reason: 'Ink overlay for "$icon" must paint on the local surface',
       );
     }
+  });
+
+  testWidgets('table chrome stays neutral: header tint derives from ink, not theme primary', (tester) async {
+    final sp = await _loadedProvider();
+    const cs = ColorScheme.light(primary: Color(0xFF7C4DFF), surface: Colors.white, onSurface: Colors.black);
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: sp,
+        child: MaterialApp(
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          theme: ThemeData(colorScheme: cs),
+          home: Scaffold(body: MarkdownWithCodeHighlight(text: _tableMd)),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final table = tester.widget<Table>(find.byType(Table).first);
+    final headerBg = (table.children.first.decoration as BoxDecoration?)?.color;
+    // Regression: the header used Color.alphaBlend(primary, surface); it must
+    // now be a neutral blend of the body ink so tables stay monochrome.
+    expect(headerBg, Color.alphaBlend(cs.onSurface.withOpacity(0.06), cs.surface));
   });
 }
 

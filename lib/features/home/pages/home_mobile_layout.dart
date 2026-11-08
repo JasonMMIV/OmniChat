@@ -35,6 +35,7 @@ class HomeMobileScaffold extends StatelessWidget {
     required this.onDismissKeyboard,
     required this.onSelectConversation,
     required this.onNewConversation,
+    this.onExportConversations,
     required this.onCreateNewConversation,
     this.onOpenWorkspace,
     required this.body,
@@ -49,6 +50,7 @@ class HomeMobileScaffold extends StatelessWidget {
   final VoidCallback onDismissKeyboard;
   final void Function(String id) onSelectConversation;
   final VoidCallback onNewConversation;
+  final Future<void> Function(List<String> ids)? onExportConversations;
   final Future<void> Function() onCreateNewConversation;
   final VoidCallback? onOpenWorkspace;
   final Widget body;
@@ -77,6 +79,7 @@ class HomeMobileScaffold extends StatelessWidget {
           await onCreateNewConversation();
           if (closeDrawer) drawerController.close();
         },
+        onExportConversations: onExportConversations,
       ),
       child: Scaffold(
         key: scaffoldKey,

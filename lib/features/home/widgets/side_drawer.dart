@@ -52,6 +52,7 @@ class SideDrawer extends StatefulWidget {
     required this.assistantName,
     this.onSelectConversation,
     this.onNewConversation,
+    this.onExportConversations,
     this.closePickerTicker,
     this.loadingConversationIds = const <String>{},
     this.embedded = false,
@@ -64,6 +65,8 @@ class SideDrawer extends StatefulWidget {
   final FutureOr<void> Function(String id, {bool closeDrawer})?
   onSelectConversation;
   final FutureOr<void> Function({bool closeDrawer})? onNewConversation;
+  final FutureOr<void> Function(List<String> conversationIds)?
+      onExportConversations;
   final ValueNotifier<int>? closePickerTicker;
   final Set<String> loadingConversationIds;
   final bool
@@ -157,6 +160,13 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             label: l10n.sideDrawerMenuRegenerateTitle,
             onTap: () async {
               await _regenerateTitle(context, chat.id);
+            },
+          ),
+          DesktopContextMenuItem(
+            icon: Lucide.Share,
+            label: l10n.sideDrawerMenuExport,
+            onTap: () {
+              widget.onExportConversations?.call([chat.id]);
             },
           ),
           DesktopContextMenuItem(
@@ -337,6 +347,13 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                       label: l10n.sideDrawerMenuRegenerateTitle,
                       action: () async {
                         await _regenerateTitle(context, chat.id);
+                      },
+                    ),
+                    row(
+                      icon: Lucide.Share,
+                      label: l10n.sideDrawerMenuExport,
+                      action: () async {
+                        await widget.onExportConversations?.call([chat.id]);
                       },
                     ),
                     row(
@@ -541,6 +558,13 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         const SizedBox(width: 8),
         _selectionActionChip(
           context,
+          icon: Lucide.Share,
+          label: l10n.sideDrawerMenuExport,
+          onTap: () => _exportSelection(),
+        ),
+        const SizedBox(width: 8),
+        _selectionActionChip(
+          context,
           icon: Lucide.Trash2,
           label: l10n.sideDrawerMenuDelete,
           color: cs.error,
@@ -558,26 +582,20 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     required VoidCallback onTap,
   }) {
     final cs = Theme.of(context).colorScheme;
+    // Icon-only keeps all four actions readable at every sidebar width. The
+    // label stays available as a tooltip (hover on desktop / long-press on
+    // mobile) and as the semantics label for accessibility.
     return Expanded(
-      child: IosCardPress(
-        borderRadius: BorderRadius.circular(12),
-        baseColor: cs.surfaceContainerHighest.withOpacity(0.6),
-        onTap: onTap,
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 17, color: color ?? cs.onSurface),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13, color: color ?? cs.onSurface),
-              ),
-            ),
-          ],
+      child: Tooltip(
+        message: label,
+        child: IosCardPress(
+          borderRadius: BorderRadius.circular(12),
+          baseColor: cs.surfaceContainerHighest.withOpacity(0.6),
+          onTap: onTap,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Center(
+            child: Icon(icon, size: 19, color: color ?? cs.onSurface),
+          ),
         ),
       ),
     );
@@ -601,6 +619,15 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       assistantId: targetId,
     );
     _exitSelectionMode();
+  }
+
+  Future<void> _exportSelection() async {
+    final callback = widget.onExportConversations;
+    if (callback == null) return;
+    final ids = List<String>.of(_selectedConversationIds);
+    if (ids.isEmpty) return;
+    _exitSelectionMode();
+    await callback(ids);
   }
 
   Future<void> _batchDeleteSelection(BuildContext context) async {
@@ -920,7 +947,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     final ap = context.watch<AssistantProvider>();
 
     // Avatar renderer: emoji / url / file / default initial
-    Widget avatarWidget(String name, UserProvider up, {double size = 40}) {
+    Widget avatarWidget(String name, UserProvider up, {double size = 38}) {
       final type = up.avatarType;
       final value = up.avatarValue;
       if (type == 'emoji' && value != null && value.isNotEmpty) {
@@ -1278,7 +1305,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                             child: avatarWidget(
                               widget.userName,
                               context.watch<UserProvider>(),
-                              size: 40,
+                              size: 38,
                             ),
                           ),
                           const SizedBox(width: 20),
@@ -1292,7 +1319,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                                 horizontal: 0,
                               ),
                               child: SizedBox(
-                                height: 45,
+                                height: 44,
                                 child: Align(
                                   alignment: Alignment.centerLeft,
                                   child: Text(
@@ -1300,7 +1327,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                      fontSize: _isDesktop ? 14 : 16,
+                                      fontSize: _isDesktop ? 13 : 15,
                                       fontWeight: FontWeight.w700,
                                       color: textBase,
                                     ),
@@ -1312,11 +1339,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                           const SizedBox(width: 8),
                           // 设置按钮（圆形，无水波纹）
                           SizedBox(
-                            width: 45,
-                            height: 45,
+                            width: 44,
+                            height: 44,
                             child: Center(
                               child: IosIconButton(
-                                size: 26,
+                                size: 24,
                                 color: textBase,
                                 icon: Lucide.Settings,
                                 padding: const EdgeInsets.all(8),
