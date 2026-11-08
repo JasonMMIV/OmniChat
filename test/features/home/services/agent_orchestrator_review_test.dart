@@ -894,8 +894,15 @@ void main() {
     expect(reviewBody['stream'], anyOf(isFalse, isNull));
     expect(reviewBody['messages'], isA<List>());
     expect(reviewBody['temperature_top'], 'keep-me');
-    // The verdict budget replaces the (absent) main max_tokens.
-    expect(reviewBody['max_tokens'], 1200);
+    // No verdict cap: the review inherits the main run's (absent) max_tokens
+    // and sends none. Always-thinking models must be free to spend their
+    // reasoning tokens before the JSON verdict.
+    expect(reviewBody.containsKey('max_tokens'), isFalse);
+    // The review inherits the main run's reasoning effort (null/auto here),
+    // so a plain model sends no reasoning keys at all.
+    expect(reviewBody.containsKey('reasoning_effort'), isFalse);
+    expect(reviewBody.containsKey('reasoning'), isFalse);
+    expect(reviewBody.containsKey('thinking'), isFalse);
     // The review instruction rides the last user message.
     final reviewMessages = reviewBody['messages'] as List;
     expect(reviewMessages.last['role'], 'user');

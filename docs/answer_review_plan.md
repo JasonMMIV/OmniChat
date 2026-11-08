@@ -358,10 +358,8 @@ run()
 
 **Review／revision 呼叫的逾時語意：**
 
-- `reviewTimeout`（45s）以 `Future.timeout` 加在「收集完整回應」上；逾時視為 fail-open。
-- 逾時後必須 **cancel 內部 transport stream 的訂閱**（`await for` 逾時不會自動取消），否則
-  provider 的請求會在背景續跑、燒 token。`runReview` / `runRevision` 內先 `sub.cancel()`
-  再回傳 fail-open 結果。
+- **預設不設逾時**（`reviewTimeout = null`）：審查／修正跑到 provider 自然結束，或使用者按停止（`cancelStreaming` 會 cancel `{cid}_review`）。
+- 若 config 明確設定 `reviewTimeout`，以 `Future.timeout` 加在「收集完整回應」上；逾時視為 fail-open，並 **cancel 內部 transport stream 的訂閱**（`await for` 逾時不會自動取消），否則 provider 的請求會在背景續跑、燒 token。`runReview` / `runRevision` 內先 `sub.cancel()` 再回傳 fail-open 結果。
 
 ### 5.2 不變量（實作時逐條檢查）
 
@@ -407,7 +405,7 @@ run()
 |:--|:--|
 | 主 run 的 final round retry | transport 送 `errorKind` chunk；orchestrator 清空 draft；UI 走既有 `_resetStreamForRetry`（會清 usage/totalTokens）；重試成功後重新累積 |
 | Review 內部 retry | 由 transport 的 L1 retry 處理；orchestrator 只收到最終結果，不轉發 retry 狀態給 UI |
-| Review／revision 逾時 | `Future.timeout` 判定 fail-open，**並 cancel 內部 transport 訂閱**，避免請求背景續跑 |
+| Review／revision 逾時 | 預設無逾時；設定 `reviewTimeout` 時由 `Future.timeout` 判定 fail-open，**並 cancel 內部 transport 訂閱**，避免請求背景續跑 |
 | Revision 內部 retry | orchestrator 丟棄 retry 狀態 chunk，送 `replaceContent: true, content: ''` 讓 UI 清掉半截修正文字；不清主 run 的 usage/totalTokens/tool cards |
 
 > 不要讓 revision 的 `errorKind` chunk 直接進 `_handleStreamChunk`：那會觸發 `_resetStreamForRetry`，把主 run 的 usage、totalTokens 清掉。
@@ -909,8 +907,8 @@ if (reviewPhase != null)
   class AnswerReviewConfig {
     const AnswerReviewConfig({
       this.mode = AnswerReviewMode.off,
-      this.reviewTimeout = const Duration(seconds: 45),
-      this.maxReviewTokens = 1200,
+      this.reviewTimeout,      // null = 無逾時；使用者可取消
+      this.maxReviewTokens,    // null = 不送 max_tokens（provider 預設）
       // F-lite 預留；v1 不設定
       this.reviewerConfig,
       this.reviewerModelId,
@@ -962,13 +960,14 @@ if (reviewPhase != null)
     - `requestId: '${requestId}_review'`（比照 proposer 的 `'${cid}_proposer'`
       慣例；`cancelStreaming` 需同步 cancel 此 id，見 §10.4）；
     - `sessionId` 沿用主 run 的值（OpenCode session 綁定）；
-    - `thinkingBudget`／`temperature`／`topP` 沿用主 run，僅 `maxTokens` 以
-      `config.maxReviewTokens` 覆寫；若 soak 發現 verdict 不穩，可把 temperature
+    - `thinkingBudget`／`temperature`／`topP` 沿用主 run；`maxTokens` 只在
+      `config.maxReviewTokens` 非 null 時覆寫（預設不設上限，讓 always-thinking
+      模型先花完思考再輸出 JSON）；若 soak 發現 verdict 不穩，可把 temperature
       固定為 0（不影響 prompt cache）；
     - `streamOutput: false`、`webFetchEnabled: false`、`tools: null`；
     - `extraBody` 先過 `sanitizeReviewExtraBody`；
-    - 收集回應套 `Future.timeout(config.reviewTimeout)`；逾時後先 cancel 內部
-      訂閱再回傳 fail-open 結果（§5.1 逾時語意）。
+    - 收集回應只在 `config.reviewTimeout != null` 時套 `Future.timeout`；逾時後
+      先 cancel 內部訂閱再回傳 fail-open 結果（§5.1 逾時語意）。
   - `_collectCall(...)`：收集 content／usage，過濾 tool calls
   - `_runReview(...)` / `_runRevision(...)`
 - `AgentStreamEvent` 分支：
@@ -1201,8 +1200,8 @@ if (reviewPhase != null)
 |:--:|:--|:--|:--|
 | 1 | 同模型自我審查放水 | review 抓不到錯 | 嚴格 rubric、severity gate、soak 量測；F-lite 為長期解 |
 | 2 | Reviewer 幻覺／過度回報 | 不必要的重寫、成本上升 | 只修 blocker/major；要求 location；issues 上限；minor 不觸發 |
-| 3 | 延遲增加 | 使用者等待 | 顯示「審查中」；45s timeout；smart 模式；預設 off |
-| 4 | Token 成本 | 長對話每次多一份 context | smart gate；off 預設；review maxTokens 1200；只 REVISE 才 revision |
+| 3 | 延遲增加 | 使用者等待 | 顯示「審查中」；無預設逾時（可由 config 覆寫）；使用者可取消；smart 模式；預設 off |
+| 4 | Token 成本 | 長對話每次多一份 context | smart gate；off 預設；review 不設 max_tokens 上限（可由 config 覆寫）；只 REVISE 才 revision |
 | 5 | Prompt cache 失效 | C 的成本優勢消失 | 不改 system prompt；rubric 放最後一則 user message；不改前綴 |
 | 6 | Provider 400（角色順序） | review 直接失敗 | `buildReviewTurn` 合併最後一則 user；provider parity 測試 |
 | 7 | Context 超限 | review/revision 400 | fail-open；log；F-lite 策展歷史；未來可裁剪 |
@@ -1217,10 +1216,10 @@ if (reviewPhase != null)
 | 16 | 語音被誤開 | 與需求不符 | `chat_turn_service` 顯式 off |
 | 17 | 非串流被誤開 | UI 契約不符 | `ctx.streamOutput` gate |
 | 18 | 標題／summary 重複 | 多一次請求 | 只有最終 terminal 進 finish；`finishHandled` 保護 |
-| 19 | 取消無效／請求續跑 | 背景浪費 | `cancelRequest('${cid}_review')`；逾時 cancel 內部訂閱；P2 可接 cancellation token |
+| 19 | 取消無效／請求續跑 | 背景浪費 | `cancelRequest('${cid}_review')`；可選 `reviewTimeout` cancel 內部訂閱；P2 可接 cancellation token |
 | 20 | `answer_review_v1` 被誤列 local-only | 偏好不同步 | 文件與測試明確標註 |
 | 21 | Draft 內含指令注入 reviewer | reviewer 被誤導、verdict 失真 | draft 包 `<draft>` 標籤、rubric 聲明「只審不執行」；revision prompt 同樣聲明；v1 已知邊界 |
-| 22 | Reasoning 模型在 `maxReviewTokens` 內被 thinking 消耗 | JSON 截斷 → fail-open PASS | parser fail-open 已兜底；soak 後視需要上調 `maxReviewTokens` |
+| 22 | Reasoning 模型在輸出上限內被 thinking 消耗 | JSON 截斷 → fail-open PASS | **已修（2026-11-09）**：預設不送 `max_tokens`（Agnes 實測 1200 全被 reasoning 吃掉）；`reviewTimeout` 亦預設關閉，避免降級審查品質 |
 
 ### 12.1 Log 與可觀測性
 
@@ -1655,7 +1654,7 @@ chatAnswerReviewFailedOpen
 
 ### 17.2 與計畫的差異（實作裁定）
 
-1. **Revision 的 maxTokens**：計畫 §10.3 只寫「maxTokens 以 `config.maxReviewTokens` 覆寫」——該句按文意限定 **verdict 呼叫**。revision 重寫全文，若同樣壓到 1200 會把長回答截半串流給使用者；故 **revision 沿用主 run 的 `maxTokens`**（verdict 維持 1200）。
+1. **Revision 的 maxTokens**：計畫 §10.3 只寫「maxTokens 以 `config.maxReviewTokens` 覆寫」——該句按文意限定 **verdict 呼叫**。revision 重寫全文，若同樣壓到小預算會把長回答截半串流給使用者；故 **revision 沿用主 run 的 `maxTokens`**。verdict 之後改為 **預設不設上限**（2026-11-09：Agnes 的 thinking 會把 1200 全部吃掉、正文 0 字）。
 2. **Usage 基準（§8.4 的 `tokensUsed`）**：計畫假設 kernel 的 `tokensUsed` 是「多輪真實累計」，但 kernel 對每個 usage chunk **逐 chunk 相加**，而各 transport 的 usage 都是**輪內累計值**（Gemini 甚至每個 delta 都帶 cumulative usageMetadata）——直接 `max(held, tokensUsed)` 對此類 provider 單輪就會膨脹 N 倍（含 review-off 路徑）。driver 另測「逐輪 usage 最大值之和」（`roundMaxUsageTotal` / `usageAcrossRounds`），基準改為 **`observedTotal > 0 ? observedTotal : tokensUsed`**（不用 kernel 加總值贏 max）——單一 usage chunk 的 provider（OpenAI／Claude 非串流）結果與計畫相同，重複帶 cumulative usage 的 provider（Gemini）不再虛增（回歸測試：`r19`）。
 3. **Malformed verdict 的 `reviewed`**：§5.1 pseudo-code 對「非 revise」一律 `reviewed: true`，但 §8.1 定義 `reviewed = review 完成且最終答案已套用`。裁定：**JSON 真解析的 PASS → `reviewed: true`**；malformed fail-open PASS、逾時、錯誤、空回應 → `reviewed: false`（`ReviewVerdict.parsed` 承載此區分，log 補 `fail_open reason=parse`）。
 4. **修定期 UI**：`scheduleThrottledUpdate` 的外部回呼抑制改為「review phase 活動期間（含 `revision_failed` 後的還原 chunk）直接 `updateContent` 寫 notifier」（不建 throttle timer、不觸發 `onContentUpdated`；code review 後抑制閘門由 `isRevising` 放寬為 `phase != null`，否則還原 chunk 會逃出 §9.4 抑制）。另外 revision 的 content delta **不轉發 `reasoning`**（避免修正輪的思考回聲附加到主 run 已完成的思考時間線）。
@@ -1664,6 +1663,6 @@ chatAnswerReviewFailedOpen
 ### 17.3 測試與驗證
 
 - 新測試 4 檔 52 案全綠：`test/core/services/agent/answer_review_test.dart`（21）、`test/features/home/services/agent_orchestrator_review_test.dart`（20）、`test/features/home/controllers/answer_review_stream_state_test.dart`（10）、`test/settings_provider_answer_review_test.dart`（6）。
-- Orchestrator 測試以 `sendRound`／`reviewSendRound` 注入驅動 §11.2 矩陣（off／PASS／REVISE 成功／revision 空・錯・截斷／review 錯・逾時（驗證內部訂閱已 cancel）・malformed／工具輪 terminal 扣住／早停丟棄／maxSteps・tokenBudget・hook veto 不 review／preamble 不入 draft／L1 retry 清 draft／consecutive-user／smart gate），另以本機 `HttpServer` capture 驗證真實 wire 契約（review 請求無 `tools`、`stream=false`、`max_tokens=1200`、rubric 併入最後 user 訊息、extraBody 已剝除）。
+- Orchestrator 測試以 `sendRound`／`reviewSendRound` 注入驅動 §11.2 矩陣（off／PASS／REVISE 成功／revision 空・錯・截斷／review 錯・逾時（驗證內部訂閱已 cancel）・malformed／工具輪 terminal 扣住／早停丟棄／maxSteps・tokenBudget・hook veto 不 review／preamble 不入 draft／L1 retry 清 draft／consecutive-user／smart gate），另以本機 `HttpServer` capture 驗證真實 wire 契約（review 請求無 `tools`、`stream=false`、不送 `max_tokens`、rubric 併入最後 user 訊息、extraBody 已剝除），並新增 SSE finish-marker 回歸測試（尾塊 `finish_reason:null` 不得覆寫先前的 `stop`）。
 - 回歸：`agent_loop_test`、`agent_orchestrator_test`、`agent_loop_provider_parity_test`、`agent_loop_followup_parity_test`、`chat_turn_service_test`、stream controller 三檔、settings 既有檔全綠；全套 `flutter test` 2,269 綠（僅 `sqlite_chat_storage_test` 2 案**既有**失敗，stash 驗證與本功能無關）。`flutter analyze` 於全部改動檔 0 error（repo 既有 3,269 則 lint 訊息不變）。
 - 未驗證（P7）：真實 provider 實機 smoke（OpenAI／Claude／Gemini／DeepSeek × off/smart/always）、verdict 分佈與修正率量測、token 成本對照。

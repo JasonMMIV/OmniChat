@@ -4070,9 +4070,13 @@ class ChatApiService {
                 totalTokens = usage!.totalTokens;
               }
               // Sync the L1 retry loop's silent-interruption detector.
+              // `hasUsage` is OR-ed: a later completed chunk without usage
+              // must not flip an already-seen usage block back to false
+              // (same overwrite class as the chat-completions finish_reason
+              // fix above).
               if (flags != null) {
                 flags.finishReason = 'completed';
-                flags.hasUsage = u != null;
+                flags.hasUsage = flags.hasUsage || u != null;
               }
               // Extract web search citations from final output (Responses API)
               try {
@@ -4269,8 +4273,18 @@ class ChatApiService {
             final choices = json['choices'];
             if (choices != null && choices.isNotEmpty) {
               final c0 = choices[0];
-              finishReason = c0['finish_reason'] as String?;
-              flags?.finishReason = finishReason;
+              // Keep the last NON-NULL finish_reason. Some gateways (e.g.
+              // Agnes apihub) append a trailing usage chunk that still has a
+              // non-empty `choices` array whose `finish_reason` is null.
+              // Overwriting the captured 'stop' with that null made the L1
+              // retry loop treat a completed stream as a silent interruption
+              // (answer re-streamed 4× then "connection interrupted",
+              // 2026-11-09).
+              final chunkFinishReason = c0['finish_reason'] as String?;
+              if (chunkFinishReason != null) {
+                finishReason = chunkFinishReason;
+                flags?.finishReason = chunkFinishReason;
+              }
               // if (finishReason != null) {
               //   print('[ChatApi] Received finishReason from choices: $finishReason');
               // }

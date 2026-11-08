@@ -72,8 +72,8 @@ const Set<String> kAnswerReviewStrippedExtraBodyKeys = <String>{
 class AnswerReviewConfig {
   const AnswerReviewConfig({
     this.mode = AnswerReviewMode.off,
-    this.reviewTimeout = const Duration(seconds: 45),
-    this.maxReviewTokens = 1200,
+    this.reviewTimeout,
+    this.maxReviewTokens,
     // F-lite reserved; v1 never sets these (§14).
     this.reviewerConfig,
     this.reviewerModelId,
@@ -83,15 +83,20 @@ class AnswerReviewConfig {
 
   final AnswerReviewMode mode;
 
-  /// Wall-clock cap on each internal review / revision request. A timed-out
-  /// request is cancelled (the transport subscription is closed) and the run
-  /// fail-opens with the original draft (§5.1 timeout semantics).
-  final Duration reviewTimeout;
+  /// Optional wall-clock cap on each internal review / revision request.
+  /// `null` (default) means no deadline: the round runs until the transport
+  /// completes or the user cancels (`cancelStreaming` cancels the `_review`
+  /// request id). A configured timeout cancels the inner subscription and the
+  /// run fail-opens with the original draft (§5.1 timeout semantics).
+  final Duration? reviewTimeout;
 
-  /// Output cap for the verdict request only. The revision call keeps the
-  /// main run's `maxTokens` — it rewrites the full answer and must not be
-  /// truncated by the short verdict budget.
-  final int maxReviewTokens;
+  /// Optional output cap for the verdict request only. `null` (default)
+  /// sends no `max_tokens` at all, so always-thinking models can spend the
+  /// reasoning tokens they need before emitting the JSON verdict (Agnes
+  /// burned a 1200-token cap entirely on reasoning and returned an empty
+  /// body). The revision call always keeps the main run's `maxTokens` — it
+  /// rewrites the full answer and must not be truncated by a verdict budget.
+  final int? maxReviewTokens;
 
   final ProviderConfig? reviewerConfig;
   final String? reviewerModelId;

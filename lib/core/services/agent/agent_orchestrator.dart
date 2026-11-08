@@ -324,6 +324,11 @@ class AgentOrchestrator {
                 draft: draftText,
               ),
               stream: false,
+              // No verdict cap by default: always-thinking models bill
+              // reasoning against `max_tokens` (Agnes burned 1200 tokens on
+              // thinking and returned an empty body). A configured cap still
+              // wins when set. Reasoning effort is intentionally inherited
+              // from the main run (quality over cost).
               maxTokensOverride: answerReview.maxReviewTokens,
             ),
             timeout: answerReview.reviewTimeout,
@@ -529,12 +534,13 @@ class AgentOrchestrator {
 
 /// Collect one internal (review / revision) transport round into a content +
 /// usage snapshot. The returned future resolves when the stream completes or
-/// errors; the wall-clock [timeout] cancels the inner subscription first and
-/// then resolves with a timed-out snapshot so the provider request cannot
-/// keep burning tokens in the background (§5.1 timeout semantics).
+/// errors. When [timeout] is set, the wall-clock deadline cancels the inner
+/// subscription first and then resolves with a timed-out snapshot so the
+/// provider request cannot keep burning tokens in the background (§5.1
+/// timeout semantics). `null` means no deadline.
 Future<_CollectedRound> _collectRound(
   Future<Stream<ChatStreamChunk>> roundFuture, {
-  required Duration timeout,
+  Duration? timeout,
 }) async {
   final completer = Completer<_CollectedRound>();
   final collected = _CollectedRound();
@@ -556,6 +562,7 @@ Future<_CollectedRound> _collectRound(
     collected.errored = true;
     return collected;
   }
+  if (timeout == null) return completer.future;
   return completer.future.timeout(timeout, onTimeout: () async {
     await sub?.cancel();
     collected.errored = true;
@@ -570,8 +577,10 @@ Future<_CollectedRound> _collectRound(
 /// through while the deadline still applies to the whole response.
 Stream<ChatStreamChunk> _withDeadline(
   Stream<ChatStreamChunk> source, {
-  required Duration timeout,
+  required Duration? timeout,
 }) {
+  // No deadline configured: forward the source untouched.
+  if (timeout == null) return source;
   late StreamController<ChatStreamChunk> controller;
   StreamSubscription<ChatStreamChunk>? sub;
   Timer? timer;
