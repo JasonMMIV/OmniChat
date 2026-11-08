@@ -381,10 +381,9 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
         final cs = Theme.of(ctx).colorScheme;
         final isDark = Theme.of(ctx).brightness == Brightness.dark;
         final mdSurface = MarkdownSurfaceScope.of(ctx);
-        final borderColor = mdSurface.onSurface.withOpacity(isDark ? 0.16 : 0.22);
-        // Blend a neutral ink-based header tint with the same surface the table
-        // body uses, keeping the table in the same monochrome family as the text.
-        final headerBg = Color.alphaBlend(mdSurface.onSurface.withOpacity(isDark ? 0.10 : 0.06), mdSurface.surface);
+        final borderColor = cs.outlineVariant.withOpacity(isDark ? 0.22 : 0.28);
+        // Blend header background with the same surface the table body uses.
+        final headerBg = Color.alphaBlend(cs.primary.withOpacity(isDark ? 0.14 : 0.08), mdSurface.surface);
         final headerStyle = (style).copyWith(
           fontWeight: FontWeight.w600,
           // Ensure header text adapts to theme changes
@@ -2900,6 +2899,7 @@ bool _isClosingOrSentencePunctuation(int codeUnit) {
 /// Wraps a rendered markdown table with download CSV and copy actions
 /// positioned below the table.
 Widget _wrapTableWithToolbar(BuildContext ctx, List<CustomTableRow> rows, Widget table) {
+  final cs = Theme.of(ctx).colorScheme;
   final mdSurface = MarkdownSurfaceScope.of(ctx);
   return Padding(
     padding: const EdgeInsets.symmetric(vertical: 6),
@@ -2913,7 +2913,7 @@ Widget _wrapTableWithToolbar(BuildContext ctx, List<CustomTableRow> rows, Widget
           clipBehavior: Clip.antiAlias,
           foregroundDecoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: mdSurface.onSurface.withOpacity(0.12)),
+            border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
           ),
           child: table,
         ),

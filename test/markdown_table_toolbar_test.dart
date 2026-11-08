@@ -142,7 +142,7 @@ void main() {
     }
   });
 
-  testWidgets('table chrome stays neutral: header tint derives from ink, not theme primary', (tester) async {
+  testWidgets('table header tint follows the theme primary color', (tester) async {
     final sp = await _loadedProvider();
     const cs = ColorScheme.light(primary: Color(0xFF7C4DFF), surface: Colors.white, onSurface: Colors.black);
     await tester.pumpWidget(
@@ -160,9 +160,8 @@ void main() {
 
     final table = tester.widget<Table>(find.byType(Table).first);
     final headerBg = (table.children.first.decoration as BoxDecoration?)?.color;
-    // Regression: the header used Color.alphaBlend(primary, surface); it must
-    // now be a neutral blend of the body ink so tables stay monochrome.
-    expect(headerBg, Color.alphaBlend(cs.onSurface.withOpacity(0.06), cs.surface));
+    // The header is a translucent theme-primary wash over the surface.
+    expect(headerBg, Color.alphaBlend(cs.primary.withOpacity(0.08), cs.surface));
   });
 }
 
