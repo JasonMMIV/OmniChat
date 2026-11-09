@@ -46,7 +46,8 @@ class ToolResultCaps {
   /// Guidance appended after the marker, per tool family.
   static const String fileToolGuidance =
       'Re-query the source instead: use file_read with offset/limit to page '
-      'through the file, or file_search to locate the relevant section.';
+      'through the file, file_grep to search inside files, or file_search to '
+      'locate the relevant section.';
 
   static const String searchToolGuidance =
       'Re-run the search with narrower parameters (more specific query, '

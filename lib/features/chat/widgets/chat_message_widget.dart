@@ -3281,6 +3281,11 @@ class ToolUIPart {
   final int? diffRemoved;
   final String? diffText;
 
+  /// file_view_image Stage 1: absolute path of the viewed image (UI-only
+  /// extras), rendered as a thumbnail on the card and a preview in the
+  /// detail dialog.
+  final String? imagePath;
+
   const ToolUIPart({
     required this.id,
     required this.toolName,
@@ -3297,8 +3302,38 @@ class ToolUIPart {
     this.diffAdded,
     this.diffRemoved,
     this.diffText,
+    this.imagePath,
   }) : contentLoaded = contentLoaded ?? (content != null),
        contentLength = contentLength ?? (content?.length ?? 0);
+}
+
+/// file_view_image Stage 1: small rounded thumbnail on the collapsed tool
+/// card row (UI-only). Loading and decode failures degrade to a quiet icon.
+class _ToolImageThumb extends StatelessWidget {
+  const _ToolImageThumb({required this.path, required this.color});
+
+  final String path;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: SizedBox(
+        width: 32,
+        height: 32,
+        child: Image.file(
+          File(path),
+          fit: BoxFit.cover,
+          cacheWidth: 128,
+          errorBuilder: (_, _, _) => ColoredBox(
+            color: color.withOpacity(0.08),
+            child: Icon(Lucide.ImageOff, size: 14, color: color),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Small pill showing the search provider that served a `search_web` result
@@ -3463,6 +3498,10 @@ class _ToolCallItem extends StatelessWidget {
         return Lucide.WandSparkles;
       case 'shell_run':
         return Lucide.Terminal;
+      case 'file_grep':
+        return Lucide.Search;
+      case 'file_view_image':
+        return Lucide.Image;
       default:
         return Lucide.Wrench;
     }
@@ -3506,6 +3545,16 @@ class _ToolCallItem extends StatelessWidget {
         return command.isEmpty
             ? l10n.chatMessageWidgetToolCall(name)
             : l10n.chatMessageWidgetShellRun(command);
+      case 'file_grep':
+        final pattern = (args['pattern'] ?? '').toString();
+        return pattern.isEmpty
+            ? l10n.chatMessageWidgetToolCall(name)
+            : l10n.chatMessageWidgetFileGrep(pattern);
+      case 'file_view_image':
+        final imagePath = (args['path'] ?? '').toString();
+        return imagePath.isEmpty
+            ? l10n.chatMessageWidgetToolCall(name)
+            : l10n.chatMessageWidgetFileViewImage(imagePath);
       default:
         return isResult
             ? l10n.chatMessageWidgetToolResult(name)
@@ -3669,6 +3718,11 @@ class _ToolCallItem extends StatelessWidget {
                     ),
                   ),
                 ],
+                if (part.toolName == 'file_view_image' &&
+                    (part.imagePath ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  _ToolImageThumb(path: part.imagePath!, color: cardTextColor),
+                ],
                 if (part.status == kPartStatusInterrupted) ...[
                   const SizedBox(height: 2),
                   Text(
@@ -3698,6 +3752,42 @@ class _ToolCallItem extends StatelessWidget {
     );
   }
 
+  /// file_view_image Stage 1: image preview inside the detail dialog/sheet.
+  /// The path comes from UI-only extras; a missing or unreadable file falls
+  /// back to a quiet placeholder instead of breaking the dialog.
+  Widget _buildToolImagePreview(BuildContext context, String path) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        constraints: const BoxConstraints(maxHeight: 320),
+        width: double.infinity,
+        color: isDark ? Colors.white10 : const Color(0xFFF7F7F9),
+        child: Image.file(
+          File(path),
+          fit: BoxFit.contain,
+          cacheWidth: 1200,
+          errorBuilder: (_, _, _) => Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Lucide.ImageOff, size: 14, color: cs.outline),
+                const SizedBox(width: 6),
+                Text(
+                  p.basename(path),
+                  style: TextStyle(fontSize: 12, color: cs.outline),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// P1-1: parse the approval protocol content on this tool part. Returns
   /// the parsed payload when the call is awaiting (or recorded) approval.
   Map<String, dynamic>? _approvalStateOf(ToolUIPart part) {
@@ -3714,6 +3804,7 @@ class _ToolCallItem extends StatelessWidget {
     var arguments = part.arguments;
     var content = part.content;
     var diffText = part.diffText ?? '';
+    var imagePath = part.imagePath;
     // Restored parts start without a body; live parts already carry content,
     // but the rendered diff is only persisted in metadata, so a file-tool
     // detail is fetched when the diff is still missing.
@@ -3739,6 +3830,7 @@ class _ToolCallItem extends StatelessWidget {
             }
             content = detail['content']?.toString();
             diffText = detail['diffText']?.toString() ?? diffText;
+            imagePath = detail['imagePath']?.toString() ?? imagePath;
           }
         } catch (_) {
           if (!context.mounted) return;
@@ -3845,6 +3937,11 @@ class _ToolCallItem extends StatelessWidget {
                               children: [
                                 if (diffText.trim().isNotEmpty)
                                   _buildToolDiffSection(context, diffText),
+                                if (part.toolName == 'file_view_image' &&
+                                    (imagePath ?? '').trim().isNotEmpty) ...[
+                                  _buildToolImagePreview(context, imagePath!),
+                                  const SizedBox(height: 12),
+                                ],
                                 Text(
                                   l10n.chatMessageWidgetArguments,
                                   style: TextStyle(
@@ -3962,6 +4059,11 @@ class _ToolCallItem extends StatelessWidget {
                     const SizedBox(height: 12),
                     if (diffText.trim().isNotEmpty)
                       _buildToolDiffSection(context, diffText),
+                    if (part.toolName == 'file_view_image' &&
+                        (imagePath ?? '').trim().isNotEmpty) ...[
+                      _buildToolImagePreview(context, imagePath!),
+                      const SizedBox(height: 12),
+                    ],
                     Text(
                       l10n.chatMessageWidgetArguments,
                       style: TextStyle(

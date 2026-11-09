@@ -681,6 +681,8 @@
   "approvalShellCommand": "命令",
   "approvalShellAlwaysAllowHint": "永遠允許會將這些程式加入允許清單：{programs}",
   "chatMessageWidgetShellRun": "執行：{command}",
+  "chatMessageWidgetFileGrep": "搜尋內容：{pattern}",
+  "chatMessageWidgetFileViewImage": "檢視圖片：{path}",
   "approvalSettingsTitle": "工具審批政策",
   "approvalStrictModeTitle": "嚴格模式",
   "approvalStrictModeSubtitle": "原本會詢問審批的工具呼叫一律拒絕，不顯示審批提示。",

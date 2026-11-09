@@ -483,9 +483,10 @@ P1-1 落地時 `file_edit` 已有**預覽 diff**（`buildEditPreviewDiff`：確�
 
 ---
 
-### 2.17 （可選）kelivo 週邊導入項 ⬜
+### 2.17 （可選）kelivo 週邊導入項 🔶（view_image Stage 1 與 file_grep 已實作 2026-11-09）
 
-- **`view_image` 工作區圖片檢視（kelivo v1.3.1 模式）**：現況已核實 OmniChat **沒有任何工作區圖片檢視工具**（`file_tool_service.dart` 零 image 支援；附件僅走訊息 inline images）——模型無法主動看 workspace 內的設計稿/截圖。形狀：`view_image(path, detail?)` → 讀圖轉 message part（vision 能力偵測；不支援的模型回明確錯誤）＋聊天內嵌預覽卡；圖片來源限工作區（出界照 §3.1 審批語意）。列為可選，但若目標含「看圖修 UI」則優先級應上調。
+- **✅ `file_grep` 內容搜尋（2026-11-09 實作，補 §0.5 裁定的唯一真缺口）**：第 16 個 `file_*` 工具。regex 逐行搜尋檔案內容，回傳 `path:line: text`（單行截斷 240 字元）；無效 regex 自動退回 literal 並註記；`ignore_case`／`limit`（預設 100、上限 1000）參數；跳過 >2MB、二進位（前 8KB NUL probe）、symlink、dot 目錄（`.git` 等；顯式指定隱藏資料夾仍可搜）；支援單檔目標與 session-outputs 唯讀區；自動繼承 workspace 閘門／per-tool toggle／出界審批／`ToolResultCaps`；compactor `_inspectTools` 與摘要已接線。測試：`test/file_grep_view_image_test.dart`。
+- **🔶 `file_view_image` 工作區圖片檢視（kelivo `view_image` 模式）——Stage 1 已實作（2026-11-09）**：第 17 個 `file_*` 工具。PNG/JPEG/GIF/WebP/BMP magic-byte 驗證（上限 10MB），回傳 `[image:<abs-path>]` marker（模型端純文字）＋ tool-event extras `imagePath`（UI-only，入 `kPreservedToolEventExtraKeys`／`ToolPartSummary`／SQLite metadata 查詢）；工具卡渲染縮圖、詳細視窗／底部 sheet 渲染大圖預覽（`_buildToolImagePreview`／`_ToolImageThumb`，載入失敗靜默降級）；支援 session-outputs 唯讀區。**Stage 2 待做**：vision plumbing——按 transport 把 marker 升級為原生 vision part（Claude `tool_result` image block、chat-completions 內容陣列、Gemini 降級）＋ vision 能力偵測（catalog `modalities.input`）＋不支援模型回明確錯誤；另立細部執行計畫。原藍圖「讀圖轉 message part（vision 能力偵測；不支援的模型回明確錯誤）」即 Stage 2 範圍；出界照 §3.1 審批語意（已繼承 `file_*` 閘門）。
 - **檔案連結協定（kelivo `kelivo://` 模式）**：模型在回文中以 `omnichat://workspace/<path>` 引用檔案 → App 渲染可點擊 chip（比照既有 `[image:]/[file:]` marker 慣例），點開即預覽。藍圖：kelivo `file_link_resolver.dart`（8 種連結 kind、percent-encode 規則模型提示共用）。落點：隨 P2-4 預覽面板批次。
 - **附件進沙盒 session 目錄（kelivo `workspace_session_sync.dart` 模式）**：把 user 訊息附件複製到 per-conversation session dir（app 私有），file 工具即可讀取附件——補足「附件只進 inline 圖片、file 工具讀不到」的缺口；寫入序列化、刪除時同步清理。
 - **行動 in-app terminal（kelivo `terminal_view` + PTY + OSC 1337 + wakelock）**：**依賴 P2-5**（需要沙盒 PTY；桌面走系統終端機路線，見 §2.2 增量 6）。

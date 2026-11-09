@@ -64,6 +64,8 @@ const List<String> kPreservedToolEventExtraKeys = <String>[
   'diffAdded',
   'diffRemoved',
   'diffTruncated',
+  // file_view_image Stage 1: absolute image path for the card preview.
+  'imagePath',
 ];
 
 /// Normalizes a legacy approval state to the closed set. `null` and unknown
@@ -279,6 +281,7 @@ class ToolPartSummary {
     this.webFetchSource,
     this.diffAdded,
     this.diffRemoved,
+    this.imagePath,
   });
 
   final int partId;
@@ -314,6 +317,11 @@ class ToolPartSummary {
   /// P1-1 tail: full added/removed line counts of the post-execution diff.
   final int? diffAdded;
   final int? diffRemoved;
+
+  /// file_view_image Stage 1: absolute path of the viewed image, extracted
+  /// from `metadata_json` so a restored card can render its thumbnail
+  /// without loading the full event body.
+  final String? imagePath;
 
   bool get contentLoaded => eagerContent != null;
   bool get hasContent => contentLengthChars > 0;
@@ -385,6 +393,7 @@ ToolPartSummary toolPartSummaryFromEvent({
     webFetchSource: event['webFetchSource']?.toString(),
     diffAdded: _asInt(event['diffAdded']),
     diffRemoved: _asInt(event['diffRemoved']),
+    imagePath: event['imagePath']?.toString(),
   );
 }
 

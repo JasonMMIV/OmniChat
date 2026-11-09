@@ -4343,6 +4343,18 @@ abstract class AppLocalizations {
   /// **'Run: {command}'**
   String chatMessageWidgetShellRun(String command);
 
+  /// No description provided for @chatMessageWidgetFileGrep.
+  ///
+  /// In en, this message translates to:
+  /// **'Search contents: {pattern}'**
+  String chatMessageWidgetFileGrep(String pattern);
+
+  /// No description provided for @chatMessageWidgetFileViewImage.
+  ///
+  /// In en, this message translates to:
+  /// **'View image: {path}'**
+  String chatMessageWidgetFileViewImage(String path);
+
   /// No description provided for @approvalSettingsTitle.
   ///
   /// In en, this message translates to:

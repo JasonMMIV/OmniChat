@@ -2228,6 +2228,16 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String chatMessageWidgetFileGrep(String pattern) {
+    return '搜索内容：$pattern';
+  }
+
+  @override
+  String chatMessageWidgetFileViewImage(String path) {
+    return '查看图片：$path';
+  }
+
+  @override
   String get approvalSettingsTitle => '工具审批政策';
 
   @override
@@ -8672,6 +8682,16 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
+  String chatMessageWidgetFileGrep(String pattern) {
+    return '搜索内容：$pattern';
+  }
+
+  @override
+  String chatMessageWidgetFileViewImage(String path) {
+    return '查看图片：$path';
+  }
+
+  @override
   String get approvalSettingsTitle => '工具审批政策';
 
   @override
@@ -15013,6 +15033,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String chatMessageWidgetShellRun(String command) {
     return '執行：$command';
+  }
+
+  @override
+  String chatMessageWidgetFileGrep(String pattern) {
+    return '搜尋內容：$pattern';
+  }
+
+  @override
+  String chatMessageWidgetFileViewImage(String path) {
+    return '檢視圖片：$path';
   }
 
   @override

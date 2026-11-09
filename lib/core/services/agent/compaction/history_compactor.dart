@@ -66,6 +66,8 @@ const Set<String> _inspectTools = {
   'file_read',
   'file_list',
   'file_search',
+  'file_grep',
+  'file_view_image',
   'file_info',
   'file_extract_text',
   'file_extract_zip',
@@ -144,7 +146,7 @@ List<String> pathsFromToolInput(String toolName, Map<String, dynamic> args) {
         .where((p) => p.isNotEmpty)
         .toList();
   }
-  if (toolName == 'file_search') {
+  if (toolName == 'file_search' || toolName == 'file_grep') {
     final pattern = args['pattern'];
     if (pattern is String && pattern.trim().isNotEmpty) {
       return ['pattern: ${pattern.trim()}'];
@@ -172,6 +174,14 @@ String summarizeToolCall(String toolName, Map<String, dynamic> args) {
     case 'file_search':
       final pattern = (args['pattern'] ?? '').toString().trim();
       return pattern.isNotEmpty ? 'searched files: $pattern' : 'searched files';
+    case 'file_grep':
+      final grepPattern = (args['pattern'] ?? '').toString().trim();
+      return grepPattern.isNotEmpty
+          ? 'searched file contents: $grepPattern'
+          : 'searched file contents';
+    case 'file_view_image':
+      final image = (args['path'] ?? '').toString().trim();
+      return image.isNotEmpty ? 'viewed image: $image' : 'viewed an image';
     case 'file_write':
       return path.isNotEmpty ? 'wrote file: $path' : 'wrote a file';
     case 'file_append':

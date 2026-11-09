@@ -20,6 +20,7 @@ class FileToolResult {
     this.fileName,
     this.fileSizeBytes,
     this.diff,
+    this.viewedImagePath,
   });
 
   final String text;
@@ -30,6 +31,12 @@ class FileToolResult {
   /// P1-1 tail: post-execution unified diff (null for read-only/binary or
   /// oversized changes). UI-only; never added to the model-facing text.
   final UnifiedDiff? diff;
+
+  /// file_view_image Stage 1: absolute path of the validated image. The tool
+  /// handler persists it as UI-only tool-event extras so the card can render
+  /// a preview; the `[image:…]` marker in [text] already carries the path
+  /// for the model.
+  final String? viewedImagePath;
 }
 
 class FileToolSecurityException implements Exception {
@@ -69,6 +76,19 @@ class FileToolService {
   /// succeeds; only the viewer's change section is unavailable).
   static const int maxDiffTextBytes = 256 * 1024;
   static const int maxSearchEntries = 10000;
+
+  /// Bounds for the file_grep tool (kelivo HostFileTools.grep parity).
+  static const int defaultGrepLimit = 100;
+  static const int maxGrepResults = 1000;
+
+  /// Files above this size are skipped by file_grep to keep memory bounded.
+  static const int maxGrepFileBytes = 2 * 1024 * 1024;
+
+  /// Number of leading bytes probed for a NUL byte to detect binary files.
+  static const int _grepBinaryProbeBytes = 8192;
+
+  /// Upper bound for one file_view_image target.
+  static const int maxViewImageBytes = 10 * 1024 * 1024;
 
   /// Default and hard maximum sizes for one file_extract_text response.
   static const int defaultExtractResultBytes = 16 * 1024;
@@ -269,6 +289,39 @@ class FileToolService {
         ['pattern'],
       ),
       definition(
+        'file_grep',
+        'Search inside workspace file contents with a regular expression and return matching lines as path:line: text. An invalid pattern falls back to literal matching. Binary files, files over 2 MB, symlinks, and dot directories are skipped.',
+        {
+          'pattern': {
+            'type': 'string',
+            'description':
+                'Regular expression matched against every line of file contents. An invalid expression falls back to literal matching.',
+          },
+          'path': {
+            ...pathProperty,
+            'description':
+                'Optional file or directory path to search. Defaults to the workspace root.',
+          },
+          'ignore_case': {
+            'type': 'boolean',
+            'description':
+                'Optional. Set true for case-insensitive matching.',
+          },
+          'limit': {
+            'type': 'integer',
+            'description':
+                'Optional maximum number of matching lines to return. Defaults to 100; capped at 1000.',
+          },
+        },
+        ['pattern'],
+      ),
+      definition(
+        'file_view_image',
+        'View an image file in the workspace (PNG, JPEG, GIF, WebP, or BMP). Returns a preview the user can see in the chat; use it to inspect screenshots, icons, or generated images.',
+        {'path': pathProperty},
+        ['path'],
+      ),
+      definition(
         'file_extract_zip',
         'Extract a .zip archive in the workspace into a destination directory. Archive entry paths are validated against the workspace boundary, dangerous file types are blocked, and the total decompressed size and file count are capped.',
         {
@@ -340,16 +393,21 @@ class FileToolService {
   }) async {
     final writeLimit =
         developerMode ? developerMaxWriteBytes : maxWriteBytes;
-    // P1-6: the session-outputs zone is READ-ONLY. file_read / file_search
-    // may enter it; every mutating tool is rejected before any filesystem
+    // P1-6: the session-outputs zone is READ-ONLY. The read-only tools may
+    // enter it; every mutating tool is rejected before any filesystem
     // operation (the zone lives outside the workspace on purpose).
-    if (toolName != 'file_read' && toolName != 'file_search') {
+    final sessionReadOnly =
+        toolName == 'file_read' ||
+        toolName == 'file_search' ||
+        toolName == 'file_grep' ||
+        toolName == 'file_view_image';
+    if (!sessionReadOnly) {
       for (final key in const ['path', 'source', 'destination']) {
         final value = args[key];
         if (value is String && SessionOutputs.isSessionPath(value)) {
           return const FileToolResult(
             text:
-                'Error: The session-outputs zone is read-only. Read it with file_read or file_search.',
+                'Error: The session-outputs zone is read-only. Read it with file_read, file_search, file_grep, or file_view_image.',
           );
         }
       }
@@ -418,6 +476,20 @@ class FileToolService {
           );
         case 'file_search':
           return await _search(
+            args,
+            workspace,
+            approvedOutsidePath,
+            sessionOutputsRoot,
+          );
+        case 'file_grep':
+          return await _grep(
+            args,
+            workspace,
+            approvedOutsidePath,
+            sessionOutputsRoot,
+          );
+        case 'file_view_image':
+          return await _viewImage(
             args,
             workspace,
             approvedOutsidePath,
@@ -1901,6 +1973,237 @@ class FileToolService {
     return FileToolResult(
       text: scanTruncated ? '$text\n[Warning: results truncated.]' : text,
     );
+  }
+
+  /// file_grep: regex search inside file contents (kelivo
+  /// HostFileTools.grep parity). Emits `relative:line: text` rows; binary
+  /// files, oversized files, symlinks, and dot directories are skipped so a
+  /// scan over a real project stays bounded.
+  static Future<FileToolResult> _grep(
+    Map<String, dynamic> args,
+    String workspace,
+    String? approvedOutsidePath,
+    String? sessionOutputsRoot,
+  ) async {
+    final pattern = _requiredString(args, 'pattern');
+    final ignoreCase = args['ignore_case'] == true;
+    final limitRaw = _optionalInteger(
+      args,
+      'limit',
+      defaultValue: defaultGrepLimit,
+    );
+    final limit = limitRaw < 1
+        ? defaultGrepLimit
+        : (limitRaw > maxGrepResults ? maxGrepResults : limitRaw);
+    final rawPath = (args['path'] ?? '').toString();
+    final sessionPath = sessionOutputsRoot == null
+        ? null
+        : SessionOutputs.resolveFromRoot(rawPath, sessionOutputsRoot);
+    if (SessionOutputs.isSessionPath(rawPath) && sessionPath == null) {
+      return const FileToolResult(
+        text: 'Error: Invalid session-outputs path.',
+      );
+    }
+    final start = sessionPath?.absolutePath ??
+        _resolveToolPath(rawPath, workspace, approvedOutsidePath);
+
+    RegExp regex;
+    var literalFallback = false;
+    try {
+      regex = RegExp(pattern, caseSensitive: !ignoreCase);
+    } on FormatException {
+      literalFallback = true;
+      regex = RegExp(RegExp.escape(pattern), caseSensitive: !ignoreCase);
+    }
+
+    final startType = FileSystemEntity.typeSync(start, followLinks: false);
+    if (startType == FileSystemEntityType.notFound) {
+      return const FileToolResult(text: 'Error: Path not found.');
+    }
+
+    final lines = <String>[];
+    var truncated = false;
+    var scannedEntries = 0;
+
+    Future<void> grepFile(String filePath, String relative) async {
+      final file = File(filePath);
+      final FileStat stat;
+      try {
+        stat = file.statSync();
+      } catch (_) {
+        return;
+      }
+      if (stat.size <= 0 || stat.size > maxGrepFileBytes) return;
+      try {
+        // NUL probe: the leading bytes of a binary file almost always
+        // contain 0x00 — a cheap skip that avoids decoding megabytes.
+        final probeEnd = math.min(stat.size, _grepBinaryProbeBytes);
+        final probe = await file
+            .openRead(0, probeEnd)
+            .fold<List<int>>(<int>[], (acc, chunk) => acc..addAll(chunk));
+        if (probe.contains(0)) return;
+      } catch (_) {
+        return;
+      }
+      final String content;
+      try {
+        content = utf8.decode(await file.readAsBytes(), allowMalformed: true);
+      } catch (_) {
+        return;
+      }
+      var lineNo = 0;
+      for (final line in content.split('\n')) {
+        lineNo += 1;
+        if (!regex.hasMatch(line)) continue;
+        final text = line.trim();
+        final clipped = text.length > 240
+            ? '${text.substring(0, 240)}…'
+            : text;
+        lines.add('$relative:$lineNo: $clipped');
+        if (lines.length >= limit) {
+          truncated = true;
+          return;
+        }
+      }
+    }
+
+    String relativeOf(String entityPath) {
+      return sessionPath != null
+          ? '${SessionOutputs.modelPrefix}'
+                '${p.relative(entityPath, from: sessionPath.rootPath).replaceAll('\\', '/')}'
+          : p.relative(entityPath, from: workspace).replaceAll('\\', '/');
+    }
+
+    if (startType == FileSystemEntityType.file) {
+      await grepFile(start, relativeOf(start));
+    } else if (startType == FileSystemEntityType.directory) {
+      await for (final entity in Directory(start).list(
+        recursive: true,
+        followLinks: false,
+      )) {
+        scannedEntries += 1;
+        if (scannedEntries > maxSearchEntries) {
+          truncated = true;
+          break;
+        }
+        // followLinks: false already keeps symlinked directories out of the
+        // walk; symlinked entries surface as Link, not File.
+        if (entity is! File) continue;
+        final relative = relativeOf(entity.path);
+        // Skip dot directories (e.g. .git). Checked against the path relative
+        // to the scan root: for approved out-of-workspace targets the
+        // workspace-relative form carries leading `..` segments that must not
+        // be mistaken for dot directories.
+        final relativeFromStart = p
+            .relative(entity.path, from: start)
+            .replaceAll('\\', '/');
+        if (relativeFromStart
+            .split('/')
+            .any((segment) => segment.startsWith('.'))) {
+          continue;
+        }
+        await grepFile(entity.path, relative);
+        if (truncated) break;
+      }
+    } else {
+      return const FileToolResult(text: 'Error: Path is not a file or directory.');
+    }
+
+    if (lines.isEmpty) {
+      var text = 'No matching lines found.';
+      if (truncated) {
+        text = '$text\n[Warning: search scan truncated.]';
+      }
+      if (literalFallback) {
+        text =
+            '$text\nNote: the pattern was not a valid regular expression and was matched literally.';
+      }
+      return FileToolResult(text: text);
+    }
+    var text = lines.join('\n');
+    if (truncated) text = '$text\n[Warning: results truncated.]';
+    if (literalFallback) {
+      text =
+          '$text\nNote: the pattern was not a valid regular expression and was matched literally.';
+    }
+    return FileToolResult(text: text);
+  }
+
+  /// file_view_image Stage 1: validate an image inside the workspace (or the
+  /// read-only session-outputs zone) and return an `[image:<abs-path>]`
+  /// marker the chat UI renders as a preview. Stage 2 lifts the marker into
+  /// native vision parts per transport.
+  static Future<FileToolResult> _viewImage(
+    Map<String, dynamic> args,
+    String workspace,
+    String? approvedOutsidePath,
+    String? sessionOutputsRoot,
+  ) async {
+    final rawPath = _requiredString(args, 'path');
+    final sessionPath = sessionOutputsRoot == null
+        ? null
+        : SessionOutputs.resolveFromRoot(rawPath, sessionOutputsRoot);
+    if (SessionOutputs.isSessionPath(rawPath) && sessionPath == null) {
+      return const FileToolResult(
+        text: 'Error: Invalid session-outputs path.',
+      );
+    }
+    final path = sessionPath?.absolutePath ??
+        _resolveToolPath(rawPath, workspace, approvedOutsidePath);
+    final file = File(path);
+    if (!await file.exists()) {
+      return const FileToolResult(text: 'Error: File not found.');
+    }
+    final stat = await file.stat();
+    if (stat.size <= 0) {
+      return const FileToolResult(text: 'Error: The file is empty.');
+    }
+    if (stat.size > maxViewImageBytes) {
+      return FileToolResult(
+        text:
+            'Error: The image is too large (${_formatByteLimit(stat.size)}); the limit is ${_formatByteLimit(maxViewImageBytes)}.',
+      );
+    }
+    final format = _sniffImageFormat(await file.readAsBytes());
+    if (format == null) {
+      return const FileToolResult(
+        text:
+            'Error: Not a supported image format (PNG, JPEG, GIF, WebP, BMP).',
+      );
+    }
+    return FileToolResult(
+      text: '[image:${file.path}]\nFormat: $format; Size: ${_formatByteLimit(stat.size)}',
+      viewedImagePath: file.path,
+    );
+  }
+
+  /// Magic-byte sniffing for the image formats the chat preview supports.
+  static String? _sniffImageFormat(List<int> bytes) {
+    if (bytes.length < 8) return null;
+    bool startsWith(List<int> magic) {
+      for (var i = 0; i < magic.length; i++) {
+        if (i >= bytes.length || bytes[i] != magic[i]) return false;
+      }
+      return true;
+    }
+
+    if (startsWith(const <int>[
+      0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+    ])) {
+      return 'PNG';
+    }
+    if (startsWith(const <int>[0xFF, 0xD8, 0xFF])) return 'JPEG';
+    if (startsWith('GIF8'.codeUnits)) return 'GIF';
+    if (startsWith('RIFF'.codeUnits) &&
+        bytes.length >= 12 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return 'WebP';
+    }
+    if (startsWith('BM'.codeUnits)) return 'BMP';
+    return null;
   }
 
   static RegExp _wildcardRegex(String pattern) {

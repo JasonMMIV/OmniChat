@@ -96,7 +96,7 @@ void main() {
   });
 
   group('ToolHandlerService.buildWorkspaceToolDefinitions', () {
-    test('returns all 18 workspace tools when everything is enabled', () {
+    test('returns all 20 workspace tools when everything is enabled', () {
       final defs = ToolHandlerService.buildWorkspaceToolDefinitions(
         _ToggleSettingsProvider(),
         workspaceEnabled: true,
@@ -104,12 +104,14 @@ void main() {
       final names = defs
           .map((d) => ((d['function'] as Map)['name'] ?? '').toString())
           .toList();
-      expect(names.length, 18);
+      expect(names.length, 20);
       expect(names, contains('file_read'));
       expect(names, contains('file_create_pdf'));
       expect(names, contains('write_todos'));
       expect(names, contains('ask_user'));
       expect(names, contains('get_console_errors'));
+      expect(names, contains('file_grep'));
+      expect(names, contains('file_view_image'));
     });
 
     test('a disabled tool is filtered out', () {
@@ -122,7 +124,7 @@ void main() {
           .toList();
       expect(names, isNot(contains('file_read')));
       expect(names, isNot(contains('ask_user')));
-      expect(names.length, 16);
+      expect(names.length, 18);
     });
 
     test('workspace disabled turns every workspace tool off', () {

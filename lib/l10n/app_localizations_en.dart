@@ -2247,6 +2247,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String chatMessageWidgetFileGrep(String pattern) {
+    return 'Search contents: $pattern';
+  }
+
+  @override
+  String chatMessageWidgetFileViewImage(String path) {
+    return 'View image: $path';
+  }
+
+  @override
   String get approvalSettingsTitle => 'Tool approval policy';
 
   @override

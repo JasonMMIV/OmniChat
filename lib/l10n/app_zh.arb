@@ -657,6 +657,8 @@
   "approvalShellCommand": "命令",
   "approvalShellAlwaysAllowHint": "总是允许会将这些程序加入允许列表：{programs}",
   "chatMessageWidgetShellRun": "运行：{command}",
+  "chatMessageWidgetFileGrep": "搜索内容：{pattern}",
+  "chatMessageWidgetFileViewImage": "查看图片：{path}",
   "approvalSettingsTitle": "工具审批政策",
   "approvalStrictModeTitle": "严格模式",
   "approvalStrictModeSubtitle": "原本会询问审批的工具调用一律拒绝，不显示审批提示。",

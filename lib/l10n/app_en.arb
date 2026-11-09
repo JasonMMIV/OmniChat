@@ -956,6 +956,22 @@
     }
   },
   "chatMessageWidgetShellRun": "Run: {command}",
+  "chatMessageWidgetFileGrep": "Search contents: {pattern}",
+  "@chatMessageWidgetFileGrep": {
+    "placeholders": {
+      "pattern": {
+        "type": "String"
+      }
+    }
+  },
+  "chatMessageWidgetFileViewImage": "View image: {path}",
+  "@chatMessageWidgetFileViewImage": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "@chatMessageWidgetShellRun": {
     "placeholders": {
       "command": {

@@ -482,6 +482,7 @@ class ChatActions {
         diffAdded: parts[pIdx].diffAdded,
         diffRemoved: parts[pIdx].diffRemoved,
         diffText: parts[pIdx].diffText,
+        imagePath: parts[pIdx].imagePath,
       );
       streamController.toolParts[assistantMessageId] = parts;
       streamController.streamingContentNotifier.notifyToolPartsUpdated(
@@ -819,6 +820,7 @@ class ChatActions {
       diffAdded: parts[idx].diffAdded,
       diffRemoved: parts[idx].diffRemoved,
       diffText: parts[idx].diffText,
+      imagePath: parts[idx].imagePath,
     );
     streamController.toolParts[messageId] = parts;
     streamController.streamingContentNotifier.notifyToolPartsUpdated(messageId);

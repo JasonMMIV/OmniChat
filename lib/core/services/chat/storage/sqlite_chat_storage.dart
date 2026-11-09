@@ -1236,6 +1236,7 @@ class SqliteChatStorage extends ChatStorage {
             webFetchSource: _metadataValue(row.metadataJson, 'webFetchSource'),
             diffAdded: _metadataIntValue(row.metadataJson, 'diffAdded'),
             diffRemoved: _metadataIntValue(row.metadataJson, 'diffRemoved'),
+            imagePath: _metadataValue(row.metadataJson, 'imagePath'),
           ),
         );
       }

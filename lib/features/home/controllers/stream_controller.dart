@@ -888,6 +888,7 @@ class StreamController {
               ? (extras['diffRemoved'] as num).toInt()
               : null,
           diffText: extras['diffText']?.toString(),
+          imagePath: extras['imagePath']?.toString(),
         );
       } else {
         parts.add(
@@ -907,6 +908,7 @@ class StreamController {
                 ? (extras['diffRemoved'] as num).toInt()
                 : null,
             diffText: extras['diffText']?.toString(),
+            imagePath: extras['imagePath']?.toString(),
           ),
         );
       }
@@ -1332,6 +1334,7 @@ class StreamController {
                 webFetchSource: summary.webFetchSource,
                 diffAdded: summary.diffAdded,
                 diffRemoved: summary.diffRemoved,
+                imagePath: summary.imagePath,
               ),
             )
             .toList();

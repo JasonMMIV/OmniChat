@@ -1040,6 +1040,7 @@ class ChatRepository {
     final webFetchSource = _metadataText(r'$.webFetchSource');
     final diffAdded = _metadataInt(r'$.diffAdded');
     final diffRemoved = _metadataInt(r'$.diffRemoved');
+    final imagePath = _metadataText(r'$.imagePath');
     final query = db.selectOnly(db.messageParts)
       ..addColumns([
         db.messageParts.partId,
@@ -1057,6 +1058,7 @@ class ChatRepository {
         webFetchSource,
         diffAdded,
         diffRemoved,
+        imagePath,
         contentLength,
         argumentsLength,
         argumentsPreview,
@@ -1082,6 +1084,7 @@ class ChatRepository {
           webFetchSource: webFetchSource,
           diffAdded: diffAdded,
           diffRemoved: diffRemoved,
+          imagePath: imagePath,
         ),
     ];
   }
@@ -1131,6 +1134,7 @@ class ChatRepository {
     final webFetchSource = _metadataText(r'$.webFetchSource');
     final diffAdded = _metadataInt(r'$.diffAdded');
     final diffRemoved = _metadataInt(r'$.diffRemoved');
+    final imagePath = _metadataText(r'$.imagePath');
 
     final result = <ToolPartSummary>[];
     for (var start = 0; start < ids.length; start += 500) {
@@ -1155,6 +1159,7 @@ class ChatRepository {
           webFetchSource,
           diffAdded,
           diffRemoved,
+          imagePath,
           contentLength,
           argumentsLength,
           argumentsPreview,
@@ -1182,6 +1187,7 @@ class ChatRepository {
             webFetchSource: webFetchSource,
             diffAdded: diffAdded,
             diffRemoved: diffRemoved,
+            imagePath: imagePath,
           ),
       ]);
     }
@@ -1278,6 +1284,7 @@ class ChatRepository {
     required Expression<String> webFetchSource,
     required Expression<int> diffAdded,
     required Expression<int> diffRemoved,
+    required Expression<String> imagePath,
   }) {
     final status = row.read(db.messageParts.status) ?? kPartStatusPending;
     final contentChars = row.read(contentLength) ?? 0;
@@ -1304,6 +1311,7 @@ class ChatRepository {
       webFetchSource: row.read(webFetchSource),
       diffAdded: row.read(diffAdded),
       diffRemoved: row.read(diffRemoved),
+      imagePath: row.read(imagePath),
     );
   }
 

@@ -756,6 +756,16 @@ class ToolHandlerService {
             text: capped,
             diff: result.diff,
           );
+          // file_view_image Stage 1: persist the UI-only image preview path
+          // (same extras pattern as the diff above).
+          await _persistViewImageExtras(
+            messageId: messageId,
+            toolCallId: toolCallId,
+            name: name,
+            args: args,
+            content: capped,
+            imagePath: result.viewedImagePath,
+          );
           if (_workspaceMutatingFileTools.contains(name)) {
             DevServerService.instance.notifyWorkspaceChanged(
               effectiveWorkspace ?? workspacePath,
@@ -1011,6 +1021,34 @@ class ToolHandlerService {
           'diffRemoved': diff.removedLines,
           if (diff.truncated) 'diffTruncated': true,
         },
+      );
+    } catch (_) {
+      // UI-only metadata: never fail the tool result because of it.
+    }
+  }
+
+  /// file_view_image Stage 1: attach the absolute image path to the tool
+  /// event as UI-only extras. The model-facing content already carries the
+  /// `[image:…]` marker; the card reads `imagePath` to render the preview.
+  Future<void> _persistViewImageExtras({
+    required String? messageId,
+    required String? toolCallId,
+    required String name,
+    required Map<String, dynamic> args,
+    required String content,
+    required String? imagePath,
+  }) async {
+    if (imagePath == null || messageId == null) return;
+    final id = (toolCallId ?? '').trim();
+    if (id.isEmpty) return;
+    try {
+      await chatService.upsertToolEvent(
+        messageId,
+        id: id,
+        name: name,
+        arguments: args,
+        content: content,
+        extras: <String, dynamic>{'imagePath': imagePath},
       );
     } catch (_) {
       // UI-only metadata: never fail the tool result because of it.
