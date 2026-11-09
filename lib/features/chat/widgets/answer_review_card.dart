@@ -4,6 +4,7 @@ import '../../../core/models/answer_review.dart';
 import '../../../core/services/file/unified_diff.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/ios_tactile.dart';
 import '../../../shared/widgets/markdown_with_highlight.dart';
 
 /// Everything the review card needs for one assistant message.
@@ -111,85 +112,71 @@ class _AnswerReviewCardState extends State<AnswerReviewCard> {
     final l10n = AppLocalizations.of(context)!;
     final report = widget.data.report;
     final muted = isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
-    final bg = cs.surfaceContainerHighest.withValues(
-      alpha: isDark ? 0.18 : 0.42,
-    );
-    final border = cs.outlineVariant.withValues(alpha: 0.45);
-    final statusColor = _statusColor(report, cs);
 
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 2, bottom: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: border, width: 0.7),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildHeader(context, l10n, report, statusColor, muted),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 240),
-            curve: Curves.easeInOutCubic,
-            alignment: Alignment.topCenter,
-            child: _expanded
-                ? Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (report.phase == AnswerReviewPhase.reviewing)
-                          _hint(l10n.chatAnswerReviewReviewingHint, muted),
-                        if (widget.data.hasDraft) ...[
-                          const SizedBox(height: 8),
-                          _buildDraft(context, l10n, muted),
-                        ],
-                        if (report.hasIssues) ...[
-                          const SizedBox(height: 10),
-                          _buildIssues(context, l10n, report, muted),
-                        ] else if (report.phase == AnswerReviewPhase.passed ||
-                            report.phase == AnswerReviewPhase.revised) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            l10n.chatAnswerReviewNoIssues,
-                            style: TextStyle(fontSize: 12, color: muted),
-                          ),
-                        ],
-                        if (report.phase == AnswerReviewPhase.revised &&
-                            widget.data.finalText != null &&
-                            widget.data.hasDraft) ...[
-                          const SizedBox(height: 10),
-                          _buildDiff(context, l10n, report, muted),
-                        ],
-                        if (_failReason(l10n, report) != null) ...[
-                          const SizedBox(height: 8),
-                          _failRow(
-                            context,
-                            _failReason(l10n, report)!,
-                            cs,
-                            muted,
-                          ),
-                        ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildHeader(l10n, report, muted),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeInOutCubic,
+          alignment: Alignment.topCenter,
+          child: _expanded
+              ? Padding(
+                  // Align the body under the header label: 4 px row padding
+                  // + 18 px icon + 8 px gap, matching process/tool rows.
+                  padding: const EdgeInsets.fromLTRB(30, 0, 4, 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (report.phase == AnswerReviewPhase.reviewing)
+                        _hint(l10n.chatAnswerReviewReviewingHint, muted),
+                      if (widget.data.hasDraft) ...[
                         const SizedBox(height: 8),
-                        _buildMeta(l10n, report, muted),
+                        _buildDraft(context, l10n, muted),
                       ],
-                    ),
-                  )
-                : const SizedBox(width: double.infinity),
-          ),
-        ],
-      ),
+                      if (report.hasIssues) ...[
+                        const SizedBox(height: 10),
+                        _buildIssues(context, l10n, report, muted),
+                      ] else if (report.phase == AnswerReviewPhase.passed ||
+                          report.phase == AnswerReviewPhase.revised) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          l10n.chatAnswerReviewNoIssues,
+                          style: TextStyle(fontSize: 12, color: muted),
+                        ),
+                      ],
+                      if (report.phase == AnswerReviewPhase.revised &&
+                          widget.data.finalText != null &&
+                          widget.data.hasDraft) ...[
+                        const SizedBox(height: 10),
+                        _buildDiff(context, l10n, report, muted),
+                      ],
+                      if (_failReason(l10n, report) != null) ...[
+                        const SizedBox(height: 8),
+                        _failRow(
+                          context,
+                          _failReason(l10n, report)!,
+                          cs,
+                          muted,
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      _buildMeta(l10n, report, muted),
+                    ],
+                  ),
+                )
+              : const SizedBox(width: double.infinity),
+        ),
+      ],
     );
   }
 
   Widget _buildHeader(
-    BuildContext context,
     AppLocalizations l10n,
     AnswerReviewReport report,
-    Color statusColor,
     Color muted,
   ) {
     final int issueCount = report.issues.length;
@@ -197,15 +184,19 @@ class _AnswerReviewCardState extends State<AnswerReviewCard> {
     final String duration = totalMs > 0
         ? '${(totalMs / 1000).toStringAsFixed(1)}s'
         : '';
-    return InkWell(
+    return IosCardPress(
       borderRadius: BorderRadius.circular(10),
+      baseColor: Colors.transparent,
+      pressedScale: 1.0,
+      duration: const Duration(milliseconds: 220),
       onTap: _toggle,
+      padding: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         child: Row(
           children: [
-            Icon(Lucide.ScanSearch, size: 15, color: muted),
-            const SizedBox(width: 7),
+            Icon(Lucide.ScanSearch, size: 18, color: muted),
+            const SizedBox(width: 8),
             Expanded(
               child: Text.rich(
                 TextSpan(
@@ -213,24 +204,24 @@ class _AnswerReviewCardState extends State<AnswerReviewCard> {
                     TextSpan(
                       text: l10n.chatAnswerReviewCardTitle,
                       style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w500,
-                        color: Theme.of(context).colorScheme.onSurface,
+                        fontSize: 13,
+                        fontWeight: FontWeight.normal,
+                        color: muted,
                       ),
                     ),
                     TextSpan(
                       text: ' · ${_statusText(l10n, report)}',
                       style: TextStyle(
-                        fontSize: 11.5,
-                        color: statusColor,
-                        fontWeight: FontWeight.w500,
+                        fontSize: 13,
+                        fontWeight: FontWeight.normal,
+                        color: muted,
                       ),
                     ),
                     if (issueCount > 0)
                       TextSpan(
                         text:
                             ' · ${l10n.chatAnswerReviewIssueCount(issueCount)}',
-                        style: TextStyle(fontSize: 11.5, color: muted),
+                        style: TextStyle(fontSize: 13, color: muted),
                       ),
                   ],
                 ),
@@ -243,7 +234,7 @@ class _AnswerReviewCardState extends State<AnswerReviewCard> {
               Text(
                 duration,
                 style: TextStyle(
-                  fontSize: 11.5,
+                  fontSize: 12,
                   color: muted.withValues(alpha: 0.9),
                 ),
               ),
@@ -252,7 +243,7 @@ class _AnswerReviewCardState extends State<AnswerReviewCard> {
               turns: _expanded ? 0.25 : 0,
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeInOutCubic,
-              child: Icon(Lucide.ChevronRight, size: 16, color: muted),
+              child: Icon(Lucide.ChevronRight, size: 18, color: muted),
             ),
           ],
         ),
@@ -267,6 +258,18 @@ class _AnswerReviewCardState extends State<AnswerReviewCard> {
 
   Widget _buildDraft(BuildContext context, AppLocalizations l10n, Color muted) {
     final draft = widget.data.draft ?? '';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Gray-black (not the full-contrast answer color) so the draft reads as
+    // an intermediate artifact; dark mode uses a muted gray-white.
+    final draftTextColor = isDark
+        ? const Color(0xFFB4B4BA)
+        : const Color(0xFF4A4A50);
+    // Markdown headings and some block components read onSurface directly from
+    // the theme. Override it only for the draft so those blocks stay gray too.
+    final draftTheme = Theme.of(context).copyWith(
+      colorScheme: Theme.of(context).colorScheme
+          .copyWith(onSurface: draftTextColor),
+    );
     final truncatedForPreview =
         !_draftExpanded && draft.length > _draftPreviewChars;
     final shown = truncatedForPreview
@@ -324,14 +327,22 @@ class _AnswerReviewCardState extends State<AnswerReviewCard> {
           width: double.infinity,
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface
-                .withValues(alpha: 0.55),
+            color: Theme.of(context).colorScheme.surfaceContainerHighest
+                .withValues(alpha: isDark ? 0.16 : 0.32),
             borderRadius: BorderRadius.circular(7),
           ),
-          child: MarkdownWithCodeHighlight(
-            text: shown,
-            isStreaming: false,
-            baseStyle: const TextStyle(fontSize: 12.5, height: 1.45),
+          child: Theme(
+            key: const ValueKey('answer-review-draft-theme'),
+            data: draftTheme,
+            child: MarkdownWithCodeHighlight(
+              text: shown,
+              isStreaming: false,
+              baseStyle: TextStyle(
+                fontSize: 12.5,
+                height: 1.45,
+                color: draftTextColor,
+              ),
+            ),
           ),
         ),
       ],
@@ -434,7 +445,11 @@ class _AnswerReviewCardState extends State<AnswerReviewCard> {
             width: double.infinity,
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: cs.surface.withValues(alpha: 0.55),
+              color: cs.surfaceContainerHighest.withValues(
+                alpha: Theme.of(context).brightness == Brightness.dark
+                    ? 0.16
+                    : 0.32,
+              ),
               borderRadius: BorderRadius.circular(7),
             ),
             child: Column(
@@ -527,17 +542,6 @@ class _AnswerReviewCardState extends State<AnswerReviewCard> {
 
   String _statusText(AppLocalizations l10n, AnswerReviewReport report) =>
       answerReviewStatusLabel(l10n, report.phase);
-
-  Color _statusColor(AnswerReviewReport report, ColorScheme cs) {
-    return switch (report.phase) {
-      AnswerReviewPhase.passed || AnswerReviewPhase.revised => cs.primary,
-      AnswerReviewPhase.failedOpen ||
-      AnswerReviewPhase.revisionFailed ||
-      AnswerReviewPhase.cancelled ||
-      AnswerReviewPhase.interrupted => cs.error,
-      _ => cs.onSurfaceVariant,
-    };
-  }
 
   bool isDarkColor(ColorScheme cs) => cs.brightness == Brightness.dark;
 }
