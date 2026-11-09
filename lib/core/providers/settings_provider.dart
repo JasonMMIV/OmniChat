@@ -263,6 +263,25 @@ class SettingsProvider extends ChangeNotifier {
   /// tool preferences are user intent and sync across devices.
   static const String _workspaceToolsDisabledKey =
       'workspace_tools_disabled_v1';
+
+  /// Independent planning-tool switch (Phase 3-4 of
+  /// docs/write_todos_improvement_plan.md). `write_todos` no longer needs a
+  /// conversation workspace: a multi-step Q&A/planning chat can use it too.
+  /// Defaults to on. The legacy per-tool disabled entry still applies as an
+  /// extra kill switch for users who turned write_todos off before the split.
+  static const String _planningEnabledKey = 'planning_enabled_v1';
+
+  /// Kill switch for the todo event projection (§8 of
+  /// docs/write_todos_improvement_plan.md). Defaults to true: the latest
+  /// successful `write_todos` conversation event is the plan. Flipping it to
+  /// false falls back to read-only `todo_v1` box reads for conversations the
+  /// one-time migration could not attach.
+  ///
+  /// ONE-WAY DOOR: once the migration has run, box entries that WERE
+  /// attached are deleted, so switching this off no longer resurrects them —
+  /// it only keeps the small set of unmigrated conversations readable. The
+  /// switch retires together with the box file.
+  static const String _todoEventProjectionV1Key = 'todo_event_projection_v1';
   static const String _newChatCustomLogoFileNameKey =
       'new_chat_custom_logo_file_name_v1';
   static const String _newChatTextTypeKey = 'new_chat_text_type_v1';
@@ -545,6 +564,32 @@ class SettingsProvider extends ChangeNotifier {
   /// default to enabled.
   bool isWorkspaceToolEnabled(String toolName) =>
       !_workspaceToolsDisabled.contains(toolName);
+
+  /// Whether the planning tool (`write_todos`) is offered. Independent of the
+  /// conversation workspace (Phase 3-4). Defaults to true.
+  bool _planningEnabled = true;
+  bool get planningEnabled => _planningEnabled;
+
+  Future<void> setPlanningEnabled(bool v) async {
+    if (_planningEnabled == v) return;
+    _planningEnabled = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_planningEnabledKey, v);
+  }
+
+  /// Todo event projection kill switch (§8 of
+  /// docs/write_todos_improvement_plan.md). Defaults to true.
+  bool _todoEventProjectionV1 = true;
+  bool get todoEventProjectionV1 => _todoEventProjectionV1;
+
+  Future<void> setTodoEventProjectionV1(bool v) async {
+    if (_todoEventProjectionV1 == v) return;
+    _todoEventProjectionV1 = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_todoEventProjectionV1Key, v);
+  }
 
   /// Toggle one workspace tool (file_*/write_todos/ask_user) globally.
   Future<void> setWorkspaceToolEnabled(String toolName, bool enabled) async {
@@ -863,7 +908,8 @@ class SettingsProvider extends ChangeNotifier {
             .where((k) => !k.startsWith('mcp:') && !k.startsWith('mcp-server:'))
             .toSet();
     _developerModeV1 = prefs.getBool(_developerModeV1Key) ?? false;
-    _shellAllowlist = prefs.getStringList(_shellAllowlistKey) ??
+    _shellAllowlist =
+        prefs.getStringList(_shellAllowlistKey) ??
         List<String>.of(ShellPolicy.defaultAllowlist);
     // P1-5 removed 2026-09-10: drop the legacy snapshot kill-switch key.
     await prefs.remove(_legacyWorkspaceSnapshotsV1Key);
@@ -877,6 +923,8 @@ class SettingsProvider extends ChangeNotifier {
     _workspaceToolsDisabled =
         (prefs.getStringList(_workspaceToolsDisabledKey) ?? const <String>[])
             .toSet();
+    _planningEnabled = prefs.getBool(_planningEnabledKey) ?? true;
+    _todoEventProjectionV1 = prefs.getBool(_todoEventProjectionV1Key) ?? true;
     _showMessageNavButtons = prefs.getBool(_displayShowMessageNavKey) ?? true;
     _longImageTilingEnabled = prefs.getBool(_longImageTilingKey) ?? true;
     _showProviderInModelCapsule =
@@ -3306,12 +3354,8 @@ Synthesize your reasoning and research into a final response. The structure shou
     await prefs.setBool(_developerModeV1Key, v);
   }
 
-  List<String> _shellAllowlist = List<String>.of(
-    ShellPolicy.defaultAllowlist,
-  );
-  List<String> get shellAllowlist => List<String>.unmodifiable(
-    _shellAllowlist,
-  );
+  List<String> _shellAllowlist = List<String>.of(ShellPolicy.defaultAllowlist);
+  List<String> get shellAllowlist => List<String>.unmodifiable(_shellAllowlist);
 
   Future<void> setShellAllowlist(Iterable<String> programs) async {
     final next = <String>[];
@@ -4082,6 +4126,8 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._answerReviewMode = answerReviewMode ?? _answerReviewMode;
     copy._skillsPreloadEnabled = _skillsPreloadEnabled;
     copy._workspaceToolsDisabled = _workspaceToolsDisabled;
+    copy._planningEnabled = _planningEnabled;
+    copy._todoEventProjectionV1 = _todoEventProjectionV1;
     copy._autoCompactionV1 = _autoCompactionV1;
     copy._showMessageNavButtons = _showMessageNavButtons;
     copy._showProviderInModelCapsule = _showProviderInModelCapsule;

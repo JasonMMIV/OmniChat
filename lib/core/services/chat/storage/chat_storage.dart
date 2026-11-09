@@ -271,6 +271,18 @@ abstract class ChatStorage {
     Map<String, dynamic>? extras,
   });
 
+  /// The latest `write_todos` part of a conversation (any status), as a
+  /// `{id, argumentsJson, content, status, updatedAtMs}` map, or null. Used
+  /// by the tool handler (a clear reports `changed` only when a previous
+  /// plan existed) and by the todo_v1 migration. The legacy Hive backend
+  /// never had conversation-scoped part lookups and returns null.
+  Future<Map<String, dynamic>?> getLatestTodoEvent(String conversationId);
+
+  /// Whether the conversation carries at least one SUCCESSFUL `write_todos`
+  /// event (todo_v1 migration: a stored event wins over a legacy box entry).
+  /// The legacy Hive backend returns false.
+  Future<bool> hasCompletedTodoEvent(String conversationId);
+
   /// Upserts the single review row for a message. [draft] is only needed on
   /// the first write; later calls may pass null to update metadata/status
   /// while keeping the stored draft.

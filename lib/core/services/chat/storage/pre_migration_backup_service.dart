@@ -182,7 +182,9 @@ class PreMigrationBackupService {
   Future<List<File>> _inventory() async {
     final result = <File>[];
     // Lock companions are not data and would be rewritten by Hive on open.
-    for (final file in chatHiveFiles(directory)) {
+    // The pre-migration backup DOES include the transitional todo box so a
+    // restore can still bring back plans (plan §2.5.1).
+    for (final file in chatHiveFiles(directory, includeTransientTodo: true)) {
       if (!file.path.endsWith('.hive')) continue;
       final link = await FileSystemEntity.isLink(file.path);
       final stat = await file.stat();

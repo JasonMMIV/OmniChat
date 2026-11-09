@@ -2118,6 +2118,71 @@ class AppLocalizationsZh extends AppLocalizations {
   String get todoCardWaiting => '正在写计划…';
 
   @override
+  String get todoCardInterrupted => '计划更新已中断，维持最近一次快照。';
+
+  @override
+  String get todoCardError => '计划更新失败，原计划保持不变。';
+
+  @override
+  String get todoCardCleared => '计划已清空。';
+
+  @override
+  String get todoPlanTitle => '当前计划';
+
+  @override
+  String get todoPlanEmptyTitle => '暂无计划';
+
+  @override
+  String get todoPlanEmptyBody => '多步骤任务开始时，助手会在这里写下计划，并在执行过程中持续更新。';
+
+  @override
+  String get todoPlanClearedTitle => '没有进行中的计划';
+
+  @override
+  String get todoPlanClearedBody => '此对话的计划已清除。';
+
+  @override
+  String get todoPlanClear => '清除计划';
+
+  @override
+  String get todoPlanClearConfirmTitle => '要清除计划吗？';
+
+  @override
+  String get todoPlanClearConfirmBody => '这会在对话中留下一条“清除计划”记录，助手将知道当前没有计划。';
+
+  @override
+  String get todoPlanClearedSnack => '计划已清除';
+
+  @override
+  String get todoPlanClearFailed => '无法清除计划';
+
+  @override
+  String get todoPlanLoadFailed => '无法加载计划';
+
+  @override
+  String todoPlanUpdatedAt(String time) {
+    return '更新于 $time';
+  }
+
+  @override
+  String get todoPlanRunning => '进行中';
+
+  @override
+  String get todoPlanInProgressSection => '进行中';
+
+  @override
+  String get todoPlanPendingSection => '待办';
+
+  @override
+  String get todoPlanCompletedSection => '已完成';
+
+  @override
+  String get todoPlanExpand => '展开';
+
+  @override
+  String get todoPlanCollapse => '收起';
+
+  @override
   String get askUserCardTitle => '问题';
 
   @override
@@ -5475,7 +5540,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get workspaceToolsTitle => '工具';
 
   @override
-  String get workspaceToolsDescription => '已停用的工具不会提供给模型。工作区未启用时，所有工具自动关闭。';
+  String get workspaceToolsDescription =>
+      '已停用的工具不会提供给模型。工作区未启用时文件工具会关闭，规划功能仍可使用。';
+
+  @override
+  String get workspaceToolsPlanningTitle => '规划';
+
+  @override
+  String get workspaceToolsPlanningDescription =>
+      '计划工具与工作区无关。助手可用它为多步骤任务维护待办清单；最新计划会随对话保存。';
 
   @override
   String get workspaceDefaultDirectoryPrivate => '应用私有目录';
@@ -8570,6 +8643,71 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get todoCardWaiting => '正在写计划…';
+
+  @override
+  String get todoCardInterrupted => '计划更新已中断，维持最近一次快照。';
+
+  @override
+  String get todoCardError => '计划更新失败，原计划保持不变。';
+
+  @override
+  String get todoCardCleared => '计划已清空。';
+
+  @override
+  String get todoPlanTitle => '当前计划';
+
+  @override
+  String get todoPlanEmptyTitle => '暂无计划';
+
+  @override
+  String get todoPlanEmptyBody => '多步骤任务开始时，助手会在这里写下计划，并在执行过程中持续更新。';
+
+  @override
+  String get todoPlanClearedTitle => '没有进行中的计划';
+
+  @override
+  String get todoPlanClearedBody => '此对话的计划已清除。';
+
+  @override
+  String get todoPlanClear => '清除计划';
+
+  @override
+  String get todoPlanClearConfirmTitle => '要清除计划吗？';
+
+  @override
+  String get todoPlanClearConfirmBody => '这会在对话中留下一条“清除计划”记录，助手将知道当前没有计划。';
+
+  @override
+  String get todoPlanClearedSnack => '计划已清除';
+
+  @override
+  String get todoPlanClearFailed => '无法清除计划';
+
+  @override
+  String get todoPlanLoadFailed => '无法加载计划';
+
+  @override
+  String todoPlanUpdatedAt(String time) {
+    return '更新于 $time';
+  }
+
+  @override
+  String get todoPlanRunning => '进行中';
+
+  @override
+  String get todoPlanInProgressSection => '进行中';
+
+  @override
+  String get todoPlanPendingSection => '待办';
+
+  @override
+  String get todoPlanCompletedSection => '已完成';
+
+  @override
+  String get todoPlanExpand => '展开';
+
+  @override
+  String get todoPlanCollapse => '收起';
 
   @override
   String get askUserCardTitle => '问题';
@@ -11824,7 +11962,15 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get workspaceToolsTitle => '工具';
 
   @override
-  String get workspaceToolsDescription => '已停用的工具不会提供给模型。工作区未启用时，所有工具自动关闭。';
+  String get workspaceToolsDescription =>
+      '已停用的工具不会提供给模型。工作区未启用时文件工具会关闭，规划功能仍可使用。';
+
+  @override
+  String get workspaceToolsPlanningTitle => '规划';
+
+  @override
+  String get workspaceToolsPlanningDescription =>
+      '计划工具与工作区无关。助手可用它为多步骤任务维护待办清单；最新计划会随对话保存。';
 
   @override
   String get workspaceDefaultDirectoryPrivate => '应用私有目录';
@@ -14924,6 +15070,71 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get todoCardWaiting => '正在寫計畫…';
+
+  @override
+  String get todoCardInterrupted => '計畫更新已中斷，維持最近一次快照。';
+
+  @override
+  String get todoCardError => '計畫更新失敗，原計畫保持不變。';
+
+  @override
+  String get todoCardCleared => '計畫已清空。';
+
+  @override
+  String get todoPlanTitle => '目前計畫';
+
+  @override
+  String get todoPlanEmptyTitle => '尚無計畫';
+
+  @override
+  String get todoPlanEmptyBody => '多步驟任務開始時，助理會在這裡寫下計畫，並在執行過程中持續更新。';
+
+  @override
+  String get todoPlanClearedTitle => '沒有進行中的計畫';
+
+  @override
+  String get todoPlanClearedBody => '此對話的計畫已清除。';
+
+  @override
+  String get todoPlanClear => '清除計畫';
+
+  @override
+  String get todoPlanClearConfirmTitle => '要清除計畫嗎？';
+
+  @override
+  String get todoPlanClearConfirmBody => '這會在對話中留下一筆「清除計畫」紀錄，助理將知道目前沒有計畫。';
+
+  @override
+  String get todoPlanClearedSnack => '計畫已清除';
+
+  @override
+  String get todoPlanClearFailed => '無法清除計畫';
+
+  @override
+  String get todoPlanLoadFailed => '無法載入計畫';
+
+  @override
+  String todoPlanUpdatedAt(String time) {
+    return '更新於 $time';
+  }
+
+  @override
+  String get todoPlanRunning => '進行中';
+
+  @override
+  String get todoPlanInProgressSection => '進行中';
+
+  @override
+  String get todoPlanPendingSection => '待辦';
+
+  @override
+  String get todoPlanCompletedSection => '已完成';
+
+  @override
+  String get todoPlanExpand => '展開';
+
+  @override
+  String get todoPlanCollapse => '收起';
 
   @override
   String get askUserCardTitle => '問題';
@@ -18273,7 +18484,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get workspaceToolsTitle => '工具';
 
   @override
-  String get workspaceToolsDescription => '已停用的工具不會提供給模型。工作區未啟用時，所有工具自動關閉。';
+  String get workspaceToolsDescription =>
+      '已停用的工具不會提供給模型。工作區未啟用時檔案工具會關閉，規劃功能仍可使用。';
+
+  @override
+  String get workspaceToolsPlanningTitle => '規劃';
+
+  @override
+  String get workspaceToolsPlanningDescription =>
+      '計畫工具與工作區無關。助理可用它為多步驟任務維護待辦清單；最新計畫會隨對話保存。';
 
   @override
   String get workspaceDefaultDirectoryPrivate => 'App 私有目錄';

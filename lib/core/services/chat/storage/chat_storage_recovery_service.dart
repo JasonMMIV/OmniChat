@@ -38,7 +38,9 @@ class ChatStorageRecoveryService {
   final String appVersion;
   final ChatDatabaseFiles files;
 
-  bool get hasLegacyHive => chatHiveFiles(directory).isNotEmpty;
+  /// A leftover todo_v1 box is not chat data (see [chatHiveFiles]).
+  bool get hasLegacyHive =>
+      chatHiveFiles(directory, includeTransientTodo: false).isNotEmpty;
 
   /// Deletes the SQLite family and recreates an empty `source='reset'` database.
   /// The durable `legacy_import_disabled` sentinel prevents a later Hive

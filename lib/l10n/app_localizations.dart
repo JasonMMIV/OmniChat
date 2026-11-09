@@ -4151,6 +4151,132 @@ abstract class AppLocalizations {
   /// **'Writing plan…'**
   String get todoCardWaiting;
 
+  /// No description provided for @todoCardInterrupted.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan update interrupted — the latest snapshot stands.'**
+  String get todoCardInterrupted;
+
+  /// No description provided for @todoCardError.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan update failed. The previous plan is unchanged.'**
+  String get todoCardError;
+
+  /// No description provided for @todoCardCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan cleared.'**
+  String get todoCardCleared;
+
+  /// No description provided for @todoPlanTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Current plan'**
+  String get todoPlanTitle;
+
+  /// No description provided for @todoPlanEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No plan yet'**
+  String get todoPlanEmptyTitle;
+
+  /// No description provided for @todoPlanEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'When a multi-step task starts, the assistant writes a plan here and keeps it up to date as it works.'**
+  String get todoPlanEmptyBody;
+
+  /// No description provided for @todoPlanClearedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No active plan'**
+  String get todoPlanClearedTitle;
+
+  /// No description provided for @todoPlanClearedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The plan for this conversation was cleared.'**
+  String get todoPlanClearedBody;
+
+  /// No description provided for @todoPlanClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear plan'**
+  String get todoPlanClear;
+
+  /// No description provided for @todoPlanClearConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear this plan?'**
+  String get todoPlanClearConfirmTitle;
+
+  /// No description provided for @todoPlanClearConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This records a clear step in the conversation, so the assistant knows no plan is active.'**
+  String get todoPlanClearConfirmBody;
+
+  /// No description provided for @todoPlanClearedSnack.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan cleared'**
+  String get todoPlanClearedSnack;
+
+  /// No description provided for @todoPlanClearFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t clear the plan'**
+  String get todoPlanClearFailed;
+
+  /// No description provided for @todoPlanLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load the plan'**
+  String get todoPlanLoadFailed;
+
+  /// No description provided for @todoPlanUpdatedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Updated {time}'**
+  String todoPlanUpdatedAt(String time);
+
+  /// No description provided for @todoPlanRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'In progress'**
+  String get todoPlanRunning;
+
+  /// No description provided for @todoPlanInProgressSection.
+  ///
+  /// In en, this message translates to:
+  /// **'In progress'**
+  String get todoPlanInProgressSection;
+
+  /// No description provided for @todoPlanPendingSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Up next'**
+  String get todoPlanPendingSection;
+
+  /// No description provided for @todoPlanCompletedSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed'**
+  String get todoPlanCompletedSection;
+
+  /// No description provided for @todoPlanExpand.
+  ///
+  /// In en, this message translates to:
+  /// **'Show more'**
+  String get todoPlanExpand;
+
+  /// No description provided for @todoPlanCollapse.
+  ///
+  /// In en, this message translates to:
+  /// **'Show less'**
+  String get todoPlanCollapse;
+
   /// No description provided for @askUserCardTitle.
   ///
   /// In en, this message translates to:
@@ -10449,8 +10575,20 @@ abstract class AppLocalizations {
   /// No description provided for @workspaceToolsDescription.
   ///
   /// In en, this message translates to:
-  /// **'Disabled tools are not offered to the model. All tools are off while the workspace is disabled.'**
+  /// **'Disabled tools are not offered to the model. File tools are off while the workspace is disabled; planning stays available.'**
   String get workspaceToolsDescription;
+
+  /// No description provided for @workspaceToolsPlanningTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Planning'**
+  String get workspaceToolsPlanningTitle;
+
+  /// No description provided for @workspaceToolsPlanningDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The plan tool is independent of the workspace. It lets the assistant keep a todo list for multi-step tasks; the latest plan is stored with the conversation.'**
+  String get workspaceToolsPlanningDescription;
 
   /// No description provided for @workspaceDefaultDirectoryPrivate.
   ///

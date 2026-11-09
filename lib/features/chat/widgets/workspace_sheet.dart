@@ -127,9 +127,7 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
   Future<void> _openDirectorySheet() async {
     if (_busy) return;
     final initial =
-        _chatService.getConversationWorkspaceConfig(
-          widget.conversationId,
-        ) ??
+        _chatService.getConversationWorkspaceConfig(widget.conversationId) ??
         const WorkspaceConfig.inheritProject();
     final result = await showConversationWorkspaceModeSheet(
       context,
@@ -250,9 +248,7 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
                   // conversation.
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: _busy
-                        ? null
-                        : () => _toggleWorkspace(!enabled),
+                    onTap: _busy ? null : () => _toggleWorkspace(!enabled),
                     child: Row(
                       children: [
                         Icon(
@@ -277,10 +273,20 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
                       ],
                     ),
                   ),
-                  // Directory, tools and files entries only exist while
-                  // the workspace is enabled.
+                  // Tools stays reachable while the workspace is off: the
+                  // planning switch is a conversation-level tool and must
+                  // stay discoverable (§3-4 of the plan).
+                  const SizedBox(height: 8),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Lucide.Wrench),
+                    title: Text(l10n.workspaceToolsMenu),
+                    trailing: const Icon(Lucide.ChevronRight),
+                    onTap: _busy ? null : _openToolsPage,
+                  ),
+                  // Directory and files entries only exist while the
+                  // workspace is enabled.
                   if (enabled) ...[
-                    const SizedBox(height: 8),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Lucide.FolderOpen),
@@ -292,13 +298,6 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
                       ),
                       trailing: const Icon(Lucide.ChevronRight),
                       onTap: _busy ? null : _openDirectorySheet,
-                    ),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Lucide.Wrench),
-                      title: Text(l10n.workspaceToolsMenu),
-                      trailing: const Icon(Lucide.ChevronRight),
-                      onTap: _busy ? null : _openToolsPage,
                     ),
                     ListTile(
                       contentPadding: EdgeInsets.zero,

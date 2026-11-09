@@ -11,14 +11,18 @@ import 'package:OmniChat/features/home/services/tool_handler_service.dart';
 /// overridden (everything else is never touched by the pure static builder).
 class _ToggleSettingsProvider extends ChangeNotifier
     implements SettingsProvider {
-  _ToggleSettingsProvider({Set<String> disabled = const <String>{}})
-    : _disabled = disabled;
+  _ToggleSettingsProvider({
+    Set<String> disabled = const <String>{},
+    this.planningEnabled = true,
+  }) : _disabled = disabled;
 
   final Set<String> _disabled;
 
   @override
-  bool isWorkspaceToolEnabled(String toolName) =>
-      !_disabled.contains(toolName);
+  final bool planningEnabled;
+
+  @override
+  bool isWorkspaceToolEnabled(String toolName) => !_disabled.contains(toolName);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -89,6 +93,16 @@ void main() {
       expect(reloaded.isWorkspaceToolEnabled('ask_user'), isFalse);
       expect(reloaded.isWorkspaceToolEnabled('write_todos'), isTrue);
 
+      // Planning is its own persisted switch, independent of the workspace
+      // tool list (Phase 3-4).
+      expect(settings.planningEnabled, isTrue);
+      await settings.setPlanningEnabled(false);
+      expect(settings.planningEnabled, isFalse);
+      final reloadedPlanning = SettingsProvider();
+      addTearDown(reloadedPlanning.dispose);
+      await tester.pumpAndSettle(const Duration(milliseconds: 50));
+      expect(reloadedPlanning.planningEnabled, isFalse);
+
       // Re-enabling removes the name from the disabled set.
       await reloaded.setWorkspaceToolEnabled('file_read', true);
       expect(reloaded.isWorkspaceToolEnabled('file_read'), isTrue);
@@ -96,7 +110,7 @@ void main() {
   });
 
   group('ToolHandlerService.buildWorkspaceToolDefinitions', () {
-    test('returns all 20 workspace tools when everything is enabled', () {
+    test('returns the 19 workspace tools when everything is enabled', () {
       final defs = ToolHandlerService.buildWorkspaceToolDefinitions(
         _ToggleSettingsProvider(),
         workspaceEnabled: true,
@@ -104,10 +118,10 @@ void main() {
       final names = defs
           .map((d) => ((d['function'] as Map)['name'] ?? '').toString())
           .toList();
-      expect(names.length, 20);
+      expect(names.length, 19);
       expect(names, contains('file_read'));
       expect(names, contains('file_create_pdf'));
-      expect(names, contains('write_todos'));
+      expect(names, isNot(contains('write_todos')));
       expect(names, contains('ask_user'));
       expect(names, contains('get_console_errors'));
       expect(names, contains('file_grep'));
@@ -124,13 +138,40 @@ void main() {
           .toList();
       expect(names, isNot(contains('file_read')));
       expect(names, isNot(contains('ask_user')));
-      expect(names.length, 18);
+      expect(names.length, 17);
     });
 
     test('workspace disabled turns every workspace tool off', () {
       final defs = ToolHandlerService.buildWorkspaceToolDefinitions(
         _ToggleSettingsProvider(),
         workspaceEnabled: false,
+      );
+      expect(defs, isEmpty);
+    });
+  });
+
+  group('ToolHandlerService.buildPlanningToolDefinitions (Phase 3-4)', () {
+    List<String> names(List<Map<String, dynamic>> defs) => defs
+        .map((d) => ((d['function'] as Map)['name'] ?? '').toString())
+        .toList();
+
+    test('offered without a workspace (planning is conversation-level)', () {
+      final defs = ToolHandlerService.buildPlanningToolDefinitions(
+        _ToggleSettingsProvider(),
+      );
+      expect(names(defs), ['write_todos']);
+    });
+
+    test('planning switch off → no tool', () {
+      final defs = ToolHandlerService.buildPlanningToolDefinitions(
+        _ToggleSettingsProvider(planningEnabled: false),
+      );
+      expect(defs, isEmpty);
+    });
+
+    test('legacy per-tool disable still wins', () {
+      final defs = ToolHandlerService.buildPlanningToolDefinitions(
+        _ToggleSettingsProvider(disabled: {'write_todos'}),
       );
       expect(defs, isEmpty);
     });

@@ -385,9 +385,14 @@ String renderSummaryText(List<_SummaryEntry> entries) =>
 /// compacted — no heuristics beyond the short-reply noise filter.
 /// [nextActionOverride] (the P1-3 current todo snapshot's first incomplete
 /// item, or any caller-supplied hint) wins over the assistant-tail fallback.
+/// [todoSummaryOverride] is the `Todos: x/y complete. Remaining: ...` summary
+/// built from the latest successful `write_todos` snapshot
+/// (docs/write_todos_improvement_plan.md §2.6); it is skipped when the
+/// planning tool is not registered for this request.
 String buildKnowledgeBlock(
   List<Map<String, dynamic>> messages, {
   String? nextActionOverride,
+  String? todoSummaryOverride,
 }) {
   String? goal;
   final inspected = <String>[];
@@ -449,6 +454,8 @@ String buildKnowledgeBlock(
       'Edits Made:\n${edited.take(knowledgeListCap).map((p) => '- $p').join('\n')}',
     );
   }
+  final todoSummary = todoSummaryOverride?.trim() ?? '';
+  if (todoSummary.isNotEmpty) lines.add(todoSummary);
   final override = nextActionOverride?.trim() ?? '';
   if (override.isNotEmpty) nextAction = override;
   if (nextAction != null) {
@@ -494,6 +501,7 @@ Map<String, dynamic> buildSummaryMessage(
 Map<String, dynamic>? compactHistoryMessages(
   List<Map<String, dynamic>> messages, {
   String? nextActionOverride,
+  String? todoSummaryOverride,
 }) {
   if (messages.isEmpty) return null;
   final entries = summarizeMessagesIntoEntries(messages);
@@ -502,7 +510,10 @@ Map<String, dynamic>? compactHistoryMessages(
   if (selected.isEmpty) return null;
   final summaryText = renderSummaryText(selected);
   if (summaryText.trim().isEmpty) return null;
-  final knowledgeBlock =
-      buildKnowledgeBlock(messages, nextActionOverride: nextActionOverride);
+  final knowledgeBlock = buildKnowledgeBlock(
+    messages,
+    nextActionOverride: nextActionOverride,
+    todoSummaryOverride: todoSummaryOverride,
+  );
   return buildSummaryMessage(summaryText, knowledgeBlock);
 }

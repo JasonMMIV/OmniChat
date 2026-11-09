@@ -22,6 +22,7 @@ import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/storage/chat_storage_gate.dart';
+import '../../../core/services/chat/todo_models.dart';
 import '../../../core/services/haptics.dart';
 import '../../../core/services/screen_wakelock.dart';
 import '../../voice_chat/services/stt_locale_resolver.dart';
@@ -1611,6 +1612,12 @@ class HomePageController extends ChangeNotifier {
     }
     return null;
   }
+
+  /// Current conversation plan, projected from its tool events (Phase 3).
+  Future<TodoState?> loadTodoPlan() => _viewModel.chatActions.currentTodoPlan();
+
+  /// Appends a `write_todos(todos: [])` event to the active branch.
+  Future<bool> clearTodoPlan() => _viewModel.chatActions.clearTodoPlan();
 
   bool shouldPinStreamingIndicator(String? messageId) {
     if (messageId == null) return false;

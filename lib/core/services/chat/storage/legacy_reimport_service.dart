@@ -95,7 +95,8 @@ class LegacyReimportService {
         'so SQLite can be admitted, then try again.',
       );
     }
-    if (chatHiveFiles(directory).isEmpty) {
+    if (chatHiveFiles(directory, includeTransientTodo: false).isEmpty) {
+      // A leftover todo_v1 box alone is not re-importable chat data.
       throw const LegacyReimportException('No legacy chat files remain.');
     }
     if (await files.legacyRetirement.exists()) {

@@ -18,16 +18,20 @@ import 'package:flutter/material.dart';
 
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/chat/ask_user_models.dart';
+import '../../../core/services/chat/storage/message_part_codec.dart';
+import '../../../core/services/chat/todo_models.dart';
 import '../../../core/services/shell/tool_run_registry.dart';
-import '../../../core/services/chat/todo_service.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import 'chat_message_widget.dart' show ToolUIPart;
 
-/// Parsed todo arguments shared by the plan card.
+/// Parsed todo arguments shared by the plan card. Lenient with per-item
+/// dropping: legacy histories may contain partially invalid arguments that
+/// the handler would now reject outright, and the card must still render
+/// their valid entries (老對話不能因為新驗證而變空白).
 List<TodoItem> todosFromArguments(Map<String, dynamic> arguments) =>
-    normalizeTodoItems(arguments['todos']);
+    parseTodoListInput(arguments['todos'], dropInvalidItems: true).items;
 
 /// Parsed ask_user arguments (normalized questions) for the answer form.
 List<AskUserQuestion> questionsFromArguments(Map<String, dynamic> arguments) =>
@@ -39,12 +43,36 @@ List<AskUserQuestion> questionsFromArguments(Map<String, dynamic> arguments) =>
 
 class TodoPlanCard extends StatefulWidget {
   final Map<String, dynamic> arguments;
-  final String? content; // tool result; null while loading
+
+  /// Tool result: canonical `todo_snapshot` JSON, a `tool_error` payload, or
+  /// null while the result is unknown (live / lazy body).
+  final String? content;
+
+  /// True only while the tool part is really executing (handler not yet
+  /// returned). The spinner tracks this + [status] — never `content == null`
+  /// (§2.4.1 of docs/write_todos_improvement_plan.md).
+  final bool loading;
+
+  /// Persisted part status (`pending`/`completed`/`interrupted`/`denied`),
+  /// or null for a live part.
+  final String? status;
+
+  /// False when a restored summary has not loaded the full body yet. The
+  /// card renders from [arguments] in that case instead of spinning.
+  final bool contentLoaded;
+
+  /// True for the newest plan card on the active branch. Only that card
+  /// starts expanded; older plans stay folded (§2.4.2).
+  final bool isLatestPlan;
 
   const TodoPlanCard({
     super.key,
     required this.arguments,
     required this.content,
+    this.loading = false,
+    this.status,
+    this.contentLoaded = true,
+    this.isLatestPlan = true,
   });
 
   @override
@@ -53,20 +81,69 @@ class TodoPlanCard extends StatefulWidget {
 
 class _TodoPlanCardState extends State<TodoPlanCard> {
   bool _expanded = true;
+  final Set<int> _expandedItems = <int>{};
+
+  /// Resolved card inputs (§2.4.1): canonical snapshot items first
+  /// (`changed=true` results carry the normalized list the model actually
+  /// wrote), then the lenient argument parse; `tool_error` content is an
+  /// error state, never a valid plan. Resolved ONCE per build — callers
+  /// reuse the returned error map instead of re-decoding the body.
+  static (List<TodoItem>, bool cleared, Map<String, dynamic>? error)
+  _resolveCard(TodoPlanCard card) {
+    final error = _parseToolError(card.content);
+    if (error != null) return (const <TodoItem>[], false, error);
+    final snapshot = parseTodoSnapshotContent(card.content);
+    if (snapshot != null && snapshot.hasItems) {
+      return (snapshot.items, snapshot.cleared && snapshot.items.isEmpty, null);
+    }
+    final todos = todosFromArguments(card.arguments);
+    return (todos, todos.isEmpty && (snapshot?.cleared ?? false), null);
+  }
+
+  (List<TodoItem>, bool, Map<String, dynamic>?) _resolve() =>
+      _resolveCard(widget);
+
+  static Map<String, dynamic>? _parseToolError(String? content) {
+    if (content == null || content.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(content);
+      if (decoded is Map && decoded['type']?.toString() == 'tool_error') {
+        return decoded.map((k, v) => MapEntry(k.toString(), v));
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static String? _errorMessageOf(Map<String, dynamic>? error) {
+    if (error == null) return null;
+    final message = error['message']?.toString().trim();
+    if (message != null && message.isNotEmpty) return message;
+    final code = error['error']?.toString().trim();
+    return (code == null || code.isEmpty) ? null : code;
+  }
 
   @override
   void initState() {
     super.initState();
-    _expanded = !_allCompleted(todosFromArguments(widget.arguments));
+    _expanded = widget.isLatestPlan && !_allCompleted(_resolve().$1);
   }
 
   @override
   void didUpdateWidget(covariant TodoPlanCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     // A newer snapshot may complete the plan — collapse to the summary.
-    final wasAllDone = _allCompleted(todosFromArguments(oldWidget.arguments));
-    final isAllDone = _allCompleted(todosFromArguments(widget.arguments));
+    final wasAllDone = _allCompleted(_resolveCard(oldWidget).$1);
+    final isAllDone = _allCompleted(_resolve().$1);
     if (isAllDone && !wasAllDone) {
+      _expanded = false;
+    }
+    // This card became the newest plan (a later plan was deleted or a new
+    // turn started) — open it unless it is already fully done.
+    if (widget.isLatestPlan && !oldWidget.isLatestPlan && !isAllDone) {
+      _expanded = true;
+    }
+    // A newer plan took over — keep only the latest card expanded (§2.4.2).
+    if (!widget.isLatestPlan && oldWidget.isLatestPlan && !isAllDone) {
       _expanded = false;
     }
   }
@@ -74,16 +151,97 @@ class _TodoPlanCardState extends State<TodoPlanCard> {
   static bool _allCompleted(List<TodoItem> todos) =>
       todos.isNotEmpty && todos.every((t) => t.isCompleted);
 
+  Widget _buildItem(AppLocalizations l10n, int index, TodoItem t) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardTextColor = isDark
+        ? const Color(0xFF9E9EA4)
+        : const Color(0xFF7E7F83);
+    final expanded = _expandedItems.contains(index);
+    final longContent = t.content.length > 160;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 18,
+            height: 18,
+            child: Center(
+              child: t.isCompleted
+                  ? Icon(Lucide.CheckCircle, size: 15, color: cardTextColor)
+                  : t.isInProgress
+                  ? Icon(Lucide.circleDot, size: 15, color: cardTextColor)
+                  : Icon(Lucide.Circle, size: 15, color: cardTextColor),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  t.content,
+                  maxLines: expanded ? null : 4,
+                  overflow: expanded ? null : TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.3,
+                    color: t.isCompleted
+                        ? cardTextColor.withValues(alpha: 0.7)
+                        : cardTextColor,
+                    decoration: t.isCompleted
+                        ? TextDecoration.lineThrough
+                        : null,
+                  ),
+                ),
+                if (longContent)
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      if (expanded) {
+                        _expandedItems.remove(index);
+                      } else {
+                        _expandedItems.add(index);
+                      }
+                    }),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        expanded ? l10n.todoPlanCollapse : l10n.todoPlanExpand,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: cardTextColor.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardTextColor =
-        isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
+    final cardTextColor = isDark
+        ? const Color(0xFF9E9EA4)
+        : const Color(0xFF7E7F83);
 
-    final todos = todosFromArguments(widget.arguments);
+    final resolved = _resolve();
+    final todos = resolved.$1;
+    final cleared = resolved.$2;
+    final error = resolved.$3;
     final completed = todos.where((t) => t.isCompleted).length;
-    final loading = widget.content == null || widget.content!.isEmpty;
+
+    // §2.4.1: the spinner tracks status/loading only. A restored completed
+    // card with a lazy body renders from its arguments instead of spinning
+    // forever (the old `content == null` bug).
+    final isPending = widget.loading || widget.status == kPartStatusPending;
+    final isInterrupted = widget.status == kPartStatusInterrupted;
+    final errorMessage = _errorMessageOf(error);
 
     return IosCardPress(
       borderRadius: BorderRadius.circular(10),
@@ -98,14 +256,15 @@ class _TodoPlanCardState extends State<TodoPlanCard> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              loading
+              isPending
                   ? SizedBox(
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(cardTextColor),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          cardTextColor,
+                        ),
                       ),
                     )
                   : SizedBox(
@@ -113,7 +272,11 @@ class _TodoPlanCardState extends State<TodoPlanCard> {
                       height: 18,
                       child: Center(
                         child: Icon(
-                          Lucide.ListChecks,
+                          error != null
+                              ? Lucide.XCircle
+                              : isInterrupted
+                              ? Lucide.CircleAlert
+                              : Lucide.ListChecks,
                           size: 18,
                           color: cardTextColor,
                         ),
@@ -134,8 +297,10 @@ class _TodoPlanCardState extends State<TodoPlanCard> {
               ),
               if (todos.isNotEmpty)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     // Whisper-level tint matching the search_web provider
                     // badge (_SearchProviderBadge): 6% background, 70%
@@ -162,48 +327,51 @@ class _TodoPlanCardState extends State<TodoPlanCard> {
               ),
             ],
           ),
-          if (_expanded && todos.isNotEmpty) ...[
+          // Status is part of the header contract: a collapsed card must
+          // still say failed/interrupted/cleared instead of looking like a
+          // normal plan (§2.4.2). Detail stays behind the expand toggle.
+          if (error != null) ...[
             const SizedBox(height: 6),
-            for (final t in todos)
+            Text(
+              l10n.todoCardError,
+              style: TextStyle(fontSize: 12, color: cardTextColor),
+            ),
+            if (_expanded && errorMessage != null)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: Center(
-                        child: t.isCompleted
-                            ? Icon(Lucide.CheckCircle,
-                                size: 15, color: cardTextColor)
-                            : t.isInProgress
-                                ? Icon(Lucide.circleDot,
-                                    size: 15, color: cardTextColor)
-                                : Icon(Lucide.Circle,
-                                    size: 15, color: cardTextColor),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        t.content,
-                        style: TextStyle(
-                          fontSize: 13,
-                          height: 1.3,
-                          color: t.isCompleted
-                              ? cardTextColor.withValues(alpha: 0.7)
-                              : cardTextColor,
-                          decoration: t.isCompleted
-                              ? TextDecoration.lineThrough
-                              : null,
-                        ),
-                      ),
-                    ),
-                  ],
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  errorMessage,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.3,
+                    color: cardTextColor.withValues(alpha: 0.7),
+                  ),
                 ),
               ),
-          ] else if (!loading && todos.isEmpty)
+          ] else if (isInterrupted) ...[
+            const SizedBox(height: 6),
+            Text(
+              l10n.todoCardInterrupted,
+              style: TextStyle(fontSize: 12, color: cardTextColor),
+            ),
+          ] else if (cleared) ...[
+            const SizedBox(height: 6),
+            Text(
+              l10n.todoCardCleared,
+              style: TextStyle(fontSize: 12, color: cardTextColor),
+            ),
+          ],
+          if (_expanded && todos.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            for (var i = 0; i < todos.length; i++)
+              _buildItem(l10n, i, todos[i]),
+          ] else if (!isPending &&
+              todos.isEmpty &&
+              !cleared &&
+              error == null &&
+              !isInterrupted)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
@@ -252,8 +420,9 @@ class ApprovalToolCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardTextColor =
-        isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
+    final cardTextColor = isDark
+        ? const Color(0xFF9E9EA4)
+        : const Color(0xFF7E7F83);
 
     final toolName = (approval['tool'] ?? part.toolName).toString();
     final resolvedPath = (approval['resolved_path'] ?? '').toString();
@@ -294,8 +463,8 @@ class ApprovalToolCard extends StatelessWidget {
                   _isDenied
                       ? l10n.approvalDeniedTitle(toolName)
                       : _isTimeout
-                          ? l10n.approvalTimeoutTitle(toolName)
-                          : l10n.approvalPendingTitle(toolName),
+                      ? l10n.approvalTimeoutTitle(toolName)
+                      : l10n.approvalPendingTitle(toolName),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -307,8 +476,10 @@ class ApprovalToolCard extends StatelessWidget {
               ),
               if (!_isDenied && !_isTimeout)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: cs.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(999),
@@ -595,8 +766,8 @@ class _AskUserCardState extends State<AskUserCard> {
           selected: skipAll
               ? const <String>[]
               : (_selected[q.id] ?? const <int>{})
-                  .map((i) => q.options[i])
-                  .toList(),
+                    .map((i) => q.options[i])
+                    .toList(),
           other: skipAll ? '' : (_other[q.id]?.text.trim() ?? ''),
           skipped: skipAll,
         ),
@@ -606,9 +777,9 @@ class _AskUserCardState extends State<AskUserCard> {
   void _submit(List<AskUserQuestion> questions, {required bool skipAll}) {
     if (!skipAll && !_canSubmit(questions)) return;
     widget.onAnswer?.call(
-      jsonDecode(buildAskUserAnswerContent(
-        _buildAnswers(questions, skipAll: skipAll),
-      )) as Map<String, dynamic>,
+      jsonDecode(
+        buildAskUserAnswerContent(_buildAnswers(questions, skipAll: skipAll)),
+      ) as Map<String, dynamic>,
     );
   }
 
@@ -625,8 +796,9 @@ class _AskUserCardState extends State<AskUserCard> {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardTextColor =
-        isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
+    final cardTextColor = isDark
+        ? const Color(0xFF9E9EA4)
+        : const Color(0xFF7E7F83);
     // ask_user 的內容是給使用者看與作答的（不同於 todo / reasoning / 工具卡
     // 的「隱藏工具與思考過程」淡灰設計），配色恢復為正常內文色，僅標題列
     // （icon＋標題＋收合箭頭）與「已回答」膠囊維持淡灰。
@@ -642,74 +814,82 @@ class _AskUserCardState extends State<AskUserCard> {
           InkWell(
             onTap: () => setState(() => _expanded = !_expanded),
             child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              loading
-                  ? SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(cardTextColor),
-                      ),
-                    )
-                  : SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: Center(
-                        child: Icon(
-                          _answered ? Lucide.MessageCircle : Lucide.FileQuestion,
-                          size: 18,
-                          color: cardTextColor,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                loading
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            cardTextColor,
+                          ),
+                        ),
+                      )
+                    : SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: Center(
+                          child: Icon(
+                            _answered
+                                ? Lucide.MessageCircle
+                                : Lucide.FileQuestion,
+                            size: 18,
+                            color: cardTextColor,
+                          ),
                         ),
                       ),
-                    ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  l10n.askUserCardTitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.normal,
-                    color: cardTextColor,
-                  ),
-                ),
-              ),
-              if (_answered)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    // Whisper-level tint matching the search_web provider
-                    // badge (_SearchProviderBadge): 6% background, 70%
-                    // text — same as the todo plan card's N/M pill.
-                    color: cardTextColor.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
+                const SizedBox(width: 8),
+                Expanded(
                   child: Text(
-                    l10n.askUserAnswered,
+                    l10n.askUserCardTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: cardTextColor.withValues(alpha: 0.7),
+                      fontSize: 13,
+                      fontWeight: FontWeight.normal,
+                      color: cardTextColor,
                     ),
                   ),
                 ),
-              const SizedBox(width: 4),
-              Icon(
-                _expanded
-                    ? Icons.keyboard_arrow_up_rounded
-                    : Icons.keyboard_arrow_down_rounded,
-                size: 18,
-                color: cardTextColor,
-              ),
-            ],
+                if (_answered)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      // Whisper-level tint matching the search_web provider
+                      // badge (_SearchProviderBadge): 6% background, 70%
+                      // text — same as the todo plan card's N/M pill.
+                      color: cardTextColor.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      l10n.askUserAnswered,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: cardTextColor.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ),
+                const SizedBox(width: 4),
+                Icon(
+                  _expanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  size: 18,
+                  color: cardTextColor,
+                ),
+              ],
             ),
           ),
-          if (_expanded) ...[const SizedBox(height: 6), _buildBody(context, l10n, cs, cardTextColor, bodyTextColor)],
+          if (_expanded) ...[
+            const SizedBox(height: 6),
+            _buildBody(context, l10n, cs, cardTextColor, bodyTextColor),
+          ],
         ],
       ),
     );
@@ -810,8 +990,9 @@ class _AskUserCardState extends State<AskUserCard> {
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             TextButton(
-              onPressed:
-                  interactive ? () => _submit(questions, skipAll: true) : null,
+              onPressed: interactive
+                  ? () => _submit(questions, skipAll: true)
+                  : null,
               child: Text(
                 l10n.askUserSkip,
                 style: TextStyle(fontSize: 13, color: bodyTextColor),
@@ -879,10 +1060,7 @@ class _AskUserCardState extends State<AskUserCard> {
             Expanded(
               child: Text(
                 q.options[index],
-                style: TextStyle(
-                  fontSize: 13,
-                  color: bodyTextColor,
-                ),
+                style: TextStyle(fontSize: 13, color: bodyTextColor),
               ),
             ),
           ],
@@ -897,8 +1075,7 @@ class _AskUserCardState extends State<AskUserCard> {
     Color bodyTextColor,
     bool interactive,
   ) {
-    final controller =
-        _other.putIfAbsent(q.id, () => TextEditingController());
+    final controller = _other.putIfAbsent(q.id, () => TextEditingController());
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: TextField(
@@ -910,14 +1087,13 @@ class _AskUserCardState extends State<AskUserCard> {
           isDense: true,
           prefixIcon: Icon(Lucide.Pencil, size: 16, color: bodyTextColor),
           hintText: AppLocalizations.of(context)!.askUserOther,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 8,
           ),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         ),
       ),
     );
   }
 }
-

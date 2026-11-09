@@ -2,11 +2,14 @@ import '../agent/approval.dart' as approval;
 import '../logging/flutter_logger.dart';
 import 'ask_user_models.dart';
 import 'storage/message_part_codec.dart';
-import 'todo_service.dart';
+import 'todo_models.dart';
 
 /// Log-only tools that must never be replayed as call/result pairs (§9.5.2).
 ///
-/// * `write_todos` — its snapshot is injected at the system-prompt tail.
+/// * `write_todos` — the latest successful snapshot is re-injected each turn
+///   as a synthetic trailing tool pair (conversation tail, §2.3.2 of
+///   docs/write_todos_improvement_plan.md); replaying every historical
+///   snapshot would balloon the request for no gain.
 /// * `workspace_snapshot` — retired P1-5 affordance, still present in old
 ///   persisted history.
 /// * `builtin_search` — UI/citation card for a provider-hosted search. The

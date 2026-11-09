@@ -286,7 +286,10 @@ void main() {
       expect(ask.eagerArgumentsJson, contains('Pick one'));
 
       final todo = summaries.firstWhere((s) => s.toolCallId == 'todo');
-      expect(todo.contentLoaded, isFalse);
+      // write_todos is eager since the todo event projection landed
+      // (docs/write_todos_improvement_plan.md §2.4.4): restored completed
+      // cards render their snapshot instead of spinning forever.
+      expect(todo.contentLoaded, isTrue);
       expect(todo.eagerArgumentsJson, contains('step'));
 
       final search = summaries.firstWhere((s) => s.toolCallId == 'search');

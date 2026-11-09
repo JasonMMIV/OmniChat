@@ -1,9 +1,11 @@
-// P1-3 ask_user + write_todos unit tests (IMPORT_PLAN_COWORK.md P1-3).
+// P1-3 ask_user unit tests (IMPORT_PLAN_COWORK.md P1-3).
 //
 // Covers the pure-Dart data discipline ported from kelivo
-// `ask_user_input_v0`: argument normalization limits, the structured answer
-// payload, the pending/answer content protocol, and the todo snapshot
-// normalization/rendering used by the plan card and system-prompt injection.
+// `ask_user_input_v0`: argument normalization limits and the structured
+// answer / pending content protocol. The `write_todos` parser / projection /
+// card coverage moved to test/core/services/chat/todo_parser_test.dart,
+// todo_projection_test.dart and test/features/chat/widgets/
+// todo_plan_card_test.dart (docs/write_todos_improvement_plan.md).
 
 import 'dart:convert';
 
@@ -11,7 +13,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:OmniChat/core/services/chat/ask_user_models.dart';
-import 'package:OmniChat/core/services/chat/todo_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -102,56 +103,6 @@ void main() {
       expect(parseAskUserContent(''), isNull);
       expect(parseAskUserContent('{"type":"other"}'), isNull);
       expect(parseAskUserContent('not json'), isNull);
-    });
-  });
-
-  group('write_todos normalization', () {
-    test('normalizes statuses and drops empty content', () {
-      final todos = normalizeTodoItems([
-        {'content': 'Step one', 'status': 'in_progress'},
-        {'content': 'Step two', 'status': 'completed'},
-        {'content': 'Step three', 'status': 'bogus'},
-        {'content': '   ', 'status': 'pending'},
-        {'task': 'alias task', 'status': 'pending'},
-      ]);
-      expect(todos.length, equals(4));
-      expect(todos[0].isInProgress, isTrue);
-      expect(todos[1].isCompleted, isTrue);
-      expect(todos[2].status, equals(todoStatusPending));
-      expect(todos[3].content, equals('alias task'));
-    });
-
-    test('caps list at maxItems and ignores non-maps', () {
-      final todos = normalizeTodoItems([
-        for (var i = 0; i < 60; i++) {'content': 't$i', 'status': 'pending'},
-        'nope',
-      ], maxItems: 50);
-      expect(todos.length, equals(50));
-    });
-
-    test('invalid input yields empty list', () {
-      expect(normalizeTodoItems(null), isEmpty);
-      expect(normalizeTodoItems('x'), isEmpty);
-    });
-  });
-
-  group('todo snapshot rendering', () {
-    test('renders stable marker format', () {
-      final todos = normalizeTodoItems([
-        {'content': 'A', 'status': 'completed'},
-        {'content': 'B', 'status': 'in_progress'},
-        {'content': 'C', 'status': 'pending'},
-      ]);
-      final out = renderTodoSnapshot(todos);
-      expect(out, contains('[x] A'));
-      expect(out, contains('[~] B'));
-      expect(out, contains('[ ] C'));
-      expect(out, contains('<current_todo_list>'));
-      expect(out, contains('</current_todo_list>'));
-    });
-
-    test('empty list renders empty string', () {
-      expect(renderTodoSnapshot(const []), isEmpty);
     });
   });
 }

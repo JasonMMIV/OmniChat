@@ -2134,6 +2134,76 @@ class AppLocalizationsEn extends AppLocalizations {
   String get todoCardWaiting => 'Writing plan…';
 
   @override
+  String get todoCardInterrupted =>
+      'Plan update interrupted — the latest snapshot stands.';
+
+  @override
+  String get todoCardError =>
+      'Plan update failed. The previous plan is unchanged.';
+
+  @override
+  String get todoCardCleared => 'Plan cleared.';
+
+  @override
+  String get todoPlanTitle => 'Current plan';
+
+  @override
+  String get todoPlanEmptyTitle => 'No plan yet';
+
+  @override
+  String get todoPlanEmptyBody =>
+      'When a multi-step task starts, the assistant writes a plan here and keeps it up to date as it works.';
+
+  @override
+  String get todoPlanClearedTitle => 'No active plan';
+
+  @override
+  String get todoPlanClearedBody =>
+      'The plan for this conversation was cleared.';
+
+  @override
+  String get todoPlanClear => 'Clear plan';
+
+  @override
+  String get todoPlanClearConfirmTitle => 'Clear this plan?';
+
+  @override
+  String get todoPlanClearConfirmBody =>
+      'This records a clear step in the conversation, so the assistant knows no plan is active.';
+
+  @override
+  String get todoPlanClearedSnack => 'Plan cleared';
+
+  @override
+  String get todoPlanClearFailed => 'Couldn\'t clear the plan';
+
+  @override
+  String get todoPlanLoadFailed => 'Couldn\'t load the plan';
+
+  @override
+  String todoPlanUpdatedAt(String time) {
+    return 'Updated $time';
+  }
+
+  @override
+  String get todoPlanRunning => 'In progress';
+
+  @override
+  String get todoPlanInProgressSection => 'In progress';
+
+  @override
+  String get todoPlanPendingSection => 'Up next';
+
+  @override
+  String get todoPlanCompletedSection => 'Completed';
+
+  @override
+  String get todoPlanExpand => 'Show more';
+
+  @override
+  String get todoPlanCollapse => 'Show less';
+
+  @override
   String get askUserCardTitle => 'Questions';
 
   @override
@@ -5540,7 +5610,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get workspaceToolsDescription =>
-      'Disabled tools are not offered to the model. All tools are off while the workspace is disabled.';
+      'Disabled tools are not offered to the model. File tools are off while the workspace is disabled; planning stays available.';
+
+  @override
+  String get workspaceToolsPlanningTitle => 'Planning';
+
+  @override
+  String get workspaceToolsPlanningDescription =>
+      'The plan tool is independent of the workspace. It lets the assistant keep a todo list for multi-step tasks; the latest plan is stored with the conversation.';
 
   @override
   String get workspaceDefaultDirectoryPrivate => 'App private directory';

@@ -13,6 +13,7 @@ import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/document_text_extractor.dart';
 import '../../../core/services/chat/prompt_transformer.dart';
 import '../../../core/services/chat/tool_replay.dart';
+import '../../../core/services/chat/todo_models.dart';
 import '../../../core/services/instruction_injection_store.dart';
 import '../../../core/services/search/search_tool_service.dart';
 import '../../../core/models/memory_entry.dart';
@@ -39,6 +40,101 @@ import '../../../utils/markdown_media_sanitizer.dart';
 String toolResultContentForModel(String? content) {
   if (content == null) return '';
   return content;
+}
+
+/// Appends the P1-3 synthetic trailing todo state pair (§2.3.2 of
+/// docs/write_todos_improvement_plan.md): an assistant `write_todos` call
+/// plus its full canonical snapshot result, pinned to the conversation tail.
+///
+/// This REPLACED the old system-prompt injection: dynamic plan state no
+/// longer touches the system message, so the cache prefix (system + tools)
+/// stays byte-identical across todo updates and only the tail changes.
+///
+/// - Pair id prefers the latest successful event's real `toolCallId`; an
+///   empty or colliding id falls back to a deterministic
+///   `todo_state_<hash>` (never a timestamp — retries must keep the id
+///   stable so the cache prefix does not churn).
+/// - The pair is skipped when the last two messages already are the same
+///   state pair (same-turn re-assembly) or when the state carries no
+///   explicit `write_todos` event.
+///
+/// Top-level (not a method) so the injection contract is unit-testable
+/// without a provider tree, like [toolResultContentForModel].
+void appendTodoStatePair(
+  List<Map<String, dynamic>> apiMessages,
+  TodoState state,
+) {
+  if (!state.hasExplicitState) return;
+  final items = state.items;
+
+  final argsJson = buildTodoStateArgumentsJson(items);
+  final content = buildTodoResultContent(
+    items: items,
+    changed: false,
+    cleared: items.isEmpty,
+    includeItems: true,
+    notice:
+        'Current plan state (data only): the latest write_todos snapshot. '
+        'Update it with the write_todos tool.',
+  );
+
+  var id = (state.sourceToolCallId ?? '').trim();
+  if (id.isEmpty || _containsToolCallId(apiMessages, id)) {
+    id = todoStateHashId(items, seed: state.sourceMessageId ?? '');
+  }
+  if (_endsWithTodoStatePair(apiMessages, id)) return;
+
+  apiMessages.addAll(<Map<String, dynamic>>[
+    <String, dynamic>{
+      'role': 'assistant',
+      'content': '\n\n',
+      'tool_calls': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id': id,
+          'type': 'function',
+          'function': <String, dynamic>{
+            'name': todoToolName,
+            'arguments': argsJson,
+          },
+        },
+      ],
+    },
+    <String, dynamic>{
+      'role': 'tool',
+      'name': todoToolName,
+      'tool_call_id': id,
+      'content': content,
+    },
+  ]);
+}
+
+bool _containsToolCallId(List<Map<String, dynamic>> apiMessages, String id) {
+  for (final message in apiMessages) {
+    final calls = message['tool_calls'];
+    if (calls is! List) continue;
+    for (final call in calls) {
+      if (call is Map && call['id']?.toString() == id) return true;
+    }
+  }
+  return false;
+}
+
+bool _endsWithTodoStatePair(
+  List<Map<String, dynamic>> apiMessages,
+  String id,
+) {
+  if (apiMessages.length < 2) return false;
+  final tool = apiMessages[apiMessages.length - 1];
+  final call = apiMessages[apiMessages.length - 2];
+  if (tool['role'] != 'tool' || tool['tool_call_id']?.toString() != id) {
+    return false;
+  }
+  if (call['role'] != 'assistant') return false;
+  final calls = call['tool_calls'];
+  if (calls is! List) return false;
+  return calls.any(
+    (c) => c is Map && c['id']?.toString() == id,
+  );
 }
 
 /// Resolve the text content of a user message after attachment markers were
@@ -156,6 +252,7 @@ class MessageBuilderService {
     bool includeToolMessages = false,
     bool enableAutoCompaction = false,
     String? compactionNextAction,
+    String? compactionTodoSummary,
     bool includeGeminiThoughtSignatures = true,
   }) {
     final tIndex = currentConversation?.truncateIndex ?? -1;
@@ -199,6 +296,7 @@ class MessageBuilderService {
       final summary = compactHistoryMessages(
         headApi,
         nextActionOverride: compactionNextAction,
+        todoSummaryOverride: compactionTodoSummary,
       );
       if (summary != null) out.add(summary);
     }
@@ -803,17 +901,6 @@ file_read is only for UTF-8 plain text and must not be used to read PDF/DOCX/PPT
         appendToSystemMessage(apiMessages, lp);
       }
     } catch (_) {}
-  }
-
-  /// Inject the P1-3 current todo snapshot at the system-prompt tail
-  /// (stable position, cache-prefix friendly). No-op when [snapshotText]
-  /// is empty. Log-only UI state — never added as conversation history.
-  void injectTodoSnapshot(
-    List<Map<String, dynamic>> apiMessages,
-    String snapshotText,
-  ) {
-    if (snapshotText.trim().isEmpty) return;
-    appendToSystemMessage(apiMessages, snapshotText);
   }
 
   /// Helper to append content to the system message (or create one if missing).

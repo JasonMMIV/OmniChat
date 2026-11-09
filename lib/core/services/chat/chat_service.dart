@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:path/path.dart' as p;
 
@@ -37,6 +39,8 @@ import 'storage/restore_journal.dart';
 import 'storage/restore_journal_recovery.dart';
 import 'storage/settings_snapshot.dart';
 import 'storage/sqlite_chat_storage.dart';
+import 'todo_models.dart';
+import 'todo_v1_migration.dart';
 
 /// Runs when chat-storage migration actually starts and when initialization
 /// leaves the migration path. The UI uses this for a temporary Android
@@ -227,10 +231,11 @@ class ChatService extends ChangeNotifier {
 
       final appDataDir = await AppDirectories.getAppDataDirectory();
       _appDataDirectory = appDataDir;
-      // Historically ChatService.init was the app's Hive initializer;
-      // TodoService (`todo_v1`) still opens its own box, so keep the path
-      // initialized even when SQLite is authoritative. Initializing the path
-      // opens no chat box.
+      // Historically ChatService.init was the app's Hive initializer. SQLite
+      // is authoritative now, but the path stays initialized for the
+      // device-local `AgentRunCheckpointStore` (`agent_runs_v1`) and the
+      // one-time `todo_v1` migration below. Initializing the path opens no
+      // chat box — do NOT remove it, or agent resume breaks.
       Hive.init(appDataDir.path);
 
       // A restore journal owns the preserved database and file directories
@@ -283,10 +288,36 @@ class ChatService extends ChangeNotifier {
       _setStorageInitStatus(
         const ChatStorageInitStatus(phase: ChatStorageInitPhase.ready),
       );
+
+      // One-time `todo_v1` migration (plan §2.5.3): fold the retired Hive
+      // plan box into conversation tool events. Idempotent, best-effort,
+      // never blocks startup.
+      unawaited(
+        () async {
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await TodoV1Migration.run(
+              chatService: this,
+              prefs: prefs,
+              appDataDirPath: _appDataDirectory?.path,
+            );
+          } catch (e) {
+            FlutterLogger.log(
+              'todo_v1 migration crashed (non-fatal): $e',
+              tag: 'todo-migration',
+            );
+          }
+        }(),
+      );
     } on ChatStorageRestoreRequiredException catch (e) {
       _legacyHiveAvailable =
           _appDataDirectory != null &&
-          chatHiveFiles(_appDataDirectory!).isNotEmpty;
+          chatHiveFiles(
+            _appDataDirectory!,
+            // A leftover todo_v1 box is not chat data; it must not advertise
+            // "legacy data available" for the restore flow.
+            includeTransientTodo: false,
+          ).isNotEmpty;
       _setStorageInitStatus(
         ChatStorageInitStatus(
           phase: ChatStorageInitPhase.restoreRequired,
@@ -596,6 +627,9 @@ class ChatService extends ChangeNotifier {
     // P1-6: shell output files are app-private and must not outlive their
     // conversation (retention alone would keep them up to 7 days).
     await SessionOutputs.deleteConversation(id);
+    // todo_v1 legacy fallback entries must not outlive their conversation
+    // either (plan §2.5.1: no orphan todo data anywhere).
+    unawaited(TodoV1Migration.dropConversation(id));
     await _clearAgentRunCheckpoint(id);
     if (cleanup) await _cleanupOrphanUploads();
     if (_currentConversationId == id) _currentConversationId = null;
@@ -1132,6 +1166,49 @@ class ChatService extends ChangeNotifier {
       extras: extras,
     );
     notifyListeners();
+  }
+
+  /// Latest `write_todos` state of a conversation, projected from the most
+  /// recent tool part (any status). Used by the write_todos handler to decide
+  /// whether an explicit clear actually changed anything (§2.2.3), and by the
+  /// todo_v1 migration. Returns null when no parseable part exists.
+  Future<TodoState?> getLatestTodoState(String conversationId) async {
+    if (!_initialized) return null;
+    try {
+      final event = await _storage!.getLatestTodoEvent(conversationId);
+      if (event == null) return null;
+      final content = event['content'];
+      final snapshot = parseTodoSnapshotContent(
+        content is String ? content : null,
+      );
+      if (snapshot != null && snapshot.hasItems) {
+        return TodoState(items: snapshot.items, hasExplicitState: true);
+      }
+      final argumentsJson = event['argumentsJson'];
+      Object? decodedArgs;
+      if (argumentsJson is String && argumentsJson.isNotEmpty) {
+        try {
+          decodedArgs = jsonDecode(argumentsJson);
+        } catch (_) {}
+      }
+      final rawTodos = decodedArgs is Map ? decodedArgs['todos'] : null;
+      final parsed = parseTodoListInput(rawTodos);
+      if (!parsed.isValid) return null;
+      return TodoState(items: parsed.items, hasExplicitState: true);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Whether the conversation has at least one successful `write_todos`
+  /// event (todo_v1 migration rule 1: events win over legacy box entries).
+  Future<bool> hasCompletedTodoEvent(String conversationId) async {
+    if (!_initialized) return false;
+    try {
+      return await _storage!.hasCompletedTodoEvent(conversationId);
+    } catch (_) {
+      return false;
+    }
   }
 
   static Map<String, dynamic> _boundToolEventForPersistence(

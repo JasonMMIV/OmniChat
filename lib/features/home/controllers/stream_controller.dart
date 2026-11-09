@@ -217,6 +217,32 @@ class StreamController {
     _toolParts[messageId] = parts;
   }
 
+  /// Appends an already-finished tool part (no stream round involved) and
+  /// notifies the tool-card listeners. Used by the Phase 3 user-initiated
+  /// plan clear, which records a completed `write_todos(todos: [])` event.
+  void appendCompletedToolPart(
+    String messageId, {
+    required String id,
+    required String toolName,
+    required Map<String, dynamic> arguments,
+    required String content,
+  }) {
+    final parts = List<ToolUIPart>.of(_toolParts[messageId] ?? const []);
+    parts.add(
+      ToolUIPart(
+        id: id,
+        toolName: toolName,
+        arguments: arguments,
+        content: content,
+        loading: false,
+        contentLoaded: true,
+        status: kPartStatusCompleted,
+      ),
+    );
+    _toolParts[messageId] = dedupeToolPartsList(parts);
+    streamingContentNotifier.notifyToolPartsUpdated(messageId);
+  }
+
   /// Remove tool parts for a message.
   void removeToolParts(String messageId) {
     _toolParts.remove(messageId);

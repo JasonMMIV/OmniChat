@@ -67,6 +67,9 @@ class DatabaseInstallationGate {
   List<File> _hiveFiles() {
     final artifacts = hiveArtifacts;
     if (artifacts != null) return artifacts;
+    // "Fresh install vs migration needed" must not be decided by a leftover
+    // todo_v1 box alone (the SQLite-era app kept writing it) — the default
+    // excludes the transient todo box.
     return chatHiveFiles(directory);
   }
 
@@ -557,14 +560,29 @@ class DatabaseInstallationGate {
 
 /// Chat Hive artifacts owned by the chat store, including `.lock` companions.
 /// Never includes unrelated Hive boxes or the retired snapshots box.
-List<File> chatHiveFiles(Directory directory) {
-  const boxes = <String>[
+///
+/// `todo_v1` is transitional (docs/write_todos_improvement_plan.md §2.5.1):
+/// the retired plan box is included while the one-time migration may still
+/// need to read it, so a pre-migration backup can restore plans. Remove this
+/// entry once `todo_v1_migrated_v1` is universal and the box file is dropped.
+///
+/// The default excludes `todo_v1`: availability/migration-decision probes
+/// (fresh-install detection, legacy re-import, restore-required banners,
+/// legacy retirement) must NOT treat a leftover todo box as chat data, and
+/// retirement must not delete it while the todo migration still reads it.
+/// Only the pre-migration backup opts in explicitly.
+List<File> chatHiveFiles(
+  Directory directory, {
+  bool includeTransientTodo = false,
+}) {
+  final boxes = <String>[
     'conversations',
     'messages',
     'tool_events_v1',
     'message_file_records_v1',
     'conversation_workspace_bindings_v2',
     'conversation_workspaces_v1',
+    if (includeTransientTodo) 'todo_v1',
   ];
   final result = <File>[];
   for (final box in boxes) {

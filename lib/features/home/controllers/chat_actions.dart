@@ -32,6 +32,9 @@ import '../../../core/services/shell/shell_run_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/storage/message_part_codec.dart';
+import '../../../core/services/chat/todo_models.dart';
+import '../../../core/services/chat/todo_projection.dart';
+import '../../../core/services/chat/todo_v1_migration.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/assistant_regex.dart';
@@ -1097,6 +1100,134 @@ class ChatActions {
       await _executeGeneration(ctx);
     }
     return ChatActionResult.success(assistantMessage);
+  }
+
+  // ============================================================================
+  // Current plan (Phase 3)
+  // ============================================================================
+
+  /// Projects the current plan from the active conversation branch. Used by
+  /// the plan sheet; no local todo store is involved.
+  Future<TodoState?> currentTodoPlan() async {
+    final conversation = _currentConversation;
+    if (conversation == null) return null;
+    try {
+      return (await _resolveCurrentTodoPlan(conversation)).state;
+    } catch (e) {
+      FlutterLogger.log('currentTodoPlan failed: $e', tag: 'todo-plan');
+      return null;
+    }
+  }
+
+  /// Single projection seam shared by the sheet and the clear action. Honors
+  /// `todoEventProjectionV1` exactly like generation: when the kill switch is
+  /// off, only the read-only `todo_v1` fallback is consulted, so the sheet
+  /// can never show a plan the model does not see.
+  Future<
+    ({TodoState? state, bool fromLegacy, List<ChatMessage> activeMessages})
+  >
+  _resolveCurrentTodoPlan(Conversation conversation) async {
+    final activeMessages = messageGenerationService.messageBuilderService
+        .collapseVersions(_messages, _versionSelections);
+    final settings = contextProvider.read<SettingsProvider>();
+    if (settings.todoEventProjectionV1 && activeMessages.isNotEmpty) {
+      await chatService.ensureToolEventsLoaded(activeMessages.map((m) => m.id));
+      final eventsByMessageId = <String, List<Map<String, dynamic>>>{
+        for (final message in activeMessages)
+          message.id: chatService.getToolEvents(message.id),
+      };
+      final projected = projectTodoState(
+        activeMessages: activeMessages,
+        eventsByMessageId: eventsByMessageId,
+      );
+      if (projected != null) {
+        return (
+          state: projected,
+          fromLegacy: false,
+          activeMessages: activeMessages,
+        );
+      }
+    }
+
+    // §2.5.3: conversations the one-time migration could not attach keep a
+    // read-only `todo_v1` fallback until an assistant message exists.
+    final legacy = await TodoV1Migration.legacyItemsFor(conversation.id);
+    if (legacy != null && legacy.isNotEmpty) {
+      return (
+        state: TodoState(items: legacy, hasExplicitState: true),
+        fromLegacy: true,
+        activeMessages: activeMessages,
+      );
+    }
+    return (state: null, fromLegacy: false, activeMessages: activeMessages);
+  }
+
+  /// User-initiated clear (Phase 3-2): appends a successful
+  /// `write_todos(todos: [])` tool part with `origin=user_clear` to the
+  /// active branch. The conversation event remains the single source of
+  /// truth — never a UI-only flag. `write_todos` is non-replayable, so the
+  /// appended part cannot produce a dangling tool call.
+  Future<bool> clearTodoPlan() async {
+    final conversation = _currentConversation;
+    if (conversation == null) return false;
+    // Never append mid-run: the stream's result-chunk handler replaces the
+    // in-memory tool list with its own snapshot, which could hide the clear.
+    if (_loadingConversationIds.contains(conversation.id)) return false;
+    try {
+      final resolved = await _resolveCurrentTodoPlan(conversation);
+      final state = resolved.state;
+      if (state == null) return false;
+
+      if (resolved.fromLegacy) {
+        // Legacy-only fallback (a box entry the migration could not attach
+        // because the branch has no assistant message): clearing is a
+        // best-effort delete of that read-only entry, not a new store write.
+        await TodoV1Migration.dropConversation(conversation.id);
+        onMessagesChanged?.call();
+        return true;
+      }
+      // Already cleared → nothing to do.
+      if (state.items.isEmpty) return false;
+
+      ChatMessage? target;
+      for (final message in resolved.activeMessages.reversed) {
+        if (message.role == 'assistant') {
+          target = message;
+          break;
+        }
+      }
+      // A projected plan always came from an assistant event.
+      if (target == null) return false;
+
+      const arguments = <String, dynamic>{'todos': <dynamic>[]};
+      final content = buildTodoResultContent(
+        items: const <TodoItem>[],
+        changed: true,
+        cleared: true,
+      );
+      final toolCallId = 'user_clear_${DateTime.now().microsecondsSinceEpoch}';
+      await chatService.upsertToolEvent(
+        target.id,
+        id: toolCallId,
+        name: todoToolName,
+        arguments: arguments,
+        content: content,
+        approvalState: kApprovalAuto,
+        extras: const <String, dynamic>{'origin': 'user_clear'},
+      );
+      streamController.appendCompletedToolPart(
+        target.id,
+        id: toolCallId,
+        toolName: todoToolName,
+        arguments: arguments,
+        content: content,
+      );
+      onMessagesChanged?.call();
+      return true;
+    } catch (e) {
+      FlutterLogger.log('clearTodoPlan failed: $e', tag: 'todo-clear');
+      return false;
+    }
   }
 
   // ============================================================================

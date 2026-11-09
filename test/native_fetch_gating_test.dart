@@ -58,6 +58,9 @@ class _TestSettings extends ChangeNotifier implements SettingsProvider {
   bool get skillsPreloadEnabled => false;
 
   @override
+  bool get planningEnabled => true;
+
+  @override
   Set<String> get approvalAlwaysAllowed => const <String>{};
 
   @override

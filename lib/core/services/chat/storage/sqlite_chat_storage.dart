@@ -858,6 +858,18 @@ class SqliteChatStorage extends ChatStorage {
   }
 
   @override
+  Future<Map<String, dynamic>?> getLatestTodoEvent(
+    String conversationId,
+  ) {
+    return _repo.getLatestTodoEvent(conversationId);
+  }
+
+  @override
+  Future<bool> hasCompletedTodoEvent(String conversationId) {
+    return _repo.hasCompletedTodoEvent(conversationId);
+  }
+
+  @override
   Future<bool> setToolEventApprovalState(
     String assistantMessageId, {
     required String id,

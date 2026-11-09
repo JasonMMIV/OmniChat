@@ -788,6 +788,20 @@ class HiveChatStorage extends ChatStorage {
     await _toolEventsBox.put(assistantMessageId, list);
   }
 
+  /// Legacy Hive backend (test/import paths only): events are keyed by
+  /// message, so a conversation-scoped latest-todo lookup is not supported.
+  /// SQLite is authoritative for production reads.
+  @override
+  Future<Map<String, dynamic>?> getLatestTodoEvent(String conversationId) async {
+    return null;
+  }
+
+  /// Legacy Hive backend (see [getLatestTodoEvent]): returns false.
+  @override
+  Future<bool> hasCompletedTodoEvent(String conversationId) async {
+    return false;
+  }
+
   @override
   Future<bool> setToolEventApprovalState(
     String assistantMessageId, {

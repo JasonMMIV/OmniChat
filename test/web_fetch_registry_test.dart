@@ -55,6 +55,9 @@ class _WebFetchSettings extends ChangeNotifier implements SettingsProvider {
   bool get skillsPreloadEnabled => false;
 
   @override
+  bool get planningEnabled => true;
+
+  @override
   Set<String> get approvalAlwaysAllowed => const <String>{};
 
   @override
@@ -94,8 +97,9 @@ Future<ToolHandlerService> _buildService(WidgetTester tester) async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('buildToolDefinitions advertises a single web_fetch tool',
-      (tester) async {
+  testWidgets('buildToolDefinitions advertises a single web_fetch tool', (
+    tester,
+  ) async {
     final service = await _buildService(tester);
     final defs = service.buildToolDefinitions(
       _WebFetchSettings(),
@@ -133,17 +137,11 @@ void main() {
 
   test('ToolResultCaps adds web_fetch guidance and caps exactly once', () {
     final original = 'x' * 40000;
-    final capped = ToolResultCaps.cap(
-      toolName: 'web_fetch',
-      result: original,
-    );
+    final capped = ToolResultCaps.cap(toolName: 'web_fetch', result: original);
     expect(capped.length, lessThanOrEqualTo(ToolResultCaps.capThresholdChars));
     expect(capped, contains('next_start_index'));
 
-    final again = ToolResultCaps.cap(
-      toolName: 'web_fetch',
-      result: capped,
-    );
+    final again = ToolResultCaps.cap(toolName: 'web_fetch', result: capped);
     expect(again, same(capped));
   });
 }

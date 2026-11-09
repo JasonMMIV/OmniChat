@@ -9,6 +9,7 @@ import '../../../models/file_record.dart';
 import '../../../models/workspace_config.dart';
 import 'app_database.dart';
 import 'message_part_codec.dart';
+import '../todo_models.dart';
 
 /// Thrown when a mature database contains a part that violates the replay
 /// contract (for example a `completed` row with null content). Never repaired
@@ -972,9 +973,73 @@ class ChatRepository {
     ];
   }
 
-  /// Parses the completed search tool results for one message into citation
-  /// rows. Only search parts are read; the timeline never loads the rest of
-  /// the message's tool bodies for the sources card.
+  /// The latest `write_todos` part of a conversation (any status), newest
+  /// first. Used by the tool handler (a clear reports `changed` only when a
+  /// previous plan existed) and by the todo_v1 migration. Never loads more
+  /// than one row.
+  ///
+  /// Deliberate simplification: this is conversation-scoped, NOT branch
+  /// aware (`versionSelections` is ignored). The result only feeds the
+  /// informational `changed` flag on an explicit clear; the authoritative
+  /// projection is always branch-exact (§2.1.2).
+  Future<Map<String, dynamic>?> getLatestTodoEvent(
+    String conversationId,
+  ) async {
+    final query = db.selectOnly(db.messageParts)
+      ..addColumns([
+        db.messageParts.toolCallId,
+        db.messageParts.argumentsJson,
+        db.messageParts.content,
+        db.messageParts.status,
+        db.messageParts.updatedAtMs,
+      ])
+      ..join([
+        innerJoin(
+          db.messageRows,
+          db.messageRows.id.equalsExp(db.messageParts.messageId),
+        ),
+      ])
+      ..where(
+        db.messageRows.conversationId.equals(conversationId) &
+            db.messageParts.kind.equals(kToolPartKind) &
+            db.messageParts.toolName.equals(todoToolName),
+      )
+      ..orderBy([OrderingTerm.desc(db.messageParts.updatedAtMs)])
+      ..limit(1);
+    final rows = await query.get();
+    if (rows.isEmpty) return null;
+    final row = rows.first;
+    return <String, dynamic>{
+      'id': row.read(db.messageParts.toolCallId) ?? '',
+      'argumentsJson': row.read(db.messageParts.argumentsJson),
+      'content': row.read(db.messageParts.content),
+      'status': row.read(db.messageParts.status) ?? '',
+      'updatedAtMs': row.read(db.messageParts.updatedAtMs) ?? 0,
+    };
+  }
+
+  /// Whether the conversation carries at least one SUCCESSFUL `write_todos`
+  /// event (plan §2.5.3: a stored event wins over a legacy `todo_v1` box
+  /// entry during the one-time migration).
+  Future<bool> hasCompletedTodoEvent(String conversationId) async {
+    final query = db.selectOnly(db.messageParts)
+      ..addColumns([db.messageParts.partId])
+      ..join([
+        innerJoin(
+          db.messageRows,
+          db.messageRows.id.equalsExp(db.messageParts.messageId),
+        ),
+      ])
+      ..where(
+        db.messageRows.conversationId.equals(conversationId) &
+            db.messageParts.kind.equals(kToolPartKind) &
+            db.messageParts.toolName.equals(todoToolName) &
+            db.messageParts.status.equals(kPartStatusCompleted),
+      )
+      ..limit(1);
+    final rows = await query.get();
+    return rows.isNotEmpty;
+  }
   Future<List<Map<String, dynamic>>> getSearchCitations(
     String assistantMessageId,
   ) async {
@@ -1027,7 +1092,7 @@ class ChatRepository {
     ]);
     const eagerContent = CustomExpression<String>(
       "CASE WHEN message_parts.status IN ('pending', 'denied') "
-      "OR message_parts.tool_name = 'ask_user' "
+      "OR message_parts.tool_name IN ('ask_user', 'write_todos') "
       'THEN message_parts.content END',
     );
     const eagerArguments = CustomExpression<String>(
@@ -1121,7 +1186,7 @@ class ChatRepository {
     ]);
     const eagerContent = CustomExpression<String>(
       "CASE WHEN message_parts.status IN ('pending', 'denied') "
-      "OR message_parts.tool_name = 'ask_user' "
+      "OR message_parts.tool_name IN ('ask_user', 'write_todos') "
       'THEN message_parts.content END',
     );
     const eagerArguments = CustomExpression<String>(

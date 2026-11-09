@@ -17,7 +17,10 @@ import '../../../core/services/api/learned_context_windows.dart';
 import '../../../core/services/api/native_input_policy.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/chat_turn_service.dart';
-import '../../../core/services/chat/todo_service.dart';
+import '../../../core/services/chat/todo_models.dart';
+import '../../../core/services/chat/todo_projection.dart';
+import '../../../core/services/chat/todo_v1_migration.dart';
+import '../../../core/services/logging/flutter_logger.dart';
 import '../../../core/services/skills/skill_invocations.dart';
 import '../../../core/services/skills/skill_service.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
@@ -28,6 +31,7 @@ import '../../../core/models/assistant_regex.dart';
 import '../controllers/stream_controller.dart' as stream_ctrl;
 import '../controllers/generation_controller.dart';
 import 'message_builder_service.dart';
+import 'tool_handler_service.dart';
 
 /// Callback types for UI updates from MessageGenerationService
 typedef OnMessagesChanged = void Function();
@@ -143,23 +147,75 @@ class MessageGenerationService {
     // Captured before any await (use_build_context_synchronously guard).
     final l10n = AppLocalizations.of(contextProvider);
 
-    // P1-3: fetch the current todo snapshot early — its first incomplete
-    // item feeds the compaction knowledge block (Next Action).
-    List<TodoItem> currentTodos = const <TodoItem>[];
+    // Resolve the effective workspace BEFORE buildApiMessages so the file
+    // tools and the workspace prompt agree. `write_todos` is independent of
+    // this decision (Phase 3-4); its gate is the planning switch + model
+    // tool support, shared with the compaction knowledge block (§2.3.1).
+    final workspaceResolution = currentConversation == null
+        ? null
+        : await WorkspaceResolver.resolve(
+            conversation: currentConversation,
+            project: assistant,
+            conversationConfig: chatService.getConversationWorkspaceConfig(
+              currentConversation.id,
+            ),
+            defaultConfig: settings.defaultWorkspaceConfig,
+          );
+    final workspacePath = workspaceResolution?.path;
+
+    // P1-3 (plan §2.1/§2.3): the latest successful `write_todos` conversation
+    // event is the single source of truth. The projection replaces the old
+    // TodoService Hive read; the injection gate shares the exact predicate
+    // that registers the tool, so a disabled workspace/toggle/model can no
+    // longer surface a plan the model cannot update.
+    final supportsTools = ChatTurnService.isToolModel(
+      settings,
+      providerKey,
+      modelId,
+    );
+    var hasWriteTodos = false;
     try {
-      if (conversation != null) {
-        currentTodos = await contextProvider.read<TodoService>().getTodos(
-          conversation.id,
-        );
-      }
+      hasWriteTodos = ToolHandlerService.hasWriteTodosEnabled(
+        settings,
+        supportsTools: supportsTools,
+      );
     } catch (_) {}
-    String? todoNextAction;
-    for (final t in currentTodos) {
-      if (!t.isCompleted) {
-        todoNextAction = t.content;
-        break;
+
+    TodoState? todoState;
+    if (settings.todoEventProjectionV1) {
+      try {
+        final activeMessages = messageBuilderService.collapseVersions(
+          messages,
+          versionSelections,
+        );
+        final eventsByMessageId = <String, List<Map<String, dynamic>>>{
+          for (final m in activeMessages) m.id: chatService.getToolEvents(m.id),
+        };
+        todoState = projectTodoState(
+          activeMessages: activeMessages,
+          eventsByMessageId: eventsByMessageId,
+          onDebugLog: (message) =>
+              FlutterLogger.log(message, tag: 'todo-projection'),
+        );
+      } catch (e) {
+        FlutterLogger.log('todo projection failed: $e', tag: 'todo-projection');
       }
     }
+    if (todoState == null && conversation != null) {
+      // §2.5.3: conversations the one-time migration could not attach (no
+      // assistant message on the branch) keep a read-only `todo_v1` entry
+      // until one exists; the projection falls back to it.
+      try {
+        final legacy = await TodoV1Migration.legacyItemsFor(conversation.id);
+        if (legacy != null && legacy.isNotEmpty) {
+          todoState = TodoState(items: legacy, hasExplicitState: true);
+        }
+      } catch (_) {}
+    }
+    final todoNextAction = hasWriteTodos ? todoNextActionOf(todoState) : null;
+    final todoSummary = hasWriteTodos
+        ? buildTodoCompactionSummary(todoState)
+        : null;
 
     if (settings.autoCompactionV1 && conversation != null) {
       final conv = conversation;
@@ -198,6 +254,7 @@ class MessageGenerationService {
       includeToolMessages: settings.replayToolResults,
       enableAutoCompaction: settings.autoCompactionV1,
       compactionNextAction: todoNextAction,
+      compactionTodoSummary: todoSummary,
       includeGeminiThoughtSignatures: _isGoogleProviderKey(
         settings,
         providerKey,
@@ -219,17 +276,6 @@ class MessageGenerationService {
         );
 
     // Inject prompts and the effective per-conversation file workspace.
-    final workspaceResolution = currentConversation == null
-        ? null
-        : await WorkspaceResolver.resolve(
-            conversation: currentConversation,
-            project: assistant,
-            conversationConfig: chatService.getConversationWorkspaceConfig(
-              currentConversation.id,
-            ),
-            defaultConfig: settings.defaultWorkspaceConfig,
-          );
-    final workspacePath = workspaceResolution?.path;
     messageBuilderService.injectSystemPrompt(
       apiMessages,
       assistant,
@@ -241,11 +287,7 @@ class MessageGenerationService {
       assistant,
       currentConversationId: currentConversation?.id,
       settings: settings,
-      supportsTools: ChatTurnService.isToolModel(
-        settings,
-        providerKey,
-        modelId,
-      ),
+      supportsTools: supportsTools,
     );
 
     final hasBuiltInSearch = messageBuilderService.hasGeminiBuiltInTools(
@@ -263,15 +305,6 @@ class MessageGenerationService {
       apiMessages,
       assistantId,
     );
-
-    // P1-3: inject the current todo snapshot at the system-prompt tail
-    // (log-only UI state — never added as conversation history).
-    try {
-      messageBuilderService.injectTodoSnapshot(
-        apiMessages,
-        renderTodoSnapshot(currentTodos),
-      );
-    } catch (_) {}
 
     // Warm the skills global root BEFORE both skill consumers: `/skill`
     // resolution below reads `cachedGlobalRoot`, and the sync scan inside
@@ -345,6 +378,35 @@ class MessageGenerationService {
       workspaceEnabled: workspaceResolution?.enabled ?? false,
       workspacePath: workspacePath,
     );
+
+    // §2.3.1: the predicate and the actual tool list must agree. Log any
+    // drift and trust the tool list (it is what the model really receives).
+    final toolHasTodo = toolDefs.any((def) {
+      try {
+        return ((def['function'] as Map)['name'] ?? '').toString() ==
+            todoToolName;
+      } catch (_) {
+        return false;
+      }
+    });
+    if (toolHasTodo != hasWriteTodos) {
+      FlutterLogger.log(
+        'write_todos gating drift: predicate=$hasWriteTodos '
+        'toolDefs=$toolHasTodo',
+        tag: 'todo-projection',
+      );
+    }
+    if (toolHasTodo && todoState != null) {
+      try {
+        appendTodoStatePair(apiMessages, todoState);
+      } catch (e) {
+        FlutterLogger.log(
+          'appendTodoStatePair failed: $e',
+          tag: 'todo-projection',
+        );
+      }
+    }
+
     final onToolCall = toolDefs.isNotEmpty
         ? generationController.buildToolCallHandler(
             settings,

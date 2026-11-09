@@ -41,7 +41,7 @@ import '../../../core/providers/user_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/storage/message_part_codec.dart';
-import '../../../core/services/chat/todo_service.dart';
+import '../../../core/services/chat/todo_models.dart';
 import '../../../core/services/web/web_fetch_tool.dart';
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
@@ -173,6 +173,11 @@ class ChatMessageWidget extends StatefulWidget {
   // MCP tool calls/results mixed-in cards
   final List<ToolUIPart>? toolParts;
 
+  /// Id of the newest assistant message on the active branch that carries a
+  /// `write_todos` part. Only that message's last plan card starts expanded
+  /// (Phase 3-3); older plans stay folded.
+  final String? latestTodoMessageId;
+
   /// Answer Review v1 card (persisted or live). The card renders inside the
   /// process group, after the thinking/tool rows.
   final AnswerReviewViewData? answerReview;
@@ -244,6 +249,7 @@ class ChatMessageWidget extends StatefulWidget {
     this.translationExpanded = true,
     this.onToggleTranslation,
     this.toolParts,
+    this.latestTodoMessageId,
     this.answerReview,
     this.answerReviewLive = false,
     this.hideStreamingIndicator = false,
@@ -803,6 +809,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       child: _ToolCallItem(
         part: part,
         assistantMessageId: widget.message.id,
+        // Legacy single-card row: the only plan card in this message.
+        isLatestPlan: true,
         onSubmitAskUserAnswer: widget.onSubmitAskUserAnswer,
         onResolveApproval: widget.onResolveApproval,
       ),
@@ -2100,6 +2108,18 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                         ToolEntry(:final tool) => _ToolCallItem(
                           part: tools[tool.index],
                           assistantMessageId: widget.message.id,
+                          // While a message streams, its newest successful
+                          // plan is the live plan — the parent's
+                          // `latestTodoMessageId` is only recomputed on full
+                          // rebuilds, not on streaming tool-part updates.
+                          // Null means the list has not resolved a plan yet;
+                          // treat the last successful card as the latest.
+                          isLatestPlan:
+                              (widget.latestTodoMessageId == null ||
+                                  widget.message.isStreaming ||
+                                  widget.message.id ==
+                                      widget.latestTodoMessageId) &&
+                              tool.index == _lastSuccessfulTodoPartIndex(tools),
                           onSubmitAskUserAnswer: widget.onSubmitAskUserAnswer,
                           onResolveApproval: widget.onResolveApproval,
                         ),
@@ -2663,6 +2683,16 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
         );
       }
     }
+  }
+
+  /// Index of the last SUCCESSFUL `write_todos` part in this message (-1 when
+  /// none). A failed retry after a valid plan must not hide the valid card
+  /// behind the "only the latest plan opens" rule (Phase 3-3).
+  int _lastSuccessfulTodoPartIndex(List<ToolUIPart> parts) {
+    for (var i = parts.length - 1; i >= 0; i--) {
+      if (isSuccessfulTodoToolPart(parts[i])) return i;
+    }
+    return -1;
   }
 
   // Extract items from all search_web or builtin_search tool results for this assistant message
@@ -3444,10 +3474,24 @@ class _UserSkillLoadRow extends StatelessWidget {
   }
 }
 
+/// Whether [part] is a `write_todos` part that actually advanced the plan:
+/// not pending/interrupted/denied and not a `tool_error` result. Shared by the
+/// message list (which card is newest) and the plan card (which card opens).
+bool isSuccessfulTodoToolPart(ToolUIPart part) {
+  if (part.toolName != todoToolName) return false;
+  if (part.status == kPartStatusPending ||
+      part.status == kPartStatusInterrupted ||
+      part.status == kPartStatusDenied) {
+    return false;
+  }
+  return !isTodoToolErrorContent(part.content);
+}
+
 class _ToolCallItem extends StatelessWidget {
   const _ToolCallItem({
     required this.part,
     this.assistantMessageId,
+    this.isLatestPlan = true,
     this.onSubmitAskUserAnswer,
     this.onResolveApproval,
   });
@@ -3456,6 +3500,9 @@ class _ToolCallItem extends StatelessWidget {
   /// Owning assistant message id — used by the P1-3 ask_user card to
   /// resume generation after the user answers.
   final String? assistantMessageId;
+
+  /// Whether this is the newest plan card on the active branch (Phase 3-3).
+  final bool isLatestPlan;
 
   /// P1-3: submit an ask_user answer (resumes generation).
   final void Function(
@@ -3573,7 +3620,14 @@ class _ToolCallItem extends StatelessWidget {
     // P1-3: cowork tools render as dedicated interactive cards instead of the
     // generic tool row (plan card / ask_user answer card).
     if (part.toolName == todoToolName) {
-      return TodoPlanCard(arguments: part.arguments, content: part.content);
+      return TodoPlanCard(
+        arguments: part.arguments,
+        content: part.content,
+        loading: part.loading,
+        status: part.status,
+        contentLoaded: part.contentLoaded,
+        isLatestPlan: isLatestPlan,
+      );
     }
     if (part.toolName == askUserToolName) {
       final submit = onSubmitAskUserAnswer;

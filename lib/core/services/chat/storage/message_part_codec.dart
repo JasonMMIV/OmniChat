@@ -66,6 +66,9 @@ const List<String> kPreservedToolEventExtraKeys = <String>[
   'diffTruncated',
   // file_view_image Stage 1: absolute image path for the card preview.
   'imagePath',
+  // write_todos provenance (`todo_v1_migration` / later `user_clear`);
+  // read back by toolEventFromStoredPart and the todo projection.
+  'origin',
 ];
 
 /// Normalizes a legacy approval state to the closed set. `null` and unknown

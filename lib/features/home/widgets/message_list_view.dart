@@ -253,6 +253,18 @@ class MessageListView extends StatelessWidget {
   GlobalKey _keyForMessage(String id) =>
       messageKeys.putIfAbsent(id, () => GlobalKey(debugLabel: 'msg:$id'));
 
+  /// Newest collapsed message that carries a successful `write_todos` part.
+  /// Failed/interrupted plans are skipped so an older valid plan keeps the
+  /// one expanded card (Phase 3-3).
+  String? _latestTodoMessageIdFor(List<ChatMessage> collapsed) {
+    for (var i = collapsed.length - 1; i >= 0; i--) {
+      final parts = toolParts[collapsed[i].id];
+      if (parts == null || parts.isEmpty) continue;
+      if (parts.any(isSuccessfulTodoToolPart)) return collapsed[i].id;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     // Stable snapshot for this build (collapse versions)
@@ -268,6 +280,9 @@ class MessageListView extends StatelessWidget {
         break;
       }
     }
+
+    // Phase 3-3: only the newest successful plan card starts expanded.
+    final latestTodoMessageId = _latestTodoMessageIdFor(collapsedMessages);
 
     // Map persisted truncateIndex (raw message count) to collapsed index
     final int truncRaw = currentConversation?.truncateIndex ?? -1;
@@ -325,6 +340,7 @@ class MessageListView extends StatelessWidget {
               byGroup: byGroup,
               truncCollapsed: truncCollapsed,
               lastAssistantMessageId: lastAssistantMessageId,
+              latestTodoMessageId: latestTodoMessageId,
             );
           },
         );
@@ -348,6 +364,7 @@ class MessageListView extends StatelessWidget {
     required Map<String, List<ChatMessage>> byGroup,
     required int truncCollapsed,
     required String? lastAssistantMessageId,
+    required String? latestTodoMessageId,
   }) {
     final message = messages[index];
     final r = reasoning[message.id];
@@ -423,6 +440,7 @@ class MessageListView extends StatelessWidget {
                             effectiveIndex: effectiveIndex,
                             effectiveTotal: effectiveTotal,
                             lastAssistantMessageId: lastAssistantMessageId,
+                            latestTodoMessageId: latestTodoMessageId,
                           )
                         : _buildChatMessageWidget(
                             context,
@@ -441,6 +459,7 @@ class MessageListView extends StatelessWidget {
                             effectiveIndex: effectiveIndex,
                             effectiveTotal: effectiveTotal,
                             lastAssistantMessageId: lastAssistantMessageId,
+                            latestTodoMessageId: latestTodoMessageId,
                             answerReview: _persistedAnswerReview(message),
                           ),
                   );
@@ -505,6 +524,7 @@ class MessageListView extends StatelessWidget {
     required int effectiveIndex,
     required int effectiveTotal,
     required String? lastAssistantMessageId,
+    required String? latestTodoMessageId,
   }) {
     return ValueListenableBuilder<StreamingContentData>(
       valueListenable: streamingContentNotifier!.getNotifier(message.id),
@@ -577,6 +597,7 @@ class MessageListView extends StatelessWidget {
                 effectiveIndex: effectiveIndex,
                 effectiveTotal: effectiveTotal,
                 lastAssistantMessageId: lastAssistantMessageId,
+                latestTodoMessageId: latestTodoMessageId,
                 answerReview: _liveAnswerReview(data, displayContent),
                 answerReviewLive: true,
               ),
@@ -620,6 +641,7 @@ class MessageListView extends StatelessWidget {
     required int effectiveIndex,
     required int effectiveTotal,
     required String? lastAssistantMessageId,
+    required String? latestTodoMessageId,
     AnswerReviewViewData? answerReview,
     bool answerReviewLive = false,
   }) {
@@ -726,6 +748,9 @@ class MessageListView extends StatelessWidget {
         }
       },
       toolParts: message.role == 'assistant' ? toolParts[message.id] : null,
+      latestTodoMessageId: message.role == 'assistant'
+          ? latestTodoMessageId
+          : null,
       answerReview: answerReview,
       answerReviewLive: answerReviewLive,
       showOAuthRecovery:

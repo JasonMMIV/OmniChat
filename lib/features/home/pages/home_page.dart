@@ -41,6 +41,7 @@ import '../../../desktop/desktop_context_menu.dart';
 import '../../chat/widgets/bottom_tools_sheet.dart';
 import '../../chat/widgets/reasoning_budget_sheet.dart';
 import '../../chat/widgets/context_management_sheet.dart';
+import '../../chat/widgets/todo_plan_sheet.dart';
 import '../../../shared/widgets/loading_dialog_card.dart';
 import '../../../shared/widgets/ios_form_text_field.dart';
 import '../../../shared/widgets/ios_tactile.dart';
@@ -599,6 +600,19 @@ class _HomePageState extends State<HomePage>
         .push(MaterialPageRoute(builder: (context) => VoiceChatScreen()));
   }
 
+  /// Phase 3: current-plan entry (app bar + live dock). The sheet loads the
+  /// projection on open; a missing plan renders an explicit empty state
+  /// rather than a stale local copy.
+  Future<void> _openTodoPlan() async {
+    if (_controller.currentConversation == null) return;
+    await TodoPlanSheet.show(
+      context,
+      isRunning: _controller.isCurrentConversationLoading,
+      loadPlan: _controller.loadTodoPlan,
+      clearPlan: _controller.clearTodoPlan,
+    );
+  }
+
   Future<void> _openWorkspace() async {
     if (_controller.currentConversation == null) {
       await _controller.createNewConversationAnimated();
@@ -679,6 +693,9 @@ class _HomePageState extends State<HomePage>
         }
       },
       onOpenWorkspace: _openWorkspace,
+      onOpenPlan: _controller.currentConversation == null
+          ? null
+          : _openTodoPlan,
       body: _wrapWithDropTarget(_buildMobileBody(context, cs)),
     );
   }
@@ -731,6 +748,15 @@ class _HomePageState extends State<HomePage>
                     return w;
                   },
                 ),
+              ),
+              // Live plan dock: running-only, disappears on finish while the
+              // transcript card stays (Phase 3-5).
+              TodoPlanLiveDock(
+                visible: _controller.isCurrentConversationLoading,
+                streamingMessageId: _controller.currentStreamingMessageId(),
+                toolParts: _controller.toolParts,
+                notifier: _controller.streamingContentNotifier,
+                onTap: _openTodoPlan,
               ),
               // Input bar
               NotificationListener<SizeChangedLayoutNotification>(
@@ -796,6 +822,9 @@ class _HomePageState extends State<HomePage>
       onRightSidebarWidthChangeEnd: _controller.saveRightSidebarWidth,
       buildAssistantBackground: _buildAssistantBackground,
       onOpenWorkspace: _openWorkspace,
+      onOpenPlan: _controller.currentConversation == null
+          ? null
+          : _openTodoPlan,
       body: _wrapWithDropTarget(_buildTabletBody(context, cs)),
     );
   }
@@ -835,6 +864,14 @@ class _HomePageState extends State<HomePage>
                           )
                           .fadeIn(duration: 200.ms, curve: Curves.easeOutCubic),
                 ),
+              ),
+              // Live plan dock (Phase 3-5), same contract as mobile.
+              TodoPlanLiveDock(
+                visible: _controller.isCurrentConversationLoading,
+                streamingMessageId: _controller.currentStreamingMessageId(),
+                toolParts: _controller.toolParts,
+                notifier: _controller.streamingContentNotifier,
+                onTap: _openTodoPlan,
               ),
               NotificationListener<SizeChangedLayoutNotification>(
                 onNotification: (n) {
