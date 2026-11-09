@@ -4849,6 +4849,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mcpServerEditSheetStdioCommandRequired => 'STDIO 需要填写命令';
 
   @override
+  String get mcpServerEditSheetPlaywrightPreset => 'Playwright（浏览器 QA）';
+
+  @override
+  String get mcpServerEditSheetPlaywrightPresetHint =>
+      'STDIO · npx @playwright/mcp@latest — 截图、console 错误与点击验证。需要 Node.js 20+。';
+
+  @override
   String get mcpTransportOptionStdio => 'STDIO';
 
   @override
@@ -11305,6 +11312,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get mcpServerEditSheetStdioCommandRequired => 'STDIO 需要填写命令';
+
+  @override
+  String get mcpServerEditSheetPlaywrightPreset => 'Playwright（浏览器 QA）';
+
+  @override
+  String get mcpServerEditSheetPlaywrightPresetHint =>
+      'STDIO · npx @playwright/mcp@latest — 截图、console 错误与点击验证。需要 Node.js 20+。';
 
   @override
   String get mcpTransportOptionStdio => 'STDIO';
@@ -17794,6 +17808,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get mcpServerEditSheetStdioCommandRequired => 'STDIO 需要填寫命令';
+
+  @override
+  String get mcpServerEditSheetPlaywrightPreset => 'Playwright（瀏覽器 QA）';
+
+  @override
+  String get mcpServerEditSheetPlaywrightPresetHint =>
+      'STDIO · npx @playwright/mcp@latest — 截圖、console 錯誤與點擊驗證。需要 Node.js 20+。';
 
   @override
   String get mcpTransportOptionStdio => 'STDIO';

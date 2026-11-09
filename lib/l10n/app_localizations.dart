@@ -9228,6 +9228,18 @@ abstract class AppLocalizations {
   /// **'Command is required for STDIO transport'**
   String get mcpServerEditSheetStdioCommandRequired;
 
+  /// No description provided for @mcpServerEditSheetPlaywrightPreset.
+  ///
+  /// In en, this message translates to:
+  /// **'Playwright (Browser QA)'**
+  String get mcpServerEditSheetPlaywrightPreset;
+
+  /// No description provided for @mcpServerEditSheetPlaywrightPresetHint.
+  ///
+  /// In en, this message translates to:
+  /// **'STDIO · npx @playwright/mcp@latest — screenshots, console errors and click checks. Requires Node.js 20+.'**
+  String get mcpServerEditSheetPlaywrightPresetHint;
+
   /// No description provided for @mcpTransportOptionStdio.
   ///
   /// In en, this message translates to:

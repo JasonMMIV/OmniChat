@@ -4916,6 +4916,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Command is required for STDIO transport';
 
   @override
+  String get mcpServerEditSheetPlaywrightPreset => 'Playwright (Browser QA)';
+
+  @override
+  String get mcpServerEditSheetPlaywrightPresetHint =>
+      'STDIO · npx @playwright/mcp@latest — screenshots, console errors and click checks. Requires Node.js 20+.';
+
+  @override
   String get mcpTransportOptionStdio => 'STDIO';
 
   @override

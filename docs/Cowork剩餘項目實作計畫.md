@@ -1,6 +1,8 @@
 # OmniChat Cowork 剩餘項目實作計畫
 
-> **版本**：v1.4（2026-11-09）
+> **版本**：v1.6（2026-11-10）
+> **v1.6 變更**（實作紀錄）：§2.11 P3-1 瀏覽器 QA 落地（✅）——STDIO 傳輸 UI＋Playwright 一鍵預設（桌面限定）、STDIO 連線錯誤分類、MCP 圖片落盤＋工具卡預覽；§0.4 表與 §1 Wave D 同步。
+> **v1.5 變更**（實作紀錄）：§2.17 記錄 `file_grep`（regex 內容搜尋，✅）與 `file_view_image` Stage 1（🔶，工作區圖片檢視＋工具卡預覽；Stage 2 vision plumbing 待做）的落地細節——代碼、測試與紀錄隨 commit `11adb10a` 提交；§0.5 view_image 落點補記實作狀態。
 > **v1.4 變更**（裁示移除）：P2-1 啟動恢復橫幅與 §2.12 P3-3「進行中任務」頁（UI 面）依 2026-11-09 實測裁示全數移除——恢復收斂為**對話內就地式**（pending 卡／部分訊息即動作點）；P2-1 checkpoint 寫入地基（durable-before-dispatch、fence、審批暫停語意）保留為隱形正確性保險，讀取面為 P2-2 預留。詳見 §0.2、§2.4、§2.12。
 > **v1.3 變更**（自給自足化）：**吸收原《CLI 工具整合計畫 v4》**（2026-08-05 設計；原文同日封存於 `D:\Softwares\Omnichat\Archive\OmniChat CLI 工具整合計畫 — Windows + Android (proot) v4.md`，僅作考古依據）——① §2.8 P2-5 內化原 §七（Android PRoot backend 藍圖全文）＋§十五（F-Droid 發行要求），並補 ADR-A8 衝突消解／timeout 併批／backup 歸屬三項整合註記；② §0.4 藍圖欄、§2.2 與 §6 的 CLI v4 引用全部改訂為「已內化／歷史歸屬」——P1-6 原引用的執行契約（§五/§六）與測試矩陣（§十三）早已逐一列於 §2.2，內容未動。**本計畫的藍圖內容自本版起自給自足，不需回查其他計畫文件**；③ 參考表校正——§6 AnyBuff 路徑修正為本機實際位置 `C:\Users\w2bn1\GitHub\Anybuff`（原誤記 `Documents\GitHub\AnyBuff`），並為 P2-5 新增**第二對照組**：AnyBuff `android/` engine（已上線 v1.7.1 的 proot-Node 沙盒，ADR-21）隨 §2.8 補記對照細節；④ P2-5 藍圖以 kelivo 上游行為（master @ `51777f7`）增補**五項對照裁定**——per-request mounts vs generation 快照取捨（維持快照，入 kelivo 對照段）、path resolver **逃逸拒絕**入條目 7、`env -i` 最小 guest 環境入條目 3、32-bit `--kernel-release` 備註入條目 4、**RO 執行層在 app（proot `-b` 不強制 RO）**入條目 7。
 > **v1.2 變更**（review 修正）：① 事實修正——`preview_diff` 係基於**請求參數**而非最終匹配結果（§2.16）、kelivo 行數改「核心服務層約 12,500 行（UI 另計）」、§2.15 共用 diff 來源矛盾消解（viewer 用 Myers；審批卡換芯列可選）；② 設計補強——`output_file` 讀取**裁定**為「唯讀 session-outputs zone ＋ retention」（§2.2 增量 4）、`FileSnapshot` 改 `(mtime, size)` 二元組並註明近似審計、`block_anchor` 中段盲區與整窗替換語意入 §2.16、ToolRun 補 reload／跨頁面語意、P1-6 補 `timeout_seconds`／`cwd` 工具參數；③ 新增 `view_image` 可選項（§2.17）；④ 表格排序與計數措辭校正。
@@ -51,7 +53,7 @@
 | P2-5 | Proot on Android（**stretch**；kelivo `sandbox/`＋AnyBuff `android/` engine 為對照實作） | 藍圖已內化於 §2.8（原 CLI v4 §七/§十五）+ kelivo v1.3.0+ | ⬜ | 視需求 |
 | P2-6(L3) | 工作區檔案地圖注入（**僅 L3**；L2 LLM 摘要不採） | AnyBuff `truncate-file-tree` 概念 | ⬜ | v1.32.x |
 | P2-7 | kelivo 資料模型對齊（**可選**） | kelivo `a43b79f` | ⬜ | 視需求 |
-| P3-1 | 瀏覽器 QA 工具（Playwright via MCP，桌面限定） | MCP + Playwright | ⬜ | v1.32.x |
+| P3-1 | 瀏覽器 QA 工具（Playwright via MCP，桌面限定） | MCP + Playwright | ✅（2026-11-10：STDIO 傳輸 UI＋Playwright 一鍵預設、連線錯誤分類、MCP 圖片落盤＋工具卡預覽；見 §2.11） | v1.32.x |
 | ~~P3-3~~ | ~~跨會話任務恢復（「進行中任務」頁）~~ **已移除**（2026-11-09 裁示；見 §2.12） | P2-1 延伸 | ⛔ 已移除 | — |
 | P3-4 | 上限再校準 + 磁碟預算（dev mode 寫入 2MB 級） | — | ✅（2026-11-08：dev mode 2MB、Tools 頁磁碟用量、`file_read` 24KB 預設窗口；見 §2.13） | v1.32.x |
 | ~~P3-5~~ | ~~Plan Mode（先規劃 → 人批 → 再執行）~~ **不實作**（見 §2.14 裁示） | deepseek plan-mode | ❌ 已移除 | — |
@@ -72,7 +74,7 @@
 | E | `sandbox/` 全目錄 | PRoot/iSH 沙盒對照實作（channel/PTY、installer 狀態機、鏡像測速） | **§2.8 P2-5** 對照參考 |
 | — | `ConversationToolPermissions` | 授權屬對話、序列化寫入、revision fencing、`context_changed` 防護 | **§2.4 P2-1** 工程參考 |
 | — | `file_link_resolver.dart` / `workspace_session_sync.dart` / 行動 terminal | 可選週邊 | **§2.17** |
-| — | `view_image`（v1.3.1） | 工作區圖片檢視＋聊天內嵌預覽（OmniChat 現無此能力） | **§2.17** 可選 |
+| — | `view_image`（v1.3.1） | 工作區圖片檢視＋聊天內嵌預覽（OmniChat 現無此能力） | **§2.17** 可選 → 🔶 Stage 1 已實作（2026-11-09，命名 `file_view_image`；grep 缺口同批以 `file_grep` 補齊） |
 
 **未採納（設計分歧，記錄在案）**：
 
@@ -106,7 +108,7 @@
     └──→ P3-3 跨會話任務恢復（⛔ 2026-11-09 裁示移除——恢復改為對話內就地式）
 
 【Wave D：「製作網站」閉環】
-  P2-4 Dev server + Live 預覽（✅ 2026-11-08）──→ P3-1 瀏覽器 QA（要有持續開著的頁面才有得驗證）
+  P2-4 Dev server + Live 預覽（✅ 2026-11-08）──→ P3-1 瀏覽器 QA（✅ 2026-11-10；要有持續開著的頁面才有得驗證）
 
 【Wave E：上下文治理補強（互相獨立，可穿插）】
   P1-2 尾款 cache_expiry（✅）｜ P2-6 L3 檔案地圖
@@ -367,7 +369,7 @@
 
 ---
 
-### 2.11 P3-1 瀏覽器 QA 工具（Playwright via MCP，桌面限定）⬜
+### 2.11 P3-1 瀏覽器 QA 工具（Playwright via MCP，桌面限定）✅【2026-11-10 完成】
 
 **目標**：三種「執行後驗證」能力——**截圖**（看實際渲染）、**console errors**、**點擊驗證**（互動行為）。靜態正確 ≠ 行為正確：布局跑版、事件沒綁上、非同步載入失敗在程式碼裡看不出來。
 
@@ -377,6 +379,8 @@
 3. 與 P2-4 搭配（有持續開著的頁面才有得驗證）；截圖留在工具卡裡，人看得到模型看了什麼（「可監督」升級為「模型自證 + 人可抽查」）。
 
 **測試**：MCP server 連線失敗分類（未安裝 Playwright → 可理解錯誤）；工具輸出上限；桌面限定閘。
+
+**落地紀錄（2026-11-10）**：`lib/core/services/mcp/playwright_mcp_preset.dart`（純函數、可測）——`PlaywrightMcpPreset.launchSpec`（`npx -y @playwright/mcp@latest`；Windows 因 `npx` 是 `.cmd` shim 無法被 `Process.start` 直接 spawn，自動包 `cmd /c`）、`McpStdioDiagnostics.describeConnectError`（ProcessException→Node.js 20+ 提示、timeout（含字串型）→首次下載＋調高 request timeout 提示、startup exit/handshake 失敗→終端機自查提示、未知透傳）、`parseStdioArgs`（空白分隔＋雙引號 span）。`McpProvider.connect` 對 STDIO 錯誤改用分類訊息。伺服器編輯 sheet：傳輸選擇器新增 STDIO（僅桌面顯示；mobile 端 provider 仍拒絕 STDIO 連線作 defense in depth）、命令／參數／工作目錄／環境變數欄位（與 headers 共用新抽出的 `_kvEditor`）、新增面板頂部一鍵 Playwright 預設（l10n ×4 新增兩鍵，原 `mcpServerEditSheetStdio*` 鍵直接啟用）；MCP 清單與助理選單傳輸標籤修正（stdio 原誤示 HTTP）。截圖通路：`McpToolService.callToolDetailedForAssistant`（text＋base64 images；`callToolTextForAssistant` 改薄委託，簽名不變）→ `McpScreenshotStore.save`（`<app cache>/mcp_screenshots/`、40 張 prune、**不進工作區**——零殘留裁定）→ tool handler MCP 段落盤＋`[image:<abs-path>]` marker＋extras `imagePath`（`_persistViewImageExtras` 改名 `_persistImagePreviewExtras` 與 file_view_image 共用；`kPreservedToolEventExtraKeys` 既有）；URL 型圖片維持舊 marker。工具輸出上限沿用既有 `ToolResultCaps.cap`（MCP 段已接）。測試：`test/playwright_mcp_preset_test.dart`（11）、`test/mcp_screenshot_store_test.dart`（6，PathProviderPlatform fake）、`test/tool_handler_mcp_failure_test.dart` doubles 改 override detailed 方法＋新增圖片端到端（落盤／marker／文字保留）——合計 22 案全綠，相鄰 MCP／caps／dev-mode 測試 32 案回歸通過。**呈現差異**：無——三能力（截圖／console／點擊）皆由 Playwright MCP 原生工具承擔，app 側只做預設、錯誤分類與截圖呈現；截圖對模型仍是文字 marker（vision plumbing 屬 `file_view_image` Stage 2，未做）。
 
 ---
 

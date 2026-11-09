@@ -9,6 +9,7 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/memory_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/services/mcp/mcp_screenshot_store.dart';
 import '../../../core/services/mcp/mcp_tool_service.dart';
 import '../../../core/services/search/search_tool_service.dart';
 import '../../../core/services/chat/chat_service.dart';
@@ -801,7 +802,7 @@ class ToolHandlerService {
           );
           // file_view_image Stage 1: persist the UI-only image preview path
           // (same extras pattern as the diff above).
-          await _persistViewImageExtras(
+          await _persistImagePreviewExtras(
             messageId: messageId,
             toolCallId: toolCallId,
             name: name,
@@ -1004,17 +1005,47 @@ class ToolHandlerService {
         }
 
         // MCP tools
-        final text = await toolSvc.callToolTextForAssistant(
+        final call = await toolSvc.callToolDetailedForAssistant(
           mcp,
           assistantProvider,
           assistantId: assistant?.id,
           toolName: name,
           arguments: args,
         );
+        var mcpText = call.text;
+        // P3-1: persist base64 image content (e.g. Playwright screenshots) to
+        // the app-private cache and surface `[image:<abs-path>]` markers plus
+        // card extras so the tool card shows what the model saw.
+        if (call.images.isNotEmpty) {
+          final savedPaths = <String>[];
+          for (final image in call.images) {
+            final saved = await McpScreenshotStore.save(
+              mimeType: image.mimeType,
+              base64Data: image.base64,
+            );
+            if (saved != null) savedPaths.add(saved);
+          }
+          if (savedPaths.isNotEmpty) {
+            // Cap the text BEFORE appending markers: head/tail truncation
+            // must never cut the `[image:]` reference the model needs.
+            final capped = ToolResultCaps.cap(toolName: name, result: mcpText);
+            final markers = savedPaths.map((p) => '[image:$p]').join('\n');
+            mcpText = capped.isEmpty ? markers : '$capped\n$markers';
+            await _persistImagePreviewExtras(
+              messageId: messageId,
+              toolCallId: toolCallId,
+              name: name,
+              args: args,
+              content: mcpText,
+              imagePath: savedPaths.first,
+            );
+            return mcpText;
+          }
+        }
         // Workspace zero-residue plan Phase 1: in-memory cap (no
         // externalization; the workspace may be null but that no longer
         // matters).
-        return ToolResultCaps.cap(toolName: name, result: text);
+        return ToolResultCaps.cap(toolName: name, result: mcpText);
       } catch (e) {
         // Catch unexpected exceptions and return error JSON to the LLM.
         // This prevents tool execution failures from terminating the chat flow.
@@ -1066,10 +1097,12 @@ class ToolHandlerService {
     }
   }
 
-  /// file_view_image Stage 1: attach the absolute image path to the tool
-  /// event as UI-only extras. The model-facing content already carries the
-  /// `[image:…]` marker; the card reads `imagePath` to render the preview.
-  Future<void> _persistViewImageExtras({
+  /// P3-1 (was file_view_image Stage 1, now shared): attach the absolute
+  /// image path to the tool event as UI-only extras. The model-facing
+  /// content already carries the `[image:…]` marker; the card reads
+  /// `imagePath` to render the preview. Used by both `file_view_image` and
+  /// MCP tools that return image content (e.g. Playwright screenshots).
+  Future<void> _persistImagePreviewExtras({
     required String? messageId,
     required String? toolCallId,
     required String name,

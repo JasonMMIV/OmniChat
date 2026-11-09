@@ -4859,9 +4859,13 @@ class _McpTab extends StatelessWidget {
                                     ? AppLocalizations.of(
                                         context,
                                       )!.mcpTransportTagInmemory
-                                    : (s.transport == McpTransportType.sse
-                                          ? 'SSE'
-                                          : 'HTTP'),
+                                    : s.transport == McpTransportType.stdio
+                                        ? AppLocalizations.of(
+                                            context,
+                                          )!.mcpTransportOptionStdio
+                                        : (s.transport == McpTransportType.sse
+                                              ? 'SSE'
+                                              : 'HTTP'),
                               ),
                             ],
                           ),

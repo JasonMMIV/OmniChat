@@ -406,6 +406,8 @@
   "mcpServerEditSheetStdioEnvValueLabel": "值",
   "mcpServerEditSheetStdioAddEnv": "新增環境變數",
   "mcpServerEditSheetStdioCommandRequired": "STDIO 需要填寫命令",
+  "mcpServerEditSheetPlaywrightPreset": "Playwright（瀏覽器 QA）",
+  "mcpServerEditSheetPlaywrightPresetHint": "STDIO · npx @playwright/mcp@latest — 截圖、console 錯誤與點擊驗證。需要 Node.js 20+。",
   "assistantTagsContextMenuDeleteAssistant": "刪除專案",
   "assistantTagsClearTag": "清除標籤",
   "assistantProviderDefaultAssistantName": "預設專案",

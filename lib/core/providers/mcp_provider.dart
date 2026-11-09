@@ -9,6 +9,7 @@ import '../services/mcp/academic/academic_server.dart';
 import '../services/mcp/image_search/image_search_server.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+import '../services/mcp/playwright_mcp_preset.dart';
 
 /// Transport type: SSE, Streamable HTTP, and STDIO (desktop-only).
 enum McpTransportType { sse, http, stdio, inmemory }
@@ -1047,7 +1048,11 @@ class McpProvider extends ChangeNotifier {
       // debugPrint('[MCP/Error] connect failed for id=$id (${server.name})');
       // _logMcpException('connect', serverId: id, error: e, stack: st);
       _status[id] = McpStatus.error;
-      _errors[id] = e.toString();
+      // P3-1: STDIO spawn/handshake failures get an actionable hint (the
+      // common case is Node.js/npx or the package not being installed).
+      _errors[id] = server.transport == McpTransportType.stdio
+          ? McpStdioDiagnostics.describeConnectError(e, command: server.command)
+          : e.toString();
       notifyListeners();
     }
   }

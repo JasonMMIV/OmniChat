@@ -6,7 +6,9 @@ import 'package:provider/provider.dart';
 import '../../../core/services/haptics.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/mcp_provider.dart';
+import '../../../core/services/mcp/playwright_mcp_preset.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../utils/platform_utils.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import '../../../shared/widgets/ios_tile_button.dart';
@@ -52,6 +54,11 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet> with SingleTic
   McpTransportType _transport = McpTransportType.http;
   final _urlCtrl = TextEditingController();
   final List<_HeaderEntry> _headers = [];
+  // STDIO transport (desktop-only; P3-1 Playwright preset rides on it).
+  final _commandCtrl = TextEditingController();
+  final _argsCtrl = TextEditingController();
+  final _workingDirCtrl = TextEditingController();
+  final List<_HeaderEntry> _envEntries = [];
   // Academic_Search built-in server: standalone API-key fields
   final _pubmedApiKeyCtrl = TextEditingController();
   final _pubmedToolCtrl = TextEditingController();
@@ -79,6 +86,14 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet> with SingleTic
       server.headers.forEach((k, v) {
         _headers.add(_HeaderEntry(TextEditingController(text: k), TextEditingController(text: v)));
       });
+      if (server.transport == McpTransportType.stdio) {
+        _commandCtrl.text = server.command ?? '';
+        _argsCtrl.text = server.args.join(' ');
+        _workingDirCtrl.text = server.workingDirectory ?? '';
+        server.env.forEach((k, v) {
+          _envEntries.add(_HeaderEntry(TextEditingController(text: k), TextEditingController(text: v)));
+        });
+      }
       if (_isAcademicBuiltin) {
         final cfg = context.read<SettingsProvider>().academicConfig;
         _pubmedApiKeyCtrl.text = cfg.pubmedApiKey;
@@ -105,6 +120,12 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet> with SingleTic
     _s2ApiKeyCtrl.dispose();
     for (final h in _headers) {
       h.dispose();
+    }
+    _commandCtrl.dispose();
+    _argsCtrl.dispose();
+    _workingDirCtrl.dispose();
+    for (final e in _envEntries) {
+      e.dispose();
     }
     super.dispose();
   }
@@ -178,14 +199,22 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet> with SingleTic
     );
   }
 
-  // Segmented choice bar (like top tabs), used for transport type
+  // Segmented choice bar (like top tabs), used for transport type.
+  // STDIO is desktop-only (P3-1): external processes cannot run on mobile.
   Widget _transportPicker() {
-    final labels = ['Streamable HTTP', 'SSE'];
-    final idx = _transport == McpTransportType.http ? 0 : 1;
+    final desktop = PlatformUtils.isDesktop;
+    final labels = ['Streamable HTTP', 'SSE', if (desktop) 'STDIO'];
+    final idx = _transport == McpTransportType.http
+        ? 0
+        : (_transport == McpTransportType.sse || !desktop ? 1 : 2);
     return _SegChoiceBar(
       labels: labels,
       selectedIndex: idx,
-      onSelected: (i) => setState(() => _transport = i == 0 ? McpTransportType.http : McpTransportType.sse),
+      onSelected: (i) => setState(() {
+        _transport = i == 0
+            ? McpTransportType.http
+            : (i == 1 ? McpTransportType.sse : McpTransportType.stdio);
+      }),
     );
   }
 
@@ -214,23 +243,64 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet> with SingleTic
             ),
           ])
         else ...[
+          // P3-1: one-tap Playwright preset (desktop only).
+          if (!isEdit && PlatformUtils.isDesktop) ...[
+            IosTileButton(
+              icon: Lucide.Play,
+              label: l10n.mcpServerEditSheetPlaywrightPreset,
+              backgroundColor: cs.primary,
+              onTap: _applyPlaywrightPreset,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              l10n.mcpServerEditSheetPlaywrightPresetHint,
+              style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6)),
+            ),
+            const SizedBox(height: 10),
+          ],
           _inputRow(label: l10n.mcpServerEditSheetNameLabel, controller: _nameCtrl, hint: 'My MCP'),
           const SizedBox(height: 10),
           Text(l10n.mcpServerEditSheetTransportLabel, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
           const SizedBox(height: 6),
           _transportPicker(),
           const SizedBox(height: 10),
-          if (_transport == McpTransportType.sse) ...[
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(l10n.mcpServerEditSheetSseRetryHint, style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7))),
+          if (_transport == McpTransportType.stdio) ...[
+            _inputRow(label: l10n.mcpServerEditSheetStdioCommandLabel, controller: _commandCtrl, hint: 'npx'),
+            const SizedBox(height: 10),
+            _inputRow(label: l10n.mcpServerEditSheetStdioArgumentsLabel, controller: _argsCtrl, hint: '-y @playwright/mcp@latest'),
+            const SizedBox(height: 10),
+            _inputRow(label: l10n.mcpServerEditSheetStdioWorkingDirectoryLabel, controller: _workingDirCtrl, hint: r'D:\Projects\my-site'),
+            const SizedBox(height: 16),
+            Text(l10n.mcpServerEditSheetStdioEnvironmentTitle, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            _kvEditor(
+              entries: _envEntries,
+              nameLabel: l10n.mcpServerEditSheetStdioEnvNameLabel,
+              valueLabel: l10n.mcpServerEditSheetStdioEnvValueLabel,
+              removeTooltip: l10n.mcpServerEditSheetRemoveHeaderTooltip,
+              addLabel: l10n.mcpServerEditSheetStdioAddEnv,
+            ),
+          ] else ...[
+            if (_transport == McpTransportType.sse) ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(l10n.mcpServerEditSheetSseRetryHint, style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7))),
+              ),
+            ],
+            _inputRow(label: l10n.mcpServerEditSheetUrlLabel, controller: _urlCtrl, hint: _transport == McpTransportType.sse ? 'http://localhost:3000/sse' : 'http://localhost:3000'),
+            const SizedBox(height: 16),
+            Text(l10n.mcpServerEditSheetCustomHeadersTitle, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            _kvEditor(
+              entries: _headers,
+              nameLabel: l10n.mcpServerEditSheetHeaderNameLabel,
+              valueLabel: l10n.mcpServerEditSheetHeaderValueLabel,
+              nameHint: l10n.mcpServerEditSheetHeaderNameHint,
+              valueHint: l10n.mcpServerEditSheetHeaderValueHint,
+              removeTooltip: l10n.mcpServerEditSheetRemoveHeaderTooltip,
+              addLabel: l10n.mcpServerEditSheetAddHeader,
             ),
           ],
-          _inputRow(label: l10n.mcpServerEditSheetUrlLabel, controller: _urlCtrl, hint: _transport == McpTransportType.sse ? 'http://localhost:3000/sse' : 'http://localhost:3000'),
-          const SizedBox(height: 16),
-          Text(l10n.mcpServerEditSheetCustomHeadersTitle, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          _headersEditor(),
         ],
         // Academic_Search built-in: standalone API keys (PubMed / Semantic Scholar)
         if (_isAcademicBuiltin) ...[
@@ -296,13 +366,35 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet> with SingleTic
   }
 
 
-  Widget _headersEditor() {
+  /// P3-1: fills the form with the platform-correct Playwright MCP launch
+  /// spec (`npx -y @playwright/mcp@latest`; wrapped in `cmd /c` on Windows
+  /// where `npx` is a batch shim).
+  void _applyPlaywrightPreset() {
+    final spec = PlaywrightMcpPreset.launchSpec();
+    setState(() {
+      _transport = McpTransportType.stdio;
+      _nameCtrl.text = PlaywrightMcpPreset.serverName;
+      _commandCtrl.text = spec.command;
+      _argsCtrl.text = spec.args.join(' ');
+    });
+  }
+
+  /// Generic key/value list editor shared by HTTP headers and STDIO
+  /// environment variables.
+  Widget _kvEditor({
+    required List<_HeaderEntry> entries,
+    required String nameLabel,
+    required String valueLabel,
+    String? nameHint,
+    String? valueHint,
+    required String removeTooltip,
+    required String addLabel,
+  }) {
     final cs = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (int i = 0; i < _headers.length; i++) ...[
+        for (int i = 0; i < entries.length; i++) ...[
           Container(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(12),
@@ -314,16 +406,16 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet> with SingleTic
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _inputRow(label: l10n.mcpServerEditSheetHeaderNameLabel, controller: _headers[i].key, hint: l10n.mcpServerEditSheetHeaderNameHint),
+                _inputRow(label: nameLabel, controller: entries[i].key, hint: nameHint),
                 const SizedBox(height: 10),
-                _inputRow(label: l10n.mcpServerEditSheetHeaderValueLabel, controller: _headers[i].value, hint: l10n.mcpServerEditSheetHeaderValueHint),
+                _inputRow(label: valueLabel, controller: entries[i].value, hint: valueHint),
                 Align(
                   alignment: Alignment.centerRight,
                   child: _TactileIconButton(
                     icon: Lucide.Trash,
                     color: cs.error,
-                    semanticLabel: l10n.mcpServerEditSheetRemoveHeaderTooltip,
-                    onTap: () => setState(() => _headers.removeAt(i)),
+                    semanticLabel: removeTooltip,
+                    onTap: () => setState(() => entries.removeAt(i)),
                   ),
                 ),
               ],
@@ -334,10 +426,10 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet> with SingleTic
           alignment: Alignment.centerLeft,
           child: IosTileButton(
             icon: Lucide.Plus,
-            label: l10n.mcpServerEditSheetAddHeader,
+            label: addLabel,
             backgroundColor: cs.primary,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            onTap: () => setState(() => _headers.add(_HeaderEntry(TextEditingController(), TextEditingController()))),
+            onTap: () => setState(() => entries.add(_HeaderEntry(TextEditingController(), TextEditingController()))),
           ),
         ),
       ],
@@ -365,6 +457,53 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet> with SingleTic
       return;
     }
     final name = _nameCtrl.text.trim().isEmpty ? 'MCP' : _nameCtrl.text.trim();
+
+    // P3-1: STDIO — persist command/args/env/workingDirectory (desktop only;
+    // the provider rejects STDIO connects on mobile as defense in depth).
+    if (_transport == McpTransportType.stdio) {
+      final l10n = AppLocalizations.of(context)!;
+      final command = _commandCtrl.text.trim();
+      if (command.isEmpty) {
+        showAppSnackBar(
+          context,
+          message: l10n.mcpServerEditSheetStdioCommandRequired,
+          type: NotificationType.warning,
+        );
+        return;
+      }
+      final args = parseStdioArgs(_argsCtrl.text);
+      final env = <String, String>{
+        for (final e in _envEntries)
+          if (e.key.text.trim().isNotEmpty) e.key.text.trim(): e.value.text.trim(),
+      };
+      final wd = _workingDirCtrl.text.trim();
+      if (isEdit) {
+        final old = mcp.getById(widget.serverId!)!;
+        await mcp.updateServer(old.copyWith(
+          enabled: _enabled,
+          name: name,
+          transport: McpTransportType.stdio,
+          command: command,
+          args: args,
+          env: env,
+          workingDirectory: wd.isNotEmpty ? wd : null,
+          clearWorkingDirectory: wd.isEmpty,
+        ));
+      } else {
+        await mcp.addServer(
+          enabled: _enabled,
+          name: name,
+          transport: McpTransportType.stdio,
+          command: command,
+          args: args,
+          env: env,
+          workingDirectory: wd.isNotEmpty ? wd : null,
+        );
+      }
+      if (mounted) Navigator.of(context).pop();
+      return;
+    }
+
     final url = _urlCtrl.text.trim();
     if (url.isEmpty) {
       final l10n = AppLocalizations.of(context)!;

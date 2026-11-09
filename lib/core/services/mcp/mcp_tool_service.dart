@@ -1,11 +1,29 @@
 import 'package:flutter/foundation.dart';
+
 import 'dart:convert';
+
 import 'package:provider/provider.dart';
 import 'package:mcp_client/mcp_client.dart' as mcp;
+
 import '../../providers/mcp_provider.dart';
 import '../chat/chat_service.dart';
 import '../../providers/assistant_provider.dart';
 import 'image_search/image_search_server.dart';
+
+/// P3-1: a base64 image payload returned by an MCP tool (e.g. a Playwright
+/// screenshot) — persisted by the tool handler, not inlined into the text.
+class McpImagePayload {
+  const McpImagePayload({required this.mimeType, required this.base64});
+  final String mimeType;
+  final String base64;
+}
+
+/// Text + image payloads of one MCP tool call.
+class McpToolCallText {
+  const McpToolCallText(this.text, this.images);
+  final String text;
+  final List<McpImagePayload> images;
+}
 
 class McpToolService extends ChangeNotifier {
   McpToolService();
@@ -34,9 +52,11 @@ class McpToolService extends ChangeNotifier {
       effectiveName = ImageSearchMcpServerEngine.toolName;
       candidates = connectedServers
           .where((s) => selected.contains(s.id))
-          .where((s) =>
-              s.id == McpProvider.builtinImageSearchServerId &&
-              s.tools.any((t) => t.enabled && t.name == effectiveName))
+          .where(
+            (s) =>
+                s.id == McpProvider.builtinImageSearchServerId &&
+                s.tools.any((t) => t.enabled && t.name == effectiveName),
+          )
           .toList();
     }
 
@@ -57,7 +77,9 @@ class McpToolService extends ChangeNotifier {
     AssistantProvider assistants,
     String? assistantId,
   ) {
-    final a = (assistantId != null) ? assistants.getById(assistantId) : assistants.currentAssistant;
+    final a = (assistantId != null)
+        ? assistants.getById(assistantId)
+        : assistants.currentAssistant;
     final selected = (a?.mcpServerIds ?? const <String>[]).toSet();
     return mcpProvider.getEnabledToolsForServers(selected);
   }
@@ -65,16 +87,18 @@ class McpToolService extends ChangeNotifier {
   Future<mcp.CallToolResult?> callToolForConversation(
     McpProvider mcpProvider,
     ChatService chat, {
-      required String conversationId,
-      required String toolName,
-      Map<String, dynamic> arguments = const {},
+    required String conversationId,
+    required String toolName,
+    Map<String, dynamic> arguments = const {},
   }) async {
     final selected = chat.getConversationMcpServers(conversationId).toSet();
     // debugPrint('[MCP/Call/Select] convo=$conversationId tool=$toolName selectedServers=${selected.join(',')}');
     if (selected.isEmpty) return null;
 
     // Find a server that has this tool enabled
-    final connected = mcpProvider.connectedServers.where((s) => selected.contains(s.id)).toList();
+    final connected = mcpProvider.connectedServers
+        .where((s) => selected.contains(s.id))
+        .toList();
     // debugPrint('[MCP/Call/Select] connectedAndSelected=${connected.map((s)=>s.id).join(',')}');
     for (final s in connected) {
       final has = s.tools.any((t) => t.enabled && t.name == toolName);
@@ -90,13 +114,15 @@ class McpToolService extends ChangeNotifier {
   Future<String> callToolTextForConversation(
     McpProvider mcpProvider,
     ChatService chat, {
-      required String conversationId,
-      required String toolName,
-      Map<String, dynamic> arguments = const {},
+    required String conversationId,
+    required String toolName,
+    Map<String, dynamic> arguments = const {},
   }) async {
     // Attempt call via selected server
     final selected = chat.getConversationMcpServers(conversationId).toSet();
-    final connected = mcpProvider.connectedServers.where((s) => selected.contains(s.id)).toList();
+    final connected = mcpProvider.connectedServers
+        .where((s) => selected.contains(s.id))
+        .toList();
     mcp.CallToolResult? res;
     McpServerConfig? usedServer;
     for (final s in connected) {
@@ -109,7 +135,9 @@ class McpToolService extends ChangeNotifier {
     if (res == null) {
       if (usedServer != null) {
         final errMsg = mcpProvider.errorFor(usedServer.id) ?? 'Unknown error';
-        final schema = usedServer.tools.firstWhere((t) => t.name == toolName).schema;
+        final schema = usedServer.tools
+            .firstWhere((t) => t.name == toolName)
+            .schema;
         return _renderToolErrorForModel(
           serverName: usedServer.name,
           toolName: toolName,
@@ -177,18 +205,21 @@ class McpToolService extends ChangeNotifier {
     return buf.toString().trim();
   }
 
-  Future<String> callToolTextForAssistant(
+  /// P3-1: detailed MCP call result — flattened text plus any base64 image
+  /// payloads (e.g. Playwright screenshots) for the caller to persist.
+  Future<McpToolCallText> callToolDetailedForAssistant(
     McpProvider mcpProvider,
     AssistantProvider assistants, {
-      required String? assistantId,
-      required String toolName,
-      Map<String, dynamic> arguments = const {},
+    required String? assistantId,
+    required String toolName,
+    Map<String, dynamic> arguments = const {},
   }) async {
     // try servers selected for the assistant
-    final a = (assistantId != null) ? assistants.getById(assistantId) : assistants.currentAssistant;
+    final a = (assistantId != null)
+        ? assistants.getById(assistantId)
+        : assistants.currentAssistant;
     final selected = (a?.mcpServerIds ?? const <String>[]).toSet();
-    // debugPrint('[MCP/Call/Select] assistant=${assistantId ?? a?.id ?? '(current)'} tool=$toolName selectedServers=${selected.join(',')}');
-    if (selected.isEmpty) return '';
+    if (selected.isEmpty) return const McpToolCallText('', []);
 
     final target = resolveCallTarget(
       connectedServers: mcpProvider.connectedServers,
@@ -198,25 +229,33 @@ class McpToolService extends ChangeNotifier {
     final effectiveName = target.name;
     final candidates = target.servers;
 
-    for (final s in candidates) {
-      // debugPrint('[MCP/Call/Select] using server=${s.id} name=${s.name} transport=${s.transport.name}');
-      final res = await mcpProvider.callTool(s.id, effectiveName, arguments);
+    for (final server in candidates) {
+      final res = await mcpProvider.callTool(
+        server.id,
+        effectiveName,
+        arguments,
+      );
       if (res == null) {
-        final errMsg = mcpProvider.errorFor(s.id) ?? 'Unknown error';
+        final errMsg = mcpProvider.errorFor(server.id) ?? 'Unknown error';
         // Use effectiveName: after legacy routing the server only lists the
         // new name — firstWhere(oldName) would throw and lose the structured
         // self-correcting tool error.
-        final schema =
-            s.tools.firstWhere((t) => t.name == effectiveName).schema;
-        return _renderToolErrorForModel(
-          serverName: s.name,
-          toolName: effectiveName,
-          arguments: arguments,
-          errorMessage: errMsg,
-          schema: schema,
+        final schema = server.tools
+            .firstWhere((t) => t.name == effectiveName)
+            .schema;
+        return McpToolCallText(
+          _renderToolErrorForModel(
+            serverName: server.name,
+            toolName: effectiveName,
+            arguments: arguments,
+            errorMessage: errMsg,
+            schema: schema,
+          ),
+          const [],
         );
       }
       final buf = StringBuffer();
+      final images = <McpImagePayload>[];
       for (final c in res.content) {
         try {
           if (c is mcp.TextContent) {
@@ -234,6 +273,19 @@ class McpToolService extends ChangeNotifier {
             continue;
           }
           if (c is mcp.ImageContent) {
+            // P3-1: base64 payloads (Playwright screenshots) ride along; the
+            // tool handler persists them and appends `[image:<abs-path>]`
+            // markers plus card extras. URL-based images keep the old marker.
+            final data = (c.data ?? '').toString();
+            if (data.isNotEmpty) {
+              images.add(
+                McpImagePayload(
+                  mimeType: (c.mimeType ?? 'image/png').toString(),
+                  base64: data,
+                ),
+              );
+              continue;
+            }
             final url = (c.url ?? '').toString();
             final mime = (c.mimeType ?? '').toString();
             buf.writeln('[image:${url.isNotEmpty ? url : mime}]');
@@ -259,16 +311,33 @@ class McpToolService extends ChangeNotifier {
             buf.writeln(const JsonEncoder.withIndent('  ').convert(json));
             continue;
           } catch (_) {}
-          final s = c.toString();
-          if (!s.startsWith('Instance of')) buf.writeln(s);
+          final fallback = c.toString();
+          if (!fallback.startsWith('Instance of')) buf.writeln(fallback);
         } catch (e, st) {
-          // debugPrint('[MCP/Call/TextParseError] server=${s.id} tool=$toolName type=${c.runtimeType} err=$e');
+          // debugPrint('[MCP/Call/TextParseError] server=${server.id} tool=$toolName type=${c.runtimeType} err=$e');
           // debugPrint(st.toString());
         }
       }
-      return buf.toString().trim();
+      return McpToolCallText(buf.toString().trim(), images);
     }
-    return '';
+    return const McpToolCallText('', []);
+  }
+
+  /// Convenience: text-only variant of [callToolDetailedForAssistant].
+  Future<String> callToolTextForAssistant(
+    McpProvider mcpProvider,
+    AssistantProvider assistants, {
+    required String? assistantId,
+    required String toolName,
+    Map<String, dynamic> arguments = const {},
+  }) async {
+    return (await callToolDetailedForAssistant(
+      mcpProvider,
+      assistants,
+      assistantId: assistantId,
+      toolName: toolName,
+      arguments: arguments,
+    )).text;
   }
 
   String _renderToolErrorForModel({
@@ -287,7 +356,7 @@ class McpToolService extends ChangeNotifier {
       'server': serverName,
       'lastArguments': arguments,
       if (schema != null && schema.isNotEmpty) 'parametersSchema': schema,
-      'instruction': 'Revise arguments to satisfy parametersSchema, then call the same tool again.'
+      'instruction': 'Revise arguments to satisfy parametersSchema, then call the same tool again.',
     };
     return const JsonEncoder.withIndent('  ').convert(map);
   }

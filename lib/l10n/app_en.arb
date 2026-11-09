@@ -2205,6 +2205,8 @@
   "greetingModelThinkingTitle": "Enable Thinking",
   "mcpServerEditSheetStdioOnlyDesktop": "STDIO is only available on desktop",
   "mcpServerEditSheetStdioCommandRequired": "Command is required for STDIO transport",
+  "mcpServerEditSheetPlaywrightPreset": "Playwright (Browser QA)",
+  "mcpServerEditSheetPlaywrightPresetHint": "STDIO · npx @playwright/mcp@latest — screenshots, console errors and click checks. Requires Node.js 20+.",
   "mcpTransportOptionStdio": "STDIO",
   "mcpServerEditSheetStdioCommandLabel": "Command",
   "mcpServerEditSheetStdioArgumentsLabel": "Arguments",
