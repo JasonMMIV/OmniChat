@@ -24,6 +24,7 @@ import '../../../core/services/logging/flutter_logger.dart';
 import '../../../core/services/mcp/mcp_tool_prompts.dart';
 import '../../../core/services/skills/skill_invocations.dart';
 import '../../../core/services/skills/skill_service.dart';
+import '../../../core/services/workspace/workspace_file_map.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
@@ -390,6 +391,61 @@ class MessageGenerationService {
     );
     if (toolPrompt != null) {
       messageBuilderService.appendToSystemMessage(apiMessages, toolPrompt);
+    }
+
+    // P2-6 L3 (plan §2.9): workspace file map — a fixed-position tail of the
+    // system message listing the tree so the model does not have to discover
+    // it through file_list round-trips (or guess paths). Rendered only from
+    // stable tree facts (paths + sizes), so an unchanged workspace keeps the
+    // system prefix byte-identical across turns. Gated on the SAME predicate
+    // that registers the file tools (§2.3.1 doctrine): `file_list` must
+    // actually be advertised in this request.
+    if (workspacePath != null &&
+        (workspaceResolution?.enabled ?? false) &&
+        toolDefs.any((def) {
+          try {
+            return ((def['function'] as Map)['name'] ?? '').toString() ==
+                'file_list';
+          } catch (_) {
+            return false;
+          }
+        })) {
+      try {
+        // Files the agent wrote this conversation (FileRecord persistence)
+        // get the `agent-written` marker in the map. Collapse to the active
+        // version set first — unselected versions must not vote. Recent-
+        // window capped: agent-written files are recent by nature, and a
+        // full-timeline per-message sqlite query would tax the every-send
+        // assembly path on long conversations.
+        final activeMessages = messageBuilderService.collapseVersions(
+          messages,
+          versionSelections,
+        );
+        final recentMessages = activeMessages.length > 200
+            ? activeMessages.sublist(activeMessages.length - 200)
+            : activeMessages;
+        final toolWrittenPaths = <String>[];
+        for (final m in recentMessages) {
+          try {
+            for (final record in chatService.getMessageFileRecords(m.id)) {
+              toolWrittenPaths.add(record.path);
+            }
+          } catch (_) {}
+        }
+        final fileMap = await WorkspaceFileMap.build(
+          workspacePath: workspacePath,
+          toolWrittenAbsolutePaths: toolWrittenPaths,
+        );
+        if (fileMap.isNotEmpty) {
+          messageBuilderService.appendToSystemMessage(apiMessages, fileMap);
+        }
+      } catch (e) {
+        // The map is a navigation aid only — never break assembly over it.
+        FlutterLogger.log(
+          'workspace file map failed: $e',
+          tag: 'workspace-map',
+        );
+      }
     }
 
     // §2.3.1: the predicate and the actual tool list must agree. Log any

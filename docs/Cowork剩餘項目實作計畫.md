@@ -1,6 +1,7 @@
 # OmniChat Cowork 剩餘項目實作計畫
 
-> **版本**：v1.6（2026-11-10）
+> **版本**：v1.7（2026-11-10）
+> **v1.7 變更**（實作紀錄）：§2.9 P2-6 L3 工作區檔案地圖注入落地（✅）——組裝期 `file_list` 註冊時注入 token 預算內的 workspace 檔案清單；重用 `WorkspaceSnapshot.capture` 掃描、dot 段全遮蔽、穩定樹事實渲染（快取前綴契約）、三段預算降級；§0.4 表同步。
 > **v1.6 變更**（實作紀錄）：§2.11 P3-1 瀏覽器 QA 落地（✅）——STDIO 傳輸 UI＋Playwright 一鍵預設（桌面限定）、STDIO 連線錯誤分類、MCP 圖片落盤＋工具卡預覽；§0.4 表與 §1 Wave D 同步。
 > **v1.5 變更**（實作紀錄）：§2.17 記錄 `file_grep`（regex 內容搜尋，✅）與 `file_view_image` Stage 1（🔶，工作區圖片檢視＋工具卡預覽；Stage 2 vision plumbing 待做）的落地細節——代碼、測試與紀錄隨 commit `11adb10a` 提交；§0.5 view_image 落點補記實作狀態。
 > **v1.4 變更**（裁示移除）：P2-1 啟動恢復橫幅與 §2.12 P3-3「進行中任務」頁（UI 面）依 2026-11-09 實測裁示全數移除——恢復收斂為**對話內就地式**（pending 卡／部分訊息即動作點）；P2-1 checkpoint 寫入地基（durable-before-dispatch、fence、審批暫停語意）保留為隱形正確性保險，讀取面為 P2-2 預留。詳見 §0.2、§2.4、§2.12。
@@ -51,7 +52,7 @@
 | P2-3 | 子代理（`spawn_subagent`） | AnyBuff agents/ + AiTeamController | ⬜ | v1.31.x |
 | P2-4 | Mini dev server + Live 預覽 | 既有 `html_preview_*` + 新 dev server | ✅（2026-11-08：loopback 靜態伺服器、SSE 重整、`get_console_errors`、分頁面板；見 §2.7） | v1.31.x |
 | P2-5 | Proot on Android（**stretch**；kelivo `sandbox/`＋AnyBuff `android/` engine 為對照實作） | 藍圖已內化於 §2.8（原 CLI v4 §七/§十五）+ kelivo v1.3.0+ | ⬜ | 視需求 |
-| P2-6(L3) | 工作區檔案地圖注入（**僅 L3**；L2 LLM 摘要不採） | AnyBuff `truncate-file-tree` 概念 | ⬜ | v1.32.x |
+| P2-6(L3) | 工作區檔案地圖注入（**僅 L3**；L2 LLM 摘要不採） | AnyBuff `truncate-file-tree` 概念 | ✅（2026-11-10：組裝期注入、`WorkspaceSnapshot` 掃描重用、預算三段降級、快取前綴契約；見 §2.9） | v1.32.x |
 | P2-7 | kelivo 資料模型對齊（**可選**） | kelivo `a43b79f` | ⬜ | 視需求 |
 | P3-1 | 瀏覽器 QA 工具（Playwright via MCP，桌面限定） | MCP + Playwright | ✅（2026-11-10：STDIO 傳輸 UI＋Playwright 一鍵預設、連線錯誤分類、MCP 圖片落盤＋工具卡預覽；見 §2.11） | v1.32.x |
 | ~~P3-3~~ | ~~跨會話任務恢復（「進行中任務」頁）~~ **已移除**（2026-11-09 裁示；見 §2.12） | P2-1 延伸 | ⛔ 已移除 | — |
@@ -346,7 +347,9 @@
 
 ---
 
-### 2.9 P2-6(L3) 工作區檔案地圖注入（僅 L3）⬜
+### 2.9 P2-6(L3) 工作區檔案地圖注入（僅 L3）✅【2026-11-10 完成】
+
+> **落地紀錄（2026-11-10）**：新檔 `lib/core/services/workspace/workspace_file_map.dart`——掃描**重用** P1-6 `WorkspaceSnapshot.capture`（async、20k 上限、不跟 symlink、噪音目錄清單），地圖層加嚴**任何 dot 段落一律丟棄**（`.env`／`.omnichat` 不入 prompt）。注入點在 `prepareApiMessagesWithInjections`：gate 為「`file_list` 實際註冊於本次請求」（§2.3.1 教義），地圖 append 到 system 訊息尾部（`applyContextLimit` 之後故不受裁切）；本對話 FileRecord 內 workspace 內路徑標 `· agent-written`。**快取前綴契約**：只渲染穩定樹事實（相對路徑集＋大小），未變更樹逐字相同、mtime-only `touch` 不打冷 cache；同大小改寫不反映（地圖僅導航輔助）。**三段預算降級**：全量（`- path · 2.1 KB[ · agent-written]`）超 `tokenCap = 1600` → 純路徑 → 二分最長前綴＋`(+N more files not shown)`；標頭仍報全樹檔案數；渲染上限 200 筆（三段強制，snapshot 截斷加 `listing may be incomplete`）；空工作區／失敗不注入且不影響組裝。測試：`test/workspace_file_map_test.dart` 8 案（確定性／噪音／標記／快取契約／降級／硬上限／file_list 一致性）。**與計畫差異**：資料源改「大小（全檔）＋agent-written 標記（FileRecord）」而 mtime 不渲染（打冷 cache 風險）；呈現採排序扁平清單而非常樹（相對路徑已編碼層級、與 `file_list` 一致）；無新 prefs／無 UI／無 l10n。
 
 > **L2 LLM 摘要：不採**（v1.4 評估結案 + 2026-11-06 裁示確認）。P2-6 僅保留 L3。
 
