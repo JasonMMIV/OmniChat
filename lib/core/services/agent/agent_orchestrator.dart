@@ -518,13 +518,25 @@ class AgentOrchestrator {
           reviewUsage = reviewUsage.sum(revisionCollected.resolvedUsage);
           revisionWatch.stop();
           final revisionMs = revisionWatch.elapsedMilliseconds;
+          // The revision turn declares no tools. Some models still emit raw
+          // tool-call markup (DeepSeek DSML, <tool_call>, …) when they want a
+          // tool; accepting it would replace the answer with markup.
+          final revisionProducedToolCall = containsToolCallMarkup(
+            revisionCollected.content,
+          );
+          final revisionFailReason = revisionProducedToolCall
+              ? 'revision_tool_call'
+              : 'revision_failed';
 
-          if (revisionFailed || !revisionCollected.ok) {
+          if (revisionFailed ||
+              !revisionCollected.ok ||
+              revisionProducedToolCall) {
             // Fail-open: revision errored / timed out / came back empty /
             // truncated. Restore the original draft via a replace-content
             // chunk, then close with a non-reviewed terminal (§8.3 D.4).
             developer.log(
-              'answer_review.fail_open reason=revision '
+              'answer_review.fail_open reason='
+              '${revisionProducedToolCall ? 'revision_tool_call' : 'revision'} '
               'sawTerminal=${revisionCollected.sawTerminal} '
               'chars=${revisionCollected.content.trim().length}',
               name: 'answer_review',
@@ -536,7 +548,7 @@ class AgentOrchestrator {
             final report = revisingReport.copyWith(
               phase: AnswerReviewPhase.revisionFailed,
               reviewed: false,
-              failReason: 'revision_failed',
+              failReason: revisionFailReason,
               revisionMs: revisionMs,
               reviewTokens: _usageTotal(reviewUsage),
               finishedAtMs: DateTime.now().millisecondsSinceEpoch,

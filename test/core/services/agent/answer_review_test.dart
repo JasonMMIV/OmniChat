@@ -12,13 +12,12 @@ Map<String, dynamic> _issue(
   String location = 'p1',
   String problem = 'wrong',
   String fix = 'fix it',
-}) =>
-    <String, dynamic>{
-      'severity': severity,
-      'location': location,
-      'problem': problem,
-      'fix': fix,
-    };
+}) => <String, dynamic>{
+  'severity': severity,
+  'location': location,
+  'problem': problem,
+  'fix': fix,
+};
 
 void main() {
   // ------------------------------------------------------------------
@@ -28,7 +27,10 @@ void main() {
     test('parses the three persisted values', () {
       expect(AnswerReviewModeCodec.fromValue('off'), AnswerReviewMode.off);
       expect(AnswerReviewModeCodec.fromValue('smart'), AnswerReviewMode.smart);
-      expect(AnswerReviewModeCodec.fromValue('always'), AnswerReviewMode.always);
+      expect(
+        AnswerReviewModeCodec.fromValue('always'),
+        AnswerReviewMode.always,
+      );
     });
 
     test('null / unknown values fall back to off', () {
@@ -224,6 +226,65 @@ void main() {
       expect(v.issues, hasLength(1));
     });
 
+    test('tool-dependent finding is dropped (revision cannot call tools)', () {
+      final v = parseReviewVerdict(
+        jsonEncode(<String, dynamic>{
+          'verdict': 'revise',
+          'issues': [
+            _issue(
+              'major',
+              problem: 'Draft has no image.',
+              fix: 'Use image_search and insert the photo.',
+            ),
+          ],
+        }),
+      );
+      expect(v.verdict, 'pass');
+      expect(v.issues, isEmpty);
+    });
+    test('Chinese image_search finding is dropped', () {
+      final v = parseReviewVerdict(
+        jsonEncode(<String, dynamic>{
+          'verdict': 'revise',
+          'issues': [
+            _issue(
+              'major',
+              problem: '草稿全篇沒有任何圖片。',
+              fix: '使用 image_search 取得照片並插入 1–2 張圖片。',
+            ),
+          ],
+        }),
+      );
+      expect(v.verdict, 'pass');
+      expect(v.issues, isEmpty);
+    });
+
+    test(
+      'tool-dependent finding is dropped but text findings still revise',
+      () {
+        final v = parseReviewVerdict(
+          jsonEncode(<String, dynamic>{
+            'verdict': 'revise',
+            'issues': [
+              _issue(
+                'major',
+                problem: 'Missing image.',
+                fix: 'Call image_search.',
+              ),
+              _issue(
+                'major',
+                problem: 'Wrong date.',
+                fix: 'Change 2020 to 2021.',
+              ),
+            ],
+          }),
+        );
+        expect(v.verdict, 'revise');
+        expect(v.issues, hasLength(1));
+        expect(v.issues.single.problem, 'Wrong date.');
+      },
+    );
+
     test('plain-text REVISE without issues stays pass (fail-open)', () {
       final v = parseReviewVerdict('I would REVISE this answer.');
       expect(v.verdict, 'pass');
@@ -273,6 +334,23 @@ void main() {
     });
   });
 
+  group('containsToolCallMarkup', () {
+    test('detects DeepSeek DSML and tagged tool-call syntax', () {
+      expect(
+        containsToolCallMarkup(
+          '<｜｜DSML｜｜ calls>\n<｜｜DSML｜｜ invoke name="image_search">',
+        ),
+        isTrue,
+      );
+      expect(
+        containsToolCallMarkup('<tool_call>\n<function=image_search>'),
+        isTrue,
+      );
+      expect(containsToolCallMarkup('regular answer text'), isFalse);
+      expect(containsToolCallMarkup(''), isFalse);
+    });
+  });
+
   // ------------------------------------------------------------------
   // Turn builders
   // ------------------------------------------------------------------
@@ -286,10 +364,7 @@ void main() {
       expect(turn, hasLength(2));
       // No consecutive user messages: instruction merged into the last one.
       expect(turn.last['role'], 'user');
-      expect(
-        turn.last['content'],
-        contains('question'),
-      );
+      expect(turn.last['content'], contains('question'));
       expect(turn.last['content'], contains('[ANSWER REVIEW'));
       expect(turn.last['content'], contains('<draft>\nmy draft\n</draft>'));
       // The original working list is untouched.
@@ -313,7 +388,10 @@ void main() {
       final content = turn.last['content'] as List;
       expect(content, hasLength(3));
       expect((content.last as Map)['type'], 'text');
-      expect(((content.last as Map)['text'] as String), contains('[ANSWER REVIEW'));
+      expect(
+        ((content.last as Map)['text'] as String),
+        contains('[ANSWER REVIEW'),
+      );
       expect((content.first as Map)['type'], 'text');
     });
 
@@ -333,7 +411,10 @@ void main() {
     });
 
     test('empty working list gets a fresh user message', () {
-      final turn = buildReviewTurn(working: <Map<String, dynamic>>[], draft: 'd');
+      final turn = buildReviewTurn(
+        working: <Map<String, dynamic>>[],
+        draft: 'd',
+      );
       expect(turn, hasLength(1));
       expect(turn.single['role'], 'user');
     });

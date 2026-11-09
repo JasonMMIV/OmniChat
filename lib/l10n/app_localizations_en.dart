@@ -3469,6 +3469,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'The revision failed; original answer kept';
 
   @override
+  String get chatAnswerReviewFailRevisionToolCall =>
+      'The revision tried to call a tool; original answer kept';
+
+  @override
   String get chatAnswerReviewFailCancelled => 'Cancelled by you';
 
   @override

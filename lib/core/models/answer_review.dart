@@ -89,6 +89,29 @@ class ReviewIssue {
 
   bool get isBlocking => severity == 'blocker' || severity == 'major';
 
+  /// A finding that can only be fixed by calling a tool (for example
+  /// "add an image_search result"). The review/revision turn is text-only, so
+  /// such findings are dropped instead of triggering a rewrite that would
+  /// end in tool-call markup.
+  bool get requiresToolCall {
+    final text = '$problem $fix'.toLowerCase();
+    return text.contains('image_search') ||
+        text.contains('image search') ||
+        text.contains('tool call') ||
+        text.contains('tool_call') ||
+        text.contains('call the tool') ||
+        text.contains('use the tool') ||
+        text.contains('missing image') ||
+        text.contains('add an image') ||
+        text.contains('insert an image') ||
+        text.contains('插入圖') ||
+        text.contains('插入图') ||
+        text.contains('缺少圖') ||
+        text.contains('缺少图') ||
+        text.contains('沒有圖') ||
+        text.contains('没有图');
+  }
+
   int get severityRank => switch (severity) {
     'blocker' => 0,
     'major' => 1,
@@ -152,7 +175,8 @@ class AnswerReviewReport {
   /// successful revision).
   final bool reviewed;
 
-  /// `timeout` / `error` / `empty` / `malformed` / `revision_failed`.
+  /// `timeout` / `error` / `empty` / `malformed` / `revision_failed` /
+  /// `revision_tool_call`.
   final String? failReason;
 
   final int reviewMs;

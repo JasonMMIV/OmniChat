@@ -6507,6 +6507,12 @@ abstract class AppLocalizations {
   /// **'The revision failed; original answer kept'**
   String get chatAnswerReviewFailRevisionFailed;
 
+  /// No description provided for @chatAnswerReviewFailRevisionToolCall.
+  ///
+  /// In en, this message translates to:
+  /// **'The revision tried to call a tool; original answer kept'**
+  String get chatAnswerReviewFailRevisionToolCall;
+
   /// No description provided for @chatAnswerReviewFailCancelled.
   ///
   /// In en, this message translates to:

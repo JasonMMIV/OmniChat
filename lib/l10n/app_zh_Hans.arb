@@ -1225,6 +1225,7 @@
   "chatAnswerReviewFailEmpty": "响应为空",
   "chatAnswerReviewFailMalformed": "无法解析审查结果",
   "chatAnswerReviewFailRevisionFailed": "修正失败，已保留原回答",
+  "chatAnswerReviewFailRevisionToolCall": "修正尝试调用工具，已保留原回答",
   "chatAnswerReviewFailCancelled": "已由你取消",
   "chatAnswerReviewFailInterrupted": "完成前中断",
   "chatAnswerReviewReviewingHint": "正在以相同模型自查初稿。",

@@ -572,7 +572,8 @@ class AnswerReviewViewData {
   `AnswerReviewRecord` 與 `AnswerReviewPhase`；`AnswerReviewMode` 不變。
 - **協定**：`ChatStreamChunk.reviewReport`；orchestrator 在 verdict 後發
   `reviewed`（PASS/REVISE/fail-open 都送），terminal 帶最終 report；
-  fail-open 原因為 `timeout`/`error`/`empty`/`malformed`/`revision_failed`。
+  fail-open 原因為 `timeout`/`error`/`empty`/`malformed`/`revision_failed`，
+  以及 `revision_tool_call`（revision 吐出工具呼叫 markup）。
 - **持久化**：`message_parts.kind='answer_review'`（ordinal 1e9，一訊息一列），
   `content` = 初稿（完整、無上限）、`metadata_json` = report、`status` =
   pending/completed/interrupted。`replaceToolEvents` 只選/刪/改 `kind='tool'`，
@@ -595,6 +596,24 @@ class AnswerReviewViewData {
   visibility）；orchestrator review 測試補上 report/phase/failReason 斷言。
   全量 `flutter test`：2,261 通過、2 個既有 `sqlite_chat_storage_test`
   失敗（乾淨樹同樣失敗）、2 skipped；`flutter analyze` 0 errors。
+
+### 2026-11-09 hotfix（實測失敗）
+
+實際案例：助手 system prompt 要求 `image_search`，但該助手／對話沒有掛載 Image_Search
+MCP server；reviewer 把「缺少圖片」判為 major → revision 想呼叫 `image_search`，
+在 text-only 回合吐出 `<tool_call>` / DeepSeek DSML 原文，最後被當成答案存下，
+覆蓋真正的初稿。
+
+修正：
+
+- review/revision prompt 明示「工具不可用；不要要求補圖／呼叫工具」。
+- `ReviewIssue.requiresToolCall`：fix/problem 明確需要工具（`image_search`、
+  `tool call`、`add an image`、`插入圖` 等）時，直接從 verdict 過濾，不觸發
+  revision。
+- `containsToolCallMarkup`：revision 若仍吐出 `<tool_call>`、`<function=`、
+  `<parameter=` 或 `｜｜DSML｜｜`，一律 fail-open 保留原 draft，report
+  `failReason='revision_tool_call'`，卡片顯示「修正嘗試呼叫工具，已保留原回答」。
+- 新增 parser / orchestrator 回歸測試（工具 issue 過濾、markup fail-open）。
 
 ### 已知限制 / 後續
 

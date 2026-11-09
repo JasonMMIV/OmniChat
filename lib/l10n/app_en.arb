@@ -1563,6 +1563,7 @@
   "chatAnswerReviewFailEmpty": "Empty response",
   "chatAnswerReviewFailMalformed": "Could not parse the verdict",
   "chatAnswerReviewFailRevisionFailed": "The revision failed; original answer kept",
+  "chatAnswerReviewFailRevisionToolCall": "The revision tried to call a tool; original answer kept",
   "chatAnswerReviewFailCancelled": "Cancelled by you",
   "chatAnswerReviewFailInterrupted": "Interrupted before completion",
   "chatAnswerReviewReviewingHint": "The same model is checking the draft.",

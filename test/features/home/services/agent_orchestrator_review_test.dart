@@ -350,6 +350,63 @@ void main() {
   });
 
   test(
+    'revision emits tool-call markup: fail-open keeps the original draft',
+    () async {
+      var call = 0;
+      final chunks = await AgentOrchestrator()
+          .run(
+            config: _config(),
+            modelId: 'm',
+            requestId: 'r4b',
+            streamOutput: true,
+            messages: const [
+              {'role': 'user', 'content': 'hi'},
+            ],
+            onToolCall: (name, args, {String? toolCallId}) async => 'R',
+            sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
+              <ChatStreamChunk>[_text('original draft'), _done()],
+            ),
+            reviewSendRound: (msgs) async {
+              call++;
+              if (call == 1) {
+                return _verdictRound(
+                  jsonEncode(<String, dynamic>{
+                    'verdict': 'revise',
+                    'issues': [
+                      <String, dynamic>{
+                        'severity': 'major',
+                        'location': 'l',
+                        'problem': 'wrong date',
+                        'fix': 'change it',
+                      },
+                    ],
+                  }),
+                );
+              }
+              // Text-only revision, but the model tried to call a tool.
+              return Stream<ChatStreamChunk>.fromIterable(<ChatStreamChunk>[
+                _text('<tool_call>\n<function=image_search>'),
+                _done(),
+              ]);
+            },
+            answerReview: const AnswerReviewConfig(
+              mode: AnswerReviewMode.always,
+            ),
+          )
+          .toList();
+
+      final restore = chunks
+          .where((c) => c.replaceContent && c.content.isNotEmpty)
+          .toList();
+      expect(restore, hasLength(1));
+      expect(restore.single.content, 'original draft');
+      expect(chunks.last.reviewed, isFalse);
+      expect(chunks.last.reviewReport?.phase, 'revision_failed');
+      expect(chunks.last.reviewReport?.failReason, 'revision_tool_call');
+    },
+  );
+
+  test(
     'revision without terminal (truncated): fail-open restores draft',
     () async {
       var call = 0;
@@ -717,7 +774,6 @@ void main() {
   test('main run L1 retry clears the draft: only the new attempt is '
       'reviewed', () async {
     final reviewMessages = <List<Map<String, dynamic>>>[];
-    var round = 0;
     final chunks = await AgentOrchestrator()
         .run(
           config: _config(),

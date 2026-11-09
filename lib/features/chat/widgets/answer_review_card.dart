@@ -517,6 +517,7 @@ class _AnswerReviewCardState extends State<AnswerReviewCard> {
       'empty' => l10n.chatAnswerReviewFailEmpty,
       'malformed' => l10n.chatAnswerReviewFailMalformed,
       'revision_failed' => l10n.chatAnswerReviewFailRevisionFailed,
+      'revision_tool_call' => l10n.chatAnswerReviewFailRevisionToolCall,
       'cancelled' => l10n.chatAnswerReviewFailCancelled,
       'interrupted' => l10n.chatAnswerReviewFailInterrupted,
       _ => null,

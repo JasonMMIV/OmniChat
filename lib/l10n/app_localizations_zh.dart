@@ -3424,6 +3424,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatAnswerReviewFailRevisionFailed => '修正失败，已保留原回答';
 
   @override
+  String get chatAnswerReviewFailRevisionToolCall => '修正尝试调用工具，已保留原回答';
+
+  @override
   String get chatAnswerReviewFailCancelled => '已由你取消';
 
   @override
@@ -9853,6 +9856,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatAnswerReviewFailRevisionFailed => '修正失败，已保留原回答';
 
   @override
+  String get chatAnswerReviewFailRevisionToolCall => '修正尝试调用工具，已保留原回答';
+
+  @override
   String get chatAnswerReviewFailCancelled => '已由你取消';
 
   @override
@@ -16190,6 +16196,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatAnswerReviewFailRevisionFailed => '修正失敗，已保留原回答';
+
+  @override
+  String get chatAnswerReviewFailRevisionToolCall => '修正嘗試呼叫工具，已保留原回答';
 
   @override
   String get chatAnswerReviewFailCancelled => '已由你取消';

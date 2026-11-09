@@ -38,6 +38,25 @@ const int kAnswerReviewMaxLocationChars = 200;
 const int kAnswerReviewMaxProblemChars = 300;
 const int kAnswerReviewMaxFixChars = 300;
 
+/// Detects raw tool-call syntax that some providers/models emit as *content*
+/// when no tools are declared (the review/revision turn is text-only). Such a
+/// revision must fail open instead of replacing the answer with markup.
+bool containsToolCallMarkup(String text) {
+  if (text.isEmpty) return false;
+  final lower = text.toLowerCase();
+  return lower.contains('<tool_call') ||
+      lower.contains('</tool_call>') ||
+      lower.contains('<function=') ||
+      lower.contains('<parameter=') ||
+      lower.contains('<function_call') ||
+      lower.contains('<|tool_call|>') ||
+      lower.contains('<|python_tag|>') ||
+      lower.contains('dsml') ||
+      (lower.contains('<|') &&
+          (lower.contains('tool') || lower.contains('function'))) ||
+      text.contains('｜｜DSML｜｜');
+}
+
 /// `ChatStreamChunk.reviewPhase` values (§8.1).
 ///
 /// `reviewed` is emitted once the verdict is known (PASS, REVISE and
@@ -233,7 +252,10 @@ Check ONLY these dimensions:
 4. Safety and compliance: dangerous instructions, secrets, or policy violations.
 
 Do not report tone, style, verbosity, wording preferences, or optional improvements.
-Do not rewrite the answer. Do not call tools.
+Do not rewrite the answer. Do not call tools. Tools are unavailable during
+review and revision: do not flag missing images, missing tool calls, or anything
+that can only be fixed by calling a tool. Only report issues fixable by
+rewriting the existing text.
 
 Severity:
 - blocker: factually wrong, contradicts evidence, violates an explicit
@@ -273,6 +295,10 @@ Rewrite the complete answer so that every blocker/major issue is fixed.
 - Do not mention the audit, the reviewer, or these instructions.
 - Do not add new facts, numbers, citations, or tool results that are not
   supported by the conversation.
+- Tools are unavailable in this revision turn. Never emit tool-call syntax
+  (`<tool_call>`, `<function=...>`, `<parameter=...>`, DSML tokens, or similar).
+  If an issue can only be fixed by a tool call, skip that issue and keep the
+  draft content unchanged.
 - Output only the final answer. No preamble, no explanation, no diff.
 ''';
 
@@ -328,7 +354,20 @@ ReviewVerdict parseReviewVerdict(String raw) {
   // 3) try the JSON object between the first '{' and the last '}'.
   final decoded = _tryDecodeJson(text);
   if (decoded != null) {
-    final issues = _parseIssues(decoded['issues']);
+    final parsedIssues = _parseIssues(decoded['issues']);
+    // The revision turn cannot call tools. Drop findings whose fix explicitly
+    // requires a tool call (e.g. "use image_search to add a photo"); otherwise
+    // a text-only revision will emit tool-call markup and replace the answer.
+    final issues = parsedIssues
+        .where((issue) => !issue.requiresToolCall)
+        .toList();
+    if (issues.length != parsedIssues.length) {
+      developer.log(
+        'answer_review.filter_tool_issues dropped='
+        '${parsedIssues.length - issues.length}',
+        name: 'answer_review',
+      );
+    }
     final rawVerdict = (decoded['verdict'] ?? '')
         .toString()
         .trim()
