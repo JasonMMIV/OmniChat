@@ -16,7 +16,7 @@ http.Response _imageResponse({int status = 200, String contentType = 'image/jpeg
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('image_search in-memory MCP server', () {
+  group('illustrate in-memory MCP server', () {
     late ImageSearchMcpServerEngine engine;
     late http.Client headOk;
 
@@ -48,7 +48,7 @@ void main() {
       expect((result['capabilities'] as Map).containsKey('tools'), isTrue);
     });
 
-    test('listTools exposes image_search with schema', () async {
+    test('listTools exposes illustrate with schema', () async {
       final resp = await engine.handleMessage({
         'jsonrpc': '2.0',
         'id': 2,
@@ -59,12 +59,13 @@ void main() {
       final tools =
           ((map['result'] as Map)['tools'] as List).cast<Map<String, dynamic>>();
       expect(tools, hasLength(1));
-      expect(tools.first['name'], 'image_search');
+      expect(tools.first['name'], 'illustrate');
       final schema = (tools.first['inputSchema'] as Map).cast<String, dynamic>();
       expect(schema['required'], contains('query'));
       expect((schema['properties'] as Map).containsKey('max_results'), isTrue);
       final desc = tools.first['description'] as String;
-      expect(desc, contains('![alt](url)'));
+      expect(desc, contains('Search the web for images'));
+      expect(desc, contains('![alt](<url>)'));
       expect(desc, contains('thumbnail_url'));
       expect(desc, isNotEmpty);
     });
@@ -74,7 +75,7 @@ void main() {
         'jsonrpc': '2.0',
         'id': 3,
         'method': 'tools/call',
-        'params': {'name': 'image_search', 'arguments': {}},
+        'params': {'name': 'illustrate', 'arguments': {}},
       });
       final map = (resp as Map).cast<String, dynamic>();
       final result = (map['result'] as Map).cast<String, dynamic>();
@@ -107,8 +108,8 @@ void main() {
     });
 
     test('callTool runs ddgs path and HEAD-validates results', () async {
-      // 5 ddgs results >= the fallback threshold, so Wikimedia must NOT be
-      // consulted. headOnly client throws on any GET to prove that.
+      // All ddgs candidates validate, so Wikimedia must NOT be consulted.
+      // headOnly client throws on any GET to prove that.
       final headOnly = MockClient((request) async {
         if (request.method == 'GET') {
           throw StateError('Wikimedia should not be queried when ddgs has results');
@@ -137,7 +138,7 @@ void main() {
         'id': 6,
         'method': 'tools/call',
         'params': {
-          'name': 'image_search',
+          'name': 'illustrate',
           'arguments': {'query': 'Albert Einstein portrait', 'max_results': 5},
         },
       });
@@ -175,7 +176,7 @@ void main() {
         'id': 7,
         'method': 'tools/call',
         'params': {
-          'name': 'image_search',
+          'name': 'illustrate',
           'arguments': {'query': 'dead image'},
         },
       });
@@ -239,7 +240,7 @@ void main() {
         'id': 8,
         'method': 'tools/call',
         'params': {
-          'name': 'image_search',
+          'name': 'illustrate',
           'arguments': {'query': 'Albert Einstein'},
         },
       });
@@ -257,6 +258,149 @@ void main() {
       expect(items.first['source_url'], contains('File:Albert_Einstein_Head.jpg'));
       engine2.close();
       wikimedia.close();
+    });
+
+    test('tools/call accepts the legacy image_search alias', () async {
+      final engine2 = ImageSearchMcpServerEngine(
+        ddgsOverride: (query, max) async => [
+          {
+            'title': 'Legacy',
+            'image': 'https://cdn.example.com/legacy.jpg',
+            'thumbnail': 'https://thumb.example.com/legacy_t.jpg',
+            'url': 'https://page.example.com/legacy',
+          },
+        ],
+        httpClient: headOk,
+      );
+      final resp = await engine2.handleMessage({
+        'jsonrpc': '2.0',
+        'id': 20,
+        'method': 'tools/call',
+        'params': {
+          'name': 'image_search',
+          'arguments': {'query': 'legacy'},
+        },
+      });
+      final map = (resp as Map).cast<String, dynamic>();
+      final result = (map['result'] as Map).cast<String, dynamic>();
+      expect(result['isError'], isFalse);
+      final text = (result['content'] as List).first['text'] as String;
+      final data = jsonDecode(text) as Map<String, dynamic>;
+      expect((data['items'] as List).first['title'], 'Legacy');
+      engine2.close();
+    });
+
+    test('falls back to Wikimedia when all ddgs candidates fail validation',
+        () async {
+      final client = MockClient((request) async {
+        if (request.method == 'GET' &&
+            request.url.host == 'commons.wikimedia.org') {
+          return http.Response(
+            jsonEncode({
+              'query': {
+                'pages': [
+                  {
+                    'title': 'File:Fallback.jpg',
+                    'imageinfo': [
+                      {
+                        'url': 'https://upload.wikimedia.org/full.jpg',
+                        'thumburl':
+                            'https://upload.wikimedia.org/thumb/480px-Fallback.jpg',
+                        'descriptionurl':
+                            'https://commons.wikimedia.org/wiki/File:Fallback.jpg',
+                        'width': 800,
+                        'height': 600,
+                        'thumbwidth': 480,
+                        'thumbheight': 360,
+                        'extmetadata': {
+                          'Artist': {'value': 'Someone'},
+                          'LicenseShortName': {'value': 'CC0'},
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        if (request.method == 'HEAD' &&
+            request.url.host == 'upload.wikimedia.org') {
+          return _imageResponse(contentType: 'image/jpeg');
+        }
+        // Every ddgs thumbnail HEAD is rejected.
+        return _imageResponse(status: 403);
+      });
+      final engine2 = ImageSearchMcpServerEngine(
+        ddgsOverride: (query, max) async => [
+          {
+            'title': 'Dead ddgs hit',
+            'image': 'https://cdn.example.com/dead.jpg',
+            'thumbnail': 'https://thumb.example.com/dead_t.jpg',
+            'url': 'https://page.example.com/dead',
+          },
+        ],
+        httpClient: client,
+      );
+      final resp = await engine2.handleMessage({
+        'jsonrpc': '2.0',
+        'id': 21,
+        'method': 'tools/call',
+        'params': {
+          'name': 'illustrate',
+          'arguments': {'query': 'fallback'},
+        },
+      });
+      final map = (resp as Map).cast<String, dynamic>();
+      final result = (map['result'] as Map).cast<String, dynamic>();
+      expect(result['isError'], isFalse);
+      final text = (result['content'] as List).first['text'] as String;
+      final data = jsonDecode(text) as Map<String, dynamic>;
+      final items = (data['items'] as List).cast<Map<String, dynamic>>();
+      expect(items, hasLength(1));
+      expect(items.first['backend'], 'wikimedia');
+      engine2.close();
+      client.close();
+    });
+
+    test('SSRF guard blocks private image hosts before HEAD', () async {
+      final requested = <Uri>[];
+      final client = MockClient((request) async {
+        requested.add(request.url);
+        return _imageResponse(status: 403);
+      });
+      final engine2 = ImageSearchMcpServerEngine(
+        ddgsOverride: (query, max) async => [
+          {
+            'title': 'Private',
+            'image': 'http://127.0.0.1/x.jpg',
+            'thumbnail': '',
+            'url': 'https://page.example.com/private',
+          },
+        ],
+        httpClient: client,
+      );
+      final resp = await engine2.handleMessage({
+        'jsonrpc': '2.0',
+        'id': 22,
+        'method': 'tools/call',
+        'params': {
+          'name': 'illustrate',
+          'arguments': {'query': 'private host'},
+        },
+      });
+      final map = (resp as Map).cast<String, dynamic>();
+      final result = (map['result'] as Map).cast<String, dynamic>();
+      expect(result['isError'], isTrue);
+      expect(
+        (result['content'] as List).first['text'] as String,
+        contains('no usable image'),
+      );
+      expect(requested.where((u) => u.host == '127.0.0.1'), isEmpty);
+      engine2.close();
+      client.close();
     });
 
     test('callTool strips HTML entities from Wikimedia metadata', () async {
@@ -297,7 +441,7 @@ void main() {
         'id': 9,
         'method': 'tools/call',
         'params': {
-          'name': 'image_search',
+          'name': 'illustrate',
           'arguments': {'query': 'something'},
         },
       });

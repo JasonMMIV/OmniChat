@@ -187,7 +187,7 @@ List<Map<String, dynamic>> buildReviewTurn({
 
 /// Extract the tool names the assistant actually had available. The reviewer
 /// needs this list so it does not demand a tool that was never mounted (the
-/// classic `image_search`-not-attached case).
+/// classic `illustrate`-not-attached case).
 List<String> reviewToolNames(List<Map<String, dynamic>>? tools) {
   final names = <String>[];
   for (final tool in tools ?? const <Map<String, dynamic>>[]) {
@@ -294,7 +294,7 @@ Rewrite the complete answer so that every blocker/major issue is fixed.
 - Preserve the user's language and the requested format.
 - Do not mention the audit, the reviewer, or these instructions.
 - Use the tools available in this turn when a finding requires fresh data or
-  an asset (for example `image_search`). Call the tool, read its result, then
+  an asset (for example `illustrate`). Call the tool, read its result, then
   incorporate it into the complete answer.
 - Do not add new facts, numbers, citations, or tool results that are not
   supported by the conversation or by tool results you obtained in this turn.

@@ -21,6 +21,7 @@ import '../../../core/services/chat/todo_models.dart';
 import '../../../core/services/chat/todo_projection.dart';
 import '../../../core/services/chat/todo_v1_migration.dart';
 import '../../../core/services/logging/flutter_logger.dart';
+import '../../../core/services/mcp/mcp_tool_prompts.dart';
 import '../../../core/services/skills/skill_invocations.dart';
 import '../../../core/services/skills/skill_service.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
@@ -378,6 +379,18 @@ class MessageGenerationService {
       workspaceEnabled: workspaceResolution?.enabled ?? false,
       workspacePath: workspacePath,
     );
+
+    // Tool usage policies (e.g. `illustrate`) — same-source with toolDefs:
+    // inject only when the tool is really advertised in this request. Gemini
+    // native built-ins are the documented exception: chat_api_service strips
+    // function declarations AFTER assembly, so `forRequest` gates them too.
+    final toolPrompt = McpToolPrompts.forRequest(
+      defs: toolDefs,
+      hasBuiltInSearch: hasBuiltInSearch,
+    );
+    if (toolPrompt != null) {
+      messageBuilderService.appendToSystemMessage(apiMessages, toolPrompt);
+    }
 
     // §2.3.1: the predicate and the actual tool list must agree. Log any
     // drift and trust the tool list (it is what the model really receives).

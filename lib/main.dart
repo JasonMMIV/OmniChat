@@ -96,6 +96,11 @@ Future<void> main() async {
       try {
         await McpProvider.applyLegacyFetchMigration();
       } catch (_) {}
+      // Rename the retired built-in `image_search` tool entry to `illustrate`
+      // before any provider lists tools (see McpProvider migration docs).
+      try {
+        await McpProvider.migrateBuiltinImageSearchToolName();
+      } catch (_) {}
       // models.dev catalog + OpenCode overlay (plan batch 1 §6.2): cache and
       // bundled snapshots only, never a startup network call. A slow parse
       // must not block launch — callers fall back to the regex/1M rules until

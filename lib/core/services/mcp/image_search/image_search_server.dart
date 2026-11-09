@@ -5,19 +5,20 @@ import 'package:ddgs/ddgs.dart';
 import 'package:http/http.dart' as http;
 import 'package:mcp_client/mcp_client.dart' as mcp;
 
-/// image_search — In-memory MCP server engine exposing a real-photo image
-/// search tool.
+import '../../web/ssrf_guard.dart';
+
+/// illustrate — In-memory MCP server engine exposing a web image search tool.
 ///
-/// Purpose: let the model enrich answers with **real** images (a person's
-/// photo, a product shot, a landmark) via `![alt](url)` markdown, using
-/// hotlink-safe URLs without storing any file locally.
+/// Purpose: let the model enrich answers with **images found on the web**
+/// (a person's photo, a product shot, a landmark) via `![alt](url)` markdown,
+/// using hotlink-safe URLs without storing any file locally.
 ///
 /// Backends (free, key-less):
 ///   1. DuckDuckGo image search via the bundled `ddgs` package (broad index:
-///      news / general web real photos). Returns `image` (original),
+///      news / general web images). Returns `image` (original),
 ///      `thumbnail` (Bing CDN proxy, ~stable), width/height and source page.
-///   2. Wikimedia Commons (fallback when ddgs is empty / errors). Encyclo-
-///      pedic real photos (people, landmarks, species, products) with
+///   2. Wikimedia Commons (fallback when ddgs is empty / unusable / errors).
+///      Encyclopedic images (people, landmarks, species, products) with
 ///      author + license metadata. Returns a `thumb` sized image on
 ///      `upload.wikimedia.org` which is hotlink-tolerant.
 ///
@@ -43,8 +44,17 @@ class ImageSearchMcpServerEngine {
   final ImageSearchFetcher? _ddgsOverride;
   final http.Client? _httpClient;
 
+  /// Blocks loopback / private / reserved hosts before the HEAD validation
+  /// request (defense-in-depth; same guard as web fetch).
+  final SsrfGuard _ssrfGuard = SsrfGuard();
+
   static const String serverName = 'Image_Search';
-  static const String toolName = 'image_search';
+  static const String toolName = 'illustrate';
+
+  /// Legacy model-facing name. Never advertised by tools/list; accepted by
+  /// tools/call (and by McpToolService routing) so stale model calls from old
+  /// conversations keep working — same pattern as WebFetchTool legacy names.
+  static const String legacyToolName = 'image_search';
 
   Future<dynamic> handleMessage(dynamic message) async {
     if (_closed) return null;
@@ -98,6 +108,7 @@ class ImageSearchMcpServerEngine {
 
           switch (name) {
             case toolName:
+            case legacyToolName:
               return _ok(id, result: await _imageSearch(arguments));
             default:
               return _error(id, code: -32101, message: 'Tool not found: $name');
@@ -178,35 +189,36 @@ class ImageSearchMcpServerEngine {
         ddgError = e.toString();
       }
 
-      // --- Backend 2: Wikimedia Commons (fallback only when ddgs is empty) ---
+      // Validate only the first few candidates (HEAD check is the slow part).
+      const validateLimit = 5;
+      List<ImageSearchHit> hits = await _validateHits(
+        [for (final m in ddgRaw) ..._hitsFromDuckDuckGo(m)]
+            .take(validateLimit)
+            .toList(),
+      );
+
+      // --- Backend 2: Wikimedia Commons ---
+      // Fallback when ddgs returned nothing OR every ddgs candidate failed
+      // HTTP validation. The old `ddgRaw.isEmpty` condition meant a dead ddgs
+      // page produced "no usable image" without ever trying Commons.
       List<Map<String, dynamic>> wikimediaRaw = const [];
-      if (ddgRaw.isEmpty) {
+      if (hits.isEmpty) {
         try {
           wikimediaRaw = await _fetchWikimedia(query, maxResults);
         } catch (_) {
           // Commons is best-effort; failure is surfaced only when no usable
           // image came from any backend.
         }
+        hits = await _validateHits(
+          [for (final m in wikimediaRaw) ..._hitsFromWikimedia(m)]
+              .take(validateLimit)
+              .toList(),
+        );
       }
-
-      // Convert + validate. ddgs preferred; Commons fills gaps / acts as the
-      // sole source when ddgs failed.
-      final candidates = <ImageSearchHit>[
-        for (final m in ddgRaw)
-          ..._hitsFromDuckDuckGo(m),
-        for (final m in wikimediaRaw)
-          ..._hitsFromWikimedia(m),
-      ];
-
-      // Validate only the first few candidates (HEAD check is the slow part).
-      const validateLimit = 5;
-      final hits = await _validateHits(
-        candidates.take(validateLimit).toList(),
-      );
 
       if (hits.isEmpty) {
         final why = ddgRaw.isNotEmpty
-            ? 'all candidates failed HTTP validation'
+            ? 'all DuckDuckGo and Wikimedia candidates failed validation'
             : (ddgError ?? '').isNotEmpty
                 ? 'DuckDuckGo failed ($ddgError)'
                 : 'no results';
@@ -230,7 +242,7 @@ class ImageSearchMcpServerEngine {
     if (override != null) {
       return override(query, maxResults);
     }
-    final ddgs = DDGS(timeout: const Duration(seconds: 10));
+    final ddgs = DDGS(timeout: const Duration(seconds: 8));
     try {
       return await ddgs.images(
         query,
@@ -265,7 +277,7 @@ class ImageSearchMcpServerEngine {
       );
       final resp = await client
           .get(uri)
-          .timeout(const Duration(seconds: 12));
+          .timeout(const Duration(seconds: 8));
       if (resp.statusCode != 200) {
         throw Exception('Wikimedia API HTTP ${resp.statusCode}');
       }
@@ -299,33 +311,46 @@ class ImageSearchMcpServerEngine {
   }
 
   /// Validate candidate image URLs with a HEAD request: accept only HTTP 200
-  /// with a `content-type: image/*`. Sequential with a short per-URL timeout
-  /// keeps concurrency bounded.
-  Future<List<ImageSearchHit>> _validateHits(List<ImageSearchHit> candidates) async {
+  /// with a `content-type: image/*`. Requests run in parallel (bounded to the
+  /// `validateLimit` candidates) and keep the original candidate order.
+  Future<List<ImageSearchHit>> _validateHits(
+    List<ImageSearchHit> candidates,
+  ) async {
     final client = _httpClient ?? http.Client();
     try {
-      final out = <ImageSearchHit>[];
-      for (final hit in candidates) {
-        final checkUrl = hit.thumbnailUrl.isNotEmpty
-            ? hit.thumbnailUrl
-            : hit.imageUrl;
-        if (checkUrl.isEmpty) continue;
-        if (!(await _isImageUrl(client, checkUrl))) continue;
-        out.add(hit);
-      }
-      return out;
+      final results = await Future.wait(
+        [for (final hit in candidates) _validateHit(client, hit)],
+      );
+      return [for (final hit in results) if (hit != null) hit];
     } finally {
       if (_httpClient == null) client.close();
     }
   }
 
+  Future<ImageSearchHit?> _validateHit(
+    http.Client client,
+    ImageSearchHit hit,
+  ) async {
+    final checkUrl = hit.thumbnailUrl.isNotEmpty
+        ? hit.thumbnailUrl
+        : hit.imageUrl;
+    if (checkUrl.isEmpty) return null;
+    if (!(await _isImageUrl(client, checkUrl))) return null;
+    return hit;
+  }
+
+  /// HEAD-check one URL. The SsrfGuard blocks loopback / private / reserved
+  /// hosts before any request is made. Known limitation: redirect hops are not
+  /// re-checked here (unlike FetchCore) — ddgs / Wikimedia sources are
+  /// trusted enough for this defense-in-depth measure.
   Future<bool> _isImageUrl(http.Client client, String url) async {
     try {
       final uri = Uri.tryParse(url);
       if (uri == null || !(uri.isScheme('http') || uri.isScheme('https'))) {
         return false;
       }
-      final resp = await client.head(uri).timeout(const Duration(seconds: 5));
+      if (await _ssrfGuard.check(uri) != null) return false;
+      final resp = await client.head(uri).timeout(const Duration(seconds: 4));
       if (resp.statusCode != 200) return false;
       final ct = (resp.headers['content-type'] ?? '').toLowerCase();
       return ct.startsWith('image/');
@@ -419,38 +444,30 @@ class ImageSearchMcpServerEngine {
       {
         'name': toolName,
         'description':
-            'Search for real photographs on the web and return direct image '
-            'URLs to embed in your reply as ![alt](url) markdown. Intended for '
-            'illustrating concrete real-world subjects: a person, a product, a '
-            'landmark, an animal, an artwork, a place, a notable object. '
-            'Do NOT use for abstract concepts without a concrete referent, '
-            'logos, icons, charts or stock-art filler.\n'
-            'Usage rules:\n'
-            '1. Call image_search with a concrete query (e.g. "Niels Bohr 1922" '
-            'rather than "famous physicist").\n'
-            '2. Embed the result as markdown immediately after the sentence it '
-            'illustrates, e.g. ![Albert Einstein](<image_url>).\n'
-            '3. Prefer thumbnail_url for embedding (faster, smaller, more '
-            'reliable); the full image_url is for when the user wants to view '
-            'the original.\n'
-            '4. Each result carries source_url, and Wikimedia results carry '
-            'author/license — mention the source when appropriate.\n'
-            '5. Never invent an image URL: only use URLs returned by this tool.\n'
-            '6. A maximum of 5 validated URLs are returned regardless of '
-            'max_results.',
+            'Search the web for images and return direct image URLs.\n'
+            '\n'
+            'Results are JSON: items[] with index, title, image_url, thumbnail_url, '
+            'source_url, author, license, backend.\n'
+            '\n'
+            'Rules:\n'
+            '- Only use URLs returned by this tool. Never invent or guess an image URL.\n'
+            '- Embed each image as ![alt](<url>) immediately after the sentence it illustrates.\n'
+            '- Prefer thumbnail_url for embedding; image_url is the original.\n'
+            '- A maximum of 5 validated URLs are returned regardless of max_results.',
         'inputSchema': {
           'type': 'object',
           'properties': {
             'query': {
               'type': 'string',
               'description':
-                  'Concrete search query for the real photo you need, e.g. '
+                  'Concrete search query for the image you need, e.g. '
                   '"Ada Lovelace portrait" or "iPhone 15 Pro product photo".',
             },
             'max_results': {
               'type': 'integer',
-              'description': 'Maximum number of results to return (1-15, '
-                  'default 10).',
+              'description': 'Maximum number of results to request (1-15, '
+                  'default 10). Only the first 5 candidates are HTTP-validated '
+                  'before being returned.',
             },
           },
           'required': ['query'],

@@ -5,9 +5,43 @@ import 'package:mcp_client/mcp_client.dart' as mcp;
 import '../../providers/mcp_provider.dart';
 import '../chat/chat_service.dart';
 import '../../providers/assistant_provider.dart';
+import 'image_search/image_search_server.dart';
 
 class McpToolService extends ChangeNotifier {
   McpToolService();
+
+  /// Resolve which connected servers should receive [toolName], applying the
+  /// scoped legacy alias for the built-in image search server
+  /// (`image_search` → `illustrate`). Pure function so the routing rules stay
+  /// unit-testable without provider fakes.
+  @visibleForTesting
+  static ({String name, List<McpServerConfig> servers}) resolveCallTarget({
+    required Iterable<McpServerConfig> connectedServers,
+    required Set<String> selected,
+    required String toolName,
+  }) {
+    var effectiveName = toolName;
+    var candidates = connectedServers
+        .where((s) => selected.contains(s.id))
+        .where((s) => s.tools.any((t) => t.enabled && t.name == effectiveName))
+        .toList();
+
+    // Scoped legacy fallback: only the built-in image search server accepts
+    // the pre-rename name `image_search` (→ `illustrate`). Third-party servers
+    // that happen to expose a tool with the same name are NOT hijacked.
+    if (candidates.isEmpty &&
+        toolName == ImageSearchMcpServerEngine.legacyToolName) {
+      effectiveName = ImageSearchMcpServerEngine.toolName;
+      candidates = connectedServers
+          .where((s) => selected.contains(s.id))
+          .where((s) =>
+              s.id == McpProvider.builtinImageSearchServerId &&
+              s.tools.any((t) => t.enabled && t.name == effectiveName))
+          .toList();
+    }
+
+    return (name: effectiveName, servers: candidates);
+  }
 
   List<McpToolConfig> listAvailableToolsForConversation(
     McpProvider mcpProvider,
@@ -155,74 +189,84 @@ class McpToolService extends ChangeNotifier {
     final selected = (a?.mcpServerIds ?? const <String>[]).toSet();
     // debugPrint('[MCP/Call/Select] assistant=${assistantId ?? a?.id ?? '(current)'} tool=$toolName selectedServers=${selected.join(',')}');
     if (selected.isEmpty) return '';
-    for (final s in mcpProvider.connectedServers.where((s) => selected.contains(s.id))) {
-      final has = s.tools.any((t) => t.enabled && t.name == toolName);
-      if (has) {
-        // debugPrint('[MCP/Call/Select] using server=${s.id} name=${s.name} transport=${s.transport.name}');
-        final res = await mcpProvider.callTool(s.id, toolName, arguments);
-        if (res == null) {
-          final errMsg = mcpProvider.errorFor(s.id) ?? 'Unknown error';
-          final schema = s.tools.firstWhere((t) => t.name == toolName).schema;
-          return _renderToolErrorForModel(
-            serverName: s.name,
-            toolName: toolName,
-            arguments: arguments,
-            errorMessage: errMsg,
-            schema: schema,
-          );
-        }
-        final buf = StringBuffer();
-        for (final c in res.content) {
-          try {
-            if (c is mcp.TextContent) {
-              if ((c.text).trim().isNotEmpty) buf.writeln(c.text);
-              continue;
-            }
-            if (c is mcp.ResourceContent) {
-              final t = (c.text ?? '').toString();
-              if (t.trim().isNotEmpty) {
-                buf.writeln(t);
-              } else {
-                final uri = (c.uri).toString();
-                if (uri.isNotEmpty) buf.writeln('resource: $uri');
-              }
-              continue;
-            }
-            if (c is mcp.ImageContent) {
-              final url = (c.url ?? '').toString();
-              final mime = (c.mimeType ?? '').toString();
-              buf.writeln('[image:${url.isNotEmpty ? url : mime}]');
-              continue;
-            }
-            final dyn = c as dynamic;
-            try {
-              final txt = (dyn.text as String?);
-              if (txt != null && txt.trim().isNotEmpty) {
-                buf.writeln(txt);
-                continue;
-              }
-            } catch (_) {}
-            try {
-              final uri = (dyn.uri as String?);
-              if (uri != null && uri.isNotEmpty) {
-                buf.writeln('resource: $uri');
-                continue;
-              }
-            } catch (_) {}
-            try {
-              final json = (dyn.toJson as dynamic).call();
-              buf.writeln(const JsonEncoder.withIndent('  ').convert(json));
-              continue;
-            } catch (_) {}
-            final s = c.toString();
-            if (!s.startsWith('Instance of')) buf.writeln(s);
-          } catch (e, st) {
-            // debugPrint('[MCP/Call/TextParseError] server=${s.id} tool=$toolName type=${c.runtimeType} err=$e');
-            // debugPrint(st.toString());
-          }
-        }
-        return buf.toString().trim();
+
+    final target = resolveCallTarget(
+      connectedServers: mcpProvider.connectedServers,
+      selected: selected,
+      toolName: toolName,
+    );
+    final effectiveName = target.name;
+    final candidates = target.servers;
+
+    for (final s in candidates) {
+      // debugPrint('[MCP/Call/Select] using server=${s.id} name=${s.name} transport=${s.transport.name}');
+      final res = await mcpProvider.callTool(s.id, effectiveName, arguments);
+      if (res == null) {
+        final errMsg = mcpProvider.errorFor(s.id) ?? 'Unknown error';
+        // Use effectiveName: after legacy routing the server only lists the
+        // new name — firstWhere(oldName) would throw and lose the structured
+        // self-correcting tool error.
+        final schema =
+            s.tools.firstWhere((t) => t.name == effectiveName).schema;
+        return _renderToolErrorForModel(
+          serverName: s.name,
+          toolName: effectiveName,
+          arguments: arguments,
+          errorMessage: errMsg,
+          schema: schema,
+        );
       }
+      final buf = StringBuffer();
+      for (final c in res.content) {
+        try {
+          if (c is mcp.TextContent) {
+            if ((c.text).trim().isNotEmpty) buf.writeln(c.text);
+            continue;
+          }
+          if (c is mcp.ResourceContent) {
+            final t = (c.text ?? '').toString();
+            if (t.trim().isNotEmpty) {
+              buf.writeln(t);
+            } else {
+              final uri = (c.uri).toString();
+              if (uri.isNotEmpty) buf.writeln('resource: $uri');
+            }
+            continue;
+          }
+          if (c is mcp.ImageContent) {
+            final url = (c.url ?? '').toString();
+            final mime = (c.mimeType ?? '').toString();
+            buf.writeln('[image:${url.isNotEmpty ? url : mime}]');
+            continue;
+          }
+          final dyn = c as dynamic;
+          try {
+            final txt = (dyn.text as String?);
+            if (txt != null && txt.trim().isNotEmpty) {
+              buf.writeln(txt);
+              continue;
+            }
+          } catch (_) {}
+          try {
+            final uri = (dyn.uri as String?);
+            if (uri != null && uri.isNotEmpty) {
+              buf.writeln('resource: $uri');
+              continue;
+            }
+          } catch (_) {}
+          try {
+            final json = (dyn.toJson as dynamic).call();
+            buf.writeln(const JsonEncoder.withIndent('  ').convert(json));
+            continue;
+          } catch (_) {}
+          final s = c.toString();
+          if (!s.startsWith('Instance of')) buf.writeln(s);
+        } catch (e, st) {
+          // debugPrint('[MCP/Call/TextParseError] server=${s.id} tool=$toolName type=${c.runtimeType} err=$e');
+          // debugPrint(st.toString());
+        }
+      }
+      return buf.toString().trim();
     }
     return '';
   }

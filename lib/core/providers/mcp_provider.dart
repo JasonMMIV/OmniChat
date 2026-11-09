@@ -331,8 +331,94 @@ class McpProvider extends ChangeNotifier {
     }
   }
 
+  /// One-time rename of the built-in image search tool entry persisted under
+  /// `mcp_servers_v1` (2026-11-10: `image_search` → `illustrate`).
+  ///
+  /// `refreshTools()` merges by tool name and defaults NEW tools to
+  /// `enabled: true`, so without this migration a user who had the old tool
+  /// toggled OFF would silently get it re-enabled after the rename. Scoped to
+  /// the built-in server by canonical id (`image_search`) so third-party
+  /// servers are never touched. Idempotent; writes prefs only when changed.
+  static Future<void> migrateBuiltinImageSearchToolName() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_prefsKey);
+    if (raw == null || raw.isEmpty) return;
+
+    final List<dynamic> list;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return;
+      list = decoded;
+    } catch (_) {
+      return;
+    }
+
+    var changed = false;
+    for (final item in list) {
+      if (item is! Map) continue;
+      final server = item.cast<String, dynamic>();
+      if (server['id']?.toString() != builtinImageSearchServerId) continue;
+      final tools = server['tools'];
+      if (tools is! List) continue;
+      // If the new name is already present (hand-edited JSON import), skip:
+      // renaming would create a duplicate `illustrate` entry, which would be
+      // advertised twice until the next refreshTools() collapses it.
+      final hasNewName = tools.any(
+        (t) =>
+            t is Map &&
+            t['name']?.toString() ==
+                ImageSearchMcpServerEngine.toolName,
+      );
+      if (hasNewName) continue;
+      for (var i = 0; i < tools.length; i++) {
+        final t = tools[i];
+        if (t is Map &&
+            t['name']?.toString() ==
+                ImageSearchMcpServerEngine.legacyToolName) {
+          tools[i] = <String, dynamic>{
+            ...t.cast<String, dynamic>(),
+            'name': ImageSearchMcpServerEngine.toolName,
+          };
+          changed = true;
+        }
+      }
+    }
+    if (!changed) return;
+    await prefs.setString(_prefsKey, jsonEncode(list));
+  }
+
+  /// Renames an imported built-in image search tool entry to the current
+  /// model-facing name, preserving its toggle state. Used by
+  /// [replaceAllFromJson] so the in-memory list never advertises the retired
+  /// name before the first `refreshTools()`.
+  static McpServerConfig _migrateBuiltinImageSearchToolNames(
+    McpServerConfig server,
+  ) {
+    if (server.id != builtinImageSearchServerId) return server;
+    if (server.tools.isEmpty) return server;
+    if (server.tools.any(
+      (t) => t.name == ImageSearchMcpServerEngine.toolName,
+    )) {
+      return server;
+    }
+    var changed = false;
+    final tools = server.tools.map((t) {
+      if (t.name != ImageSearchMcpServerEngine.legacyToolName) return t;
+      changed = true;
+      return McpToolConfig(
+        enabled: t.enabled,
+        name: ImageSearchMcpServerEngine.toolName,
+        description: t.description,
+        params: t.params,
+        schema: t.schema,
+      );
+    }).toList();
+    return changed ? server.copyWith(tools: tools) : server;
+  }
+
   Future<void> _load() async {
     await applyLegacyFetchMigration();
+    await migrateBuiltinImageSearchToolName();
     final prefs = await SharedPreferences.getInstance();
     final timeoutMs = prefs.getInt(_prefsTimeoutKey);
     if (timeoutMs != null && timeoutMs > 0) {
@@ -386,7 +472,7 @@ class McpProvider extends ChangeNotifier {
     _ensureBuiltinJsServerPresent();
     // Ensure built-in academic (PubMed / arXiv / Semantic Scholar) is present by default
     _ensureBuiltinAcademicServerPresent();
-    // Ensure built-in Image_Search is present by default (real-photo search)
+    // Ensure built-in Image_Search is present by default (web image search)
     _ensureBuiltinImageSearchServerPresent();
     // initialize statuses
     for (final s in _servers) {
@@ -436,8 +522,8 @@ class McpProvider extends ChangeNotifier {
     _servers = [..._servers, cfg];
   }
 
-  /// Built-in image search server (Image_Search) exposing an `image_search`
-  /// tool for real-photo image search (DuckDuckGo images + Wikimedia Commons
+  /// Built-in image search server (Image_Search) exposing an `illustrate`
+  /// tool for web image search (DuckDuckGo images + Wikimedia Commons
   /// fallback). In-memory transport, works on every platform including Android.
   /// No configuration / API keys required; free backends only.
   static const String builtinImageSearchServerId = 'image_search';
@@ -734,6 +820,10 @@ class McpProvider extends ChangeNotifier {
     for (final s in _servers) {
       try { await disconnect(s.id); } catch (_) {}
     }
+
+    // Rename a legacy built-in image search tool entry before anything can
+    // advertise it (refreshTools keeps the toggle state as well).
+    next = next.map(_migrateBuiltinImageSearchToolNames).toList();
 
     // Replace and reset statuses
     _servers = next;
@@ -1294,7 +1384,15 @@ class McpProvider extends ChangeNotifier {
 
       List<McpToolConfig> merged = [];
       for (final t in tools) {
-        final prior = existingMap[t.name];
+        // Built-in image search was renamed image_search → illustrate
+        // (2026-11-10). Fall back to the old entry so a user who had the tool
+        // toggled OFF keeps it OFF even if the stored JSON was not migrated
+        // yet (e.g. imported JSON, then auto-connect).
+        final prior = existingMap[t.name] ??
+            (id == builtinImageSearchServerId &&
+                    t.name == ImageSearchMcpServerEngine.toolName
+                ? existingMap[ImageSearchMcpServerEngine.legacyToolName]
+                : null);
         // Extract params from inputSchema if present
         final params = <McpParamSpec>[];
         Map<String, dynamic>? schemaJson;
