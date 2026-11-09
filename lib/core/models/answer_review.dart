@@ -89,29 +89,6 @@ class ReviewIssue {
 
   bool get isBlocking => severity == 'blocker' || severity == 'major';
 
-  /// A finding that can only be fixed by calling a tool (for example
-  /// "add an image_search result"). The review/revision turn is text-only, so
-  /// such findings are dropped instead of triggering a rewrite that would
-  /// end in tool-call markup.
-  bool get requiresToolCall {
-    final text = '$problem $fix'.toLowerCase();
-    return text.contains('image_search') ||
-        text.contains('image search') ||
-        text.contains('tool call') ||
-        text.contains('tool_call') ||
-        text.contains('call the tool') ||
-        text.contains('use the tool') ||
-        text.contains('missing image') ||
-        text.contains('add an image') ||
-        text.contains('insert an image') ||
-        text.contains('插入圖') ||
-        text.contains('插入图') ||
-        text.contains('缺少圖') ||
-        text.contains('缺少图') ||
-        text.contains('沒有圖') ||
-        text.contains('没有图');
-  }
-
   int get severityRank => switch (severity) {
     'blocker' => 0,
     'major' => 1,
@@ -165,8 +142,9 @@ class AnswerReviewReport {
   /// `pass` | `revise` | null (review did not produce a verdict).
   final String? verdict;
 
-  /// Whether the verdict JSON actually decoded. A malformed body fail-opens
-  /// to PASS with `parsed == false`; the card must say "審查未完成".
+  /// Whether the review produced a recognizable PASS / REVISE verdict (JSON
+  /// or plain text). An unrecognized body fail-opens to PASS with
+  /// `parsed == false`; the card must say "審查未完成".
   final bool parsed;
 
   final List<ReviewIssue> issues;
@@ -176,7 +154,7 @@ class AnswerReviewReport {
   final bool reviewed;
 
   /// `timeout` / `error` / `empty` / `malformed` / `revision_failed` /
-  /// `revision_tool_call`.
+  /// `revision_paused` / `revision_tool_call`.
   final String? failReason;
 
   final int reviewMs;

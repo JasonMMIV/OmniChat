@@ -171,11 +171,13 @@ class AnswerReviewReport {
   final String phase;           // reviewing/passed/revising/revised/
                                 // failed_open/revision_failed/cancelled/interrupted
   final String? verdict;        // 'pass' | 'revise' | null（未完成）
-  final bool parsed;            // verdict JSON 是否真的解析成功
+  final bool parsed;            // review 是否產生可辨識的 PASS/REVISE
+                                // （JSON 或純文字）
   final List<ReviewIssue> issues;
   final bool reviewed;          // 最終答案是否套用審查結果（PASS 或修正成功）
   final String? failReason;     // timeout/error/empty/malformed/
-                                // revision_failed/cancelled/interrupted
+                                // revision_failed/revision_paused/
+                                // revision_tool_call/cancelled/interrupted
   final int reviewMs;
   final int revisionMs;
   final int reviewTokens;
@@ -224,7 +226,7 @@ terminal (reviewed/reviewUsage)   ← 既有；卡片在 terminal 收尾
   - `timeout`：`_collectRound` 逾時（若 config 有設）
   - `error`：transport error
   - `empty`：response 空
-  - `malformed`：JSON 解析失敗（`parsed=false`）
+  - `malformed`：無法辨識 PASS/REVISE（`parsed=false`）
   - `revision_failed`：修正失敗（在 `revision_failed` chunk 上）
 - `reviewMs` / `revisionMs` 由 orchestrator 的 Stopwatch 量測（已有 reviewWatch；
   修正再加一個）。
@@ -572,8 +574,9 @@ class AnswerReviewViewData {
   `AnswerReviewRecord` 與 `AnswerReviewPhase`；`AnswerReviewMode` 不變。
 - **協定**：`ChatStreamChunk.reviewReport`；orchestrator 在 verdict 後發
   `reviewed`（PASS/REVISE/fail-open 都送），terminal 帶最終 report；
-  fail-open 原因為 `timeout`/`error`/`empty`/`malformed`/`revision_failed`，
-  以及 `revision_tool_call`（revision 吐出工具呼叫 markup）。
+  fail-open 原因為 `timeout`/`error`/`empty`/`malformed`/`revision_failed`、
+  `revision_paused`（revision 工具待審批），以及 `revision_tool_call`
+  （revision 吐出工具呼叫 markup）。
 - **持久化**：`message_parts.kind='answer_review'`（ordinal 1e9，一訊息一列），
   `content` = 初稿（完整、無上限）、`metadata_json` = report、`status` =
   pending/completed/interrupted。`replaceToolEvents` 只選/刪/改 `kind='tool'`，
@@ -604,16 +607,24 @@ MCP server；reviewer 把「缺少圖片」判為 major → revision 想呼叫 `
 在 text-only 回合吐出 `<tool_call>` / DeepSeek DSML 原文，最後被當成答案存下，
 覆蓋真正的初稿。
 
-修正：
+修正（2026-11-09 設計修正）：
 
-- review/revision prompt 明示「工具不可用；不要要求補圖／呼叫工具」。
-- `ReviewIssue.requiresToolCall`：fix/problem 明確需要工具（`image_search`、
-  `tool call`、`add an image`、`插入圖` 等）時，直接從 verdict 過濾，不觸發
-  revision。
-- `containsToolCallMarkup`：revision 若仍吐出 `<tool_call>`、`<function=`、
-  `<parameter=` 或 `｜｜DSML｜｜`，一律 fail-open 保留原 draft，report
-  `failReason='revision_tool_call'`，卡片顯示「修正嘗試呼叫工具，已保留原回答」。
-- 新增 parser / orchestrator 回歸測試（工具 issue 過濾、markup fail-open）。
+- **review 仍維持 text-only**：reviewer 可以指出「缺少工具使用」是真 issue，
+  但自己不可呼叫工具。
+- **不再過濾工具依賴的 issue**：`ReviewIssue.requiresToolCall` 與 parser 的
+  tool-issue filter 已移除；`image_search`／補圖等 finding 會正常觸發 revision。
+- **revision 改為完整 agent loop**：沿用主 run 的 tools、`onToolCall`、
+  `webFetchEnabled` 與 `extraBody`，可多輪呼叫工具；每個工具輪的 preamble 在
+  round boundary 丟棄，只有最後一輪正文成為修正答案。工具卡照常即時顯示與
+  持久化。
+- **revision 專用 hooks**：不覆寫主 run 的 checkpoint journal；只在 revision
+  工具落入審批 Pending 時，於下一輪前停止並 fail-open（`revision_paused`），
+  避免未批准的呼叫繼續送出。
+- `containsToolCallMarkup` 保留為 malformed-output 防線：revision 若把
+  `<tool_call>`、`<function=`、`<parameter=` 或 `｜｜DSML｜｜` 當正文吐出，
+  仍 fail-open 保留原 draft，report `failReason='revision_tool_call'`。
+- 新增 parser / orchestrator 回歸測試（工具 issue 保留、revision 工具 loop、
+  審批暫停、markup fail-open、revision wire 契約帶 tools）。
 
 ### 已知限制 / 後續
 
@@ -621,5 +632,7 @@ MCP server；reviewer 把「缺少圖片」判為 major → revision 想呼叫 `
   關閉選項；隱私敏感使用者可先關閉 review 模式。DB/備份大小會隨初稿線性成長。
 - 卡片在 process group 收合時只剩 header 摘要；要看完整 issues/diff 需展開
   group + 卡片（終態卡片預設收合）。
+- revision 失敗／暫停時，已執行的 revision 工具卡與副作用不會回滾；pending 的
+  approval 會在 fail-open 前自動 denied，但已完成的工具仍留在 process group。
 - P7 soak 未跑：需用 Agnes/DeepSeek 各跑 PASS/REVISE/fail-open，確認卡片顯示
   的 diff 與實際修改一致。

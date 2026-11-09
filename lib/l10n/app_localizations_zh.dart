@@ -3424,7 +3424,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatAnswerReviewFailRevisionFailed => '修正失败，已保留原回答';
 
   @override
-  String get chatAnswerReviewFailRevisionToolCall => '修正尝试调用工具，已保留原回答';
+  String get chatAnswerReviewFailRevisionToolCall => '修正输出无法解析的工具调用，已保留原回答';
+
+  @override
+  String get chatAnswerReviewFailRevisionPaused => '修正需要工具审批，已保留原回答';
 
   @override
   String get chatAnswerReviewFailCancelled => '已由你取消';
@@ -9856,7 +9859,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatAnswerReviewFailRevisionFailed => '修正失败，已保留原回答';
 
   @override
-  String get chatAnswerReviewFailRevisionToolCall => '修正尝试调用工具，已保留原回答';
+  String get chatAnswerReviewFailRevisionToolCall => '修正输出无法解析的工具调用，已保留原回答';
+
+  @override
+  String get chatAnswerReviewFailRevisionPaused => '修正需要工具审批，已保留原回答';
 
   @override
   String get chatAnswerReviewFailCancelled => '已由你取消';
@@ -16198,7 +16204,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatAnswerReviewFailRevisionFailed => '修正失敗，已保留原回答';
 
   @override
-  String get chatAnswerReviewFailRevisionToolCall => '修正嘗試呼叫工具，已保留原回答';
+  String get chatAnswerReviewFailRevisionToolCall => '修正輸出無法解析的工具呼叫，已保留原回答';
+
+  @override
+  String get chatAnswerReviewFailRevisionPaused => '修正需要工具審批，已保留原回答';
 
   @override
   String get chatAnswerReviewFailCancelled => '已由你取消';

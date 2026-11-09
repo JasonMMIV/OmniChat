@@ -144,9 +144,10 @@ AgentOrchestrator.run(answerReview: config)
   │     ▼
   │   verdict parser
   │     ├─ PASS ──▶ 放行 held terminal（reviewed=true）
-  │     └─ REVISE ──▶ revision call（text-only, stream）
+  │     └─ REVISE ──▶ revision agent loop（tools／onToolCall，stream）
+  │                     ├─ 工具輪 ──▶ 工具卡＋結果，preamble 丟棄
   │                     ├─ 成功 ──▶ 合成 terminal（reviewed=true）
-  │                     └─ 失敗 ──▶ 還原 draft（reviewed=false）
+  │                     └─ 失敗／審批暫停 ──▶ 還原 draft（reviewed=false）
   │
   └─ 一個 terminal isDone
 ```
@@ -368,10 +369,11 @@ run()
 2. **整個 run 只發一個 terminal `isDone`。**
    - 每一輪 transport（含工具輪）都會發自己的 terminal；orchestrator 全部扣住、逐輪覆蓋（hold-latest），不轉發任何一個。
    - revision 的 terminal 也不直接轉發；`reason != finished` 時丟棄被扣住的 terminal；最後只合成一個。
-3. **Review／revision 都是 text-only。**
-   - `tools: null`、`webFetchEnabled: false`。
-   - `extraBody` 剝除：`tools`、`tool_choice`、`functions`、`function_call`、`parallel_tool_calls`、`tool_config`、`tools_config`、`web_search_options`、`web_search`、`search`、`stream`、`model`、`messages`、`input`。
-   - 不呼叫 hooks、不寫 checkpoint、不觸發審批、不執行任何工具。
+3. **Review 是 text-only；revision 是完整 agent loop。**
+   - review：`tools: null`、`webFetchEnabled: false`；`extraBody` 剝除 `tools`、`tool_choice`、`functions`、`function_call`、`parallel_tool_calls`、`tool_config`、`tools_config`、`web_search_options`、`web_search`、`search`、`stream`、`model`、`messages`、`input`。
+   - revision：沿用主 run 的 `tools`、`onToolCall`、`webFetchEnabled`、`extraBody` 與 `maxTokens`，由 `runAgentLoop` 執行工具／多輪；工具輪 preamble 不進最終答案。
+   - revision 使用獨立的 `revisionHooks`，不覆寫主 run checkpoint；只在工具進入審批 Pending 時停止下一輪並 fail-open（`revision_paused`）。
+   - review 不呼叫 hooks、不寫 checkpoint、不觸發審批、不執行任何工具。
 4. **Draft 只取最後一輪。**
    - 工具輪的 preamble 不進 draft；每次 `AgentRoundFinishedEvent`（工具輪結束）清空 draft。
    - 主 run 的 L1 retry 也清空 draft。
@@ -381,8 +383,9 @@ run()
    - 修正失敗不重試第二次；fail-open 保留 draft。
 7. **Fail-open。**
    - review 失敗、逾時、解析失敗、verdict 無 blocker/major、revision 回空、revision 截斷、revision 丟錯 → 保留 draft，照常結束。
-8. **Review／revision 訊息不落庫。**
-   - 只存在記憶體；不進 `event.messages`、不進 Hive/SQLite、不進下一輪對話。
+8. **Review／revision 的文字訊息不落庫；revision 的工具事件例外。**
+   - review/revision prompt、verdict 與中間訊息只存在記憶體，不進 Hive/SQLite。
+   - revision 若呼叫工具，工具呼叫／結果照正常 agent loop 寫入 `message_parts.kind='tool'`，並參與下一輪 tool replay；這是「revision 是正常 agent loop」的必然結果。
 9. **Usage 只計一次。**
    - 每個 review/revision 呼叫取「最後一個 usage 快照」或最大 `totalTokens`，不要逐 chunk 累加（避免串流 usage 重複）。
    - 終態 usage = 主 run terminal usage ＋ review usage ＋ revision usage。
@@ -424,12 +427,9 @@ run()
 
 - **同一個 system prompt**：C 不換 persona，reviewer instruction 放在最後一則 user message。
   - 好處：主對話前綴可命中 prompt cache。
-  - 壞處：同模型自我審查容易放水；用嚴格 rubric 與 severity gate 緩解。
-- **只檢查四類**：正確性、需求覆蓋、內在一致性、安全/格式。
-- **不檢查**：語氣、風格、冗長度、可選改進。
-- **不回傳 rewrite**：只回 issues；避免 reviewer 直接改寫造成 uncontrolled diff。
-- **JSON only**：方便解析；parser 仍容忍純文字 PASS/REVISE。
-- **嚴重度先行**：只有 blocker／major 才觸發修正；minor 不造成改寫。
+- **最小提示**：只要求 reviewer 檢查草稿，回答 PASS 或 REVISE 並說明要修什麼；不給 rubric、severity、JSON schema、字數或 issues 數量限制。
+- **自然語言優先**：parser 接受純文字 PASS / REVISE；舊 JSON verdict 仍相容。
+- **不回傳 rewrite**：review 只給結論／說明，避免 reviewer 直接改寫造成 uncontrolled diff。
 
 ### 6.2 Reviewer instruction（摘要）
 
@@ -437,10 +437,11 @@ run()
 
 ```text
 [ANSWER REVIEW — internal]
-You are auditing your own draft answer before it is shown to the user.
-...
-Return exactly one JSON object:
-{"verdict":"pass"|"revise","issues":[...]}
+Review the draft answer below.
+If the draft is correct and complete, answer PASS.
+If it needs changes, answer REVISE and explain what should be fixed.
+<draft>{{draft}}</draft>
+{{tools}}
 ```
 
 ### 6.3 Revision instruction（摘要）
@@ -453,7 +454,9 @@ Return exactly one JSON object:
 - 不要提到 review／reviewer／issues。
 - 不要發明新事實、數字、引用或工具結果。
 
-### 6.4 Severity 定義
+### 6.4 Severity（僅舊 JSON verdict 相容路徑）
+
+新 prompt 不再要求 severity；若模型仍回舊 JSON，parser 保留以下 gating：
 
 | Severity | 定義 | 是否觸發修正 |
 |:--|:--|:--:|
@@ -498,28 +501,22 @@ Return exactly one JSON object:
    - verdict 正規化：pass / revise（大小寫不敏感）
    - issues 逐筆解析 severity / location / problem / fix
    - severity 未知 → major（保守）
-5. 解析失敗：
-   - 若文字中含獨立單詞 "REVISE" → revise（但 issues 空 → 視為 pass）
-   - 若含獨立單詞 "PASS" → pass
-   - 其他 → pass（fail-open）
-6. Severity gate：
+5. 解析失敗（純文字自然語言）：
+   - 取第一個出現的獨立單詞 "PASS" / "REVISE"
+   - "REVISE" → revise，並把 REVISE 後面的說明合成一筆 major issue，供 revision prompt 使用
+   - "PASS" → pass
+   - 其他 → pass（fail-open，`parsed=false`）
+6. JSON verdict 仍套 severity gate：
    - 有任何 blocker 或 major → revise
    - 只有 minor / 無 issues → pass（即使 verdict 寫 revise）
-7. 限制：
-   - issues 最多取前 6 筆
-   - location ≤ 200 字、problem ≤ 300 字、fix ≤ 300 字
-   - 原始回應最多解析 20,000 字
+7. 舊 JSON 解析限制仍保留（issues 最多 6 筆、欄位截斷、原始回應 20,000 字）；自然語言 prompt 不受這些限制。
 ```
 
-### 7.3 為何「只有 minor 也 pass」
+### 7.3 何時觸發修正
 
-Reviewer 很容易把「可以更好」寫成 issue。若 minor 也觸發重寫，會造成：
-
-- 不必要的 token 成本；
-- 每次回答都被小幅改寫，品質不穩定；
-- 使用者看到文字閃動。
-
-因此 v1 只修 blocker／major。若 soak 後發現 reviewer 過度回報 minor，調整 rubric，而不是放寬 severity gate。
+- **自然語言路徑**：review 回答 REVISE 就修正，說明會合成一筆 major issue 交給 revision；回答 PASS 就放行。
+- **舊 JSON 路徑**：仍只修 blocker／major；minor-only 一律 pass，避免不必要的重寫。
+- 若 soak 後發現 reviewer 太常回 REVISE，先調整 review instruction，而不是加回硬性 severity 限制。
 
 ### 7.4 解析失敗的處理
 
@@ -964,12 +961,16 @@ if (reviewPhase != null)
       `config.maxReviewTokens` 非 null 時覆寫（預設不設上限，讓 always-thinking
       模型先花完思考再輸出 JSON）；若 soak 發現 verdict 不穩，可把 temperature
       固定為 0（不影響 prompt cache）；
-    - `streamOutput: false`、`webFetchEnabled: false`、`tools: null`；
-    - `extraBody` 先過 `sanitizeReviewExtraBody`；
-    - 收集回應只在 `config.reviewTimeout != null` 時套 `Future.timeout`；逾時後
-      先 cancel 內部訂閱再回傳 fail-open 結果（§5.1 逾時語意）。
-  - `_collectCall(...)`：收集 content／usage，過濾 tool calls
-  - `_runReview(...)` / `_runRevision(...)`
+    - review：`streamOutput: false`、`webFetchEnabled: false`、`tools: null`；
+      `extraBody` 先過 `sanitizeReviewExtraBody`；
+    - revision：以 `runAgentLoop` 驅動，`sendRound` 用主 run 的 `tools`、
+      `webFetchEnabled`、`extraBody`，`onToolCall` 走同一 handler；
+      `revisionHooks` 只檢查審批 Pending，不寫主 run journal。
+    - review 的收集回應只在 `config.reviewTimeout != null` 時套 `Future.timeout`；
+      revision 的整個 loop 由 `_withDeadline` 包住；逾時後先 cancel 內部訂閱再
+      回傳 fail-open 結果（§5.1 逾時語意）。
+  - `_collectCall(...)`：收集 review content／usage；`_runRevision(...)` 則以
+    `runAgentLoop` 的 events 合成最終正文、工具卡與 usage。
 - `AgentStreamEvent` 分支：
   - `errorKind != null` → `_draft.clear(); _heldTerminal = null;`
   - `isDone` → **每一輪（含工具輪）的 terminal 都扣住**（hold-latest，互相覆蓋），
@@ -1260,7 +1261,7 @@ answer_review.fail_open reason=timeout|parse|empty|error
 2. `always`：每個非空 final answer 都 review；PASS 不改文字；REVISE 只重寫一次。
 3. `smart`：短招呼／純語氣回覆不 review；工具結果、長回答、code、數字、URL 會 review。
 4. 所有情境**只有一個** `isDone`。
-5. Review／revision 都是 `tools: null`，不產生審批、checkpoint、tool card。
+5. Review 是 `tools: null`；revision 是完整 agent loop，會帶 tools、可產生工具卡與審批 Pending。revision 不寫主 run checkpoint；審批暫停時 fail-open 保留 draft。
 6. Fail-open 覆蓋：review 錯誤、timeout、malformed、revision 空、revision 截斷、revision 錯誤。
 7. 取消於 revising 時，draft 完整保留並持久化。
 8. AI Team（proposer／critic／aggregator）與語音永遠不 review。
@@ -1387,41 +1388,15 @@ F-lite 的重點不是「移除 reasoning」（plain assistant reasoning 本來�
 ```text
 [ANSWER REVIEW — internal]
 
-You are auditing your own draft answer before it is shown to the user.
-The conversation and any tool results are above. The draft is below.
+Review the draft answer below. The conversation and any tool results are above.
+If the draft is correct and complete, answer PASS. If it needs changes, answer
+REVISE and explain what should be fixed.
 
 <draft>
 {{draft}}
 </draft>
 
-Check ONLY these dimensions:
-1. Factual correctness: claims contradicted by the conversation or tool results;
-   invented numbers, dates, names, citations, APIs, file paths, or commands.
-2. Instruction coverage: every explicit requirement, constraint, format, and
-   requested deliverable is addressed.
-3. Internal consistency: contradictions, invalid reasoning, or conclusions that
-   do not follow from the evidence.
-4. Safety and compliance: dangerous instructions, secrets, or policy violations.
-
-Do not report tone, style, verbosity, wording preferences, or optional improvements.
-Do not rewrite the answer. Do not call tools.
-
-Severity:
-- blocker: factually wrong, contradicts evidence, violates an explicit
-  requirement, or is unsafe.
-- major: a missing requirement or unsupported key claim that changes the answer.
-- minor: polish only. Never use minor to request a revision.
-
-Return exactly one JSON object and nothing else:
-{"verdict":"pass"|"revise","issues":[{"severity":"blocker"|"major"|"minor","location":"quote or section","problem":"what is wrong","fix":"the minimal correction"}]}
-
-Rules:
-- If any blocker or major issue exists, verdict must be "revise".
-- If there are no blocker or major issues, verdict must be "pass", even if
-  minor issues exist.
-- Keep each field under 300 characters. List at most 6 issues.
-- If the draft is correct and complete, return
-  {"verdict":"pass","issues":[]}.
+{{tools}}
 ```
 
 ---
@@ -1619,7 +1594,9 @@ chatAnswerReviewFailedOpen
 - [ ] `_handleStreamFinish` 用 `max(...)` 保留 totalTokens。
 - [ ] `review/revision usage` 只取每次呼叫最後快照；不逐 chunk 累加。
 - [ ] `reviewUsage` 不重複加總。
-- [ ] Review／revision `tools: null`、`webFetchEnabled: false`、`extraBody` 已剝除工具鍵。
+- [ ] Review `tools: null`、`webFetchEnabled: false`、`extraBody` 已剝除工具鍵。
+- [ ] Revision 是 `runAgentLoop`，帶主 run 的 tools／onToolCall／extraBody；工具輪 preamble 不進最終答案。
+- [ ] Revision 使用獨立 `revisionHooks`；審批 Pending 時停止下一輪並 `revision_paused` fail-open。
 - [ ] Review messages 最後一則是 user；不產生 consecutive user。
 - [ ] Review／revision 訊息不落庫。
 - [ ] 所有 `StreamingContentData` copy 建構點保留 `reviewPhase`。
@@ -1662,7 +1639,29 @@ chatAnswerReviewFailedOpen
 
 ### 17.3 測試與驗證
 
-- 新測試 4 檔 52 案全綠：`test/core/services/agent/answer_review_test.dart`（21）、`test/features/home/services/agent_orchestrator_review_test.dart`（20）、`test/features/home/controllers/answer_review_stream_state_test.dart`（10）、`test/settings_provider_answer_review_test.dart`（6）。
+- 新測試 4 檔 52 案全綠：`test/core/services/agent/answer_review_test.dart`（37）、`test/features/home/services/agent_orchestrator_review_test.dart`（25）、`test/features/home/controllers/answer_review_stream_state_test.dart`（10）、`test/settings_provider_answer_review_test.dart`（6）。
 - Orchestrator 測試以 `sendRound`／`reviewSendRound` 注入驅動 §11.2 矩陣（off／PASS／REVISE 成功／revision 空・錯・截斷／review 錯・逾時（驗證內部訂閱已 cancel）・malformed／工具輪 terminal 扣住／早停丟棄／maxSteps・tokenBudget・hook veto 不 review／preamble 不入 draft／L1 retry 清 draft／consecutive-user／smart gate），另以本機 `HttpServer` capture 驗證真實 wire 契約（review 請求無 `tools`、`stream=false`、不送 `max_tokens`、rubric 併入最後 user 訊息、extraBody 已剝除），並新增 SSE finish-marker 回歸測試（尾塊 `finish_reason:null` 不得覆寫先前的 `stop`）。
 - 回歸：`agent_loop_test`、`agent_orchestrator_test`、`agent_loop_provider_parity_test`、`agent_loop_followup_parity_test`、`chat_turn_service_test`、stream controller 三檔、settings 既有檔全綠；全套 `flutter test` 2,269 綠（僅 `sqlite_chat_storage_test` 2 案**既有**失敗，stash 驗證與本功能無關）。`flutter analyze` 於全部改動檔 0 error（repo 既有 3,269 則 lint 訊息不變）。
 - 未驗證（P7）：真實 provider 實機 smoke（OpenAI／Claude／Gemini／DeepSeek × off/smart/always）、verdict 分佈與修正率量測、token 成本對照。
+
+### 17.4 2026-11-09 設計修正（工具依賴 issue 與 revision agent loop）
+
+實測發現前一版把「工具依賴的 review issue」過濾掉是錯的：缺少工具使用本身可能是真 issue。
+正確設計是 **review 維持 text-only、revision 改為完整 agent loop**：
+
+1. `parseReviewVerdict` 不再丟棄 `image_search`／補圖等 finding；`ReviewIssue.requiresToolCall` 已移除。
+2. `AgentOrchestrator.run` 新增 `revisionHooks`（預設空）。revision 用 `runAgentLoop` 驅動，`sendRound` 帶主 run 的 `tools`、`onToolCall`、`webFetchEnabled`、`extraBody`，沿用主 run `maxTokens`；工具輪 preamble 在 `AgentRoundFinishedEvent` 清空並送 `replaceContent: true`，只有最後一輪成為修正答案。
+3. revision 的工具呼叫照常經過 `onToolCall`，產生工具卡並持久化 tool events；`requestId` 仍是 `{cid}_review`，停止鍵可取消當前 revision round。
+4. `chat_actions` 新增 `_buildRevisionHooks`：只在 revision 工具進入審批 Pending 時停止下一輪（不寫主 run journal），將該 approval 自動 denied，driver 以 `revision_paused` fail-open 保留原 draft。
+5. `containsToolCallMarkup` 保留為 malformed-output 防線；revision 若把 markup 當正文吐出仍 fail-open（`revision_tool_call`）。
+6. 新測試：parser 保留工具 issue；orchestrator revision 工具 loop（工具卡、tool result、preamble 清除、最終正文）；revision 審批暫停；真實 wire 契約（review 無 tools、revision 帶 tools）。
+
+### 17.5 2026-11-09 決策（review prompt 最小化 / 無 revision 專屬上限 / review 僅一次）
+
+1. **Review prompt 最小化**：移除 rubric、severity、JSON schema、issue 數量／字數限制、工具限制等所有額外規範；只要求 reviewer 看草稿並回答 `PASS`，或 `REVISE` 並說明要修什麼。`{{tools}}` 只提供實際可用工具名稱作為 context。
+2. **自然語言 verdict**：parser 取第一個出現的 `PASS` / `REVISE`。`REVISE` 後面的說明會合成一筆 major issue，交給 revision prompt；舊 JSON verdict 仍相容，但不再是必要格式。
+3. **Revision 無 review 專屬回合上限**：移除 `kAnswerReviewRevisionMaxSteps`。revision 直接沿用主 run 的 `AgentLoopOptions`（`maxSteps` / `tokenBudget`），只強制 `emitCalls: true` 讓工具卡與 tool event 正常運作。
+4. **Review 僅一次**：review 只在主回答完成後執行一次；revision 不管呼叫幾次工具、幾輪，都**不會再被 review**。使用者在討論中所稱的「審批」在後續已釐清為 review；工具 approval 是獨立機制，不是 review 專有。
+5. **Review 工具意識**：review prompt 會列出實際掛載的工具名稱，避免要求不存在的工具（例如 assistant 沒有掛 Image_Search 卻被要求補圖）。
+6. **Revision approval 的目前邊界**：revision 若使用需要審批的工具，`revisionHooks` 會在下一輪前停止、將該 Pending 標記為 denied、以 `revision_paused` fail-open 保留原 draft；這是因為現有 approval resume 只接主 run checkpoint，尚未接 nested revision loop。此為已知限制，不是 review 機制的一部分。
+7. **驗證**：`flutter analyze` 0 errors；全量 `flutter test` 2,276 passed、2 skipped，僅 2 個既有 `sqlite_chat_storage_test` 失敗。

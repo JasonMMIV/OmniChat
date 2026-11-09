@@ -189,8 +189,20 @@ String buildApprovalDeniedContent({required String toolName}) {
     'type': approvalDeniedType,
     'tool': toolName,
     'error': 'approval_denied',
-    'message':
-        'The user denied this tool call. Do not retry the same call; adjust your approach or ask the user how to proceed.',
+    'message': 'The user denied this tool call. Do not retry the same call; adjust your approach or ask the user how to proceed.',
+    'tool_name': toolName,
+  });
+}
+
+/// Structured denial recorded when an internal revision is abandoned while a
+/// tool is still waiting for approval. The tool was never executed; this is
+/// deliberately distinct from a user denial.
+String buildApprovalAbortedContent({required String toolName}) {
+  return jsonEncode(<String, dynamic>{
+    'type': approvalDeniedType,
+    'tool': toolName,
+    'error': 'approval_aborted',
+    'message': 'The revision was abandoned before this call was approved. The tool was not executed.',
     'tool_name': toolName,
   });
 }
@@ -203,8 +215,7 @@ String buildApprovalTimeoutContent({required String toolName}) {
     'type': approvalRequiredType,
     'tool': toolName,
     'error': 'approval_timeout',
-    'message':
-        'No approval decision was made in time. The tool was not executed. Ask the user again if this step is still needed.',
+    'message': 'No approval decision was made in time. The tool was not executed. Ask the user again if this step is still needed.',
     'tool_name': toolName,
   });
 }

@@ -91,6 +91,12 @@ class AgentOrchestrator {
     AgentLoopOptions options = const AgentLoopOptions(),
     AgentLoopHooks hooks = const AgentLoopHooks(),
     AnswerReviewConfig answerReview = const AnswerReviewConfig.off(),
+
+    // Policy hooks for the revision agent loop. Kept separate from [hooks]:
+    // the main run's journal must not be overwritten by revision step
+    // numbers, but the revision still needs the approval-pause veto before
+    // another model round.
+    AgentLoopHooks revisionHooks = const AgentLoopHooks(),
     Future<Stream<ChatStreamChunk>> Function(
       List<Map<String, dynamic>> messages,
     )?
@@ -127,10 +133,11 @@ class AgentOrchestrator {
           imageAspectRatio: imageAspectRatio,
         ));
 
-    // Internal review/revision transport binding (§10.3): text-only, the
-    // `_review` request-id suffix (cancelStreaming cancels it), images are
-    // NOT re-sent (they already travelled with the main run), and the extra
-    // body is sanitized of every tool / stream / request-shape override.
+    // Internal review transport binding (§10.3): text-only, the `_review`
+    // request-id suffix (cancelStreaming cancels it), images are NOT re-sent
+    // (they already travelled with the main run), and the extra body is
+    // sanitized of every tool / stream / request-shape override. The revision
+    // has its own binding below because it is a normal agent loop with tools.
     Future<Stream<ChatStreamChunk>> reviewRound({
       required List<Map<String, dynamic>> reviewMessages,
       required bool stream,
@@ -153,6 +160,35 @@ class AgentOrchestrator {
         extraBody: sanitizeReviewExtraBody(extraBody),
         webFetchEnabled: false,
         streamOutput: stream,
+        requestId: '${requestId}_review',
+        sessionId: sessionId,
+      );
+    }
+
+    // Revision binding: a normal agent loop with the main run's tools. It uses
+    // the same `_review` request id so a deliberate stop cancels whichever
+    // revision round is in flight, and the same extra body as the main run
+    // (the review-only text sanitizer must not strip the tools it needs).
+    Future<Stream<ChatStreamChunk>> revisionRound(
+      List<Map<String, dynamic>> revisionMessages,
+    ) {
+      final injected = reviewSendRound;
+      if (injected != null) return injected(revisionMessages);
+      return sendRoundImpl(
+        config: config,
+        modelId: modelId,
+        messages: revisionMessages,
+        userImagePaths: null,
+        imageAspectRatio: null,
+        thinkingBudget: thinkingBudget,
+        temperature: temperature,
+        topP: topP,
+        maxTokens: maxTokens,
+        tools: tools,
+        extraHeaders: extraHeaders,
+        extraBody: extraBody,
+        webFetchEnabled: webFetchEnabled,
+        streamOutput: streamOutput,
         requestId: '${requestId}_review',
         sessionId: sessionId,
       );
@@ -328,6 +364,7 @@ class AgentOrchestrator {
               reviewMessages: buildReviewTurn(
                 working: messages,
                 draft: draftText,
+                availableTools: reviewToolNames(tools),
               ),
               stream: false,
               // No verdict cap by default: always-thinking models bill
@@ -436,7 +473,7 @@ class AgentOrchestrator {
             return;
           }
 
-          // --- Revision call (text-only stream; at most once; §5.2) ---
+          // --- Revision call (normal agent loop; at most once; §5.2) ---
           final revisingReport = AnswerReviewReport(
             phase: AnswerReviewPhase.revising,
             verdict: verdict.verdict,
@@ -464,81 +501,168 @@ class AgentOrchestrator {
             reviewPhase: kReviewPhaseRevising,
             reviewReport: revisingReport,
           );
-          final revisionCollected = _CollectedRound();
+
+          // The revision is a normal agent loop: it can call tools, observe
+          // their results, and only then produce the rewritten answer. Every
+          // tool-round preamble is discarded at the loop boundary so the final
+          // revision is the last round's text, not scaffolding.
+          final revisionText = StringBuffer();
+          var revisionSawTerminal = false;
           var revisionFailed = false;
+          var revisionPaused = false;
+          String? revisionFailureReason;
+          var revisionUsage = const TokenUsage();
+          var revisionRoundUsage = _CollectedRound();
+
           try {
-            final revisionStream = _withDeadline(
-              await reviewRound(
-                reviewMessages: buildRevisionTurn(
+            final revisionEvents = _withDeadline(
+              runAgentLoop(
+                messages: buildRevisionTurn(
                   working: messages,
                   draft: draftText,
                   issuesJson: verdict.blockingIssuesJson(),
                 ),
-                stream: true,
-                // The revision rewrites the full answer — it keeps the main
-                // run's output budget, not the short verdict cap.
-                maxTokensOverride: maxTokens,
+                sendRound: revisionRound,
+                onToolCall: (call) => toolHandler(
+                  call.name,
+                  call.arguments,
+                  toolCallId: call.toolCallId,
+                ),
+                // The revision is a normal agent loop: it inherits the same
+                // step ceiling and token budget as the main run, without any
+                // review-specific cap. emitCalls stays on so tool cards and
+                // tool-event persistence see every revision round.
+                options: AgentLoopOptions(
+                  maxSteps: options.maxSteps,
+                  tokenBudget: options.tokenBudget,
+                  emitCalls: true,
+                ),
+                hooks: revisionHooks,
               ),
               timeout: answerReview.reviewTimeout,
             );
-            await for (final chunk in revisionStream) {
-              revisionCollected.add(chunk);
-              if (chunk.errorKind != null) {
-                // L1 retry inside the revision round: drop the status chunk
-                // and clear the half-revised text from the UI without
-                // touching the main run's usage / tool cards (§5.3).
-                yield ChatStreamChunk(
-                  content: '',
-                  isDone: false,
-                  totalTokens: 0,
-                  replaceContent: true,
-                );
-              } else if (chunk.isDone) {
-                // The revision's own terminal is never forwarded — the
-                // driver composes the single final terminal (§5.2 invariant
-                // 2).
-              } else if (chunk.content.isNotEmpty) {
-                // Text-only forwarding: the revision round's reasoning echo
-                // must NOT append onto the main run's finished thinking
-                // timeline.
-                yield ChatStreamChunk(
-                  content: chunk.content,
-                  isDone: false,
-                  totalTokens: 0,
-                );
+            await for (final event in revisionEvents) {
+              switch (event) {
+                case AgentStreamEvent(:final chunk):
+                  if (chunk.errorKind != null) {
+                    // L1 retry inside a revision round: drop the partial
+                    // preamble and let the reissued attempt stream from zero.
+                    revisionText.clear();
+                    revisionRoundUsage = _CollectedRound();
+                    revisionSawTerminal = false;
+                    yield ChatStreamChunk(
+                      content: '',
+                      isDone: false,
+                      totalTokens: 0,
+                      replaceContent: true,
+                    );
+                    continue;
+                  }
+                  if (chunk.content.isNotEmpty) {
+                    revisionText.write(chunk.content);
+                    yield ChatStreamChunk(
+                      content: chunk.content,
+                      isDone: false,
+                      totalTokens: 0,
+                    );
+                  }
+                  if ((chunk.toolCalls ?? const []).isNotEmpty) {
+                    yield ChatStreamChunk(
+                      content: '',
+                      isDone: false,
+                      totalTokens: 0,
+                      toolCalls: chunk.toolCalls,
+                      assistantExtras: chunk.assistantExtras,
+                    );
+                  }
+                  if ((chunk.toolResults ?? const []).isNotEmpty) {
+                    yield ChatStreamChunk(
+                      content: '',
+                      isDone: false,
+                      totalTokens: 0,
+                      toolResults: chunk.toolResults,
+                    );
+                  }
+                  revisionRoundUsage.add(chunk);
+                  if (chunk.isDone) revisionSawTerminal = true;
+                case AgentToolExecutedEvent():
+                  // The kernel already re-emits the synthetic toolResults
+                  // chunk (options.emitCalls) for the UI / persistence path.
+                  break;
+                case AgentRoundFinishedEvent():
+                  // A tool round's text is a preamble, not the final answer.
+                  // Bank its usage and clear both the buffer and the live
+                  // bubble; the tool cards stay visible.
+                  revisionUsage = revisionUsage.sum(
+                    revisionRoundUsage.resolvedUsage,
+                  );
+                  revisionRoundUsage = _CollectedRound();
+                  final hadPreamble = revisionText.isNotEmpty;
+                  revisionText.clear();
+                  revisionSawTerminal = false;
+                  if (hadPreamble) {
+                    yield ChatStreamChunk(
+                      content: '',
+                      isDone: false,
+                      totalTokens: 0,
+                      replaceContent: true,
+                    );
+                  }
+                case AgentRunFinishedEvent(:final reason):
+                  revisionUsage = revisionUsage.sum(
+                    revisionRoundUsage.resolvedUsage,
+                  );
+                  revisionRoundUsage = _CollectedRound();
+                  if (reason != AgentRunStopReason.finished) {
+                    revisionFailed = true;
+                    revisionPaused = reason == AgentRunStopReason.stoppedByHook;
+                    revisionFailureReason = revisionPaused
+                        ? 'revision_paused'
+                        : 'revision_failed';
+                  }
               }
             }
           } on TimeoutException {
-            revisionCollected.errored = true;
             revisionFailed = true;
+            revisionFailureReason = 'timeout';
+            // Tokens already spent in the partial round still count.
+            revisionUsage = revisionUsage.sum(revisionRoundUsage.resolvedUsage);
+            revisionRoundUsage = _CollectedRound();
           } catch (_) {
-            revisionCollected.errored = true;
             revisionFailed = true;
+            revisionFailureReason = 'error';
+            revisionUsage = revisionUsage.sum(revisionRoundUsage.resolvedUsage);
+            revisionRoundUsage = _CollectedRound();
           }
-          reviewUsage = reviewUsage.sum(revisionCollected.resolvedUsage);
+          reviewUsage = reviewUsage.sum(revisionUsage);
           revisionWatch.stop();
           final revisionMs = revisionWatch.elapsedMilliseconds;
-          // The revision turn declares no tools. Some models still emit raw
-          // tool-call markup (DeepSeek DSML, <tool_call>, …) when they want a
-          // tool; accepting it would replace the answer with markup.
-          final revisionProducedToolCall = containsToolCallMarkup(
-            revisionCollected.content,
+          final revisedText = revisionText.toString();
+          // The revision loop has tools now. Raw tool-call markup in the
+          // final text still means the provider/model failed to emit a
+          // structured call; keep the original draft rather than replace it
+          // with markup.
+          final revisionProducedToolMarkup = containsToolCallMarkup(
+            revisedText,
           );
-          final revisionFailReason = revisionProducedToolCall
+          final revisionOk =
+              !revisionFailed &&
+              revisionSawTerminal &&
+              revisedText.trim().isNotEmpty &&
+              !revisionProducedToolMarkup;
+          final revisionFailReason = revisionProducedToolMarkup
               ? 'revision_tool_call'
-              : 'revision_failed';
+              : (revisionFailureReason ?? 'revision_failed');
 
-          if (revisionFailed ||
-              !revisionCollected.ok ||
-              revisionProducedToolCall) {
-            // Fail-open: revision errored / timed out / came back empty /
-            // truncated. Restore the original draft via a replace-content
-            // chunk, then close with a non-reviewed terminal (§8.3 D.4).
+          if (!revisionOk) {
+            // Fail-open: revision errored / timed out / paused for approval /
+            // came back empty or truncated. Restore the original draft via a
+            // replace-content chunk, then close with a non-reviewed terminal
+            // (§8.3 D.4).
             developer.log(
-              'answer_review.fail_open reason='
-              '${revisionProducedToolCall ? 'revision_tool_call' : 'revision'} '
-              'sawTerminal=${revisionCollected.sawTerminal} '
-              'chars=${revisionCollected.content.trim().length}',
+              'answer_review.fail_open reason=$revisionFailReason '
+              'sawTerminal=$revisionSawTerminal paused=$revisionPaused '
+              'chars=${revisedText.trim().length}',
               name: 'answer_review',
             );
             developer.log(
@@ -577,8 +701,7 @@ class AgentOrchestrator {
           }
 
           developer.log(
-            'answer_review.revision ok=true chars='
-            '${revisionCollected.content.trim().length}',
+            'answer_review.revision ok=true chars=${revisedText.trim().length}',
             name: 'answer_review',
           );
           final report = revisingReport.copyWith(
@@ -687,16 +810,13 @@ Future<_CollectedRound> _collectRound(
 /// subscription is cancelled and a [TimeoutException] surfaces to the
 /// `await for` consumer. Used by the revision round, whose deltas stream
 /// through while the deadline still applies to the whole response.
-Stream<ChatStreamChunk> _withDeadline(
-  Stream<ChatStreamChunk> source, {
-  required Duration? timeout,
-}) {
+Stream<T> _withDeadline<T>(Stream<T> source, {required Duration? timeout}) {
   // No deadline configured: forward the source untouched.
   if (timeout == null) return source;
-  late StreamController<ChatStreamChunk> controller;
-  StreamSubscription<ChatStreamChunk>? sub;
+  late StreamController<T> controller;
+  StreamSubscription<T>? sub;
   Timer? timer;
-  controller = StreamController<ChatStreamChunk>(
+  controller = StreamController<T>(
     onListen: () {
       timer = Timer(timeout, () async {
         await sub?.cancel();

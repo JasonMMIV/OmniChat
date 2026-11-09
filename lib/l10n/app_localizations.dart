@@ -6510,8 +6510,14 @@ abstract class AppLocalizations {
   /// No description provided for @chatAnswerReviewFailRevisionToolCall.
   ///
   /// In en, this message translates to:
-  /// **'The revision tried to call a tool; original answer kept'**
+  /// **'The revision emitted an unparseable tool call; original answer kept'**
   String get chatAnswerReviewFailRevisionToolCall;
+
+  /// No description provided for @chatAnswerReviewFailRevisionPaused.
+  ///
+  /// In en, this message translates to:
+  /// **'The revision needs tool approval; original answer kept'**
+  String get chatAnswerReviewFailRevisionPaused;
 
   /// No description provided for @chatAnswerReviewFailCancelled.
   ///

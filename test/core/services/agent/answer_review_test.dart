@@ -226,7 +226,7 @@ void main() {
       expect(v.issues, hasLength(1));
     });
 
-    test('tool-dependent finding is dropped (revision cannot call tools)', () {
+    test('tool-dependent finding is kept (revision can call tools)', () {
       final v = parseReviewVerdict(
         jsonEncode(<String, dynamic>{
           'verdict': 'revise',
@@ -239,10 +239,11 @@ void main() {
           ],
         }),
       );
-      expect(v.verdict, 'pass');
-      expect(v.issues, isEmpty);
+      expect(v.verdict, 'revise');
+      expect(v.issues, hasLength(1));
+      expect(v.issues.single.problem, 'Draft has no image.');
     });
-    test('Chinese image_search finding is dropped', () {
+    test('Chinese image_search finding is kept', () {
       final v = parseReviewVerdict(
         jsonEncode(<String, dynamic>{
           'verdict': 'revise',
@@ -255,41 +256,61 @@ void main() {
           ],
         }),
       );
-      expect(v.verdict, 'pass');
-      expect(v.issues, isEmpty);
+      expect(v.verdict, 'revise');
+      expect(v.issues, hasLength(1));
+      expect(v.issues.single.problem, '草稿全篇沒有任何圖片。');
     });
 
-    test(
-      'tool-dependent finding is dropped but text findings still revise',
-      () {
-        final v = parseReviewVerdict(
-          jsonEncode(<String, dynamic>{
-            'verdict': 'revise',
-            'issues': [
-              _issue(
-                'major',
-                problem: 'Missing image.',
-                fix: 'Call image_search.',
-              ),
-              _issue(
-                'major',
-                problem: 'Wrong date.',
-                fix: 'Change 2020 to 2021.',
-              ),
-            ],
-          }),
-        );
-        expect(v.verdict, 'revise');
-        expect(v.issues, hasLength(1));
-        expect(v.issues.single.problem, 'Wrong date.');
-      },
-    );
+    test('tool-dependent and text findings both survive parsing', () {
+      final v = parseReviewVerdict(
+        jsonEncode(<String, dynamic>{
+          'verdict': 'revise',
+          'issues': [
+            _issue(
+              'major',
+              problem: 'Missing image.',
+              fix: 'Call image_search.',
+            ),
+            _issue(
+              'major',
+              problem: 'Wrong date.',
+              fix: 'Change 2020 to 2021.',
+            ),
+          ],
+        }),
+      );
+      expect(v.verdict, 'revise');
+      expect(v.issues, hasLength(2));
+      expect(
+        v.issues.map((i) => i.problem),
+        containsAll(<String>['Missing image.', 'Wrong date.']),
+      );
+    });
 
-    test('plain-text REVISE without issues stays pass (fail-open)', () {
-      final v = parseReviewVerdict('I would REVISE this answer.');
+    test('plain-text REVISE becomes a revise verdict with the explanation', () {
+      final v = parseReviewVerdict(
+        'REVISE: The answer says 12% but the tool result says 8%.',
+      );
+      expect(v.verdict, 'revise');
+      expect(v.issues, hasLength(1));
+      expect(v.issues.single.severity, 'major');
+      expect(v.issues.single.problem, contains('12%'));
+      expect(v.parsed, isTrue);
+    });
+
+    test('plain-text PASS is accepted without JSON', () {
+      final v = parseReviewVerdict('PASS. The answer is correct and complete.');
       expect(v.verdict, 'pass');
       expect(v.issues, isEmpty);
-      expect(v.parsed, isFalse);
+      expect(v.parsed, isTrue);
+    });
+
+    test('plain-text verdict uses the first PASS / REVISE occurrence', () {
+      expect(parseReviewVerdict('PASS; no need to REVISE.').verdict, 'pass');
+      expect(
+        parseReviewVerdict('REVISE; this is not PASS yet.').verdict,
+        'revise',
+      );
     });
 
     test('malformed text fails open as pass', () {
@@ -355,6 +376,65 @@ void main() {
   // Turn builders
   // ------------------------------------------------------------------
   group('buildReviewTurn / buildRevisionTurn', () {
+    test('review turn lists only the tools that are actually available', () {
+      final withTools = buildReviewTurn(
+        working: <Map<String, dynamic>>[
+          <String, dynamic>{'role': 'user', 'content': 'question'},
+        ],
+        draft: 'my draft',
+        availableTools: const <String>['image_search', 'web_fetch'],
+      );
+      expect(
+        jsonEncode(withTools),
+        contains('Tools available to the assistant: image_search, web_fetch'),
+      );
+
+      final withoutTools = buildReviewTurn(
+        working: <Map<String, dynamic>>[
+          <String, dynamic>{'role': 'user', 'content': 'question'},
+        ],
+        draft: 'my draft',
+      );
+      expect(
+        jsonEncode(withoutTools),
+        contains('No tools were available in this conversation'),
+      );
+    });
+
+    test(
+      'review prompt is a plain review request without rubric/JSON limits',
+      () {
+        final instruction = reviewInstruction(
+          'my draft',
+          availableTools: const <String>['image_search'],
+        );
+        expect(instruction, contains('Review the draft answer below'));
+        expect(instruction, contains('answer PASS'));
+        expect(
+          instruction,
+          contains('REVISE and explain what should be fixed'),
+        );
+        expect(instruction, contains('image_search'));
+        expect(instruction, isNot(contains('"verdict"')));
+        expect(instruction, isNot(contains('blocker')));
+        expect(instruction, isNot(contains('under 300 characters')));
+      },
+    );
+
+    test('reviewToolNames reads OpenAI and flat tool definitions', () {
+      expect(
+        reviewToolNames(const <Map<String, dynamic>>[
+          <String, dynamic>{
+            'type': 'function',
+            'function': <String, dynamic>{'name': 'image_search'},
+          },
+          <String, dynamic>{'name': 'web_fetch'},
+        ]),
+        <String>['image_search', 'web_fetch'],
+      );
+      expect(reviewToolNames(null), isEmpty);
+    });
+
     test('merges into a trailing user message (String content)', () {
       final working = <Map<String, dynamic>>[
         <String, dynamic>{'role': 'system', 'content': 'sys'},

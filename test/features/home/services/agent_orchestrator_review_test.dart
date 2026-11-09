@@ -908,6 +908,256 @@ void main() {
     expect(terminal.usage!.totalTokens, 100);
   });
 
+  test('REVISE runs revision as a tool-using agent loop and streams the tool round', () async {
+    var reviewCall = 0;
+    final revisionMessages = <List<Map<String, dynamic>>>[];
+    final executed = <String>[];
+    final chunks = await AgentOrchestrator()
+        .run(
+          config: _config(),
+          modelId: 'm',
+          requestId: 'r-tools',
+          streamOutput: true,
+          messages: const [
+            {'role': 'user', 'content': 'draw a cat'},
+          ],
+          tools: const [
+            {
+              'type': 'function',
+              'function': <String, dynamic>{
+                'name': 'image_search',
+                'description': 'search images',
+                'parameters': <String, dynamic>{
+                  'type': 'object',
+                  'properties': <String, dynamic>{},
+                },
+              },
+            },
+          ],
+          onToolCall: (name, args, {String? toolCallId}) async {
+            executed.add(name);
+            return '{"image_url":"https://example.com/cat.png"}';
+          },
+          sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
+            <ChatStreamChunk>[_text('draft without image'), _done()],
+          ),
+          reviewSendRound: (msgs) async {
+            reviewCall++;
+            if (reviewCall == 1) {
+              return _verdictRound(
+                jsonEncode(<String, dynamic>{
+                  'verdict': 'revise',
+                  'issues': [
+                    <String, dynamic>{
+                      'severity': 'major',
+                      'location': 'answer',
+                      'problem': 'Draft has no image.',
+                      'fix': 'Use image_search and insert the photo.',
+                    },
+                  ],
+                }),
+              );
+            }
+            revisionMessages.add(msgs);
+            if (reviewCall == 2) {
+              // First revision round: the model asks for the image tool.
+              return Stream<ChatStreamChunk>.fromIterable(<ChatStreamChunk>[
+                _text('Looking for an image.'),
+                ChatStreamChunk(
+                  content: '',
+                  isDone: false,
+                  totalTokens: 0,
+                  toolCalls: <ToolCallInfo>[
+                    ToolCallInfo(
+                      id: 'rev-img',
+                      name: 'image_search',
+                      arguments: const {'query': 'cat'},
+                    ),
+                  ],
+                ),
+                _done(),
+              ]);
+            }
+            // Second revision round: the tool result is in the working
+            // messages and the model produces the final text.
+            return Stream<ChatStreamChunk>.fromIterable(<ChatStreamChunk>[
+              _text('Final answer with the cat image.'),
+              _done(),
+            ]);
+          },
+          answerReview: const AnswerReviewConfig(mode: AnswerReviewMode.always),
+        )
+        .toList();
+
+    expect(reviewCall, 3, reason: 'one review + two revision rounds');
+    expect(executed, <String>['image_search']);
+    expect(
+      revisionMessages[1].any((m) => m['role'] == 'tool'),
+      isTrue,
+      reason: 'the second revision round receives the tool result',
+    );
+    expect(
+      chunks.any(
+        (c) => (c.toolCalls ?? const []).any((tc) => tc.name == 'image_search'),
+      ),
+      isTrue,
+    );
+    expect(
+      chunks.any(
+        (c) => (c.toolResults ?? const []).any((tr) => tr.id == 'rev-img'),
+      ),
+      isTrue,
+    );
+    // Tool-round preamble is cleared; only the final round stays visible.
+    expect(chunks.any((c) => c.replaceContent && c.content.isEmpty), isTrue);
+    expect(
+      chunks.any((c) => c.content == 'Final answer with the cat image.'),
+      isTrue,
+    );
+    expect(chunks.where((c) => c.isDone), hasLength(1));
+    expect(chunks.last.reviewed, isTrue);
+    expect(chunks.last.reviewReport?.phase, 'revised');
+    expect(
+      chunks.last.reviewReport?.issues.single.problem,
+      'Draft has no image.',
+    );
+  });
+
+  test('revision error still counts the partial round usage', () async {
+    var call = 0;
+    final chunks = await AgentOrchestrator()
+        .run(
+          config: _config(),
+          modelId: 'm',
+          requestId: 'r-partial-usage',
+          streamOutput: true,
+          messages: const [
+            {'role': 'user', 'content': 'hi'},
+          ],
+          onToolCall: (name, args, {String? toolCallId}) async => 'R',
+          sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
+            <ChatStreamChunk>[_text('draft'), _done()],
+          ),
+          reviewSendRound: (msgs) async {
+            call++;
+            if (call == 1) {
+              return _verdictRound(
+                jsonEncode(<String, dynamic>{
+                  'verdict': 'revise',
+                  'issues': [
+                    <String, dynamic>{
+                      'severity': 'blocker',
+                      'location': 'l',
+                      'problem': 'p',
+                      'fix': 'f',
+                    },
+                  ],
+                }),
+              );
+            }
+            return (() async* {
+              yield _text(
+                'partial revision',
+                usage: const TokenUsage(totalTokens: 50),
+              );
+              throw Exception('revision exploded after usage');
+            })();
+          },
+          answerReview: const AnswerReviewConfig(mode: AnswerReviewMode.always),
+        )
+        .toList();
+
+    expect(chunks.last.reviewed, isFalse);
+    expect(chunks.last.reviewReport?.phase, 'revision_failed');
+    expect(chunks.last.reviewUsage?.totalTokens, 50);
+    expect(chunks.last.totalTokens, 50);
+  });
+
+  test(
+    'revision stops before another round when a tool pauses for approval',
+    () async {
+      var reviewCall = 0;
+      final chunks = await AgentOrchestrator()
+          .run(
+            config: _config(),
+            modelId: 'm',
+            requestId: 'r-paused',
+            streamOutput: true,
+            messages: const [
+              {'role': 'user', 'content': 'edit a file'},
+            ],
+            tools: const [
+              {
+                'type': 'function',
+                'function': <String, dynamic>{
+                  'name': 'file_write',
+                  'description': 'write a file',
+                  'parameters': <String, dynamic>{
+                    'type': 'object',
+                    'properties': <String, dynamic>{},
+                  },
+                },
+              },
+            ],
+            onToolCall: (name, args, {String? toolCallId}) async =>
+                '{"type":"approval_required"}',
+            sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
+              <ChatStreamChunk>[_text('draft'), _done()],
+            ),
+            reviewSendRound: (msgs) async {
+              reviewCall++;
+              if (reviewCall == 1) {
+                return _verdictRound(
+                  jsonEncode(<String, dynamic>{
+                    'verdict': 'revise',
+                    'issues': [
+                      <String, dynamic>{
+                        'severity': 'blocker',
+                        'location': 'file',
+                        'problem': 'Wrong file contents.',
+                        'fix': 'Write the corrected file.',
+                      },
+                    ],
+                  }),
+                );
+              }
+              return Stream<ChatStreamChunk>.fromIterable(<ChatStreamChunk>[
+                ChatStreamChunk(
+                  content: '',
+                  isDone: false,
+                  totalTokens: 0,
+                  toolCalls: <ToolCallInfo>[
+                    ToolCallInfo(
+                      id: 'rev-file',
+                      name: 'file_write',
+                      arguments: const {'path': 'a.txt'},
+                    ),
+                  ],
+                ),
+                _done(),
+              ]);
+            },
+            revisionHooks: AgentLoopHooks(
+              onRoundStart: (stepIndex, messages, tokensSoFar) async =>
+                  stepIndex == 0,
+            ),
+            answerReview: const AnswerReviewConfig(
+              mode: AnswerReviewMode.always,
+            ),
+          )
+          .toList();
+
+      expect(reviewCall, 2, reason: 'review + one revision round');
+      expect(chunks.last.reviewed, isFalse);
+      expect(chunks.last.reviewReport?.phase, 'revision_failed');
+      expect(chunks.last.reviewReport?.failReason, 'revision_paused');
+      expect(
+        chunks.any((c) => c.replaceContent && c.content == 'draft'),
+        isTrue,
+      );
+    },
+  );
+
   // ------------------------------------------------------------------
   // Transport parameter contract (production path: sendRoundImpl)
   // ------------------------------------------------------------------
@@ -1014,4 +1264,106 @@ void main() {
     // Main request still carries the (unsanitized) extra body values.
     expect(mainBody.containsKey('tools'), isTrue);
   });
+
+  test(
+    'revision request is a normal agent-loop request carrying tools',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final bodies = <Map<String, dynamic>>[];
+      final subs = <StreamSubscription<HttpRequest>>[];
+      subs.add(
+        server.listen((req) async {
+          final raw = await utf8.decoder.bind(req).join();
+          final body = jsonDecode(raw) as Map<String, dynamic>;
+          bodies.add(body);
+          final call = bodies.length;
+          final content = call == 1
+              ? 'draft from the wire'
+              : call == 2
+              ? jsonEncode(<String, dynamic>{
+                  'verdict': 'revise',
+                  'issues': [
+                    <String, dynamic>{
+                      'severity': 'major',
+                      'location': 'answer',
+                      'problem': 'Missing image.',
+                      'fix': 'Use image_search.',
+                    },
+                  ],
+                })
+              : 'revised answer from the wire';
+          req.response.headers.contentType = ContentType.json;
+          req.response.write(
+            jsonEncode(<String, dynamic>{
+              'id': 'x',
+              'object': 'chat.completion',
+              'created': 1,
+              'model': 'm',
+              'choices': [
+                <String, dynamic>{
+                  'index': 0,
+                  'message': <String, dynamic>{
+                    'role': 'assistant',
+                    'content': content,
+                  },
+                  'finish_reason': 'stop',
+                },
+              ],
+              'usage': <String, dynamic>{
+                'prompt_tokens': 10,
+                'completion_tokens': 5,
+                'total_tokens': 15,
+              },
+            }),
+          );
+          await req.response.close();
+        }),
+      );
+      addTearDown(() async {
+        for (final s in subs) {
+          await s.cancel();
+        }
+        await server.close(force: true);
+      });
+
+      const tool = <String, dynamic>{
+        'type': 'function',
+        'function': <String, dynamic>{
+          'name': 'image_search',
+          'description': 'search images',
+          'parameters': <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{},
+          },
+        },
+      };
+
+      final chunks = await AgentOrchestrator()
+          .run(
+            config: _config(baseUrl: 'http://127.0.0.1:${server.port}'),
+            modelId: 'm',
+            requestId: 'r-revision-wire',
+            streamOutput: false,
+            messages: const [
+              {'role': 'user', 'content': 'draw a cat'},
+            ],
+            tools: const [tool],
+            onToolCall: (name, args, {String? toolCallId}) async => 'R',
+            answerReview: const AnswerReviewConfig(
+              mode: AnswerReviewMode.always,
+            ),
+          )
+          .toList();
+
+      expect(chunks.last.reviewed, isTrue);
+      expect(bodies, hasLength(3));
+      // Review remains text-only.
+      expect(bodies[1].containsKey('tools'), isFalse);
+      // Revision is a normal loop: it carries the tool schema and the repair
+      // instruction.
+      expect(bodies[2]['tools'], isA<List>());
+      expect((bodies[2]['tools'] as List), isNotEmpty);
+      expect(jsonEncode(bodies[2]), contains('[ANSWER REVISION'));
+    },
+  );
 }

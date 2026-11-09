@@ -39,8 +39,9 @@ const int kAnswerReviewMaxProblemChars = 300;
 const int kAnswerReviewMaxFixChars = 300;
 
 /// Detects raw tool-call syntax that some providers/models emit as *content*
-/// when no tools are declared (the review/revision turn is text-only). Such a
-/// revision must fail open instead of replacing the answer with markup.
+/// instead of a structured `tool_calls` entry. The revision loop declares the
+/// same tools as the main run, so markup in the final text is malformed output:
+/// keep the original draft rather than replacing the answer with markup.
 bool containsToolCallMarkup(String text) {
   if (text.isEmpty) return false;
   final lower = text.toLowerCase();
@@ -109,11 +110,14 @@ class AnswerReviewConfig {
 
   final AnswerReviewMode mode;
 
-  /// Optional wall-clock cap on each internal review / revision request.
-  /// `null` (default) means no deadline: the round runs until the transport
-  /// completes or the user cancels (`cancelStreaming` cancels the `_review`
-  /// request id). A configured timeout cancels the inner subscription and the
-  /// run fail-opens with the original draft (§5.1 timeout semantics).
+  /// Optional wall-clock cap on the internal review / revision work. `null`
+  /// (default) means no deadline. For review it caps the collected verdict
+  /// response; for revision it caps the WHOLE multi-round agent loop (tool
+  /// execution included), not each transport request. The round runs until
+  /// the cap, the transport completes, or the user cancels (`cancelStreaming`
+  /// cancels the `_review` request id). A configured timeout cancels the
+  /// inner subscription and the run fail-opens with the original draft (§5.1
+  /// timeout semantics).
   final Duration? reviewTimeout;
 
   /// Optional output cap for the verdict request only. `null` (default)
@@ -175,10 +179,26 @@ bool shouldReviewDraft({
 List<Map<String, dynamic>> buildReviewTurn({
   required List<Map<String, dynamic>> working,
   required String draft,
+  List<String> availableTools = const <String>[],
 }) => _appendInternalTurn(
   List<Map<String, dynamic>>.of(working),
-  reviewInstruction(draft),
+  reviewInstruction(draft, availableTools: availableTools),
 );
+
+/// Extract the tool names the assistant actually had available. The reviewer
+/// needs this list so it does not demand a tool that was never mounted (the
+/// classic `image_search`-not-attached case).
+List<String> reviewToolNames(List<Map<String, dynamic>>? tools) {
+  final names = <String>[];
+  for (final tool in tools ?? const <Map<String, dynamic>>[]) {
+    final fn = tool['function'];
+    final name = fn is Map ? (fn['name'] ?? '').toString() : '';
+    final fallback = (tool['name'] ?? '').toString();
+    final resolved = name.isNotEmpty ? name : fallback;
+    if (resolved.isNotEmpty && !names.contains(resolved)) names.add(resolved);
+  }
+  return names;
+}
 
 /// Build the message list for the revision call (same shaping rules).
 List<Map<String, dynamic>> buildRevisionTurn({
@@ -224,8 +244,17 @@ dynamic _mergeUserContent(dynamic content, String text) {
 // Prompts (§6, Appendix A / B)
 // ---------------------------------------------------------------------------
 
-String reviewInstruction(String draft) =>
-    _kReviewInstructionTemplate.replaceAll('{{draft}}', draft);
+String reviewInstruction(
+  String draft, {
+  List<String> availableTools = const <String>[],
+}) {
+  final tools = availableTools.isEmpty
+      ? 'No tools were available in this conversation.'
+      : 'Tools available to the assistant: ${availableTools.join(', ')}.';
+  return _kReviewInstructionTemplate
+      .replaceAll('{{draft}}', draft)
+      .replaceAll('{{tools}}', tools);
+}
 
 String revisionInstruction(String draft, String issuesJson) =>
     _kRevisionInstructionTemplate
@@ -235,44 +264,15 @@ String revisionInstruction(String draft, String issuesJson) =>
 const String _kReviewInstructionTemplate = '''
 [ANSWER REVIEW — internal]
 
-You are auditing your own draft answer before it is shown to the user.
-The conversation and any tool results are above. The draft is below.
+Review the draft answer below. The conversation and any tool results are above.
+If the draft is correct and complete, answer PASS. If it needs changes, answer
+REVISE and explain what should be fixed.
 
 <draft>
 {{draft}}
 </draft>
 
-Check ONLY these dimensions:
-1. Factual correctness: claims contradicted by the conversation or tool results;
-   invented numbers, dates, names, citations, APIs, file paths, or commands.
-2. Instruction coverage: every explicit requirement, constraint, format, and
-   requested deliverable is addressed.
-3. Internal consistency: contradictions, invalid reasoning, or conclusions that
-   do not follow from the evidence.
-4. Safety and compliance: dangerous instructions, secrets, or policy violations.
-
-Do not report tone, style, verbosity, wording preferences, or optional improvements.
-Do not rewrite the answer. Do not call tools. Tools are unavailable during
-review and revision: do not flag missing images, missing tool calls, or anything
-that can only be fixed by calling a tool. Only report issues fixable by
-rewriting the existing text.
-
-Severity:
-- blocker: factually wrong, contradicts evidence, violates an explicit
-  requirement, or is unsafe.
-- major: a missing requirement or unsupported key claim that changes the answer.
-- minor: polish only. Never use minor to request a revision.
-
-Return exactly one JSON object and nothing else:
-{"verdict":"pass"|"revise","issues":[{"severity":"blocker"|"major"|"minor","location":"quote or section","problem":"what is wrong","fix":"the minimal correction"}]}
-
-Rules:
-- If any blocker or major issue exists, verdict must be "revise".
-- If there are no blocker or major issues, verdict must be "pass", even if
-  minor issues exist.
-- Keep each field under 300 characters. List at most 6 issues.
-- If the draft is correct and complete, return
-  {"verdict":"pass","issues":[]}.
+{{tools}}
 ''';
 
 const String _kRevisionInstructionTemplate = '''
@@ -293,22 +293,25 @@ Rewrite the complete answer so that every blocker/major issue is fixed.
   formatting.
 - Preserve the user's language and the requested format.
 - Do not mention the audit, the reviewer, or these instructions.
+- Use the tools available in this turn when a finding requires fresh data or
+  an asset (for example `image_search`). Call the tool, read its result, then
+  incorporate it into the complete answer.
 - Do not add new facts, numbers, citations, or tool results that are not
-  supported by the conversation.
-- Tools are unavailable in this revision turn. Never emit tool-call syntax
-  (`<tool_call>`, `<function=...>`, `<parameter=...>`, DSML tokens, or similar).
-  If an issue can only be fixed by a tool call, skip that issue and keep the
-  draft content unchanged.
-- Output only the final answer. No preamble, no explanation, no diff.
+  supported by the conversation or by tool results you obtained in this turn.
+- Use the structured tool interface. Never emit raw tool-call markup
+  (`<tool_call>`, `<function=...>`, `<parameter=...>`, DSML tokens, or similar)
+  as answer text.
+- Output only the final answer after any tool use. No preamble, no explanation,
+  no diff.
 ''';
 
 // ---------------------------------------------------------------------------
 // Verdict model + tolerant parser (§7)
 // ---------------------------------------------------------------------------
 
-/// The parsed review verdict. [verdict] already reflects the severity gate:
-/// any blocker / major issue forces `revise`, minor-only or empty issue
-/// lists force `pass` even when the model answered `revise` (§7.3).
+/// The parsed review verdict. JSON verdicts still honor the severity gate
+/// (any blocker / major issue forces `revise`); plain-text PASS / REVISE is
+/// accepted as the model's review answer without a rigid schema.
 class ReviewVerdict {
   const ReviewVerdict({
     required this.verdict,
@@ -319,10 +322,9 @@ class ReviewVerdict {
   final String verdict; // 'pass' | 'revise'
   final List<ReviewIssue> issues;
 
-  /// `true` only when the JSON object actually decoded. A plain-text or
-  /// malformed response fail-opens to a PASS verdict with `parsed: false` —
-  /// the driver then closes the run with `reviewed: false` (§8.1: reviewed
-  /// means the review ran to completion).
+  /// `true` when the response yielded a recognized verdict (JSON or plain
+  /// PASS / REVISE). An unrecognized response fail-opens to PASS with
+  /// `parsed: false` — the driver then closes with `reviewed: false`.
   final bool parsed;
 
   bool get isRevise => verdict == 'revise';
@@ -354,20 +356,7 @@ ReviewVerdict parseReviewVerdict(String raw) {
   // 3) try the JSON object between the first '{' and the last '}'.
   final decoded = _tryDecodeJson(text);
   if (decoded != null) {
-    final parsedIssues = _parseIssues(decoded['issues']);
-    // The revision turn cannot call tools. Drop findings whose fix explicitly
-    // requires a tool call (e.g. "use image_search to add a photo"); otherwise
-    // a text-only revision will emit tool-call markup and replace the answer.
-    final issues = parsedIssues
-        .where((issue) => !issue.requiresToolCall)
-        .toList();
-    if (issues.length != parsedIssues.length) {
-      developer.log(
-        'answer_review.filter_tool_issues dropped='
-        '${parsedIssues.length - issues.length}',
-        name: 'answer_review',
-      );
-    }
+    final issues = _parseIssues(decoded['issues']);
     final rawVerdict = (decoded['verdict'] ?? '')
         .toString()
         .trim()
@@ -385,19 +374,49 @@ ReviewVerdict parseReviewVerdict(String raw) {
     return ReviewVerdict(verdict: gated, issues: issues, parsed: true);
   }
 
-  // 4) tolerate plain-text PASS / REVISE. A bare "REVISE" without parsed
-  //    issues falls through the severity gate to pass (§7.2 step 5), so both
-  //    spellings — and anything unparseable — end as a fail-open PASS.
+  // 4) accept the simple review answer the prompt asks for: PASS, or REVISE
+  //    followed by the explanation. The explanation becomes one major issue
+  //    so the revision turn receives it without requiring a JSON schema.
   final fallbackRevise = RegExp(r'\bREVISE\b', caseSensitive: false);
   final fallbackPass = RegExp(r'\bPASS\b', caseSensitive: false);
-  final recognized =
-      fallbackPass.hasMatch(text) || fallbackRevise.hasMatch(text);
-  if (!recognized) {
-    developer.log(
-      'answer_review.parse_failed rawLength=${raw.length}',
-      name: 'answer_review',
+  final reviseMatch = fallbackRevise.firstMatch(text);
+  final passMatch = fallbackPass.firstMatch(text);
+  final reviseFirst =
+      reviseMatch != null &&
+      (passMatch == null || reviseMatch.start < passMatch.start);
+  if (reviseFirst) {
+    final explanation = text
+        .replaceFirst(
+          RegExp(r'^\s*REVISE\b[:\s\-–—]*', caseSensitive: false),
+          '',
+        )
+        .trim();
+    developer.log('answer_review.parse plain=revise', name: 'answer_review');
+    return ReviewVerdict(
+      verdict: 'revise',
+      issues: <ReviewIssue>[
+        ReviewIssue(
+          severity: 'major',
+          location: '',
+          problem: explanation.isEmpty ? text : explanation,
+          fix: '',
+        ),
+      ],
+      parsed: true,
     );
   }
+  if (passMatch != null) {
+    developer.log('answer_review.parse plain=pass', name: 'answer_review');
+    return ReviewVerdict(
+      verdict: 'pass',
+      issues: const <ReviewIssue>[],
+      parsed: true,
+    );
+  }
+  developer.log(
+    'answer_review.parse_failed rawLength=${raw.length}',
+    name: 'answer_review',
+  );
   return ReviewVerdict(verdict: 'pass', issues: const <ReviewIssue>[]);
 }
 
@@ -457,8 +476,9 @@ String _clamp(dynamic value, int maxChars) {
 // ---------------------------------------------------------------------------
 
 /// Strip every tool / streaming / request-shape override key from a custom
-/// extra body so the internal review / revision request stays text-only.
-/// Reasoning settings and other user preferences are preserved.
+/// extra body so the internal review request stays text-only. The revision
+/// request is a normal agent loop and does not use this sanitizer. Reasoning
+/// settings and other user preferences are preserved.
 Map<String, dynamic>? sanitizeReviewExtraBody(Map<String, dynamic>? body) {
   if (body == null || body.isEmpty) return body;
   final out = <String, dynamic>{};

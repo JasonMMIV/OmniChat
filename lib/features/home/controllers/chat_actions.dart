@@ -1374,6 +1374,49 @@ class ChatActions {
     );
   }
 
+  /// Revision-loop policy hooks. The revision is a normal agent loop, but it
+  /// must not overwrite the main run's checkpoint journal (the main loop has
+  /// already finished). Only the approval pause is shared: a tool that lands
+  /// in Pending stops the loop before another request, the pending call is
+  /// denied (so it cannot execute later for an abandoned revision), and the
+  /// driver fail-opens to the original draft.
+  stream_ctrl.AgentLoopHooks _buildRevisionHooks(
+    stream_ctrl.StreamingState state,
+  ) {
+    return stream_ctrl.AgentLoopHooks(
+      onRoundStart: (stepIndex, messages, tokensSoFar) async {
+        if (stepIndex == 0) return true;
+        final pending = await _resolvePendingTools(state.messageId);
+        // Unknown is not "none": a revision must not dispatch another round
+        // while a pending card may still be unresolved.
+        if (!pending.isKnown) return false;
+        if (!pending.hasPending) return true;
+        // The revision is abandoned (the driver fail-opens to the original
+        // draft). Deny the pending calls now instead of leaving live approval
+        // cards whose approval would execute side effects for a revision that
+        // no longer exists.
+        for (final tool in pending.tools.where((t) => t.kind == 'approval')) {
+          final content = buildApprovalAbortedContent(toolName: tool.name);
+          try {
+            await chatService.setToolEventApprovalState(
+              state.messageId,
+              id: tool.id,
+              approvalState: approvalStateDenied,
+              content: content,
+            );
+            _refreshToolPart(
+              state.messageId,
+              tool.id,
+              content: content,
+              status: kPartStatusDenied,
+            );
+          } catch (_) {}
+        }
+        return false;
+      },
+    );
+  }
+
   /// P0-3 `resumeRun` facade (ADR-A5): re-enter generation from a paused
   /// checkpoint without re-asking the model. The resolved tool result already
   /// lives in the persisted tool events (the approval/answer upsert is the
@@ -1493,6 +1536,7 @@ class ChatActions {
         tools: ctx.toolDefs.isEmpty ? null : ctx.toolDefs,
         onToolCall: ctx.onToolCall,
         hooks: await _buildPhase1Hooks(state),
+        revisionHooks: _buildRevisionHooks(state),
         extraHeaders: ctx.extraHeaders,
         extraBody: ctx.extraBody,
         webFetchEnabled: ctx.settings.webFetchEnabled,
