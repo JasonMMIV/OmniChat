@@ -1,6 +1,7 @@
 # OmniChat Cowork 剩餘項目實作計畫
 
-> **版本**：v1.3（2026-11-06）
+> **版本**：v1.4（2026-11-09）
+> **v1.4 變更**（裁示移除）：P2-1 啟動恢復橫幅與 §2.12 P3-3「進行中任務」頁（UI 面）依 2026-11-09 實測裁示全數移除——恢復收斂為**對話內就地式**（pending 卡／部分訊息即動作點）；P2-1 checkpoint 寫入地基（durable-before-dispatch、fence、審批暫停語意）保留為隱形正確性保險，讀取面為 P2-2 預留。詳見 §0.2、§2.4、§2.12。
 > **v1.3 變更**（自給自足化）：**吸收原《CLI 工具整合計畫 v4》**（2026-08-05 設計；原文同日封存於 `D:\Softwares\Omnichat\Archive\OmniChat CLI 工具整合計畫 — Windows + Android (proot) v4.md`，僅作考古依據）——① §2.8 P2-5 內化原 §七（Android PRoot backend 藍圖全文）＋§十五（F-Droid 發行要求），並補 ADR-A8 衝突消解／timeout 併批／backup 歸屬三項整合註記；② §0.4 藍圖欄、§2.2 與 §6 的 CLI v4 引用全部改訂為「已內化／歷史歸屬」——P1-6 原引用的執行契約（§五/§六）與測試矩陣（§十三）早已逐一列於 §2.2，內容未動。**本計畫的藍圖內容自本版起自給自足，不需回查其他計畫文件**；③ 參考表校正——§6 AnyBuff 路徑修正為本機實際位置 `C:\Users\w2bn1\GitHub\Anybuff`（原誤記 `Documents\GitHub\AnyBuff`），並為 P2-5 新增**第二對照組**：AnyBuff `android/` engine（已上線 v1.7.1 的 proot-Node 沙盒，ADR-21）隨 §2.8 補記對照細節；④ P2-5 藍圖以 kelivo 上游行為（master @ `51777f7`）增補**五項對照裁定**——per-request mounts vs generation 快照取捨（維持快照，入 kelivo 對照段）、path resolver **逃逸拒絕**入條目 7、`env -i` 最小 guest 環境入條目 3、32-bit `--kernel-release` 備註入條目 4、**RO 執行層在 app（proot `-b` 不強制 RO）**入條目 7。
 > **v1.2 變更**（review 修正）：① 事實修正——`preview_diff` 係基於**請求參數**而非最終匹配結果（§2.16）、kelivo 行數改「核心服務層約 12,500 行（UI 另計）」、§2.15 共用 diff 來源矛盾消解（viewer 用 Myers；審批卡換芯列可選）；② 設計補強——`output_file` 讀取**裁定**為「唯讀 session-outputs zone ＋ retention」（§2.2 增量 4）、`FileSnapshot` 改 `(mtime, size)` 二元組並註明近似審計、`block_anchor` 中段盲區與整窗替換語意入 §2.16、ToolRun 補 reload／跨頁面語意、P1-6 補 `timeout_seconds`／`cwd` 工具參數；③ 新增 `view_image` 可選項（§2.17）；④ 表格排序與計數措辭校正。
 > **v1.1 變更**：吸收 kelivo workspace 調查（`chevey339/kelivo` @ `51777f7`；workspace 為上游 v1.3.0／2026-09-22 引入，**晚於原計畫調查基準 `7125a25`**）——**接受全部導入建議**：新增 §2.16 P1-8（file_edit 三段式容忍匹配，即刻可做）；§2.2 P1-6 併入五項導入增量＋一項可選（環境旗標／FileSnapshot changed_files／結構化 payload／輸出外部化至 app 私有 session dir／ToolRun 即時串流；可選桌面 companion）；§2.15 升級為 Myers unified diff；§2.4 P2-1 補 ConversationToolPermissions 工程參考；§2.8 P2-5 補 kelivo `sandbox/` 對照實作；§2.17 可選週邊；§6 參考表新增 workspace 對照。未採納的設計分歧記錄於 §0.5。
@@ -25,6 +26,7 @@
 | P1-4 長輸出外部化 | 2026-09-12 回撤，改為純記憶體上限 `tool_result_caps`（工作區零殘留裁示） |
 | P1-5 工作區快照回滾 | 2026-09-10 完全移除（復原交使用者自己的 git） |
 | MCP 工具審批 | 2026-09-10（v1.6）移除——MCP 免審直接執行 |
+| P2-1 啟動恢復橫幅＋P3-3「進行中任務」頁 | 2026-11-09 裁示移除（UI 面）——橫幅屬推播式恢復、實測打擾；任務頁屬拉取式、無使用。恢復收斂為對話內就地式（pending 卡／部分訊息即動作點）；P2-1 寫入地基保留；見 §2.4／§2.12 |
 
 ### 0.3 本版裁示不採（2026-11-06，自計畫移除）
 
@@ -42,7 +44,7 @@
 | P1-2(尾) | `cache_expiry` 觸發（30 分鐘閒置壓縮） | AnyBuff 觸發器 | ✅（2026-11-06：以最後成功 usage 為活動錨點；見 §2.3） | v1.30.x |
 | P1-6 | 桌面開發者模式 + Allowlist Shell（`shell_run`）**＋ kelivo 導入增量** | ADR-A8/A9 + 執行契約已內化於 §2.2（原 CLI v4 §五/§六）+ kelivo workspace | ✅（2026-11-06；見 §2.2 落地紀錄） | v1.29.x |
 | P1-8 | file_edit 三段式容忍匹配（kelivo 導入，**即刻可做**） | kelivo `edit_matchers.dart`（RikkaHub TextReplacers 移植） | ✅ | v1.29.x |
-| P2-1 | Checkpoint 持久化（durable-before-dispatch） | deepseek-harness | ✅（2026-11-07：`agent_runs_v1`＋啟動恢復橫幅；見 §2.4） | v1.30.x |
+| P2-1 | Checkpoint 持久化（durable-before-dispatch） | deepseek-harness | ✅（2026-11-07：`agent_runs_v1`；2026-11-09 啟動橫幅隨 P3-3 一併移除；見 §2.4） | v1.30.x |
 | P2-2 | 背景長任務（桌面托盤 + Android 前景服務） | 既有基建 + P2-1 | ⬜ | v1.31.x |
 | P2-3 | 子代理（`spawn_subagent`） | AnyBuff agents/ + AiTeamController | ⬜ | v1.31.x |
 | P2-4 | Mini dev server + Live 預覽 | 既有 `html_preview_*` + 新 dev server | ✅（2026-11-08：loopback 靜態伺服器、SSE 重整、`get_console_errors`、分頁面板；見 §2.7） | v1.31.x |
@@ -50,7 +52,7 @@
 | P2-6(L3) | 工作區檔案地圖注入（**僅 L3**；L2 LLM 摘要不採） | AnyBuff `truncate-file-tree` 概念 | ⬜ | v1.32.x |
 | P2-7 | kelivo 資料模型對齊（**可選**） | kelivo `a43b79f` | ⬜ | 視需求 |
 | P3-1 | 瀏覽器 QA 工具（Playwright via MCP，桌面限定） | MCP + Playwright | ⬜ | v1.32.x |
-| P3-3 | 跨會話任務恢復（「進行中任務」頁） | P2-1 延伸 | ✅（2026-11-08：清單頁＋桌面 dialog／行動頁雙入口；見 §2.12） | v1.32.x |
+| ~~P3-3~~ | ~~跨會話任務恢復（「進行中任務」頁）~~ **已移除**（2026-11-09 裁示；見 §2.12） | P2-1 延伸 | ⛔ 已移除 | — |
 | P3-4 | 上限再校準 + 磁碟預算（dev mode 寫入 2MB 級） | — | ✅（2026-11-08：dev mode 2MB、Tools 頁磁碟用量、`file_read` 24KB 預設窗口；見 §2.13） | v1.32.x |
 | ~~P3-5~~ | ~~Plan Mode（先規劃 → 人批 → 再執行）~~ **不實作**（見 §2.14 裁示） | deepseek plan-mode | ❌ 已移除 | — |
 | P1-1(尾) | 執行後全檔 diff viewer（原計畫歸 Phase 3；Myers unified diff） | RikkaHub `diffOf` + kelivo `unified_diff` | ✅（2026-11-08：Myers unified diff、卡片 ±N、展開全檔變更；見 §2.15） | v1.29.x |
@@ -101,7 +103,7 @@
 【Wave C：「可恢復」地基】
   P2-1 Checkpoint
     ├──→ P2-2 背景長任務（背景續跑沒有 durable-before-dispatch 不安全）
-    └──→ P3-3 跨會話任務恢復（以 agent_runs_v1 為資料源）
+    └──→ P3-3 跨會話任務恢復（⛔ 2026-11-09 裁示移除——恢復改為對話內就地式）
 
 【Wave D：「製作網站」閉環】
   P2-4 Dev server + Live 預覽（✅ 2026-11-08）──→ P3-1 瀏覽器 QA（要有持續開著的頁面才有得驗證）
@@ -246,6 +248,8 @@
 
 **2026-11-07 review 修正（已完成）**：checkpoint 生命週期抽成 `AgentRunJournal`（`agent_run_journal.dart`）——durable-before-dispatch、pending 三態（known pending／known none／unknown）、run fence、終態分類都可單測（新增 `test/agent_checkpoint/agent_run_journal_test.dart`）。寫入失敗首次即降級為本 session 停用 journal 並記錄一次 log，不再讓 generation 直接失敗；`onToolResults` 只在 pending 出現／解除時落盤，其餘批次到 `onRoundEnd`。啟動橫幅改為 stream 終態／取消／切換對話時重新讀 store，resume 前再 `load()` 一次並擋 `loadingConversationIds`；使用者 dismiss 的 checkpoint 會以 key 記住，不會被刷新拉回。`pendingTools` 讀不到時回 unknown，終態保留既有 checkpoint。`AgentRunCheckpoint` 加 optional `runId`，store 刪 corrupt row 後 flush。
 
+**2026-11-09 裁示（已完成）**：啟動橫幅「上次任務尚未完成」與 §2.12「進行中任務」頁全數移除——橫幅屬推播式恢復（實測打擾）、任務頁屬拉取式（無使用），恢復面收斂為**對話內就地式**：pending 審批／ask_user 卡與部分訊息本身就是動作點。P2-1 寫入地基（durable-before-dispatch、`AgentRunJournal`、`AgentRunFence`、pending 三態、對話刪除清理）**完整保留**，角色轉為隱形正確性保險；讀取面（`latest()`／`listAll()`）為 P2-2 背景任務收件匣預留（store 類別文件已註記勿當死碼刪除）。原「UI 橫幅視覺 smoke」驗證項隨橫幅移除作廢。
+
 **kelivo 對照（§0.5）**：其 `ConversationToolPermissions` 的工程——授權屬於對話而非前景頁、寫入序列化尾巴、revision fencing、`context_changed` 例外——是 pendingApprovals 落地與「審批卡跨頁面／跨對話切換一致」的直接參考（抄語意不抄碼）。
 
 ---
@@ -376,7 +380,11 @@
 
 ---
 
-### 2.12 P3-3 跨會話任務恢復（「進行中任務」頁）✅【2026-11-08 完成】
+### 2.12 P3-3 跨會話任務恢復（「進行中任務」頁）⛔【2026-11-09 裁示移除（UI 面）】
+
+**裁示（2026-11-09）**：UI 面全數移除。橫幅屬**推播式**恢復——實測造成打擾；任務頁（2026-11-08 落地於側欄、後遷設定頁）屬**拉取式**恢復——無實際使用，且價值與對話內就地發現高度重疊（pending 卡只差導航、Running 列僅能 Open、bare 中斷由部分訊息＋regenerate 後備覆蓋）。判準：要「遺忘的中斷任務」造成實損，需「多步 run＋程序被殺＋長期不回該對話＋任務重要」四條件同時成立，且後果僅是需重新提示、**無資料損失**（對話與 tool events 完整持久化）。移除範圍：`AgentTasksView`／`AgentTasksPage`／`showAgentTasksDesktopDialog`／`AgentRunTaskService`／`AgentRunTask`／`HomePageController.resumeAgentRun`／`maybeCurrent` 橋接與 27 個 l10n keys；**保留** P2-1 寫入地基與 `ChatActions.resumeRun` facade（派發契約由 `approval_lifecycle_test` 鎖定）。未來 P2-2 背景任務若需收件匣，`agent_runs_v1` 讀取面仍在，重建 UI 成本低。
+
+**以下原規劃與落地紀錄保留供追溯（UI 面已於 2026-11-09 移除）**：
 
 **目標**：以 P2-1 的 `agent_runs_v1` 為資料源，做全域「**進行中任務**」頁——列出所有對話中未完成的 agent run（跨對話、跨日期），點入即 resume。把恢復能力從「崩潰保險」（啟動橫幅只覆蓋單點）升級為**可發現的任務管理面**；也是 P2-2 背景任務的自然收件匣。
 

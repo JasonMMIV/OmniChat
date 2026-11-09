@@ -102,7 +102,6 @@ class HomeViewModel extends ChangeNotifier {
     _chatActions.onMaybeGenerateTitle = _onMaybeGenerateTitle;
     _chatActions.onMaybeGenerateSummary = _onMaybeGenerateSummary;
     _chatActions.onStreamFinished = _onStreamFinished;
-    _chatActions.onRunCheckpointChanged = () => onRunCheckpointChanged?.call();
   }
 
   // ============================================================================
@@ -157,13 +156,6 @@ class HomeViewModel extends ChangeNotifier {
   /// Called when streaming finishes (UI may show notification).
   VoidCallback? onStreamFinished;
 
-  /// Called when a durable agent-run checkpoint changes; the UI refreshes
-  /// the resume banner without waiting for a restart.
-  VoidCallback? onRunCheckpointChanged;
-
-  /// Called when a conversation's generation loading state changes.
-  void Function(String conversationId, bool loading)? onLoadingChanged;
-
   /// Called to schedule inline image sanitization.
   void Function(String messageId, String content, {bool immediate})?
   onScheduleImageSanitize;
@@ -209,7 +201,6 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   void _onLoadingChanged(String conversationId, bool loading) {
-    onLoadingChanged?.call(conversationId, loading);
     notifyListeners();
   }
 

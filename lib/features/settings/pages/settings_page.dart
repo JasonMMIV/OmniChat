@@ -10,9 +10,6 @@ import '../../provider/pages/providers_page.dart';
 import 'display_settings_page.dart';
 import '../../mcp/pages/mcp_page.dart';
 import '../../assistant/pages/assistant_settings_page.dart';
-import '../../agent/pages/agent_tasks_page.dart';
-import '../../home/controllers/home_page_controller.dart';
-import '../../../desktop/agent_tasks_dialog.dart';
 import 'about_page.dart';
 import '../../stats/pages/stats_page.dart';
 import 'voice_services_page.dart';
@@ -42,8 +39,6 @@ class SettingsPage extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final settings = context.watch<SettingsProvider>();
-    // P3-3: capture once at build time; the task row below hides when null.
-    final homeController = HomePageController.maybeCurrent;
 
     String modeLabel(ThemeMode m) {
       switch (m) {
@@ -373,18 +368,6 @@ class SettingsPage extends StatelessWidget {
                   );
                 },
               ),
-              // P3-3: global unfinished-task surface. The resume flow is
-              // owned by the chat home controller, so the entry only appears
-              // while that controller is alive.
-              if (homeController != null) ...[
-                _iosDivider(context),
-                _iosNavRow(
-                  context,
-                  icon: Lucide.ListChecks,
-                  label: l10n.agentTasksTitle,
-                  onTap: () => _openAgentTasks(context, homeController),
-                ),
-              ],
               _iosDivider(context),
               _iosNavRow(
                 context,
@@ -461,33 +444,6 @@ class SettingsPage extends StatelessWidget {
       ),
     );
   }
-}
-
-/// P3-3: opens the global unfinished-task surface from the settings page.
-/// The resume flow is owned by the chat home controller; the platform decides
-/// between the desktop dialog and the mobile full page.
-Future<void> _openAgentTasks(
-  BuildContext context,
-  HomePageController controller,
-) async {
-  final isDesktop =
-      Platform.isWindows || Platform.isMacOS || Platform.isLinux;
-  if (isDesktop) {
-    await showAgentTasksDesktopDialog(
-      context,
-      activeConversationIds: controller.loadingConversationIds,
-      onResumeTask: (task) => controller.resumeAgentRun(task.checkpoint),
-    );
-    return;
-  }
-  await Navigator.of(context).push<void>(
-    MaterialPageRoute(
-      builder: (_) => AgentTasksPage(
-        activeConversationIds: controller.loadingConversationIds,
-        onResumeTask: (task) => controller.resumeAgentRun(task.checkpoint),
-      ),
-    ),
-  );
 }
 
 // --- iOS-style widgets for Settings page ---

@@ -1246,7 +1246,7 @@ class ChatActions {
   ///    kernel's cumulative `tokensSoFar` is reserved for the token budget.
   /// P2-1: unresolved approval / ask_user tool events for [assistantMessageId].
   /// The events are the authoritative pause source; the journal only mirrors
-  /// them so a restarted app can route the user back to the card.
+  /// them as a durable breadcrumb for future recovery surfaces (P2-2).
   ///
   /// Throws when the events are not loaded; [_resolvePendingTools] turns that
   /// into an explicit "unknown" result instead of a misleading empty list
@@ -1370,8 +1370,10 @@ class ChatActions {
   /// lives in the persisted tool events (the approval/answer upsert is the
   /// checkpoint), so the fresh assistant message simply replays the
   /// conversation with the resolved event included — the same mechanism the
-  /// approval and ask_user resume paths use today. The startup banner (P2-1)
-  /// and the future P3-3 task list call this entry point.
+  /// approval and ask_user resume paths use today. The facade is kept as the
+  /// single resume entry point (its dispatch contract is locked by
+  /// approval_lifecycle_test); the timeline card paths call [resolveApproval]
+  /// and [resumeAfterAskUserAnswer] directly.
   Future<ChatMessage?> resumeRun(
     String conversationId, {
     String? assistantMessageId,
@@ -1381,7 +1383,7 @@ class ChatActions {
     Map<String, dynamic>? answerPayload,
   }) async {
     // Never start a second placeholder/request for a conversation that is
-    // already generating; the banner can outlive the run it belongs to.
+    // already generating.
     if (_loadingConversationIds.contains(conversationId)) return null;
 
     // Dispatch on the pause kind: an approval pending resolves through the

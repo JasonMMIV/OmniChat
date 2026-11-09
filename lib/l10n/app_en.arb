@@ -922,51 +922,6 @@
     }
   },
   "approvalPendingPill": "Pending",
-  "pendingAgentRunTitle": "Previous task unfinished",
-  "pendingAgentRunBody": "Progress was saved. You can continue from the last checkpoint.",
-  "pendingAgentRunResume": "Resume",
-  "pendingAgentRunReview": "Review",
-  "agentTasksTitle": "Unfinished tasks",
-  "agentTasksEmptyTitle": "Nothing to resume",
-  "agentTasksEmptyBody": "Tasks that pause for approval or are interrupted will appear here.",
-  "agentTasksReasonApproval": "Waiting for approval",
-  "agentTasksReasonAskUser": "Waiting for your answer",
-  "agentTasksReasonInterrupted": "Interrupted",
-  "agentTasksReasonRunning": "Interrupted mid-run",
-  "agentTasksReasonSoftStopped": "Stopped at limit",
-  "agentTasksReasonSoftStopSteps": "Step limit reached",
-  "agentTasksReasonSoftStopTokens": "Token budget reached",
-  "agentTasksStep": "Step {step}",
-  "@agentTasksStep": {
-    "placeholders": {
-      "step": {
-        "type": "int"
-      }
-    }
-  },
-  "agentTasksPendingTool": "Pending: {name}",
-  "@agentTasksPendingTool": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "agentTasksSavedAt": "Saved {time}",
-  "@agentTasksSavedAt": {
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "agentTasksResume": "Resume",
-  "agentTasksReview": "Review",
-  "agentTasksRunning": "Running",
-  "agentTasksOpen": "Open",
-  "agentTasksLoadFailed": "Couldn't load unfinished tasks.",
-  "agentTasksRetry": "Retry",
-  "agentTasksUnavailable": "This task is no longer available. Try refreshing the list.",
   "approvalOutsideWorkspace": "Outside workspace: {path}",
   "@approvalOutsideWorkspace": {
     "placeholders": {

@@ -12,6 +12,11 @@ import 'agent_run_checkpoint.dart';
 /// a crash-recovery journal for this installation only. Conversation rows and
 /// tool events remain the source of truth; a corrupt checkpoint is deleted so
 /// it can never wedge startup.
+///
+/// The write path and fence run on every agent loop boundary; the read
+/// surface (latest/listAll) currently has no UI consumer — the planned
+/// background-task inbox (P2-2) is its future reader, so do not remove it
+/// as dead code.
 class AgentRunCheckpointStore implements AgentRunCheckpointSink {
   AgentRunCheckpointStore({String boxName = defaultBoxName})
     : _boxName = boxName;

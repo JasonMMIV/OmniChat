@@ -695,7 +695,6 @@ class _HomePageState extends State<HomePage>
           ),
           child: Column(
             children: [
-              _buildPendingAgentRunBanner(context),
               Expanded(
                 child: Builder(
                   builder: (context) {
@@ -811,7 +810,6 @@ class _HomePageState extends State<HomePage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildPendingAgentRunBanner(context),
               Expanded(
                 child: FadeTransition(
                   opacity: _controller.convoFade,
@@ -983,65 +981,6 @@ class _HomePageState extends State<HomePage>
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildPendingAgentRunBanner(BuildContext context) {
-    final checkpoint = _controller.pendingAgentRun;
-    if (checkpoint == null) return const SizedBox.shrink();
-    final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final action = checkpoint.hasPendingUserAction
-        ? l10n.pendingAgentRunReview
-        : l10n.pendingAgentRunResume;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      child: Material(
-        color: cs.secondaryContainer,
-        borderRadius: BorderRadius.circular(12),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-          child: Row(
-            children: [
-              Icon(
-                Icons.history_rounded,
-                size: 20,
-                color: cs.onSecondaryContainer,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.pendingAgentRunTitle,
-                      style: Theme.of(context).textTheme.titleSmall
-                          ?.copyWith(color: cs.onSecondaryContainer),
-                    ),
-                    Text(
-                      l10n.pendingAgentRunBody,
-                      style: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(color: cs.onSecondaryContainer),
-                    ),
-                  ],
-                ),
-              ),
-              TextButton(
-                onPressed: _controller.resumingPendingAgentRun
-                    ? null
-                    : _controller.resumePendingAgentRun,
-                child: Text(action),
-              ),
-              IconButton(
-                tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-                onPressed: _controller.dismissPendingAgentRun,
-                icon: const Icon(Icons.close, size: 18),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
