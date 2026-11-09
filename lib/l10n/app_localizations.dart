@@ -6372,13 +6372,13 @@ abstract class AppLocalizations {
   /// No description provided for @displaySettingsPageAnswerReviewTitle.
   ///
   /// In en, this message translates to:
-  /// **'Answer Review'**
+  /// **'Self-Review'**
   String get displaySettingsPageAnswerReviewTitle;
 
   /// No description provided for @displaySettingsPageAnswerReviewDescription.
   ///
   /// In en, this message translates to:
-  /// **'Review the draft before the final answer is sent and fix major issues once'**
+  /// **'Self-review the draft before the final answer is sent and fix major issues once'**
   String get displaySettingsPageAnswerReviewDescription;
 
   /// No description provided for @displaySettingsPageAnswerReviewOptionOff.
@@ -6408,13 +6408,13 @@ abstract class AppLocalizations {
   /// No description provided for @displaySettingsPageAnswerReviewCostHint.
   ///
   /// In en, this message translates to:
-  /// **'Review adds one model request and may increase latency and token cost'**
+  /// **'Self-review adds one model request and may increase latency and token cost'**
   String get displaySettingsPageAnswerReviewCostHint;
 
   /// No description provided for @chatAnswerReviewInProgress.
   ///
   /// In en, this message translates to:
-  /// **'Reviewing answer…'**
+  /// **'Self-reviewing answer…'**
   String get chatAnswerReviewInProgress;
 
   /// No description provided for @chatAnswerReviewRevising.
@@ -6426,19 +6426,19 @@ abstract class AppLocalizations {
   /// No description provided for @chatAnswerReviewFailedOpen.
   ///
   /// In en, this message translates to:
-  /// **'Review unavailable; original answer kept'**
+  /// **'Self-review unavailable; original answer kept'**
   String get chatAnswerReviewFailedOpen;
 
   /// No description provided for @chatAnswerReviewCardTitle.
   ///
   /// In en, this message translates to:
-  /// **'Answer review'**
+  /// **'Self-Review'**
   String get chatAnswerReviewCardTitle;
 
   /// No description provided for @chatAnswerReviewStatusReviewing.
   ///
   /// In en, this message translates to:
-  /// **'Reviewing'**
+  /// **'Self-reviewing'**
   String get chatAnswerReviewStatusReviewing;
 
   /// No description provided for @chatAnswerReviewStatusPassed.
@@ -6462,7 +6462,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatAnswerReviewStatusFailedOpen.
   ///
   /// In en, this message translates to:
-  /// **'Review unavailable'**
+  /// **'Self-review unavailable'**
   String get chatAnswerReviewStatusFailedOpen;
 
   /// No description provided for @chatAnswerReviewStatusRevisionFailed.
@@ -6522,7 +6522,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatAnswerReviewIssuesTitle.
   ///
   /// In en, this message translates to:
-  /// **'Review findings'**
+  /// **'Self-review findings'**
   String get chatAnswerReviewIssuesTitle;
 
   /// No description provided for @chatAnswerReviewNoIssues.
@@ -6600,7 +6600,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatAnswerReviewReviewTime.
   ///
   /// In en, this message translates to:
-  /// **'Review {ms} ms'**
+  /// **'Self-review {ms} ms'**
   String chatAnswerReviewReviewTime(int ms);
 
   /// No description provided for @chatAnswerReviewRevisionTime.
@@ -6636,7 +6636,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatAnswerReviewFailMalformed.
   ///
   /// In en, this message translates to:
-  /// **'Could not parse the verdict'**
+  /// **'Could not parse the self-review verdict'**
   String get chatAnswerReviewFailMalformed;
 
   /// No description provided for @chatAnswerReviewFailRevisionFailed.
@@ -6672,7 +6672,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatAnswerReviewReviewingHint.
   ///
   /// In en, this message translates to:
-  /// **'The same model is checking the draft.'**
+  /// **'The same model is self-reviewing the draft.'**
   String get chatAnswerReviewReviewingHint;
 
   /// No description provided for @chatAnswerReviewGroupSummary.

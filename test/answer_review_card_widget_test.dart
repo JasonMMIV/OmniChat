@@ -57,7 +57,7 @@ void main() {
     );
 
     expect(
-      find.textContaining('Answer review', findRichText: true),
+      find.textContaining('Self-Review', findRichText: true),
       findsOneWidget,
     );
     expect(find.textContaining('Passed', findRichText: true), findsOneWidget);
@@ -76,7 +76,7 @@ void main() {
         (widget) =>
             widget is Text &&
             widget.textSpan != null &&
-            widget.textSpan!.toPlainText().contains('Answer review'),
+            widget.textSpan!.toPlainText().contains('Self-Review'),
       ),
     );
     final headerSpans = (header.textSpan! as TextSpan).children!;

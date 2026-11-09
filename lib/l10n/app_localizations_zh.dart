@@ -3346,11 +3346,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get displaySettingsPageReplayToolResultsTitle => '跨轮重放工具结果';
 
   @override
-  String get displaySettingsPageAnswerReviewTitle => '回答前审查';
+  String get displaySettingsPageAnswerReviewTitle => '自我审查';
 
   @override
   String get displaySettingsPageAnswerReviewDescription =>
-      '在最终回答送出前检查草稿；发现重大问题时自动修正一次';
+      '在最终回答送出前自我审查草稿；发现重大问题时自动修正一次';
 
   @override
   String get displaySettingsPageAnswerReviewOptionOff => '关闭';
@@ -3367,22 +3367,22 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get displaySettingsPageAnswerReviewCostHint =>
-      '审查会多一次模型请求，可能增加延迟与 token 费用';
+      '自我审查会多一次模型请求，可能增加延迟与 token 费用';
 
   @override
-  String get chatAnswerReviewInProgress => '正在审查回答…';
+  String get chatAnswerReviewInProgress => '自我审查中…';
 
   @override
   String get chatAnswerReviewRevising => '正在修正回答…';
 
   @override
-  String get chatAnswerReviewFailedOpen => '审查未完成，已保留原回答';
+  String get chatAnswerReviewFailedOpen => '自我审查未完成，已保留原回答';
 
   @override
-  String get chatAnswerReviewCardTitle => '回答审查';
+  String get chatAnswerReviewCardTitle => '自我审查';
 
   @override
-  String get chatAnswerReviewStatusReviewing => '审查中';
+  String get chatAnswerReviewStatusReviewing => '自我审查中';
 
   @override
   String get chatAnswerReviewStatusPassed => '已通过';
@@ -3394,7 +3394,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatAnswerReviewStatusRevised => '已修正';
 
   @override
-  String get chatAnswerReviewStatusFailedOpen => '审查未完成';
+  String get chatAnswerReviewStatusFailedOpen => '自我审查未完成';
 
   @override
   String get chatAnswerReviewStatusRevisionFailed => '修正失败';
@@ -3428,7 +3428,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatAnswerReviewHideDraft => '收合初稿';
 
   @override
-  String get chatAnswerReviewIssuesTitle => '审查结果';
+  String get chatAnswerReviewIssuesTitle => '自我审查结果';
 
   @override
   String get chatAnswerReviewNoIssues => '未发现阻挡性问题。';
@@ -3470,7 +3470,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String chatAnswerReviewReviewTime(int ms) {
-    return '审查 $ms ms';
+    return '自我审查 $ms ms';
   }
 
   @override
@@ -3493,7 +3493,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatAnswerReviewFailEmpty => '响应为空';
 
   @override
-  String get chatAnswerReviewFailMalformed => '无法解析审查结果';
+  String get chatAnswerReviewFailMalformed => '无法解析自我审查结果';
 
   @override
   String get chatAnswerReviewFailRevisionFailed => '修正失败，已保留原回答';
@@ -3511,7 +3511,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatAnswerReviewFailInterrupted => '完成前中断';
 
   @override
-  String get chatAnswerReviewReviewingHint => '正在以相同模型自查初稿。';
+  String get chatAnswerReviewReviewingHint => '正在以相同模型自我审查初稿。';
 
   @override
   String chatAnswerReviewGroupSummary(String status, int count) {
@@ -9871,11 +9871,11 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get displaySettingsPageReplayToolResultsTitle => '跨轮重放工具结果';
 
   @override
-  String get displaySettingsPageAnswerReviewTitle => '回答前审查';
+  String get displaySettingsPageAnswerReviewTitle => '自我审查';
 
   @override
   String get displaySettingsPageAnswerReviewDescription =>
-      '在最终回答送出前检查草稿；发现重大问题时自动修正一次';
+      '在最终回答送出前自我审查草稿；发现重大问题时自动修正一次';
 
   @override
   String get displaySettingsPageAnswerReviewOptionOff => '关闭';
@@ -9892,22 +9892,22 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get displaySettingsPageAnswerReviewCostHint =>
-      '审查会多一次模型请求，可能增加延迟与 token 费用';
+      '自我审查会多一次模型请求，可能增加延迟与 token 费用';
 
   @override
-  String get chatAnswerReviewInProgress => '正在审查回答…';
+  String get chatAnswerReviewInProgress => '自我审查中…';
 
   @override
   String get chatAnswerReviewRevising => '正在修正回答…';
 
   @override
-  String get chatAnswerReviewFailedOpen => '审查未完成，已保留原回答';
+  String get chatAnswerReviewFailedOpen => '自我审查未完成，已保留原回答';
 
   @override
-  String get chatAnswerReviewCardTitle => '回答审查';
+  String get chatAnswerReviewCardTitle => '自我审查';
 
   @override
-  String get chatAnswerReviewStatusReviewing => '审查中';
+  String get chatAnswerReviewStatusReviewing => '自我审查中';
 
   @override
   String get chatAnswerReviewStatusPassed => '已通过';
@@ -9919,7 +9919,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatAnswerReviewStatusRevised => '已修正';
 
   @override
-  String get chatAnswerReviewStatusFailedOpen => '审查未完成';
+  String get chatAnswerReviewStatusFailedOpen => '自我审查未完成';
 
   @override
   String get chatAnswerReviewStatusRevisionFailed => '修正失败';
@@ -9953,7 +9953,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatAnswerReviewHideDraft => '收合初稿';
 
   @override
-  String get chatAnswerReviewIssuesTitle => '审查结果';
+  String get chatAnswerReviewIssuesTitle => '自我审查结果';
 
   @override
   String get chatAnswerReviewNoIssues => '未发现阻挡性问题。';
@@ -9995,7 +9995,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String chatAnswerReviewReviewTime(int ms) {
-    return '审查 $ms ms';
+    return '自我审查 $ms ms';
   }
 
   @override
@@ -10018,7 +10018,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatAnswerReviewFailEmpty => '响应为空';
 
   @override
-  String get chatAnswerReviewFailMalformed => '无法解析审查结果';
+  String get chatAnswerReviewFailMalformed => '无法解析自我审查结果';
 
   @override
   String get chatAnswerReviewFailRevisionFailed => '修正失败，已保留原回答';
@@ -10036,7 +10036,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatAnswerReviewFailInterrupted => '完成前中断';
 
   @override
-  String get chatAnswerReviewReviewingHint => '正在以相同模型自查初稿。';
+  String get chatAnswerReviewReviewingHint => '正在以相同模型自我审查初稿。';
 
   @override
   String chatAnswerReviewGroupSummary(String status, int count) {
@@ -16306,11 +16306,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get displaySettingsPageReplayToolResultsTitle => '跨輪重放工具結果';
 
   @override
-  String get displaySettingsPageAnswerReviewTitle => '回答前審查';
+  String get displaySettingsPageAnswerReviewTitle => '自我審查';
 
   @override
   String get displaySettingsPageAnswerReviewDescription =>
-      '在最終回答送出前檢查草稿；發現重大問題時自動修正一次';
+      '在最終回答送出前自我審查草稿；發現重大問題時自動修正一次';
 
   @override
   String get displaySettingsPageAnswerReviewOptionOff => '關閉';
@@ -16327,22 +16327,22 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get displaySettingsPageAnswerReviewCostHint =>
-      '審查會多一次模型請求，可能增加延遲與 token 費用';
+      '自我審查會多一次模型請求，可能增加延遲與 token 費用';
 
   @override
-  String get chatAnswerReviewInProgress => '審查回答中…';
+  String get chatAnswerReviewInProgress => '自我審查中…';
 
   @override
   String get chatAnswerReviewRevising => '正在修正回答…';
 
   @override
-  String get chatAnswerReviewFailedOpen => '審查未完成，已保留原回答';
+  String get chatAnswerReviewFailedOpen => '自我審查未完成，已保留原回答';
 
   @override
-  String get chatAnswerReviewCardTitle => '回答審查';
+  String get chatAnswerReviewCardTitle => '自我審查';
 
   @override
-  String get chatAnswerReviewStatusReviewing => '審查中';
+  String get chatAnswerReviewStatusReviewing => '自我審查中';
 
   @override
   String get chatAnswerReviewStatusPassed => '已通過';
@@ -16354,7 +16354,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatAnswerReviewStatusRevised => '已修正';
 
   @override
-  String get chatAnswerReviewStatusFailedOpen => '審查未完成';
+  String get chatAnswerReviewStatusFailedOpen => '自我審查未完成';
 
   @override
   String get chatAnswerReviewStatusRevisionFailed => '修正失敗';
@@ -16388,7 +16388,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatAnswerReviewHideDraft => '收合初稿';
 
   @override
-  String get chatAnswerReviewIssuesTitle => '審查結果';
+  String get chatAnswerReviewIssuesTitle => '自我審查結果';
 
   @override
   String get chatAnswerReviewNoIssues => '未發現阻擋性問題。';
@@ -16430,7 +16430,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String chatAnswerReviewReviewTime(int ms) {
-    return '審查 $ms ms';
+    return '自我審查 $ms ms';
   }
 
   @override
@@ -16453,7 +16453,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatAnswerReviewFailEmpty => '回應為空';
 
   @override
-  String get chatAnswerReviewFailMalformed => '無法解析審查結果';
+  String get chatAnswerReviewFailMalformed => '無法解析自我審查結果';
 
   @override
   String get chatAnswerReviewFailRevisionFailed => '修正失敗，已保留原回答';
@@ -16471,7 +16471,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatAnswerReviewFailInterrupted => '完成前中斷';
 
   @override
-  String get chatAnswerReviewReviewingHint => '正在以相同模型自查初稿。';
+  String get chatAnswerReviewReviewingHint => '正在以相同模型自我審查初稿。';
 
   @override
   String chatAnswerReviewGroupSummary(String status, int count) {

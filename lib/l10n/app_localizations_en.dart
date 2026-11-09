@@ -3386,11 +3386,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get displaySettingsPageReplayToolResultsTitle => 'Replay Tool Results';
 
   @override
-  String get displaySettingsPageAnswerReviewTitle => 'Answer Review';
+  String get displaySettingsPageAnswerReviewTitle => 'Self-Review';
 
   @override
   String get displaySettingsPageAnswerReviewDescription =>
-      'Review the draft before the final answer is sent and fix major issues once';
+      'Self-review the draft before the final answer is sent and fix major issues once';
 
   @override
   String get displaySettingsPageAnswerReviewOptionOff => 'Off';
@@ -3407,23 +3407,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get displaySettingsPageAnswerReviewCostHint =>
-      'Review adds one model request and may increase latency and token cost';
+      'Self-review adds one model request and may increase latency and token cost';
 
   @override
-  String get chatAnswerReviewInProgress => 'Reviewing answer…';
+  String get chatAnswerReviewInProgress => 'Self-reviewing answer…';
 
   @override
   String get chatAnswerReviewRevising => 'Revising answer…';
 
   @override
   String get chatAnswerReviewFailedOpen =>
-      'Review unavailable; original answer kept';
+      'Self-review unavailable; original answer kept';
 
   @override
-  String get chatAnswerReviewCardTitle => 'Answer review';
+  String get chatAnswerReviewCardTitle => 'Self-Review';
 
   @override
-  String get chatAnswerReviewStatusReviewing => 'Reviewing';
+  String get chatAnswerReviewStatusReviewing => 'Self-reviewing';
 
   @override
   String get chatAnswerReviewStatusPassed => 'Passed';
@@ -3435,7 +3435,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatAnswerReviewStatusRevised => 'Revised';
 
   @override
-  String get chatAnswerReviewStatusFailedOpen => 'Review unavailable';
+  String get chatAnswerReviewStatusFailedOpen => 'Self-review unavailable';
 
   @override
   String get chatAnswerReviewStatusRevisionFailed => 'Revision failed';
@@ -3476,7 +3476,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatAnswerReviewHideDraft => 'Collapse draft';
 
   @override
-  String get chatAnswerReviewIssuesTitle => 'Review findings';
+  String get chatAnswerReviewIssuesTitle => 'Self-review findings';
 
   @override
   String get chatAnswerReviewNoIssues => 'No blocking issues found.';
@@ -3519,7 +3519,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String chatAnswerReviewReviewTime(int ms) {
-    return 'Review $ms ms';
+    return 'Self-review $ms ms';
   }
 
   @override
@@ -3542,7 +3542,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatAnswerReviewFailEmpty => 'Empty response';
 
   @override
-  String get chatAnswerReviewFailMalformed => 'Could not parse the verdict';
+  String get chatAnswerReviewFailMalformed =>
+      'Could not parse the self-review verdict';
 
   @override
   String get chatAnswerReviewFailRevisionFailed =>
@@ -3564,7 +3565,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatAnswerReviewReviewingHint =>
-      'The same model is checking the draft.';
+      'The same model is self-reviewing the draft.';
 
   @override
   String chatAnswerReviewGroupSummary(String status, int count) {
