@@ -3340,6 +3340,150 @@ class AppLocalizationsEn extends AppLocalizations {
       'Review unavailable; original answer kept';
 
   @override
+  String get chatAnswerReviewCardTitle => 'Answer review';
+
+  @override
+  String get chatAnswerReviewStatusReviewing => 'Reviewing';
+
+  @override
+  String get chatAnswerReviewStatusPassed => 'Passed';
+
+  @override
+  String get chatAnswerReviewStatusRevising => 'Revising';
+
+  @override
+  String get chatAnswerReviewStatusRevised => 'Revised';
+
+  @override
+  String get chatAnswerReviewStatusFailedOpen => 'Review unavailable';
+
+  @override
+  String get chatAnswerReviewStatusRevisionFailed => 'Revision failed';
+
+  @override
+  String get chatAnswerReviewStatusCancelled => 'Cancelled';
+
+  @override
+  String get chatAnswerReviewStatusInterrupted => 'Interrupted';
+
+  @override
+  String chatAnswerReviewIssueCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count issues',
+      one: '1 issue',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatAnswerReviewDraftTitle => 'Draft';
+
+  @override
+  String chatAnswerReviewDraftChars(int count) {
+    return '$count chars';
+  }
+
+  @override
+  String get chatAnswerReviewDraftTruncated =>
+      'Draft was too long and is truncated.';
+
+  @override
+  String get chatAnswerReviewShowDraft => 'Show full draft';
+
+  @override
+  String get chatAnswerReviewHideDraft => 'Collapse draft';
+
+  @override
+  String get chatAnswerReviewIssuesTitle => 'Review findings';
+
+  @override
+  String get chatAnswerReviewNoIssues => 'No blocking issues found.';
+
+  @override
+  String get chatAnswerReviewSeverityBlocker => 'Blocker';
+
+  @override
+  String get chatAnswerReviewSeverityMajor => 'Major';
+
+  @override
+  String get chatAnswerReviewSeverityMinor => 'Minor';
+
+  @override
+  String get chatAnswerReviewLocation => 'Location';
+
+  @override
+  String get chatAnswerReviewProblem => 'Problem';
+
+  @override
+  String get chatAnswerReviewFix => 'Suggested fix';
+
+  @override
+  String get chatAnswerReviewDiffTitle => 'Revision diff';
+
+  @override
+  String chatAnswerReviewDiffSummary(int added, int removed) {
+    return '+$added / −$removed';
+  }
+
+  @override
+  String get chatAnswerReviewDiffNone =>
+      'The revised answer is identical to the draft.';
+
+  @override
+  String get chatAnswerReviewShowDiff => 'Show diff';
+
+  @override
+  String get chatAnswerReviewHideDiff => 'Hide diff';
+
+  @override
+  String chatAnswerReviewReviewTime(int ms) {
+    return 'Review $ms ms';
+  }
+
+  @override
+  String chatAnswerReviewRevisionTime(int ms) {
+    return 'Revision $ms ms';
+  }
+
+  @override
+  String chatAnswerReviewTokens(int tokens) {
+    return '$tokens tokens';
+  }
+
+  @override
+  String get chatAnswerReviewFailTimeout => 'Timed out';
+
+  @override
+  String get chatAnswerReviewFailError => 'Request failed';
+
+  @override
+  String get chatAnswerReviewFailEmpty => 'Empty response';
+
+  @override
+  String get chatAnswerReviewFailMalformed => 'Could not parse the verdict';
+
+  @override
+  String get chatAnswerReviewFailRevisionFailed =>
+      'The revision failed; original answer kept';
+
+  @override
+  String get chatAnswerReviewFailCancelled => 'Cancelled by you';
+
+  @override
+  String get chatAnswerReviewFailInterrupted => 'Interrupted before completion';
+
+  @override
+  String get chatAnswerReviewReviewingHint =>
+      'The same model is checking the draft.';
+
+  @override
+  String chatAnswerReviewGroupSummary(String status, int count) {
+    return '$status · $count issues';
+  }
+
+  @override
   String get displaySettingsPageShowUpdatesTitle => 'Updates';
 
   @override

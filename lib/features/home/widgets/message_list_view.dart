@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/models/answer_review.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
-import '../../../core/services/agent/answer_review.dart';
 import '../../../core/services/skills/skill_invocations.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/platform_utils.dart';
 import '../../../shared/widgets/ios_checkbox.dart';
+import '../../chat/widgets/answer_review_card.dart';
 import '../../chat/widgets/chat_message_widget.dart';
 import '../../chat/widgets/message_more_sheet.dart';
 import '../../chat/widgets/message_usage_sheet.dart';
@@ -25,14 +26,15 @@ typedef OnRegenerateMessage = void Function(ChatMessage message);
 typedef OnResendMessage = void Function(ChatMessage message);
 typedef OnTranslateMessage = void Function(ChatMessage message);
 typedef OnEditMessage = void Function(ChatMessage message);
-typedef OnDeleteMessage =
-    Future<void> Function(
-      ChatMessage message,
-      Map<String, List<ChatMessage>> byGroup,
-    );
+typedef OnDeleteMessage = Future<void> Function(
+  ChatMessage message,
+  Map<String, List<ChatMessage>> byGroup,
+);
 typedef OnForkConversation = Future<void> Function(ChatMessage message);
-typedef OnShareMessage =
-    void Function(int messageIndex, List<ChatMessage> messages);
+typedef OnShareMessage = void Function(
+  int messageIndex,
+  List<ChatMessage> messages,
+);
 typedef OnSpeakMessage = Future<void> Function(ChatMessage message);
 
 /// Data class for reasoning UI state
@@ -77,6 +79,7 @@ class MessageListView extends StatelessWidget {
     required this.reasoning,
     required this.reasoningSegments,
     required this.toolParts,
+    this.answerReviews = const <String, AnswerReviewRecord>{},
     required this.processGroupExplicitOpen,
     required this.translations,
     required this.selecting,
@@ -112,6 +115,9 @@ class MessageListView extends StatelessWidget {
   final Map<String, stream_ctrl.ReasoningData> reasoning;
   final Map<String, List<stream_ctrl.ReasoningSegmentData>> reasoningSegments;
   final Map<String, List<ToolUIPart>> toolParts;
+
+  /// Persisted answer-review cards by assistant message id.
+  final Map<String, AnswerReviewRecord> answerReviews;
 
   /// 過程收褶 (process folding): explicit fold pins per assistant message.
   /// null = follow the live verdict (B2); true/false = user-pinned and it
@@ -435,6 +441,7 @@ class MessageListView extends StatelessWidget {
                             effectiveIndex: effectiveIndex,
                             effectiveTotal: effectiveTotal,
                             lastAssistantMessageId: lastAssistantMessageId,
+                            answerReview: _persistedAnswerReview(message),
                           ),
                   );
                 },
@@ -448,6 +455,34 @@ class MessageListView extends StatelessWidget {
             child: _buildContextDivider(context),
           ),
       ],
+    );
+  }
+
+  AnswerReviewViewData? _persistedAnswerReview(ChatMessage message) {
+    if (message.role != 'assistant') return null;
+    final record = answerReviews[message.id];
+    if (record == null) return null;
+    return AnswerReviewViewData(
+      report: record.report,
+      draft: record.draft,
+      finalText: message.content,
+      live: false,
+      draftTruncated: record.report.draftTruncated,
+    );
+  }
+
+  AnswerReviewViewData? _liveAnswerReview(
+    StreamingContentData data,
+    String finalText,
+  ) {
+    final report = data.reviewReport;
+    if (report == null && data.reviewPhase == null) return null;
+    return AnswerReviewViewData(
+      report: report ?? AnswerReviewReport(phase: data.reviewPhase!),
+      draft: data.reviewDraft,
+      finalText: finalText,
+      live: true,
+      draftTruncated: report?.draftTruncated ?? false,
     );
   }
 
@@ -525,8 +560,6 @@ class MessageListView extends StatelessWidget {
                   maxAttempts: retry.maxAttempts,
                   isSilentInterrupt: retry.isSilentInterrupt,
                 ),
-              if (data.reviewPhase != null)
-                _ReviewIndicator(phase: data.reviewPhase!),
               _buildChatMessageWidget(
                 context,
                 message: streamingMessage,
@@ -544,6 +577,8 @@ class MessageListView extends StatelessWidget {
                 effectiveIndex: effectiveIndex,
                 effectiveTotal: effectiveTotal,
                 lastAssistantMessageId: lastAssistantMessageId,
+                answerReview: _liveAnswerReview(data, displayContent),
+                answerReviewLive: true,
               ),
             ],
           ),
@@ -585,6 +620,8 @@ class MessageListView extends StatelessWidget {
     required int effectiveIndex,
     required int effectiveTotal,
     required String? lastAssistantMessageId,
+    AnswerReviewViewData? answerReview,
+    bool answerReviewLive = false,
   }) {
     return ChatMessageWidget(
       message: message,
@@ -689,6 +726,8 @@ class MessageListView extends StatelessWidget {
         }
       },
       toolParts: message.role == 'assistant' ? toolParts[message.id] : null,
+      answerReview: answerReview,
+      answerReviewLive: answerReviewLive,
       showOAuthRecovery:
           message.role == 'assistant' &&
           !message.isStreaming &&
@@ -731,57 +770,6 @@ class MessageListView extends StatelessWidget {
 /// Inline Answer Review v1 indicator rendered above the streaming message
 /// bubble (docs/answer_review_plan.md §9.7). Shows the review phase while it
 /// is in flight; `reviewed=true` renders no persistent badge (v1).
-class _ReviewIndicator extends StatelessWidget {
-  const _ReviewIndicator({required this.phase});
-
-  final String phase;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
-    final color = theme.colorScheme.primary;
-    final failed = phase == kReviewPhaseRevisionFailed;
-    final label = switch (phase) {
-      kReviewPhaseRevising => l10n.chatAnswerReviewRevising,
-      kReviewPhaseRevisionFailed => l10n.chatAnswerReviewFailedOpen,
-      _ => l10n.chatAnswerReviewInProgress,
-    };
-    return Container(
-      margin: const EdgeInsets.only(left: 12, bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          failed
-              ? Icon(Icons.info_outline, size: 12, color: color)
-              : SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(color),
-                  ),
-                ),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Inline retry indicator rendered above the streaming message bubble
 /// while the L1 retry loop is in flight. Designed to survive snackbar
 /// queue churn (terminal error snackbars fire ~7 s after retries

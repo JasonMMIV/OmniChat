@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart'
     hide SharedPreferencesAsync;
 import 'package:xml/xml.dart';
 
+import '../../models/answer_review.dart';
 import '../../models/backup.dart';
 import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
@@ -19,6 +20,7 @@ import '../../models/workspace_config.dart';
 import '../memory_store.dart';
 import '../chat/chat_service.dart';
 import '../chat/storage/chat_backup_restorer.dart';
+import '../chat/storage/message_part_codec.dart';
 import '../logging/flutter_logger.dart';
 import '../../providers/mcp_provider.dart';
 import 'dropbox_auth_service.dart';
@@ -303,8 +305,7 @@ class DataSync {
           'Content-Type': 'application/xml; charset=utf-8',
           ..._authHeaders(cfg),
         });
-        req.body =
-            '<?xml version="1.0" encoding="utf-8" ?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>';
+        req.body = '<?xml version="1.0" encoding="utf-8" ?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>';
         final res = await client.send(req).then(http.Response.fromStream);
         if (res.statusCode == 404) {
           // create this level
@@ -681,7 +682,8 @@ class DataSync {
   /// semantics are unchanged from the previous eager exporter. The local
   /// attachment references (message content markers and file record paths)
   /// are collected for the backup attachment preflight (plan §3 Phase 2).
-  Future<({File file, Set<String> attachmentRefs})> _exportChatsJsonFile() async {
+  Future<({File file, Set<String> attachmentRefs})>
+  _exportChatsJsonFile() async {
     if (!chatService.initialized) {
       await chatService.init();
     }
@@ -734,6 +736,11 @@ class DataSync {
         sink,
         _toolEventEntries(conversations, messagesByConversation),
       );
+      sink.write(',"answerReviews":');
+      _writeJsonMap(
+        sink,
+        _answerReviewEntries(conversations, messagesByConversation),
+      );
       sink.write(',"geminiThoughtSigs":');
       _writeJsonMap(
         sink,
@@ -746,7 +753,11 @@ class DataSync {
       sink.write(',"fileRecords":');
       _writeJsonMap(
         sink,
-        _fileRecordEntries(conversations, messagesByConversation, attachmentRefs),
+        _fileRecordEntries(
+          conversations,
+          messagesByConversation,
+          attachmentRefs,
+        ),
       );
       sink.write('}');
     } catch (_) {
@@ -790,6 +801,24 @@ class DataSync {
         final events = chatService.getToolEvents(m.id);
         if (events.isEmpty) continue;
         yield MapEntry<String, Object?>(m.id, events);
+      }
+    }
+  }
+
+  Iterable<MapEntry<String, Object?>> _answerReviewEntries(
+    List<Conversation> conversations,
+    Map<String, List<ChatMessage>> messagesByConversation,
+  ) sync* {
+    for (final c in conversations) {
+      for (final m in messagesByConversation[c.id] ?? const <ChatMessage>[]) {
+        if (m.role != 'assistant') continue;
+        final record = chatService.getAnswerReview(m.id);
+        if (record == null) continue;
+        yield MapEntry<String, Object?>(m.id, <String, Object?>{
+          'report': record.report.toJson(),
+          'draft': record.draft,
+          'status': record.status,
+        });
       }
     }
   }
@@ -1005,9 +1034,9 @@ class DataSync {
                   existing.containsKey(key)) {
                 // Merge provider configs: combine both maps
                 try {
-                  final existingConfigs =
-                      jsonDecode(existing[key] as String)
-                          as Map<String, dynamic>;
+                  final existingConfigs = jsonDecode(
+                    existing[key] as String,
+                  ) as Map<String, dynamic>;
                   final newConfigs =
                       jsonDecode(newValue as String) as Map<String, dynamic>;
 
@@ -1083,9 +1112,9 @@ class DataSync {
                       }
                     }
                   }
-                  final merged = [
-                    for (final id in existingOrder) tagById[id],
-                  ].whereType<Map<String, dynamic>>().toList();
+                  final merged = [for (final id in existingOrder) tagById[id]]
+                      .whereType<Map<String, dynamic>>()
+                      .toList();
                   await prefs.restoreSingle(key, jsonEncode(merged));
                 } catch (_) {
                   // If merge fails, fall back to existing (no action)
@@ -1176,6 +1205,23 @@ class DataSync {
                     .toList(),
               ),
             );
+        final backupMessageIds = msgs.map((m) => m.id).toSet();
+        final answerReviews = <String, Map<String, dynamic>>{};
+        final rawAnswerReviews = obj['answerReviews'];
+        if (rawAnswerReviews is Map) {
+          for (final entry in rawAnswerReviews.entries) {
+            final value = entry.value;
+            if (value is! Map) continue;
+            final map = value.cast<String, dynamic>();
+            final rawReport = map['report'];
+            if (rawReport is! Map) continue;
+            answerReviews[entry.key.toString()] = <String, dynamic>{
+              'report': rawReport.cast<String, dynamic>(),
+              'draft': map['draft'],
+              'status': map['status']?.toString() ?? kPartStatusCompleted,
+            };
+          }
+        }
         final geminiThoughtSigs =
             ((obj['geminiThoughtSigs'] as Map?) ?? const <String, dynamic>{})
                 .map((k, v) => MapEntry(k.toString(), v.toString()));
@@ -1240,11 +1286,22 @@ class DataSync {
           for (final entry in toolEvents.entries) {
             await chatService.setToolEvents(entry.key, entry.value);
           }
+          for (final entry in answerReviews.entries) {
+            if (!backupMessageIds.contains(entry.key)) continue;
+            final data = entry.value;
+            try {
+              await chatService.upsertAnswerReview(
+                messageId: entry.key,
+                report: AnswerReviewReport.fromJson(
+                  data['report'] as Map<String, dynamic>,
+                ),
+                status: data['status'] as String? ?? kPartStatusCompleted,
+                draft: data['draft']?.toString(),
+              );
+            } catch (_) {}
+          }
           for (final entry in geminiThoughtSigs.entries) {
-            await chatService.setGeminiThoughtSignature(
-              entry.key,
-              entry.value,
-            );
+            await chatService.setGeminiThoughtSignature(entry.key, entry.value);
           }
           for (final entry in workspaceBindings.entries) {
             await chatService.setConversationWorkspaceConfig(
@@ -1301,6 +1358,21 @@ class DataSync {
             if (existing.isEmpty) {
               await chatService.setToolEvents(entry.key, entry.value);
             }
+          }
+          for (final entry in answerReviews.entries) {
+            if (!backupMessageIds.contains(entry.key)) continue;
+            if (chatService.getAnswerReview(entry.key) != null) continue;
+            final data = entry.value;
+            try {
+              await chatService.upsertAnswerReview(
+                messageId: entry.key,
+                report: AnswerReviewReport.fromJson(
+                  data['report'] as Map<String, dynamic>,
+                ),
+                status: data['status'] as String? ?? kPartStatusCompleted,
+                draft: data['draft']?.toString(),
+              );
+            } catch (_) {}
           }
           for (final entry in geminiThoughtSigs.entries) {
             final existingSig = chatService.getGeminiThoughtSignature(

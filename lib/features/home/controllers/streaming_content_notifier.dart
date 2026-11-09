@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/models/answer_review.dart';
+
 /// Lightweight notifier for streaming message content updates.
 ///
 /// This class provides a way to update streaming message content without
@@ -47,6 +49,8 @@ class StreamingContentNotifier {
         aiTeamProposalsJson: current.aiTeamProposalsJson,
         retryStatus: current.retryStatus,
         reviewPhase: current.reviewPhase,
+        reviewReport: current.reviewReport,
+        reviewDraft: current.reviewDraft,
       );
     }
   }
@@ -70,8 +74,38 @@ class StreamingContentNotifier {
         aiTeamProposalsJson: current.aiTeamProposalsJson,
         retryStatus: current.retryStatus,
         reviewPhase: phase,
+        reviewReport: current.reviewReport,
+        reviewDraft: current.reviewDraft,
       );
     }
+  }
+
+  /// Update the whole live review card in one notification: phase, report and
+  /// the draft snapshot. Called only on phase/report changes, never per token.
+  void updateAnswerReview(
+    String messageId, {
+    String? phase,
+    AnswerReviewReport? report,
+    String? draft,
+    bool clearPhase = false,
+  }) {
+    final notifier = _notifiers[messageId];
+    if (notifier == null) return;
+    final current = notifier.value;
+    notifier.value = StreamingContentData(
+      content: current.content,
+      totalTokens: current.totalTokens,
+      reasoningText: current.reasoningText,
+      reasoningStartAt: current.reasoningStartAt,
+      reasoningFinishedAt: current.reasoningFinishedAt,
+      toolPartsVersion: current.toolPartsVersion,
+      uiVersion: current.uiVersion,
+      aiTeamProposalsJson: current.aiTeamProposalsJson,
+      retryStatus: current.retryStatus,
+      reviewPhase: clearPhase ? null : (phase ?? current.reviewPhase),
+      reviewReport: report ?? current.reviewReport,
+      reviewDraft: draft ?? current.reviewDraft,
+    );
   }
 
   /// Update the L1 retry status indicator. The bubble reads
@@ -98,12 +132,15 @@ class StreamingContentNotifier {
         aiTeamProposalsJson: current.aiTeamProposalsJson,
         retryStatus: status,
         reviewPhase: current.reviewPhase,
+        reviewReport: current.reviewReport,
+        reviewDraft: current.reviewDraft,
       );
     }
   }
 
   /// Update reasoning content for a streaming message.
-  void updateReasoning(String messageId, {
+  void updateReasoning(
+    String messageId, {
     String? reasoningText,
     DateTime? reasoningStartAt,
     DateTime? reasoningFinishedAt,
@@ -122,6 +159,8 @@ class StreamingContentNotifier {
         aiTeamProposalsJson: current.aiTeamProposalsJson,
         retryStatus: current.retryStatus,
         reviewPhase: current.reviewPhase,
+        reviewReport: current.reviewReport,
+        reviewDraft: current.reviewDraft,
       );
     }
   }
@@ -143,6 +182,8 @@ class StreamingContentNotifier {
         aiTeamProposalsJson: current.aiTeamProposalsJson,
         retryStatus: current.retryStatus,
         reviewPhase: current.reviewPhase,
+        reviewReport: current.reviewReport,
+        reviewDraft: current.reviewDraft,
       );
     }
   }
@@ -164,6 +205,8 @@ class StreamingContentNotifier {
         aiTeamProposalsJson: current.aiTeamProposalsJson,
         retryStatus: current.retryStatus,
         reviewPhase: current.reviewPhase,
+        reviewReport: current.reviewReport,
+        reviewDraft: current.reviewDraft,
       );
     }
   }
@@ -185,6 +228,8 @@ class StreamingContentNotifier {
         aiTeamProposalsJson: proposalsJson,
         retryStatus: current.retryStatus,
         reviewPhase: current.reviewPhase,
+        reviewReport: current.reviewReport,
+        reviewDraft: current.reviewDraft,
       );
     }
   }
@@ -246,6 +291,8 @@ class StreamingContentData {
     this.aiTeamProposalsJson,
     this.retryStatus,
     this.reviewPhase,
+    this.reviewReport,
+    this.reviewDraft,
   });
 
   final String content;
@@ -253,19 +300,30 @@ class StreamingContentData {
   final String? reasoningText;
   final DateTime? reasoningStartAt;
   final DateTime? reasoningFinishedAt;
+
   /// Version counter for tool parts updates. Incrementing this triggers rebuild.
   final int toolPartsVersion;
+
   /// Version counter for UI state changes (e.g., reasoning expanded toggle).
   final int uiVersion;
+
   /// AI Team proposals JSON for real-time display during proposal phase.
   final String? aiTeamProposalsJson;
+
   /// L1 retry status; `null` when no retry is in flight (first
   /// attempt, or post-retry success).
   final RetryStatus? retryStatus;
 
-  /// Answer Review v1 phase; `null` when no review indicator is showing
-  /// (`reviewing` / `revising` / `revision_failed` otherwise).
+  /// Answer Review v1 phase; `null` when no review card is showing
+  /// (`reviewing` / `reviewed` / `revising` / `revision_failed` otherwise).
   final String? reviewPhase;
+
+  /// Latest live review report (verdict/issues/timings).
+  final AnswerReviewReport? reviewReport;
+
+  /// Draft snapshot captured at `reviewing`; the card needs it while the
+  /// revision is clearing the visible answer.
+  final String? reviewDraft;
 
   @override
   bool operator ==(Object other) =>
@@ -281,7 +339,9 @@ class StreamingContentData {
           uiVersion == other.uiVersion &&
           aiTeamProposalsJson == other.aiTeamProposalsJson &&
           retryStatus == other.retryStatus &&
-          reviewPhase == other.reviewPhase;
+          reviewPhase == other.reviewPhase &&
+          reviewReport == other.reviewReport &&
+          reviewDraft == other.reviewDraft;
 
   @override
   int get hashCode =>
@@ -294,5 +354,7 @@ class StreamingContentData {
       uiVersion.hashCode ^
       aiTeamProposalsJson.hashCode ^
       retryStatus.hashCode ^
-      reviewPhase.hashCode;
+      reviewPhase.hashCode ^
+      reviewReport.hashCode ^
+      reviewDraft.hashCode;
 }

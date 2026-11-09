@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/models/answer_review.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/token_usage.dart';
 import '../../../core/services/agent/checkpoint/agent_run_journal.dart';
@@ -108,6 +109,20 @@ class StreamController {
   final Map<String, List<ToolUIPart>> _toolParts = <String, List<ToolUIPart>>{};
   Map<String, List<ToolUIPart>> get toolParts => _toolParts;
 
+  /// Persisted answer-review cards per assistant message. Restored with the
+  /// conversation; live state lives in [StreamingContentData].
+  final Map<String, AnswerReviewRecord> _answerReviews =
+      <String, AnswerReviewRecord>{};
+  Map<String, AnswerReviewRecord> get answerReviews => _answerReviews;
+
+  void setAnswerReview(String messageId, AnswerReviewRecord? record) {
+    if (record == null) {
+      _answerReviews.remove(messageId);
+    } else {
+      _answerReviews[messageId] = record;
+    }
+  }
+
   /// Gemini thought signatures per assistant message.
   final Map<String, String> _geminiThoughtSigs = <String, String>{};
   Map<String, String> get geminiThoughtSigs => _geminiThoughtSigs;
@@ -212,6 +227,7 @@ class StreamController {
     _reasoning.remove(messageId);
     _reasoningSegments.remove(messageId);
     _toolParts.remove(messageId);
+    _answerReviews.remove(messageId);
     _geminiThoughtSigs.remove(messageId);
     _processGroupExplicitOpen.remove(messageId);
     _cleanupStreamTimers(messageId);
@@ -222,6 +238,7 @@ class StreamController {
     _reasoning.clear();
     _reasoningSegments.clear();
     _toolParts.clear();
+    _answerReviews.clear();
     _geminiThoughtSigs.clear();
     _processGroupExplicitOpen.clear();
     _cancelAllTimers();
@@ -1242,6 +1259,7 @@ class StreamController {
     required List<ToolPartSummary> Function(String messageId)
     getToolPartSummariesFromDb,
     required String? Function(String messageId) getGeminiThoughtSigFromDb,
+    AnswerReviewRecord? Function(String messageId)? getAnswerReviewFromDb,
   }) {
     if (message.role != 'assistant') return;
 
@@ -1272,6 +1290,17 @@ class StreamController {
       rd.expanded = false;
       _reasoning[messageId] = rd;
     }
+
+    // Restore the persisted answer-review card (if any). This is UI-only:
+    // the review part is never replayed to the model.
+    try {
+      final review = getAnswerReviewFromDb?.call(messageId);
+      if (review != null) {
+        _answerReviews[messageId] = review;
+      } else {
+        _answerReviews.remove(messageId);
+      }
+    } catch (_) {}
 
     // Restore tool summaries (never full completed bodies).
     try {

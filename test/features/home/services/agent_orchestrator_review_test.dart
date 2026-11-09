@@ -28,21 +28,27 @@ ProviderConfig _config({String? baseUrl}) => ProviderConfig(
   models: const ['m'],
 );
 
-ChatStreamChunk _text(String content, {TokenUsage? usage, int totalTokens = 0}) =>
-    ChatStreamChunk(
-      content: content,
-      isDone: false,
-      totalTokens: totalTokens,
-      usage: usage,
-    );
+ChatStreamChunk _text(
+  String content, {
+  TokenUsage? usage,
+  int totalTokens = 0,
+}) => ChatStreamChunk(
+  content: content,
+  isDone: false,
+  totalTokens: totalTokens,
+  usage: usage,
+);
 
-ChatStreamChunk _done({String content = '', TokenUsage? usage, int totalTokens = 0}) =>
-    ChatStreamChunk(
-      content: content,
-      isDone: true,
-      totalTokens: totalTokens,
-      usage: usage,
-    );
+ChatStreamChunk _done({
+  String content = '',
+  TokenUsage? usage,
+  int totalTokens = 0,
+}) => ChatStreamChunk(
+  content: content,
+  isDone: true,
+  totalTokens: totalTokens,
+  usage: usage,
+);
 
 ChatStreamChunk _tools() => ChatStreamChunk(
   content: '',
@@ -64,74 +70,85 @@ Stream<ChatStreamChunk> _verdictRound(String body) =>
 const _passBody = '{"verdict":"pass","issues":[]}';
 
 void main() {
-  test('off: chunks identical to the pre-review contract, no review calls',
-      () async {
-    var reviewCalls = 0;
-    final chunks = await AgentOrchestrator()
-        .run(
-          config: _config(),
-          modelId: 'm',
-          requestId: 'r1',
-          streamOutput: true,
-          messages: const [
-            {'role': 'user', 'content': 'hi'},
-          ],
-          onToolCall: (name, args, {String? toolCallId}) async => 'R',
-          sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
-            <ChatStreamChunk>[_text('hello'), _done()],
-          ),
-          reviewSendRound: (msgs) async {
-            reviewCalls++;
-            return _verdictRound(_passBody);
-          },
-        )
-        .toList();
+  test(
+    'off: chunks identical to the pre-review contract, no review calls',
+    () async {
+      var reviewCalls = 0;
+      final chunks = await AgentOrchestrator()
+          .run(
+            config: _config(),
+            modelId: 'm',
+            requestId: 'r1',
+            streamOutput: true,
+            messages: const [
+              {'role': 'user', 'content': 'hi'},
+            ],
+            onToolCall: (name, args, {String? toolCallId}) async => 'R',
+            sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
+              <ChatStreamChunk>[_text('hello'), _done()],
+            ),
+            reviewSendRound: (msgs) async {
+              reviewCalls++;
+              return _verdictRound(_passBody);
+            },
+          )
+          .toList();
 
-    expect(chunks.map((c) => c.content), <String>['hello', '']);
-    expect(chunks.where((c) => c.isDone), hasLength(1));
-    expect(chunks.last.reviewed, isFalse);
-    expect(reviewCalls, 0);
-  });
+      expect(chunks.map((c) => c.content), <String>['hello', '']);
+      expect(chunks.where((c) => c.isDone), hasLength(1));
+      expect(chunks.last.reviewed, isFalse);
+      expect(reviewCalls, 0);
+    },
+  );
 
-  test('always + PASS: reviewing status, reviewed terminal, draft untouched',
-      () async {
-    final reviewMessages = <List<Map<String, dynamic>>>[];
-    final chunks = await AgentOrchestrator()
-        .run(
-          config: _config(),
-          modelId: 'm',
-          requestId: 'r2',
-          streamOutput: true,
-          messages: const [
-            {'role': 'user', 'content': 'hi'},
-          ],
-          onToolCall: (name, args, {String? toolCallId}) async => 'R',
-          sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
-            <ChatStreamChunk>[_text('hello world'), _done()],
-          ),
-          reviewSendRound: (msgs) async {
-            reviewMessages.add(msgs);
-            return _verdictRound(_passBody);
-          },
-          answerReview: const AnswerReviewConfig(mode: AnswerReviewMode.always),
-        )
-        .toList();
+  test(
+    'always + PASS: reviewing status, reviewed terminal, draft untouched',
+    () async {
+      final reviewMessages = <List<Map<String, dynamic>>>[];
+      final chunks = await AgentOrchestrator()
+          .run(
+            config: _config(),
+            modelId: 'm',
+            requestId: 'r2',
+            streamOutput: true,
+            messages: const [
+              {'role': 'user', 'content': 'hi'},
+            ],
+            onToolCall: (name, args, {String? toolCallId}) async => 'R',
+            sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
+              <ChatStreamChunk>[_text('hello world'), _done()],
+            ),
+            reviewSendRound: (msgs) async {
+              reviewMessages.add(msgs);
+              return _verdictRound(_passBody);
+            },
+            answerReview: const AnswerReviewConfig(
+              mode: AnswerReviewMode.always,
+            ),
+          )
+          .toList();
 
-    final phases = chunks
-        .where((c) => c.reviewPhase != null)
-        .map((c) => c.reviewPhase)
-        .toList();
-    expect(phases, <String>['reviewing']);
-    // Draft content passes through untouched (exactly once).
-    expect(chunks.where((c) => c.content == 'hello world'), hasLength(1));
-    expect(chunks.where((c) => c.isDone), hasLength(1));
-    expect(chunks.last.reviewed, isTrue);
-    // Review turn: last message is user, carries the draft and the rubric.
-    final turn = reviewMessages.single;
-    expect(turn.last['role'], 'user');
-    expect(jsonEncode(turn), contains('hello world'));
-    expect(jsonEncode(turn), contains('[ANSWER REVIEW'));
-  });
+      final phases = chunks
+          .where((c) => c.reviewPhase != null)
+          .map((c) => c.reviewPhase)
+          .toList();
+      expect(phases, <String>['reviewing', 'reviewed']);
+      // Draft content passes through untouched (exactly once).
+      expect(chunks.where((c) => c.content == 'hello world'), hasLength(1));
+      expect(chunks.where((c) => c.isDone), hasLength(1));
+      expect(chunks.last.reviewed, isTrue);
+      final passReport = chunks.last.reviewReport!;
+      expect(passReport.phase, 'passed');
+      expect(passReport.verdict, 'pass');
+      expect(passReport.reviewed, isTrue);
+      expect(passReport.issues, isEmpty);
+      // Review turn: last message is user, carries the draft and the rubric.
+      final turn = reviewMessages.single;
+      expect(turn.last['role'], 'user');
+      expect(jsonEncode(turn), contains('hello world'));
+      expect(jsonEncode(turn), contains('[ANSWER REVIEW'));
+    },
+  );
 
   test('always + REVISE success: revising status, revised text streamed, '
       'usage summed', () async {
@@ -152,12 +169,11 @@ void main() {
             {'role': 'user', 'content': 'hi'},
           ],
           onToolCall: (name, args, {String? toolCallId}) async => 'R',
-          sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
-            <ChatStreamChunk>[
-              _text('draft text', usage: const TokenUsage(totalTokens: 100)),
-              _done(usage: const TokenUsage(totalTokens: 100)),
-            ],
-          ),
+          sendRound: (msgs) async =>
+              Stream<ChatStreamChunk>.fromIterable(<ChatStreamChunk>[
+                _text('draft text', usage: const TokenUsage(totalTokens: 100)),
+                _done(usage: const TokenUsage(totalTokens: 100)),
+              ]),
           reviewSendRound: (msgs) async {
             reviewCall++;
             if (reviewCall == 1) {
@@ -182,9 +198,7 @@ void main() {
               _done(usage: revisionUsage),
             ]);
           },
-          answerReview: AnswerReviewConfig(
-            mode: AnswerReviewMode.always,
-          ),
+          answerReview: AnswerReviewConfig(mode: AnswerReviewMode.always),
         )
         .toList();
 
@@ -195,19 +209,23 @@ void main() {
         .where((c) => c.reviewPhase != null)
         .map((c) => c.reviewPhase)
         .toList();
-    expect(phases, <String>['reviewing', 'revising']);
+    expect(phases, <String>['reviewing', 'reviewed', 'revising']);
     // Revision deltas stream as plain content chunks.
     expect(chunks.any((c) => c.content == 'revised '), isTrue);
     expect(chunks.any((c) => c.content == 'text'), isTrue);
     expect(chunks.where((c) => c.isDone), hasLength(1));
     expect(chunks.last.reviewed, isTrue);
+    final revisedReport = chunks.last.reviewReport!;
+    expect(revisedReport.phase, 'revised');
+    expect(revisedReport.verdict, 'revise');
+    expect(revisedReport.issues.single.severity, 'blocker');
+    expect(revisedReport.revisionMs, greaterThanOrEqualTo(0));
     // The revision's own terminal was never forwarded as-is: the only
     // terminal carries the driver's composition.
     expect(chunks.last.content, '');
   });
 
-  test('always + REVISE with review usage: terminal usage = main + subset',
-      () async {
+  test('always + REVISE with review usage: terminal usage = main + subset', () async {
     var reviewCall = 0;
     final chunks = await AgentOrchestrator()
         .run(
@@ -219,44 +237,42 @@ void main() {
             {'role': 'user', 'content': 'hi'},
           ],
           onToolCall: (name, args, {String? toolCallId}) async => 'R',
-          sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
-            <ChatStreamChunk>[
-              _text('draft'),
-              _done(usage: const TokenUsage(totalTokens: 100)),
-            ],
-          ),
+          sendRound: (msgs) async =>
+              Stream<ChatStreamChunk>.fromIterable(<ChatStreamChunk>[
+                _text('draft'),
+                _done(usage: const TokenUsage(totalTokens: 100)),
+              ]),
           reviewSendRound: (msgs) async {
             reviewCall++;
             if (reviewCall == 1) {
               // Review verdict with its own usage snapshot.
-              return Stream<ChatStreamChunk>.fromIterable(
-                <ChatStreamChunk>[
-                  _text(
-                    jsonEncode(<String, dynamic>{
-                      'verdict': 'revise',
-                      'issues': [
-                        <String, dynamic>{
-                          'severity': 'major',
-                          'location': 'l',
-                          'problem': 'p',
-                          'fix': 'f',
-                        },
-                      ],
-                    }),
-                    usage: const TokenUsage(
-                      promptTokens: 100,
-                      completionTokens: 10,
-                      totalTokens: 110,
-                    ),
+              return Stream<ChatStreamChunk>.fromIterable(<ChatStreamChunk>[
+                _text(
+                  jsonEncode(<String, dynamic>{
+                    'verdict': 'revise',
+                    'issues': [
+                      <String, dynamic>{
+                        'severity': 'major',
+                        'location': 'l',
+                        'problem': 'p',
+                        'fix': 'f',
+                      },
+                    ],
+                  }),
+                  usage: const TokenUsage(
+                    promptTokens: 100,
+                    completionTokens: 10,
+                    totalTokens: 110,
                   ),
-                  _done(),
-                ],
-              );
+                ),
+                _done(),
+              ]);
             }
             // Revision: revised text, no usage snapshot of its own.
-            return Stream<ChatStreamChunk>.fromIterable(
-              <ChatStreamChunk>[_text('revised answer'), _done()],
-            );
+            return Stream<ChatStreamChunk>.fromIterable(<ChatStreamChunk>[
+              _text('revised answer'),
+              _done(),
+            ]);
           },
           answerReview: const AnswerReviewConfig(mode: AnswerReviewMode.always),
         )
@@ -318,7 +334,12 @@ void main() {
         .where((c) => c.reviewPhase != null)
         .map((c) => c.reviewPhase)
         .toList();
-    expect(phases, <String>['reviewing', 'revising', 'revision_failed']);
+    expect(phases, <String>[
+      'reviewing',
+      'reviewed',
+      'revising',
+      'revision_failed',
+    ]);
     final restore = chunks
         .where((c) => c.replaceContent && c.content.isNotEmpty)
         .toList();
@@ -328,61 +349,64 @@ void main() {
     expect(chunks.last.reviewed, isFalse);
   });
 
-  test('revision without terminal (truncated): fail-open restores draft',
-      () async {
-    var call = 0;
-    final chunks = await AgentOrchestrator()
-        .run(
-          config: _config(),
-          modelId: 'm',
-          requestId: 'r5',
-          streamOutput: true,
-          messages: const [
-            {'role': 'user', 'content': 'hi'},
-          ],
-          onToolCall: (name, args, {String? toolCallId}) async => 'R',
-          sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
-            <ChatStreamChunk>[_text('original draft'), _done()],
-          ),
-          reviewSendRound: (msgs) async {
-            call++;
-            if (call == 1) {
-              return _verdictRound(
-                jsonEncode(<String, dynamic>{
-                  'verdict': 'revise',
-                  'issues': [
-                    <String, dynamic>{
-                      'severity': 'blocker',
-                      'location': 'l',
-                      'problem': 'p',
-                      'fix': 'f',
-                    },
-                  ],
-                }),
-              );
-            }
-            // Stream ends without a terminal (truncated).
-            return Stream<ChatStreamChunk>.fromIterable(
-              <ChatStreamChunk>[_text('half revised')],
-            );
-          },
-          answerReview: const AnswerReviewConfig(mode: AnswerReviewMode.always),
-        )
-        .toList();
+  test(
+    'revision without terminal (truncated): fail-open restores draft',
+    () async {
+      var call = 0;
+      final chunks = await AgentOrchestrator()
+          .run(
+            config: _config(),
+            modelId: 'm',
+            requestId: 'r5',
+            streamOutput: true,
+            messages: const [
+              {'role': 'user', 'content': 'hi'},
+            ],
+            onToolCall: (name, args, {String? toolCallId}) async => 'R',
+            sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
+              <ChatStreamChunk>[_text('original draft'), _done()],
+            ),
+            reviewSendRound: (msgs) async {
+              call++;
+              if (call == 1) {
+                return _verdictRound(
+                  jsonEncode(<String, dynamic>{
+                    'verdict': 'revise',
+                    'issues': [
+                      <String, dynamic>{
+                        'severity': 'blocker',
+                        'location': 'l',
+                        'problem': 'p',
+                        'fix': 'f',
+                      },
+                    ],
+                  }),
+                );
+              }
+              // Stream ends without a terminal (truncated).
+              return Stream<ChatStreamChunk>.fromIterable(<ChatStreamChunk>[
+                _text('half revised'),
+              ]);
+            },
+            answerReview: const AnswerReviewConfig(
+              mode: AnswerReviewMode.always,
+            ),
+          )
+          .toList();
 
-    expect(
-      chunks.any((c) => c.reviewPhase == kReviewPhaseRevisionFailed),
-      isTrue,
-    );
-    final restore = chunks
-        .where((c) => c.replaceContent && c.content.isNotEmpty)
-        .toList();
-    expect(restore.single.content, 'original draft');
-    expect(chunks.last.reviewed, isFalse);
-  });
+      expect(
+        chunks.any((c) => c.reviewPhase == kReviewPhaseRevisionFailed),
+        isTrue,
+      );
+      final restore = chunks
+          .where((c) => c.replaceContent && c.content.isNotEmpty)
+          .toList();
+      expect(restore.single.content, 'original draft');
+      expect(chunks.last.reviewed, isFalse);
+    },
+  );
 
-  test('review transport error: fail-open terminal, draft preserved',
-      () async {
+  test('review transport error: fail-open terminal, draft preserved', () async {
     final chunks = await AgentOrchestrator()
         .run(
           config: _config(),
@@ -405,72 +429,84 @@ void main() {
 
     expect(chunks.where((c) => c.isDone), hasLength(1));
     expect(chunks.last.reviewed, isFalse);
+    final errorReport = chunks.last.reviewReport!;
+    expect(errorReport.phase, 'failed_open');
+    expect(errorReport.failReason, 'error');
     // The draft text is still there exactly once (never re-streamed).
     expect(chunks.where((c) => c.content == 'kept answer'), hasLength(1));
   });
 
-  test('review timeout: fail-open and the internal stream is cancelled',
-      () async {
-    var cancelled = false;
-    final neverCompletes = StreamController<ChatStreamChunk>();
-    final chunks = await AgentOrchestrator()
-        .run(
-          config: _config(),
-          modelId: 'm',
-          requestId: 'r7',
-          streamOutput: true,
-          messages: const [
-            {'role': 'user', 'content': 'hi'},
-          ],
-          onToolCall: (name, args, {String? toolCallId}) async => 'R',
-          sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
-            <ChatStreamChunk>[_text('slow answer'), _done()],
-          ),
-          reviewSendRound: (msgs) async {
-            neverCompletes.onCancel = () async => cancelled = true;
-            return neverCompletes.stream;
-          },
-          answerReview: const AnswerReviewConfig(
-            mode: AnswerReviewMode.always,
-            reviewTimeout: Duration(milliseconds: 120),
-          ),
-        )
-        .toList();
+  test(
+    'review timeout: fail-open and the internal stream is cancelled',
+    () async {
+      var cancelled = false;
+      final neverCompletes = StreamController<ChatStreamChunk>();
+      final chunks = await AgentOrchestrator()
+          .run(
+            config: _config(),
+            modelId: 'm',
+            requestId: 'r7',
+            streamOutput: true,
+            messages: const [
+              {'role': 'user', 'content': 'hi'},
+            ],
+            onToolCall: (name, args, {String? toolCallId}) async => 'R',
+            sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
+              <ChatStreamChunk>[_text('slow answer'), _done()],
+            ),
+            reviewSendRound: (msgs) async {
+              neverCompletes.onCancel = () async => cancelled = true;
+              return neverCompletes.stream;
+            },
+            answerReview: const AnswerReviewConfig(
+              mode: AnswerReviewMode.always,
+              reviewTimeout: Duration(milliseconds: 120),
+            ),
+          )
+          .toList();
 
-    expect(chunks.where((c) => c.isDone), hasLength(1));
-    expect(chunks.last.reviewed, isFalse);
-    // The timed-out subscription was cancelled so the provider request does
-    // not keep burning tokens in the background (§5.1).
-    expect(cancelled, isTrue);
-    await neverCompletes.close();
-  });
+      expect(chunks.where((c) => c.isDone), hasLength(1));
+      expect(chunks.last.reviewed, isFalse);
+      expect(chunks.last.reviewReport?.failReason, 'timeout');
+      // The timed-out subscription was cancelled so the provider request does
+      // not keep burning tokens in the background (§5.1).
+      expect(cancelled, isTrue);
+      await neverCompletes.close();
+    },
+  );
 
-  test('review malformed JSON: fail-open pass, terminal reviewed=false',
-      () async {
-    final chunks = await AgentOrchestrator()
-        .run(
-          config: _config(),
-          modelId: 'm',
-          requestId: 'r8',
-          streamOutput: true,
-          messages: const [
-            {'role': 'user', 'content': 'hi'},
-          ],
-          onToolCall: (name, args, {String? toolCallId}) async => 'R',
-          sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
-            <ChatStreamChunk>[_text('answer'), _done()],
-          ),
-          reviewSendRound: (msgs) async => _verdictRound(
-            'I think the answer is mostly fine, but maybe check the numbers.',
-          ),
-          answerReview: const AnswerReviewConfig(mode: AnswerReviewMode.always),
-        )
-        .toList();
+  test(
+    'review malformed JSON: fail-open pass, terminal reviewed=false',
+    () async {
+      final chunks = await AgentOrchestrator()
+          .run(
+            config: _config(),
+            modelId: 'm',
+            requestId: 'r8',
+            streamOutput: true,
+            messages: const [
+              {'role': 'user', 'content': 'hi'},
+            ],
+            onToolCall: (name, args, {String? toolCallId}) async => 'R',
+            sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
+              <ChatStreamChunk>[_text('answer'), _done()],
+            ),
+            reviewSendRound: (msgs) async => _verdictRound(
+              'I think the answer is mostly fine, but maybe check the numbers.',
+            ),
+            answerReview: const AnswerReviewConfig(
+              mode: AnswerReviewMode.always,
+            ),
+          )
+          .toList();
 
-    expect(chunks.where((c) => c.isDone), hasLength(1));
-    expect(chunks.last.reviewed, isFalse);
-    expect(chunks.where((c) => c.content == 'answer'), hasLength(1));
-  });
+      expect(chunks.where((c) => c.isDone), hasLength(1));
+      expect(chunks.last.reviewed, isFalse);
+      expect(chunks.last.reviewReport?.phase, 'failed_open');
+      expect(chunks.last.reviewReport?.failReason, 'malformed');
+      expect(chunks.where((c) => c.content == 'answer'), hasLength(1));
+    },
+  );
 
   test('tool round terminal is held back; only the final terminal is '
       'released', () async {
@@ -551,9 +587,8 @@ void main() {
           ],
           onToolCall: (name, args, {String? toolCallId}) async => 'BODY',
           options: const AgentLoopOptions(maxSteps: 1),
-          sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
-            <ChatStreamChunk>[_tools()],
-          ),
+          sendRound: (msgs) async =>
+              Stream<ChatStreamChunk>.fromIterable(<ChatStreamChunk>[_tools()]),
           reviewSendRound: (msgs) async {
             reviewCalls++;
             return _verdictRound(_passBody);
@@ -581,16 +616,15 @@ void main() {
           ],
           onToolCall: (name, args, {String? toolCallId}) async => 'BODY',
           options: const AgentLoopOptions(maxSteps: 5, tokenBudget: 1),
-          sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
-            <ChatStreamChunk>[
-              ChatStreamChunk(
-                content: '',
-                isDone: false,
-                totalTokens: 5,
-                toolCalls: _tools().toolCalls,
-              ),
-            ],
-          ),
+          sendRound: (msgs) async =>
+              Stream<ChatStreamChunk>.fromIterable(<ChatStreamChunk>[
+                ChatStreamChunk(
+                  content: '',
+                  isDone: false,
+                  totalTokens: 5,
+                  toolCalls: _tools().toolCalls,
+                ),
+              ]),
           reviewSendRound: (msgs) async {
             reviewCalls++;
             return _verdictRound(_passBody);
@@ -659,7 +693,10 @@ void main() {
             return Stream<ChatStreamChunk>.fromIterable(
               hasToolCalls
                   ? <ChatStreamChunk>[_text('final answer'), _done()]
-                  : <ChatStreamChunk>[_text('let me check the file...'), _tools()],
+                  : <ChatStreamChunk>[
+                      _text('let me check the file...'),
+                      _tools(),
+                    ],
             );
           },
           reviewSendRound: (msgs) async {
@@ -694,21 +731,20 @@ void main() {
           // The L1 retry is internal to the transport: one round carries the
           // failed attempt's partial text, the retry status chunk, and then
           // the fresh attempt's full answer + terminal.
-          sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
-            <ChatStreamChunk>[
-              _text('broken partial'),
-              ChatStreamChunk(
-                content: '',
-                isDone: false,
-                totalTokens: 0,
-                errorKind: 'transient_retry',
-                attempt: 1,
-                maxAttempts: 3,
-              ),
-              _text('good answer'),
-              _done(),
-            ],
-          ),
+          sendRound: (msgs) async =>
+              Stream<ChatStreamChunk>.fromIterable(<ChatStreamChunk>[
+                _text('broken partial'),
+                ChatStreamChunk(
+                  content: '',
+                  isDone: false,
+                  totalTokens: 0,
+                  errorKind: 'transient_retry',
+                  attempt: 1,
+                  maxAttempts: 3,
+                ),
+                _text('good answer'),
+                _done(),
+              ]),
           reviewSendRound: (msgs) async {
             reviewMessages.add(msgs);
             return _verdictRound(_passBody);
@@ -750,14 +786,13 @@ void main() {
 
     final turn = reviewMessages.single;
     for (var i = 1; i < turn.length; i++) {
-      final consecutiveUser = turn[i]['role'] == 'user' &&
-          turn[i - 1]['role'] == 'user';
+      final consecutiveUser =
+          turn[i]['role'] == 'user' && turn[i - 1]['role'] == 'user';
       expect(consecutiveUser, isFalse);
     }
   });
 
-  test('smart gate: short chit-chat without tools skips the review',
-      () async {
+  test('smart gate: short chit-chat without tools skips the review', () async {
     var reviewCalls = 0;
     await AgentOrchestrator()
         .run(
@@ -798,13 +833,15 @@ void main() {
             {'role': 'user', 'content': 'hi'},
           ],
           onToolCall: (name, args, {String? toolCallId}) async => 'R',
-          sendRound: (msgs) async => Stream<ChatStreamChunk>.fromIterable(
-            <ChatStreamChunk>[
-              _text('hel', usage: const TokenUsage(totalTokens: 50)),
-              _text('lo', usage: const TokenUsage(totalTokens: 100)),
-              _done(usage: const TokenUsage(totalTokens: 100), totalTokens: 100),
-            ],
-          ),
+          sendRound: (msgs) async =>
+              Stream<ChatStreamChunk>.fromIterable(<ChatStreamChunk>[
+                _text('hel', usage: const TokenUsage(totalTokens: 50)),
+                _text('lo', usage: const TokenUsage(totalTokens: 100)),
+                _done(
+                  usage: const TokenUsage(totalTokens: 100),
+                  totalTokens: 100,
+                ),
+              ]),
           answerReview: const AnswerReviewConfig.off(),
         )
         .toList();
@@ -823,40 +860,42 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final bodies = <Map<String, dynamic>>[];
     final subs = <StreamSubscription<HttpRequest>>[];
-    subs.add(server.listen((req) async {
-      final raw = await utf8.decoder.bind(req).join();
-      try {
-        bodies.add(jsonDecode(raw) as Map<String, dynamic>);
-      } catch (_) {
-        bodies.add(<String, dynamic>{'__raw': raw});
-      }
-      final isReview = bodies.length == 2;
-      req.response.headers.contentType = ContentType.json;
-      req.response.write(
-        jsonEncode(<String, dynamic>{
-          'id': 'x',
-          'object': 'chat.completion',
-          'created': 1,
-          'model': 'm',
-          'choices': [
-            <String, dynamic>{
-              'index': 0,
-              'message': <String, dynamic>{
-                'role': 'assistant',
-                'content': isReview ? _passBody : 'hello from the wire',
+    subs.add(
+      server.listen((req) async {
+        final raw = await utf8.decoder.bind(req).join();
+        try {
+          bodies.add(jsonDecode(raw) as Map<String, dynamic>);
+        } catch (_) {
+          bodies.add(<String, dynamic>{'__raw': raw});
+        }
+        final isReview = bodies.length == 2;
+        req.response.headers.contentType = ContentType.json;
+        req.response.write(
+          jsonEncode(<String, dynamic>{
+            'id': 'x',
+            'object': 'chat.completion',
+            'created': 1,
+            'model': 'm',
+            'choices': [
+              <String, dynamic>{
+                'index': 0,
+                'message': <String, dynamic>{
+                  'role': 'assistant',
+                  'content': isReview ? _passBody : 'hello from the wire',
+                },
+                'finish_reason': 'stop',
               },
-              'finish_reason': 'stop',
+            ],
+            'usage': <String, dynamic>{
+              'prompt_tokens': 10,
+              'completion_tokens': 5,
+              'total_tokens': 15,
             },
-          ],
-          'usage': <String, dynamic>{
-            'prompt_tokens': 10,
-            'completion_tokens': 5,
-            'total_tokens': 15,
-          },
-        }),
-      );
-      await req.response.close();
-    }));
+          }),
+        );
+        await req.response.close();
+      }),
+    );
     addTearDown(() async {
       for (final s in subs) {
         await s.cancel();

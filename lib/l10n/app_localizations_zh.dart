@@ -3304,6 +3304,140 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatAnswerReviewFailedOpen => '审查未完成，已保留原回答';
 
   @override
+  String get chatAnswerReviewCardTitle => '回答审查';
+
+  @override
+  String get chatAnswerReviewStatusReviewing => '审查中';
+
+  @override
+  String get chatAnswerReviewStatusPassed => '已通过';
+
+  @override
+  String get chatAnswerReviewStatusRevising => '修正中';
+
+  @override
+  String get chatAnswerReviewStatusRevised => '已修正';
+
+  @override
+  String get chatAnswerReviewStatusFailedOpen => '审查未完成';
+
+  @override
+  String get chatAnswerReviewStatusRevisionFailed => '修正失败';
+
+  @override
+  String get chatAnswerReviewStatusCancelled => '已取消';
+
+  @override
+  String get chatAnswerReviewStatusInterrupted => '已中断';
+
+  @override
+  String chatAnswerReviewIssueCount(int count) {
+    return '$count 个问题';
+  }
+
+  @override
+  String get chatAnswerReviewDraftTitle => '初稿';
+
+  @override
+  String chatAnswerReviewDraftChars(int count) {
+    return '$count 字';
+  }
+
+  @override
+  String get chatAnswerReviewDraftTruncated => '初稿过长，已截断。';
+
+  @override
+  String get chatAnswerReviewShowDraft => '显示完整初稿';
+
+  @override
+  String get chatAnswerReviewHideDraft => '收合初稿';
+
+  @override
+  String get chatAnswerReviewIssuesTitle => '审查结果';
+
+  @override
+  String get chatAnswerReviewNoIssues => '未发现阻挡性问题。';
+
+  @override
+  String get chatAnswerReviewSeverityBlocker => '阻挡';
+
+  @override
+  String get chatAnswerReviewSeverityMajor => '重要';
+
+  @override
+  String get chatAnswerReviewSeverityMinor => '轻微';
+
+  @override
+  String get chatAnswerReviewLocation => '位置';
+
+  @override
+  String get chatAnswerReviewProblem => '问题';
+
+  @override
+  String get chatAnswerReviewFix => '建议修正';
+
+  @override
+  String get chatAnswerReviewDiffTitle => '修正差异';
+
+  @override
+  String chatAnswerReviewDiffSummary(int added, int removed) {
+    return '+$added / −$removed';
+  }
+
+  @override
+  String get chatAnswerReviewDiffNone => '修正后内容与初稿相同。';
+
+  @override
+  String get chatAnswerReviewShowDiff => '显示差异';
+
+  @override
+  String get chatAnswerReviewHideDiff => '隐藏差异';
+
+  @override
+  String chatAnswerReviewReviewTime(int ms) {
+    return '审查 $ms ms';
+  }
+
+  @override
+  String chatAnswerReviewRevisionTime(int ms) {
+    return '修正 $ms ms';
+  }
+
+  @override
+  String chatAnswerReviewTokens(int tokens) {
+    return '$tokens tokens';
+  }
+
+  @override
+  String get chatAnswerReviewFailTimeout => '超时';
+
+  @override
+  String get chatAnswerReviewFailError => '请求失败';
+
+  @override
+  String get chatAnswerReviewFailEmpty => '响应为空';
+
+  @override
+  String get chatAnswerReviewFailMalformed => '无法解析审查结果';
+
+  @override
+  String get chatAnswerReviewFailRevisionFailed => '修正失败，已保留原回答';
+
+  @override
+  String get chatAnswerReviewFailCancelled => '已由你取消';
+
+  @override
+  String get chatAnswerReviewFailInterrupted => '完成前中断';
+
+  @override
+  String get chatAnswerReviewReviewingHint => '正在以相同模型自查初稿。';
+
+  @override
+  String chatAnswerReviewGroupSummary(String status, int count) {
+    return '$status · $count 个问题';
+  }
+
+  @override
   String get displaySettingsPageShowUpdatesTitle => '显示更新';
 
   @override
@@ -9599,6 +9733,140 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatAnswerReviewFailedOpen => '审查未完成，已保留原回答';
 
   @override
+  String get chatAnswerReviewCardTitle => '回答审查';
+
+  @override
+  String get chatAnswerReviewStatusReviewing => '审查中';
+
+  @override
+  String get chatAnswerReviewStatusPassed => '已通过';
+
+  @override
+  String get chatAnswerReviewStatusRevising => '修正中';
+
+  @override
+  String get chatAnswerReviewStatusRevised => '已修正';
+
+  @override
+  String get chatAnswerReviewStatusFailedOpen => '审查未完成';
+
+  @override
+  String get chatAnswerReviewStatusRevisionFailed => '修正失败';
+
+  @override
+  String get chatAnswerReviewStatusCancelled => '已取消';
+
+  @override
+  String get chatAnswerReviewStatusInterrupted => '已中断';
+
+  @override
+  String chatAnswerReviewIssueCount(int count) {
+    return '$count 个问题';
+  }
+
+  @override
+  String get chatAnswerReviewDraftTitle => '初稿';
+
+  @override
+  String chatAnswerReviewDraftChars(int count) {
+    return '$count 字';
+  }
+
+  @override
+  String get chatAnswerReviewDraftTruncated => '初稿过长，已截断。';
+
+  @override
+  String get chatAnswerReviewShowDraft => '显示完整初稿';
+
+  @override
+  String get chatAnswerReviewHideDraft => '收合初稿';
+
+  @override
+  String get chatAnswerReviewIssuesTitle => '审查结果';
+
+  @override
+  String get chatAnswerReviewNoIssues => '未发现阻挡性问题。';
+
+  @override
+  String get chatAnswerReviewSeverityBlocker => '阻挡';
+
+  @override
+  String get chatAnswerReviewSeverityMajor => '重要';
+
+  @override
+  String get chatAnswerReviewSeverityMinor => '轻微';
+
+  @override
+  String get chatAnswerReviewLocation => '位置';
+
+  @override
+  String get chatAnswerReviewProblem => '问题';
+
+  @override
+  String get chatAnswerReviewFix => '建议修正';
+
+  @override
+  String get chatAnswerReviewDiffTitle => '修正差异';
+
+  @override
+  String chatAnswerReviewDiffSummary(int added, int removed) {
+    return '+$added / −$removed';
+  }
+
+  @override
+  String get chatAnswerReviewDiffNone => '修正后内容与初稿相同。';
+
+  @override
+  String get chatAnswerReviewShowDiff => '显示差异';
+
+  @override
+  String get chatAnswerReviewHideDiff => '隐藏差异';
+
+  @override
+  String chatAnswerReviewReviewTime(int ms) {
+    return '审查 $ms ms';
+  }
+
+  @override
+  String chatAnswerReviewRevisionTime(int ms) {
+    return '修正 $ms ms';
+  }
+
+  @override
+  String chatAnswerReviewTokens(int tokens) {
+    return '$tokens tokens';
+  }
+
+  @override
+  String get chatAnswerReviewFailTimeout => '超时';
+
+  @override
+  String get chatAnswerReviewFailError => '请求失败';
+
+  @override
+  String get chatAnswerReviewFailEmpty => '响应为空';
+
+  @override
+  String get chatAnswerReviewFailMalformed => '无法解析审查结果';
+
+  @override
+  String get chatAnswerReviewFailRevisionFailed => '修正失败，已保留原回答';
+
+  @override
+  String get chatAnswerReviewFailCancelled => '已由你取消';
+
+  @override
+  String get chatAnswerReviewFailInterrupted => '完成前中断';
+
+  @override
+  String get chatAnswerReviewReviewingHint => '正在以相同模型自查初稿。';
+
+  @override
+  String chatAnswerReviewGroupSummary(String status, int count) {
+    return '$status · $count 个问题';
+  }
+
+  @override
   String get displaySettingsPageShowUpdatesTitle => '显示更新';
 
   @override
@@ -15802,6 +16070,140 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatAnswerReviewFailedOpen => '審查未完成，已保留原回答';
+
+  @override
+  String get chatAnswerReviewCardTitle => '回答審查';
+
+  @override
+  String get chatAnswerReviewStatusReviewing => '審查中';
+
+  @override
+  String get chatAnswerReviewStatusPassed => '已通過';
+
+  @override
+  String get chatAnswerReviewStatusRevising => '修正中';
+
+  @override
+  String get chatAnswerReviewStatusRevised => '已修正';
+
+  @override
+  String get chatAnswerReviewStatusFailedOpen => '審查未完成';
+
+  @override
+  String get chatAnswerReviewStatusRevisionFailed => '修正失敗';
+
+  @override
+  String get chatAnswerReviewStatusCancelled => '已取消';
+
+  @override
+  String get chatAnswerReviewStatusInterrupted => '已中斷';
+
+  @override
+  String chatAnswerReviewIssueCount(int count) {
+    return '$count 個問題';
+  }
+
+  @override
+  String get chatAnswerReviewDraftTitle => '初稿';
+
+  @override
+  String chatAnswerReviewDraftChars(int count) {
+    return '$count 字';
+  }
+
+  @override
+  String get chatAnswerReviewDraftTruncated => '初稿過長，已截斷。';
+
+  @override
+  String get chatAnswerReviewShowDraft => '顯示完整初稿';
+
+  @override
+  String get chatAnswerReviewHideDraft => '收合初稿';
+
+  @override
+  String get chatAnswerReviewIssuesTitle => '審查結果';
+
+  @override
+  String get chatAnswerReviewNoIssues => '未發現阻擋性問題。';
+
+  @override
+  String get chatAnswerReviewSeverityBlocker => '阻擋';
+
+  @override
+  String get chatAnswerReviewSeverityMajor => '重要';
+
+  @override
+  String get chatAnswerReviewSeverityMinor => '輕微';
+
+  @override
+  String get chatAnswerReviewLocation => '位置';
+
+  @override
+  String get chatAnswerReviewProblem => '問題';
+
+  @override
+  String get chatAnswerReviewFix => '建議修正';
+
+  @override
+  String get chatAnswerReviewDiffTitle => '修正差異';
+
+  @override
+  String chatAnswerReviewDiffSummary(int added, int removed) {
+    return '+$added / −$removed';
+  }
+
+  @override
+  String get chatAnswerReviewDiffNone => '修正後內容與初稿相同。';
+
+  @override
+  String get chatAnswerReviewShowDiff => '顯示差異';
+
+  @override
+  String get chatAnswerReviewHideDiff => '隱藏差異';
+
+  @override
+  String chatAnswerReviewReviewTime(int ms) {
+    return '審查 $ms ms';
+  }
+
+  @override
+  String chatAnswerReviewRevisionTime(int ms) {
+    return '修正 $ms ms';
+  }
+
+  @override
+  String chatAnswerReviewTokens(int tokens) {
+    return '$tokens tokens';
+  }
+
+  @override
+  String get chatAnswerReviewFailTimeout => '逾時';
+
+  @override
+  String get chatAnswerReviewFailError => '請求失敗';
+
+  @override
+  String get chatAnswerReviewFailEmpty => '回應為空';
+
+  @override
+  String get chatAnswerReviewFailMalformed => '無法解析審查結果';
+
+  @override
+  String get chatAnswerReviewFailRevisionFailed => '修正失敗，已保留原回答';
+
+  @override
+  String get chatAnswerReviewFailCancelled => '已由你取消';
+
+  @override
+  String get chatAnswerReviewFailInterrupted => '完成前中斷';
+
+  @override
+  String get chatAnswerReviewReviewingHint => '正在以相同模型自查初稿。';
+
+  @override
+  String chatAnswerReviewGroupSummary(String status, int count) {
+    return '$status · $count 個問題';
+  }
 
   @override
   String get displaySettingsPageShowUpdatesTitle => '顯示更新';

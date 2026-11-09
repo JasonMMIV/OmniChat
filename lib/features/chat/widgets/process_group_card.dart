@@ -43,17 +43,22 @@ class ProcessGroupCard extends StatefulWidget {
   final DateTime? startAt;
   final DateTime? finishedAt;
 
-  /// Folded rows in timeline order: thinking text blocks, then tool cards.
-  /// Defaults to empty — a header-only shell (the caller never renders the
-  /// group when the logic layer reports `visible: false`, so an empty shell
-  /// is a degenerate, valid state).
+  /// Folded rows in timeline order: thinking text blocks, then tool cards,
+  /// then the answer-review card. Defaults to empty — a header-only shell
+  /// (the caller never renders the group when the logic layer reports
+  /// `visible: false`, so an empty shell is a degenerate, valid state).
   final List<Widget> children;
+
+  /// Low-key summary shown on the collapsed header ("已修正 · 2 個問題") so
+  /// the review stays discoverable after the group folds.
+  final String? reviewSummary;
 
   const ProcessGroupCard({
     super.key,
     required this.live,
     required this.open,
     this.children = const [],
+    this.reviewSummary,
     this.onToggle,
     this.startAt,
     this.finishedAt,
@@ -73,9 +78,8 @@ class _ProcessGroupCardState extends State<ProcessGroupCard>
   });
 
   void _syncTicker() {
-    final bool running = widget.live &&
-        widget.startAt != null &&
-        widget.finishedAt == null;
+    final bool running =
+        widget.live && widget.startAt != null && widget.finishedAt == null;
     if (running) {
       if (!_ticker.isActive) _ticker.start();
     } else {
@@ -117,11 +121,13 @@ class _ProcessGroupCardState extends State<ProcessGroupCard>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardTextColor =
-        isDark ? const Color(0xFF9E9EA4) : const Color(0xFF7E7F83);
+    final cardTextColor = isDark
+        ? const Color(0xFF9E9EA4)
+        : const Color(0xFF7E7F83);
     final l10n = AppLocalizations.of(context)!;
-    final label =
-        widget.live ? l10n.processGroupWorking : l10n.processGroupWorked;
+    final label = widget.live
+        ? l10n.processGroupWorking
+        : l10n.processGroupWorked;
 
     final Widget header = IosCardPress(
       borderRadius: BorderRadius.circular(10),
@@ -155,6 +161,26 @@ class _ProcessGroupCardState extends State<ProcessGroupCard>
             if (widget.live) ...[
               const SizedBox(width: 6),
               _BouncingDots(color: cardTextColor),
+            ],
+            if ((widget.reviewSummary ?? '').isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Icon(
+                Lucide.ScanSearch,
+                size: 13,
+                color: cardTextColor.withValues(alpha: 0.85),
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  widget.reviewSummary!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: cardTextColor.withValues(alpha: 0.9),
+                  ),
+                ),
+              ),
             ],
             if (widget.startAt != null &&
                 (widget.live || widget.finishedAt != null)) ...[

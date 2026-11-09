@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 
+import '../../../models/answer_review.dart';
 import '../../../models/chat_message.dart';
 import '../../../models/conversation.dart';
 import '../../../models/file_record.dart';
@@ -517,6 +518,130 @@ class ChatRepository {
   /// Mirrors `ChatService.upsertToolEvent` on top of independently addressable
   /// rows: id match first, then the first `pending` same-name placeholder.
   /// Interrupted/denied rows are never reused by the no-id fallback.
+  /// Ordinal of the single review row. Kept far above tool ordinals so tool
+  /// rewrites (`replaceToolEvents`) never collide with it and review always
+  /// sorts last.
+  static const int answerReviewPartOrdinal = 1000000000;
+
+  /// Inserts or updates the single `kind='answer_review'` row for a message.
+  /// [draft] is only required on the first write; later metadata updates may
+  /// pass null to keep the stored draft.
+  Future<MessagePartRow> upsertAnswerReviewPart({
+    required String messageId,
+    required AnswerReviewReport report,
+    required String status,
+    String? draft,
+  }) async {
+    assert(
+      status == kPartStatusPending ||
+          status == kPartStatusCompleted ||
+          status == kPartStatusInterrupted,
+      'invalid answer-review status: $status',
+    );
+    final now = DateTime.now().millisecondsSinceEpoch;
+    // The draft is UI/export-only and never replayed to the model, so there
+    // is no character cap: store the complete text. `draftTruncated` is kept
+    // only for legacy rows written before the cap was removed.
+    final content = draft;
+    final metadata = canonicalJsonEncode(
+      report
+          .copyWith(
+            draftChars: draft?.length ?? report.draftChars,
+            draftTruncated: report.draftTruncated,
+          )
+          .toJson(),
+    );
+    // The schema forbids `completed` without content. If the first
+    // (reviewing) write was lost, a terminal write without a draft must not
+    // throw and silently lose the card; store it as interrupted instead.
+    final insertStatus = status == kPartStatusCompleted && content == null
+        ? kPartStatusInterrupted
+        : status;
+
+    return db.transaction(() async {
+      final existing =
+          await (db.select(db.messageParts)
+                ..where(
+                  (t) =>
+                      t.messageId.equals(messageId) &
+                      t.kind.equals(kAnswerReviewPartKind),
+                )
+                ..orderBy([(t) => OrderingTerm.asc(t.ordinal)])
+                ..limit(1))
+              .getSingleOrNull();
+
+      if (existing != null) {
+        await (db.update(
+          db.messageParts,
+        )..where((t) => t.partId.equals(existing.partId))).write(
+          MessagePartsCompanion(
+            content: content == null ? const Value.absent() : Value(content),
+            status: Value(status),
+            metadataJson: Value(metadata),
+            updatedAtMs: Value(now),
+          ),
+        );
+        return (await (db.select(
+          db.messageParts,
+        )..where((t) => t.partId.equals(existing.partId))).getSingle());
+      }
+
+      final partId = await db
+          .into(db.messageParts)
+          .insert(
+            MessagePartsCompanion.insert(
+              messageId: messageId,
+              ordinal: answerReviewPartOrdinal,
+              kind: kAnswerReviewPartKind,
+              content: Value(content),
+              status: Value(insertStatus),
+              metadataJson: Value(metadata),
+              createdAtMs: now,
+              updatedAtMs: now,
+            ),
+          );
+      return (await (db.select(
+        db.messageParts,
+      )..where((t) => t.partId.equals(partId))).getSingle());
+    });
+  }
+
+  /// All review rows for a bounded set of messages (one row per message).
+  Future<List<MessagePartRow>> getAnswerReviewParts(
+    Iterable<String> messageIds,
+  ) async {
+    final ids = messageIds.where((id) => id.isNotEmpty).toSet().toList();
+    final result = <MessagePartRow>[];
+    for (var start = 0; start < ids.length; start += 500) {
+      final chunk = ids.sublist(
+        start,
+        start + 500 > ids.length ? ids.length : start + 500,
+      );
+      final rows =
+          await (db.select(db.messageParts)
+                ..where(
+                  (t) =>
+                      t.messageId.isIn(chunk) &
+                      t.kind.equals(kAnswerReviewPartKind),
+                )
+                ..orderBy([(t) => OrderingTerm.asc(t.messageId)]))
+              .get();
+      result.addAll(rows);
+    }
+    return result;
+  }
+
+  Future<MessagePartRow?> getAnswerReviewPart(String messageId) async {
+    return (db.select(db.messageParts)
+          ..where(
+            (t) =>
+                t.messageId.equals(messageId) &
+                t.kind.equals(kAnswerReviewPartKind),
+          )
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
   Future<MessagePartRow> upsertToolEvent({
     required String assistantMessageId,
     required String id,
@@ -715,11 +840,18 @@ class ChatRepository {
     List<ToolPartDraft> drafts,
   ) async {
     await db.transaction(() async {
+      // Only tool rows participate in the replacement. The per-message
+      // answer-review row is a different `kind` and must survive every tool
+      // rewrite (docs/answer_review_cards_plan.md §4.3).
       final existing =
-          await (db.select(db.messageParts)
-                ..where((t) => t.messageId.equals(messageId))
+          (await (db.select(db.messageParts)
+                ..where(
+                  (t) =>
+                      t.messageId.equals(messageId) &
+                      t.kind.equals(kToolPartKind),
+                )
                 ..orderBy([(t) => OrderingTerm.asc(t.ordinal)]))
-              .get();
+              .get());
 
       // Match each draft to an existing row so repeated streaming writes keep
       // the row (and part_id) stable instead of delete-then-insert. Prefer a
@@ -820,20 +952,23 @@ class ChatRepository {
   ) async {
     final rows =
         await (db.select(db.messageParts)
-              ..where((t) => t.messageId.equals(assistantMessageId))
+              ..where(
+                (t) =>
+                    t.messageId.equals(assistantMessageId) &
+                    t.kind.equals(kToolPartKind),
+              )
               ..orderBy([(t) => OrderingTerm.asc(t.ordinal)]))
             .get();
     return [
       for (final row in rows)
-        if (row.kind == kToolPartKind)
-          toolEventFromStoredPart(
-            toolCallId: row.toolCallId,
-            toolName: row.toolName,
-            argumentsJson: row.argumentsJson,
-            content: row.content,
-            approvalState: row.approvalState ?? kApprovalAuto,
-            metadataJson: row.metadataJson,
-          ),
+        toolEventFromStoredPart(
+          toolCallId: row.toolCallId,
+          toolName: row.toolName,
+          argumentsJson: row.argumentsJson,
+          content: row.content,
+          approvalState: row.approvalState ?? kApprovalAuto,
+          metadataJson: row.metadataJson,
+        ),
     ];
   }
 
@@ -1065,10 +1200,12 @@ class ChatRepository {
       ..where((t) {
         if (partId != null) {
           return t.messageId.equals(assistantMessageId) &
-              t.partId.equals(partId);
+              t.partId.equals(partId) &
+              t.kind.equals(kToolPartKind);
         }
         return t.messageId.equals(assistantMessageId) &
-            t.toolCallId.equals(toolCallId!);
+            t.toolCallId.equals(toolCallId!) &
+            t.kind.equals(kToolPartKind);
       })
       ..orderBy([(t) => OrderingTerm.asc(t.ordinal)])
       ..limit(1);
@@ -1119,8 +1256,11 @@ class ChatRepository {
     final row = await db
         .customSelect(
           'SELECT COALESCE(MAX(ordinal), -1) + 1 AS next FROM message_parts '
-          'WHERE message_id = ?',
-          variables: [Variable.withString(messageId)],
+          'WHERE message_id = ? AND kind = ?',
+          variables: [
+            Variable.withString(messageId),
+            Variable.withString(kToolPartKind),
+          ],
         )
         .getSingle();
     return row.read<int>('next');
@@ -1530,7 +1670,20 @@ class ChatRepository {
       "AND (approval_state IS NULL OR approval_state <> 'pending')",
       updates: {db.messageParts},
     );
-    return (messages: messages, parts: parts);
+    // A crash mid-review leaves a `pending` answer-review row with its draft
+    // already written (so the generic null-content repair above never sees
+    // it). Normalize the row itself, not just the in-memory view, so every
+    // later load sees a terminal card.
+    final reviewParts = await db.customUpdate(
+      "UPDATE message_parts SET status = 'interrupted', "
+      "metadata_json = json_set(metadata_json, "
+      "'\$.phase', 'interrupted', "
+      "'\$.failReason', 'interrupted', "
+      "'\$.reviewed', json('false')) "
+      "WHERE kind = 'answer_review' AND status = 'pending'",
+      updates: {db.messageParts},
+    );
+    return (messages: messages, parts: parts + reviewParts);
   }
 
   // ---------------------------------------------------------------------------
@@ -1654,6 +1807,34 @@ class ChatRepository {
             ..where((t) => t.messageId.equals(messageId))
             ..orderBy([(t) => OrderingTerm.asc(t.ordinal)]))
           .get();
+
+  /// Tool-only parts for a bounded set of messages. Used by the conversation
+  /// preload so a large persisted review draft is not read just to build the
+  /// tool timeline.
+  Future<List<MessagePartRow>> toolPartsForMessages(
+    Iterable<String> messageIds,
+  ) async {
+    final ids = messageIds.where((id) => id.isNotEmpty).toSet().toList();
+    final result = <MessagePartRow>[];
+    for (var start = 0; start < ids.length; start += 500) {
+      final chunk = ids.sublist(
+        start,
+        start + 500 > ids.length ? ids.length : start + 500,
+      );
+      final rows =
+          await (db.select(db.messageParts)
+                ..where(
+                  (t) => t.messageId.isIn(chunk) & t.kind.equals(kToolPartKind),
+                )
+                ..orderBy([
+                  (t) => OrderingTerm.asc(t.messageId),
+                  (t) => OrderingTerm.asc(t.ordinal),
+                ]))
+              .get();
+      result.addAll(rows);
+    }
+    return result;
+  }
 
   Future<List<MessagePartRow>> allPartsBatch(List<String> messageIds) async {
     final result = <MessagePartRow>[];

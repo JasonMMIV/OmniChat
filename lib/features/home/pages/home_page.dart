@@ -998,6 +998,7 @@ class _HomePageState extends State<HomePage>
       reasoning: _controller.reasoning,
       reasoningSegments: _controller.reasoningSegments,
       toolParts: _controller.toolParts,
+      answerReviews: _controller.answerReviews,
       processGroupExplicitOpen: _controller.processGroupExplicitOpen,
       translations: _buildTranslationUiStates(),
       selecting: _controller.selecting,

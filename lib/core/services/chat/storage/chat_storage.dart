@@ -1,3 +1,4 @@
+import '../../../models/answer_review.dart';
 import '../../../models/chat_message.dart';
 import '../../../models/conversation.dart';
 import '../../../models/message_usage.dart';
@@ -116,6 +117,23 @@ abstract class ChatStorage {
   /// the message were never loaded. Opening a conversation calls
   /// [ensureConversationLoaded] first.
   List<ToolPartSummary> getToolPartSummaries(String assistantMessageId);
+
+  /// Persisted answer-review record for one assistant message, or null when
+  /// the message was never reviewed. Loaded with the conversation summaries.
+  AnswerReviewRecord? getAnswerReview(String messageId) => null;
+
+  /// Batch variant used by restore paths. Defaults to empty for backends
+  /// without review support (the legacy Hive backend).
+  Map<String, AnswerReviewRecord> getAnswerReviews(
+    Iterable<String> messageIds,
+  ) {
+    final out = <String, AnswerReviewRecord>{};
+    for (final id in messageIds) {
+      final record = getAnswerReview(id);
+      if (record != null) out[id] = record;
+    }
+    return out;
+  }
 
   /// Loads one part's full arguments/content for an expanded tool card. Reads
   /// only that row; it never marks the whole message's events as loaded.
@@ -252,6 +270,16 @@ abstract class ChatStorage {
     String? approvalState,
     Map<String, dynamic>? extras,
   });
+
+  /// Upserts the single review row for a message. [draft] is only needed on
+  /// the first write; later calls may pass null to update metadata/status
+  /// while keeping the stored draft.
+  Future<void> upsertAnswerReviewPart({
+    required String messageId,
+    required AnswerReviewReport report,
+    required String status,
+    String? draft,
+  }) async {}
 
   Future<bool> setToolEventApprovalState(
     String assistantMessageId, {

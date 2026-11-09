@@ -15,6 +15,8 @@ import 'dart:developer' as developer;
 import '../../models/answer_review.dart';
 import '../../providers/settings_provider.dart';
 
+export '../../models/answer_review.dart' show ReviewIssue;
+
 // ---------------------------------------------------------------------------
 // Constants (§4.4 / §7 — centralized so soak runs can tune them)
 // ---------------------------------------------------------------------------
@@ -37,9 +39,14 @@ const int kAnswerReviewMaxProblemChars = 300;
 const int kAnswerReviewMaxFixChars = 300;
 
 /// `ChatStreamChunk.reviewPhase` values (§8.1).
-const String kReviewPhaseReviewing = 'reviewing';
-const String kReviewPhaseRevising = 'revising';
-const String kReviewPhaseRevisionFailed = 'revision_failed';
+///
+/// `reviewed` is emitted once the verdict is known (PASS, REVISE and
+/// fail-open all emit it) so the card can render the result instead of only
+/// seeing the transient chip disappear.
+const String kReviewPhaseReviewing = AnswerReviewPhase.reviewing;
+const String kReviewPhaseReviewed = AnswerReviewPhase.reviewed;
+const String kReviewPhaseRevising = AnswerReviewPhase.revising;
+const String kReviewPhaseRevisionFailed = AnswerReviewPhase.revisionFailed;
 
 /// Extra-body keys stripped from the internal review / revision request
 /// (§5.2 invariant 3). The review is text-only: no tools, no streaming
@@ -149,22 +156,20 @@ bool shouldReviewDraft({
 List<Map<String, dynamic>> buildReviewTurn({
   required List<Map<String, dynamic>> working,
   required String draft,
-}) =>
-    _appendInternalTurn(
-      List<Map<String, dynamic>>.of(working),
-      reviewInstruction(draft),
-    );
+}) => _appendInternalTurn(
+  List<Map<String, dynamic>>.of(working),
+  reviewInstruction(draft),
+);
 
 /// Build the message list for the revision call (same shaping rules).
 List<Map<String, dynamic>> buildRevisionTurn({
   required List<Map<String, dynamic>> working,
   required String draft,
   required String issuesJson,
-}) =>
-    _appendInternalTurn(
-      List<Map<String, dynamic>>.of(working),
-      revisionInstruction(draft, issuesJson),
-    );
+}) => _appendInternalTurn(
+  List<Map<String, dynamic>>.of(working),
+  revisionInstruction(draft, issuesJson),
+);
 
 List<Map<String, dynamic>> _appendInternalTurn(
   List<Map<String, dynamic>> messages,
@@ -275,31 +280,6 @@ Rewrite the complete answer so that every blocker/major issue is fixed.
 // Verdict model + tolerant parser (§7)
 // ---------------------------------------------------------------------------
 
-/// One review issue. [severity] is one of `blocker` / `major` / `minor`
-/// (unknown severities parse as `major` — conservative, §7.2).
-class ReviewIssue {
-  const ReviewIssue({
-    required this.severity,
-    required this.location,
-    required this.problem,
-    required this.fix,
-  });
-
-  final String severity;
-  final String location;
-  final String problem;
-  final String fix;
-
-  bool get isBlocking => severity == 'blocker' || severity == 'major';
-
-  Map<String, dynamic> toJson() => <String, dynamic>{
-    'severity': severity,
-    'location': location,
-    'problem': problem,
-    'fix': fix,
-  };
-}
-
 /// The parsed review verdict. [verdict] already reflects the severity gate:
 /// any blocker / major issue forces `revise`, minor-only or empty issue
 /// lists force `pass` even when the model answered `revise` (§7.3).
@@ -328,9 +308,7 @@ class ReviewVerdict {
     final blocking = issues.where((i) => i.isBlocking).toList();
     if (blocking.isEmpty) return '[]';
     try {
-      return jsonEncode(<dynamic>[
-        for (final i in blocking) i.toJson(),
-      ]);
+      return jsonEncode(<dynamic>[for (final i in blocking) i.toJson()]);
     } catch (_) {
       return '[]';
     }
@@ -351,10 +329,11 @@ ReviewVerdict parseReviewVerdict(String raw) {
   final decoded = _tryDecodeJson(text);
   if (decoded != null) {
     final issues = _parseIssues(decoded['issues']);
-    final rawVerdict = (decoded['verdict'] ?? '').toString().trim().toLowerCase();
-    final gated = issues.any((i) => i.isBlocking)
-        ? 'revise'
-        : 'pass';
+    final rawVerdict = (decoded['verdict'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final gated = issues.any((i) => i.isBlocking) ? 'revise' : 'pass';
     // An explicit, valid verdict is kept for the log only — the severity
     // gate owns the decision (§7.3).
     final normalized = (rawVerdict == 'pass' || rawVerdict == 'revise')
@@ -364,11 +343,7 @@ ReviewVerdict parseReviewVerdict(String raw) {
       'answer_review.parse verdict=$normalized gated=$gated issues=${issues.length}',
       name: 'answer_review',
     );
-    return ReviewVerdict(
-      verdict: gated,
-      issues: issues,
-      parsed: true,
-    );
+    return ReviewVerdict(verdict: gated, issues: issues, parsed: true);
   }
 
   // 4) tolerate plain-text PASS / REVISE. A bare "REVISE" without parsed
@@ -376,7 +351,8 @@ ReviewVerdict parseReviewVerdict(String raw) {
   //    spellings — and anything unparseable — end as a fail-open PASS.
   final fallbackRevise = RegExp(r'\bREVISE\b', caseSensitive: false);
   final fallbackPass = RegExp(r'\bPASS\b', caseSensitive: false);
-  final recognized = fallbackPass.hasMatch(text) || fallbackRevise.hasMatch(text);
+  final recognized =
+      fallbackPass.hasMatch(text) || fallbackRevise.hasMatch(text);
   if (!recognized) {
     developer.log(
       'answer_review.parse_failed rawLength=${raw.length}',
@@ -406,7 +382,10 @@ List<ReviewIssue> _parseIssues(dynamic rawIssues) {
   for (final entry in rawIssues) {
     if (issues.length >= kAnswerReviewMaxIssues) break;
     if (entry is! Map) continue;
-    final severityRaw = (entry['severity'] ?? '').toString().trim().toLowerCase();
+    final severityRaw = (entry['severity'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
     final severity = switch (severityRaw) {
       'blocker' => 'blocker',
       'major' => 'major',
@@ -416,7 +395,10 @@ List<ReviewIssue> _parseIssues(dynamic rawIssues) {
     issues.add(
       ReviewIssue(
         severity: severity,
-        location: _clamp((entry['location'] ?? ''), kAnswerReviewMaxLocationChars),
+        location: _clamp(
+          (entry['location'] ?? ''),
+          kAnswerReviewMaxLocationChars,
+        ),
         problem: _clamp((entry['problem'] ?? ''), kAnswerReviewMaxProblemChars),
         fix: _clamp((entry['fix'] ?? ''), kAnswerReviewMaxFixChars),
       ),

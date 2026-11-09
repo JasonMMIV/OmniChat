@@ -1,25 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
+
 import 'dart:ui' as ui;
 import 'dart:math' as math;
+
 import 'package:flutter/services.dart';
+
 import '../../../core/services/haptics.dart';
+
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
+
 import 'dart:io';
+
 import 'package:open_filex/open_filex.dart';
 
 import '../../../core/services/api/attachment_kind.dart';
 import '../../../shared/widgets/audio_clip_player.dart';
 import 'user_attachment_card.dart';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
+
 // import 'package:easy_image_viewer/easy_image_viewer.dart';
 import 'dart:convert';
+
 import 'package:characters/characters.dart';
+
 import '../pages/image_viewer_page.dart';
 import '../pages/html_preview_page.dart';
 import '../../../utils/markdown_preview_html.dart';
@@ -36,7 +46,9 @@ import '../../../core/services/web/web_fetch_tool.dart';
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../core/providers/assistant_provider.dart';
+
 import 'package:intl/intl.dart';
+
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/avatar_cache.dart';
 import '../../../utils/assistant_regex.dart';
@@ -47,11 +59,14 @@ import '../../../shared/markdown/markdown_render_policy.dart';
 import '../../../shared/markdown/markdown_surface_scope.dart';
 import '../../../shared/widgets/snackbar.dart';
 import 'ai_team_proposals_section.dart';
+import 'answer_review_card.dart';
 import 'message_stats_line.dart';
 import 'cowork_tool_cards.dart';
 import 'process_group_card.dart';
 import 'process_group_logic.dart';
+
 import 'package:url_launcher/url_launcher.dart';
+
 import '../../../l10n/app_localizations.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
@@ -63,6 +78,7 @@ import '../../../desktop/html_preview_dialog.dart';
 import '../widgets/workspace_file_browser.dart';
 import '../../provider/widgets/oauth_message_recovery.dart';
 import '../../../shared/widgets/emoji_text.dart';
+
 import 'package:markdown/markdown.dart' as md;
 import 'package:super_clipboard/super_clipboard.dart';
 
@@ -156,6 +172,13 @@ class ChatMessageWidget extends StatefulWidget {
   final VoidCallback? onToggleTranslation;
   // MCP tool calls/results mixed-in cards
   final List<ToolUIPart>? toolParts;
+
+  /// Answer Review v1 card (persisted or live). The card renders inside the
+  /// process group, after the thinking/tool rows.
+  final AnswerReviewViewData? answerReview;
+
+  /// True while the answer is still streaming (the card starts expanded).
+  final bool answerReviewLive;
   // Hide streaming dots when pinned globally
   final bool hideStreamingIndicator;
   // P1-3: submit an ask_user answer (resumes generation)
@@ -221,6 +244,8 @@ class ChatMessageWidget extends StatefulWidget {
     this.translationExpanded = true,
     this.onToggleTranslation,
     this.toolParts,
+    this.answerReview,
+    this.answerReviewLive = false,
     this.hideStreamingIndicator = false,
     this.onSubmitAskUserAnswer,
     this.onResolveApproval,
@@ -258,6 +283,15 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       const <Map<String, dynamic>>[];
   String? _searchItemsMessageId;
   bool _searchItemsLoading = false;
+
+  String _reviewSummary(AppLocalizations l10n, AnswerReviewViewData data) {
+    final report = data.report;
+    final status = answerReviewStatusLabel(l10n, report.phase);
+    final count = report.issues.length;
+    return count > 0
+        ? l10n.chatAnswerReviewGroupSummary(status, count)
+        : status;
+  }
 
   @override
   void initState() {
@@ -917,8 +951,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                             content = Text(
                               visualText,
                               style: TextStyle(
-                                fontSize:
-                                    baseUser, // slightly smaller on desktop for readability
+                                fontSize: baseUser, // slightly smaller on desktop for readability
                                 height: 1.4,
                                 color: cs.onSurface,
                               ),
@@ -1733,9 +1766,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       minSize: 32,
                       icon: Lucide.MoreVertical,
                       color: cs.onSurface.withOpacity(0.55),
-                      semanticLabel: AppLocalizations.of(
-                        context,
-                      )!.chatMessageWidgetFileActions,
+                      semanticLabel: AppLocalizations.of(context)!
+                          .chatMessageWidgetFileActions,
                       onTap: null,
                     ),
                   ),
@@ -1920,6 +1952,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             final bool isStreaming = widget.message.isStreaming;
             final tools = widget.toolParts ?? const <ToolUIPart>[];
             final bool hasAnswerText = visualContent.trim().isNotEmpty;
+            final AnswerReviewViewData? answerReview = widget.answerReview;
 
             final List<ProcessThought> thoughts;
             if (widget.reasoningSegments != null &&
@@ -1995,6 +2028,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               hasAnswerText: hasAnswerText,
               showThinkingCards: settings.showThinkingCards,
               showToolCards: settings.showToolCards,
+              hasAnswerReview: answerReview != null,
+              answerReviewLive: widget.answerReviewLive,
             );
             if (!model.visible) {
               // B3: no surviving rows — old layout reserved spacing for the
@@ -2041,6 +2076,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                         resolvedOpen,
                         model.forcedOpen,
                       ),
+                reviewSummary: answerReview == null
+                    ? null
+                    : _reviewSummary(l10n, answerReview),
                 children: [
                   for (final entry in model.entries)
                     Padding(
@@ -2067,6 +2105,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                         ),
                       },
                     ),
+                  if (answerReview != null)
+                    AnswerReviewCard(data: answerReview),
                 ],
               ),
             );
@@ -3174,10 +3214,7 @@ Widget _buildToolDiffSection(BuildContext context, String diffText) {
     children: [
       Text(
         l10n.chatMessageWidgetDiff,
-        style: TextStyle(
-          fontSize: 12,
-          color: cs.onSurface.withOpacity(0.6),
-        ),
+        style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6)),
       ),
       const SizedBox(height: 6),
       Container(
@@ -3604,10 +3641,7 @@ class _ToolCallItem extends StatelessWidget {
                       const SizedBox(width: 6),
                       Text(
                         '+${part.diffAdded ?? 0} −${part.diffRemoved ?? 0}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: cardTextColor,
-                        ),
+                        style: TextStyle(fontSize: 11, color: cardTextColor),
                       ),
                     ],
                   ],
@@ -4456,9 +4490,8 @@ class _ReasoningSectionState extends State<_ReasoningSection> {
     );
 
     // 抽公共样式，继承当前 DefaultTextStyle（从而继承正确的颜色）
-    final TextStyle baseStyle = DefaultTextStyle.of(
-      context,
-    ).style.copyWith(fontSize: 12.5, height: 1.32, color: cardTextColor);
+    final TextStyle baseStyle = DefaultTextStyle.of(context).style
+        .copyWith(fontSize: 12.5, height: 1.32, color: cardTextColor);
 
     const StrutStyle baseStrut = StrutStyle(
       forceStrutHeight: true,

@@ -1509,6 +1509,67 @@
   "chatAnswerReviewInProgress": "Reviewing answer…",
   "chatAnswerReviewRevising": "Revising answer…",
   "chatAnswerReviewFailedOpen": "Review unavailable; original answer kept",
+  "chatAnswerReviewCardTitle": "Answer review",
+  "chatAnswerReviewStatusReviewing": "Reviewing",
+  "chatAnswerReviewStatusPassed": "Passed",
+  "chatAnswerReviewStatusRevising": "Revising",
+  "chatAnswerReviewStatusRevised": "Revised",
+  "chatAnswerReviewStatusFailedOpen": "Review unavailable",
+  "chatAnswerReviewStatusRevisionFailed": "Revision failed",
+  "chatAnswerReviewStatusCancelled": "Cancelled",
+  "chatAnswerReviewStatusInterrupted": "Interrupted",
+  "chatAnswerReviewIssueCount": "{count, plural, =1{1 issue} other{{count} issues}}",
+  "@chatAnswerReviewIssueCount": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "chatAnswerReviewDraftTitle": "Draft",
+  "chatAnswerReviewDraftChars": "{count} chars",
+  "@chatAnswerReviewDraftChars": {
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "chatAnswerReviewDraftTruncated": "Draft was too long and is truncated.",
+  "chatAnswerReviewShowDraft": "Show full draft",
+  "chatAnswerReviewHideDraft": "Collapse draft",
+  "chatAnswerReviewIssuesTitle": "Review findings",
+  "chatAnswerReviewNoIssues": "No blocking issues found.",
+  "chatAnswerReviewSeverityBlocker": "Blocker",
+  "chatAnswerReviewSeverityMajor": "Major",
+  "chatAnswerReviewSeverityMinor": "Minor",
+  "chatAnswerReviewLocation": "Location",
+  "chatAnswerReviewProblem": "Problem",
+  "chatAnswerReviewFix": "Suggested fix",
+  "chatAnswerReviewDiffTitle": "Revision diff",
+  "chatAnswerReviewDiffSummary": "+{added} / −{removed}",
+  "@chatAnswerReviewDiffSummary": {
+    "placeholders": {"added": {"type": "int"}, "removed": {"type": "int"}}
+  },
+  "chatAnswerReviewDiffNone": "The revised answer is identical to the draft.",
+  "chatAnswerReviewShowDiff": "Show diff",
+  "chatAnswerReviewHideDiff": "Hide diff",
+  "chatAnswerReviewReviewTime": "Review {ms} ms",
+  "@chatAnswerReviewReviewTime": {
+    "placeholders": {"ms": {"type": "int"}}
+  },
+  "chatAnswerReviewRevisionTime": "Revision {ms} ms",
+  "@chatAnswerReviewRevisionTime": {
+    "placeholders": {"ms": {"type": "int"}}
+  },
+  "chatAnswerReviewTokens": "{tokens} tokens",
+  "@chatAnswerReviewTokens": {
+    "placeholders": {"tokens": {"type": "int"}}
+  },
+  "chatAnswerReviewFailTimeout": "Timed out",
+  "chatAnswerReviewFailError": "Request failed",
+  "chatAnswerReviewFailEmpty": "Empty response",
+  "chatAnswerReviewFailMalformed": "Could not parse the verdict",
+  "chatAnswerReviewFailRevisionFailed": "The revision failed; original answer kept",
+  "chatAnswerReviewFailCancelled": "Cancelled by you",
+  "chatAnswerReviewFailInterrupted": "Interrupted before completion",
+  "chatAnswerReviewReviewingHint": "The same model is checking the draft.",
+  "chatAnswerReviewGroupSummary": "{status} · {count} issues",
+  "@chatAnswerReviewGroupSummary": {
+    "placeholders": {"status": {"type": "String"}, "count": {"type": "int"}}
+  },
   "displaySettingsPageShowUpdatesTitle": "Updates",
   "displaySettingsPageMessageNavButtonsTitle": "Nav",
   "displaySettingsPageShowChatListDateTitle": "Dates",

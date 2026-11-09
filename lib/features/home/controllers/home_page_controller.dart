@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../core/models/answer_review.dart';
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/conversation.dart';
@@ -467,6 +468,8 @@ class HomePageController extends ChangeNotifier {
   Map<String, List<stream_ctrl.ReasoningSegmentData>> get reasoningSegments =>
       _streamController.reasoningSegments;
   Map<String, List<ToolUIPart>> get toolParts => _streamController.toolParts;
+  Map<String, AnswerReviewRecord> get answerReviews =>
+      _streamController.answerReviews;
 
   /// 過程收褶 (process folding): explicit fold pins per assistant message —
   /// null = follow the live verdict, true/false = user-pinned (PLAN
@@ -1688,6 +1691,7 @@ class HomePageController extends ChangeNotifier {
               _chatService.getToolPartSummaries(id),
           getGeminiThoughtSigFromDb: (id) =>
               _chatService.getGeminiThoughtSignature(id),
+          getAnswerReviewFromDb: (id) => _chatService.getAnswerReview(id),
         );
 
         final cleanedContent = _streamController.captureGeminiThoughtSignature(

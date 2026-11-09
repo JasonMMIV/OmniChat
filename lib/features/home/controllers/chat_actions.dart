@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/models/ai_team_config.dart';
+import '../../../core/models/answer_review.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
@@ -1153,6 +1154,14 @@ class ChatActions {
       // Mark streaming as ended to allow UI rebuilds again
       streamController.markStreamingEnded(streaming.id);
 
+      // Answer Review v1: a deliberate stop closes the card as cancelled and
+      // keeps the draft. This runs before the content write below so the
+      // persisted message still carries the original answer.
+      final activeState = _activeStreamStates[streaming.id];
+      if (activeState != null) {
+        await _finalizeReviewOnAbort(activeState, cancelled: true);
+      }
+
       // R3: persist pending AI Team proposals during aggregator phase
       final pendingProposals = _aiTeamPendingProposals.remove(streaming.id);
       final usageMeta = streaming.usageMeta;
@@ -1442,6 +1451,11 @@ class ChatActions {
     return null;
   }
 
+  /// Live [StreamingState]s by assistant message id. The cancel path needs
+  /// the review state to close a card that was interrupted mid-review.
+  final Map<String, stream_ctrl.StreamingState> _activeStreamStates =
+      <String, stream_ctrl.StreamingState>{};
+
   /// Execute generation with the given context.
   Future<void> _executeGeneration(
     stream_ctrl.GenerationContext ctx, {
@@ -1450,6 +1464,7 @@ class ChatActions {
     bool enableAnswerReview = true,
   }) async {
     final state = stream_ctrl.StreamingState(ctx);
+    _activeStreamStates[state.messageId] = state;
     // Review is streaming-chat-only (§5.2 invariant 12): non-streaming runs
     // and the opt-out callers keep the off config.
     final answerReview = (enableAnswerReview && ctx.streamOutput)
@@ -2201,19 +2216,50 @@ class ChatActions {
   }
 
   /// Answer Review v1 status chunk handler (§9.3): switches the review
-  /// indicator and, on `revising`, backs up + clears the on-screen draft.
+  /// card and, on `revising`, backs up + clears the on-screen draft.
   /// Usage / totalTokens / tool cards are intentionally untouched.
   Future<void> _handleReviewPhaseChunk(
     ChatStreamChunk chunk,
     stream_ctrl.StreamingState state,
   ) async {
     final phase = chunk.reviewPhase!;
+    final messageId = state.messageId;
+    final notifier = streamController.streamingContentNotifier;
     switch (phase) {
       case kReviewPhaseReviewing:
-        state.answerReview.beginReviewing();
-        streamController.streamingContentNotifier.updateReviewPhase(
-          state.messageId,
-          kReviewPhaseReviewing,
+        final draft = _transformAssistantContent(state);
+        state.answerReview.beginReviewing(
+          draft: draft,
+          at: DateTime.now(),
+          report: chunk.reviewReport,
+        );
+        notifier.updateAnswerReview(
+          messageId,
+          phase: AnswerReviewPhase.reviewing,
+          report: chunk.reviewReport,
+          draft: draft,
+        );
+        await _persistAnswerReview(
+          state,
+          status: kPartStatusPending,
+          report: chunk.reviewReport ?? const AnswerReviewReport(),
+          draft: draft,
+        );
+        break;
+      case kReviewPhaseReviewed:
+        final report = chunk.reviewReport ?? state.answerReview.report;
+        if (report == null) break;
+        state.answerReview.applyReport(report);
+        notifier.updateAnswerReview(
+          messageId,
+          phase: report.phase,
+          report: report,
+          draft: state.answerReview.draftForCard,
+        );
+        await _persistAnswerReview(
+          state,
+          status: _reviewStatusForPhase(report.phase),
+          report: report,
         );
         break;
       case kReviewPhaseRevising:
@@ -2223,30 +2269,139 @@ class ChatActions {
         // The revised text replaces the draft: a signature captured from the
         // draft no longer matches the new text, and the throttle timer must
         // not race with the revision's content writes.
-        streamController.clearGeminiThoughtSignature(state.messageId);
-        streamController.cancelThrottleTimer(state.messageId);
+        streamController.clearGeminiThoughtSignature(messageId);
+        streamController.cancelThrottleTimer(messageId);
         state.fullContentRaw = '';
+        final revisingReport = (chunk.reviewReport ?? state.answerReview.report)
+            ?.copyWith(phase: AnswerReviewPhase.revising, reviewed: false);
+        if (revisingReport != null) {
+          state.answerReview.applyReport(revisingReport);
+          notifier.updateAnswerReview(
+            messageId,
+            phase: AnswerReviewPhase.revising,
+            report: revisingReport,
+            draft: state.answerReview.draftForCard,
+          );
+          await _persistAnswerReview(
+            state,
+            status: kPartStatusPending,
+            report: revisingReport,
+          );
+        }
         // DB and `_messages` keep the draft during the revision (§9.4): a
         // cancel or crash must never lose the original answer in favor of a
         // half-revised stream. Only the live notifier shows the revision.
-        streamController.streamingContentNotifier.updateReviewPhase(
-          state.messageId,
-          kReviewPhaseRevising,
-        );
-        streamController.streamingContentNotifier.updateContent(
-          state.messageId,
-          '',
-          state.totalTokens,
-        );
+        notifier.updateContent(messageId, '', state.totalTokens);
         break;
       case kReviewPhaseRevisionFailed:
-        state.answerReview.markRevisionFailed();
-        streamController.streamingContentNotifier.updateReviewPhase(
-          state.messageId,
-          kReviewPhaseRevisionFailed,
+        final report = chunk.reviewReport ?? state.answerReview.report;
+        state.answerReview.markRevisionFailed(report);
+        notifier.updateAnswerReview(
+          messageId,
+          phase: AnswerReviewPhase.revisionFailed,
+          report: report,
+          draft: state.answerReview.draftForCard,
         );
+        if (report != null) {
+          await _persistAnswerReview(
+            state,
+            status: kPartStatusInterrupted,
+            report: report,
+          );
+        }
         break;
     }
+  }
+
+  String _reviewStatusForPhase(String phase) => switch (phase) {
+    AnswerReviewPhase.passed ||
+    AnswerReviewPhase.revised => kPartStatusCompleted,
+    AnswerReviewPhase.reviewing ||
+    AnswerReviewPhase.revising => kPartStatusPending,
+    _ => kPartStatusInterrupted,
+  };
+
+  /// Best-effort persistence for the review card. A failure must never block
+  /// the answer from finishing; the live card remains usable.
+  Future<void> _persistAnswerReview(
+    stream_ctrl.StreamingState state, {
+    required String status,
+    required AnswerReviewReport report,
+    String? draft,
+  }) async {
+    try {
+      await chatService.upsertAnswerReview(
+        messageId: state.messageId,
+        report: report,
+        status: status,
+        draft: draft,
+      );
+      final record = chatService.getAnswerReview(state.messageId);
+      if (record != null) {
+        streamController.setAnswerReview(state.messageId, record);
+      }
+    } catch (e) {
+      FlutterLogger.log(
+        'answer_review.persist_failed messageId=${state.messageId} error=$e',
+        tag: 'answer_review',
+      );
+    }
+  }
+
+  /// Close a review card whose run was cancelled / errored / lost its
+  /// terminal. Persists `interrupted` and clears the live phase without
+  /// touching the answer content (the caller owns the draft restore).
+  Future<void> _finalizeReviewOnAbort(
+    stream_ctrl.StreamingState state, {
+    required bool cancelled,
+  }) async {
+    final existing = state.answerReview.report;
+    if (state.answerReview.phase == null && existing == null) {
+      _activeStreamStates.remove(state.messageId);
+      return;
+    }
+    // A late error/onDone/cancel must never downgrade a review that already
+    // reached a terminal phase (the answer was delivered and persisted).
+    if (existing?.isTerminal == true) {
+      _activeStreamStates.remove(state.messageId);
+      return;
+    }
+
+    final restoredAfterRevision =
+        !cancelled &&
+        state.answerReview.phase == AnswerReviewPhase.revisionFailed;
+    if (cancelled) {
+      state.answerReview.markCancelled();
+    } else if (restoredAfterRevision && existing != null) {
+      // The stream ended after `takeDraftForRestore()`: keep the semantic
+      // "revision failed, original kept" state instead of a generic abort.
+      state.answerReview.applyReport(
+        existing.copyWith(
+          phase: AnswerReviewPhase.revisionFailed,
+          reviewed: false,
+          failReason: existing.failReason ?? 'revision_failed',
+          finishedAtMs: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
+    } else {
+      state.answerReview.markInterrupted();
+    }
+    final report = state.answerReview.report;
+    if (report != null) {
+      await _persistAnswerReview(
+        state,
+        status: kPartStatusInterrupted,
+        report: report,
+        draft: state.answerReview.draftForCard,
+      );
+      streamController.streamingContentNotifier.updateAnswerReview(
+        state.messageId,
+        clearPhase: true,
+        report: report,
+        draft: state.answerReview.draftForCard,
+      );
+    }
+    _activeStreamStates.remove(state.messageId);
   }
 
   /// Restore the backed-up draft when a run ends (done / error) mid-revision
@@ -2624,17 +2779,47 @@ class ChatActions {
     }
 
     // Answer Review v1 (§9.5): fold the terminal's review outcome in and
-    // clear the live indicator. `reviewUsage` is the additive subset of
-    // `chunk.usage` — recorded for display only, never re-added.
+    // persist the final card before the live state is torn down.
+    // `reviewUsage` is the additive subset of `chunk.usage` — recorded for
+    // display only, never re-added.
+    final finalReport = chunk.reviewReport ?? state.answerReview.report;
+    final normalizedReport =
+        finalReport != null &&
+            !AnswerReviewPhase.terminal.contains(finalReport.phase)
+        ? finalReport.copyWith(
+            phase: AnswerReviewPhase.interrupted,
+            reviewed: false,
+            failReason: finalReport.failReason ?? 'interrupted',
+            finishedAtMs: DateTime.now().millisecondsSinceEpoch,
+          )
+        : finalReport;
     state.answerReview.finish(
       reviewed: chunk.reviewed,
       reviewTokens: chunk.reviewUsage?.totalTokens ?? 0,
+      report: normalizedReport,
+      finalPhase: normalizedReport?.phase,
     );
     state.reviewTokens = chunk.reviewUsage?.totalTokens ?? 0;
-    streamController.streamingContentNotifier.updateReviewPhase(
-      messageId,
-      null,
-    );
+    if (normalizedReport != null) {
+      await _persistAnswerReview(
+        state,
+        status: _reviewStatusForPhase(normalizedReport.phase),
+        report: normalizedReport,
+        draft: state.answerReview.draftForCard,
+      );
+      streamController.streamingContentNotifier.updateAnswerReview(
+        messageId,
+        clearPhase: true,
+        report: normalizedReport,
+        draft: state.answerReview.draftForCard,
+      );
+    } else {
+      streamController.streamingContentNotifier.updateReviewPhase(
+        messageId,
+        null,
+      );
+    }
+    _activeStreamStates.remove(messageId);
 
     await _finishStreaming(state);
     await _finishRunJournal(state);
@@ -2847,6 +3032,7 @@ class ChatActions {
     // message is composed so the note is appended to the original answer,
     // not to a half-revised stream.
     _restoreReviewDraftIfNeeded(state);
+    await _finalizeReviewOnAbort(state, cancelled: false);
 
     // Mark streaming as ended to allow UI rebuilds again
     streamController.markStreamingEnded(messageId);
@@ -2970,6 +3156,10 @@ class ChatActions {
     // driver never released its terminal) restores the backed-up draft so
     // `_finishStreaming` below persists the original answer.
     _restoreReviewDraftIfNeeded(state);
+    if (!state.finishHandled &&
+        _activeStreamStates.containsKey(state.messageId)) {
+      await _finalizeReviewOnAbort(state, cancelled: false);
+    }
 
     // Ensure streaming is marked as ended
     streamController.markStreamingEnded(state.messageId);

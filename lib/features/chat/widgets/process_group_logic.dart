@@ -141,6 +141,11 @@ ProcessGroupModel buildProcessGroup({
   required bool hasAnswerText,
   required bool showThinkingCards,
   required bool showToolCards,
+  // Answer Review v1: the review card is a row of this group even when the
+  // turn used no thinking/tools. The header stays live while the review or
+  // revision runs so the group does not look finished under the card.
+  bool hasAnswerReview = false,
+  bool answerReviewLive = false,
 }) {
   final entries = <ProcessEntry>[];
 
@@ -187,6 +192,7 @@ ProcessGroupModel buildProcessGroup({
   final bool forcedOpen = tools.any((t) => t.requiresUserAction);
   final bool live =
       forcedOpen ||
+      answerReviewLive ||
       (isStreaming &&
           (entries.any((e) => e is ToolEntry && e.tool.loading) ||
               entries.any((e) => e is ThoughtEntry && e.streaming) ||
@@ -196,7 +202,7 @@ ProcessGroupModel buildProcessGroup({
     entries: entries,
     live: live,
     forcedOpen: forcedOpen,
-    visible: entries.isNotEmpty,
+    visible: entries.isNotEmpty || hasAnswerReview,
   );
 }
 

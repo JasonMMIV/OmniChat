@@ -6291,6 +6291,246 @@ abstract class AppLocalizations {
   /// **'Review unavailable; original answer kept'**
   String get chatAnswerReviewFailedOpen;
 
+  /// No description provided for @chatAnswerReviewCardTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Answer review'**
+  String get chatAnswerReviewCardTitle;
+
+  /// No description provided for @chatAnswerReviewStatusReviewing.
+  ///
+  /// In en, this message translates to:
+  /// **'Reviewing'**
+  String get chatAnswerReviewStatusReviewing;
+
+  /// No description provided for @chatAnswerReviewStatusPassed.
+  ///
+  /// In en, this message translates to:
+  /// **'Passed'**
+  String get chatAnswerReviewStatusPassed;
+
+  /// No description provided for @chatAnswerReviewStatusRevising.
+  ///
+  /// In en, this message translates to:
+  /// **'Revising'**
+  String get chatAnswerReviewStatusRevising;
+
+  /// No description provided for @chatAnswerReviewStatusRevised.
+  ///
+  /// In en, this message translates to:
+  /// **'Revised'**
+  String get chatAnswerReviewStatusRevised;
+
+  /// No description provided for @chatAnswerReviewStatusFailedOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Review unavailable'**
+  String get chatAnswerReviewStatusFailedOpen;
+
+  /// No description provided for @chatAnswerReviewStatusRevisionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Revision failed'**
+  String get chatAnswerReviewStatusRevisionFailed;
+
+  /// No description provided for @chatAnswerReviewStatusCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelled'**
+  String get chatAnswerReviewStatusCancelled;
+
+  /// No description provided for @chatAnswerReviewStatusInterrupted.
+  ///
+  /// In en, this message translates to:
+  /// **'Interrupted'**
+  String get chatAnswerReviewStatusInterrupted;
+
+  /// No description provided for @chatAnswerReviewIssueCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 issue} other{{count} issues}}'**
+  String chatAnswerReviewIssueCount(int count);
+
+  /// No description provided for @chatAnswerReviewDraftTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft'**
+  String get chatAnswerReviewDraftTitle;
+
+  /// No description provided for @chatAnswerReviewDraftChars.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} chars'**
+  String chatAnswerReviewDraftChars(int count);
+
+  /// No description provided for @chatAnswerReviewDraftTruncated.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft was too long and is truncated.'**
+  String get chatAnswerReviewDraftTruncated;
+
+  /// No description provided for @chatAnswerReviewShowDraft.
+  ///
+  /// In en, this message translates to:
+  /// **'Show full draft'**
+  String get chatAnswerReviewShowDraft;
+
+  /// No description provided for @chatAnswerReviewHideDraft.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse draft'**
+  String get chatAnswerReviewHideDraft;
+
+  /// No description provided for @chatAnswerReviewIssuesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Review findings'**
+  String get chatAnswerReviewIssuesTitle;
+
+  /// No description provided for @chatAnswerReviewNoIssues.
+  ///
+  /// In en, this message translates to:
+  /// **'No blocking issues found.'**
+  String get chatAnswerReviewNoIssues;
+
+  /// No description provided for @chatAnswerReviewSeverityBlocker.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocker'**
+  String get chatAnswerReviewSeverityBlocker;
+
+  /// No description provided for @chatAnswerReviewSeverityMajor.
+  ///
+  /// In en, this message translates to:
+  /// **'Major'**
+  String get chatAnswerReviewSeverityMajor;
+
+  /// No description provided for @chatAnswerReviewSeverityMinor.
+  ///
+  /// In en, this message translates to:
+  /// **'Minor'**
+  String get chatAnswerReviewSeverityMinor;
+
+  /// No description provided for @chatAnswerReviewLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get chatAnswerReviewLocation;
+
+  /// No description provided for @chatAnswerReviewProblem.
+  ///
+  /// In en, this message translates to:
+  /// **'Problem'**
+  String get chatAnswerReviewProblem;
+
+  /// No description provided for @chatAnswerReviewFix.
+  ///
+  /// In en, this message translates to:
+  /// **'Suggested fix'**
+  String get chatAnswerReviewFix;
+
+  /// No description provided for @chatAnswerReviewDiffTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Revision diff'**
+  String get chatAnswerReviewDiffTitle;
+
+  /// No description provided for @chatAnswerReviewDiffSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'+{added} / −{removed}'**
+  String chatAnswerReviewDiffSummary(int added, int removed);
+
+  /// No description provided for @chatAnswerReviewDiffNone.
+  ///
+  /// In en, this message translates to:
+  /// **'The revised answer is identical to the draft.'**
+  String get chatAnswerReviewDiffNone;
+
+  /// No description provided for @chatAnswerReviewShowDiff.
+  ///
+  /// In en, this message translates to:
+  /// **'Show diff'**
+  String get chatAnswerReviewShowDiff;
+
+  /// No description provided for @chatAnswerReviewHideDiff.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide diff'**
+  String get chatAnswerReviewHideDiff;
+
+  /// No description provided for @chatAnswerReviewReviewTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Review {ms} ms'**
+  String chatAnswerReviewReviewTime(int ms);
+
+  /// No description provided for @chatAnswerReviewRevisionTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Revision {ms} ms'**
+  String chatAnswerReviewRevisionTime(int ms);
+
+  /// No description provided for @chatAnswerReviewTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'{tokens} tokens'**
+  String chatAnswerReviewTokens(int tokens);
+
+  /// No description provided for @chatAnswerReviewFailTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Timed out'**
+  String get chatAnswerReviewFailTimeout;
+
+  /// No description provided for @chatAnswerReviewFailError.
+  ///
+  /// In en, this message translates to:
+  /// **'Request failed'**
+  String get chatAnswerReviewFailError;
+
+  /// No description provided for @chatAnswerReviewFailEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Empty response'**
+  String get chatAnswerReviewFailEmpty;
+
+  /// No description provided for @chatAnswerReviewFailMalformed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not parse the verdict'**
+  String get chatAnswerReviewFailMalformed;
+
+  /// No description provided for @chatAnswerReviewFailRevisionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The revision failed; original answer kept'**
+  String get chatAnswerReviewFailRevisionFailed;
+
+  /// No description provided for @chatAnswerReviewFailCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelled by you'**
+  String get chatAnswerReviewFailCancelled;
+
+  /// No description provided for @chatAnswerReviewFailInterrupted.
+  ///
+  /// In en, this message translates to:
+  /// **'Interrupted before completion'**
+  String get chatAnswerReviewFailInterrupted;
+
+  /// No description provided for @chatAnswerReviewReviewingHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The same model is checking the draft.'**
+  String get chatAnswerReviewReviewingHint;
+
+  /// No description provided for @chatAnswerReviewGroupSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{status} · {count} issues'**
+  String chatAnswerReviewGroupSummary(String status, int count);
+
   /// No description provided for @displaySettingsPageShowUpdatesTitle.
   ///
   /// In en, this message translates to:

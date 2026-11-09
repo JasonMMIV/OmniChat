@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/models/answer_review.dart';
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/conversation.dart';
@@ -187,6 +188,8 @@ class HomeViewModel extends ChangeNotifier {
   Map<String, List<stream_ctrl.ReasoningSegmentData>> get reasoningSegments =>
       _streamController.reasoningSegments;
   Map<String, List<ToolUIPart>> get toolParts => _streamController.toolParts;
+  Map<String, AnswerReviewRecord> get answerReviews =>
+      _streamController.answerReviews;
 
   /// Whether the current conversation is actively generating.
   bool get isCurrentConversationLoading =>
@@ -639,6 +642,7 @@ class HomeViewModel extends ChangeNotifier {
               _chatService.getToolPartSummaries(id),
           getGeminiThoughtSigFromDb: (id) =>
               _chatService.getGeminiThoughtSignature(id),
+          getAnswerReviewFromDb: (id) => _chatService.getAnswerReview(id),
         );
 
         // Clean content from gemini thought signatures

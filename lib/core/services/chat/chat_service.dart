@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 
 import '../../../utils/app_directories.dart';
 import '../../../utils/sandbox_path_resolver.dart';
+import '../../models/answer_review.dart';
 import '../../models/chat_message.dart';
 import '../../models/message_usage.dart';
 import '../../models/conversation.dart';
@@ -1042,6 +1043,37 @@ class ChatService extends ChangeNotifier {
   List<ToolPartSummary> getToolPartSummaries(String assistantMessageId) {
     if (!_initialized) return const <ToolPartSummary>[];
     return _storage!.getToolPartSummaries(assistantMessageId);
+  }
+
+  /// Persisted answer-review card data for one assistant message. Null for
+  /// messages that were never reviewed or before the conversation is loaded.
+  AnswerReviewRecord? getAnswerReview(String assistantMessageId) {
+    if (!_initialized) return null;
+    return _storage!.getAnswerReview(assistantMessageId);
+  }
+
+  Map<String, AnswerReviewRecord> getAnswerReviews(
+    Iterable<String> messageIds,
+  ) {
+    if (!_initialized) return const <String, AnswerReviewRecord>{};
+    return _storage!.getAnswerReviews(messageIds);
+  }
+
+  /// Upserts the per-message review row. Deliberately silent: review writes
+  /// happen during streaming and must not trigger a full page rebuild.
+  Future<void> upsertAnswerReview({
+    required String messageId,
+    required AnswerReviewReport report,
+    required String status,
+    String? draft,
+  }) async {
+    if (!_initialized) await init();
+    await _storage!.upsertAnswerReviewPart(
+      messageId: messageId,
+      report: report,
+      status: status,
+      draft: draft,
+    );
   }
 
   /// Loads one part's full arguments/content for an expanded card.

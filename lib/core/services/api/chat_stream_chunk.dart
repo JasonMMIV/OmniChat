@@ -1,3 +1,4 @@
+import '../../models/answer_review.dart';
 import '../../models/token_usage.dart';
 
 /// Tool execution handler contract.
@@ -12,12 +13,11 @@ import '../../models/token_usage.dart';
 ///
 /// Closures with fewer parameters (`(name, args) async => ...`) remain
 /// assignable — the named parameter is optional.
-typedef ToolCallHandler =
-    Future<String> Function(
-      String name,
-      Map<String, dynamic> args, {
-      String? toolCallId,
-    });
+typedef ToolCallHandler = Future<String> Function(
+  String name,
+  Map<String, dynamic> args, {
+  String? toolCallId,
+});
 
 /// A single unit of streamed output emitted by [ChatApiService.sendMessageStream].
 ///
@@ -74,10 +74,15 @@ class ChatStreamChunk {
   final String? softStopReason;
 
   // --- Answer Review v1 (docs/answer_review_plan.md §8) ---
-  // Status chunk marker: 'reviewing' / 'revising' / 'revision_failed'. Only
-  // ever set on a non-done chunk with empty content; the UI routes it to the
-  // review indicator instead of the content accumulator.
+  // Status chunk marker: 'reviewing' / 'reviewed' / 'revising' /
+  // 'revision_failed'. Only ever set on a non-done chunk with empty content;
+  // the UI routes it to the review card instead of the content accumulator.
   final String? reviewPhase;
+
+  // The current review report. Carried by the `reviewing` / `reviewed` /
+  // `revising` / `revision_failed` status chunks and by the single terminal,
+  // so the UI can render verdict/issues/timings and persist one final report.
+  final AnswerReviewReport? reviewReport;
 
   // When true, [content] REPLACES the accumulated streaming text instead of
   // being appended (used by the fail-open path to restore the original draft
@@ -111,6 +116,7 @@ class ChatStreamChunk {
     this.assistantExtras,
     this.softStopReason,
     this.reviewPhase,
+    this.reviewReport,
     this.replaceContent = false,
     this.reviewed = false,
     this.reviewUsage,
@@ -137,6 +143,7 @@ class ChatStreamChunk {
     Map<String, dynamic>? assistantExtras,
     String? softStopReason,
     String? reviewPhase,
+    AnswerReviewReport? reviewReport,
     bool? replaceContent,
     bool? reviewed,
     TokenUsage? reviewUsage,
@@ -158,6 +165,7 @@ class ChatStreamChunk {
       assistantExtras: assistantExtras ?? this.assistantExtras,
       softStopReason: softStopReason ?? this.softStopReason,
       reviewPhase: reviewPhase ?? this.reviewPhase,
+      reviewReport: reviewReport ?? this.reviewReport,
       replaceContent: replaceContent ?? this.replaceContent,
       reviewed: reviewed ?? this.reviewed,
       reviewUsage: reviewUsage ?? this.reviewUsage,

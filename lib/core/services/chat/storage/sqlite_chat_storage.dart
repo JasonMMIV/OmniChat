@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../../../models/answer_review.dart';
 import '../../../models/chat_message.dart';
 import '../../../models/conversation.dart';
 import '../../../models/message_usage.dart';
@@ -57,6 +58,9 @@ class SqliteChatStorage extends ChatStorage {
   final Map<String, List<ToolPartSummary>> _toolSummaries =
       <String, List<ToolPartSummary>>{};
   final Set<String> _loadedSummaryMessages = <String>{};
+  final Map<String, AnswerReviewRecord> _answerReviews =
+      <String, AnswerReviewRecord>{};
+  final Set<String> _loadedAnswerReviewMessages = <String>{};
 
   @override
   ChatStorageBackend get backend => ChatStorageBackend.sqlite;
@@ -174,6 +178,42 @@ class SqliteChatStorage extends ChatStorage {
   }
 
   @override
+  AnswerReviewRecord? getAnswerReview(String messageId) =>
+      _answerReviews[messageId];
+
+  @override
+  Map<String, AnswerReviewRecord> getAnswerReviews(
+    Iterable<String> messageIds,
+  ) {
+    final out = <String, AnswerReviewRecord>{};
+    for (final id in messageIds) {
+      final record = _answerReviews[id];
+      if (record != null) out[id] = record;
+    }
+    return out;
+  }
+
+  @override
+  Future<void> upsertAnswerReviewPart({
+    required String messageId,
+    required AnswerReviewReport report,
+    required String status,
+    String? draft,
+  }) async {
+    final row = await _repo.upsertAnswerReviewPart(
+      messageId: messageId,
+      report: report,
+      status: status,
+      draft: draft,
+    );
+    _answerReviews[messageId] = _answerReviewFromRow(
+      row,
+      normalizePending: false,
+    );
+    _loadedAnswerReviewMessages.add(messageId);
+  }
+
+  @override
   Future<Map<String, dynamic>?> loadToolEventDetail({
     required String assistantMessageId,
     required String toolCallId,
@@ -252,16 +292,60 @@ class SqliteChatStorage extends ChatStorage {
             !_loadedSummaryMessages.contains(message.id))
           message.id,
     };
+    if (missing.isNotEmpty) {
+      final summaries = await _repo.getToolPartSummariesForMessages(missing);
+      final grouped = <String, List<ToolPartSummary>>{};
+      for (final summary in summaries) {
+        (grouped[summary.messageId] ??= <ToolPartSummary>[]).add(summary);
+      }
+      for (final id in missing) {
+        _toolSummaries[id] = grouped[id] ?? const <ToolPartSummary>[];
+        _loadedSummaryMessages.add(id);
+      }
+    }
+
+    // Review rows ride with the same conversation preload (one extra query).
+    // The draft can be large, but only reviewed messages have a row; all
+    // other ids are marked loaded with no record.
+    await _loadAnswerReviews(
+      messages
+          .where((message) => message.role == 'assistant')
+          .map((message) => message.id),
+    );
+  }
+
+  Future<void> _loadAnswerReviews(Iterable<String> messageIds) async {
+    final missing = <String>{
+      for (final id in messageIds)
+        if (id.isNotEmpty && !_loadedAnswerReviewMessages.contains(id)) id,
+    };
     if (missing.isEmpty) return;
-    final summaries = await _repo.getToolPartSummariesForMessages(missing);
-    final grouped = <String, List<ToolPartSummary>>{};
-    for (final summary in summaries) {
-      (grouped[summary.messageId] ??= <ToolPartSummary>[]).add(summary);
+    final rows = await _repo.getAnswerReviewParts(missing);
+    for (final row in rows) {
+      _answerReviews[row.messageId] = _answerReviewFromRow(row);
     }
-    for (final id in missing) {
-      _toolSummaries[id] = grouped[id] ?? const <ToolPartSummary>[];
-      _loadedSummaryMessages.add(id);
-    }
+    _loadedAnswerReviewMessages.addAll(missing);
+  }
+
+  AnswerReviewRecord _answerReviewFromRow(
+    MessagePartRow row, {
+    bool normalizePending = true,
+  }) {
+    final report = AnswerReviewReport.fromJson(decodeJsonMap(row.metadataJson));
+    final status = normalizePending && row.status == kPartStatusPending
+        ? kPartStatusInterrupted
+        : row.status;
+    final normalized =
+        status == kPartStatusInterrupted &&
+            !AnswerReviewPhase.terminal.contains(report.phase)
+        ? report.copyWith(phase: AnswerReviewPhase.interrupted)
+        : report;
+    return AnswerReviewRecord(
+      report: normalized,
+      draft: row.content,
+      partId: row.partId,
+      status: status,
+    );
   }
 
   @override
@@ -300,6 +384,9 @@ class SqliteChatStorage extends ChatStorage {
           if (message.role == 'assistant' && message.id.isNotEmpty) message.id,
     };
     await ensureToolEventsLoaded(ids);
+    // Backup/export reads every review card too; load them with the same
+    // full-history preload so the sync getter does not silently miss rows.
+    await _loadAnswerReviews(ids);
   }
 
   // ---------------------------------------------------------------------------
@@ -482,6 +569,7 @@ class SqliteChatStorage extends ChatStorage {
     await _repo.insertMessageAt(message, ordinal);
     await _reloadMessages(message.conversationId);
     _loadedToolEventMessages.remove(message.id);
+    _loadedAnswerReviewMessages.remove(message.id);
   }
 
   @override
@@ -527,6 +615,8 @@ class SqliteChatStorage extends ChatStorage {
         _loadedToolEventMessages.remove(message.id);
         _toolSummaries.remove(message.id);
         _loadedSummaryMessages.remove(message.id);
+        _answerReviews.remove(message.id);
+        _loadedAnswerReviewMessages.remove(message.id);
         _fileRecords.remove(message.id);
         _signatures.remove(message.id);
         _openCodeUsage.remove(message.id);
@@ -548,6 +638,7 @@ class SqliteChatStorage extends ChatStorage {
       decorated.add(next);
       _messageById[message.id] = next;
       _loadedToolEventMessages.remove(message.id);
+      _loadedAnswerReviewMessages.remove(message.id);
     }
     _messages[conversation.id] = decorated;
   }
@@ -651,6 +742,8 @@ class SqliteChatStorage extends ChatStorage {
     _messageById.remove(messageId);
     _toolEvents.remove(messageId);
     _loadedToolEventMessages.remove(messageId);
+    _answerReviews.remove(messageId);
+    _loadedAnswerReviewMessages.remove(messageId);
     _fileRecords.remove(messageId);
     _signatures.remove(messageId);
     return true;
@@ -975,6 +1068,8 @@ class SqliteChatStorage extends ChatStorage {
     _loadedToolEventMessages.clear();
     _toolSummaries.clear();
     _loadedSummaryMessages.clear();
+    _answerReviews.clear();
+    _loadedAnswerReviewMessages.clear();
 
     final conversations = await _repo.listConversations();
     for (final conversation in conversations) {
@@ -1048,6 +1143,8 @@ class SqliteChatStorage extends ChatStorage {
         _loadedToolEventMessages.remove(message.id);
         _toolSummaries.remove(message.id);
         _loadedSummaryMessages.remove(message.id);
+        _answerReviews.remove(message.id);
+        _loadedAnswerReviewMessages.remove(message.id);
         _fileRecords.remove(message.id);
         _signatures.remove(message.id);
       }
@@ -1083,7 +1180,7 @@ class SqliteChatStorage extends ChatStorage {
   Future<void> _reloadToolEvents(Iterable<String> messageIds) async {
     final ids = messageIds.where((id) => id.isNotEmpty).toSet().toList();
     if (ids.isEmpty) return;
-    final parts = await _repo.allPartsBatch(ids);
+    final parts = await _repo.toolPartsForMessages(ids);
     final byMessage = <String, List<MessagePartRow>>{};
     for (final part in parts) {
       (byMessage[part.messageId] ??= <MessagePartRow>[]).add(part);
@@ -1167,6 +1264,7 @@ class SqliteChatStorage extends ChatStorage {
     _loadedToolEventMessages.add(messageId);
     _toolSummaries.putIfAbsent(messageId, () => const <ToolPartSummary>[]);
     _loadedSummaryMessages.add(messageId);
+    _loadedAnswerReviewMessages.add(messageId);
   }
 
   void _dropConversationCache(String id) {
@@ -1180,6 +1278,8 @@ class SqliteChatStorage extends ChatStorage {
         _loadedToolEventMessages.remove(message.id);
         _toolSummaries.remove(message.id);
         _loadedSummaryMessages.remove(message.id);
+        _answerReviews.remove(message.id);
+        _loadedAnswerReviewMessages.remove(message.id);
         _fileRecords.remove(message.id);
         _signatures.remove(message.id);
       }

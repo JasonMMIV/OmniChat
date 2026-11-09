@@ -278,8 +278,7 @@ class AgentOrchestrator {
           // cumulative usage on every delta (Gemini / Claude merges) would
           // inflate it N× — prefer the per-round max sum and fall back to the
           // kernel value only when nothing was observed at all.
-          final observedTotal =
-              usageAcrossRounds + roundMaxUsageTotal;
+          final observedTotal = usageAcrossRounds + roundMaxUsageTotal;
           final baseTokensUsed = observedTotal > 0 ? observedTotal : tokensUsed;
 
           final draftText = draft.toString();
@@ -310,11 +309,18 @@ class AgentOrchestrator {
           );
 
           // --- Review call (fail-open; §5.1) ---
+          final reviewStartedAt = DateTime.now();
+          final draftChars = draftText.length;
           yield ChatStreamChunk(
             content: '',
             isDone: false,
             totalTokens: 0,
             reviewPhase: kReviewPhaseReviewing,
+            reviewReport: AnswerReviewReport(
+              phase: AnswerReviewPhase.reviewing,
+              draftChars: draftChars,
+              startedAtMs: reviewStartedAt.millisecondsSinceEpoch,
+            ),
           );
           final reviewWatch = Stopwatch()..start();
           final reviewCollected = await _collectRound(
@@ -334,21 +340,45 @@ class AgentOrchestrator {
             timeout: answerReview.reviewTimeout,
           );
           reviewUsage = reviewUsage.sum(reviewCollected.resolvedUsage);
+          reviewWatch.stop();
+          final reviewMs = reviewWatch.elapsedMilliseconds;
 
           final reviewOutcome = _verdictFromCollected(reviewCollected);
           if (reviewOutcome == null) {
             // Timeout / transport error / empty response: keep the draft and
-            // close with a non-reviewed terminal (§3.2 outcome 3).
+            // close with a non-reviewed terminal (§3.2 outcome 3). The card
+            // still gets a `reviewed` event so the user sees WHY the review
+            // did not complete.
+            final report = AnswerReviewReport(
+              phase: AnswerReviewPhase.failedOpen,
+              parsed: false,
+              issues: const <ReviewIssue>[],
+              reviewed: false,
+              failReason: reviewCollected.failureReason ?? 'error',
+              reviewMs: reviewMs,
+              reviewTokens: _usageTotal(reviewCollected.resolvedUsage),
+              modelId: modelId,
+              draftChars: draftChars,
+              startedAtMs: reviewStartedAt.millisecondsSinceEpoch,
+              finishedAtMs: DateTime.now().millisecondsSinceEpoch,
+            );
+            yield ChatStreamChunk(
+              content: '',
+              isDone: false,
+              totalTokens: 0,
+              reviewPhase: kReviewPhaseReviewed,
+              reviewReport: report,
+            );
             yield _releaseHeldTerminal(
               held: heldTerminal,
               tokensUsed: baseTokensUsed,
               reviewUsage: reviewUsage,
               reviewed: false,
+              reviewReport: report,
             );
             return;
           }
           final verdict = reviewOutcome.verdict;
-          reviewWatch.stop();
           var blockers = 0;
           var majors = 0;
           for (final issue in verdict.issues) {
@@ -369,22 +399,70 @@ class AgentOrchestrator {
           if (!verdict.isRevise) {
             // PASS: release the draft untouched. `reviewed` is only true when
             // the verdict JSON actually parsed — a malformed (fail-open PASS)
-            // response never completed the review (§8.1).
+            // response never completed the review (§8.1). A malformed body
+            // is reported as `failed_open/malformed`, not as an ordinary
+            // PASS, so the card does not claim a review it never completed.
+            final completed = reviewOutcome.completed;
+            final report = AnswerReviewReport(
+              phase: completed
+                  ? AnswerReviewPhase.passed
+                  : AnswerReviewPhase.failedOpen,
+              verdict: completed ? verdict.verdict : null,
+              parsed: verdict.parsed,
+              issues: verdict.issues,
+              reviewed: completed,
+              failReason: completed ? null : 'malformed',
+              reviewMs: reviewMs,
+              reviewTokens: _usageTotal(reviewCollected.resolvedUsage),
+              modelId: modelId,
+              draftChars: draftChars,
+              startedAtMs: reviewStartedAt.millisecondsSinceEpoch,
+              finishedAtMs: DateTime.now().millisecondsSinceEpoch,
+            );
+            yield ChatStreamChunk(
+              content: '',
+              isDone: false,
+              totalTokens: 0,
+              reviewPhase: kReviewPhaseReviewed,
+              reviewReport: report,
+            );
             yield _releaseHeldTerminal(
               held: heldTerminal,
               tokensUsed: baseTokensUsed,
               reviewUsage: reviewUsage,
-              reviewed: reviewOutcome.completed,
+              reviewed: completed,
+              reviewReport: report,
             );
             return;
           }
 
           // --- Revision call (text-only stream; at most once; §5.2) ---
+          final revisingReport = AnswerReviewReport(
+            phase: AnswerReviewPhase.revising,
+            verdict: verdict.verdict,
+            parsed: verdict.parsed,
+            issues: verdict.issues,
+            reviewed: false,
+            reviewMs: reviewMs,
+            reviewTokens: _usageTotal(reviewCollected.resolvedUsage),
+            modelId: modelId,
+            draftChars: draftChars,
+            startedAtMs: reviewStartedAt.millisecondsSinceEpoch,
+          );
+          yield ChatStreamChunk(
+            content: '',
+            isDone: false,
+            totalTokens: 0,
+            reviewPhase: kReviewPhaseReviewed,
+            reviewReport: revisingReport,
+          );
+          final revisionWatch = Stopwatch()..start();
           yield ChatStreamChunk(
             content: '',
             isDone: false,
             totalTokens: 0,
             reviewPhase: kReviewPhaseRevising,
+            reviewReport: revisingReport,
           );
           final revisionCollected = _CollectedRound();
           var revisionFailed = false;
@@ -438,9 +516,10 @@ class AgentOrchestrator {
             revisionFailed = true;
           }
           reviewUsage = reviewUsage.sum(revisionCollected.resolvedUsage);
+          revisionWatch.stop();
+          final revisionMs = revisionWatch.elapsedMilliseconds;
 
-          if (revisionFailed ||
-              !revisionCollected.ok) {
+          if (revisionFailed || !revisionCollected.ok) {
             // Fail-open: revision errored / timed out / came back empty /
             // truncated. Restore the original draft via a replace-content
             // chunk, then close with a non-reviewed terminal (§8.3 D.4).
@@ -454,11 +533,20 @@ class AgentOrchestrator {
               'answer_review.revision ok=false',
               name: 'answer_review',
             );
+            final report = revisingReport.copyWith(
+              phase: AnswerReviewPhase.revisionFailed,
+              reviewed: false,
+              failReason: 'revision_failed',
+              revisionMs: revisionMs,
+              reviewTokens: _usageTotal(reviewUsage),
+              finishedAtMs: DateTime.now().millisecondsSinceEpoch,
+            );
             yield ChatStreamChunk(
               content: '',
               isDone: false,
               totalTokens: 0,
               reviewPhase: kReviewPhaseRevisionFailed,
+              reviewReport: report,
             );
             yield ChatStreamChunk(
               content: draftText,
@@ -471,6 +559,7 @@ class AgentOrchestrator {
               tokensUsed: baseTokensUsed,
               reviewUsage: reviewUsage,
               reviewed: false,
+              reviewReport: report,
             );
             return;
           }
@@ -480,11 +569,19 @@ class AgentOrchestrator {
             '${revisionCollected.content.trim().length}',
             name: 'answer_review',
           );
+          final report = revisingReport.copyWith(
+            phase: AnswerReviewPhase.revised,
+            reviewed: true,
+            revisionMs: revisionMs,
+            reviewTokens: _usageTotal(reviewUsage),
+            finishedAtMs: DateTime.now().millisecondsSinceEpoch,
+          );
           yield _releaseHeldTerminal(
             held: heldTerminal,
             tokensUsed: baseTokensUsed,
             reviewUsage: reviewUsage,
             reviewed: true,
+            reviewReport: report,
           );
           return;
       }
@@ -563,12 +660,15 @@ Future<_CollectedRound> _collectRound(
     return collected;
   }
   if (timeout == null) return completer.future;
-  return completer.future.timeout(timeout, onTimeout: () async {
-    await sub?.cancel();
-    collected.errored = true;
-    collected.timedOut = true;
-    return collected;
-  });
+  return completer.future.timeout(
+    timeout,
+    onTimeout: () async {
+      await sub?.cancel();
+      collected.errored = true;
+      collected.timedOut = true;
+      return collected;
+    },
+  );
 }
 
 /// Wrap a stream with a wall-clock deadline: on timeout the inner
@@ -588,7 +688,9 @@ Stream<ChatStreamChunk> _withDeadline(
     onListen: () {
       timer = Timer(timeout, () async {
         await sub?.cancel();
-        controller.addError(TimeoutException('answer_review deadline', timeout));
+        controller.addError(
+          TimeoutException('answer_review deadline', timeout),
+        );
         await controller.close();
       });
       sub = source.listen(
@@ -620,15 +722,24 @@ Stream<ChatStreamChunk> _withDeadline(
   _CollectedRound collected,
 ) {
   if (collected.timedOut) {
-    developer.log('answer_review.fail_open reason=timeout', name: 'answer_review');
+    developer.log(
+      'answer_review.fail_open reason=timeout',
+      name: 'answer_review',
+    );
     return null;
   }
   if (collected.errored) {
-    developer.log('answer_review.fail_open reason=error', name: 'answer_review');
+    developer.log(
+      'answer_review.fail_open reason=error',
+      name: 'answer_review',
+    );
     return null;
   }
   if (!collected.sawTerminal || collected.content.trim().isEmpty) {
-    developer.log('answer_review.fail_open reason=empty', name: 'answer_review');
+    developer.log(
+      'answer_review.fail_open reason=empty',
+      name: 'answer_review',
+    );
     return null;
   }
   final verdict = parseReviewVerdict(collected.content);
@@ -651,9 +762,9 @@ ChatStreamChunk _releaseHeldTerminal({
   required int tokensUsed,
   required TokenUsage reviewUsage,
   required bool reviewed,
+  AnswerReviewReport? reviewReport,
 }) {
-  final reviewTotal =
-      reviewUsage.totalTokens > 0
+  final reviewTotal = reviewUsage.totalTokens > 0
       ? reviewUsage.totalTokens
       : reviewUsage.promptTokens + reviewUsage.completionTokens;
   final hasReviewUsage =
@@ -670,8 +781,15 @@ ChatStreamChunk _releaseHeldTerminal({
     usage: usage,
     reviewed: reviewed,
     reviewUsage: hasReviewUsage ? reviewUsage : null,
+    reviewReport: reviewReport,
   );
 }
+
+/// Display-only total for a review/revision usage snapshot. Providers that
+/// only populate prompt/completion leave `totalTokens` at zero.
+int _usageTotal(TokenUsage usage) => usage.totalTokens > 0
+    ? usage.totalTokens
+    : usage.promptTokens + usage.completionTokens;
 
 /// Accumulator for one internal round: content, the LAST usage snapshot (or
 /// the largest per-chunk total when a provider omits structured usage) and
@@ -714,6 +832,14 @@ class _CollectedRound {
   /// A revision succeeded only when the stream completed with a terminal and
   /// produced a non-empty answer; anything else fail-opens back to the draft.
   bool get ok => sawTerminal && !errored && content.trim().isNotEmpty;
+
+  /// Why a review/revision round did not produce a usable body (§8.3).
+  String? get failureReason {
+    if (timedOut) return 'timeout';
+    if (errored) return 'error';
+    if (!sawTerminal || content.trim().isEmpty) return 'empty';
+    return null;
+  }
 }
 
 /// Fallback tool handler used when a caller has no real handler: surfaces a
@@ -727,6 +853,5 @@ Future<String> noopToolHandler(
   'error': 'execution_error',
   'message': 'Tool "$name" is not available in this context.',
   'tool': name,
-  'instruction':
-      'The tool execution failed unexpectedly. You may try again with different parameters or inform the user about the issue.',
+  'instruction': 'The tool execution failed unexpectedly. You may try again with different parameters or inform the user about the issue.',
 });
