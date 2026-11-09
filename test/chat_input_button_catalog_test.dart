@@ -28,6 +28,11 @@ void main() {
     test('unknown id resolves to null', () {
       expect(chatInputButtonSpecById('does-not-exist'), isNull);
     });
+
+    test('the MCP button became the Add-ons button (2026-11-10)', () {
+      expect(chatInputButtonSpecById('addons'), isNotNull);
+      expect(chatInputButtonSpecById('mcp'), isNull);
+    });
   });
 
   group('chatInputButtonEffectiveOrder', () {

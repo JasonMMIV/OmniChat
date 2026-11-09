@@ -104,8 +104,8 @@ class ChatInputBar extends StatefulWidget {
     this.onStop,
     this.onSelectModel,
     this.onLongPressSelectModel,
-    this.onOpenMcp,
-    this.onLongPressMcp,
+    this.onOpenAddons,
+    this.onLongPressAddons,
     this.onToggleSearch,
     this.onOpenSearch,
     this.onMore,
@@ -118,8 +118,7 @@ class ChatInputBar extends StatefulWidget {
     this.loading = false,
     this.reasoningActive = false,
     this.supportsReasoning = true,
-    this.showMcpButton = false,
-    this.mcpActive = false,
+    this.addonsActive = false,
     this.searchEnabled = false,
     this.onPickCamera,
     this.onPickPhotos,
@@ -154,8 +153,8 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback? onStop;
   final VoidCallback? onSelectModel;
   final VoidCallback? onLongPressSelectModel;
-  final VoidCallback? onOpenMcp;
-  final VoidCallback? onLongPressMcp;
+  final VoidCallback? onOpenAddons;
+  final VoidCallback? onLongPressAddons;
   final ValueChanged<bool>? onToggleSearch;
   final VoidCallback? onOpenSearch;
   final void Function(List<DesktopContextMenuItem>)? onMore;
@@ -168,8 +167,9 @@ class ChatInputBar extends StatefulWidget {
   final bool loading;
   final bool reasoningActive;
   final bool supportsReasoning;
-  final bool showMcpButton;
-  final bool mcpActive;
+  /// Add-ons menu highlight: any MCP server is selected for the active
+  /// assistant (2026-11-10: the MCP button grew into the Add-ons menu).
+  final bool addonsActive;
   final bool searchEnabled;
   final VoidCallback? onPickCamera;
   final VoidCallback? onPickPhotos;
@@ -1050,14 +1050,6 @@ class _ChatInputBarState extends State<ChatInputBar>
           );
           final builtinSearchActive = toolsState.searchActive;
           final codeExecutionActive = toolsState.codeExecutionActive;
-          // Only Gemini built-in tools conflict with MCP in the input bar UX.
-          // OpenAI/Claude built-in search should not hide MCP tools.
-          final kind = (cfg != null)
-              ? ProviderConfig.classify(cfg.id, explicitType: cfg.providerType)
-              : null;
-          final anyBuiltInConflictsWithMcp =
-              (kind == ProviderKind.google) &&
-              toolsState.anyMcpConflictingToolActive;
           final appSearchEnabled = settings.searchEnabled;
           // Primary provider = the first selected service in list order
           // (multi-provider dispatch; no count badge on the button).
@@ -1169,27 +1161,27 @@ class _ChatInputBarState extends State<ChatInputBar>
             );
           }
 
-          // MCP button (hidden only when conflicting Gemini built-in tools are active)
-          if (widget.showMcpButton && !anyBuiltInConflictsWithMcp) {
-            actions.add(
-              _OverflowAction(
-                id: 'mcp',
-                width: normalButtonW,
-                builder: () => _CompactIconButton(
-                  tooltip: l10n.chatInputBarMcpServersTooltip,
-                  icon: Lucide.Hammer,
-                  active: widget.mcpActive,
-                  onTap: widget.onOpenMcp,
-                  onLongPress: widget.onLongPressMcp,
-                ),
-                menu: DesktopContextMenuItem(
-                  icon: Lucide.Hammer,
-                  label: l10n.chatInputBarMcpServersTooltip,
-                  onTap: widget.onOpenMcp,
-                ),
+          // Add-ons button (MCP servers / built-in tools / advanced
+          // features). Always shown: Self-Review and the tool toggles work
+          // on any model (2026-11-10 Add-ons reorganization).
+          actions.add(
+            _OverflowAction(
+              id: 'addons',
+              width: normalButtonW,
+              builder: () => _CompactIconButton(
+                tooltip: l10n.chatInputBarAddonsTooltip,
+                icon: Lucide.Puzzle,
+                active: widget.addonsActive,
+                onTap: widget.onOpenAddons,
+                onLongPress: widget.onLongPressAddons,
               ),
-            );
-          }
+              menu: DesktopContextMenuItem(
+                icon: Lucide.Puzzle,
+                label: l10n.chatInputBarAddonsTooltip,
+                onTap: widget.onOpenAddons,
+              ),
+            ),
+          );
 
           if (widget.showQuickPhraseButton && widget.onQuickPhrase != null) {
             actions.add(

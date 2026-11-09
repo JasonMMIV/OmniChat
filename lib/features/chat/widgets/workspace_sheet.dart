@@ -273,9 +273,8 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
                       ],
                     ),
                   ),
-                  // Tools stays reachable while the workspace is off: the
-                  // planning switch is a conversation-level tool and must
-                  // stay discoverable (§3-4 of the plan).
+                  // Tools stays reachable while the workspace is off so the
+                  // per-tool switches remain discoverable.
                   const SizedBox(height: 8),
                   ListTile(
                     contentPadding: EdgeInsets.zero,

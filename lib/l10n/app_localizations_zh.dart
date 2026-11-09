@@ -1031,7 +1031,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get providersPageExportShareButton => '分享';
 
   @override
-  String get mcpAssistantSheetTitle => 'MCP服务器';
+  String get addonsMcpServersTitle => 'MCP 服务器';
+
+  @override
+  String get addonsBuiltInToolsTitle => '内置工具';
+
+  @override
+  String get addonsAdvancedFeaturesTitle => '高级功能';
+
+  @override
+  String get addonsManageServers => '管理服务器';
+
+  @override
+  String get addonsMcpSelectAll => '全部选取';
+
+  @override
+  String get addonsMcpClearAll => '清除';
 
   @override
   String get assistantEditMcpNoServersMessage => '暂无已启动的 MCP 服务器';
@@ -1087,7 +1102,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatInputBarReasoningStrengthTooltip => '思维链强度';
 
   @override
-  String get chatInputBarMcpServersTooltip => 'MCP服务器';
+  String get chatInputBarAddonsTooltip => '扩展功能';
 
   @override
   String get chatInputBarQuickPhraseTooltip => '快捷短语';
@@ -5547,15 +5562,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get workspaceToolsTitle => '工具';
 
   @override
-  String get workspaceToolsDescription =>
-      '已停用的工具不会提供给模型。工作区未启用时文件工具会关闭，规划功能仍可使用。';
+  String get workspaceToolsDescription => '已停用的工具不会提供给模型。工作区未启用时文件工具会关闭。';
 
   @override
-  String get workspaceToolsPlanningTitle => '规划';
+  String get addonsWriteTodosSubtitle => '为多步骤任务维护待办清单';
 
   @override
-  String get workspaceToolsPlanningDescription =>
-      '计划工具与工作区无关。助手可用它为多步骤任务维护待办清单；最新计划会随对话保存。';
+  String get addonsAskUserSubtitle => '让助手在需要决策时向你提问';
+
+  @override
+  String get builtInToolWriteTodosName => '撰写待办';
+
+  @override
+  String get builtInToolAskUserName => '询问用户';
 
   @override
   String get workspaceDefaultDirectoryPrivate => '应用私有目录';
@@ -7565,7 +7584,22 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get providersPageExportShareButton => '分享';
 
   @override
-  String get mcpAssistantSheetTitle => 'MCP服务器';
+  String get addonsMcpServersTitle => 'MCP 服务器';
+
+  @override
+  String get addonsBuiltInToolsTitle => '内置工具';
+
+  @override
+  String get addonsAdvancedFeaturesTitle => '高级功能';
+
+  @override
+  String get addonsManageServers => '管理服务器';
+
+  @override
+  String get addonsMcpSelectAll => '全部选取';
+
+  @override
+  String get addonsMcpClearAll => '清除';
 
   @override
   String get assistantEditMcpNoServersMessage => '暂无已启动的 MCP 服务器';
@@ -7621,7 +7655,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatInputBarReasoningStrengthTooltip => '思维链强度';
 
   @override
-  String get chatInputBarMcpServersTooltip => 'MCP服务器';
+  String get chatInputBarAddonsTooltip => '扩展功能';
 
   @override
   String get chatInputBarQuickPhraseTooltip => '快捷短语';
@@ -11976,15 +12010,19 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get workspaceToolsTitle => '工具';
 
   @override
-  String get workspaceToolsDescription =>
-      '已停用的工具不会提供给模型。工作区未启用时文件工具会关闭，规划功能仍可使用。';
+  String get workspaceToolsDescription => '已停用的工具不会提供给模型。工作区未启用时文件工具会关闭。';
 
   @override
-  String get workspaceToolsPlanningTitle => '规划';
+  String get addonsWriteTodosSubtitle => '为多步骤任务维护待办清单';
 
   @override
-  String get workspaceToolsPlanningDescription =>
-      '计划工具与工作区无关。助手可用它为多步骤任务维护待办清单；最新计划会随对话保存。';
+  String get addonsAskUserSubtitle => '让助手在需要决策时向你提问';
+
+  @override
+  String get builtInToolWriteTodosName => '撰写待办';
+
+  @override
+  String get builtInToolAskUserName => '询问用户';
 
   @override
   String get workspaceDefaultDirectoryPrivate => '应用私有目录';
@@ -14001,7 +14039,22 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get providersPageExportShareButton => '分享';
 
   @override
-  String get mcpAssistantSheetTitle => 'MCP伺服器';
+  String get addonsMcpServersTitle => 'MCP 伺服器';
+
+  @override
+  String get addonsBuiltInToolsTitle => '內建工具';
+
+  @override
+  String get addonsAdvancedFeaturesTitle => '進階功能';
+
+  @override
+  String get addonsManageServers => '管理伺服器';
+
+  @override
+  String get addonsMcpSelectAll => '全部選取';
+
+  @override
+  String get addonsMcpClearAll => '清除';
 
   @override
   String get assistantEditMcpNoServersMessage => '暫無已啟動的 MCP 伺服器';
@@ -14057,7 +14110,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatInputBarReasoningStrengthTooltip => '思維鏈強度';
 
   @override
-  String get chatInputBarMcpServersTooltip => 'MCP伺服器';
+  String get chatInputBarAddonsTooltip => '擴充功能';
 
   @override
   String get chatInputBarQuickPhraseTooltip => '快捷片語';
@@ -18505,15 +18558,19 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get workspaceToolsTitle => '工具';
 
   @override
-  String get workspaceToolsDescription =>
-      '已停用的工具不會提供給模型。工作區未啟用時檔案工具會關閉，規劃功能仍可使用。';
+  String get workspaceToolsDescription => '已停用的工具不會提供給模型。工作區未啟用時檔案工具會關閉。';
 
   @override
-  String get workspaceToolsPlanningTitle => '規劃';
+  String get addonsWriteTodosSubtitle => '為多步驟任務維護待辦清單';
 
   @override
-  String get workspaceToolsPlanningDescription =>
-      '計畫工具與工作區無關。助理可用它為多步驟任務維護待辦清單；最新計畫會隨對話保存。';
+  String get addonsAskUserSubtitle => '讓助理在需要決策時向你提問';
+
+  @override
+  String get builtInToolWriteTodosName => '撰寫待辦';
+
+  @override
+  String get builtInToolAskUserName => '詢問使用者';
 
   @override
   String get workspaceDefaultDirectoryPrivate => 'App 私有目錄';

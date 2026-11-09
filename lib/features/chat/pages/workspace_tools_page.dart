@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/providers/settings_provider.dart';
-import '../../../core/services/chat/ask_user_models.dart';
-import '../../../core/services/chat/todo_models.dart';
 import '../../../core/services/dev/dev_preview_tools.dart';
 import '../../../core/services/file/file_tool_service.dart';
 import '../../../core/services/shell/shell_run_service.dart';
@@ -26,14 +24,14 @@ class _WorkspaceToolEntry {
   final IconData icon;
 }
 
-/// Global tool switchboard: the planning tool (independent of the workspace),
-/// the 15 built-in file tools, the ask_user decision tool and the live-preview
-/// console reader, each with its own toggle.
+/// Global tool switchboard for the workspace: the 15 built-in file tools,
+/// the live-preview console reader and the desktop shell tool, each with its
+/// own toggle.
 ///
-/// Reachable from the workspace menu even while the workspace is disabled, so
-/// the planning switch stays discoverable (§3-4 of
-/// docs/write_todos_improvement_plan.md). File tools still require the
-/// workspace switch.
+/// Reachable from the workspace menu even while the workspace is disabled.
+/// The planning (write_todos) and ask_user switches moved to the Add-ons
+/// menu on 2026-11-10 — they are conversation-level tools, not workspace
+/// tools. File tools still require the workspace switch.
 class WorkspaceToolsPage extends StatelessWidget {
   const WorkspaceToolsPage({super.key, this.workspacePath});
 
@@ -62,12 +60,6 @@ class WorkspaceToolsPage extends StatelessWidget {
               .toString(),
           icon: Lucide.FileText,
         ),
-      _WorkspaceToolEntry(
-        name: askUserToolName,
-        description: 'Ask the user questions when a decision is needed.',
-        icon: Lucide.MessageCircle,
-      ),
-      // P2-4: reads console errors captured by the live site preview.
       _WorkspaceToolEntry(
         name: devConsoleErrorsToolName,
         description:
@@ -99,50 +91,6 @@ class WorkspaceToolsPage extends StatelessWidget {
               WorkspaceDiskUsageCard(workspacePath: workspacePath),
               const SizedBox(height: 12),
             ],
-            // Planning (Phase 3-4): a first-class switch, not a workspace
-            // tool. One switch owns both the new planning flag and the legacy
-            // per-tool disable so older installs cannot disagree with it.
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 4, 4, 2),
-              child: Text(
-                l10n.workspaceToolsPlanningTitle,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.2,
-                  color: cs.onSurface.withOpacity(0.55),
-                ),
-              ),
-            ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Lucide.ListChecks, size: 20),
-              title: const Text(
-                todoToolName,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-              subtitle: Text(
-                l10n.workspaceToolsPlanningDescription,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: cs.onSurface.withOpacity(0.55),
-                ),
-              ),
-              trailing: IosSwitch(
-                value:
-                    settings.planningEnabled &&
-                    settings.isWorkspaceToolEnabled(todoToolName),
-                onChanged: (v) async {
-                  await settings.setPlanningEnabled(v);
-                  if (v) {
-                    await settings.setWorkspaceToolEnabled(todoToolName, true);
-                  }
-                },
-              ),
-            ),
-            Divider(height: 24, color: cs.onSurface.withValues(alpha: 0.06)),
             Padding(
               padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
               child: Column(

@@ -110,7 +110,7 @@ void main() {
   });
 
   group('ToolHandlerService.buildWorkspaceToolDefinitions', () {
-    test('returns the 19 workspace tools when everything is enabled', () {
+    test('returns the 18 workspace tools when everything is enabled', () {
       final defs = ToolHandlerService.buildWorkspaceToolDefinitions(
         _ToggleSettingsProvider(),
         workspaceEnabled: true,
@@ -118,11 +118,13 @@ void main() {
       final names = defs
           .map((d) => ((d['function'] as Map)['name'] ?? '').toString())
           .toList();
-      expect(names.length, 19);
+      expect(names.length, 18);
       expect(names, contains('file_read'));
       expect(names, contains('file_create_pdf'));
       expect(names, isNot(contains('write_todos')));
-      expect(names, contains('ask_user'));
+      // ask_user left the workspace gate on 2026-11-10 (Add-ons menu owns it
+      // now); it is offered via buildDecisionToolDefinitions regardless.
+      expect(names, isNot(contains('ask_user')));
       expect(names, contains('get_console_errors'));
       expect(names, contains('file_grep'));
       expect(names, contains('file_view_image'));
@@ -130,14 +132,13 @@ void main() {
 
     test('a disabled tool is filtered out', () {
       final defs = ToolHandlerService.buildWorkspaceToolDefinitions(
-        _ToggleSettingsProvider(disabled: {'file_read', 'ask_user'}),
+        _ToggleSettingsProvider(disabled: {'file_read'}),
         workspaceEnabled: true,
       );
       final names = defs
           .map((d) => ((d['function'] as Map)['name'] ?? '').toString())
           .toList();
       expect(names, isNot(contains('file_read')));
-      expect(names, isNot(contains('ask_user')));
       expect(names.length, 17);
     });
 
@@ -172,6 +173,26 @@ void main() {
     test('legacy per-tool disable still wins', () {
       final defs = ToolHandlerService.buildPlanningToolDefinitions(
         _ToggleSettingsProvider(disabled: {'write_todos'}),
+      );
+      expect(defs, isEmpty);
+    });
+  });
+
+  group('ToolHandlerService.buildDecisionToolDefinitions (2026-11-10)', () {
+    List<String> names(List<Map<String, dynamic>> defs) => defs
+        .map((d) => ((d['function'] as Map)['name'] ?? '').toString())
+        .toList();
+
+    test('offered by default — ask_user no longer needs the workspace', () {
+      final defs = ToolHandlerService.buildDecisionToolDefinitions(
+        _ToggleSettingsProvider(),
+      );
+      expect(names(defs), ['ask_user']);
+    });
+
+    test('the Add-ons (built-in tools) per-tool toggle wins', () {
+      final defs = ToolHandlerService.buildDecisionToolDefinitions(
+        _ToggleSettingsProvider(disabled: {'ask_user'}),
       );
       expect(defs, isEmpty);
     });

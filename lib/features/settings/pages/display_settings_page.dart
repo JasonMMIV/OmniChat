@@ -9,7 +9,6 @@ import '../../../core/services/notification_service.dart';
 import '../../../icons/lucide_adapter.dart';
 import 'package:syncfusion_flutter_sliders/sliders.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
-import '../../../core/models/answer_review.dart';
 import '../../../core/providers/settings_provider.dart';
 import 'theme_settings_page.dart';
 import '../../../theme/palettes.dart';
@@ -1118,63 +1117,6 @@ Widget _sheetDividerNoIcon(BuildContext context) {
   final cs = Theme.of(context).colorScheme; return Divider(height: 1, thickness: 0.6, indent: 16, endIndent: 16, color: cs.outlineVariant.withOpacity(0.18));
 }
 
-/// Answer Review v1 mode picker (docs/answer_review_plan.md §4.3) — same
-/// "nav row + bottom sheet" pattern as the Android background-chat setting.
-Future<void> _showAnswerReviewSheet(BuildContext context) async {
-  final cs = Theme.of(context).colorScheme;
-  final l10n = AppLocalizations.of(context)!;
-  final choice = await showModalBottomSheet<String>(
-    context: context,
-    backgroundColor: cs.surface,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-    builder: (ctx) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _sheetOption(ctx, label: l10n.displaySettingsPageAnswerReviewOptionOff, onTap: () => Navigator.of(ctx).pop('off')),
-            _sheetDividerNoIcon(ctx),
-            _sheetOption(ctx, label: l10n.displaySettingsPageAnswerReviewOptionSmart, onTap: () => Navigator.of(ctx).pop('smart')),
-            _sheetDividerNoIcon(ctx),
-            _sheetOption(ctx, label: l10n.displaySettingsPageAnswerReviewOptionAlways, onTap: () => Navigator.of(ctx).pop('always')),
-            _sheetDividerNoIcon(ctx),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.displaySettingsPageAnswerReviewSmartHint,
-                    style: TextStyle(color: cs.onSurface.withOpacity(0.6), fontSize: 12),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    l10n.displaySettingsPageAnswerReviewCostHint,
-                    style: TextStyle(color: cs.onSurface.withOpacity(0.6), fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-  if (choice == null) return;
-  final sp = context.read<SettingsProvider>();
-  switch (choice) {
-    case 'smart':
-      await sp.setAnswerReviewMode(AnswerReviewMode.smart);
-      break;
-    case 'always':
-      await sp.setAnswerReviewMode(AnswerReviewMode.always);
-      break;
-    default:
-      await sp.setAnswerReviewMode(AnswerReviewMode.off);
-  }
-}
-
 // --- Subpages ---
 
 class ChatItemDisplaySettingsPage extends StatelessWidget {
@@ -1376,33 +1318,6 @@ class BehaviorStartupSettingsPage extends StatelessWidget {
           _iosSwitchRow(context, icon: Lucide.Brain, label: l10n.displaySettingsPageAutoCollapseThinkingTitle, value: sp.autoCollapseThinking, onChanged: (v) => context.read<SettingsProvider>().setAutoCollapseThinking(v)),
           _iosDivider(context),
           _iosSwitchRow(context, icon: Lucide.Wrench, label: l10n.displaySettingsPageReplayToolResultsTitle, value: sp.replayToolResults, onChanged: (v) => context.read<SettingsProvider>().setReplayToolResults(v)),
-          _iosDivider(context),
-          _iosNavRow(
-            context,
-            icon: Lucide.ScanSearch,
-            label: l10n.displaySettingsPageAnswerReviewTitle,
-            detailBuilder: (ctx) {
-              final sp = ctx.watch<SettingsProvider>();
-              String labelOf(AnswerReviewMode mode) {
-                switch (mode) {
-                  case AnswerReviewMode.off:
-                    return l10n.displaySettingsPageAnswerReviewOptionOff;
-                  case AnswerReviewMode.smart:
-                    return l10n.displaySettingsPageAnswerReviewOptionSmart;
-                  case AnswerReviewMode.always:
-                    return l10n.displaySettingsPageAnswerReviewOptionAlways;
-                }
-              }
-              return Text(
-                labelOf(sp.answerReviewMode),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                softWrap: false,
-                style: TextStyle(color: cs.onSurface.withOpacity(0.6), fontSize: 13),
-              );
-            },
-            onTap: () => _showAnswerReviewSheet(context),
-          ),
           _iosDivider(context),
           _iosSwitchRow(context, icon: Lucide.Brain, label: l10n.displaySettingsPageShowThinkingCardsTitle, value: sp.showThinkingCards, onChanged: (v) => context.read<SettingsProvider>().setShowThinkingCards(v)),
           _iosDivider(context),

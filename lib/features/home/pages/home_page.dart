@@ -30,7 +30,7 @@ import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/platform_utils.dart';
 import '../../../desktop/search_provider_popover.dart';
 import '../../../desktop/reasoning_budget_popover.dart';
-import '../../../desktop/mcp_servers_popover.dart';
+import '../../../desktop/addons_popover.dart';
 import '../../../desktop/workspace_popover.dart';
 import '../../../desktop/quick_phrase_popover.dart';
 import '../../../desktop/instruction_injection_popover.dart';
@@ -53,7 +53,7 @@ import '../../search/widgets/search_settings_sheet.dart';
 import '../../model/widgets/model_select_sheet.dart';
 import '../../mcp/pages/mcp_page.dart';
 import '../../provider/pages/providers_page.dart';
-import '../../assistant/widgets/mcp_assistant_sheet.dart';
+import '../widgets/addons_menu.dart';
 import '../../quick_phrase/pages/quick_phrases_page.dart';
 import '../../quick_phrase/widgets/quick_phrase_menu.dart';
 import '../widgets/chat_input_bar.dart';
@@ -693,9 +693,6 @@ class _HomePageState extends State<HomePage>
         }
       },
       onOpenWorkspace: _openWorkspace,
-      onOpenPlan: _controller.currentConversation == null
-          ? null
-          : _openTodoPlan,
       body: _wrapWithDropTarget(_buildMobileBody(context, cs)),
     );
   }
@@ -822,9 +819,6 @@ class _HomePageState extends State<HomePage>
       onRightSidebarWidthChangeEnd: _controller.saveRightSidebarWidth,
       buildAssistantBackground: _buildAssistantBackground,
       onOpenWorkspace: _openWorkspace,
-      onOpenPlan: _controller.currentConversation == null
-          ? null
-          : _openTodoPlan,
       body: _wrapWithDropTarget(_buildTabletBody(context, cs)),
     );
   }
@@ -1119,21 +1113,30 @@ class _HomePageState extends State<HomePage>
         Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const ProvidersPage()));
       },
-      onOpenMcp: () {
+      onOpenAddons: () {
+        // The Add-ons menu replaces the old MCP-only button: MCP server
+        // selection, the write_todos / ask_user toggles, the current-plan
+        // viewer and Self-Review all live here (2026-11-10).
         final a = context.read<AssistantProvider>().currentAssistant;
-        if (a != null) {
-          if (PlatformUtils.isDesktop) {
-            showDesktopMcpServersPopover(
-              context,
-              anchorKey: _inputBarKey,
-              assistantId: a.id,
-            );
-          } else {
-            showAssistantMcpSheet(context, assistantId: a.id);
-          }
+        final conversationId = _controller.currentConversation?.id;
+        if (PlatformUtils.isDesktop) {
+          showAddonsPopover(
+            context,
+            anchorKey: _inputBarKey,
+            assistantId: a?.id,
+            onOpenCurrentPlan:
+                conversationId == null ? null : _openTodoPlan,
+          );
+        } else {
+          showAddonsSheet(
+            context,
+            assistantId: a?.id,
+            onOpenCurrentPlan:
+                conversationId == null ? null : _openTodoPlan,
+          );
         }
       },
-      onLongPressMcp: () {
+      onLongPressAddons: () {
         Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const McpPage()));
       },

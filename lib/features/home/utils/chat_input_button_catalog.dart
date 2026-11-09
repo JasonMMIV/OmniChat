@@ -35,9 +35,9 @@ const List<ChatInputButtonSpec> chatInputButtonCatalog = [
     label: _searchLabel,
   ),
   ChatInputButtonSpec(
-    id: 'mcp',
-    icon: Lucide.Hammer,
-    label: _mcpLabel,
+    id: 'addons',
+    icon: Lucide.Puzzle,
+    label: _addonsLabel,
   ),
   ChatInputButtonSpec(
     id: 'quickPhrase',
@@ -106,7 +106,7 @@ const List<String> chatInputButtonDefaultOrder = [
   'model',
   'imageRatio',
   'search',
-  'mcp',
+  'addons',
   'quickPhrase',
   'dictation',
   'camera',
@@ -145,7 +145,8 @@ List<String> chatInputButtonEffectiveOrder(List<String> order) {
 
 String _modelLabel(AppLocalizations l10n) => l10n.chatInputBarSelectModelTooltip;
 String _searchLabel(AppLocalizations l10n) => l10n.chatInputBarOnlineSearchTooltip;
-String _mcpLabel(AppLocalizations l10n) => l10n.chatInputBarMcpServersTooltip;
+String _addonsLabel(AppLocalizations l10n) =>
+    l10n.chatInputBarAddonsTooltip;
 String _quickPhraseLabel(AppLocalizations l10n) =>
     l10n.chatInputBarQuickPhraseTooltip;
 String _dictationLabel(AppLocalizations l10n) =>

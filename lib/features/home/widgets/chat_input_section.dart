@@ -48,8 +48,8 @@ class ChatInputSection extends StatelessWidget {
     this.onMore,
     this.onSelectModel,
     this.onLongPressSelectModel,
-    this.onOpenMcp,
-    this.onLongPressMcp,
+    this.onOpenAddons,
+    this.onLongPressAddons,
     this.onOpenSearch,
     this.onConfigureReasoning,
     this.onSend,
@@ -93,8 +93,8 @@ class ChatInputSection extends StatelessWidget {
   final void Function(List<DesktopContextMenuItem> overflowItems)? onMore;
   final VoidCallback? onSelectModel;
   final VoidCallback? onLongPressSelectModel;
-  final VoidCallback? onOpenMcp;
-  final VoidCallback? onLongPressMcp;
+  final VoidCallback? onOpenAddons;
+  final VoidCallback? onLongPressAddons;
   final VoidCallback? onOpenSearch;
   final VoidCallback? onConfigureReasoning;
   final ValueChanged<ChatInputData>? onSend;
@@ -168,8 +168,8 @@ class ChatInputSection extends StatelessWidget {
       },
       onSelectModel: onSelectModel,
       onLongPressSelectModel: onLongPressSelectModel,
-      onOpenMcp: onOpenMcp,
-      onLongPressMcp: onLongPressMcp,
+      onOpenAddons: onOpenAddons,
+      onLongPressAddons: onLongPressAddons,
       onStop: onStop,
       modelIcon: (settings.showModelIcon && pk != null && mid != null)
           ? CurrentModelIcon(
@@ -194,8 +194,9 @@ class ChatInputSection extends StatelessWidget {
       onOpenSearch: onOpenSearch,
       onSend: onSend,
       loading: isLoading,
-      showMcpButton: _shouldShowMcpButton(context, settings, a, pk, mid),
-      mcpActive: _isMcpActive(context, a),
+      // Add-ons (MCP servers / built-in tools / advanced features) is always
+      // shown; the highlight tracks the assistant's MCP selection.
+      addonsActive: _isMcpActive(context, a),
       showQuickPhraseButton: _hasQuickPhrases(context, a),
       onQuickPhrase: onQuickPhrase,
       onLongPressQuickPhrase: onLongPressQuickPhrase,
@@ -310,20 +311,6 @@ class ChatInputSection extends StatelessWidget {
       return builtIns.contains(BuiltInToolNames.search);
     }
     return false;
-  }
-
-  bool _shouldShowMcpButton(
-    BuildContext context,
-    SettingsProvider settings,
-    Assistant? a,
-    String? pk,
-    String? mid,
-  ) {
-    final pk2 = a?.chatModelProvider ?? settings.currentModelProvider;
-    final mid3 = a?.chatModelId ?? settings.currentModelId;
-    if (pk2 == null || mid3 == null) return false;
-    final hasEnabledMcp = context.watch<McpProvider>().hasAnyEnabled;
-    return isToolModel(pk2, mid3) && hasEnabledMcp;
   }
 
   bool _isMcpActive(BuildContext context, Assistant? a) {

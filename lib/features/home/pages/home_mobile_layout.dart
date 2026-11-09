@@ -38,7 +38,6 @@ class HomeMobileScaffold extends StatelessWidget {
     this.onExportConversations,
     required this.onCreateNewConversation,
     this.onOpenWorkspace,
-    this.onOpenPlan,
     required this.body,
   });
 
@@ -54,7 +53,6 @@ class HomeMobileScaffold extends StatelessWidget {
   final Future<void> Function(List<String> ids)? onExportConversations;
   final Future<void> Function() onCreateNewConversation;
   final VoidCallback? onOpenWorkspace;
-  final VoidCallback? onOpenPlan;
   final Widget body;
 
   @override
@@ -169,14 +167,6 @@ class HomeMobileScaffold extends StatelessWidget {
         ],
       ),
       actions: [
-        if (onOpenPlan != null)
-          IosIconButton(
-            size: 24,
-            minSize: 44,
-            onTap: onOpenPlan,
-            semanticLabel: AppLocalizations.of(context)!.todoPlanTitle,
-            icon: Lucide.ListChecks,
-          ),
         if (onOpenWorkspace != null)
           IosIconButton(
             size: 24,

@@ -248,9 +248,11 @@ class ToolHandlerService {
       );
     }
 
-    // P1-3 + tool toggles: the planning tool has its own global switch and
-    // no longer depends on the conversation workspace (Phase 3-4); the 15
-    // file tools and ask_user stay behind the workspace switch.
+    // P1-3 + tool toggles: the planning (write_todos) and decision
+    // (ask_user) tools are conversation-level and do not depend on the
+    // conversation workspace (Phase 3-4; ask_user moved behind the Add-ons
+    // menu toggle on 2026-11-10); the 15 file tools stay behind the
+    // workspace switch.
     if (supportsTools) {
       toolDefs.addAll(buildPlanningToolDefinitions(settings));
       toolDefs.addAll(
@@ -259,6 +261,7 @@ class ToolHandlerService {
           workspaceEnabled: workspaceEnabled,
         ),
       );
+      toolDefs.addAll(buildDecisionToolDefinitions(settings));
     }
 
     // MCP tools
@@ -321,11 +324,12 @@ class ToolHandlerService {
     };
   }
 
-  /// Workspace tools (15 file tools + ask_user + preview/shell helpers) gated
-  /// by the workspace switch and the global per-tool toggles. `write_todos`
-  /// is NOT here — it is a planning tool with its own switch, available in
-  /// conversations without a workspace (Phase 3-4). Static and pure so the
-  /// gating policy is unit-testable without a provider tree.
+  /// Workspace tools (15 file tools + preview/shell helpers) gated by the
+  /// workspace switch and the global per-tool toggles. `write_todos` and
+  /// `ask_user` are NOT here — they are conversation-level tools with their
+  /// own switches in the Add-ons menu (Phase 3-4 / 2026-11-10 reorganization).
+  /// Static and pure so the gating policy is unit-testable without a provider
+  /// tree.
   static List<Map<String, dynamic>> buildWorkspaceToolDefinitions(
     SettingsProvider settings, {
     required bool workspaceEnabled,
@@ -333,7 +337,6 @@ class ToolHandlerService {
     if (!workspaceEnabled) return const [];
     final definitions = <Map<String, dynamic>>[
       ...FileToolService.getToolDefinitions(),
-      ..._buildDecisionToolDefinitions(),
       // P2-4: console output of the live site preview. Always advertised with
       // the workspace tools; the handler explains how to open the preview
       // when no session is running.
@@ -421,8 +424,13 @@ class ToolHandlerService {
   }
 
   /// Decision tool (`ask_user`) — rendered as interactive answer cards. It
-  /// mutates nothing dangerous, so it needs no approval.
-  static List<Map<String, dynamic>> _buildDecisionToolDefinitions() {
+  /// mutates nothing dangerous, so it needs no approval. Since 2026-11-10 it
+  /// is a conversation-level tool offered regardless of the workspace; the
+  /// only gate is the Add-ons (built-in tools) per-tool toggle.
+  static List<Map<String, dynamic>> buildDecisionToolDefinitions(
+    SettingsProvider settings,
+  ) {
+    if (!settings.isWorkspaceToolEnabled(askUserToolName)) return const [];
     return [_buildAskUserToolDefinition()];
   }
 

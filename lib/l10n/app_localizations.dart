@@ -2081,11 +2081,41 @@ abstract class AppLocalizations {
   /// **'Share'**
   String get providersPageExportShareButton;
 
-  /// No description provided for @mcpAssistantSheetTitle.
+  /// No description provided for @addonsMcpServersTitle.
   ///
   /// In en, this message translates to:
-  /// **'MCP Project'**
-  String get mcpAssistantSheetTitle;
+  /// **'MCP Servers'**
+  String get addonsMcpServersTitle;
+
+  /// No description provided for @addonsBuiltInToolsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in Tools'**
+  String get addonsBuiltInToolsTitle;
+
+  /// No description provided for @addonsAdvancedFeaturesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced Features'**
+  String get addonsAdvancedFeaturesTitle;
+
+  /// No description provided for @addonsManageServers.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage servers'**
+  String get addonsManageServers;
+
+  /// No description provided for @addonsMcpSelectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get addonsMcpSelectAll;
+
+  /// No description provided for @addonsMcpClearAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get addonsMcpClearAll;
 
   /// No description provided for @assistantEditMcpNoServersMessage.
   ///
@@ -2189,11 +2219,11 @@ abstract class AppLocalizations {
   /// **'Reasoning'**
   String get chatInputBarReasoningStrengthTooltip;
 
-  /// No description provided for @chatInputBarMcpServersTooltip.
+  /// No description provided for @chatInputBarAddonsTooltip.
   ///
   /// In en, this message translates to:
-  /// **'MCP'**
-  String get chatInputBarMcpServersTooltip;
+  /// **'Add-ons'**
+  String get chatInputBarAddonsTooltip;
 
   /// No description provided for @chatInputBarQuickPhraseTooltip.
   ///
@@ -10587,20 +10617,32 @@ abstract class AppLocalizations {
   /// No description provided for @workspaceToolsDescription.
   ///
   /// In en, this message translates to:
-  /// **'Disabled tools are not offered to the model. File tools are off while the workspace is disabled; planning stays available.'**
+  /// **'Disabled tools are not offered to the model. File tools are off while the workspace is disabled.'**
   String get workspaceToolsDescription;
 
-  /// No description provided for @workspaceToolsPlanningTitle.
+  /// No description provided for @addonsWriteTodosSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Planning'**
-  String get workspaceToolsPlanningTitle;
+  /// **'Keep a todo list for multi-step tasks'**
+  String get addonsWriteTodosSubtitle;
 
-  /// No description provided for @workspaceToolsPlanningDescription.
+  /// No description provided for @addonsAskUserSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'The plan tool is independent of the workspace. It lets the assistant keep a todo list for multi-step tasks; the latest plan is stored with the conversation.'**
-  String get workspaceToolsPlanningDescription;
+  /// **'Let the assistant ask clarifying questions'**
+  String get addonsAskUserSubtitle;
+
+  /// No description provided for @builtInToolWriteTodosName.
+  ///
+  /// In en, this message translates to:
+  /// **'Write Todos'**
+  String get builtInToolWriteTodosName;
+
+  /// No description provided for @builtInToolAskUserName.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask User'**
+  String get builtInToolAskUserName;
 
   /// No description provided for @workspaceDefaultDirectoryPrivate.
   ///

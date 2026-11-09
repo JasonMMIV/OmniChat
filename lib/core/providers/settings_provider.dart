@@ -680,6 +680,12 @@ class SettingsProvider extends ChangeNotifier {
   bool supportsMaxReasoning(String providerKey, String modelId) =>
       reasoningCapabilities(providerKey, modelId).supportsMax;
 
+  /// Maps legacy chat-input button ids to their current names: `mcp` became
+  /// `addons` on 2026-11-10 when the MCP servers button grew into the
+  /// Add-ons menu (MCP servers / built-in tools / advanced features).
+  static List<String> _migrateAddonsButtonIds(List<String> ids) =>
+      ids.map((id) => id == 'mcp' ? 'addons' : id).toList();
+
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     _appLaunchCount = (prefs.getInt(_appLaunchCountKey) ?? 0) + 1;
@@ -689,6 +695,18 @@ class SettingsProvider extends ChangeNotifier {
         prefs.getStringList(_chatInputButtonOrderKey) ?? const [];
     _chatInputButtonHidden =
         prefs.getStringList(_chatInputButtonHiddenKey) ?? const [];
+    // 2026-11-10: the MCP input-bar button became the Add-ons button —
+    // migrate stored order/hidden ids so prior layout choices carry over.
+    final migratedOrder = _migrateAddonsButtonIds(_chatInputButtonOrder);
+    if (!listEquals(migratedOrder, _chatInputButtonOrder)) {
+      _chatInputButtonOrder = migratedOrder;
+      await prefs.setStringList(_chatInputButtonOrderKey, migratedOrder);
+    }
+    final migratedHidden = _migrateAddonsButtonIds(_chatInputButtonHidden);
+    if (!listEquals(migratedHidden, _chatInputButtonHidden)) {
+      _chatInputButtonHidden = migratedHidden;
+      await prefs.setStringList(_chatInputButtonHiddenKey, migratedHidden);
+    }
     _imageAspectRatio = prefs.getString(_imageAspectRatioKey) ?? '1:1';
     final m = prefs.getString(_themeModeKey);
     switch (m) {

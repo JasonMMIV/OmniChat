@@ -50,7 +50,6 @@ class HomeDesktopScaffold extends StatelessWidget {
     required this.onRightSidebarWidthChangeEnd,
     required this.buildAssistantBackground,
     this.onOpenWorkspace,
-    this.onOpenPlan,
     required this.body,
   });
 
@@ -81,7 +80,6 @@ class HomeDesktopScaffold extends StatelessWidget {
   final VoidCallback onRightSidebarWidthChangeEnd;
   final Widget Function(BuildContext context) buildAssistantBackground;
   final VoidCallback? onOpenWorkspace;
-  final VoidCallback? onOpenPlan;
   final Widget body;
 
   static const Duration _sidebarAnimDuration = Duration(milliseconds: 260);
@@ -332,15 +330,6 @@ class HomeDesktopScaffold extends StatelessWidget {
 
   List<Widget> _buildActions(BuildContext context, bool topicsOnRight) {
     return [
-      if (onOpenPlan != null)
-        IosIconButton(
-          size: 24,
-          padding: const EdgeInsets.all(8),
-          minSize: 46,
-          icon: Lucide.ListChecks,
-          onTap: onOpenPlan,
-          semanticLabel: AppLocalizations.of(context)!.todoPlanTitle,
-        ),
       if (onOpenWorkspace != null)
         IosIconButton(
           key: workspaceKey,

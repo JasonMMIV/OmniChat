@@ -1038,7 +1038,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get providersPageExportShareButton => 'Share';
 
   @override
-  String get mcpAssistantSheetTitle => 'MCP Project';
+  String get addonsMcpServersTitle => 'MCP Servers';
+
+  @override
+  String get addonsBuiltInToolsTitle => 'Built-in Tools';
+
+  @override
+  String get addonsAdvancedFeaturesTitle => 'Advanced Features';
+
+  @override
+  String get addonsManageServers => 'Manage servers';
+
+  @override
+  String get addonsMcpSelectAll => 'Select all';
+
+  @override
+  String get addonsMcpClearAll => 'Clear';
 
   @override
   String get assistantEditMcpNoServersMessage => 'No servers';
@@ -1094,7 +1109,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatInputBarReasoningStrengthTooltip => 'Reasoning';
 
   @override
-  String get chatInputBarMcpServersTooltip => 'MCP';
+  String get chatInputBarAddonsTooltip => 'Add-ons';
 
   @override
   String get chatInputBarQuickPhraseTooltip => 'Phrases';
@@ -5618,14 +5633,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get workspaceToolsDescription =>
-      'Disabled tools are not offered to the model. File tools are off while the workspace is disabled; planning stays available.';
+      'Disabled tools are not offered to the model. File tools are off while the workspace is disabled.';
 
   @override
-  String get workspaceToolsPlanningTitle => 'Planning';
+  String get addonsWriteTodosSubtitle =>
+      'Keep a todo list for multi-step tasks';
 
   @override
-  String get workspaceToolsPlanningDescription =>
-      'The plan tool is independent of the workspace. It lets the assistant keep a todo list for multi-step tasks; the latest plan is stored with the conversation.';
+  String get addonsAskUserSubtitle =>
+      'Let the assistant ask clarifying questions';
+
+  @override
+  String get builtInToolWriteTodosName => 'Write Todos';
+
+  @override
+  String get builtInToolAskUserName => 'Ask User';
 
   @override
   String get workspaceDefaultDirectoryPrivate => 'App private directory';

@@ -1,0 +1,245 @@
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+
+import '../features/home/widgets/addons_menu.dart';
+import '../l10n/app_localizations.dart';
+
+/// Desktop entry for the Add-ons menu: a glass popover anchored above the
+/// input bar (desktop never uses bottom sheets). Hosts the same
+/// [AddonsMenuContent] as the mobile sheet (2026-11-10 Add-ons reorganization).
+Future<void> showAddonsPopover(
+  BuildContext context, {
+  required GlobalKey anchorKey,
+  required String? assistantId,
+  required VoidCallback? onOpenCurrentPlan,
+}) async {
+  final overlay = Overlay.maybeOf(context);
+  if (overlay == null) return;
+  final keyContext = anchorKey.currentContext;
+  if (keyContext == null) return;
+
+  final box = keyContext.findRenderObject() as RenderBox?;
+  if (box == null) return;
+  final offset = box.localToGlobal(Offset.zero);
+  final size = box.size;
+  final anchorRect = Rect.fromLTWH(
+    offset.dx,
+    offset.dy,
+    size.width,
+    size.height,
+  );
+
+  late OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (ctx) => _AddonsPopover(
+      anchorRect: anchorRect,
+      anchorWidth: size.width,
+      assistantId: assistantId,
+      onOpenCurrentPlan: onOpenCurrentPlan,
+      onClose: () {
+        try {
+          entry.remove();
+        } catch (_) {}
+      },
+    ),
+  );
+  overlay.insert(entry);
+}
+
+class _AddonsPopover extends StatefulWidget {
+  const _AddonsPopover({
+    required this.anchorRect,
+    required this.anchorWidth,
+    required this.assistantId,
+    required this.onOpenCurrentPlan,
+    required this.onClose,
+  });
+
+  final Rect anchorRect;
+  final double anchorWidth;
+  final String? assistantId;
+  final VoidCallback? onOpenCurrentPlan;
+  final VoidCallback onClose;
+
+  @override
+  State<_AddonsPopover> createState() => _AddonsPopoverState();
+}
+
+class _AddonsPopoverState extends State<_AddonsPopover>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fadeIn;
+  Offset _offset = const Offset(0, 0.12);
+  bool _closing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    );
+    _fadeIn = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      setState(() => _offset = Offset.zero);
+      try {
+        await _controller.forward();
+      } catch (_) {}
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _close() async {
+    if (_closing) return;
+    _closing = true;
+    setState(() => _offset = const Offset(0, 1.0));
+    try {
+      await _controller.reverse();
+    } catch (_) {}
+    if (mounted) widget.onClose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screen = MediaQuery.of(context).size;
+    final width = (widget.anchorWidth - 16).clamp(300.0, 720.0);
+    final left = (widget.anchorRect.left + (widget.anchorRect.width - width) / 2)
+        .clamp(8.0, screen.width - width - 8.0);
+    final clipHeight = widget.anchorRect.top.clamp(0.0, screen.height);
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: _close,
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 0,
+          height: clipHeight,
+          child: ClipRect(
+            child: Stack(
+              children: [
+                Positioned(
+                  left: left,
+                  width: width,
+                  bottom: 0,
+                  child: FadeTransition(
+                    opacity: _fadeIn,
+                    child: AnimatedSlide(
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOutCubic,
+                      offset: _offset,
+                      child: _GlassPanel(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(14),
+                        ),
+                        child: _AddonsPopoverContent(
+                          assistantId: widget.assistantId,
+                          onOpenCurrentPlan: widget.onOpenCurrentPlan,
+                          onClose: _close,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GlassPanel extends StatelessWidget {
+  const _GlassPanel({required this.child, this.borderRadius});
+  final Widget child;
+  final BorderRadius? borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ClipRRect(
+      borderRadius: borderRadius ?? BorderRadius.circular(14),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: (isDark ? Colors.black : Colors.white).withOpacity(
+              isDark ? 0.28 : 0.56,
+            ),
+            border: Border(
+              top: BorderSide(
+                color: Colors.white.withOpacity(isDark ? 0.06 : 0.18),
+                width: 0.7,
+              ),
+              left: BorderSide(
+                color: Colors.white.withOpacity(isDark ? 0.04 : 0.12),
+                width: 0.6,
+              ),
+              right: BorderSide(
+                color: Colors.white.withOpacity(isDark ? 0.04 : 0.12),
+                width: 0.6,
+              ),
+            ),
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AddonsPopoverContent extends StatelessWidget {
+  const _AddonsPopoverContent({
+    required this.assistantId,
+    required this.onOpenCurrentPlan,
+    required this.onClose,
+  });
+
+  final String? assistantId;
+  final VoidCallback? onOpenCurrentPlan;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 520),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              l10n.chatInputBarAddonsTooltip,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            AddonsMenuContent(
+              assistantId: assistantId,
+              onOpenCurrentPlan: onOpenCurrentPlan,
+              onRequestClose: () async => onClose(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
