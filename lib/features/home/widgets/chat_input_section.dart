@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/assistant.dart';
+import '../../../core/models/answer_review.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/native_input_policy.dart';
 import '../../../core/providers/assistant_provider.dart';
@@ -12,6 +13,8 @@ import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/providers/skills_provider.dart';
 import '../../../core/providers/ai_team_provider.dart';
 import '../../../core/services/api/builtin_tools.dart';
+import '../../../core/services/chat/ask_user_models.dart';
+import '../../../core/services/chat/todo_models.dart';
 import '../../../desktop/desktop_context_menu.dart';
 import '../utils/model_display_helper.dart';
 import 'chat_input_bar.dart';
@@ -195,8 +198,8 @@ class ChatInputSection extends StatelessWidget {
       onSend: onSend,
       loading: isLoading,
       // Add-ons (MCP servers / built-in tools / advanced features) is always
-      // shown; the highlight tracks the assistant's MCP selection.
-      addonsActive: _isMcpActive(context, a),
+      // shown; the highlight is on when anything inside the menu is enabled.
+      addonsActive: _isAddonsActive(context, a, settings),
       showQuickPhraseButton: _hasQuickPhrases(context, a),
       onQuickPhrase: onQuickPhrase,
       onLongPressQuickPhrase: onLongPressQuickPhrase,
@@ -311,6 +314,22 @@ class ChatInputSection extends StatelessWidget {
       return builtIns.contains(BuiltInToolNames.search);
     }
     return false;
+  }
+
+  /// Add-ons highlight: at least one capability in the menu is on — an MCP
+  /// server selected for the active assistant, a built-in tool (write_todos /
+  /// ask_user), or a Self-Review mode other than off.
+  bool _isAddonsActive(
+    BuildContext context,
+    Assistant? a,
+    SettingsProvider settings,
+  ) {
+    final builtInOn =
+        (settings.planningEnabled &&
+            settings.isWorkspaceToolEnabled(todoToolName)) ||
+        settings.isWorkspaceToolEnabled(askUserToolName);
+    final advancedOn = settings.answerReviewMode != AnswerReviewMode.off;
+    return _isMcpActive(context, a) || builtInOn || advancedOn;
   }
 
   bool _isMcpActive(BuildContext context, Assistant? a) {
