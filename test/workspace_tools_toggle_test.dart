@@ -176,6 +176,19 @@ void main() {
       );
       expect(defs, isEmpty);
     });
+
+    test('description carries the maintenance contract', () {
+      final defs = ToolHandlerService.buildPlanningToolDefinitions(
+        _ToggleSettingsProvider(),
+      );
+      final description =
+          ((defs.single['function'] as Map)['description'] ?? '').toString();
+      expect(description, contains('After completing EACH todo step'));
+      expect(description, contains('rewrite'));
+      expect(description, contains('COMPLETE list'));
+      expect(description, contains('never drop or shorten the list'));
+      expect(description, contains('todos: [] only when'));
+    });
   });
 
   group('ToolHandlerService.buildDecisionToolDefinitions (2026-11-10)', () {

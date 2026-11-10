@@ -746,11 +746,11 @@ class _HomePageState extends State<HomePage>
                   },
                 ),
               ),
-              // Live plan dock: running-only, disappears on finish while the
-              // transcript card stays (Phase 3-5).
+              // Live plan dock: conversation-backed, stays while the latest
+              // plan has an incomplete item (running or idle).
               TodoPlanLiveDock(
-                visible: _controller.isCurrentConversationLoading,
-                streamingMessageId: _controller.currentStreamingMessageId(),
+                messages: _controller.messages,
+                versionSelections: _controller.versionSelections,
                 toolParts: _controller.toolParts,
                 notifier: _controller.streamingContentNotifier,
                 onTap: _openTodoPlan,
@@ -859,10 +859,11 @@ class _HomePageState extends State<HomePage>
                           .fadeIn(duration: 200.ms, curve: Curves.easeOutCubic),
                 ),
               ),
-              // Live plan dock (Phase 3-5), same contract as mobile.
+              // Live plan dock (Phase 3), same idle-persistent contract as
+              // mobile: hide only when the plan is complete/cleared/absent.
               TodoPlanLiveDock(
-                visible: _controller.isCurrentConversationLoading,
-                streamingMessageId: _controller.currentStreamingMessageId(),
+                messages: _controller.messages,
+                versionSelections: _controller.versionSelections,
                 toolParts: _controller.toolParts,
                 notifier: _controller.streamingContentNotifier,
                 onTap: _openTodoPlan,

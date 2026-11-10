@@ -3,22 +3,23 @@
 // - [TodoPlanSheet] — read-only view of the projected plan (the latest
 //   successful `write_todos` event), with a user-initiated clear that appends
 //   a real `write_todos(todos: [])` event to the conversation.
-// - [TodoPlanLiveDock] — compact composer-adjacent dock shown only while a
-//   run is in progress; it disappears on finish while the transcript card
-//   stays (Anybuff `todo-panel-dock` parity).
+// - [TodoPlanLiveDock] — compact composer-adjacent dock backed by the active
+//   branch's latest successful plan. It stays visible while that plan has an
+//   incomplete item (during a run AND while idle) and hides once every item
+//   is completed, the plan is cleared, or no plan exists.
 //
 // Both read the same [TodoState] projection; there is no local todo store.
 
 import 'package:flutter/material.dart';
 
-import '../../../core/services/chat/storage/message_part_codec.dart';
+import '../../../core/models/chat_message.dart';
 import '../../../core/services/chat/todo_models.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../theme/app_font_weights.dart';
 import '../../home/controllers/streaming_content_notifier.dart';
-import 'chat_message_widget.dart' show ToolUIPart;
+import 'chat_message_widget.dart' show ToolUIPart, isSuccessfulTodoToolPart;
 
 /// Builds the latest plan state from in-memory tool parts (live run or
 /// restored summaries). Mirrors the projection's success rules: pending,
@@ -29,13 +30,7 @@ TodoState? todoStateFromToolParts(List<ToolUIPart>? parts) {
   if (parts == null || parts.isEmpty) return null;
   TodoState? state;
   for (final part in parts) {
-    if (part.toolName != todoToolName) continue;
-    if (part.status == kPartStatusPending ||
-        part.status == kPartStatusInterrupted ||
-        part.status == kPartStatusDenied) {
-      continue;
-    }
-    if (isTodoToolErrorContent(part.content)) continue;
+    if (!isSuccessfulTodoToolPart(part)) continue;
     final snapshot = parseTodoSnapshotContent(part.content);
     if (snapshot != null && snapshot.hasItems) {
       state = TodoState(items: snapshot.items, hasExplicitState: true);
@@ -50,6 +45,65 @@ TodoState? todoStateFromToolParts(List<ToolUIPart>? parts) {
     }
   }
   return state;
+}
+
+/// Active-branch view of [messages] (one message per version group, using
+/// [versionSelections]). Mirrors `MessageBuilderService.collapseVersions` so
+/// the dock can never project a plan from an unselected branch.
+List<ChatMessage> activeBranchMessages(
+  List<ChatMessage> messages,
+  Map<String, int> versionSelections,
+) {
+  if (messages.isEmpty) return const <ChatMessage>[];
+  final byGroup = <String, List<ChatMessage>>{};
+  final order = <String>[];
+  for (final message in messages) {
+    final gid = message.groupId ?? message.id;
+    final group = byGroup.putIfAbsent(gid, () {
+      order.add(gid);
+      return <ChatMessage>[];
+    });
+    group.add(message);
+  }
+  for (final group in byGroup.values) {
+    group.sort((a, b) => a.version.compareTo(b.version));
+  }
+  return <ChatMessage>[
+    for (final gid in order)
+      _selectedVersion(byGroup[gid]!, versionSelections[gid]),
+  ];
+}
+
+ChatMessage _selectedVersion(List<ChatMessage> versions, int? selection) {
+  final index =
+      (selection != null && selection >= 0 && selection < versions.length)
+      ? selection
+      : versions.length - 1;
+  return versions[index];
+}
+
+/// Latest successful plan on the active branch, scanning newest-first.
+///
+/// Failed/interrupted parts never advance the state, so a failed retry falls
+/// back to the previous successful plan in the same or an older message.
+TodoState? latestTodoStateFromMessages({
+  required List<ChatMessage> messages,
+  required Map<String, int> versionSelections,
+  required Map<String, List<ToolUIPart>> toolParts,
+}) {
+  final active = activeBranchMessages(messages, versionSelections);
+  for (final message in active.reversed) {
+    if (message.role != 'assistant') continue;
+    final state = todoStateFromToolParts(toolParts[message.id]);
+    if (state == null) continue;
+    return TodoState(
+      items: state.items,
+      hasExplicitState: true,
+      sourceMessageId: message.id,
+      updatedAt: message.timestamp,
+    );
+  }
+  return null;
 }
 
 /// Bottom sheet showing the conversation's current plan.
@@ -582,44 +636,59 @@ class _EmptyPlan extends StatelessWidget {
   }
 }
 
-/// Compact plan dock above the composer, visible only while a run streams.
+/// Compact plan dock above the composer, backed by the conversation rather
+/// than a single streaming message.
+///
+/// Visibility contract:
+/// - shows whenever the active branch's latest successful plan has at least
+///   one incomplete item — during a run and after it ends;
+/// - hides when every item is completed, the plan was cleared, or no plan
+///   exists.
+///
+/// Tool-part changes rebuild it through
+/// [StreamingContentNotifier.toolRevision], so user clears and late results
+/// are reflected even while the conversation is idle.
 class TodoPlanLiveDock extends StatelessWidget {
   const TodoPlanLiveDock({
     super.key,
-    required this.visible,
-    required this.streamingMessageId,
+    required this.messages,
+    required this.versionSelections,
     required this.toolParts,
     required this.notifier,
     this.onTap,
   });
 
-  final bool visible;
-  final String? streamingMessageId;
+  final List<ChatMessage> messages;
+  final Map<String, int> versionSelections;
   final Map<String, List<ToolUIPart>> toolParts;
   final StreamingContentNotifier? notifier;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    if (!visible) return const SizedBox.shrink();
-    final messageId = streamingMessageId;
     final contentNotifier = notifier;
-    if (messageId == null || contentNotifier == null) {
-      return const SizedBox.shrink();
-    }
-    return ValueListenableBuilder<StreamingContentData>(
-      valueListenable: contentNotifier.getNotifier(messageId),
-      builder: (context, _, __) {
-        final state = todoStateFromToolParts(toolParts[messageId]);
-        return AnimatedSize(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          alignment: Alignment.bottomCenter,
-          child: state == null || state.items.isEmpty
-              ? const SizedBox(width: double.infinity)
-              : _TodoPlanDockCard(state: state, onTap: onTap),
-        );
-      },
+    if (contentNotifier == null) return _buildDock(context);
+    return ValueListenableBuilder<int>(
+      valueListenable: contentNotifier.toolRevision,
+      builder: (context, _, __) => _buildDock(context),
+    );
+  }
+
+  Widget _buildDock(BuildContext context) {
+    final state = latestTodoStateFromMessages(
+      messages: messages,
+      versionSelections: versionSelections,
+      toolParts: toolParts,
+    );
+    final hasIncomplete =
+        state != null && state.items.any((item) => !item.isCompleted);
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.bottomCenter,
+      child: hasIncomplete
+          ? _TodoPlanDockCard(state: state, onTap: onTap)
+          : const SizedBox(width: double.infinity),
     );
   }
 }

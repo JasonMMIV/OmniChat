@@ -442,12 +442,18 @@ class ToolHandlerService {
       'function': {
         'name': todoToolName,
         'description':
-            'Use this tool for multi-step tasks (3+ steps) after gathering '
-            'context. Send the COMPLETE list every call (last write wins); '
-            'statuses: pending, in_progress, completed. Keep exactly one '
-            'item in_progress while working. Include ALL applicable steps, '
-            'including review/validation. Skip for simple edits or Q&A. '
-            'todos: [] clears the plan. The latest successful snapshot is '
+            'Track a multi-step task (3+ steps) with an ordered todo list. '
+            'Call it after gathering context to plan the implementation steps. '
+            'After completing EACH todo step, call this tool again to mark '
+            'that step completed. Every call rewrites the COMPLETE list with '
+            'current statuses, so include ALL applicable steps (including '
+            'review/validation); never drop or shorten the list while work '
+            'remains. Use it frequently as you work: it keeps you on track '
+            'and informs the user of the plan and progress. Keep exactly one '
+            'item in_progress while working; never mark a step completed '
+            'before it is actually done. Statuses: pending, in_progress, '
+            'completed. Skip trivial edits or Q&A. todos: [] only when the '
+            'plan is cancelled or obsolete. The latest successful snapshot is '
             'persisted with the tool event and re-injected as conversation '
             'state; older snapshots are not replayed as tool calls. Max 50 '
             'items; each item max 2000 chars; total max 8000 chars. Item '
@@ -1159,7 +1165,8 @@ class ToolHandlerService {
             'The todos payload was rejected and the previous plan is '
             'unchanged. Send a complete, valid list: an array of objects '
             'with non-empty "content" and "status" '
-            '($todoStatusPending/$todoStatusInProgress/$todoStatusCompleted).',
+            '($todoStatusPending/$todoStatusInProgress/$todoStatusCompleted). '
+            'Fix the payload and retry instead of abandoning the plan.',
         'tool': todoToolName,
         'invalidItems': <Map<String, dynamic>>[
           for (final item in parsed.invalidItems) item.toJson(),
@@ -1174,12 +1181,22 @@ class ToolHandlerService {
       final previous = await chatService.getLatestTodoState(conversationId);
       if (previous != null && previous.items.isNotEmpty) changed = true;
     }
+    final total = parsed.items.length;
+    final completed = parsed.items.where((t) => t.isCompleted).length;
+    final notice = cleared
+        ? 'Plan cleared. Do not resend the old list; call write_todos with a '
+              'complete new list only if the task changes or continues.'
+        : 'Plan updated: $completed/$total complete. Continue with the '
+              'remaining steps. After finishing each step, call write_todos '
+              'again, rewrite ALL todos with their current statuses, and mark '
+              'that step completed. Keep exactly one item in_progress.';
     return buildTodoResultContent(
       items: parsed.items,
       changed: changed,
       cleared: cleared,
       warnings: <String>[...parsed.warnings, ...parsed.advisoryWarnings],
       truncated: parsed.truncated,
+      notice: notice,
     );
   }
 

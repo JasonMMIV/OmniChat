@@ -119,6 +119,8 @@ void main() {
       final decoded = _decoded(result['content']);
       expect(decoded['items'], isNotEmpty);
       expect(decoded['notice'], isNotNull);
+      expect(decoded['notice'], contains('Resume from the first unfinished'));
+      expect(decoded['notice'], contains('rewrite ALL todos'));
     });
 
     test('system message bytes are untouched (cache prefix stability)', () {
@@ -157,6 +159,26 @@ void main() {
       final decoded = _decoded(api[2]['content']);
       expect(decoded['cleared'], isTrue);
       expect(decoded['items'], isEmpty);
+      expect(decoded['notice'], contains('cleared'));
+    });
+
+    test('all-complete state tells the model no further update is needed', () {
+      final api = <Map<String, dynamic>>[
+        {'role': 'user', 'content': 'hi'},
+      ];
+      appendTodoStatePair(
+        api,
+        TodoState(
+          items: const [
+            TodoItem(content: 'A', status: todoStatusCompleted),
+            TodoItem(content: 'B', status: todoStatusCompleted),
+          ],
+          hasExplicitState: true,
+        ),
+      );
+      final decoded = _decoded(api[2]['content']);
+      expect(decoded['notice'], contains('all items are completed'));
+      expect(decoded['notice'], contains('No further write_todos update'));
     });
 
     test('colliding real id falls back to a stable hash id', () {

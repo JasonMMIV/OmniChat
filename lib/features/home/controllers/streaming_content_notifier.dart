@@ -19,6 +19,19 @@ class StreamingContentNotifier {
   final Map<String, ValueNotifier<StreamingContentData>> _notifiers =
       <String, ValueNotifier<StreamingContentData>>{};
 
+  /// Guards against calls after [dispose] (async stream callbacks can still
+  /// fire once the page is gone).
+  bool _disposed = false;
+
+  /// Conversation-wide revision counter for tool-part changes.
+  ///
+  /// The todo dock is no longer tied to a streaming message: it has to keep
+  /// reflecting the conversation's latest plan while the run is idle. Widgets
+  /// that derive state from the shared `toolParts` map listen to this counter
+  /// and rebuild on every tool call/result (including user clears appended
+  /// outside a run).
+  final ValueNotifier<int> toolRevision = ValueNotifier<int>(0);
+
   /// Get or create a notifier for a message.
   ValueNotifier<StreamingContentData> getNotifier(String messageId) {
     return _notifiers.putIfAbsent(
@@ -167,7 +180,12 @@ class StreamingContentNotifier {
 
   /// Notify that tool parts have been updated.
   /// Uses a version counter to trigger rebuild without copying tool data.
+  ///
+  /// [toolRevision] is bumped even when no per-message notifier exists: the
+  /// todo dock derives its state from the shared `toolParts` map and must
+  /// rebuild for user-initiated clears appended to an idle conversation.
   void notifyToolPartsUpdated(String messageId) {
+    if (_disposed) return;
     final notifier = _notifiers[messageId];
     if (notifier != null) {
       final current = notifier.value;
@@ -186,6 +204,7 @@ class StreamingContentNotifier {
         reviewDraft: current.reviewDraft,
       );
     }
+    toolRevision.value++;
   }
 
   /// Force a rebuild of the streaming message widget.
@@ -241,16 +260,27 @@ class StreamingContentNotifier {
   }
 
   /// Clear all notifiers (e.g., when switching conversations).
+  ///
+  /// Bumps [toolRevision] so the idle todo dock re-derives from the newly
+  /// loaded conversation instead of keeping the previous plan on screen.
   void clear() {
+    if (_disposed) return;
     for (final notifier in _notifiers.values) {
       notifier.dispose();
     }
     _notifiers.clear();
+    toolRevision.value++;
   }
 
   /// Dispose all resources.
   void dispose() {
-    clear();
+    if (_disposed) return;
+    _disposed = true;
+    for (final notifier in _notifiers.values) {
+      notifier.dispose();
+    }
+    _notifiers.clear();
+    toolRevision.dispose();
   }
 }
 

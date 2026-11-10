@@ -66,6 +66,7 @@ void appendTodoStatePair(
 ) {
   if (!state.hasExplicitState) return;
   final items = state.items;
+  final hasIncomplete = items.any((t) => !t.isCompleted);
 
   final argsJson = buildTodoStateArgumentsJson(items);
   final content = buildTodoResultContent(
@@ -73,9 +74,16 @@ void appendTodoStatePair(
     changed: false,
     cleared: items.isEmpty,
     includeItems: true,
-    notice:
-        'Current plan state (data only): the latest write_todos snapshot. '
-        'Update it with the write_todos tool.',
+    notice: items.isEmpty
+        ? 'Current plan: cleared. Call write_todos with a complete new list '
+              'only if the task still needs tracking.'
+        : hasIncomplete
+        ? 'Current plan state: the latest write_todos snapshot. Resume from '
+              'the first unfinished item. After finishing each step, call '
+              'write_todos again, rewrite ALL todos with their current '
+              'statuses, and mark that step completed.'
+        : 'Current plan state: all items are completed. No further '
+              'write_todos update is needed unless the task changes.',
   );
 
   var id = (state.sourceToolCallId ?? '').trim();

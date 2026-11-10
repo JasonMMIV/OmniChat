@@ -111,7 +111,49 @@ void main() {
         },
       ])!;
       expect(prompt, contains('## illustrate usage'));
+      expect(prompt, contains('## write_todos usage'));
       expect(prompt, isNot(contains('web_fetch')));
+    });
+
+    test('returns the write_todos maintenance policy when advertised', () {
+      final prompt = McpToolPrompts.forDefinitions([
+        {
+          'type': 'function',
+          'function': {'name': 'write_todos'},
+        },
+      ])!;
+      expect(prompt, contains('## write_todos usage'));
+      expect(prompt, contains('After completing each step'));
+      expect(prompt, contains('Rewrite ALL todos'));
+      expect(prompt, contains('never drop or shorten the list'));
+      expect(prompt, contains('todos: [] only when the plan is cancelled'));
+    });
+
+    test('forRequest gates the write_todos policy on Gemini built-ins', () {
+      expect(
+        McpToolPrompts.forRequest(
+          defs: [
+            {
+              'type': 'function',
+              'function': {'name': 'write_todos'},
+            },
+          ],
+          hasBuiltInSearch: false,
+        ),
+        contains('## write_todos usage'),
+      );
+      expect(
+        McpToolPrompts.forRequest(
+          defs: [
+            {
+              'type': 'function',
+              'function': {'name': 'write_todos'},
+            },
+          ],
+          hasBuiltInSearch: true,
+        ),
+        isNull,
+      );
     });
   });
 }

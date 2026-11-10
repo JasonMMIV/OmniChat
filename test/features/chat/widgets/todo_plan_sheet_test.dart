@@ -2,13 +2,16 @@
 //
 // - TodoPlanSheet: empty state, items/progress, user clear confirmation and
 //   the cleared state after the event is appended.
-// - TodoPlanLiveDock: running-only visibility, live snapshot updates, and
-//   disappearance when the run ends (transcript card is not this widget).
+// - TodoPlanLiveDock: conversation-backed visibility — visible while the
+//   active branch's latest successful plan has an incomplete item (running
+//   or idle), hidden when complete/cleared/failed-without-fallback, with
+//   version-selection and tool-revision rebuild contracts.
 // - todoStateFromToolParts: success-only projection over in-memory parts.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:OmniChat/core/models/chat_message.dart';
 import 'package:OmniChat/core/services/chat/todo_models.dart';
 import 'package:OmniChat/features/chat/widgets/chat_message_widget.dart'
     show ToolUIPart;
@@ -40,14 +43,45 @@ ToolUIPart _todoPart({
   required Object? todos,
   String? content,
   String? status,
+  String id = 'call_1',
 }) => ToolUIPart(
-  id: 'call_1',
+  id: id,
   toolName: todoToolName,
   arguments: <String, dynamic>{'todos': todos},
   content: content,
   loading: false,
   status: status,
 );
+
+ChatMessage _assistantMessage(
+  String id, {
+  String? groupId,
+  int version = 0,
+  DateTime? timestamp,
+}) => ChatMessage(
+  id: id,
+  role: 'assistant',
+  content: '',
+  conversationId: 'c1',
+  groupId: groupId,
+  version: version,
+  timestamp: timestamp ?? DateTime(2026, 11, 10, 14, 0),
+);
+
+Map<String, List<ToolUIPart>> _partsWith(
+  String messageId,
+  List<ToolUIPart> parts,
+) => <String, List<ToolUIPart>>{messageId: parts};
+
+List<Map<String, String>> _incompletePlan() => const [
+  {'content': 'First step', 'status': 'completed'},
+  {'content': 'Second step', 'status': 'in_progress'},
+];
+
+List<Map<String, String>> _completedPlan() => const [
+  {'content': 'First step', 'status': 'completed'},
+  {'content': 'Second step', 'status': 'completed'},
+];
 
 void main() {
   group('TodoPlanSheet', () {
@@ -139,42 +173,47 @@ void main() {
   });
 
   group('TodoPlanLiveDock', () {
-    testWidgets('hidden when the run is not active', (tester) async {
+    testWidgets('hidden when no plan has been written', (tester) async {
       final notifier = StreamingContentNotifier();
       await tester.pumpWidget(
         _wrap(
           TodoPlanLiveDock(
-            visible: false,
-            streamingMessageId: 'm1',
-            toolParts: {
-              'm1': [_todoPart(todos: const [])],
-            },
+            messages: [_assistantMessage('m1')],
+            versionSelections: const <String, int>{},
+            toolParts: _partsWith('m1', [
+              _todoPart(
+                todos: const [],
+                content: '{"type":"tool_error","error":"invalid_todos","tool":"write_todos"}',
+              ),
+            ]),
             notifier: notifier,
           ),
         ),
       );
+      await tester.pump();
+
       expect(find.text('Current plan'), findsNothing);
     });
 
-    testWidgets('shows the live snapshot and updates on tool parts', (
+    testWidgets('shows the plan while a run is active and after it goes idle', (
       tester,
     ) async {
       final notifier = StreamingContentNotifier();
-      final parts = <String, List<ToolUIPart>>{
-        'm1': [
-          _todoPart(
-            todos: const [
-              {'content': 'First step', 'status': 'completed'},
-              {'content': 'Second step', 'status': 'in_progress'},
-            ],
-          ),
-        ],
-      };
+      final parts = _partsWith('m1', [
+        _todoPart(
+          todos: const [
+            {'content': 'First step', 'status': 'completed'},
+            {'content': 'Second step', 'status': 'in_progress'},
+          ],
+        ),
+      ]);
       await tester.pumpWidget(
         _wrap(
           TodoPlanLiveDock(
-            visible: true,
-            streamingMessageId: 'm1',
+            messages: [
+              _assistantMessage('m1', timestamp: DateTime(2026, 11, 10, 12)),
+            ],
+            versionSelections: const <String, int>{},
             toolParts: parts,
             notifier: notifier,
           ),
@@ -186,33 +225,124 @@ void main() {
       expect(find.text('Second step'), findsOneWidget);
       expect(find.text('1/2'), findsOneWidget);
 
+      // A later tool update replaces the live snapshot; there is no run-state
+      // input, so the dock keeps rendering while the plan stays incomplete.
       parts['m1'] = [
         _todoPart(
           todos: const [
             {'content': 'First step', 'status': 'completed'},
-            {'content': 'Second step', 'status': 'completed'},
+            {'content': 'Second step', 'status': 'in_progress'},
+            {'content': 'Third step', 'status': 'pending'},
           ],
         ),
       ];
       notifier.notifyToolPartsUpdated('m1');
-      await tester.pump();
+      await tester.pumpAndSettle();
 
-      expect(find.text('2/2'), findsOneWidget);
+      expect(find.text('Current plan'), findsOneWidget);
+      expect(find.text('1/3'), findsOneWidget);
     });
 
-    testWidgets('no dock content while no plan has been written', (
+    testWidgets('stays visible from an older message while idle', (
       tester,
     ) async {
       final notifier = StreamingContentNotifier();
       await tester.pumpWidget(
         _wrap(
           TodoPlanLiveDock(
-            visible: true,
-            streamingMessageId: 'm1',
-            toolParts: {
-              'm1': [
+            messages: [
+              _assistantMessage('m1', timestamp: DateTime(2026, 11, 10, 12)),
+              _assistantMessage('m2', timestamp: DateTime(2026, 11, 10, 12, 5)),
+            ],
+            versionSelections: const <String, int>{},
+            toolParts: _partsWith('m1', [_todoPart(todos: _incompletePlan())]),
+            notifier: notifier,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Current plan'), findsOneWidget);
+      expect(find.text('Second step'), findsOneWidget);
+    });
+
+    testWidgets('hides once every item is completed', (tester) async {
+      final notifier = StreamingContentNotifier();
+      final parts = _partsWith('m1', [_todoPart(todos: _incompletePlan())]);
+      await tester.pumpWidget(
+        _wrap(
+          TodoPlanLiveDock(
+            messages: [_assistantMessage('m1')],
+            versionSelections: const <String, int>{},
+            toolParts: parts,
+            notifier: notifier,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Current plan'), findsOneWidget);
+
+      final completedPart = _todoPart(todos: _completedPlan(), id: 'call_2');
+      parts['m1'] = [completedPart];
+      notifier.notifyToolPartsUpdated('m1');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Current plan'), findsNothing);
+    });
+
+    testWidgets('hides after an idle user clear via toolRevision', (
+      tester,
+    ) async {
+      final notifier = StreamingContentNotifier();
+      final parts = _partsWith('m1', [_todoPart(todos: _incompletePlan())]);
+      await tester.pumpWidget(
+        _wrap(
+          TodoPlanLiveDock(
+            messages: [_assistantMessage('m1')],
+            versionSelections: const <String, int>{},
+            toolParts: parts,
+            notifier: notifier,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Current plan'), findsOneWidget);
+
+      // User clear appends a successful `todos: []` event even when no stream
+      // notifier exists for the message.
+      parts['m1'] = [
+        ...parts['m1']!,
+        _todoPart(
+          todos: const [],
+          id: 'user_clear_1',
+          content: buildTodoResultContent(
+            items: const <TodoItem>[],
+            changed: true,
+            cleared: true,
+          ),
+        ),
+      ];
+      notifier.notifyToolPartsUpdated('m1');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Current plan'), findsNothing);
+    });
+
+    testWidgets('ignores a failed retry and keeps the previous plan', (
+      tester,
+    ) async {
+      final notifier = StreamingContentNotifier();
+      await tester.pumpWidget(
+        _wrap(
+          TodoPlanLiveDock(
+            messages: [_assistantMessage('m1'), _assistantMessage('m2')],
+            versionSelections: const <String, int>{},
+            toolParts: <String, List<ToolUIPart>>{
+              'm1': [_todoPart(todos: _incompletePlan())],
+              'm2': [
                 _todoPart(
                   todos: const [],
+                  id: 'call_failed',
                   content: '{"type":"tool_error","error":"invalid_todos","tool":"write_todos"}',
                 ),
               ],
@@ -221,8 +351,39 @@ void main() {
           ),
         ),
       );
-      await tester.pump();
+      await tester.pumpAndSettle();
 
+      expect(find.text('Current plan'), findsOneWidget);
+      expect(find.text('Second step'), findsOneWidget);
+    });
+
+    testWidgets('projects only the selected version branch', (tester) async {
+      final notifier = StreamingContentNotifier();
+      final messages = [
+        _assistantMessage('m_old', groupId: 'g1', version: 0),
+        _assistantMessage('m_new', groupId: 'g1', version: 1),
+      ];
+      final parts = <String, List<ToolUIPart>>{
+        'm_old': [_todoPart(todos: _incompletePlan())],
+        'm_new': [_todoPart(todos: _completedPlan(), id: 'call_new')],
+      };
+
+      Widget dock(Map<String, int> selections) => _wrap(
+        TodoPlanLiveDock(
+          messages: messages,
+          versionSelections: selections,
+          toolParts: parts,
+          notifier: notifier,
+        ),
+      );
+
+      await tester.pumpWidget(dock(const <String, int>{'g1': 0}));
+      await tester.pumpAndSettle();
+      expect(find.text('Current plan'), findsOneWidget);
+      expect(find.text('Second step'), findsOneWidget);
+
+      await tester.pumpWidget(dock(const <String, int>{'g1': 1}));
+      await tester.pumpAndSettle();
       expect(find.text('Current plan'), findsNothing);
     });
   });
