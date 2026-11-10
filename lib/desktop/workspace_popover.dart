@@ -381,15 +381,15 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
                                   ),
                                   ListTile(
                                     contentPadding: EdgeInsets.zero,
-                                    leading: const Icon(Lucide.FileText),
-                                    title: Text(l10n.workspaceFiles),
-                                    onTap: _openBrowser,
-                                  ),
-                                  ListTile(
-                                    contentPadding: EdgeInsets.zero,
                                     leading: const Icon(Lucide.Monitor),
                                     title: Text(l10n.devPreviewMenuEntry),
                                     onTap: _busy ? null : _openPreview,
+                                  ),
+                                  ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: const Icon(Lucide.FileText),
+                                    title: Text(l10n.workspaceFiles),
+                                    onTap: _openBrowser,
                                   ),
                                 ],
                               ],

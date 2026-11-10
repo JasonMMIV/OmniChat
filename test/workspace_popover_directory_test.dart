@@ -114,6 +114,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text(l10n.workspaceDirectoryMenu), findsOneWidget);
 
+      // "Preview site" sits directly above the "Files" entry: the menu reads
+      // Directory → Tools → Preview site → Files (2026-11-10 reorder).
+      expect(find.text(l10n.devPreviewMenuEntry), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text(l10n.devPreviewMenuEntry)).dy,
+        lessThan(tester.getTopLeft(find.text(l10n.workspaceFiles)).dy),
+      );
+
       await tester.tap(find.text(l10n.workspaceDirectoryMenu));
       await tester.pumpAndSettle();
       expect(find.text(l10n.workspaceChooseFolder), findsOneWidget);

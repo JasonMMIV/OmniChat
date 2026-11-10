@@ -153,28 +153,17 @@ class _WorkspaceFileBrowserState extends State<WorkspaceFileBrowser> {
     });
   }
 
-  /// Opens the live site preview at [relativePath] (or the current directory
-  /// when omitted) so relative CSS/JS/images resolve from the workspace root.
-  Future<void> _openPreview([String? relativePath]) async {
-    String? initial = relativePath;
-    if (initial == null || initial.trim().isEmpty) {
-      // Directory entry: prefer its index.html, otherwise let the dev server
-      // render a directory listing (still better than a dead end).
-      final candidate = File(
-        p.join(widget.workspacePath, _relativePath, 'index.html'),
-      );
-      if (await candidate.exists()) {
-        initial = p.join(_relativePath, 'index.html').replaceAll('\\', '/');
-      } else {
-        final relative = _relativePath.replaceAll('\\', '/');
-        initial = relative.isEmpty ? null : '$relative/';
-      }
-    }
+  /// Opens the live site preview at [relativePath] so relative CSS/JS/images
+  /// resolve from the workspace root. Only reachable from an HTML file entry
+  /// (tap or context menu); the site-level entry lives in the workspace menu.
+  Future<void> _openPreview(String relativePath) async {
+    // Guards the caller's async gap: _previewFile awaits file.exists() before
+    // dispatching here, so the widget may already be gone.
     if (!mounted) return;
     await showDevPreview(
       context,
       workspacePath: widget.workspacePath,
-      initialPath: initial,
+      initialPath: relativePath,
     );
   }
 
@@ -491,11 +480,6 @@ class _WorkspaceFileBrowserState extends State<WorkspaceFileBrowser> {
             ? null
             : IconButton(icon: const Icon(Lucide.ArrowLeft), onPressed: _goUp),
         actions: [
-          IconButton(
-            icon: const Icon(Lucide.Play),
-            tooltip: l10n.devPreviewMenuEntry,
-            onPressed: () => _openPreview(),
-          ),
           IconButton(
             icon: const Icon(Lucide.RefreshCw),
             onPressed: () => setState(_reload),
