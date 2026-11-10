@@ -12677,6 +12677,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Phone'**
   String get devPreviewViewportMobile;
+
+  /// No description provided for @contextUsageEstimatedBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'≈ estimated'**
+  String get contextUsageEstimatedBadge;
 }
 
 class _AppLocalizationsDelegate

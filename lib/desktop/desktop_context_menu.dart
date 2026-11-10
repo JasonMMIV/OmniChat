@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 import '../shared/widgets/ios_tactile.dart';
 import '../core/services/haptics.dart';
@@ -27,6 +28,9 @@ Future<void> showDesktopContextMenuAt(
   BuildContext context, {
   required Offset globalPosition,
   required List<DesktopContextMenuItem> items,
+  Widget? header,
+  double headerHeight = 0,
+  double? minMenuWidth,
 }) async {
   final overlay = Overlay.of(context);
   final overlayBox = overlay.context.findRenderObject() as RenderBox?;
@@ -44,12 +48,18 @@ Future<void> showDesktopContextMenuAt(
     pageBuilder: (ctx, _, __) {
       // Measure inside the dialog so the estimate uses the same text style
       // and text scale as the rendered menu (system scale included).
-      const double minMenuWidth = 160;
+      const double defaultMinMenuWidth = 160;
       const double maxMenuWidth = 360;
-      final double menuWidth = _estimateMenuWidth(ctx, items, minMenuWidth, maxMenuWidth);
+      final double effectiveMinWidth =
+          math.max(defaultMinMenuWidth, minMenuWidth ?? 0);
+      final double menuWidth =
+          _estimateMenuWidth(ctx, items, effectiveMinWidth, maxMenuWidth);
       final screen = overlayBox.size;
       final double menuMaxHeight = screen.height * 0.5; // scroll if exceeds
-      final double estMenuHeight = (items.length * 44.0).clamp(44.0, menuMaxHeight);
+      final double headerExtra =
+          header != null ? (headerHeight > 0 ? headerHeight : 56.0) : 0.0;
+      final double estMenuHeight =
+          (items.length * 44.0 + headerExtra).clamp(44.0, menuMaxHeight);
       final padding = MediaQuery.of(ctx).padding;
       final minX = padding.left + 8;
       final maxX = screen.width - padding.right - menuWidth - 8;
@@ -100,6 +110,7 @@ Future<void> showDesktopContextMenuAt(
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  if (header != null) header!,
                                   for (final it in items)
                                     _GlassMenuItem(
                                       icon: it.icon,
@@ -170,22 +181,31 @@ Future<void> showDesktopAnchoredMenu(
   required GlobalKey anchorKey,
   required List<DesktopContextMenuItem> items,
   Offset offset = Offset.zero,
+  Widget? header,
+  double headerHeight = 0,
+  double? minMenuWidth,
 }) async {
   final rb = anchorKey.currentContext?.findRenderObject() as RenderBox?;
   if (rb == null) return;
   final topLeft = rb.localToGlobal(Offset.zero);
   final size = rb.size;
   // Center the menu horizontally under the avatar (neutralize internal gap)
-  const double minMenuWidth = 160;
+  const double defaultMinMenuWidth = 160;
   const double maxMenuWidth = 360;
   const double gap = 8; // should match showDesktopContextMenuAt gap
-  final double menuWidth = _estimateMenuWidth(context, items, minMenuWidth, maxMenuWidth);
+  final double effectiveMinWidth =
+      math.max(defaultMinMenuWidth, minMenuWidth ?? 0);
+  final double menuWidth =
+      _estimateMenuWidth(context, items, effectiveMinWidth, maxMenuWidth);
   final anchorBottomCenter = topLeft + Offset(size.width / 2, size.height);
   final adjusted = anchorBottomCenter - Offset(menuWidth / 2 + gap, 0);
   await showDesktopContextMenuAt(
     context,
     globalPosition: adjusted + offset,
     items: items,
+    header: header,
+    headerHeight: headerHeight,
+    minMenuWidth: minMenuWidth,
   );
 }
 

@@ -2280,5 +2280,6 @@
   "devPreviewConsoleClose": "隱藏主控台",
   "devPreviewViewportDesktop": "桌面",
   "devPreviewViewportTablet": "平板",
-  "devPreviewViewportMobile": "手機"
+  "devPreviewViewportMobile": "手機",
+  "contextUsageEstimatedBadge": "≈ 估算"
 }

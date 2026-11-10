@@ -6813,4 +6813,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get devPreviewViewportMobile => 'Phone';
+
+  @override
+  String get contextUsageEstimatedBadge => '≈ estimated';
 }

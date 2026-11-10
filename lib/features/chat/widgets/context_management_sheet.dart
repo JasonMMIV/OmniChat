@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../../../core/services/haptics.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../home/services/context_usage_service.dart';
+import '../../home/widgets/context_usage_ring.dart';
 
 /// Bottom sheet for mobile: compress context or clear context.
 class ContextManagementSheet extends StatelessWidget {
@@ -12,11 +15,16 @@ class ContextManagementSheet extends StatelessWidget {
     this.onCompress,
     this.onClear,
     this.clearLabel,
+    this.contextUsage,
   });
 
   final VoidCallback? onCompress;
   final VoidCallback? onClear;
   final String? clearLabel;
+
+  /// When set, a usage header row is shown above the options. It renders
+  /// nothing while the context window is unknown — never a blank gap.
+  final ValueListenable<ContextUsageSnapshot?>? contextUsage;
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +60,15 @@ class ContextManagementSheet extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
           ),
-          const SizedBox(height: 16),
+          if (contextUsage != null) ...[
+            const SizedBox(height: 10),
+            ContextUsageMenuHeader(
+              listenable: contextUsage!,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+            ),
+            const SizedBox(height: 6),
+          ] else
+            const SizedBox(height: 16),
           _OptionRow(
             icon: Lucide.package2,
             label: l10n.compressContext,

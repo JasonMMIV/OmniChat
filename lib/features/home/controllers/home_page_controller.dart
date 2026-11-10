@@ -14,6 +14,7 @@ import '../../../core/models/conversation.dart';
 import '../../../core/models/quick_phrase.dart';
 import '../../../core/models/assistant_regex.dart';
 import '../../../core/providers/assistant_provider.dart';
+import '../../../core/providers/ai_team_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/tts_provider.dart';
@@ -23,6 +24,11 @@ import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/storage/chat_storage_gate.dart';
 import '../../../core/services/chat/todo_models.dart';
+import '../../../core/services/api/learned_context_windows.dart';
+import '../../../core/services/agent/compaction/context_trim.dart';
+import '../../../core/services/agent/compaction/history_compactor.dart';
+import '../../../core/services/model_catalog/model_catalog.dart';
+import '../../../core/services/model_catalog/model_catalog_service.dart';
 import '../../../core/services/haptics.dart';
 import '../../../core/services/screen_wakelock.dart';
 import '../../voice_chat/services/stt_locale_resolver.dart';
@@ -42,6 +48,7 @@ import 'stream_controller.dart' as stream_ctrl;
 import 'generation_controller.dart';
 import 'scroll_controller.dart' as scroll_ctrl;
 import 'home_view_model.dart';
+import '../services/context_usage_service.dart';
 import '../services/message_builder_service.dart';
 import '../services/message_generation_service.dart';
 import '../services/ocr_service.dart';
@@ -130,6 +137,16 @@ class HomePageController extends ChangeNotifier {
   // ============================================================================
   // State Fields
   // ============================================================================
+
+  // Context usage ring (docs/context_usage_ring_plan.md v2)
+  final ValueNotifier<ContextUsageSnapshot?> contextUsage =
+      ValueNotifier<ContextUsageSnapshot?>(null);
+  Timer? _contextUsageDebounce;
+  int _contextUsageEpoch = 0;
+  bool _contextUsageCatalogRetryScheduled = false;
+  bool _contextUsageReady = false;
+  bool _usageListenersAttached = false;
+  ({String providerKey, String modelId})? _lastUsageModelKey;
 
   // Translations UI state
   final Map<String, TranslationData> _translations =
@@ -623,9 +640,17 @@ class HomePageController extends ChangeNotifier {
       contextProvider: _context,
       getTitleForLocale: _titleForLocale,
     );
+    _contextUsageReady = true;
+    // First ring paint: after the first frame, so provider reads are safe
+    // even when the controller is constructed from initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_disposed) return;
+      unawaited(refreshContextUsage());
+    });
   }
 
   void _wireViewModelCallbacks() {
+    _viewModel.onMessagesChanged = _scheduleContextUsageRefresh;
     _viewModel.onError = (error) {
       final l10n = AppLocalizations.of(_context)!;
       showAppSnackBar(
@@ -686,10 +711,12 @@ class HomePageController extends ChangeNotifier {
     _viewModel.onConversationSwitched = () {
       _restoreMessageUiState();
       _scrollToBottom(animate: false);
+      _scheduleContextUsageRefresh();
     };
     _viewModel.onStreamFinished = () {
       // Trigger UI update when streaming finishes
       notifyListeners();
+      _scheduleContextUsageRefresh();
       try {
         final sp = _context.read<SettingsProvider>();
         if (sp.ttsAutoPlayAssistantReplies && messages.isNotEmpty) {
@@ -1047,6 +1074,7 @@ class HomePageController extends ChangeNotifier {
   Future<void> clearContext() async {
     await _viewModel.clearContext();
     notifyListeners();
+    _scheduleContextUsageRefresh();
   }
 
   /// Compress context: summarize via LLM, create new conversation.
@@ -1060,8 +1088,269 @@ class HomePageController extends ChangeNotifier {
       _translations.clear();
       notifyListeners();
       _scrollToBottomSoon(animate: false);
+      _scheduleContextUsageRefresh();
     }
     return result;
+  }
+
+  // ============================================================================
+  // Context Usage Ring (docs/context_usage_ring_plan.md v2)
+  // ============================================================================
+
+  /// Coalesce bursts of discrete message changes into one refresh.
+  void _scheduleContextUsageRefresh() {
+    if (_disposed || !_contextUsageReady) return;
+    _contextUsageDebounce?.cancel();
+    _contextUsageDebounce = Timer(const Duration(milliseconds: 120), () {
+      unawaited(refreshContextUsage());
+    });
+  }
+
+  /// Recompute the context usage snapshot for the current conversation and
+  /// effective model. Safe to call often: the only await is the learned-window
+  /// lookup, and stale results are discarded via the epoch guard.
+  Future<void> refreshContextUsage() async {
+    if (_disposed || !_contextUsageReady) return;
+    final convo = currentConversation;
+    if (convo == null) {
+      _lastUsageModelKey = null;
+      contextUsage.value = null;
+      return;
+    }
+    final effective = _resolveEffectiveModelKey();
+    if (effective == null) {
+      _lastUsageModelKey = null;
+      contextUsage.value = null;
+      return;
+    }
+    final providerKey = effective.providerKey;
+    final modelId = effective.modelId;
+
+    final settings = _context.read<SettingsProvider>();
+    final cfg = settings.getProviderConfig(providerKey);
+    final learnedPeek = LearnedContextWindows.peek(providerKey, modelId);
+    final catalogWindow = ModelCatalog.instance?.windowTokens(
+      modelId,
+      providerId: cfg.catalogProviderId,
+      host: cfg.catalogHost,
+    );
+
+    final epoch = ++_contextUsageEpoch;
+    _lastUsageModelKey = effective;
+    _attachContextUsageListeners();
+
+    _setContextUsageIfCurrent(
+      epoch: epoch,
+      conversationId: convo.id,
+      modelKey: effective,
+      snapshot: _computeContextUsageSnapshot(
+        settings: settings,
+        conversation: convo,
+        providerKey: providerKey,
+        modelId: modelId,
+        learned: learnedPeek,
+        catalogWindow: catalogWindow,
+      ),
+    );
+
+    // Cold start: peek returns null until the store is loaded.
+    final learned = await LearnedContextWindows.lookup(providerKey, modelId);
+    if (_disposed) return;
+    if (learned == learnedPeek) return; // the lookup taught us nothing new
+    // Re-resolve: a conversation/model switch during the await must discard
+    // this result (a fresh refresh is already scheduled for the new target).
+    if (!contextUsageResultIsCurrent(
+      epoch: epoch,
+      currentEpoch: _contextUsageEpoch,
+      currentConversationId: currentConversation?.id,
+      resultConversationId: convo.id,
+      currentModelKey: _resolveEffectiveModelKey(),
+      resultModelKey: effective,
+    )) {
+      return;
+    }
+    contextUsage.value = _computeContextUsageSnapshot(
+      settings: _context.read<SettingsProvider>(),
+      conversation: convo,
+      providerKey: providerKey,
+      modelId: modelId,
+      learned: learned,
+      catalogWindow: catalogWindow,
+    );
+
+    if (ModelCatalog.instance == null && !_contextUsageCatalogRetryScheduled) {
+      // main.dart gives the catalog a 3s budget; if it missed the deadline,
+      // retry once it lands so the ring does not stay hidden forever.
+      _contextUsageCatalogRetryScheduled = true;
+      unawaited(
+        ModelCatalogService.instance.ensureLoaded().then((_) {
+          _contextUsageCatalogRetryScheduled = false;
+          if (!_disposed) _scheduleContextUsageRefresh();
+        }),
+      );
+    }
+  }
+
+  /// Effective model for the current conversation — must mirror the
+  /// send/regenerate path, including the AI Team aggregator override.
+  ({String providerKey, String modelId})? _resolveEffectiveModelKey() {
+    try {
+      final convo = currentConversation;
+      final settings = _context.read<SettingsProvider>();
+      final ap = _context.read<AssistantProvider>();
+      final assistant = (convo == null || convo.assistantId == null)
+          ? ap.currentAssistant
+          : ap.getById(convo.assistantId!);
+      final mc = _messageGenerationService.getModelConfig(settings, assistant);
+      var providerKey = mc.providerKey;
+      var modelId = mc.modelId;
+      try {
+        final aiTeam = _context.read<AiTeamProvider>();
+        final aggregator = aiTeam.aggregator;
+        if (aiTeam.enabled && aggregator != null) {
+          providerKey = aggregator.providerKey;
+          modelId = aggregator.modelId;
+        }
+      } catch (_) {
+        // AI Team unavailable (early init / tests) — base config applies.
+      }
+      if (providerKey == null ||
+          providerKey.isEmpty ||
+          modelId == null ||
+          modelId.isEmpty) {
+        return null;
+      }
+      return (providerKey: providerKey, modelId: modelId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  ContextUsageSnapshot _computeContextUsageSnapshot({
+    required SettingsProvider settings,
+    required Conversation conversation,
+    required String providerKey,
+    required String modelId,
+    required int? learned,
+    required int? catalogWindow,
+  }) {
+    final messages = this.messages;
+    String? streamingMessageId;
+    for (var i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].isStreaming) {
+        streamingMessageId = messages[i].id;
+        break;
+      }
+    }
+    return computeContextUsage(
+      rawMessages: messages,
+      versionSelections: versionSelections,
+      truncateIndex: conversation.truncateIndex,
+      compactBeforeIndex: conversation.compactBeforeIndex,
+      enableAutoCompaction: settings.autoCompactionV1,
+      learnedWindowTokens: learned,
+      catalogWindowTokens: catalogWindow,
+      currentModelId: modelId,
+      currentProviderKey: providerKey,
+      streamingMessageId: streamingMessageId,
+      collapseVersions: _messageBuilderService.collapseVersions,
+      estimateMessageTokens: (m) => estimateChatMessageTokens(
+        m,
+        toolEvents: settings.replayToolResults
+            ? _chatService.getToolEvents(m.id)
+            : const <Map<String, dynamic>>[],
+      ),
+      estimateCompactedHeadTokens: (head) =>
+          _estimateCompactedHeadTokens(head, settings, providerKey),
+    );
+  }
+
+  /// Estimate the compacted head as one `<conversation_summary>` message,
+  /// mirroring `MessageBuilderService.buildApiMessages` (same neutral
+  /// assembly + `compactHistoryMessages`). Returns 0 when no summary would be
+  /// produced — the real request then has no head either.
+  int _estimateCompactedHeadTokens(
+    List<ChatMessage> head,
+    SettingsProvider settings,
+    String providerKey,
+  ) {
+    try {
+      final cfg = settings.getProviderConfig(providerKey);
+      final isGoogle =
+          ProviderConfig.classify(cfg.id, explicitType: cfg.providerType) ==
+              ProviderKind.google;
+      final api = _messageBuilderService.neutralMessagesFor(
+        head,
+        settings.replayToolResults,
+        includeGeminiThoughtSignatures: isGoogle,
+      );
+      final summary = compactHistoryMessages(api);
+      if (summary == null) return 0;
+      return estimateApiMessageTokens(summary);
+    } catch (_) {
+      // Estimation must never break the chat surface.
+      return 0;
+    }
+  }
+
+  /// Push a snapshot only if this refresh is still the newest one for the
+  /// same conversation and effective model (guards the async learned-window
+  /// lookup against stale writes after a switch).
+  void _setContextUsageIfCurrent({
+    required int epoch,
+    required String conversationId,
+    required ({String providerKey, String modelId}) modelKey,
+    required ContextUsageSnapshot snapshot,
+  }) {
+    if (_disposed) return;
+    if (!contextUsageResultIsCurrent(
+      epoch: epoch,
+      currentEpoch: _contextUsageEpoch,
+      currentConversationId: currentConversation?.id,
+      resultConversationId: conversationId,
+      currentModelKey: _lastUsageModelKey,
+      resultModelKey: modelKey,
+    )) {
+      return;
+    }
+    contextUsage.value = snapshot; // ValueNotifier compares with ==
+  }
+
+  void _attachContextUsageListeners() {
+    if (_usageListenersAttached || _disposed) return;
+    _usageListenersAttached = true;
+    try {
+      _context
+          .read<SettingsProvider>()
+          .addListener(_onModelIdentityMaybeChanged);
+      _context
+          .read<AssistantProvider>()
+          .addListener(_onModelIdentityMaybeChanged);
+      _context.read<AiTeamProvider>().addListener(_onModelIdentityMaybeChanged);
+    } catch (_) {
+      // Providers unavailable (tests / early teardown) — the ring still
+      // refreshes from the discrete callbacks.
+    }
+  }
+
+  void _onModelIdentityMaybeChanged() {
+    if (_disposed || !_contextUsageReady) return;
+    final key = _resolveEffectiveModelKey();
+    if (key == null) {
+      // Model deselected (or providers unavailable): clear a stale ring once.
+      if (_lastUsageModelKey != null || contextUsage.value != null) {
+        _lastUsageModelKey = null;
+        _scheduleContextUsageRefresh();
+      }
+      return;
+    }
+    final last = _lastUsageModelKey;
+    if (last != null &&
+        last.providerKey == key.providerKey &&
+        last.modelId == key.modelId) {
+      return;
+    }
+    _scheduleContextUsageRefresh();
   }
 
   // ============================================================================
@@ -1788,6 +2077,23 @@ class HomePageController extends ChangeNotifier {
     try {
       _chatActionSub?.cancel();
     } catch (_) {}
+    if (_usageListenersAttached) {
+      try {
+        _context
+            .read<SettingsProvider>()
+            .removeListener(_onModelIdentityMaybeChanged);
+        _context
+            .read<AssistantProvider>()
+            .removeListener(_onModelIdentityMaybeChanged);
+        _context
+            .read<AiTeamProvider>()
+            .removeListener(_onModelIdentityMaybeChanged);
+      } catch (_) {}
+    }
+    _contextUsageReady = false;
+    _contextUsageDebounce?.cancel();
+    _contextUsageEpoch++;
+    contextUsage.dispose();
     _chatController.dispose();
     _streamController.dispose();
     super.dispose();

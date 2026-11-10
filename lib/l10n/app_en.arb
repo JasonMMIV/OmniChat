@@ -2939,5 +2939,6 @@
   "devPreviewConsoleClose": "Hide console",
   "devPreviewViewportDesktop": "Desktop",
   "devPreviewViewportTablet": "Tablet",
-  "devPreviewViewportMobile": "Phone"
+  "devPreviewViewportMobile": "Phone",
+  "contextUsageEstimatedBadge": "≈ estimated"
 }

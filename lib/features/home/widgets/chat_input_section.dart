@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/models/chat_input_data.dart';
@@ -16,6 +17,7 @@ import '../../../core/services/api/builtin_tools.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/todo_models.dart';
 import '../../../desktop/desktop_context_menu.dart';
+import '../services/context_usage_service.dart';
 import '../utils/model_display_helper.dart';
 import 'chat_input_bar.dart';
 import 'model_icon.dart';
@@ -70,6 +72,7 @@ class ChatInputSection extends StatelessWidget {
     this.onToggleAiTeam,
     this.onClearContext,
     this.onCompressContext,
+    this.contextUsage,
     this.isDictating = false,
     this.dictationPaused = false,
     this.onStartDictation,
@@ -115,6 +118,10 @@ class ChatInputSection extends StatelessWidget {
   final VoidCallback? onToggleAiTeam;
   final VoidCallback? onClearContext;
   final VoidCallback? onCompressContext;
+
+  /// Context usage ring source (null = feature off / not wired).
+  final ValueListenable<ContextUsageSnapshot?>? contextUsage;
+
   final bool isDictating;
   final bool dictationPaused;
   final VoidCallback? onStartDictation;
@@ -245,6 +252,7 @@ class ChatInputSection extends StatelessWidget {
       showMoreButton: !isTablet,
       onClearContext: isTablet ? onClearContext : null,
       onCompressContext: isTablet ? onCompressContext : null,
+      contextUsage: contextUsage,
       isEditing: isEditing,
       onCancelEdit: onCancelEdit,
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:ui' as ui;
 import 'dart:math' as math;
 import '../../../theme/design_tokens.dart';
@@ -31,6 +32,8 @@ import 'package:super_clipboard/super_clipboard.dart';
 import '../../../desktop/desktop_context_menu.dart';
 import '../../../core/services/haptics.dart';
 import '../utils/chat_input_button_catalog.dart';
+import '../services/context_usage_service.dart';
+import 'context_usage_ring.dart';
 
 // Desktop context menu actions for right-click on the input field
 enum _DesktopTextMenuAction { paste, cut, copy, selectAll }
@@ -147,6 +150,7 @@ class ChatInputBar extends StatefulWidget {
     this.isEditing = false,
     this.onCancelEdit,
     this.audioInputSupported = true,
+    this.contextUsage,
   });
 
   final ValueChanged<ChatInputData>? onSend;
@@ -173,6 +177,9 @@ class ChatInputBar extends StatefulWidget {
   /// (2026-11-10: the MCP button grew into the Add-ons menu.)
   final bool addonsActive;
   final bool searchEnabled;
+
+  /// Context usage ring source; null = the ring feature is off here.
+  final ValueListenable<ContextUsageSnapshot?>? contextUsage;
   final VoidCallback? onPickCamera;
   final VoidCallback? onPickPhotos;
   final VoidCallback? onUploadFiles;
@@ -1388,9 +1395,19 @@ class _ChatInputBarState extends State<ChatInputBar>
 
           if (widget.onClearContext != null) {
             void showContextMenu() {
+              final usage = widget.contextUsage?.value;
+              final hasUsageWindow = usage != null && usage.hasWindow;
               showDesktopAnchoredMenu(
                 context,
                 anchorKey: _contextMgmtAnchorKey,
+                header: hasUsageWindow
+                    ? ContextUsageMenuHeader(
+                        listenable: widget.contextUsage!,
+                        showDivider: true,
+                      )
+                    : null,
+                headerHeight: 56,
+                minMenuWidth: hasUsageWindow ? 240 : null,
                 items: [
                   if (widget.onCompressContext != null)
                     DesktopContextMenuItem(
@@ -1423,6 +1440,27 @@ class _ChatInputBarState extends State<ChatInputBar>
                     tooltip: l10n.contextManagement,
                     icon: Lucide.workflow,
                     onTap: showContextMenu,
+                    childBuilder: widget.contextUsage == null
+                        ? null
+                        : (c) => ValueListenableBuilder<ContextUsageSnapshot?>(
+                              valueListenable: widget.contextUsage!,
+                              builder: (_, usage, __) {
+                                if (usage == null || !usage.hasWindow) {
+                                  return Icon(Lucide.workflow, size: 24, color: c);
+                                }
+                                // Center: the slot's tight 24px constraints
+                                // would otherwise stretch the 20px ring.
+                                return Center(
+                                  child: ContextUsageRing(
+                                    ratio: usage.ratio,
+                                    size: 20,
+                                    strokeWidth: 2.6,
+                                    running: widget.loading,
+                                    trackColor: c.withValues(alpha: 0.12),
+                                  ),
+                                );
+                              },
+                            ),
                   ),
                 ),
                 menu: DesktopContextMenuItem(

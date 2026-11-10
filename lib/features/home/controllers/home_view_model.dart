@@ -170,6 +170,12 @@ class HomeViewModel extends ChangeNotifier {
   /// Called when conversation is successfully switched (for animations).
   VoidCallback? onConversationSwitched;
 
+  /// Called when the message list actually changed (message add/delete, tool
+  /// events, version switch, turn completion). Discrete by design — streaming
+  /// content updates go through StreamingContentNotifier and deliberately do
+  /// NOT fire this (chat_actions.dart "Do NOT call onMessagesChanged").
+  VoidCallback? onMessagesChanged;
+
   // ============================================================================
   // State Getters (delegate to ChatController)
   // ============================================================================
@@ -201,6 +207,7 @@ class HomeViewModel extends ChangeNotifier {
 
   void _onMessagesChanged() {
     notifyListeners();
+    onMessagesChanged?.call();
   }
 
   void _onLoadingChanged(String conversationId, bool loading) {

@@ -1105,6 +1105,7 @@ class _HomePageState extends State<HomePage>
       mediaController: _mediaController,
       isTablet: isTablet,
       isLoading: _controller.isCurrentConversationLoading,
+      contextUsage: _controller.contextUsage,
       isToolModel: _controller.isToolModel,
       isReasoningModel: _controller.isReasoningModel,
       isReasoningEnabled: _controller.isReasoningEnabled,
@@ -1546,6 +1547,9 @@ class _HomePageState extends State<HomePage>
 
   void _showContextManagementSheet() async {
     final cs = Theme.of(context).colorScheme;
+    // Refresh first so the usage header does not pop in after the sheet opens.
+    await _controller.refreshContextUsage();
+    if (!mounted) return;
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1557,6 +1561,7 @@ class _HomePageState extends State<HomePage>
         return SafeArea(
           top: false,
           child: ContextManagementSheet(
+            contextUsage: _controller.contextUsage,
             clearLabel: _controller.clearContextLabel(),
             onCompress: () async {
               await Navigator.of(ctx).maybePop();
