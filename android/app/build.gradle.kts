@@ -29,11 +29,12 @@ android {
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         // Releases are universal APKs. Legacy `--split-per-abi` builds used
-        // versionCode + 1000/2000/4000 for arm32/arm64/x86_64, so a plain
-        // universal code (110) is treated as a downgrade by devices that
-        // installed an ABI split. Keep the universal code above that legacy
-        // range while preserving the semantic build number in pubspec.yaml.
-        versionCode = flutter.versionCode + 5000
+        // versionCode + 1000/2000/4000 for arm32/arm64/x86_64, and a 1.28.0
+        // build shipped with 7112, so a plain universal code (112) is treated
+        // as a downgrade by devices that installed either one. Keep the
+        // universal code above every code already seen on devices while
+        // preserving the semantic build number in pubspec.yaml.
+        versionCode = flutter.versionCode + 8000
         versionName = flutter.versionName
     }
 
