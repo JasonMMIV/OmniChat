@@ -165,27 +165,30 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
     }
   }
 
-  Future<void> _setWorkspaceConfig(WorkspaceConfig config) async {
-    await _chatService.setConversationWorkspaceConfig(
-      widget.conversationId,
-      config,
-    );
-    if (mounted) await _close();
-  }
-
   Future<void> _openDirectorySheet() async {
     if (_closing || _busy) return;
+    // This popover is an OverlayEntry above the navigator: a dialog opened
+    // while it is still inserted renders behind the panel, so taps on the
+    // dialog hit the panel instead. Close the panel first and open the
+    // directory sheet from the navigator (same fix as the Add-ons menu,
+    // Windows feedback 2026-11-10). Cancelling the sheet therefore returns
+    // to the chat with the panel closed. The popover state is unmounted by
+    // the close, so capture the service/id before awaiting the sheet.
+    final service = _chatService;
+    final conversationId = widget.conversationId;
     final initial =
-        _chatService.getConversationWorkspaceConfig(
-          widget.conversationId,
-        ) ??
+        service.getConversationWorkspaceConfig(conversationId) ??
         const WorkspaceConfig.inheritProject();
+    final navigator = Navigator.of(context);
+    await _close();
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    if (!navigator.mounted) return;
     final result = await showConversationWorkspaceModeSheet(
-      context,
+      navigator.context,
       initial: initial,
     );
-    if (result == null || !mounted) return;
-    await _setWorkspaceConfig(result);
+    if (result == null) return;
+    await service.setConversationWorkspaceConfig(conversationId, result);
   }
 
   Future<void> _openToolsPage() async {
