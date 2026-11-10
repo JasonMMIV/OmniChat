@@ -48,7 +48,7 @@ class ImageSearchMcpServerEngine {
   /// request (defense-in-depth; same guard as web fetch).
   final SsrfGuard _ssrfGuard = SsrfGuard();
 
-  static const String serverName = 'Image_Search';
+  static const String serverName = 'Illustrate';
   static const String toolName = 'illustrate';
 
   /// Legacy model-facing name. Never advertised by tools/list; accepted by
@@ -451,7 +451,7 @@ class ImageSearchMcpServerEngine {
             '\n'
             'Rules:\n'
             '- Only use URLs returned by this tool. Never invent or guess an image URL.\n'
-            '- Embed each image as ![alt](<url>) immediately after the sentence it illustrates.\n'
+            '- Embed each image as ![alt](url) immediately after the sentence it illustrates.\n'
             '- Prefer thumbnail_url for embedding; image_url is the original.\n'
             '- A maximum of 5 validated URLs are returned regardless of max_results.',
         'inputSchema': {

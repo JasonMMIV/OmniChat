@@ -17,6 +17,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import '../../utils/sandbox_path_resolver.dart';
+import '../../utils/markdown_media_sanitizer.dart';
 import '../../utils/markdown_preview_html.dart';
 import '../../features/chat/pages/image_viewer_page.dart';
 import '../../features/chat/pages/html_preview_page.dart';
@@ -1014,6 +1015,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
   }
 
   static String _sanitizeImageLinks(String input) {
+    input = MarkdownMediaSanitizer.stripImageDestinationAngleBrackets(input);
     final re = RegExp(r'!\[([^\]]*)\]\(([^)]+)\)', multiLine: true);
     return input.replaceAllMapped(re, (m) {
       final alt = m.group(1) ?? '';

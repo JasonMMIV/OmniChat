@@ -96,8 +96,9 @@ Future<void> main() async {
       try {
         await McpProvider.applyLegacyFetchMigration();
       } catch (_) {}
-      // Rename the retired built-in `image_search` tool entry to `illustrate`
-      // before any provider lists tools (see McpProvider migration docs).
+      // Rename the built-in image server (`Image_Search` → `Illustrate`) and
+      // its tool (`image_search` → `illustrate`) before any provider lists
+      // tools (see McpProvider migration docs).
       try {
         await McpProvider.migrateBuiltinImageSearchToolName();
       } catch (_) {}

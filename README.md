@@ -134,13 +134,13 @@ Select any combination of search providers and let OmniChat dispatch every searc
 
 Zero-config, key-free image retrieval — the AI embeds images of people, products, landmarks, and animals directly into its replies:
 
-- **Built-In & Ready**: An in-memory MCP server (`Image_Search`) ships with OmniChat and exposes a single `illustrate(query, max_results)` tool (1–15 results).
+- **Built-In & Ready**: An in-memory MCP server (`Illustrate`) ships with OmniChat and exposes a single `illustrate(query, max_results)` tool (1–15 results).
 - **Inline Markdown Images**: Results are inserted straight into the reply as `![alt](url)` — no files ever touch your disk.
 - **Dual Backends**: DuckDuckGo's image index is queried first; Wikimedia Commons (including author and license info) automatically takes over when results are empty or unusable.
 - **Dead-Link Filtering**: Top candidate thumbnails are HEAD-verified (HTTP 200 + image content type) before the model ever sees them.
 
 <p align="center">
-  <img src="Screenshots/Builtin_Image_Search.jpg" alt="Built-in Image Search MCP Server" width="300" />
+  <img src="Screenshots/Builtin_Image_Search.jpg" alt="Built-in Illustrate MCP Server" width="300" />
 </p>
 
 ---

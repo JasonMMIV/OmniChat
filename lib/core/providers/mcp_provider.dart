@@ -332,14 +332,16 @@ class McpProvider extends ChangeNotifier {
     }
   }
 
-  /// One-time rename of the built-in image search tool entry persisted under
-  /// `mcp_servers_v1` (2026-11-10: `image_search` → `illustrate`).
+  /// One-time rename of the built-in image search server/tool entry persisted
+  /// under `mcp_servers_v1` (2026-11-10: server `Image_Search` → `Illustrate`,
+  /// tool `image_search` → `illustrate`).
   ///
   /// `refreshTools()` merges by tool name and defaults NEW tools to
   /// `enabled: true`, so without this migration a user who had the old tool
   /// toggled OFF would silently get it re-enabled after the rename. Scoped to
-  /// the built-in server by canonical id (`image_search`) so third-party
-  /// servers are never touched. Idempotent; writes prefs only when changed.
+  /// the built-in server by canonical id (`image_search`) or its legacy
+  /// display name (`Image_Search`) so third-party servers are never touched.
+  /// Idempotent; writes prefs only when changed.
   static Future<void> migrateBuiltinImageSearchToolName() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_prefsKey);
@@ -358,7 +360,21 @@ class McpProvider extends ChangeNotifier {
     for (final item in list) {
       if (item is! Map) continue;
       final server = item.cast<String, dynamic>();
-      if (server['id']?.toString() != builtinImageSearchServerId) continue;
+      final serverId = server['id']?.toString() ?? '';
+      final serverName = server['name']?.toString() ?? '';
+      if (serverId != builtinImageSearchServerId &&
+          serverName != legacyImageSearchServerName) {
+        continue;
+      }
+
+      // The MCP page shows the server name, not the tool name. Rename the
+      // display name too so existing installs stop showing `Image_Search`.
+      // A user-customized name is preserved.
+      if (serverName == legacyImageSearchServerName || serverName.isEmpty) {
+        server['name'] = builtinImageSearchServerName;
+        changed = true;
+      }
+
       final tools = server['tools'];
       if (tools is! List) continue;
       // If the new name is already present (hand-edited JSON import), skip:
@@ -395,26 +411,34 @@ class McpProvider extends ChangeNotifier {
   static McpServerConfig _migrateBuiltinImageSearchToolNames(
     McpServerConfig server,
   ) {
-    if (server.id != builtinImageSearchServerId) return server;
-    if (server.tools.isEmpty) return server;
-    if (server.tools.any(
-      (t) => t.name == ImageSearchMcpServerEngine.toolName,
-    )) {
+    if (server.id != builtinImageSearchServerId &&
+        server.name != legacyImageSearchServerName) {
       return server;
     }
     var changed = false;
-    final tools = server.tools.map((t) {
-      if (t.name != ImageSearchMcpServerEngine.legacyToolName) return t;
+    var migrated = server;
+    if (migrated.name == legacyImageSearchServerName || migrated.name.isEmpty) {
+      migrated = migrated.copyWith(name: builtinImageSearchServerName);
       changed = true;
-      return McpToolConfig(
-        enabled: t.enabled,
-        name: ImageSearchMcpServerEngine.toolName,
-        description: t.description,
-        params: t.params,
-        schema: t.schema,
-      );
-    }).toList();
-    return changed ? server.copyWith(tools: tools) : server;
+    }
+    if (migrated.tools.isNotEmpty &&
+        !migrated.tools.any(
+          (t) => t.name == ImageSearchMcpServerEngine.toolName,
+        )) {
+      final tools = migrated.tools.map((t) {
+        if (t.name != ImageSearchMcpServerEngine.legacyToolName) return t;
+        changed = true;
+        return McpToolConfig(
+          enabled: t.enabled,
+          name: ImageSearchMcpServerEngine.toolName,
+          description: t.description,
+          params: t.params,
+          schema: t.schema,
+        );
+      }).toList();
+      migrated = migrated.copyWith(tools: tools);
+    }
+    return changed ? migrated : server;
   }
 
   Future<void> _load() async {
@@ -431,7 +455,13 @@ class McpProvider extends ChangeNotifier {
         final list = (jsonDecode(raw) as List)
             .map((e) => McpServerConfig.fromJson((e as Map).cast<String, dynamic>()))
             .toList();
-        _servers = list;
+        _servers = list.map((s) {
+          if (s.name == legacyImageSearchServerName ||
+              (s.id == builtinImageSearchServerId && s.name.isEmpty)) {
+            return s.copyWith(name: builtinImageSearchServerName);
+          }
+          return s;
+        }).toList();
       } catch (_) {}
     }
 
@@ -473,7 +503,7 @@ class McpProvider extends ChangeNotifier {
     _ensureBuiltinJsServerPresent();
     // Ensure built-in academic (PubMed / arXiv / Semantic Scholar) is present by default
     _ensureBuiltinAcademicServerPresent();
-    // Ensure built-in Image_Search is present by default (web image search)
+    // Ensure built-in Illustrate (web image search) is present by default
     _ensureBuiltinImageSearchServerPresent();
     // initialize statuses
     for (final s in _servers) {
@@ -523,21 +553,27 @@ class McpProvider extends ChangeNotifier {
     _servers = [..._servers, cfg];
   }
 
-  /// Built-in image search server (Image_Search) exposing an `illustrate`
+  /// Built-in image server (Illustrate) exposing an `illustrate`
   /// tool for web image search (DuckDuckGo images + Wikimedia Commons
   /// fallback). In-memory transport, works on every platform including Android.
   /// No configuration / API keys required; free backends only.
   static const String builtinImageSearchServerId = 'image_search';
+  static const String builtinImageSearchServerName =
+      ImageSearchMcpServerEngine.serverName;
+  static const String legacyImageSearchServerName = 'Image_Search';
 
   void _ensureBuiltinImageSearchServerPresent() {
     final exists = _servers.any(
-      (s) => s.id == builtinImageSearchServerId || s.name == 'Image_Search',
+      (s) =>
+          s.id == builtinImageSearchServerId ||
+          s.name == builtinImageSearchServerName ||
+          s.name == legacyImageSearchServerName,
     );
     if (exists) return;
     final cfg = McpServerConfig(
       id: builtinImageSearchServerId,
       enabled: true,
-      name: 'Image_Search',
+      name: builtinImageSearchServerName,
       transport: McpTransportType.inmemory,
       tools: const <McpToolConfig>[], // will refresh on connect
     );
@@ -667,9 +703,11 @@ class McpProvider extends ChangeNotifier {
               academicEnabled = (cfg['isActive'] as bool?) ?? true;
               return;
             }
+            final nameLower = name.toLowerCase();
             if (id == builtinImageSearchServerId ||
-                name.contains('image_search') ||
-                name.contains('image search')) {
+                nameLower.contains('image_search') ||
+                nameLower.contains('image search') ||
+                nameLower.contains('illustrate')) {
               imageSearchEnabled = (cfg['isActive'] as bool?) ?? true;
               return;
             }
@@ -754,7 +792,7 @@ class McpProvider extends ChangeNotifier {
         next.add(McpServerConfig(
           id: builtinImageSearchServerId,
           enabled: imageSearchEnabled ?? true,
-          name: 'Image_Search',
+          name: builtinImageSearchServerName,
           transport: McpTransportType.inmemory,
         ));
         if (fetchSeen) {
@@ -975,7 +1013,8 @@ class McpProvider extends ChangeNotifier {
           final engine = AcademicMcpServerEngine();
           transport = AcademicInMemoryClientTransport(engine);
         } else if (server.id == builtinImageSearchServerId ||
-            server.name == 'Image_Search') {
+            server.name == builtinImageSearchServerName ||
+            server.name == legacyImageSearchServerName) {
           final engine = ImageSearchMcpServerEngine();
           transport = ImageSearchInMemoryClientTransport(engine);
         } else {

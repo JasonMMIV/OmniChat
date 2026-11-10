@@ -8,10 +8,11 @@ import 'package:OmniChat/core/providers/mcp_provider.dart';
 Map<String, dynamic> _server({
   required String id,
   required List<Map<String, dynamic>> tools,
+  String? name,
 }) => {
       'id': id,
       'enabled': true,
-      'name': id == 'image_search' ? 'Image_Search' : 'Third_Party',
+      'name': name ?? (id == 'image_search' ? 'Image_Search' : 'Third_Party'),
       'transport': 'inmemory',
       'tools': tools,
     };
@@ -43,7 +44,9 @@ void main() {
       await McpProvider.migrateBuiltinImageSearchToolName();
 
       final stored = jsonDecode((await _storedRaw())!) as List;
-      final tools = (stored.first as Map)['tools'] as List;
+      final server = stored.first as Map;
+      expect(server['name'], 'Illustrate');
+      final tools = server['tools'] as List;
       expect(tools, hasLength(1));
       expect((tools.first as Map)['name'], 'illustrate');
       expect((tools.first as Map)['enabled'], isFalse);
@@ -54,6 +57,7 @@ void main() {
       final raw = jsonEncode(<Map<String, dynamic>>[
         _server(
           id: 'image_search',
+          name: 'Illustrate',
           tools: [_tool('illustrate', enabled: false)],
         ),
       ]);
@@ -78,7 +82,56 @@ void main() {
 
       await McpProvider.migrateBuiltinImageSearchToolName();
 
-      expect(await _storedRaw(), raw);
+      final stored = jsonDecode((await _storedRaw())!) as List;
+      final server = stored.first as Map;
+      expect(server['name'], 'Illustrate');
+      final tools = server['tools'] as List;
+      expect(tools, hasLength(2));
+      expect(
+        tools.map((t) => (t as Map)['name']),
+        containsAll(<String>['image_search', 'illustrate']),
+      );
+    });
+
+    test('preserves a user-customized server display name', () async {
+      final raw = jsonEncode(<Map<String, dynamic>>[
+        _server(
+          id: 'image_search',
+          name: 'My Images',
+          tools: [_tool('image_search', enabled: false)],
+        ),
+      ]);
+      SharedPreferences.setMockInitialValues({'mcp_servers_v1': raw});
+
+      await McpProvider.migrateBuiltinImageSearchToolName();
+
+      final stored = jsonDecode((await _storedRaw())!) as List;
+      final server = stored.first as Map;
+      expect(server['name'], 'My Images');
+      final tools = server['tools'] as List;
+      expect((tools.first as Map)['name'], 'illustrate');
+      expect((tools.first as Map)['enabled'], isFalse);
+    });
+
+    test('renames a legacy entry identified only by its display name',
+        () async {
+      final raw = jsonEncode(<Map<String, dynamic>>[
+        _server(
+          id: 'legacy_imported_id',
+          name: 'Image_Search',
+          tools: [_tool('image_search', enabled: false)],
+        ),
+      ]);
+      SharedPreferences.setMockInitialValues({'mcp_servers_v1': raw});
+
+      await McpProvider.migrateBuiltinImageSearchToolName();
+
+      final stored = jsonDecode((await _storedRaw())!) as List;
+      final server = stored.first as Map;
+      expect(server['name'], 'Illustrate');
+      final tools = server['tools'] as List;
+      expect((tools.first as Map)['name'], 'illustrate');
+      expect((tools.first as Map)['enabled'], isFalse);
     });
 
     test('never touches a third-party server exposing image_search', () async {
@@ -108,7 +161,10 @@ void main() {
 
       await McpProvider.migrateBuiltinImageSearchToolName();
 
-      expect(await _storedRaw(), raw);
+      final stored = jsonDecode((await _storedRaw())!) as List;
+      final server = stored.first as Map;
+      expect(server['name'], 'Illustrate');
+      expect(server.containsKey('tools'), isFalse);
     });
 
     test('ignores malformed JSON safely', () async {

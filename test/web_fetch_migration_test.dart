@@ -132,6 +132,7 @@ void main() {
       expect(byId['run_js']!.enabled, isTrue);
       expect(byId['academic_search']!.enabled, isFalse);
       expect(byId['image_search']!.enabled, isTrue);
+      expect(byId['image_search']!.name, 'Illustrate');
 
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getBool(SettingsProvider.webFetchEnabledKey), isFalse);

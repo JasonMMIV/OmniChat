@@ -134,13 +134,13 @@ OmniChat 是一款現代化、功能豐富的 AI 聊天軟體，專為文字檔�
 
 零設定、零金鑰的圖片檢索 — 讓 AI 將人物、商品、地標與動物的圖片直接嵌入回覆中：
 
-- **內建即用**：OmniChat 內建 in-memory MCP Server（`Image_Search`），提供單一 `illustrate(query, max_results)` 工具（1–15 筆結果）。
+- **內建即用**：OmniChat 內建 in-memory MCP Server（`Illustrate`），提供單一 `illustrate(query, max_results)` 工具（1–15 筆結果）。
 - **即時內嵌圖片**：搜尋結果直接以 `![alt](url)` 插入回覆中 — 不落地任何檔案。
 - **雙後端來源**：優先查詢 DuckDuckGo 圖片索引；結果為空或不可用時自動改用 Wikimedia Commons（附作者與授權資訊）。
 - **死連結過濾**：前幾筆候選縮圖先經 HEAD 驗證（HTTP 200 + 圖片類型），確保模型看到的都是有效圖片。
 
 <p align="center">
-  <img src="Screenshots/Builtin_Image_Search.jpg" alt="內建圖片搜尋 MCP Server" width="300" />
+  <img src="Screenshots/Builtin_Image_Search.jpg" alt="內建 Illustrate MCP Server" width="300" />
 </p>
 
 ---

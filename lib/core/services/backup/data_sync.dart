@@ -1549,8 +1549,8 @@ class DataSync {
     try {
       await McpProvider.applyLegacyFetchMigration();
     } catch (_) {}
-    // A backup may also carry the pre-rename `image_search` tool entry; keep
-    // its toggle state when renaming it to `illustrate`.
+    // A backup may also carry the pre-rename image server entry; keep its
+    // toggle state when renaming it to `Illustrate` / `illustrate`.
     try {
       await McpProvider.migrateBuiltinImageSearchToolName();
     } catch (_) {}

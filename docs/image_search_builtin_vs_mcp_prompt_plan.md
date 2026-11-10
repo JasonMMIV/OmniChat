@@ -5,13 +5,13 @@
 > **範圍**：`image_search` 的工具註冊、system-prompt 注入、設定 UI、遷移／備份、測試  
 > **非目標**：不改寫 §3.14 agent loop kernel；不新增通用 MCP 管理 UI；不動 voice path  
 > **重要前提**：使用者已實測「MCP server/tool 開啟、助手有綁定、連線正常時，模型看得到 `image_search`」。本文因此把「工具可見性」與「模型呼叫率」分開處理，不再假設工具被隱藏。  
-> **本次定案**：保留 tool description 的「格式／參數／URL 規則」，把「何時用／何時不用／要幾張」搬到 system prompt；圖片張數**不設硬上限**。工具名稱定案為 **`illustrate`**（目的導向「為回答配圖」；MCP server id／顯示名維持 `image_search`／`Image_Search`，`tools/call` 接受舊名 alias，見 §15.9）。
+> **本次定案**：保留 tool description 的「格式／參數／URL 規則」，把「何時用／何時不用／要幾張」搬到 system prompt；圖片張數**不設硬上限**。工具名稱定案為 **`illustrate`**（目的導向「為回答配圖」；MCP server id 維持 `image_search`、顯示名改為 `Illustrate`，`tools/call` 接受舊名 alias，見 §15.9）。
 
 ---
 
 ## 0. 執行摘要
 
-目前 `image_search` 是 built-in in-memory MCP server（顯示名 `Image_Search`、內部 id `image_search`），由 `McpProvider._ensureBuiltinImageSearchServerPresent()` 保證存在；工具定義經 `McpToolService.listAvailableToolsForAssistant()` → `ToolHandlerService.buildToolDefinitions()` 進入請求。
+目前 `image_search` 是 built-in in-memory MCP server（顯示名 `Illustrate`、內部 id `image_search`），由 `McpProvider._ensureBuiltinImageSearchServerPresent()` 保證存在；工具定義經 `McpToolService.listAvailableToolsForAssistant()` → `ToolHandlerService.buildToolDefinitions()` 進入請求。
 
 使用者實測顯示：**只要工具真的被廣告，模型就看得到**。因此目前的核心問題是行為層——模型看見工具，但沒有穩定地主動呼叫；不是工具被隱藏。
 
@@ -132,7 +132,7 @@ buildToolDefinitions()
 | 工具 identity：搜尋網路圖片、回傳 direct URL | description | 模型需要知道工具存在與用途 |
 | 參數：`query`、`max_results` | description | schema 本來就該在 tool definition |
 | 結果格式：`items[]` 欄位 | description | 模型要知道怎麼讀結果 |
-| URL 規則：只用回傳 URL、不得自創、`![alt](<url>)`、優先 `thumbnail_url` | description | 與工具輸出格式直接相關 |
+| URL 規則：只用回傳 URL、不得自創、`![alt](url)`、優先 `thumbnail_url` | description | 與工具輸出格式直接相關 |
 | 何時用 | system prompt | 使用政策，權重高於 tool description |
 | 何時不用 | system prompt | 避免過度觸發 |
 | 要幾張／每主體一張／不重複／不裝飾 | system prompt | 回答層級政策 |
@@ -150,7 +150,7 @@ source_url, author, license, backend.
 
 Rules:
 - Only use URLs returned by this tool. Never invent or guess an image URL.
-- Embed each image as ![alt](<url>) immediately after the sentence it illustrates.
+- Embed each image as ![alt](url) immediately after the sentence it illustrates.
 - Prefer thumbnail_url for embedding; image_url is the original.
 - A maximum of 5 validated URLs are returned regardless of max_results.
 ```
@@ -201,7 +201,7 @@ How many:
 Rules:
 - Use only URLs returned by the tool. Never invent or guess an image URL.
 - Prefer `thumbnail_url` for embedding; use `image_url` for the original.
-- Embed each image right after the sentence it illustrates: ![alt](<url>).
+- Embed each image right after the sentence it illustrates: ![alt](url).
 - Verify the returned title matches the intended subject before using it.
 - Mention the source (and author/license for Wikimedia results) when appropriate.
 - If the tool fails or returns nothing useful, continue without images;
@@ -268,7 +268,7 @@ class ImageSearchTool {
             'Rules:\n'
             '- Only use URLs returned by this tool. Never invent or guess an '
             'image URL.\n'
-            '- Embed each image as ![alt](<url>) immediately after the sentence '
+            '- Embed each image as ![alt](url) immediately after the sentence '
             'it illustrates.\n'
             '- Prefer thumbnail_url for embedding; image_url is the original.\n'
             '- A maximum of 5 validated URLs are returned regardless of '
@@ -450,7 +450,7 @@ UI 放「搜尋服務」頁的 Web Fetch 區塊旁（手機版 search settings s
 
 ### 4.1 架構
 
-不改變 `Image_Search` 的 MCP server 身分，只在 prompt 組裝層加一個純函式 registry：
+不改變 `image_search` 的 MCP server id（顯示名改為 `Illustrate`），只在 prompt 組裝層加一個純函式 registry：
 
 ```text
 buildToolDefinitions()
@@ -580,7 +580,7 @@ class McpServerConfig {
 
 ### 5.3 UI
 
-`mcp_server_edit_sheet.dart` 加一個多行 `TextField`（label 例如「Usage instructions」），僅對非 built-in server 顯示；內建 `Image_Search` 由程式預填，欄位可設為唯讀或隱藏。
+`mcp_server_edit_sheet.dart` 加一個多行 `TextField`（label 例如「Usage instructions」），僅對非 built-in server 顯示；內建 `Illustrate` 由程式預填，欄位可設為唯讀或隱藏。
 
 ### 5.4 注入
 
@@ -673,7 +673,7 @@ MCP `initialize` 的 `InitializeResult` 有 optional `instructions` 字串。官
 - `client.listPrompts()`（`client.dart:508`）
 - `client.getPrompt(name, args)`（`client.dart:523`）
 
-MCP server 可以暴露 `prompts/list` / `prompts/get`；`Image_Search` 目前只實作 `initialize` / `tools/list` / `tools/call`，需要新增。
+MCP server 可以暴露 `prompts/list` / `prompts/get`；`Illustrate` 目前只實作 `initialize` / `tools/list` / `tools/call`，需要新增。
 
 ### 7.2 實作路徑
 
@@ -777,7 +777,7 @@ Built-in tool 與第三方 MCP server 的同名工具同時被廣告 → OpenAI/
 
 ### 10.7 `McpProvider.hasAnyEnabled` 的 UI 副作用
 
-移除 `Image_Search` 後，只綁 image 的使用者會發現輸入列 MCP 按鈕消失。這是正確行為（他們已改用 built-in），但要在 release note 說明。
+移除 `Illustrate` 後，只綁 image 的使用者會發現輸入列 MCP 按鈕消失。這是正確行為（他們已改用 built-in），但要在 release note 說明。
 
 ### 10.8 新→舊備份不相容
 
@@ -932,7 +932,7 @@ Token 估計：英文 prose 約 4 chars/token；JSON/schema 約 3–3.5 chars/to
 
 | 路線 | 現況 | 建議 |
 |:---|:---|:---|
-| **MCP（A/B/C/D）** | 輸入框已有 MCP 按鈕：桌面 `showDesktopMcpServersPopover`、行動 `showAssistantMcpSheet`；`Image_Search` 只有一個 tool，server/tool toggle 就等同 image search toggle | **沿用既有 MCP toggle，不新增專用 toggle**。需要的話只調整 tooltip／圖示，讓使用者知道它是 image search |
+| **MCP（A/B/C/D）** | 輸入框已有 MCP 按鈕：桌面 `showDesktopMcpServersPopover`、行動 `showAssistantMcpSheet`；`Illustrate` 只有一個 tool，server/tool toggle 就等同 image search toggle | **沿用既有 MCP toggle，不新增專用 toggle**。需要的話只調整 tooltip／圖示，讓使用者知道它是 image search |
 | **Built-in（方案 0）** | built-in tool 不會出現在 MCP sheet | **新增專用輸入框 toggle**（`Lucide.Image`），或至少提供一鍵入口；否則使用者只能進設定頁關閉 |
 
 理由：
@@ -945,7 +945,7 @@ Token 估計：英文 prose 約 4 chars/token；JSON/schema 約 3–3.5 chars/to
 #### MCP 路線的注意事項
 
 - 既有 MCP toggle 是 **per-assistant**（`assistant.mcpServerIds`），不是 per-conversation；切換會影響所有使用該助手的對話。若產品需要「同一助手、不同對話」的差異，才需要另外做 per-conversation override。
-- `Image_Search` 只有一個 tool，所以 server-level toggle 與 tool-level toggle 效果相同；若未來加第二個 tool，才需要區分。
+- `Illustrate` 只有一個 tool，所以 server-level toggle 與 tool-level toggle 效果相同；若未來加第二個 tool，才需要區分。
 - 若同時做 built-in 專用 toggle 與 MCP toggle，兩者不要互相覆寫；built-in 路線移除 MCP server 後，MCP toggle 自然消失。
 
 #### Built-in 路線的 toggle 設計
@@ -976,7 +976,7 @@ effectiveImageSearch =
 ## illustrate usage
 Use illustrate when the answer benefits from images of concrete subjects (people, products, landmarks, artworks, animals, places). Do not use it for abstract concepts, code, math, definitions, opinions, or decorative filler.
 Insert as many images as the answer genuinely needs: usually one per distinct subject; never repeat an image or query; omit a subject if no relevant result exists; never add images just to fill space.
-Use only returned URLs; verify the title matches the subject; prefer thumbnail_url; embed as ![alt](<url>) right after the relevant sentence; mention source/author/license when appropriate; if the tool fails or returns nothing useful, continue without images and retry at most once.
+Use only returned URLs; verify the title matches the subject; prefer thumbnail_url; embed as ![alt](url) right after the relevant sentence; mention source/author/license when appropriate; if the tool fails or returns nothing useful, continue without images and retry at most once.
 ```
 
 （728 chars / 109 words，約 160–190 tokens。）
@@ -987,7 +987,7 @@ Use only returned URLs; verify the title matches the subject; prefer thumbnail_u
 ## illustrate usage
 Use illustrate only when images of concrete subjects (people, products, places, artworks, animals) materially improve the answer; skip abstract concepts, code, math, definitions, opinions, and decorative filler.
 Insert as many images as needed, usually one per distinct subject; never repeat an image or query; omit subjects with no good result.
-Use only returned URLs; verify the title matches; prefer thumbnail_url; embed as ![alt](<url>) after the relevant sentence; cite source/license when appropriate; on failure, continue without images and retry at most once.
+Use only returned URLs; verify the title matches; prefer thumbnail_url; embed as ![alt](url) after the relevant sentence; cite source/license when appropriate; on failure, continue without images and retry at most once.
 ```
 
 ### 15.7 決策建議
@@ -1026,7 +1026,7 @@ Use only returned URLs; verify the title matches; prefer thumbnail_url; embed as
 Use illustrate when the answer involves concrete subjects whose appearance matters (people, products, landmarks, artworks, animals, places), an image would materially help (identification, comparison, visual reference), or the user asks for pictures.
 Do not use it for abstract concepts, code, math, definitions, opinions, or decorative filler.
 Use as many images as the answer needs: usually one per distinct subject; never repeat an image or query; omit subjects with no good result; never add images just to fill space.
-Use only returned URLs; verify the title matches the subject; prefer thumbnail_url; embed as ![alt](<url>) after the relevant sentence; cite source/license; on failure, continue without images and retry at most once.
+Use only returned URLs; verify the title matches the subject; prefer thumbnail_url; embed as ![alt](url) after the relevant sentence; cite source/license; on failure, continue without images and retry at most once.
 ```
 
 > 若實測發現模型仍然過度插圖，再從中間版本加回 bullet headers 或「do not retry」等細節；不建議一開始就用最精簡版。
@@ -1055,7 +1055,7 @@ Use only returned URLs; verify the title matches the subject; prefer thumbnail_u
 **範圍（最小遷移）**：
 
 - 只改 model-facing tool 名稱：`ImageSearchMcpServerEngine.toolName = 'illustrate'`。
-- MCP server id `image_search`、顯示名 `Image_Search` **維持不變** → `assistant.mcpServerIds` 綁定、persisted JSON、MCP 頁零遷移。
+- MCP server id `image_search` **維持不變**、顯示名改為 `Illustrate` → `assistant.mcpServerIds` 綁定與 persisted id 零遷移；只做一次顯示名 migration。
 - `tools/list` 只廣告 `illustrate`；`tools/call` 同時接受 `illustrate` 與 legacy `image_search`（engine 內 alias，比照 §3.16 `web_fetch` 舊名別名模式）。
 - `McpToolService` 的 server/tool 比對在「目標 server 為內建 `image_search`」時接受舊名 → 新名（scoped，避免綁架第三方同名工具）；純全域 canonicalize（`WebFetchTool.canonicalToolName` 式）在「使用者另有第三方 server 也叫 `image_search`」時有誤路由風險。
 - 本文 §1 的 `image_search` 指現況名稱；實作後 model-facing 名稱為 `illustrate`。

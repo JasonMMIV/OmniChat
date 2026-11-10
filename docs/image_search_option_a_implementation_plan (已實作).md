@@ -4,7 +4,7 @@
 > **狀態**：✅ 已實作（2026-11-10；自動化測試通過，手動 smoke 待執行）
 > **上游評估**：`docs/image_search_builtin_vs_mcp_prompt_plan.md`（方案 A＝§4、命名定案＝§15.9、上下文負擔＝§15、可靠性問題＝§10.5）
 > **範圍**：engine 改名與精簡 description、內建 tool-name 遷移、legacy 名稱路由、`McpToolPrompts` registry、system-prompt 注入點、answer-review／README 文字、引擎可靠性修正、測試
-> **非目標**：不新增設定鍵或 UI；不做 built-in 化（方案 0）；不動 MCP server id／顯示名（`image_search`／`Image_Search`）；不動 voice path；不新增 l10n；不移除 in-memory MCP server
+> **非目標**：不新增設定鍵或 UI；不做 built-in 化（方案 0）；不動 MCP server id（`image_search`），但顯示名由 `Image_Search` 改為 `Illustrate`；不動 voice path；不新增 l10n；不移除 in-memory MCP server
 > **預估工作量**：約 1 天（MVP＝Step 1–6 約 0.5 天；Step 7 可獨立 PR 但建議同批）
 
 ---
@@ -13,11 +13,11 @@
 
 | 項目 | 決策 |
 |:---|:---|
-| 工具名稱 | model-facing 名稱改為 **`illustrate`**（目的導向「為回答配圖」；§15.9）。MCP server id `image_search`、顯示名 `Image_Search` **維持不變** → 綁定與 persisted JSON 零結構遷移 |
+| 工具名稱 | model-facing 名稱改為 **`illustrate`**（目的導向「為回答配圖」；§15.9）。MCP server id `image_search` **維持不變**、顯示名改為 `Illustrate` → 綁定與 persisted id 零遷移，只做一次顯示名 migration |
 | Description | 精簡為 468 字元版（評估文件 §2.3.1，2026-11-10「images」措辭），只留 identity／參數／結果格式／URL 規則 |
 | 使用政策 | **中間版 policy（759 字元，約 190–220 tokens）**放入 system prompt（§15.8 推薦版；保留「appearance matters」「user asks for pictures」「identification/comparison」三個高價值約束） |
 | 圖片張數 | **不設硬上限**：每個不同主體一張、不重複、不裝飾、找不到就略過 |
-| Toggle | 沿用既有輸入框 MCP toggle（`Image_Search` 只有一個 tool，server/tool toggle 等同本工具開關）；**不新增**輸入框按鈕 |
+| Toggle | 沿用既有輸入框 MCP toggle（`Illustrate` 只有一個 tool，server/tool toggle 等同本工具開關）；**不新增**輸入框按鈕 |
 | 上下文負擔 | 總固定負擔 ~430–510 tokens／請求（現行 ~380–450；精簡定義 946 + 中間版 759 ≈ 1,705 chars），**淨增約 +50–60 tokens**；關閉 toggle 時 tool 與 prompt 同時消失，負擔為 0 |
 | 可靠性 | 與本計畫**同批**修正評估文件 §10.5 的引擎問題（Wikimedia fallback 條件、HEAD 並行、總 timeout、SSRF、max_results 描述） |
 
@@ -84,7 +84,7 @@ policyInjected  ⟺  toolDefs 含 'illustrate'      ← 唯一真相：buildTool
 ### 4.1 常數
 
 ```dart
-static const String serverName = 'Image_Search'; // 不變（MCP 頁顯示名）
+static const String serverName = 'Illustrate'; // MCP 頁顯示名（舊值 Image_Search 由 migration 更新）
 static const String toolName = 'illustrate';     // 2026-11-10 定案（評估文件 §15.9）
 
 /// Legacy model-facing name. Never advertised by tools/list; accepted by
@@ -424,7 +424,7 @@ if (!hasBuiltInSearch) {
 |:---|:---|:---|
 | `lib/core/services/agent/answer_review.dart` | 190 行（註解） | `the classic \`image_search\`-not-attached case` → `the classic \`illustrate\`-not-attached case` |
 | 同上 | 297 行（revision 指令） | `an asset (for example \`image_search\`)` → `an asset (for example \`illustrate\`)` |
-| `README.md` | 137 行 | `image_search(query, max_results)` → `illustrate(query, max_results)`（`Image_Search` server 名不變） |
+| `README.md` | 137 行 | `image_search(query, max_results)` → `illustrate(query, max_results)`（MCP server 顯示名改為 `Illustrate`） |
 | `README_ZH_TW.MD` | 137 行 | 同上（中文敘述同步微調） |
 
 `answer_review_test.dart` 的 fixtures 以參數傳入 tool 名稱，模板文字改動不影響其斷言，不需更新（可順手把 fixture 名稱改成 `illustrate` 以求一致，非必要）。

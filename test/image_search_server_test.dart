@@ -44,7 +44,7 @@ void main() {
       final map = (resp as Map).cast<String, dynamic>();
       expect(map['id'], 1);
       final result = (map['result'] as Map).cast<String, dynamic>();
-      expect((result['serverInfo'] as Map)['name'], 'Image_Search');
+      expect((result['serverInfo'] as Map)['name'], 'Illustrate');
       expect((result['capabilities'] as Map).containsKey('tools'), isTrue);
     });
 
@@ -65,7 +65,8 @@ void main() {
       expect((schema['properties'] as Map).containsKey('max_results'), isTrue);
       final desc = tools.first['description'] as String;
       expect(desc, contains('Search the web for images'));
-      expect(desc, contains('![alt](<url>)'));
+      expect(desc, contains('![alt](url)'));
+      expect(desc, isNot(contains('![alt](<url>)')));
       expect(desc, contains('thumbnail_url'));
       expect(desc, isNotEmpty);
     });

@@ -3548,6 +3548,7 @@ class _ToolCallItem extends StatelessWidget {
       case 'file_grep':
         return Lucide.Search;
       case 'file_view_image':
+      case 'illustrate':
         return Lucide.Image;
       default:
         return Lucide.Wrench;

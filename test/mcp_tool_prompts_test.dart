@@ -15,6 +15,8 @@ void main() {
       expect(prompt, contains('## illustrate usage'));
       expect(prompt, contains('decorative filler'));
       expect(prompt, contains('never repeat an image or query'));
+      expect(prompt, contains('![alt](url)'));
+      expect(prompt, isNot(contains('![alt](<url>)')));
     });
 
     test('returns null when no policy-backed tool is advertised', () {

@@ -13,7 +13,24 @@ class MarkdownMediaSanitizer {
     multiLine: true,
   );
 
-  static Future<String> replaceInlineBase64Images(String markdown) async {
+  static final RegExp _angleBracketImageRe =
+      RegExp(r'!\[([^\]]*)\]\(\s*<([^>]*)>\s*\)', multiLine: true);
+
+  /// gpt_markdown 1.3.0 does not strip CommonMark angle brackets around image
+  /// destinations (`![alt](<https://...>)`) and hands `<https://...>` to
+  /// `NetworkImage`, which renders every such image as broken. Normalize the
+  /// angle-bracket form before parsing so both new and already-persisted
+  /// assistant messages display.
+  static String stripImageDestinationAngleBrackets(String markdown) {
+    if (!markdown.contains('](') || !markdown.contains('<')) return markdown;
+    return markdown.replaceAllMapped(
+      _angleBracketImageRe,
+      (match) => '![${match.group(1)}](${match.group(2)})',
+    );
+  }
+
+  static Future<String> replaceInlineBase64Images(String input) async {
+    final markdown = stripImageDestinationAngleBrackets(input);
     // // Fast path: only proceed when it's clearly a base64 data image
     // if (!(markdown.contains('data:image/') && markdown.contains(';base64,'))) {
     //   return markdown;
@@ -114,7 +131,8 @@ class MarkdownMediaSanitizer {
 
   // Replace Markdown image links pointing to local file paths with inline base64 data URLs.
   // Example: "![image](/data/user/0/.../images/xxx.png)" -> "![image](data:image/png;base64,...)"
-  static Future<String> inlineLocalImagesToBase64(String markdown) async {
+  static Future<String> inlineLocalImagesToBase64(String input) async {
+    final markdown = stripImageDestinationAngleBrackets(input);
     // Quick check: contains a Markdown image and looks like a local path
     if (!(markdown.contains('![') && markdown.contains(']('))) return markdown;
 

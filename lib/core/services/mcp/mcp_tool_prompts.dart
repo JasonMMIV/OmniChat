@@ -3,7 +3,7 @@ import 'image_search/image_search_server.dart' show ImageSearchMcpServerEngine;
 /// Per-tool usage policies injected into the system prompt AFTER
 /// `buildToolDefinitions()`, keyed by the model-facing function name.
 ///
-/// Contract (docs/image_search_option_a_implementation_plan.md §2): a policy
+/// Contract (docs/image_search_option_a_implementation_plan (已實作).md §2): a policy
 /// is injected only when its tool is actually advertised in this request's
 /// `toolDefs`. The ONE exception is Gemini native built-ins —
 /// `chat_api_service` strips function declarations AFTER assembly, so the call
@@ -57,5 +57,5 @@ abstract class McpToolPrompts {
 Use illustrate when the answer involves concrete subjects whose appearance matters (people, products, landmarks, artworks, animals, places), an image would materially help (identification, comparison, visual reference), or the user asks for pictures.
 Do not use it for abstract concepts, code, math, definitions, opinions, or decorative filler.
 Use as many images as the answer needs: usually one per distinct subject; never repeat an image or query; omit subjects with no good result; never add images just to fill space.
-Use only returned URLs; verify the title matches the subject; prefer thumbnail_url; embed as ![alt](<url>) after the relevant sentence; cite source/license; on failure, continue without images and retry at most once.''';
+Use only returned URLs; verify the title matches the subject; prefer thumbnail_url; embed as ![alt](url) after the relevant sentence; cite source/license; on failure, continue without images and retry at most once.''';
 }
