@@ -560,9 +560,17 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
             children: [
               _label(context, l10n.modelDetailSheetInputModesLabel),
               const SizedBox(height: 6),
-              _ModalityMulti(
-                selected: _input,
-                onToggle: (mod) => setState(() {
+              _SegmentedMulti(
+                options: [
+                  for (final mod in Modality.values)
+                    modalityLabel(l10n, mod),
+                ],
+                isSelected: [
+                  for (final mod in Modality.values) _input.contains(mod),
+                ],
+                dense: true,
+                onChanged: (idx) => setState(() {
+                  final mod = Modality.values[idx];
                   if (_input.contains(mod)) {
                     _input.remove(mod);
                     if (_input.isEmpty) _input.add(Modality.text);
@@ -574,13 +582,20 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
               const SizedBox(height: 12),
               _label(context, l10n.modelDetailSheetOutputModesLabel),
               const SizedBox(height: 6),
-              _ModalityMulti(
-                selected: _output,
+              _SegmentedMulti(
+                options: [
+                  modalityLabel(l10n, Modality.text),
+                  modalityLabel(l10n, Modality.image),
+                ],
                 // Output stays text/image: no chat transport streams native
                 // audio/video, and showing those would imply they do
                 // (multimodal plan §2.1-5).
-                modalities: const [Modality.text, Modality.image],
-                onToggle: (mod) => setState(() {
+                isSelected: [
+                  _output.contains(Modality.text),
+                  _output.contains(Modality.image),
+                ],
+                onChanged: (idx) => setState(() {
+                  final mod = idx == 0 ? Modality.text : Modality.image;
                   if (_output.contains(mod)) {
                     _output.remove(mod);
                     if (_output.isEmpty) _output.add(Modality.text);
@@ -590,27 +605,6 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
                 }),
               ),
               const SizedBox(height: 12),
-              if (_input.contains(Modality.pdf) ||
-                  _input.contains(Modality.audio)) ...[
-                const SizedBox(height: 12),
-                _label(context, l10n.modelDetailSheetNativeInputLabel),
-                const SizedBox(height: 6),
-                if (_input.contains(Modality.pdf))
-                  _NativeInputToggle(
-                    title: l10n.modelDetailSheetNativePdfTool,
-                    description: l10n.modelDetailSheetNativePdfToolDescription,
-                    value: _nativePdf ?? _nativePdfAuto,
-                    onChanged: (v) => setState(() => _nativePdf = v),
-                  ),
-                if (_input.contains(Modality.audio))
-                  _NativeInputToggle(
-                    title: l10n.modelDetailSheetNativeAudioTool,
-                    description:
-                        l10n.modelDetailSheetNativeAudioToolDescription,
-                    value: _nativeAudio ?? _nativeAudioAuto,
-                    onChanged: (v) => setState(() => _nativeAudio = v),
-                  ),
-              ],
               _label(context, l10n.modelDetailSheetAbilitiesLabel),
               const SizedBox(height: 6),
               _SegmentedMulti(
@@ -641,8 +635,51 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
   }
 
   List<Widget> _buildAdvanced(BuildContext context, AppLocalizations l10n) {
+    final cs = Theme.of(context).colorScheme;
+    final showNativeInputs =
+        _type == ModelType.chat &&
+        (_input.contains(Modality.pdf) || _input.contains(Modality.audio));
     return [
       ..._buildReasoningOverrideSection(context, l10n),
+      if (showNativeInputs) ...[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+          child: Text(
+            l10n.modelDetailSheetNativeInputLabel,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+          child: Text(
+            l10n.modelDetailSheetNativeAdvancedDescription,
+            style: TextStyle(
+              color: cs.onSurface.withOpacity(0.65),
+              fontSize: 12,
+            ),
+          ),
+        ),
+        if (_input.contains(Modality.pdf))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            child: _ToolTile(
+              title: l10n.modelDetailSheetNativePdfTool,
+              desc: l10n.modelDetailSheetNativePdfToolDescription,
+              value: _nativePdf ?? _nativePdfAuto,
+              onChanged: (v) => setState(() => _nativePdf = v),
+            ),
+          ),
+        if (_input.contains(Modality.audio))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: _ToolTile(
+              title: l10n.modelDetailSheetNativeAudioTool,
+              desc: l10n.modelDetailSheetNativeAudioToolDescription,
+              value: _nativeAudio ?? _nativeAudioAuto,
+              onChanged: (v) => setState(() => _nativeAudio = v),
+            ),
+          ),
+      ],
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
         child: Text(
@@ -1349,12 +1386,6 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
     ),
   );
 
-  Color _segSelectedColor(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return isDark ? cs.primary.withOpacity(0.20) : cs.primary.withOpacity(0.14);
-  }
-
   // Generate a unique logical key for a model instance within a provider.
   // This allows multiple configurations to share the same upstream API model id.
   String _nextModelKey(ProviderConfig cfg, String apiModelId) {
@@ -1444,8 +1475,13 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
       'abilities': _abilities
           .map((e) => e == ModelAbility.reasoning ? 'reasoning' : 'tool')
           .toList(),
-      if (_nativePdf != null) 'nativePdf': _nativePdf,
-      if (_nativeAudio != null) 'nativeAudio': _nativeAudio,
+      // Only persist an override while the matching modality is enabled;
+      // otherwise the value becomes invisible in Advanced and can resurrect
+      // later when the modality is re-added.
+      if (_input.contains(Modality.pdf) && _nativePdf != null)
+        'nativePdf': _nativePdf,
+      if (_input.contains(Modality.audio) && _nativeAudio != null)
+        'nativeAudio': _nativeAudio,
       'headers': headers,
       'body': bodies,
       if (oauthProtocol is String && oauthProtocol.trim().isNotEmpty)
@@ -1543,52 +1579,6 @@ bool _modelValueEquals(Object? a, Object? b) {
   return a == b;
 }
 
-class _TabChip extends StatelessWidget {
-  const _TabChip({required this.label, required this.selected, this.onTap});
-  final String label;
-  final bool selected;
-  final VoidCallback? onTap;
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = selected
-        ? (isDark ? cs.primary.withOpacity(0.25) : cs.primary.withOpacity(0.15))
-        : Colors.transparent;
-    final fg = selected
-        ? (isDark ? cs.primary : cs.primary)
-        : cs.onSurface.withOpacity(0.8);
-    return Padding(
-      padding: const EdgeInsets.only(right: 8, top: 8, bottom: 8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: selected
-                  ? cs.primary.withOpacity(0.25)
-                  : cs.outlineVariant.withOpacity(0.4),
-              width: 1,
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              color: fg,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _SegmentedSingle extends StatelessWidget {
   const _SegmentedSingle({
     required this.options,
@@ -1661,159 +1651,22 @@ class _SegmentedSingle extends StatelessWidget {
   }
 }
 
-/// Per-model native transport toggle. The switch reflects the effective
-/// policy (auto host gate when no override is stored) and writes an explicit
-/// bool on first tap.
-class _NativeInputToggle extends StatelessWidget {
-  const _NativeInputToggle({
-    required this.title,
-    required this.description,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String title;
-  final String description;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white10 : cs.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: cs.outlineVariant.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    height: 1.35,
-                    color: cs.onSurface.withOpacity(0.62),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          IosSwitch(value: value, onChanged: onChanged),
-        ],
-      ),
-    );
-  }
-}
-
-/// Multi-select pill row for input/output modalities. A `Wrap` (instead of
-/// the fixed segmented row) keeps five options readable on mobile widths.
-class _ModalityMulti extends StatelessWidget {
-  const _ModalityMulti({
-    required this.selected,
-    required this.onToggle,
-    this.modalities = Modality.values,
-  });
-
-  final Set<Modality> selected;
-  final ValueChanged<Modality> onToggle;
-  final List<Modality> modalities;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final l10n = AppLocalizations.of(context)!;
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: [
-        for (final mod in modalities)
-          Builder(
-            builder: (context) {
-              final on = selected.contains(mod);
-              final bg = on
-                  ? (isDark
-                        ? cs.primary.withOpacity(0.24)
-                        : cs.primary.withOpacity(0.14))
-                  : (isDark ? Colors.white10 : cs.surface);
-              final fg = on
-                  ? cs.primary
-                  : cs.onSurface.withOpacity(0.62);
-              return Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: () => onToggle(mod),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: bg,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: on
-                            ? cs.primary.withOpacity(0.45)
-                            : cs.outlineVariant.withOpacity(0.35),
-                        width: 0.8,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(modalityIcon(mod), size: 14, color: fg),
-                        const SizedBox(width: 5),
-                        Text(
-                          modalityLabel(l10n, mod),
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: on ? FontWeight.w600 : FontWeight.w500,
-                            color: fg,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-      ],
-    );
-  }
-}
-
 class _SegmentedMulti extends StatelessWidget {
   const _SegmentedMulti({
     required this.options,
     required this.isSelected,
     required this.onChanged,
     this.allowEmpty = false,
+    this.dense = false,
   });
 
   final List<String> options;
   final List<bool> isSelected;
   final ValueChanged<int> onChanged;
   final bool allowEmpty;
+
+  /// Five input modalities need tighter cells than the two-option groups.
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
@@ -1861,8 +1714,8 @@ class _SegmentedMulti extends StatelessWidget {
                       onTap: () => onChanged(i),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 160),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: dense ? 4.0 : 12.0,
                           vertical: 10,
                         ),
                         decoration: BoxDecoration(
@@ -1885,26 +1738,39 @@ class _SegmentedMulti extends StatelessWidget {
                                       )
                                     : BorderRadius.zero),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (isSelected[i])
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
                               Padding(
-                                padding: const EdgeInsets.only(right: 6),
-                                child: Icon(
-                                  Lucide.Check,
-                                  size: 16,
-                                  color: cs.primary,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: dense ? 10.0 : 12.0,
+                                ),
+                                child: Text(
+                                  options[i],
+                                  maxLines: 1,
+                                  softWrap: false,
+                                  overflow: TextOverflow.fade,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: cs.onSurface,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: dense ? 12.5 : null,
+                                  ),
                                 ),
                               ),
-                            Text(
-                              options[i],
-                              style: TextStyle(
-                                color: cs.onSurface,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                              if (isSelected[i])
+                                Positioned(
+                                  left: dense ? 0.0 : 6.0,
+                                  child: Icon(
+                                    Lucide.Check,
+                                    size: dense ? 10.0 : 16.0,
+                                    color: cs.primary,
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

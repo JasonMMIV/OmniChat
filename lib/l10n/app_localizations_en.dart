@@ -1657,21 +1657,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelDetailSheetPdfMode => 'PDF';
 
   @override
-  String get modelDetailSheetNativeInputLabel => 'Native input';
+  String get modelDetailSheetNativeInputLabel => 'Native attachments';
 
   @override
-  String get modelDetailSheetNativePdfTool => 'Send PDFs natively';
+  String get modelDetailSheetNativePdfTool => 'Native PDF override';
 
   @override
   String get modelDetailSheetNativePdfToolDescription =>
-      'Send the PDF as a document block instead of extracted text. Text extraction stays the fallback for providers without native support.';
+      'Override the host gate to force native PDF document blocks. When off, text extraction is still used automatically.';
 
   @override
-  String get modelDetailSheetNativeAudioTool => 'Send audio natively';
+  String get modelDetailSheetNativeAudioTool => 'Native audio override';
 
   @override
   String get modelDetailSheetNativeAudioToolDescription =>
-      'Send audio attachments as audio blocks. Requires a model with audio input and a provider that accepts them.';
+      'Override the host gate to force native audio blocks. Requires a model with audio input and a provider that accepts the format.';
+
+  @override
+  String get modelDetailSheetNativeAdvancedDescription =>
+      'Follows the provider host gate by default. Change this only to force native input on or off. When native PDF is off, extraction is still used automatically.';
 
   @override
   String get modelDetailSheetOutputModesLabel => 'Output';

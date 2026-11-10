@@ -114,4 +114,75 @@ void main() {
       isTrue,
     );
   });
+
+  testWidgets('basic tab lays out five input modalities at 360px', (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final settings = _FakeSettings(
+      ProviderConfig(
+        id: 'provider',
+        enabled: true,
+        name: 'Provider',
+        apiKey: 'k',
+        baseUrl: 'https://generativelanguage.googleapis.com',
+        providerType: ProviderKind.google,
+        models: const <String>['model'],
+        modelOverrides: <String, dynamic>{
+          'model': <String, dynamic>{
+            'apiModelId': 'model',
+            'name': 'Model',
+            'type': 'chat',
+            'input': const <String>[
+              'text',
+              'image',
+              'audio',
+              'video',
+              'pdf',
+            ],
+            'inputV': 2,
+            'output': const <String>['text'],
+            'abilities': const <String>['tool'],
+          },
+        },
+      ),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<SettingsProvider>.value(
+        value: settings,
+        child: MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: FilledButton(
+                  onPressed: () => showModelDetailSheet(
+                    context,
+                    providerKey: 'provider',
+                    modelId: 'model',
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    // Smoke-test the dense five-cell row at the narrowest common phone width.
+    expect(find.text('PDF'), findsOneWidget);
+    expect(find.text('Native attachments'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }

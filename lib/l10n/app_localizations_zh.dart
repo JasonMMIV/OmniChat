@@ -1641,21 +1641,25 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelDetailSheetPdfMode => 'PDF';
 
   @override
-  String get modelDetailSheetNativeInputLabel => '原生输入';
+  String get modelDetailSheetNativeInputLabel => '原生附件';
 
   @override
-  String get modelDetailSheetNativePdfTool => '原生发送 PDF';
+  String get modelDetailSheetNativePdfTool => '原生 PDF 覆盖';
 
   @override
   String get modelDetailSheetNativePdfToolDescription =>
-      '以文档区块发送 PDF，而不是萃取文字。不支持原生输入的供应商仍会自动退回文字萃取。';
+      '覆盖 host gate，强制使用原生 PDF 文档区块。关闭时仍会自动改用文字提取。';
 
   @override
-  String get modelDetailSheetNativeAudioTool => '原生发送音频';
+  String get modelDetailSheetNativeAudioTool => '原生音频覆盖';
 
   @override
   String get modelDetailSheetNativeAudioToolDescription =>
-      '将音频附件以音频区块发送。需要模型具备音频输入能力，且供应商接受该格式。';
+      '覆盖 host gate，强制使用原生音频区块。需要模型具备音频输入能力，且供应商接受该格式。';
+
+  @override
+  String get modelDetailSheetNativeAdvancedDescription =>
+      '默认跟随供应商 host gate；只有需要强制开启或关闭时才调整。PDF 关闭后仍会自动改用文字提取。';
 
   @override
   String get modelDetailSheetOutputModesLabel => '输出模式';
@@ -8182,21 +8186,25 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get modelDetailSheetPdfMode => 'PDF';
 
   @override
-  String get modelDetailSheetNativeInputLabel => '原生输入';
+  String get modelDetailSheetNativeInputLabel => '原生附件';
 
   @override
-  String get modelDetailSheetNativePdfTool => '原生发送 PDF';
+  String get modelDetailSheetNativePdfTool => '原生 PDF 覆盖';
 
   @override
   String get modelDetailSheetNativePdfToolDescription =>
-      '以文档区块发送 PDF，而不是提取文字。不支持原生输入的提供商仍会自动退回文字提取。';
+      '覆盖 host gate，强制使用原生 PDF 文档区块。关闭时仍会自动改用文字提取。';
 
   @override
-  String get modelDetailSheetNativeAudioTool => '原生发送音频';
+  String get modelDetailSheetNativeAudioTool => '原生音频覆盖';
 
   @override
   String get modelDetailSheetNativeAudioToolDescription =>
-      '将音频附件以音频区块发送。需要模型具备音频输入能力，且提供商接受该格式。';
+      '覆盖 host gate，强制使用原生音频区块。需要模型具备音频输入能力，且提供商接受该格式。';
+
+  @override
+  String get modelDetailSheetNativeAdvancedDescription =>
+      '默认跟随提供商 host gate；只有需要强制开启或关闭时才调整。PDF 关闭后仍会自动改用文字提取。';
 
   @override
   String get modelDetailSheetOutputModesLabel => '输出模式';
@@ -14624,21 +14632,25 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get modelDetailSheetPdfMode => 'PDF';
 
   @override
-  String get modelDetailSheetNativeInputLabel => '原生輸入';
+  String get modelDetailSheetNativeInputLabel => '原生附件';
 
   @override
-  String get modelDetailSheetNativePdfTool => '原生傳送 PDF';
+  String get modelDetailSheetNativePdfTool => '原生 PDF 覆寫';
 
   @override
   String get modelDetailSheetNativePdfToolDescription =>
-      '以文件區塊傳送 PDF，而不是擷取文字。不支援原生輸入的供應商仍會自動退回文字擷取。';
+      '覆寫 host gate，強制使用原生 PDF 文件區塊。關閉時仍會自動改用文字擷取。';
 
   @override
-  String get modelDetailSheetNativeAudioTool => '原生傳送音訊';
+  String get modelDetailSheetNativeAudioTool => '原生音訊覆寫';
 
   @override
   String get modelDetailSheetNativeAudioToolDescription =>
-      '將音訊附件以音訊區塊傳送。需要模型具備音訊輸入能力，且供應商接受該格式。';
+      '覆寫 host gate，強制使用原生音訊區塊。需要模型具備音訊輸入能力，且供應商接受該格式。';
+
+  @override
+  String get modelDetailSheetNativeAdvancedDescription =>
+      '預設跟隨供應商 host gate；只有需要強制開啟或關閉時才調整。PDF 關閉後仍會自動改用文字擷取。';
 
   @override
   String get modelDetailSheetOutputModesLabel => '輸出模式';

@@ -3260,32 +3260,38 @@ abstract class AppLocalizations {
   /// No description provided for @modelDetailSheetNativeInputLabel.
   ///
   /// In en, this message translates to:
-  /// **'Native input'**
+  /// **'Native attachments'**
   String get modelDetailSheetNativeInputLabel;
 
   /// No description provided for @modelDetailSheetNativePdfTool.
   ///
   /// In en, this message translates to:
-  /// **'Send PDFs natively'**
+  /// **'Native PDF override'**
   String get modelDetailSheetNativePdfTool;
 
   /// No description provided for @modelDetailSheetNativePdfToolDescription.
   ///
   /// In en, this message translates to:
-  /// **'Send the PDF as a document block instead of extracted text. Text extraction stays the fallback for providers without native support.'**
+  /// **'Override the host gate to force native PDF document blocks. When off, text extraction is still used automatically.'**
   String get modelDetailSheetNativePdfToolDescription;
 
   /// No description provided for @modelDetailSheetNativeAudioTool.
   ///
   /// In en, this message translates to:
-  /// **'Send audio natively'**
+  /// **'Native audio override'**
   String get modelDetailSheetNativeAudioTool;
 
   /// No description provided for @modelDetailSheetNativeAudioToolDescription.
   ///
   /// In en, this message translates to:
-  /// **'Send audio attachments as audio blocks. Requires a model with audio input and a provider that accepts them.'**
+  /// **'Override the host gate to force native audio blocks. Requires a model with audio input and a provider that accepts the format.'**
   String get modelDetailSheetNativeAudioToolDescription;
+
+  /// No description provided for @modelDetailSheetNativeAdvancedDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Follows the provider host gate by default. Change this only to force native input on or off. When native PDF is off, extraction is still used automatically.'**
+  String get modelDetailSheetNativeAdvancedDescription;
 
   /// No description provided for @modelDetailSheetOutputModesLabel.
   ///
