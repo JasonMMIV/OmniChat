@@ -7,12 +7,17 @@
 > v2 依審查意見修正:壓縮邊界、measured 語義、手動/自動壓縮分流、`onMessagesChanged`
 > 接線、模型切換有效性、選單 header 寬高、`peek` 冷啟動、refresh 競態、估算範圍、
 > ratio/equality/animation 等共 16 點(對照見 §9)。**本文件只更新計畫,尚未改動程式碼。**
+>
+> **v2.1(實作後修訂)**:窗口未知時不再降級回 `workflow` 圖示。按鈕改為顯示空 ring
+> (只畫 track);選單/sheet header 顯示 `used / ... Token`,且**不顯示百分比徽章**。
+> snapshot 為 null 時按鈕同樣顯示空 ring,但 header 仍收起。§0 決策 1、§5/§6 的
+> 「原圖示」描述與 §8 驗收清單已由本修訂取代。
 
 ## 0. 已確認決策
 
 | # | 決策 |
 |---|------|
-| 1 | **窗口未知時降級**:learned 與 models.dev catalog 都查不到窗口 → 不顯示 ring,維持原 `workflow` 圖示(不採用 `resolveContextWindowTokens` 的 1M fallback 來畫 ring) |
+| 1 | **窗口未知時**:learned 與 models.dev catalog 都查不到窗口 → 按鈕顯示空 ring(只畫 track),選單/sheet header 顯示 `used / ... Token` 且不顯示百分比徽章(仍不採用 `resolveContextWindowTokens` 的 1M fallback 來捏造比例) |
 | 2 | **不做花費顯示**(AnyBuff 的 costUsd 部分) |
 | 3 | **used/max 文字放在上下文管理選單的最上方**:桌面 = 錨定選單 header;手機 = `ContextManagementSheet` header。按鈕本身不放數字(tooltip 維持 `contextManagement`) |
 | 4 | **measured 只作為 baseline**:measured assistant 自身的**文字回覆**(優先用 `completionTokens`)+ 之後的訊息補上,有任何估算成分就標 `≈` |
@@ -52,7 +57,7 @@
 @immutable
 class ContextUsageSnapshot {
   final int usedTokens;
-  final int? maxTokens;      // null = 窗口未知 → 顯示層降級回原圖示
+  final int? maxTokens;      // null = 窗口未知 → 空 ring + header 顯示 used / ...
   final bool measured;       // 是否有實測 baseline
   final bool estimated;      // 是否有估算成分(measured + delta 或整段估算)
   final String? modelId;     // 產生此快照時的邏輯 model id(除錯/防競態)
@@ -382,25 +387,15 @@ ContextUsageMenuHeader({
     onTap: showContextMenu,
     childBuilder: widget.contextUsage == null
         ? null
-        : (c) => ValueListenableBuilder<ContextUsageSnapshot?>(
-              valueListenable: widget.contextUsage!,
-              builder: (_, usage, __) {
-                if (usage == null || !usage.hasWindow) {
-                  return Icon(Lucide.workflow, size: 24, color: c);
-                }
-                return ContextUsageRing(
-                  ratio: usage.ratio,
-                  size: 20,
-                  strokeWidth: 2.6,
-                  running: widget.loading,
-                  trackColor: c.withValues(alpha: 0.12),
-                );
-              },
+        : (c) => ContextUsageButtonIcon(
+              usage: widget.contextUsage!,
+              loading: widget.loading,
+              color: c,
             ),
   )
   ```
   - `_CompactIconButton` 的 `childBuilder` 已被包在 `SizedBox(24,24)`,ring 20px 置中。
-  - 未知窗口 → `workflow` 24px,**完全現狀**;`contextUsage == null` 時連 `ValueListenableBuilder` 都不建。
+  - 未知窗口 → 空 ring(只畫 track);`contextUsage == null` 時連 `ValueListenableBuilder` 都不建(維持原圖示)。
 - `showContextMenu`(L1390):
   ```dart
   final usage = widget.contextUsage?.value;
@@ -591,12 +586,12 @@ int _estimateCompactedHeadTokens(
 - **模型/provider 切換**:measured 必須 `modelId/providerId` 相符;否則退回估算(標 `≈`)。這避免舊 tokenizer 的數字套到新窗口。
 - **Answer Review**:`promptTokens` 含 review 子請求(`agent_orchestrator.dart` L889-912),會高估。v1 接受並在文件註記;要精準就另存 `reviewPromptTokens` 再扣除(需 schema/寫入變更,不在本版範圍)。
 - **版本折疊 / regenerate**:先 raw slice,再 `collapseVersions`;`versionSelections` 必須是當前 selections。regenerate 完成後走 `onMessagesChanged`。
-- **空會話**:窗口已知 → ring 0%;未知 → 原圖示。
-- **窗口未知**:learned/catalog 都 null → `hasWindow == false`;按鈕回 `workflow`,選單/sheet 不顯示 header。
+- **空會話**:窗口已知 → ring 0%;未知 → 空 ring(track only)。
+- **窗口未知**:learned/catalog 都 null → `hasWindow == false`;按鈕顯示空 ring,選單/sheet header 顯示 `used / ... Token`、不顯示百分比。
 - **used > max**:ring 畫滿;header 顯示真實百分比(例如 112%),紅色;不要 clamp 成 100% 文字。
 - **`ChatInputBar` 頻繁重建**:ring 是 stateful、保留 `_displayedRatio`;不會每次從 0 閃一下。
-- **選單 header 寬度**:`minMenuWidth: 240` + `Flexible`/ellipsis;`estMenuHeight` 加 header 高度,否則上下翻轉會差 56px。
-- **手機 sheet header**:`SizedBox.shrink()` 不留 gap;開 sheet 前先 refresh,避免高度跳動。
+- **選單 header 寬度**:`minMenuWidth: 240` + `Flexible`/ellipsis;`estMenuHeight` 加 header 高度,否則上下翻轉會差 header 高度。
+- **手機 sheet header**:snapshot 為 null 時保留原本 16px 間距,不留多餘 gap;開 sheet 前先 refresh,避免高度跳動。
 - **refresh 競態**:epoch + `(conversationId, providerKey, modelId)` 檢查;`_disposed` 保護;`ValueNotifier` 的 `==` 避免重複通知。
 - **估算下界**:不含 system/tool defs/memory/instruction/search/todo pair;v1 以 `≈` 表達,不假裝精確。
 - **範圍外(明確不做)**:手機 BottomToolsSheet 清空列的 ring 小圖示、cost 顯示、桌面按鈕旁 used/max 文字、Answer Review 的精準扣除。
@@ -606,7 +601,7 @@ int _estimateCompactedHeadTokens(
 | 檔案 | 內容 |
 |---|---|
 | `test/features/home/services/context_usage_service_test.dart`(新,單元) | max 優先序(learned > catalog > null);`truncateIndex` -1/length/invalid;slice→collapse 的版本群組;`compactBeforeIndex` split(head summary + tail,不重複加 head);`autoCompactionV1 = false` 不 split;measured 有效性(raw index < truncateIndex、< compactBeforeIndex、model/provider 不符 → 退回估算);trailing delta(measured assistant 用 completionTokens/文字、tool events 不重複、streaming assistant 排除、`estimated` 只在有估算時為 true);純估算;`rawRatio`/`displayPercent`(150% = 300k/200k、125% = 250k/200k);`compactTokenText`;`==/hashCode` |
-| `test/features/home/widgets/context_usage_ring_test.dart`(新,widget) | 三色階門檻(0.699/0.70/0.899/0.90);ratio=1.0 畫滿;`ContextUsageMenuHeader` 在 `maxTokens == null` 時 `SizedBox.shrink()`;顯示 `12.0k / 200.0k Token`、`≈`、`112%`;重建後動畫不從 0 開始(用 `@visibleForTesting` 的 displayed ratio 或注入 zero duration) |
+| `test/features/home/widgets/context_usage_ring_test.dart`(新,widget) | 三色階門檻(0.699/0.70/0.899/0.90);ratio=1.0 畫滿;`ContextUsageMenuHeader` 在 `maxTokens == null` 時顯示 `6.6k / ... Token` 且無百分比;顯示 `12.0k / 200.0k Token`、`≈`、`112%`;重建後動畫不從 0 開始(用 `@visibleForTesting` 的 displayed ratio 或注入 zero duration) |
 | `test/features/chat/widgets/context_management_sheet_header_test.dart`(新,widget) | 有/無 header;header 為 shrink 時不留 gap;兩個選項 tap 回呼仍正常 |
 | `test/desktop_context_menu_header_test.dart`(新,widget) | `showDesktopAnchoredMenu` 帶 header 的最小 `MaterialApp` + `Overlay` harness;header 文字可見、無 overflow;不帶 header 時行為不變;`minMenuWidth` 生效 |
 | `test/features/home/services/context_usage_service_test.dart` 的 epoch/identity 子測試 | 把 `_setContextUsageIfCurrent` 的 epoch/identity 檢查抽成 pure helper,測「舊 snapshot 晚到不覆蓋新會話/新模型」;catalog null → `maxTokens == null` |
@@ -629,7 +624,7 @@ int _estimateCompactedHeadTokens(
 ## 8. 驗收清單
 
 - [ ] catalog/learned 已知窗口:ring 顯示,比例隨對話成長,串流中脈動。
-- [ ] 未知窗口:按鈕維持 `workflow` 原圖示,選單/sheet 無 header。
+- [ ] 未知窗口:按鈕顯示空 ring;選單/sheet header 顯示 `used / ... Token`,且無百分比徽章。
 - [ ] 70% / 90% 門檻變色(amber / error)。
 - [ ] 最後一則實測後有長 user 訊息:ring 立即反映(measured + delta,標 `≈`)。
 - [ ] 自動壓縮後:估算不把 `compactBeforeIndex` 前的 head 加回來;measured 在邊界後才採用。

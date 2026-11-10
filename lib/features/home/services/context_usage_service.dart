@@ -25,7 +25,8 @@ import '../../../core/services/agent/compaction/context_trim.dart';
 class ContextUsageSnapshot {
   final int usedTokens;
 
-  /// null = window unknown → the display layer falls back to the plain icon.
+  /// null = window unknown → the display layer shows an empty ring and a
+  /// `used / ...` header (no percentage).
   final int? maxTokens;
 
   /// Whether a measured prompt baseline was used.
@@ -59,6 +60,7 @@ class ContextUsageSnapshot {
   double get ratio => rawRatio.clamp(0.0, 1.0).toDouble();
 
   /// Real percentage for the header badge (can be > 100 — do not clamp).
+  /// Only meaningful when [hasWindow]; the header hides the badge otherwise.
   int get displayPercent => (rawRatio * 100).round();
 
   @override
@@ -155,7 +157,7 @@ ContextUsageSnapshot computeContextUsage({
   estimateCompactedHeadTokens,
 }) {
   // 1. Window: learned > catalog > unknown. Never the 1M fallback — an
-  //    unknown window must degrade to the plain icon, not a fake ratio.
+  //    unknown window must show an empty ring, not a fake ratio.
   final maxTokens = (learnedWindowTokens != null && learnedWindowTokens > 0)
       ? learnedWindowTokens
       : (catalogWindowTokens != null && catalogWindowTokens > 0

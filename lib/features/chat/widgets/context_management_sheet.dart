@@ -22,8 +22,9 @@ class ContextManagementSheet extends StatelessWidget {
   final VoidCallback? onClear;
   final String? clearLabel;
 
-  /// When set, a usage header row is shown above the options. It renders
-  /// nothing while the context window is unknown — never a blank gap.
+  /// When set, a usage header row is shown above the options. While the
+  /// context window is unknown it still shows `used / ... Token` without a
+  /// percentage; only an absent snapshot collapses the row.
   final ValueListenable<ContextUsageSnapshot?>? contextUsage;
 
   @override
@@ -60,15 +61,29 @@ class ContextManagementSheet extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
           ),
-          if (contextUsage != null) ...[
-            const SizedBox(height: 10),
-            ContextUsageMenuHeader(
-              listenable: contextUsage!,
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+          if (contextUsage == null)
+            const SizedBox(height: 16)
+          else
+            // The header itself collapses when there is no snapshot; the
+            // outer listener keeps the original 16px gap in that case instead
+            // of reserving a header slot for nothing.
+            ValueListenableBuilder<ContextUsageSnapshot?>(
+              valueListenable: contextUsage!,
+              builder: (context, snapshot, _) {
+                if (snapshot == null) return const SizedBox(height: 16);
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 10),
+                    ContextUsageMenuHeader(
+                      listenable: contextUsage!,
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                );
+              },
             ),
-            const SizedBox(height: 6),
-          ] else
-            const SizedBox(height: 16),
           _OptionRow(
             icon: Lucide.package2,
             label: l10n.compressContext,

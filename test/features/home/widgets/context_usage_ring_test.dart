@@ -2,7 +2,8 @@
 // (docs/context_usage_ring_plan.md v2).
 //
 // Pins: no from-zero flash on rebuild, animated updates, clamping, the
-// 70%/90% color bands, and the header's show/hide + over-budget badge rules.
+// 70%/90% color bands, the header's show/hide + over-budget badge rules, and
+// the empty-ring fallback while the window is unknown.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -69,13 +70,31 @@ void main() {
     expect(contextUsageColorForRatio(ctx, 0.90), cs.error);
   });
 
-  testWidgets('header hides entirely while the window is unknown',
+  testWidgets('header hides entirely when there is no snapshot',
       (tester) async {
     final notifier = ValueNotifier<ContextUsageSnapshot?>(null);
     await tester.pumpWidget(wrapWidget(
       ContextUsageMenuHeader(listenable: notifier, padding: EdgeInsets.zero),
     ));
     expect(find.textContaining('Token'), findsNothing);
+  });
+
+  testWidgets('header shows used / ... without a percentage while unknown',
+      (tester) async {
+    final notifier = ValueNotifier<ContextUsageSnapshot?>(
+      const ContextUsageSnapshot(
+        usedTokens: 6600,
+        maxTokens: null,
+        measured: true,
+        estimated: true,
+      ),
+    );
+    await tester.pumpWidget(wrapWidget(
+      ContextUsageMenuHeader(listenable: notifier, padding: EdgeInsets.zero),
+    ));
+    expect(find.text('6.6k / ... Token'), findsOneWidget);
+    expect(find.text('≈'), findsOneWidget);
+    expect(find.textContaining('%'), findsNothing);
   });
 
   testWidgets('header shows used/max + percent, hides ≈ when measured',
@@ -128,5 +147,29 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('12.3k / 200.0k Token'), findsOneWidget);
+  });
+
+  testWidgets('context button keeps an empty ring for null/unknown usage',
+      (tester) async {
+    final notifier = ValueNotifier<ContextUsageSnapshot?>(null);
+    await tester.pumpWidget(wrapWidget(
+      ContextUsageButtonIcon(
+        usage: notifier,
+        loading: false,
+        color: Colors.black,
+      ),
+    ));
+    expect(find.byType(ContextUsageRing), findsOneWidget);
+    expect(displayedRatio(tester), 0.0);
+
+    notifier.value = const ContextUsageSnapshot(
+      usedTokens: 6600,
+      maxTokens: null,
+      measured: true,
+      estimated: false,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(ContextUsageRing), findsOneWidget);
+    expect(displayedRatio(tester), 0.0);
   });
 }

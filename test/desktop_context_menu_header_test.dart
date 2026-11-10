@@ -8,6 +8,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:OmniChat/desktop/desktop_context_menu.dart';
+import 'package:OmniChat/features/home/services/context_usage_service.dart';
+import 'package:OmniChat/features/home/widgets/context_usage_ring.dart';
 
 Future<void> pumpAnchor(WidgetTester tester, GlobalKey anchorKey) async {
   await tester.pumpWidget(MaterialApp(
@@ -74,6 +76,40 @@ void main() {
     expect(find.text('HEADER'), findsNothing);
     expect(find.text('Item A'), findsOneWidget);
     expect(find.text('Item B'), findsOneWidget);
+
+    Navigator.of(scaffoldContext).pop();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+      'usage header renders used / ... without a percent while unknown',
+      (tester) async {
+    final anchorKey = GlobalKey();
+    await pumpAnchor(tester, anchorKey);
+    final scaffoldContext = tester.element(find.byType(Scaffold));
+    final usage = ValueNotifier<ContextUsageSnapshot?>(
+      const ContextUsageSnapshot(
+        usedTokens: 6600,
+        maxTokens: null,
+        measured: true,
+        estimated: false,
+      ),
+    );
+
+    unawaited(showDesktopAnchoredMenu(
+      scaffoldContext,
+      anchorKey: anchorKey,
+      header: ContextUsageMenuHeader(listenable: usage, showDivider: true),
+      minMenuWidth: 240,
+      items: const [
+        DesktopContextMenuItem(icon: Icons.copy, label: 'Item A'),
+      ],
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('6.6k / ... Token'), findsOneWidget);
+    expect(find.textContaining('%'), findsNothing);
+    expect(find.text('Item A'), findsOneWidget);
 
     Navigator.of(scaffoldContext).pop();
     await tester.pumpAndSettle();

@@ -137,6 +137,41 @@ class _ContextUsageRingState extends State<ContextUsageRing>
   }
 }
 
+/// Ring shown inside the compact context button.
+///
+/// The ring frame (empty track) is kept when [usage] is null or the window is
+/// unknown — the button must not fall back to the plain workflow icon, which
+/// changes the button's silhouette whenever a model's window is unknown.
+class ContextUsageButtonIcon extends StatelessWidget {
+  const ContextUsageButtonIcon({
+    super.key,
+    required this.usage,
+    required this.loading,
+    required this.color,
+  });
+
+  final ValueListenable<ContextUsageSnapshot?> usage;
+  final bool loading;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<ContextUsageSnapshot?>(
+      valueListenable: usage,
+      builder: (context, snapshot, _) => Center(
+        // The slot's tight 24px constraints would otherwise stretch the ring.
+        child: ContextUsageRing(
+          ratio: snapshot?.ratio ?? 0.0,
+          size: 20,
+          strokeWidth: 2.6,
+          running: loading,
+          trackColor: color.withValues(alpha: 0.12),
+        ),
+      ),
+    );
+  }
+}
+
 /// Public (not library-private) so widget tests can assert the animated value
 /// through `CustomPaint.painter`.
 class ContextUsageRingPainter extends CustomPainter {
@@ -187,8 +222,9 @@ class ContextUsageRingPainter extends CustomPainter {
 }
 
 /// `used / max Token ····· [percent]` row shown at the top of the context
-/// menu (desktop) and the context management sheet (mobile). Renders nothing
-/// while the window is unknown — never a blank gap.
+/// menu (desktop) and the context management sheet (mobile). When the window
+/// is unknown the denominator renders as `...` and the percentage badge is
+/// hidden; only an absent snapshot collapses the header entirely.
 class ContextUsageMenuHeader extends StatelessWidget {
   const ContextUsageMenuHeader({
     super.key,
@@ -209,14 +245,18 @@ class ContextUsageMenuHeader extends StatelessWidget {
     return ValueListenableBuilder<ContextUsageSnapshot?>(
       valueListenable: listenable,
       builder: (context, snapshot, _) {
-        if (snapshot == null || !snapshot.hasWindow) {
+        if (snapshot == null) {
           return const SizedBox.shrink();
         }
         final cs = Theme.of(context).colorScheme;
         final l10n = AppLocalizations.of(context);
         final estimatedLabel = l10n?.contextUsageEstimatedBadge ?? '≈';
-        final overBudget = snapshot.ratio >= 0.90;
+        final hasWindow = snapshot.hasWindow;
+        final overBudget = hasWindow && snapshot.ratio >= 0.90;
         final accent = overBudget ? cs.error : cs.primary;
+        final maxLabel = hasWindow
+            ? compactTokenText(snapshot.maxTokens!)
+            : '...';
         return Padding(
           padding: padding,
           child: Column(
@@ -234,7 +274,7 @@ class ContextUsageMenuHeader extends StatelessWidget {
                   Flexible(
                     child: Text(
                       '${compactTokenText(snapshot.usedTokens)} / '
-                      '${compactTokenText(snapshot.maxTokens!)} Token',
+                      '$maxLabel Token',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -256,26 +296,30 @@ class ContextUsageMenuHeader extends StatelessWidget {
                     ),
                   ],
                   const Spacer(),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '${snapshot.displayPercent}%',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: AppFontWeights.semibold,
-                        color: accent,
-                        decoration: TextDecoration.none,
+                  // No denominator → no percentage. The row still shows the
+                  // measured usage on the left while the window is unknown.
+                  if (hasWindow) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '${snapshot.displayPercent}%',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: AppFontWeights.semibold,
+                          color: accent,
+                          decoration: TextDecoration.none,
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
               if (showDivider)

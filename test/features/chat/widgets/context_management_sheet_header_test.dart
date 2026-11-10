@@ -1,8 +1,8 @@
 // ContextManagementSheet header tests (docs/context_usage_ring_plan.md v2).
 //
-// The sheet shows a usage header row above the options when a snapshot with a
-// known window is available; while the window is unknown the header renders
-// nothing and the sheet keeps its original spacing.
+// The sheet shows a usage header row above the options when a snapshot is
+// available. While the window is unknown the row still shows `used / ...`
+// without a percentage; only an absent snapshot keeps the original spacing.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -66,12 +66,32 @@ void main() {
     expect(find.byIcon(Lucide.Eraser), findsOneWidget);
   });
 
-  testWidgets('header is absent while the window is unknown; options intact',
+  testWidgets('header is absent when there is no snapshot; options intact',
       (tester) async {
     await tester.pumpWidget(
       wrapSheet(contextUsage: ValueNotifier<ContextUsageSnapshot?>(null)),
     );
     expect(find.textContaining('Token'), findsNothing);
+    expect(find.byIcon(Lucide.package2), findsOneWidget);
+    expect(find.byIcon(Lucide.Eraser), findsOneWidget);
+  });
+
+  testWidgets('header shows used / ... while the window is unknown',
+      (tester) async {
+    await tester.pumpWidget(
+      wrapSheet(
+        contextUsage: ValueNotifier<ContextUsageSnapshot?>(
+          const ContextUsageSnapshot(
+            usedTokens: 6600,
+            maxTokens: null,
+            measured: true,
+            estimated: false,
+          ),
+        ),
+      ),
+    );
+    expect(find.text('6.6k / ... Token'), findsOneWidget);
+    expect(find.textContaining('%'), findsNothing);
     expect(find.byIcon(Lucide.package2), findsOneWidget);
     expect(find.byIcon(Lucide.Eraser), findsOneWidget);
   });

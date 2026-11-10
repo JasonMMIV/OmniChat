@@ -1396,18 +1396,20 @@ class _ChatInputBarState extends State<ChatInputBar>
           if (widget.onClearContext != null) {
             void showContextMenu() {
               final usage = widget.contextUsage?.value;
-              final hasUsageWindow = usage != null && usage.hasWindow;
+              // A snapshot alone is enough for the header: when the window is
+              // unknown it still shows `used / ...` without a percentage.
+              final hasUsage = usage != null;
               showDesktopAnchoredMenu(
                 context,
                 anchorKey: _contextMgmtAnchorKey,
-                header: hasUsageWindow
+                header: hasUsage
                     ? ContextUsageMenuHeader(
                         listenable: widget.contextUsage!,
                         showDivider: true,
                       )
                     : null,
-                headerHeight: 56,
-                minMenuWidth: hasUsageWindow ? 240 : null,
+                headerHeight: hasUsage ? 44 : 0,
+                minMenuWidth: hasUsage ? 240 : null,
                 items: [
                   if (widget.onCompressContext != null)
                     DesktopContextMenuItem(
@@ -1442,24 +1444,10 @@ class _ChatInputBarState extends State<ChatInputBar>
                     onTap: showContextMenu,
                     childBuilder: widget.contextUsage == null
                         ? null
-                        : (c) => ValueListenableBuilder<ContextUsageSnapshot?>(
-                              valueListenable: widget.contextUsage!,
-                              builder: (_, usage, __) {
-                                if (usage == null || !usage.hasWindow) {
-                                  return Icon(Lucide.workflow, size: 24, color: c);
-                                }
-                                // Center: the slot's tight 24px constraints
-                                // would otherwise stretch the 20px ring.
-                                return Center(
-                                  child: ContextUsageRing(
-                                    ratio: usage.ratio,
-                                    size: 20,
-                                    strokeWidth: 2.6,
-                                    running: widget.loading,
-                                    trackColor: c.withValues(alpha: 0.12),
-                                  ),
-                                );
-                              },
+                        : (c) => ContextUsageButtonIcon(
+                              usage: widget.contextUsage!,
+                              loading: widget.loading,
+                              color: c,
                             ),
                   ),
                 ),
