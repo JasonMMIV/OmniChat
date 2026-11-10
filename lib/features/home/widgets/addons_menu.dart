@@ -8,12 +8,11 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/chat/ask_user_models.dart';
+import '../../../core/services/haptics.dart';
 import '../../../core/services/chat/todo_models.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_switch.dart';
-import '../../../shared/widgets/ios_tactile.dart';
-import '../../mcp/pages/mcp_page.dart';
 
 /// Mobile entry: the Add-ons bottom sheet behind the composer button
 /// (desktop uses `showAddonsPopover` instead — no bottom sheets there).
@@ -71,15 +70,15 @@ class _AddonsSheetBody extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
               l10n.chatInputBarAddonsTooltip,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
                 child: AddonsMenuContent(
                   assistantId: assistantId,
                   onOpenCurrentPlan: onOpenCurrentPlan,
@@ -95,8 +94,9 @@ class _AddonsSheetBody extends StatelessWidget {
 }
 
 /// Shared Add-ons menu body: three collapsible groups (MCP servers / built-in
-/// tools / advanced features) in the kelivo chat-tools-sheet style. Hosted by
-/// the mobile bottom sheet and the desktop popover alike.
+/// tools / advanced features). Hosted by the mobile bottom sheet and the
+/// desktop popover alike. Kept compact so it reads like the other composer
+/// menus (2026-11-10 Windows feedback pass).
 class AddonsMenuContent extends StatefulWidget {
   const AddonsMenuContent({
     super.key,
@@ -114,7 +114,7 @@ class AddonsMenuContent extends StatefulWidget {
   final VoidCallback? onOpenCurrentPlan;
 
   /// Closes the hosting sheet/popover before the menu navigates elsewhere
-  /// (plan sheet, MCP management page).
+  /// (plan sheet or Self-Review picker).
   final Future<void> Function()? onRequestClose;
 
   @override
@@ -159,55 +159,41 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
               ? l10n.assistantEditMcpNoServersMessage
               : '$selectedCount/${connected.length}',
           children: [
-            if (assistant == null) ...[
-              if (connected.isEmpty)
-                _hintRow(l10n.assistantEditMcpNoServersMessage),
-            ] else if (connected.isEmpty)
+            if (connected.isEmpty)
               _hintRow(l10n.assistantEditMcpNoServersMessage)
-            else ...[
+            else
               for (final s in connected)
                 _MenuRow(
                   leading: Icon(
                     Lucide.Hammer,
-                    size: 18,
+                    size: 16,
                     color: selectedIds.contains(s.id)
                         ? cs.primary
                         : cs.onSurface,
                   ),
                   title: s.name,
-                  detail:
-                      '${s.tools.where((t) => t.enabled).length}/${s.tools.length}',
+                  detail: _toolsCountTag(
+                    l10n.assistantEditMcpToolsCountTag(
+                      s.tools.where((t) => t.enabled).length.toString(),
+                      s.tools.length.toString(),
+                    ),
+                  ),
+                  enabled: assistant != null,
                   onTap: () =>
                       _toggleServer(s.id, !selectedIds.contains(s.id)),
                   trailing: IosSwitch(
                     value: selectedIds.contains(s.id),
-                    onChanged: (v) => _toggleServer(s.id, v),
+                    width: 38,
+                    height: 22,
+                    hitTestSize: 44,
+                    onChanged: assistant == null
+                        ? null
+                        : (v) => _toggleServer(s.id, v),
                   ),
                 ),
-              _MenuRow(
-                leading: Icon(Lucide.Check, size: 18, color: cs.onSurface),
-                title: l10n.addonsMcpSelectAll,
-                onTap: () => _setAllServers(true),
-              ),
-              _MenuRow(
-                leading: Icon(Lucide.CircleX, size: 18, color: cs.onSurface),
-                title: l10n.addonsMcpClearAll,
-                onTap: () => _setAllServers(false),
-              ),
-            ],
-            _MenuRow(
-              leading: Icon(Lucide.Settings2, size: 18, color: cs.onSurface),
-              title: l10n.addonsManageServers,
-              trailing: Icon(
-                Lucide.ChevronRight,
-                size: 16,
-                color: cs.onSurface.withOpacity(0.55),
-              ),
-              onTap: _openManageServers,
-            ),
           ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 8),
         _group(
           title: l10n.addonsBuiltInToolsTitle,
           expanded: _builtInExpanded,
@@ -215,42 +201,53 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
           summary: '${(writeTodosOn ? 1 : 0) + (askUserOn ? 1 : 0)}/2',
           children: [
             _MenuRow(
-              leading: Icon(Lucide.ListChecks, size: 18, color: cs.onSurface),
+              leading: Icon(Lucide.ListChecks, size: 16, color: cs.onSurface),
               title: l10n.builtInToolWriteTodosName,
               subtitle: l10n.addonsWriteTodosSubtitle,
               onTap: () => _setWriteTodos(!writeTodosOn),
               trailing: IosSwitch(
                 value: writeTodosOn,
+                width: 38,
+                height: 22,
+                hitTestSize: 44,
                 onChanged: _setWriteTodos,
               ),
             ),
             _MenuRow(
-              leading: Icon(Lucide.MessageCircle, size: 18, color: cs.onSurface),
+              leading: Icon(Lucide.MessageCircle, size: 16, color: cs.onSurface),
               title: l10n.builtInToolAskUserName,
               subtitle: l10n.addonsAskUserSubtitle,
               onTap: () => _setAskUser(!askUserOn),
               trailing: IosSwitch(
                 value: askUserOn,
+                width: 38,
+                height: 22,
+                hitTestSize: 44,
                 onChanged: _setAskUser,
               ),
             ),
             _MenuRow(
-              leading: Icon(Lucide.NotebookTabs, size: 18, color: cs.onSurface),
+              leading: Icon(Lucide.NotebookTabs, size: 16, color: cs.onSurface),
               title: l10n.todoPlanTitle,
               enabled: widget.onOpenCurrentPlan != null,
               trailing: Icon(
                 Lucide.ChevronRight,
-                size: 16,
+                size: 14,
                 color: cs.onSurface.withOpacity(0.55),
               ),
               onTap: () async {
+                // Same close-then-open ordering as Self-Review: the desktop
+                // popover's overlay would otherwise sit above the plan sheet
+                // while it fades out.
+                final open = widget.onOpenCurrentPlan;
                 await widget.onRequestClose?.call();
-                widget.onOpenCurrentPlan?.call();
+                await Future<void>.delayed(const Duration(milliseconds: 80));
+                open?.call();
               },
             ),
           ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 8),
         _group(
           title: l10n.addonsAdvancedFeaturesTitle,
           expanded: _advancedExpanded,
@@ -260,21 +257,31 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
             _MenuRow(
               leading: Icon(
                 Lucide.ScanSearch,
-                size: 18,
+                size: 16,
                 color: reviewMode == AnswerReviewMode.off
                     ? cs.onSurface
                     : cs.primary,
               ),
               title: l10n.displaySettingsPageAnswerReviewTitle,
               subtitle: l10n.displaySettingsPageAnswerReviewDescription,
-              detail: _selfReviewModeLabel(l10n, reviewMode),
-              detailHighlight: reviewMode != AnswerReviewMode.off,
+              detail: Text(
+                _selfReviewModeLabel(l10n, reviewMode),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: reviewMode == AnswerReviewMode.off
+                      ? FontWeight.w400
+                      : FontWeight.w600,
+                  color: reviewMode == AnswerReviewMode.off
+                      ? cs.onSurface.withOpacity(0.6)
+                      : cs.primary,
+                ),
+              ),
               trailing: Icon(
                 Lucide.ChevronRight,
-                size: 16,
+                size: 14,
                 color: cs.onSurface.withOpacity(0.55),
               ),
-              onTap: () => _showSelfReviewModePicker(context),
+              onTap: _showSelfReviewModePicker,
             ),
           ],
         ),
@@ -283,7 +290,7 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
   }
 
   // ---------------------------------------------------------------------------
-  // Collapsible group (kelivo chat-tools-sheet header anatomy)
+  // Collapsible group header
   // ---------------------------------------------------------------------------
 
   Widget _group({
@@ -301,7 +308,7 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
           behavior: HitTestBehavior.opaque,
           onTap: () => onToggle(!expanded),
           child: SizedBox(
-            height: 32,
+            height: 28,
             child: Row(
               children: [
                 AnimatedRotation(
@@ -309,7 +316,7 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
                   duration: const Duration(milliseconds: 200),
                   child: Icon(
                     Lucide.ChevronRight,
-                    size: 14,
+                    size: 12,
                     color: cs.onSurface.withOpacity(0.5),
                   ),
                 ),
@@ -317,7 +324,7 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: cs.onSurface.withOpacity(0.5),
                   ),
@@ -325,14 +332,14 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
                 const Spacer(),
                 if (!expanded && summary != null)
                   ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 160),
+                    constraints: const BoxConstraints(maxWidth: 140),
                     child: Text(
                       summary,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.right,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 12,
                         color: cs.onSurface.withOpacity(0.5),
                       ),
                     ),
@@ -350,7 +357,7 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     for (var i = 0; i < children.length; i++) ...[
-                      if (i > 0) const SizedBox(height: 8),
+                      if (i > 0) const SizedBox(height: 2),
                       children[i],
                     ],
                   ],
@@ -364,10 +371,32 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
   Widget _hintRow(String text) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
       child: Text(
         text,
-        style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.55)),
+        style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.55)),
+      ),
+    );
+  }
+
+  /// The original OmniChat MCP tools-count pill (formerly in the assistant
+  /// MCP sheet): tinted primary fill + hairline border.
+  Widget _toolsCountTag(String text) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: cs.primary.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: cs.primary.withOpacity(0.35)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 10.5,
+          color: cs.primary,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -407,29 +436,6 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
     await ap.updateAssistant(assistant.copyWith(mcpServerIds: ids.toList()));
   }
 
-  Future<void> _setAllServers(bool selectAll) async {
-    if (widget.assistantId == null) return;
-    final mcp = context.read<McpProvider>();
-    final ap = context.read<AssistantProvider>();
-    final assistant = ap.getById(widget.assistantId!);
-    if (assistant == null) return;
-    final ids = selectAll
-        ? [
-            for (final s in mcp.servers)
-              if (mcp.statusFor(s.id) == McpStatus.connected) s.id,
-          ]
-        : const <String>[];
-    await ap.updateAssistant(assistant.copyWith(mcpServerIds: ids));
-  }
-
-  Future<void> _openManageServers() async {
-    await widget.onRequestClose?.call();
-    if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const McpPage()),
-    );
-  }
-
   // ---------------------------------------------------------------------------
   // Self-Review mode picker (moved out of the settings page on 2026-11-10)
   // ---------------------------------------------------------------------------
@@ -445,22 +451,32 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
     }
   }
 
-  Future<void> _showSelfReviewModePicker(BuildContext context) async {
+  Future<void> _showSelfReviewModePicker() async {
     final isDesktop =
         defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.linux;
+    // Close the hosting menu first: the desktop popover lives in an
+    // OverlayEntry above the navigator, so a dialog opened while it is still
+    // inserted would appear *behind* the panel (Windows feedback, 2026-11-10).
+    final navigator = Navigator.of(context);
+    final sp = context.read<SettingsProvider>();
+    await widget.onRequestClose?.call();
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    if (!navigator.mounted) return;
     if (isDesktop) {
-      await _showSelfReviewModeDialog(context);
+      await _showSelfReviewModeDialog(navigator.context, sp);
     } else {
-      await _showSelfReviewModeSheet(context);
+      await _showSelfReviewModeSheet(navigator.context, sp);
     }
   }
 
-  Future<void> _showSelfReviewModeSheet(BuildContext context) async {
+  Future<void> _showSelfReviewModeSheet(
+    BuildContext context,
+    SettingsProvider sp,
+  ) async {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    final sp = context.read<SettingsProvider>();
     final current = sp.answerReviewMode;
     final choice = await showModalBottomSheet<String>(
       context: context,
@@ -526,10 +542,12 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
     await _applySelfReviewChoice(sp, choice);
   }
 
-  Future<void> _showSelfReviewModeDialog(BuildContext context) async {
+  Future<void> _showSelfReviewModeDialog(
+    BuildContext context,
+    SettingsProvider sp,
+  ) async {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    final sp = context.read<SettingsProvider>();
     final current = sp.answerReviewMode;
     final choice = await showDialog<String>(
       context: context,
@@ -669,16 +687,15 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
   }
 }
 
-/// One menu row (kelivo tools-sheet row anatomy): leading icon, title,
-/// optional subtitle, optional right-aligned detail text and a trailing
-/// switch/chevron. Disabled rows dim and ignore pointers.
-class _MenuRow extends StatelessWidget {
+/// One compact menu row: leading icon, title, optional subtitle, optional
+/// right-aligned detail widget (pill/tag/text) and a trailing switch/chevron.
+/// Background stays transparent — only a subtle hover tint appears.
+class _MenuRow extends StatefulWidget {
   const _MenuRow({
     required this.leading,
     required this.title,
     this.subtitle,
     this.detail,
-    this.detailHighlight = false,
     this.trailing,
     this.onTap,
     this.enabled = true,
@@ -687,77 +704,90 @@ class _MenuRow extends StatelessWidget {
   final Widget leading;
   final String title;
   final String? subtitle;
-  final String? detail;
-  final bool detailHighlight;
+  final Widget? detail;
   final Widget? trailing;
   final VoidCallback? onTap;
   final bool enabled;
 
   @override
+  State<_MenuRow> createState() => _MenuRowState();
+}
+
+class _MenuRowState extends State<_MenuRow> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final row = IosCardPress(
-      borderRadius: BorderRadius.circular(14),
-      baseColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04),
-      duration: const Duration(milliseconds: 260),
-      onTap: onTap ?? () {},
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
-        children: [
-          leading,
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    color: cs.onSurface,
-                  ),
-                ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: cs.onSurface.withOpacity(0.55),
-                    ),
-                  ),
-                ],
-              ],
-            ),
+    final hoverBg = (isDark ? Colors.white : Colors.black).withOpacity(
+      isDark ? 0.08 : 0.05,
+    );
+    final row = MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          Haptics.light();
+          widget.onTap?.call();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            color: _hovered ? hoverBg : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
           ),
-          if (detail != null) ...[
-            const SizedBox(width: 8),
-            Text(
-              detail!,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: detailHighlight ? FontWeight.w600 : FontWeight.w400,
-                color: detailHighlight
-                    ? cs.primary
-                    : cs.onSurface.withOpacity(0.6),
+          child: Row(
+            children: [
+              widget.leading,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w500,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    if (widget.subtitle != null) ...[
+                      const SizedBox(height: 1),
+                      Text(
+                        widget.subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: cs.onSurface.withOpacity(0.55),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-            ),
-          ],
-          if (trailing != null) ...[
-            const SizedBox(width: 8),
-            trailing!,
-          ],
-        ],
+              if (widget.detail != null) ...[
+                const SizedBox(width: 8),
+                widget.detail!,
+              ],
+              if (widget.trailing != null) ...[
+                const SizedBox(width: 8),
+                widget.trailing!,
+              ],
+            ],
+          ),
+        ),
       ),
     );
-    if (enabled) return row;
+    if (widget.enabled) return row;
     return IgnorePointer(
       ignoring: true,
       child: Opacity(opacity: 0.45, child: row),

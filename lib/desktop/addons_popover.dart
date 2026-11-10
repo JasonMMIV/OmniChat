@@ -1,13 +1,11 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 
 import '../features/home/widgets/addons_menu.dart';
 import '../l10n/app_localizations.dart';
 
-/// Desktop entry for the Add-ons menu: a glass popover anchored above the
-/// input bar (desktop never uses bottom sheets). Hosts the same
-/// [AddonsMenuContent] as the mobile sheet (2026-11-10 Add-ons reorganization).
+/// Desktop entry for the Add-ons menu. Uses the same geometry as the previous
+/// MCP menu: anchored to the composer, centered, up to 720px wide and flush
+/// above the input bar (2026-11-10 Windows feedback pass).
 Future<void> showAddonsPopover(
   BuildContext context, {
   required GlobalKey anchorKey,
@@ -109,7 +107,8 @@ class _AddonsPopoverState extends State<_AddonsPopover>
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.of(context).size;
-    final width = (widget.anchorWidth - 16).clamp(300.0, 720.0);
+    // Same width formula as the old MCP popover (2026-11-10 feedback).
+    final width = (widget.anchorWidth - 16).clamp(260.0, 720.0);
     final left = (widget.anchorRect.left + (widget.anchorRect.width - width) / 2)
         .clamp(8.0, screen.width - width - 8.0);
     final clipHeight = widget.anchorRect.top.clamp(0.0, screen.height);
@@ -140,10 +139,7 @@ class _AddonsPopoverState extends State<_AddonsPopover>
                       duration: const Duration(milliseconds: 260),
                       curve: Curves.easeOutCubic,
                       offset: _offset,
-                      child: _GlassPanel(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(14),
-                        ),
+                      child: _Panel(
                         child: _AddonsPopoverContent(
                           assistantId: widget.assistantId,
                           onOpenCurrentPlan: widget.onOpenCurrentPlan,
@@ -162,43 +158,43 @@ class _AddonsPopoverState extends State<_AddonsPopover>
   }
 }
 
-class _GlassPanel extends StatelessWidget {
-  const _GlassPanel({required this.child, this.borderRadius});
+/// Opaque menu panel (the user asked for a non-transparent Add-ons menu);
+/// shape and flush placement mirror the old MCP popover.
+class _Panel extends StatelessWidget {
+  const _Panel({required this.child});
+
   final Widget child;
-  final BorderRadius? borderRadius;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return ClipRRect(
-      borderRadius: borderRadius ?? BorderRadius.circular(14),
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: (isDark ? Colors.black : Colors.white).withOpacity(
-              isDark ? 0.28 : 0.56,
-            ),
-            border: Border(
-              top: BorderSide(
-                color: Colors.white.withOpacity(isDark ? 0.06 : 0.18),
-                width: 0.7,
-              ),
-              left: BorderSide(
-                color: Colors.white.withOpacity(isDark ? 0.04 : 0.12),
-                width: 0.6,
-              ),
-              right: BorderSide(
-                color: Colors.white.withOpacity(isDark ? 0.04 : 0.12),
-                width: 0.6,
-              ),
-            ),
-          ),
-          child: Material(
-            type: MaterialType.transparency,
-            child: child,
-          ),
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cs = theme.colorScheme;
+    const radius = BorderRadius.vertical(top: Radius.circular(14));
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: radius,
+        border: Border.all(
+          // The panel is opaque, so use a real contrast border instead of
+          // the old glass highlights (white-on-white in light mode).
+          color: isDark
+              ? Colors.white.withOpacity(0.10)
+              : Colors.black.withOpacity(0.08),
+          width: 0.8,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.22 : 0.10),
+            blurRadius: 18,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: Material(type: MaterialType.transparency, child: child),
       ),
     );
   }
@@ -213,15 +209,16 @@ class _AddonsPopoverContent extends StatelessWidget {
 
   final String? assistantId;
   final VoidCallback? onOpenCurrentPlan;
-  final VoidCallback onClose;
+  final Future<void> Function() onClose;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 520),
+      // Same max height as the old MCP menu.
+      constraints: const BoxConstraints(maxHeight: 420),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -229,13 +226,15 @@ class _AddonsPopoverContent extends StatelessWidget {
             Text(
               l10n.chatInputBarAddonsTooltip,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             AddonsMenuContent(
               assistantId: assistantId,
               onOpenCurrentPlan: onOpenCurrentPlan,
-              onRequestClose: () async => onClose(),
+              // Await the 260 ms reverse animation so the overlay entry is
+              // gone before the Self-Review dialog / plan sheet opens.
+              onRequestClose: onClose,
             ),
           ],
         ),

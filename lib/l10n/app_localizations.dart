@@ -2099,24 +2099,6 @@ abstract class AppLocalizations {
   /// **'Advanced Features'**
   String get addonsAdvancedFeaturesTitle;
 
-  /// No description provided for @addonsManageServers.
-  ///
-  /// In en, this message translates to:
-  /// **'Manage servers'**
-  String get addonsManageServers;
-
-  /// No description provided for @addonsMcpSelectAll.
-  ///
-  /// In en, this message translates to:
-  /// **'Select all'**
-  String get addonsMcpSelectAll;
-
-  /// No description provided for @addonsMcpClearAll.
-  ///
-  /// In en, this message translates to:
-  /// **'Clear'**
-  String get addonsMcpClearAll;
-
   /// No description provided for @assistantEditMcpNoServersMessage.
   ///
   /// In en, this message translates to:
@@ -9521,12 +9503,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'选择界面语言'**
   String get displaySettingsPageLanguageSubtitle;
-
-  /// No description provided for @mcpAssistantSheetSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'为该项目启用的服务'**
-  String get mcpAssistantSheetSubtitle;
 
   /// No description provided for @backupPageWebDavTab.
   ///

@@ -1170,13 +1170,13 @@ class _ChatInputBarState extends State<ChatInputBar>
               width: normalButtonW,
               builder: () => _CompactIconButton(
                 tooltip: l10n.chatInputBarAddonsTooltip,
-                icon: Lucide.Puzzle,
+                icon: Lucide.Component,
                 active: widget.addonsActive,
                 onTap: widget.onOpenAddons,
                 onLongPress: widget.onLongPressAddons,
               ),
               menu: DesktopContextMenuItem(
-                icon: Lucide.Puzzle,
+                icon: Lucide.Component,
                 label: l10n.chatInputBarAddonsTooltip,
                 onTap: widget.onOpenAddons,
               ),

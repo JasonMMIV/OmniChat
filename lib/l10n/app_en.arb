@@ -426,9 +426,6 @@
   "addonsMcpServersTitle": "MCP Servers",
   "addonsBuiltInToolsTitle": "Built-in Tools",
   "addonsAdvancedFeaturesTitle": "Advanced Features",
-  "addonsManageServers": "Manage servers",
-  "addonsMcpSelectAll": "Select all",
-  "addonsMcpClearAll": "Clear",
   "assistantEditMcpNoServersMessage": "No servers",
   "assistantEditMcpToolsCountTag": "{enabled}/{total}",
   "@assistantEditMcpToolsCountTag": {
@@ -2261,7 +2258,6 @@
   "hotkeysClearShortcut": "清除快捷键",
   "hotkeysResetAll": "重置所有快捷键为默认",
   "displaySettingsPageLanguageSubtitle": "选择界面语言",
-  "mcpAssistantSheetSubtitle": "为该项目启用的服务",
   "backupPageWebDavTab": "WebDAV 备份",
   "backupPageImportExportTab": "导入和导出",
   "backupPageSelectImportModeDescription": "请选择如何导入备份数据：",

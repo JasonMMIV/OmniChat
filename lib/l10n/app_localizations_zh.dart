@@ -1040,15 +1040,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get addonsAdvancedFeaturesTitle => '高级功能';
 
   @override
-  String get addonsManageServers => '管理服务器';
-
-  @override
-  String get addonsMcpSelectAll => '全部选取';
-
-  @override
-  String get addonsMcpClearAll => '清除';
-
-  @override
   String get assistantEditMcpNoServersMessage => '暂无已启动的 MCP 服务器';
 
   @override
@@ -5000,9 +4991,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get displaySettingsPageLanguageSubtitle => '选择界面语言';
 
   @override
-  String get mcpAssistantSheetSubtitle => '为该项目启用的服务';
-
-  @override
   String get backupPageWebDavTab => 'WebDAV 备份';
 
   @override
@@ -7591,15 +7579,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get addonsAdvancedFeaturesTitle => '高级功能';
-
-  @override
-  String get addonsManageServers => '管理服务器';
-
-  @override
-  String get addonsMcpSelectAll => '全部选取';
-
-  @override
-  String get addonsMcpClearAll => '清除';
 
   @override
   String get assistantEditMcpNoServersMessage => '暂无已启动的 MCP 服务器';
@@ -11448,9 +11427,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get displaySettingsPageLanguageSubtitle => '选择界面语言';
 
   @override
-  String get mcpAssistantSheetSubtitle => '为该项目启用的服务';
-
-  @override
   String get backupPageWebDavTab => 'WebDAV 备份';
 
   @override
@@ -14046,15 +14022,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get addonsAdvancedFeaturesTitle => '進階功能';
-
-  @override
-  String get addonsManageServers => '管理伺服器';
-
-  @override
-  String get addonsMcpSelectAll => '全部選取';
-
-  @override
-  String get addonsMcpClearAll => '清除';
 
   @override
   String get assistantEditMcpNoServersMessage => '暫無已啟動的 MCP 伺服器';
@@ -17994,9 +17961,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get displaySettingsPageLanguageSubtitle => '選擇介面語言';
-
-  @override
-  String get mcpAssistantSheetSubtitle => '為該專案啟用的服務';
 
   @override
   String get backupPageWebDavTab => 'WebDAV 備份';

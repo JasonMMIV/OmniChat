@@ -1047,15 +1047,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addonsAdvancedFeaturesTitle => 'Advanced Features';
 
   @override
-  String get addonsManageServers => 'Manage servers';
-
-  @override
-  String get addonsMcpSelectAll => 'Select all';
-
-  @override
-  String get addonsMcpClearAll => 'Clear';
-
-  @override
   String get assistantEditMcpNoServersMessage => 'No servers';
 
   @override
@@ -5067,9 +5058,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get displaySettingsPageLanguageSubtitle => '选择界面语言';
-
-  @override
-  String get mcpAssistantSheetSubtitle => '为该项目启用的服务';
 
   @override
   String get backupPageWebDavTab => 'WebDAV 备份';
