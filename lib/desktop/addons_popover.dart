@@ -12,7 +12,6 @@ Future<void> showAddonsPopover(
   BuildContext context, {
   required GlobalKey anchorKey,
   required String? assistantId,
-  required VoidCallback? onOpenCurrentPlan,
 }) async {
   final overlay = Overlay.maybeOf(context);
   if (overlay == null) return;
@@ -36,7 +35,6 @@ Future<void> showAddonsPopover(
       anchorRect: anchorRect,
       anchorWidth: size.width,
       assistantId: assistantId,
-      onOpenCurrentPlan: onOpenCurrentPlan,
       onClose: () {
         try {
           entry.remove();
@@ -52,14 +50,12 @@ class _AddonsPopover extends StatefulWidget {
     required this.anchorRect,
     required this.anchorWidth,
     required this.assistantId,
-    required this.onOpenCurrentPlan,
     required this.onClose,
   });
 
   final Rect anchorRect;
   final double anchorWidth;
   final String? assistantId;
-  final VoidCallback? onOpenCurrentPlan;
   final VoidCallback onClose;
 
   @override
@@ -144,7 +140,6 @@ class _AddonsPopoverState extends State<_AddonsPopover>
                       child: _Panel(
                         child: _AddonsPopoverContent(
                           assistantId: widget.assistantId,
-                          onOpenCurrentPlan: widget.onOpenCurrentPlan,
                           onClose: _close,
                         ),
                       ),
@@ -205,12 +200,10 @@ class _Panel extends StatelessWidget {
 class _AddonsPopoverContent extends StatelessWidget {
   const _AddonsPopoverContent({
     required this.assistantId,
-    required this.onOpenCurrentPlan,
     required this.onClose,
   });
 
   final String? assistantId;
-  final VoidCallback? onOpenCurrentPlan;
   final Future<void> Function() onClose;
 
   @override
@@ -233,9 +226,8 @@ class _AddonsPopoverContent extends StatelessWidget {
             const SizedBox(height: 4),
             AddonsMenuContent(
               assistantId: assistantId,
-              onOpenCurrentPlan: onOpenCurrentPlan,
               // Await the 260 ms reverse animation so the overlay entry is
-              // gone before the Self-Review dialog / plan sheet opens.
+              // gone before the Self-Review dialog opens.
               onRequestClose: onClose,
             ),
           ],

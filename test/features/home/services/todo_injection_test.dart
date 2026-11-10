@@ -119,7 +119,8 @@ void main() {
       final decoded = _decoded(result['content']);
       expect(decoded['items'], isNotEmpty);
       expect(decoded['notice'], isNotNull);
-      expect(decoded['notice'], contains('Resume from the first unfinished'));
+      expect(decoded['notice'], contains('If this request continues the plan'));
+      expect(decoded['notice'], contains('otherwise replace the list'));
       expect(decoded['notice'], contains('rewrite ALL todos'));
     });
 
@@ -142,6 +143,42 @@ void main() {
         const TodoState(items: [], hasExplicitState: false),
       );
       expect(api.length, 1);
+    });
+
+    test('Gemini built-ins gate skips the pair even with a plan', () {
+      final state = TodoState(items: items, hasExplicitState: true);
+      expect(
+        shouldAppendTodoStatePair(
+          toolHasTodo: true,
+          hasBuiltInSearch: false,
+          state: state,
+        ),
+        isTrue,
+      );
+      expect(
+        shouldAppendTodoStatePair(
+          toolHasTodo: true,
+          hasBuiltInSearch: true,
+          state: state,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldAppendTodoStatePair(
+          toolHasTodo: false,
+          hasBuiltInSearch: false,
+          state: state,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldAppendTodoStatePair(
+          toolHasTodo: true,
+          hasBuiltInSearch: false,
+          state: null,
+        ),
+        isFalse,
+      );
     });
 
     test('explicit clear appends an empty todos pair', () {

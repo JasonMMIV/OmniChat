@@ -465,9 +465,13 @@ class MessageGenerationService {
         tag: 'todo-projection',
       );
     }
-    if (toolHasTodo && todoState != null) {
+    if (shouldAppendTodoStatePair(
+      toolHasTodo: toolHasTodo,
+      hasBuiltInSearch: hasBuiltInSearch,
+      state: todoState,
+    )) {
       try {
-        appendTodoStatePair(apiMessages, todoState);
+        appendTodoStatePair(apiMessages, todoState!);
       } catch (e) {
         FlutterLogger.log(
           'appendTodoStatePair failed: $e',

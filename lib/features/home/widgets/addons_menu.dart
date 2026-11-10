@@ -23,7 +23,6 @@ import '../../../shared/widgets/ios_switch.dart';
 Future<void> showAddonsSheet(
   BuildContext context, {
   required String? assistantId,
-  required VoidCallback? onOpenCurrentPlan,
 }) async {
   final cs = Theme.of(context).colorScheme;
   await showModalBottomSheet<void>(
@@ -33,21 +32,14 @@ Future<void> showAddonsSheet(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (_) => _AddonsSheetBody(
-      assistantId: assistantId,
-      onOpenCurrentPlan: onOpenCurrentPlan,
-    ),
+    builder: (_) => _AddonsSheetBody(assistantId: assistantId),
   );
 }
 
 class _AddonsSheetBody extends StatelessWidget {
-  const _AddonsSheetBody({
-    required this.assistantId,
-    required this.onOpenCurrentPlan,
-  });
+  const _AddonsSheetBody({required this.assistantId});
 
   final String? assistantId;
-  final VoidCallback? onOpenCurrentPlan;
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +73,6 @@ class _AddonsSheetBody extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
                 child: AddonsMenuContent(
                   assistantId: assistantId,
-                  onOpenCurrentPlan: onOpenCurrentPlan,
                   onRequestClose: () => Navigator.of(context).maybePop(),
                 ),
               ),
@@ -101,7 +92,6 @@ class AddonsMenuContent extends StatefulWidget {
   const AddonsMenuContent({
     super.key,
     required this.assistantId,
-    required this.onOpenCurrentPlan,
     this.onRequestClose,
   });
 
@@ -109,12 +99,8 @@ class AddonsMenuContent extends StatefulWidget {
   /// degrades the MCP group to hints instead of crashing.
   final String? assistantId;
 
-  /// Opens the current-plan sheet; null when there is no active conversation,
-  /// which disables the "Current plan" row.
-  final VoidCallback? onOpenCurrentPlan;
-
   /// Closes the hosting sheet/popover before the menu navigates elsewhere
-  /// (plan sheet or Self-Review picker).
+  /// (the Self-Review picker).
   final Future<void> Function()? onRequestClose;
 
   @override
@@ -225,25 +211,6 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
                 hitTestSize: 44,
                 onChanged: _setAskUser,
               ),
-            ),
-            _MenuRow(
-              leading: Icon(Lucide.NotebookTabs, size: 16, color: cs.onSurface),
-              title: l10n.todoPlanTitle,
-              enabled: widget.onOpenCurrentPlan != null,
-              trailing: Icon(
-                Lucide.ChevronRight,
-                size: 14,
-                color: cs.onSurface.withOpacity(0.55),
-              ),
-              onTap: () async {
-                // Same close-then-open ordering as Self-Review: the desktop
-                // popover's overlay would otherwise sit above the plan sheet
-                // while it fades out.
-                final open = widget.onOpenCurrentPlan;
-                await widget.onRequestClose?.call();
-                await Future<void>.delayed(const Duration(milliseconds: 80));
-                open?.call();
-              },
             ),
           ],
         ),

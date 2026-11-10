@@ -78,10 +78,11 @@ void appendTodoStatePair(
         ? 'Current plan: cleared. Call write_todos with a complete new list '
               'only if the task still needs tracking.'
         : hasIncomplete
-        ? 'Current plan state: the latest write_todos snapshot. Resume from '
-              'the first unfinished item. After finishing each step, call '
-              'write_todos again, rewrite ALL todos with their current '
-              'statuses, and mark that step completed.'
+        ? 'Current plan state: the latest write_todos snapshot. If this '
+              'request continues the plan, resume from the first unfinished '
+              'item; otherwise replace the list with steps for the new task. '
+              'After finishing each step, call write_todos again, rewrite ALL '
+              'todos with their current statuses, and mark that step completed.'
         : 'Current plan state: all items are completed. No further '
               'write_todos update is needed unless the task changes.',
   );
@@ -115,6 +116,18 @@ void appendTodoStatePair(
     },
   ]);
 }
+
+/// Whether the synthetic trailing todo pair may be appended for this request.
+///
+/// Gemini native built-ins strip every function declaration after assembly, so
+/// the pair's `functionCall`/`functionResponse` would reference a tool the
+/// model cannot call. The projected plan still reaches the model through the
+/// compaction summary, but the state pair must be skipped.
+bool shouldAppendTodoStatePair({
+  required bool toolHasTodo,
+  required bool hasBuiltInSearch,
+  required TodoState? state,
+}) => toolHasTodo && !hasBuiltInSearch && state != null;
 
 bool _containsToolCallId(List<Map<String, dynamic>> apiMessages, String id) {
   for (final message in apiMessages) {

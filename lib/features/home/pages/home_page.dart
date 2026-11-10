@@ -600,7 +600,7 @@ class _HomePageState extends State<HomePage>
         .push(MaterialPageRoute(builder: (context) => VoiceChatScreen()));
   }
 
-  /// Phase 3: current-plan entry (app bar + live dock). The sheet loads the
+  /// Phase 3: the live dock opens the current-plan sheet. The sheet loads the
   /// projection on open; a missing plan renders an explicit empty state
   /// rather than a stale local copy.
   Future<void> _openTodoPlan() async {
@@ -1116,25 +1116,17 @@ class _HomePageState extends State<HomePage>
       },
       onOpenAddons: () {
         // The Add-ons menu replaces the old MCP-only button: MCP server
-        // selection, the write_todos / ask_user toggles, the current-plan
-        // viewer and Self-Review all live here (2026-11-10).
+        // selection, the write_todos / ask_user toggles and Self-Review all
+        // live here (2026-11-10). The plan sheet is opened from the live dock.
         final a = context.read<AssistantProvider>().currentAssistant;
-        final conversationId = _controller.currentConversation?.id;
         if (PlatformUtils.isDesktop) {
           showAddonsPopover(
             context,
             anchorKey: _inputBarKey,
             assistantId: a?.id,
-            onOpenCurrentPlan:
-                conversationId == null ? null : _openTodoPlan,
           );
         } else {
-          showAddonsSheet(
-            context,
-            assistantId: a?.id,
-            onOpenCurrentPlan:
-                conversationId == null ? null : _openTodoPlan,
-          );
+          showAddonsSheet(context, assistantId: a?.id);
         }
       },
       onLongPressAddons: () {
