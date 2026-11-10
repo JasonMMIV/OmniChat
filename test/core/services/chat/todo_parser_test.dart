@@ -338,6 +338,24 @@ void main() {
       expect((decoded['counts'] as Map)['total'], 0);
     });
 
+    test('progress notice distinguishes remaining, complete and cleared', () {
+      expect(
+        buildTodoProgressNotice(completed: 1, total: 2, cleared: false),
+        contains('Continue with the remaining steps'),
+      );
+      final complete = buildTodoProgressNotice(
+        completed: 2,
+        total: 2,
+        cleared: false,
+      );
+      expect(complete, contains('Plan complete: 2/2 done'));
+      expect(complete, isNot(contains('remaining steps')));
+      expect(
+        buildTodoProgressNotice(completed: 0, total: 0, cleared: true),
+        contains('Plan cleared'),
+      );
+    });
+
     test('synthetic snapshot keeps full items + notice', () {
       final content = buildTodoResultContent(
         items: items,

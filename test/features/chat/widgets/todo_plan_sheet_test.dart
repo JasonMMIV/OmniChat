@@ -290,6 +290,28 @@ void main() {
       expect(find.text('Current plan'), findsNothing);
     });
 
+    testWidgets('a newer completed plan hides an older incomplete one', (
+      tester,
+    ) async {
+      final notifier = StreamingContentNotifier();
+      await tester.pumpWidget(
+        _wrap(
+          TodoPlanLiveDock(
+            messages: [_assistantMessage('m1'), _assistantMessage('m2')],
+            versionSelections: const <String, int>{},
+            toolParts: <String, List<ToolUIPart>>{
+              'm1': [_todoPart(todos: _incompletePlan())],
+              'm2': [_todoPart(todos: _completedPlan(), id: 'call_2')],
+            },
+            notifier: notifier,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Current plan'), findsNothing);
+    });
+
     testWidgets('hides after an idle user clear via toolRevision', (
       tester,
     ) async {
@@ -444,6 +466,29 @@ void main() {
       ]);
       expect(state, isNotNull);
       expect(state!.isCleared, isTrue);
+    });
+  });
+
+  group('StreamingContentNotifier toolRevision', () {
+    test('bumps for tool updates without a per-message notifier and on clear', () {
+      final notifier = StreamingContentNotifier();
+      var revisions = 0;
+      notifier.toolRevision.addListener(() => revisions++);
+
+      notifier.notifyToolPartsUpdated('not-streaming');
+      expect(revisions, 1);
+
+      notifier.clear();
+      expect(revisions, 2);
+
+      notifier.dispose();
+    });
+
+    test('ignores tool updates after dispose', () {
+      final notifier = StreamingContentNotifier();
+      notifier.dispose();
+
+      expect(() => notifier.notifyToolPartsUpdated('m1'), returnsNormally);
     });
   });
 }

@@ -1183,13 +1183,11 @@ class ToolHandlerService {
     }
     final total = parsed.items.length;
     final completed = parsed.items.where((t) => t.isCompleted).length;
-    final notice = cleared
-        ? 'Plan cleared. Do not resend the old list; call write_todos with a '
-              'complete new list only if the task changes or continues.'
-        : 'Plan updated: $completed/$total complete. Continue with the '
-              'remaining steps. After finishing each step, call write_todos '
-              'again, rewrite ALL todos with their current statuses, and mark '
-              'that step completed. Keep exactly one item in_progress.';
+    final notice = buildTodoProgressNotice(
+      completed: completed,
+      total: total,
+      cleared: cleared,
+    );
     return buildTodoResultContent(
       items: parsed.items,
       changed: changed,

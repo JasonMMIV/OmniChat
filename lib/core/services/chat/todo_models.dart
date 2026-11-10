@@ -443,6 +443,30 @@ Map<String, dynamic> buildTodoCounts(List<TodoItem> items) =>
       'completed': items.where((t) => t.isCompleted).length,
     };
 
+/// Maintenance notice attached to every successful `write_todos` result.
+///
+/// The all-complete branch deliberately stops asking for another update:
+/// telling the model to "continue with the remaining steps" at N/N would
+/// contradict the final snapshot and encourage it to invent more work.
+String buildTodoProgressNotice({
+  required int completed,
+  required int total,
+  required bool cleared,
+}) {
+  if (cleared) {
+    return 'Plan cleared. Do not resend the old list; call write_todos with a '
+        'complete new list only if the task changes or continues.';
+  }
+  if (total > 0 && completed == total) {
+    return 'Plan complete: $completed/$total done. No further write_todos '
+        'update is needed unless the task changes.';
+  }
+  return 'Plan updated: $completed/$total complete. Continue with the '
+      'remaining steps. After finishing each step, call write_todos again, '
+      'rewrite ALL todos with their current statuses, and mark that step '
+      'completed. Keep exactly one item in_progress.';
+}
+
 /// Builds the canonical `todo_snapshot` tool-result content (§2.2.3):
 /// - `changed=false` real result: no `items` (token-efficient, Anybuff
 ///   `318ead2df`), the model still has its own tool-call arguments;
