@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
 import '../features/home/widgets/addons_menu.dart';
@@ -158,8 +160,8 @@ class _AddonsPopoverState extends State<_AddonsPopover>
   }
 }
 
-/// Opaque menu panel (the user asked for a non-transparent Add-ons menu);
-/// shape and flush placement mirror the old MCP popover.
+/// Glass panel matching the pre-Add-ons composer popovers (including the old
+/// MCP menu this replaces): blurred backdrop + translucent surface.
 class _Panel extends StatelessWidget {
   const _Panel({required this.child});
 
@@ -167,34 +169,34 @@ class _Panel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final cs = theme.colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     const radius = BorderRadius.vertical(top: Radius.circular(14));
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: radius,
-        border: Border.all(
-          // The panel is opaque, so use a real contrast border instead of
-          // the old glass highlights (white-on-white in light mode).
-          color: isDark
-              ? Colors.white.withOpacity(0.10)
-              : Colors.black.withOpacity(0.08),
-          width: 0.8,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.22 : 0.10),
-            blurRadius: 18,
-            offset: const Offset(0, -4),
+    return ClipRRect(
+      borderRadius: radius,
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: (isDark ? Colors.black : Colors.white)
+                .withOpacity(isDark ? 0.28 : 0.56),
+            border: Border(
+              top: BorderSide(
+                color: Colors.white.withOpacity(isDark ? 0.06 : 0.18),
+                width: 0.7,
+              ),
+              left: BorderSide(
+                color: Colors.white.withOpacity(isDark ? 0.04 : 0.12),
+                width: 0.6,
+              ),
+              right: BorderSide(
+                color: Colors.white.withOpacity(isDark ? 0.04 : 0.12),
+                width: 0.6,
+              ),
+            ),
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: Material(type: MaterialType.transparency, child: child),
+          child: Material(type: MaterialType.transparency, child: child),
+        ),
       ),
     );
   }

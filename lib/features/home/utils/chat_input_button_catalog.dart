@@ -36,7 +36,7 @@ const List<ChatInputButtonSpec> chatInputButtonCatalog = [
   ),
   ChatInputButtonSpec(
     id: 'addons',
-    icon: Lucide.Component,
+    icon: Lucide.Shapes,
     label: _addonsLabel,
   ),
   ChatInputButtonSpec(
