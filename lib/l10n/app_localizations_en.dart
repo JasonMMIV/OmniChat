@@ -2256,6 +2256,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String get approvalPendingPill => 'Pending';
 
   @override
+  String get approvalExecuting => 'Approved — running…';
+
+  @override
+  String get approvalExecutingPill => 'Approved';
+
+  @override
+  String approvalExecutingTitle(String tool) {
+    return 'Running $tool…';
+  }
+
+  @override
+  String get approvalResolveBusy =>
+      'A reply is still being generated. Try again in a moment.';
+
+  @override
+  String get approvalAlreadyResolved =>
+      'This approval has already been handled. Ask the model to run the step again if needed.';
+
+  @override
+  String get approvalResolveUnavailable =>
+      'The approval request could not be found. Ask the model to run the step again.';
+
+  @override
+  String get approvalTimedOutNotice =>
+      'This approval timed out, so the tool was not executed.';
+
+  @override
   String approvalOutsideWorkspace(String path) {
     return 'Outside workspace: $path';
   }

@@ -953,6 +953,20 @@
     }
   },
   "approvalPendingPill": "Pending",
+  "approvalExecuting": "Approved — running…",
+  "approvalExecutingPill": "Approved",
+  "approvalExecutingTitle": "Running {tool}…",
+  "@approvalExecutingTitle": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalResolveBusy": "A reply is still being generated. Try again in a moment.",
+  "approvalAlreadyResolved": "This approval has already been handled. Ask the model to run the step again if needed.",
+  "approvalResolveUnavailable": "The approval request could not be found. Ask the model to run the step again.",
+  "approvalTimedOutNotice": "This approval timed out, so the tool was not executed.",
   "approvalOutsideWorkspace": "Outside workspace: {path}",
   "@approvalOutsideWorkspace": {
     "placeholders": {

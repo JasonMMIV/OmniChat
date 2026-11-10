@@ -646,6 +646,20 @@
     }
   },
   "approvalPendingPill": "待审批",
+  "approvalExecuting": "已批准，执行中…",
+  "approvalExecutingPill": "已批准",
+  "approvalExecutingTitle": "已批准，执行中：{tool}",
+  "@approvalExecutingTitle": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalResolveBusy": "正在生成回复，请稍后再试。",
+  "approvalAlreadyResolved": "这个审批已处理过。如仍需执行，请让模型重新提出。",
+  "approvalResolveUnavailable": "找不到这个审批请求。请让模型重新提出。",
+  "approvalTimedOutNotice": "审批已超时，工具未执行。",
   "approvalOutsideWorkspace": "工作区之外：{path}",
   "@approvalOutsideWorkspace": {
     "placeholders": {

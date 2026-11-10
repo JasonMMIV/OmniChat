@@ -40,6 +40,11 @@ const String approvalDeniedType = 'approval_denied';
 /// required (CLI v4 §三.3; enforced lazily at resume time).
 const Duration approvalPendingTimeout = Duration(minutes: 5);
 
+/// Longer decision window for `shell_run`: the user may be reviewing a long
+/// command (and its blocked-program list) before deciding. The lazy timeout
+/// still guarantees a pending card cannot sit forever.
+const Duration shellApprovalPendingTimeout = Duration(minutes: 30);
+
 /// The per-call approval decision produced by the policy engine.
 enum ApprovalDecision {
   /// Execute immediately, no user interaction.
@@ -235,6 +240,66 @@ Map<String, dynamic>? parseApprovalContent(String? content) {
   } catch (_) {
     return null;
   }
+}
+
+/// Whether [event] is a persisted tool event still waiting for an approval
+/// decision (§3.14 §2 five-state machine). The persisted `approvalState`
+/// wins; legacy events without a state are inferred from the
+/// `approval_required` protocol content, except the timeout payload, which is
+/// already a recorded terminal outcome.
+bool isApprovalPendingEvent(Map<String, dynamic> event) {
+  final state = normalizeApprovalState(event['approvalState']);
+  if (state == approvalStatePending) return true;
+  if (state != approvalStateAuto) return false;
+  final parsed = parseApprovalContent(event['content']?.toString());
+  if (parsed == null || parsed['type'] != approvalRequiredType) return false;
+  return (parsed['error'] ?? '').toString() != 'approval_timeout';
+}
+
+/// Locate the tool event an approval decision belongs to.
+///
+/// The exact provider call id is authoritative. Providers occasionally omit or
+/// rewrite ids (legacy events, relay-specific ids), so a fallback resolves the
+/// single still-pending event with the same tool name — preferring an exact
+/// arguments match. Ambiguity returns null: guessing could approve the wrong
+/// call.
+Map<String, dynamic>? findApprovalDecisionEvent(
+  List<Map<String, dynamic>> events, {
+  required String toolCallId,
+  String? toolName,
+  Map<String, dynamic>? arguments,
+}) {
+  final wantedId = toolCallId.trim();
+  if (wantedId.isNotEmpty) {
+    for (final event in events) {
+      if ((event['id']?.toString() ?? '').trim() != wantedId) continue;
+      return isApprovalPendingEvent(event) ? event : null;
+    }
+  }
+
+  final candidates = <Map<String, dynamic>>[
+    for (final event in events)
+      if (isApprovalPendingEvent(event) &&
+          (toolName == null || (event['name']?.toString() ?? '') == toolName))
+        event,
+  ];
+  if (candidates.isEmpty) return null;
+  if (candidates.length == 1) return candidates.first;
+  final wantedArgs = canonicalApprovalArguments(arguments);
+  final matches = <Map<String, dynamic>>[
+    for (final event in candidates)
+      if (canonicalApprovalArguments(event['arguments']) == wantedArgs) event,
+  ];
+  return matches.length == 1 ? matches.first : null;
+}
+
+/// Stable comparison string for approval arguments. Key order must not matter
+/// when two shell calls carry the same payload.
+String canonicalApprovalArguments(Object? raw) {
+  if (raw is! Map) return '';
+  final map = raw.map((k, v) => MapEntry(k.toString(), v));
+  final keys = map.keys.toList()..sort();
+  return jsonEncode(<String, dynamic>{for (final key in keys) key: map[key]});
 }
 
 /// Normalize an approvalState value read from storage.

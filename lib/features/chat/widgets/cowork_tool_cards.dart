@@ -399,6 +399,11 @@ class ApprovalToolCard extends StatelessWidget {
   final ToolUIPart part;
   final Map<String, dynamic> approval;
   final bool canResume;
+
+  /// True while the approved call is executing. Buttons are hidden and the
+  /// card shows progress so a long shell command cannot invite a second tap.
+  final bool executing;
+
   final Future<void> Function(bool alwaysAllow) onApprove;
   final VoidCallback onDeny;
 
@@ -407,6 +412,7 @@ class ApprovalToolCard extends StatelessWidget {
     required this.part,
     required this.approval,
     required this.canResume,
+    this.executing = false,
     required this.onApprove,
     required this.onDeny,
   });
@@ -464,6 +470,8 @@ class ApprovalToolCard extends StatelessWidget {
                       ? l10n.approvalDeniedTitle(toolName)
                       : _isTimeout
                       ? l10n.approvalTimeoutTitle(toolName)
+                      : executing
+                      ? l10n.approvalExecutingTitle(toolName)
                       : l10n.approvalPendingTitle(toolName),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -485,7 +493,9 @@ class ApprovalToolCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    l10n.approvalPendingPill,
+                    executing
+                        ? l10n.approvalExecutingPill
+                        : l10n.approvalPendingPill,
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -574,6 +584,30 @@ class ApprovalToolCard extends StatelessWidget {
               ),
             ),
           ],
+          // P1-1 (2026-11-10): the decision landed and the tool is running;
+          // a long command must not look like a dead card.
+          if (executing && !_isDenied && !_isTimeout) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(cardTextColor),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n.approvalExecuting,
+                    style: TextStyle(fontSize: 12, color: cardTextColor),
+                  ),
+                ),
+              ],
+            ),
+          ],
           // P1-1: unified-diff preview for file_edit calls (before execution).
           if ((approval['preview_diff'] ?? '').toString().trim().isNotEmpty &&
               !_isDenied &&
@@ -599,7 +633,7 @@ class ApprovalToolCard extends StatelessWidget {
               ),
             ),
           ],
-          if (!_isDenied && !_isTimeout && canResume) ...[
+          if (!_isDenied && !_isTimeout && canResume && !executing) ...[
             const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,

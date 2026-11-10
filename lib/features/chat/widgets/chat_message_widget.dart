@@ -3316,6 +3316,12 @@ class ToolUIPart {
   /// detail dialog.
   final String? imagePath;
 
+  /// P1-1 (2026-11-10): the decision was accepted and the tool is executing.
+  /// UI-only; never persisted. The approval card hides its buttons and shows
+  /// progress while this is true, so a long shell command cannot invite a
+  /// second tap.
+  final bool approvalExecuting;
+
   const ToolUIPart({
     required this.id,
     required this.toolName,
@@ -3333,8 +3339,42 @@ class ToolUIPart {
     this.diffRemoved,
     this.diffText,
     this.imagePath,
+    this.approvalExecuting = false,
   }) : contentLoaded = contentLoaded ?? (content != null),
        contentLength = contentLength ?? (content?.length ?? 0);
+
+  /// UI-only field flips (approval executing). Nullable fields keep their
+  /// current value when omitted (`??`), so this cannot clear `content` or
+  /// `status`; terminal rewrites construct a new part instead.
+  ToolUIPart copyWith({
+    String? content,
+    bool? loading,
+    bool? contentLoaded,
+    int? contentLength,
+    String? status,
+    String? argumentsPreview,
+    bool? approvalExecuting,
+  }) {
+    return ToolUIPart(
+      id: id,
+      toolName: toolName,
+      arguments: arguments,
+      content: content ?? this.content,
+      loading: loading ?? this.loading,
+      contentLoaded: contentLoaded ?? this.contentLoaded,
+      contentLength: contentLength ?? this.contentLength,
+      status: status ?? this.status,
+      argumentsPreview: argumentsPreview ?? this.argumentsPreview,
+      searchProvider: searchProvider,
+      searchFallbackFrom: searchFallbackFrom,
+      webFetchSource: webFetchSource,
+      diffAdded: diffAdded,
+      diffRemoved: diffRemoved,
+      diffText: diffText,
+      imagePath: imagePath,
+      approvalExecuting: approvalExecuting ?? this.approvalExecuting,
+    );
+  }
 }
 
 /// file_view_image Stage 1: small rounded thumbnail on the collapsed tool
@@ -3656,6 +3696,7 @@ class _ToolCallItem extends StatelessWidget {
         part: part,
         approval: approval,
         canResume: assistantMessageId != null && onResolveApproval != null,
+        executing: part.approvalExecuting,
         onApprove: (alwaysAllow) => onResolveApproval!(
           assistantMessageId!,
           part.id,

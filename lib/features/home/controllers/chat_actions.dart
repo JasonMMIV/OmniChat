@@ -191,6 +191,11 @@ class ChatActions {
   /// Pending AI Team proposals JSON (messageId → JSON string) awaiting persistence after aggregator finishes.
   final Map<String, String> _aiTeamPendingProposals = {};
 
+  /// P1-1: one in-flight decision per tool call. Tool execution can take
+  /// minutes (`shell_run`); without this lock a second tap re-runs the command
+  /// and starts a competing continuation (2026-11-10 Windows report).
+  final Set<String> _approvalResolutionsInFlight = <String>{};
+
   /// Current AI Team proposer stream subscription (local, NOT in _conversationStreams per K1)
   StreamSubscription<ChatStreamChunk>? _aiTeamProposerSub;
 
@@ -562,6 +567,10 @@ class ChatActions {
 
   /// Resolve an approval decision and continue the run.
   ///
+  /// One-shot (2026-11-10): only a still-pending event can be resolved, and a
+  /// per-call in-flight lock prevents a second tap from re-executing the tool
+  /// while it runs.
+  ///
   /// [approve] = execute the pending call once and feed its real result to
   /// the model; deny = feed the structured denial JSON (ask_user answers are
   /// dispatched to [resumeAfterAskUserAnswer] before reaching here).
@@ -577,38 +586,144 @@ class ChatActions {
   }) async {
     final conv = _currentConversation;
     if (conv == null || conv.id != conversationId) return null;
-    if (_loadingConversationIds.contains(conversationId)) return null;
+
+    // P1-1 (2026-11-10): one decision per pending call. A shell command may
+    // run for minutes; without this lock a second tap re-executes it and
+    // starts a competing continuation (Windows report).
+    final decisionKey = '$assistantMessageId::$toolCallId';
+    if (!_approvalResolutionsInFlight.add(decisionKey)) {
+      // A second tap while the decision is in flight: keep the card's
+      // executing state visible (it can be lost across a rebuild) and drop
+      // the duplicate before it can execute the tool again.
+      if (approve) {
+        _setApprovalExecuting(assistantMessageId, toolCallId, true);
+      }
+      return null;
+    }
+
+    try {
+      return await _resolveApprovalUnlocked(
+        conversationId,
+        assistantMessageId,
+        toolCallId,
+        approve: approve,
+        alwaysAllow: alwaysAllow,
+      );
+    } catch (error) {
+      FlutterLogger.log(
+        'Approval decision failed for $toolCallId: $error',
+        tag: 'approval',
+      );
+      _notifyApprovalProblem(
+        _l10n?.approvalResolveUnavailable ??
+            'The approval request is no longer available.',
+      );
+      return null;
+    } finally {
+      if (approve) {
+        _setApprovalExecuting(assistantMessageId, toolCallId, false);
+      }
+      _approvalResolutionsInFlight.remove(decisionKey);
+    }
+  }
+
+  /// The decision body: validates the pending event, executes (or denies) the
+  /// call exactly once, persists the outcome and resumes generation.
+  Future<ChatMessage?> _resolveApprovalUnlocked(
+    String conversationId,
+    String assistantMessageId,
+    String toolCallId, {
+    required bool approve,
+    bool alwaysAllow = false,
+  }) async {
+    final conv = _currentConversation;
+    if (conv == null || conv.id != conversationId) return null;
+    // The pending card can render a moment before the paused run writes its
+    // terminal and clears the loading flag. Waiting briefly lets the first
+    // tap land instead of being dropped silently.
+    if (_loadingConversationIds.contains(conversationId) &&
+        !await _awaitConversationIdle(conversationId)) {
+      _notifyApprovalProblem(
+        _l10n?.approvalResolveBusy ??
+            'A reply is still being generated. Try again in a moment.',
+      );
+      return null;
+    }
 
     // The timeline preloads summaries only; approval needs the full event.
     await chatService.ensureToolEventsLoaded([assistantMessageId]);
 
-    // Locate the pending event.
+    // Locate the pending event. A no-id part cannot address one specific
+    // event, so it goes straight to the unique-pending fallback below.
+    final events = chatService.getToolEvents(assistantMessageId);
     Map<String, dynamic>? event;
-    for (final e in chatService.getToolEvents(assistantMessageId)) {
-      if ((e['id']?.toString() ?? '') == toolCallId) {
-        event = e;
-        break;
+    if (toolCallId.trim().isNotEmpty) {
+      for (final e in events) {
+        if ((e['id']?.toString() ?? '') == toolCallId) {
+          event = e;
+          break;
+        }
       }
     }
-    if (event == null) return null;
+    if (event != null && !isApprovalPendingEvent(event)) {
+      _notifyApprovalProblem(
+        _l10n?.approvalAlreadyResolved ?? 'This approval has already been handled. Ask the model to run the step again if needed.',
+      );
+      return null;
+    }
+    if (event == null) {
+      final part = _toolPart(assistantMessageId, toolCallId);
+      event = findApprovalDecisionEvent(
+        events,
+        toolCallId: toolCallId,
+        toolName: part?.toolName,
+        arguments: part?.arguments,
+      );
+    }
+    if (event == null) {
+      _notifyApprovalProblem(
+        _l10n?.approvalResolveUnavailable ?? 'The approval request could not be found. Ask the model to run the step again.',
+      );
+      return null;
+    }
+    // The persisted id can differ from the UI part id when a provider omitted
+    // or rewrote it; every write must target the event we actually found.
+    final eventId = (event['id'] ?? '').toString().trim();
     final name = (event['name'] ?? '').toString();
     final argsRaw = event['arguments'];
     final args = argsRaw is Map
         ? argsRaw.map((k, v) => MapEntry(k.toString(), v))
         : <String, dynamic>{};
 
-    // P1-1 timeout (CLI v4 §三.3): a Pending card older than the 5-minute
+    // P1-1 timeout (CLI v4 §三.3): a Pending card older than the approval
     // window resolves to the approval_timeout JSON — the tool is NOT
     // executed even on a late approve; the model must ask again.
     final pendingPayload = parseApprovalContent(event['content']?.toString());
-    if (isApprovalTimedOut(pendingPayload?['requested_at'])) {
+    final timeoutWindow = name == ShellRunService.toolName
+        ? shellApprovalPendingTimeout
+        : null;
+    if (isApprovalTimedOut(
+      pendingPayload?['requested_at'],
+      timeout: timeoutWindow,
+    )) {
       final timeoutJson = buildApprovalTimeoutContent(toolName: name);
-      await chatService.setToolEventApprovalState(
+      _notifyApprovalProblem(
+        _l10n?.approvalTimedOutNotice ??
+            'This approval timed out, so the tool was not executed.',
+      );
+      final updated = await chatService.setToolEventApprovalState(
         assistantMessageId,
-        id: toolCallId,
+        id: eventId,
         approvalState: approvalStateDenied,
         content: timeoutJson,
       );
+      if (!updated) {
+        _notifyApprovalProblem(
+          _l10n?.approvalResolveUnavailable ??
+              'The approval request is no longer available.',
+        );
+        return null;
+      }
       _refreshToolPart(
         assistantMessageId,
         toolCallId,
@@ -619,6 +734,13 @@ class ChatActions {
         conv: conv,
         answeredAssistantMessageId: assistantMessageId,
       );
+    }
+
+    // Feedback before the (possibly multi-minute) execution: hide the
+    // buttons and show progress. Only a confirmed pending event gets here,
+    // so a stale card can never flash "approved — running".
+    if (approve) {
+      _setApprovalExecuting(assistantMessageId, toolCallId, true);
     }
 
     // "Always allow": persist the out-of-workspace override key derived from
@@ -651,12 +773,19 @@ class ChatActions {
     // tool result (the model can adjust course instead of blindly retrying).
     if (!approve) {
       final denialJson = buildApprovalDeniedContent(toolName: name);
-      await chatService.setToolEventApprovalState(
+      final updated = await chatService.setToolEventApprovalState(
         assistantMessageId,
-        id: toolCallId,
+        id: eventId,
         approvalState: approvalStateDenied,
         content: denialJson,
       );
+      if (!updated) {
+        _notifyApprovalProblem(
+          _l10n?.approvalResolveUnavailable ??
+              'The approval request is no longer available.',
+        );
+        return null;
+      }
       _refreshToolPart(
         assistantMessageId,
         toolCallId,
@@ -693,7 +822,7 @@ class ChatActions {
     String result;
     try {
       result =
-          await handler?.call(name, args, toolCallId: toolCallId) ??
+          await handler?.call(name, args, toolCallId: eventId) ??
           jsonEncode(<String, dynamic>{
             'type': 'tool_error',
             'error': 'execution_error',
@@ -708,12 +837,19 @@ class ChatActions {
         'tool': name,
       });
     }
-    await chatService.setToolEventApprovalState(
+    final updated = await chatService.setToolEventApprovalState(
       assistantMessageId,
-      id: toolCallId,
+      id: eventId,
       approvalState: approvalStateApproved,
       content: result,
     );
+    if (!updated) {
+      _notifyApprovalProblem(
+        _l10n?.approvalResolveUnavailable ??
+            'The approval request is no longer available.',
+      );
+      return null;
+    }
     _refreshToolPart(assistantMessageId, toolCallId, content: result);
     return _continueAfterApproval(
       conv: conv,
@@ -809,24 +945,74 @@ class ChatActions {
     );
     final idx = parts.indexWhere((p) => p.id == toolCallId);
     if (idx < 0) return;
-    parts[idx] = ToolUIPart(
-      id: parts[idx].id,
-      toolName: parts[idx].toolName,
-      arguments: parts[idx].arguments,
+    parts[idx] = parts[idx].copyWith(
       content: content,
+      contentLength: content.length,
       loading: false,
       contentLoaded: true,
       status: status,
-      searchProvider: parts[idx].searchProvider,
-      searchFallbackFrom: parts[idx].searchFallbackFrom,
-      webFetchSource: parts[idx].webFetchSource,
-      diffAdded: parts[idx].diffAdded,
-      diffRemoved: parts[idx].diffRemoved,
-      diffText: parts[idx].diffText,
-      imagePath: parts[idx].imagePath,
+      approvalExecuting: false,
     );
     streamController.toolParts[messageId] = parts;
     streamController.streamingContentNotifier.notifyToolPartsUpdated(messageId);
+  }
+
+  /// Localized copy for approval failures; null outside a localized tree
+  /// (test doubles / early startup).
+  AppLocalizations? get _l10n => AppLocalizations.of(contextProvider);
+
+  /// Surface a failed decision instead of the historical silent no-op.
+  void _notifyApprovalProblem(String message) {
+    if (message.trim().isEmpty) return;
+    // Feedback is best-effort: an unmounted/early context must never turn a
+    // failed decision into an exception.
+    try {
+      showAppSnackBar(
+        contextProvider,
+        message: message,
+        type: NotificationType.warning,
+      );
+    } catch (_) {}
+  }
+
+  /// Wait briefly for the paused run's terminal to clear [conversationId]'s
+  /// loading flag. Returns false when another generation is still active.
+  Future<bool> _awaitConversationIdle(String conversationId) async {
+    for (var attempt = 0; attempt < 20; attempt++) {
+      if (!_loadingConversationIds.contains(conversationId)) return true;
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+    }
+    return !_loadingConversationIds.contains(conversationId);
+  }
+
+  ToolUIPart? _toolPart(String messageId, String toolCallId) {
+    final parts = streamController.toolParts[messageId];
+    if (parts == null) return null;
+    for (final part in parts) {
+      if (part.id == toolCallId) return part;
+    }
+    return null;
+  }
+
+  /// Show/hide the card's "approved — running" state without touching the
+  /// persisted event (the result write owns the real lifecycle).
+  void _setApprovalExecuting(
+    String messageId,
+    String toolCallId,
+    bool executing,
+  ) {
+    final parts = List<ToolUIPart>.of(
+      streamController.toolParts[messageId] ?? const [],
+    );
+    final idx = parts.indexWhere((p) => p.id == toolCallId);
+    if (idx < 0 || parts[idx].approvalExecuting == executing) return;
+    parts[idx] = parts[idx].copyWith(approvalExecuting: executing);
+    streamController.toolParts[messageId] = parts;
+    streamController.streamingContentNotifier.notifyToolPartsUpdated(messageId);
+    // The paused message is not streaming, so the streaming notifier alone
+    // does not repaint its cards; a full list rebuild makes the executing
+    // state visible immediately.
+    onMessagesChanged?.call();
   }
 
   Assistant? _assistantForConversation(Conversation conv) {

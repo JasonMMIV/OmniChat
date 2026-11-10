@@ -276,7 +276,9 @@ DateTime? resolveProcessFinishedAt({
 ///   the run already resumed with the structured error JSON.
 ///
 /// Pure predicate over the persisted tool-event content (manual §3.14 §2
-/// five-state machine) so the UI shell stays a thin renderer.
+/// five-state machine) so the UI shell stays a thin renderer. The decision
+/// path's one-shot gate lives in `approval.isApprovalPendingEvent`; keep the
+/// two "needs approval" predicates aligned.
 bool toolRequiresUserAction({
   required String toolName,
   required String? content,

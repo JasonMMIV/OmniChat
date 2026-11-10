@@ -2235,6 +2235,29 @@ class AppLocalizationsZh extends AppLocalizations {
   String get approvalPendingPill => '待审批';
 
   @override
+  String get approvalExecuting => '已批准，执行中…';
+
+  @override
+  String get approvalExecutingPill => '已批准';
+
+  @override
+  String approvalExecutingTitle(String tool) {
+    return '已批准，执行中：$tool';
+  }
+
+  @override
+  String get approvalResolveBusy => '正在生成回复，请稍后再试。';
+
+  @override
+  String get approvalAlreadyResolved => '这个审批已处理过。如仍需执行，请让模型重新提出。';
+
+  @override
+  String get approvalResolveUnavailable => '找不到这个审批请求。请让模型重新提出。';
+
+  @override
+  String get approvalTimedOutNotice => '审批已超时，工具未执行。';
+
+  @override
   String approvalOutsideWorkspace(String path) {
     return '工作区之外：$path';
   }
@@ -8780,6 +8803,29 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get approvalPendingPill => '待审批';
 
   @override
+  String get approvalExecuting => '已批准，执行中…';
+
+  @override
+  String get approvalExecutingPill => '已批准';
+
+  @override
+  String approvalExecutingTitle(String tool) {
+    return '已批准，执行中：$tool';
+  }
+
+  @override
+  String get approvalResolveBusy => '正在生成回复，请稍后再试。';
+
+  @override
+  String get approvalAlreadyResolved => '这个审批已处理过。如仍需执行，请让模型重新提出。';
+
+  @override
+  String get approvalResolveUnavailable => '找不到这个审批请求。请让模型重新提出。';
+
+  @override
+  String get approvalTimedOutNotice => '审批已超时，工具未执行。';
+
+  @override
   String approvalOutsideWorkspace(String path) {
     return '工作区之外：$path';
   }
@@ -15223,6 +15269,29 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get approvalPendingPill => '待審批';
+
+  @override
+  String get approvalExecuting => '已核准，執行中…';
+
+  @override
+  String get approvalExecutingPill => '已核准';
+
+  @override
+  String approvalExecutingTitle(String tool) {
+    return '已核准，執行中：$tool';
+  }
+
+  @override
+  String get approvalResolveBusy => '正在生成回覆，請稍後再試。';
+
+  @override
+  String get approvalAlreadyResolved => '這個審批已處理過。如仍需執行，請讓模型重新提出。';
+
+  @override
+  String get approvalResolveUnavailable => '找不到這個審批請求。請讓模型重新提出。';
+
+  @override
+  String get approvalTimedOutNotice => '審批已逾時，工具未執行。';
 
   @override
   String approvalOutsideWorkspace(String path) {

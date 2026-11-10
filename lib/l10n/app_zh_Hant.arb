@@ -678,6 +678,20 @@
     }
   },
   "approvalPendingPill": "待審批",
+  "approvalExecuting": "已核准，執行中…",
+  "approvalExecutingPill": "已核准",
+  "approvalExecutingTitle": "已核准，執行中：{tool}",
+  "@approvalExecutingTitle": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "approvalResolveBusy": "正在生成回覆，請稍後再試。",
+  "approvalAlreadyResolved": "這個審批已處理過。如仍需執行，請讓模型重新提出。",
+  "approvalResolveUnavailable": "找不到這個審批請求。請讓模型重新提出。",
+  "approvalTimedOutNotice": "審批已逾時，工具未執行。",
   "approvalOutsideWorkspace": "工作區之外：{path}",
   "@approvalOutsideWorkspace": {
     "placeholders": {

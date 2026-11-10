@@ -4367,6 +4367,48 @@ abstract class AppLocalizations {
   /// **'Pending'**
   String get approvalPendingPill;
 
+  /// No description provided for @approvalExecuting.
+  ///
+  /// In en, this message translates to:
+  /// **'Approved — running…'**
+  String get approvalExecuting;
+
+  /// No description provided for @approvalExecutingPill.
+  ///
+  /// In en, this message translates to:
+  /// **'Approved'**
+  String get approvalExecutingPill;
+
+  /// No description provided for @approvalExecutingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Running {tool}…'**
+  String approvalExecutingTitle(String tool);
+
+  /// No description provided for @approvalResolveBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'A reply is still being generated. Try again in a moment.'**
+  String get approvalResolveBusy;
+
+  /// No description provided for @approvalAlreadyResolved.
+  ///
+  /// In en, this message translates to:
+  /// **'This approval has already been handled. Ask the model to run the step again if needed.'**
+  String get approvalAlreadyResolved;
+
+  /// No description provided for @approvalResolveUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The approval request could not be found. Ask the model to run the step again.'**
+  String get approvalResolveUnavailable;
+
+  /// No description provided for @approvalTimedOutNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'This approval timed out, so the tool was not executed.'**
+  String get approvalTimedOutNotice;
+
   /// No description provided for @approvalOutsideWorkspace.
   ///
   /// In en, this message translates to:
