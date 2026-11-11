@@ -10773,7 +10773,7 @@ abstract class AppLocalizations {
   /// No description provided for @workspaceDiskUsageHint.
   ///
   /// In en, this message translates to:
-  /// **'Workspace files only; the app\'s `.omnichat/` directory is excluded.'**
+  /// **'Workspace files only.'**
   String get workspaceDiskUsageHint;
 
   /// No description provided for @workspaceDiskUsageLoading.

@@ -5731,8 +5731,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get workspaceDiskUsageHint =>
-      'Workspace files only; the app\'s `.omnichat/` directory is excluded.';
+  String get workspaceDiskUsageHint => 'Workspace files only.';
 
   @override
   String get workspaceDiskUsageLoading => 'Measuring workspace usage…';

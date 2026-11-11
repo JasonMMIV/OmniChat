@@ -2493,7 +2493,7 @@
       }
     }
   },
-  "workspaceDiskUsageHint": "Workspace files only; the app's `.omnichat/` directory is excluded.",
+  "workspaceDiskUsageHint": "Workspace files only.",
   "workspaceDiskUsageLoading": "Measuring workspace usage…",
   "workspaceDiskUsageError": "Unable to measure this workspace.",
   "workspaceDiskUsagePartial": "Partial scan: stopped after {count} entries.",

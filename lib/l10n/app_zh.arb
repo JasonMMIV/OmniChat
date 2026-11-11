@@ -1908,7 +1908,7 @@
   "workspaceFiles": "文件",
   "workspaceDiskUsageTitle": "磁盘用量",
   "workspaceDiskUsageSummary": "{size} · {count} 个文件",
-  "workspaceDiskUsageHint": "仅计入工作区文件；已排除 App 的 `.omnichat/` 目录。",
+  "workspaceDiskUsageHint": "仅计入工作区文件。",
   "workspaceDiskUsageLoading": "正在计算工作区用量…",
   "workspaceDiskUsageError": "无法计算此工作区的用量。",
   "workspaceDiskUsagePartial": "仅部分扫描：停在 {count} 个项目。",

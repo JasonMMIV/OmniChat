@@ -5645,7 +5645,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get workspaceDiskUsageHint => '仅计入工作区文件；已排除 App 的 `.omnichat/` 目录。';
+  String get workspaceDiskUsageHint => '仅计入工作区文件。';
 
   @override
   String get workspaceDiskUsageLoading => '正在计算工作区用量…';
@@ -12273,7 +12273,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
-  String get workspaceDiskUsageHint => '仅计入工作区文件；已排除 App 的 `.omnichat/` 目录。';
+  String get workspaceDiskUsageHint => '仅计入工作区文件。';
 
   @override
   String get workspaceDiskUsageLoading => '正在计算工作区用量…';
@@ -19001,7 +19001,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get workspaceDiskUsageHint => '僅計入工作區檔案；已排除 App 的 `.omnichat/` 目錄。';
+  String get workspaceDiskUsageHint => '僅計入工作區檔案。';
 
   @override
   String get workspaceDiskUsageLoading => '正在計算工作區用量…';

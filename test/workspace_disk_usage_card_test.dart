@@ -40,6 +40,29 @@ void main() {
     );
   });
 
+  testWidgets('shows the workspace-files hint without an exclusion claim', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(
+        WorkspaceDiskUsageCard(
+          workspacePath: '/tmp/workspace',
+          loadUsage: (_) async => const WorkspaceDiskUsage(
+            totalBytes: 1024,
+            fileCount: 1,
+            directoryCount: 0,
+            scannedEntryCount: 1,
+            truncated: false,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Workspace files only.'), findsOneWidget);
+    expect(find.textContaining('.omnichat'), findsNothing);
+  });
+
   testWidgets('shows an error when the workspace cannot be measured', (
     tester,
   ) async {
