@@ -196,6 +196,13 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
         defaultTargetPlatform == TargetPlatform.linux;
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    // Match the type scale used by the other composer sheets: 16 pt heading,
+    // 14 pt row titles and 12 pt secondary text.
+    const rowTitleStyle = TextStyle(fontSize: 14, fontWeight: FontWeight.w500);
+    final rowSubtitleStyle = TextStyle(
+      fontSize: 12,
+      color: cs.onSurface.withValues(alpha: 0.65),
+    );
     final resolution = _resolution;
     final enabled = resolution?.enabled == true;
     final pathLabel = enabled
@@ -231,7 +238,10 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
                   ],
                   Text(
                     l10n.workspaceTitle,
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -260,10 +270,7 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
                         Expanded(
                           child: Text(
                             l10n.workspaceEnableToggle,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                            ),
+                            style: rowTitleStyle,
                           ),
                         ),
                         IosSwitch(
@@ -278,9 +285,9 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
                   const SizedBox(height: 8),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Lucide.Wrench),
-                    title: Text(l10n.workspaceToolsMenu),
-                    trailing: const Icon(Lucide.ChevronRight),
+                    leading: const Icon(Lucide.Wrench, size: 20),
+                    title: Text(l10n.workspaceToolsMenu, style: rowTitleStyle),
+                    trailing: const Icon(Lucide.ChevronRight, size: 20),
                     onTap: _busy ? null : _openToolsPage,
                   ),
                   // Directory and files entries only exist while the
@@ -288,26 +295,33 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
                   if (enabled) ...[
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Lucide.FolderOpen),
-                      title: Text(l10n.workspaceDirectoryMenu),
+                      leading: const Icon(Lucide.FolderOpen, size: 20),
+                      title: Text(
+                        l10n.workspaceDirectoryMenu,
+                        style: rowTitleStyle,
+                      ),
                       subtitle: Text(
                         workspaceModeLabel(l10n, conversationConfig),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
+                        style: rowSubtitleStyle,
                       ),
-                      trailing: const Icon(Lucide.ChevronRight),
+                      trailing: const Icon(Lucide.ChevronRight, size: 20),
                       onTap: _busy ? null : _openDirectorySheet,
                     ),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Lucide.Monitor),
-                      title: Text(l10n.devPreviewMenuEntry),
+                      leading: const Icon(Lucide.Monitor, size: 20),
+                      title: Text(
+                        l10n.devPreviewMenuEntry,
+                        style: rowTitleStyle,
+                      ),
                       onTap: _busy ? null : _openPreview,
                     ),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Lucide.FileText),
-                      title: Text(l10n.workspaceFiles),
+                      leading: const Icon(Lucide.FileText, size: 20),
+                      title: Text(l10n.workspaceFiles, style: rowTitleStyle),
                       onTap: _openBrowser,
                     ),
                   ],

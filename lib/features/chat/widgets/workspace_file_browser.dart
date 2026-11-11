@@ -524,11 +524,18 @@ class _WorkspaceFileBrowserState extends State<WorkspaceFileBrowser> {
                     : (details) =>
                         _showFileContextMenu(entry, details.globalPosition),
                 child: ListTile(
-                  leading: Icon(isDirectory ? Lucide.Folder : Lucide.FileText),
+                  leading: Icon(
+                    isDirectory ? Lucide.Folder : Lucide.FileText,
+                    size: 20,
+                  ),
                   title: Text(
                     p.basename(entry.path),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                   trailing: isDirectory
                       ? const Icon(Lucide.ChevronRight)

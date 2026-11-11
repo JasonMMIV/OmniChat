@@ -245,6 +245,16 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
     final screen = MediaQuery.of(context).size;
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    // Desktop popovers (Add-ons, Skills, Quick phrases) use a compact scale:
+    // 14 pt heading, 13.5 pt row titles and 11.5 pt secondary text.
+    const rowTitleStyle = TextStyle(
+      fontSize: 13.5,
+      fontWeight: FontWeight.w500,
+    );
+    final rowSubtitleStyle = TextStyle(
+      fontSize: 11.5,
+      color: cs.onSurface.withValues(alpha: 0.55),
+    );
     final resolution = _resolution;
     final enabled = resolution?.enabled == true;
     final pathLabel = enabled
@@ -299,8 +309,8 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
                                 Text(
                                   l10n.workspaceTitle,
                                   style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -325,17 +335,14 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
                                     children: [
                                       Icon(
                                         Lucide.Folder,
-                                        size: 20,
+                                        size: 18,
                                         color: cs.onSurface.withOpacity(0.75),
                                       ),
                                       const SizedBox(width: 12),
                                       Expanded(
                                         child: Text(
                                           l10n.workspaceEnableToggle,
-                                          style: const TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w500,
-                                          ),
+                                          style: rowTitleStyle,
                                         ),
                                       ),
                                       IosSwitch(
@@ -353,9 +360,13 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
                                   const SizedBox(height: 8),
                                   ListTile(
                                     contentPadding: EdgeInsets.zero,
-                                    leading: const Icon(Lucide.FolderOpen),
+                                    leading: const Icon(
+                                      Lucide.FolderOpen,
+                                      size: 18,
+                                    ),
                                     title: Text(
                                       l10n.workspaceDirectoryMenu,
+                                      style: rowTitleStyle,
                                     ),
                                     subtitle: Text(
                                       workspaceModeLabel(
@@ -364,31 +375,52 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
                                       ),
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
+                                      style: rowSubtitleStyle,
                                     ),
                                     trailing: const Icon(
                                       Lucide.ChevronRight,
+                                      size: 18,
                                     ),
                                     onTap: _busy ? null : _openDirectorySheet,
                                   ),
                                   ListTile(
                                     contentPadding: EdgeInsets.zero,
-                                    leading: const Icon(Lucide.Wrench),
-                                    title: Text(l10n.workspaceToolsMenu),
+                                    leading: const Icon(
+                                      Lucide.Wrench,
+                                      size: 18,
+                                    ),
+                                    title: Text(
+                                      l10n.workspaceToolsMenu,
+                                      style: rowTitleStyle,
+                                    ),
                                     trailing: const Icon(
                                       Lucide.ChevronRight,
+                                      size: 18,
                                     ),
                                     onTap: _busy ? null : _openToolsPage,
                                   ),
                                   ListTile(
                                     contentPadding: EdgeInsets.zero,
-                                    leading: const Icon(Lucide.Monitor),
-                                    title: Text(l10n.devPreviewMenuEntry),
+                                    leading: const Icon(
+                                      Lucide.Monitor,
+                                      size: 18,
+                                    ),
+                                    title: Text(
+                                      l10n.devPreviewMenuEntry,
+                                      style: rowTitleStyle,
+                                    ),
                                     onTap: _busy ? null : _openPreview,
                                   ),
                                   ListTile(
                                     contentPadding: EdgeInsets.zero,
-                                    leading: const Icon(Lucide.FileText),
-                                    title: Text(l10n.workspaceFiles),
+                                    leading: const Icon(
+                                      Lucide.FileText,
+                                      size: 18,
+                                    ),
+                                    title: Text(
+                                      l10n.workspaceFiles,
+                                      style: rowTitleStyle,
+                                    ),
                                     onTap: _openBrowser,
                                   ),
                                 ],

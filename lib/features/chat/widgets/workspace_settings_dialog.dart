@@ -160,6 +160,15 @@ class _DefaultWorkspaceDirectorySheet extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final settings = context.watch<SettingsProvider>();
     final current = settings.defaultWorkspaceConfig;
+    // Match the dialog scale used elsewhere in the app.
+    const optionTitleStyle = TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+    );
+    final optionSubtitleStyle = TextStyle(
+      fontSize: 12,
+      color: cs.onSurface.withValues(alpha: 0.65),
+    );
 
     Widget option({
       required IconData icon,
@@ -169,8 +178,8 @@ class _DefaultWorkspaceDirectorySheet extends StatelessWidget {
       final selected = current == value;
       return ListTile(
         contentPadding: EdgeInsets.zero,
-        leading: Icon(icon),
-        title: Text(title),
+        leading: Icon(icon, size: 20),
+        title: Text(title, style: optionTitleStyle),
         trailing: selected ? Icon(Lucide.Check, color: cs.primary) : null,
         onTap: () async {
           await context.read<SettingsProvider>().setDefaultWorkspaceConfig(
@@ -194,8 +203,8 @@ class _DefaultWorkspaceDirectorySheet extends StatelessWidget {
               Text(
                 l10n.workspaceDefaultDirectorySettings,
                 style: const TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 8),
@@ -221,13 +230,17 @@ class _DefaultWorkspaceDirectorySheet extends StatelessWidget {
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Lucide.FolderCode),
-                title: Text(l10n.workspaceChooseFolder),
+                leading: const Icon(Lucide.FolderCode, size: 20),
+                title: Text(
+                  l10n.workspaceChooseFolder,
+                  style: optionTitleStyle,
+                ),
                 subtitle: current.mode == WorkspaceMode.custom
                     ? Text(
                         current.path ?? '',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
+                        style: optionSubtitleStyle,
                       )
                     : null,
                 trailing: current.mode == WorkspaceMode.custom
@@ -299,6 +312,14 @@ class _WorkspaceModeSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    const optionTitleStyle = TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+    );
+    final optionSubtitleStyle = TextStyle(
+      fontSize: 12,
+      color: cs.onSurface.withValues(alpha: 0.65),
+    );
 
     Widget option({
       required IconData icon,
@@ -309,8 +330,8 @@ class _WorkspaceModeSheet extends StatelessWidget {
       final selected = initial == value;
       return ListTile(
         contentPadding: EdgeInsets.zero,
-        leading: Icon(icon),
-        title: Text(label),
+        leading: Icon(icon, size: 20),
+        title: Text(label, style: optionTitleStyle),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -335,8 +356,8 @@ class _WorkspaceModeSheet extends StatelessWidget {
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 8),
@@ -367,13 +388,17 @@ class _WorkspaceModeSheet extends StatelessWidget {
                 ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Lucide.FolderCode),
-                title: Text(l10n.workspaceChooseFolder),
+                leading: const Icon(Lucide.FolderCode, size: 20),
+                title: Text(
+                  l10n.workspaceChooseFolder,
+                  style: optionTitleStyle,
+                ),
                 subtitle: initial.mode == WorkspaceMode.custom
                     ? Text(
                         initial.path ?? '',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
+                        style: optionSubtitleStyle,
                       )
                     : null,
                 trailing: initial.mode == WorkspaceMode.custom
