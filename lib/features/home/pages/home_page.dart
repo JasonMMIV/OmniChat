@@ -1180,6 +1180,7 @@ class _HomePageState extends State<HomePage>
       onToggleAiTeam: _openAiTeamSettings,
       onClearContext: _controller.clearContext,
       onCompressContext: _handleDesktopCompressContext,
+      onOpenContextManagement: _showContextManagementSheet,
       isDictating: _controller.isDictating,
       dictationPaused: _controller.dictationPaused,
       onStartDictation: _controller.startDictation,

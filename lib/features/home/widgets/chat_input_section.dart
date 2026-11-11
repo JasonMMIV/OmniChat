@@ -72,6 +72,7 @@ class ChatInputSection extends StatelessWidget {
     this.onToggleAiTeam,
     this.onClearContext,
     this.onCompressContext,
+    this.onOpenContextManagement,
     this.contextUsage,
     this.isDictating = false,
     this.dictationPaused = false,
@@ -118,6 +119,10 @@ class ChatInputSection extends StatelessWidget {
   final VoidCallback? onToggleAiTeam;
   final VoidCallback? onClearContext;
   final VoidCallback? onCompressContext;
+
+  /// Opens the mobile context-management sheet when the pinned usage ring is
+  /// tapped. Null keeps the anchored menu fallback.
+  final VoidCallback? onOpenContextManagement;
 
   /// Context usage ring source (null = feature off / not wired).
   final ValueListenable<ContextUsageSnapshot?>? contextUsage;
@@ -250,8 +255,9 @@ class ChatInputSection extends StatelessWidget {
       aiTeamActive: aiTeamEnabled,
       audioInputSupported: audioInputSupported,
       showMoreButton: !isTablet,
-      onClearContext: isTablet ? onClearContext : null,
-      onCompressContext: isTablet ? onCompressContext : null,
+      onClearContext: onClearContext,
+      onCompressContext: onCompressContext,
+      onOpenContextManagement: onOpenContextManagement,
       contextUsage: contextUsage,
       isEditing: isEditing,
       onCancelEdit: onCancelEdit,

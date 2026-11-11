@@ -130,6 +130,7 @@ class ChatInputBar extends StatefulWidget {
     this.onOpenSkills,
     this.onClearContext,
     this.onCompressContext,
+    this.onOpenContextManagement,
     this.onLongPressInstruction,
     this.onVoiceChat,
     this.instructionInjectionActive = false,
@@ -187,6 +188,10 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback? onOpenSkills;
   final VoidCallback? onClearContext;
   final VoidCallback? onCompressContext;
+
+  /// Opens the mobile context-management sheet when the pinned usage ring is
+  /// tapped. Null keeps the anchored menu fallback.
+  final VoidCallback? onOpenContextManagement;
   final VoidCallback? onLongPressInstruction;
   final VoidCallback? onVoiceChat;
   final bool instructionInjectionActive;
@@ -947,6 +952,47 @@ class _ChatInputBarState extends State<ChatInputBar>
     return (images: images, docs: docs);
   }
 
+  /// Anchored context menu used by the desktop/tablet row and as the mobile
+  /// fallback when no dedicated sheet callback is supplied.
+  void _showContextManagementMenu(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final usage = widget.contextUsage?.value;
+    // A snapshot alone is enough for the header: when the window is unknown
+    // it still shows `used / ...` without a percentage.
+    final hasUsage = usage != null;
+    showDesktopAnchoredMenu(
+      context,
+      anchorKey: _contextMgmtAnchorKey,
+      header: hasUsage
+          ? ContextUsageMenuHeader(
+              listenable: widget.contextUsage!,
+              showDivider: true,
+            )
+          : null,
+      headerHeight: hasUsage ? 44 : 0,
+      minMenuWidth: hasUsage ? 240 : null,
+      items: [
+        if (widget.onCompressContext != null)
+          DesktopContextMenuItem(
+            icon: Lucide.package2,
+            label: l10n.compressContext,
+            onTap: () {
+              Haptics.light();
+              widget.onCompressContext?.call();
+            },
+          ),
+        DesktopContextMenuItem(
+          icon: Lucide.Eraser,
+          label: l10n.bottomToolsSheetClearContext,
+          onTap: () {
+            Haptics.light();
+            widget.onClearContext?.call();
+          },
+        ),
+      ],
+    );
+  }
+
   Widget _buildResponsiveBottomRow(
     BuildContext context,
     bool hasText,
@@ -960,6 +1006,23 @@ class _ChatInputBarState extends State<ChatInputBar>
     const double modelButtonW = 38; // 36 + padding(1*2)
     const double plusButtonW = 32;
 
+    final settingsForOrder = context.watch<SettingsProvider>();
+    final hiddenIds = settingsForOrder.chatInputButtonHidden.toSet();
+    final effectiveOrder = chatInputButtonEffectiveOrder(
+      settingsForOrder.chatInputButtonOrder,
+    );
+    final contextActionEnabled =
+        widget.onClearContext != null &&
+        (!widget.showMoreButton || widget.contextUsage != null);
+    // The narrow row overflows into the plus sheet, and `context` usually sits
+    // past the last visible slot. Pin its ring next to plus/send so the mobile
+    // input bar always shows the live usage indicator. This deliberately
+    // ignores the user's order; the hidden-button setting still applies.
+    final pinContext =
+        widget.showMoreButton &&
+        contextActionEnabled &&
+        !hiddenIds.contains('context');
+
     return LayoutBuilder(
       builder: (context, constraints) {
         // Calculate right side width to determine available left space
@@ -968,6 +1031,8 @@ class _ChatInputBarState extends State<ChatInputBar>
           // stop + pause + send（3 顆按鈕）
           rightSideWidth = normalButtonW * 3 + spacing * 2;
         } else {
+          if (pinContext)
+            rightSideWidth += normalButtonW + spacing; // ring + spacing
           if (widget.showMoreButton)
             rightSideWidth += normalButtonW + spacing; // plus + spacing
           rightSideWidth += normalButtonW; // send
@@ -999,7 +1064,7 @@ class _ChatInputBarState extends State<ChatInputBar>
           );
 
           // Search button (stateful icon depending on provider config)
-          final settings = context.watch<SettingsProvider>();
+          final settings = settingsForOrder;
           final ap = context.watch<AssistantProvider>();
           final a = ap.currentAssistant;
           final currentProviderKey =
@@ -1393,45 +1458,7 @@ class _ChatInputBarState extends State<ChatInputBar>
             );
           }
 
-          if (widget.onClearContext != null) {
-            void showContextMenu() {
-              final usage = widget.contextUsage?.value;
-              // A snapshot alone is enough for the header: when the window is
-              // unknown it still shows `used / ...` without a percentage.
-              final hasUsage = usage != null;
-              showDesktopAnchoredMenu(
-                context,
-                anchorKey: _contextMgmtAnchorKey,
-                header: hasUsage
-                    ? ContextUsageMenuHeader(
-                        listenable: widget.contextUsage!,
-                        showDivider: true,
-                      )
-                    : null,
-                headerHeight: hasUsage ? 44 : 0,
-                minMenuWidth: hasUsage ? 240 : null,
-                items: [
-                  if (widget.onCompressContext != null)
-                    DesktopContextMenuItem(
-                      icon: Lucide.package2,
-                      label: l10n.compressContext,
-                      onTap: () {
-                        Haptics.light();
-                        widget.onCompressContext?.call();
-                      },
-                    ),
-                  DesktopContextMenuItem(
-                    icon: Lucide.Eraser,
-                    label: l10n.bottomToolsSheetClearContext,
-                    onTap: () {
-                      Haptics.light();
-                      widget.onClearContext?.call();
-                    },
-                  ),
-                ],
-              );
-            }
-
+          if (contextActionEnabled && !pinContext) {
             actions.add(
               _OverflowAction(
                 id: 'context',
@@ -1441,7 +1468,7 @@ class _ChatInputBarState extends State<ChatInputBar>
                   child: _CompactIconButton(
                     tooltip: l10n.contextManagement,
                     icon: Lucide.workflow,
-                    onTap: showContextMenu,
+                    onTap: () => _showContextManagementMenu(context),
                     childBuilder: widget.contextUsage == null
                         ? null
                         : (c) => ContextUsageButtonIcon(
@@ -1454,7 +1481,7 @@ class _ChatInputBarState extends State<ChatInputBar>
                 menu: DesktopContextMenuItem(
                   icon: Lucide.workflow,
                   label: l10n.contextManagement,
-                  onTap: showContextMenu,
+                  onTap: () => _showContextManagementMenu(context),
                 ),
               ),
             );
@@ -1482,11 +1509,6 @@ class _ChatInputBarState extends State<ChatInputBar>
         } // end of if (!widget.isDictating)
 
         // Apply user-configured button order and visibility.
-        final settingsForOrder = context.watch<SettingsProvider>();
-        final hiddenIds = settingsForOrder.chatInputButtonHidden.toSet();
-        final effectiveOrder = chatInputButtonEffectiveOrder(
-          settingsForOrder.chatInputButtonOrder,
-        );
         actions.retainWhere((a) => !hiddenIds.contains(a.id));
         actions.sort(
           (a, b) =>
@@ -1607,6 +1629,32 @@ class _ChatInputBarState extends State<ChatInputBar>
                       ),
                     ]
                   : [
+                      if (pinContext) ...[
+                        Container(
+                          key: _contextMgmtAnchorKey,
+                          child: _CompactIconButton(
+                            tooltip: l10n.contextManagement,
+                            icon: Lucide.workflow,
+                            onTap: () {
+                              final open = widget.onOpenContextManagement;
+                              if (open != null) {
+                                Haptics.light();
+                                open();
+                              } else {
+                                _showContextManagementMenu(context);
+                              }
+                            },
+                            childBuilder: widget.contextUsage == null
+                                ? null
+                                : (c) => ContextUsageButtonIcon(
+                                      usage: widget.contextUsage!,
+                                      loading: widget.loading,
+                                      color: c,
+                                    ),
+                          ),
+                        ),
+                        const SizedBox(width: spacing),
+                      ],
                       if (widget.showMoreButton) ...[
                         _CompactIconButton(
                           tooltip: AppLocalizations.of(
