@@ -112,7 +112,38 @@ class ModelCatalog {
        _providerByHost = providerByHost;
 
   /// Active catalog. `null` until [loadFromJsonString] (or a test) sets it.
-  static ModelCatalog? instance;
+  ///
+  /// Assignments notify [addInstallListener] callbacks — the usage ring uses
+  /// this to recompute when a cold-start load or a background refresh lands
+  /// after its first snapshot.
+  static ModelCatalog? get instance => _instance;
+  static set instance(ModelCatalog? value) {
+    _instance = value;
+    for (final listener in List<void Function()>.of(_installListeners)) {
+      try {
+        listener();
+      } catch (_) {
+        // Best-effort: a broken listener must not block the catalog install.
+      }
+    }
+  }
+
+  static ModelCatalog? _instance;
+  static final List<void Function()> _installListeners = <void Function()>[];
+
+  /// Register a callback invoked whenever [instance] is replaced.
+  ///
+  /// Duplicate registrations are ignored; [removeInstallListener] removes the
+  /// first match. Kept Flutter-free on purpose (this file is pure Dart).
+  static void addInstallListener(void Function() listener) {
+    if (!_installListeners.contains(listener)) {
+      _installListeners.add(listener);
+    }
+  }
+
+  static void removeInstallListener(void Function() listener) {
+    _installListeners.remove(listener);
+  }
 
   final Map<String, _ProviderEntry> _byProviderId;
   final Map<String, List<CatalogModel>> _byModelId;

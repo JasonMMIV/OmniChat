@@ -268,6 +268,22 @@ class ModelRegistry {
     );
   }
 
+  /// Known context window for [modelId] from the models.dev catalog.
+  ///
+  /// Resolves the model's upstream `apiModelId` first — a logical alias would
+  /// otherwise miss the catalog — then runs the same provider-aware lookup as
+  /// the model picker chips. Returns null when no catalog entry knows the
+  /// model; callers must treat that as "unknown", never as the 1M fallback.
+  static int? catalogContextWindow(ProviderConfig cfg, String modelId) {
+    final upstreamId = effectiveForModel(cfg, modelId).id;
+    final inferred = inferForProvider(
+      ModelInfo(id: upstreamId, displayName: upstreamId),
+      cfg,
+    );
+    final window = inferred.contextWindow;
+    return (window != null && window > 0) ? window : null;
+  }
+
   /// Shared parser for user-editable integer overrides (`contextWindow` /
   /// `maxOutput`). Returns null for absent / non-numeric / non-positive
   /// values so callers keep the inferred value.

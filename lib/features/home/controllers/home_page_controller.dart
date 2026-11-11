@@ -29,7 +29,6 @@ import '../../../core/services/api/learned_context_windows.dart';
 import '../../../core/services/agent/compaction/context_trim.dart';
 import '../../../core/services/agent/compaction/history_compactor.dart';
 import '../../../core/services/model_catalog/model_catalog.dart';
-import '../../../core/services/model_catalog/model_catalog_service.dart';
 import '../../../core/services/haptics.dart';
 import '../../../core/services/screen_wakelock.dart';
 import '../../voice_chat/services/stt_locale_resolver.dart';
@@ -144,7 +143,6 @@ class HomePageController extends ChangeNotifier {
       ValueNotifier<ContextUsageSnapshot?>(null);
   Timer? _contextUsageDebounce;
   int _contextUsageEpoch = 0;
-  bool _contextUsageCatalogRetryScheduled = false;
   bool _contextUsageReady = false;
   bool _usageListenersAttached = false;
   ({String providerKey, String modelId})? _lastUsageModelKey;
@@ -1131,17 +1129,15 @@ class HomePageController extends ChangeNotifier {
     final settings = _context.read<SettingsProvider>();
     final cfg = settings.getProviderConfig(providerKey);
     final learnedPeek = LearnedContextWindows.peek(providerKey, modelId);
-    final catalogWindow = ModelCatalog.instance?.windowTokens(
-      modelId,
-      providerId: cfg.catalogProviderId,
-      host: cfg.catalogHost,
-    );
+    // Same upstream-id → provider-scoped catalog → global-inference ladder as
+    // the model picker chips, so the ring cannot disagree with the chips and
+    // logical aliases (`apiModelId`) still resolve.
+    final catalogWindow = ModelRegistry.catalogContextWindow(cfg, modelId);
     // Explicit user configuration (Token limits field) wins over learned /
     // catalog values.
     final userWindow = ModelRegistry.parseIntOverride(
       cfg.modelOverrides[modelId]?['contextWindow'],
     );
-
     final epoch = ++_contextUsageEpoch;
     _lastUsageModelKey = effective;
     _lastUsageUserWindow = userWindow;
@@ -1187,18 +1183,6 @@ class HomePageController extends ChangeNotifier {
       catalogWindow: catalogWindow,
       userWindow: userWindow,
     );
-
-    if (ModelCatalog.instance == null && !_contextUsageCatalogRetryScheduled) {
-      // main.dart gives the catalog a 3s budget; if it missed the deadline,
-      // retry once it lands so the ring does not stay hidden forever.
-      _contextUsageCatalogRetryScheduled = true;
-      unawaited(
-        ModelCatalogService.instance.ensureLoaded().then((_) {
-          _contextUsageCatalogRetryScheduled = false;
-          if (!_disposed) _scheduleContextUsageRefresh();
-        }),
-      );
-    }
   }
 
   /// Effective model for the current conversation — must mirror the
@@ -1331,6 +1315,10 @@ class HomePageController extends ChangeNotifier {
   void _attachContextUsageListeners() {
     if (_usageListenersAttached || _disposed) return;
     _usageListenersAttached = true;
+    // The catalog can be installed by a cold-start load or a background
+    // refresh after the first ring snapshot. Recompute on every install so the
+    // denominator catches up instead of staying `...` for the session.
+    ModelCatalog.addInstallListener(_onCatalogInstalled);
     try {
       _context.read<SettingsProvider>().addListener(
         _onModelIdentityMaybeChanged,
@@ -1343,6 +1331,10 @@ class HomePageController extends ChangeNotifier {
       // Providers unavailable (tests / early teardown) — the ring still
       // refreshes from the discrete callbacks.
     }
+  }
+
+  void _onCatalogInstalled() {
+    _scheduleContextUsageRefresh();
   }
 
   void _onModelIdentityMaybeChanged() {
@@ -2110,6 +2102,7 @@ class HomePageController extends ChangeNotifier {
           _onModelIdentityMaybeChanged,
         );
       } catch (_) {}
+      ModelCatalog.removeInstallListener(_onCatalogInstalled);
     }
     _contextUsageReady = false;
     _contextUsageDebounce?.cancel();
