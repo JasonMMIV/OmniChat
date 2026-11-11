@@ -7,7 +7,6 @@ import '../../../core/services/file/file_tool_service.dart';
 import '../../../core/services/shell/shell_run_service.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../settings/pages/developer_mode_page.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import '../widgets/workspace_disk_usage_card.dart';
 
@@ -24,9 +23,10 @@ class _WorkspaceToolEntry {
   final IconData icon;
 }
 
-/// Global tool switchboard for the workspace: the 15 built-in file tools,
+/// Global tool switchboard for the workspace: the 17 built-in file tools,
 /// the live-preview console reader and the desktop shell tool, each with its
-/// own toggle.
+/// own toggle, plus the two global permission switches (files outside the
+/// workspace, shell commands).
 ///
 /// Reachable from the workspace menu even while the workspace is disabled.
 /// The planning (write_todos) and ask_user switches moved to the Add-ons
@@ -44,10 +44,6 @@ class WorkspaceToolsPage extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final settings = context.watch<SettingsProvider>();
-    final shellReady = ShellRunService.isReady(
-      developerMode: settings.developerModeV1,
-      allowlist: settings.shellAllowlist,
-    );
 
     final entries = <_WorkspaceToolEntry>[
       // File tools in definition order — the definitions are the canonical
@@ -68,9 +64,7 @@ class WorkspaceToolsPage extends StatelessWidget {
                 .toString(),
         icon: Lucide.Monitor,
       ),
-      // P1-6: the shell tool appears only when the model will actually receive
-      // it — desktop, developer mode, and the allowlist PATH readiness gate.
-      if (shellReady)
+      if (ShellRunService.isPlatformSupported)
         _WorkspaceToolEntry(
           name: ShellRunService.toolName,
           description:
@@ -93,31 +87,34 @@ class WorkspaceToolsPage extends StatelessWidget {
             ],
             Padding(
               padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.workspaceToolsDescription,
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.4,
-                      color: cs.onSurface.withOpacity(0.62),
-                    ),
-                  ),
-                  if (settings.developerModeV1) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      l10n.workspaceToolsDeveloperWriteLimit,
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.4,
-                        color: cs.primary.withValues(alpha: 0.82),
-                      ),
-                    ),
-                  ],
-                ],
+              child: Text(
+                l10n.workspaceToolsDescription,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.4,
+                  color: cs.onSurface.withValues(alpha: 0.62),
+                ),
               ),
             ),
+            _sectionLabel(context, l10n.workspacePermissionsTitle),
+            _permissionRow(
+              context,
+              icon: Lucide.FolderOpen,
+              title: l10n.workspaceFilesOutsideAllowAllTitle,
+              subtitle: l10n.workspaceFilesOutsideAllowAllSubtitle,
+              value: settings.fileOutsideWorkspaceAllowAllV1,
+              onChanged: settings.setFileOutsideWorkspaceAllowAllV1,
+            ),
+            if (ShellRunService.isPlatformSupported)
+              _permissionRow(
+                context,
+                icon: Lucide.Terminal,
+                title: l10n.workspaceShellAllowAllTitle,
+                subtitle: l10n.workspaceShellAllowAllSubtitle,
+                value: settings.shellAllowAllV1,
+                onChanged: settings.setShellAllowAllV1,
+              ),
+            const SizedBox(height: 16),
             for (final entry in entries)
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -135,7 +132,7 @@ class WorkspaceToolsPage extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 12,
-                    color: cs.onSurface.withOpacity(0.55),
+                    color: cs.onSurface.withValues(alpha: 0.55),
                   ),
                 ),
                 trailing: IosSwitch(
@@ -144,29 +141,64 @@ class WorkspaceToolsPage extends StatelessWidget {
                       settings.setWorkspaceToolEnabled(entry.name, v),
                 ),
               ),
-            if (ShellRunService.isPlatformSupported) ...[
-              const SizedBox(height: 12),
-              Center(
-                child: TextButton.icon(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const DeveloperModePage(),
-                    ),
-                  ),
-                  icon: const Icon(Lucide.Terminal, size: 16),
-                  label: Text(
-                    settings.developerModeV1
-                        ? l10n.developerModeTitle
-                        : l10n.developerModeMasterTitle,
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),
     );
   }
+}
+
+Widget _sectionLabel(BuildContext context, String text) {
+  final cs = Theme.of(context).colorScheme;
+  return Padding(
+    padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
+    child: Text(
+      text.toUpperCase(),
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.6,
+        color: cs.onSurface.withValues(alpha: 0.5),
+      ),
+    ),
+  );
+}
+
+Widget _permissionRow(
+  BuildContext context, {
+  required IconData icon,
+  required String title,
+  required String subtitle,
+  required bool value,
+  required ValueChanged<bool> onChanged,
+}) {
+  final cs = Theme.of(context).colorScheme;
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Container(
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.fromLTRB(12, 2, 8, 2),
+        leading: Icon(icon, size: 20, color: cs.primary),
+        title: Text(
+          title,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.35,
+            color: cs.onSurface.withValues(alpha: 0.55),
+          ),
+        ),
+        trailing: IosSwitch(value: value, onChanged: onChanged),
+      ),
+    ),
+  );
 }
 
 /// First sentence of a built-in tool description (the raw descriptions are

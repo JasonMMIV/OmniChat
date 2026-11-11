@@ -37,10 +37,10 @@ class SessionOutputs {
   static const String modelPrefix = 'tool_outputs/';
 
   /// stdout + stderr above this size is externalized (kelivo offloader spec).
-  static const int externalizeThresholdBytes = 32 * 1024;
+  static const int externalizeThresholdBytes = 64 * 1024;
 
   /// Per-stream preview size embedded in the tool result when externalized.
-  static const int previewBytes = 4 * 1024;
+  static const int previewBytes = 8 * 1024;
 
   static const int maxFilesPerConversation = 20;
   static const Duration retention = Duration(days: 7);

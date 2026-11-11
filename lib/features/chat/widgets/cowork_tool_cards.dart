@@ -391,10 +391,9 @@ class _TodoPlanCardState extends State<TodoPlanCard> {
 
 /// Approval card for a tool call classified as `ask` by the P1-1 policy
 /// engine. Shows the parsed concrete absolute path (with an
-/// out-of-workspace marker when applicable) plus Approve / Always-allow /
-/// Deny. After a decision the card renders the recorded state
-/// (approved/denied). MCP tools are never routed here (2026-09-10: the MCP
-/// policy source was removed).
+/// out-of-workspace marker when applicable) plus Approve / Deny. After a
+/// decision the card renders the recorded state (approved/denied). MCP tools
+/// are never routed here (2026-09-10: the MCP policy source was removed).
 class ApprovalToolCard extends StatelessWidget {
   final ToolUIPart part;
   final Map<String, dynamic> approval;
@@ -404,7 +403,7 @@ class ApprovalToolCard extends StatelessWidget {
   /// card shows progress so a long shell command cannot invite a second tap.
   final bool executing;
 
-  final Future<void> Function(bool alwaysAllow) onApprove;
+  final Future<void> Function() onApprove;
   final VoidCallback onDeny;
 
   const ApprovalToolCard({
@@ -434,11 +433,6 @@ class ApprovalToolCard extends StatelessWidget {
     final resolvedPath = (approval['resolved_path'] ?? '').toString();
     final outside = approval['outside_workspace'] == true;
     final shellCommand = (approval['shell_command'] ?? '').toString();
-    final shellBlockedPrograms = <String>[
-      for (final program
-          in (approval['shell_blocked_programs'] as List? ?? const []))
-        program.toString(),
-    ];
 
     return IosCardPress(
       borderRadius: BorderRadius.circular(10),
@@ -534,7 +528,7 @@ class ApprovalToolCard extends StatelessWidget {
               ),
             ),
           // P1-6: the full command is the thing the user is approving — show
-          // it verbatim, plus which programs "always allow" would add.
+          // it verbatim.
           if (shellCommand.isNotEmpty && !_isDenied && !_isTimeout) ...[
             const SizedBox(height: 2),
             Container(
@@ -567,19 +561,6 @@ class ApprovalToolCard extends StatelessWidget {
                       color: cardTextColor,
                     ),
                   ),
-                  if (shellBlockedPrograms.isNotEmpty) ...[
-                    const SizedBox(height: 5),
-                    Text(
-                      l10n.approvalShellAlwaysAllowHint(
-                        shellBlockedPrograms.join(', '),
-                      ),
-                      style: TextStyle(
-                        fontSize: 11,
-                        height: 1.3,
-                        color: cardTextColor.withValues(alpha: 0.7),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -646,16 +627,8 @@ class ApprovalToolCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                OutlinedButton(
-                  onPressed: () => onApprove(true),
-                  child: Text(
-                    l10n.approvalAlwaysAllow,
-                    style: TextStyle(fontSize: 13, color: cardTextColor),
-                  ),
-                ),
-                const SizedBox(width: 8),
                 FilledButton(
-                  onPressed: () => onApprove(false),
+                  onPressed: onApprove,
                   child: Text(
                     l10n.approvalApprove,
                     style: const TextStyle(fontSize: 13),

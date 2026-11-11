@@ -43,9 +43,7 @@ void main() {
     late Directory outside;
 
     setUp(() async {
-      outside = await Directory.systemTemp.createTemp(
-        'omnichat_file_outside_',
-      );
+      outside = await Directory.systemTemp.createTemp('omnichat_file_outside_');
     });
 
     tearDown(() async {
@@ -74,10 +72,12 @@ void main() {
 
     test('approved write executes against the concrete outside path', () async {
       final target = '${outside.path}/approved.txt';
-      final result = await FileToolService.execute('file_write', {
-        'path': target,
-        'content': 'hello outside',
-      }, workspace.path, approvedOutsidePath: target);
+      final result = await FileToolService.execute(
+        'file_write',
+        {'path': target, 'content': 'hello outside'},
+        workspace.path,
+        approvedOutsidePath: target,
+      );
       expect(result.text, contains('Wrote'));
       expect(await File(target).readAsString(), 'hello outside');
       expect(result.createdOrModifiedFilePath, p.normalize(target));
@@ -86,32 +86,49 @@ void main() {
     test('approved read returns outside content', () async {
       final target = '${outside.path}/read-me.txt';
       await File(target).writeAsString('outside data');
-      final result = await FileToolService.execute('file_read', {
-        'path': target,
-      }, workspace.path, approvedOutsidePath: target);
+      final result = await FileToolService.execute(
+        'file_read',
+        {'path': target},
+        workspace.path,
+        approvedOutsidePath: target,
+      );
       expect(result.text, contains('outside data'));
     });
 
-    test('hard floors are not relaxed by approval', () async {
-      final bigTarget = '${outside.path}/too-large.txt';
-      final big = await FileToolService.execute('file_write', {
-        'path': bigTarget,
-        'content': 'x' * (FileToolService.maxWriteBytes + 1),
-      }, workspace.path, approvedOutsidePath: bigTarget);
-      expect(big.text, contains('512 KB'));
-      expect(File(bigTarget).existsSync(), isFalse);
+    test(
+      'rejects an approved path that does not match the raw argument',
+      () async {
+        final target = '${outside.path}/real.txt';
+        final other = '${outside.path}/other.txt';
+        final result = await FileToolService.execute(
+          'file_write',
+          {'path': target, 'content': 'nope'},
+          workspace.path,
+          approvedOutsidePath: other,
+        );
+        expect(result.text, contains('does not match the approved'));
+        expect(File(target).existsSync(), isFalse);
+      },
+    );
 
-      final exeTarget = '${outside.path}/evil.exe';
-      final exe = await FileToolService.execute('file_write', {
-        'path': exeTarget,
-        'content': 'MZ',
-      }, workspace.path, approvedOutsidePath: exeTarget);
-      expect(exe.text, contains('blocked'));
-      expect(File(exeTarget).existsSync(), isFalse);
-    });
+    test(
+      'approved writes can create executables and files over 512 KB',
+      () async {
+        final exeTarget = '${outside.path}/tool.exe';
+        final content = 'MZ${'x' * (3 * 1024 * 1024)}';
+        final result = await FileToolService.execute(
+          'file_write',
+          {'path': exeTarget, 'content': content},
+          workspace.path,
+          approvedOutsidePath: exeTarget,
+        );
+        expect(result.text, contains('Wrote'));
+        expect(await File(exeTarget).length(), utf8.encode(content).length);
+      },
+    );
   });
 
-  test('writes, reads, appends, and enforces byte limits', () async {
+  test('writes, reads, and appends without a product write limit', () async {
     final write = await FileToolService.execute('file_write', {
       'path': 'notes/hello.txt',
       'content': 'hello',
@@ -141,33 +158,34 @@ void main() {
       'hello world',
     );
 
-    final oversized = await FileToolService.execute('file_write', {
-      'path': 'too-large.txt',
-      'content': 'x' * (FileToolService.maxWriteBytes + 1),
+    final large = await FileToolService.execute('file_write', {
+      'path': 'large.txt',
+      'content': 'x' * (3 * 1024 * 1024),
     }, workspace.path);
-    expect(oversized.text, contains('512 KB'));
-    expect(File('${workspace.path}/too-large.txt').existsSync(), isFalse);
+    expect(large.text, contains('Wrote'));
+    expect(await File('${workspace.path}/large.txt').length(), 3 * 1024 * 1024);
   });
 
   group('workspace zero-residue: atomic write (Phase 2.2)', () {
     test(
-        'replacing an existing file leaves no .tmp / .omnichat backup siblings',
-        () async {
-      final target = File('${workspace.path}/report.md');
-      await target.writeAsString('OLD-CONTENT');
+      'replacing an existing file leaves no .tmp / .omnichat backup siblings',
+      () async {
+        final target = File('${workspace.path}/report.md');
+        await target.writeAsString('OLD-CONTENT');
 
-      // file_edit replaces the file through the atomic temp + rename path.
-      final result = await FileToolService.execute('file_edit', {
-        'path': 'report.md',
-        'old_text': 'OLD-CONTENT',
-        'new_text': 'NEW-CONTENT',
-      }, workspace.path);
-      expect(result.text, contains('Edited'));
-      expect(await target.readAsString(), 'NEW-CONTENT');
+        // file_edit replaces the file through the atomic temp + rename path.
+        final result = await FileToolService.execute('file_edit', {
+          'path': 'report.md',
+          'old_text': 'OLD-CONTENT',
+          'new_text': 'NEW-CONTENT',
+        }, workspace.path);
+        expect(result.text, contains('Edited'));
+        expect(await target.readAsString(), 'NEW-CONTENT');
 
-      // Zero residue: no staging or backup files remain in the workspace.
-      expect(_stagingResidue(workspace), isEmpty);
-    });
+        // Zero residue: no staging or backup files remain in the workspace.
+        expect(_stagingResidue(workspace), isEmpty);
+      },
+    );
 
     test('editing a file leaves only the edited file behind', () async {
       final target = File('${workspace.path}/doc.txt');
@@ -185,22 +203,23 @@ void main() {
     });
 
     test(
-        'repeated edits to the same file never accumulate staging files',
-        () async {
-      final target = File('${workspace.path}/counter.txt');
-      await target.writeAsString('generation 0');
+      'repeated edits to the same file never accumulate staging files',
+      () async {
+        final target = File('${workspace.path}/counter.txt');
+        await target.writeAsString('generation 0');
 
-      for (var i = 1; i <= 5; i++) {
-        final result = await FileToolService.execute('file_edit', {
-          'path': 'counter.txt',
-          'old_text': 'generation ${i - 1}',
-          'new_text': 'generation $i',
-        }, workspace.path);
-        expect(result.text, contains('Edited'));
-      }
-      expect(await target.readAsString(), 'generation 5');
-      expect(_stagingResidue(workspace), isEmpty);
-    });
+        for (var i = 1; i <= 5; i++) {
+          final result = await FileToolService.execute('file_edit', {
+            'path': 'counter.txt',
+            'old_text': 'generation ${i - 1}',
+            'new_text': 'generation $i',
+          }, workspace.path);
+          expect(result.text, contains('Edited'));
+        }
+        expect(await target.readAsString(), 'generation 5');
+        expect(_stagingResidue(workspace), isEmpty);
+      },
+    );
 
     group('failure paths (Phase 2.4)', () {
       tearDown(() {
@@ -237,63 +256,67 @@ void main() {
         expect(_stagingResidue(workspace), isEmpty);
       });
 
-      test('an exhausted retry loop preserves the old file and drops the temp',
-          () async {
-        final target = File('${workspace.path}/exhausted.md');
-        await target.writeAsString('ORIGINAL');
+      test(
+        'an exhausted retry loop preserves the old file and drops the temp',
+        () async {
+          final target = File('${workspace.path}/exhausted.md');
+          await target.writeAsString('ORIGINAL');
 
-        var attempts = 0;
-        FileToolService.debugRename = (temporary, targetPath) async {
-          attempts++;
-          throw const FileSystemException(
-            'locked by another process',
-            '',
-            OSError('Access is denied', 5),
-          );
-        };
+          var attempts = 0;
+          FileToolService.debugRename = (temporary, targetPath) async {
+            attempts++;
+            throw const FileSystemException(
+              'locked by another process',
+              '',
+              OSError('Access is denied', 5),
+            );
+          };
 
-        final result = await FileToolService.execute('file_edit', {
-          'path': 'exhausted.md',
-          'old_text': 'ORIGINAL',
-          'new_text': 'NEW-CONTENT',
-        }, workspace.path);
+          final result = await FileToolService.execute('file_edit', {
+            'path': 'exhausted.md',
+            'old_text': 'ORIGINAL',
+            'new_text': 'NEW-CONTENT',
+          }, workspace.path);
 
-        expect(attempts, 6, reason: 'bounded backoff retries');
-        expect(result.text, contains('Error'));
-        expect(await target.readAsString(), 'ORIGINAL');
-        expect(_stagingResidue(workspace), isEmpty);
-      });
+          expect(attempts, 6, reason: 'bounded backoff retries');
+          expect(result.text, contains('Error'));
+          expect(await target.readAsString(), 'ORIGINAL');
+          expect(_stagingResidue(workspace), isEmpty);
+        },
+      );
 
-      test('a failed temp write preserves the old file and drops the temp',
-          () async {
-        final target = File('${workspace.path}/partial.md');
-        await target.writeAsString('ORIGINAL');
+      test(
+        'a failed temp write preserves the old file and drops the temp',
+        () async {
+          final target = File('${workspace.path}/partial.md');
+          await target.writeAsString('ORIGINAL');
 
-        FileToolService.debugWriteTemp = (temporary, bytes) async {
-          // Disk full / AV lock mid-write: a partial staging file exists and
-          // the write then dies.
-          await temporary.writeAsBytes(bytes.sublist(0, bytes.length ~/ 2));
-          throw const FileSystemException(
-            'not enough space',
-            '',
-            OSError('No space left on device', 28),
-          );
-        };
+          FileToolService.debugWriteTemp = (temporary, bytes) async {
+            // Disk full / AV lock mid-write: a partial staging file exists and
+            // the write then dies.
+            await temporary.writeAsBytes(bytes.sublist(0, bytes.length ~/ 2));
+            throw const FileSystemException(
+              'not enough space',
+              '',
+              OSError('No space left on device', 28),
+            );
+          };
 
-        final result = await FileToolService.execute('file_edit', {
-          'path': 'partial.md',
-          'old_text': 'ORIGINAL',
-          'new_text': 'NEW-CONTENT',
-        }, workspace.path);
+          final result = await FileToolService.execute('file_edit', {
+            'path': 'partial.md',
+            'old_text': 'ORIGINAL',
+            'new_text': 'NEW-CONTENT',
+          }, workspace.path);
 
-        expect(result.text, contains('Error'));
-        expect(await target.readAsString(), 'ORIGINAL');
-        expect(_stagingResidue(workspace), isEmpty);
-      });
+          expect(result.text, contains('Error'));
+          expect(await target.readAsString(), 'ORIGINAL');
+          expect(_stagingResidue(workspace), isEmpty);
+        },
+      );
     });
   });
 
-  test('uses the 24 KB default read window', () async {
+  test('uses the 64 KB default read window', () async {
     final file = File('${workspace.path}/default-window.txt');
     await file.writeAsBytes(
       utf8.encode('x' * (FileToolService.defaultReadBytes + 1)),
@@ -303,7 +326,10 @@ void main() {
       'path': 'default-window.txt',
     }, workspace.path);
 
-    expect(result.text, contains('Read bytes 0-${FileToolService.defaultReadBytes}'));
+    expect(
+      result.text,
+      contains('Read bytes 0-${FileToolService.defaultReadBytes}'),
+    );
     expect(result.text, contains('has_more=true'));
     expect(
       result.text,
@@ -408,21 +434,18 @@ void main() {
     expect(await file.readAsString(), 'ONE\nTWO\nTWO\n');
   });
 
-  test(
-    'rejects oversized edit arguments before building a replacement',
-    () async {
-      final file = File('${workspace.path}/bounded-edit.txt');
-      await file.writeAsString('unchanged');
+  test('allows large edit arguments without the old 512 KB limit', () async {
+    final file = File('${workspace.path}/bounded-edit.txt');
+    await file.writeAsString('unchanged');
 
-      final result = await FileToolService.execute('file_edit', {
-        'path': 'bounded-edit.txt',
-        'old_text': 'unchanged',
-        'new_text': 'x' * (FileToolService.maxWriteBytes + 1),
-      }, workspace.path);
-      expect(result.text, contains('edit text arguments'));
-      expect(await file.readAsString(), 'unchanged');
-    },
-  );
+    final result = await FileToolService.execute('file_edit', {
+      'path': 'bounded-edit.txt',
+      'old_text': 'unchanged',
+      'new_text': 'x' * (600 * 1024),
+    }, workspace.path);
+    expect(result.text, contains('Edited'));
+    expect(await file.length(), greaterThanOrEqualTo(600 * 1024));
+  });
 
   test('applies a single-file unified patch and preserves CRLF', () async {
     final file = File('${workspace.path}/patch.txt');
@@ -558,12 +581,16 @@ void main() {
     },
   );
 
-  test('blocks executable extensions', () async {
+  test('writes executable extensions', () async {
     final result = await FileToolService.execute('file_write', {
       'path': 'unsafe.exe',
       'content': 'not executable',
     }, workspace.path);
-    expect(result.text, contains('blocked'));
+    expect(result.text, contains('Wrote'));
+    expect(
+      await File('${workspace.path}/unsafe.exe').readAsString(),
+      'not executable',
+    );
   });
 
   test('rejects a symlink that resolves outside the workspace', () async {
@@ -593,36 +620,39 @@ void main() {
     expect(names, contains('file_extract_text'));
   });
 
-  test('extracts DOCX text with paragraphs, entities, and Markdown tables',
-      () async {
-    await File('${workspace.path}/doc.docx').writeAsBytes(_docxFixture());
-    final result = await FileToolService.execute('file_extract_text', {
-      'path': 'doc.docx',
-    }, workspace.path);
-    expect(result.text, contains('Hello & welcome'));
-    expect(result.text, contains('第二段 中文'));
-    // <w:tbl> content is now rendered as a Markdown table.
-    expect(result.text, contains('| Cell A1 |'));
-    expect(result.text, contains('|---|'));
-    expect(result.text, contains('format=docx'));
-    expect(result.text, contains('has_more=false'));
-  });
+  test(
+    'extracts DOCX text with paragraphs, entities, and Markdown tables',
+    () async {
+      await File('${workspace.path}/doc.docx').writeAsBytes(_docxFixture());
+      final result = await FileToolService.execute('file_extract_text', {
+        'path': 'doc.docx',
+      }, workspace.path);
+      expect(result.text, contains('Hello & welcome'));
+      expect(result.text, contains('第二段 中文'));
+      // <w:tbl> content is now rendered as a Markdown table.
+      expect(result.text, contains('| Cell A1 |'));
+      expect(result.text, contains('|---|'));
+      expect(result.text, contains('format=docx'));
+      expect(result.text, contains('has_more=false'));
+    },
+  );
 
-  test('extracts DOCX text nested in content controls and text boxes',
-      () async {
-    await File('${workspace.path}/sdt.docx').writeAsBytes(_docxSdtFixture());
-    final result = await FileToolService.execute('file_extract_text', {
-      'path': 'sdt.docx',
-    }, workspace.path);
-    expect(result.text, contains('SDT paragraph'));
-    expect(result.text, contains('Text box paragraph'));
-    expect(result.text, contains('normal'));
-  });
+  test(
+    'extracts DOCX text nested in content controls and text boxes',
+    () async {
+      await File('${workspace.path}/sdt.docx').writeAsBytes(_docxSdtFixture());
+      final result = await FileToolService.execute('file_extract_text', {
+        'path': 'sdt.docx',
+      }, workspace.path);
+      expect(result.text, contains('SDT paragraph'));
+      expect(result.text, contains('Text box paragraph'));
+      expect(result.text, contains('normal'));
+    },
+  );
 
   test('extracts PPTX tables as Markdown tables', () async {
-    await File('${workspace.path}/table.pptx').writeAsBytes(
-      _pptxTableFixture(),
-    );
+    await File('${workspace.path}/table.pptx')
+        .writeAsBytes(_pptxTableFixture());
     final result = await FileToolService.execute('file_extract_text', {
       'path': 'table.pptx',
     }, workspace.path);
@@ -632,20 +662,22 @@ void main() {
     expect(result.text, contains('| Alpha | 1 |'));
   });
 
-  test('extracts PPTX text in relationship order, not filename order',
-      () async {
-    await File('${workspace.path}/deck.pptx').writeAsBytes(_pptxFixture());
-    final result = await FileToolService.execute('file_extract_text', {
-      'path': 'deck.pptx',
-    }, workspace.path);
-    final text = result.text;
-    expect(text, contains('--- Slide 1 ---'));
-    expect(text, contains('--- Slide 3 ---'));
-    // sldIdLst order is rId3 (slide2), rId1 (slide1), rId2 (slide10).
-    expect(text.indexOf('Slide Two'), lessThan(text.indexOf('Slide One')));
-    expect(text.indexOf('Slide One'), lessThan(text.indexOf('Slide Ten')));
-    expect(text, contains('format=pptx'));
-  });
+  test(
+    'extracts PPTX text in relationship order, not filename order',
+    () async {
+      await File('${workspace.path}/deck.pptx').writeAsBytes(_pptxFixture());
+      final result = await FileToolService.execute('file_extract_text', {
+        'path': 'deck.pptx',
+      }, workspace.path);
+      final text = result.text;
+      expect(text, contains('--- Slide 1 ---'));
+      expect(text, contains('--- Slide 3 ---'));
+      // sldIdLst order is rId3 (slide2), rId1 (slide1), rId2 (slide10).
+      expect(text.indexOf('Slide Two'), lessThan(text.indexOf('Slide One')));
+      expect(text.indexOf('Slide One'), lessThan(text.indexOf('Slide Ten')));
+      expect(text, contains('format=pptx'));
+    },
+  );
 
   test('extracts PDF text with page markers', () async {
     final pdf = _pdfFixture(pages: 2);
@@ -723,9 +755,8 @@ void main() {
     }, workspace.path);
     expect(unsupported.text, contains('Unsupported file format'));
 
-    await File('${workspace.path}/bad.docx').writeAsBytes(
-      utf8.encode('not a zip file'),
-    );
+    await File('${workspace.path}/bad.docx')
+        .writeAsBytes(utf8.encode('not a zip file'));
     final badDocx = await FileToolService.execute('file_extract_text', {
       'path': 'bad.docx',
       'format': 'docx',
@@ -740,39 +771,38 @@ void main() {
     expect(badFormat.text, contains('Unsupported format'));
   });
 
-  test('extracts XLSX text in workbook sheet order as Markdown tables',
-      () async {
-    await File('${workspace.path}/book.xlsx').writeAsBytes(
-      _xlsxFixture(sheetNames: ['Summary', 'Data']),
-    );
-    final result = await FileToolService.execute('file_extract_text', {
-      'path': 'book.xlsx',
-    }, workspace.path);
-    final text = result.text;
-    expect(text, contains('format=xlsx'));
-    expect(text, contains('has_more=false'));
-    // workbook.xml <sheets> order is Summary then Data, not filename order.
-    expect(
-      text.indexOf('--- Sheet 1 (Summary) ---'),
-      lessThan(text.indexOf('--- Sheet 2 (Data) ---')),
-    );
-    expect(text, contains('--- Sheet 1 (Summary) ---'));
-    expect(text, contains('--- Sheet 2 (Data) ---'));
-    // Single-cell sheets become one-column tables with a header separator.
-    expect(text, contains('| 3.14 |'));
-    expect(text, contains('|---|'));
-    // The second row has four cells (A2..D2); D2 is empty but its column
-    // position is preserved, so the header row is padded to four columns.
-    expect(text, contains('| Hello Excel | 42 | Inline & more |  |'));
-    expect(text, contains('|---|---|---|---|'));
-    expect(text, contains('| 第二個 中文 | TRUE | 123 |  |'));
-  });
+  test(
+    'extracts XLSX text in workbook sheet order as Markdown tables',
+    () async {
+      await File('${workspace.path}/book.xlsx')
+          .writeAsBytes(_xlsxFixture(sheetNames: ['Summary', 'Data']));
+      final result = await FileToolService.execute('file_extract_text', {
+        'path': 'book.xlsx',
+      }, workspace.path);
+      final text = result.text;
+      expect(text, contains('format=xlsx'));
+      expect(text, contains('has_more=false'));
+      // workbook.xml <sheets> order is Summary then Data, not filename order.
+      expect(
+        text.indexOf('--- Sheet 1 (Summary) ---'),
+        lessThan(text.indexOf('--- Sheet 2 (Data) ---')),
+      );
+      expect(text, contains('--- Sheet 1 (Summary) ---'));
+      expect(text, contains('--- Sheet 2 (Data) ---'));
+      // Single-cell sheets become one-column tables with a header separator.
+      expect(text, contains('| 3.14 |'));
+      expect(text, contains('|---|'));
+      // The second row has four cells (A2..D2); D2 is empty but its column
+      // position is preserved, so the header row is padded to four columns.
+      expect(text, contains('| Hello Excel | 42 | Inline & more |  |'));
+      expect(text, contains('|---|---|---|---|'));
+      expect(text, contains('| 第二個 中文 | TRUE | 123 |  |'));
+    },
+  );
 
-  test('auto-detects XLSX from ZIP layout without a known extension',
-      () async {
-    await File('${workspace.path}/renamed.bin').writeAsBytes(
-      _xlsxFixture(sheetNames: ['Data']),
-    );
+  test('auto-detects XLSX from ZIP layout without a known extension', () async {
+    await File('${workspace.path}/renamed.bin')
+        .writeAsBytes(_xlsxFixture(sheetNames: ['Data']));
     final result = await FileToolService.execute('file_extract_text', {
       'path': 'renamed.bin',
     }, workspace.path);
@@ -780,25 +810,25 @@ void main() {
     expect(result.text, contains('| Hello Excel |'));
   });
 
-  test('handles booleans, formula cache, and out-of-range string indexes',
-      () async {
-    await File('${workspace.path}/types.xlsx').writeAsBytes(
-      _xlsxFixture(sheetNames: ['Data']),
-    );
-    final result = await FileToolService.execute('file_extract_text', {
-      'path': 'types.xlsx',
-    }, workspace.path);
-    expect(result.text, contains('| 第二個 中文 | TRUE | 123 |  |'));
-    // Shared string index 99 does not exist; the D2 cell is empty but its
-    // column position is preserved (four columns in the row).
-    expect(result.text, isNot(contains('D2')));
-    expect(result.text, contains('|---|---|---|---|'));
-  });
+  test(
+    'handles booleans, formula cache, and out-of-range string indexes',
+    () async {
+      await File('${workspace.path}/types.xlsx')
+          .writeAsBytes(_xlsxFixture(sheetNames: ['Data']));
+      final result = await FileToolService.execute('file_extract_text', {
+        'path': 'types.xlsx',
+      }, workspace.path);
+      expect(result.text, contains('| 第二個 中文 | TRUE | 123 |  |'));
+      // Shared string index 99 does not exist; the D2 cell is empty but its
+      // column position is preserved (four columns in the row).
+      expect(result.text, isNot(contains('D2')));
+      expect(result.text, contains('|---|---|---|---|'));
+    },
+  );
 
   test('reports when a workbook has no cell text', () async {
-    await File('${workspace.path}/blank.xlsx').writeAsBytes(
-      _xlsxFixture(sheetNames: ['Empty']),
-    );
+    await File('${workspace.path}/blank.xlsx')
+        .writeAsBytes(_xlsxFixture(sheetNames: ['Empty']));
     final result = await FileToolService.execute('file_extract_text', {
       'path': 'blank.xlsx',
     }, workspace.path);
@@ -818,9 +848,8 @@ void main() {
   });
 
   test('auto-detects uppercase XLSX extensions', () async {
-    await File('${workspace.path}/UPPER.XLSX').writeAsBytes(
-      _xlsxFixture(sheetNames: ['Data']),
-    );
+    await File('${workspace.path}/UPPER.XLSX')
+        .writeAsBytes(_xlsxFixture(sheetNames: ['Data']));
     final result = await FileToolService.execute('file_extract_text', {
       'path': 'UPPER.XLSX',
     }, workspace.path);
@@ -829,9 +858,8 @@ void main() {
   });
 
   test('honors a format override for XLSX', () async {
-    await File('${workspace.path}/renamed.bin').writeAsBytes(
-      _xlsxFixture(sheetNames: ['Data']),
-    );
+    await File('${workspace.path}/renamed.bin')
+        .writeAsBytes(_xlsxFixture(sheetNames: ['Data']));
     final result = await FileToolService.execute('file_extract_text', {
       'path': 'renamed.bin',
       'format': 'xlsx',
@@ -839,25 +867,23 @@ void main() {
     expect(result.text, contains('| Hello Excel |'));
   });
 
-  test('extracts numeric-only workbooks without a sharedStrings part',
-      () async {
-    await File('${workspace.path}/numbers.xlsx').writeAsBytes(
-      _xlsxFixture(
-        sheetNames: ['Summary'],
-        includeSharedStrings: false,
-      ),
-    );
-    final result = await FileToolService.execute('file_extract_text', {
-      'path': 'numbers.xlsx',
-    }, workspace.path);
-    expect(result.text, contains('format=xlsx'));
-    expect(result.text, contains('| 3.14 |'));
-  });
+  test(
+    'extracts numeric-only workbooks without a sharedStrings part',
+    () async {
+      await File('${workspace.path}/numbers.xlsx').writeAsBytes(
+        _xlsxFixture(sheetNames: ['Summary'], includeSharedStrings: false),
+      );
+      final result = await FileToolService.execute('file_extract_text', {
+        'path': 'numbers.xlsx',
+      }, workspace.path);
+      expect(result.text, contains('format=xlsx'));
+      expect(result.text, contains('| 3.14 |'));
+    },
+  );
 
   test('reports an XLSX missing workbook.xml as an error', () async {
-    await File('${workspace.path}/bad.xlsx').writeAsBytes(
-      _zipBytes({'xl/worksheets/sheet1.xml': '<worksheet/>'}),
-    );
+    await File('${workspace.path}/bad.xlsx')
+        .writeAsBytes(_zipBytes({'xl/worksheets/sheet1.xml': '<worksheet/>'}));
     final result = await FileToolService.execute('file_extract_text', {
       'path': 'bad.xlsx',
       'format': 'xlsx',
@@ -866,11 +892,9 @@ void main() {
     expect(result.text, contains('workbook.xml'));
   });
 
-  test('supports offset, limit, next_offset, and has_more for XLSX',
-      () async {
-    await File('${workspace.path}/long.xlsx').writeAsBytes(
-      _xlsxFixture(sheetNames: ['Data'], rows: 500),
-    );
+  test('supports offset, limit, next_offset, and has_more for XLSX', () async {
+    await File('${workspace.path}/long.xlsx')
+        .writeAsBytes(_xlsxFixture(sheetNames: ['Data'], rows: 500));
     final first = await FileToolService.execute('file_extract_text', {
       'path': 'long.xlsx',
     }, workspace.path);
@@ -889,9 +913,8 @@ void main() {
   });
 
   test('does not split a UTF-8 code point in XLSX extracted text', () async {
-    await File('${workspace.path}/uni.xlsx').writeAsBytes(
-      _xlsxInlineCellFixture('A😀B'),
-    );
+    await File('${workspace.path}/uni.xlsx')
+        .writeAsBytes(_xlsxInlineCellFixture('A😀B'));
     // Content is '--- Sheet 1 (Data) ---\n| A😀B |\n'. Find the emoji start
     // byte inside the pure extracted content, then read from the middle of it.
     final full = await FileToolService.execute('file_extract_text', {
@@ -908,44 +931,46 @@ void main() {
     expect(result.text, isNot(contains('\uFFFD')));
   });
 
-  test('rejects files over the extraction input limit without parsing',
-      () async {
-    final big = File('${workspace.path}/big.docx');
-    await big.writeAsBytes(
-      List<int>.filled(FileToolService.maxExtractInputBytes + 1, 0),
-    );
-    final result = await FileToolService.execute('file_extract_text', {
-      'path': 'big.docx',
-    }, workspace.path);
-    expect(result.text, contains('16 MB'));
-  });
+  test(
+    'rejects files over the extraction input limit without parsing',
+    () async {
+      final big = File('${workspace.path}/big.docx');
+      await big.writeAsBytes(
+        List<int>.filled(FileToolService.maxExtractInputBytes + 1, 0),
+      );
+      final result = await FileToolService.execute('file_extract_text', {
+        'path': 'big.docx',
+      }, workspace.path);
+      expect(result.text, contains('16 MB'));
+    },
+  );
 
-  test('supports offset, limit, next_offset, and has_more for extraction',
-      () async {
-    await File('${workspace.path}/long.docx').writeAsBytes(
-      _docxFixture(paragraphs: 500),
-    );
-    final first = await FileToolService.execute('file_extract_text', {
-      'path': 'long.docx',
-    }, workspace.path);
-    expect(first.text, contains('has_more=true'));
-    expect(first.text, contains('next_offset='));
-    final match = RegExp(r'next_offset=(\d+)').firstMatch(first.text);
-    expect(match, isNotNull);
-    final next = int.parse(match!.group(1)!);
+  test(
+    'supports offset, limit, next_offset, and has_more for extraction',
+    () async {
+      await File('${workspace.path}/long.docx')
+          .writeAsBytes(_docxFixture(paragraphs: 500));
+      final first = await FileToolService.execute('file_extract_text', {
+        'path': 'long.docx',
+      }, workspace.path);
+      expect(first.text, contains('has_more=true'));
+      expect(first.text, contains('next_offset='));
+      final match = RegExp(r'next_offset=(\d+)').firstMatch(first.text);
+      expect(match, isNotNull);
+      final next = int.parse(match!.group(1)!);
 
-    final second = await FileToolService.execute('file_extract_text', {
-      'path': 'long.docx',
-      'offset': next,
-    }, workspace.path);
-    expect(second.text, contains('next_offset='));
-    expect(second.text, contains('Paragraph number'));
-  });
+      final second = await FileToolService.execute('file_extract_text', {
+        'path': 'long.docx',
+        'offset': next,
+      }, workspace.path);
+      expect(second.text, contains('next_offset='));
+      expect(second.text, contains('Paragraph number'));
+    },
+  );
 
   test('does not split a UTF-8 code point in extracted text', () async {
-    await File('${workspace.path}/uni.docx').writeAsBytes(
-      _docxFixtureRaw('A😀B'),
-    );
+    await File('${workspace.path}/uni.docx')
+        .writeAsBytes(_docxFixtureRaw('A😀B'));
     // The emoji occupies bytes 1..4 of the extracted text; offset 2 lands in
     // the middle of it and must advance to the next complete code point.
     final result = await FileToolService.execute('file_extract_text', {
@@ -958,9 +983,8 @@ void main() {
   });
 
   test('caps the limit parameter at the extract result maximum', () async {
-    await File('${workspace.path}/long.docx').writeAsBytes(
-      _docxFixture(paragraphs: 500),
-    );
+    await File('${workspace.path}/long.docx')
+        .writeAsBytes(_docxFixture(paragraphs: 500));
     final result = await FileToolService.execute('file_extract_text', {
       'path': 'long.docx',
       'limit': FileToolService.maxExtractResultBytes + 1,
@@ -996,40 +1020,48 @@ void main() {
   // file_extract_zip
   // ==========================================================================
 
-  test('exposes file_extract_zip and file_create_pdf in the definition list',
-      () {
-    final names = FileToolService.getToolDefinitions()
-        .map((definition) => definition['function']['name'])
-        .toSet();
-    expect(names, containsAll(<String>['file_extract_zip', 'file_create_pdf']));
-  });
+  test(
+    'exposes file_extract_zip and file_create_pdf in the definition list',
+    () {
+      final names = FileToolService.getToolDefinitions()
+          .map((definition) => definition['function']['name'])
+          .toSet();
+      expect(
+        names,
+        containsAll(<String>['file_extract_zip', 'file_create_pdf']),
+      );
+    },
+  );
 
-  test('extracts a ZIP archive into a folder named after the archive',
-      () async {
-    await File('${workspace.path}/bundle.zip').writeAsBytes(_zipBytes({
-      'notes/a.txt': 'alpha',
-      'notes/b.txt': 'beta',
-      'readme.md': '# README',
-    }));
-    final result = await FileToolService.execute('file_extract_zip', {
-      'path': 'bundle.zip',
-    }, workspace.path);
-    expect(result.text, contains('Extracted 3 file(s)'));
-    expect(result.text, contains('- bundle/notes/a.txt'));
-    expect(
-      await File('${workspace.path}/bundle/notes/a.txt').readAsString(),
-      'alpha',
-    );
-    expect(
-      await File('${workspace.path}/bundle/readme.md').readAsString(),
-      '# README',
-    );
-  });
+  test(
+    'extracts a ZIP archive into a folder named after the archive',
+    () async {
+      await File('${workspace.path}/bundle.zip').writeAsBytes(
+        _zipBytes({
+          'notes/a.txt': 'alpha',
+          'notes/b.txt': 'beta',
+          'readme.md': '# README',
+        }),
+      );
+      final result = await FileToolService.execute('file_extract_zip', {
+        'path': 'bundle.zip',
+      }, workspace.path);
+      expect(result.text, contains('Extracted 3 file(s)'));
+      expect(result.text, contains('- bundle/notes/a.txt'));
+      expect(
+        await File('${workspace.path}/bundle/notes/a.txt').readAsString(),
+        'alpha',
+      );
+      expect(
+        await File('${workspace.path}/bundle/readme.md').readAsString(),
+        '# README',
+      );
+    },
+  );
 
   test('extracts a ZIP into an explicit destination directory', () async {
-    await File('${workspace.path}/bundle.zip').writeAsBytes(_zipBytes({
-      'a.txt': 'x',
-    }));
+    await File('${workspace.path}/bundle.zip')
+        .writeAsBytes(_zipBytes({'a.txt': 'x'}));
     final result = await FileToolService.execute('file_extract_zip', {
       'path': 'bundle.zip',
       'destination': 'out/target',
@@ -1042,9 +1074,8 @@ void main() {
   });
 
   test('rejects ZIP entries that escape the destination directory', () async {
-    await File('${workspace.path}/evil.zip').writeAsBytes(_zipBytes({
-      '../escape.txt': 'boom',
-    }));
+    await File('${workspace.path}/evil.zip')
+        .writeAsBytes(_zipBytes({'../escape.txt': 'boom'}));
     final result = await FileToolService.execute('file_extract_zip', {
       'path': 'evil.zip',
     }, workspace.path);
@@ -1054,11 +1085,13 @@ void main() {
   });
 
   test('rejects backslash traversal and absolute-path ZIP entries', () async {
-    await File('${workspace.path}/evil.zip').writeAsBytes(_zipBytes({
-      r'..\escape.txt': 'boom',
-      r'sub/../escape2.txt': 'boom',
-      '/etc/passwd': 'root',
-    }));
+    await File('${workspace.path}/evil.zip').writeAsBytes(
+      _zipBytes({
+        r'..\escape.txt': 'boom',
+        r'sub/../escape2.txt': 'boom',
+        '/etc/passwd': 'root',
+      }),
+    );
     final result = await FileToolService.execute('file_extract_zip', {
       'path': 'evil.zip',
     }, workspace.path);
@@ -1067,24 +1100,24 @@ void main() {
     expect(File('${workspace.path}/etc/passwd').existsSync(), isFalse);
   });
 
-  test('rejects ZIP entries with blocked extensions', () async {
-    await File('${workspace.path}/bad.zip').writeAsBytes(_zipBytes({
-      'tool.exe': 'MZ',
-    }));
-    final result = await FileToolService.execute('file_extract_zip', {
-      'path': 'bad.zip',
-    }, workspace.path);
-    expect(result.text, contains('Error'));
-    expect(result.text, contains('blocked'));
-    expect(File('${workspace.path}/bad/tool.exe').existsSync(), isFalse);
-  });
+  test(
+    'extracts executable ZIP entries instead of blocking extensions',
+    () async {
+      await File('${workspace.path}/tool.zip')
+          .writeAsBytes(_zipBytes({'tool.exe': 'MZ'}));
+      final result = await FileToolService.execute('file_extract_zip', {
+        'path': 'tool.zip',
+      }, workspace.path);
+      expect(result.text, contains('Extracted'));
+      expect(File('${workspace.path}/tool/tool.exe').existsSync(), isTrue);
+    },
+  );
 
   test('rejects malformed and missing ZIP archives', () async {
     // Garbage bytes must be rejected safely (the decoder may return an empty
     // archive instead of throwing; either way no files are extracted).
-    await File('${workspace.path}/fake.zip').writeAsBytes(
-      utf8.encode('this is definitely not a zip archive'),
-    );
+    await File('${workspace.path}/fake.zip')
+        .writeAsBytes(utf8.encode('this is definitely not a zip archive'));
     final malformed = await FileToolService.execute('file_extract_zip', {
       'path': 'fake.zip',
     }, workspace.path);
@@ -1165,12 +1198,6 @@ void main() {
       'content': '   ',
     }, workspace.path);
     expect(empty.text, contains('empty'));
-
-    final oversized = await FileToolService.execute('file_create_pdf', {
-      'path': 'x.pdf',
-      'content': 'x' * (FileToolService.maxWriteBytes + 1),
-    }, workspace.path);
-    expect(oversized.text, contains('512 KB'));
   });
 }
 
@@ -1188,14 +1215,17 @@ List<int> _zipBytes(Map<String, String> entries) {
 
 List<int> _docxFixture({int paragraphs = 3}) {
   final body = StringBuffer();
-  body.write('<w:tbl><w:tr><w:tc><w:p><w:r><w:t>Cell A1</w:t></w:r></w:p></w:tc></w:tr></w:tbl>');
+  body.write(
+    '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>Cell A1</w:t></w:r></w:p></w:tc></w:tr></w:tbl>',
+  );
   for (var i = 0; i < paragraphs; i++) {
     body.write(
       '<w:p><w:r><w:t>Paragraph number $i with padding text for length.</w:t></w:r></w:p>',
     );
   }
   return _zipBytes({
-    'word/document.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    'word/document.xml':
+        '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
     <w:p><w:r><w:t>Hello &amp; welcome</w:t></w:r></w:p>
@@ -1208,7 +1238,8 @@ List<int> _docxFixture({int paragraphs = 3}) {
 
 List<int> _docxFixtureRaw(String text) {
   return _zipBytes({
-    'word/document.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    'word/document.xml':
+        '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
     <w:p><w:r><w:t>$text</w:t></w:r></w:p>
@@ -1218,7 +1249,8 @@ List<int> _docxFixtureRaw(String text) {
 }
 
 List<int> _pptxFixture() {
-  String slide(String text) => '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  String slide(String text) =>
+      '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
   <p:spTree>
     <p:sp>
@@ -1230,7 +1262,8 @@ List<int> _pptxFixture() {
   </p:spTree>
 </p:sld>''';
   return _zipBytes({
-    'ppt/presentation.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    'ppt/presentation.xml':
+        '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <p:sldIdLst>
     <p:sldId id="256" r:id="rId3"/>
@@ -1238,7 +1271,8 @@ List<int> _pptxFixture() {
     <p:sldId id="258" r:id="rId2"/>
   </p:sldIdLst>
 </p:presentation>''',
-    'ppt/_rels/presentation.xml.rels': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    'ppt/_rels/presentation.xml.rels':
+        '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
   <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide10.xml"/>
@@ -1271,18 +1305,21 @@ List<int> _xlsxFixture({
         ? _xlsxEmptySheetXml()
         : _xlsxDataSheetXml(rows);
   }
-  entries['xl/workbook.xml'] = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  entries['xl/workbook.xml'] =
+      '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <sheets>
 ${sheets.toString().trimRight()}
   </sheets>
 </workbook>''';
-  entries['xl/_rels/workbook.xml.rels'] = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  entries['xl/_rels/workbook.xml.rels'] =
+      '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 ${rels.toString().trimRight()}
 </Relationships>''';
   if (includeSharedStrings) {
-    entries['xl/sharedStrings.xml'] = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    entries['xl/sharedStrings.xml'] =
+        '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="2" uniqueCount="2">
   <si><t>Hello Excel</t></si>
   <si><r><t>第二個</t></r><r><t> 中文</t></r></si>
@@ -1293,17 +1330,20 @@ ${rels.toString().trimRight()}
 
 List<int> _xlsxInlineCellFixture(String text) {
   return _zipBytes({
-    'xl/workbook.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    'xl/workbook.xml':
+        '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <sheets>
     <sheet name="Data" sheetId="1" r:id="rId1"/>
   </sheets>
 </workbook>''',
-    'xl/_rels/workbook.xml.rels': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    'xl/_rels/workbook.xml.rels':
+        '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
 </Relationships>''',
-    'xl/worksheets/sheet1.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    'xl/worksheets/sheet1.xml':
+        '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <sheetData>
     <row r="1"><c r="A1" t="inlineStr"><is><t>$text</t></is></c></row>
@@ -1314,11 +1354,13 @@ List<int> _xlsxInlineCellFixture(String text) {
 
 String _xlsxDataSheetXml(int rows) {
   final buffer = StringBuffer();
-  buffer.writeln('''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  buffer.writeln(
+    '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <sheetData>
     <row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1"><v>42</v></c><c r="C1" t="inlineStr"><is><t>Inline &amp; more</t></is></c></row>
-    <row r="2"><c r="A2" t="s"><v>1</v></c><c r="B2" t="b"><v>1</v></c><c r="C2"><f>SUM(1,2)</f><v>123</v></c><c r="D2" t="s"><v>99</v></c></row>''');
+    <row r="2"><c r="A2" t="s"><v>1</v></c><c r="B2" t="b"><v>1</v></c><c r="C2"><f>SUM(1,2)</f><v>123</v></c><c r="D2" t="s"><v>99</v></c></row>''',
+  );
   for (var i = 3; i <= rows; i++) {
     buffer.writeln(
       '    <row r="$i"><c r="A$i" t="inlineStr"><is><t>Row number $i with padding text for length.</t></is></c></row>',
@@ -1329,14 +1371,16 @@ String _xlsxDataSheetXml(int rows) {
   return buffer.toString();
 }
 
-String _xlsxSummarySheetXml() => '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+String _xlsxSummarySheetXml() =>
+    '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <sheetData>
     <row r="1"><c r="A1"><v>3.14</v></c></row>
   </sheetData>
 </worksheet>''';
 
-String _xlsxEmptySheetXml() => '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+String _xlsxEmptySheetXml() =>
+    '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <sheetData>
     <row r="1"><c r="A1"/></row>
@@ -1345,7 +1389,8 @@ String _xlsxEmptySheetXml() => '''<?xml version="1.0" encoding="UTF-8" standalon
 
 List<int> _docxSdtFixture() {
   return _zipBytes({
-    'word/document.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    'word/document.xml':
+        '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
     <w:sdt><w:sdtContent><w:p><w:r><w:t>SDT paragraph</w:t></w:r></w:p></w:sdtContent></w:sdt>
@@ -1376,17 +1421,20 @@ List<int> _docxSdtFixture() {
 
 List<int> _pptxTableFixture() {
   return _zipBytes({
-    'ppt/presentation.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    'ppt/presentation.xml':
+        '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <p:sldIdLst>
     <p:sldId id="256" r:id="rId1"/>
   </p:sldIdLst>
 </p:presentation>''',
-    'ppt/_rels/presentation.xml.rels': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    'ppt/_rels/presentation.xml.rels':
+        '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
 </Relationships>''',
-    'ppt/slides/slide1.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    'ppt/slides/slide1.xml':
+        '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
   <p:cSld>
     <p:spTree>

@@ -1,8 +1,11 @@
 import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
+
 import '../../../l10n/app_localizations.dart';
+
 import 'package:provider/provider.dart';
+
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../model/pages/default_model_page.dart';
@@ -20,14 +23,11 @@ import '../../instruction_injection/pages/instruction_injection_page.dart';
 import '../../skills/pages/skills_page.dart';
 import 'memory_settings_page.dart';
 import '../../ai_team/pages/ai_team_page.dart';
-import '../../approval/pages/approval_settings_page.dart';
-import 'developer_mode_page.dart';
 import 'network_proxy_page.dart';
 import 'storage_space_page.dart';
 import 'hotkeys_settings_page.dart';
 import '../../../core/services/storage/storage_usage_service.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:share_plus/share_plus.dart';
+
 import '../../../core/services/haptics.dart';
 import '../../chat/widgets/workspace_settings_dialog.dart';
 
@@ -257,7 +257,9 @@ class SettingsPage extends StatelessWidget {
                 },
               ),
               // Desktop-only: global/in-app hotkey configuration
-              if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) ...[
+              if (Platform.isWindows ||
+                  Platform.isMacOS ||
+                  Platform.isLinux) ...[
                 _iosDivider(context),
                 _iosNavRow(
                   context,
@@ -278,9 +280,8 @@ class SettingsPage extends StatelessWidget {
                 icon: Lucide.Terminal,
                 label: l10n.settingsPageMcp,
                 onTap: () {
-                  Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute(builder: (_) => const McpPage()));
+                  Navigator.of(context)
+                      .push(MaterialPageRoute(builder: (_) => const McpPage()));
                 },
               ),
               _iosDivider(context),
@@ -313,9 +314,9 @@ class SettingsPage extends StatelessWidget {
                 icon: Lucide.WandSparkles,
                 label: l10n.settingsPageSkills,
                 onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SkillsPage()),
-                  );
+                  Navigator.of(
+                    context,
+                  ).push(MaterialPageRoute(builder: (_) => const SkillsPage()));
                 },
               ),
               _iosDivider(context),
@@ -340,32 +341,6 @@ class SettingsPage extends StatelessWidget {
                   Navigator.of(
                     context,
                   ).push(MaterialPageRoute(builder: (_) => const AiTeamPage()));
-                },
-              ),
-              _iosDivider(context),
-              _iosNavRow(
-                context,
-                icon: Lucide.Shield,
-                label: l10n.settingsPageApproval,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const ApprovalSettingsPage(),
-                    ),
-                  );
-                },
-              ),
-              _iosDivider(context),
-              _iosNavRow(
-                context,
-                icon: Lucide.Terminal,
-                label: l10n.developerModeTitle,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const DeveloperModePage(),
-                    ),
-                  );
                 },
               ),
               _iosDivider(context),
@@ -600,8 +575,7 @@ Widget _iosNavRow(
                 // space left after the icon gutter and chevron so the label
                 // always keeps at least 60% of it.
                 final double available = constraints.maxWidth;
-                final double fixedWidth =
-                    36 + 12 + (interactive ? 16 : 0);
+                final double fixedWidth = 36 + 12 + (interactive ? 16 : 0);
                 double detailCap = double.infinity;
                 if (available.isFinite) {
                   final double freeSpace = available - fixedWidth;

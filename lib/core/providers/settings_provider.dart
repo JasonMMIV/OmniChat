@@ -35,7 +35,6 @@ import '../../utils/avatar_cache.dart';
 import '../utils/reasoning_capabilities.dart';
 import '../utils/reasoning_overrides.dart';
 import '../services/model_catalog/model_catalog.dart';
-import '../services/shell/shell_policy.dart';
 
 // Desktop: topic list position
 enum DesktopTopicPosition { left, right }
@@ -111,23 +110,21 @@ class SettingsProvider extends ChangeNotifier {
   /// failure-path-only safety net.
   static const String _autoCompactionV1Key = 'auto_compaction_v1';
 
-  /// P1-1 (v1.5): strict approval mode — every would-be `ask` degrades to
-  /// `deny` (for users who prefer hard blocks over per-call approval).
-  static const String _approvalStrictModeV1Key = 'approval_strict_mode_v1';
+  /// Global permission switches for workspace tools. `true` means "allow
+  /// all" (no per-call approval card); `false` means "ask each time". Both
+  /// are user-intent preferences and travel with backups.
+  static const String _fileOutsideWorkspaceAllowAllV1Key =
+      'file_outside_workspace_allow_all_v1';
+  static const String _shellAllowAllV1Key = 'shell_allow_all_v1';
 
-  /// P1-1: persisted "always allow" override keys (out-of-workspace paths;
-  /// the MCP policy source was removed 2026-09-10). Not in `_localOnlyKeys`:
-  /// approval grants are user intent and sync across devices.
-  static const String _approvalAlwaysAllowedKey = 'approval_always_allowed_v1';
-
-  /// P1-6 desktop developer mode: the master switch for `shell_run`.
-  /// Desktop-only in effect (the tool is never advertised on Android), but
-  /// synced through backup like any other user intent preference.
-  static const String _developerModeV1Key = 'developer_mode_v1';
-
-  /// P1-6 shell allowlist: executable names that run without an approval
-  /// card. Synced through backup (approval grants are user intent).
-  static const String _shellAllowlistKey = 'shell_allowlist_v1';
+  /// Legacy approval / developer-mode keys removed in the two-switch model.
+  /// They are dropped on load so stale grants do not linger.
+  static const String _legacyApprovalStrictModeV1Key =
+      'approval_strict_mode_v1';
+  static const String _legacyApprovalAlwaysAllowedKey =
+      'approval_always_allowed_v1';
+  static const String _legacyDeveloperModeV1Key = 'developer_mode_v1';
+  static const String _legacyShellAllowlistKey = 'shell_allowlist_v1';
 
   /// P1-5 (removed 2026-09-10): legacy snapshot kill-switch key, dropped on
   /// load so it does not linger in SharedPreferences.
@@ -139,8 +136,8 @@ class SettingsProvider extends ChangeNotifier {
       'display_replay_tool_results_v1';
   // Answer Review v1 (docs/answer_review_plan.md §4.1): off | smart | always.
   // User intent preference — intentionally NOT in `_localOnlyKeys`
-  // (backup_preferences.dart): like `developer_mode_v1` it should travel
-  // with backups across devices.
+  // (backup_preferences.dart): it travels with backups across devices like
+  // the other global preferences.
   static const String _answerReviewModeKey = 'answer_review_v1';
   // Agent Skills: preload skill descriptions into the LLM context (registers
   // the `skill` tool). Global behavior preference — synced via backup, NOT in
@@ -917,18 +914,13 @@ class SettingsProvider extends ChangeNotifier {
     _showThinkingCards = prefs.getBool(_displayShowThinkingCardsKey) ?? true;
     _showToolCards = prefs.getBool(_displayShowToolCardsKey) ?? true;
     _autoCompactionV1 = prefs.getBool(_autoCompactionV1Key) ?? true;
-    _approvalStrictModeV1 = prefs.getBool(_approvalStrictModeV1Key) ?? false;
-    // P1-1 v1.6: drop legacy MCP override keys (the MCP approval policy
-    // source was removed 2026-09-10); they decode to nothing and would
-    // otherwise surface as raw text in the settings list.
-    _approvalAlwaysAllowed =
-        (prefs.getStringList(_approvalAlwaysAllowedKey) ?? const <String>[])
-            .where((k) => !k.startsWith('mcp:') && !k.startsWith('mcp-server:'))
-            .toSet();
-    _developerModeV1 = prefs.getBool(_developerModeV1Key) ?? false;
-    _shellAllowlist =
-        prefs.getStringList(_shellAllowlistKey) ??
-        List<String>.of(ShellPolicy.defaultAllowlist);
+    _fileOutsideWorkspaceAllowAllV1 =
+        prefs.getBool(_fileOutsideWorkspaceAllowAllV1Key) ?? false;
+    _shellAllowAllV1 = prefs.getBool(_shellAllowAllV1Key) ?? false;
+    await prefs.remove(_legacyApprovalStrictModeV1Key);
+    await prefs.remove(_legacyApprovalAlwaysAllowedKey);
+    await prefs.remove(_legacyDeveloperModeV1Key);
+    await prefs.remove(_legacyShellAllowlistKey);
     // P1-5 removed 2026-09-10: drop the legacy snapshot kill-switch key.
     await prefs.remove(_legacyWorkspaceSnapshotsV1Key);
     _autoCollapseThinking =
@@ -3326,81 +3318,25 @@ Synthesize your reasoning and research into a final response. The structure shou
     await prefs.setBool(_autoCompactionV1Key, v);
   }
 
-  // P1-1: strict approval mode (default off — ask instead of deny)
-  bool _approvalStrictModeV1 = false;
-  bool get approvalStrictModeV1 => _approvalStrictModeV1;
-  Future<void> setApprovalStrictModeV1(bool v) async {
-    if (_approvalStrictModeV1 == v) return;
-    _approvalStrictModeV1 = v;
+  // Global workspace permissions (default: ask each time).
+  bool _fileOutsideWorkspaceAllowAllV1 = false;
+  bool get fileOutsideWorkspaceAllowAllV1 => _fileOutsideWorkspaceAllowAllV1;
+  Future<void> setFileOutsideWorkspaceAllowAllV1(bool v) async {
+    if (_fileOutsideWorkspaceAllowAllV1 == v) return;
+    _fileOutsideWorkspaceAllowAllV1 = v;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_approvalStrictModeV1Key, v);
+    await prefs.setBool(_fileOutsideWorkspaceAllowAllV1Key, v);
   }
 
-  // P1-1: persisted "always allow" overrides
-  Set<String> _approvalAlwaysAllowed = <String>{};
-  Set<String> get approvalAlwaysAllowed => _approvalAlwaysAllowed;
-  Future<void> addApprovalAlwaysAllowed(String key) async {
-    if (!_approvalAlwaysAllowed.add(key)) return;
+  bool _shellAllowAllV1 = false;
+  bool get shellAllowAllV1 => _shellAllowAllV1;
+  Future<void> setShellAllowAllV1(bool v) async {
+    if (_shellAllowAllV1 == v) return;
+    _shellAllowAllV1 = v;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(
-      _approvalAlwaysAllowedKey,
-      _approvalAlwaysAllowed.toList(),
-    );
-  }
-
-  Future<void> removeApprovalAlwaysAllowed(String key) async {
-    if (!_approvalAlwaysAllowed.remove(key)) return;
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(
-      _approvalAlwaysAllowedKey,
-      _approvalAlwaysAllowed.toList(),
-    );
-  }
-
-  // P1-6: desktop developer mode + shell allowlist (both synced prefs).
-  bool _developerModeV1 = false;
-  bool get developerModeV1 => _developerModeV1;
-
-  Future<void> setDeveloperModeV1(bool v) async {
-    if (_developerModeV1 == v) return;
-    _developerModeV1 = v;
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_developerModeV1Key, v);
-  }
-
-  List<String> _shellAllowlist = List<String>.of(ShellPolicy.defaultAllowlist);
-  List<String> get shellAllowlist => List<String>.unmodifiable(_shellAllowlist);
-
-  Future<void> setShellAllowlist(Iterable<String> programs) async {
-    final next = <String>[];
-    for (final program in programs) {
-      final normalized = ShellPolicy.normalizeProgram(program);
-      if (normalized.isEmpty || next.contains(normalized)) continue;
-      next.add(normalized);
-    }
-    if (setEquals(next.toSet(), _shellAllowlist.toSet())) return;
-    _shellAllowlist = next;
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_shellAllowlistKey, next);
-  }
-
-  Future<void> addShellAllowlistEntry(String program) async {
-    final normalized = ShellPolicy.normalizeProgram(program);
-    if (normalized.isEmpty || _shellAllowlist.contains(normalized)) return;
-    await setShellAllowlist(<String>[..._shellAllowlist, normalized]);
-  }
-
-  Future<void> removeShellAllowlistEntry(String program) async {
-    final normalized = ShellPolicy.normalizeProgram(program);
-    if (!_shellAllowlist.contains(normalized)) return;
-    await setShellAllowlist(
-      _shellAllowlist.where((entry) => entry != normalized),
-    );
+    await prefs.setBool(_shellAllowAllV1Key, v);
   }
 
   Future<void> setAutoCollapseThinking(bool v) async {
@@ -4144,6 +4080,8 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._answerReviewMode = answerReviewMode ?? _answerReviewMode;
     copy._skillsPreloadEnabled = _skillsPreloadEnabled;
     copy._workspaceToolsDisabled = _workspaceToolsDisabled;
+    copy._fileOutsideWorkspaceAllowAllV1 = _fileOutsideWorkspaceAllowAllV1;
+    copy._shellAllowAllV1 = _shellAllowAllV1;
     copy._planningEnabled = _planningEnabled;
     copy._todoEventProjectionV1 = _todoEventProjectionV1;
     copy._autoCompactionV1 = _autoCompactionV1;

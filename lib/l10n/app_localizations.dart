@@ -10644,6 +10644,36 @@ abstract class AppLocalizations {
   /// **'Disabled tools are not offered to the model. File tools are off while the workspace is disabled.'**
   String get workspaceToolsDescription;
 
+  /// No description provided for @workspacePermissionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Permissions'**
+  String get workspacePermissionsTitle;
+
+  /// No description provided for @workspaceFilesOutsideAllowAllTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Files outside workspace'**
+  String get workspaceFilesOutsideAllowAllTitle;
+
+  /// No description provided for @workspaceFilesOutsideAllowAllSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask before reading or writing outside the workspace. Turn on to allow all.'**
+  String get workspaceFilesOutsideAllowAllSubtitle;
+
+  /// No description provided for @workspaceShellAllowAllTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Shell commands'**
+  String get workspaceShellAllowAllTitle;
+
+  /// No description provided for @workspaceShellAllowAllSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask before running shell commands. Turn on to allow all.'**
+  String get workspaceShellAllowAllSubtitle;
+
   /// No description provided for @addonsWriteTodosSubtitle.
   ///
   /// In en, this message translates to:

@@ -27,7 +27,6 @@ import '../../../core/services/auth/oauth_recovery_registry.dart';
 import '../../../core/services/auth/provider_oauth_service.dart';
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/agent/compaction/midrun_compactor.dart';
-import '../../../core/services/shell/shell_policy.dart';
 import '../../../core/services/shell/shell_run_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/chat_service.dart';
@@ -574,15 +573,11 @@ class ChatActions {
   /// [approve] = execute the pending call once and feed its real result to
   /// the model; deny = feed the structured denial JSON (ask_user answers are
   /// dispatched to [resumeAfterAskUserAnswer] before reaching here).
-  /// [alwaysAllow] additionally records the `workspace-out:{resolvedPath}`
-  /// override so future calls to the same concrete out-of-workspace path
-  /// skip the card (persisted, not in _localOnlyKeys).
   Future<ChatMessage?> resolveApproval(
     String conversationId,
     String assistantMessageId,
     String toolCallId, {
     required bool approve,
-    bool alwaysAllow = false,
   }) async {
     final conv = _currentConversation;
     if (conv == null || conv.id != conversationId) return null;
@@ -607,7 +602,6 @@ class ChatActions {
         assistantMessageId,
         toolCallId,
         approve: approve,
-        alwaysAllow: alwaysAllow,
       );
     } catch (error) {
       FlutterLogger.log(
@@ -634,7 +628,6 @@ class ChatActions {
     String assistantMessageId,
     String toolCallId, {
     required bool approve,
-    bool alwaysAllow = false,
   }) async {
     final conv = _currentConversation;
     if (conv == null || conv.id != conversationId) return null;
@@ -741,32 +734,6 @@ class ChatActions {
     // so a stale card can never flash "approved — running".
     if (approve) {
       _setApprovalExecuting(assistantMessageId, toolCallId, true);
-    }
-
-    // "Always allow": persist the out-of-workspace override key derived from
-    // the pending payload so future calls to the same concrete resolved path
-    // skip the card (the policy snapshot reads it back on the next run).
-    if (alwaysAllow && approve) {
-      try {
-        final settings = contextProvider.read<SettingsProvider>();
-        if (name == ShellRunService.toolName) {
-          // P1-6: shell "always allow" writes every program of the command
-          // back into the developer-mode allowlist (compound commands add
-          // each segment's program).
-          for (final program in ShellPolicy.programsIn(
-            (args['command'] ?? '').toString(),
-          )) {
-            await settings.addShellAllowlistEntry(program);
-          }
-        } else {
-          final resolvedPath = pendingPayload?['resolved_path']?.toString();
-          if (resolvedPath != null && resolvedPath.trim().isNotEmpty) {
-            await settings.addApprovalAlwaysAllowed(
-              'workspace-out:$resolvedPath',
-            );
-          }
-        }
-      } catch (_) {}
     }
 
     // Deny: record the denial and continue with the denial JSON as the
@@ -1750,7 +1717,6 @@ class ChatActions {
     String? assistantMessageId,
     String? toolCallId,
     bool approve = false,
-    bool alwaysAllow = false,
     Map<String, dynamic>? answerPayload,
   }) async {
     // Never start a second placeholder/request for a conversation that is
@@ -1781,7 +1747,6 @@ class ChatActions {
         assistantMessageId,
         toolCallId,
         approve: approve,
-        alwaysAllow: alwaysAllow,
       );
     }
     if (toolCallId != null && assistantMessageId != null) {
@@ -1790,7 +1755,6 @@ class ChatActions {
         assistantMessageId,
         toolCallId,
         approve: approve,
-        alwaysAllow: alwaysAllow,
       );
     }
     // Bare resume: continue the paused conversation with a fresh assistant

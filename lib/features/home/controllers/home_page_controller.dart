@@ -523,7 +523,6 @@ class HomePageController extends ChangeNotifier {
     String assistantMessageId,
     String toolCallId, {
     required bool approve,
-    bool alwaysAllow = false,
   }) async {
     final conv = currentConversation;
     if (conv == null) return;
@@ -532,7 +531,6 @@ class HomePageController extends ChangeNotifier {
       assistantMessageId,
       toolCallId,
       approve: approve,
-      alwaysAllow: alwaysAllow,
     );
   }
 
@@ -1278,7 +1276,7 @@ class HomePageController extends ChangeNotifier {
       final cfg = settings.getProviderConfig(providerKey);
       final isGoogle =
           ProviderConfig.classify(cfg.id, explicitType: cfg.providerType) ==
-              ProviderKind.google;
+          ProviderKind.google;
       final api = _messageBuilderService.neutralMessagesFor(
         head,
         settings.replayToolResults,
@@ -1320,12 +1318,12 @@ class HomePageController extends ChangeNotifier {
     if (_usageListenersAttached || _disposed) return;
     _usageListenersAttached = true;
     try {
-      _context
-          .read<SettingsProvider>()
-          .addListener(_onModelIdentityMaybeChanged);
-      _context
-          .read<AssistantProvider>()
-          .addListener(_onModelIdentityMaybeChanged);
+      _context.read<SettingsProvider>().addListener(
+        _onModelIdentityMaybeChanged,
+      );
+      _context.read<AssistantProvider>().addListener(
+        _onModelIdentityMaybeChanged,
+      );
       _context.read<AiTeamProvider>().addListener(_onModelIdentityMaybeChanged);
     } catch (_) {
       // Providers unavailable (tests / early teardown) — the ring still
@@ -2079,15 +2077,15 @@ class HomePageController extends ChangeNotifier {
     } catch (_) {}
     if (_usageListenersAttached) {
       try {
-        _context
-            .read<SettingsProvider>()
-            .removeListener(_onModelIdentityMaybeChanged);
-        _context
-            .read<AssistantProvider>()
-            .removeListener(_onModelIdentityMaybeChanged);
-        _context
-            .read<AiTeamProvider>()
-            .removeListener(_onModelIdentityMaybeChanged);
+        _context.read<SettingsProvider>().removeListener(
+          _onModelIdentityMaybeChanged,
+        );
+        _context.read<AssistantProvider>().removeListener(
+          _onModelIdentityMaybeChanged,
+        );
+        _context.read<AiTeamProvider>().removeListener(
+          _onModelIdentityMaybeChanged,
+        );
       } catch (_) {}
     }
     _contextUsageReady = false;

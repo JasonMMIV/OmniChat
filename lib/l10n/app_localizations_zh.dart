@@ -5580,6 +5580,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get workspaceToolsDescription => '已停用的工具不会提供给模型。工作区未启用时文件工具会关闭。';
 
   @override
+  String get workspacePermissionsTitle => '权限';
+
+  @override
+  String get workspaceFilesOutsideAllowAllTitle => '工作区外的文件';
+
+  @override
+  String get workspaceFilesOutsideAllowAllSubtitle => '读取或写入工作区外时询问。开启后全部允许。';
+
+  @override
+  String get workspaceShellAllowAllTitle => 'Shell 命令';
+
+  @override
+  String get workspaceShellAllowAllSubtitle => '运行 Shell 命令前询问。开启后全部允许。';
+
+  @override
   String get addonsWriteTodosSubtitle => '为多步骤任务维护待办清单';
 
   @override
@@ -12044,6 +12059,21 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get workspaceToolsDescription => '已停用的工具不会提供给模型。工作区未启用时文件工具会关闭。';
+
+  @override
+  String get workspacePermissionsTitle => '权限';
+
+  @override
+  String get workspaceFilesOutsideAllowAllTitle => '工作区外的文件';
+
+  @override
+  String get workspaceFilesOutsideAllowAllSubtitle => '读取或写入工作区外时询问。开启后全部允许。';
+
+  @override
+  String get workspaceShellAllowAllTitle => 'Shell 命令';
+
+  @override
+  String get workspaceShellAllowAllSubtitle => '运行 Shell 命令前询问。开启后全部允许。';
 
   @override
   String get addonsWriteTodosSubtitle => '为多步骤任务维护待办清单';
@@ -18610,6 +18640,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get workspaceToolsDescription => '已停用的工具不會提供給模型。工作區未啟用時檔案工具會關閉。';
+
+  @override
+  String get workspacePermissionsTitle => '權限';
+
+  @override
+  String get workspaceFilesOutsideAllowAllTitle => '工作區外的檔案';
+
+  @override
+  String get workspaceFilesOutsideAllowAllSubtitle => '讀取或寫入工作區外時詢問。開啟後全部允許。';
+
+  @override
+  String get workspaceShellAllowAllTitle => 'Shell 命令';
+
+  @override
+  String get workspaceShellAllowAllSubtitle => '執行 Shell 命令前詢問。開啟後全部允許。';
 
   @override
   String get addonsWriteTodosSubtitle => '為多步驟任務維護待辦清單';

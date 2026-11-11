@@ -111,17 +111,17 @@ void main() {
     expect(await file.readAsString(), 'alpha\n');
   });
 
-  test('capacity limits still apply to tolerant edits', () async {
-    final file = File('${workspace.path}/bounded.txt');
+  test('large tolerant edits are allowed', () async {
+    final file = File('${workspace.path}/large-edit.txt');
     await file.writeAsString('alpha\nbeta\n');
 
     final result = await FileToolService.execute('file_edit', {
-      'path': 'bounded.txt',
+      'path': 'large-edit.txt',
       'old_text': 'beta',
-      'new_text': 'x' * (FileToolService.maxWriteBytes + 1),
+      'new_text': 'x' * (600 * 1024),
     }, workspace.path);
 
-    expect(result.text, contains('512 KB'));
-    expect(await file.readAsString(), 'alpha\nbeta\n');
+    expect(result.text, contains('Edited'));
+    expect(await file.length(), greaterThan(600 * 1024));
   });
 }

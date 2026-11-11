@@ -1081,17 +1081,11 @@ class _HomePageState extends State<HomePage>
         );
       },
       onResolveApproval:
-          (
-            assistantMessageId,
-            toolCallId, {
-            required approve,
-            alwaysAllow = false,
-          }) async {
+          (assistantMessageId, toolCallId, {required approve}) async {
             await _controller.resolveApproval(
               assistantMessageId,
               toolCallId,
               approve: approve,
-              alwaysAllow: alwaysAllow,
             );
           },
     );

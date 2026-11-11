@@ -21,7 +21,6 @@ import '../../../core/services/file/file_tool_service.dart';
 import '../../../core/services/file/unified_diff.dart';
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/file/session_outputs.dart';
-import '../../../core/services/shell/shell_policy.dart';
 import '../../../core/services/shell/cli_process_supervisor.dart';
 import '../../../core/services/shell/shell_run_service.dart';
 import '../../../core/services/api/builtin_tools.dart';
@@ -52,11 +51,6 @@ class ToolHandlerService {
   /// Build context (used for accessing providers)
   final BuildContext contextProvider;
   final ChatService chatService;
-
-  /// P1-1: persisted "always allow" override keys (policy snapshot, refreshed
-  /// from `SettingsProvider.approvalAlwaysAllowed` whenever a handler is
-  /// built). Keys are `workspace-out:{resolvedPath}`.
-  Set<String> _approvalAlwaysAllowed = <String>{};
 
   /// Shell runs started by this handler, so the stop button can terminate
   /// their process trees instead of waiting for the command timeout.
@@ -342,11 +336,10 @@ class ToolHandlerService {
       // when no session is running.
       DevPreviewTools.getConsoleErrorsDefinition(),
     ];
-    // P1-6: shell_run is registered only when developer mode is on, the
-    // platform is desktop, and at least one allowlisted program exists on
-    // PATH (readiness gate). The per-tool toggle is applied by the filter
-    // below like every other workspace tool.
-    if (_shellToolReady(settings)) {
+    // Shell is a normal desktop workspace tool now. Its per-tool toggle is
+    // applied by the filter below; the permission switch only controls
+    // whether commands ask first.
+    if (ShellRunService.isPlatformSupported) {
       definitions.add(ShellRunService.getToolDefinition());
     }
     return definitions.where((def) {
@@ -409,18 +402,6 @@ class ToolHandlerService {
       }
     } catch (_) {}
     return false;
-  }
-
-  /// Tolerates test doubles that only implement the workspace-toggle API.
-  static bool _shellToolReady(SettingsProvider settings) {
-    try {
-      return ShellRunService.isReady(
-        developerMode: settings.developerModeV1,
-        allowlist: settings.shellAllowlist,
-      );
-    } catch (_) {
-      return false;
-    }
   }
 
   /// Decision tool (`ask_user`) — rendered as interactive answer cards. It
@@ -629,10 +610,6 @@ class ToolHandlerService {
     String? approvedResolvedPath,
     String? approvedShellCommand,
   }) {
-    // P1-1 v1.6: refresh the "always allow" policy snapshot from settings so
-    // persisted workspace-out overrides are actually consulted (the set
-    // previously stayed empty and overrides never reached the engine).
-    _approvalAlwaysAllowed = settings.approvalAlwaysAllowed.toSet();
     final mcp = contextProvider.read<McpProvider>();
     final toolSvc = contextProvider.read<McpToolService>();
     // Capture AssistantProvider reference before async gap to avoid
@@ -694,7 +671,12 @@ class ToolHandlerService {
               state: ApprovalDecision.allow,
               resolvedPath: approvedResolvedPath,
             )
-          : _classifyApproval(name, args, workspacePath: effectiveWorkspace);
+          : _classifyApproval(
+              name,
+              args,
+              workspacePath: effectiveWorkspace,
+              settings: settings,
+            );
       if (decision.state == ApprovalDecision.ask ||
           decision.state == ApprovalDecision.deny) {
         if (messageId != null && conversationId != null) {
@@ -728,9 +710,7 @@ class ToolHandlerService {
           final result = await ShellRunService.execute(
             args,
             workspacePath: effectiveWorkspace ?? workspacePath ?? '',
-            developerMode: settings.developerModeV1,
-            allowlist: settings.shellAllowlist,
-            strictMode: settings.approvalStrictModeV1,
+            allowAll: settings.shellAllowAllV1,
             conversationId: conversationId,
             toolCallId: toolCallId,
             approvedCommand: shellApproved ? shellCommand : null,
@@ -774,7 +754,6 @@ class ToolHandlerService {
             workspacePath,
             approvedOutsidePath: decision.resolvedPath,
             sessionOutputsRoot: sessionOutputsRoot,
-            developerMode: settings.developerModeV1,
           );
           if (result.createdOrModifiedFilePath != null && messageId != null) {
             try {
@@ -1209,6 +1188,7 @@ class ToolHandlerService {
     String name,
     Map<String, dynamic> args, {
     String? workspacePath,
+    SettingsProvider? settings,
   }) {
     // Non-callable decision/read-only tools skip the engine.
     if (name == askUserToolName ||
@@ -1217,24 +1197,10 @@ class ToolHandlerService {
       return _PendingDecision.allow();
     }
 
-    final settings = _safeReadSettings();
-    final alwaysAllowed = _approvalAlwaysAllowed;
-    final strict = settings?.approvalStrictModeV1 ?? false;
+    final effectiveSettings = settings ?? _safeReadSettings();
 
-    // --- P1-6 shell_run: allowlist / ask / deny (ADR-A9) ---
+    // --- shell_run: allow-all or one approval card per command ---
     if (name == ShellRunService.toolName) {
-      if (settings == null || !settings.developerModeV1) {
-        return _PendingDecision(
-          state: ApprovalDecision.deny,
-          toolCallId: _approvalCallId(name),
-          content: jsonEncode(<String, dynamic>{
-            'type': 'tool_error',
-            'error': 'developer_mode_disabled',
-            'message': 'Developer mode is off. Enable it in the approval settings before running shell commands.',
-            'tool': name,
-          }),
-        );
-      }
       if (!ShellRunService.isPlatformSupported) {
         return _PendingDecision(
           state: ApprovalDecision.deny,
@@ -1260,20 +1226,9 @@ class ToolHandlerService {
         );
       }
       final command = (args['command'] ?? '').toString().trim();
-      final policy = ShellPolicy.decide(
-        command: command,
-        allowlist: settings.shellAllowlist,
-        strictMode: strict,
-      );
-      if (policy.decision == ShellPolicyDecision.allow) {
+      if (command.isEmpty) return _PendingDecision.allow();
+      if (effectiveSettings?.shellAllowAllV1 ?? false) {
         return _PendingDecision.allow();
-      }
-      if (policy.decision == ShellPolicyDecision.deny) {
-        return _PendingDecision(
-          state: ApprovalDecision.deny,
-          toolCallId: _approvalCallId(name),
-          content: buildApprovalDeniedContent(toolName: name),
-        );
       }
       return _PendingDecision(
         state: ApprovalDecision.ask,
@@ -1281,16 +1236,12 @@ class ToolHandlerService {
         content: buildApprovalPendingContent(
           toolName: name,
           arguments: args,
-          extra: <String, dynamic>{
-            'shell_command': command,
-            'shell_programs': policy.programs,
-            'shell_blocked_programs': policy.blockedPrograms,
-          },
+          extra: <String, dynamic>{'shell_command': command},
         ),
       );
     }
 
-    // --- Workspace (file_*) tools: sandbox boundary → ask (ADR-A8 v1.5) ---
+    // --- Workspace (file_*) tools: sandbox boundary → ask unless allow-all ---
     if (name.startsWith('file_')) {
       if (workspacePath == null || workspacePath.trim().isEmpty) {
         // No workspace → the executor will refuse anyway; treat as deny so
@@ -1306,41 +1257,65 @@ class ToolHandlerService {
           }),
         );
       }
-      final pathProbe = FileToolService.probePathSafety(
+      var pathProbe = FileToolService.probePathSafety(
         (args['path'] ?? args['source'] ?? '').toString(),
         workspacePath,
       );
-      final decision = decideApproval(
-        ApprovalContext(
-          isWorkspaceTool: true,
-          pathInsideWorkspace: pathProbe.inside,
-          resolvedPath: pathProbe.resolvedPath,
-          alwaysAllowedKeys: alwaysAllowed,
-          strictMode: strict,
-        ),
-      );
-      if (decision == ApprovalDecision.allow) {
-        // Override-approved out-of-bounds call: carry the concrete resolved
-        // path so the executor runs against it (the approval IS the gate;
-        // blocked extensions / size caps still apply downstream).
+      // file_move/file_copy and file_extract_zip also accept a destination;
+      // the permission switch covers that path too. One approval can carry
+      // only one concrete outside path, so reject the ambiguous both-outside
+      // case before the user sees a card.
+      final destination = (args['destination'] ?? '').toString();
+      if (destination.trim().isNotEmpty) {
+        final destinationProbe = FileToolService.probePathSafety(
+          destination,
+          workspacePath,
+        );
+        if (!pathProbe.inside && !destinationProbe.inside) {
+          return _PendingDecision(
+            state: ApprovalDecision.deny,
+            toolCallId: _approvalCallId(name),
+            content: jsonEncode(<String, dynamic>{
+              'type': 'tool_error',
+              'error': 'dual_outside_paths',
+              'message':
+                  'This call has both source/archive and destination outside '
+                  'the workspace. One approval can cover only one outside path; '
+                  'split the operation into two calls or keep one path inside '
+                  'the workspace.',
+              'tool': name,
+            }),
+          );
+        }
+        if (pathProbe.inside && !destinationProbe.inside) {
+          pathProbe = destinationProbe;
+        }
+      }
+      if (pathProbe.inside) {
+        return _PendingDecision.allow();
+      }
+      if (effectiveSettings?.fileOutsideWorkspaceAllowAllV1 ?? false) {
         return _PendingDecision(
           state: ApprovalDecision.allow,
-          resolvedPath: pathProbe.inside ? null : pathProbe.resolvedPath,
+          resolvedPath: pathProbe.resolvedPath,
         );
       }
-      final content = decision == ApprovalDecision.ask
-          ? buildApprovalPendingContent(
-              toolName: name,
-              resolvedPath: pathProbe.resolvedPath,
-              outsideWorkspace: !pathProbe.inside,
-              arguments: args,
-              previewDiff: buildEditPreviewDiff(args),
-            )
-          : buildApprovalDeniedContent(toolName: name);
+      final decision = decideApproval(
+        const ApprovalContext(
+          isWorkspaceTool: true,
+          pathInsideWorkspace: false,
+        ),
+      );
       return _PendingDecision(
         state: decision,
         toolCallId: _approvalCallId(name),
-        content: content,
+        content: buildApprovalPendingContent(
+          toolName: name,
+          resolvedPath: pathProbe.resolvedPath,
+          outsideWorkspace: true,
+          arguments: args,
+          previewDiff: buildEditPreviewDiff(args),
+        ),
       );
     }
 
@@ -1449,8 +1424,9 @@ class _PendingDecision {
   final String toolCallId;
   final String content;
 
-  /// The approved concrete out-of-workspace path handed to the executor when
-  /// the call runs (set when an override allowed an out-of-bounds workspace
-  /// call). Null for ordinary in-sandbox calls.
+  /// The concrete out-of-workspace path handed to the executor when the call
+  /// runs (set when the user approved this exact path, or when the global
+  /// "files outside workspace: allow all" switch is on). Null for ordinary
+  /// in-sandbox calls.
   final String? resolvedPath;
 }

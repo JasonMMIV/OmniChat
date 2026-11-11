@@ -93,26 +93,17 @@ class TestAssistantProvider extends ChangeNotifier
 }
 
 class TestSettingsProvider extends ChangeNotifier implements SettingsProvider {
-  TestSettingsProvider({this.alwaysAllowed = const <String>{}});
+  TestSettingsProvider({this.fileOutsideWorkspaceAllowAllV1 = false});
 
-  /// Persisted "always allow" keys surfaced by this double — the policy
-  /// snapshot source read by ToolHandlerService.buildToolCallHandler.
-  final Set<String> alwaysAllowed;
+  @override
+  final bool fileOutsideWorkspaceAllowAllV1;
 
   @override
   bool get searchEnabled => false;
 
-  @override
-  Set<String> get approvalAlwaysAllowed => alwaysAllowed;
-
   /// Workspace tool toggles: this double keeps every tool enabled.
   @override
   bool isWorkspaceToolEnabled(String toolName) => true;
-
-  /// P3-4/P1-6: file tools read the global developer-mode flag for the write
-  /// limit; this double keeps the default (512 KB) behaviour.
-  @override
-  bool get developerModeV1 => false;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -244,66 +235,59 @@ void main() {
       },
     );
 
-    testWidgets(
-      'out-of-workspace write asks first, then runs with a persisted override',
-      (tester) async {
-        final service = await _buildService(tester, WorkingMcpToolService());
-        // Real filesystem I/O must run outside the fake-async test zone —
-        // file operations would otherwise deadlock the widget test.
-        await tester.runAsync(() async {
-          final workspace = await Directory.systemTemp.createTemp(
-            'omnichat_ws_',
+    testWidgets('out-of-workspace write asks first, then runs with allow-all', (
+      tester,
+    ) async {
+      final service = await _buildService(tester, WorkingMcpToolService());
+      // Real filesystem I/O must run outside the fake-async test zone —
+      // file operations would otherwise deadlock the widget test.
+      await tester.runAsync(() async {
+        final workspace = await Directory.systemTemp.createTemp('omnichat_ws_');
+        final outside = await Directory.systemTemp.createTemp('omnichat_out_');
+        try {
+          final probe = FileToolService.probePathSafety(
+            '${outside.path}/out.txt',
+            workspace.path,
           );
-          final outside = await Directory.systemTemp.createTemp(
-            'omnichat_out_',
-          );
-          try {
-            final probe = FileToolService.probePathSafety(
-              '${outside.path}/out.txt',
-              workspace.path,
-            );
-            expect(probe.inside, isFalse);
-            expect(probe.resolvedPath, isNotNull);
+          expect(probe.inside, isFalse);
+          expect(probe.resolvedPath, isNotNull);
 
-            // No override → the gate returns the pending payload and the
-            // tool must NOT run (P1-1: the user approves before execution).
-            final askHandler = service.buildToolCallHandler(
-              TestSettingsProvider(),
-              null,
-              workspacePath: workspace.path,
-            )!;
-            final ask = await askHandler('file_write', {
-              'path': '${outside.path}/out.txt',
-              'content': 'hello',
-            });
-            expect(ask, contains('approval_required'));
-            expect(File('${outside.path}/out.txt').existsSync(), isFalse);
+          // No override → the gate returns the pending payload and the
+          // tool must NOT run (P1-1: the user approves before execution).
+          final askHandler = service.buildToolCallHandler(
+            TestSettingsProvider(),
+            null,
+            workspacePath: workspace.path,
+          )!;
+          final ask = await askHandler('file_write', {
+            'path': '${outside.path}/out.txt',
+            'content': 'hello',
+          });
+          expect(ask, contains('approval_required'));
+          expect(File('${outside.path}/out.txt').existsSync(), isFalse);
 
-            // Persisted override → the policy snapshot allows the call and
-            // the executor runs against the concrete approved absolute path.
-            final runHandler = service.buildToolCallHandler(
-              TestSettingsProvider(
-                alwaysAllowed: {'workspace-out:${probe.resolvedPath}'},
-              ),
-              null,
-              workspacePath: workspace.path,
-            )!;
-            final run = await runHandler('file_write', {
-              'path': '${outside.path}/out.txt',
-              'content': 'hello',
-            });
-            expect(run, contains('Wrote'));
-            expect(File('${outside.path}/out.txt').readAsStringSync(), 'hello');
-          } finally {
-            if (await workspace.exists()) {
-              await workspace.delete(recursive: true);
-            }
-            if (await outside.exists()) {
-              await outside.delete(recursive: true);
-            }
+          // Allow-all → the policy allows the call and the executor runs
+          // against the concrete resolved absolute path.
+          final runHandler = service.buildToolCallHandler(
+            TestSettingsProvider(fileOutsideWorkspaceAllowAllV1: true),
+            null,
+            workspacePath: workspace.path,
+          )!;
+          final run = await runHandler('file_write', {
+            'path': '${outside.path}/out.txt',
+            'content': 'hello',
+          });
+          expect(run, contains('Wrote'));
+          expect(File('${outside.path}/out.txt').readAsStringSync(), 'hello');
+        } finally {
+          if (await workspace.exists()) {
+            await workspace.delete(recursive: true);
           }
-        });
-      },
-    );
+          if (await outside.exists()) {
+            await outside.delete(recursive: true);
+          }
+        }
+      });
+    });
   });
 }

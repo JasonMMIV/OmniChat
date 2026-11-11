@@ -51,16 +51,10 @@ class _RecordingChatService extends ChangeNotifier implements ChatService {
 
 class _Settings extends ChangeNotifier implements SettingsProvider {
   @override
-  bool get developerModeV1 => false;
+  bool get fileOutsideWorkspaceAllowAllV1 => false;
 
   @override
-  bool get approvalStrictModeV1 => false;
-
-  @override
-  Set<String> get approvalAlwaysAllowed => const <String>{};
-
-  @override
-  List<String> get shellAllowlist => const <String>[];
+  bool get shellAllowAllV1 => false;
 
   @override
   bool isWorkspaceToolEnabled(String toolName) => true;
@@ -113,11 +107,10 @@ void main() {
           messageId: 'assistant-1',
         )!;
 
-        final result = await handler(
-          'file_write',
-          {'path': 'note.txt', 'content': 'one\n'},
-          toolCallId: 'call-1',
-        );
+        final result = await handler('file_write', {
+          'path': 'note.txt',
+          'content': 'one\n',
+        }, toolCallId: 'call-1');
         expect(result, contains('Wrote'));
 
         final extras = chat.extrasById['call-1'];
@@ -128,18 +121,13 @@ void main() {
         expect(extras['diffText'], contains('+++ b/note.txt'));
 
         // No-op and read-only calls must not persist diff extras.
-        await handler(
-          'file_write',
-          {'path': 'note.txt', 'content': 'one\n'},
-          toolCallId: 'call-2',
-        );
+        await handler('file_write', {
+          'path': 'note.txt',
+          'content': 'one\n',
+        }, toolCallId: 'call-2');
         expect(chat.extrasById.containsKey('call-2'), isFalse);
 
-        await handler(
-          'file_read',
-          {'path': 'note.txt'},
-          toolCallId: 'call-3',
-        );
+        await handler('file_read', {'path': 'note.txt'}, toolCallId: 'call-3');
         expect(chat.extrasById.containsKey('call-3'), isFalse);
       } finally {
         if (await workspace.exists()) {
@@ -148,5 +136,4 @@ void main() {
       }
     });
   });
-
 }

@@ -5655,6 +5655,23 @@ class AppLocalizationsEn extends AppLocalizations {
       'Disabled tools are not offered to the model. File tools are off while the workspace is disabled.';
 
   @override
+  String get workspacePermissionsTitle => 'Permissions';
+
+  @override
+  String get workspaceFilesOutsideAllowAllTitle => 'Files outside workspace';
+
+  @override
+  String get workspaceFilesOutsideAllowAllSubtitle =>
+      'Ask before reading or writing outside the workspace. Turn on to allow all.';
+
+  @override
+  String get workspaceShellAllowAllTitle => 'Shell commands';
+
+  @override
+  String get workspaceShellAllowAllSubtitle =>
+      'Ask before running shell commands. Turn on to allow all.';
+
+  @override
   String get addonsWriteTodosSubtitle =>
       'Keep a todo list for multi-step tasks';
 

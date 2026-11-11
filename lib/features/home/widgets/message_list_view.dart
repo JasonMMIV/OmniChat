@@ -172,7 +172,6 @@ class MessageListView extends StatelessWidget {
     String assistantMessageId,
     String toolCallId, {
     required bool approve,
-    bool alwaysAllow,
   })?
   onResolveApproval;
 

@@ -26,12 +26,10 @@ void main() {
 
   Future<Map<String, dynamic>> run(
     String command, {
-    List<String> allowlist = const <String>['echo'],
     String? cwd,
     int? timeoutSeconds,
-    bool strictMode = false,
     String? approvedCommand,
-    bool developerMode = true,
+    bool allowAll = true,
     String? conversationId,
     String? toolCallId,
     String? workspacePath,
@@ -44,9 +42,7 @@ void main() {
         if (timeoutSeconds != null) 'timeout_seconds': timeoutSeconds,
       },
       workspacePath: workspacePath ?? workspace.path,
-      developerMode: developerMode,
-      allowlist: allowlist,
-      strictMode: strictMode,
+      allowAll: allowAll,
       approvedCommand: approvedCommand,
       conversationId: conversationId,
       toolCallId: toolCallId,
@@ -55,25 +51,24 @@ void main() {
     return jsonDecode(raw) as Map<String, dynamic>;
   }
 
-  test('developer mode off refuses execution', () async {
-    final payload = await run('echo hello', developerMode: false);
-    expect(payload['type'], 'tool_error');
-    expect(payload['error'], 'developer_mode_disabled');
-  });
-
-  test('non-allowlisted commands require approval', () async {
-    final payload = await run('curl https://example.com');
+  test('ask mode requires approval before execution', () async {
+    final payload = await run('echo hello', allowAll: false);
     expect(payload['type'], 'tool_error');
     expect(payload['error'], 'approval_required');
-    expect(payload['blocked_programs'], contains('curl'));
+    expect(payload['command'], 'echo hello');
   });
 
-  test('strict mode denies instead of asking', () async {
-    final payload = await run('curl https://example.com', strictMode: true);
-    expect(payload['error'], 'approval_denied');
+  test('an approved command runs', () async {
+    final payload = await run(
+      'echo hello',
+      allowAll: false,
+      approvedCommand: 'echo hello',
+    );
+    expect(payload['exit_code'], 0);
+    expect(payload['stdout'].toString(), contains('hello'));
   });
 
-  test('runs an allowlisted command and returns structured fields', () async {
+  test('allow-all runs commands without an approval', () async {
     final payload = await run('echo hello');
     expect(payload['exit_code'], 0);
     expect(payload['stdout'].toString(), contains('hello'));
@@ -122,23 +117,23 @@ void main() {
     expect(ShellRunService.resolveCwd('outside-link', workspace.path), isNull);
   });
 
-  test('externalizes output over 32 KB and keeps 4 KB previews', () async {
+  test('externalizes output over 64 KB and keeps 8 KB previews', () async {
     final command = Platform.isWindows
-        ? 'for /L %i in (1,1,1000) do @echo '
+        ? 'for /L %i in (1,1,2500) do @echo '
               '0123456789012345678901234567890123456789'
-        : 'yes 0123456789012345678901234567890123456789 | head -n 1000';
-    final allowlist = Platform.isWindows
-        ? const <String>['for']
-        : const <String>['yes', 'head'];
+        : 'yes 0123456789012345678901234567890123456789 | head -n 2500';
     final payload = await run(
       command,
-      allowlist: allowlist,
       conversationId: 'conv',
       toolCallId: 'call',
     );
     expect(payload['truncated'], isTrue);
     expect(payload['output_file'], startsWith('tool_outputs/'));
     expect(payload['stdout_preview'], isNotNull);
+    expect(
+      utf8.encode(payload['stdout_preview'].toString()).length,
+      lessThanOrEqualTo(SessionOutputs.previewBytes + 200),
+    );
     expect(payload.containsKey('stdout'), isFalse);
     final resolved = await SessionOutputs.resolveReadPath(
       payload['output_file'].toString(),
@@ -154,7 +149,8 @@ void main() {
     'an approved command cannot be reused for a different command',
     () async {
       final payload = await run(
-        'curl https://example.com',
+        'echo different',
+        allowAll: false,
         approvedCommand: 'echo hello',
       );
       expect(payload['type'], 'tool_error');
@@ -169,45 +165,12 @@ void main() {
     expect(stdout, isNot(contains('hunter2')));
   });
 
-  test('readiness requires developer mode and a PATH-available program', () {
-    ShellRunService.debugAvailabilityOverride = <String, bool>{
-      'git': true,
-      'curl': false,
-    };
-    addTearDown(() => ShellRunService.debugAvailabilityOverride = null);
-
-    expect(
-      ShellRunService.isReady(developerMode: true, allowlist: const ['git']),
-      isTrue,
-    );
-    expect(
-      ShellRunService.isReady(developerMode: true, allowlist: const ['curl']),
-      isFalse,
-    );
-    expect(
-      ShellRunService.isReady(developerMode: false, allowlist: const ['git']),
-      isFalse,
-    );
-    expect(
-      ShellRunService.isReady(developerMode: true, allowlist: const []),
-      isTrue,
-    );
-  });
-
   test('cancellation terminates the command and is reported', () async {
     final command = Platform.isWindows
         ? 'ping -n 10 127.0.0.1 >nul'
         : 'sleep 10';
-    final allowlist = Platform.isWindows
-        ? const <String>['ping']
-        : const <String>['sleep'];
     final token = CliCancellationToken();
-    final future = run(
-      command,
-      allowlist: allowlist,
-      timeoutSeconds: 30,
-      cancellation: token,
-    );
+    final future = run(command, timeoutSeconds: 30, cancellation: token);
     await Future<void>.delayed(const Duration(milliseconds: 250));
     token.cancel();
     final payload = await future;
@@ -218,10 +181,7 @@ void main() {
 
   test('timeout is reported and clamped', () async {
     final command = Platform.isWindows ? 'ping -n 6 127.0.0.1 >nul' : 'sleep 5';
-    final allowlist = Platform.isWindows
-        ? const <String>['ping']
-        : const <String>['sleep'];
-    final payload = await run(command, allowlist: allowlist, timeoutSeconds: 1);
+    final payload = await run(command, timeoutSeconds: 1);
     expect(payload['timed_out'], isTrue);
     expect(payload['hint'], isNotNull);
 

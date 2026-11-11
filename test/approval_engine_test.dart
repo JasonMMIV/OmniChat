@@ -1,8 +1,7 @@
 // P1-1 approval engine unit tests (IMPORT_PLAN_COWORK.md P1-1; ADR-A5/A8/A9).
 //
-// Covers the pure-Dart policy engine: the three-decision classification
-// (allow / ask / deny) for the workspace-boundary source (out-of-sandbox
-// paths → ask, "always allow" overrides, strict mode), and the structured
+// Covers the pure-Dart policy engine: the allow/ask classification for the
+// workspace-boundary source (out-of-sandbox paths → ask), and the structured
 // pending / denied / timeout tool-result JSON contracts. MCP tools are no
 // longer approval-gated (2026-09-10: the MCP policy source was removed).
 
@@ -13,50 +12,20 @@ import 'package:OmniChat/core/services/agent/approval.dart';
 void main() {
   group('decideApproval — workspace tools', () {
     test('inside the sandbox → allow', () {
-      final d = decideApproval(const ApprovalContext(
-        isWorkspaceTool: true,
-        pathInsideWorkspace: true,
-        resolvedPath: '/ws/notes.md',
-      ));
+      final d = decideApproval(
+        const ApprovalContext(isWorkspaceTool: true, pathInsideWorkspace: true),
+      );
       expect(d, equals(ApprovalDecision.allow));
     });
 
     test('path outside the workspace → ask (ADR-A8 v1.5)', () {
-      final d = decideApproval(const ApprovalContext(
-        isWorkspaceTool: true,
-        pathInsideWorkspace: false,
-        resolvedPath: 'D:/Reports/q3.docx',
-      ));
+      final d = decideApproval(
+        const ApprovalContext(
+          isWorkspaceTool: true,
+          pathInsideWorkspace: false,
+        ),
+      );
       expect(d, equals(ApprovalDecision.ask));
-    });
-
-    test('out-of-workspace path with a persisted override → allow', () {
-      final d = decideApproval(const ApprovalContext(
-        isWorkspaceTool: true,
-        pathInsideWorkspace: false,
-        resolvedPath: 'D:/Reports/q3.docx',
-        alwaysAllowedKeys: {'workspace-out:D:/Reports/q3.docx'},
-      ));
-      expect(d, equals(ApprovalDecision.allow));
-    });
-
-    test('strict mode degrades an out-of-workspace ask to deny', () {
-      final d = decideApproval(const ApprovalContext(
-        isWorkspaceTool: true,
-        pathInsideWorkspace: false,
-        resolvedPath: 'D:/Reports/q3.docx',
-        strictMode: true,
-      ));
-      expect(d, equals(ApprovalDecision.deny));
-    });
-
-    test('strict mode does not deny in-sandbox calls', () {
-      final d = decideApproval(const ApprovalContext(
-        isWorkspaceTool: true,
-        pathInsideWorkspace: true,
-        strictMode: true,
-      ));
-      expect(d, equals(ApprovalDecision.allow));
     });
   });
 
@@ -130,14 +99,17 @@ void main() {
         'new_text': 'line1\nline2 changed\nline4',
       });
       expect(diff, isNotNull);
-      expect(diff!, startsWith('--- a/old\n+++ b/new'));
-      expect(diff!, contains('\n-line1\n-line2\n-line3'));
-      expect(diff!, contains('\n+line1\n+line2 changed\n+line4'));
+      final rendered = diff!;
+      expect(rendered, startsWith('--- a/old\n+++ b/new'));
+      expect(rendered, contains('\n-line1\n-line2\n-line3'));
+      expect(rendered, contains('\n+line1\n+line2 changed\n+line4'));
     });
 
     test('single-line replacement renders both sides', () {
-      final diff = buildEditPreviewDiff(
-          const {'old_text': 'foo', 'new_text': 'bar'});
+      final diff = buildEditPreviewDiff(const {
+        'old_text': 'foo',
+        'new_text': 'bar',
+      });
       expect(diff, isNotNull);
       expect(diff!, contains('\n-foo\n+bar'));
     });
@@ -145,17 +117,23 @@ void main() {
     test('null when empty or unchanged', () {
       expect(buildEditPreviewDiff(const {}), isNull);
       expect(
-          buildEditPreviewDiff(const {'old_text': '', 'new_text': ''}), isNull);
-      expect(buildEditPreviewDiff(
-          const {'old_text': 'same', 'new_text': 'same'}), isNull);
+        buildEditPreviewDiff(const {'old_text': '', 'new_text': ''}),
+        isNull,
+      );
+      expect(
+        buildEditPreviewDiff(const {'old_text': 'same', 'new_text': 'same'}),
+        isNull,
+      );
     });
 
     test('pending content embeds preview_diff when provided', () {
       final json = buildApprovalPendingContent(
         toolName: 'file_edit',
         arguments: const {'old_text': 'a', 'new_text': 'b'},
-        previewDiff: buildEditPreviewDiff(
-            const {'old_text': 'a', 'new_text': 'b'}),
+        previewDiff: buildEditPreviewDiff(const {
+          'old_text': 'a',
+          'new_text': 'b',
+        }),
       );
       final parsed = parseApprovalContent(json);
       expect(parsed!['preview_diff'], isNotNull);
@@ -165,8 +143,10 @@ void main() {
 
   group('approval timeout', () {
     test('fresh pending never times out', () {
-      expect(isApprovalTimedOut(DateTime.now().millisecondsSinceEpoch),
-          isFalse);
+      expect(
+        isApprovalTimedOut(DateTime.now().millisecondsSinceEpoch),
+        isFalse,
+      );
     });
 
     test('old pending times out against the default window', () {
@@ -180,10 +160,14 @@ void main() {
       final old = DateTime.now()
           .subtract(const Duration(seconds: 30))
           .millisecondsSinceEpoch;
-      expect(isApprovalTimedOut(old, timeout: const Duration(minutes: 1)),
-          isFalse);
-      expect(isApprovalTimedOut(old, timeout: const Duration(seconds: 10)),
-          isTrue);
+      expect(
+        isApprovalTimedOut(old, timeout: const Duration(minutes: 1)),
+        isFalse,
+      );
+      expect(
+        isApprovalTimedOut(old, timeout: const Duration(seconds: 10)),
+        isTrue,
+      );
     });
 
     test('null/invalid timestamps never time out (legacy events)', () {
@@ -193,33 +177,24 @@ void main() {
     });
   });
 
-  group('always-allow override key decoding', () {
-    test('workspace-out key decodes resolved path', () {
-      final d = decodeApprovalOverrideKey('workspace-out:D:/Reports/q3.docx');
-      expect(d, isNotNull);
-      expect(d!.kind, equals(ApprovalOverrideKind.workspaceOut));
-      expect(d!.resolvedPath, equals('D:/Reports/q3.docx'));
-    });
-
-    test('unknown shapes return null (forward compatible)', () {
-      expect(decodeApprovalOverrideKey('shell:git'), isNull);
-      expect(decodeApprovalOverrideKey('mcp:github:read_file'), isNull);
-      expect(decodeApprovalOverrideKey('mcp-server:github'), isNull);
-      expect(decodeApprovalOverrideKey(''), isNull);
-      expect(decodeApprovalOverrideKey('random'), isNull);
-    });
-  });
-
   group('approvalState normalization', () {
     test('valid values round-trip', () {
-      expect(normalizeApprovalState(approvalStatePending),
-          equals(approvalStatePending));
-      expect(normalizeApprovalState(approvalStateApproved),
-          equals(approvalStateApproved));
-      expect(normalizeApprovalState(approvalStateDenied),
-          equals(approvalStateDenied));
-      expect(normalizeApprovalState(approvalStateAnswered),
-          equals(approvalStateAnswered));
+      expect(
+        normalizeApprovalState(approvalStatePending),
+        equals(approvalStatePending),
+      );
+      expect(
+        normalizeApprovalState(approvalStateApproved),
+        equals(approvalStateApproved),
+      );
+      expect(
+        normalizeApprovalState(approvalStateDenied),
+        equals(approvalStateDenied),
+      );
+      expect(
+        normalizeApprovalState(approvalStateAnswered),
+        equals(approvalStateAnswered),
+      );
     });
 
     test('unknown/null degrades to auto', () {

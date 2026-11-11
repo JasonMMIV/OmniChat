@@ -5,9 +5,11 @@ import '../../../models/message_usage.dart';
 import '../../../models/file_record.dart';
 import '../../../models/workspace_config.dart';
 import 'message_part_codec.dart';
+import '../../tools/tool_result_caps.dart';
 
-/// Persisted-preview bound for `file_read` results (existing writer policy).
-const int kMaxPersistedFileReadResultChars = 8192;
+/// Persisted bound for `file_read` results. Reuses the per-tool cap so a
+/// 256 KB read survives replay; the constant cannot drift from the handler.
+const int kMaxPersistedFileReadResultChars = ToolResultCaps.fileReadCapChars;
 
 /// Applies the existing `file_read` persisted-preview policy. Shared by the
 /// facade and the Hive backend so both agree byte-for-byte; the SQLite backend

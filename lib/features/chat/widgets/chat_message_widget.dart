@@ -198,7 +198,6 @@ class ChatMessageWidget extends StatefulWidget {
     String assistantMessageId,
     String toolCallId, {
     required bool approve,
-    bool alwaysAllow,
   })?
   onResolveApproval;
   // `/skill` load rows (2026-10-06): names of the skills the user invoked via
@@ -3557,7 +3556,6 @@ class _ToolCallItem extends StatelessWidget {
     String assistantMessageId,
     String toolCallId, {
     required bool approve,
-    bool alwaysAllow,
   })?
   onResolveApproval;
 
@@ -3688,8 +3686,8 @@ class _ToolCallItem extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    // P1-1: approval-pending card — Approve / Deny / Always-allow row
-    // rendered from the approval_required tool-event content.
+    // P1-1: approval-pending card — Approve / Deny row rendered from the
+    // approval_required tool-event content.
     final approval = _approvalStateOf(part);
     if (approval != null) {
       return ApprovalToolCard(
@@ -3697,12 +3695,8 @@ class _ToolCallItem extends StatelessWidget {
         approval: approval,
         canResume: assistantMessageId != null && onResolveApproval != null,
         executing: part.approvalExecuting,
-        onApprove: (alwaysAllow) => onResolveApproval!(
-          assistantMessageId!,
-          part.id,
-          approve: true,
-          alwaysAllow: alwaysAllow,
-        ),
+        onApprove: () =>
+            onResolveApproval!(assistantMessageId!, part.id, approve: true),
         onDeny: () =>
             onResolveApproval!(assistantMessageId!, part.id, approve: false),
       );

@@ -1,16 +1,17 @@
-// P1-6: `shell_run` — desktop-only, developer-mode-gated command execution.
+// Desktop-only `shell_run` command execution.
 //
-// Policy is classified by ShellPolicy before execution (handler layer); this
-// service re-checks as defense in depth and owns the execution contract:
+// The handler decides whether a command needs an approval card (the global
+// "shell commands: allow all / ask" switch); this service re-checks the
+// approved command and owns the execution contract:
 // - workspace-scoped cwd (`..` / absolute host paths rejected);
 // - timeout 1–3600 s (default 900) enforced by the process supervisor, which
 //   kills the whole process tree;
 // - minimal environment allowlist + agent-friendly flags;
 // - structured payload (exit_code / duration / timed_out / cancelled /
 //   truncated / changed_files);
-// - stdout+stderr > 32 KB externalized to the app-private read-only
-//   `tool_outputs/` zone, with 4 KB previews and retention;
-// - output capped at the 32,768-character tool-result budget.
+// - stdout+stderr > 64 KB externalized to the app-private read-only
+//   `tool_outputs/` zone, with 8 KB previews and retention;
+// - output capped at the shell tool-result budget (68 KB).
 //
 // Android never advertises this tool (isPlatformSupported is false there).
 library;
@@ -18,14 +19,12 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 
 import '../file/session_outputs.dart';
 import '../tools/tool_result_caps.dart';
 import 'changed_files.dart';
 import 'cli_process_supervisor.dart';
-import 'shell_policy.dart';
 import 'tool_run_registry.dart';
 
 class ShellRunService {
@@ -35,19 +34,11 @@ class ShellRunService {
   static const int defaultTimeoutSeconds = 900;
   static const int maxTimeoutSeconds = 3600;
   // Capture caps must stay above [SessionOutputs.externalizeThresholdBytes],
-  // otherwise a >32 KB output can never reach the externalization branch.
-  // The serialized tool result is still capped by `ToolResultCaps` (32,768
-  // chars), so a larger capture does not inflate the model-facing payload.
+  // otherwise a >64 KB output can never reach the externalization branch.
+  // The serialized tool result is still capped by `ToolResultCaps` (68 KB),
+  // so a larger capture does not inflate the model-facing payload.
   static const int maxStdoutBytes = 1024 * 1024;
   static const int maxStderrBytes = 256 * 1024;
-
-  /// Test seam for PATH probing (null = real filesystem probe).
-  @visibleForTesting
-  static Map<String, bool>? debugAvailabilityOverride;
-
-  static Map<String, bool>? _probeCache;
-  static String? _probeKey;
-  static DateTime? _probeAt;
 
   static bool get isPlatformSupported {
     try {
@@ -66,19 +57,17 @@ class ShellRunService {
             'Run one shell command on the desktop in the selected workspace. '
             'Use it for builds, tests, formatters, git and package managers. '
             'Commands start in the selected workspace. This is NOT a security '
-            'sandbox: the command runs with your user permissions. Commands '
-            'outside the allowlist require user approval. Prefer non-interactive '
-            'commands; interactive prompts will hang until the timeout. '
-            'Android does not support this tool.',
+            'sandbox: the command runs with your user permissions. The user may '
+            'require approval for each command. Prefer non-interactive commands; '
+            'interactive prompts will hang until the timeout. Android does not '
+            'support this tool.',
         'parameters': {
           'type': 'object',
           'properties': {
             'command': {
               'type': 'string',
               'description':
-                  'The command line to run. Compound commands are allowed; '
-                  'every segment must be on the allowlist or the whole command '
-                  'is sent for approval.',
+                  'The command line to run. Compound commands are allowed.',
             },
             'cwd': {
               'type': 'string',
@@ -99,77 +88,18 @@ class ShellRunService {
     };
   }
 
-  /// True when the tool should be offered to the model. PATH availability is
-  /// part of the readiness gate (an empty allowlist is still allowed: every
-  /// command then asks).
-  static bool isReady({
-    required bool developerMode,
-    required List<String> allowlist,
-  }) {
-    if (!developerMode || !isPlatformSupported) return false;
-    if (allowlist.isEmpty) return true;
-    return hasAvailableProgram(allowlist);
-  }
-
-  static Map<String, bool> probeAllowlist(
-    Iterable<String> programs, {
-    bool refresh = false,
-  }) {
-    if (debugAvailabilityOverride != null) {
-      return Map<String, bool>.unmodifiable(<String, bool>{
-        for (final program in programs)
-          program: debugAvailabilityOverride![program] ?? false,
-      });
-    }
-    final names =
-        programs
-            .map((program) => program.trim().toLowerCase())
-            .where((program) => program.isNotEmpty)
-            .toSet()
-            .toList()
-          ..sort();
-    final key = names.join('|');
-    final now = DateTime.now();
-    if (!refresh &&
-        _probeCache != null &&
-        _probeKey == key &&
-        _probeAt != null &&
-        now.difference(_probeAt!) < const Duration(minutes: 1)) {
-      return Map<String, bool>.unmodifiable(_probeCache!);
-    }
-    final result = <String, bool>{
-      for (final name in names) name: _existsOnPath(name),
-    };
-    _probeCache = result;
-    _probeKey = key;
-    _probeAt = now;
-    return Map<String, bool>.unmodifiable(result);
-  }
-
-  static bool hasAvailableProgram(Iterable<String> programs) =>
-      probeAllowlist(programs).values.any((available) => available);
-
   /// Execute one command. Returns the structured JSON string handed to the
   /// model. [approvedCommand] carries the exact command the user approved on
   /// the resume path; any different command is re-classified.
   static Future<String> execute(
     Map<String, dynamic> args, {
     required String workspacePath,
-    required bool developerMode,
-    required List<String> allowlist,
-    bool strictMode = false,
+    bool allowAll = false,
     String? conversationId,
     String? toolCallId,
     String? approvedCommand,
     CliCancellationToken? cancellation,
   }) async {
-    if (!developerMode) {
-      return _error(
-        'developer_mode_disabled',
-        'Developer mode is off. Enable it in Settings → Developer mode before '
-            'running shell commands.',
-      );
-    }
     if (!isPlatformSupported) {
       return _error(
         'unsupported_platform',
@@ -185,36 +115,14 @@ class ShellRunService {
       );
     }
 
-    final policy = ShellPolicy.decide(
-      command: command,
-      allowlist: allowlist,
-      strictMode: strictMode,
-    );
     final approved =
         approvedCommand != null && approvedCommand.trim() == command.trim();
-    if (!approved && !policy.allowed) {
-      if (policy.decision == ShellPolicyDecision.deny) {
-        return _error(
-          'approval_denied',
-          'This command is not allowed by the current shell policy.',
-          extra: <String, dynamic>{
-            'command': command,
-            'programs': policy.programs,
-            'blocked_programs': policy.blockedPrograms,
-            'reason': policy.reason,
-          },
-        );
-      }
+    if (!allowAll && !approved) {
       return _error(
         'approval_required',
-        'This command is outside the developer-mode allowlist. Ask the user '
-            'to approve it before running it again.',
-        extra: <String, dynamic>{
-          'command': command,
-          'programs': policy.programs,
-          'blocked_programs': policy.blockedPrograms,
-          'reason': policy.reason,
-        },
+        'This command requires user approval. Ask the user to approve it '
+            'before running it again.',
+        extra: <String, dynamic>{'command': command},
       );
     }
 
@@ -487,31 +395,5 @@ class ShellRunService {
     final child = comparable(candidate);
     final parent = comparable(root).replaceFirst(RegExp(r'/+$'), '');
     return child == parent || child.startsWith('$parent/');
-  }
-
-  static bool _existsOnPath(String program) {
-    if (program.contains('/') || program.contains('\\')) {
-      return File(program).existsSync();
-    }
-    final pathValue = Platform.environment['PATH'] ?? '';
-    if (pathValue.isEmpty) return false;
-    final directories = pathValue.split(Platform.isWindows ? ';' : ':');
-    final extensions = Platform.isWindows
-        ? (Platform.environment['PATHEXT'] ?? '.COM;.EXE;.BAT;.CMD')
-              .split(';')
-              .where((extension) => extension.isNotEmpty)
-              .toList()
-        : const <String>[''];
-    for (final directory in directories) {
-      if (directory.trim().isEmpty) continue;
-      for (final extension in extensions) {
-        try {
-          if (File(p.join(directory, '$program$extension')).existsSync()) {
-            return true;
-          }
-        } catch (_) {}
-      }
-    }
-    return false;
   }
 }

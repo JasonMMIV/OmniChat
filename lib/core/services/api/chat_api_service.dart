@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+
 import '../../providers/settings_provider.dart';
 import '../../providers/model_provider.dart';
 import '../../models/token_usage.dart';
@@ -13,7 +15,9 @@ import '../../../utils/app_directories.dart';
 import '../network/dio_http_client.dart';
 import 'google_service_account_auth.dart';
 import '../../services/api_key_manager.dart';
+
 import 'package:OmniChat/secrets/fallback.dart';
+
 import '../../../utils/markdown_media_sanitizer.dart';
 import '../../../utils/unicode_sanitizer.dart';
 import '../../utils/reasoning_capabilities.dart';
@@ -119,12 +123,15 @@ class ChatApiService {
     } catch (_) {}
   }
 
-  /// Truncate a tool result text to [ToolResultCaps.capThresholdChars]
+  /// Truncate a tool result text to [ToolResultCaps.maxCapThresholdChars]
   /// characters, keeping head and tail. Delegates to the shared in-memory
   /// capper (workspace zero-residue plan Phase 1.4) so the transport backstop
-  /// and the handler-level cap take the same shape exactly once.
+  /// cannot clip a handler-level per-tool cap.
   static String _truncateToolResultText(String content) {
-    return ToolResultCaps.capBare(content);
+    return ToolResultCaps.capBare(
+      content,
+      threshold: ToolResultCaps.maxCapThresholdChars,
+    );
   }
 
   /// Test seam — expose the pairing heal so the orphaned-tool-message
@@ -204,7 +211,7 @@ class ChatApiService {
                 block['type'] == 'text' &&
                 block['text'] is String) {
               final text = block['text'] as String;
-              if (text.length > 32768) {
+              if (text.length > ToolResultCaps.maxCapThresholdChars) {
                 modified.add(<String, dynamic>{
                   ...block,
                   'text': _truncateToolResultText(text),
@@ -245,7 +252,7 @@ class ChatApiService {
                     block['type'] == 'text' &&
                     block['text'] is String) {
                   final text = block['text'] as String;
-                  if (text.length > 32768) {
+                  if (text.length > ToolResultCaps.maxCapThresholdChars) {
                     innerModified.add(<String, dynamic>{
                       ...block,
                       'text': _truncateToolResultText(text),
@@ -285,7 +292,8 @@ class ChatApiService {
             if (resp is Map) {
               if (resp['result'] is String) {
                 final resultStr = resp['result'] as String;
-                if (resultStr.isNotEmpty && resultStr.length > 32768) {
+                if (resultStr.isNotEmpty &&
+                    resultStr.length > ToolResultCaps.maxCapThresholdChars) {
                   modified.add(<String, dynamic>{
                     ...part,
                     'functionResponse': <String, dynamic>{
@@ -304,7 +312,7 @@ class ChatApiService {
                 final resultMap = resp['result'] as Map;
                 if (resultMap['output'] is String) {
                   final output = resultMap['output'] as String;
-                  if (output.length > 32768) {
+                  if (output.length > ToolResultCaps.maxCapThresholdChars) {
                     modified.add(<String, dynamic>{
                       ...part,
                       'functionResponse': <String, dynamic>{
@@ -1757,15 +1765,13 @@ class ChatApiService {
         // transport — must stay byte-identical to the pre-dialect behaviour.
         final String? savedWire = reasoningWireForCall(config, modelId);
         final String? chatWire =
-            ReasoningWire.optionsFor(
-              ReasoningWireTransport.chat,
-            ).contains(savedWire)
+            ReasoningWire.optionsFor(ReasoningWireTransport.chat)
+                .contains(savedWire)
             ? savedWire
             : null;
         final String? responsesWire =
-            ReasoningWire.optionsFor(
-              ReasoningWireTransport.responses,
-            ).contains(savedWire)
+            ReasoningWire.optionsFor(ReasoningWireTransport.responses)
+                .contains(savedWire)
             ? savedWire
             : null;
         if (config.useResponseApi == true) {
@@ -4805,16 +4811,12 @@ class ChatApiService {
       // Only string-content user messages can be image-transformed. Replayed
       // tool_result messages carry List content (blocks) — never run them
       // through the image pipeline or their blocks get replaced.
-      final nativeBlocks = _nativeInputPartsFor(
-        m,
-        NativeInputProtocol.claude,
-      );
+      final nativeBlocks = _nativeInputPartsFor(m, NativeInputProtocol.claude);
       // Native parts (`_native_input`) are per-message: they must survive
       // every round, not only while the message is last. The kernel's
       // follow-up appends assistant/tool messages after the user turn, so a
       // last-only gate would silently drop documents on round 2 (F3).
-      final wantsImageTransform =
-          isLast && userImagePaths?.isNotEmpty == true;
+      final wantsImageTransform = isLast && userImagePaths?.isNotEmpty == true;
       if ((wantsImageTransform || nativeBlocks.isNotEmpty) &&
           (m['role'] == 'user') &&
           (m['content'] is String)) {
@@ -5623,10 +5625,9 @@ class ChatApiService {
                 final name = (_anthToolUse[id]!['name'] ?? '').toString();
                 Map<String, dynamic> args;
                 try {
-                  args =
-                      (jsonDecode((_anthToolUse[id]!['args'] ?? '{}') as String)
-                              as Map)
-                          .cast<String, dynamic>();
+                  args = (jsonDecode(
+                    (_anthToolUse[id]!['args'] ?? '{}') as String,
+                  ) as Map).cast<String, dynamic>();
                 } catch (_) {
                   args = <String, dynamic>{};
                 }
@@ -6337,12 +6338,10 @@ class ChatApiService {
 
       // Only parse images if there are images to process
       final hasMarkdownImages = raw.contains('![') && raw.contains('](');
-      final hasCustomImages = raw.contains('[image:');      final hasAttachedImages =
+      final hasCustomImages = raw.contains('[image:');
+      final hasAttachedImages =
           isLast && role == 'user' && (userImagePaths?.isNotEmpty == true);
-      final nativeParts = _nativeInputPartsFor(
-        msg,
-        NativeInputProtocol.gemini,
-      );
+      final nativeParts = _nativeInputPartsFor(msg, NativeInputProtocol.gemini);
       if (hasMarkdownImages ||
           hasCustomImages ||
           hasAttachedImages ||
@@ -7155,7 +7154,6 @@ class ChatApiService {
         hasUsage: usage != null,
       );
       return;
-
     }
   }
 

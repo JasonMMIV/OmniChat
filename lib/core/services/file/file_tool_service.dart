@@ -55,20 +55,16 @@ class FileToolService {
 
   /// Default and hard maximum sizes for one file_read response.
   ///
-  /// The API layer also caps tool results by character count, but the file
-  /// service must bound the data held by the UI and Hive before that happens.
-  // Keep the complete result below ChatApiService's 32K-character tool-result
-  // budget even for ASCII-heavy source files. The extra room covers metadata.
-  // P3-4: the default window equals the cap so a large file needs the fewest
-  // round trips while the result still fits the transport budget.
-  static const int defaultReadBytes = 24 * 1024;
-  static const int maxReadBytes = 24 * 1024;
-  static const int maxWriteBytes = 512 * 1024;
+  /// The tool handler applies a matching per-tool `ToolResultCaps` budget so
+  /// the file service can return a useful window without the transport
+  /// backstop re-cutting it.
+  static const int defaultReadBytes = 64 * 1024;
+  static const int maxReadBytes = 256 * 1024;
 
-  /// P3-4: developer mode is an explicit per-call opt-in from the tool
-  /// handler. The default sandbox floor stays at [maxWriteBytes]; an approval
-  /// never raises it (ADR-A8), and only the user's developer-mode switch does.
-  static const int developerMaxWriteBytes = 2 * 1024 * 1024;
+  /// Technical in-memory guard for file_edit/file_patch. They read the whole
+  /// file to apply a replacement, so this is an OOM guard, not a product
+  /// write limit. file_write/file_append are unbounded.
+  static const int maxEditableFileBytes = 64 * 1024 * 1024;
   static const int maxListedEntries = 1000;
   static const int maxSearchResults = 1000;
 
@@ -105,18 +101,6 @@ class FileToolService {
   static const int maxZipTotalBytes = 50 * 1024 * 1024;
   static const int maxZipEntries = 1000;
   static const int maxZipListingEntries = 100;
-
-  static const Set<String> _blockedExtensions = <String>{
-    '.apk',
-    '.bat',
-    '.cmd',
-    '.dll',
-    '.exe',
-    '.ps1',
-    '.sh',
-    '.so',
-    '.vbs',
-  };
 
   static List<Map<String, dynamic>> getToolDefinitions() {
     Map<String, dynamic> definition(
@@ -160,13 +144,11 @@ class FileToolService {
           'path': pathProperty,
           'offset': {
             'type': 'integer',
-            'description':
-                'Optional zero-based byte offset. Defaults to 0; use next_offset from the previous result for the next segment.',
+            'description': 'Optional zero-based byte offset. Defaults to 0; use next_offset from the previous result for the next segment.',
           },
           'limit': {
             'type': 'integer',
-            'description':
-                'Optional number of bytes to read. Defaults to and is capped at 24576 bytes.',
+            'description': 'Optional number of bytes to read. Defaults to 65536 bytes and is capped at 262144 bytes.',
           },
         },
         ['path'],
@@ -202,8 +184,7 @@ class FileToolService {
           'path': pathProperty,
           'old_text': {
             'type': 'string',
-            'description':
-                'Text to find, copied verbatim from file_read. This is not a regular expression.',
+            'description': 'Text to find, copied verbatim from file_read. This is not a regular expression.',
           },
           'new_text': {
             'type': 'string',
@@ -212,8 +193,7 @@ class FileToolService {
           },
           'replace_all': {
             'type': 'boolean',
-            'description':
-                'Optional. Set true only when every exact occurrence should be replaced.',
+            'description': 'Optional. Set true only when every exact occurrence should be replaced.',
           },
         },
         ['path', 'old_text', 'new_text'],
@@ -225,8 +205,7 @@ class FileToolService {
           'path': pathProperty,
           'patch': {
             'type': 'string',
-            'description':
-                'Unified diff containing one or more hunks for this file. Do not include patches for other files.',
+            'description': 'Unified diff containing one or more hunks for this file. Do not include patches for other files.',
           },
         },
         ['path', 'patch'],
@@ -294,23 +273,19 @@ class FileToolService {
         {
           'pattern': {
             'type': 'string',
-            'description':
-                'Regular expression matched against every line of file contents. An invalid expression falls back to literal matching.',
+            'description': 'Regular expression matched against every line of file contents. An invalid expression falls back to literal matching.',
           },
           'path': {
             ...pathProperty,
-            'description':
-                'Optional file or directory path to search. Defaults to the workspace root.',
+            'description': 'Optional file or directory path to search. Defaults to the workspace root.',
           },
           'ignore_case': {
             'type': 'boolean',
-            'description':
-                'Optional. Set true for case-insensitive matching.',
+            'description': 'Optional. Set true for case-insensitive matching.',
           },
           'limit': {
             'type': 'integer',
-            'description':
-                'Optional maximum number of matching lines to return. Defaults to 100; capped at 1000.',
+            'description': 'Optional maximum number of matching lines to return. Defaults to 100; capped at 1000.',
           },
         },
         ['pattern'],
@@ -323,13 +298,12 @@ class FileToolService {
       ),
       definition(
         'file_extract_zip',
-        'Extract a .zip archive in the workspace into a destination directory. Archive entry paths are validated against the workspace boundary, dangerous file types are blocked, and the total decompressed size and file count are capped.',
+        'Extract a .zip archive in the workspace into a destination directory. Archive entry paths are validated against the workspace boundary, and the total decompressed size and file count are capped.',
         {
           'path': pathProperty,
           'destination': {
             'type': 'string',
-            'description':
-                'Optional destination directory relative to the workspace. Defaults to a folder named after the archive (without the .zip extension).',
+            'description': 'Optional destination directory relative to the workspace. Defaults to a folder named after the archive (without the .zip extension).',
           },
         },
         ['path'],
@@ -341,8 +315,7 @@ class FileToolService {
           'path': pathProperty,
           'content': {
             'type': 'string',
-            'description':
-                'Markdown content to render as the PDF body. Keep it under 512 KB (2 MB in developer mode).',
+            'description': 'Markdown content to render as the PDF body.',
           },
         },
         ['path', 'content'],
@@ -355,18 +328,15 @@ class FileToolService {
           'format': {
             'type': 'string',
             'enum': ['auto', 'pdf', 'docx', 'pptx', 'xlsx'],
-            'description':
-                'Optional format override. Defaults to auto-detection from the file extension and file signature.',
+            'description': 'Optional format override. Defaults to auto-detection from the file extension and file signature.',
           },
           'offset': {
             'type': 'integer',
-            'description':
-                'Optional zero-based byte offset in the extracted text. Defaults to 0; use next_offset from the previous result to continue.',
+            'description': 'Optional zero-based byte offset in the extracted text. Defaults to 0; use next_offset from the previous result to continue.',
           },
           'limit': {
             'type': 'integer',
-            'description':
-                'Optional number of UTF-8 bytes to return from the extracted text. Defaults to 16384 and is capped at 24576.',
+            'description': 'Optional number of UTF-8 bytes to return from the extracted text. Defaults to 16384 and is capped at 24576.',
           },
         },
         ['path'],
@@ -374,25 +344,18 @@ class FileToolService {
     ];
   }
 
-  /// [approvedOutsidePath] is set by the approval resume path (P1-1 v1.6):
-  /// the user approved an out-of-workspace target on the card, so primary
-  /// path arguments resolve to this concrete absolute path instead of the
-  /// sandbox boundary. Type/size hard floors (blocked extensions, 512 KB
-  /// caps) are enforced by each operation and are NOT relaxed by approval.
-  ///
-  /// [developerMode] is passed by the tool handler from the user's developer
-  /// switch. It raises the per-file write ceiling to
-  /// [developerMaxWriteBytes]; every other sandbox rule is unchanged.
+  /// [approvedOutsidePath] is set by the tool handler when the user approved
+  /// an out-of-workspace target on the card, or when the global "files
+  /// outside workspace: allow all" switch resolved the path. Path arguments
+  /// then resolve to this concrete absolute path instead of the sandbox
+  /// boundary.
   static Future<FileToolResult> execute(
     String toolName,
     Map<String, dynamic> args,
     String? workspacePath, {
     String? approvedOutsidePath,
     String? sessionOutputsRoot,
-    bool developerMode = false,
   }) async {
-    final writeLimit =
-        developerMode ? developerMaxWriteBytes : maxWriteBytes;
     // P1-6: the session-outputs zone is READ-ONLY. The read-only tools may
     // enter it; every mutating tool is rejected before any filesystem
     // operation (the zone lives outside the workspace on purpose).
@@ -406,8 +369,7 @@ class FileToolService {
         final value = args[key];
         if (value is String && SessionOutputs.isSessionPath(value)) {
           return const FileToolResult(
-            text:
-                'Error: The session-outputs zone is read-only. Read it with file_read, file_search, file_grep, or file_view_image.',
+            text: 'Error: The session-outputs zone is read-only. Read it with file_read, file_search, file_grep, or file_view_image.',
           );
         }
       }
@@ -428,7 +390,6 @@ class FileToolService {
             workspace,
             approvedOutsidePath,
             append: false,
-            writeLimit: writeLimit,
           );
         case 'file_append':
           return await _write(
@@ -436,22 +397,11 @@ class FileToolService {
             workspace,
             approvedOutsidePath,
             append: true,
-            writeLimit: writeLimit,
           );
         case 'file_edit':
-          return await _edit(
-            args,
-            workspace,
-            approvedOutsidePath,
-            writeLimit: writeLimit,
-          );
+          return await _edit(args, workspace, approvedOutsidePath);
         case 'file_patch':
-          return await _patch(
-            args,
-            workspace,
-            approvedOutsidePath,
-            writeLimit: writeLimit,
-          );
+          return await _patch(args, workspace, approvedOutsidePath);
         case 'file_delete':
           return await _delete(args, workspace, approvedOutsidePath);
         case 'file_list':
@@ -500,12 +450,7 @@ class FileToolService {
         case 'file_extract_zip':
           return await _extractZip(args, workspace, approvedOutsidePath);
         case 'file_create_pdf':
-          return await _createPdf(
-            args,
-            workspace,
-            approvedOutsidePath,
-            writeLimit: writeLimit,
-          );
+          return await _createPdf(args, workspace, approvedOutsidePath);
         default:
           return FileToolResult(text: 'Error: Unknown file tool "$toolName".');
       }
@@ -567,7 +512,8 @@ class FileToolService {
       // errors (invalid character / absolute path) go through the normal
       // executor error path.
       final msg = e.message.toLowerCase();
-      final isBoundary = msg.contains('out of workspace') ||
+      final isBoundary =
+          msg.contains('out of workspace') ||
           msg.contains('boundary') ||
           msg.contains('must be relative');
       if (!isBoundary) {
@@ -596,12 +542,11 @@ class FileToolService {
     }
   }
 
-  /// P1-1 v1.6: resolve a tool's primary path argument. Without an approved
-  /// out-of-workspace path this is exactly [resolveSafePath] (the sandbox
-  /// boundary is enforced). With one, the user approved a concrete absolute
-  /// path on the card: re-probe the raw argument and hand back the approved
-  /// path only when the argument genuinely resolves outside the workspace
-  /// (blocked extensions / size caps are still enforced by each operation).
+  /// Resolve a tool path argument. Without an approved outside path this is
+  /// exactly [resolveSafePath] (the sandbox boundary is enforced). With one,
+  /// the user approved (or the global allow-all switch resolved) a concrete
+  /// absolute path: re-probe the raw argument and hand back the approved path
+  /// only when the argument genuinely resolves to that same outside target.
   static String _resolveToolPath(
     String rawPath,
     String workspace,
@@ -618,7 +563,24 @@ class FileToolService {
         'The approved path must be an absolute path.',
       );
     }
+    final candidate = p.isAbsolute(rawPath)
+        ? p.normalize(rawPath)
+        : p.normalize(p.join(workspace, rawPath));
+    final canonical = _canonicalCandidate(candidate);
+    if (!p.equals(canonical, approved) && !p.equals(candidate, approved)) {
+      throw const FileToolSecurityException(
+        'The path does not match the approved out-of-workspace target.',
+      );
+    }
     return approved;
+  }
+
+  static String _canonicalCandidate(String candidate) {
+    try {
+      return _resolveExistingOrParent(candidate);
+    } catch (_) {
+      return p.normalize(candidate);
+    }
   }
 
   /// P1-1: resolve and validate the workspace root without executing
@@ -699,14 +661,6 @@ class FileToolService {
     return child == cleanParent || child.startsWith('$cleanParent/');
   }
 
-  static void _rejectBlockedExtension(String path) {
-    if (_blockedExtensions.contains(p.extension(path).toLowerCase())) {
-      throw const FileToolSecurityException(
-        'This file extension is blocked for safety.',
-      );
-    }
-  }
-
   static String _requiredString(Map<String, dynamic> args, String key) {
     final value = args[key]?.toString() ?? '';
     if (value.trim().isEmpty) {
@@ -761,11 +715,10 @@ class FileToolService {
         ? null
         : SessionOutputs.resolveFromRoot(rawPath, sessionOutputsRoot);
     if (SessionOutputs.isSessionPath(rawPath) && sessionPath == null) {
-      return const FileToolResult(
-        text: 'Error: Invalid session-outputs path.',
-      );
+      return const FileToolResult(text: 'Error: Invalid session-outputs path.');
     }
-    final path = sessionPath?.absolutePath ??
+    final path =
+        sessionPath?.absolutePath ??
         _resolveToolPath(rawPath, workspace, approvedOutsidePath);
     final file = File(path);
     if (!await file.exists()) {
@@ -897,8 +850,7 @@ class FileToolService {
     final fileLength = await File(path).length();
     if (fileLength > maxExtractInputBytes) {
       return const FileToolResult(
-        text:
-            'Error: The file exceeds the 16 MB extraction input limit.',
+        text: 'Error: The file exceeds the 16 MB extraction input limit.',
       );
     }
 
@@ -1021,14 +973,18 @@ class FileToolService {
 
     var destinationArg = (args['destination'] ?? '').toString().trim();
     if (destinationArg.isEmpty) {
-      // Default to a folder named after the archive, next to it.
+      // Default to a folder named after the archive. Keep the default inside
+      // the workspace even when the archive itself was approved from outside.
       final relative = p.relative(zipPath, from: workspace);
-      destinationArg = p.join(
-        p.dirname(relative),
-        p.basenameWithoutExtension(relative),
-      );
+      destinationArg = relative.startsWith('..')
+          ? p.basenameWithoutExtension(p.basename(zipPath))
+          : p.join(p.dirname(relative), p.basenameWithoutExtension(relative));
     }
-    final destination = resolveSafePath(destinationArg, workspace);
+    final destination = _resolveToolPath(
+      destinationArg,
+      workspace,
+      approvedOutsidePath,
+    );
     await Directory(destination).create(recursive: true);
 
     // Validation pass: every entry must be safe and inside the budget before
@@ -1050,7 +1006,6 @@ class FileToolService {
           'The ZIP contains an entry that escapes the destination directory.',
         );
       }
-      _rejectBlockedExtension(name);
       entryCount += 1;
       if (entryCount > maxZipEntries) {
         return const FileToolResult(
@@ -1117,9 +1072,8 @@ class FileToolService {
   static Future<FileToolResult> _createPdf(
     Map<String, dynamic> args,
     String workspace,
-    String? approvedOutsidePath, {
-    required int writeLimit,
-  }) async {
+    String? approvedOutsidePath,
+  ) async {
     final path = _resolveToolPath(
       _requiredString(args, 'path'),
       workspace,
@@ -1134,13 +1088,6 @@ class FileToolService {
     if (content.trim().isEmpty) {
       return const FileToolResult(text: 'Error: The content is empty.');
     }
-    if (utf8.encode(content).length > writeLimit) {
-      return FileToolResult(
-        text:
-            'Error: The content exceeds the ${_formatByteLimit(writeLimit)} limit.',
-      );
-    }
-
     final List<int> bytes;
     try {
       // Render in a background isolate so large documents do not jank the UI;
@@ -1229,15 +1176,13 @@ class FileToolService {
   static Future<FileToolResult> _edit(
     Map<String, dynamic> args,
     String workspace,
-    String? approvedOutsidePath, {
-    required int writeLimit,
-  }) async {
+    String? approvedOutsidePath,
+  ) async {
     final path = _resolveToolPath(
       _requiredString(args, 'path'),
       workspace,
       approvedOutsidePath,
     );
-    _rejectBlockedExtension(path);
     final file = File(path);
     if (!await file.exists()) {
       return const FileToolResult(text: 'Error: File not found.');
@@ -1252,22 +1197,26 @@ class FileToolService {
       );
     }
 
-    if (oldText.length > writeLimit || newText.length > writeLimit) {
+    if (oldText.length > maxEditableFileBytes ||
+        newText.length > maxEditableFileBytes) {
       return FileToolResult(
         text:
-            'Error: The edit text arguments exceed the ${_formatByteLimit(writeLimit)} limit.',
+            'Error: The edit text arguments exceed the ${_formatByteLimit(maxEditableFileBytes)} limit.',
       );
     }
     final oldTextBytes = utf8.encode(oldText);
     final newTextBytes = utf8.encode(newText);
-    if (oldTextBytes.length + newTextBytes.length > writeLimit) {
+    if (oldTextBytes.length + newTextBytes.length > maxEditableFileBytes) {
       return FileToolResult(
         text:
-            'Error: The combined edit text arguments exceed the ${_formatByteLimit(writeLimit)} limit.',
+            'Error: The combined edit text arguments exceed the ${_formatByteLimit(maxEditableFileBytes)} limit.',
       );
     }
 
-    final snapshot = await _readMutableFile(file, maxBytes: writeLimit);
+    final snapshot = await _readMutableFile(
+      file,
+      maxBytes: maxEditableFileBytes,
+    );
     final original = snapshot.content;
     final matched = findEditMatches(original, oldText, newText);
     if (matched.isEmpty) {
@@ -1291,10 +1240,10 @@ class FileToolService {
       original,
       replaceAll ? matched.matches : <EditMatch>[matched.matches.first],
     );
-    if (utf8.encode(updated).length > writeLimit) {
+    if (utf8.encode(updated).length > maxEditableFileBytes) {
       return FileToolResult(
         text:
-            'Error: The resulting file would exceed the ${_formatByteLimit(writeLimit)} limit.',
+            'Error: The resulting file would exceed the ${_formatByteLimit(maxEditableFileBytes)} limit.',
       );
     }
     return await _writeModifiedText(
@@ -1303,7 +1252,6 @@ class FileToolService {
       action: 'Edited',
       expectedBytes: snapshot.bytes,
       matchStrategy: strategy.wireName,
-      writeLimit: writeLimit,
       workspace: workspace,
       previousText: original,
     );
@@ -1312,20 +1260,18 @@ class FileToolService {
   static Future<FileToolResult> _patch(
     Map<String, dynamic> args,
     String workspace,
-    String? approvedOutsidePath, {
-    required int writeLimit,
-  }) async {
+    String? approvedOutsidePath,
+  ) async {
     final path = _resolveToolPath(
       _requiredString(args, 'path'),
       workspace,
       approvedOutsidePath,
     );
-    _rejectBlockedExtension(path);
     final patch = _requiredTextArgument(args, 'patch', allowEmpty: false);
-    if (utf8.encode(patch).length > writeLimit) {
+    if (utf8.encode(patch).length > maxEditableFileBytes) {
       return FileToolResult(
         text:
-            'Error: The patch exceeds the ${_formatByteLimit(writeLimit)} limit.',
+            'Error: The patch exceeds the ${_formatByteLimit(maxEditableFileBytes)} limit.',
       );
     }
 
@@ -1333,7 +1279,10 @@ class FileToolService {
     if (!await file.exists()) {
       return const FileToolResult(text: 'Error: File not found.');
     }
-    final snapshot = await _readMutableFile(file, maxBytes: writeLimit);
+    final snapshot = await _readMutableFile(
+      file,
+      maxBytes: maxEditableFileBytes,
+    );
     final parsed = _parseUnifiedPatch(patch);
     final updated = _applyUnifiedPatch(snapshot.content, parsed);
     return await _writeModifiedText(
@@ -1341,7 +1290,6 @@ class FileToolService {
       updated,
       action: 'Patched',
       expectedBytes: snapshot.bytes,
-      writeLimit: writeLimit,
       workspace: workspace,
       previousText: snapshot.content,
     );
@@ -1376,18 +1324,11 @@ class FileToolService {
     String content, {
     required String action,
     required List<int> expectedBytes,
-    required int writeLimit,
     required String workspace,
     required String previousText,
     String? matchStrategy,
   }) async {
     final bytes = utf8.encode(content);
-    if (bytes.length > writeLimit) {
-      return FileToolResult(
-        text:
-            'Error: The resulting file would exceed the ${_formatByteLimit(writeLimit)} limit.',
-      );
-    }
     final file = File(path);
     final currentBytes = await file.readAsBytes();
     if (!_bytesEqual(currentBytes, expectedBytes)) {
@@ -1439,9 +1380,7 @@ class FileToolService {
         utf8.encode(after).length > maxDiffTextBytes) {
       return null;
     }
-    final displayPath = p
-        .relative(path, from: workspace)
-        .replaceAll('\\', '/');
+    final displayPath = p.relative(path, from: workspace).replaceAll('\\', '/');
     final diff = computeUnifiedDiff(before, after, path: displayPath);
     return diff.isEmpty ? null : diff;
   }
@@ -1498,13 +1437,14 @@ class FileToolService {
           return;
         } on FileSystemException catch (e) {
           final code = e.osError?.errorCode;
-          final retryable = attempt < maxAttempts - 1 &&
+          final retryable =
+              attempt < maxAttempts - 1 &&
               (code == 5 /* ERROR_ACCESS_DENIED */ ||
                   code == 32 /* ERROR_SHARING_VIOLATION */ ||
                   code == 33 /* ERROR_LOCK_VIOLATION */ ||
                   code == 1 /* EPERM */ ||
                   code == 13 /* EACCES */ ||
-                  code == 16 /* EBUSY (errno mapping) */);
+                  code == 16 /* EBUSY (errno mapping) */ );
           if (!retryable) rethrow;
           await Future<void>.delayed(Duration(milliseconds: delayMs));
           delayMs *= 2;
@@ -1543,9 +1483,8 @@ class FileToolService {
         continue;
       }
       final header = lines[index];
-      final match = RegExp(
-        r'^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@',
-      ).firstMatch(header);
+      final match = RegExp(r'^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@')
+          .firstMatch(header);
       if (match == null) {
         throw ArgumentError('Invalid unified patch hunk header.');
       }
@@ -1690,14 +1629,12 @@ class FileToolService {
     String workspace,
     String? approvedOutsidePath, {
     required bool append,
-    required int writeLimit,
   }) async {
     final path = _resolveToolPath(
       _requiredString(args, 'path'),
       workspace,
       approvedOutsidePath,
     );
-    _rejectBlockedExtension(path);
     if (!args.containsKey('content') || args['content'] is! String) {
       return const FileToolResult(
         text: 'Error: The content argument is required and must be a string.',
@@ -1713,13 +1650,6 @@ class FileToolService {
     // Read failures (binary/oversized) simply disable the diff — the write
     // itself is unaffected.
     final before = await _readTextForDiff(file);
-    final existingLength = append ? await file.length() : 0;
-    if (existingLength + bytes.length > writeLimit) {
-      return FileToolResult(
-        text:
-            'Error: File size would exceed the ${_formatByteLimit(writeLimit)} limit.',
-      );
-    }
     await file.parent.create(recursive: true);
     // Direct write, no staging temp — deliberate (decided 2026-09-12,
     // PLAN_WORKSPACE_ZERO_RESIDUE.md §8 F5): file_write / file_append are not
@@ -1734,7 +1664,9 @@ class FileToolService {
       await file.writeAsBytes(bytes, flush: true);
     }
     final size = await file.length();
-    final after = append ? (before == null ? null : '$before$content') : content;
+    final after = append
+        ? (before == null ? null : '$before$content')
+        : content;
     return FileToolResult(
       text:
           '${append ? 'Appended to' : 'Wrote'} ${p.basename(path)} ($size bytes).',
@@ -1865,11 +1797,11 @@ class FileToolService {
       workspace,
       approvedOutsidePath,
     );
-    final destination = resolveSafePath(
+    final destination = _resolveToolPath(
       _requiredString(args, 'destination'),
       workspace,
+      approvedOutsidePath,
     );
-    _rejectBlockedExtension(destination);
     final sourceType = FileSystemEntity.typeSync(source, followLinks: false);
     if (sourceType == FileSystemEntityType.notFound) {
       return const FileToolResult(text: 'Error: Source not found.');
@@ -1918,11 +1850,10 @@ class FileToolService {
         ? null
         : SessionOutputs.resolveFromRoot(rawPath, sessionOutputsRoot);
     if (SessionOutputs.isSessionPath(rawPath) && sessionPath == null) {
-      return const FileToolResult(
-        text: 'Error: Invalid session-outputs path.',
-      );
+      return const FileToolResult(text: 'Error: Invalid session-outputs path.');
     }
-    final start = sessionPath?.absolutePath ??
+    final start =
+        sessionPath?.absolutePath ??
         _resolveToolPath(rawPath, workspace, approvedOutsidePath);
     final directory = Directory(start);
     if (!await directory.exists()) {
@@ -2000,11 +1931,10 @@ class FileToolService {
         ? null
         : SessionOutputs.resolveFromRoot(rawPath, sessionOutputsRoot);
     if (SessionOutputs.isSessionPath(rawPath) && sessionPath == null) {
-      return const FileToolResult(
-        text: 'Error: Invalid session-outputs path.',
-      );
+      return const FileToolResult(text: 'Error: Invalid session-outputs path.');
     }
-    final start = sessionPath?.absolutePath ??
+    final start =
+        sessionPath?.absolutePath ??
         _resolveToolPath(rawPath, workspace, approvedOutsidePath);
 
     RegExp regex;
@@ -2056,9 +1986,7 @@ class FileToolService {
         lineNo += 1;
         if (!regex.hasMatch(line)) continue;
         final text = line.trim();
-        final clipped = text.length > 240
-            ? '${text.substring(0, 240)}…'
-            : text;
+        final clipped = text.length > 240 ? '${text.substring(0, 240)}…' : text;
         lines.add('$relative:$lineNo: $clipped');
         if (lines.length >= limit) {
           truncated = true;
@@ -2077,10 +2005,9 @@ class FileToolService {
     if (startType == FileSystemEntityType.file) {
       await grepFile(start, relativeOf(start));
     } else if (startType == FileSystemEntityType.directory) {
-      await for (final entity in Directory(start).list(
-        recursive: true,
-        followLinks: false,
-      )) {
+      await for (final entity in Directory(
+        start,
+      ).list(recursive: true, followLinks: false)) {
         scannedEntries += 1;
         if (scannedEntries > maxSearchEntries) {
           truncated = true;
@@ -2106,7 +2033,9 @@ class FileToolService {
         if (truncated) break;
       }
     } else {
-      return const FileToolResult(text: 'Error: Path is not a file or directory.');
+      return const FileToolResult(
+        text: 'Error: Path is not a file or directory.',
+      );
     }
 
     if (lines.isEmpty) {
@@ -2144,11 +2073,10 @@ class FileToolService {
         ? null
         : SessionOutputs.resolveFromRoot(rawPath, sessionOutputsRoot);
     if (SessionOutputs.isSessionPath(rawPath) && sessionPath == null) {
-      return const FileToolResult(
-        text: 'Error: Invalid session-outputs path.',
-      );
+      return const FileToolResult(text: 'Error: Invalid session-outputs path.');
     }
-    final path = sessionPath?.absolutePath ??
+    final path =
+        sessionPath?.absolutePath ??
         _resolveToolPath(rawPath, workspace, approvedOutsidePath);
     final file = File(path);
     if (!await file.exists()) {
@@ -2172,7 +2100,8 @@ class FileToolService {
       );
     }
     return FileToolResult(
-      text: '[image:${file.path}]\nFormat: $format; Size: ${_formatByteLimit(stat.size)}',
+      text:
+          '[image:${file.path}]\nFormat: $format; Size: ${_formatByteLimit(stat.size)}',
       viewedImagePath: file.path,
     );
   }
@@ -2188,7 +2117,14 @@ class FileToolService {
     }
 
     if (startsWith(const <int>[
-      0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+      0x89,
+      0x50,
+      0x4E,
+      0x47,
+      0x0D,
+      0x0A,
+      0x1A,
+      0x0A,
     ])) {
       return 'PNG';
     }

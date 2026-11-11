@@ -110,7 +110,7 @@ void main() {
   });
 
   group('ToolHandlerService.buildWorkspaceToolDefinitions', () {
-    test('returns the 18 workspace tools when everything is enabled', () {
+    test('returns the 19 workspace tools when everything is enabled', () {
       final defs = ToolHandlerService.buildWorkspaceToolDefinitions(
         _ToggleSettingsProvider(),
         workspaceEnabled: true,
@@ -118,8 +118,9 @@ void main() {
       final names = defs
           .map((d) => ((d['function'] as Map)['name'] ?? '').toString())
           .toList();
-      expect(names.length, 18);
+      expect(names.length, 19);
       expect(names, contains('file_read'));
+      expect(names, contains('shell_run'));
       expect(names, contains('file_create_pdf'));
       expect(names, isNot(contains('write_todos')));
       // ask_user left the workspace gate on 2026-11-10 (Add-ons menu owns it
@@ -139,7 +140,7 @@ void main() {
           .map((d) => ((d['function'] as Map)['name'] ?? '').toString())
           .toList();
       expect(names, isNot(contains('file_read')));
-      expect(names.length, 17);
+      expect(names.length, 18);
     });
 
     test('workspace disabled turns every workspace tool off', () {

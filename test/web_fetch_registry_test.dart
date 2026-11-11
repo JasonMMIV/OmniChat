@@ -58,9 +58,6 @@ class _WebFetchSettings extends ChangeNotifier implements SettingsProvider {
   bool get planningEnabled => true;
 
   @override
-  Set<String> get approvalAlwaysAllowed => const <String>{};
-
-  @override
   bool isWorkspaceToolEnabled(String toolName) => true;
 
   @override

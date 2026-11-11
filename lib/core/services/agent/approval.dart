@@ -1,9 +1,9 @@
 // P1-1 approval engine (IMPORT_PLAN_COWORK.md P1-1; ADR-A5/A8/A9).
 //
 // Pure Dart: the five-state machine, the approval decision, the policy
-// source the engine currently ships (file out-of-workspace → ask; the
-// `shell_run` allowlist source arrives with P1-6), and the structured
-// tool-result JSON that feeds the model after a denial or an
+// source the engine currently ships (file out-of-workspace → ask; shell
+// commands → ask unless the global allow-all switch is on), and the
+// structured tool-result JSON that feeds the model after a denial or an
 // approval-required timeout.
 //
 // 2026-09-10: the MCP policy source (MCP tools → default ask) was REMOVED.
@@ -64,9 +64,6 @@ class ApprovalContext {
   const ApprovalContext({
     this.isWorkspaceTool = false,
     this.pathInsideWorkspace = true,
-    this.resolvedPath,
-    this.alwaysAllowedKeys = const <String>{},
-    this.strictMode = false,
   });
 
   /// File/workspace tool (`file_*`).
@@ -75,54 +72,21 @@ class ApprovalContext {
   /// Whether the call's resolved path stays inside the workspace sandbox
   /// (`true` when not applicable).
   final bool pathInsideWorkspace;
-
-  /// The resolved absolute path shown on the approval card when the call is
-  /// out of bounds (ADR-A8: the user approves a concrete absolute path, not
-  /// a relative string). The same path is handed to the executor when an
-  /// out-of-bounds call is approved.
-  final String? resolvedPath;
-
-  /// Persisted "always allow" override keys captured at generation-prep
-  /// time (policy snapshot; ADR-A9).
-  final Set<String> alwaysAllowedKeys;
-
-  /// strict mode toggle: every `ask` degrades to `deny` (v1.5).
-  final bool strictMode;
 }
 
 /// Classify one tool call. Order matters:
-/// 1. persisted "always allow" override → allow (user's explicit prior
-///    consent, same storage as the future shell allowlist);
-/// 2. workspace tools inside the sandbox → allow;
-/// 3. workspace tools with a path outside the sandbox → ask (ADR-A8;
-///    type/size hard floors are enforced later by FileToolService itself
-///    and are NOT relaxed by approval);
-/// 4. everything else (MCP, search, memory, todo, ask_user, …) → allow.
+/// 1. workspace tools inside the sandbox → allow;
+/// 2. workspace tools with a path outside the sandbox → ask (ADR-A8; the
+///    executor still validates the approved path);
+/// 3. everything else (MCP, search, memory, todo, ask_user, …) → allow.
 ///    MCP tools are deliberately ungated (2026-09-10: the black-box ask
 ///    policy source was removed).
 ApprovalDecision decideApproval(ApprovalContext ctx) {
-  if (ctx.strictMode) {
-    // Strict mode degrades every would-be ask to deny (v1.5).
-    final ask = _wouldAsk(ctx);
-    if (ask) return ApprovalDecision.deny;
+  if (ctx.isWorkspaceTool && !ctx.pathInsideWorkspace) {
+    return ApprovalDecision.ask;
   }
-  if (_wouldAsk(ctx)) return ApprovalDecision.ask;
   return ApprovalDecision.allow;
 }
-
-bool _wouldAsk(ApprovalContext ctx) {
-  // 1. Persisted per-path override wins.
-  if (ctx.isWorkspaceTool && !ctx.pathInsideWorkspace) {
-    final pathKey = _workspaceOutKey(ctx.resolvedPath);
-    if (ctx.alwaysAllowedKeys.contains(pathKey)) return false;
-    return true;
-  }
-  return false;
-}
-
-/// "Always allow" key for an out-of-workspace absolute path.
-String _workspaceOutKey(String? resolvedPath) =>
-    'workspace-out:${resolvedPath ?? '*'}';
 
 /// Build the structured tool-result JSON persisted while a decision is
 /// pending. The approval card renders from this payload; `requested_at`
@@ -316,38 +280,4 @@ String normalizeApprovalState(Object? raw) {
     default:
       return approvalStateAuto;
   }
-}
-
-/// The kind of a persisted "always allow" override key. Only workspace-out
-/// paths exist today (the MCP key kinds were removed 2026-09-10); the enum
-/// stays for forward compatibility with later policy sources (e.g. the
-/// shell allowlist in P1-6).
-enum ApprovalOverrideKind { workspaceOut }
-
-/// A decoded "always allow" override key, for the settings UI list.
-class ApprovalOverrideKey {
-  const ApprovalOverrideKey({
-    required this.kind,
-    required this.rawKey,
-    this.resolvedPath,
-  });
-
-  final ApprovalOverrideKind kind;
-  final String rawKey;
-  final String? resolvedPath;
-}
-
-/// Decode a persisted "always allow" override key back into its parts.
-/// Unknown shapes return null (forward compatibility: new key kinds added by
-/// later policy sources — e.g. shell allowlist — surface as unknown and are
-/// skipped by the settings list rather than crashing it).
-ApprovalOverrideKey? decodeApprovalOverrideKey(String key) {
-  if (key.startsWith('workspace-out:')) {
-    return ApprovalOverrideKey(
-      kind: ApprovalOverrideKind.workspaceOut,
-      rawKey: key,
-      resolvedPath: key.substring(14),
-    );
-  }
-  return null;
 }

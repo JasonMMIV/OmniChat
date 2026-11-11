@@ -61,9 +61,6 @@ class _TestSettings extends ChangeNotifier implements SettingsProvider {
   bool get planningEnabled => true;
 
   @override
-  Set<String> get approvalAlwaysAllowed => const <String>{};
-
-  @override
   ProviderConfig getProviderConfig(String key, {String? defaultName}) => cfg;
 
   @override

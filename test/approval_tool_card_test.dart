@@ -36,7 +36,7 @@ Future<void> _pumpCard(WidgetTester tester, {required bool executing}) async {
           approval: parseApprovalContent(content)!,
           canResume: true,
           executing: executing,
-          onApprove: (_) async {},
+          onApprove: () async {},
           onDeny: () {},
         ),
       ),
@@ -50,7 +50,6 @@ void main() {
 
     expect(find.text('Pending'), findsOneWidget);
     expect(find.text('Approve'), findsOneWidget);
-    expect(find.text('Always allow'), findsOneWidget);
     expect(find.text('Deny'), findsOneWidget);
     expect(find.text('Approved'), findsNothing);
     expect(find.text('Approved — running…'), findsNothing);
@@ -65,7 +64,6 @@ void main() {
     expect(find.text('Running shell_run…'), findsOneWidget);
     expect(find.text('Approved — running…'), findsOneWidget);
     expect(find.text('Approve'), findsNothing);
-    expect(find.text('Always allow'), findsNothing);
     expect(find.text('Deny'), findsNothing);
   });
 }
