@@ -97,6 +97,43 @@ void main() {
     expect(find.textContaining('%'), findsNothing);
   });
 
+  testWidgets('header gives the usage label the full remaining width',
+      (tester) async {
+    final notifier = ValueNotifier<ContextUsageSnapshot?>(
+      const ContextUsageSnapshot(
+        usedTokens: 6600,
+        maxTokens: 512000,
+        measured: true,
+        estimated: false,
+      ),
+    );
+    await tester.pumpWidget(wrapWidget(
+      SizedBox(
+        width: 240,
+        child: ContextUsageMenuHeader(listenable: notifier),
+      ),
+    ));
+    await tester.pump();
+
+    final textFinder = find.text('6.6k / 512.0k Token');
+    expect(textFinder, findsOneWidget);
+    expect(find.text('1%'), findsOneWidget);
+    // The label must own all remaining width; a Spacer flex sibling would
+    // split it in half and ellipsize the denominator on narrow menus.
+    expect(
+      find.ancestor(of: textFinder, matching: find.byType(Expanded)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(ContextUsageMenuHeader),
+        matching: find.byType(Spacer),
+      ),
+      findsNothing,
+    );
+    notifier.dispose();
+  });
+
   testWidgets('header shows used/max + percent, hides ≈ when measured',
       (tester) async {
     final notifier = ValueNotifier<ContextUsageSnapshot?>(

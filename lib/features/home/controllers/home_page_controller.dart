@@ -147,6 +147,7 @@ class HomePageController extends ChangeNotifier {
   bool _usageListenersAttached = false;
   ({String providerKey, String modelId})? _lastUsageModelKey;
   int? _lastUsageUserWindow;
+  int? _lastUsageCatalogWindow;
 
   // Translations UI state
   final Map<String, TranslationData> _translations =
@@ -850,6 +851,9 @@ class HomePageController extends ChangeNotifier {
         _scrollToBottomSoon(animate: false);
       }
     }
+    // `setCurrentConversation()` does not go through onConversationSwitched;
+    // refresh once the initial chat load has a conversation to measure.
+    _scheduleContextUsageRefresh();
   }
 
   void initDesktopUi() {
@@ -1109,10 +1113,16 @@ class HomePageController extends ChangeNotifier {
   /// lookup, and stale results are discarded via the epoch guard.
   Future<void> refreshContextUsage() async {
     if (_disposed || !_contextUsageReady) return;
+    // Attach before the early returns: the first post-frame refresh usually
+    // runs before `initChat()` has a conversation (and before Settings /
+    // Assistant finish loading). If it returns first, the listeners would
+    // never attach and the ring would stay stale until a message event.
+    _attachContextUsageListeners();
     final convo = currentConversation;
     if (convo == null) {
       _lastUsageModelKey = null;
       _lastUsageUserWindow = null;
+      _lastUsageCatalogWindow = null;
       contextUsage.value = null;
       return;
     }
@@ -1120,6 +1130,7 @@ class HomePageController extends ChangeNotifier {
     if (effective == null) {
       _lastUsageModelKey = null;
       _lastUsageUserWindow = null;
+      _lastUsageCatalogWindow = null;
       contextUsage.value = null;
       return;
     }
@@ -1141,7 +1152,7 @@ class HomePageController extends ChangeNotifier {
     final epoch = ++_contextUsageEpoch;
     _lastUsageModelKey = effective;
     _lastUsageUserWindow = userWindow;
-    _attachContextUsageListeners();
+    _lastUsageCatalogWindow = catalogWindow;
 
     _setContextUsageIfCurrent(
       epoch: epoch,
@@ -1344,6 +1355,7 @@ class HomePageController extends ChangeNotifier {
       // Model deselected (or providers unavailable): clear a stale ring once.
       if (_lastUsageModelKey != null || contextUsage.value != null) {
         _lastUsageModelKey = null;
+        _lastUsageCatalogWindow = null;
         _scheduleContextUsageRefresh();
       }
       return;
@@ -1361,7 +1373,16 @@ class HomePageController extends ChangeNotifier {
       final userWindow = ModelRegistry.parseIntOverride(
         cfg.modelOverrides[key.modelId]?['contextWindow'],
       );
-      if (userWindow == _lastUsageUserWindow) return;
+      final catalogWindow = ModelCatalog.instance == null
+          ? null
+          : ModelRegistry.catalogContextWindow(cfg, key.modelId);
+      // SettingsProvider loads provider configs asynchronously. The first
+      // snapshot can use a defaultsFor() config; once the real config lands,
+      // the catalog window can change even though the model did not.
+      if (userWindow == _lastUsageUserWindow &&
+          catalogWindow == _lastUsageCatalogWindow) {
+        return;
+      }
     }
     _scheduleContextUsageRefresh();
   }

@@ -271,31 +271,40 @@ class ContextUsageMenuHeader extends StatelessWidget {
                     strokeWidth: 2.2,
                   ),
                   const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      '${compactTokenText(snapshot.usedTokens)} / '
-                      '$maxLabel Token',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        color: cs.onSurface,
-                        decoration: TextDecoration.none,
-                      ),
+                  // No Spacer here: a flex sibling would split the row's free
+                  // width with the label and ellipsize `used / max` on narrow
+                  // menus. Expanded keeps the badge at the end without
+                  // truncating the denominator.
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            '${compactTokenText(snapshot.usedTokens)} / '
+                            '$maxLabel Token',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              color: cs.onSurface,
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                        ),
+                        if (snapshot.estimated) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            estimatedLabel,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: cs.onSurface.withValues(alpha: 0.55),
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  if (snapshot.estimated) ...[
-                    const SizedBox(width: 6),
-                    Text(
-                      estimatedLabel,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: cs.onSurface.withValues(alpha: 0.55),
-                        decoration: TextDecoration.none,
-                      ),
-                    ),
-                  ],
-                  const Spacer(),
                   // No denominator → no percentage. The row still shows the
                   // measured usage on the left while the window is unknown.
                   if (hasWindow) ...[

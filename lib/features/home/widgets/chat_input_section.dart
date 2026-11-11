@@ -73,6 +73,7 @@ class ChatInputSection extends StatelessWidget {
     this.onClearContext,
     this.onCompressContext,
     this.onOpenContextManagement,
+    this.onRefreshContextUsage,
     this.contextUsage,
     this.isDictating = false,
     this.dictationPaused = false,
@@ -123,6 +124,9 @@ class ChatInputSection extends StatelessWidget {
   /// Opens the mobile context-management sheet when the pinned usage ring is
   /// tapped. Null keeps the anchored menu fallback.
   final VoidCallback? onOpenContextManagement;
+
+  /// Recomputes the usage snapshot before the desktop anchored menu opens.
+  final VoidCallback? onRefreshContextUsage;
 
   /// Context usage ring source (null = feature off / not wired).
   final ValueListenable<ContextUsageSnapshot?>? contextUsage;
@@ -258,6 +262,7 @@ class ChatInputSection extends StatelessWidget {
       onClearContext: onClearContext,
       onCompressContext: onCompressContext,
       onOpenContextManagement: onOpenContextManagement,
+      onRefreshContextUsage: onRefreshContextUsage,
       contextUsage: contextUsage,
       isEditing: isEditing,
       onCancelEdit: onCancelEdit,

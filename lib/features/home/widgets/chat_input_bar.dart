@@ -131,6 +131,7 @@ class ChatInputBar extends StatefulWidget {
     this.onClearContext,
     this.onCompressContext,
     this.onOpenContextManagement,
+    this.onRefreshContextUsage,
     this.onLongPressInstruction,
     this.onVoiceChat,
     this.instructionInjectionActive = false,
@@ -192,6 +193,9 @@ class ChatInputBar extends StatefulWidget {
   /// Opens the mobile context-management sheet when the pinned usage ring is
   /// tapped. Null keeps the anchored menu fallback.
   final VoidCallback? onOpenContextManagement;
+
+  /// Recomputes the usage snapshot before the desktop anchored menu opens.
+  final VoidCallback? onRefreshContextUsage;
   final VoidCallback? onLongPressInstruction;
   final VoidCallback? onVoiceChat;
   final bool instructionInjectionActive;
@@ -955,6 +959,9 @@ class _ChatInputBarState extends State<ChatInputBar>
   /// Anchored context menu used by the desktop/tablet row and as the mobile
   /// fallback when no dedicated sheet callback is supplied.
   void _showContextManagementMenu(BuildContext context) {
+    // The header binds to the notifier, so a fire-and-forget refresh is enough
+    // to replace a stale `...` denominator once the menu is open.
+    widget.onRefreshContextUsage?.call();
     final l10n = AppLocalizations.of(context)!;
     final usage = widget.contextUsage?.value;
     // A snapshot alone is enough for the header: when the window is unknown
@@ -970,7 +977,9 @@ class _ChatInputBarState extends State<ChatInputBar>
             )
           : null,
       headerHeight: hasUsage ? 44 : 0,
-      minMenuWidth: hasUsage ? 240 : null,
+      // Wide enough for the ring, `used / max Token`, the ≈ badge and the
+      // percentage without ellipsizing the denominator.
+      minMenuWidth: hasUsage ? 280 : null,
       items: [
         if (widget.onCompressContext != null)
           DesktopContextMenuItem(

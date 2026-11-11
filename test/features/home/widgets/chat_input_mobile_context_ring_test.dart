@@ -14,7 +14,9 @@ import 'package:OmniChat/l10n/app_localizations.dart';
 Future<void> _pumpBar(
   WidgetTester tester, {
   required ValueListenable<ContextUsageSnapshot?>? usage,
-  required VoidCallback onOpenContextManagement,
+  VoidCallback? onOpenContextManagement,
+  VoidCallback? onRefreshContextUsage,
+  bool showMoreButton = true,
 }) async {
   await tester.pumpWidget(
     MultiProvider(
@@ -28,10 +30,11 @@ Future<void> _pumpBar(
         home: Scaffold(
           body: ChatInputBar(
             contextUsage: usage,
-            showMoreButton: true,
+            showMoreButton: showMoreButton,
             onClearContext: () {},
             onCompressContext: () {},
             onOpenContextManagement: onOpenContextManagement,
+            onRefreshContextUsage: onRefreshContextUsage,
           ),
         ),
       ),
@@ -87,5 +90,36 @@ void main() {
     await _pumpBar(tester, usage: null, onOpenContextManagement: () {});
 
     expect(find.byType(ContextUsageButtonIcon), findsNothing);
+  });
+
+  testWidgets('desktop context button refreshes usage before opening the menu', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final usage = ValueNotifier<ContextUsageSnapshot?>(
+      const ContextUsageSnapshot(
+        usedTokens: 6600,
+        maxTokens: 512000,
+        measured: true,
+        estimated: false,
+      ),
+    );
+    addTearDown(usage.dispose);
+    var refreshed = false;
+
+    await _pumpBar(
+      tester,
+      usage: usage,
+      showMoreButton: false,
+      onRefreshContextUsage: () => refreshed = true,
+    );
+
+    await tester.tap(find.byTooltip('Context Management'));
+    await tester.pumpAndSettle();
+    expect(refreshed, isTrue);
   });
 }
