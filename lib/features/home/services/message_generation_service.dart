@@ -33,6 +33,7 @@ import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant_regex.dart';
 import '../controllers/stream_controller.dart' as stream_ctrl;
 import '../controllers/generation_controller.dart';
+import 'file_workspace_prompt.dart';
 import 'message_builder_service.dart';
 import 'tool_handler_service.dart';
 
@@ -283,13 +284,10 @@ class MessageGenerationService {
           nativePolicy: nativePolicy,
         );
 
-    // Inject prompts and the effective per-conversation file workspace.
-    messageBuilderService.injectSystemPrompt(
-      apiMessages,
-      assistant,
-      modelId,
-      workspacePath: workspacePath,
-    );
+    // Inject the assistant system prompt. The `[File Workspace]` block is
+    // appended after toolDefs are built so it only mentions tools that are
+    // actually advertised in this request.
+    messageBuilderService.injectSystemPrompt(apiMessages, assistant, modelId);
     await messageBuilderService.injectMemoryAndRecentChats(
       apiMessages,
       assistant,
@@ -386,6 +384,17 @@ class MessageGenerationService {
       workspaceEnabled: workspaceResolution?.enabled ?? false,
       workspacePath: workspacePath,
     );
+
+    // The workspace prompt is rendered from the real toolDefs: disabled tools
+    // are not advertised, and file_grep / file_view_image /
+    // get_console_errors / shell_run are included when offered. It lands after
+    // the memory/search/instruction blocks because this is the first point
+    // where toolDefs are final; it still precedes the MCP tool policy and the
+    // workspace file map.
+    final workspacePrompt = buildFileWorkspacePrompt(workspacePath, toolDefs);
+    if (workspacePrompt != null) {
+      messageBuilderService.appendToSystemMessage(apiMessages, workspacePrompt);
+    }
 
     // Tool usage policies (e.g. `illustrate`) — same-source with toolDefs:
     // inject only when the tool is really advertised in this request. Gemini

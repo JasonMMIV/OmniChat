@@ -245,7 +245,7 @@ class ToolHandlerService {
     // P1-3 + tool toggles: the planning (write_todos) and decision
     // (ask_user) tools are conversation-level and do not depend on the
     // conversation workspace (Phase 3-4; ask_user moved behind the Add-ons
-    // menu toggle on 2026-11-10); the 15 file tools stay behind the
+    // menu toggle on 2026-11-10); the 17 built-in file tools stay behind the
     // workspace switch.
     if (supportsTools) {
       toolDefs.addAll(buildPlanningToolDefinitions(settings));
@@ -318,8 +318,8 @@ class ToolHandlerService {
     };
   }
 
-  /// Workspace tools (15 file tools + preview/shell helpers) gated by the
-  /// workspace switch and the global per-tool toggles. `write_todos` and
+  /// Workspace tools (17 built-in file tools + preview/shell helpers) gated by
+  /// the workspace switch and the global per-tool toggles. `write_todos` and
   /// `ask_user` are NOT here — they are conversation-level tools with their
   /// own switches in the Add-ons menu (Phase 3-4 / 2026-11-10 reorganization).
   /// Static and pure so the gating policy is unit-testable without a provider
