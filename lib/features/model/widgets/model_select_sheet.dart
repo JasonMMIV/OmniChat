@@ -8,13 +8,15 @@ import 'dart:io' show Platform;
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
+import '../../../core/services/model_catalog/model_catalog.dart';
+import '../../../core/utils/token_format.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../provider/pages/providers_page.dart';
 import 'model_detail_sheet.dart';
-import 'modality_badge.dart';
+import 'model_tag_wrap.dart';
 import '../../provider/pages/provider_detail_page.dart';
 import '../../provider/pages/oauth_provider_detail_page.dart';
 import '../../provider/widgets/provider_balance_text.dart';
@@ -38,12 +40,23 @@ class _ModelProcessingData {
   final List<String> providersOrder;
   final String? limitProviderKey;
 
+  /// Per-provider token-limit facts from the models.dev catalog, keyed
+  /// `providerKey → baseModelId → [contextWindow, maxOutput]` (ints or null).
+  ///
+  /// `compute` runs in a separate isolate where the `ModelCatalog.instance`
+  /// static is not initialized — inference there would silently fall back to
+  /// the regex rules and every context chip would disappear. The facts are
+  /// resolved on the main isolate (same global-id lookup ladder
+  /// `ModelRegistry.infer` uses) and shipped across the message port.
+  final Map<String, Map<String, List<int?>>> catalogFacts;
+
   _ModelProcessingData({
     required this.providerConfigs,
     required this.pinnedModels,
     required this.currentModelKey,
     required this.providersOrder,
     this.limitProviderKey,
+    this.catalogFacts = const {},
   });
 }
 
@@ -62,6 +75,41 @@ class _ModelProcessingResult {
 // Lightweight brand asset resolver usable in isolates
 String? _assetForNameStatic(String n) {
   return BrandAssets.assetForName(n);
+}
+
+/// Resolves token-limit facts for every enabled model on the MAIN isolate,
+/// mirroring the `baseId` derivation in `_processModelsInBackground`
+/// (override `apiModelId` wins) and the global-id lookup ladder of
+/// `ModelRegistry.infer`. Values are plain ints — sendable across isolates.
+Map<String, Map<String, List<int?>>> _catalogFactsFor(
+  Map<String, dynamic> providerConfigs,
+) {
+  final catalog = ModelCatalog.instance;
+  if (catalog == null) return const {};
+  final facts = <String, Map<String, List<int?>>>{};
+  providerConfigs.forEach((key, raw) {
+    if (raw is! Map) return;
+    final models = raw['models'] as List<dynamic>? ?? const <dynamic>[];
+    final overrides = (raw['overrides'] as Map?) ?? const {};
+    for (final id in models) {
+      final baseId = _baseModelIdFor(overrides, id.toString());
+      final entry = catalog.lookup(modelId: baseId);
+      facts.putIfAbsent(key, () => {})[baseId] = <int?>[
+        entry?.effectiveInputWindow,
+        entry?.output,
+      ];
+    }
+  });
+  return facts;
+}
+
+/// Shared `apiModelId` override resolution used by both the main-isolate
+/// fact builder and the background model processing.
+String _baseModelIdFor(Map? overrides, String mid) {
+  final ov = overrides?[mid] as Map?;
+  if (ov == null) return mid;
+  final raw = (ov['apiModelId'] ?? ov['api_model_id'])?.toString().trim();
+  return (raw != null && raw.isNotEmpty) ? raw : mid;
 }
 
 // Static function for compute - must be top-level
@@ -87,6 +135,7 @@ _ModelProcessingResult _processModelsInBackground(_ModelProcessingData data) {
     final overrides =
         (cfg['overrides'] as Map?)?.map((k, v) => MapEntry(k.toString(), v)) ??
         const <String, dynamic>{};
+    final providerFacts = data.catalogFacts[key];
     final list = <_ModelItem>[
       for (final id in models)
         () {
@@ -95,16 +144,21 @@ _ModelProcessingResult _processModelsInBackground(_ModelProcessingData data) {
           // Use upstream/api model id for inference when available so that
           // brand assets and default capabilities stay accurate even when the
           // logical key is a custom alias.
-          String baseId = mid;
-          if (ov != null) {
-            final raw = (ov['apiModelId'] ?? ov['api_model_id'])
-                ?.toString()
-                .trim();
-            if (raw != null && raw.isNotEmpty) baseId = raw;
-          }
+          final String baseId = _baseModelIdFor(overrides, mid);
+          // Catalog token limits resolved on the main isolate (the catalog
+          // static is not initialized in this isolate — see
+          // `_ModelProcessingData.catalogFacts`).
+          final facts = providerFacts?[baseId];
           // Single shared override parser (multimodal plan §7 F7).
           ModelInfo base = ModelRegistry.applyOverride(
-            ModelRegistry.infer(ModelInfo(id: baseId, displayName: baseId)),
+            ModelRegistry.infer(
+              ModelInfo(
+                id: baseId,
+                displayName: baseId,
+                contextWindow: facts?[0],
+                maxOutput: facts?[1],
+              ),
+            ),
             ov,
           );
           return _ModelItem(
@@ -274,21 +328,25 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
           : '';
 
       // Prepare data for background processing
-      final processingData = _ModelProcessingData(
-        providerConfigs: Map<String, dynamic>.from(
-          settings.providerConfigs.map(
-            (key, value) => MapEntry(key, {
-              'enabled': value.enabled,
-              'name': value.name,
-              'models': value.enabledModels.toList(),
-              'overrides': value.modelOverrides,
-            }),
-          ),
+      final payload = Map<String, dynamic>.from(
+        settings.providerConfigs.map(
+          (key, value) => MapEntry(key, {
+            'enabled': value.enabled,
+            'name': value.name,
+            'models': value.enabledModels.toList(),
+            'overrides': value.modelOverrides,
+          }),
         ),
+      );
+      final processingData = _ModelProcessingData(
+        providerConfigs: payload,
         pinnedModels: settings.pinnedModels,
         currentModelKey: currentKey,
         providersOrder: settings.providersOrder,
         limitProviderKey: widget.limitProviderKey,
+        // Token-limit facts must be resolved here: the background isolate
+        // cannot see ModelCatalog.instance.
+        catalogFacts: _catalogFactsFor(payload),
       );
 
       // Process in background isolate
@@ -342,21 +400,24 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         ? '$currentProvider::$currentModelId'
         : '';
 
-    final processingData = _ModelProcessingData(
-      providerConfigs: Map<String, dynamic>.from(
-        settings.providerConfigs.map(
-          (key, value) => MapEntry(key, {
-            'enabled': value.enabled,
-            'name': value.name,
-            'models': value.enabledModels.toList(),
-            'overrides': value.modelOverrides,
-          }),
-        ),
+    final payload = Map<String, dynamic>.from(
+      settings.providerConfigs.map(
+        (key, value) => MapEntry(key, {
+          'enabled': value.enabled,
+          'name': value.name,
+          'models': value.enabledModels.toList(),
+          'overrides': value.modelOverrides,
+        }),
       ),
+    );
+
+    final processingData = _ModelProcessingData(
+      providerConfigs: payload,
       pinnedModels: settings.pinnedModels,
       currentModelKey: currentKey,
       providersOrder: settings.providersOrder,
       limitProviderKey: widget.limitProviderKey,
+      catalogFacts: _catalogFactsFor(payload),
     );
 
     final result = _processModelsInBackground(processingData);
@@ -951,7 +1012,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       const SizedBox(height: 4),
-                      _modelTagWrap(context, effective),
+                      modelTagWrap(context, effective),
                     ],
                   ),
                 ),
@@ -1284,130 +1345,6 @@ class _BrandAvatar extends StatelessWidget {
   }
 }
 
-Widget _modelTagWrap(BuildContext context, ModelInfo m) {
-  final cs = Theme.of(context).colorScheme;
-  final l10n = AppLocalizations.of(context)!;
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  List<Widget> chips = [];
-  // type tag
-  chips.add(
-    Container(
-      decoration: BoxDecoration(
-        color: isDark
-            ? cs.primary.withOpacity(0.25)
-            : cs.primary.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: cs.primary.withOpacity(0.2), width: 0.5),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      child: Text(
-        m.type == ModelType.chat
-            ? l10n.modelSelectSheetChatType
-            : l10n.modelSelectSheetEmbeddingType,
-        style: TextStyle(
-          fontSize: 11,
-          color: isDark ? cs.primary : cs.primary.withOpacity(0.9),
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    ),
-  );
-  // modality tag capsule with icons (keep consistent with provider detail page)
-  chips.add(
-    Container(
-      decoration: BoxDecoration(
-        color: isDark
-            ? cs.tertiary.withOpacity(0.25)
-            : cs.tertiary.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: cs.tertiary.withOpacity(0.2), width: 0.5),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final mod in m.input)
-            Padding(
-              padding: const EdgeInsets.only(right: 2),
-              child: Icon(
-                modalityIcon(mod),
-                size: 12,
-                color: isDark ? cs.tertiary : cs.tertiary.withOpacity(0.9),
-              ),
-            ),
-          Icon(
-            Lucide.ChevronRight,
-            size: 12,
-            color: isDark ? cs.tertiary : cs.tertiary.withOpacity(0.9),
-          ),
-          for (final mod in m.output)
-            Padding(
-              padding: const EdgeInsets.only(left: 2),
-              child: Icon(
-                modalityIcon(mod),
-                size: 12,
-                color: isDark ? cs.tertiary : cs.tertiary.withOpacity(0.9),
-              ),
-            ),
-        ],
-      ),
-    ),
-  );
-  // abilities capsules
-  for (final ab in m.abilities) {
-    if (ab == ModelAbility.tool) {
-      chips.add(
-        Container(
-          decoration: BoxDecoration(
-            color: isDark
-                ? cs.primary.withOpacity(0.25)
-                : cs.primary.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: cs.primary.withOpacity(0.2), width: 0.5),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-          child: Icon(
-            Lucide.Hammer,
-            size: 12,
-            color: isDark ? cs.primary : cs.primary.withOpacity(0.9),
-          ),
-        ),
-      );
-    } else if (ab == ModelAbility.reasoning) {
-      chips.add(
-        Container(
-          decoration: BoxDecoration(
-            color: isDark
-                ? cs.secondary.withOpacity(0.3)
-                : cs.secondary.withOpacity(0.18),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: cs.secondary.withOpacity(0.25),
-              width: 0.5,
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-          child: SvgPicture.asset(
-            'assets/icons/deepthink.svg',
-            width: 12,
-            height: 12,
-            colorFilter: ColorFilter.mode(
-              isDark ? cs.secondary : cs.secondary.withOpacity(0.9),
-              BlendMode.srcIn,
-            ),
-          ),
-        ),
-      );
-    }
-  }
-  return Wrap(
-    spacing: 6,
-    runSpacing: 6,
-    crossAxisAlignment: WrapCrossAlignment.center,
-    children: chips,
-  );
-}
-
 // ===== Desktop dialog implementation =====
 
 Future<ModelSelection?> _showDesktopModelSelector(
@@ -1487,21 +1424,24 @@ class _DesktopModelSelectDialogBodyState
         ? '$currentProvider::$currentModelId'
         : '';
 
-    final data = _ModelProcessingData(
-      providerConfigs: Map<String, dynamic>.from(
-        settings.providerConfigs.map(
-          (key, value) => MapEntry(key, {
-            'enabled': value.enabled,
-            'name': value.name,
-            'models': value.enabledModels.toList(),
-            'overrides': value.modelOverrides,
-          }),
-        ),
+    final payload = Map<String, dynamic>.from(
+      settings.providerConfigs.map(
+        (key, value) => MapEntry(key, {
+          'enabled': value.enabled,
+          'name': value.name,
+          'models': value.enabledModels.toList(),
+          'overrides': value.modelOverrides,
+        }),
       ),
+    );
+
+    final data = _ModelProcessingData(
+      providerConfigs: payload,
       pinnedModels: settings.pinnedModels,
       currentModelKey: currentKey,
       providersOrder: settings.providersOrder,
       limitProviderKey: widget.limitProviderKey,
+      catalogFacts: _catalogFactsFor(payload),
     );
     // Synchronous processing is fast enough here
     final result = _processModelsInBackground(data);
@@ -1939,6 +1879,7 @@ class _DesktopModelSelectDialogBodyState
 
   List<Widget> _buildDesktopCapsules(BuildContext context, ModelInfo info) {
     final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final caps = <Widget>[];
     Widget pillCapsule(Widget icon, Color color) {
       final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1992,6 +1933,24 @@ class _DesktopModelSelectDialogBodyState
           ),
         );
       }
+    }
+    // Context-window text pill (Kelivo ModelCapsulesRow parity).
+    final contextWindow = info.contextWindow;
+    if (contextWindow != null) {
+      caps.add(
+        pillCapsule(
+          Text(
+            formatTokenCount(contextWindow),
+            style: TextStyle(
+              fontSize: 10.5,
+              height: 1.3,
+              color: cs.onSurface.withOpacity(isDark ? 0.86 : 0.78),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          cs.onSurface,
+        ),
+      );
     }
     return caps;
   }

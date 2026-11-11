@@ -1668,6 +1668,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelDetailSheetAbilitiesLabel => '能力';
 
   @override
+  String get modelDetailSheetTokenLimitsLabel => 'Token 上限';
+
+  @override
+  String get modelDetailSheetContextWindowLabel => '上下文窗口';
+
+  @override
+  String get modelDetailSheetMaxOutputLabel => '最大输出';
+
+  @override
+  String get modelDetailSheetTokenLimitsAuto => '自动';
+
+  @override
+  String get modelDetailSheetSourceDefault => '默认';
+
+  @override
+  String get modelDetailSheetSourceCustom => '自定义';
+
+  @override
   String get modelDetailSheetToolsAbility => '工具';
 
   @override
@@ -8254,6 +8272,24 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get modelDetailSheetAbilitiesLabel => '能力';
 
   @override
+  String get modelDetailSheetTokenLimitsLabel => 'Token 上限';
+
+  @override
+  String get modelDetailSheetContextWindowLabel => '上下文窗口';
+
+  @override
+  String get modelDetailSheetMaxOutputLabel => '最大输出';
+
+  @override
+  String get modelDetailSheetTokenLimitsAuto => '自动';
+
+  @override
+  String get modelDetailSheetSourceDefault => '默认';
+
+  @override
+  String get modelDetailSheetSourceCustom => '自定义';
+
+  @override
   String get modelDetailSheetToolsAbility => '工具';
 
   @override
@@ -14739,6 +14775,24 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get modelDetailSheetAbilitiesLabel => '能力';
+
+  @override
+  String get modelDetailSheetTokenLimitsLabel => 'Token 上限';
+
+  @override
+  String get modelDetailSheetContextWindowLabel => '上下文視窗';
+
+  @override
+  String get modelDetailSheetMaxOutputLabel => '最大輸出';
+
+  @override
+  String get modelDetailSheetTokenLimitsAuto => '自動';
+
+  @override
+  String get modelDetailSheetSourceDefault => '預設';
+
+  @override
+  String get modelDetailSheetSourceCustom => '自訂';
 
   @override
   String get modelDetailSheetToolsAbility => '工具';

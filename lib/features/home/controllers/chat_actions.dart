@@ -15,6 +15,7 @@ import '../../../core/models/token_usage.dart';
 import '../../../core/providers/ai_team_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/providers/model_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/services/api/learned_context_windows.dart';
 import '../../../core/services/api/native_input_policy.dart';
@@ -1635,6 +1636,7 @@ class ChatActions {
               ctx.modelId,
             );
             final catalogCfg = ctx.settings.getProviderConfig(ctx.providerKey);
+            final userOv = catalogCfg.modelOverrides[ctx.modelId];
             final compacted = maybeApplyMidRunCompaction(
               messages,
               measuredPromptTokens: state.agentPromptTokens,
@@ -1643,6 +1645,12 @@ class ChatActions {
               learnedWindowTokens: learned,
               providerId: catalogCfg.catalogProviderId,
               host: catalogCfg.catalogHost,
+              userContextWindow: ModelRegistry.parseIntOverride(
+                userOv?['contextWindow'],
+              ),
+              userMaxOutput: ModelRegistry.parseIntOverride(
+                userOv?['maxOutput'],
+              ),
             );
             if (compacted) {
               // The measured max belongs to the pre-compaction prompt;

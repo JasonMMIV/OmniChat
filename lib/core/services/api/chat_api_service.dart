@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
@@ -825,15 +826,11 @@ class ChatApiService {
   }
 
   // Resolve effective model info by respecting per-model overrides; fallback to inference
-  static ModelInfo _effectiveModelInfo(ProviderConfig cfg, String modelId) {
-    final upstreamId = _apiModelId(cfg, modelId);
-    final base = ModelRegistry.infer(
-      ModelInfo(id: upstreamId, displayName: upstreamId),
-    );
-    // Single override parser (multimodal plan §7 F7): unknown modality values
-    // are skipped instead of silently collapsing to text.
-    return ModelRegistry.applyOverride(base, _modelOverride(cfg, modelId));
-  }
+  static ModelInfo _effectiveModelInfo(ProviderConfig cfg, String modelId) =>
+      // Shared resolver: upstream `apiModelId` + OpenCode normalization +
+      // override, kept in ModelRegistry so capability checks agree with the
+      // transport.
+      ModelRegistry.effectiveForModel(cfg, modelId);
 
   /// Public view of the effective (catalog + override) model info. Used by the
   /// attachment modality gate and the native-input policy resolver so they
@@ -1605,6 +1602,11 @@ class ChatApiService {
                   isContextOverflowMessage(overflowErrorText(e))) {
                 final declared = resolveContextWindowTokens(
                   modelId,
+                  // Explicit user configuration wins over learned/catalog
+                  // (compaction plan §5).
+                  userOverride: ModelRegistry.parseIntOverride(
+                    config.modelOverrides[modelId]?['contextWindow'],
+                  ),
                   learned: await LearnedContextWindows.lookup(
                     config.id,
                     modelId,
@@ -5028,12 +5030,23 @@ class ChatApiService {
     // LearnedContextWindows): every other learner/caller has that id on
     // hand, and it survives `apiModelId` mapping changes.
     // Value for the next attempt; rewritten by each negotiation round.
-    var sentMaxTokens =
-        maxTokens ??
-        (!pinnedMaxTokens
-            ? (await LearnedMaxOutputCaps.lookup(config.id, modelId) ??
-                  claudeMaxTokensInitial)
-            : claudeMaxTokensInitial);
+    // An explicit user `maxOutput` (Token limits field) lowers the start
+    // value, but never raises it above the learned endpoint ceiling: a lower
+    // user value is a deliberate budget choice, a higher one would only pay
+    // for a 400 round trip.
+    var negotiatedStart = claudeMaxTokensInitial;
+    if (!pinnedMaxTokens) {
+      final learnedCap = await LearnedMaxOutputCaps.lookup(config.id, modelId);
+      final configuredCap = ModelRegistry.parseIntOverride(
+        config.modelOverrides[modelId]?['maxOutput'],
+      );
+      negotiatedStart = learnedCap == null
+          ? (configuredCap ?? claudeMaxTokensInitial)
+          : (configuredCap == null
+                ? learnedCap
+                : math.min(learnedCap, configuredCap));
+    }
+    var sentMaxTokens = maxTokens ?? negotiatedStart;
     int maxTokensAttempts = 0;
 
     // Bounded loop: `pause_turn` / server-tool rounds continue the SAME turn

@@ -41,26 +41,29 @@ bool applyMidRunCompaction(
   required int? learnedWindowTokens,
   String? providerId,
   String? host,
+  int? userContextWindow,
+  int? userMaxOutput,
   String? nextActionOverride,
 }) {
   if (messages.isEmpty) return false;
 
-  // Floor: no speculative compaction under 140k tokens — the same fixed
-  // floor as prep-time evaluation (v1.4).
-  if (promptTokens < compactionFloorTokens) return false;
-
   final window = resolveContextWindowTokens(
     modelId,
+    userOverride: userContextWindow,
     learned: learnedWindowTokens,
     providerId: providerId,
     host: host,
   );
-  final outputTokens = ModelCatalog.instance?.outputTokens(
-    modelId,
-    providerId: providerId,
-    host: host,
-  );
+  final outputTokens = (userMaxOutput != null && userMaxOutput > 0)
+      ? userMaxOutput
+      : ModelCatalog.instance?.outputTokens(
+          modelId,
+          providerId: providerId,
+          host: host,
+        );
   final trigger = compactionTriggerTokens(window, outputTokens);
+  // The trigger already caps the 140k floor at the model's own window, so
+  // "above the trigger" is the complete condition here.
   if (promptTokens <= trigger) return false;
 
   // The system message (index 0 of the assembled apiMessages) is never
@@ -145,6 +148,8 @@ bool maybeApplyMidRunCompaction(
   required int? learnedWindowTokens,
   String? providerId,
   String? host,
+  int? userContextWindow,
+  int? userMaxOutput,
 }) {
   if (!enabled) return false;
   return applyMidRunCompaction(
@@ -157,6 +162,8 @@ bool maybeApplyMidRunCompaction(
     learnedWindowTokens: learnedWindowTokens,
     providerId: providerId,
     host: host,
+    userContextWindow: userContextWindow,
+    userMaxOutput: userMaxOutput,
   );
 }
 

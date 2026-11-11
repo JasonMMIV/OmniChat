@@ -3305,6 +3305,42 @@ abstract class AppLocalizations {
   /// **'Abilities'**
   String get modelDetailSheetAbilitiesLabel;
 
+  /// No description provided for @modelDetailSheetTokenLimitsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Token limits'**
+  String get modelDetailSheetTokenLimitsLabel;
+
+  /// No description provided for @modelDetailSheetContextWindowLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Context window'**
+  String get modelDetailSheetContextWindowLabel;
+
+  /// No description provided for @modelDetailSheetMaxOutputLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Max output'**
+  String get modelDetailSheetMaxOutputLabel;
+
+  /// No description provided for @modelDetailSheetTokenLimitsAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto'**
+  String get modelDetailSheetTokenLimitsAuto;
+
+  /// No description provided for @modelDetailSheetSourceDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get modelDetailSheetSourceDefault;
+
+  /// No description provided for @modelDetailSheetSourceCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get modelDetailSheetSourceCustom;
+
   /// No description provided for @modelDetailSheetToolsAbility.
   ///
   /// In en, this message translates to:

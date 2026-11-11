@@ -65,15 +65,19 @@ int compactionTriggerTokens(int contextWindowTokens, int? outputTokens) {
 // R0 overflow path still learns windows from provider errors.
 // ============================================================================
 
-/// Window lookup order: learned (from R0 overflow errors) → models.dev
-/// catalog (`limit.input`, else `limit.context`) → 1M fallback. Explicit user
-/// configuration, once it exists, belongs ahead of the learned value.
+/// Window lookup order: explicit user configuration (modelOverrides
+/// `contextWindow`, the model edit sheet's Token limits field) → learned
+/// (from R0 overflow errors) → models.dev catalog (`limit.input`, else
+/// `limit.context`) → 1M fallback. The user's value is an intentional
+/// correction and must always win over anything inferred or learned.
 int resolveContextWindowTokens(
   String modelId, {
+  int? userOverride,
   int? learned,
   String? providerId,
   String? host,
 }) {
+  if (userOverride != null && userOverride > 0) return userOverride;
   if (learned != null && learned > 0) return learned;
   final catalogWindow = ModelCatalog.instance?.windowTokens(
     modelId,

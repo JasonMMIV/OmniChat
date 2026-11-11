@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +9,7 @@ import '../../../core/services/api/builtin_tools.dart';
 import '../../../core/services/api/native_input_policy.dart';
 import '../../../core/services/api/reasoning_wire.dart';
 import '../../../core/utils/reasoning_overrides.dart';
+import '../../../core/utils/token_format.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
@@ -101,6 +104,29 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
   final Set<Modality> _input = {Modality.text};
   final Set<Modality> _output = {Modality.text};
   final Set<ModelAbility> _abilities = {};
+
+  // Freshly inferred defaults (models.dev catalog → regex fallback) for the
+  // current model id. The "預設 / 自訂" source capsules compare the live
+  // section state against this snapshot; a section is 自訂 when it differs,
+  // and the reset icon restores these values. In the create flow the id is
+  // typed after the sheet opens, so this is recomputed as the id changes.
+  late ModelInfo _base;
+  Timer? _baseDebounce;
+
+  // Which spec sections the user actually touched. When `_base` is recomputed
+  // for a newly typed id, untouched sections adopt the new inferred defaults;
+  // touched ones stay as the user left them (and become 自訂 relative to the
+  // new base if they differ).
+  bool _typeTouched = false;
+  bool _inputTouched = false;
+  bool _outputTouched = false;
+  bool _abilitiesTouched = false;
+
+  // Token limits (basic tab). Empty text = follow the inferred default; the
+  // parsed values persist as modelOverrides[key]['contextWindow' |
+  // 'maxOutput'] only when they differ from _base.
+  late final TextEditingController _contextWindowCtrl;
+  late final TextEditingController _maxOutputCtrl;
 
   // Native audio/PDF transport (multimodal plan B5). `null` = follow the
   // host/provider default; a bool is an explicit per-model override.
@@ -209,6 +235,15 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
     _abilities
       ..clear()
       ..addAll(base.abilities);
+    _base = base;
+    // Token limits prefill from the inferred defaults; a stored user override
+    // (loaded below) replaces the prefill.
+    _contextWindowCtrl = TextEditingController(
+      text: base.contextWindow?.toString() ?? '',
+    );
+    _maxOutputCtrl = TextEditingController(
+      text: base.maxOutput?.toString() ?? '',
+    );
 
     if (!widget.isNew) {
       final rawOv = cfg.modelOverrides[widget.modelId];
@@ -235,6 +270,18 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
         _abilities
           ..clear()
           ..addAll(effective.abilities);
+        // Token limits: a stored user override replaces the inferred prefill
+        // (an absent key keeps the default already in the controllers).
+        final ovContextWindow = ModelRegistry.parseIntOverride(
+          ov['contextWindow'],
+        );
+        if (ovContextWindow != null) {
+          _contextWindowCtrl.text = '$ovContextWindow';
+        }
+        final ovMaxOutput = ModelRegistry.parseIntOverride(ov['maxOutput']);
+        if (ovMaxOutput != null) {
+          _maxOutputCtrl.text = '$ovMaxOutput';
+        }
         // headers/body
         final rawHdrs = ov['headers'];
         final hdrs = (rawHdrs is List) ? rawHdrs : const <dynamic>[];
@@ -308,9 +355,12 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
 
   @override
   void dispose() {
+    _baseDebounce?.cancel();
     _tabCtrl.dispose();
     _idCtrl.dispose();
     _nameCtrl.dispose();
+    _contextWindowCtrl.dispose();
+    _maxOutputCtrl.dispose();
     super.dispose();
   }
 
@@ -441,6 +491,7 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
                         _nameCtrl.text = v;
                         setState(() {});
                       }
+                      _scheduleBaseRefresh(v);
                     }
                   : null,
               decoration: InputDecoration(
@@ -537,7 +588,11 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
               ),
             ),
             const SizedBox(height: 12),
-            _label(context, l10n.modelDetailSheetModelTypeLabel),
+            _SpecSectionHeader(
+              label: l10n.modelDetailSheetModelTypeLabel,
+              custom: _typeCustom,
+              onReset: _resetType,
+            ),
             const SizedBox(height: 6),
             _SegmentedSingle(
               options: [
@@ -545,9 +600,10 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
                 l10n.modelDetailSheetEmbeddingType,
               ],
               value: _type == ModelType.chat ? 0 : 1,
-              onChanged: (i) => setState(
-                () => _type = i == 0 ? ModelType.chat : ModelType.embedding,
-              ),
+              onChanged: (i) => setState(() {
+                _type = i == 0 ? ModelType.chat : ModelType.embedding;
+                _typeTouched = true;
+              }),
             ),
           ],
         ),
@@ -558,7 +614,11 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _label(context, l10n.modelDetailSheetInputModesLabel),
+              _SpecSectionHeader(
+                label: l10n.modelDetailSheetInputModesLabel,
+                custom: _inputCustom,
+                onReset: _resetInput,
+              ),
               const SizedBox(height: 6),
               _SegmentedMulti(
                 options: [
@@ -570,6 +630,7 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
                 ],
                 dense: true,
                 onChanged: (idx) => setState(() {
+                  _inputTouched = true;
                   final mod = Modality.values[idx];
                   if (_input.contains(mod)) {
                     _input.remove(mod);
@@ -580,7 +641,11 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
                 }),
               ),
               const SizedBox(height: 12),
-              _label(context, l10n.modelDetailSheetOutputModesLabel),
+              _SpecSectionHeader(
+                label: l10n.modelDetailSheetOutputModesLabel,
+                custom: _outputCustom,
+                onReset: _resetOutput,
+              ),
               const SizedBox(height: 6),
               _SegmentedMulti(
                 options: [
@@ -595,6 +660,7 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
                   _output.contains(Modality.image),
                 ],
                 onChanged: (idx) => setState(() {
+                  _outputTouched = true;
                   final mod = idx == 0 ? Modality.text : Modality.image;
                   if (_output.contains(mod)) {
                     _output.remove(mod);
@@ -605,7 +671,11 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
                 }),
               ),
               const SizedBox(height: 12),
-              _label(context, l10n.modelDetailSheetAbilitiesLabel),
+              _SpecSectionHeader(
+                label: l10n.modelDetailSheetAbilitiesLabel,
+                custom: _abilitiesCustom,
+                onReset: _resetAbilities,
+              ),
               const SizedBox(height: 6),
               _SegmentedMulti(
                 options: [
@@ -618,6 +688,7 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
                 ],
                 allowEmpty: true,
                 onChanged: (idx) => setState(() {
+                  _abilitiesTouched = true;
                   final ab = idx == 0
                       ? ModelAbility.tool
                       : ModelAbility.reasoning;
@@ -627,6 +698,103 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
                     _abilities.add(ab);
                   }
                 }),
+              ),
+              const SizedBox(height: 12),
+              // Token limits (Kelivo parity): prefilled with the inferred
+              // catalog values, editable per model, persisted as
+              // `contextWindow` / `maxOutput` overrides only when custom.
+              _SpecSectionHeader(
+                label: l10n.modelDetailSheetTokenLimitsLabel,
+                custom: _limitsCustom,
+                onReset: _resetLimits,
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      key: const ValueKey('model-context-window-field'),
+                      controller: _contextWindowCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: isDark ? Colors.white10 : Colors.white,
+                        labelText: l10n.modelDetailSheetContextWindowLabel,
+                        hintText: _base.contextWindow == null
+                            ? l10n.modelDetailSheetTokenLimitsAuto
+                            : formatTokenCount(_base.contextWindow!),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outlineVariant.withOpacity(0.4),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outlineVariant.withOpacity(0.4),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primary.withOpacity(0.5),
+                          ),
+                        ),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      key: const ValueKey('model-max-output-field'),
+                      controller: _maxOutputCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: isDark ? Colors.white10 : Colors.white,
+                        labelText: l10n.modelDetailSheetMaxOutputLabel,
+                        hintText: _base.maxOutput == null
+                            ? l10n.modelDetailSheetTokenLimitsAuto
+                            : formatTokenCount(_base.maxOutput!),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outlineVariant.withOpacity(0.4),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outlineVariant.withOpacity(0.4),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primary.withOpacity(0.5),
+                          ),
+                        ),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1386,6 +1554,129 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
     ),
   );
 
+  // ===== 預設 / 自訂 source state ==========================================
+  //
+  // A section counts as 自訂 when its live state differs from the freshly
+  // inferred [_base]. Legacy overrides that merely re-stored the inferred
+  // values therefore read (and save) as 預設 again — the diff, not the mere
+  // presence of an override key, is the source of truth.
+
+  bool get _typeCustom => _type != _base.type;
+
+  bool get _inputCustom => !_modalitySetEquals(_input, _base.input);
+
+  bool get _outputCustom => !_modalitySetEquals(_output, _base.output);
+
+  bool get _abilitiesCustom => !_abilitySetEquals(_abilities, _base.abilities);
+
+  // Zero is not a meaningful token limit: treat it like an empty field
+  // (follow the default) so it can never be persisted as a dead override.
+  int? get _parsedContextWindow {
+    final value = int.tryParse(_contextWindowCtrl.text.trim());
+    return value != null && value > 0 ? value : null;
+  }
+
+  int? get _parsedMaxOutput {
+    final value = int.tryParse(_maxOutputCtrl.text.trim());
+    return value != null && value > 0 ? value : null;
+  }
+
+  /// Token limits count as 自訂 only when a field carries a value that
+  /// differs from the inferred default; an empty field means "follow the
+  /// default" (the override key is simply not written).
+  bool get _limitsCustom =>
+      (_parsedContextWindow != null &&
+          _parsedContextWindow != _base.contextWindow) ||
+      (_parsedMaxOutput != null && _parsedMaxOutput != _base.maxOutput);
+
+  void _resetType() => setState(() {
+    _type = _base.type;
+    _typeTouched = false;
+  });
+
+  void _resetInput() => setState(() {
+    _input
+      ..clear()
+      ..addAll(_base.input);
+    _inputTouched = false;
+  });
+
+  void _resetOutput() => setState(() {
+    _output
+      ..clear()
+      ..addAll(_base.output);
+    _outputTouched = false;
+  });
+
+  void _resetAbilities() => setState(() {
+    _abilities
+      ..clear()
+      ..addAll(_base.abilities);
+    _abilitiesTouched = false;
+  });
+
+  void _resetLimits() => setState(() {
+    _contextWindowCtrl.text = _base.contextWindow?.toString() ?? '';
+    _maxOutputCtrl.text = _base.maxOutput?.toString() ?? '';
+  });
+
+  /// Create-flow only: re-infer the defaults shortly after the user types an
+  /// id (typing every keystroke would run the catalog lookup needlessly).
+  void _scheduleBaseRefresh(String id) {
+    _baseDebounce?.cancel();
+    _baseDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      _applyBase(_inferBase(id));
+    });
+  }
+
+  ModelInfo _inferBase(String id) {
+    final trimmed = id.trim();
+    return ModelRegistry.infer(
+      ModelInfo(
+        id: trimmed.isEmpty ? 'custom' : trimmed,
+        displayName: trimmed,
+      ),
+    );
+  }
+
+  /// Replace [_base] and adopt the new defaults for sections the user has not
+  /// touched. Token-limit fields are left alone: an empty field already means
+  /// "follow the default", and hint text reads from [_base] directly.
+  void _applyBase(ModelInfo next) {
+    setState(() {
+      _base = next;
+      if (!_typeTouched) _type = next.type;
+      if (!_inputTouched) {
+        _input
+          ..clear()
+          ..addAll(next.input);
+      }
+      if (!_outputTouched) {
+        _output
+          ..clear()
+          ..addAll(next.output);
+      }
+      if (!_abilitiesTouched) {
+        _abilities
+          ..clear()
+          ..addAll(next.abilities);
+      }
+    });
+  }
+
+  /// Effective base values of the sheet's spec sections in stored (override
+  /// map) format. Used by `_syncOwnedFieldsChanged`: a key missing from the
+  /// saved map means "matches the inferred default", not "removed".
+  Map<String, dynamic> _baseSpecSnapshot() => <String, dynamic>{
+    'type': _base.type == ModelType.chat ? 'chat' : 'embedding',
+    'input': _base.input.map(ModelRegistry.modalityToCatalogValue).toList(),
+    'output': _base.output.map(ModelRegistry.modalityToCatalogValue).toList(),
+    'abilities': _base.abilities
+        .map((e) => e == ModelAbility.reasoning ? 'reasoning' : 'tool')
+        .toList(),
+  };
+
   // Generate a unique logical key for a model instance within a provider.
   // This allows multiple configurations to share the same upstream API model id.
   String _nextModelKey(ProviderConfig cfg, String apiModelId) {
@@ -1415,6 +1706,29 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
         type: NotificationType.error,
       );
       return;
+    }
+
+    if (widget.isNew) {
+      // The create flow types the id after the sheet opens; make sure the
+      // custom/default comparison uses the final id even when the debounce
+      // has not fired yet. Untouched sections adopt the final defaults.
+      _base = _inferBase(apiModelId);
+      if (!_typeTouched) _type = _base.type;
+      if (!_inputTouched) {
+        _input
+          ..clear()
+          ..addAll(_base.input);
+      }
+      if (!_outputTouched) {
+        _output
+          ..clear()
+          ..addAll(_base.output);
+      }
+      if (!_abilitiesTouched) {
+        _abilities
+          ..clear()
+          ..addAll(_base.abilities);
+      }
     }
 
     final ov = Map<String, dynamic>.from(old.modelOverrides);
@@ -1463,18 +1777,37 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
     final String key = (prevKey.isEmpty || widget.isNew)
         ? _nextModelKey(old, apiModelId)
         : prevKey;
+    // Kelivo parity: a section's key is written only when it is 自訂 —
+    // i.e. its live state differs from the freshly inferred `_base`. Legacy
+    // overrides that re-stored the inferred values are dropped here
+    // (auto-clean), and the freshly inferred defaults keep applying.
+    final int? savedContextWindow = _type == ModelType.chat
+        ? _parsedContextWindow
+        : null;
+    final int? savedMaxOutput = _type == ModelType.chat
+        ? _parsedMaxOutput
+        : null;
     final next = <String, dynamic>{
       'apiModelId': apiModelId,
       'name': _nameCtrl.text.trim(),
-      'type': _type == ModelType.chat ? 'chat' : 'embedding',
-      'input': _input.map(ModelRegistry.modalityToCatalogValue).toList(),
+      if (_typeCustom) 'type': _type == ModelType.chat ? 'chat' : 'embedding',
+      if (_inputCustom)
+        'input': _input.map(ModelRegistry.modalityToCatalogValue).toList(),
       // Marks the list as post-multimodal so an explicit removal of
       // audio/pdf/video is respected instead of being re-merged on load.
-      'inputV': ModelRegistry.inputOverrideVersion,
-      'output': _output.map(ModelRegistry.modalityToCatalogValue).toList(),
-      'abilities': _abilities
-          .map((e) => e == ModelAbility.reasoning ? 'reasoning' : 'tool')
-          .toList(),
+      // Always written together with `input` — the version belongs to it.
+      if (_inputCustom) 'inputV': ModelRegistry.inputOverrideVersion,
+      if (_outputCustom)
+        'output': _output.map(ModelRegistry.modalityToCatalogValue).toList(),
+      if (_abilitiesCustom)
+        'abilities': _abilities
+            .map((e) => e == ModelAbility.reasoning ? 'reasoning' : 'tool')
+            .toList(),
+      if (savedContextWindow != null &&
+          savedContextWindow != _base.contextWindow)
+        'contextWindow': savedContextWindow,
+      if (savedMaxOutput != null && savedMaxOutput != _base.maxOutput)
+        'maxOutput': savedMaxOutput,
       // Only persist an override while the matching modality is enabled;
       // otherwise the value becomes invisible in Advanced and can resurrect
       // later when the modality is re-added.
@@ -1511,7 +1844,10 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
     };
     // Only a change to a provider-owned field makes the model user-owned.
     // A no-op save (or a reasoning-only edit) must keep the OAuth sync link.
-    if (source == 'oauth-synced' && _syncOwnedFieldsChanged(prev, next)) {
+    // Keys absent from `next` now mean "matches the inferred default" — the
+    // comparison falls back to the base snapshot instead of null.
+    if (source == 'oauth-synced' &&
+        _syncOwnedFieldsChanged(prev, next, _baseSpecSnapshot())) {
       next['source'] = 'user';
     }
     ov[key] = next;
@@ -1552,6 +1888,7 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
 bool _syncOwnedFieldsChanged(
   Map<String, dynamic> prev,
   Map<String, dynamic> next,
+  Map<String, dynamic> base,
 ) {
   for (final key in const <String>[
     'name',
@@ -1562,7 +1899,8 @@ bool _syncOwnedFieldsChanged(
     'oauthProtocol',
   ]) {
     if (!prev.containsKey(key)) continue;
-    if (!_modelValueEquals(prev[key], next[key])) return true;
+    final effective = next.containsKey(key) ? next[key] : base[key];
+    if (!_modelValueEquals(prev[key], effective)) return true;
   }
   return false;
 }
@@ -1577,6 +1915,85 @@ bool _modelValueEquals(Object? a, Object? b) {
     return true;
   }
   return a == b;
+}
+
+/// Order-insensitive equality for the sheet's modality / ability state vs.
+/// the inferred base lists. The stored override keeps its own order; only a
+/// real difference in membership (or count) counts as 自訂.
+bool _modalitySetEquals(Set<Modality> a, List<Modality> b) =>
+    a.length == b.length && a.containsAll(b);
+
+bool _abilitySetEquals(Set<ModelAbility> a, List<ModelAbility> b) =>
+    a.length == b.length && a.containsAll(b);
+
+/// Section header for the basic tab's spec sections: label + a 預設 / 自訂
+/// source capsule, and — when the section is 自訂 — a reset-to-default icon
+/// (Kelivo's SpecFieldHeader, adapted to OmniChat's label styling).
+class _SpecSectionHeader extends StatelessWidget {
+  const _SpecSectionHeader({
+    required this.label,
+    required this.custom,
+    this.onReset,
+  });
+
+  final String label;
+  final bool custom;
+  final VoidCallback? onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final capsuleColor = custom ? cs.primary : cs.onSurface;
+    return Row(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: cs.onSurface.withOpacity(0.8),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+          decoration: BoxDecoration(
+            color: capsuleColor.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: capsuleColor.withOpacity(0.22),
+              width: 0.5,
+            ),
+          ),
+          child: Text(
+            custom
+                ? l10n.modelDetailSheetSourceCustom
+                : l10n.modelDetailSheetSourceDefault,
+            style: TextStyle(
+              fontSize: 10.5,
+              height: 1.4,
+              color: capsuleColor.withOpacity(0.85),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        const Spacer(),
+        if (custom && onReset != null)
+          InkWell(
+            onTap: onReset,
+            borderRadius: BorderRadius.circular(999),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(
+                Lucide.RotateCcw,
+                size: 14,
+                color: cs.onSurface.withOpacity(0.55),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 class _SegmentedSingle extends StatelessWidget {

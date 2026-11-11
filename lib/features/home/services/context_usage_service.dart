@@ -144,6 +144,11 @@ ContextUsageSnapshot computeContextUsage({
   required bool enableAutoCompaction,
   required int? learnedWindowTokens,
   required int? catalogWindowTokens,
+
+  /// Explicit user configuration (modelOverrides `contextWindow`). Wins over
+  /// the learned value — an intentional correction must not be shadowed by a
+  /// device-local observation.
+  required int? userWindowTokens,
   required String? currentModelId,
   required String? currentProviderKey,
   required String? streamingMessageId,
@@ -156,9 +161,12 @@ ContextUsageSnapshot computeContextUsage({
   required int Function(List<ChatMessage> headMessages)
   estimateCompactedHeadTokens,
 }) {
-  // 1. Window: learned > catalog > unknown. Never the 1M fallback — an
-  //    unknown window must show an empty ring, not a fake ratio.
-  final maxTokens = (learnedWindowTokens != null && learnedWindowTokens > 0)
+  // 1. Window: user override > learned > catalog > unknown. Never the 1M
+  //    fallback — an unknown window must show an empty ring, not a fake
+  //    ratio.
+  final maxTokens = (userWindowTokens != null && userWindowTokens > 0)
+      ? userWindowTokens
+      : (learnedWindowTokens != null && learnedWindowTokens > 0)
       ? learnedWindowTokens
       : (catalogWindowTokens != null && catalogWindowTokens > 0
             ? catalogWindowTokens

@@ -8,6 +8,7 @@ import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/providers/model_provider.dart';
 import '../../../core/providers/skills_provider.dart';
 import '../../../core/services/agent/compaction/compaction_trigger.dart';
 import '../../../core/services/agent/compaction/context_trim.dart';
@@ -229,6 +230,9 @@ class MessageGenerationService {
       }
       final learned = await LearnedContextWindows.lookup(providerKey, modelId);
       final catalogCfg = settings.getProviderConfig(providerKey);
+      // Explicit user configuration (Token limits fields) wins over the
+      // learned window / catalog reserve (compaction plan §5).
+      final userOv = catalogCfg.modelOverrides[modelId];
       final trigger = evaluatePrepTimeCompaction(
         messages: messages,
         measuredPromptTokens: measured,
@@ -236,6 +240,10 @@ class MessageGenerationService {
         learnedWindowTokens: learned,
         providerId: catalogCfg.catalogProviderId,
         host: catalogCfg.catalogHost,
+        userContextWindow: ModelRegistry.parseIntOverride(
+          userOv?['contextWindow'],
+        ),
+        userMaxOutput: ModelRegistry.parseIntOverride(userOv?['maxOutput']),
         estimateMessageTokens: _estimateRawMessageTokens,
         hasToolEvents: (m) => chatService.getToolEvents(m.id).isNotEmpty,
       );

@@ -16,6 +16,7 @@ import '../../../core/models/assistant_regex.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/ai_team_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/providers/model_provider.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/tts_provider.dart';
 import '../../../core/services/tts/tts_text_selection.dart';
@@ -147,6 +148,7 @@ class HomePageController extends ChangeNotifier {
   bool _contextUsageReady = false;
   bool _usageListenersAttached = false;
   ({String providerKey, String modelId})? _lastUsageModelKey;
+  int? _lastUsageUserWindow;
 
   // Translations UI state
   final Map<String, TranslationData> _translations =
@@ -1112,12 +1114,14 @@ class HomePageController extends ChangeNotifier {
     final convo = currentConversation;
     if (convo == null) {
       _lastUsageModelKey = null;
+      _lastUsageUserWindow = null;
       contextUsage.value = null;
       return;
     }
     final effective = _resolveEffectiveModelKey();
     if (effective == null) {
       _lastUsageModelKey = null;
+      _lastUsageUserWindow = null;
       contextUsage.value = null;
       return;
     }
@@ -1132,9 +1136,15 @@ class HomePageController extends ChangeNotifier {
       providerId: cfg.catalogProviderId,
       host: cfg.catalogHost,
     );
+    // Explicit user configuration (Token limits field) wins over learned /
+    // catalog values.
+    final userWindow = ModelRegistry.parseIntOverride(
+      cfg.modelOverrides[modelId]?['contextWindow'],
+    );
 
     final epoch = ++_contextUsageEpoch;
     _lastUsageModelKey = effective;
+    _lastUsageUserWindow = userWindow;
     _attachContextUsageListeners();
 
     _setContextUsageIfCurrent(
@@ -1148,6 +1158,7 @@ class HomePageController extends ChangeNotifier {
         modelId: modelId,
         learned: learnedPeek,
         catalogWindow: catalogWindow,
+        userWindow: userWindow,
       ),
     );
 
@@ -1174,6 +1185,7 @@ class HomePageController extends ChangeNotifier {
       modelId: modelId,
       learned: learned,
       catalogWindow: catalogWindow,
+      userWindow: userWindow,
     );
 
     if (ModelCatalog.instance == null && !_contextUsageCatalogRetryScheduled) {
@@ -1231,6 +1243,7 @@ class HomePageController extends ChangeNotifier {
     required String modelId,
     required int? learned,
     required int? catalogWindow,
+    required int? userWindow,
   }) {
     final messages = this.messages;
     String? streamingMessageId;
@@ -1248,6 +1261,7 @@ class HomePageController extends ChangeNotifier {
       enableAutoCompaction: settings.autoCompactionV1,
       learnedWindowTokens: learned,
       catalogWindowTokens: catalogWindow,
+      userWindowTokens: userWindow,
       currentModelId: modelId,
       currentProviderKey: providerKey,
       streamingMessageId: streamingMessageId,
@@ -1346,7 +1360,16 @@ class HomePageController extends ChangeNotifier {
     if (last != null &&
         last.providerKey == key.providerKey &&
         last.modelId == key.modelId) {
-      return;
+      // The model identity is unchanged, but a Token limits edit can still
+      // move the ring denominator. Compare the effective user window and
+      // refresh only when it actually changed.
+      final cfg = _context.read<SettingsProvider>().getProviderConfig(
+        key.providerKey,
+      );
+      final userWindow = ModelRegistry.parseIntOverride(
+        cfg.modelOverrides[key.modelId]?['contextWindow'],
+      );
+      if (userWindow == _lastUsageUserWindow) return;
     }
     _scheduleContextUsageRefresh();
   }

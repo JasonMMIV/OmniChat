@@ -37,6 +37,17 @@ class ModelInfo {
   final List<Modality> input;
   final List<Modality> output;
   final List<ModelAbility> abilities;
+
+  /// Effective input window in tokens (`limit.input` of the models.dev
+  /// catalog, else `limit.context`, or the user's override). Null when
+  /// unknown. Display only for the chip; the compaction/ring window resolves
+  /// the same value through its own chain.
+  final int? contextWindow;
+
+  /// Declared max output tokens (`limit.output` of the models.dev catalog,
+  /// or the user's override). Null when unknown.
+  final int? maxOutput;
+
   ModelInfo({
     required this.id,
     required this.displayName,
@@ -44,8 +55,13 @@ class ModelInfo {
     this.input = const [Modality.text],
     this.output = const [Modality.text],
     this.abilities = const [],
+    this.contextWindow,
+    this.maxOutput,
   });
 
+  /// `null` arguments keep the current value. `contextWindow` / `maxOutput`
+  /// therefore cannot be cleared through [copyWith]; override resolution
+  /// always builds a new object with the base as the fallback instead.
   ModelInfo copyWith({
     String? id,
     String? displayName,
@@ -53,6 +69,8 @@ class ModelInfo {
     List<Modality>? input,
     List<Modality>? output,
     List<ModelAbility>? abilities,
+    int? contextWindow,
+    int? maxOutput,
   }) => ModelInfo(
     id: id ?? this.id,
     displayName: displayName ?? this.displayName,
@@ -60,6 +78,8 @@ class ModelInfo {
     input: input ?? this.input,
     output: output ?? this.output,
     abilities: abilities ?? this.abilities,
+    contextWindow: contextWindow ?? this.contextWindow,
+    maxOutput: maxOutput ?? this.maxOutput,
   );
 }
 
@@ -150,6 +170,10 @@ class ModelRegistry {
   }
 
   /// Shared parser for `modelOverrides[id]['abilities']`.
+  ///
+  /// An explicit empty list is preserved: "no abilities" is a valid user
+  /// choice and must not silently re-enable the inferred defaults. Malformed
+  /// non-empty lists return null so callers keep the inferred values.
   static List<ModelAbility>? parseAbilities(Object? raw) {
     if (raw is! List) return null;
     final out = <ModelAbility>[];
@@ -162,7 +186,8 @@ class ModelRegistry {
       };
       if (ability != null && !out.contains(ability)) out.add(ability);
     }
-    return out.isEmpty ? null : out;
+    if (out.isEmpty && raw.isNotEmpty) return null;
+    return out;
   }
 
   /// Apply the user's per-model override on top of an inferred [ModelInfo].
@@ -182,6 +207,8 @@ class ModelRegistry {
     final input = parseModalities(override['input']);
     final output = parseModalities(override['output']);
     final abilities = parseAbilities(override['abilities']);
+    final contextWindow = parseIntOverride(override['contextWindow']);
+    final maxOutput = parseIntOverride(override['maxOutput']);
 
     // Legacy override migration (multimodal rollout): before the Modality
     // enum grew, every saved model detail wrote `input: ['text','image']`.
@@ -213,7 +240,47 @@ class ModelRegistry {
       input: effectiveInput ?? base.input,
       output: output ?? base.output,
       abilities: abilities ?? base.abilities,
+      contextWindow: contextWindow ?? base.contextWindow,
+      maxOutput: maxOutput ?? base.maxOutput,
     );
+  }
+
+  /// Resolve the effective model info for a logical key in [cfg]: map the
+  /// upstream `apiModelId` (normalizing OpenCode ids), infer capabilities from
+  /// that id, then apply the per-model override.
+  ///
+  /// Single source of truth for the transport and the capability checks; it
+  /// replaces readers that parsed raw `modelOverrides` maps on their own.
+  static ModelInfo effectiveForModel(ProviderConfig cfg, String modelId) {
+    final rawOverride = cfg.modelOverrides[modelId];
+    final override = rawOverride is Map ? rawOverride : null;
+    var upstreamId = modelId;
+    final raw = (override?['apiModelId'] ?? override?['api_model_id'])
+        ?.toString()
+        .trim();
+    if (raw != null && raw.isNotEmpty) upstreamId = raw;
+    if (isOpenCodeBaseUrl(cfg.baseUrl)) {
+      upstreamId = normalizeOpenCodeModelId(upstreamId);
+    }
+    return applyOverride(
+      infer(ModelInfo(id: upstreamId, displayName: upstreamId)),
+      override,
+    );
+  }
+
+  /// Shared parser for user-editable integer overrides (`contextWindow` /
+  /// `maxOutput`). Returns null for absent / non-numeric / non-positive
+  /// values so callers keep the inferred value.
+  static int? parseIntOverride(Object? raw) {
+    if (raw is num) {
+      final value = raw.toInt();
+      return value > 0 ? value : null;
+    }
+    if (raw is String) {
+      final value = int.tryParse(raw.trim());
+      return value != null && value > 0 ? value : null;
+    }
+    return null;
   }
 
   /// Infer capabilities for a model, consulting the models.dev catalog first
@@ -275,7 +342,15 @@ class ModelRegistry {
       ab.removeWhere(
         (x) => x == ModelAbility.tool || x == ModelAbility.reasoning,
       );
-      return base.copyWith(input: inMods, output: outMods, abilities: ab);
+      return base.copyWith(
+        input: inMods,
+        output: outMods,
+        abilities: ab,
+        // Image-family ids still have catalog token limits; keep them so the
+        // chip and the sheet's Token limits defaults do not disappear.
+        contextWindow: catalog?.effectiveInputWindow,
+        maxOutput: catalog?.output,
+      );
     }
     if (catalog != null) {
       // Catalog hit: capabilities come from the catalog, not the regexes
@@ -302,7 +377,13 @@ class ModelRegistry {
       } else if (catalog.reasoning == false) {
         ab.remove(ModelAbility.reasoning);
       }
-      return base.copyWith(input: inMods, output: outMods, abilities: ab);
+      return base.copyWith(
+        input: inMods,
+        output: outMods,
+        abilities: ab,
+        contextWindow: catalog.effectiveInputWindow,
+        maxOutput: catalog.output,
+      );
     }
     if (vision.hasMatch(id)) {
       if (!inMods.contains(Modality.image)) inMods.add(Modality.image);

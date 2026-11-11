@@ -1,4 +1,9 @@
+import 'dart:convert' as convert;
+
+import 'package:OmniChat/core/providers/model_provider.dart';
+import 'package:OmniChat/core/providers/settings_provider.dart';
 import 'package:OmniChat/core/services/model_catalog/model_catalog.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_test/flutter_test.dart';
 
 const String _fixture = '''
@@ -72,6 +77,15 @@ const String _fixture = '''
         "tool_call": true,
         "reasoning": true,
         "reasoning_options": [{"type": "toggle"}]
+      },
+      "gemini-2.5-flash-image": {
+        "limit": {"context": 32768, "output": 32768},
+        "modalities": {
+          "input": ["text", "image"],
+          "output": ["text", "image"]
+        },
+        "tool_call": false,
+        "reasoning": false
       }
     }
   }
@@ -79,6 +93,7 @@ const String _fixture = '''
 ''';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late ModelCatalog catalog;
 
   setUp(() {
@@ -324,8 +339,7 @@ void main() {
   });
 
   group('pruning', () {
-    test('keeps consumed fields and drops the rest', () {
-      const raw = '''
+    test('keeps consumed fields and drops the rest', () {      const raw = '''
       {
         "openai": {
           "api": "https://api.openai.com/v1",
@@ -353,6 +367,276 @@ void main() {
       expect(pruned.contains('"context":1000'), isTrue);
       expect(pruned.contains('"temperature":false'), isTrue);
       expect(pruned.contains('"interleaved":true'), isTrue);
+    });
+  });
+
+  group('ModelRegistry projection', () {
+    test('input/output/abilities and token limits come from the catalog', () {
+      final info = ModelRegistry.infer(
+        ModelInfo(id: 'claude-sonnet-4-5', displayName: 'claude-sonnet-4-5'),
+      );
+      expect(info.type, ModelType.chat);
+      expect(
+        info.input,
+        containsAll([Modality.text, Modality.image, Modality.pdf]),
+      );
+      expect(info.output, [Modality.text]);
+      expect(
+        info.abilities,
+        containsAll([ModelAbility.tool, ModelAbility.reasoning]),
+      );
+      // `limit.context` / `limit.output` are carried onto ModelInfo for the
+      // chip and the Token limits fields.
+      expect(info.contextWindow, 200000);
+      expect(info.maxOutput, 64000);
+    });
+
+    test('contextWindow prefers the catalog input cap over total context', () {
+      final info = ModelRegistry.infer(
+        ModelInfo(id: 'gpt-5.6-luna', displayName: 'gpt-5.6-luna'),
+      );
+      // limit.context 400k / limit.input 272k — the chip and the ring must
+      // quote the same usable-input number.
+      expect(info.contextWindow, 272000);
+      expect(info.maxOutput, 128000);
+    });
+
+    test('image-family early return keeps catalog token limits', () {
+      final info = ModelRegistry.infer(
+        ModelInfo(
+          id: 'gemini-2.5-flash-image',
+          displayName: 'gemini-2.5-flash-image',
+        ),
+      );
+      expect(info.output, contains(Modality.image));
+      // The image-id branch returns before the general catalog projection;
+      // the limits must still come from the catalog.
+      expect(info.contextWindow, 32768);
+      expect(info.maxOutput, 32768);
+      expect(info.abilities, isEmpty);
+    });
+
+    test('output absent in the catalog stays null', () {
+      final info = ModelRegistry.infer(
+        ModelInfo(id: 'gpt-5', displayName: 'gpt-5'),
+      );
+      expect(info.contextWindow, 400000);
+      expect(info.maxOutput, isNull);
+      // The fixture's gpt-5 entry has no modalities — nothing may be
+      // invented, but `context` must still surface.
+      expect(info.input, [Modality.text]);
+    });
+
+    test('catalog miss falls back to regexes without token limits', () {
+      final info = ModelRegistry.infer(
+        ModelInfo(id: 'totally-unknown-model', displayName: 'x'),
+      );
+      expect(info.input, [Modality.text]);
+      expect(info.abilities, isEmpty);
+      expect(info.contextWindow, isNull);
+      expect(info.maxOutput, isNull);
+    });
+
+    test('user overrides win over catalog values', () {
+      final base = ModelRegistry.infer(
+        ModelInfo(id: 'claude-sonnet-4-5', displayName: 'claude-sonnet-4-5'),
+      );
+      final over = ModelRegistry.applyOverride(base, <String, dynamic>{
+        'contextWindow': 123456,
+        'maxOutput': 8000,
+        'type': 'chat',
+        'input': ['text'],
+        'output': ['text'],
+        'abilities': ['tool'],
+        'inputV': 2,
+      });
+      expect(over.contextWindow, 123456);
+      expect(over.maxOutput, 8000);
+      expect(over.input, [Modality.text]);
+      expect(over.abilities, [ModelAbility.tool]);
+      // An absent key keeps the catalog-derived value.
+      final partial = ModelRegistry.applyOverride(base, <String, dynamic>{
+        'maxOutput': 4096,
+      });
+      expect(partial.contextWindow, 200000);
+      expect(partial.maxOutput, 4096);
+    });
+
+    test('non-positive / malformed token overrides are ignored', () {
+      final base = ModelRegistry.infer(
+        ModelInfo(id: 'claude-sonnet-4-5', displayName: 'x'),
+      );
+      final over = ModelRegistry.applyOverride(base, <String, dynamic>{
+        'contextWindow': 0,
+        'maxOutput': -5,
+      });
+      expect(over.contextWindow, 200000);
+      expect(over.maxOutput, 64000);
+      final stringOver = ModelRegistry.applyOverride(base, <String, dynamic>{
+        'contextWindow': '999999',
+        'maxOutput': '8192',
+      });
+      expect(stringOver.contextWindow, 999999);
+      expect(stringOver.maxOutput, 8192);
+    });
+
+    test('an explicit empty abilities list disables inferred abilities', () {
+      final base = ModelRegistry.infer(
+        ModelInfo(id: 'claude-sonnet-4-5', displayName: 'x'),
+      );
+      final over = ModelRegistry.applyOverride(base, <String, dynamic>{
+        'abilities': <String>[],
+      });
+      // "No abilities" is a valid user choice and must not fall back to the
+      // catalog's tool/reasoning flags.
+      expect(over.abilities, isEmpty);
+    });
+
+    test('effectiveForModel maps apiModelId before inferring', () {
+      final cfg = ProviderConfig(
+        id: 'provider',
+        enabled: true,
+        name: 'Provider',
+        apiKey: 'k',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        providerType: ProviderKind.openai,
+        models: const <String>['alias'],
+        modelOverrides: <String, dynamic>{
+          'alias': <String, dynamic>{
+            'apiModelId': 'claude-sonnet-4-5',
+            'name': 'Alias',
+            'abilities': <String>[],
+          },
+        },
+      );
+      final info = ModelRegistry.effectiveForModel(cfg, 'alias');
+      expect(info.contextWindow, 200000);
+      expect(info.maxOutput, 64000);
+      expect(info.abilities, isEmpty);
+    });
+  });
+
+  // Task 4 verification: the bundled models.dev snapshot must survive the
+  // same prune → parse pipeline the runtime refresh uses, and project the
+  // fields the model detail sheet / chips consume.
+  group('bundled snapshot', () {
+    test('asset round-trips pruneCatalogJson with intact fields', () async {
+      final raw = await rootBundle.loadString(
+        'assets/model_catalog/models_dev.json',
+      );
+      expect(raw, isNotEmpty);
+      final pruned = pruneCatalogJson(raw);
+      final decoded = convert.jsonDecode(pruned) as Map<String, dynamic>;
+
+      final providers = decoded.values.whereType<Map<String, dynamic>>();
+      var modelCount = 0;
+      for (final provider in providers) {
+        final models = provider['models'];
+        expect(models, isA<Map<String, dynamic>>());
+        for (final model in (models as Map<String, dynamic>).values) {
+          modelCount++;
+          final limit = model['limit'];
+          if (limit is Map) {
+            for (final entry in limit.entries) {
+              expect(
+                const {'context', 'input', 'output'}.contains(entry.key),
+                isTrue,
+                reason: 'unexpected limit key ${entry.key}',
+              );
+              expect(
+                entry.value,
+                isA<int>(),
+                reason: 'limit ${entry.key} must be an int',
+              );
+              expect(entry.value as int, greaterThan(0));
+            }
+          }
+          final modalities = model['modalities'];
+          if (modalities is Map) {
+            for (final key in const ['input', 'output']) {
+              final values = modalities[key];
+              if (values is List) {
+                for (final v in values) {
+                  expect(
+                    const {
+                      'text',
+                      'image',
+                      'audio',
+                      'video',
+                      'pdf',
+                    }.contains(v.toString()),
+                    isTrue,
+                    reason: 'unexpected modality $v',
+                  );
+                }
+              }
+            }
+          }
+          expect(
+            model['tool_call'],
+            anyOf(isNull, isA<bool>()),
+            reason: 'tool_call must be bool or absent',
+          );
+          expect(
+            model['reasoning'],
+            anyOf(isNull, isA<bool>()),
+            reason: 'reasoning must be bool or absent',
+          );
+        }
+      }
+      expect(
+        modelCount,
+        greaterThan(1000),
+        reason: 'snapshot looks truncated',
+      );
+    });
+
+    test('known models expose type/input/output/abilities/token limits', () async {
+      final raw = await rootBundle.loadString(
+        'assets/model_catalog/models_dev.json',
+      );
+      final real = ModelCatalog.fromJsonString(pruneCatalogJson(raw));
+      ModelCatalog.instance = real;
+
+      // Provider-scoped lookups: the same id also exists on aggregators, the
+      // ladder only guarantees the official entry for the hinted provider.
+      final claude = real.lookup(providerId: 'anthropic', modelId: 'claude-sonnet-4-5')!;
+      expect(claude.context, 200000);
+      expect(claude.output, 64000);
+      expect(claude.toolCall, isTrue);
+      expect(claude.reasoning, isTrue);
+      expect(claude.inputModalities, containsAll(['text', 'image', 'pdf']));
+
+      final gemini = real.lookup(providerId: 'google', modelId: 'gemini-2.5-pro')!;
+      expect(gemini.context, 1048576);
+      expect(gemini.output, 65536);
+      expect(
+        gemini.inputModalities,
+        containsAll(['text', 'image', 'audio', 'video', 'pdf']),
+      );
+
+      final gpt5 = real.lookup(providerId: 'openai', modelId: 'gpt-5')!;
+      expect(gpt5.context, 400000);
+      expect(gpt5.input, 272000);
+      expect(gpt5.output, 128000);
+      expect(gpt5.toolCall, isTrue);
+
+      // End-to-end: whatever entry the global ladder resolves, the
+      // projection the UI consumes carries its facts verbatim.
+      final picked = real.lookup(modelId: 'gemini-2.5-pro')!;
+      final info = ModelRegistry.infer(
+        ModelInfo(id: 'gemini-2.5-pro', displayName: 'gemini-2.5-pro'),
+      );
+      expect(info.contextWindow, picked.context);
+      expect(info.maxOutput, picked.output);
+      final pickedMods = picked.inputModalities
+          .map(ModelRegistry.modalityFromCatalogValue)
+          .whereType<Modality>();
+      expect(pickedMods, isNotEmpty);
+      for (final mod in pickedMods) {
+        expect(info.input, contains(mod), reason: 'missing $mod');
+      }
+      expect(info.abilities, containsAll([ModelAbility.tool]));
     });
   });
 }

@@ -76,6 +76,25 @@ void main() {
       expect(messages.length, before.length);
     });
 
+    test('small user window compacts below the 140k floor', () {
+      final messages = <Map<String, dynamic>>[
+        {'role': 'system', 'content': 'sys'},
+        _user('turn-1'),
+        _assistant('answer'),
+        _user('live'),
+      ];
+      // Window 64k / output 4k → reserve 8k → trigger 44.8k.
+      final changed = applyMidRunCompaction(
+        messages,
+        promptTokens: 50_000,
+        modelId: 'unknown-model',
+        learnedWindowTokens: null,
+        userContextWindow: 64_000,
+        userMaxOutput: 4_000,
+      );
+      expect(changed, isTrue);
+    });
+
     test('no-op under the trigger (promptTokens <= trigger)', () {
       final messages = <Map<String, dynamic>>[
         {'role': 'system', 'content': 'sys'},

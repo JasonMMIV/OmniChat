@@ -71,6 +71,7 @@ void main() {
     bool autoCompaction = true,
     int? learned,
     int? catalog,
+    int? userWindow,
     String modelId = 'model-a',
     String providerKey = 'prov-a',
     String? streamingId,
@@ -85,6 +86,7 @@ void main() {
       enableAutoCompaction: autoCompaction,
       learnedWindowTokens: learned,
       catalogWindowTokens: catalog,
+      userWindowTokens: userWindow,
       currentModelId: modelId,
       currentProviderKey: providerKey,
       streamingMessageId: streamingId,
@@ -110,6 +112,35 @@ void main() {
     final unknown = compute(messages: messages, learned: 0, catalog: null);
     expect(unknown.maxTokens, isNull);
     expect(unknown.hasWindow, isFalse);
+  });
+
+  test('window precedence: user override beats learned and catalog', () {
+    final messages = [msg('u1', role: 'user', content: 'a' * 300)];
+    expect(
+      compute(
+        messages: messages,
+        userWindow: 123456,
+        learned: 200000,
+        catalog: 128000,
+      ).maxTokens,
+      123456,
+    );
+    // An explicit user window fills in even with no learned value.
+    expect(
+      compute(messages: messages, userWindow: 64000, catalog: 128000)
+          .maxTokens,
+      64000,
+    );
+    // Non-positive values are ignored — the chain falls through.
+    expect(
+      compute(
+        messages: messages,
+        userWindow: 0,
+        learned: 200000,
+        catalog: 128000,
+      ).maxTokens,
+      200000,
+    );
   });
 
   test('estimate path sums messages (chars/3)', () {

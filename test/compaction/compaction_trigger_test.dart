@@ -82,6 +82,34 @@ void main() {
         unknownModelContextFallback,
       );
     });
+
+    test('user override wins over learned and catalog', () {
+      expect(
+        resolveContextWindowTokens(
+          'claude-sonnet-4-5',
+          userOverride: 123_456,
+          learned: 150_000,
+        ),
+        123_456,
+      );
+      // A user override also fills in for a catalog miss.
+      expect(
+        resolveContextWindowTokens(
+          'totally-unknown-model',
+          userOverride: 64_000,
+        ),
+        64_000,
+      );
+      // Non-positive values are ignored (fall through the chain).
+      expect(
+        resolveContextWindowTokens(
+          'claude-sonnet-4-5',
+          userOverride: 0,
+          learned: 150_000,
+        ),
+        150_000,
+      );
+    });
   });
 
   ChatMessage msg(
@@ -103,7 +131,7 @@ void main() {
   }
 
   group('evaluateCompactionTrigger', () {
-    test('below the 140k floor → no compaction', () {
+    test('below the trigger threshold → no compaction', () {
       final messages = [
         msg('user', 'hi'),
         msg('assistant', 'hello', promptTokens: 100_000),
@@ -138,12 +166,74 @@ void main() {
       expect(result.overTrigger, isTrue);
     });
 
-    test('128k model below the 140k floor never pre-compacts', () {
+    test('user context window overrides the catalog window', () {
+      final messages = [
+        msg('user', 'hi'),
+        msg('assistant', 'hello', promptTokens: 150_000),
+        msg('user', 'next'),
+      ];
+      // Catalog: gpt-5 input cap 272k / output 128k → trigger 190.4k →
+      // 150k passes (and clears the 140k floor).
+      final withoutUser = evaluateCompactionTrigger(
+        messages: messages,
+        measuredPromptTokens: 150_000,
+        modelId: 'gpt-5',
+        learnedWindowTokens: null,
+        estimateMessageTokens: (_) => 1,
+        hasToolEvents: (_) => false,
+      );
+      expect(withoutUser.overTrigger, isFalse);
+      // User window 200k / same output 128k → trigger 136k → 150k compacts.
+      final withUser = evaluateCompactionTrigger(
+        messages: messages,
+        measuredPromptTokens: 150_000,
+        modelId: 'gpt-5',
+        learnedWindowTokens: null,
+        userContextWindow: 200_000,
+        estimateMessageTokens: (_) => 1,
+        hasToolEvents: (_) => false,
+      );
+      expect(withUser.overTrigger, isTrue);
+    });
+
+    test('user max output shrinks the reserve and delays the trigger', () {
+      final messages = [
+        msg('user', 'hi'),
+        msg('assistant', 'hello', promptTokens: 140_000),
+        msg('user', 'next'),
+      ];
+      // Catalog output 64k → reserve 64k → trigger 136k → 140k compacts.
+      final withoutUser = evaluateCompactionTrigger(
+        messages: messages,
+        measuredPromptTokens: 140_000,
+        modelId: 'claude-sonnet-4-5',
+        learnedWindowTokens: null,
+        estimateMessageTokens: (_) => 1,
+        hasToolEvents: (_) => false,
+      );
+      expect(withoutUser.overTrigger, isTrue);
+      // User output 1k → reserve max(24k, 1k) = 24k → trigger 140k → no
+      // compaction at exactly 140k.
+      final withUser = evaluateCompactionTrigger(
+        messages: messages,
+        measuredPromptTokens: 140_000,
+        modelId: 'claude-sonnet-4-5',
+        learnedWindowTokens: null,
+        userMaxOutput: 1_000,
+        estimateMessageTokens: (_) => 1,
+        hasToolEvents: (_) => false,
+      );
+      expect(withUser.overTrigger, isFalse);
+    });
+
+    test('128k model pre-compacts at its trigger, below the 140k floor', () {
       final messages = [
         msg('user', 'hi'),
         msg('assistant', 'hello', promptTokens: 130_000),
         msg('user', 'next'),
       ];
+      // Catalog: 128k window / 16.4k output → trigger 89.6k. The fixed floor
+      // must not block small windows (they could never reach 140k).
       final result = evaluateCompactionTrigger(
         messages: messages,
         measuredPromptTokens: 130_000,
@@ -152,7 +242,39 @@ void main() {
         estimateMessageTokens: (_) => 1,
         hasToolEvents: (_) => false,
       );
-      expect(result.overTrigger, isFalse);
+      expect(result.overTrigger, isTrue);
+      expect(result.boundaryIndex, greaterThan(0));
+
+      // Below its own trigger the same model still does not compact.
+      final below = evaluateCompactionTrigger(
+        messages: messages,
+        measuredPromptTokens: 80_000,
+        modelId: 'small-128k',
+        learnedWindowTokens: null,
+        estimateMessageTokens: (_) => 1,
+        hasToolEvents: (_) => false,
+      );
+      expect(below.overTrigger, isFalse);
+    });
+
+    test('user window below the floor uses the user trigger', () {
+      final messages = [
+        msg('user', 'hi'),
+        msg('assistant', 'hello', promptTokens: 50_000),
+        msg('user', 'next'),
+      ];
+      final result = evaluateCompactionTrigger(
+        messages: messages,
+        measuredPromptTokens: 50_000,
+        modelId: 'unknown-model-xyz',
+        learnedWindowTokens: null,
+        userContextWindow: 64_000,
+        userMaxOutput: 4_000,
+        estimateMessageTokens: (_) => 1,
+        hasToolEvents: (_) => false,
+      );
+      // reserve = 8k → trigger 44.8k → 50k compacts.
+      expect(result.overTrigger, isTrue);
     });
 
     test('measured usage under the trigger → no compaction', () {

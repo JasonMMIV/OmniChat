@@ -514,17 +514,12 @@ class ChatTurnService {
     String modelId,
   ) {
     final cfg = settings.getProviderConfig(providerKey);
-    final ov = cfg.modelOverrides[modelId] as Map?;
-    if (ov != null) {
-      final abilities =
-          (ov['abilities'] as List?)?.map((e) => e.toString()).toList() ??
-          const <String>[];
-      if (abilities.map((e) => e.toLowerCase()).contains('tool')) return true;
-    }
-    final inferred = ModelRegistry.infer(
-      ModelInfo(id: modelId, displayName: modelId),
-    );
-    return inferred.abilities.contains(ModelAbility.tool);
+    // Shared resolver: upstream `apiModelId` + catalog + override, so a
+    // catalog-only ability survives an auto-cleaned override.
+    return ModelRegistry.effectiveForModel(
+      cfg,
+      modelId,
+    ).abilities.contains(ModelAbility.tool);
   }
 
   /// Provider-side search / Gemini built-in detection for the voice turn.

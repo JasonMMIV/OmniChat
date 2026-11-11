@@ -1684,6 +1684,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelDetailSheetAbilitiesLabel => 'Abilities';
 
   @override
+  String get modelDetailSheetTokenLimitsLabel => 'Token limits';
+
+  @override
+  String get modelDetailSheetContextWindowLabel => 'Context window';
+
+  @override
+  String get modelDetailSheetMaxOutputLabel => 'Max output';
+
+  @override
+  String get modelDetailSheetTokenLimitsAuto => 'Auto';
+
+  @override
+  String get modelDetailSheetSourceDefault => 'Default';
+
+  @override
+  String get modelDetailSheetSourceCustom => 'Custom';
+
+  @override
   String get modelDetailSheetToolsAbility => 'Tools';
 
   @override

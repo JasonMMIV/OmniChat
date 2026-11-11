@@ -72,39 +72,22 @@ class GenerationController {
   bool isReasoningModel(String providerKey, String modelId) {
     final settings = contextProvider.read<SettingsProvider>();
     final cfg = settings.getProviderConfig(providerKey);
-    final ov = cfg.modelOverrides[modelId] as Map?;
-    if (ov != null && ov.containsKey('abilities')) {
-      final abilities =
-          (ov['abilities'] as List?)
-              ?.map((e) => e.toString().toLowerCase())
-              .where((e) => e.isNotEmpty)
-              .toList() ??
-          const [];
-      return abilities.contains('reasoning');
-    }
-    final inferred = ModelRegistry.infer(
-      ModelInfo(id: modelId, displayName: modelId),
-    );
-    return inferred.abilities.contains(ModelAbility.reasoning);
+    // Shared resolver: upstream `apiModelId` + catalog + override. Reading the
+    // raw override map here used to lose catalog-only abilities when a no-op
+    // save auto-cleaned the override.
+    return ModelRegistry.effectiveForModel(
+      cfg,
+      modelId,
+    ).abilities.contains(ModelAbility.reasoning);
   }
 
   bool isToolModel(String providerKey, String modelId) {
     final settings = contextProvider.read<SettingsProvider>();
     final cfg = settings.getProviderConfig(providerKey);
-    final ov = cfg.modelOverrides[modelId] as Map?;
-    if (ov != null && ov.containsKey('abilities')) {
-      final abilities =
-          (ov['abilities'] as List?)
-              ?.map((e) => e.toString().toLowerCase())
-              .where((e) => e.isNotEmpty)
-              .toList() ??
-          const [];
-      return abilities.contains('tool');
-    }
-    final inferred = ModelRegistry.infer(
-      ModelInfo(id: modelId, displayName: modelId),
-    );
-    return inferred.abilities.contains(ModelAbility.tool);
+    return ModelRegistry.effectiveForModel(
+      cfg,
+      modelId,
+    ).abilities.contains(ModelAbility.tool);
   }
 
   bool isReasoningEnabled(int? budget) {

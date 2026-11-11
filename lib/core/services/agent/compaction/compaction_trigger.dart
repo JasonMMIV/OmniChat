@@ -4,12 +4,13 @@
 // usage persisted per message (`ChatMessage.promptTokens`). Formula and
 // floor come from the plan: `trigger = min(0.7W, W - reserve(W, out))` with
 // the models.dev catalog window and output cap (learned windows win), and
-// contexts under 140k tokens get no speculative compaction.
+// contexts under 140k tokens (or under a smaller model's own trigger) get no
+// speculative compaction.
 //
 // `cache_expiry` is the second, OR-ed path: once the last successful request
 // is at least 30 minutes old, the provider's prompt cache is cold, so the
 // compaction no longer costs a prefix invalidation. It skips the trigger
-// threshold but still requires the 140k floor and the same safe boundary.
+// threshold but still requires the floor and the same safe boundary.
 //
 // When the trigger fires, the boundary walk collects the newest verbatim
 // tail (K=8 tool-bearing assistant rounds, 10k token budget) in the RAW
@@ -19,6 +20,8 @@
 // tool events replay as one self-contained block at assembly time.
 library;
 
+import 'dart:math' as math;
+
 import '../../../models/chat_message.dart';
 import '../../model_catalog/model_catalog.dart';
 import 'context_trim.dart';
@@ -26,6 +29,9 @@ import 'context_trim.dart';
 /// Contexts below this get no speculative compaction: 2 × (20k + 50k).
 /// Information loss is not worth it at that scale (AnyBuff
 /// DEFAULT_CACHE_EXPIRY_MIN_TOKENS, fixed value per v1.4).
+///
+/// Callers use `min(compactionFloorTokens, trigger)`: a model whose declared
+/// window is smaller than the floor must still be able to pre-compact.
 const int compactionFloorTokens = 140_000;
 
 /// Idle age after which a successful request's prompt cache is considered
@@ -107,6 +113,12 @@ CompactionTriggerResult evaluateCompactionTrigger({
   required int? learnedWindowTokens,
   String? providerId,
   String? host,
+
+  /// Explicit user configuration (modelOverrides `contextWindow` /
+  /// `maxOutput`, the model edit sheet's Token limits field). Wins over the
+  /// learned window and replaces the catalog's output reserve.
+  int? userContextWindow,
+  int? userMaxOutput,
   required RawMessageTokensFn estimateMessageTokens,
   required HasToolEventsFn hasToolEvents,
   DateTime? lastSuccessfulRequestAt,
@@ -116,23 +128,27 @@ CompactionTriggerResult evaluateCompactionTrigger({
   if (measuredPromptTokens == null || measuredPromptTokens <= 0) {
     return CompactionTriggerResult.none;
   }
-  // Floor: no speculative compaction under 140k tokens.
-  if (measuredPromptTokens < compactionFloorTokens) {
-    return CompactionTriggerResult.none;
-  }
-
   final window = resolveContextWindowTokens(
     modelId,
+    userOverride: userContextWindow,
     learned: learnedWindowTokens,
     providerId: providerId,
     host: host,
   );
-  final outputTokens = ModelCatalog.instance?.outputTokens(
-    modelId,
-    providerId: providerId,
-    host: host,
-  );
+  final outputTokens = (userMaxOutput != null && userMaxOutput > 0)
+      ? userMaxOutput
+      : ModelCatalog.instance?.outputTokens(
+          modelId,
+          providerId: providerId,
+          host: host,
+        );
   final trigger = compactionTriggerTokens(window, outputTokens);
+  // Floor: no speculative compaction under 140k tokens, but never above the
+  // model's own trigger. A declared 128k window would otherwise never reach
+  // 140k and could only recover through an overflow retry.
+  if (measuredPromptTokens < math.min(compactionFloorTokens, trigger)) {
+    return CompactionTriggerResult.none;
+  }
   final clock = now ?? DateTime.now();
   final cacheExpired =
       lastSuccessfulRequestAt != null &&
@@ -201,6 +217,8 @@ CompactionTriggerResult evaluatePrepTimeCompaction({
   required int? learnedWindowTokens,
   String? providerId,
   String? host,
+  int? userContextWindow,
+  int? userMaxOutput,
   required RawMessageTokensFn estimateMessageTokens,
   required HasToolEventsFn hasToolEvents,
   DateTime? now,
@@ -212,6 +230,8 @@ CompactionTriggerResult evaluatePrepTimeCompaction({
     learnedWindowTokens: learnedWindowTokens,
     providerId: providerId,
     host: host,
+    userContextWindow: userContextWindow,
+    userMaxOutput: userMaxOutput,
     estimateMessageTokens: estimateMessageTokens,
     hasToolEvents: hasToolEvents,
     lastSuccessfulRequestAt: latestSuccessfulRequestAt(messages),

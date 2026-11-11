@@ -4277,6 +4277,7 @@ class ProviderConfig {
   // {'<key>': {'apiModelId': String?, 'name': String?, 'type': 'chat'|'embedding',
   //   'input': ['text','image','audio','video','pdf'], 'inputV': int?,
   //   'output': [...], 'abilities': ['tool','reasoning'],
+  //   'contextWindow': int?, 'maxOutput': int?,
   //   'nativePdf': bool?, 'nativeAudio': bool?}}
   final Map<String, dynamic> modelOverrides;
   // Per-provider proxy
