@@ -35,8 +35,7 @@ class _WorkspaceToolEntry {
 /// own toggle, plus the two global permission switches (files outside the
 /// workspace, shell commands).
 ///
-/// Rows are grouped by what the tool does and titled with localized names;
-/// the raw tool id stays visible because prompt/skill authors need it.
+/// Rows are grouped by what the tool does and titled with localized names.
 ///
 /// Reachable from the workspace menu even while the workspace is disabled.
 /// The planning (write_todos) and ask_user switches moved to the Add-ons
@@ -136,9 +135,9 @@ Widget _toolRow(
 ) {
   final cs = Theme.of(context).colorScheme;
   final displayName = toolDisplayName(l10n, entry.name);
-  // A tool with no localized name yet (newly added built-in) falls back to the
-  // raw id plus the English schema sentence, so it stays usable until the ARB
-  // entries land. `test/tool_presentation_test.dart` catches that case.
+  // A tool with no localized summary yet (newly added built-in) falls back to
+  // the English schema sentence, so it stays usable until the ARB entries
+  // land. `test/tool_presentation_test.dart` catches that case.
   var detail = toolShortDescription(l10n, entry.name);
   if (detail == null && displayName == entry.name) {
     detail = _firstSentence(entry.description);
@@ -151,31 +150,18 @@ Widget _toolRow(
       displayName,
       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
     ),
-    subtitle: Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(
-            text: entry.name,
+    subtitle: detail == null
+        ? null
+        : Text(
+            detail,
             style: TextStyle(
-              fontSize: 11,
-              fontFamily: 'monospace',
-              color: cs.onSurface.withValues(alpha: 0.42),
+              fontSize: 12,
+              height: 1.35,
+              color: cs.onSurface.withValues(alpha: 0.55),
             ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
-          if (detail != null)
-            TextSpan(
-              text: '\n$detail',
-              style: TextStyle(
-                fontSize: 12,
-                height: 1.35,
-                color: cs.onSurface.withValues(alpha: 0.55),
-              ),
-            ),
-        ],
-      ),
-      maxLines: detail == null ? 1 : 2,
-      overflow: TextOverflow.ellipsis,
-    ),
     trailing: IosSwitch(
       value: settings.isWorkspaceToolEnabled(entry.name),
       onChanged: (v) => settings.setWorkspaceToolEnabled(entry.name, v),

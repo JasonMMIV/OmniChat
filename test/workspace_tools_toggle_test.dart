@@ -216,7 +216,7 @@ void main() {
   });
 
   group('WorkspaceToolsPage presentation', () {
-    testWidgets('shows localized names, raw ids, and group headers', (
+    testWidgets('shows localized names and group headers without raw ids', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(420, 2600);
@@ -245,14 +245,15 @@ void main() {
       // Section labels are uppercased by the page.
       expect(find.text('READ & INSPECT'), findsOneWidget);
       expect(find.text('Read file'), findsOneWidget);
-      expect(find.text('file_read'), findsOneWidget);
+      // Raw tool ids no longer appear under the localized names.
+      expect(find.text('file_read'), findsNothing);
       expect(find.text('WRITE & EDIT'), findsOneWidget);
       expect(find.text('Edit file'), findsOneWidget);
       expect(find.text('Search contents'), findsOneWidget);
       expect(find.text('Apply patch'), findsOneWidget);
-      expect(find.textContaining('file_patch'), findsOneWidget);
+      expect(find.textContaining('file_patch'), findsNothing);
       expect(find.text('Run command'), findsOneWidget);
-      expect(find.text('shell_run'), findsOneWidget);
+      expect(find.text('shell_run'), findsNothing);
     });
   });
 }
