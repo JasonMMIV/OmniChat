@@ -24,6 +24,7 @@ import '../../../core/services/shell/tool_run_registry.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
+import '../tools/tool_presentation.dart';
 import 'chat_message_widget.dart' show ToolUIPart;
 
 /// Parsed todo arguments shared by the plan card. Lenient with per-item
@@ -430,6 +431,9 @@ class ApprovalToolCard extends StatelessWidget {
         : const Color(0xFF7E7F83);
 
     final toolName = (approval['tool'] ?? part.toolName).toString();
+    // "Approval needed: Write file", not "…: file_write". External MCP tools
+    // keep their server-provided id.
+    final toolLabel = toolDisplayName(l10n, toolName);
     final resolvedPath = (approval['resolved_path'] ?? '').toString();
     final outside = approval['outside_workspace'] == true;
     final shellCommand = (approval['shell_command'] ?? '').toString();
@@ -461,12 +465,12 @@ class ApprovalToolCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   _isDenied
-                      ? l10n.approvalDeniedTitle(toolName)
+                      ? l10n.approvalDeniedTitle(toolLabel)
                       : _isTimeout
-                      ? l10n.approvalTimeoutTitle(toolName)
+                      ? l10n.approvalTimeoutTitle(toolLabel)
                       : executing
-                      ? l10n.approvalExecutingTitle(toolName)
-                      : l10n.approvalPendingTitle(toolName),
+                      ? l10n.approvalExecutingTitle(toolLabel)
+                      : l10n.approvalPendingTitle(toolLabel),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

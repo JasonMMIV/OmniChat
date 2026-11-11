@@ -10,6 +10,7 @@ import 'package:OmniChat/features/chat/widgets/chat_message_widget.dart'
     show ToolUIPart;
 import 'package:OmniChat/features/chat/widgets/cowork_tool_cards.dart';
 import 'package:OmniChat/l10n/app_localizations.dart';
+import 'package:OmniChat/l10n/app_localizations_en.dart';
 
 const Map<String, dynamic> _arguments = <String, dynamic>{
   'command': 'dart analyze lib/features/chat/widgets/cowork_tool_cards.dart',
@@ -49,6 +50,12 @@ void main() {
     await _pumpCard(tester, executing: false);
 
     expect(find.text('Pending'), findsOneWidget);
+    // The card names the tool in the UI language, never the raw handler id.
+    expect(
+      find.text('Approval needed: ${AppLocalizationsEn().toolNameShellRun}'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('shell_run'), findsNothing);
     expect(find.text('Approve'), findsOneWidget);
     expect(find.text('Deny'), findsOneWidget);
     expect(find.text('Approved'), findsNothing);
@@ -61,7 +68,10 @@ void main() {
     await _pumpCard(tester, executing: true);
 
     expect(find.text('Approved'), findsOneWidget);
-    expect(find.text('Running shell_run…'), findsOneWidget);
+    expect(
+      find.text('Running ${AppLocalizationsEn().toolNameShellRun}…'),
+      findsOneWidget,
+    );
     expect(find.text('Approved — running…'), findsOneWidget);
     expect(find.text('Approve'), findsNothing);
     expect(find.text('Deny'), findsNothing);

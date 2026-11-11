@@ -8,25 +8,35 @@ import '../../../core/services/shell/shell_run_service.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_switch.dart';
+import '../tools/tool_presentation.dart';
 import '../widgets/workspace_disk_usage_card.dart';
 
 /// One row of the workspace tools switchboard.
 class _WorkspaceToolEntry {
-  const _WorkspaceToolEntry({
-    required this.name,
-    required this.description,
-    required this.icon,
-  });
+  const _WorkspaceToolEntry({required this.name, required this.description});
+
+  factory _WorkspaceToolEntry.fromDefinition(Map<String, dynamic> def) {
+    final function = def['function'] as Map;
+    return _WorkspaceToolEntry(
+      name: (function['name'] ?? '').toString(),
+      description: (function['description'] ?? '').toString(),
+    );
+  }
 
   final String name;
+
+  /// Model-facing schema description — only a fallback for a tool that has no
+  /// localized summary yet.
   final String description;
-  final IconData icon;
 }
 
 /// Global tool switchboard for the workspace: the 17 built-in file tools,
 /// the live-preview console reader and the desktop shell tool, each with its
 /// own toggle, plus the two global permission switches (files outside the
 /// workspace, shell commands).
+///
+/// Rows are grouped by what the tool does and titled with localized names;
+/// the raw tool id stays visible because prompt/skill authors need it.
 ///
 /// Reachable from the workspace menu even while the workspace is disabled.
 /// The planning (write_todos) and ask_user switches moved to the Add-ons
@@ -50,29 +60,12 @@ class WorkspaceToolsPage extends StatelessWidget {
       // name/description source, so the list can never drift from what the
       // LLM is actually offered.
       for (final def in FileToolService.getToolDefinitions())
-        _WorkspaceToolEntry(
-          name: ((def['function'] as Map)['name'] ?? '').toString(),
-          description: ((def['function'] as Map)['description'] ?? '')
-              .toString(),
-          icon: Lucide.FileText,
-        ),
-      _WorkspaceToolEntry(
-        name: devConsoleErrorsToolName,
-        description:
-            (DevPreviewTools.getConsoleErrorsDefinition()['function']
-                    as Map)['description']
-                .toString(),
-        icon: Lucide.Monitor,
+        _WorkspaceToolEntry.fromDefinition(def),
+      _WorkspaceToolEntry.fromDefinition(
+        DevPreviewTools.getConsoleErrorsDefinition(),
       ),
       if (ShellRunService.isPlatformSupported)
-        _WorkspaceToolEntry(
-          name: ShellRunService.toolName,
-          description:
-              (ShellRunService.getToolDefinition()['function']
-                      as Map)['description']
-                  .toString(),
-          icon: Lucide.Terminal,
-        ),
+        _WorkspaceToolEntry.fromDefinition(ShellRunService.getToolDefinition()),
     ];
 
     return Scaffold(
@@ -114,38 +107,80 @@ class WorkspaceToolsPage extends StatelessWidget {
                 value: settings.shellAllowAllV1,
                 onChanged: settings.setShellAllowAllV1,
               ),
-            const SizedBox(height: 16),
-            for (final entry in entries)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(entry.icon, size: 20),
-                title: Text(
-                  entry.name,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+            for (final group in WorkspaceToolGroup.values)
+              if (entries.any(
+                (entry) => workspaceToolGroup(entry.name) == group,
+              )) ...[
+                _sectionHeader(
+                  context,
+                  workspaceToolGroupLabel(l10n, group),
+                  workspaceToolGroupDescription(l10n, group),
                 ),
-                subtitle: Text(
-                  _firstSentence(entry.description),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: cs.onSurface.withValues(alpha: 0.55),
-                  ),
-                ),
-                trailing: IosSwitch(
-                  value: settings.isWorkspaceToolEnabled(entry.name),
-                  onChanged: (v) =>
-                      settings.setWorkspaceToolEnabled(entry.name, v),
-                ),
-              ),
+                for (final entry in entries.where(
+                  (entry) => workspaceToolGroup(entry.name) == group,
+                ))
+                  _toolRow(context, l10n, settings, entry),
+              ],
           ],
         ),
       ),
     );
   }
+}
+
+Widget _toolRow(
+  BuildContext context,
+  AppLocalizations l10n,
+  SettingsProvider settings,
+  _WorkspaceToolEntry entry,
+) {
+  final cs = Theme.of(context).colorScheme;
+  final displayName = toolDisplayName(l10n, entry.name);
+  // A tool with no localized name yet (newly added built-in) falls back to the
+  // raw id plus the English schema sentence, so it stays usable until the ARB
+  // entries land. `test/tool_presentation_test.dart` catches that case.
+  var detail = toolShortDescription(l10n, entry.name);
+  if (detail == null && displayName == entry.name) {
+    detail = _firstSentence(entry.description);
+  }
+
+  return ListTile(
+    contentPadding: EdgeInsets.zero,
+    leading: Icon(toolIcon(entry.name), size: 20),
+    title: Text(
+      displayName,
+      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+    ),
+    subtitle: Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(
+            text: entry.name,
+            style: TextStyle(
+              fontSize: 11,
+              fontFamily: 'monospace',
+              color: cs.onSurface.withValues(alpha: 0.42),
+            ),
+          ),
+          if (detail != null)
+            TextSpan(
+              text: '\n$detail',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.35,
+                color: cs.onSurface.withValues(alpha: 0.55),
+              ),
+            ),
+        ],
+      ),
+      maxLines: detail == null ? 1 : 2,
+      overflow: TextOverflow.ellipsis,
+    ),
+    trailing: IosSwitch(
+      value: settings.isWorkspaceToolEnabled(entry.name),
+      onChanged: (v) => settings.setWorkspaceToolEnabled(entry.name, v),
+    ),
+  );
 }
 
 Widget _sectionLabel(BuildContext context, String text) {
@@ -160,6 +195,37 @@ Widget _sectionLabel(BuildContext context, String text) {
         letterSpacing: 0.6,
         color: cs.onSurface.withValues(alpha: 0.5),
       ),
+    ),
+  );
+}
+
+/// Group heading plus a one-line explanation of what the group does.
+Widget _sectionHeader(BuildContext context, String title, String description) {
+  final cs = Theme.of(context).colorScheme;
+  return Padding(
+    padding: const EdgeInsets.fromLTRB(4, 14, 4, 2),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title.toUpperCase(),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.6,
+            color: cs.onSurface.withValues(alpha: 0.5),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          description,
+          style: TextStyle(
+            fontSize: 11.5,
+            height: 1.35,
+            color: cs.onSurface.withValues(alpha: 0.42),
+          ),
+        ),
+      ],
     ),
   );
 }
@@ -202,7 +268,7 @@ Widget _permissionRow(
 }
 
 /// First sentence of a built-in tool description (the raw descriptions are
-/// English; showing the opening sentence keeps rows compact).
+/// English; only used for a tool without a localized summary yet).
 String _firstSentence(String description) {
   final text = description.trim();
   if (text.isEmpty) return text;

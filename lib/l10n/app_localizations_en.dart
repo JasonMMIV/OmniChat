@@ -6851,4 +6851,144 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get contextUsageEstimatedBadge => '≈ estimated';
+
+  @override
+  String get toolNameFileRead => 'Read file';
+
+  @override
+  String get toolNameFileWrite => 'Write file';
+
+  @override
+  String get toolNameFileAppend => 'Append to file';
+
+  @override
+  String get toolNameFileEdit => 'Edit file';
+
+  @override
+  String get toolNameFilePatch => 'Apply patch';
+
+  @override
+  String get toolNameFileDelete => 'Delete file';
+
+  @override
+  String get toolNameFileList => 'List folder';
+
+  @override
+  String get toolNameFileMkdir => 'Create folder';
+
+  @override
+  String get toolNameFileInfo => 'File info';
+
+  @override
+  String get toolNameFileMove => 'Move file';
+
+  @override
+  String get toolNameFileCopy => 'Copy file';
+
+  @override
+  String get toolNameFileSearch => 'Find files';
+
+  @override
+  String get toolNameFileGrep => 'Search contents';
+
+  @override
+  String get toolNameFileViewImage => 'View image';
+
+  @override
+  String get toolNameFileExtractText => 'Extract text';
+
+  @override
+  String get toolNameFileExtractZip => 'Extract archive';
+
+  @override
+  String get toolNameFileCreatePdf => 'Create PDF';
+
+  @override
+  String get toolNameConsoleErrors => 'Read console errors';
+
+  @override
+  String get toolNameShellRun => 'Run command';
+
+  @override
+  String get toolNameSearchWeb => 'Web search';
+
+  @override
+  String get toolNameWebFetch => 'Read page';
+
+  @override
+  String get toolNameSkill => 'Load skill';
+
+  @override
+  String get toolNameBuiltinSearch => 'Built-in search';
+
+  @override
+  String get toolNameIllustrate => 'Create image';
+
+  @override
+  String get toolGroupRead => 'Read & inspect';
+
+  @override
+  String get toolGroupReadDescription =>
+      'Open, list, and inspect files in the workspace.';
+
+  @override
+  String get toolGroupWrite => 'Write & edit';
+
+  @override
+  String get toolGroupWriteDescription =>
+      'Create, edit, patch, and organize file content.';
+
+  @override
+  String get toolGroupSearch => 'Search';
+
+  @override
+  String get toolGroupSearchDescription =>
+      'Find files by name or search inside their contents.';
+
+  @override
+  String get toolGroupOrganize => 'Organize';
+
+  @override
+  String get toolGroupOrganizeDescription =>
+      'Delete, move, and copy files or folders.';
+
+  @override
+  String get toolGroupDocuments => 'Documents';
+
+  @override
+  String get toolGroupDocumentsDescription =>
+      'Extract text, unpack archives, and render PDFs.';
+
+  @override
+  String get toolGroupSystem => 'System';
+
+  @override
+  String get toolGroupSystemDescription =>
+      'Shell commands and live-preview console output.';
+
+  @override
+  String get toolGroupOther => 'Other';
+
+  @override
+  String get toolGroupOtherDescription => 'Tools without a display group yet.';
+
+  @override
+  String get toolDescFilePatch =>
+      'Applies a unified diff to one file; the path argument wins over the diff header.';
+
+  @override
+  String get toolDescFileExtractText =>
+      'Extracts text from PDF, DOCX, PPTX, or XLSX, page by page.';
+
+  @override
+  String get toolDescFileExtractZip =>
+      'Unpacks a .zip inside the workspace; entries are boundary-checked.';
+
+  @override
+  String get toolDescFileCreatePdf =>
+      'Renders Markdown to a PDF with correct Chinese text.';
+
+  @override
+  String get toolDescConsoleErrors =>
+      'Reads console errors captured by the live site preview.';
 }

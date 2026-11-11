@@ -17,6 +17,7 @@ import 'package:path/path.dart' as p;
 
 import 'image_preview_sheet.dart';
 import '../pages/image_viewer_page.dart';
+import '../tools/tool_presentation.dart';
 
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/models/answer_review.dart';
@@ -29,7 +30,6 @@ import '../../../core/providers/user_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/services/chat/chat_service.dart';
-import '../../../core/services/web/web_fetch_tool.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../shared/markdown/markdown_render_policy.dart';
 import '../../../shared/markdown/markdown_surface_scope.dart';
@@ -3662,63 +3662,6 @@ class _ExportToolCard extends StatelessWidget {
   final ColorScheme cs;
   final bool isDesktop;
 
-  IconData _iconFor(String name) {
-    name = WebFetchTool.canonicalToolName(name);
-    switch (name) {
-      case 'create_memory':
-      case 'memory_update':
-        return Lucide.bookHeart;
-      case 'memory_read':
-        return Lucide.Library;
-      case 'edit_memory':
-      case 'memory_edit':
-        return Lucide.bookHeart;
-      case 'delete_memory':
-      case 'memory_delete':
-        return Lucide.bookDashed;
-      case 'search_web':
-        return Lucide.Earth;
-      case 'web_fetch':
-        return Lucide.FileText;
-      case 'builtin_search':
-        return Lucide.Search;
-      default:
-        return Lucide.Wrench;
-    }
-  }
-
-  String _titleFor(
-    BuildContext context,
-    String name,
-    Map<String, dynamic> args,
-  ) {
-    final l10n = AppLocalizations.of(context)!;
-    name = WebFetchTool.canonicalToolName(name);
-    switch (name) {
-      case 'create_memory':
-      case 'memory_update':
-        return l10n.chatMessageWidgetMemoryUpdate;
-      case 'memory_read':
-        return l10n.chatMessageWidgetMemoryRead;
-      case 'edit_memory':
-      case 'memory_edit':
-        return l10n.chatMessageWidgetMemoryEdit;
-      case 'delete_memory':
-      case 'memory_delete':
-        return l10n.chatMessageWidgetMemoryDelete;
-      case 'search_web':
-        final q = (args['query'] ?? '').toString();
-        return l10n.chatMessageWidgetWebSearch(q);
-      case 'web_fetch':
-        final url = (args['url'] ?? '').toString();
-        return l10n.chatMessageWidgetWebFetch(url);
-      case 'builtin_search':
-        return l10n.chatMessageWidgetBuiltinSearch;
-      default:
-        return l10n.chatMessageWidgetToolCall(name);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -3748,7 +3691,7 @@ class _ExportToolCard extends StatelessWidget {
             height: iconSize,
             child: Center(
               child: Icon(
-                _iconFor(part.toolName),
+                toolIcon(part.toolName),
                 size: iconSize,
                 color: cs.secondary,
               ),
@@ -3757,7 +3700,7 @@ class _ExportToolCard extends StatelessWidget {
           SizedBox(width: isDesktop ? 8.0 : 10.0),
           Expanded(
             child: Text(
-              _titleFor(context, part.toolName, part.arguments),
+              toolDisplayName(AppLocalizations.of(context)!, part.toolName),
               style: TextStyle(
                 fontSize: fontSize,
                 fontWeight: FontWeight.w700,

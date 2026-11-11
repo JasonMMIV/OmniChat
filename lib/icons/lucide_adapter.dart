@@ -87,6 +87,7 @@ class Lucide {
   static const IconData Phone = lucide.LucideIcons.phone;
   static const IconData Github = lucide.LucideIcons.cat;
   static const IconData Package = lucide.LucideIcons.package;
+  static const IconData Printer = lucide.LucideIcons.printer;
   static const IconData Code = lucide.LucideIcons.code;
   static const IconData Hash = lucide.LucideIcons.hash;
   static const IconData Link = lucide.LucideIcons.link;
@@ -100,6 +101,7 @@ class Lucide {
   static const IconData Shield = lucide.LucideIcons.shield;
   static const IconData Compass = lucide.LucideIcons.compass;
   static const IconData ArrowDown = lucide.LucideIcons.arrowDown;
+  static const IconData ArrowRight = lucide.LucideIcons.arrowRight;
   static const IconData Edit2 = lucide.LucideIcons.squarePen;
   static const IconData BookOpen = lucide.LucideIcons.bookOpen;
   static const IconData Activity = lucide.LucideIcons.activity;

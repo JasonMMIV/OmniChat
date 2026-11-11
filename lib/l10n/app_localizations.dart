@@ -12749,6 +12749,264 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'≈ estimated'**
   String get contextUsageEstimatedBadge;
+
+  /// No description provided for @toolNameFileRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Read file'**
+  String get toolNameFileRead;
+
+  /// No description provided for @toolNameFileWrite.
+  ///
+  /// In en, this message translates to:
+  /// **'Write file'**
+  String get toolNameFileWrite;
+
+  /// No description provided for @toolNameFileAppend.
+  ///
+  /// In en, this message translates to:
+  /// **'Append to file'**
+  String get toolNameFileAppend;
+
+  /// No description provided for @toolNameFileEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit file'**
+  String get toolNameFileEdit;
+
+  /// No description provided for @toolNameFilePatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply patch'**
+  String get toolNameFilePatch;
+
+  /// No description provided for @toolNameFileDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete file'**
+  String get toolNameFileDelete;
+
+  /// No description provided for @toolNameFileList.
+  ///
+  /// In en, this message translates to:
+  /// **'List folder'**
+  String get toolNameFileList;
+
+  /// No description provided for @toolNameFileMkdir.
+  ///
+  /// In en, this message translates to:
+  /// **'Create folder'**
+  String get toolNameFileMkdir;
+
+  /// No description provided for @toolNameFileInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'File info'**
+  String get toolNameFileInfo;
+
+  /// No description provided for @toolNameFileMove.
+  ///
+  /// In en, this message translates to:
+  /// **'Move file'**
+  String get toolNameFileMove;
+
+  /// No description provided for @toolNameFileCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy file'**
+  String get toolNameFileCopy;
+
+  /// No description provided for @toolNameFileSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Find files'**
+  String get toolNameFileSearch;
+
+  /// No description provided for @toolNameFileGrep.
+  ///
+  /// In en, this message translates to:
+  /// **'Search contents'**
+  String get toolNameFileGrep;
+
+  /// No description provided for @toolNameFileViewImage.
+  ///
+  /// In en, this message translates to:
+  /// **'View image'**
+  String get toolNameFileViewImage;
+
+  /// No description provided for @toolNameFileExtractText.
+  ///
+  /// In en, this message translates to:
+  /// **'Extract text'**
+  String get toolNameFileExtractText;
+
+  /// No description provided for @toolNameFileExtractZip.
+  ///
+  /// In en, this message translates to:
+  /// **'Extract archive'**
+  String get toolNameFileExtractZip;
+
+  /// No description provided for @toolNameFileCreatePdf.
+  ///
+  /// In en, this message translates to:
+  /// **'Create PDF'**
+  String get toolNameFileCreatePdf;
+
+  /// No description provided for @toolNameConsoleErrors.
+  ///
+  /// In en, this message translates to:
+  /// **'Read console errors'**
+  String get toolNameConsoleErrors;
+
+  /// No description provided for @toolNameShellRun.
+  ///
+  /// In en, this message translates to:
+  /// **'Run command'**
+  String get toolNameShellRun;
+
+  /// No description provided for @toolNameSearchWeb.
+  ///
+  /// In en, this message translates to:
+  /// **'Web search'**
+  String get toolNameSearchWeb;
+
+  /// No description provided for @toolNameWebFetch.
+  ///
+  /// In en, this message translates to:
+  /// **'Read page'**
+  String get toolNameWebFetch;
+
+  /// No description provided for @toolNameSkill.
+  ///
+  /// In en, this message translates to:
+  /// **'Load skill'**
+  String get toolNameSkill;
+
+  /// No description provided for @toolNameBuiltinSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in search'**
+  String get toolNameBuiltinSearch;
+
+  /// No description provided for @toolNameIllustrate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create image'**
+  String get toolNameIllustrate;
+
+  /// No description provided for @toolGroupRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Read & inspect'**
+  String get toolGroupRead;
+
+  /// No description provided for @toolGroupReadDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Open, list, and inspect files in the workspace.'**
+  String get toolGroupReadDescription;
+
+  /// No description provided for @toolGroupWrite.
+  ///
+  /// In en, this message translates to:
+  /// **'Write & edit'**
+  String get toolGroupWrite;
+
+  /// No description provided for @toolGroupWriteDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Create, edit, patch, and organize file content.'**
+  String get toolGroupWriteDescription;
+
+  /// No description provided for @toolGroupSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get toolGroupSearch;
+
+  /// No description provided for @toolGroupSearchDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Find files by name or search inside their contents.'**
+  String get toolGroupSearchDescription;
+
+  /// No description provided for @toolGroupOrganize.
+  ///
+  /// In en, this message translates to:
+  /// **'Organize'**
+  String get toolGroupOrganize;
+
+  /// No description provided for @toolGroupOrganizeDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete, move, and copy files or folders.'**
+  String get toolGroupOrganizeDescription;
+
+  /// No description provided for @toolGroupDocuments.
+  ///
+  /// In en, this message translates to:
+  /// **'Documents'**
+  String get toolGroupDocuments;
+
+  /// No description provided for @toolGroupDocumentsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Extract text, unpack archives, and render PDFs.'**
+  String get toolGroupDocumentsDescription;
+
+  /// No description provided for @toolGroupSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System'**
+  String get toolGroupSystem;
+
+  /// No description provided for @toolGroupSystemDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Shell commands and live-preview console output.'**
+  String get toolGroupSystemDescription;
+
+  /// No description provided for @toolGroupOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get toolGroupOther;
+
+  /// No description provided for @toolGroupOtherDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Tools without a display group yet.'**
+  String get toolGroupOtherDescription;
+
+  /// No description provided for @toolDescFilePatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies a unified diff to one file; the path argument wins over the diff header.'**
+  String get toolDescFilePatch;
+
+  /// No description provided for @toolDescFileExtractText.
+  ///
+  /// In en, this message translates to:
+  /// **'Extracts text from PDF, DOCX, PPTX, or XLSX, page by page.'**
+  String get toolDescFileExtractText;
+
+  /// No description provided for @toolDescFileExtractZip.
+  ///
+  /// In en, this message translates to:
+  /// **'Unpacks a .zip inside the workspace; entries are boundary-checked.'**
+  String get toolDescFileExtractZip;
+
+  /// No description provided for @toolDescFileCreatePdf.
+  ///
+  /// In en, this message translates to:
+  /// **'Renders Markdown to a PDF with correct Chinese text.'**
+  String get toolDescFileCreatePdf;
+
+  /// No description provided for @toolDescConsoleErrors.
+  ///
+  /// In en, this message translates to:
+  /// **'Reads console errors captured by the live site preview.'**
+  String get toolDescConsoleErrors;
 }
 
 class _AppLocalizationsDelegate

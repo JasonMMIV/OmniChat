@@ -31,6 +31,7 @@ import 'dart:convert';
 import 'package:characters/characters.dart';
 
 import '../pages/image_viewer_page.dart';
+import '../tools/tool_presentation.dart';
 import '../pages/html_preview_page.dart';
 import '../../../utils/markdown_preview_html.dart';
 import '../../../core/models/chat_message.dart';
@@ -42,7 +43,6 @@ import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/storage/message_part_codec.dart';
 import '../../../core/services/chat/todo_models.dart';
-import '../../../core/services/web/web_fetch_tool.dart';
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../core/providers/assistant_provider.dart';
@@ -3559,95 +3559,6 @@ class _ToolCallItem extends StatelessWidget {
   })?
   onResolveApproval;
 
-  IconData _iconFor(String name) {
-    name = WebFetchTool.canonicalToolName(name);
-    switch (name) {
-      case 'create_memory':
-      case 'memory_update':
-        return Lucide.bookHeart;
-      case 'memory_read':
-        return Lucide.Library;
-      case 'edit_memory':
-      case 'memory_edit':
-        return Lucide.bookHeart;
-      case 'delete_memory':
-      case 'memory_delete':
-        return Lucide.bookDashed;
-      case 'search_web':
-        return Lucide.Earth;
-      case 'web_fetch':
-        return Lucide.FileText;
-      case 'builtin_search':
-        return Lucide.Search;
-      case 'skill':
-        return Lucide.WandSparkles;
-      case 'shell_run':
-        return Lucide.Terminal;
-      case 'file_grep':
-        return Lucide.Search;
-      case 'file_view_image':
-      case 'illustrate':
-        return Lucide.Image;
-      default:
-        return Lucide.Wrench;
-    }
-  }
-
-  String _titleFor(
-    BuildContext context,
-    String name,
-    Map<String, dynamic> args, {
-    required bool isResult,
-  }) {
-    final l10n = AppLocalizations.of(context)!;
-    name = WebFetchTool.canonicalToolName(name);
-    switch (name) {
-      case 'create_memory':
-      case 'memory_update':
-        return l10n.chatMessageWidgetMemoryUpdate;
-      case 'memory_read':
-        return l10n.chatMessageWidgetMemoryRead;
-      case 'edit_memory':
-      case 'memory_edit':
-        return l10n.chatMessageWidgetMemoryEdit;
-      case 'delete_memory':
-      case 'memory_delete':
-        return l10n.chatMessageWidgetMemoryDelete;
-      case 'search_web':
-        final q = (args['query'] ?? '').toString();
-        return l10n.chatMessageWidgetWebSearch(q);
-      case 'web_fetch':
-        final url = (args['url'] ?? '').toString();
-        return l10n.chatMessageWidgetWebFetch(url);
-      case 'builtin_search':
-        return l10n.chatMessageWidgetBuiltinSearch;
-      case 'skill':
-        final skillName = (args['name'] ?? '').toString();
-        return skillName.isEmpty
-            ? l10n.chatMessageWidgetToolCall(name)
-            : l10n.chatMessageWidgetSkillLoad(skillName);
-      case 'shell_run':
-        final command = (args['command'] ?? '').toString();
-        return command.isEmpty
-            ? l10n.chatMessageWidgetToolCall(name)
-            : l10n.chatMessageWidgetShellRun(command);
-      case 'file_grep':
-        final pattern = (args['pattern'] ?? '').toString();
-        return pattern.isEmpty
-            ? l10n.chatMessageWidgetToolCall(name)
-            : l10n.chatMessageWidgetFileGrep(pattern);
-      case 'file_view_image':
-        final imagePath = (args['path'] ?? '').toString();
-        return imagePath.isEmpty
-            ? l10n.chatMessageWidgetToolCall(name)
-            : l10n.chatMessageWidgetFileViewImage(imagePath);
-      default:
-        return isResult
-            ? l10n.chatMessageWidgetToolResult(name)
-            : l10n.chatMessageWidgetToolCall(name);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -3726,7 +3637,7 @@ class _ToolCallItem extends StatelessWidget {
                   height: 18,
                   child: Center(
                     child: Icon(
-                      _iconFor(part.toolName),
+                      toolIcon(part.toolName),
                       size: 18,
                       color: cardTextColor,
                     ),
@@ -3741,12 +3652,7 @@ class _ToolCallItem extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        _titleFor(
-                          context,
-                          part.toolName,
-                          part.arguments,
-                          isResult: !part.loading,
-                        ),
+                        toolDisplayName(l10n, part.toolName),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -3981,19 +3887,14 @@ class _ToolCallItem extends StatelessWidget {
                         child: Row(
                           children: [
                             Icon(
-                              _iconFor(part.toolName),
+                              toolIcon(part.toolName),
                               size: 18,
                               color: cs.primary,
                             ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                _titleFor(
-                                  context,
-                                  part.toolName,
-                                  arguments,
-                                  isResult: !part.loading,
-                                ),
+                                toolDisplayName(l10n, part.toolName),
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,
@@ -4125,19 +4026,14 @@ class _ToolCallItem extends StatelessWidget {
                     Row(
                       children: [
                         Icon(
-                          _iconFor(part.toolName),
+                          toolIcon(part.toolName),
                           size: 18,
                           color: cs.primary,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            _titleFor(
-                              context,
-                              part.toolName,
-                              arguments,
-                              isResult: !part.loading,
-                            ),
+                            toolDisplayName(l10n, part.toolName),
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,

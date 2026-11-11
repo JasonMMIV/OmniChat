@@ -1,11 +1,14 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:OmniChat/core/models/workspace_config.dart';
 import 'package:OmniChat/core/providers/settings_provider.dart';
+import 'package:OmniChat/features/chat/pages/workspace_tools_page.dart';
 import 'package:OmniChat/features/home/services/tool_handler_service.dart';
+import 'package:OmniChat/l10n/app_localizations.dart';
 
 /// A minimal SettingsProvider double: only the workspace-tool toggle API is
 /// overridden (everything else is never touched by the pure static builder).
@@ -209,6 +212,47 @@ void main() {
         _ToggleSettingsProvider(disabled: {'ask_user'}),
       );
       expect(defs, isEmpty);
+    });
+  });
+
+  group('WorkspaceToolsPage presentation', () {
+    testWidgets('shows localized names, raw ids, and group headers', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(420, 2600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      FlutterSecureStorage.setMockInitialValues({});
+      SharedPreferences.setMockInitialValues({});
+      final settings = SettingsProvider();
+      addTearDown(settings.dispose);
+      await tester.pumpAndSettle(const Duration(milliseconds: 50));
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<SettingsProvider>.value(
+          value: settings,
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('en'),
+            home: const WorkspaceToolsPage(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Section labels are uppercased by the page.
+      expect(find.text('READ & INSPECT'), findsOneWidget);
+      expect(find.text('Read file'), findsOneWidget);
+      expect(find.text('file_read'), findsOneWidget);
+      expect(find.text('WRITE & EDIT'), findsOneWidget);
+      expect(find.text('Edit file'), findsOneWidget);
+      expect(find.text('Search contents'), findsOneWidget);
+      expect(find.text('Apply patch'), findsOneWidget);
+      expect(find.textContaining('file_patch'), findsOneWidget);
+      expect(find.text('Run command'), findsOneWidget);
+      expect(find.text('shell_run'), findsOneWidget);
     });
   });
 }

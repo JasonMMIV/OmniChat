@@ -6713,6 +6713,135 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get contextUsageEstimatedBadge => '≈ 估算';
+
+  @override
+  String get toolNameFileRead => '读取文件';
+
+  @override
+  String get toolNameFileWrite => '写入文件';
+
+  @override
+  String get toolNameFileAppend => '追加内容';
+
+  @override
+  String get toolNameFileEdit => '编辑文件';
+
+  @override
+  String get toolNameFilePatch => '应用修补';
+
+  @override
+  String get toolNameFileDelete => '删除文件';
+
+  @override
+  String get toolNameFileList => '列出文件夹';
+
+  @override
+  String get toolNameFileMkdir => '创建文件夹';
+
+  @override
+  String get toolNameFileInfo => '文件信息';
+
+  @override
+  String get toolNameFileMove => '移动文件';
+
+  @override
+  String get toolNameFileCopy => '复制文件';
+
+  @override
+  String get toolNameFileSearch => '搜索文件';
+
+  @override
+  String get toolNameFileGrep => '搜索内容';
+
+  @override
+  String get toolNameFileViewImage => '查看图片';
+
+  @override
+  String get toolNameFileExtractText => '提取文档文字';
+
+  @override
+  String get toolNameFileExtractZip => '解压';
+
+  @override
+  String get toolNameFileCreatePdf => '创建 PDF';
+
+  @override
+  String get toolNameConsoleErrors => '读取控制台错误';
+
+  @override
+  String get toolNameShellRun => '执行命令';
+
+  @override
+  String get toolNameSearchWeb => '联网搜索';
+
+  @override
+  String get toolNameWebFetch => '读取网页';
+
+  @override
+  String get toolNameSkill => '加载技能';
+
+  @override
+  String get toolNameBuiltinSearch => '模型内置搜索';
+
+  @override
+  String get toolNameIllustrate => '生成图片';
+
+  @override
+  String get toolGroupRead => '读取与查看';
+
+  @override
+  String get toolGroupReadDescription => '打开、列出并查看工作区中的文件。';
+
+  @override
+  String get toolGroupWrite => '写入与编辑';
+
+  @override
+  String get toolGroupWriteDescription => '创建、编辑、修补与整理文件内容。';
+
+  @override
+  String get toolGroupSearch => '搜索';
+
+  @override
+  String get toolGroupSearchDescription => '按文件名查找文件，或搜索文件内容。';
+
+  @override
+  String get toolGroupOrganize => '整理';
+
+  @override
+  String get toolGroupOrganizeDescription => '删除、移动与复制文件或文件夹。';
+
+  @override
+  String get toolGroupDocuments => '文档';
+
+  @override
+  String get toolGroupDocumentsDescription => '提取文字、解压与输出 PDF。';
+
+  @override
+  String get toolGroupSystem => '系统';
+
+  @override
+  String get toolGroupSystemDescription => 'Shell 命令与实时预览的控制台输出。';
+
+  @override
+  String get toolGroupOther => '其他';
+
+  @override
+  String get toolGroupOtherDescription => '尚未归类的工具。';
+
+  @override
+  String get toolDescFilePatch => '以 Unified Diff 修补单个文件；「path」参数优先于 diff 头。';
+
+  @override
+  String get toolDescFileExtractText => '从 PDF、DOCX、PPTX、XLSX 逐页提取文字。';
+
+  @override
+  String get toolDescFileExtractZip => '在工作区内解压 .zip；逐条目校验边界。';
+
+  @override
+  String get toolDescFileCreatePdf => '将 Markdown 输出为 PDF，中文可正确显示。';
+
+  @override
+  String get toolDescConsoleErrors => '读取实时网站预览捕获的控制台错误。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -13212,6 +13341,135 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get contextUsageEstimatedBadge => '≈ 估算';
+
+  @override
+  String get toolNameFileRead => '读取文件';
+
+  @override
+  String get toolNameFileWrite => '写入文件';
+
+  @override
+  String get toolNameFileAppend => '追加内容';
+
+  @override
+  String get toolNameFileEdit => '编辑文件';
+
+  @override
+  String get toolNameFilePatch => '应用修补';
+
+  @override
+  String get toolNameFileDelete => '删除文件';
+
+  @override
+  String get toolNameFileList => '列出文件夹';
+
+  @override
+  String get toolNameFileMkdir => '创建文件夹';
+
+  @override
+  String get toolNameFileInfo => '文件信息';
+
+  @override
+  String get toolNameFileMove => '移动文件';
+
+  @override
+  String get toolNameFileCopy => '复制文件';
+
+  @override
+  String get toolNameFileSearch => '搜索文件';
+
+  @override
+  String get toolNameFileGrep => '搜索内容';
+
+  @override
+  String get toolNameFileViewImage => '查看图片';
+
+  @override
+  String get toolNameFileExtractText => '提取文档文字';
+
+  @override
+  String get toolNameFileExtractZip => '解压';
+
+  @override
+  String get toolNameFileCreatePdf => '创建 PDF';
+
+  @override
+  String get toolNameConsoleErrors => '读取控制台错误';
+
+  @override
+  String get toolNameShellRun => '执行命令';
+
+  @override
+  String get toolNameSearchWeb => '联网搜索';
+
+  @override
+  String get toolNameWebFetch => '读取网页';
+
+  @override
+  String get toolNameSkill => '加载技能';
+
+  @override
+  String get toolNameBuiltinSearch => '模型内置搜索';
+
+  @override
+  String get toolNameIllustrate => '生成图片';
+
+  @override
+  String get toolGroupRead => '读取与查看';
+
+  @override
+  String get toolGroupReadDescription => '打开、列出并查看工作区中的文件。';
+
+  @override
+  String get toolGroupWrite => '写入与编辑';
+
+  @override
+  String get toolGroupWriteDescription => '创建、编辑、修补与整理文件内容。';
+
+  @override
+  String get toolGroupSearch => '搜索';
+
+  @override
+  String get toolGroupSearchDescription => '按文件名查找文件，或搜索文件内容。';
+
+  @override
+  String get toolGroupOrganize => '整理';
+
+  @override
+  String get toolGroupOrganizeDescription => '删除、移动与复制文件或文件夹。';
+
+  @override
+  String get toolGroupDocuments => '文档';
+
+  @override
+  String get toolGroupDocumentsDescription => '提取文字、解压与输出 PDF。';
+
+  @override
+  String get toolGroupSystem => '系统';
+
+  @override
+  String get toolGroupSystemDescription => 'Shell 命令与实时预览的控制台输出。';
+
+  @override
+  String get toolGroupOther => '其他';
+
+  @override
+  String get toolGroupOtherDescription => '尚未归类的工具。';
+
+  @override
+  String get toolDescFilePatch => '以 Unified Diff 修补单个文件；「path」参数优先于 diff 头。';
+
+  @override
+  String get toolDescFileExtractText => '从 PDF、DOCX、PPTX、XLSX 逐页提取文字。';
+
+  @override
+  String get toolDescFileExtractZip => '在工作区内解压 .zip；逐条目校验边界。';
+
+  @override
+  String get toolDescFileCreatePdf => '将 Markdown 输出为 PDF，中文可正确显示。';
+
+  @override
+  String get toolDescConsoleErrors => '读取实时网站预览捕获的控制台错误。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -19811,4 +20069,133 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get contextUsageEstimatedBadge => '≈ 估算';
+
+  @override
+  String get toolNameFileRead => '讀取檔案';
+
+  @override
+  String get toolNameFileWrite => '寫入檔案';
+
+  @override
+  String get toolNameFileAppend => '附加內容';
+
+  @override
+  String get toolNameFileEdit => '編輯檔案';
+
+  @override
+  String get toolNameFilePatch => '套用修補';
+
+  @override
+  String get toolNameFileDelete => '刪除檔案';
+
+  @override
+  String get toolNameFileList => '列出資料夾';
+
+  @override
+  String get toolNameFileMkdir => '建立資料夾';
+
+  @override
+  String get toolNameFileInfo => '檔案資訊';
+
+  @override
+  String get toolNameFileMove => '移動檔案';
+
+  @override
+  String get toolNameFileCopy => '複製檔案';
+
+  @override
+  String get toolNameFileSearch => '搜尋檔案';
+
+  @override
+  String get toolNameFileGrep => '搜尋內容';
+
+  @override
+  String get toolNameFileViewImage => '檢視圖片';
+
+  @override
+  String get toolNameFileExtractText => '擷取文件文字';
+
+  @override
+  String get toolNameFileExtractZip => '解壓縮';
+
+  @override
+  String get toolNameFileCreatePdf => '建立 PDF';
+
+  @override
+  String get toolNameConsoleErrors => '讀取主控台錯誤';
+
+  @override
+  String get toolNameShellRun => '執行命令';
+
+  @override
+  String get toolNameSearchWeb => '聯網檢索';
+
+  @override
+  String get toolNameWebFetch => '讀取網頁';
+
+  @override
+  String get toolNameSkill => '載入技能';
+
+  @override
+  String get toolNameBuiltinSearch => '模型內建搜尋';
+
+  @override
+  String get toolNameIllustrate => '生成圖片';
+
+  @override
+  String get toolGroupRead => '讀取與檢視';
+
+  @override
+  String get toolGroupReadDescription => '開啟、列出並檢視工作區中的檔案。';
+
+  @override
+  String get toolGroupWrite => '寫入與編輯';
+
+  @override
+  String get toolGroupWriteDescription => '建立、編輯、修補與整理檔案內容。';
+
+  @override
+  String get toolGroupSearch => '搜尋';
+
+  @override
+  String get toolGroupSearchDescription => '依檔名尋找檔案，或搜尋檔案內容。';
+
+  @override
+  String get toolGroupOrganize => '整理';
+
+  @override
+  String get toolGroupOrganizeDescription => '刪除、移動與複製檔案或資料夾。';
+
+  @override
+  String get toolGroupDocuments => '文件';
+
+  @override
+  String get toolGroupDocumentsDescription => '擷取文字、解壓縮與輸出 PDF。';
+
+  @override
+  String get toolGroupSystem => '系統';
+
+  @override
+  String get toolGroupSystemDescription => 'Shell 命令與即時預覽的主控台輸出。';
+
+  @override
+  String get toolGroupOther => '其他';
+
+  @override
+  String get toolGroupOtherDescription => '尚未歸類的工具。';
+
+  @override
+  String get toolDescFilePatch => '以 Unified Diff 修補單一檔案；「path」參數優先於 diff 標頭。';
+
+  @override
+  String get toolDescFileExtractText => '從 PDF、DOCX、PPTX、XLSX 逐頁擷取文字。';
+
+  @override
+  String get toolDescFileExtractZip => '在工作區內解壓縮 .zip；逐條目驗證邊界。';
+
+  @override
+  String get toolDescFileCreatePdf => '將 Markdown 輸出為 PDF，中文可正確顯示。';
+
+  @override
+  String get toolDescConsoleErrors => '讀取即時網站預覽擷取的主控台錯誤。';
 }
