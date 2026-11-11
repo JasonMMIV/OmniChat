@@ -17,34 +17,107 @@ import '../icons/lucide_adapter.dart';
 import '../l10n/app_localizations.dart';
 import '../shared/widgets/ios_switch.dart';
 
+/// Actions the desktop workspace panel hands back to the caller. The panel is
+/// an OverlayEntry above the navigator, so it must close before a dialog or
+/// page opens (otherwise the dialog renders behind it). The caller runs the
+/// action and then reopens the panel, which makes "back" from any workspace
+/// subpage return to the workspace menu instead of the chat.
+enum _WorkspacePopoverAction { directory, tools, preview, browser }
+
+class _WorkspacePopoverSelection {
+  const _WorkspacePopoverSelection(this.action, this.workspacePath);
+
+  final _WorkspacePopoverAction action;
+  final String? workspacePath;
+}
+
 Future<void> showDesktopWorkspacePopover(
   BuildContext context, {
   required GlobalKey anchorKey,
   required String conversationId,
 }) async {
+  while (true) {
+    if (!context.mounted) return;
+    final selection = await _showWorkspacePopoverOnce(
+      context,
+      anchorKey: anchorKey,
+      conversationId: conversationId,
+    );
+    if (selection == null || !context.mounted) return;
+
+    switch (selection.action) {
+      case _WorkspacePopoverAction.directory:
+        final service = context.read<ChatService>();
+        final initial =
+            service.getConversationWorkspaceConfig(conversationId) ??
+            const WorkspaceConfig.inheritProject();
+        final config = await showConversationWorkspaceModeSheet(
+          context,
+          initial: initial,
+        );
+        if (config == null) break;
+        if (!context.mounted) return;
+        await service.setConversationWorkspaceConfig(conversationId, config);
+      case _WorkspacePopoverAction.tools:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) =>
+                WorkspaceToolsPage(workspacePath: selection.workspacePath),
+          ),
+        );
+      case _WorkspacePopoverAction.preview:
+        final path = selection.workspacePath;
+        if (path == null || path.trim().isEmpty) break;
+        await showDevPreview(context, workspacePath: path);
+      case _WorkspacePopoverAction.browser:
+        final path = selection.workspacePath;
+        if (path == null || path.trim().isEmpty) break;
+        await showDialog<void>(
+          context: context,
+          builder: (_) => Dialog(
+            child: SizedBox(
+              width: 560,
+              height: 620,
+              child: WorkspaceFileBrowser(workspacePath: path),
+            ),
+          ),
+        );
+    }
+  }
+}
+
+Future<_WorkspacePopoverSelection?> _showWorkspacePopoverOnce(
+  BuildContext context, {
+  required GlobalKey anchorKey,
+  required String conversationId,
+}) {
   final overlay = Overlay.of(context);
-  if (overlay == null) return;
   final keyContext = anchorKey.currentContext;
-  if (keyContext == null) return;
+  if (keyContext == null) return Future.value();
 
   final box = keyContext.findRenderObject() as RenderBox?;
-  if (box == null) return;
+  if (box == null) return Future.value();
   final offset = box.localToGlobal(Offset.zero);
   final size = box.size;
-  final anchorRect = Rect.fromLTWH(offset.dx, offset.dy, size.width, size.height);
+  final anchorRect = Rect.fromLTWH(
+    offset.dx,
+    offset.dy,
+    size.width,
+    size.height,
+  );
 
-  final completer = Completer<void>();
+  final completer = Completer<_WorkspacePopoverSelection?>();
 
   late OverlayEntry entry;
   entry = OverlayEntry(
     builder: (ctx) => _WorkspacePopover(
       anchorRect: anchorRect,
       conversationId: conversationId,
-      onClose: () {
+      onClose: (selection) {
         try {
           entry.remove();
         } catch (_) {}
-        if (!completer.isCompleted) completer.complete();
+        if (!completer.isCompleted) completer.complete(selection);
       },
     ),
   );
@@ -61,7 +134,7 @@ class _WorkspacePopover extends StatefulWidget {
 
   final Rect anchorRect;
   final String conversationId;
-  final VoidCallback onClose;
+  final ValueChanged<_WorkspacePopoverSelection?> onClose;
 
   @override
   State<_WorkspacePopover> createState() => _WorkspacePopoverState();
@@ -138,13 +211,13 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
     });
   }
 
-  Future<void> _close() async {
+  Future<void> _close([_WorkspacePopoverSelection? selection]) async {
     if (_closing) return;
     _closing = true;
     try {
       await _controller.reverse();
     } catch (_) {}
-    if (mounted) widget.onClose();
+    if (mounted) widget.onClose(selection);
   }
 
   /// Master enable/disable toggle for this conversation's workspace. The
@@ -165,79 +238,9 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
     }
   }
 
-  Future<void> _openDirectorySheet() async {
+  Future<void> _requestAction(_WorkspacePopoverAction action) async {
     if (_closing || _busy) return;
-    // This popover is an OverlayEntry above the navigator: a dialog opened
-    // while it is still inserted renders behind the panel, so taps on the
-    // dialog hit the panel instead. Close the panel first and open the
-    // directory sheet from the navigator (same fix as the Add-ons menu,
-    // Windows feedback 2026-11-10). Cancelling the sheet therefore returns
-    // to the chat with the panel closed. The popover state is unmounted by
-    // the close, so capture the service/id before awaiting the sheet.
-    final service = _chatService;
-    final conversationId = widget.conversationId;
-    final initial =
-        service.getConversationWorkspaceConfig(conversationId) ??
-        const WorkspaceConfig.inheritProject();
-    final navigator = Navigator.of(context);
-    await _close();
-    await Future<void>.delayed(const Duration(milliseconds: 80));
-    if (!navigator.mounted) return;
-    final result = await showConversationWorkspaceModeSheet(
-      navigator.context,
-      initial: initial,
-    );
-    if (result == null) return;
-    await service.setConversationWorkspaceConfig(conversationId, result);
-  }
-
-  Future<void> _openToolsPage() async {
-    if (_closing) return;
-    // Capture the navigator before _close(): closing removes the popover's
-    // OverlayEntry, which unmounts this State (same pattern as _openBrowser).
-    final navigator = Navigator.of(context);
-    final workspacePath = _workspacePath;
-    await _close();
-    await Future<void>.delayed(const Duration(milliseconds: 80));
-    await navigator.push(
-      MaterialPageRoute(
-        builder: (_) => WorkspaceToolsPage(workspacePath: workspacePath),
-      ),
-    );
-  }
-
-  Future<void> _openPreview() async {
-    if (_closing) return;
-    final path = _workspacePath;
-    if (path == null || _resolution?.enabled != true) return;
-    // Capture the navigator before _close(): closing removes the popover's
-    // OverlayEntry, which unmounts this State.
-    final navigator = Navigator.of(context);
-    await _close();
-    await Future<void>.delayed(const Duration(milliseconds: 80));
-    await showDevPreview(navigator.context, workspacePath: path);
-  }
-
-  Future<void> _openBrowser() async {
-    if (_closing) return;
-    final path = _workspacePath;
-    if (path == null || _resolution?.enabled != true) return;
-    // Capture the navigator before _close(): closing removes the popover's
-    // OverlayEntry, which unmounts this State, so `mounted`/`context` are no
-    // longer usable for pushing the file browser dialog afterwards.
-    final navigator = Navigator.of(context);
-    await _close();
-    await Future<void>.delayed(const Duration(milliseconds: 80));
-    await showDialog<void>(
-      context: navigator.context,
-      builder: (_) => Dialog(
-        child: SizedBox(
-          width: 560,
-          height: 620,
-          child: WorkspaceFileBrowser(workspacePath: path),
-        ),
-      ),
-    );
+    await _close(_WorkspacePopoverSelection(action, _workspacePath));
   }
 
   @override
@@ -275,7 +278,7 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
         Positioned.fill(
           child: GestureDetector(
             behavior: HitTestBehavior.translucent,
-            onTap: _close,
+            onTap: () => _close(),
           ),
         ),
         Positioned(
@@ -381,7 +384,11 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
                                       Lucide.ChevronRight,
                                       size: 18,
                                     ),
-                                    onTap: _busy ? null : _openDirectorySheet,
+                                    onTap: _busy
+                                        ? null
+                                        : () => _requestAction(
+                                            _WorkspacePopoverAction.directory,
+                                          ),
                                   ),
                                   ListTile(
                                     contentPadding: EdgeInsets.zero,
@@ -397,7 +404,11 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
                                       Lucide.ChevronRight,
                                       size: 18,
                                     ),
-                                    onTap: _busy ? null : _openToolsPage,
+                                    onTap: _busy
+                                        ? null
+                                        : () => _requestAction(
+                                            _WorkspacePopoverAction.tools,
+                                          ),
                                   ),
                                   ListTile(
                                     contentPadding: EdgeInsets.zero,
@@ -409,7 +420,11 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
                                       l10n.devPreviewMenuEntry,
                                       style: rowTitleStyle,
                                     ),
-                                    onTap: _busy ? null : _openPreview,
+                                    onTap: _busy
+                                        ? null
+                                        : () => _requestAction(
+                                            _WorkspacePopoverAction.preview,
+                                          ),
                                   ),
                                   ListTile(
                                     contentPadding: EdgeInsets.zero,
@@ -421,7 +436,11 @@ class _WorkspacePopoverState extends State<_WorkspacePopover>
                                       l10n.workspaceFiles,
                                       style: rowTitleStyle,
                                     ),
-                                    onTap: _openBrowser,
+                                    onTap: _busy
+                                        ? null
+                                        : () => _requestAction(
+                                            _WorkspacePopoverAction.browser,
+                                          ),
                                   ),
                                 ],
                               ],

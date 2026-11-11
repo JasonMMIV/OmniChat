@@ -145,7 +145,7 @@ Widget _toolRow(
 
   return ListTile(
     contentPadding: EdgeInsets.zero,
-    leading: Icon(toolIcon(entry.name), size: 20),
+    leading: Icon(toolIcon(entry.name), size: 20, color: cs.primary),
     title: Text(
       displayName,
       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),

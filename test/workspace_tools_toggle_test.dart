@@ -8,6 +8,7 @@ import 'package:OmniChat/core/models/workspace_config.dart';
 import 'package:OmniChat/core/providers/settings_provider.dart';
 import 'package:OmniChat/features/chat/pages/workspace_tools_page.dart';
 import 'package:OmniChat/features/home/services/tool_handler_service.dart';
+import 'package:OmniChat/icons/lucide_adapter.dart';
 import 'package:OmniChat/l10n/app_localizations.dart';
 
 /// A minimal SettingsProvider double: only the workspace-tool toggle API is
@@ -254,6 +255,14 @@ void main() {
       expect(find.textContaining('file_patch'), findsNothing);
       expect(find.text('Run command'), findsOneWidget);
       expect(find.text('shell_run'), findsNothing);
+
+      // Tool icons use the theme accent, matching the permission rows above
+      // them, instead of ListTile's default grey.
+      final primary = Theme.of(
+        tester.element(find.text('Read file')),
+      ).colorScheme.primary;
+      final icon = tester.widget<Icon>(find.byIcon(Lucide.FileText).first);
+      expect(icon.color, primary);
     });
   });
 }

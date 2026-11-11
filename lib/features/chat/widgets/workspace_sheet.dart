@@ -121,7 +121,10 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
       widget.conversationId,
       config,
     );
-    if (mounted) Navigator.of(context).pop();
+    // Stay on the workspace menu: the directory sheet pops itself, and the
+    // refreshed path/mode label should be visible immediately instead of
+    // sending the user back to the chat.
+    if (mounted) await _loadWorkspace();
   }
 
   Future<void> _openDirectorySheet() async {
@@ -138,11 +141,10 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
   }
 
   Future<void> _openToolsPage() async {
-    final navigator = Navigator.of(context);
     final workspacePath = _workspacePath;
-    Navigator.of(context).pop();
-    await Future<void>.delayed(const Duration(milliseconds: 80));
-    await navigator.push(
+    // Push on top of the workspace sheet instead of closing it first: back
+    // from the tools page then lands on the workspace menu, not the chat.
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => WorkspaceToolsPage(workspacePath: workspacePath),
       ),
@@ -152,25 +154,21 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
   Future<void> _openPreview() async {
     final path = _workspacePath;
     if (path == null || _resolution?.enabled != true) return;
-    final navigator = Navigator.of(context);
-    Navigator.of(context).pop();
-    await Future<void>.delayed(const Duration(milliseconds: 80));
-    await showDevPreview(navigator.context, workspacePath: path);
+    await showDevPreview(context, workspacePath: path);
   }
 
   Future<void> _openBrowser() async {
     final path = _workspacePath;
     if (path == null || _resolution?.enabled != true) return;
-    final navigator = Navigator.of(context);
     final isDesktop =
         defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.linux;
-    Navigator.of(context).pop();
-    await Future<void>.delayed(const Duration(milliseconds: 80));
+    // Same as the tools page: keep the sheet below the browser so closing it
+    // returns to the workspace menu.
     if (isDesktop) {
       await showDialog<void>(
-        context: navigator.context,
+        context: context,
         builder: (_) => Dialog(
           child: SizedBox(
             width: 560,
@@ -180,7 +178,7 @@ class _WorkspaceSheetState extends State<WorkspaceSheet> {
         ),
       );
     } else {
-      await navigator.push(
+      await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => WorkspaceFileBrowser(workspacePath: path),
         ),

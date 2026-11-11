@@ -130,14 +130,20 @@ void main() {
       // the popover closes and the picker result is discarded on return.
       await tester.tap(find.text(l10n.workspaceChooseFolder));
       await tester.pumpAndSettle();
+      // The workspace panel reopens after the (real-IO) Hive write finishes.
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pumpAndSettle();
 
       expect(
         chatService.getConversationWorkspaceConfig(conversation.id),
         WorkspaceConfig.custom(pickedDir.path),
       );
-      // Both the panel and the directory sheet are gone; only the chat
-      // surface remains.
-      expect(find.text(l10n.workspaceEnableToggle), findsNothing);
+      // The directory sheet is gone and the workspace panel is back on the
+      // freshly chosen directory — selecting a folder must not drop the user
+      // back to the chat.
+      expect(find.text(l10n.workspaceEnableToggle), findsOneWidget);
       expect(find.text(l10n.workspaceChooseFolder), findsNothing);
 
       // Sync-only teardown: real file IO awaited from testWidgets teardown
