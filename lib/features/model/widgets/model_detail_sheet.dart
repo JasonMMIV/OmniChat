@@ -1926,9 +1926,10 @@ bool _modalitySetEquals(Set<Modality> a, List<Modality> b) =>
 bool _abilitySetEquals(Set<ModelAbility> a, List<ModelAbility> b) =>
     a.length == b.length && a.containsAll(b);
 
-/// Section header for the basic tab's spec sections: label + a 預設 / 自訂
-/// source capsule, and — when the section is 自訂 — a reset-to-default icon
-/// (Kelivo's SpecFieldHeader, adapted to OmniChat's label styling).
+/// Section header for the basic tab's spec sections: label on the left, then
+/// a right-aligned 預設 / 自訂 source capsule, and — when the section is 自訂 —
+/// a reset-to-default icon at the far right (Kelivo's SpecFieldHeader, adapted
+/// to OmniChat's label styling).
 class _SpecSectionHeader extends StatelessWidget {
   const _SpecSectionHeader({
     required this.label,
@@ -1947,15 +1948,17 @@ class _SpecSectionHeader extends StatelessWidget {
     final capsuleColor = custom ? cs.primary : cs.onSurface;
     return Row(
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: cs.onSurface.withOpacity(0.8),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: cs.onSurface.withOpacity(0.8),
+            ),
           ),
         ),
-        const SizedBox(width: 6),
         Container(
+          key: const ValueKey('spec-source-capsule'),
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
           decoration: BoxDecoration(
             color: capsuleColor.withOpacity(0.10),
@@ -1977,7 +1980,6 @@ class _SpecSectionHeader extends StatelessWidget {
             ),
           ),
         ),
-        const Spacer(),
         if (custom && onReset != null)
           InkWell(
             onTap: onReset,

@@ -458,6 +458,56 @@ void main() {
     expect(ov.containsKey('abilities'), isFalse);
   });
 
+  testWidgets('spec source capsule is right-aligned in its section header',
+      (tester) async {
+    tester.view.physicalSize = const Size(400, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final settings = _FakeSettings(
+      _configWithOverrides(<String, dynamic>{
+        'model': <String, dynamic>{'apiModelId': 'model', 'name': 'Model'},
+      }),
+    );
+
+    await _pumpSheet(tester, settings);
+
+    final label = find.text('Token limits');
+    final headerRow =
+        find.ancestor(of: label, matching: find.byType(Row)).first;
+    final capsule = find.descendant(
+      of: headerRow,
+      matching: find.byKey(const ValueKey('spec-source-capsule')),
+    );
+    expect(capsule, findsOneWidget);
+
+    // Default sections have no reset icon, so the capsule sits flush with the
+    // row's trailing edge (Kelivo's SpecFieldHeader layout).
+    final rowRect = tester.getRect(headerRow);
+    expect(
+      tester.getRect(capsule).right,
+      moreOrLessEquals(rowRect.right, epsilon: 0.5),
+    );
+    expect(
+      tester.getRect(capsule).left,
+      greaterThan(rowRect.center.dx),
+    );
+
+    // When custom, the reset icon takes the trailing edge and the capsule
+    // stays immediately to its left.
+    await tester.enterText(
+      find.byKey(const ValueKey('model-context-window-field')),
+      '50000',
+    );
+    await tester.pumpAndSettle();
+    final resetRect = tester.getRect(find.byIcon(Lucide.RotateCcw));
+    expect(resetRect.left, greaterThanOrEqualTo(tester.getRect(capsule).right));
+    expect(resetRect.right, greaterThan(rowRect.center.dx));
+  });
+
   testWidgets('zero token limits are treated as unset (no dead override)',
       (tester) async {
     tester.view.physicalSize = const Size(400, 2400);
