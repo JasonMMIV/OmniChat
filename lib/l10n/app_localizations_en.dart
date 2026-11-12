@@ -727,6 +727,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopTrayMenuExit => 'Exit';
 
   @override
+  String get desktopTrayRunGenerating => 'Generating…';
+
+  @override
+  String get desktopTrayRunReady => 'Reply ready';
+
+  @override
+  String get desktopTrayRunFailed => 'Generation failed';
+
+  @override
+  String get desktopTrayRunStopped => 'Generation stopped';
+
+  @override
+  String get backgroundRunNotificationReady =>
+      'The assistant finished replying.';
+
+  @override
+  String get backgroundRunNotificationFailed => 'Generation failed.';
+
+  @override
   String get assistantProviderDefaultAssistantName => 'Default Project';
 
   @override
@@ -5030,7 +5049,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPageAssistantSubtitle => '默认项目与对话风格';
 
   @override
-  String get settingsPageHotkeys => '快捷键';
+  String get settingsPageHotkeys => 'Keyboard Shortcuts';
 
   @override
   String get languageSelectSheetTitle => '选择翻译语言';
@@ -5076,37 +5095,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantSettingsEditButton => '编辑';
 
   @override
-  String get hotkeyToggleAppVisibility => '显示/隐藏应用';
+  String get hotkeyToggleAppVisibility => 'Show/Hide App';
 
   @override
-  String get hotkeyCloseWindow => '关闭窗口';
+  String get hotkeyCloseWindow => 'Close Window';
 
   @override
-  String get hotkeyOpenSettings => '打开设置';
+  String get hotkeyOpenSettings => 'Open Settings';
 
   @override
-  String get hotkeyNewTopic => '新建话题';
+  String get hotkeyNewTopic => 'New Topic';
 
   @override
-  String get hotkeySwitchModel => '切换模型';
+  String get hotkeySwitchModel => 'Switch Model';
 
   @override
-  String get hotkeyToggleAssistantPanel => '切换项目显示';
+  String get hotkeyToggleAssistantPanel => 'Toggle Assistants Panel';
 
   @override
-  String get hotkeyToggleTopicPanel => '切换话题显示';
+  String get hotkeyToggleTopicPanel => 'Toggle Topics Panel';
 
   @override
-  String get hotkeysPressShortcut => '按下快捷键';
+  String get hotkeysPressShortcut => 'Press a shortcut';
 
   @override
-  String get hotkeysResetDefault => '重置为默认';
+  String get hotkeysResetDefault => 'Reset to default';
 
   @override
-  String get hotkeysClearShortcut => '清除快捷键';
+  String get hotkeysClearShortcut => 'Clear shortcut';
 
   @override
-  String get hotkeysResetAll => '重置所有快捷键为默认';
+  String get hotkeysResetAll => 'Reset all shortcuts to defaults';
 
   @override
   String get displaySettingsPageLanguageSubtitle => '选择界面语言';
@@ -5701,10 +5720,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Let the assistant ask clarifying questions';
 
   @override
+  String get addonsSubagentSubtitle =>
+      'Delegate self-contained subtasks to an isolated helper; only its summary returns';
+
+  @override
   String get builtInToolWriteTodosName => 'Write Todos';
 
   @override
   String get builtInToolAskUserName => 'Ask User';
+
+  @override
+  String get builtInToolSubagentName => 'Subagents';
 
   @override
   String get workspaceDefaultDirectoryPrivate => 'App private directory';
@@ -7020,4 +7046,108 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get chatMessageWidgetToolImageNotSentLimit =>
       'The per-request image limit was reached.';
+
+  @override
+  String get toolNameShellExec => 'Run command (sandbox)';
+
+  @override
+  String get settingsPageAndroidShell => 'Android Shell';
+
+  @override
+  String get androidShellPageTitle => 'Android Shell (PRoot)';
+
+  @override
+  String get androidShellStatusNotInstalled => 'Not installed';
+
+  @override
+  String get androidShellStatusReady => 'Ready';
+
+  @override
+  String get androidShellStatusUnsupported => 'Unsupported on this device';
+
+  @override
+  String get androidShellInstall => 'Install';
+
+  @override
+  String get androidShellRepair => 'Reinstall';
+
+  @override
+  String get androidShellCancel => 'Cancel';
+
+  @override
+  String get androidShellRemove => 'Remove';
+
+  @override
+  String get androidShellRemoveTitle => 'Remove Android Shell?';
+
+  @override
+  String get androidShellRemoveMessage =>
+      'This deletes the installed Ubuntu rootfs and its runtime files. Workspace files are not affected.';
+
+  @override
+  String get androidShellRemoveConfirm => 'Remove';
+
+  @override
+  String get androidShellVersion => 'Installed at';
+
+  @override
+  String get androidShellDiskUsage => 'Installed size';
+
+  @override
+  String get androidShellFreeSpace => 'Free space';
+
+  @override
+  String get androidShellInstalling => 'Installing Android Shell…';
+
+  @override
+  String get androidShellStageVerify => 'Verifying package…';
+
+  @override
+  String get androidShellStageExtract => 'Extracting rootfs…';
+
+  @override
+  String get androidShellStagePatch => 'Configuring rootfs…';
+
+  @override
+  String get androidShellStageActivate => 'Activating rootfs…';
+
+  @override
+  String get androidShellStageReady => 'Ready';
+
+  @override
+  String get androidShellForegroundOnly => 'Foreground only';
+
+  @override
+  String get androidShellForegroundOnlyBody =>
+      'One command runs at a time. Background jobs are not supported, and closing the app may stop a running command.';
+
+  @override
+  String get androidShellNotSandbox => 'Not a security sandbox';
+
+  @override
+  String get androidShellNotSandboxBody =>
+      'Commands run with the app\'s permissions and can access the bound workspace. Approve only commands you trust.';
+
+  @override
+  String get androidShellExternal => 'Shared-storage limits';
+
+  @override
+  String get androidShellExternalBody =>
+      'External workspaces are mounted read/write but do not support executable bits or symlinks (FUSE noexec). Keep scripts and builds in the app-private workspace. If an external workspace cannot be read, grant All files access in Android Settings → Special app access.';
+
+  @override
+  String get androidShellLicenses => 'Third-party notices';
+
+  @override
+  String get androidShellLicensesBody =>
+      'PRoot (GPL-2.0-or-later), libtalloc (LGPL-3.0-or-later), libandroid-shmem (Apache-2.0), and the Ubuntu Base rootfs. Source and license details are in THIRD_PARTY_NOTICES.md.';
+
+  @override
+  String get androidShellUnsupportedBody =>
+      'This build requires an arm64 Android device with the PRoot native libraries. The tool stays disabled elsewhere.';
+
+  @override
+  String androidShellInstallFailed(String error) {
+    return 'Android Shell installation failed: $error';
+  }
 }

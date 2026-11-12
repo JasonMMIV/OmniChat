@@ -1486,6 +1486,42 @@ abstract class AppLocalizations {
   /// **'Exit'**
   String get desktopTrayMenuExit;
 
+  /// No description provided for @desktopTrayRunGenerating.
+  ///
+  /// In en, this message translates to:
+  /// **'Generating…'**
+  String get desktopTrayRunGenerating;
+
+  /// No description provided for @desktopTrayRunReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply ready'**
+  String get desktopTrayRunReady;
+
+  /// No description provided for @desktopTrayRunFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Generation failed'**
+  String get desktopTrayRunFailed;
+
+  /// No description provided for @desktopTrayRunStopped.
+  ///
+  /// In en, this message translates to:
+  /// **'Generation stopped'**
+  String get desktopTrayRunStopped;
+
+  /// No description provided for @backgroundRunNotificationReady.
+  ///
+  /// In en, this message translates to:
+  /// **'The assistant finished replying.'**
+  String get backgroundRunNotificationReady;
+
+  /// No description provided for @backgroundRunNotificationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Generation failed.'**
+  String get backgroundRunNotificationFailed;
+
   /// No description provided for @assistantProviderDefaultAssistantName.
   ///
   /// In en, this message translates to:
@@ -9435,7 +9471,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsPageHotkeys.
   ///
   /// In en, this message translates to:
-  /// **'快捷键'**
+  /// **'Keyboard Shortcuts'**
   String get settingsPageHotkeys;
 
   /// No description provided for @languageSelectSheetTitle.
@@ -9525,67 +9561,67 @@ abstract class AppLocalizations {
   /// No description provided for @hotkeyToggleAppVisibility.
   ///
   /// In en, this message translates to:
-  /// **'显示/隐藏应用'**
+  /// **'Show/Hide App'**
   String get hotkeyToggleAppVisibility;
 
   /// No description provided for @hotkeyCloseWindow.
   ///
   /// In en, this message translates to:
-  /// **'关闭窗口'**
+  /// **'Close Window'**
   String get hotkeyCloseWindow;
 
   /// No description provided for @hotkeyOpenSettings.
   ///
   /// In en, this message translates to:
-  /// **'打开设置'**
+  /// **'Open Settings'**
   String get hotkeyOpenSettings;
 
   /// No description provided for @hotkeyNewTopic.
   ///
   /// In en, this message translates to:
-  /// **'新建话题'**
+  /// **'New Topic'**
   String get hotkeyNewTopic;
 
   /// No description provided for @hotkeySwitchModel.
   ///
   /// In en, this message translates to:
-  /// **'切换模型'**
+  /// **'Switch Model'**
   String get hotkeySwitchModel;
 
   /// No description provided for @hotkeyToggleAssistantPanel.
   ///
   /// In en, this message translates to:
-  /// **'切换项目显示'**
+  /// **'Toggle Assistants Panel'**
   String get hotkeyToggleAssistantPanel;
 
   /// No description provided for @hotkeyToggleTopicPanel.
   ///
   /// In en, this message translates to:
-  /// **'切换话题显示'**
+  /// **'Toggle Topics Panel'**
   String get hotkeyToggleTopicPanel;
 
   /// No description provided for @hotkeysPressShortcut.
   ///
   /// In en, this message translates to:
-  /// **'按下快捷键'**
+  /// **'Press a shortcut'**
   String get hotkeysPressShortcut;
 
   /// No description provided for @hotkeysResetDefault.
   ///
   /// In en, this message translates to:
-  /// **'重置为默认'**
+  /// **'Reset to default'**
   String get hotkeysResetDefault;
 
   /// No description provided for @hotkeysClearShortcut.
   ///
   /// In en, this message translates to:
-  /// **'清除快捷键'**
+  /// **'Clear shortcut'**
   String get hotkeysClearShortcut;
 
   /// No description provided for @hotkeysResetAll.
   ///
   /// In en, this message translates to:
-  /// **'重置所有快捷键为默认'**
+  /// **'Reset all shortcuts to defaults'**
   String get hotkeysResetAll;
 
   /// No description provided for @displaySettingsPageLanguageSubtitle.
@@ -10728,6 +10764,12 @@ abstract class AppLocalizations {
   /// **'Let the assistant ask clarifying questions'**
   String get addonsAskUserSubtitle;
 
+  /// No description provided for @addonsSubagentSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delegate self-contained subtasks to an isolated helper; only its summary returns'**
+  String get addonsSubagentSubtitle;
+
   /// No description provided for @builtInToolWriteTodosName.
   ///
   /// In en, this message translates to:
@@ -10739,6 +10781,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Ask User'**
   String get builtInToolAskUserName;
+
+  /// No description provided for @builtInToolSubagentName.
+  ///
+  /// In en, this message translates to:
+  /// **'Subagents'**
+  String get builtInToolSubagentName;
 
   /// No description provided for @workspaceDefaultDirectoryPrivate.
   ///
@@ -13055,6 +13103,198 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The per-request image limit was reached.'**
   String get chatMessageWidgetToolImageNotSentLimit;
+
+  /// No description provided for @toolNameShellExec.
+  ///
+  /// In en, this message translates to:
+  /// **'Run command (sandbox)'**
+  String get toolNameShellExec;
+
+  /// No description provided for @settingsPageAndroidShell.
+  ///
+  /// In en, this message translates to:
+  /// **'Android Shell'**
+  String get settingsPageAndroidShell;
+
+  /// No description provided for @androidShellPageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Android Shell (PRoot)'**
+  String get androidShellPageTitle;
+
+  /// No description provided for @androidShellStatusNotInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'Not installed'**
+  String get androidShellStatusNotInstalled;
+
+  /// No description provided for @androidShellStatusReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get androidShellStatusReady;
+
+  /// No description provided for @androidShellStatusUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsupported on this device'**
+  String get androidShellStatusUnsupported;
+
+  /// No description provided for @androidShellInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Install'**
+  String get androidShellInstall;
+
+  /// No description provided for @androidShellRepair.
+  ///
+  /// In en, this message translates to:
+  /// **'Reinstall'**
+  String get androidShellRepair;
+
+  /// No description provided for @androidShellCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get androidShellCancel;
+
+  /// No description provided for @androidShellRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get androidShellRemove;
+
+  /// No description provided for @androidShellRemoveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove Android Shell?'**
+  String get androidShellRemoveTitle;
+
+  /// No description provided for @androidShellRemoveMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This deletes the installed Ubuntu rootfs and its runtime files. Workspace files are not affected.'**
+  String get androidShellRemoveMessage;
+
+  /// No description provided for @androidShellRemoveConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get androidShellRemoveConfirm;
+
+  /// No description provided for @androidShellVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Installed at'**
+  String get androidShellVersion;
+
+  /// No description provided for @androidShellDiskUsage.
+  ///
+  /// In en, this message translates to:
+  /// **'Installed size'**
+  String get androidShellDiskUsage;
+
+  /// No description provided for @androidShellFreeSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'Free space'**
+  String get androidShellFreeSpace;
+
+  /// No description provided for @androidShellInstalling.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing Android Shell…'**
+  String get androidShellInstalling;
+
+  /// No description provided for @androidShellStageVerify.
+  ///
+  /// In en, this message translates to:
+  /// **'Verifying package…'**
+  String get androidShellStageVerify;
+
+  /// No description provided for @androidShellStageExtract.
+  ///
+  /// In en, this message translates to:
+  /// **'Extracting rootfs…'**
+  String get androidShellStageExtract;
+
+  /// No description provided for @androidShellStagePatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Configuring rootfs…'**
+  String get androidShellStagePatch;
+
+  /// No description provided for @androidShellStageActivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Activating rootfs…'**
+  String get androidShellStageActivate;
+
+  /// No description provided for @androidShellStageReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get androidShellStageReady;
+
+  /// No description provided for @androidShellForegroundOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Foreground only'**
+  String get androidShellForegroundOnly;
+
+  /// No description provided for @androidShellForegroundOnlyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'One command runs at a time. Background jobs are not supported, and closing the app may stop a running command.'**
+  String get androidShellForegroundOnlyBody;
+
+  /// No description provided for @androidShellNotSandbox.
+  ///
+  /// In en, this message translates to:
+  /// **'Not a security sandbox'**
+  String get androidShellNotSandbox;
+
+  /// No description provided for @androidShellNotSandboxBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Commands run with the app\'s permissions and can access the bound workspace. Approve only commands you trust.'**
+  String get androidShellNotSandboxBody;
+
+  /// No description provided for @androidShellExternal.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared-storage limits'**
+  String get androidShellExternal;
+
+  /// No description provided for @androidShellExternalBody.
+  ///
+  /// In en, this message translates to:
+  /// **'External workspaces are mounted read/write but do not support executable bits or symlinks (FUSE noexec). Keep scripts and builds in the app-private workspace. If an external workspace cannot be read, grant All files access in Android Settings → Special app access.'**
+  String get androidShellExternalBody;
+
+  /// No description provided for @androidShellLicenses.
+  ///
+  /// In en, this message translates to:
+  /// **'Third-party notices'**
+  String get androidShellLicenses;
+
+  /// No description provided for @androidShellLicensesBody.
+  ///
+  /// In en, this message translates to:
+  /// **'PRoot (GPL-2.0-or-later), libtalloc (LGPL-3.0-or-later), libandroid-shmem (Apache-2.0), and the Ubuntu Base rootfs. Source and license details are in THIRD_PARTY_NOTICES.md.'**
+  String get androidShellLicensesBody;
+
+  /// No description provided for @androidShellUnsupportedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This build requires an arm64 Android device with the PRoot native libraries. The tool stays disabled elsewhere.'**
+  String get androidShellUnsupportedBody;
+
+  /// No description provided for @androidShellInstallFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Android Shell installation failed: {error}'**
+  String androidShellInstallFailed(String error);
 }
 
 class _AppLocalizationsDelegate

@@ -721,6 +721,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get desktopTrayMenuExit => '退出';
 
   @override
+  String get desktopTrayRunGenerating => '生成中…';
+
+  @override
+  String get desktopTrayRunReady => '回复已完成';
+
+  @override
+  String get desktopTrayRunFailed => '生成失败';
+
+  @override
+  String get desktopTrayRunStopped => '生成已停止';
+
+  @override
+  String get backgroundRunNotificationReady => '助理已完成回复。';
+
+  @override
+  String get backgroundRunNotificationFailed => '生成失败。';
+
+  @override
   String get assistantProviderDefaultAssistantName => '默认项目';
 
   @override
@@ -5622,10 +5640,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get addonsAskUserSubtitle => '让助手在需要决策时向你提问';
 
   @override
+  String get addonsSubagentSubtitle => '把自成一体的子任务交给隔离的子代理，只收回摘要';
+
+  @override
   String get builtInToolWriteTodosName => '撰写待办';
 
   @override
   String get builtInToolAskUserName => '询问用户';
+
+  @override
+  String get builtInToolSubagentName => '子代理';
 
   @override
   String get workspaceDefaultDirectoryPrivate => '应用私有目录';
@@ -6867,6 +6891,110 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatMessageWidgetToolImageNotSentLimit => '已达到单次请求的图片上限。';
+
+  @override
+  String get toolNameShellExec => '执行命令（沙盒）';
+
+  @override
+  String get settingsPageAndroidShell => 'Android Shell';
+
+  @override
+  String get androidShellPageTitle => 'Android Shell（PRoot）';
+
+  @override
+  String get androidShellStatusNotInstalled => '尚未安装';
+
+  @override
+  String get androidShellStatusReady => '就绪';
+
+  @override
+  String get androidShellStatusUnsupported => '此设备不支持';
+
+  @override
+  String get androidShellInstall => '安装';
+
+  @override
+  String get androidShellRepair => '重新安装';
+
+  @override
+  String get androidShellCancel => '取消';
+
+  @override
+  String get androidShellRemove => '移除';
+
+  @override
+  String get androidShellRemoveTitle => '移除 Android Shell？';
+
+  @override
+  String get androidShellRemoveMessage =>
+      '这会删除已安装的 Ubuntu rootfs 与运行时文件。工作区文件不受影响。';
+
+  @override
+  String get androidShellRemoveConfirm => '移除';
+
+  @override
+  String get androidShellVersion => '安装于';
+
+  @override
+  String get androidShellDiskUsage => '已安装大小';
+
+  @override
+  String get androidShellFreeSpace => '可用空间';
+
+  @override
+  String get androidShellInstalling => '正在安装 Android Shell…';
+
+  @override
+  String get androidShellStageVerify => '验证安装包…';
+
+  @override
+  String get androidShellStageExtract => '解压 rootfs…';
+
+  @override
+  String get androidShellStagePatch => '配置 rootfs…';
+
+  @override
+  String get androidShellStageActivate => '启用 rootfs…';
+
+  @override
+  String get androidShellStageReady => '就绪';
+
+  @override
+  String get androidShellForegroundOnly => '仅限前台';
+
+  @override
+  String get androidShellForegroundOnlyBody =>
+      '一次只能运行一个命令。不支持后台任务；关闭 App 可能会停止正在运行的命令。';
+
+  @override
+  String get androidShellNotSandbox => '这不是安全沙盒';
+
+  @override
+  String get androidShellNotSandboxBody =>
+      '命令以 App 权限运行，可访问已挂载的工作区。请只批准你信任的命令。';
+
+  @override
+  String get androidShellExternal => '共享存储限制';
+
+  @override
+  String get androidShellExternalBody =>
+      '外部工作区可读写，但不支持执行权限与符号链接（FUSE noexec）。请把脚本与构建放在 App 私有工作区。若外部工作区无法读取，请到 Android 设置 → 特殊应用权限 → 所有文件访问权限开启。';
+
+  @override
+  String get androidShellLicenses => '第三方声明';
+
+  @override
+  String get androidShellLicensesBody =>
+      'PRoot（GPL-2.0-or-later）、libtalloc（LGPL-3.0-or-later）、libandroid-shmem（Apache-2.0）与 Ubuntu Base rootfs。来源与许可详见 THIRD_PARTY_NOTICES.md。';
+
+  @override
+  String get androidShellUnsupportedBody =>
+      '此版本需要 arm64 Android 设备与 PRoot 原生库；其他设备不会启用此工具。';
+
+  @override
+  String androidShellInstallFailed(String error) {
+    return 'Android Shell 安装失败：$error';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -7477,6 +7605,24 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get homePageDeleteMessageConfirm => '确定要删除这条消息吗？此操作不可撤销。';
+
+  @override
+  String get desktopTrayRunGenerating => '生成中…';
+
+  @override
+  String get desktopTrayRunReady => '回复已完成';
+
+  @override
+  String get desktopTrayRunFailed => '生成失败';
+
+  @override
+  String get desktopTrayRunStopped => '生成已停止';
+
+  @override
+  String get backgroundRunNotificationReady => '助理已完成回复。';
+
+  @override
+  String get backgroundRunNotificationFailed => '生成失败。';
 
   @override
   String get assistantProviderDefaultAssistantName => '默认项目';
@@ -12275,10 +12421,16 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get addonsAskUserSubtitle => '让助手在需要决策时向你提问';
 
   @override
+  String get addonsSubagentSubtitle => '把自成一体的子任务交给隔离的子代理，只收回摘要';
+
+  @override
   String get builtInToolWriteTodosName => '撰写待办';
 
   @override
   String get builtInToolAskUserName => '询问用户';
+
+  @override
+  String get builtInToolSubagentName => '子代理';
 
   @override
   String get workspaceDefaultDirectoryPrivate => '应用私有目录';
@@ -13520,6 +13672,110 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get chatMessageWidgetToolImageNotSentLimit => '已达到单次请求的图片上限。';
+
+  @override
+  String get toolNameShellExec => '执行命令（沙盒）';
+
+  @override
+  String get settingsPageAndroidShell => 'Android Shell';
+
+  @override
+  String get androidShellPageTitle => 'Android Shell（PRoot）';
+
+  @override
+  String get androidShellStatusNotInstalled => '尚未安装';
+
+  @override
+  String get androidShellStatusReady => '就绪';
+
+  @override
+  String get androidShellStatusUnsupported => '此设备不支持';
+
+  @override
+  String get androidShellInstall => '安装';
+
+  @override
+  String get androidShellRepair => '重新安装';
+
+  @override
+  String get androidShellCancel => '取消';
+
+  @override
+  String get androidShellRemove => '移除';
+
+  @override
+  String get androidShellRemoveTitle => '移除 Android Shell？';
+
+  @override
+  String get androidShellRemoveMessage =>
+      '这会删除已安装的 Ubuntu rootfs 与运行时文件。工作区文件不受影响。';
+
+  @override
+  String get androidShellRemoveConfirm => '移除';
+
+  @override
+  String get androidShellVersion => '安装于';
+
+  @override
+  String get androidShellDiskUsage => '已安装大小';
+
+  @override
+  String get androidShellFreeSpace => '可用空间';
+
+  @override
+  String get androidShellInstalling => '正在安装 Android Shell…';
+
+  @override
+  String get androidShellStageVerify => '验证安装包…';
+
+  @override
+  String get androidShellStageExtract => '解压 rootfs…';
+
+  @override
+  String get androidShellStagePatch => '配置 rootfs…';
+
+  @override
+  String get androidShellStageActivate => '启用 rootfs…';
+
+  @override
+  String get androidShellStageReady => '就绪';
+
+  @override
+  String get androidShellForegroundOnly => '仅限前台';
+
+  @override
+  String get androidShellForegroundOnlyBody =>
+      '一次只能运行一个命令。不支持后台任务；关闭 App 可能会停止正在运行的命令。';
+
+  @override
+  String get androidShellNotSandbox => '这不是安全沙盒';
+
+  @override
+  String get androidShellNotSandboxBody =>
+      '命令以 App 权限运行，可访问已挂载的工作区。请只批准你信任的命令。';
+
+  @override
+  String get androidShellExternal => '共享存储限制';
+
+  @override
+  String get androidShellExternalBody =>
+      '外部工作区可读写，但不支持执行权限与符号链接（FUSE noexec）。请把脚本与构建放在 App 私有工作区。若外部工作区无法读取，请到 Android 设置 → 特殊应用权限 → 所有文件访问权限开启。';
+
+  @override
+  String get androidShellLicenses => '第三方声明';
+
+  @override
+  String get androidShellLicensesBody =>
+      'PRoot（GPL-2.0-or-later）、libtalloc（LGPL-3.0-or-later）、libandroid-shmem（Apache-2.0）与 Ubuntu Base rootfs。来源与许可详见 THIRD_PARTY_NOTICES.md。';
+
+  @override
+  String get androidShellUnsupportedBody =>
+      '此版本需要 arm64 Android 设备与 PRoot 原生库；其他设备不会启用此工具。';
+
+  @override
+  String androidShellInstallFailed(String error) {
+    return 'Android Shell 安装失败：$error';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -14142,6 +14398,24 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get desktopTrayMenuExit => '結束';
+
+  @override
+  String get desktopTrayRunGenerating => '生成中…';
+
+  @override
+  String get desktopTrayRunReady => '回覆已完成';
+
+  @override
+  String get desktopTrayRunFailed => '生成失敗';
+
+  @override
+  String get desktopTrayRunStopped => '生成已停止';
+
+  @override
+  String get backgroundRunNotificationReady => '助理已完成回覆。';
+
+  @override
+  String get backgroundRunNotificationFailed => '生成失敗。';
 
   @override
   String get assistantProviderDefaultAssistantName => '預設專案';
@@ -19028,10 +19302,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get addonsAskUserSubtitle => '讓助理在需要決策時向你提問';
 
   @override
+  String get addonsSubagentSubtitle => '把自成一體的子任務交給隔離的子代理，只收回摘要';
+
+  @override
   String get builtInToolWriteTodosName => '撰寫待辦';
 
   @override
   String get builtInToolAskUserName => '詢問使用者';
+
+  @override
+  String get builtInToolSubagentName => '子代理';
 
   @override
   String get workspaceDefaultDirectoryPrivate => 'App 私有目錄';
@@ -20272,4 +20552,108 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatMessageWidgetToolImageNotSentLimit => '已達單次請求的圖片上限。';
+
+  @override
+  String get toolNameShellExec => '執行命令（沙盒）';
+
+  @override
+  String get settingsPageAndroidShell => 'Android Shell';
+
+  @override
+  String get androidShellPageTitle => 'Android Shell（PRoot）';
+
+  @override
+  String get androidShellStatusNotInstalled => '尚未安裝';
+
+  @override
+  String get androidShellStatusReady => '就緒';
+
+  @override
+  String get androidShellStatusUnsupported => '此裝置不支援';
+
+  @override
+  String get androidShellInstall => '安裝';
+
+  @override
+  String get androidShellRepair => '重新安裝';
+
+  @override
+  String get androidShellCancel => '取消';
+
+  @override
+  String get androidShellRemove => '移除';
+
+  @override
+  String get androidShellRemoveTitle => '移除 Android Shell？';
+
+  @override
+  String get androidShellRemoveMessage =>
+      '這會刪除已安裝的 Ubuntu rootfs 與執行階段檔案。工作區檔案不受影響。';
+
+  @override
+  String get androidShellRemoveConfirm => '移除';
+
+  @override
+  String get androidShellVersion => '安裝於';
+
+  @override
+  String get androidShellDiskUsage => '已安裝大小';
+
+  @override
+  String get androidShellFreeSpace => '可用空間';
+
+  @override
+  String get androidShellInstalling => '正在安裝 Android Shell…';
+
+  @override
+  String get androidShellStageVerify => '驗證安裝包…';
+
+  @override
+  String get androidShellStageExtract => '解壓縮 rootfs…';
+
+  @override
+  String get androidShellStagePatch => '設定 rootfs…';
+
+  @override
+  String get androidShellStageActivate => '啟用 rootfs…';
+
+  @override
+  String get androidShellStageReady => '就緒';
+
+  @override
+  String get androidShellForegroundOnly => '僅限前景';
+
+  @override
+  String get androidShellForegroundOnlyBody =>
+      '一次只能執行一個命令。不支援背景工作；關閉 App 可能會停止正在執行的命令。';
+
+  @override
+  String get androidShellNotSandbox => '這不是安全沙盒';
+
+  @override
+  String get androidShellNotSandboxBody =>
+      '命令以 App 權限執行，可存取已掛載的工作區。請只核准你信任的命令。';
+
+  @override
+  String get androidShellExternal => '共享儲存限制';
+
+  @override
+  String get androidShellExternalBody =>
+      '外部工作區可讀寫，但不支援執行權限與符號連結（FUSE noexec）。請把腳本與建置放在 App 私有工作區。若外部工作區無法讀取，請到 Android 設定 → 特殊應用程式存取權 → 所有檔案存取權限開啟。';
+
+  @override
+  String get androidShellLicenses => '第三方聲明';
+
+  @override
+  String get androidShellLicensesBody =>
+      'PRoot（GPL-2.0-or-later）、libtalloc（LGPL-3.0-or-later）、libandroid-shmem（Apache-2.0）與 Ubuntu Base rootfs。來源與授權詳見 THIRD_PARTY_NOTICES.md。';
+
+  @override
+  String get androidShellUnsupportedBody =>
+      '此版本需要 arm64 Android 裝置與 PRoot 原生函式庫；其他裝置不會啟用此工具。';
+
+  @override
+  String androidShellInstallFailed(String error) {
+    return 'Android Shell 安裝失敗：$error';
+  }
 }
