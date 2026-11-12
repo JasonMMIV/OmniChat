@@ -11,6 +11,7 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../../core/providers/skills_provider.dart';
 import '../../../core/services/agent/compaction/compaction_trigger.dart';
+import '../../../core/services/agent/subagent.dart';
 import 'context_usage_service.dart';
 import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
 import '../../../core/services/api/learned_context_windows.dart';
@@ -505,6 +506,18 @@ class MessageGenerationService {
             conversationId: currentConversation?.id,
             messageId: assistantMessageId,
             workspacePath: workspacePath,
+            // P2-3: `spawn_subagent` inherits the generation snapshot — the
+            // same provider/model, the tools actually advertised here, and
+            // the assistant's custom headers/body + output cap (a helper
+            // request must be indistinguishable from the parent on the wire).
+            subagentContext: SubagentLaunchConfig(
+              providerKey: providerKey,
+              modelId: modelId,
+              tools: toolDefs,
+              extraHeaders: generationController.buildCustomHeaders(assistant),
+              extraBody: generationController.buildCustomBody(assistant),
+              maxTokens: assistant?.maxTokens,
+            ),
           )
         : null;
 

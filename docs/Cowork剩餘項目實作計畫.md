@@ -1,6 +1,10 @@
 # OmniChat Cowork 剩餘項目實作計畫
 
-> **版本**：v1.12（2026-11-12）
+> **版本**：v1.16（2026-11-12）
+> **v1.16 變更**（實作紀錄）：§2.8 P2-5 Proot on Android 落地（✅ Android foreground `shell_exec`）——pinned PRoot/libtalloc/libandroid-shmem/Ubuntu Base 24.04.4 資產＋`fetch-sandbox.sh`／Gradle guard、五階段 rootfs installer＋hardened tar extractor＋atomic activate、`WorkspaceMountTable`／host probe／`shell_exec` backend／Settings 安裝頁／四語系；`shell_exec` 只在 probe ready 時宣告，與 `shell_run` 共用 approval／取消／tool card 串流；F-Droid/GPL 文件與 notices 同步。真機 smoke 改列 release gate（2026-11-12 裁示），不再阻塞實作。
+> **v1.15 變更**（實作紀錄）：§2.5 P2-2 背景長任務落地（✅）——`lib/core/services/background/` 新增 `BackgroundRunMonitor`（純 Dart 狀態機：`begin`／`markFailed`／`markStopped`／`finish`／`requestOpen`、value-based snapshot、`changes`／`openRequests` 廣播）與 `BackgroundRunPresentation`（單一訂閱驅動兩平台）；桌面托盤新增狀態列與 tooltip（`DesktopTrayController.applyRunSnapshot`：生成中／回覆已完成／失敗／已停止，點擊喚起視窗並跳轉對話；專案無 Windows 通知外掛，故以托盤狀態取代系統 toast——照實記錄，不新增依賴）、Android 於 `onNotify` 模式在背景完成／失敗時發通知（payload＝conversationId，點擊與冷啟動皆導向對話；`NotificationService.showRunFinished`／`consumeLaunchConversationId`）。§0.4 表同步。review 後修正：**停止後遲到的串流錯誤不得把 `stopped` 翻成 `failed`**（終態第一個訊號為準）、完成通知判定移到 `await` 之前（廣播 listener 並發時 `_lastPhase` 不得被舊事件覆寫）、點擊托盤狀態列後 `acknowledgeTerminal()` 清掉終態列、狀態列文案抽為純函式並補測試。
+> **v1.14 變更**（review 修正）：§2.6 三項——①**停止改為 per-run 回呼**（`_activeSubagentCancels`）並取消 helper 的 in-flight 請求（`ChatApiService.cancelRequest`），終點再以 `isCancelled` 覆寫「取消後乾淨結束」的 finished 誤報（`SubagentOutcome.cancelled`）；②**摘要先截斷再編碼**（24k 字元＋`summary_truncated`），避免 `ToolResultCaps` 切壞 JSON 契約；③child handler 建構前檢查 `contextProvider.mounted` 並 try/catch，導航離開聊天不再讓子代理以不明錯誤失敗。新增 3 案（JSON 契約、取消狀態、launch config 繼承），測試 17 案。
+> **v1.13 變更**（實作紀錄）：§2.6 P2-3 子代理 `spawn_subagent` 落地（✅）——`lib/core/services/agent/subagent.dart`（`SubagentRunner`：fresh context、summary-only、獨立 maxSteps/token 預算、10 分鐘 deadline、process-wide 串行閘門、無遞迴）、`tool_handler_service` 接線（父代 generation 快照繼承、`messageId:null` 不落子工具事件、`subagentDepth` 深度守衛）、Add-ons「Subagents」per-tool 開關與 l10n ×4；手冊 §3.14 §10；測試 14 案。§0.4 表同步。
 > **v1.12 變更**（實作紀錄）：§2.17 `file_view_image` Stage 3——tool card「Image not sent to model」badge（靜態模型／設定＋runtime send status）、Provider 400 一次性無圖片重試（`ToolImagePolicy.providerRejectedThisRun` 於同一 generation 記住拒絕，避免每個 tool round 重打）、`imageSend` extras 持久化／SQLite／Hive／replay 還原、l10n ×4 與 transport／widget 測試；見 `docs/file_view_image_stage2_plan.md`。
 > **v1.11 變更**（實作紀錄）：§2.17 `file_view_image` Stage 2 vision plumbing 落地——send-time marker→原生 vision part（Claude `tool_result`、Responses `function_call_output`、Gemini 3 `functionResponse.parts`；Chat Completions synthetic user 降級）、`sendToolImagesV1` 設定、`imageSha256` snapshot 驗證、路徑安全（canonical root＋in-memory ledger，persisted extras 不授予界外路徑）；見 `docs/file_view_image_stage2_plan.md`。
 > **v1.10 變更**（計畫）：§2.17 補 `file_view_image` Stage 2 細部執行計畫連結與策略修訂——原「不支援模型回明確錯誤」改為 fail-open 降級。
@@ -54,10 +58,10 @@
 | P1-6 | 桌面 Shell（`shell_run`）＋兩個全域權限開關（Files outside workspace／Shell commands） | ADR-A8/A9 + 執行契約已內化於 §2.2（原 CLI v4 §五/§六）+ kelivo workspace | ✅（2026-11-06；2026-11-11 移除 dev mode／allowlist，見 §2.2） | v1.29.x |
 | P1-8 | file_edit 三段式容忍匹配（kelivo 導入，**即刻可做**） | kelivo `edit_matchers.dart`（RikkaHub TextReplacers 移植） | ✅ | v1.29.x |
 | P2-1 | Checkpoint 持久化（durable-before-dispatch） | deepseek-harness | ✅（2026-11-07：`agent_runs_v1`；2026-11-09 啟動橫幅隨 P3-3 一併移除；見 §2.4） | v1.30.x |
-| P2-2 | 背景長任務（桌面托盤 + Android 前景服務） | 既有基建 + P2-1 | ⬜ | v1.31.x |
-| P2-3 | 子代理（`spawn_subagent`） | AnyBuff agents/ + AiTeamController | ⬜ | v1.31.x |
+| P2-2 | 背景長任務（桌面托盤 + Android 前景服務） | 既有基建 + P2-1 | ✅（2026-11-12：`BackgroundRunMonitor` 狀態機、桌面托盤狀態列／tooltip 與點擊跳轉、Android `onNotify` 完成／失敗通知與冷啟動 payload 導向；見 §2.5） | v1.31.x |
+| P2-3 | 子代理（`spawn_subagent`） | AnyBuff agents/ + AiTeamController | ✅（2026-11-12：fresh-context runner、summary-only、獨立預算、串行閘門、無遞迴；見 §2.6） | v1.31.x |
 | P2-4 | Mini dev server + Live 預覽 | 既有 `html_preview_*` + 新 dev server | ✅（2026-11-08：loopback 靜態伺服器、SSE 重整、`get_console_errors`、分頁面板；見 §2.7） | v1.31.x |
-| P2-5 | Proot on Android（**stretch**；kelivo `sandbox/`＋AnyBuff `android/` engine 為對照實作） | 藍圖已內化於 §2.8（原 CLI v4 §七/§十五）+ kelivo v1.3.0+ | ⬜ | 視需求 |
+| P2-5 | Proot on Android（**stretch**；kelivo `sandbox/`＋AnyBuff `android/` engine 為對照實作） | 藍圖已內化於 §2.8（原 CLI v4 §七/§十五）+ kelivo v1.3.0+ | ✅（2026-11-12：pinned PRoot/Ubuntu base、五階段安裝、`shell_exec`＋mount table、Settings 安裝頁；見 §2.8） | v1.33.x |
 | P2-6(L3) | 工作區檔案地圖注入（**僅 L3**；L2 LLM 摘要不採） | AnyBuff `truncate-file-tree` 概念 | ✅（2026-11-10：組裝期注入、`WorkspaceSnapshot` 掃描重用、預算三段降級、快取前綴契約；見 §2.9） | v1.32.x |
 | P2-7 | kelivo 資料模型對齊（**可選**） | kelivo `a43b79f` | ⏸️ 暫不做 | 視需求 |
 | P3-1 | 瀏覽器 QA 工具（Playwright via MCP，桌面限定） | MCP + Playwright | ✅（2026-11-10：STDIO 傳輸 UI＋Playwright 一鍵預設、連線錯誤分類、MCP 圖片落盤＋工具卡預覽；見 §2.11） | v1.32.x |
@@ -124,7 +128,7 @@
   P2-3 子代理 ｜ P1-1 尾款 diff viewer（✅）
 
 【Stretch / 可選】
-  P2-5 Proot（stretch） ｜ P2-7 kelivo 對齊（可選，暫不做 ⏸️）
+  P2-5 Proot（✅ Android foreground 子集） ｜ P2-7 kelivo 對齊（可選，暫不做 ⏸️）
 ```
 
 **一句話**：先做 **P0-3 尾款**（最便宜、消除持續風險）、**P1-8**（獨立小項、即刻可做）與 **P1-6 + P2-1**（其餘多項的地基）；「製作網站」閉環走 **P2-4 → P3-1**；P3-4 等 P1-6 落地後收尾。
@@ -265,20 +269,23 @@
 
 ---
 
-### 2.5 P2-2 背景長任務（桌面托盤 + Android 前景服務）⬜
+### 2.5 P2-2 背景長任務（桌面托盤 + Android 前景服務）✅【2026-11-12 完成】
 
 **目標**：長任務不因關窗／切背景而中斷——桌面關窗縮托盤續跑 + 完成通知；Android 前景服務 + 通知。
 
-**實作內容**：
-- **桌面**：`desktop_tray_controller` 現成——關窗改為縮托盤（可選偏好），run 進行中托盤顯示狀態；完成/失敗托盤通知（點擊喚起視窗跳轉對話）。
-- **Android**：`AndroidBackgroundManager` 前景服務（現成）+ 進度/完成通知；`shell_run`（P1-6）不提供 Android，背景任務限 file/search/MCP 類工具。
-- **依賴 P2-1**：背景續跑沒有 durable-before-dispatch 不安全（程序被回收後無從恢復）——本項必須在 P2-1 落地後開工。
-
-**測試**：平台行為以手動 smoke 為主（托盤生命週期、前景服務通知管道）；單元測試鎖「run 進行中關窗 → 托盤駐留 → 完成通知」的狀態機。
+**落地紀錄（2026-11-12）**：
+- **狀態機**：`lib/core/services/background/background_run_monitor.dart`（純 Dart，無 Flutter／plugin 相依）——`BackgroundRunMonitor` 單例追蹤所有「生成中」對話：`begin(conversationId, title)`／`markFailed`／`markStopped`／`finish` 計算終態（`idle`／`running`／`ready`／`failed`／`stopped`），`changes` 只在 snapshot 真的變了才發（value-based equality），`openRequests` 廣播托盤／通知的開啟請求。**多個並行 generation**（AI Team、不同對話）只有在最後一個結束時才離開 `running`；未知 id 的 `finish`／`markFailed` 一律忽略，避免 stray loading=false 憑空造出狀態。snapshot 另帶 `activeTitledConversationId`——狀態列顯示的標題與點擊要開的對話**永遠是同一個**。
+- **桌面**：`DesktopTrayController.applyRunSnapshot` 把狀態寫進 tooltip 與選單第一列（生成中〔多個時帶 `(n)`〕／回覆已完成／生成失敗／生成已停止＋對話標題）；點擊該列會 `show()`＋`focus()` 視窗並 `requestOpen(conversationId)`。托盤關閉時不建立、不更新（不為狀態硬開托盤）；`syncFromSettings` 會以當前 monitor snapshot 補種，使用者在任務進行中才開托盤也能看到狀態。**專案無 Windows 通知外掛**（`flutter_local_notifications` 17.2.4 只有 Android／Linux 實作），故桌面以托盤狀態取代系統 toast——不新增依賴。
+- **Android**：沿用既有 `AndroidBackgroundManager` 前景服務（`androidBackgroundChatMode` 的 `on`／`onNotify`，啟動與設定頁已接線）；`onNotify` 模式在**背景**（`lifecycleState != resumed`）且 phase 由 `running` → `ready`／`failed` 時，由 `NotificationService.showRunFinished` 發完成／失敗通知。通知 payload＝conversationId：前景點擊走 `onDidReceiveNotificationResponse` → `BackgroundRunMonitor.requestOpen`；冷啟動由 `HomePage` 呼叫 `consumeLaunchConversationId()`（一次性，避免每次重建都重開）。使用者主動停止不發通知（`stopped`）。
+- **導航**：`HomePage` 訂閱 `openRequests` → `HomePageController.switchConversationAnimated`；在 `initChat()` 完成前到來的請求（冷啟動點通知）會先排隊，初始化後再開，不會對未就緒的 chat service 切換。
+- **已知限制（照實寫）**：桌面狀態列只能呈現**最後一次**終態，重啟後不保留（托盤是狀態，不是通知中心）；多個並行 run 只在「全部結束」時發一次通知，且只帶最後完成的對話；`onNotify` 以外的模式沒有完成通知；桌面未開托盤時完全沒有完成提示。
+- **測試**：`test/background/background_run_monitor_test.dart`（20 案）——初始 idle、begin 標題正規化、重複 begin 不重發（但補標題會刷新）、ready／failed／stopped 終態、未知 run 忽略、並行 run 的最後一個才結束、reset、openRequests 過濾空白、value equality、標題與點擊對象一致、無標題時回退起始順序、**停止優先於遲到錯誤**（雙向終態黏著）、`acknowledgeTerminal` 只清終態不清進行中；`test/background/background_run_labels_test.dart`（9 案）——狀態列文案（idle／running 1 與 n／ready／failed／stopped／空白標題）與完成通知判定。平台行為（托盤生命週期、前景服務通知管道、Android 背景通知）仍需真機 smoke。
 
 ---
 
-### 2.6 P2-3 子代理（`spawn_subagent`）⬜
+### 2.6 P2-3 子代理（`spawn_subagent`）✅【2026-11-12 完成】
+
+> **落地紀錄（2026-11-12）**：新增 `lib/core/services/agent/subagent.dart`（純 Dart，無 Flutter／transport 相依）——`SubagentRunner` 以 `runAgentLoop` 驅動 helper：訊息＝system（角色 prompt ＋ 自足規則）＋`Task:` user，父對話歷史不傳入；`emitCalls:false`＋工具輪 preamble 逐輪丟棄，**只回最後一輪摘要**；`maxSteps`（預設 16、clamp 1–40）與 `tokenBudget`（120k）由零起算，10 分鐘 wall-clock deadline（包裝器不等待內層 cancel，避免 generator 卡住時 deadline 永不觸發）；`SubagentOutcome` 把 finished／empty／max_steps／token_budget／stopped／timeout／error 一律轉成 `subagent_result` JSON（含 `note`），摘要先在 24k 字元處截斷（`summary_truncated`）再編碼，`ToolResultCaps` 32 KB 只作後備——避免運輸層把 JSON 契約切壞。**串行互斥**：process-wide `_serialGate`，AI Team 兩個 proposer 同時 spawn 也不交錯。**工具集**：`subagentChildTools()` 刪 `spawn_subagent`／`ask_user`／`write_todos`（無遞迴、helper 不能問人、不能覆寫父計畫）；handler 另在 `subagentDepth > 0` 回 `nested_subagent`。**權限繼承**：`ToolHandlerService.buildToolCallHandler` 新增 `subagentContext`（`SubagentLaunchConfig`：provider／model／tools／custom headers／custom body／`maxTokens`／depth），`message_generation_service` 組裝期以父代 generation 快照建立（review 修正：初版只帶 provider／model／tools，有自訂 header/body 的使用者會讓 helper 請求失敗）；child handler 以 `messageId:null` 執行（子工具事件、diff、FileRecord 不落父時間軸、也沒有審批卡可掛），Ask 模式與出界路徑回 `approval_required` 結構化錯誤，system prompt 明示限制。**停止**：`_activeSubagentCancels`（per-run 回呼）——`cancelActiveShellRuns` 取消 helper 的 in-flight 請求（`ChatApiService.cancelRequest`）並於輪邊界以 `stopped` 收尾；終點另檢查 `isCancelled` 覆寫狀態，避免取消後「乾淨結束」被誤報 `finished`。**context 安全**：child handler 建構前檢查 `contextProvider.mounted`，導航離開聊天時回 `subagent_unavailable` 而非不明錯誤。**註冊／UI**：`buildSubagentToolDefinitions(settings)`（conversation-level，受 model tool 能力＋per-tool kill switch 限制）；Add-ons → Built-in Tools 第三列「Subagents」、summary `x/3`；l10n ×4（`builtInToolSubagentName`／`addonsSubagentSubtitle`）。**測試**：`test/agent/subagent_test.dart`（13 案：fresh context／summary-only／preamble 丟棄、step ceiling、timeout、transport error、串行互斥、取消（含取消後乾淨結束）、獨立 usage、child tool 過濾、launch config 繼承、摘要截斷 JSON 契約、system prompt）＋`test/subagent_tool_gating_test.dart`（4 案：註冊開關、深度拒絕、空 task、缺 provider/model）共 17 案全綠；既有 tool-handler／toggle／web-fetch／agent-loop 45 案回歸通過。**與計畫差異**：未實作「子代理暫停上拋主對話」——採「不彈審批卡、回結構化錯誤」分支；模型固定繼承父代（不另設 subagent 專用模型）；helper 的 `[image:]` 仍以文字 marker 回父對話；AnyBuff 的固定 template 清單改以自由 `role` 字串承接（同能力、少一層 UI）。
 
 **目標**：泛化 AI Team 串行調度（ADR 延續 §5.1）——模型可派出子代理執行隔離任務，主對話不收原始工具軌跡。
 
@@ -313,7 +320,17 @@
 
 ---
 
-### 2.8 P2-5 Proot on Android（**stretch**）⬜
+### 2.8 P2-5 Proot on Android（**stretch**）✅【2026-11-12 完成】
+
+**落地紀錄（2026-11-12）**：
+- **Native（Android）**：新增 `android/app/src/main/kotlin/com/psyche/omnichat/sandbox/`——`SandboxPaths`、`SafeTarExtractor`（ustar/PAX/GNU longname、traversal／symlink escape 防護、避開 `java.nio.file`）、`RootfsInstaller`（APK asset → 串流 SHA-256 → staging 解壓 → patch/validate → atomic rename → cleanup，`metadata.json` 版本/hash marker、安裝鎖、磁碟預檢）、`ProotCommand`（獨立 argv、`env -i`、guest path 驗證、`--kill-on-exit`、`/proc` fakes）、`ProotRunner`（stdout/stderr 連續 drain、24KB/6KB 上限、timeout/cancel、SIGQUIT 優先＋process-tree sweep）、`SandboxPlugin`（`omnichat/sandbox` MethodChannel：probe/install/cancelInstall/remove/run/cancel/diskUsage）。`useLegacyPackaging=true` 讓 jniLibs 解壓到 `nativeLibraryDir`；`.tgz` 設 `noCompress`。
+- **Payload**：`android/scripts/fetch-sandbox.sh` 釘住 Termux `proot 5.1.107.102`、`libtalloc 2.5.0`、`libandroid-shmem 0.7` 與 Ubuntu Base `24.04.4 arm64`（各自 SHA-256）；payload 不進 Git，Gradle `ensureSandboxFetched` 在 `preBuild` 前檢查。runtime 只接受 packaged asset，**不接受 LLM 指定 rootfs URL**。
+- **Dart**：`lib/core/services/shell/android/`——`workspace_mount_table.dart`（host↔guest 單一事實來源、最長前綴、`..`/NUL/逃逸拒絕、`/workspace` cwd 限制）、`workspace_path_probe.dart`（目錄／列舉／讀寫／刪除 probe；`content://` 拒絕；FUSE noexec 不算失敗）、`android_sandbox_service.dart`（通道、安裝進度、狀態、輸出事件）、`android_shell_service.dart`（`shell_exec` schema、approval 防禦、30s 預設／120s hard、24KB/6KB payload、changed files；共用的外部化分支保留但 30KB 上限下不會觸發）。
+- **工具接線**：`shell_exec` 只在 `probe` 回報 native＋rootfs ready 時才進入 tool definitions（§2.8 條目 8）；與 `shell_run` 共用 approval／全域開關／取消／tool card 串流；`[File Workspace]` prompt 加入 Android guest `/workspace` 與 noexec/symlink 限制。
+- **UI／l10n**：Settings → Android Shell（僅 Android）——狀態、版本、已安裝大小／可用空間、安裝／重新安裝／取消／移除、五階段進度與契約說明；en／zh／zh_Hans／zh_Hant 四語系。
+- **測試**：`test/android_workspace_mount_table_test.dart`（9）、`test/android_workspace_path_probe_test.dart`（2）、`test/android_shell_service_test.dart`（7，Windows 上 2 案 skip）、`test/workspace_tools_toggle_test.dart` 新增 Android gating 1 案；Kotlin `ProotCommandTest`（3：argv 單一 command、env -i、cwd/bind 拒絕）＋`:app:compileDebugKotlin`／`:app:testDebugUnitTest` 通過。
+- **法遵**：`THIRD_PARTY_NOTICES.md` 增列 PRoot GPL-2.0-or-later／libtalloc LGPL-3.0-or-later／libandroid-shmem Apache-2.0／Ubuntu Base；`docs/android_sandbox_p2_5.md` 提供 source offer、build/reproduce 與 F-Droid 說明。
+- **裁示（2026-11-12）**：真機 smoke 不再是實作前置條件（AnyBuff／kelivo 已有在線實作可對照）；列入 release gate 即可。PTY、背景 job、行動 in-app terminal 仍不在本項範圍。
 
 > **藍圖已全文內化於下方**——原《CLI 工具整合計畫 v4》§七（Android PRoot backend；2026-08-05 完成設計）＋§十五（F-Droid 發行要求）已於 2026-11-06 吸收入本節，本項自給自足、不需回查原文。開工前仍先對照發行計畫（F-Droid/Store）現況。
 
@@ -347,11 +364,11 @@
 
 **整合註記（2026-11-06，取代 v4 時代假設）**：
 - **ADR-A8 衝突消解**：v4 草案的「`file_write` 建立 Python/文字腳本 → `shell_exec` 執行」與本計畫 ADR-A8「Android 維持全域黑名單」衝突——多步驟改以 **inline 命令／`python -c`／heredoc** 承接，不在 Android 工作區落腳本檔。
-- **timeout 值的併批**：v4 草案 30/120 秒 vs P1-6 已納入 kelivo 增量的 `timeout_seconds`（預設 900、clamp 1–3600）——若 P2-5 併入 P1-6 批次，以 §2.2 採用值為基準、按 Android 真機前景存活實測調整（細部計畫裁定）。
+- **timeout 值的併批**：P2-5 已固定 Android 專屬值 30 秒預設／120 秒 hard（`AndroidShellService` 與 native runner 同值 clamp），不沿用桌面的 900／3600；前景命令的產品契約以 120 秒為上限。
 - **Backup 與 restore 歸屬**：rootfs、apk cache、PRoot runtime**不入備份**；restore 後 rootfs 依 bootstrap 版本/hash 重建；command history 僅為歷史記錄、**不自動 replay**；不存在或無權限的 workspace 顯示 invalid/unavailable、不得靜默改寫路徑。backup 版本升級統一走 P1-6／P2-1 的手冊 §3.8 流程（v4 的 v3→4 動作屬其範圍，本項不重複升版）。
 - **tool events 與 FileRecord**：Android shell tool events 沿用 P1-6 的 shell events 落地（`tool_events_v1`、受限 preview cap、secret 遮蔽）；shell 產生的檔案不自動建立 FileRecord（由 File Browser／後續 file 工具查看與操作）。
 
-**狀態**：stretch——P1-6 落地後再評估投入；本項不阻塞任何其他項目。
+**狀態**：✅ 2026-11-12 完成 Android 子集（foreground `shell_exec`）。PTY／背景 job／行動 in-app terminal 仍不在本項範圍；真機 smoke 列為 release gate，不再是實作前置條件。
 
 ---
 
@@ -494,7 +511,7 @@ P1-1 落地時 `file_edit` 已有**預覽 diff**（`buildEditPreviewDiff`：確�
 - **🔶 `file_view_image` 工作區圖片檢視（kelivo `view_image` 模式）——Stage 1 已實作（2026-11-09）**：第 17 個 `file_*` 工具。PNG/JPEG/GIF/WebP/BMP magic-byte 驗證（上限 10MB），回傳 `[image:<abs-path>]` marker（模型端純文字）＋ tool-event extras `imagePath`（UI-only，入 `kPreservedToolEventExtraKeys`／`ToolPartSummary`／SQLite metadata 查詢）；工具卡渲染縮圖、詳細視窗／底部 sheet 渲染大圖預覽（`_buildToolImagePreview`／`_ToolImageThumb`，載入失敗靜默降級）；支援 session-outputs 唯讀區。**Stage 2 已實作（2026-11-12）**：send-time vision plumbing——`lib/core/services/api/tool_result_images.dart`＋`tool_image_codec.dart`＋`lib/core/services/file/tool_image_access_ledger.dart`；`ChatApiService` 每輪建 plan，Claude `tool_result` image block、OpenAI Responses `function_call_output.output` 陣列、Gemini 3 `functionResponse.parts[].inlineData`（含 streaming）、Chat Completions 最後一組 synthetic user；`sendToolImagesV1`（`send_tool_images_v1`，預設開）設定；`imageSha256` snapshot 驗證；路徑限 workspace／session-outputs／MCP cache／in-memory ledger（persisted extras **不**授予界外路徑，防備份偽造）；失敗 fail-open 回文字 marker。測試：`test/tool_result_images_test.dart`、`test/tool_result_images_transport_test.dart`、`test/settings_send_tool_images_test.dart`。**Stage 3 已實作（2026-11-12）**：`tool_image_send_status.dart`＋`ChatStreamChunk.toolImageStatuses`；工具卡 badge（靜態模型／設定＋runtime 失敗原因，`imageSend` extras 持久化並經 SQLite／Hive 還原）；Provider 400 在 context-overflow trim 後一次性移除圖片重試，`ToolImagePolicy.providerRejectedThisRun` 記憶同一 generation 的拒絕；status-only plan 上限 32 筆；`test/tool_image_send_badge_test.dart`。真機 matrix 待做；詳見 `docs/file_view_image_stage2_plan.md`。出界照 §3.1 審批語意（已繼承 `file_*` 閘門）。
 - **檔案連結協定（kelivo `kelivo://` 模式）**：模型在回文中以 `omnichat://workspace/<path>` 引用檔案 → App 渲染可點擊 chip（比照既有 `[image:]/[file:]` marker 慣例），點開即預覽。藍圖：kelivo `file_link_resolver.dart`（8 種連結 kind、percent-encode 規則模型提示共用）。落點：隨 P2-4 預覽面板批次。
 - **附件進沙盒 session 目錄（kelivo `workspace_session_sync.dart` 模式）**：把 user 訊息附件複製到 per-conversation session dir（app 私有），file 工具即可讀取附件——補足「附件只進 inline 圖片、file 工具讀不到」的缺口；寫入序列化、刪除時同步清理。
-- **行動 in-app terminal（kelivo `terminal_view` + PTY + OSC 1337 + wakelock）**：**依賴 P2-5**（需要沙盒 PTY；桌面走系統終端機路線，見 §2.2 增量 6）。
+- **行動 in-app terminal（kelivo `terminal_view` + PTY + OSC 1337 + wakelock）**：**依賴 P2-5 的 PTY 子項**（P2-5 已於 2026-11-12 完成 foreground `shell_exec`；沙盒 PTY 尚未實作）。桌面走系統終端機路線，見 §2.2 增量 6。
 
 ---
 

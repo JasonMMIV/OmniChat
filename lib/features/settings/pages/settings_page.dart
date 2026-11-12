@@ -10,6 +10,7 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../model/pages/default_model_page.dart';
 import '../../provider/pages/providers_page.dart';
+import 'android_shell_page.dart';
 import 'display_settings_page.dart';
 import '../../mcp/pages/mcp_page.dart';
 import '../../assistant/pages/assistant_settings_page.dart';
@@ -319,6 +320,21 @@ class SettingsPage extends StatelessWidget {
                   ).push(MaterialPageRoute(builder: (_) => const SkillsPage()));
                 },
               ),
+              if (Platform.isAndroid) ...[
+                _iosDivider(context),
+                _iosNavRow(
+                  context,
+                  icon: Lucide.Terminal,
+                  label: l10n.settingsPageAndroidShell,
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const AndroidShellPage(),
+                      ),
+                    );
+                  },
+                ),
+              ],
               _iosDivider(context),
               _iosNavRow(
                 context,

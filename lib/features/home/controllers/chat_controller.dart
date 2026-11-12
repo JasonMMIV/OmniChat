@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/conversation.dart';
+import '../../../core/services/background/background_run_monitor.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/screen_wakelock.dart';
 
@@ -274,6 +275,17 @@ class ChatController extends ChangeNotifier {
       _loadingConversationIds.remove(conversationId);
     }
     if (prev != loading) {
+      // P2-2: mirror the loading flags into the app-level run monitor so the
+      // desktop tray and the Android completion notification stay truthful
+      // even after the user navigates away from this conversation.
+      if (loading) {
+        BackgroundRunMonitor.instance.begin(
+          conversationId: conversationId,
+          title: _chatService.getConversation(conversationId)?.title,
+        );
+      } else {
+        BackgroundRunMonitor.instance.finish(conversationId);
+      }
       notifyListeners();
       if (loading && _loadingConversationIds.length == 1) {
         ScreenWakelock.acquire();

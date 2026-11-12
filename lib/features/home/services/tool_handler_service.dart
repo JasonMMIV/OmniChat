@@ -21,11 +21,13 @@ import '../../../core/services/file/file_tool_service.dart';
 import '../../../core/services/file/tool_image_access_ledger.dart';
 import '../../../core/services/file/unified_diff.dart';
 import '../../../core/services/agent/approval.dart';
+import '../../../core/services/agent/subagent.dart';
+import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/services/file/session_outputs.dart';
 import '../../../core/services/shell/cli_process_supervisor.dart';
+import '../../../core/services/shell/android/android_shell_service.dart';
 import '../../../core/services/shell/shell_run_service.dart';
 import '../../../core/services/api/builtin_tools.dart';
-import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
 import '../../../core/services/logging/flutter_logger.dart';
 import '../../../core/services/tools/tool_result_caps.dart';
 import '../../../core/services/web/web_fetch_tool.dart';
@@ -58,11 +60,21 @@ class ToolHandlerService {
   final Set<CliCancellationToken> _activeShellCancellations =
       <CliCancellationToken>{};
 
+  /// Stop callbacks for subagent runs (P2-3). The stop button cancels each
+  /// helper's in-flight request and vetoes its next round. Deliberately
+  /// per-run: a shared flag reset by the next generation would let another
+  /// conversation's send erase a stop that has not been observed yet.
+  final Set<void Function()> _activeSubagentCancels = <void Function()>{};
+
   void cancelActiveShellRuns() {
     for (final token in _activeShellCancellations.toList()) {
       token.cancel();
     }
     _activeShellCancellations.clear();
+    for (final cancel in _activeSubagentCancels.toList()) {
+      cancel();
+    }
+    _activeSubagentCancels.clear();
   }
 
   // ============================================================================
@@ -257,6 +269,9 @@ class ToolHandlerService {
         ),
       );
       toolDefs.addAll(buildDecisionToolDefinitions(settings));
+      // P2-3: subagent delegation is a conversation-level tool (like
+      // write_todos / ask_user), so it is NOT behind the workspace switch.
+      toolDefs.addAll(buildSubagentToolDefinitions(settings));
     }
 
     // MCP tools
@@ -328,6 +343,9 @@ class ToolHandlerService {
   static List<Map<String, dynamic>> buildWorkspaceToolDefinitions(
     SettingsProvider settings, {
     required bool workspaceEnabled,
+    // Injectable so the Android gating branch is testable without the
+    // platform-channel singleton. Production callers omit it.
+    bool? shellExecAvailable,
   }) {
     if (!workspaceEnabled) return const [];
     final definitions = <Map<String, dynamic>>[
@@ -342,6 +360,11 @@ class ToolHandlerService {
     // whether commands ask first.
     if (ShellRunService.isPlatformSupported) {
       definitions.add(ShellRunService.getToolDefinition());
+    }
+    // P2-5: Android's foreground PRoot shell is only advertised once the
+    // native PRoot binary and the rootfs both probe as ready.
+    if (shellExecAvailable ?? AndroidShellService.isToolAvailable) {
+      definitions.add(AndroidShellService.getToolDefinition());
     }
     return definitions.where((def) {
       final name = ((def['function'] as Map)['name'] ?? '').toString();
@@ -393,7 +416,12 @@ class ToolHandlerService {
     'file_extract_zip',
   };
 
-  /// True when a `shell_run` payload reports at least one changed file.
+  /// Both desktop `shell_run` and Android `shell_exec` share the shell
+  /// approval/permission plumbing, but execute through different backends.
+  static bool _isShellTool(String name) =>
+      name == ShellRunService.toolName || name == AndroidShellService.toolName;
+
+  /// True when a shell payload reports at least one changed file.
   static bool _shellResultChangedFiles(String result) {
     try {
       final decoded = jsonDecode(result);
@@ -414,6 +442,63 @@ class ToolHandlerService {
   ) {
     if (!settings.isWorkspaceToolEnabled(askUserToolName)) return const [];
     return [_buildAskUserToolDefinition()];
+  }
+
+  /// Subagent delegation tool (`spawn_subagent`, P2-3). Conversation-level:
+  /// it needs no workspace, only a model that supports tools. The per-tool
+  /// kill switch lives in the same `workspace_tools_disabled_v1` list as the
+  /// other built-in tools (Add-ons → Built-in Tools).
+  static List<Map<String, dynamic>> buildSubagentToolDefinitions(
+    SettingsProvider settings,
+  ) {
+    if (!settings.isWorkspaceToolEnabled(spawnSubagentToolName)) {
+      return const [];
+    }
+    return [_buildSpawnSubagentToolDefinition()];
+  }
+
+  static Map<String, dynamic> _buildSpawnSubagentToolDefinition() {
+    return {
+      'type': 'function',
+      'function': {
+        'name': spawnSubagentToolName,
+        'description':
+            'Delegate one self-contained subtask to an isolated helper agent. '
+            'The helper has a FRESH context — it cannot see this '
+            'conversation or your earlier messages — and it can use tools. '
+            'Only its final summary comes back to you, so bulky tool output '
+            'never fills this conversation. Put everything the helper needs '
+            'into `task` (file paths, constraints, the exact output you want). '
+            'Best for well-scoped, high-volume work: reading and summarising '
+            'many files, collecting facts across several sources, repetitive '
+            'per-file analysis. Do not use it for a single quick tool call. '
+            'Helpers run one at a time; a helper cannot spawn another helper.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'task': {
+              'type': 'string',
+              'description':
+                  'Complete, self-contained instructions. Include the paths to '
+                  'inspect and precisely what the summary must contain. The '
+                  'helper knows nothing about the current conversation.',
+            },
+            'role': {
+              'type': 'string',
+              'description':
+                  'Optional specialization for the helper, e.g. "code '
+                  'reviewer" or "researcher".',
+            },
+            'max_steps': {
+              'type': 'integer',
+              'description':
+                  'Maximum tool rounds the helper may use (1-40, default 16).',
+            },
+          },
+          'required': ['task'],
+        },
+      },
+    };
   }
 
   /// Planning tool (`write_todos`) — a conversation-level plan snapshot, not
@@ -610,6 +695,10 @@ class ToolHandlerService {
     String? workspacePath,
     String? approvedResolvedPath,
     String? approvedShellCommand,
+    // P2-3: parent generation snapshot a subagent inherits (provider, model,
+    // tools, custom headers/body, output cap). Null on callers that have no
+    // generation context (e.g. the single-call approval resume path).
+    SubagentLaunchConfig? subagentContext,
   }) {
     final mcp = contextProvider.read<McpProvider>();
     final toolSvc = contextProvider.read<McpToolService>();
@@ -640,7 +729,7 @@ class ToolHandlerService {
       // the sandbox root the same way FileToolService does so the approval
       // policy classifies the same path the executor will use.
       String? effectiveWorkspace;
-      if (name.startsWith('file_') || name == ShellRunService.toolName) {
+      if (name.startsWith('file_') || _isShellTool(name)) {
         if (workspacePath == null || workspacePath.trim().isEmpty) {
           return 'Error: Workspace is disabled for this conversation.';
         }
@@ -665,7 +754,7 @@ class ToolHandlerService {
           approvedShellCommand != null &&
           shellCommand.trim().isNotEmpty &&
           approvedShellCommand.trim() == shellCommand.trim();
-      final decision = name == ShellRunService.toolName && shellApproved
+      final decision = _isShellTool(name) && shellApproved
           ? _PendingDecision.allow()
           : name.startsWith('file_') && approvedResolvedPath != null
           ? _PendingDecision(
@@ -704,19 +793,29 @@ class ToolHandlerService {
         return decision.content;
       }
 
-      if (name == ShellRunService.toolName) {
+      if (_isShellTool(name)) {
         final cancellation = CliCancellationToken();
         _activeShellCancellations.add(cancellation);
         try {
-          final result = await ShellRunService.execute(
-            args,
-            workspacePath: effectiveWorkspace ?? workspacePath ?? '',
-            allowAll: settings.shellAllowAllV1,
-            conversationId: conversationId,
-            toolCallId: toolCallId,
-            approvedCommand: shellApproved ? shellCommand : null,
-            cancellation: cancellation,
-          );
+          final result = name == ShellRunService.toolName
+              ? await ShellRunService.execute(
+                  args,
+                  workspacePath: effectiveWorkspace ?? workspacePath ?? '',
+                  allowAll: settings.shellAllowAllV1,
+                  conversationId: conversationId,
+                  toolCallId: toolCallId,
+                  approvedCommand: shellApproved ? shellCommand : null,
+                  cancellation: cancellation,
+                )
+              : await AndroidShellService.execute(
+                  args,
+                  workspacePath: effectiveWorkspace ?? workspacePath ?? '',
+                  allowAll: settings.shellAllowAllV1,
+                  conversationId: conversationId,
+                  toolCallId: toolCallId,
+                  approvedCommand: shellApproved ? shellCommand : null,
+                  cancellation: cancellation,
+                );
           // Reload only when the command actually changed files: a read-only
           // `git status` must not reload the preview mid-turn.
           if (_shellResultChangedFiles(result)) {
@@ -829,6 +928,19 @@ class ToolHandlerService {
       }
 
       try {
+        // P2-3: subagent delegation. Runs a fresh-context helper through the
+        // same kernel; only its summary returns to this conversation.
+        if (name == spawnSubagentToolName) {
+          return await _runSubagent(
+            settings,
+            assistant,
+            args,
+            subagentContext,
+            conversationId: conversationId,
+            workspacePath: workspacePath,
+          );
+        }
+
         // P1-3 (plan Phase 0/2): write_todos — log-only plan snapshot
         // (whole-list rewrite). Validation happens BEFORE anything is
         // written: any invalid item rejects the whole call and the previous
@@ -1069,6 +1181,167 @@ class ToolHandlerService {
     };
   }
 
+  /// Run one `spawn_subagent` call (P2-3).
+  ///
+  /// The helper inherits the parent generation snapshot: provider, model,
+  /// workspace, assistant and tools (minus [subagentExcludedToolNames]). It
+  /// gets a fresh message list, its own step/token budget and no approval
+  /// cards (a child tool call that would ask for approval receives the
+  /// structured `approval_required` result instead). Tool events are not
+  /// persisted under the parent message — the summary is the only trace.
+  Future<String> _runSubagent(
+    SettingsProvider settings,
+    Assistant? assistant,
+    Map<String, dynamic> args,
+    SubagentLaunchConfig? launch, {
+    required String? conversationId,
+    required String? workspacePath,
+  }) async {
+    if (launch == null) {
+      return _subagentUnavailable('the generation context is unavailable');
+    }
+    final providerKey = launch.providerKey;
+    final modelId = launch.modelId;
+    final tools = launch.tools;
+    if (launch.depth > 0) {
+      return jsonEncode(<String, dynamic>{
+        'type': 'tool_error',
+        'error': 'nested_subagent',
+        'message':
+            'A subagent cannot spawn another subagent. Do the work with the '
+            'tools you have, or return the limitation in your summary.',
+        'tool': spawnSubagentToolName,
+      });
+    }
+    final spec = SubagentSpec.fromArguments(args);
+    if (spec.task.isEmpty) {
+      return jsonEncode(<String, dynamic>{
+        'type': 'tool_error',
+        'error': 'invalid_task',
+        'message':
+            'spawn_subagent requires a non-empty, self-contained "task": the '
+            'helper has a fresh context and cannot see this conversation.',
+        'tool': spawnSubagentToolName,
+      });
+    }
+
+    if (providerKey == null || providerKey.trim().isEmpty) {
+      return _subagentUnavailable('The current provider is unknown.');
+    }
+    if (modelId == null || modelId.trim().isEmpty) {
+      return _subagentUnavailable('The current model is unknown.');
+    }
+
+    ProviderConfig config;
+    try {
+      config = settings.getProviderConfig(providerKey);
+    } catch (e) {
+      return _subagentUnavailable(e.toString());
+    }
+
+    var webFetchEnabled = true;
+    try {
+      webFetchEnabled = settings.webFetchEnabled;
+    } catch (_) {}
+
+    // The child handler is built lazily, inside the tool call: a navigation
+    // away from the chat may have disposed the captured context by now.
+    if (!contextProvider.mounted) {
+      return _subagentUnavailable('the chat view is no longer active');
+    }
+
+    final requestId = '${conversationId ?? 'subagent'}_subagent';
+    var cancelled = false;
+    void cancelRun() {
+      cancelled = true;
+      // Abort the helper's in-flight round instead of waiting for it to
+      // finish after the user pressed stop.
+      ChatApiService.cancelRequest(requestId);
+    }
+
+    _activeSubagentCancels.add(cancelRun);
+    try {
+      final childTools = subagentChildTools(tools);
+      ToolCallHandler? childHandler;
+      try {
+        childHandler = buildToolCallHandler(
+          settings,
+          assistant,
+          conversationId: conversationId,
+          // Deliberately no messageId: child tool events, diffs and
+          // FileRecords must not land in the parent timeline (and an
+          // approval Pending event has no card to land on).
+          messageId: null,
+          workspacePath: workspacePath,
+          subagentContext: launch.child(childTools),
+        );
+      } catch (e) {
+        return _subagentUnavailable('the tool context is unavailable: $e');
+      }
+      if (childHandler == null) {
+        return _subagentUnavailable('the tool handler is unavailable');
+      }
+
+      final runner = SubagentRunner(
+        sendRound: (messages) async => ChatApiService.sendMessageStream(
+          config: config,
+          modelId: modelId,
+          messages: messages,
+          tools: childTools.isEmpty ? null : childTools,
+          extraHeaders: launch.extraHeaders,
+          extraBody: launch.extraBody,
+          maxTokens: launch.maxTokens,
+          webFetchEnabled: webFetchEnabled,
+          // One request per kernel round on the same streaming transport the
+          // main generation uses (the runner aggregates the text itself).
+          stream: true,
+          requestId: requestId,
+          sessionId: null,
+        ),
+        onToolCall: (call) => childHandler!.call(
+          call.name,
+          call.arguments,
+          toolCallId: call.toolCallId,
+        ),
+      );
+
+      SubagentOutcome outcome;
+      try {
+        outcome = await runner.run(spec, isCancelled: () => cancelled);
+      } catch (e, st) {
+        FlutterLogger.log(
+          'Subagent "$spawnSubagentToolName" failed: $e\n$st',
+          tag: 'subagent',
+        );
+        return _subagentUnavailable(e.toString());
+      }
+
+      FlutterLogger.log(
+        'subagent status=${outcome.status} steps=${outcome.steps} '
+        'calls=${outcome.toolCallCount} tokens=${outcome.tokensUsed}',
+        tag: 'subagent',
+      );
+      return ToolResultCaps.cap(
+        toolName: spawnSubagentToolName,
+        result: outcome.toToolResultJson(),
+      );
+    } finally {
+      _activeSubagentCancels.remove(cancelRun);
+    }
+  }
+
+  String _subagentUnavailable(String reason) {
+    final clipped = reason.length > 400 ? reason.substring(0, 400) : reason;
+    return jsonEncode(<String, dynamic>{
+      'type': 'tool_error',
+      'error': 'subagent_unavailable',
+      'message':
+          'The subagent could not start ($clipped). Do the work yourself '
+          'with the tools available in this conversation.',
+      'tool': spawnSubagentToolName,
+    });
+  }
+
   /// P1-1 tail: attach the post-execution unified diff to the tool event as
   /// UI-only extras. The model-facing content is unchanged; the card title
   /// reads the counts and the expanded dialog renders [diffText].
@@ -1210,15 +1483,17 @@ class ToolHandlerService {
     // Non-callable decision/read-only tools skip the engine.
     if (name == askUserToolName ||
         name == todoToolName ||
+        name == spawnSubagentToolName ||
         name == devConsoleErrorsToolName) {
       return _PendingDecision.allow();
     }
 
     final effectiveSettings = settings ?? _safeReadSettings();
 
-    // --- shell_run: allow-all or one approval card per command ---
-    if (name == ShellRunService.toolName) {
-      if (!ShellRunService.isPlatformSupported) {
+    // --- shell_run / shell_exec: allow-all or one approval card per command ---
+    if (_isShellTool(name)) {
+      if (name == ShellRunService.toolName &&
+          !ShellRunService.isPlatformSupported) {
         return _PendingDecision(
           state: ApprovalDecision.deny,
           toolCallId: _approvalCallId(name),
@@ -1226,6 +1501,21 @@ class ToolHandlerService {
             'type': 'tool_error',
             'error': 'unsupported_platform',
             'message': 'shell_run is only available on desktop platforms.',
+            'tool': name,
+          }),
+        );
+      }
+      if (name == AndroidShellService.toolName &&
+          !AndroidShellService.isToolAvailable) {
+        return _PendingDecision(
+          state: ApprovalDecision.deny,
+          toolCallId: _approvalCallId(name),
+          content: jsonEncode(<String, dynamic>{
+            'type': 'tool_error',
+            'error': 'environment_not_installed',
+            'message':
+                'The Android shell environment is not installed. Ask the user '
+                'to open Settings → Android Shell and install it.',
             'tool': name,
           }),
         );
@@ -1365,7 +1655,9 @@ class ToolHandlerService {
     if (!name.startsWith('file_') &&
         name != todoToolName &&
         name != askUserToolName &&
+        name != spawnSubagentToolName &&
         name != ShellRunService.toolName &&
+        name != AndroidShellService.toolName &&
         name != devConsoleErrorsToolName) {
       return false;
     }

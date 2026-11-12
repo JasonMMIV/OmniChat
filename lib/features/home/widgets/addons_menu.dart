@@ -7,6 +7,7 @@ import '../../../core/models/answer_review.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/services/agent/subagent.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/haptics.dart';
 import '../../../core/services/chat/todo_models.dart';
@@ -132,6 +133,7 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
     final writeTodosOn =
         settings.planningEnabled && settings.isWorkspaceToolEnabled(todoToolName);
     final askUserOn = settings.isWorkspaceToolEnabled(askUserToolName);
+    final subagentOn = settings.isWorkspaceToolEnabled(spawnSubagentToolName);
     final reviewMode = settings.answerReviewMode;
 
     return Column(
@@ -184,7 +186,8 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
           title: l10n.addonsBuiltInToolsTitle,
           expanded: _builtInExpanded,
           onToggle: (v) => setState(() => _builtInExpanded = v),
-          summary: '${(writeTodosOn ? 1 : 0) + (askUserOn ? 1 : 0)}/2',
+          summary:
+              '${(writeTodosOn ? 1 : 0) + (askUserOn ? 1 : 0) + (subagentOn ? 1 : 0)}/3',
           children: [
             _MenuRow(
               leading: Icon(Lucide.ListChecks, size: 16, color: cs.onSurface),
@@ -210,6 +213,19 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
                 height: 22,
                 hitTestSize: 44,
                 onChanged: _setAskUser,
+              ),
+            ),
+            _MenuRow(
+              leading: Icon(Lucide.Bot, size: 16, color: cs.onSurface),
+              title: l10n.builtInToolSubagentName,
+              subtitle: l10n.addonsSubagentSubtitle,
+              onTap: () => _setSubagent(!subagentOn),
+              trailing: IosSwitch(
+                value: subagentOn,
+                width: 38,
+                height: 22,
+                hitTestSize: 44,
+                onChanged: _setSubagent,
               ),
             ),
           ],
@@ -387,6 +403,12 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
     return context
         .read<SettingsProvider>()
         .setWorkspaceToolEnabled(askUserToolName, v);
+  }
+
+  Future<void> _setSubagent(bool v) {
+    return context
+        .read<SettingsProvider>()
+        .setWorkspaceToolEnabled(spawnSubagentToolName, v);
   }
 
   Future<void> _toggleServer(String serverId, bool selected) async {

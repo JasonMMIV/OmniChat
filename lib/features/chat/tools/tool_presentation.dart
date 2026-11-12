@@ -65,6 +65,7 @@ IconData toolIcon(String rawName) {
     case 'get_console_errors':
       return Lucide.Monitor;
     case 'shell_run':
+    case 'shell_exec':
       return Lucide.Terminal;
 
     // Conversation tools.
@@ -139,6 +140,8 @@ String toolDisplayName(AppLocalizations l10n, String rawName) {
       return l10n.toolNameConsoleErrors;
     case 'shell_run':
       return l10n.toolNameShellRun;
+    case 'shell_exec':
+      return l10n.toolNameShellExec;
     case 'create_memory':
     case 'memory_update':
       return l10n.chatMessageWidgetMemoryUpdate;
@@ -224,6 +227,7 @@ WorkspaceToolGroup workspaceToolGroup(String rawName) {
       return WorkspaceToolGroup.documents;
     case 'get_console_errors':
     case 'shell_run':
+    case 'shell_exec':
       return WorkspaceToolGroup.system;
     default:
       return WorkspaceToolGroup.other;

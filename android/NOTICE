@@ -1,0 +1,38 @@
+OmniChat Android — Third-Party Notices
+=====================================
+
+The Android app bundles the following unmodified third-party binaries and
+payloads for the PRoot sandbox (P2-5). They are pinned by version + SHA-256 in
+`scripts/fetch-sandbox.sh` and are not part of OmniChat's source code.
+
+1. PRoot (proot-me/proot) — GPL-2.0-or-later
+   Shipped as jniLibs `libproot_exec.so` / `libproot_loader.so`
+   (Termux aarch64 package 5.1.107.102), extracted to the app's
+   nativeLibraryDir at install time.
+   Source: https://github.com/proot-me/proot
+   Packaging: https://github.com/termux/termux-packages (proot)
+   License: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+   The AGPL-3.0 OmniChat code and the GPL-2.0 PRoot binaries are separate,
+   independently launched programs; the GPL does not extend to OmniChat code.
+
+2. libtalloc (talloc) — LGPL-3.0-or-later
+   Shipped as `assets/sandbox/lib/libtalloc.so.2` (2.5.0, aarch64) and staged
+   to private storage at runtime; it is a replaceable shared library and a
+   runtime dependency of PRoot.
+   Source: https://gitlab.com/samba-team/talloc
+   License: https://www.gnu.org/licenses/lgpl-3.0.html
+
+3. libandroid-shmem — Apache-2.0
+   Shipped as jniLibs `libandroid-shmem.so` (0.7, aarch64); implements SysV
+   shared memory over Android ashmem and is a runtime dependency of PRoot.
+   Source: https://github.com/termux/libandroid-shmem
+
+4. Ubuntu Base rootfs (24.04.4, arm64)
+   Shipped as `assets/sandbox/rootfs-ubuntu-base-24.04.4-arm64.tgz` and
+   extracted to private storage at first install. Redistribution is subject
+   to Ubuntu's licence terms: https://ubuntu.com/legal/terms-and-policies
+   Per-package licences are inside the image under /usr/share/doc.
+
+See the repository-level `THIRD_PARTY_NOTICES.md` and
+`docs/android_sandbox_p2_5.md` for the full source offer, build/reproduce
+instructions, and F-Droid notes.

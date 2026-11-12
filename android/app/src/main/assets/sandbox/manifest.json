@@ -1,0 +1,8 @@
+{
+  "rootfs": {
+    "file": "rootfs-ubuntu-base-24.04.4-arm64.tgz",
+    "sha256": "04207713ece899c3740823d33690441ad3a7f0ded1101aca744e2b0f37ac7ff2",
+    "version": "ubuntu-base-24.04.4-arm64",
+    "uncompressedBytes": 100697067
+  }
+}

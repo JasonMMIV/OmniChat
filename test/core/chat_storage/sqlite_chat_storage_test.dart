@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive/hive.dart';
 
 import 'package:OmniChat/core/models/chat_message.dart';
 import 'package:OmniChat/core/models/conversation.dart';
 import 'package:OmniChat/core/models/workspace_config.dart';
+import 'package:OmniChat/core/services/agent/checkpoint/agent_run_checkpoint_store.dart';
 import 'package:OmniChat/core/services/chat/chat_service.dart';
 import 'package:OmniChat/core/services/chat/storage/chat_storage.dart';
 import 'package:OmniChat/core/services/chat/storage/message_part_codec.dart';
@@ -40,6 +42,13 @@ void main() {
     directory = await Directory.systemTemp.createTemp(
       'omnichat_sqlite_storage_',
     );
+    // ChatService.clearAllData clears P2-1 checkpoints through Hive. The
+    // production bootstrap initializes Hive before any chat reset; mirror it
+    // here so checkpoint cleanup has a real backend (an uninitialized Hive
+    // throws from its internal opening future, which cannot be caught by the
+    // caller).
+    Hive.init(directory.path);
+    await AgentRunCheckpointStore.instance.close();
     storage = SqliteChatStorage(
       directory: directory,
       appVersion: 'test',
@@ -49,6 +58,8 @@ void main() {
   });
 
   tearDown(() async {
+    await AgentRunCheckpointStore.instance.close();
+    await Hive.close();
     await storage.dispose();
     if (await directory.exists()) {
       await directory.delete(recursive: true);

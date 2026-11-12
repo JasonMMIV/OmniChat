@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart'
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../core/services/background/background_run_labels.dart';
+import '../core/services/background/background_run_monitor.dart';
 import '../l10n/app_localizations.dart';
 
 /// Desktop tray + window close behaviour controller.
@@ -20,6 +22,8 @@ class DesktopTrayController with TrayListener, WindowListener {
   bool _minimizeToTrayOnClose = false;
   String _localeKey = '';
   bool _contextMenuOpen = false;
+  AppLocalizations? _l10n;
+  BackgroundRunSnapshot? _runSnapshot;
 
   /// Sync tray state from settings & current localization.
   /// Safe to call multiple times; initialization is performed lazily.
@@ -62,10 +66,14 @@ class DesktopTrayController with TrayListener, WindowListener {
     final newLocaleKey = l10n.localeName;
     final localeChanged = newLocaleKey != _localeKey;
     _localeKey = newLocaleKey;
+    _l10n = l10n;
+    // Seed the run status so a tray enabled mid-run renders the current state
+    // instead of waiting for the next monitor change.
+    _runSnapshot = BackgroundRunMonitor.instance.snapshot;
 
     if (_showTraySetting) {
       if (!_trayVisible || localeChanged) {
-        await _ensureTrayIconAndMenu(l10n);
+        await _ensureTrayIconAndMenu();
         _trayVisible = true;
       }
     } else {
@@ -78,7 +86,7 @@ class DesktopTrayController with TrayListener, WindowListener {
     }
   }
 
-  Future<void> _ensureTrayIconAndMenu(AppLocalizations l10n) async {
+  Future<void> _ensureTrayIconAndMenu() async {
     if (!_isDesktop) return;
 
     // Use platform-specific tray icons (mirrors Gopeed's approach):
@@ -96,28 +104,93 @@ class DesktopTrayController with TrayListener, WindowListener {
       }
     } catch (_) {}
 
-    // Some Linux environments do not support tooltip; keep the call
-    // consistent with Gopeed and skip it there.
-    if (platform != TargetPlatform.linux) {
-      try {
-        await trayManager.setToolTip('OmniChat');
-      } catch (_) {}
-    }
+    await _applyToolTip();
     try {
-      final menu = Menu(items: [
-        MenuItem(
-          label: l10n.desktopTrayMenuShowWindow,
-          onClick: (_) async => _showWindow(),
-        ),
-        MenuItem.separator(),
-        MenuItem(
-          label: l10n.desktopTrayMenuExit,
-          onClick: (_) async => _exitApp(),
-        ),
-      ]);
-      await trayManager.setContextMenu(menu);
+      await trayManager.setContextMenu(_buildMenu());
     } catch (_) {}
   }
+
+  /// P2-2: mirror the app-level run state (generating / reply ready / failed /
+  /// stopped) into the tray tooltip and the first context-menu row. Never
+  /// creates a tray the user turned off, and never touches the tray when the
+  /// platform has no tray backend (mobile, web). Calling this with the same
+  /// snapshot is a no-op so redundant monitor emissions are cheap.
+  Future<void> applyRunSnapshot(BackgroundRunSnapshot snapshot) async {
+    if (kIsWeb || !_isDesktop || !_showTraySetting || !_trayVisible) return;
+    if (_l10n == null) return;
+    if (snapshot == _runSnapshot) return;
+    _runSnapshot = snapshot;
+    await _applyToolTip();
+    try {
+      await trayManager.setContextMenu(_buildMenu());
+    } catch (_) {}
+  }
+
+  Future<void> _applyToolTip() async {
+    if (!_isDesktop) return;
+    // Some Linux environments do not support tooltip; keep the call
+    // consistent with Gopeed and skip it there.
+    if (defaultTargetPlatform == TargetPlatform.linux) return;
+    final status = _statusText();
+    final text = status == null ? 'OmniChat' : 'OmniChat — $status';
+    try {
+      await trayManager.setToolTip(_truncate(text, 120));
+    } catch (_) {}
+  }
+
+  Menu _buildMenu() {
+    final l10n = _l10n!;
+    final items = <MenuItem>[];
+    final status = _statusText();
+    if (status != null) {
+      // Clicking the status row restores the window and opens the chat that is
+      // running (or just finished) — the desktop stand-in for a toast.
+      items.add(
+        MenuItem(
+          label: _truncate(status, 96),
+          toolTip: _truncate(status, 120),
+          onClick: (_) async => _openRunConversation(),
+        ),
+      );
+      items.add(MenuItem.separator());
+    }
+    items.add(
+      MenuItem(
+        label: l10n.desktopTrayMenuShowWindow,
+        onClick: (_) async => _showWindow(),
+      ),
+    );
+    items.add(MenuItem.separator());
+    items.add(
+      MenuItem(
+        label: l10n.desktopTrayMenuExit,
+        onClick: (_) async => _exitApp(),
+      ),
+    );
+    return Menu(items: items);
+  }
+
+  /// Localized one-line run status, or null when there is nothing to report
+  /// (idle, or no monitor state yet).
+  String? _statusText() {
+    final l10n = _l10n;
+    final snapshot = _runSnapshot;
+    if (l10n == null || snapshot == null) return null;
+    return backgroundRunStatusLabel(snapshot, l10n);
+  }
+
+  Future<void> _openRunConversation() async {
+    final id = _runSnapshot?.openConversationId;
+    await _showWindow();
+    if (id == null || id.isEmpty) return;
+    BackgroundRunMonitor.instance.requestOpen(id);
+    // The user has seen the result; drop the terminal tray row. Active runs
+    // are left alone by acknowledgeTerminal().
+    BackgroundRunMonitor.instance.acknowledgeTerminal();
+  }
+
+  String _truncate(String value, int max) =>
+      value.length <= max ? value : '${value.substring(0, max - 1)}…';
 
   Future<void> _showWindow() async {
     if (!_isDesktop) return;

@@ -21,7 +21,9 @@ import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/providers/skills_provider.dart';
 import '../../../core/models/skill.dart';
 import '../../../core/services/android_background.dart';
+import '../../../core/services/background/background_run_monitor.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/services/chat/storage/chat_storage_gate.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../core/models/chat_message.dart';
@@ -105,8 +107,10 @@ class _HomePageState extends State<HomePage>
   final GlobalKey _topWorkspaceKey = GlobalKey();
   StreamSubscription<String>? _processTextSub;
   StreamSubscription<void>? _incomingShareSub;
+  StreamSubscription<String>? _backgroundOpenSub;
+  String? _pendingBackgroundOpenId;
   Future<void> _incomingShareQueue = Future<void>.value();
-  bool _chatInitializedForIncomingShare = false;
+  bool _chatInitialized = false;
   Future<void> _migrationKeepAliveQueue = Future<void>.value();
   bool _migrationKeepAliveEnabledByUs = false;
   bool _migrationKeepAliveShouldRestore = false;
@@ -143,6 +147,20 @@ class _HomePageState extends State<HomePage>
 
     _controller.addListener(_onControllerChanged);
     _drawerController.addListener(_onDrawerValueChanged);
+
+    // P2-2: tray status rows / notification taps ask for a conversation id;
+    // the chat page is the only place that can actually open it.
+    _backgroundOpenSub = BackgroundRunMonitor.instance.openRequests.listen(
+      _openConversationFromBackground,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final pending = await NotificationService.consumeLaunchConversationId();
+        if (pending != null) {
+          BackgroundRunMonitor.instance.requestOpen(pending);
+        }
+      } catch (_) {}
+    });
 
     unawaited(_initializeChat());
     _initProcessText();
@@ -186,6 +204,7 @@ class _HomePageState extends State<HomePage>
     } catch (_) {}
     _processTextSub?.cancel();
     _incomingShareSub?.cancel();
+    _backgroundOpenSub?.cancel();
     _controller.removeListener(_onControllerChanged);
     _drawerController.removeListener(_onDrawerValueChanged);
     _inputFocus.dispose();
@@ -238,8 +257,9 @@ class _HomePageState extends State<HomePage>
         onMigrationFinished: _stopMigrationKeepAlive,
       );
       if (!mounted) return;
-      _chatInitializedForIncomingShare = true;
+      _chatInitialized = true;
       _drainIncomingShares();
+      _drainPendingBackgroundOpen();
     } catch (_) {
       // Chat storage status/overlay is the source of truth and offers Retry.
     }
@@ -460,12 +480,36 @@ class _HomePageState extends State<HomePage>
     }
   }
 
+  /// P2-2: open a conversation requested by a tray status click or an Android
+  /// notification tap. Requests that arrive before `initChat()` finished (a
+  /// cold-start notification tap) are parked and drained afterwards so the
+  /// switch never runs against an uninitialized chat service.
+  Future<void> _openConversationFromBackground(String conversationId) async {
+    final id = conversationId.trim();
+    if (id.isEmpty) return;
+    if (!mounted || !_chatInitialized) {
+      _pendingBackgroundOpenId = id;
+      return;
+    }
+    _pendingBackgroundOpenId = null;
+    try {
+      await _controller.switchConversationAnimated(id);
+    } catch (_) {}
+  }
+
+  void _drainPendingBackgroundOpen() {
+    final id = _pendingBackgroundOpenId;
+    if (id == null) return;
+    _pendingBackgroundOpenId = null;
+    unawaited(_openConversationFromBackground(id));
+  }
+
   /// Applies pending Android shares to the composer draft. Runs only after
   /// `initChat()` finished (so attachments land in a live input bar) and is
   /// serialized so overlapping shares cannot interleave.
   void _drainIncomingShares() {
     if (!PlatformUtils.isAndroid ||
-        !_chatInitializedForIncomingShare ||
+        !_chatInitialized ||
         !mounted)
       return;
     _incomingShareQueue = _incomingShareQueue

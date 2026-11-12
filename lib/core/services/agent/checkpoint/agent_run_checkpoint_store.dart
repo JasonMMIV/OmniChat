@@ -128,10 +128,17 @@ class AgentRunCheckpointStore implements AgentRunCheckpointSink {
   }
 
   Future<void> clearAll() async {
-    final box = await _ensureBox();
-    if (box.isEmpty) return;
-    await box.clear();
-    await box.flush();
+    // Checkpoint cleanup is best-effort: a missing/uninitialized Hive backend
+    // (or a corrupt box) must never fail a chat reset or backup restore.
+    try {
+      final box = await _ensureBox();
+      if (box.isEmpty) return;
+      await box.clear();
+      await box.flush();
+    } catch (_) {
+      _box = null;
+      _opening = null;
+    }
   }
 
   @visibleForTesting

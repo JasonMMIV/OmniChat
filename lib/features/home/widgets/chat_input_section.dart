@@ -14,6 +14,7 @@ import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/providers/skills_provider.dart';
 import '../../../core/providers/ai_team_provider.dart';
 import '../../../core/services/api/builtin_tools.dart';
+import '../../../core/services/agent/subagent.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/todo_models.dart';
 import '../../../desktop/desktop_context_menu.dart';
@@ -346,7 +347,8 @@ class ChatInputSection extends StatelessWidget {
     final builtInOn =
         (settings.planningEnabled &&
             settings.isWorkspaceToolEnabled(todoToolName)) ||
-        settings.isWorkspaceToolEnabled(askUserToolName);
+        settings.isWorkspaceToolEnabled(askUserToolName) ||
+        settings.isWorkspaceToolEnabled(spawnSubagentToolName);
     final advancedOn = settings.answerReviewMode != AnswerReviewMode.off;
     return _isMcpActive(context, a) || builtInOn || advancedOn;
   }

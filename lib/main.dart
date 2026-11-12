@@ -6,21 +6,29 @@ import 'package:flutter/foundation.dart'
         TargetPlatform,
         LicenseRegistry,
         LicenseEntryWithLineBreaks;
+
 import 'dart:async';
+
 import 'package:flutter_localizations/flutter_localizations.dart';
+
 import 'l10n/app_localizations.dart';
 import 'features/home/pages/home_page.dart';
 import 'desktop/desktop_home_page.dart';
+
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
+
 import 'desktop/desktop_window_controller.dart';
 import 'desktop/desktop_tray_controller.dart';
+import 'core/services/background/background_run_presentation.dart';
 // import 'package:logging/logging.dart' as logging;
 // Theme is now managed in SettingsProvider
 import 'theme/theme_factory.dart';
 import 'theme/palettes.dart';
+
 import 'package:provider/provider.dart';
 import 'package:dynamic_color/dynamic_color.dart';
+
 import 'core/providers/chat_provider.dart';
 import 'core/providers/user_provider.dart';
 import 'core/providers/settings_provider.dart';
@@ -32,6 +40,7 @@ import 'core/providers/update_provider.dart';
 import 'core/providers/quick_phrase_provider.dart';
 import 'core/providers/instruction_injection_provider.dart';
 import 'core/providers/skills_provider.dart';
+import 'core/services/shell/android/android_sandbox_service.dart';
 import 'core/services/skills/skill_service.dart';
 import 'core/services/model_catalog/model_catalog_service.dart';
 import 'core/services/auth/provider_oauth_service.dart';
@@ -46,15 +55,19 @@ import 'core/services/logging/flutter_logger.dart';
 import 'utils/app_directories.dart';
 import 'utils/sandbox_path_resolver.dart';
 import 'shared/widgets/app_overlays.dart';
+
 import 'package:google_fonts/google_fonts.dart';
 import 'package:system_fonts/system_fonts.dart';
 import 'package:flutter/painting.dart' show PaintingBinding;
+
 import 'dart:io'
     show
         HttpOverrides,
         Platform; // kept for global override usage inside provider
+
 import 'core/services/android_background.dart';
 import 'core/services/notification_service.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 final RouteObserver<ModalRoute<dynamic>> routeObserver =
@@ -90,6 +103,11 @@ Future<void> main() async {
       // logging.Logger.root.onRecord.listen((rec) { ... });
       // Cache current Documents directory to fix sandboxed absolute paths on iOS
       await SandboxPathResolver.init();
+      // P2-5: probe the Android PRoot sandbox before the first chat request so
+      // `shell_exec` is advertised only when the rootfs is actually ready.
+      try {
+        await AndroidSandboxService.instance.refresh();
+      } catch (_) {}
       // Migrate the retired @kelivo/fetch MCP entry before SettingsProvider
       // loads, otherwise its async load reads the default `true` and the
       // migrated `web_fetch_enabled_v1` value never reaches the UI.
@@ -360,12 +378,10 @@ class MyApp extends StatelessWidget {
                             await AndroidBackgroundManager.isEnabled();
                         if (!already) {
                           await AndroidBackgroundManager.ensureInitialized(
-                            notificationTitle: AppLocalizations.of(
-                              context,
-                            )!.androidBackgroundNotificationTitle,
-                            notificationText: AppLocalizations.of(
-                              context,
-                            )!.androidBackgroundNotificationText,
+                            notificationTitle: AppLocalizations.of(context)!
+                                .androidBackgroundNotificationTitle,
+                            notificationText: AppLocalizations.of(context)!
+                                .androidBackgroundNotificationText,
                           );
                           await AndroidBackgroundManager.setEnabled(true);
                         }
@@ -494,9 +510,8 @@ class MyApp extends StatelessWidget {
                       } catch (_) {}
                       try {
                         ctx.read<ChatService>().setDefaultConversationTitle(
-                          AppLocalizations.of(
-                            ctx,
-                          )!.chatServiceDefaultConversationTitle,
+                          AppLocalizations.of(ctx)!
+                              .chatServiceDefaultConversationTitle,
                         );
                       } catch (_) {}
                       try {
@@ -507,27 +522,32 @@ class MyApp extends StatelessWidget {
                     });
                   }
 
-                  // Desktop tray + close behaviour (minimize to tray) sync
+                  // Desktop tray + close behaviour (minimize to tray) sync,
+                  // and the P2-2 background-run presentation (tray status on
+                  // desktop, completion notification on Android). The
+                  // presentation must attach on every platform, so it sits
+                  // before the desktop-only guard.
                   final l10n = AppLocalizations.of(ctx);
-                  if (l10n != null) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) async {
-                      try {
-                        final isDesktop =
-                            !kIsWeb &&
-                            (defaultTargetPlatform == TargetPlatform.windows ||
-                                defaultTargetPlatform == TargetPlatform.macOS ||
-                                defaultTargetPlatform == TargetPlatform.linux);
-                        if (!isDesktop) return;
-                        final sp = ctx.read<SettingsProvider>();
-                        await DesktopTrayController.instance.syncFromSettings(
-                          l10n,
-                          showTray: sp.desktopShowTray,
-                          minimizeToTrayOnClose:
-                              sp.desktopMinimizeToTrayOnClose,
-                        );
-                      } catch (_) {}
-                    });
-                  }
+                  WidgetsBinding.instance.addPostFrameCallback((_) async {
+                    try {
+                      final sp = ctx.read<SettingsProvider>();
+                      BackgroundRunPresentation.instance
+                        ..updateLocalizations(l10n)
+                        ..attach(settings: sp);
+                      final isDesktop =
+                          !kIsWeb &&
+                          (defaultTargetPlatform == TargetPlatform.windows ||
+                              defaultTargetPlatform == TargetPlatform.macOS ||
+                              defaultTargetPlatform == TargetPlatform.linux);
+                      if (!isDesktop) return;
+                      if (l10n == null) return;
+                      await DesktopTrayController.instance.syncFromSettings(
+                        l10n,
+                        showTray: sp.desktopShowTray,
+                        minimizeToTrayOnClose: sp.desktopMinimizeToTrayOnClose,
+                      );
+                    } catch (_) {}
+                  });
 
                   // Enforce app font as a default across the tree for Texts without explicit family
                   final appWithOverlays = AppOverlays(

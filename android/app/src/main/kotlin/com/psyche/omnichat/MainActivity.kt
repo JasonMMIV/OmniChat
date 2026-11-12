@@ -16,6 +16,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.DocumentsContract
 import android.util.Log
+import com.psyche.omnichat.sandbox.SandboxPlugin
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -29,11 +30,17 @@ class MainActivity : FlutterActivity() {
     private var pendingProcessText: String? = null
     private var incomingShareChannel: MethodChannel? = null
     private var incomingShareHandler: IncomingShareHandler? = null
+    private var sandboxPlugin: SandboxPlugin? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         // Provider OAuth sign-in: Custom Tabs/AuthTab + deep-link completion.
         OAuthHandler.configure(this, flutterEngine.dartExecutor.binaryMessenger)
+        // P2-5: Android PRoot sandbox (shell_exec).
+        SandboxPlugin(applicationContext).also {
+            sandboxPlugin = it
+            it.configure(flutterEngine.dartExecutor.binaryMessenger)
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName).setMethodCallHandler { call, result ->
             when (call.method) {
                 "startCallMode" -> {
@@ -474,6 +481,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        sandboxPlugin?.dispose()
+        sandboxPlugin = null
         OAuthHandler.detachActivity(this)
         incomingShareHandler?.close()
         incomingShareHandler = null

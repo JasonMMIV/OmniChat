@@ -12,3 +12,12 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# P2-5 Android sandbox payloads — pinned + SHA256-verified by
+# scripts/fetch-sandbox.sh; never committed (GPL/LGPL proot binaries and the
+# large distro rootfs). manifest.json is tracked so the pins are reviewable.
+app/src/main/jniLibs/*/libproot_*.so
+app/src/main/jniLibs/*/libandroid-shmem.so
+app/src/main/assets/sandbox/lib/
+app/src/main/assets/sandbox/*.tgz
+app/src/main/assets/sandbox/*.tar.xz

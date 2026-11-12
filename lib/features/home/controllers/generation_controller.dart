@@ -5,6 +5,7 @@ import '../../../core/models/assistant.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/services/agent/subagent.dart';
 import '../../../core/services/api/tool_result_images.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../utils/assistant_regex.dart';
@@ -137,6 +138,7 @@ class GenerationController {
     String? workspacePath,
     String? approvedResolvedPath,
     String? approvedShellCommand,
+    SubagentLaunchConfig? subagentContext,
   }) {
     return toolHandlerService.buildToolCallHandler(
       settings,
@@ -146,6 +148,7 @@ class GenerationController {
       workspacePath: workspacePath,
       approvedResolvedPath: approvedResolvedPath,
       approvedShellCommand: approvedShellCommand,
+      subagentContext: subagentContext,
     );
   }
 

@@ -13,7 +13,8 @@
 //   `tool_outputs/` zone, with 8 KB previews and retention;
 // - output capped at the shell tool-result budget (68 KB).
 //
-// Android never advertises this tool (isPlatformSupported is false there).
+// Android does not advertise this tool; it has a separate foreground
+// `shell_exec` backend in `shell/android/android_shell_service.dart`.
 library;
 
 import 'dart:convert';
@@ -198,8 +199,8 @@ class ShellRunService {
         ? diffWorkspaceSnapshots(before, after)
         : const ChangedFilesResult.empty();
 
-    final stdout = _redactSecrets(_stripAnsi(result.stdout));
-    final stderr = _redactSecrets(_stripAnsi(result.stderr));
+    final stdout = redactSecrets(stripAnsi(result.stdout));
+    final stderr = redactSecrets(stripAnsi(result.stderr));
     final totalBytes = utf8.encode(stdout).length + utf8.encode(stderr).length;
     final overBudget = totalBytes > SessionOutputs.externalizeThresholdBytes;
 
@@ -213,7 +214,7 @@ class ShellRunService {
         conversationId: conversationId,
         toolCallId: toolCallId,
         content:
-            'Command: ${_redactSecrets(command)}\n'
+            'Command: ${redactSecrets(command)}\n'
             'Exit code: ${result.exitCode}\n\n'
             '--- stdout ---\n$stdout\n\n'
             '--- stderr ---\n$stderr\n',
@@ -360,13 +361,18 @@ class ShellRunService {
     r'\b(?:sk|ghp|gho|ghu|ghs|xox[baprs])[-_][A-Za-z0-9._-]{8,}',
   );
 
-  static String _stripAnsi(String text) {
+  /// Shared by desktop and Android shell backends: strip terminal control
+  /// sequences first, then redact obvious credentials.
+  static String stripAnsiAndRedact(String text) =>
+      redactSecrets(stripAnsi(text));
+
+  static String stripAnsi(String text) {
     var out = text.replaceAll(_osc, '');
     out = out.replaceAll(_csi, '');
     return out;
   }
 
-  static String _redactSecrets(String text) {
+  static String redactSecrets(String text) {
     var out = text.replaceAllMapped(
       _assignmentSecret,
       (match) => '${match.group(1)}${match.group(2)}***',

@@ -28,6 +28,7 @@ import '../../../core/services/auth/oauth_recovery_registry.dart';
 import '../../../core/services/auth/provider_oauth_service.dart';
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/agent/compaction/midrun_compactor.dart';
+import '../../../core/services/background/background_run_monitor.dart';
 import '../../../core/services/shell/shell_run_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/chat_service.dart';
@@ -1392,6 +1393,10 @@ class ChatActions {
   Future<void> cancelStreaming(Conversation? conversation) async {
     final cid = conversation?.id;
     if (cid == null) return;
+
+    // P2-2: a deliberate stop is not a successful completion; the monitor
+    // reports `stopped` instead of `ready` once loading clears.
+    BackgroundRunMonitor.instance.markStopped(cid);
 
     // P2-1: a deliberate stop is not a resumable interruption. Invalidate
     // the run fence first so a late journal write cannot recreate the row
@@ -3350,6 +3355,9 @@ class ChatActions {
   ) async {
     final messageId = state.messageId;
     final conversationId = state.conversationId;
+    // P2-2: the run ends in failure, not "reply ready" — recorded before the
+    // loading flag clears (the terminal phase is computed at finish()).
+    BackgroundRunMonitor.instance.markFailed(conversationId);
     final l10n = AppLocalizations.of(contextProvider);
     // Only an auth failure of this account may turn the turn into the recovery
     // flow. The classifier also covers the second-401 shape, which the wrapper

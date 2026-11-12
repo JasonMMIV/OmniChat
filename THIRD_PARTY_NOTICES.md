@@ -142,3 +142,45 @@ The bundled Latin Modern font license is available at
 `fonts/latin-modern/GUST-FONT-LICENSE.txt` in the `val_latex_flutter` package.
 If Gate 1 is reverted, remove the 1.4.0 spike rows together with the override;
 the production `gpt_markdown` 1.3.0 and `flutter_svg` entries remain.
+
+## Android PRoot sandbox (P2-5)
+
+OmniChat's Android `shell_exec` runs a pinned Ubuntu Base rootfs under PRoot.
+The native payloads are fetched — never committed — by
+`android/scripts/fetch-sandbox.sh`, which pins each artifact by version and
+SHA-256. They are redistributed unmodified as independently launched programs.
+
+### Bundled binaries and payloads
+
+| Component | Version | License | Source |
+|:--|:--|:--|:--|
+| PRoot (`libproot_exec.so`, `libproot_loader.so`) | 5.1.107.102 (Termux aarch64 package) | GPL-2.0-or-later | https://github.com/proot-me/proot · packaging: https://github.com/termux/termux-packages |
+| libtalloc (`libtalloc.so.2`) | 2.5.0 (Termux aarch64 package) | LGPL-3.0-or-later | https://gitlab.com/samba-team/talloc |
+| libandroid-shmem | 0.7 (Termux aarch64 package) | Apache-2.0 | https://github.com/termux/libandroid-shmem |
+| Ubuntu Base rootfs | 24.04.4 (arm64) | Ubuntu licence terms; per-package licences are inside the image | https://cdimage.ubuntu.com/ubuntu-base/releases/noble/release/ |
+
+PRoot is GPL-2.0-or-later; the OmniChat application code is AGPL-3.0 and the
+PRoot binaries remain separate, independently launched programs. The complete
+corresponding source for PRoot is the upstream repository above; the Termux
+packaging repository documents the exact build recipe used for the distributed
+binaries. OmniChat does not modify PRoot. `libtalloc` is shipped as a separate
+shared library and can be replaced independently.
+
+Full source-offer and reproducibility instructions are in
+`docs/android_sandbox_p2_5.md`. The in-app Settings → Android Shell page links
+users to this notice.
+
+### Design references
+
+- **AnyBuff** (same author, Apache-2.0): the rootfs installer stages an APK
+  asset, verifies SHA-256, extracts with a traversal/symlink-hardened tar
+  reader, and activates via atomic rename. OmniChat's
+  `android/app/src/main/kotlin/com/psyche/omnichat/sandbox/RootfsInstaller.kt`
+  and `SafeTarExtractor.kt` are adapted from that implementation, with the
+  layout changed to `cli_runtime/` and `java.nio.file` removed for the app's
+  minimum API.
+- **Kelivo** (AGPL-3.0, commit `51777f7`): the PRoot argv shape (`env -i`
+  arguments, positional `sh -lc` command, `--kill-on-exit`), SIGQUIT-first
+  process termination, and the guest-path validation rules informed
+  OmniChat's `ProotCommand.kt` / `ProotRunner.kt`. No Kelivo branding, package
+  ids, assets, or application ids are carried over.

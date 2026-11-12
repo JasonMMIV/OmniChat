@@ -154,6 +154,27 @@ void main() {
       );
       expect(defs, isEmpty);
     });
+
+    test('Android shell_exec is gated by the explicit availability flag', () {
+      List<String> names(List<Map<String, dynamic>> defs) => defs
+          .map((d) => ((d['function'] as Map)['name'] ?? '').toString())
+          .toList();
+
+      final off = ToolHandlerService.buildWorkspaceToolDefinitions(
+        _ToggleSettingsProvider(),
+        workspaceEnabled: true,
+        shellExecAvailable: false,
+      );
+      expect(names(off), isNot(contains('shell_exec')));
+
+      final on = ToolHandlerService.buildWorkspaceToolDefinitions(
+        _ToggleSettingsProvider(),
+        workspaceEnabled: true,
+        shellExecAvailable: true,
+      );
+      expect(names(on), contains('shell_exec'));
+      expect(names(on).where((name) => name == 'shell_exec').length, 1);
+    });
   });
 
   group('ToolHandlerService.buildPlanningToolDefinitions (Phase 3-4)', () {
@@ -258,9 +279,9 @@ void main() {
 
       // Tool icons use the theme accent, matching the permission rows above
       // them, instead of ListTile's default grey.
-      final primary = Theme.of(
-        tester.element(find.text('Read file')),
-      ).colorScheme.primary;
+      final primary = Theme.of(tester.element(find.text('Read file')))
+          .colorScheme
+          .primary;
       final icon = tester.widget<Icon>(find.byIcon(Lucide.FileText).first);
       expect(icon.color, primary);
     });

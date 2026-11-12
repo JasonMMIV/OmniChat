@@ -1,5 +1,6 @@
 import '../../../core/services/dev/dev_preview_tools.dart';
 import '../../../core/services/file/file_tool_service.dart';
+import '../../../core/services/shell/android/android_shell_service.dart';
 import '../../../core/services/shell/shell_run_service.dart';
 
 /// Built-in workspace tool names, derived from the definitions themselves so
@@ -14,6 +15,7 @@ Set<String> _buildWorkspaceToolNames() {
   }
   names.add(devConsoleErrorsToolName);
   names.add(ShellRunService.toolName);
+  names.add(AndroidShellService.toolName);
   return names;
 }
 
@@ -108,6 +110,16 @@ String? buildFileWorkspacePrompt(
       'shell_run runs one desktop shell command in the workspace (builds, '
       'tests, git, package managers). Commands start in the workspace; this '
       'is not a security sandbox.',
+    );
+  }
+  if (enabled.contains('shell_exec')) {
+    paragraphs.add(
+      'shell_exec runs one foreground command inside the Android PRoot '
+      'sandbox (Ubuntu base). Its current directory is the guest path '
+      '/workspace, which maps to the active workspace above; file tools still '
+      'use workspace-relative host paths. External shared-storage workspaces '
+      'do not support executable bits or symlinks. This is not a security '
+      'sandbox, and background jobs are not supported.',
     );
   }
   if (enabled.contains('file_extract_text')) {

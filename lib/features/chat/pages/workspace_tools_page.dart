@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/dev/dev_preview_tools.dart';
 import '../../../core/services/file/file_tool_service.dart';
+import '../../../core/services/shell/android/android_shell_service.dart';
 import '../../../core/services/shell/shell_run_service.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
@@ -31,9 +32,10 @@ class _WorkspaceToolEntry {
 }
 
 /// Global tool switchboard for the workspace: the 17 built-in file tools,
-/// the live-preview console reader and the desktop shell tool, each with its
-/// own toggle, plus the two global permission switches (files outside the
-/// workspace, shell commands).
+/// the live-preview console reader and the platform shell tool(s) — desktop
+/// `shell_run` and/or Android `shell_exec` — each with its own toggle, plus
+/// the two global permission switches (files outside the workspace, shell
+/// commands).
 ///
 /// Rows are grouped by what the tool does and titled with localized names.
 ///
@@ -65,6 +67,10 @@ class WorkspaceToolsPage extends StatelessWidget {
       ),
       if (ShellRunService.isPlatformSupported)
         _WorkspaceToolEntry.fromDefinition(ShellRunService.getToolDefinition()),
+      if (AndroidShellService.isToolAvailable)
+        _WorkspaceToolEntry.fromDefinition(
+          AndroidShellService.getToolDefinition(),
+        ),
     ];
 
     return Scaffold(
@@ -97,7 +103,8 @@ class WorkspaceToolsPage extends StatelessWidget {
               value: settings.fileOutsideWorkspaceAllowAllV1,
               onChanged: settings.setFileOutsideWorkspaceAllowAllV1,
             ),
-            if (ShellRunService.isPlatformSupported)
+            if (ShellRunService.isPlatformSupported ||
+                AndroidShellService.isToolAvailable)
               _permissionRow(
                 context,
                 icon: Lucide.Terminal,

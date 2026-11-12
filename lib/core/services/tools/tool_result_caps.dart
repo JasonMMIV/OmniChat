@@ -42,7 +42,9 @@ class ToolResultCaps {
   /// Per-tool result budget. Unknown tools keep the default 32 KB budget.
   static int thresholdFor(String toolName) {
     if (toolName == 'file_read') return fileReadCapChars;
-    if (toolName == 'shell_run') return shellCapChars;
+    if (toolName == 'shell_run' || toolName == 'shell_exec') {
+      return shellCapChars;
+    }
     return capThresholdChars;
   }
 
