@@ -8712,6 +8712,12 @@ abstract class AppLocalizations {
   /// **'Download'**
   String get codeBlockDownloadButton;
 
+  /// No description provided for @codeBlockDefaultLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'Code'**
+  String get codeBlockDefaultLanguage;
+
   /// No description provided for @htmlPreviewNotSupportedOnLinux.
   ///
   /// In en, this message translates to:

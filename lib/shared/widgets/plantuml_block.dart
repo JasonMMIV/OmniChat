@@ -10,6 +10,7 @@ import '../../core/services/web/ssrf_guard.dart';
 import 'snackbar.dart';
 import 'safe_svg_image.dart';
 import 'code_block_download_button.dart';
+import 'hover_reveal.dart';
 import 'export_capture_scope.dart';
 import 'dart:io';
 
@@ -81,157 +82,167 @@ class _PlantUMLBlockState extends State<PlantUMLBlock> {
       textSecondary: cs.onSurface.withValues(alpha: 0.6),
     );
 
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
-      clipBehavior: Clip.antiAlias,
-      foregroundDecoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header: image/code tabs (left) + actions (right)
-          Material(
-            color: headerBg,
-            elevation: 0,
-            shadowColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: _expanded
-                      ? BorderSide(color: cs.outlineVariant.withValues(alpha: 0.28), width: 1.0)
-                      : BorderSide.none,
+    return HoverReveal(
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+        clipBehavior: Clip.antiAlias,
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header: image/code tabs (left) + actions (right)
+            Material(
+              color: headerBg,
+              elevation: 0,
+              shadowColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: _expanded
+                        ? BorderSide(color: cs.outlineVariant.withValues(alpha: 0.28), width: 1.0)
+                        : BorderSide.none,
+                  ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.only(start: 12, end: 10),
-                      child: Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(color: palette.track, borderRadius: BorderRadius.circular(8)),
-                          child: Padding(
-                            padding: const EdgeInsets.all(2),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _PlantUMLTabButton(
-                                  label: l10n.mermaidImageTab,
-                                  selected: _selectedTab == _PlantUMLTab.image,
-                                  palette: palette,
-                                  onTap: () => setState(() => _selectedTab = _PlantUMLTab.image),
-                                ),
-                                _PlantUMLTabButton(
-                                  label: l10n.mermaidCodeTab,
-                                  selected: _selectedTab == _PlantUMLTab.code,
-                                  palette: palette,
-                                  onTap: () => setState(() => _selectedTab = _PlantUMLTab.code),
-                                ),
-                              ],
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsetsDirectional.only(start: 12, end: 10),
+                        child: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(color: palette.track, borderRadius: BorderRadius.circular(8)),
+                            child: Padding(
+                              padding: const EdgeInsets.all(2),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _PlantUMLTabButton(
+                                    label: l10n.mermaidImageTab,
+                                    selected: _selectedTab == _PlantUMLTab.image,
+                                    palette: palette,
+                                    onTap: () => setState(() => _selectedTab = _PlantUMLTab.image),
+                                  ),
+                                  _PlantUMLTabButton(
+                                    label: l10n.mermaidCodeTab,
+                                    selected: _selectedTab == _PlantUMLTab.code,
+                                    palette: palette,
+                                    onTap: () => setState(() => _selectedTab = _PlantUMLTab.code),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  if (!exporting) ...[
-                    // Copy action
-                    InkWell(
-                      onTap: () async {
-                        await Clipboard.setData(ClipboardData(text: widget.code));
-                        if (mounted) {
-                          showAppSnackBar(
-                            context,
-                            message: AppLocalizations.of(context)!.chatMessageWidgetCopiedToClipboard,
-                            type: NotificationType.success,
-                          );
-                        }
-                      },
-                      splashColor: Platform.isIOS ? Colors.transparent : null,
-                      highlightColor: Platform.isIOS ? Colors.transparent : null,
-                      hoverColor: Platform.isIOS ? Colors.transparent : null,
-                      overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
-                      borderRadius: BorderRadius.circular(6),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                        child: Tooltip(
-                          message: l10n.shareProviderSheetCopyButton,
-                          child: Icon(Lucide.Copy, size: 14, color: cs.onSurface.withValues(alpha: 0.6)),
+                    if (!exporting) ...[
+                      RevealableActions(
+                        key: const ValueKey('plantuml-block-actions'),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Copy action
+                            InkWell(
+                              onTap: () async {
+                                await Clipboard.setData(ClipboardData(text: widget.code));
+                                if (mounted) {
+                                  showAppSnackBar(
+                                    context,
+                                    message: AppLocalizations.of(context)!.chatMessageWidgetCopiedToClipboard,
+                                    type: NotificationType.success,
+                                  );
+                                }
+                              },
+                              splashColor: Platform.isIOS ? Colors.transparent : null,
+                              highlightColor: Platform.isIOS ? Colors.transparent : null,
+                              hoverColor: Platform.isIOS ? Colors.transparent : null,
+                              overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+                              borderRadius: BorderRadius.circular(6),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                                child: Tooltip(
+                                  message: l10n.shareProviderSheetCopyButton,
+                                  child: Icon(Lucide.Copy, size: 14, color: cs.onSurface.withValues(alpha: 0.6)),
+                                ),
+                              ),
+                            ),
+                            // Download action: save the .puml source
+                            CodeBlockDownloadButton(onTap: _downloadCode),
+                          ],
                         ),
                       ),
-                    ),
-                    // Download action: save the .puml source
-                    CodeBlockDownloadButton(onTap: _downloadCode),
-                    const SizedBox(width: 6),
-                    // Collapse toggle
-                    InkWell(
-                      onTap: () => setState(() => _expanded = !_expanded),
-                      splashColor: Platform.isIOS ? Colors.transparent : null,
-                      highlightColor: Platform.isIOS ? Colors.transparent : null,
-                      hoverColor: Platform.isIOS ? Colors.transparent : null,
-                      overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
-                      borderRadius: BorderRadius.circular(6),
-                      child: Padding(
-                        padding: const EdgeInsets.all(6),
-                        child: AnimatedRotation(
-                          turns: _expanded ? 0.25 : 0.0,
-                          duration: const Duration(milliseconds: 180),
-                          curve: Curves.easeOutCubic,
-                          child: Icon(Lucide.ChevronRight, size: 16, color: cs.onSurface.withValues(alpha: 0.7)),
+                      const SizedBox(width: 6),
+                      // Collapse toggle
+                      InkWell(
+                        onTap: () => setState(() => _expanded = !_expanded),
+                        splashColor: Platform.isIOS ? Colors.transparent : null,
+                        highlightColor: Platform.isIOS ? Colors.transparent : null,
+                        hoverColor: Platform.isIOS ? Colors.transparent : null,
+                        overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+                        borderRadius: BorderRadius.circular(6),
+                        child: Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: AnimatedRotation(
+                            turns: _expanded ? 0.25 : 0.0,
+                            duration: const Duration(milliseconds: 180),
+                            curve: Curves.easeOutCubic,
+                            child: Icon(Lucide.ChevronRight, size: 16, color: cs.onSurface.withValues(alpha: 0.7)),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
+                      const SizedBox(width: 6),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
-          ),
-          // Content
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (child, anim) => FadeTransition(
-              opacity: anim,
-              child: SizeTransition(sizeFactor: anim, alignment: Alignment.topCenter, child: child),
-            ),
-            child: _expanded
-                ? Container(
-                    key: const ValueKey('plantuml-expanded'),
-                    width: double.infinity,
-                    color: bodyBg,
-                    child: SizedBox(
-                      key: const ValueKey('plantuml-preview-body'),
+            // Content
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: SizeTransition(sizeFactor: anim, alignment: Alignment.topCenter, child: child),
+              ),
+              child: _expanded
+                  ? Container(
+                      key: const ValueKey('plantuml-expanded'),
                       width: double.infinity,
-                      height: _previewHeight,
-                      child: ColoredBox(
-                        color: bodyBg,
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 180),
-                          switchInCurve: Curves.easeOutCubic,
-                          switchOutCurve: Curves.easeInCubic,
-                          layoutBuilder: (currentChild, previousChildren) {
-                            return currentChild ?? const SizedBox.shrink();
-                          },
-                          child: _selectedTab == _PlantUMLTab.code
-                              ? _buildCodeView(context, palette)
-                              : _buildImageView(bodyBg, palette),
+                      color: bodyBg,
+                      child: SizedBox(
+                        key: const ValueKey('plantuml-preview-body'),
+                        width: double.infinity,
+                        height: _previewHeight,
+                        child: ColoredBox(
+                          color: bodyBg,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 180),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            layoutBuilder: (currentChild, previousChildren) {
+                              return currentChild ?? const SizedBox.shrink();
+                            },
+                            child: _selectedTab == _PlantUMLTab.code
+                                ? _buildCodeView(context, palette)
+                                : _buildImageView(bodyBg, palette),
+                          ),
                         ),
                       ),
-                    ),
-                  )
-                : const SizedBox.shrink(key: ValueKey('plantuml-collapsed')),
-          ),
-        ],
+                    )
+                  : const SizedBox.shrink(key: ValueKey('plantuml-collapsed')),
+            ),
+          ],
+        ),
       ),
     );
   }

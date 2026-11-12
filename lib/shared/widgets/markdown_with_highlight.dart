@@ -22,6 +22,7 @@ import '../../utils/markdown_preview_html.dart';
 import '../../features/chat/pages/image_viewer_page.dart';
 import '../../features/chat/pages/html_preview_page.dart';
 import 'code_block_download_button.dart';
+import 'hover_reveal.dart';
 import 'inline_html_md.dart';
 import 'markdown_callout_card.dart';
 import 'markdown_directive_block.dart';
@@ -604,10 +605,9 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
   }
 
   static String _displayLanguage(BuildContext context, String? raw) {
-    final zh = _isZh(context);
     final t = raw?.trim();
     if (t != null && t.isNotEmpty) return t;
-    return zh ? '代码' : 'Code';
+    return AppLocalizations.of(context)?.codeBlockDefaultLanguage ?? 'Code';
   }
 
   static bool _isZh(BuildContext context) => Localizations.localeOf(context).languageCode == 'zh';
@@ -1297,282 +1297,296 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
     final Color bodyBg = Color.alphaBlend(cs.primary.withOpacity(isDark ? 0.06 : 0.03), mdSurface.surface);
     final Color headerBg = Color.alphaBlend(cs.primary.withOpacity(isDark ? 0.16 : 0.10), mdSurface.surface);
 
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
-      // Clip children to the same radius so they don't overpaint corners
-      clipBehavior: Clip.antiAlias,
-      // Draw the border on top so it remains visible at corners
-      foregroundDecoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header layout: language (left) + copy action (icon + label) + expand/collapse icon
-          Material(
-            color: headerBg,
-            elevation: 0,
-            shadowColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            child: InkWell(
-              onTap: () => setState(() {
-                _manuallyToggled = true;
-                _expanded = !_expanded;
-                _rememberManualExpansionState();
-              }),
-              splashColor: Platform.isIOS ? Colors.transparent : null,
-              highlightColor: Platform.isIOS ? Colors.transparent : null,
-              hoverColor: Platform.isIOS ? Colors.transparent : null,
-              overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: cs.outlineVariant.withOpacity(0.28), width: 1.0)),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(width: 2),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 88),
-                      child: Text(
-                        MarkdownWithCodeHighlight._displayLanguage(context, widget.language),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurface, height: 1.0),
+    return HoverReveal(
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+        // Clip children to the same radius so they don't overpaint corners
+        clipBehavior: Clip.antiAlias,
+        // Draw the border on top so it remains visible at corners
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header layout: language (left) + block actions (revealed on
+            // hover/tap) + always-visible expand/collapse icon
+            Material(
+              color: headerBg,
+              elevation: 0,
+              shadowColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              child: InkWell(
+                onTap: () => setState(() {
+                  _manuallyToggled = true;
+                  _expanded = !_expanded;
+                  _rememberManualExpansionState();
+                }),
+                splashColor: Platform.isIOS ? Colors.transparent : null,
+                highlightColor: Platform.isIOS ? Colors.transparent : null,
+                hoverColor: Platform.isIOS ? Colors.transparent : null,
+                overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    border: Border(bottom: BorderSide(color: cs.outlineVariant.withOpacity(0.28), width: 1.0)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const SizedBox(width: 2),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 88),
+                        child: Text(
+                          MarkdownWithCodeHighlight._displayLanguage(context, widget.language),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurface, height: 1.0),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Wrap(
-                        alignment: WrapAlignment.end,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 4,
-                        runSpacing: 2,
-                        children: [
-                    if (_isPreviewable(widget.language))
-                      InkWell(
-                        onTap: () async {
-                          final l10n = AppLocalizations.of(context)!;
-                          final isXml = _isXml(widget.language);
-                          // Markdown/CSV/TSV blocks are transformed into
-                          // renderable HTML before opening the preview.
-                          String html = widget.code;
-                          if (_isMarkdown(widget.language)) {
-                            try {
-                              html = await MarkdownPreviewHtmlBuilder.buildFromMarkdown(context, widget.code);
-                            } catch (_) {
-                              if (!mounted) return;
-                              showAppSnackBar(
-                                context,
-                                message: l10n.mermaidPreviewOpenFailed,
-                                type: NotificationType.error,
-                              );
-                              return;
-                            }
-                          } else if (_isTable(widget.language)) {
-                            html = _buildTableHtml(widget.code, isTsv: widget.language.trim().toLowerCase() == 'tsv');
-                          }
-                          if (!mounted) return;
-                          if (Platform.isAndroid || Platform.isIOS) {
-                            // Mobile: navigate to preview page
-                            Navigator.of(context).push(
-                              PageRouteBuilder(
-                                pageBuilder: (_, __, ___) =>
-                                    HtmlPreviewPage(html: html, isXml: isXml, isMarkdown: _isMarkdown(widget.language)),
-                                transitionDuration: const Duration(milliseconds: 300),
-                                reverseTransitionDuration: const Duration(milliseconds: 240),
-                                transitionsBuilder: (context, anim, sec, child) {
-                                  final curved = CurvedAnimation(
-                                    parent: anim,
-                                    curve: Curves.easeOutCubic,
-                                    reverseCurve: Curves.easeInCubic,
-                                  );
-                                  return FadeTransition(opacity: curved, child: child);
-                                },
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Wrap(
+                          alignment: WrapAlignment.end,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 4,
+                          runSpacing: 2,
+                          children: [
+                            RevealableActions(
+                              key: const ValueKey('code-block-actions'),
+                              child: Wrap(
+                                alignment: WrapAlignment.end,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 4,
+                                runSpacing: 2,
+                                children: [
+                                  if (_isPreviewable(widget.language))
+                                    InkWell(
+                                      onTap: () async {
+                                        final l10n = AppLocalizations.of(context)!;
+                                        final isXml = _isXml(widget.language);
+                                        // Markdown/CSV/TSV blocks are transformed into
+                                        // renderable HTML before opening the preview.
+                                        String html = widget.code;
+                                        if (_isMarkdown(widget.language)) {
+                                          try {
+                                            html = await MarkdownPreviewHtmlBuilder.buildFromMarkdown(context, widget.code);
+                                          } catch (_) {
+                                            if (!mounted) return;
+                                            showAppSnackBar(
+                                              context,
+                                              message: l10n.mermaidPreviewOpenFailed,
+                                              type: NotificationType.error,
+                                            );
+                                            return;
+                                          }
+                                        } else if (_isTable(widget.language)) {
+                                          html = _buildTableHtml(widget.code, isTsv: widget.language.trim().toLowerCase() == 'tsv');
+                                        }
+                                        if (!mounted) return;
+                                        if (Platform.isAndroid || Platform.isIOS) {
+                                          // Mobile: navigate to preview page
+                                          Navigator.of(context).push(
+                                            PageRouteBuilder(
+                                              pageBuilder: (_, __, ___) =>
+                                                  HtmlPreviewPage(html: html, isXml: isXml, isMarkdown: _isMarkdown(widget.language)),
+                                              transitionDuration: const Duration(milliseconds: 300),
+                                              reverseTransitionDuration: const Duration(milliseconds: 240),
+                                              transitionsBuilder: (context, anim, sec, child) {
+                                                final curved = CurvedAnimation(
+                                                  parent: anim,
+                                                  curve: Curves.easeOutCubic,
+                                                  reverseCurve: Curves.easeInCubic,
+                                                );
+                                                return FadeTransition(opacity: curved, child: child);
+                                              },
+                                            ),
+                                          );
+                                        } else if (Platform.isLinux) {
+                                          // Linux: show not supported
+                                          showAppSnackBar(
+                                            context,
+                                            message: l10n.htmlPreviewNotSupportedOnLinux,
+                                            type: NotificationType.warning,
+                                          );
+                                        } else {
+                                          // Desktop (macOS/Windows): open dialog
+                                          try {
+                                            // Defer import to avoid cycle
+                                            // ignore: use_build_context_synchronously
+                                            await showHtmlPreviewDesktopDialog(
+                                              context,
+                                              html: html,
+                                              isXml: isXml,
+                                              isMarkdown: _isMarkdown(widget.language),
+                                            );
+                                          } catch (_) {}
+                                        }
+                                      },
+                                      splashColor: Platform.isIOS ? Colors.transparent : null,
+                                      highlightColor: Platform.isIOS ? Colors.transparent : null,
+                                      hoverColor: Platform.isIOS ? Colors.transparent : null,
+                                      overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: Tooltip(
+                                        message: AppLocalizations.of(context)!.codeBlockPreviewButton,
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(6),
+                                          child: Icon(Lucide.Eye, size: 14, color: cs.onSurface.withOpacity(0.6)),
+                                        ),
+                                      ),
+                                    ),
+                                  // Download action: save the block as a file. Shown on every
+                                  // code block.
+                                  CodeBlockDownloadButton(onTap: _downloadCode),
+                                  // Copy action (icon-only; the localized label is the tooltip)
+                                  InkWell(
+                                    onTap: () async {
+                                      await Clipboard.setData(ClipboardData(text: widget.code));
+                                      if (mounted) {
+                                        showAppSnackBar(
+                                          context,
+                                          message: AppLocalizations.of(context)!.chatMessageWidgetCopiedToClipboard,
+                                          type: NotificationType.success,
+                                        );
+                                      }
+                                    },
+                                    splashColor: Platform.isIOS ? Colors.transparent : null,
+                                    highlightColor: Platform.isIOS ? Colors.transparent : null,
+                                    hoverColor: Platform.isIOS ? Colors.transparent : null,
+                                    overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: Tooltip(
+                                      message: AppLocalizations.of(context)!.shareProviderSheetCopyButton,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(6),
+                                        child: Icon(Lucide.Copy, size: 14, color: cs.onSurface.withOpacity(0.6)),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            );
-                          } else if (Platform.isLinux) {
-                            // Linux: show not supported
-                            showAppSnackBar(
-                              context,
-                              message: l10n.htmlPreviewNotSupportedOnLinux,
-                              type: NotificationType.warning,
-                            );
-                          } else {
-                            // Desktop (macOS/Windows): open dialog
-                            try {
-                              // Defer import to avoid cycle
-                              // ignore: use_build_context_synchronously
-                              await showHtmlPreviewDesktopDialog(
-                                context,
-                                html: html,
-                                isXml: isXml,
-                                isMarkdown: _isMarkdown(widget.language),
-                              );
-                            } catch (_) {}
-                          }
-                        },
-                        splashColor: Platform.isIOS ? Colors.transparent : null,
-                        highlightColor: Platform.isIOS ? Colors.transparent : null,
-                        hoverColor: Platform.isIOS ? Colors.transparent : null,
-                        overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
-                        borderRadius: BorderRadius.circular(6),
-                        child: Tooltip(
-                          message: AppLocalizations.of(context)!.codeBlockPreviewButton,
-                          child: Padding(
-                            padding: const EdgeInsets.all(6),
-                            child: Icon(Lucide.Eye, size: 14, color: cs.onSurface.withOpacity(0.6)),
-                          ),
+                            ),
+                            AnimatedRotation(
+                              turns: _expanded ? 0.25 : 0.0, // right -> down
+                              duration: const Duration(milliseconds: 180),
+                              curve: Curves.easeOutCubic,
+                              child: Icon(Lucide.ChevronRight, size: 16, color: cs.onSurface.withOpacity(0.7)),
+                            ),
+                          ],
                         ),
                       ),
-                    // Download action: save the block as a file. Shown on every
-                    // code block (the Copy button is always available).
-                    CodeBlockDownloadButton(onTap: _downloadCode),
-                    // Copy action (icon-only; the localized label is the tooltip)
-                    InkWell(
-                      onTap: () async {
-                        await Clipboard.setData(ClipboardData(text: widget.code));
-                        if (mounted) {
-                          showAppSnackBar(
-                            context,
-                            message: AppLocalizations.of(context)!.chatMessageWidgetCopiedToClipboard,
-                            type: NotificationType.success,
-                          );
-                        }
-                      },
-                      splashColor: Platform.isIOS ? Colors.transparent : null,
-                      highlightColor: Platform.isIOS ? Colors.transparent : null,
-                      hoverColor: Platform.isIOS ? Colors.transparent : null,
-                      overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
-                      borderRadius: BorderRadius.circular(6),
-                      child: Tooltip(
-                        message: AppLocalizations.of(context)!.shareProviderSheetCopyButton,
-                        child: Padding(
-                          padding: const EdgeInsets.all(6),
-                          child: Icon(Lucide.Copy, size: 14, color: cs.onSurface.withOpacity(0.6)),
-                        ),
-                      ),
-                    ),
-                    AnimatedRotation(
-                      turns: _expanded ? 0.25 : 0.0, // right -> down
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOutCubic,
-                      child: Icon(Lucide.ChevronRight, size: 16, color: cs.onSurface.withOpacity(0.7)),
-                    ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (child, anim) => FadeTransition(
-              opacity: anim,
-              child: SizeTransition(sizeFactor: anim, axisAlignment: -1.0, child: child),
-            ),
-            child: _expanded
-                ? Container(
-                    key: const ValueKey('code-expanded'),
-                    width: double.infinity,
-                    color: bodyBg,
-                    padding: const EdgeInsets.fromLTRB(10, 6, 6, 10),
-                    child: () {
-                      // Desktop / mobile-wrap: auto wrap, selectable. Mobile
-                      // without wrap: horizontal scroll. During streaming the
-                      // content is plain text (no parse per tick).
-                      final bool isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
-                      final bool wrap = isDesktop || settings.mobileCodeBlockWrap;
-                      final codeText = _trimTrailingNewlines(widget.code);
-                      final textStyle = TextStyle(fontFamily: codeFontFamily, fontSize: 13, height: 1.5);
-                      final Widget content = widget.deferHighlight
-                          ? SelectableText(codeText, style: textStyle)
-                          : SelectableHighlightView(
-                              codeText,
-                              language: MarkdownWithCodeHighlight._normalizeLanguage(widget.language) ?? 'plaintext',
-                              theme: MarkdownCodePalette.themeFor(cs, isDark: isDark),
-                              padding: EdgeInsets.zero,
-                              textStyle: textStyle,
-                            );
-                      if (wrap) return content;
-                      return SingleChildScrollView(scrollDirection: Axis.horizontal, primary: false, child: content);
-                    }(),
-                  )
-                : Container(
-                    key: const ValueKey('code-collapsed'),
-                    width: double.infinity,
-                    color: bodyBg,
-                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                    child: () {
-                      final l10n = AppLocalizations.of(context)!;
-                      final code = widget.code;
-                      final end = _trimTrailingNewlinesEndIndex(code);
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: SizeTransition(sizeFactor: anim, axisAlignment: -1.0, child: child),
+              ),
+              child: _expanded
+                  ? Container(
+                      key: const ValueKey('code-expanded'),
+                      width: double.infinity,
+                      color: bodyBg,
+                      padding: const EdgeInsets.fromLTRB(10, 6, 6, 10),
+                      child: () {
+                        // Desktop / mobile-wrap: auto wrap, selectable. Mobile
+                        // without wrap: horizontal scroll. During streaming the
+                        // content is plain text (no parse per tick).
+                        final bool isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+                        final bool wrap = isDesktop || settings.mobileCodeBlockWrap;
+                        final codeText = _trimTrailingNewlines(widget.code);
+                        final textStyle = TextStyle(fontFamily: codeFontFamily, fontSize: 13, height: 1.5);
+                        final Widget content = widget.deferHighlight
+                            ? SelectableText(codeText, style: textStyle)
+                            : SelectableHighlightView(
+                                codeText,
+                                language: MarkdownWithCodeHighlight._normalizeLanguage(widget.language) ?? 'plaintext',
+                                theme: MarkdownCodePalette.themeFor(cs, isDark: isDark),
+                                padding: EdgeInsets.zero,
+                                textStyle: textStyle,
+                              );
+                        if (wrap) return content;
+                        return SingleChildScrollView(scrollDirection: Axis.horizontal, primary: false, child: content);
+                      }(),
+                    )
+                  : Container(
+                      key: const ValueKey('code-collapsed'),
+                      width: double.infinity,
+                      color: bodyBg,
+                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                      child: () {
+                        final l10n = AppLocalizations.of(context)!;
+                        final code = widget.code;
+                        final end = _trimTrailingNewlinesEndIndex(code);
 
-                      final preview = <String>[];
-                      int totalLines = 0;
-                      if (end > 0) {
-                        totalLines = 1;
-                        int lineStart = 0;
-                        for (int i = 0; i < end; i++) {
-                          final cu = code.codeUnitAt(i);
-                          if (cu == 0x0A /* \n */ || cu == 0x0D /* \r */ ) {
-                            if (preview.length < 2) {
-                              preview.add(code.substring(lineStart, i));
+                        final preview = <String>[];
+                        int totalLines = 0;
+                        if (end > 0) {
+                          totalLines = 1;
+                          int lineStart = 0;
+                          for (int i = 0; i < end; i++) {
+                            final cu = code.codeUnitAt(i);
+                            if (cu == 0x0A /* \n */ || cu == 0x0D /* \r */ ) {
+                              if (preview.length < 2) {
+                                preview.add(code.substring(lineStart, i));
+                              }
+                              totalLines++;
+                              if (cu == 0x0D /* \r */ && i + 1 < end && code.codeUnitAt(i + 1) == 0x0A /* \n */ ) {
+                                i++;
+                              }
+                              lineStart = i + 1;
                             }
-                            totalLines++;
-                            if (cu == 0x0D /* \r */ && i + 1 < end && code.codeUnitAt(i + 1) == 0x0A /* \n */ ) {
-                              i++;
-                            }
-                            lineStart = i + 1;
+                          }
+                          if (preview.length < 2) {
+                            preview.add(code.substring(lineStart, end));
                           }
                         }
-                        if (preview.length < 2) {
-                          preview.add(code.substring(lineStart, end));
-                        }
-                      }
 
-                      final hiddenLines = (totalLines - preview.length).clamp(0, 999999);
+                        final hiddenLines = (totalLines - preview.length).clamp(0, 999999);
 
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (final line in preview)
-                            Text(
-                              line,
-                              style: TextStyle(
-                                fontFamily: codeFontFamily,
-                                fontSize: 13,
-                                height: 1.5,
-                                color: cs.onSurface,
-                              ),
-                              softWrap: false,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          if (hiddenLines > 0)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Text(
-                                l10n.codeBlockCollapsedLines(hiddenLines),
-                                style: TextStyle(fontSize: 12, height: 1.4, color: cs.onSurface.withOpacity(0.55)),
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (final line in preview)
+                              Text(
+                                line,
+                                style: TextStyle(
+                                  fontFamily: codeFontFamily,
+                                  fontSize: 13,
+                                  height: 1.5,
+                                  color: cs.onSurface,
+                                ),
                                 softWrap: false,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                        ],
-                      );
-                    }(),
-                  ),
-          ),
-        ],
+                            if (hiddenLines > 0)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  l10n.codeBlockCollapsedLines(hiddenLines),
+                                  style: TextStyle(fontSize: 12, height: 1.4, color: cs.onSurface.withOpacity(0.55)),
+                                  softWrap: false,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                          ],
+                        );
+                      }(),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2131,182 +2145,192 @@ class _MermaidBlockState extends State<_MermaidBlock> {
     final showError =
         !hasImage && !_bitmapRenderingUnsupported && renderFailedForCurrentCode && _selectedTab == _MermaidTab.image;
 
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
-      clipBehavior: Clip.antiAlias,
-      foregroundDecoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header: image/code tabs (left) + actions (right)
-          Material(
-            color: headerBg,
-            elevation: 0,
-            shadowColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: _expanded
-                      ? BorderSide(color: cs.outlineVariant.withValues(alpha: 0.28), width: 1.0)
-                      : BorderSide.none,
+    return HoverReveal(
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+        clipBehavior: Clip.antiAlias,
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header: image/code tabs (left) + actions (right)
+            Material(
+              color: headerBg,
+              elevation: 0,
+              shadowColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: _expanded
+                        ? BorderSide(color: cs.outlineVariant.withValues(alpha: 0.28), width: 1.0)
+                        : BorderSide.none,
+                  ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.only(start: 12, end: 10),
-                      child: Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(color: palette.track, borderRadius: BorderRadius.circular(8)),
-                          child: Padding(
-                            padding: const EdgeInsets.all(2),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _MermaidTabButton(
-                                  label: l10n.mermaidImageTab,
-                                  selected: _selectedTab == _MermaidTab.image,
-                                  palette: palette,
-                                  onTap: () => setState(() => _selectedTab = _MermaidTab.image),
-                                ),
-                                _MermaidTabButton(
-                                  label: l10n.mermaidCodeTab,
-                                  selected: _selectedTab == _MermaidTab.code,
-                                  palette: palette,
-                                  onTap: () => setState(() => _selectedTab = _MermaidTab.code),
-                                ),
-                              ],
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsetsDirectional.only(start: 12, end: 10),
+                        child: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(color: palette.track, borderRadius: BorderRadius.circular(8)),
+                            child: Padding(
+                              padding: const EdgeInsets.all(2),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _MermaidTabButton(
+                                    label: l10n.mermaidImageTab,
+                                    selected: _selectedTab == _MermaidTab.image,
+                                    palette: palette,
+                                    onTap: () => setState(() => _selectedTab = _MermaidTab.image),
+                                  ),
+                                  _MermaidTabButton(
+                                    label: l10n.mermaidCodeTab,
+                                    selected: _selectedTab == _MermaidTab.code,
+                                    palette: palette,
+                                    onTap: () => setState(() => _selectedTab = _MermaidTab.code),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  if (!exporting) ...[
-                    // Copy action
-                    InkWell(
-                      onTap: () async {
-                        await Clipboard.setData(ClipboardData(text: widget.code));
-                        if (mounted) {
-                          showAppSnackBar(
-                            context,
-                            message: AppLocalizations.of(context)!.chatMessageWidgetCopiedToClipboard,
-                            type: NotificationType.success,
-                          );
-                        }
-                      },
-                      splashColor: Platform.isIOS ? Colors.transparent : null,
-                      highlightColor: Platform.isIOS ? Colors.transparent : null,
-                      hoverColor: Platform.isIOS ? Colors.transparent : null,
-                      overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
-                      borderRadius: BorderRadius.circular(6),
-                      child: Tooltip(
-                        message: l10n.shareProviderSheetCopyButton,
+                    if (!exporting) ...[
+                    RevealableActions(
+                      key: const ValueKey('mermaid-block-actions'),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                            // Copy action
+                            InkWell(
+                              onTap: () async {
+                                await Clipboard.setData(ClipboardData(text: widget.code));
+                                if (mounted) {
+                                  showAppSnackBar(
+                                    context,
+                                    message: AppLocalizations.of(context)!.chatMessageWidgetCopiedToClipboard,
+                                    type: NotificationType.success,
+                                  );
+                                }
+                              },
+                              splashColor: Platform.isIOS ? Colors.transparent : null,
+                              highlightColor: Platform.isIOS ? Colors.transparent : null,
+                              hoverColor: Platform.isIOS ? Colors.transparent : null,
+                              overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+                              borderRadius: BorderRadius.circular(6),
+                              child: Tooltip(
+                                message: l10n.shareProviderSheetCopyButton,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(6),
+                                  child: Icon(Lucide.Copy, size: 14, color: cs.onSurface.withValues(alpha: 0.6)),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            // Download PNG action (from the cached bitmap)
+                            InkWell(
+                              onTap: actionBytes == null || actionBytes.isEmpty
+                                  ? null
+                                  : () => _saveMermaidBytes(context, actionBytes),
+                              splashColor: Platform.isIOS ? Colors.transparent : null,
+                              highlightColor: Platform.isIOS ? Colors.transparent : null,
+                              hoverColor: Platform.isIOS ? Colors.transparent : null,
+                              overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+                              borderRadius: BorderRadius.circular(6),
+                              child: Opacity(
+                                opacity: actionBytes == null || actionBytes.isEmpty ? 0.4 : 1.0,
+                                child: Tooltip(
+                                  message: l10n.codeBlockDownloadButton,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(6),
+                                    child: Icon(Lucide.Download, size: 14, color: cs.onSurface.withValues(alpha: 0.6)),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                      const SizedBox(width: 6),
+                      // Collapse toggle
+                      InkWell(
+                        onTap: () => setState(() => _expanded = !_expanded),
+                        splashColor: Platform.isIOS ? Colors.transparent : null,
+                        highlightColor: Platform.isIOS ? Colors.transparent : null,
+                        hoverColor: Platform.isIOS ? Colors.transparent : null,
+                        overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+                        borderRadius: BorderRadius.circular(6),
                         child: Padding(
                           padding: const EdgeInsets.all(6),
-                          child: Icon(Lucide.Copy, size: 14, color: cs.onSurface.withValues(alpha: 0.6)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    // Download PNG action (from the cached bitmap)
-                    InkWell(
-                      onTap: actionBytes == null || actionBytes.isEmpty
-                          ? null
-                          : () => _saveMermaidBytes(context, actionBytes),
-                      splashColor: Platform.isIOS ? Colors.transparent : null,
-                      highlightColor: Platform.isIOS ? Colors.transparent : null,
-                      hoverColor: Platform.isIOS ? Colors.transparent : null,
-                      overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
-                      borderRadius: BorderRadius.circular(6),
-                      child: Opacity(
-                        opacity: actionBytes == null || actionBytes.isEmpty ? 0.4 : 1.0,
-                        child: Tooltip(
-                          message: l10n.codeBlockDownloadButton,
-                          child: Padding(
-                            padding: const EdgeInsets.all(6),
-                            child: Icon(Lucide.Download, size: 14, color: cs.onSurface.withValues(alpha: 0.6)),
+                          child: AnimatedRotation(
+                            turns: _expanded ? 0.25 : 0.0,
+                            duration: const Duration(milliseconds: 180),
+                            curve: Curves.easeOutCubic,
+                            child: Icon(Lucide.ChevronRight, size: 16, color: cs.onSurface.withValues(alpha: 0.7)),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    // Collapse toggle
-                    InkWell(
-                      onTap: () => setState(() => _expanded = !_expanded),
-                      splashColor: Platform.isIOS ? Colors.transparent : null,
-                      highlightColor: Platform.isIOS ? Colors.transparent : null,
-                      hoverColor: Platform.isIOS ? Colors.transparent : null,
-                      overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
-                      borderRadius: BorderRadius.circular(6),
-                      child: Padding(
-                        padding: const EdgeInsets.all(6),
-                        child: AnimatedRotation(
-                          turns: _expanded ? 0.25 : 0.0,
-                          duration: const Duration(milliseconds: 180),
-                          curve: Curves.easeOutCubic,
-                          child: Icon(Lucide.ChevronRight, size: 16, color: cs.onSurface.withValues(alpha: 0.7)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
+                      const SizedBox(width: 6),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
-          ),
-          // Content
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (child, anim) => FadeTransition(
-              opacity: anim,
-              child: SizeTransition(sizeFactor: anim, alignment: Alignment.topCenter, child: child),
-            ),
-            child: _expanded
-                ? Container(
-                    key: const ValueKey('mermaid-expanded'),
-                    width: double.infinity,
-                    color: bodyBg,
-                    child: SizedBox(
-                      key: const ValueKey('mermaid-preview-body'),
+            // Content
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: SizeTransition(sizeFactor: anim, alignment: Alignment.topCenter, child: child),
+              ),
+              child: _expanded
+                  ? Container(
+                      key: const ValueKey('mermaid-expanded'),
                       width: double.infinity,
-                      height: _previewHeight,
-                      child: ColoredBox(
-                        color: bodyBg,
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 180),
-                          switchInCurve: Curves.easeOutCubic,
-                          switchOutCurve: Curves.easeInCubic,
-                          layoutBuilder: (currentChild, previousChildren) {
-                            return currentChild ?? const SizedBox.shrink();
-                          },
-                          child: _buildMermaidBody(
-                            context: context,
-                            palette: palette,
-                            displayBytes: displayBytes,
-                            cacheKey: cacheKey,
-                            showLoading: showLoading,
-                            showError: showError,
+                      color: bodyBg,
+                      child: SizedBox(
+                        key: const ValueKey('mermaid-preview-body'),
+                        width: double.infinity,
+                        height: _previewHeight,
+                        child: ColoredBox(
+                          color: bodyBg,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 180),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            layoutBuilder: (currentChild, previousChildren) {
+                              return currentChild ?? const SizedBox.shrink();
+                            },
+                            child: _buildMermaidBody(
+                              context: context,
+                              palette: palette,
+                              displayBytes: displayBytes,
+                              cacheKey: cacheKey,
+                              showLoading: showLoading,
+                              showError: showError,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  )
-                : const SizedBox.shrink(key: ValueKey('mermaid-collapsed')),
-          ),
-        ],
+                    )
+                  : const SizedBox.shrink(key: ValueKey('mermaid-collapsed')),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2903,25 +2927,27 @@ bool _isClosingOrSentencePunctuation(int codeUnit) {
 Widget _wrapTableWithToolbar(BuildContext ctx, List<CustomTableRow> rows, Widget table) {
   final cs = Theme.of(ctx).colorScheme;
   final mdSurface = MarkdownSurfaceScope.of(ctx);
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: double.infinity,
-          decoration: BoxDecoration(color: mdSurface.surface, borderRadius: BorderRadius.circular(12)),
-          clipBehavior: Clip.antiAlias,
-          foregroundDecoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+  return HoverReveal(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(color: mdSurface.surface, borderRadius: BorderRadius.circular(12)),
+            clipBehavior: Clip.antiAlias,
+            foregroundDecoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+            ),
+            child: table,
           ),
-          child: table,
-        ),
-        const SizedBox(height: 4),
-        _MarkdownTableToolbar(onCopy: () => _copyTableMarkdown(ctx, rows), onExport: () => _exportTableCsv(ctx, rows)),
-      ],
+          const SizedBox(height: 4),
+          _MarkdownTableToolbar(onCopy: () => _copyTableMarkdown(ctx, rows), onExport: () => _exportTableCsv(ctx, rows)),
+        ],
+      ),
     ),
   );
 }
@@ -2943,29 +2969,32 @@ class _MarkdownTableToolbar extends StatelessWidget {
         // without it the overlay is painted on a distant Material ancestor
         // and gets hidden behind the surrounding backgrounds.
         type: MaterialType.transparency,
-        child: Wrap(
-          alignment: WrapAlignment.end,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 6,
-          runSpacing: 4,
-          children: [
-            CodeBlockDownloadButton(onTap: onExport),
-            InkWell(
-              onTap: onCopy,
-              splashColor: Platform.isIOS ? Colors.transparent : null,
-              highlightColor: Platform.isIOS ? Colors.transparent : null,
-              hoverColor: Platform.isIOS ? Colors.transparent : null,
-              overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
-              borderRadius: BorderRadius.circular(6),
-              child: Tooltip(
-                message: l10n.shareProviderSheetCopyButton,
-                child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: Icon(Lucide.Copy, size: 14, color: cs.onSurface.withOpacity(0.6)),
+        child: RevealableActions(
+          key: const ValueKey('markdown-table-actions'),
+          child: Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              CodeBlockDownloadButton(onTap: onExport),
+              InkWell(
+                onTap: onCopy,
+                splashColor: Platform.isIOS ? Colors.transparent : null,
+                highlightColor: Platform.isIOS ? Colors.transparent : null,
+                hoverColor: Platform.isIOS ? Colors.transparent : null,
+                overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+                borderRadius: BorderRadius.circular(6),
+                child: Tooltip(
+                  message: l10n.shareProviderSheetCopyButton,
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Icon(Lucide.Copy, size: 14, color: cs.onSurface.withOpacity(0.6)),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

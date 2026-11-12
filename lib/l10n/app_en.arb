@@ -2054,6 +2054,7 @@
   "multiKeyPageAddHint": "Keys",
   "codeBlockPreviewButton": "Preview",
   "codeBlockDownloadButton": "Download",
+  "codeBlockDefaultLanguage": "Code",
   "htmlPreviewNotSupportedOnLinux": "Not on Linux",
   "htmlPreviewLoadTimeout": "Preview took too long to load.",
   "htmlPreviewLoadFailed": "Preview could not be loaded.",

@@ -4638,6 +4638,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get codeBlockDownloadButton => 'Download';
 
   @override
+  String get codeBlockDefaultLanguage => 'Code';
+
+  @override
   String get htmlPreviewNotSupportedOnLinux => 'Not on Linux';
 
   @override

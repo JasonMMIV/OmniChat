@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -40,6 +41,22 @@ Future<void> _pumpMd(WidgetTester tester, SettingsProvider sp, String text) asyn
 }
 
 const _tableMd = '| Name | Age |\n| --- | --- |\n| Alice | 30 |\n| Bob | 25 |';
+
+/// Touch devices have no hover: a tap reveals the actions for a few seconds.
+Future<void> _revealActionsByTap(WidgetTester tester) async {
+  await tester.tapAt(tester.getCenter(find.byType(Table)));
+  await tester.pump();
+}
+
+double _tableActionsOpacity(WidgetTester tester) {
+  final opacity = tester.widget<AnimatedOpacity>(
+    find.descendant(
+      of: find.byKey(const ValueKey('markdown-table-actions')),
+      matching: find.byType(AnimatedOpacity),
+    ),
+  );
+  return opacity.opacity;
+}
 
 /// Installs an in-memory clipboard so [Clipboard.setData]/[Clipboard.getData]
 /// resolve immediately in the test environment (the platform channel has no
@@ -84,11 +101,45 @@ void main() {
     expect(downloadTop, greaterThanOrEqualTo(tableBottom));
   });
 
+  testWidgets('table actions stay hidden until the pointer hovers the table', (tester) async {
+    final sp = await _loadedProvider();
+    await _pumpMd(tester, sp, _tableMd);
+
+    expect(_tableActionsOpacity(tester), 0);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: const Offset(1, 1));
+    addTearDown(gesture.removePointer);
+    await tester.pump();
+
+    await gesture.moveTo(tester.getCenter(find.byType(Table)));
+    await tester.pumpAndSettle();
+    expect(_tableActionsOpacity(tester), 1);
+
+    await gesture.moveTo(const Offset(795, 595));
+    await tester.pumpAndSettle();
+    expect(_tableActionsOpacity(tester), 0);
+  });
+
+  testWidgets('table actions reveal on touch tap and hide again after a delay', (tester) async {
+    final sp = await _loadedProvider();
+    await _pumpMd(tester, sp, _tableMd);
+
+    expect(_tableActionsOpacity(tester), 0);
+
+    await _revealActionsByTap(tester);
+    expect(_tableActionsOpacity(tester), 1);
+
+    await tester.pump(const Duration(seconds: 4));
+    expect(_tableActionsOpacity(tester), 0);
+  });
+
   testWidgets('copy button writes the rebuilt markdown table to the clipboard', (tester) async {
     _mockClipboard(tester);
     final sp = await _loadedProvider();
     await _pumpMd(tester, sp, _tableMd);
 
+    await _revealActionsByTap(tester);
     await tester.tap(find.byIcon(Lucide.Copy));
     // Let the snackbar enter/exit animations finish before the test ends:
     // settle the entrance, fire the 3s auto-dismiss timer, then settle the exit.
@@ -104,6 +155,7 @@ void main() {
     final sp = await _loadedProvider();
     await _pumpMd(tester, sp, '| X | Y |\n| --- | --- |\n| \$P(A|B)\$ | \$|x|\$ |');
 
+    await _revealActionsByTap(tester);
     await tester.tap(find.byIcon(Lucide.Copy));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 3));

@@ -338,6 +338,7 @@
   "assistantEditPreviewTitle": "預覽",
   "codeBlockPreviewButton": "預覽",
   "codeBlockDownloadButton": "下載",
+  "codeBlockDefaultLanguage": "程式碼",
   "codeBlockCollapsedLines": "… 已摺疊 {n} 行",
   "@codeBlockCollapsedLines": {
     "placeholders": {
