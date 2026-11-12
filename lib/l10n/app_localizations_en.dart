@@ -5417,13 +5417,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get displaySettingsPageAutoSwitchTopicsTitle => '自动切换话题';
 
   @override
-  String get desktopDisplaySettingsTopicPositionTitle => '话题位置';
+  String get desktopDisplaySettingsTopicPositionTitle =>
+      'Topics Panel Position';
 
   @override
-  String get desktopDisplaySettingsTopicPositionLeft => '左侧';
+  String get desktopDisplaySettingsTopicPositionLeft => 'Left';
 
   @override
-  String get desktopDisplaySettingsTopicPositionRight => '右侧';
+  String get desktopDisplaySettingsTopicPositionRight => 'Right';
 
   @override
   String get displaySettingsPageNewChatOnLaunchSubtitle => '应用启动时自动创建新对话';
@@ -5435,13 +5436,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopSettingsFontsTitle => '字体设置';
 
   @override
-  String get displaySettingsPageTrayTitle => '托盘';
+  String get displaySettingsPageTrayTitle => 'Tray';
 
   @override
-  String get displaySettingsPageTrayShowTrayTitle => '显示托盘图标';
+  String get displaySettingsPageTrayShowTrayTitle => 'Show tray icon';
 
   @override
-  String get displaySettingsPageTrayMinimizeOnCloseTitle => '关闭时最小化到托盘';
+  String get displaySettingsPageTrayMinimizeOnCloseTitle =>
+      'Minimize to tray on close';
 
   @override
   String get desktopFontAppLabel => '应用字体';

@@ -10179,19 +10179,19 @@ abstract class AppLocalizations {
   /// No description provided for @desktopDisplaySettingsTopicPositionTitle.
   ///
   /// In en, this message translates to:
-  /// **'话题位置'**
+  /// **'Topics Panel Position'**
   String get desktopDisplaySettingsTopicPositionTitle;
 
   /// No description provided for @desktopDisplaySettingsTopicPositionLeft.
   ///
   /// In en, this message translates to:
-  /// **'左侧'**
+  /// **'Left'**
   String get desktopDisplaySettingsTopicPositionLeft;
 
   /// No description provided for @desktopDisplaySettingsTopicPositionRight.
   ///
   /// In en, this message translates to:
-  /// **'右侧'**
+  /// **'Right'**
   String get desktopDisplaySettingsTopicPositionRight;
 
   /// No description provided for @displaySettingsPageNewChatOnLaunchSubtitle.
@@ -10215,19 +10215,19 @@ abstract class AppLocalizations {
   /// No description provided for @displaySettingsPageTrayTitle.
   ///
   /// In en, this message translates to:
-  /// **'托盘'**
+  /// **'Tray'**
   String get displaySettingsPageTrayTitle;
 
   /// No description provided for @displaySettingsPageTrayShowTrayTitle.
   ///
   /// In en, this message translates to:
-  /// **'显示托盘图标'**
+  /// **'Show tray icon'**
   String get displaySettingsPageTrayShowTrayTitle;
 
   /// No description provided for @displaySettingsPageTrayMinimizeOnCloseTitle.
   ///
   /// In en, this message translates to:
-  /// **'关闭时最小化到托盘'**
+  /// **'Minimize to tray on close'**
   String get displaySettingsPageTrayMinimizeOnCloseTitle;
 
   /// No description provided for @desktopFontAppLabel.
