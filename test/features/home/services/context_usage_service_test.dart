@@ -7,6 +7,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:OmniChat/core/models/chat_message.dart';
+import 'package:OmniChat/core/services/chat/storage/chat_storage.dart';
 import 'package:OmniChat/features/home/services/context_usage_service.dart';
 
 ChatMessage msg(
@@ -396,6 +397,32 @@ void main() {
       {'arguments': <String, dynamic>{'x': 'y' * 300}, 'content': 'r' * 300},
     ]);
     expect(withTools, greaterThan(100));
+  });
+
+  test('estimateChatMessageTokensSafe tolerates unloaded tool bodies', () {
+    final m = msg('a1', role: 'assistant', content: 'a' * 300);
+    // SQLite storage fails closed for messages whose tool bodies were never
+    // loaded. After a model switch the ring estimates EVERY message, so this
+    // must degrade to the message alone instead of aborting the refresh
+    // (which also left the context-sheet button dead on Android).
+    final tokens = estimateChatMessageTokensSafe(
+      m,
+      readToolEvents: (_) =>
+          throw const ChatStorageNotLoadedException('tool events'),
+    );
+    expect(tokens, estimateChatMessageTokens(m, toolEvents: const []));
+
+    // Loaded bodies are used when the reader succeeds.
+    final loaded = estimateChatMessageTokensSafe(
+      m,
+      readToolEvents: (_) => [
+        {'arguments': <String, dynamic>{'x': 'y' * 300}, 'content': 'r' * 300},
+      ],
+    );
+    expect(loaded, greaterThan(tokens));
+
+    // Replay disabled → the reader is never consulted.
+    expect(estimateChatMessageTokensSafe(m, readToolEvents: null), tokens);
   });
 
   test('compactTokenText matches AnyBuff formatTokens', () {

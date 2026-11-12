@@ -121,8 +121,8 @@ class ChatInputSection extends StatelessWidget {
   final VoidCallback? onClearContext;
   final VoidCallback? onCompressContext;
 
-  /// Opens the mobile context-management sheet when the pinned usage ring is
-  /// tapped. Null keeps the anchored menu fallback.
+  /// Opens the mobile context-management sheet when the narrow-layout usage
+  /// ring is tapped. Null keeps the anchored menu fallback.
   final VoidCallback? onOpenContextManagement;
 
   /// Recomputes the usage snapshot before the desktop anchored menu opens.

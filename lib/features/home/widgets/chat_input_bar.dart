@@ -190,8 +190,8 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback? onClearContext;
   final VoidCallback? onCompressContext;
 
-  /// Opens the mobile context-management sheet when the pinned usage ring is
-  /// tapped. Null keeps the anchored menu fallback.
+  /// Opens the mobile context-management sheet when the narrow-layout usage
+  /// ring is tapped. Null keeps the anchored menu fallback.
   final VoidCallback? onOpenContextManagement;
 
   /// Recomputes the usage snapshot before the desktop anchored menu opens.
@@ -958,7 +958,10 @@ class _ChatInputBarState extends State<ChatInputBar>
 
   /// Anchored context menu used by the desktop/tablet row and as the mobile
   /// fallback when no dedicated sheet callback is supplied.
-  void _showContextManagementMenu(BuildContext context) {
+  void _showContextManagementMenu(
+    BuildContext context, {
+    GlobalKey? anchorKey,
+  }) {
     // The header binds to the notifier, so a fire-and-forget refresh is enough
     // to replace a stale `...` denominator once the menu is open.
     widget.onRefreshContextUsage?.call();
@@ -969,7 +972,7 @@ class _ChatInputBarState extends State<ChatInputBar>
     final hasUsage = usage != null;
     showDesktopAnchoredMenu(
       context,
-      anchorKey: _contextMgmtAnchorKey,
+      anchorKey: anchorKey ?? _contextMgmtAnchorKey,
       header: hasUsage
           ? ContextUsageMenuHeader(
               listenable: widget.contextUsage!,
@@ -1002,6 +1005,30 @@ class _ChatInputBarState extends State<ChatInputBar>
     );
   }
 
+  /// Tap handler for the context action: the narrow (mobile) layout prefers
+  /// the context-management sheet, everything else keeps the anchored menu.
+  void _handleContextActionTap(BuildContext context) {
+    if (widget.showMoreButton) {
+      final open = widget.onOpenContextManagement;
+      if (open != null) {
+        Haptics.light();
+        open();
+        return;
+      }
+      _showContextManagementMenu(context);
+      return;
+    }
+    // Wide layout: when the action overflowed into the `+` menu its own
+    // anchor container is not built, and an anchored popover would silently
+    // do nothing. Anchor to the `+` button that was just tapped instead.
+    _showContextManagementMenu(
+      context,
+      anchorKey: _contextMgmtAnchorKey.currentContext == null
+          ? _leftOverflowAnchorKey
+          : _contextMgmtAnchorKey,
+    );
+  }
+
   Widget _buildResponsiveBottomRow(
     BuildContext context,
     bool hasText,
@@ -1023,15 +1050,6 @@ class _ChatInputBarState extends State<ChatInputBar>
     final contextActionEnabled =
         widget.onClearContext != null &&
         (!widget.showMoreButton || widget.contextUsage != null);
-    // The narrow row overflows into the plus sheet, and `context` usually sits
-    // past the last visible slot. Pin its ring next to plus/send so the mobile
-    // input bar always shows the live usage indicator. This deliberately
-    // ignores the user's order; the hidden-button setting still applies.
-    final pinContext =
-        widget.showMoreButton &&
-        contextActionEnabled &&
-        !hiddenIds.contains('context');
-
     return LayoutBuilder(
       builder: (context, constraints) {
         // Calculate right side width to determine available left space
@@ -1040,8 +1058,6 @@ class _ChatInputBarState extends State<ChatInputBar>
           // stop + pause + send（3 顆按鈕）
           rightSideWidth = normalButtonW * 3 + spacing * 2;
         } else {
-          if (pinContext)
-            rightSideWidth += normalButtonW + spacing; // ring + spacing
           if (widget.showMoreButton)
             rightSideWidth += normalButtonW + spacing; // plus + spacing
           rightSideWidth += normalButtonW; // send
@@ -1467,7 +1483,7 @@ class _ChatInputBarState extends State<ChatInputBar>
             );
           }
 
-          if (contextActionEnabled && !pinContext) {
+          if (contextActionEnabled) {
             actions.add(
               _OverflowAction(
                 id: 'context',
@@ -1477,7 +1493,7 @@ class _ChatInputBarState extends State<ChatInputBar>
                   child: _CompactIconButton(
                     tooltip: l10n.contextManagement,
                     icon: Lucide.workflow,
-                    onTap: () => _showContextManagementMenu(context),
+                    onTap: () => _handleContextActionTap(context),
                     childBuilder: widget.contextUsage == null
                         ? null
                         : (c) => ContextUsageButtonIcon(
@@ -1490,7 +1506,7 @@ class _ChatInputBarState extends State<ChatInputBar>
                 menu: DesktopContextMenuItem(
                   icon: Lucide.workflow,
                   label: l10n.contextManagement,
-                  onTap: () => _showContextManagementMenu(context),
+                  onTap: () => _handleContextActionTap(context),
                 ),
               ),
             );
@@ -1638,32 +1654,6 @@ class _ChatInputBarState extends State<ChatInputBar>
                       ),
                     ]
                   : [
-                      if (pinContext) ...[
-                        Container(
-                          key: _contextMgmtAnchorKey,
-                          child: _CompactIconButton(
-                            tooltip: l10n.contextManagement,
-                            icon: Lucide.workflow,
-                            onTap: () {
-                              final open = widget.onOpenContextManagement;
-                              if (open != null) {
-                                Haptics.light();
-                                open();
-                              } else {
-                                _showContextManagementMenu(context);
-                              }
-                            },
-                            childBuilder: widget.contextUsage == null
-                                ? null
-                                : (c) => ContextUsageButtonIcon(
-                                      usage: widget.contextUsage!,
-                                      loading: widget.loading,
-                                      color: c,
-                                    ),
-                          ),
-                        ),
-                        const SizedBox(width: spacing),
-                      ],
                       if (widget.showMoreButton) ...[
                         _CompactIconButton(
                           tooltip: AppLocalizations.of(

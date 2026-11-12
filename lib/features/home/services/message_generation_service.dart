@@ -11,7 +11,6 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../../core/providers/skills_provider.dart';
 import '../../../core/services/agent/compaction/compaction_trigger.dart';
-import '../../../core/services/agent/compaction/context_trim.dart';
 import 'context_usage_service.dart';
 import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
 import '../../../core/services/api/learned_context_windows.dart';
@@ -115,14 +114,13 @@ class MessageGenerationService {
   /// events (args + result bodies) — the tail budget in the trigger walk
   /// must account for what the replayed neutral messages will weigh.
   int _estimateRawMessageTokens(ChatMessage m) {
-    try {
-      return estimateChatMessageTokens(
-        m,
-        toolEvents: chatService.getToolEvents(m.id),
-      );
-    } catch (_) {
-      return estimateTextTokens(m.content);
-    }
+    // Shared with the context ring: storage fails closed for tool bodies that
+    // were never loaded, so both estimators degrade to the message alone
+    // instead of drifting apart.
+    return estimateChatMessageTokensSafe(
+      m,
+      readToolEvents: chatService.getToolEvents,
+    );
   }
 
   /// Prepare API messages with all injections applied.

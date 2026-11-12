@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -1113,6 +1114,20 @@ class HomePageController extends ChangeNotifier {
   /// lookup, and stale results are discarded via the epoch guard.
   Future<void> refreshContextUsage() async {
     if (_disposed || !_contextUsageReady) return;
+    try {
+      await _refreshContextUsageNow();
+    } catch (error) {
+      // The snapshot is best-effort UI metadata. A missing tool-event cache
+      // entry (storage fails closed) or any estimator hiccup must never
+      // surface as an unhandled async error — most callers fire-and-forget —
+      // nor block the menu/sheet tap that awaits this refresh.
+      if (kDebugMode) {
+        debugPrint('[ContextUsage] refresh failed: $error');
+      }
+    }
+  }
+
+  Future<void> _refreshContextUsageNow() async {
     // Attach before the early returns: the first post-frame refresh usually
     // runs before `initChat()` has a conversation (and before Settings /
     // Assistant finish loading). If it returns first, the listeners would
@@ -1261,11 +1276,16 @@ class HomePageController extends ChangeNotifier {
       currentProviderKey: providerKey,
       streamingMessageId: streamingMessageId,
       collapseVersions: _messageBuilderService.collapseVersions,
-      estimateMessageTokens: (m) => estimateChatMessageTokens(
+      // Tool bodies are only cached for messages that were explicitly loaded;
+      // storage fails closed (`ChatStorageNotLoadedException`) for the rest.
+      // A model switch moves every message onto this estimate path, so a
+      // missing cache entry must never abort the refresh (the ring would go
+      // stale and the menu/sheet tap that awaits it would look dead).
+      estimateMessageTokens: (m) => estimateChatMessageTokensSafe(
         m,
-        toolEvents: settings.replayToolResults
-            ? _chatService.getToolEvents(m.id)
-            : const <Map<String, dynamic>>[],
+        readToolEvents: settings.replayToolResults
+            ? _chatService.getToolEvents
+            : null,
       ),
       estimateCompactedHeadTokens: (head) =>
           _estimateCompactedHeadTokens(head, settings, providerKey),

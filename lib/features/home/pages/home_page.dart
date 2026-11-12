@@ -1544,6 +1544,8 @@ class _HomePageState extends State<HomePage>
   void _showContextManagementSheet() async {
     final cs = Theme.of(context).colorScheme;
     // Refresh first so the usage header does not pop in after the sheet opens.
+    // `refreshContextUsage` guards internally and never throws, so a failed
+    // estimate can never keep this sheet from opening.
     await _controller.refreshContextUsage();
     if (!mounted) return;
     await showModalBottomSheet(

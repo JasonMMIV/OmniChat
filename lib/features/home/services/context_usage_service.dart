@@ -113,6 +113,38 @@ int estimateChatMessageTokens(
   return (chars / charsPerToken).ceil() + imageTokens;
 }
 
+/// [estimateChatMessageTokens] with best-effort tool bodies.
+///
+/// [readToolEvents] may throw: the SQLite storage fails closed
+/// (`ChatStorageNotLoadedException`) for messages whose tool bodies were never
+/// loaded. The usage ring is a best-effort indicator — a missing cache entry
+/// must never abort a refresh (or the menu tap that awaits it), so the
+/// estimate degrades to the message alone.
+int estimateChatMessageTokensSafe(
+  ChatMessage message, {
+  List<Map<String, dynamic>> Function(String messageId)? readToolEvents,
+}) {
+  if (readToolEvents == null) {
+    return estimateChatMessageTokens(
+      message,
+      toolEvents: const <Map<String, dynamic>>[],
+    );
+  }
+  try {
+    return estimateChatMessageTokens(
+      message,
+      toolEvents: readToolEvents(message.id),
+    );
+  } on Exception {
+    // Only the storage contract is expected here; programming errors stay
+    // visible (`Error` is not caught).
+    return estimateChatMessageTokens(
+      message,
+      toolEvents: const <Map<String, dynamic>>[],
+    );
+  }
+}
+
 /// `12.0k` / `1.2M` — mirrors AnyBuff's `formatTokens` (keeps the `.0`).
 String compactTokenText(int n) {
   if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
