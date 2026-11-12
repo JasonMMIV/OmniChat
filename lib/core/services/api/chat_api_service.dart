@@ -2424,7 +2424,17 @@ class ChatApiService {
         if (candidates != null && candidates.isNotEmpty) {
           final parts = candidates.first['content']?['parts'] as List?;
           if (parts != null && parts.isNotEmpty) {
-            return (parts.first['text'] ?? '').toString();
+            // A thought summary may precede the answer, and an answer may be
+            // split across several parts. Mirror the streaming path: skip
+            // `thought: true` parts and join every real text part.
+            final text = StringBuffer();
+            for (final part in parts) {
+              if (part is! Map) continue;
+              if (part['thought'] == true) continue;
+              final chunk = part['text'];
+              if (chunk is String && chunk.isNotEmpty) text.write(chunk);
+            }
+            if (text.isNotEmpty) return text.toString();
           }
         }
         return '';

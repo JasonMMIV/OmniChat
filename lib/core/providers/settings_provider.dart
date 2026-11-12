@@ -288,6 +288,8 @@ class SettingsProvider extends ChangeNotifier {
   static const String _newChatCustomTextKey = 'new_chat_custom_text_v1';
   static const String _newChatCachedAiGreetingKey =
       'new_chat_cached_ai_greeting_v1';
+  static const String _newChatCachedAiGreetingLocaleKey =
+      'new_chat_cached_ai_greeting_locale_v1';
   static const String _ocrEnabledKey = 'ocr_enabled_v1';
   // Memory subsystem (docs/記憶功能改善實作計畫(已實作).md M2-5 / M3-1). All synced via
   // backup (not `_localOnlyKeys`).
@@ -1073,6 +1075,20 @@ class SettingsProvider extends ChangeNotifier {
     if (_appLocaleTag == null || _appLocaleTag!.isEmpty) {
       _appLocaleTag = 'system';
       await prefs.setString(_appLocaleKey, 'system');
+    }
+
+    // The cached greeting is language-specific. Drop it when it was generated
+    // for a different effective language. Untagged entries are legacy caches:
+    // they may have been generated while the old `appLocale` fallback sent an
+    // English prompt, so treat them as stale too.
+    final cachedGreetingLocale = prefs.getString(
+      _newChatCachedAiGreetingLocaleKey,
+    );
+    if (_newChatCachedAiGreeting != null &&
+        cachedGreetingLocale != _effectiveLocaleTag) {
+      _newChatCachedAiGreeting = null;
+      await prefs.remove(_newChatCachedAiGreetingKey);
+      await prefs.remove(_newChatCachedAiGreetingLocaleKey);
     }
 
     // Android background chat mode (Android only; default ON on first run)
@@ -1899,9 +1915,32 @@ class SettingsProvider extends ChangeNotifier {
 
   // ===== App locale (UI language) =====
   String? _appLocaleTag; // 'system', 'zh_CN', 'zh_Hant', 'en_US'
-  Locale get appLocale => _parseLocaleTag(_appLocaleTag ?? 'en_US');
+  /// The locale the app is actually presenting. When following the system
+  /// setting this resolves the device locale instead of falling back to
+  /// en_US: the stored tag is only a preference, not the effective language.
+  Locale get appLocale {
+    final tag = _appLocaleTag;
+    if (tag == null || tag == 'system') {
+      final device = WidgetsBinding.instance.platformDispatcher.locale;
+      return _parseLocaleTag(_mapDeviceLocaleToSupportedTag(device));
+    }
+    return _parseLocaleTag(tag);
+  }
+
   bool get isFollowingSystemLocale =>
       (_appLocaleTag == null) || (_appLocaleTag == 'system');
+
+  /// Stable tag for the language the app is actually presenting. Used to
+  /// invalidate the greeting cache when the effective language changes.
+  String get _effectiveLocaleTag {
+    final locale = appLocale;
+    return <String>[
+      locale.languageCode,
+      if ((locale.scriptCode ?? '').isNotEmpty) locale.scriptCode!,
+      if ((locale.countryCode ?? '').isNotEmpty) locale.countryCode!,
+    ].join('_');
+  }
+
   Locale? get appLocaleForMaterialApp =>
       isFollowingSystemLocale ? null : appLocale;
   Future<void> setAppLocale(Locale locale) async {
@@ -1912,6 +1951,11 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_appLocaleKey, _appLocaleTag!);
+    // The cached greeting was generated for the previous language. Drop the
+    // persisted copy too, otherwise the next launch restores it before the
+    // background refresh has a chance to replace it.
+    await prefs.remove(_newChatCachedAiGreetingKey);
+    await prefs.remove(_newChatCachedAiGreetingLocaleKey);
   }
 
   Future<void> setAppLocaleFollowSystem() async {
@@ -1921,6 +1965,8 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_appLocaleKey, 'system');
+    await prefs.remove(_newChatCachedAiGreetingKey);
+    await prefs.remove(_newChatCachedAiGreetingLocaleKey);
   }
 
   // Supported locales mapping
@@ -2648,27 +2694,43 @@ Please translate the <source_text> section:
   }
 
   Future<void> setGreetingModel(String providerKey, String modelId) async {
+    if (_greetingModelProvider == providerKey && _greetingModelId == modelId) {
+      return;
+    }
     _greetingModelProvider = providerKey;
     _greetingModelId = modelId;
+    // A greeting cached from the previous model may use another language or
+    // tone; regenerate instead of masking the change until the next launch.
+    _newChatCachedAiGreeting = null;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_greetingModelKey, '$providerKey::$modelId');
+    await prefs.remove(_newChatCachedAiGreetingKey);
+    await prefs.remove(_newChatCachedAiGreetingLocaleKey);
   }
 
   Future<void> resetGreetingModel() async {
     _greetingModelProvider = null;
     _greetingModelId = null;
+    _newChatCachedAiGreeting = null;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_greetingModelKey);
+    await prefs.remove(_newChatCachedAiGreetingKey);
+    await prefs.remove(_newChatCachedAiGreetingLocaleKey);
   }
 
   Future<void> setGreetingPrompt(String prompt) async {
     final defPrompt = getDefaultGreetingPrompt(appLocale);
-    _greetingPrompt = prompt.trim().isEmpty ? defPrompt : prompt;
+    final next = prompt.trim().isEmpty ? defPrompt : prompt;
+    if (_greetingPrompt == next) return;
+    _greetingPrompt = next;
+    _newChatCachedAiGreeting = null;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_greetingPromptKey, _greetingPrompt);
+    await prefs.remove(_newChatCachedAiGreetingKey);
+    await prefs.remove(_newChatCachedAiGreetingLocaleKey);
   }
 
   Future<void> resetGreetingPrompt() async =>
@@ -2728,8 +2790,13 @@ Please translate the <source_text> section:
     final prefs = await SharedPreferences.getInstance();
     if (greeting == null) {
       await prefs.remove(_newChatCachedAiGreetingKey);
+      await prefs.remove(_newChatCachedAiGreetingLocaleKey);
     } else {
       await prefs.setString(_newChatCachedAiGreetingKey, greeting);
+      await prefs.setString(
+        _newChatCachedAiGreetingLocaleKey,
+        _effectiveLocaleTag,
+      );
     }
   }
 

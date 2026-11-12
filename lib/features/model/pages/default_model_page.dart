@@ -281,7 +281,13 @@ class DefaultModelPage extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final settings = context.read<SettingsProvider>();
-    final controller = TextEditingController(text: settings.greetingPrompt);
+    // Show the prompt that will actually be sent for the current app language.
+    // The stored default is always zh-Hant until the user edits it; displaying
+    // that value directly made the settings sheet lie about the effective
+    // prompt when the app language was English or Chinese (Simplified).
+    final controller = TextEditingController(
+      text: settings.getGreetingPromptForLocale(settings.appLocale),
+    );
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -329,14 +335,24 @@ class DefaultModelPage extends StatelessWidget {
                     TextButton(
                       onPressed: () async {
                         await settings.resetGreetingPrompt();
-                        controller.text = settings.greetingPrompt;
+                        controller.text = settings.getGreetingPromptForLocale(
+                          settings.appLocale,
+                        );
                       },
                       child: Text(l10n.defaultModelPageResetDefault),
                     ),
                     const Spacer(),
                     FilledButton(
                       onPressed: () async {
-                        await settings.setGreetingPrompt(controller.text.trim());
+                        final text = controller.text.trim();
+                        final effective = settings
+                            .getGreetingPromptForLocale(settings.appLocale)
+                            .trim();
+                        // Saving an untouched localized default should not
+                        // turn it into a custom prompt for this language.
+                        if (text != effective) {
+                          await settings.setGreetingPrompt(text);
+                        }
                         if (ctx.mounted) Navigator.of(ctx).pop();
                       },
                       child: Text(l10n.defaultModelPageSave),
