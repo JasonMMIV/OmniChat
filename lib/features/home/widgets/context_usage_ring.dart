@@ -10,7 +10,6 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../../../l10n/app_localizations.dart';
 import '../../../theme/app_font_weights.dart';
 import '../services/context_usage_service.dart';
 
@@ -221,7 +220,7 @@ class ContextUsageRingPainter extends CustomPainter {
       oldDelegate.strokeWidth != strokeWidth;
 }
 
-/// `used / max Token ····· [percent]` row shown at the top of the context
+/// `used / max ····· [percent]` row shown at the top of the context
 /// menu (desktop) and the context management sheet (mobile). When the window
 /// is unknown the denominator renders as `...` and the percentage badge is
 /// hidden; only an absent snapshot collapses the header entirely.
@@ -249,8 +248,6 @@ class ContextUsageMenuHeader extends StatelessWidget {
           return const SizedBox.shrink();
         }
         final cs = Theme.of(context).colorScheme;
-        final l10n = AppLocalizations.of(context);
-        final estimatedLabel = l10n?.contextUsageEstimatedBadge ?? '≈';
         final hasWindow = snapshot.hasWindow;
         final overBudget = hasWindow && snapshot.ratio >= 0.90;
         final accent = overBudget ? cs.error : cs.primary;
@@ -271,38 +268,19 @@ class ContextUsageMenuHeader extends StatelessWidget {
                     strokeWidth: 2.2,
                   ),
                   const SizedBox(width: 10),
-                  // No Spacer here: a flex sibling would split the row's free
-                  // width with the label and ellipsize `used / max` on narrow
-                  // menus. Expanded keeps the badge at the end without
-                  // truncating the denominator.
+                  // Expanded takes all of the row's free width so the label
+                  // is never ellipsized on narrow menus — a Spacer flex
+                  // sibling would split the width with the label instead.
                   Expanded(
-                    child: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            '${compactTokenText(snapshot.usedTokens)} / '
-                            '$maxLabel Token',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              color: cs.onSurface,
-                              decoration: TextDecoration.none,
-                            ),
-                          ),
-                        ),
-                        if (snapshot.estimated) ...[
-                          const SizedBox(width: 6),
-                          Text(
-                            estimatedLabel,
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: cs.onSurface.withValues(alpha: 0.55),
-                              decoration: TextDecoration.none,
-                            ),
-                          ),
-                        ],
-                      ],
+                    child: Text(
+                      '${compactTokenText(snapshot.usedTokens)} / $maxLabel',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        color: cs.onSurface,
+                        decoration: TextDecoration.none,
+                      ),
                     ),
                   ),
                   // No denominator → no percentage. The row still shows the

@@ -79,7 +79,7 @@ void main() {
     expect(find.textContaining('Token'), findsNothing);
   });
 
-  testWidgets('header shows used / ... without a percentage while unknown',
+  testWidgets('header shows used / ... without a percentage or badge while unknown',
       (tester) async {
     final notifier = ValueNotifier<ContextUsageSnapshot?>(
       const ContextUsageSnapshot(
@@ -92,8 +92,8 @@ void main() {
     await tester.pumpWidget(wrapWidget(
       ContextUsageMenuHeader(listenable: notifier, padding: EdgeInsets.zero),
     ));
-    expect(find.text('6.6k / ... Token'), findsOneWidget);
-    expect(find.text('≈'), findsOneWidget);
+    expect(find.text('6.6k / ...'), findsOneWidget);
+    expect(find.text('≈'), findsNothing);
     expect(find.textContaining('%'), findsNothing);
   });
 
@@ -115,7 +115,7 @@ void main() {
     ));
     await tester.pump();
 
-    final textFinder = find.text('6.6k / 512.0k Token');
+    final textFinder = find.text('6.6k / 512.0k');
     expect(textFinder, findsOneWidget);
     expect(find.text('1%'), findsOneWidget);
     // The label must own all remaining width; a Spacer flex sibling would
@@ -134,7 +134,7 @@ void main() {
     notifier.dispose();
   });
 
-  testWidgets('header shows used/max + percent, hides ≈ when measured',
+  testWidgets('header shows used/max + percent, never a ≈ badge',
       (tester) async {
     final notifier = ValueNotifier<ContextUsageSnapshot?>(
       const ContextUsageSnapshot(
@@ -147,12 +147,13 @@ void main() {
     await tester.pumpWidget(wrapWidget(
       ContextUsageMenuHeader(listenable: notifier, padding: EdgeInsets.zero),
     ));
-    expect(find.text('12.3k / 200.0k Token'), findsOneWidget);
+    expect(find.text('12.3k / 200.0k'), findsOneWidget);
     expect(find.text('6%'), findsOneWidget);
     expect(find.text('≈'), findsNothing);
   });
 
-  testWidgets('header shows ≈ and the over-budget percentage', (tester) async {
+  testWidgets('header omits the estimation badge on the over-budget percentage',
+      (tester) async {
     final notifier = ValueNotifier<ContextUsageSnapshot?>(
       const ContextUsageSnapshot(
         usedTokens: 250000,
@@ -164,9 +165,9 @@ void main() {
     await tester.pumpWidget(wrapWidget(
       ContextUsageMenuHeader(listenable: notifier, padding: EdgeInsets.zero),
     ));
-    expect(find.text('250.0k / 200.0k Token'), findsOneWidget);
+    expect(find.text('250.0k / 200.0k'), findsOneWidget);
     expect(find.text('125%'), findsOneWidget);
-    expect(find.text('≈'), findsOneWidget);
+    expect(find.text('≈'), findsNothing);
   });
 
   testWidgets('header updates live when the notifier changes', (tester) async {
@@ -183,7 +184,7 @@ void main() {
       estimated: false,
     );
     await tester.pumpAndSettle();
-    expect(find.text('12.3k / 200.0k Token'), findsOneWidget);
+    expect(find.text('12.3k / 200.0k'), findsOneWidget);
   });
 
   testWidgets('context button keeps an empty ring for null/unknown usage',

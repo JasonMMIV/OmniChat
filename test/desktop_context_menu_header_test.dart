@@ -107,7 +107,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('6.6k / ... Token'), findsOneWidget);
+    expect(find.text('6.6k / ...'), findsOneWidget);
     expect(find.textContaining('%'), findsNothing);
     expect(find.text('Item A'), findsOneWidget);
 

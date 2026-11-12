@@ -61,7 +61,7 @@ void main() {
     await tester.pumpWidget(
       wrapSheet(contextUsage: ValueNotifier<ContextUsageSnapshot?>(_knownWindow)),
     );
-    expect(find.text('12.3k / 200.0k Token'), findsOneWidget);
+    expect(find.text('12.3k / 200.0k'), findsOneWidget);
     expect(find.byIcon(Lucide.package2), findsOneWidget);
     expect(find.byIcon(Lucide.Eraser), findsOneWidget);
   });
@@ -90,7 +90,7 @@ void main() {
         ),
       ),
     );
-    expect(find.text('6.6k / ... Token'), findsOneWidget);
+    expect(find.text('6.6k / ...'), findsOneWidget);
     expect(find.textContaining('%'), findsNothing);
     expect(find.byIcon(Lucide.package2), findsOneWidget);
     expect(find.byIcon(Lucide.Eraser), findsOneWidget);
@@ -120,6 +120,6 @@ void main() {
 
     notifier.value = _knownWindow;
     await tester.pumpAndSettle();
-    expect(find.textContaining('Token'), findsOneWidget);
+    expect(find.text('12.3k / 200.0k'), findsOneWidget);
   });
 }
