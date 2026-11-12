@@ -6845,6 +6845,28 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get toolDescConsoleErrors => '读取实时网站预览捕获的控制台错误。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSent => '图片未传给模型';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentModel => '当前模型不接受图片。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentSetting => '设置中的「发送工具结果图片」已关闭。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentTransport => '此提供商无法在工具结果中接收图片。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentUnavailable => '图片不存在、已更改或无法读取。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentProvider =>
+      '提供商拒绝了图片内容，已改用纯文本重试。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentLimit => '已达到单次请求的图片上限。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -13476,6 +13498,28 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get toolDescConsoleErrors => '读取实时网站预览捕获的控制台错误。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSent => '图片未传给模型';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentModel => '当前模型不接受图片。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentSetting => '设置中的「发送工具结果图片」已关闭。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentTransport => '此提供商无法在工具结果中接收图片。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentUnavailable => '图片不存在、已更改或无法读取。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentProvider =>
+      '提供商拒绝了图片内容，已改用纯文本重试。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentLimit => '已达到单次请求的图片上限。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -20207,4 +20251,25 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get toolDescConsoleErrors => '讀取即時網站預覽擷取的主控台錯誤。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSent => '圖片未傳給模型';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentModel => '目前模型不接受圖片。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentSetting => '設定中的「傳送工具結果圖片」已關閉。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentTransport => '此供應商無法在工具結果中接收圖片。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentUnavailable => '圖片不存在、已變更或無法讀取。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentProvider => '供應商拒絕圖片內容，已改用純文字重試。';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentLimit => '已達單次請求的圖片上限。';
 }

@@ -2336,5 +2336,12 @@
   "toolDescFileExtractText": "從 PDF、DOCX、PPTX、XLSX 逐頁擷取文字。",
   "toolDescFileExtractZip": "在工作區內解壓縮 .zip；逐條目驗證邊界。",
   "toolDescFileCreatePdf": "將 Markdown 輸出為 PDF，中文可正確顯示。",
-  "toolDescConsoleErrors": "讀取即時網站預覽擷取的主控台錯誤。"
+  "toolDescConsoleErrors": "讀取即時網站預覽擷取的主控台錯誤。",
+  "chatMessageWidgetToolImageNotSent": "圖片未傳給模型",
+  "chatMessageWidgetToolImageNotSentModel": "目前模型不接受圖片。",
+  "chatMessageWidgetToolImageNotSentSetting": "設定中的「傳送工具結果圖片」已關閉。",
+  "chatMessageWidgetToolImageNotSentTransport": "此供應商無法在工具結果中接收圖片。",
+  "chatMessageWidgetToolImageNotSentUnavailable": "圖片不存在、已變更或無法讀取。",
+  "chatMessageWidgetToolImageNotSentProvider": "供應商拒絕圖片內容，已改用純文字重試。",
+  "chatMessageWidgetToolImageNotSentLimit": "已達單次請求的圖片上限。"
 }

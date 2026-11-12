@@ -415,7 +415,7 @@ void main() {
       },
     );
 
-    test('non-vision models never produce a plan', () async {
+    test('non-vision models report modelUnsupported status', () async {
       final plan = await ToolImagePlan.build(
         messages: [
           {
@@ -431,6 +431,203 @@ void main() {
       );
 
       expect(plan.isEmpty, isTrue);
+      expect(
+        plan.statusesByToolCallId['call_1']?.state,
+        ToolImageSendState.modelUnsupported,
+      );
+    });
+
+    test(
+      'disabled policy reports settingOff without reading the file',
+      () async {
+        final plan = await ToolImagePlan.build(
+          messages: [
+            {
+              'role': 'tool',
+              'name': 'file_view_image',
+              'tool_call_id': 'call_off',
+              'content': '[image:$imagePath]',
+            },
+          ],
+          policy: ToolImagePolicy(
+            workspaceRoot: workspace.path,
+            enabled: false,
+          ).resolve(),
+          target: ToolImageTarget.claude,
+          canImageInput: true,
+        );
+
+        expect(plan.totalImages, 0);
+        expect(
+          plan.statusesByToolCallId['call_off']?.state,
+          ToolImageSendState.settingOff,
+        );
+      },
+    );
+
+    test('skipped() reports transportUnsupported for marker-bearing tools', () {
+      final plan = ToolImagePlan.skipped(
+        messages: [
+          {
+            'role': 'tool',
+            'tool_call_id': 'call_transport',
+            'content': '[image:$imagePath]',
+          },
+        ],
+        state: ToolImageSendState.transportUnsupported,
+      );
+
+      expect(
+        plan.statusesByToolCallId['call_transport']?.state,
+        ToolImageSendState.transportUnsupported,
+      );
+    });
+
+    test('status distinguishes attached images from missing files', () async {
+      final attached = await ToolImagePlan.build(
+        messages: [
+          {
+            'role': 'tool',
+            'tool_call_id': 'call_attached',
+            'content': '[image:$imagePath]',
+          },
+        ],
+        policy: policyFor(workspace),
+        target: ToolImageTarget.claude,
+        canImageInput: true,
+      );
+      expect(
+        attached.statusesByToolCallId['call_attached']?.state,
+        ToolImageSendState.attached,
+      );
+
+      final missing = await ToolImagePlan.build(
+        messages: [
+          {
+            'role': 'tool',
+            'tool_call_id': 'call_missing',
+            'content': '[image:${p.join(workspace.path, 'nope.png')}]',
+          },
+        ],
+        policy: policyFor(workspace),
+        target: ToolImageTarget.claude,
+        canImageInput: true,
+      );
+      expect(
+        missing.statusesByToolCallId['call_missing']?.state,
+        ToolImageSendState.notFound,
+      );
+    });
+
+    test('policy remembers a provider rejection for the run', () {
+      final policy = ToolImagePolicy(workspaceRoot: workspace.path);
+      expect(policy.providerRejectedThisRun, isFalse);
+      policy.markProviderRejected();
+      expect(policy.providerRejectedThisRun, isTrue);
+    });
+
+    test('skipped statuses are capped for long histories', () {
+      final plan = ToolImagePlan.skipped(
+        messages: [
+          for (var i = 0; i < 40; i++)
+            {
+              'role': 'tool',
+              'tool_call_id': 'call_$i',
+              'content': '[image:/tmp/$i.png]',
+            },
+        ],
+        state: ToolImageSendState.settingOff,
+      );
+
+      expect(plan.statusesByToolCallId.length, ToolImagePlan.maxStatusMessages);
+    });
+
+    test('marks older tool images when the per-request cap is hit', () async {
+      final messages = <Map<String, dynamic>>[];
+      for (var i = 0; i < 9; i++) {
+        final path = p.join(workspace.path, 'cap_$i.png');
+        await File(path).writeAsBytes(_pngBytes());
+        messages.add({
+          'role': 'tool',
+          'tool_call_id': 'call_$i',
+          'content': '[image:$path]',
+        });
+      }
+
+      final plan = await ToolImagePlan.build(
+        messages: messages,
+        policy: policyFor(workspace),
+        target: ToolImageTarget.claude,
+        canImageInput: true,
+      );
+
+      expect(plan.totalImages, 8);
+      expect(
+        plan.statusesByToolCallId['call_0']?.state,
+        ToolImageSendState.limitReached,
+      );
+      expect(
+        plan.statusesByToolCallId['call_8']?.state,
+        ToolImageSendState.attached,
+      );
+    });
+
+    test('image fallback only retries an image-bearing non-overflow 400', () {
+      expect(
+        shouldRetryToolImagesWithoutImages(
+          statusCode: 400,
+          isContextOverflow: false,
+          alreadyTried: false,
+          yieldedAnything: false,
+          receivedReasoning: false,
+          attachedImageCount: 1,
+        ),
+        isTrue,
+      );
+      expect(
+        shouldRetryToolImagesWithoutImages(
+          statusCode: 400,
+          isContextOverflow: true,
+          alreadyTried: false,
+          yieldedAnything: false,
+          receivedReasoning: false,
+          attachedImageCount: 1,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldRetryToolImagesWithoutImages(
+          statusCode: 400,
+          isContextOverflow: false,
+          alreadyTried: true,
+          yieldedAnything: false,
+          receivedReasoning: false,
+          attachedImageCount: 1,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldRetryToolImagesWithoutImages(
+          statusCode: 400,
+          isContextOverflow: false,
+          alreadyTried: false,
+          yieldedAnything: true,
+          receivedReasoning: false,
+          attachedImageCount: 1,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldRetryToolImagesWithoutImages(
+          statusCode: 400,
+          isContextOverflow: false,
+          alreadyTried: false,
+          yieldedAnything: false,
+          receivedReasoning: true,
+          attachedImageCount: 1,
+        ),
+        isFalse,
+      );
     });
   });
 

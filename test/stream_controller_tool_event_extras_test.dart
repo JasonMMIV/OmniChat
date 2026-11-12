@@ -14,7 +14,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:OmniChat/core/models/chat_message.dart';
 import 'package:OmniChat/core/providers/settings_provider.dart';
 import 'package:OmniChat/core/services/api/chat_stream_chunk.dart';
+import 'package:OmniChat/core/services/api/tool_image_send_status.dart';
 import 'package:OmniChat/core/services/chat/chat_service.dart';
+import 'package:OmniChat/core/services/chat/storage/message_part_codec.dart';
 import 'package:OmniChat/features/home/controllers/stream_controller.dart';
 
 class _StubChatService extends ChangeNotifier implements ChatService {
@@ -79,12 +81,15 @@ Future<List<Map<String, dynamic>>> _persistCallsChunk(
       assistantExtras: assistantExtras,
     ),
     StreamingState(_ctx()),
-    updateReasoningInDb: (String messageId, {DateTime? processStartedAt}) async {},
+    updateReasoningInDb: (
+      String messageId, {
+      DateTime? processStartedAt,
+    }) async {},
     updateReasoningSegmentsInDb: (String messageId, String json) async {},
     setToolEventsInDb:
         (String messageId, List<Map<String, dynamic>> events) async {
-      persisted.addAll(events);
-    },
+          persisted.addAll(events);
+        },
     getToolEventsFromDb: (String messageId) => const <Map<String, dynamic>>[],
   );
   controller.dispose();
@@ -94,44 +99,132 @@ Future<List<Map<String, dynamic>>> _persistCallsChunk(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('handleToolCallsChunk reasoning-echo persistence (P1-3 write side)',
-      () {
-    test('persists chunk assistantExtras onto the placeholder event',
+  group(
+    'handleToolCallsChunk reasoning-echo persistence (P1-3 write side)',
+    () {
+      test(
+        'persists chunk assistantExtras onto the placeholder event',
         () async {
-      final events = await _persistCallsChunk(<String, dynamic>{
-        'reasoning_content': 'let me think about the question',
-        'reasoning_details': [
-          {'type': 'reasoning.text', 'text': 'thinking...'},
-        ],
-      });
+          final events = await _persistCallsChunk(<String, dynamic>{
+            'reasoning_content': 'let me think about the question',
+            'reasoning_details': [
+              {'type': 'reasoning.text', 'text': 'thinking...'},
+            ],
+          });
 
-      expect(events, hasLength(1));
-      final event = events.single;
-      expect(event['id'], 'call_ask');
-      expect(event['name'], 'ask_user');
-      expect(event['content'], isNull);
-      expect(event['reasoning_content'], 'let me think about the question');
-      expect(event['reasoning_details'], isA<List>());
+          expect(events, hasLength(1));
+          final event = events.single;
+          expect(event['id'], 'call_ask');
+          expect(event['name'], 'ask_user');
+          expect(event['content'], isNull);
+          expect(event['reasoning_content'], 'let me think about the question');
+          expect(event['reasoning_details'], isA<List>());
+        },
+      );
+
+      test(
+        'chunk without assistantExtras persists a plain placeholder',
+        () async {
+          final events = await _persistCallsChunk(null);
+
+          expect(events, hasLength(1));
+          final event = events.single;
+          expect(event.containsKey('reasoning_content'), isFalse);
+          expect(event.containsKey('reasoning_details'), isFalse);
+        },
+      );
+
+      test(
+        'empty reasoning_content is not persisted (providers reject empty)',
+        () async {
+          final events = await _persistCallsChunk(<String, dynamic>{
+            'reasoning_content': '',
+          });
+
+          expect(events, hasLength(1));
+          expect(events.single.containsKey('reasoning_content'), isFalse);
+        },
+      );
+    },
+  );
+
+  group('tool-image send status persistence', () {
+    test('handleToolImageStatusesChunk persists the imageSend map', () async {
+      final persisted = <String, Map<String, dynamic>>{};
+      final controller = StreamController(
+        chatService: _StubChatService(),
+        onStateChanged: () {},
+        getSettingsProvider: () => _StubSettings(),
+        getCurrentConversationId: () => 'c1',
+      );
+      final state = StreamingState(_ctx());
+      await controller.handleToolCallsChunk(
+        ChatStreamChunk(
+          content: '',
+          isDone: false,
+          totalTokens: 0,
+          toolCalls: [
+            ToolCallInfo(
+              id: 'call_img',
+              name: 'file_view_image',
+              arguments: const <String, dynamic>{},
+            ),
+          ],
+        ),
+        state,
+        updateReasoningInDb: (
+          String messageId, {
+          DateTime? processStartedAt,
+        }) async {},
+        updateReasoningSegmentsInDb: (String messageId, String json) async {},
+        setToolEventsInDb: (
+          String messageId,
+          List<Map<String, dynamic>> events,
+        ) async {},
+        getToolEventsFromDb: (String messageId) =>
+            const <Map<String, dynamic>>[],
+      );
+      await controller.handleToolImageStatusesChunk(
+        ChatStreamChunk(
+          content: '',
+          isDone: false,
+          totalTokens: 0,
+          toolImageStatuses: const <ToolImageSendStatus>[
+            ToolImageSendStatus(
+              toolCallId: 'call_img',
+              state: ToolImageSendState.providerRejected,
+              detail: 'HTTP 400',
+            ),
+          ],
+        ),
+        state,
+        upsertImageSendInDb: (messageId, toolCallId, imageSend) async {
+          persisted[toolCallId] = imageSend;
+        },
+      );
+
+      expect(persisted['call_img']?['state'], 'providerRejected');
+      expect(persisted['call_img']?['detail'], 'HTTP 400');
+      controller.dispose();
     });
 
-    test('chunk without assistantExtras persists a plain placeholder',
-        () async {
-      final events = await _persistCallsChunk(null);
+    test('toolPartSummaryFromEvent reads imageSend', () {
+      final summary = toolPartSummaryFromEvent(
+        event: <String, dynamic>{
+          'id': 'call_img',
+          'name': 'file_view_image',
+          'arguments': <String, dynamic>{},
+          'content': 'ok',
+          'imageSend': <String, dynamic>{
+            'state': 'providerRejected',
+            'detail': 'HTTP 400',
+          },
+        },
+        messageId: 'a1',
+        ordinal: 0,
+      );
 
-      expect(events, hasLength(1));
-      final event = events.single;
-      expect(event.containsKey('reasoning_content'), isFalse);
-      expect(event.containsKey('reasoning_details'), isFalse);
-    });
-
-    test('empty reasoning_content is not persisted (providers reject empty)',
-        () async {
-      final events = await _persistCallsChunk(<String, dynamic>{
-        'reasoning_content': '',
-      });
-
-      expect(events, hasLength(1));
-      expect(events.single.containsKey('reasoning_content'), isFalse);
+      expect(summary.imageSend?['state'], 'providerRejected');
     });
   });
 }

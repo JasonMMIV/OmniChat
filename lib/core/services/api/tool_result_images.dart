@@ -20,8 +20,14 @@ import 'package:path/path.dart' as p;
 
 import '../../../utils/markdown_media_sanitizer.dart';
 import 'tool_image_codec.dart';
+import 'tool_image_send_status.dart';
 
 export 'tool_image_codec.dart' show ToolImageEncoded, ToolImageTarget;
+export 'tool_image_send_status.dart'
+    show
+        ToolImageSendState,
+        ToolImageSendStatus,
+        shouldRetryToolImagesWithoutImages;
 
 /// Raw marker extracted from a tool result.
 class ToolImageMarker {
@@ -86,7 +92,7 @@ class ToolImageResolution {
 
 /// Caller-supplied policy (workspace root + global enable flag).
 class ToolImagePolicy {
-  const ToolImagePolicy({
+  ToolImagePolicy({
     this.workspaceRoot,
     this.enabled = true,
     this.extraAllowedRoots = const <String>[],
@@ -97,6 +103,17 @@ class ToolImagePolicy {
   final bool enabled;
   final List<String> extraAllowedRoots;
   final int maxRawBytes;
+
+  /// Run-scoped memory of a provider that rejected tool-result images. The
+  /// policy object is shared by every agent round in one generation, so a
+  /// relay that always rejects images pays for the 400 fallback once per run,
+  /// not once per tool round. A new user turn creates a new policy.
+  bool _providerRejectedThisRun = false;
+  bool get providerRejectedThisRun => _providerRejectedThisRun;
+
+  void markProviderRejected() {
+    _providerRejectedThisRun = true;
+  }
 
   /// Resolves the Flutter-owned directories (session outputs + MCP screenshot
   /// cache) and the trusted-path ledger into a pure-Dart policy.
@@ -165,6 +182,7 @@ class ToolImagePlan {
     this.tailUserImages = const <ToolImagePayload>[],
     this.totalImages = 0,
     this.errors = const <ToolImageError>[],
+    this.statusesByToolCallId = const <String, ToolImageSendStatus>{},
   });
 
   static const ToolImagePlan empty = ToolImagePlan();
@@ -178,7 +196,18 @@ class ToolImagePlan {
   final int totalImages;
   final List<ToolImageError> errors;
 
+  /// Per-tool-call send outcome. Unlike [byMessageIndex] this is populated even
+  /// when no image can be sent (setting off / model without image input /
+  /// transport unsupported), so the card can explain why the thumbnail was
+  /// not seen by the model.
+  final Map<String, ToolImageSendStatus> statusesByToolCallId;
+
   bool get isEmpty => totalImages == 0;
+
+  /// Status-only plans scan history without a file cap. Bound the number of
+  /// cards rewritten per round so a long conversation cannot trigger hundreds
+  /// of DB writes/notifications on every agent round.
+  static const int maxStatusMessages = 32;
 
   static Future<ToolImagePlan> build({
     required List<Map<String, dynamic>> messages,
@@ -187,32 +216,46 @@ class ToolImagePlan {
     required bool canImageInput,
     ToolImageCodec codec = const ToolImageCodec(),
   }) async {
-    if (!policy.enabled || !canImageInput || messages.isEmpty) {
-      return ToolImagePlan.empty;
-    }
+    if (messages.isEmpty) return ToolImagePlan.empty;
 
+    final skipState = !policy.enabled
+        ? ToolImageSendState.settingOff
+        : (!canImageInput ? ToolImageSendState.modelUnsupported : null);
     final maxPerRequest = target.maxImagesPerRequest;
     final maxPerMessage = target.maxImagesPerToolMessage;
     final byMessageIndex = <int, ToolImageResolution>{};
     final tailImages = <ToolImagePayload>[];
     final allErrors = <ToolImageError>[];
     final seenPaths = <String>{};
+    final statusesByToolCallId = <String, ToolImageSendStatus>{};
     var totalImages = 0;
+    var hitLimit = false;
+    var statusCount = 0;
 
     // For the Chat Completions synthetic-user path only the final consecutive
     // tool group is eligible. Earlier groups stay as text markers so replaying
     // a long history does not inject a user turn per tool round.
     var tailStart = messages.length;
     if (target == ToolImageTarget.openAiChat) {
-      while (tailStart > 0 &&
-          (messages[tailStart - 1]['role'] ?? '').toString() == 'tool') {
-        tailStart--;
+      if (skipState != null) {
+        // Nothing will be sent, so scan every marker-bearing tool message to
+        // explain why. The tail-group restriction only applies to actual
+        // image injection.
+        tailStart = 0;
+      } else {
+        while (tailStart > 0 &&
+            (messages[tailStart - 1]['role'] ?? '').toString() == 'tool') {
+          tailStart--;
+        }
+        if (tailStart == messages.length) return ToolImagePlan.empty;
       }
-      if (tailStart == messages.length) return ToolImagePlan.empty;
     }
 
     for (var i = messages.length - 1; i >= 0; i--) {
-      if (totalImages >= maxPerRequest) break;
+      if (totalImages >= maxPerRequest) {
+        hitLimit = true;
+        break;
+      }
       final message = messages[i];
       if ((message['role'] ?? '').toString() != 'tool') continue;
       if (target == ToolImageTarget.openAiChat && i < tailStart) continue;
@@ -221,6 +264,19 @@ class ToolImagePlan {
       if (text.isEmpty) continue;
       final markers = extractMarkers(text);
       if (markers.isEmpty) continue;
+
+      final toolCallId = (message['tool_call_id'] ?? '').toString().trim();
+      if (skipState != null) {
+        if (toolCallId.isNotEmpty) {
+          statusesByToolCallId[toolCallId] = ToolImageSendStatus(
+            toolCallId: toolCallId,
+            state: skipState,
+          );
+          statusCount++;
+        }
+        if (statusCount >= maxStatusMessages) break;
+        continue;
+      }
 
       final messageImages = <ToolImagePayload>[];
       final messageErrors = <ToolImageError>[];
@@ -330,6 +386,28 @@ class ToolImagePlan {
         }
       }
 
+      if (toolCallId.isNotEmpty) {
+        if (messageImages.isNotEmpty) {
+          statusesByToolCallId[toolCallId] = ToolImageSendStatus(
+            toolCallId: toolCallId,
+            state: ToolImageSendState.attached,
+            detail: messageErrors.isEmpty ? null : messageErrors.first.detail,
+          );
+        } else if (messageErrors.isNotEmpty) {
+          final error = messageErrors.first;
+          statusesByToolCallId[toolCallId] = ToolImageSendStatus(
+            toolCallId: toolCallId,
+            state: _stateForError(error.code),
+            detail: error.detail,
+          );
+        } else if (attachedMarkers.isNotEmpty) {
+          statusesByToolCallId[toolCallId] = ToolImageSendStatus(
+            toolCallId: toolCallId,
+            state: ToolImageSendState.attached,
+          );
+        }
+      }
+
       if (messageImages.isEmpty) continue;
 
       if (target == ToolImageTarget.openAiChat) {
@@ -343,12 +421,98 @@ class ToolImagePlan {
       }
     }
 
+    // The per-request cap stops the reverse scan before older tool results.
+    // Mark those as limitReached so a stale `attached` badge cannot claim the
+    // model saw an image that this request omitted.
+    if (hitLimit && skipState == null) {
+      var limitStatusCount = statusesByToolCallId.length;
+      for (var i = messages.length - 1; i >= 0; i--) {
+        if (target == ToolImageTarget.openAiChat && i < tailStart) continue;
+        final message = messages[i];
+        if ((message['role'] ?? '').toString() != 'tool') continue;
+        final text = _toolContent(message);
+        if (text.isEmpty || extractMarkers(text).isEmpty) continue;
+        final toolCallId = (message['tool_call_id'] ?? '').toString().trim();
+        if (toolCallId.isEmpty ||
+            statusesByToolCallId.containsKey(toolCallId)) {
+          continue;
+        }
+        statusesByToolCallId[toolCallId] = ToolImageSendStatus(
+          toolCallId: toolCallId,
+          state: ToolImageSendState.limitReached,
+        );
+        limitStatusCount++;
+        if (limitStatusCount >= maxStatusMessages) break;
+      }
+    }
+
     return ToolImagePlan(
       byMessageIndex: byMessageIndex,
       tailUserImages: tailImages,
       totalImages: totalImages,
       errors: allErrors,
+      statusesByToolCallId: statusesByToolCallId,
     );
+  }
+
+  /// Build a status-only plan for a request where image injection is not even
+  /// attempted (e.g. an unsupported transport). Scans markers but never
+  /// touches the filesystem.
+  static ToolImagePlan skipped({
+    required List<Map<String, dynamic>> messages,
+    required ToolImageSendState state,
+    String? detail,
+    bool tailOnly = false,
+  }) {
+    var start = 0;
+    if (tailOnly) {
+      start = messages.length;
+      while (start > 0 &&
+          (messages[start - 1]['role'] ?? '').toString() == 'tool') {
+        start--;
+      }
+      if (start == messages.length) return ToolImagePlan.empty;
+    }
+
+    final statuses = <String, ToolImageSendStatus>{};
+    var count = 0;
+    // Newest-first, matching build(): a capped plan keeps the cards the user
+    // is most likely looking at.
+    for (var i = messages.length - 1; i >= start; i--) {
+      final message = messages[i];
+      if ((message['role'] ?? '').toString() != 'tool') continue;
+      final text = _toolContent(message);
+      if (text.isEmpty || extractMarkers(text).isEmpty) continue;
+      final toolCallId = (message['tool_call_id'] ?? '').toString().trim();
+      if (toolCallId.isEmpty) continue;
+      statuses[toolCallId] = ToolImageSendStatus(
+        toolCallId: toolCallId,
+        state: state,
+        detail: detail,
+      );
+      count++;
+      if (count >= maxStatusMessages) break;
+    }
+    return ToolImagePlan(statusesByToolCallId: statuses);
+  }
+}
+
+ToolImageSendState _stateForError(String code) {
+  switch (code) {
+    case 'image_not_found':
+      return ToolImageSendState.notFound;
+    case 'image_outside_workspace':
+      return ToolImageSendState.outsideWorkspace;
+    case 'image_changed':
+      return ToolImageSendState.changed;
+    case 'image_too_large':
+      return ToolImageSendState.tooLarge;
+    case 'image_unsupported_format':
+      return ToolImageSendState.unsupportedFormat;
+    case 'image_decode_failed':
+      return ToolImageSendState.decodeFailed;
+    default:
+      return ToolImageSendState.unknown;
   }
 }
 

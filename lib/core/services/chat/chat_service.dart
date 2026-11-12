@@ -293,23 +293,21 @@ class ChatService extends ChangeNotifier {
       // One-time `todo_v1` migration (plan §2.5.3): fold the retired Hive
       // plan box into conversation tool events. Idempotent, best-effort,
       // never blocks startup.
-      unawaited(
-        () async {
-          try {
-            final prefs = await SharedPreferences.getInstance();
-            await TodoV1Migration.run(
-              chatService: this,
-              prefs: prefs,
-              appDataDirPath: _appDataDirectory?.path,
-            );
-          } catch (e) {
-            FlutterLogger.log(
-              'todo_v1 migration crashed (non-fatal): $e',
-              tag: 'todo-migration',
-            );
-          }
-        }(),
-      );
+      unawaited(() async {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await TodoV1Migration.run(
+            chatService: this,
+            prefs: prefs,
+            appDataDirPath: _appDataDirectory?.path,
+          );
+        } catch (e) {
+          FlutterLogger.log(
+            'todo_v1 migration crashed (non-fatal): $e',
+            tag: 'todo-migration',
+          );
+        }
+      }());
     } on ChatStorageRestoreRequiredException catch (e) {
       _legacyHiveAvailable =
           _appDataDirectory != null &&
@@ -1167,6 +1165,42 @@ class ChatService extends ChangeNotifier {
       extras: extras,
     );
     notifyListeners();
+  }
+
+  /// Updates only the UI/send-time extras of an existing tool event.
+  ///
+  /// Used by the tool-image status channel. The event body (name, arguments,
+  /// content) and approval state stay untouched; [upsertToolEvent] merges the
+  /// preserved extras keys. No-op when the event is not loaded/present.
+  Future<void> updateToolEventExtras(
+    String assistantMessageId,
+    String toolCallId,
+    Map<String, dynamic> extras,
+  ) async {
+    if (!_initialized) await init();
+    final id = toolCallId.trim();
+    if (id.isEmpty) return;
+    Map<String, dynamic>? event;
+    for (final candidate in getToolEvents(assistantMessageId)) {
+      if ((candidate['id']?.toString() ?? '') == id) {
+        event = candidate;
+        break;
+      }
+    }
+    if (event == null) return;
+    final rawArguments = event['arguments'];
+    final arguments = rawArguments is Map
+        ? rawArguments.map((key, value) => MapEntry(key.toString(), value))
+        : <String, dynamic>{};
+    final content = event['content'];
+    await upsertToolEvent(
+      assistantMessageId,
+      id: id,
+      name: event['name']?.toString() ?? '',
+      arguments: arguments,
+      content: content is String ? content : null,
+      extras: extras,
+    );
   }
 
   /// Latest `write_todos` state of a conversation, projected from the most

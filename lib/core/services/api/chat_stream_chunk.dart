@@ -1,5 +1,6 @@
 import '../../models/answer_review.dart';
 import '../../models/token_usage.dart';
+import 'tool_image_send_status.dart';
 
 /// Tool execution handler contract.
 ///
@@ -34,6 +35,11 @@ class ChatStreamChunk {
   final TokenUsage? usage;
   final List<ToolCallInfo>? toolCalls;
   final List<ToolResultInfo>? toolResults;
+
+  /// Send-time outcome for tool results that carried `[image:...]` markers.
+  /// UI-only; the status is persisted onto the matching tool event's extras
+  /// so a restored card can still explain why an image was not sent.
+  final List<ToolImageSendStatus>? toolImageStatuses;
 
   // --- L1 retry / silent-interrupt recovery metadata ---
   // These three fields are populated by [ChatApiService.sendMessageStream]
@@ -107,6 +113,7 @@ class ChatStreamChunk {
     this.usage,
     this.toolCalls,
     this.toolResults,
+    this.toolImageStatuses,
     this.errorKind,
     this.attempt,
     this.maxAttempts,
@@ -134,6 +141,7 @@ class ChatStreamChunk {
     TokenUsage? usage,
     List<ToolCallInfo>? toolCalls,
     List<ToolResultInfo>? toolResults,
+    List<ToolImageSendStatus>? toolImageStatuses,
     String? errorKind,
     int? attempt,
     int? maxAttempts,
@@ -156,6 +164,7 @@ class ChatStreamChunk {
       usage: usage ?? this.usage,
       toolCalls: toolCalls ?? this.toolCalls,
       toolResults: toolResults ?? this.toolResults,
+      toolImageStatuses: toolImageStatuses ?? this.toolImageStatuses,
       errorKind: errorKind ?? this.errorKind,
       attempt: attempt ?? this.attempt,
       maxAttempts: maxAttempts ?? this.maxAttempts,

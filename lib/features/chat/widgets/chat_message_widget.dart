@@ -39,6 +39,7 @@ import '../../../core/models/file_record.dart';
 import '../../../icons/lucide_adapter.dart';
 // import '../../../theme/design_tokens.dart';
 import '../../../core/providers/user_provider.dart';
+import '../../../core/services/api/tool_image_send_status.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/storage/message_part_codec.dart';
@@ -62,6 +63,7 @@ import 'ai_team_proposals_section.dart';
 import 'answer_review_card.dart';
 import 'message_stats_line.dart';
 import 'cowork_tool_cards.dart';
+import 'tool_image_send_badge.dart';
 import 'process_group_card.dart';
 import 'process_group_logic.dart';
 
@@ -808,6 +810,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       child: _ToolCallItem(
         part: part,
         assistantMessageId: widget.message.id,
+        modelId: widget.message.modelId,
+        providerId: widget.message.providerId,
         // Legacy single-card row: the only plan card in this message.
         isLatestPlan: true,
         onSubmitAskUserAnswer: widget.onSubmitAskUserAnswer,
@@ -2107,6 +2111,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                         ToolEntry(:final tool) => _ToolCallItem(
                           part: tools[tool.index],
                           assistantMessageId: widget.message.id,
+                          modelId: widget.message.modelId,
+                          providerId: widget.message.providerId,
                           // While a message streams, its newest successful
                           // plan is the live plan — the parent's
                           // `latestTodoMessageId` is only recomputed on full
@@ -3315,6 +3321,10 @@ class ToolUIPart {
   /// detail dialog.
   final String? imagePath;
 
+  /// Stage 3: last send-time image status (`state`/`detail`/`modelId`/`at`).
+  /// UI-only; restored from persistent extras so the badge survives restart.
+  final Map<String, dynamic>? imageSend;
+
   /// P1-1 (2026-11-10): the decision was accepted and the tool is executing.
   /// UI-only; never persisted. The approval card hides its buttons and shows
   /// progress while this is true, so a long shell command cannot invite a
@@ -3338,6 +3348,7 @@ class ToolUIPart {
     this.diffRemoved,
     this.diffText,
     this.imagePath,
+    this.imageSend,
     this.approvalExecuting = false,
   }) : contentLoaded = contentLoaded ?? (content != null),
        contentLength = contentLength ?? (content?.length ?? 0);
@@ -3352,6 +3363,7 @@ class ToolUIPart {
     int? contentLength,
     String? status,
     String? argumentsPreview,
+    Map<String, dynamic>? imageSend,
     bool? approvalExecuting,
   }) {
     return ToolUIPart(
@@ -3371,6 +3383,7 @@ class ToolUIPart {
       diffRemoved: diffRemoved,
       diffText: diffText,
       imagePath: imagePath,
+      imageSend: imageSend ?? this.imageSend,
       approvalExecuting: approvalExecuting ?? this.approvalExecuting,
     );
   }
@@ -3530,11 +3543,18 @@ class _ToolCallItem extends StatelessWidget {
   const _ToolCallItem({
     required this.part,
     this.assistantMessageId,
+    this.modelId,
+    this.providerId,
     this.isLatestPlan = true,
     this.onSubmitAskUserAnswer,
     this.onResolveApproval,
   });
   final ToolUIPart part;
+
+  /// Owning assistant message model/provider, used for the static
+  /// "model cannot receive images" badge when no runtime status exists.
+  final String? modelId;
+  final String? providerId;
 
   /// Owning assistant message id — used by the P1-3 ask_user card to
   /// resume generation after the user answers.
@@ -3559,6 +3579,37 @@ class _ToolCallItem extends StatelessWidget {
   })?
   onResolveApproval;
 
+  /// Runtime status wins (it records the last actual send). When absent, a
+  /// static check covers old conversations and the moments before the first
+  /// status chunk arrives. Unknown model/provider stays badge-free rather than
+  /// guessing.
+  ToolImageSendState? _imageSendState(
+    SettingsProvider settings, {
+    Map<String, dynamic>? imageSend,
+  }) {
+    final runtime = ToolImageSendStatus.tryParseState(
+      (imageSend ?? part.imageSend)?['state']?.toString(),
+    );
+    if (runtime != null) return runtime;
+    final hasImage = (part.imagePath ?? '').trim().isNotEmpty;
+    if (!hasImage) return null;
+    final mid = (modelId ?? '').trim();
+    final pid = (providerId ?? '').trim();
+    bool? supportsImages;
+    if (settings.sendToolImages && mid.isNotEmpty && pid.isNotEmpty) {
+      final cfg = settings.getProviderConfig(pid).forModelProtocol(mid);
+      supportsImages = ModelRegistry.effectiveForModel(
+        cfg,
+        mid,
+      ).input.contains(Modality.image);
+    }
+    return staticToolImageSendState(
+      hasImage: hasImage,
+      sendToolImages: settings.sendToolImages,
+      modelSupportsImages: supportsImages,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -3566,6 +3617,12 @@ class _ToolCallItem extends StatelessWidget {
         ? const Color(0xFF9E9EA4)
         : const Color(0xFF7E7F83);
     final l10n = AppLocalizations.of(context)!;
+    final settings = context.watch<SettingsProvider>();
+    final imageSendState = _imageSendState(settings);
+    final imageSendReason =
+        imageSendState == null || imageSendState == ToolImageSendState.attached
+        ? null
+        : toolImageSendReason(l10n, imageSendState);
 
     // P1-3: cowork tools render as dedicated interactive cards instead of the
     // generic tool row (plan card / ask_user answer card).
@@ -3691,6 +3748,14 @@ class _ToolCallItem extends StatelessWidget {
                     ],
                   ],
                 ),
+                if (imageSendReason != null) ...[
+                  const SizedBox(height: 2),
+                  ToolImageSendBadge(
+                    title: l10n.chatMessageWidgetToolImageNotSent,
+                    reason: imageSendReason,
+                    color: cardTextColor,
+                  ),
+                ],
                 if (part.toolName == 'shell_run' && part.loading)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
@@ -3714,8 +3779,7 @@ class _ToolCallItem extends StatelessWidget {
                     ),
                   ),
                 ],
-                if (part.toolName == 'file_view_image' &&
-                    (part.imagePath ?? '').isNotEmpty) ...[
+                if ((part.imagePath ?? '').trim().isNotEmpty) ...[
                   const SizedBox(height: 6),
                   _ToolImageThumb(path: part.imagePath!, color: cardTextColor),
                 ],
@@ -3784,6 +3848,33 @@ class _ToolCallItem extends StatelessWidget {
     );
   }
 
+  /// Lower-key explanation shown in the detail dialog when the image was not
+  /// sent to the model. The collapsed card keeps only the compact pill.
+  Widget _buildToolImageSendNotice(BuildContext context, String reason) {
+    final color = cardTextColor(
+      Theme.of(context).brightness == Brightness.dark,
+    );
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.15)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Lucide.ImageOff, size: 14, color: color),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(reason, style: TextStyle(fontSize: 12, color: color)),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// P1-1: parse the approval protocol content on this tool part. Returns
   /// the parsed payload when the call is awaiting (or recorded) approval.
   Map<String, dynamic>? _approvalStateOf(ToolUIPart part) {
@@ -3801,6 +3892,7 @@ class _ToolCallItem extends StatelessWidget {
     var content = part.content;
     var diffText = part.diffText ?? '';
     var imagePath = part.imagePath;
+    var imageSend = part.imageSend;
     // Restored parts start without a body; live parts already carry content,
     // but the rendered diff is only persisted in metadata, so a file-tool
     // detail is fetched when the diff is still missing.
@@ -3827,6 +3919,12 @@ class _ToolCallItem extends StatelessWidget {
             content = detail['content']?.toString();
             diffText = detail['diffText']?.toString() ?? diffText;
             imagePath = detail['imagePath']?.toString() ?? imagePath;
+            final rawImageSend = detail['imageSend'];
+            if (rawImageSend is Map) {
+              imageSend = rawImageSend.map(
+                (key, value) => MapEntry(key.toString(), value),
+              );
+            }
           }
         } catch (_) {
           if (!context.mounted) return;
@@ -3840,6 +3938,16 @@ class _ToolCallItem extends StatelessWidget {
       }
       if (!context.mounted) return;
     }
+
+    // Recompute after the lazy detail load refreshed imageSend.
+    final imageSendState = _imageSendState(
+      context.read<SettingsProvider>(),
+      imageSend: imageSend,
+    );
+    final imageSendReason =
+        imageSendState == null || imageSendState == ToolImageSendState.attached
+        ? null
+        : toolImageSendReason(l10n, imageSendState);
 
     final cs = Theme.of(context).colorScheme;
     final argsPretty = const JsonEncoder.withIndent('  ').convert(arguments);
@@ -3928,8 +4036,14 @@ class _ToolCallItem extends StatelessWidget {
                               children: [
                                 if (diffText.trim().isNotEmpty)
                                   _buildToolDiffSection(context, diffText),
-                                if (part.toolName == 'file_view_image' &&
-                                    (imagePath ?? '').trim().isNotEmpty) ...[
+                                if (imageSendReason != null) ...[
+                                  _buildToolImageSendNotice(
+                                    context,
+                                    imageSendReason,
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                                if ((imagePath ?? '').trim().isNotEmpty) ...[
                                   _buildToolImagePreview(context, imagePath!),
                                   const SizedBox(height: 12),
                                 ],
@@ -4045,8 +4159,11 @@ class _ToolCallItem extends StatelessWidget {
                     const SizedBox(height: 12),
                     if (diffText.trim().isNotEmpty)
                       _buildToolDiffSection(context, diffText),
-                    if (part.toolName == 'file_view_image' &&
-                        (imagePath ?? '').trim().isNotEmpty) ...[
+                    if (imageSendReason != null) ...[
+                      _buildToolImageSendNotice(context, imageSendReason),
+                      const SizedBox(height: 12),
+                    ],
+                    if ((imagePath ?? '').trim().isNotEmpty) ...[
                       _buildToolImagePreview(context, imagePath!),
                       const SizedBox(height: 12),
                     ],

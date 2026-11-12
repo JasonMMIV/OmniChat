@@ -1040,6 +1040,7 @@ class ChatRepository {
     final rows = await query.get();
     return rows.isNotEmpty;
   }
+
   Future<List<Map<String, dynamic>>> getSearchCitations(
     String assistantMessageId,
   ) async {
@@ -1106,6 +1107,7 @@ class ChatRepository {
     final diffAdded = _metadataInt(r'$.diffAdded');
     final diffRemoved = _metadataInt(r'$.diffRemoved');
     final imagePath = _metadataText(r'$.imagePath');
+    final imageSend = _metadataText(r'$.imageSend');
     final query = db.selectOnly(db.messageParts)
       ..addColumns([
         db.messageParts.partId,
@@ -1124,6 +1126,7 @@ class ChatRepository {
         diffAdded,
         diffRemoved,
         imagePath,
+        imageSend,
         contentLength,
         argumentsLength,
         argumentsPreview,
@@ -1150,6 +1153,7 @@ class ChatRepository {
           diffAdded: diffAdded,
           diffRemoved: diffRemoved,
           imagePath: imagePath,
+          imageSend: imageSend,
         ),
     ];
   }
@@ -1166,6 +1170,12 @@ class ChatRepository {
       db.messageParts.metadataJson,
       Constant(path),
     ]);
+  }
+
+  Map<String, dynamic>? _jsonMap(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    final decoded = decodeJsonMap(raw);
+    return decoded.isEmpty ? null : decoded;
   }
 
   Future<List<ToolPartSummary>> getToolPartSummariesForMessages(
@@ -1200,6 +1210,7 @@ class ChatRepository {
     final diffAdded = _metadataInt(r'$.diffAdded');
     final diffRemoved = _metadataInt(r'$.diffRemoved');
     final imagePath = _metadataText(r'$.imagePath');
+    final imageSend = _metadataText(r'$.imageSend');
 
     final result = <ToolPartSummary>[];
     for (var start = 0; start < ids.length; start += 500) {
@@ -1225,6 +1236,7 @@ class ChatRepository {
           diffAdded,
           diffRemoved,
           imagePath,
+          imageSend,
           contentLength,
           argumentsLength,
           argumentsPreview,
@@ -1253,6 +1265,7 @@ class ChatRepository {
             diffAdded: diffAdded,
             diffRemoved: diffRemoved,
             imagePath: imagePath,
+            imageSend: imageSend,
           ),
       ]);
     }
@@ -1350,6 +1363,7 @@ class ChatRepository {
     required Expression<int> diffAdded,
     required Expression<int> diffRemoved,
     required Expression<String> imagePath,
+    required Expression<String> imageSend,
   }) {
     final status = row.read(db.messageParts.status) ?? kPartStatusPending;
     final contentChars = row.read(contentLength) ?? 0;
@@ -1377,6 +1391,7 @@ class ChatRepository {
       diffAdded: row.read(diffAdded),
       diffRemoved: row.read(diffRemoved),
       imagePath: row.read(imagePath),
+      imageSend: _jsonMap(row.read(imageSend)),
     );
   }
 

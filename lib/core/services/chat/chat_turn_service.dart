@@ -470,6 +470,10 @@ class ChatTurnService {
           );
           return;
         }
+        if ((chunk.toolImageStatuses ?? const []).isNotEmpty) {
+          // UI-only send metadata; the voice path has no tool-image cards.
+          return;
+        }
         final captured = ChatApiService.stripGeminiThoughtSignature(
           chunk.content,
         );

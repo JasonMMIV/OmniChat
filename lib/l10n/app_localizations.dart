@@ -13013,6 +13013,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reads console errors captured by the live site preview.'**
   String get toolDescConsoleErrors;
+
+  /// No description provided for @chatMessageWidgetToolImageNotSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Image not sent to model'**
+  String get chatMessageWidgetToolImageNotSent;
+
+  /// No description provided for @chatMessageWidgetToolImageNotSentModel.
+  ///
+  /// In en, this message translates to:
+  /// **'This model cannot receive images.'**
+  String get chatMessageWidgetToolImageNotSentModel;
+
+  /// No description provided for @chatMessageWidgetToolImageNotSentSetting.
+  ///
+  /// In en, this message translates to:
+  /// **'Tool image sending is off in settings.'**
+  String get chatMessageWidgetToolImageNotSentSetting;
+
+  /// No description provided for @chatMessageWidgetToolImageNotSentTransport.
+  ///
+  /// In en, this message translates to:
+  /// **'This provider cannot receive images in tool results.'**
+  String get chatMessageWidgetToolImageNotSentTransport;
+
+  /// No description provided for @chatMessageWidgetToolImageNotSentUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The image was missing, changed, or could not be read.'**
+  String get chatMessageWidgetToolImageNotSentUnavailable;
+
+  /// No description provided for @chatMessageWidgetToolImageNotSentProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'The provider rejected the image; retried without it.'**
+  String get chatMessageWidgetToolImageNotSentProvider;
+
+  /// No description provided for @chatMessageWidgetToolImageNotSentLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'The per-request image limit was reached.'**
+  String get chatMessageWidgetToolImageNotSentLimit;
 }
 
 class _AppLocalizationsDelegate

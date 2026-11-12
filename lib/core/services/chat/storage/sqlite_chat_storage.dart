@@ -858,9 +858,7 @@ class SqliteChatStorage extends ChatStorage {
   }
 
   @override
-  Future<Map<String, dynamic>?> getLatestTodoEvent(
-    String conversationId,
-  ) {
+  Future<Map<String, dynamic>?> getLatestTodoEvent(String conversationId) {
     return _repo.getLatestTodoEvent(conversationId);
   }
 
@@ -1249,6 +1247,7 @@ class SqliteChatStorage extends ChatStorage {
             diffAdded: _metadataIntValue(row.metadataJson, 'diffAdded'),
             diffRemoved: _metadataIntValue(row.metadataJson, 'diffRemoved'),
             imagePath: _metadataValue(row.metadataJson, 'imagePath'),
+            imageSend: _metadataMap(row.metadataJson, 'imageSend'),
           ),
         );
       }
@@ -1262,6 +1261,14 @@ class SqliteChatStorage extends ChatStorage {
   String? _metadataValue(String? metadataJson, String key) {
     final map = decodeJsonMap(metadataJson);
     return map[key]?.toString();
+  }
+
+  Map<String, dynamic>? _metadataMap(String? metadataJson, String key) {
+    final raw = decodeJsonMap(metadataJson)[key];
+    if (raw is Map) {
+      return raw.map((k, v) => MapEntry(k.toString(), v));
+    }
+    return null;
   }
 
   int? _metadataIntValue(String? metadataJson, String key) {

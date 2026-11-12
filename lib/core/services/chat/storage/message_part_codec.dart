@@ -69,6 +69,8 @@ const List<String> kPreservedToolEventExtraKeys = <String>[
   // file_view_image Stage 2: snapshot hash used to reject changed files on
   // replay (UI-only / send-time metadata).
   'imageSha256',
+  // Stage 3: last send-time image status for the card badge. UI-only.
+  'imageSend',
   // write_todos provenance (`todo_v1_migration` / later `user_clear`);
   // read back by toolEventFromStoredPart and the todo projection.
   'origin',
@@ -288,6 +290,7 @@ class ToolPartSummary {
     this.diffAdded,
     this.diffRemoved,
     this.imagePath,
+    this.imageSend,
   });
 
   final int partId;
@@ -328,6 +331,11 @@ class ToolPartSummary {
   /// from `metadata_json` so a restored card can render its thumbnail
   /// without loading the full event body.
   final String? imagePath;
+
+  /// Stage 3: last send-time image status (`state`/`detail`/`modelId`/`at`),
+  /// extracted from `metadata_json` so a restored card can explain why the
+  /// model did not receive the image.
+  final Map<String, dynamic>? imageSend;
 
   bool get contentLoaded => eagerContent != null;
   bool get hasContent => contentLengthChars > 0;
@@ -400,7 +408,15 @@ ToolPartSummary toolPartSummaryFromEvent({
     diffAdded: _asInt(event['diffAdded']),
     diffRemoved: _asInt(event['diffRemoved']),
     imagePath: event['imagePath']?.toString(),
+    imageSend: _asStringMap(event['imageSend']),
   );
+}
+
+Map<String, dynamic>? _asStringMap(Object? value) {
+  if (value is Map) {
+    return value.map((key, value) => MapEntry(key.toString(), value));
+  }
+  return null;
 }
 
 int? _asInt(Object? value) {

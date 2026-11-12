@@ -1,11 +1,13 @@
 # file_view_image Stage 2：Vision Plumbing 細部執行計畫
 
-> **版本**：v0.2（2026-11-12）— **已實作**（Phase 0–2 完成；Phase 3 完成 LRU／sha256／context estimate，badge 與 400 fallback 尚未做）
+> **版本**：v0.3（2026-11-12）— **已實作**（Phase 0–3 完成；Phase 4 剩真機 matrix）
 > **前置**：Stage 1 已完成（commit `11adb10a`）
 > **關聯**：`docs/Cowork剩餘項目實作計畫.md` §2.17、`OmniChat 專案開發與維護手冊.md` §3.1
 > **範圍**：把工具結果中的 `[image:<abs-path>]` marker，在**送出請求時**升級為各 transport 的原生 vision part，讓模型真正「看得到」圖片。
 >
 > **實作紀錄（2026-11-12）**：新增 `lib/core/services/api/tool_result_images.dart`（marker／policy／plan）、`tool_image_codec.dart`（decode／resize／re-encode／LRU）、`lib/core/services/file/tool_image_access_ledger.dart`（in-memory 核准路徑）；`ChatApiService` 在每次 L1 請求建 plan，Claude／Responses／Gemini 3 原生編碼，Chat Completions 最後一組 synthetic user；`GenerationContext`／`AgentOrchestrator`／`MessageGenerationService`／`ChatActions` 接線；`sendToolImagesV1` 設定與 l10n；`imageSha256` extras、`SessionOutputs.rootDirectoryForRead()`、context image token 估算。測試：`test/tool_result_images_test.dart`（含 symlink 逃逸／偽造 extras／重複 marker／cap+prune 存活）、`test/tool_result_images_transport_test.dart`（四 transport＋Gemini streaming）、`test/settings_send_tool_images_test.dart`。安全修訂：persisted `imagePath` **不**授予界外路徑（防備份偽造），界外核准只靠 process-local ledger；重啟後需重新核准。
+>
+> **Stage 3 實作紀錄（2026-11-12）**：新增 `tool_image_send_status.dart`（純 Dart `ToolImageSendState`／`ToolImageSendStatus`／`shouldRetryToolImagesWithoutImages`）。`ToolImagePlan` 現在對每個 marker-bearing tool call 產生狀態（attached／settingOff／modelUnsupported／transportUnsupported／limitReached／notFound／outsideWorkspace／changed／tooLarge／unsupportedFormat／decodeFailed／providerRejected），status-only plan 有 32 筆上限避免長歷史每輪重寫。`ChatStreamChunk.toolImageStatuses` 經 `ChatActions`／`StreamController` 寫入 tool-event extras `imageSend`，再由 `ToolPartSummary`／SQLite／Hive 還原成工具卡 badge；`imageSend` 已列入 `kPreservedToolEventExtraKeys`。Provider 400 在 context-overflow trim 之後做一次「移除圖片重試」，只對 attached 狀態標 `providerRejected`，不消耗 transient retry 預算；`ToolImagePolicy.providerRejectedThisRun` 讓同一 generation 的後續 tool round 不再重打 400（新 user turn 重新嘗試）。工具卡新增靜態 badge（目前模型無 vision／設定關閉）與 runtime badge（實際送出失敗原因），runtime 優先；MCP 截圖的 `imagePath` 也顯示縮圖。l10n ×4、`test/tool_image_send_badge_test.dart`；目標測試 120 案、analyze 0 error/warning。
 
 ---
 
@@ -469,25 +471,25 @@ if (canImageInput && settings sendToolImages && imagePlan?.tailUserImages.isNotE
 - 上限 4 張/請求（Chat Completions 的 synthetic 路徑）。
 - 這則 user 訊息不持久化；下一輪由 transport 重新注入。
 - `_normalizeOpenAiCompatMessageContent` 在 `mm` 建完前已執行，不會看到這則訊息；它的 user content allowlist 本來就接受 `image_url`，所以即使順序反過來也安全。
-- 若 provider 回 400，使用者可關閉 `sendToolImagesV1`；Phase 3 可加一次「無圖片重試」的 hardening（見 §7）。
+- 若 provider 回 400，Phase 3 已實作一次「無圖片重試」的 hardening（見 §7）；同一 generation 後續 tool round 會記住拒絕，避免重打。
 
 ### 4.7 失敗與降級矩陣
 
 | 情況 | 行為 | 錯誤碼 |
 |:--|:--|:--|
-| 模型不支援 image input | 不建 plan；Stage 1 文字 marker | `image_model_unsupported`（log only） |
-| Gemini < 3 | 不建 plan；Stage 1 | `image_protocol_unsupported` |
-| Chat Completions 開關關閉 | 不注入 synthetic user 訊息 | — |
+| 模型不支援 image input | status-only plan；Stage 1 文字 marker＋badge | `image_model_unsupported` |
+| Gemini < 3 | status-only plan；Stage 1 文字 marker＋badge | `image_protocol_unsupported` |
+| Chat Completions 開關關閉 | 不注入 synthetic user 訊息；badge | `image_setting_off` |
 | 路徑不在 allowed roots / trusted | 跳過該張，保留 marker | `image_outside_workspace` |
 | 檔案不存在（快取被 prune／工作區變動） | 跳過，保留 marker | `image_not_found` |
 | 檔案 > 12 MB 或編碼後仍 > 上限 | 跳過 | `image_too_large` |
 | magic bytes 不是支援格式／解碼失敗 | 跳過 | `image_unsupported_format`／`image_decode_failed` |
 | 編碼失敗 | 跳過 | `image_encode_failed` |
 | 超過每則／每請求上限 | 較舊的圖片不送，marker 保留 | `image_budget_exceeded`（log only） |
-| 檔案在工具執行後被修改 | Phase 3：sha256 不符則跳過 | `image_changed` |
-| Provider 400（少數相容 provider 不接受圖片） | 使用者關閉設定；Phase 3 可自動重試一次無圖片 | `image_provider_rejected` |
+| 檔案在工具執行後被修改 | sha256 不符則跳過＋badge | `image_changed` |
+| Provider 400（少數相容 provider 不接受圖片） | 自動移除圖片重試一次；同 generation 後續 round 不再重送 | `image_provider_rejected`（badge） |
 
-**為什麼不「回明確錯誤」**：`file_view_image` 的結果是**可選上下文**，不是請求的必要條件。硬性報錯會讓一個本來可以正常回答的回合直接失敗（尤其 provider 兼容性差異大）。Stage 2 選擇「無聲降級 + log + UI 提示」，與 Stage 1 的行為一致。若使用者真的需要模型看圖，tool card 會顯示目前模型不支援 vision 的提示（Phase 3）。
+**為什麼不「回明確錯誤」**：`file_view_image` 的結果是**可選上下文**，不是請求的必要條件。硬性報錯會讓一個本來可以正常回答的回合直接失敗（尤其 provider 兼容性差異大）。Stage 2 選擇「無聲降級 + log + UI 提示」，與 Stage 1 的行為一致。若使用者真的需要模型看圖，tool card 會顯示「Image not sent to model」badge（靜態模型／設定檢查＋runtime 失敗原因）。
 
 ### 4.8 Replay / regeneration / compaction
 
@@ -609,20 +611,21 @@ if (canImageInput && settings sendToolImages && imagePlan?.tailUserImages.isNotE
 - [x] Shape guard／orphan repair 回歸測試。
 - **驗收**：Chat Completions vision 模型能看圖；關閉設定後完全回 Stage 1；嚴格 provider 不出現 shape 400。
 
-### Phase 3：韌性與成本（可分批）🔶
+### Phase 3：韌性與成本（可分批）✅
 
 - [x] LRU 圖片快取。
 - [x] `imageSha256` extras + send-time 比對（檔案變更偵測）。
 - [x] `context_usage_service` 的 image token 估算。
-- [ ] Tool card「Image not sent to model」badge（未做）。
-- [ ] Provider 400 的一次性無圖片重試（未做；目前靠 `sendToolImagesV1` 手動關閉）。
-- **驗收**：長對話 token 估算不嚴重低估；檔案變更不會送出錯誤 snapshot；失敗有可見提示（badge 待做）。
+- [x] Tool card「Image not sent to model」badge（靜態＋runtime）。
+- [x] Provider 400 的一次性無圖片重試（run 內記憶拒絕，避免每輪重打）。
+- [x] status-only plan 32 筆上限，避免長歷史每輪大量 DB 寫入。
+- **驗收**：長對話 token 估算不嚴重低估；檔案變更不會送出錯誤 snapshot；失敗有可見提示（badge）。
 
 ### Phase 4：文件與全面回歸 🔶
 
 - [x] 更新 `docs/Cowork剩餘項目實作計畫.md` §2.17（Stage 2 狀態）。
 - [x] 更新 `OmniChat 專案開發與維護手冊.md` §3.1（vision plumbing、圖片安全邊界、設定）。
-- [x] 更新 `docs/file_view_image_stage2_plan.md` 的實作紀錄。
+- [x] 更新 `docs/file_view_image_stage2_plan.md` 的實作紀錄（含 Stage 3）。
 - [x] 目標測試檔 + `flutter analyze`。
 - [ ] 真機 matrix（Claude／Responses／Gemini 3／Chat Completions／非 vision）尚未跑。
 - **驗收**：文件與程式一致；所有自動測試通過；真機驗證待做。

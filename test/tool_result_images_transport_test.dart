@@ -18,6 +18,7 @@ class _CaptureServer {
   late HttpServer server;
   late String baseUrl;
   final List<Map<String, dynamic>> bodies = <Map<String, dynamic>>[];
+  int failNextWith400 = 0;
 
   Future<void> start() async {
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -35,6 +36,18 @@ class _CaptureServer {
       bodies.add(jsonDecode(raw) as Map<String, dynamic>);
     } catch (_) {
       bodies.add(<String, dynamic>{'__raw': raw});
+    }
+    if (failNextWith400 > 0) {
+      failNextWith400--;
+      req.response.statusCode = 400;
+      req.response.headers.contentType = ContentType.json;
+      req.response.write(
+        jsonEncode({
+          'error': {'message': 'image_url is not supported by this relay'},
+        }),
+      );
+      await req.response.close();
+      return;
     }
     req.response.headers.contentType = ContentType.json;
     if (req.uri.path.contains('/messages')) {
@@ -62,11 +75,7 @@ class _CaptureServer {
               'finishReason': 'STOP',
             },
           ],
-          'usageMetadata': {
-            'promptTokenCount': 5,
-            'candidatesTokenCount': 5,
-            'totalTokenCount': 10,
-          },
+          'usageMetadata': {'promptTokenCount': 5, 'candidatesTokenCount': 5, 'totalTokenCount': 10},
         })}\n\n',
       );
     } else if (req.uri.path.contains('generateContent')) {
@@ -203,6 +212,115 @@ void main() {
     ).toList();
   }
 
+  test('Chat Completions retries once without images after HTTP 400', () async {
+    server.failNextWith400 = 1;
+    const modelId = 'gpt-test-model';
+    final cfg = config(kind: ProviderKind.openai, modelId: modelId);
+    final chunks = await ChatApiService.sendMessageStream(
+      config: cfg,
+      modelId: modelId,
+      messages: messages(),
+      toolImagePolicy: policy(),
+      requestId: 'stage2-fallback',
+      stream: false,
+    ).toList();
+
+    expect(server.bodies, hasLength(2));
+    bool hasImagePart(Map<String, dynamic> body) {
+      final raw = body['messages'];
+      if (raw is! List) return false;
+      for (final message in raw) {
+        if (message is! Map) continue;
+        final content = message['content'];
+        if (content is! List) continue;
+        if (content.any((part) => part is Map && part['type'] == 'image_url')) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    expect(hasImagePart(server.bodies[0]), isTrue);
+    expect(hasImagePart(server.bodies[1]), isFalse);
+    final statuses = chunks
+        .expand((chunk) => chunk.toolImageStatuses ?? const [])
+        .toList();
+    expect(
+      statuses.any(
+        (status) => status.state == ToolImageSendState.providerRejected,
+      ),
+      isTrue,
+    );
+  });
+
+  test('a rejected provider is remembered across agent rounds', () async {
+    server.failNextWith400 = 1;
+    const modelId = 'gpt-test-model';
+    final cfg = config(kind: ProviderKind.openai, modelId: modelId);
+    final sharedPolicy = policy();
+
+    await ChatApiService.sendMessageStream(
+      config: cfg,
+      modelId: modelId,
+      messages: messages(),
+      toolImagePolicy: sharedPolicy,
+      requestId: 'stage3-run-1',
+      stream: false,
+    ).toList();
+    expect(sharedPolicy.providerRejectedThisRun, isTrue);
+    expect(server.bodies, hasLength(2));
+
+    server.bodies.clear();
+    final secondChunks = await ChatApiService.sendMessageStream(
+      config: cfg,
+      modelId: modelId,
+      messages: messages(),
+      toolImagePolicy: sharedPolicy,
+      requestId: 'stage3-run-2',
+      stream: false,
+    ).toList();
+
+    expect(server.bodies, hasLength(1));
+    final rawMessages = server.bodies.single['messages'];
+    final hasImage =
+        rawMessages is List &&
+        rawMessages.any((message) {
+          if (message is! Map) return false;
+          final content = message['content'];
+          return content is List &&
+              content.any((part) => part is Map && part['type'] == 'image_url');
+        });
+    expect(hasImage, isFalse);
+    final statuses = secondChunks
+        .expand((chunk) => chunk.toolImageStatuses ?? const [])
+        .toList();
+    expect(
+      statuses.any(
+        (status) => status.state == ToolImageSendState.providerRejected,
+      ),
+      isTrue,
+    );
+  });
+
+  test('a second 400 after the fallback surfaces', () async {
+    server.failNextWith400 = 2;
+    const modelId = 'gpt-test-model';
+    final cfg = config(kind: ProviderKind.openai, modelId: modelId);
+
+    await expectLater(
+      ChatApiService.sendMessageStream(
+        config: cfg,
+        modelId: modelId,
+        messages: messages(),
+        toolImagePolicy: policy(),
+        requestId: 'stage3-second-400',
+        stream: false,
+      ).toList(),
+      throwsA(anything),
+    );
+    expect(server.bodies, hasLength(2));
+  });
+
   test('Claude: tool_result carries text + image blocks', () async {
     const modelId = 'claude-test-model';
     final cfg = config(kind: ProviderKind.claude, modelId: modelId);
@@ -267,30 +385,34 @@ void main() {
     final inline = (parts.single as Map)['inlineData'] as Map;
     expect(inline['mimeType'], 'image/jpeg');
     expect((inline['data'] as String), isNotEmpty);
-  });  test('Gemini 3 streaming: functionResponse.parts carries inlineData',
-      () async {
-    const modelId = 'gemini-3-pro-test';
-    final cfg = config(kind: ProviderKind.google, modelId: modelId);
-    await send(cfg, modelId, stream: true);
-
-    final body = server.bodies.single;
-    final contents = body['contents'] as List;
-    final functionResponse = contents
-        .cast<Map>()
-        .expand((c) => (c['parts'] is List) ? c['parts'] as List : const [])
-        .cast<Map>()
-        .map((part) => part['functionResponse'])
-        .whereType<Map>()
-        .first;
-    expect(functionResponse['id'], 'call_1');
-    final parts = functionResponse['parts'] as List;
-    final inline = (parts.single as Map)['inlineData'] as Map;
-    expect(inline['mimeType'], 'image/jpeg');
-    expect((inline['data'] as String), isNotEmpty);
   });
+  test(
+    'Gemini 3 streaming: functionResponse.parts carries inlineData',
+    () async {
+      const modelId = 'gemini-3-pro-test';
+      final cfg = config(kind: ProviderKind.google, modelId: modelId);
+      await send(cfg, modelId, stream: true);
 
-  test('Chat Completions: tool stays text and a synthetic user image follows',
-      () async {
+      final body = server.bodies.single;
+      final contents = body['contents'] as List;
+      final functionResponse = contents
+          .cast<Map>()
+          .expand((c) => (c['parts'] is List) ? c['parts'] as List : const [])
+          .cast<Map>()
+          .map((part) => part['functionResponse'])
+          .whereType<Map>()
+          .first;
+      expect(functionResponse['id'], 'call_1');
+      final parts = functionResponse['parts'] as List;
+      final inline = (parts.single as Map)['inlineData'] as Map;
+      expect(inline['mimeType'], 'image/jpeg');
+      expect((inline['data'] as String), isNotEmpty);
+    },
+  );
+
+  test(
+    'Chat Completions: tool stays text and a synthetic user image follows',
+    () async {
       const modelId = 'gpt-test-model';
       final cfg = config(
         kind: ProviderKind.openai,

@@ -2515,6 +2515,13 @@ class ChatActions {
       return;
     }
 
+    // Tool-image send statuses are UI-only metadata; they never carry content
+    // or tool results, so handle them as a standalone chunk.
+    if ((chunk.toolImageStatuses ?? const []).isNotEmpty) {
+      await _handleToolImageStatusesChunk(chunk, state);
+      return;
+    }
+
     final chunkContent = chunk.content.isNotEmpty
         ? streamController.captureGeminiThoughtSignature(
             chunk.content,
@@ -2895,6 +2902,21 @@ class ChatActions {
     // resolved); ordinary results are batched into onRoundEnd so a tool-heavy
     // round does not flush the box once per call.
     await state.agentJournal?.onToolResults();
+  }
+
+  /// Persist and render the send-time image statuses for this round.
+  Future<void> _handleToolImageStatusesChunk(
+    ChatStreamChunk chunk,
+    stream_ctrl.StreamingState state,
+  ) async {
+    await streamController.handleToolImageStatusesChunk(
+      chunk,
+      state,
+      upsertImageSendInDb: (messageId, toolCallId, imageSend) =>
+          chatService.updateToolEventExtras(messageId, toolCallId, {
+            'imageSend': imageSend,
+          }),
+    );
   }
 
   /// Handle content chunk from stream (non-done).

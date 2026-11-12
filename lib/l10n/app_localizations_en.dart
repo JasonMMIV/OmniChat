@@ -6993,4 +6993,31 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get toolDescConsoleErrors =>
       'Reads console errors captured by the live site preview.';
+
+  @override
+  String get chatMessageWidgetToolImageNotSent => 'Image not sent to model';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentModel =>
+      'This model cannot receive images.';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentSetting =>
+      'Tool image sending is off in settings.';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentTransport =>
+      'This provider cannot receive images in tool results.';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentUnavailable =>
+      'The image was missing, changed, or could not be read.';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentProvider =>
+      'The provider rejected the image; retried without it.';
+
+  @override
+  String get chatMessageWidgetToolImageNotSentLimit =>
+      'The per-request image limit was reached.';
 }

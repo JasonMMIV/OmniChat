@@ -2995,5 +2995,12 @@
   "toolDescFileExtractText": "Extracts text from PDF, DOCX, PPTX, or XLSX, page by page.",
   "toolDescFileExtractZip": "Unpacks a .zip inside the workspace; entries are boundary-checked.",
   "toolDescFileCreatePdf": "Renders Markdown to a PDF with correct Chinese text.",
-  "toolDescConsoleErrors": "Reads console errors captured by the live site preview."
+  "toolDescConsoleErrors": "Reads console errors captured by the live site preview.",
+  "chatMessageWidgetToolImageNotSent": "Image not sent to model",
+  "chatMessageWidgetToolImageNotSentModel": "This model cannot receive images.",
+  "chatMessageWidgetToolImageNotSentSetting": "Tool image sending is off in settings.",
+  "chatMessageWidgetToolImageNotSentTransport": "This provider cannot receive images in tool results.",
+  "chatMessageWidgetToolImageNotSentUnavailable": "The image was missing, changed, or could not be read.",
+  "chatMessageWidgetToolImageNotSentProvider": "The provider rejected the image; retried without it.",
+  "chatMessageWidgetToolImageNotSentLimit": "The per-request image limit was reached."
 }

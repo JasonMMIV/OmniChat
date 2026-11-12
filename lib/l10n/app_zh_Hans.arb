@@ -2307,5 +2307,12 @@
   "toolDescFileExtractText": "从 PDF、DOCX、PPTX、XLSX 逐页提取文字。",
   "toolDescFileExtractZip": "在工作区内解压 .zip；逐条目校验边界。",
   "toolDescFileCreatePdf": "将 Markdown 输出为 PDF，中文可正确显示。",
-  "toolDescConsoleErrors": "读取实时网站预览捕获的控制台错误。"
+  "toolDescConsoleErrors": "读取实时网站预览捕获的控制台错误。",
+  "chatMessageWidgetToolImageNotSent": "图片未传给模型",
+  "chatMessageWidgetToolImageNotSentModel": "当前模型不接受图片。",
+  "chatMessageWidgetToolImageNotSentSetting": "设置中的「发送工具结果图片」已关闭。",
+  "chatMessageWidgetToolImageNotSentTransport": "此提供商无法在工具结果中接收图片。",
+  "chatMessageWidgetToolImageNotSentUnavailable": "图片不存在、已更改或无法读取。",
+  "chatMessageWidgetToolImageNotSentProvider": "提供商拒绝了图片内容，已改用纯文本重试。",
+  "chatMessageWidgetToolImageNotSentLimit": "已达到单次请求的图片上限。"
 }

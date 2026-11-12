@@ -842,6 +842,25 @@ class ChatApiService {
   static ModelInfo effectiveModelInfo(ProviderConfig cfg, String modelId) =>
       _effectiveModelInfo(cfg, modelId);
 
+  /// Wraps the last-send image statuses in a standalone chunk. The transport
+  /// never persists this chunk; the UI writes it onto the matching tool-event
+  /// extras so a restored card can still explain an omitted image.
+  static ChatStreamChunk _toolImageStatusChunk(
+    Iterable<ToolImageSendStatus> statuses,
+    String modelId,
+  ) {
+    final now = DateTime.now();
+    return ChatStreamChunk(
+      content: '',
+      isDone: false,
+      totalTokens: 0,
+      toolImageStatuses: <ToolImageSendStatus>[
+        for (final status in statuses)
+          status.copyWith(modelId: modelId, at: now),
+      ],
+    );
+  }
+
   static String _mimeFromPath(String path) {
     final lower = path.toLowerCase();
     // Images
@@ -1525,7 +1544,7 @@ class ChatApiService {
       Modality.image,
     );
     ToolImageTarget? toolImageTarget;
-    if (toolImagePolicy != null && toolImagePolicy.enabled) {
+    if (toolImagePolicy != null) {
       if (kind == ProviderKind.claude) {
         toolImageTarget = ToolImageTarget.claude;
       } else if (kind == ProviderKind.google) {
@@ -1540,18 +1559,24 @@ class ChatApiService {
       }
     }
     ResolvedToolImagePolicy? resolvedToolImagePolicy;
-    if (toolImageTarget != null && canImageInput) {
-      final systemRoots = <String>[];
-      try {
-        systemRoots.add((await SessionOutputs.rootDirectoryForRead()).path);
-      } catch (_) {}
-      try {
-        systemRoots.add((await McpScreenshotStore.directory()).path);
-      } catch (_) {}
-      resolvedToolImagePolicy = toolImagePolicy!.resolve(
-        systemRoots: systemRoots,
-        trustedPaths: ToolImageAccessLedger.snapshot(),
-      );
+    if (toolImageTarget != null) {
+      if (toolImagePolicy!.enabled && canImageInput) {
+        final systemRoots = <String>[];
+        try {
+          systemRoots.add((await SessionOutputs.rootDirectoryForRead()).path);
+        } catch (_) {}
+        try {
+          systemRoots.add((await McpScreenshotStore.directory()).path);
+        } catch (_) {}
+        resolvedToolImagePolicy = toolImagePolicy.resolve(
+          systemRoots: systemRoots,
+          trustedPaths: ToolImageAccessLedger.snapshot(),
+        );
+      } else {
+        // Disabled / non-vision models only need marker scanning; skip the
+        // filesystem root probes.
+        resolvedToolImagePolicy = toolImagePolicy.resolve();
+      }
     }
     final client = _clientFor(
       config,
@@ -1574,18 +1599,46 @@ class ChatApiService {
     // R0 (P1-2): guard so the overflow trim-retry fires at most once per
     // request. No settings toggle — this is failure-path-only.
     var contextTrimTried = false;
+    // Stage 3: one-shot degraded retry after a provider rejects the optional
+    // tool-result images (HTTP 400). Never consumes the transient budget.
+    var imageFallbackTried = false;
+    var toolImagesSuppressed = false;
     try {
       while (true) {
         final flags = StreamAttemptFlags();
         var imagePlan = ToolImagePlan.empty;
-        if (resolvedToolImagePolicy != null && toolImageTarget != null) {
+        if (!toolImagesSuppressed && toolImagePolicy != null) {
           try {
-            imagePlan = await ToolImagePlan.build(
-              messages: truncatedMessages,
-              policy: resolvedToolImagePolicy,
-              target: toolImageTarget,
-              canImageInput: canImageInput,
-            );
+            if (toolImagePolicy.providerRejectedThisRun) {
+              imagePlan = ToolImagePlan.skipped(
+                messages: truncatedMessages,
+                state: ToolImageSendState.providerRejected,
+                detail:
+                    'The provider rejected tool images earlier in this run.',
+                // Chat Completions only ever sends the final tool group; older
+                // groups were never attempted as images, so do not label them
+                // rejected.
+                tailOnly: toolImageTarget == ToolImageTarget.openAiChat,
+              );
+            } else if (!toolImagePolicy.enabled) {
+              imagePlan = ToolImagePlan.skipped(
+                messages: truncatedMessages,
+                state: ToolImageSendState.settingOff,
+              );
+            } else if (resolvedToolImagePolicy != null &&
+                toolImageTarget != null) {
+              imagePlan = await ToolImagePlan.build(
+                messages: truncatedMessages,
+                policy: resolvedToolImagePolicy,
+                target: toolImageTarget,
+                canImageInput: canImageInput,
+              );
+            } else {
+              imagePlan = ToolImagePlan.skipped(
+                messages: truncatedMessages,
+                state: ToolImageSendState.transportUnsupported,
+              );
+            }
             for (final error in imagePlan.errors) {
               FlutterLogger.log(
                 'tool-image skipped ${error.code}: ${error.detail}',
@@ -1594,6 +1647,12 @@ class ChatApiService {
             }
           } catch (e) {
             FlutterLogger.log('tool-image plan failed: $e', tag: 'chat-api');
+          }
+          if (imagePlan.statusesByToolCallId.isNotEmpty) {
+            yield _toolImageStatusChunk(
+              imagePlan.statusesByToolCallId.values,
+              modelId,
+            );
           }
         }
         try {
@@ -1763,10 +1822,12 @@ class ChatApiService {
                 flags.yieldedText ||
                 flags.yieldedToolCall ||
                 (rid.isNotEmpty && _requestYieldedAnything[rid] == true);
+            final statusCode = extractStatusCode(e);
+            final isOverflow =
+                statusCode == 400 &&
+                isContextOverflowMessage(overflowErrorText(e));
             if (!contextTrimTried && !yieldedAnything) {
-              final statusCode = extractStatusCode(e);
-              if (statusCode == 400 &&
-                  isContextOverflowMessage(overflowErrorText(e))) {
+              if (isOverflow) {
                 final declared = resolveContextWindowTokens(
                   modelId,
                   // Explicit user configuration wins over learned/catalog
@@ -1806,6 +1867,35 @@ class ChatApiService {
                   continue;
                 }
               }
+            }
+            if (shouldRetryToolImagesWithoutImages(
+              statusCode: statusCode,
+              isContextOverflow: isOverflow,
+              alreadyTried: imageFallbackTried,
+              yieldedAnything: yieldedAnything,
+              receivedReasoning: flags.receivedReasoning,
+              attachedImageCount: imagePlan.totalImages,
+            )) {
+              imageFallbackTried = true;
+              toolImagesSuppressed = true;
+              toolImagePolicy?.markProviderRejected();
+              final rejected = <ToolImageSendStatus>[
+                for (final status in imagePlan.statusesByToolCallId.values)
+                  if (status.state == ToolImageSendState.attached)
+                    status.copyWith(
+                      state: ToolImageSendState.providerRejected,
+                      detail: 'HTTP 400',
+                    ),
+              ];
+              if (rejected.isNotEmpty) {
+                yield _toolImageStatusChunk(rejected, modelId);
+              }
+              FlutterLogger.log(
+                'tool-image fallback: provider rejected image content; '
+                'retrying without images',
+                tag: 'chat-api',
+              );
+              continue;
             }
             rethrow; // terminal — 4xx other than 408/429, auth, parse…
           }

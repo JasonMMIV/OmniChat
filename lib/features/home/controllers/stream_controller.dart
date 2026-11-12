@@ -936,6 +936,7 @@ class StreamController {
                 : null,
             diffText: extras['diffText']?.toString(),
             imagePath: extras['imagePath']?.toString(),
+            imageSend: _toolImageSendMap(extras['imageSend']),
           ),
         );
       }
@@ -962,6 +963,40 @@ class StreamController {
     if (getCurrentConversationId() == conversationId) {
       _toolParts[messageId] = dedupeToolPartsList(parts);
       // Notify via StreamingContentNotifier for real-time UI updates
+      streamingContentNotifier.notifyToolPartsUpdated(messageId);
+    }
+  }
+
+  /// Apply the send-time image statuses for this round to the live cards and
+  /// persist them as tool-event extras. A status chunk carries no content, so
+  /// it is safe to process independently of the content handlers.
+  Future<void> handleToolImageStatusesChunk(
+    ChatStreamChunk chunk,
+    StreamingState state, {
+    required Future<void> Function(
+      String messageId,
+      String toolCallId,
+      Map<String, dynamic> imageSend,
+    )
+    upsertImageSendInDb,
+  }) async {
+    final statuses = chunk.toolImageStatuses;
+    if (statuses == null || statuses.isEmpty) return;
+    final messageId = state.messageId;
+    final conversationId = state.conversationId;
+    final parts = List<ToolUIPart>.of(_toolParts[messageId] ?? const []);
+    for (final status in statuses) {
+      final imageSend = status.toJson();
+      final idx = parts.indexWhere((part) => part.id == status.toolCallId);
+      if (idx >= 0) {
+        parts[idx] = parts[idx].copyWith(imageSend: imageSend);
+      }
+      try {
+        await upsertImageSendInDb(messageId, status.toolCallId, imageSend);
+      } catch (_) {}
+    }
+    if (getCurrentConversationId() == conversationId) {
+      _toolParts[messageId] = dedupeToolPartsList(parts);
       streamingContentNotifier.notifyToolPartsUpdated(messageId);
     }
   }
@@ -1362,6 +1397,7 @@ class StreamController {
                 diffAdded: summary.diffAdded,
                 diffRemoved: summary.diffRemoved,
                 imagePath: summary.imagePath,
+                imageSend: summary.imageSend,
               ),
             )
             .toList();
@@ -1723,6 +1759,13 @@ class _JsonDecoder {
       pos.index++;
     }
   }
+}
+
+Map<String, dynamic>? _toolImageSendMap(Object? value) {
+  if (value is Map) {
+    return value.map((key, value) => MapEntry(key.toString(), value));
+  }
+  return null;
 }
 
 class _Position {
