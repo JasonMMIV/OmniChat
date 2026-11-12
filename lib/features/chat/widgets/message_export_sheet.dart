@@ -4198,7 +4198,7 @@ String _conversationExportTitle(
 }
 
 /// Markdown block for one message's persisted answer-review card. Includes
-/// the draft and the revision diff by default (the user's export choice).
+/// the issues and the revision diff (the draft body is not exported).
 String _answerReviewMarkdown(
   BuildContext context,
   ChatService service,
@@ -4232,16 +4232,6 @@ String _answerReviewMarkdown(
     buf.writeln('');
   }
   final draft = record.draft;
-  if (draft != null && draft.isNotEmpty) {
-    buf.writeln('**${l10n.chatAnswerReviewDraftTitle}**');
-    buf.writeln('');
-    buf.writeln(draft);
-    if (report.draftTruncated) {
-      buf.writeln('');
-      buf.writeln('> ${l10n.chatAnswerReviewDraftTruncated}');
-    }
-    buf.writeln('');
-  }
   if (report.phase == AnswerReviewPhase.revised &&
       draft != null &&
       draft.isNotEmpty &&

@@ -5,13 +5,13 @@ import '../../../core/services/file/unified_diff.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
-import '../../../shared/widgets/markdown_with_highlight.dart';
 
 /// Everything the review card needs for one assistant message.
 ///
 /// [live] is true while the message is still streaming (the card follows the
-/// process group's live state); [finalText] is the current/final answer and is
-/// used only for the revision diff.
+/// process group's live state); [draft] is kept only as the revision-diff
+/// baseline (the card does not render the draft body); [finalText] is the
+/// current/final answer and is used only for the revision diff.
 class AnswerReviewViewData {
   const AnswerReviewViewData({
     required this.report,
@@ -67,21 +67,18 @@ class AnswerReviewCard extends StatefulWidget {
 }
 
 class _AnswerReviewCardState extends State<AnswerReviewCard> {
-  static const int _draftPreviewChars = 4000;
   static const int _diffPreviewLines = 40;
 
   bool _expanded = false;
   bool _manualToggle = false;
-  bool _draftExpanded = false;
   bool _diffExpanded = false;
 
   @override
   void initState() {
     super.initState();
     _expanded = widget.initiallyExpanded || widget.data.live;
-    // Print/export call sites render the complete draft and diff; the chat
-    // card keeps the compact previews until the user expands them.
-    _draftExpanded = widget.initiallyExpanded;
+    // Print/export call sites render the complete diff; the chat card keeps
+    // the compact preview until the user expands it.
     _diffExpanded = widget.initiallyExpanded;
   }
 
@@ -133,10 +130,6 @@ class _AnswerReviewCardState extends State<AnswerReviewCard> {
                     children: [
                       if (report.phase == AnswerReviewPhase.reviewing)
                         _hint(l10n.chatAnswerReviewReviewingHint, muted),
-                      if (widget.data.hasDraft) ...[
-                        const SizedBox(height: 8),
-                        _buildDraft(context, l10n, muted),
-                      ],
                       if (report.hasIssues) ...[
                         const SizedBox(height: 10),
                         _buildIssues(context, l10n, report, muted),
@@ -255,99 +248,6 @@ class _AnswerReviewCardState extends State<AnswerReviewCard> {
     padding: const EdgeInsets.only(top: 2),
     child: Text(text, style: TextStyle(fontSize: 11.5, color: muted)),
   );
-
-  Widget _buildDraft(BuildContext context, AppLocalizations l10n, Color muted) {
-    final draft = widget.data.draft ?? '';
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Gray-black (not the full-contrast answer color) so the draft reads as
-    // an intermediate artifact; dark mode uses a muted gray-white.
-    final draftTextColor = isDark
-        ? const Color(0xFFB4B4BA)
-        : const Color(0xFF4A4A50);
-    // Markdown headings and some block components read onSurface directly from
-    // the theme. Override it only for the draft so those blocks stay gray too.
-    final draftTheme = Theme.of(context).copyWith(
-      colorScheme: Theme.of(context).colorScheme
-          .copyWith(onSurface: draftTextColor),
-    );
-    final truncatedForPreview =
-        !_draftExpanded && draft.length > _draftPreviewChars;
-    final shown = truncatedForPreview
-        ? '${draft.substring(0, _draftPreviewChars)}\n…'
-        : draft;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              l10n.chatAnswerReviewDraftTitle,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w500,
-                color: muted,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              l10n.chatAnswerReviewDraftChars(draft.length),
-              style: TextStyle(fontSize: 11, color: muted),
-            ),
-            if (widget.data.draftTruncated) ...[
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  l10n.chatAnswerReviewDraftTruncated,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Theme.of(context).colorScheme.error,
-                  ),
-                ),
-              ),
-            ],
-            if (draft.length > _draftPreviewChars) ...[
-              const Spacer(),
-              GestureDetector(
-                onTap: () => setState(() => _draftExpanded = !_draftExpanded),
-                child: Text(
-                  _draftExpanded
-                      ? l10n.chatAnswerReviewHideDraft
-                      : l10n.chatAnswerReviewShowDraft,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-        const SizedBox(height: 4),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest
-                .withValues(alpha: isDark ? 0.16 : 0.32),
-            borderRadius: BorderRadius.circular(7),
-          ),
-          child: Theme(
-            key: const ValueKey('answer-review-draft-theme'),
-            data: draftTheme,
-            child: MarkdownWithCodeHighlight(
-              text: shown,
-              isStreaming: false,
-              baseStyle: TextStyle(
-                fontSize: 12.5,
-                height: 1.45,
-                color: draftTextColor,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildIssues(
     BuildContext context,

@@ -62,7 +62,7 @@ void main() {
     );
     expect(find.textContaining('Passed', findRichText: true), findsOneWidget);
     expect(find.textContaining('2 issues', findRichText: true), findsOneWidget);
-    // Terminal cards start collapsed: the draft body is not rendered.
+    // Terminal cards start collapsed: the body is not rendered.
     expect(find.text('Draft'), findsNothing);
 
     // The header follows the process/tool rows: 18px icon, 13px muted text,
@@ -90,7 +90,9 @@ void main() {
     expect(press.baseColor, Colors.transparent);
   });
 
-  testWidgets('expanded draft uses a gray-black body color', (tester) async {
+  testWidgets('expanded card hides the draft but keeps the revision diff', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       ChangeNotifierProvider<SettingsProvider>.value(
         value: SettingsProvider(),
@@ -124,18 +126,17 @@ void main() {
       ),
     );
 
-    final markdown = tester.widget<MarkdownWithCodeHighlight>(
-      find.byType(MarkdownWithCodeHighlight),
-    );
-    expect(markdown.baseStyle?.fontSize, 12.5);
-    // #4A4A50 in light mode: clearly softer than the final answer's onSurface.
-    expect(markdown.baseStyle?.color, const Color(0xFF4A4A50));
-
-    // Markdown headings/block components read onSurface from the theme; the
-    // draft-local override keeps them gray as well.
-    final draftTheme = tester.widget<Theme>(
+    // The draft body is intentionally not rendered as its own block; only the
+    // revision diff may mention it (as removed lines).
+    expect(find.text('Draft'), findsNothing);
+    expect(find.byType(MarkdownWithCodeHighlight), findsNothing);
+    expect(
       find.byKey(const ValueKey('answer-review-draft-theme')),
+      findsNothing,
     );
-    expect(draftTheme.data.colorScheme.onSurface, const Color(0xFF4A4A50));
+
+    // The revision diff still uses the persisted draft as its baseline.
+    expect(find.text('Revision diff'), findsOneWidget);
+    expect(find.textContaining('The revised answer.'), findsOneWidget);
   });
 }
