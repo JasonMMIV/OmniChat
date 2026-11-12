@@ -584,7 +584,12 @@ int? geminiModelGeneration(String modelId) {
 
 /// Gemini 3+ models use `thinkingLevel` and validate the thought signature on
 /// replayed `functionCall` parts. Gemini 4 keeps the same contract.
-bool isGeminiThoughtSignatureModel(String modelId) {
+bool isGeminiThoughtSignatureModel(String modelId) =>
+    isGemini3OrNewer(modelId);
+
+/// Gemini 3+ models accept multimodal `functionResponse.parts[].inlineData`
+/// (file_view_image Stage 2). Older Gemini generations stay text-only.
+bool isGemini3OrNewer(String modelId) {
   final generation = geminiModelGeneration(modelId);
   return generation != null && generation >= 3;
 }

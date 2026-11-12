@@ -1319,6 +1319,8 @@ class BehaviorStartupSettingsPage extends StatelessWidget {
           _iosDivider(context),
           _iosSwitchRow(context, icon: Lucide.Wrench, label: l10n.displaySettingsPageReplayToolResultsTitle, value: sp.replayToolResults, onChanged: (v) => context.read<SettingsProvider>().setReplayToolResults(v)),
           _iosDivider(context),
+          _iosSwitchRow(context, icon: Lucide.Image, label: l10n.displaySettingsPageSendToolImagesTitle, value: sp.sendToolImages, onChanged: (v) => context.read<SettingsProvider>().setSendToolImages(v)),
+          _iosDivider(context),
           _iosSwitchRow(context, icon: Lucide.Brain, label: l10n.displaySettingsPageShowThinkingCardsTitle, value: sp.showThinkingCards, onChanged: (v) => context.read<SettingsProvider>().setShowThinkingCards(v)),
           _iosDivider(context),
           _iosSwitchRow(context, icon: Lucide.Wrench, label: l10n.displaySettingsPageShowToolCardsTitle, value: sp.showToolCards, onChanged: (v) => context.read<SettingsProvider>().setShowToolCards(v)),

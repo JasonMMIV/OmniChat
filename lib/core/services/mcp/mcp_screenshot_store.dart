@@ -19,6 +19,14 @@ abstract final class McpScreenshotStore {
   /// How many screenshots to keep before pruning the oldest.
   static const int maxKept = 40;
 
+  /// The app-private cache directory that holds MCP screenshots. Exposed so
+  /// the Stage 2 tool-image planner can allow-list exactly this root.
+  static Future<Directory> directory() async {
+    return Directory(
+      '${(await AppDirectories.getCacheDirectory()).path}/mcp_screenshots',
+    );
+  }
+
   static String _extensionFor(String mimeType) {
     switch (mimeType) {
       case 'image/jpeg':
@@ -51,11 +59,7 @@ abstract final class McpScreenshotStore {
     }
     if (bytes.isEmpty) return null;
     try {
-      final dir =
-          into ??
-          Directory(
-            '${(await AppDirectories.getCacheDirectory()).path}/mcp_screenshots',
-          );
+      final dir = into ?? await directory();
       await dir.create(recursive: true);
       final name =
           'mcp_shot_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1 << 32)}.${_extensionFor(mimeType)}';
@@ -73,11 +77,7 @@ abstract final class McpScreenshotStore {
   /// concurrent prune already deleted between listing and stat).
   static Future<void> prune({int keep = maxKept, Directory? into}) async {
     try {
-      final dir =
-          into ??
-          Directory(
-            '${(await AppDirectories.getCacheDirectory()).path}/mcp_screenshots',
-          );
+      final dir = into ?? await directory();
       if (!await dir.exists()) return;
       final entries = <(File, DateTime)>[];
       for (final entry in dir.listSync(followLinks: false)) {

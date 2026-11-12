@@ -50,6 +50,9 @@ dependencies:
   lucide_icons_flutter: ^3.1.15
   shared_preferences: ^2.2.3
   image_picker: 1.1.2
+  # Stage 2 vision plumbing: deterministic decode/resize/re-encode for tool
+  # result images. Already in pubspec.lock as a transitive dependency.
+  image: ^4.10.1
   flutter_svg: ^2.2.1
   http: ^1.5.0
   http_parser: ^4.1.2

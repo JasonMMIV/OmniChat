@@ -8,6 +8,7 @@ import '../../../core/models/token_usage.dart';
 import '../../../core/services/agent/checkpoint/agent_run_journal.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
+import '../../../core/services/api/tool_result_images.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/storage/message_part_codec.dart';
 import '../../chat/widgets/chat_message_widget.dart';
@@ -1438,6 +1439,7 @@ class GenerationContext {
     required this.enableReasoning,
     required this.streamOutput,
     this.generateTitleOnFinish = true,
+    this.toolImagePolicy,
   });
 
   final ChatMessage assistantMessage;
@@ -1460,6 +1462,10 @@ class GenerationContext {
   final bool enableReasoning;
   final bool streamOutput;
   final bool generateTitleOnFinish;
+
+  /// Stage 2: send-time tool-result image policy (workspace root + global
+  /// switch). Null disables vision plumbing for this generation.
+  final ToolImagePolicy? toolImagePolicy;
 }
 
 /// State object for streaming message generation.

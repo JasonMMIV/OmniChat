@@ -1223,6 +1223,7 @@
   "displaySettingsPageAutoCollapseThinkingTitle": "自动折叠思考",
   "displaySettingsPageAutoCollapseThinkingSubtitle": "思考完成后自动折叠，保持界面简洁",
   "displaySettingsPageReplayToolResultsTitle": "跨轮重放工具结果",
+  "displaySettingsPageSendToolImagesTitle": "发送工具结果图片",
   "displaySettingsPageReplayToolResultsSubtitle": "将上一轮的工具调用与结果随历史一并发送给模型，让模型记住工具执行结果",
   "displaySettingsPageAnswerReviewTitle": "自我审查",
   "displaySettingsPageAnswerReviewDescription": "在最终回答送出前自我审查草稿；发现重大问题时自动修正一次",

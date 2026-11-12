@@ -3441,6 +3441,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get displaySettingsPageReplayToolResultsTitle => 'Replay Tool Results';
 
   @override
+  String get displaySettingsPageSendToolImagesTitle => 'Send Tool Images';
+
+  @override
   String get displaySettingsPageAnswerReviewTitle => 'Self-Review';
 
   @override

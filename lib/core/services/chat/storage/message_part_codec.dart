@@ -66,6 +66,9 @@ const List<String> kPreservedToolEventExtraKeys = <String>[
   'diffTruncated',
   // file_view_image Stage 1: absolute image path for the card preview.
   'imagePath',
+  // file_view_image Stage 2: snapshot hash used to reject changed files on
+  // replay (UI-only / send-time metadata).
+  'imageSha256',
   // write_todos provenance (`todo_v1_migration` / later `user_clear`);
   // read back by toolEventFromStoredPart and the todo projection.
   'origin',

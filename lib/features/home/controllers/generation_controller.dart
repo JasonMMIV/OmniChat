@@ -5,6 +5,7 @@ import '../../../core/models/assistant.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/services/api/tool_result_images.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant_regex.dart';
@@ -217,6 +218,7 @@ class GenerationController {
     required bool enableReasoning,
     required bool streamOutput,
     bool generateTitleOnFinish = true,
+    ToolImagePolicy? toolImagePolicy,
   }) {
     return stream_ctrl.GenerationContext(
       assistantMessage: assistantMessage,
@@ -235,6 +237,7 @@ class GenerationController {
       enableReasoning: enableReasoning,
       streamOutput: streamOutput,
       generateTitleOnFinish: generateTitleOnFinish,
+      toolImagePolicy: toolImagePolicy,
     );
   }
 }

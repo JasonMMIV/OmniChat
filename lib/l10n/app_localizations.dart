@@ -6465,6 +6465,12 @@ abstract class AppLocalizations {
   /// **'Replay Tool Results'**
   String get displaySettingsPageReplayToolResultsTitle;
 
+  /// No description provided for @displaySettingsPageSendToolImagesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Send Tool Images'**
+  String get displaySettingsPageSendToolImagesTitle;
+
   /// No description provided for @displaySettingsPageAnswerReviewTitle.
   ///
   /// In en, this message translates to:

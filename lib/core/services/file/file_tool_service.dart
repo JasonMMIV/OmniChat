@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:archive/archive_io.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart' show compute, visibleForTesting;
 import 'package:path/path.dart' as p;
 
@@ -21,6 +22,7 @@ class FileToolResult {
     this.fileSizeBytes,
     this.diff,
     this.viewedImagePath,
+    this.viewedImageSha256,
   });
 
   final String text;
@@ -37,6 +39,11 @@ class FileToolResult {
   /// a preview; the `[image:…]` marker in [text] already carries the path
   /// for the model.
   final String? viewedImagePath;
+
+  /// Stage 2: SHA-256 of the exact bytes the tool validated. Persisted as a
+  /// UI-only extra; the send-time planner compares it before reading a replayed
+  /// image so a changed file is never presented as the tool's snapshot.
+  final String? viewedImageSha256;
 }
 
 class FileToolSecurityException implements Exception {
@@ -292,7 +299,7 @@ class FileToolService {
       ),
       definition(
         'file_view_image',
-        'View an image file in the workspace (PNG, JPEG, GIF, WebP, or BMP). Returns a preview the user can see in the chat; use it to inspect screenshots, icons, or generated images.',
+        'View an image file in the workspace (PNG, JPEG, GIF, WebP, or BMP). On vision-capable models the image is attached to the tool result so you can inspect it directly; otherwise a preview is shown to the user.',
         {'path': pathProperty},
         ['path'],
       ),
@@ -2092,7 +2099,8 @@ class FileToolService {
             'Error: The image is too large (${_formatByteLimit(stat.size)}); the limit is ${_formatByteLimit(maxViewImageBytes)}.',
       );
     }
-    final format = _sniffImageFormat(await file.readAsBytes());
+    final bytes = await file.readAsBytes();
+    final format = _sniffImageFormat(bytes);
     if (format == null) {
       return const FileToolResult(
         text:
@@ -2103,6 +2111,7 @@ class FileToolService {
       text:
           '[image:${file.path}]\nFormat: $format; Size: ${_formatByteLimit(stat.size)}',
       viewedImagePath: file.path,
+      viewedImageSha256: sha256.convert(bytes).toString(),
     );
   }
 

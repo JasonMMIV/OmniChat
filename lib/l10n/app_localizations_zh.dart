@@ -3397,6 +3397,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get displaySettingsPageReplayToolResultsTitle => '跨轮重放工具结果';
 
   @override
+  String get displaySettingsPageSendToolImagesTitle => '发送工具结果图片';
+
+  @override
   String get displaySettingsPageAnswerReviewTitle => '自我审查';
 
   @override
@@ -10121,6 +10124,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get displaySettingsPageReplayToolResultsTitle => '跨轮重放工具结果';
 
   @override
+  String get displaySettingsPageSendToolImagesTitle => '发送工具结果图片';
+
+  @override
   String get displaySettingsPageAnswerReviewTitle => '自我审查';
 
   @override
@@ -16753,6 +16759,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get displaySettingsPageReplayToolResultsTitle => '跨輪重放工具結果';
+
+  @override
+  String get displaySettingsPageSendToolImagesTitle => '傳送工具結果圖片';
 
   @override
   String get displaySettingsPageAnswerReviewTitle => '自我審查';

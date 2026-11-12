@@ -1835,6 +1835,7 @@ class ChatActions {
         requestId: conversationId,
         sessionId: conversationId,
         imageAspectRatio: ctx.settings.imageAspectRatio,
+        toolImagePolicy: ctx.toolImagePolicy,
         answerReview: answerReview,
       );
 
@@ -2115,6 +2116,7 @@ class ChatActions {
       enableReasoning: ctx.enableReasoning,
       streamOutput: ctx.streamOutput,
       generateTitleOnFinish: ctx.generateTitleOnFinish,
+      toolImagePolicy: ctx.toolImagePolicy,
     );
 
     // Execute aggregator generation (standard flow, subscription registered in _conversationStreams per K1)

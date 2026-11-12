@@ -66,6 +66,11 @@ class SessionOutputs {
 
   static Future<Directory> rootDirectory() => _root(create: true);
 
+  /// Read-only variant for send-time planners: returns the root path without
+  /// creating `tool_outputs/` on disk (a plain vision chat must not leave
+  /// residue).
+  static Future<Directory> rootDirectoryForRead() => _root(create: false);
+
   /// Whether [raw] is the model-facing form of a session-output path.
   static bool isSessionPath(String raw) {
     final normalized = raw.trim().replaceAll('\\', '/');

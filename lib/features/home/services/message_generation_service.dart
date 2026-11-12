@@ -16,6 +16,7 @@ import 'context_usage_service.dart';
 import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
 import '../../../core/services/api/learned_context_windows.dart';
 import '../../../core/services/api/native_input_policy.dart';
+import '../../../core/services/api/tool_result_images.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/chat_turn_service.dart';
 import '../../../core/services/chat/todo_models.dart';
@@ -58,12 +59,16 @@ class PreparedGeneration {
   final bool hasBuiltInSearch;
   final List<String> lastUserImagePaths;
 
+  /// Stage 2: workspace-bound policy for send-time tool-result images.
+  final ToolImagePolicy? toolImagePolicy;
+
   PreparedGeneration({
     required this.apiMessages,
     required this.toolDefs,
     this.onToolCall,
     required this.hasBuiltInSearch,
     required this.lastUserImagePaths,
+    this.toolImagePolicy,
   });
 }
 
@@ -505,12 +510,21 @@ class MessageGenerationService {
           )
         : null;
 
+    // Test doubles may not implement every SettingsProvider getter.
+    var sendToolImages = true;
+    try {
+      sendToolImages = settings.sendToolImages;
+    } catch (_) {}
     return PreparedGeneration(
       apiMessages: apiMessages,
       toolDefs: toolDefs,
       onToolCall: onToolCall,
       hasBuiltInSearch: hasBuiltInSearch,
       lastUserImagePaths: lastUserImagePaths,
+      toolImagePolicy: ToolImagePolicy(
+        workspaceRoot: workspacePath,
+        enabled: sendToolImages,
+      ),
     );
   }
 
@@ -605,6 +619,7 @@ class MessageGenerationService {
       enableReasoning: enableReasoning,
       streamOutput: assistant?.streamOutput ?? true,
       generateTitleOnFinish: generateTitleOnFinish,
+      toolImagePolicy: prepared.toolImagePolicy,
     );
   }
 

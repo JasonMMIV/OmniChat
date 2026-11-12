@@ -17,6 +17,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/models/chat_message.dart';
 import '../../../core/services/agent/compaction/context_trim.dart';
+import '../../../core/services/api/tool_result_images.dart';
 
 /// One-shot snapshot computed by the controller and pushed into a
 /// [ValueNotifier]. Equality is value-based so the notifier only fires when
@@ -93,14 +94,23 @@ int estimateChatMessageTokens(
   ChatMessage message, {
   required Iterable<Map<String, dynamic>> toolEvents,
 }) {
+  // Conservative per-image allowance: a vision-capable model bills roughly
+  // 1.1k tokens for a 1568 px image (Claude/OpenAI) and ~258 for Gemini.
+  // 1.5k keeps the ring/compaction trigger from underestimating a screenshot
+  // round. The marker parser skips remote/data markers, which Stage 2 does not
+  // send as images.
+  const int toolImageTokenEstimate = 1500;
   var chars = message.content.length;
+  var imageTokens = 0;
   for (final e in toolEvents) {
     try {
       chars += jsonEncode(e['arguments'] ?? const <String, dynamic>{}).length;
     } catch (_) {}
-    chars += (e['content'] ?? '').toString().length;
+    final content = (e['content'] ?? '').toString();
+    chars += content.length;
+    imageTokens += extractMarkers(content).length * toolImageTokenEstimate;
   }
-  return (chars / charsPerToken).ceil();
+  return (chars / charsPerToken).ceil() + imageTokens;
 }
 
 /// `12.0k` / `1.2M` — mirrors AnyBuff's `formatTokens` (keeps the `.0`).

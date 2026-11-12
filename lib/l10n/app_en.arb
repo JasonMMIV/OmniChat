@@ -1566,6 +1566,7 @@
   "displaySettingsPageShowToolCardsSubtitle": "When off, tool-use cards are hidden in chat.",
   "displaySettingsPageAutoCollapseThinkingTitle": "Collapse Thinking",
   "displaySettingsPageReplayToolResultsTitle": "Replay Tool Results",
+  "displaySettingsPageSendToolImagesTitle": "Send Tool Images",
   "displaySettingsPageAnswerReviewTitle": "Self-Review",
   "displaySettingsPageAnswerReviewDescription": "Self-review the draft before the final answer is sent and fix major issues once",
   "displaySettingsPageAnswerReviewOptionOff": "Off",

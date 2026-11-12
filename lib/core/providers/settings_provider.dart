@@ -134,6 +134,9 @@ class SettingsProvider extends ChangeNotifier {
       'display_auto_collapse_thinking_v1';
   static const String _displayReplayToolResultsKey =
       'display_replay_tool_results_v1';
+  // file_view_image Stage 2: attach tool-result images to vision-capable
+  // models. Global behavior preference; synced with backups.
+  static const String _sendToolImagesKey = 'send_tool_images_v1';
   // Answer Review v1 (docs/answer_review_plan.md §4.1): off | smart | always.
   // User intent preference — intentionally NOT in `_localOnlyKeys`
   // (backup_preferences.dart): it travels with backups across devices like
@@ -926,6 +929,7 @@ class SettingsProvider extends ChangeNotifier {
     _autoCollapseThinking =
         prefs.getBool(_displayAutoCollapseThinkingKey) ?? true;
     _replayToolResults = prefs.getBool(_displayReplayToolResultsKey) ?? true;
+    _sendToolImages = prefs.getBool(_sendToolImagesKey) ?? true;
     _answerReviewMode = AnswerReviewModeCodec.fromValue(
       prefs.getString(_answerReviewModeKey),
     );
@@ -3282,6 +3286,17 @@ Synthesize your reasoning and research into a final response. The structure shou
     await prefs.setBool(_displayReplayToolResultsKey, v);
   }
 
+  // Behavior: send tool-result images to vision-capable models (Stage 2).
+  bool _sendToolImages = true;
+  bool get sendToolImages => _sendToolImages;
+  Future<void> setSendToolImages(bool v) async {
+    if (_sendToolImages == v) return;
+    _sendToolImages = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_sendToolImagesKey, v);
+  }
+
   // Behavior: Answer Review v1 — audit the draft before the final answer is
   // released, rewriting once on blocker/major issues (default off).
   AnswerReviewMode _answerReviewMode = AnswerReviewMode.off;
@@ -4077,6 +4092,7 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._showToolCards = _showToolCards;
     copy._autoCollapseThinking = _autoCollapseThinking;
     copy._replayToolResults = _replayToolResults;
+    copy._sendToolImages = _sendToolImages;
     copy._answerReviewMode = answerReviewMode ?? _answerReviewMode;
     copy._skillsPreloadEnabled = _skillsPreloadEnabled;
     copy._workspaceToolsDisabled = _workspaceToolsDisabled;

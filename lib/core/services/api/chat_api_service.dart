@@ -46,8 +46,12 @@ import '../auth/claude_oauth_request.dart';
 import '../../models/provider_oauth.dart';
 import '../logging/flutter_logger.dart';
 import '../agent/compaction/context_trim.dart';
+import '../file/session_outputs.dart';
+import '../file/tool_image_access_ledger.dart';
+import '../mcp/mcp_screenshot_store.dart';
 import '../model_catalog/model_catalog.dart';
 import '../tools/tool_result_caps.dart';
+import 'tool_result_images.dart';
 export 'chat_stream_chunk.dart'
     show ChatStreamChunk, ToolCallInfo, ToolResultInfo, ToolCallHandler;
 
@@ -888,6 +892,21 @@ class ChatApiService {
     dotAll: true,
   );
 
+  /// Keep a structured JSON tool payload structured when an image is attached;
+  /// fall back to a plain `result` string for ordinary text results.
+  static Map<String, dynamic> _geminiResponseWithImages(String text) {
+    final cleaned = text.trim();
+    if (cleaned.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(cleaned);
+        if (decoded is Map) return decoded.cast<String, dynamic>();
+      } catch (_) {}
+    }
+    return <String, dynamic>{
+      'result': cleaned.isEmpty ? '(no output)' : cleaned,
+    };
+  }
+
   // Get file extension from MIME type
   static String _extFromMime(String mime) {
     switch (mime.toLowerCase()) {
@@ -1380,6 +1399,7 @@ class ChatApiService {
     // Stable conversation session id for provider attribution / prompt-cache
     // prefixes (plan C15). Callers pass the conversation id; never random.
     String? sessionId,
+    ToolImagePolicy? toolImagePolicy,
   }) async* {
     // Kimi advertises a per-model wire protocol; resolve it before choosing the
     // transport (plan M6). Other providers return the config unchanged.
@@ -1408,6 +1428,39 @@ class ChatApiService {
     // Non-final: the R0 context-overflow trim-retry (below) may replace the
     // list with a mechanically trimmed one before retrying exactly once.
     var truncatedMessages = _truncateToolResultsInMessages(safeMessages);
+    final effectiveModelInfo = _effectiveModelInfo(config, modelId);
+    final bool canImageInput = effectiveModelInfo.input.contains(
+      Modality.image,
+    );
+    ToolImageTarget? toolImageTarget;
+    if (toolImagePolicy != null && toolImagePolicy.enabled) {
+      if (kind == ProviderKind.claude) {
+        toolImageTarget = ToolImageTarget.claude;
+      } else if (kind == ProviderKind.google) {
+        if (isGemini3OrNewer(_apiModelId(config, modelId))) {
+          toolImageTarget = ToolImageTarget.gemini;
+        }
+      } else if (kind == ProviderKind.openai &&
+          !shouldUseOpenAIImagesApi(config, modelId)) {
+        toolImageTarget = config.useResponseApi == true
+            ? ToolImageTarget.responses
+            : ToolImageTarget.openAiChat;
+      }
+    }
+    ResolvedToolImagePolicy? resolvedToolImagePolicy;
+    if (toolImageTarget != null && canImageInput) {
+      final systemRoots = <String>[];
+      try {
+        systemRoots.add((await SessionOutputs.rootDirectoryForRead()).path);
+      } catch (_) {}
+      try {
+        systemRoots.add((await McpScreenshotStore.directory()).path);
+      } catch (_) {}
+      resolvedToolImagePolicy = toolImagePolicy!.resolve(
+        systemRoots: systemRoots,
+        trustedPaths: ToolImageAccessLedger.snapshot(),
+      );
+    }
     final client = _clientFor(
       config,
       cancelToken,
@@ -1432,6 +1485,25 @@ class ChatApiService {
     try {
       while (true) {
         final flags = StreamAttemptFlags();
+        var imagePlan = ToolImagePlan.empty;
+        if (resolvedToolImagePolicy != null && toolImageTarget != null) {
+          try {
+            imagePlan = await ToolImagePlan.build(
+              messages: truncatedMessages,
+              policy: resolvedToolImagePolicy,
+              target: toolImageTarget,
+              canImageInput: canImageInput,
+            );
+            for (final error in imagePlan.errors) {
+              FlutterLogger.log(
+                'tool-image skipped ${error.code}: ${error.detail}',
+                tag: 'chat-api',
+              );
+            }
+          } catch (e) {
+            FlutterLogger.log('tool-image plan failed: $e', tag: 'chat-api');
+          }
+        }
         try {
           if (kind == ProviderKind.openai &&
               shouldUseOpenAIImagesApi(config, modelId)) {
@@ -1470,6 +1542,7 @@ class ChatApiService {
                 stream: stream,
                 webFetchEnabled: webFetchEnabled,
                 imageAspectRatio: imageAspectRatio,
+                imagePlan: imagePlan,
                 flags: flags,
                 debugRequestId: debugRequestId ?? rid,
               ),
@@ -1495,6 +1568,7 @@ class ChatApiService {
                 extraBody: extraBody,
                 stream: stream,
                 webFetchEnabled: webFetchEnabled,
+                imagePlan: imagePlan,
                 flags: flags,
               ),
               rid,
@@ -1519,6 +1593,7 @@ class ChatApiService {
                 extraBody: extraBody,
                 stream: stream,
                 webFetchEnabled: webFetchEnabled,
+                imagePlan: imagePlan,
                 flags: flags,
               ),
               rid,
@@ -2859,6 +2934,7 @@ class ChatApiService {
     bool stream = true,
     bool webFetchEnabled = true,
     String? imageAspectRatio,
+    ToolImagePlan? imagePlan,
     StreamAttemptFlags? flags,
     // Wire-capture diagnostics: tag for the on-error wire logger (see
     // [sendMessageStream.debugRequestId]).
@@ -3070,11 +3146,31 @@ class ChatApiService {
         if (roleRaw == 'tool') {
           final toolCallId = (m['tool_call_id'] ?? '').toString();
           final content = (m['content'] ?? '').toString();
+          final resolution = imagePlan?.byMessageIndex[i];
+          final attachedImages =
+              resolution?.images ?? const <ToolImagePayload>[];
+          final hasImages = attachedImages.isNotEmpty;
+          final cleanText = resolution?.cleanText ?? content;
+          final output = !hasImages
+              ? content
+              : <Map<String, dynamic>>[
+                  {
+                    'type': 'input_text',
+                    'text': cleanText.isEmpty ? '(no output)' : cleanText,
+                  },
+                  for (final image in attachedImages)
+                    {
+                      'type': 'input_image',
+                      'image_url':
+                          'data:${image.mime};base64,${base64Encode(image.bytes)}',
+                      'detail': 'auto',
+                    },
+                ];
           if (toolCallId.isNotEmpty) {
             input.add({
               'type': 'function_call_output',
               'call_id': toolCallId,
-              'output': content,
+              'output': output,
             });
           }
           continue;
@@ -3332,6 +3428,10 @@ class ChatApiService {
                 m['tool_calls'] is List &&
                 (m['tool_calls'] as List).isNotEmpty)) {
           final copy = Map<String, dynamic>.from(m);
+          // Internal Stage 2 metadata is for the send-time planner only.
+          copy.remove('_tool_image_allowed_paths');
+          copy.remove('_tool_image_sha256');
+          copy.remove('_tool_images');
           if (role == 'assistant') {
             if (needsReasoningEcho) {
               // P1-3 fix: echo-capable models (DeepSeek / Zhipu /
@@ -3486,6 +3586,31 @@ class ChatApiService {
               'reasoning_content': _reasoningEchoValue(m['reasoning_content']),
           });
         }
+      }
+      // Chat Completions has no native image-in-tool-result shape. Attach the
+      // final tool group's images as one synthetic user message instead; the
+      // tool-role messages above stay protocol-correct text. Send-time only:
+      // this message is never persisted and is rebuilt on every round.
+      final tailToolImages =
+          imagePlan?.tailUserImages ?? const <ToolImagePayload>[];
+      if (tailToolImages.isNotEmpty && canImageInput) {
+        mm.add({
+          'role': 'user',
+          'content': <Map<String, dynamic>>[
+            {
+              'type': 'text',
+              'text': 'Tool output images (auto-attached for inspection; continue the task):',
+            },
+            for (final image in tailToolImages)
+              {
+                'type': 'image_url',
+                'image_url': {
+                  'url':
+                      'data:${image.mime};base64,${base64Encode(image.bytes)}',
+                },
+              },
+          ],
+        });
       }
       body = {
         'model': upstreamModelId,
@@ -4719,6 +4844,7 @@ class ChatApiService {
     Map<String, dynamic>? extraBody,
     bool stream = true,
     bool webFetchEnabled = true,
+    ToolImagePlan? imagePlan,
     StreamAttemptFlags? flags,
   }) async* {
     final upstreamModelId = _apiModelId(config, modelId);
@@ -4739,7 +4865,8 @@ class ChatApiService {
     // Extract system prompt (Anthropic uses top-level `system`)
     String systemPrompt = '';
     final nonSystemMessages = <Map<String, dynamic>>[];
-    for (final m in messages) {
+    for (int i = 0; i < messages.length; i++) {
+      final m = messages[i];
       final role = (m['role'] ?? '').toString();
       if (role == 'system') {
         final s = (m['content'] ?? '').toString();
@@ -4752,15 +4879,35 @@ class ChatApiService {
       if (role == 'tool') {
         final id = (m['tool_call_id'] ?? '').toString();
         if (id.isNotEmpty) {
+          final resolution = imagePlan?.byMessageIndex[i];
+          final attachedImages =
+              resolution?.images ?? const <ToolImagePayload>[];
+          final hasImages = attachedImages.isNotEmpty;
+          final cleanText =
+              resolution?.cleanText ?? (m['content'] ?? '').toString();
           nonSystemMessages.add({
             'role': 'user',
             'content': [
               {
                 'type': 'tool_result',
                 'tool_use_id': id,
-                'content': claudeToolResultContent(
-                  (m['content'] ?? '').toString(),
-                ),
+                'content': hasImages
+                    ? <Map<String, dynamic>>[
+                        {
+                          'type': 'text',
+                          'text': claudeToolResultContent(cleanText),
+                        },
+                        for (final image in attachedImages)
+                          {
+                            'type': 'image',
+                            'source': {
+                              'type': 'base64',
+                              'media_type': image.mime,
+                              'data': base64Encode(image.bytes),
+                            },
+                          },
+                      ]
+                    : claudeToolResultContent(cleanText),
               },
             ],
           });
@@ -5860,11 +6007,19 @@ class ChatApiService {
     Map<String, dynamic>? extraBody,
     bool stream = true,
     bool webFetchEnabled = true,
+    ToolImagePlan? imagePlan,
     StreamAttemptFlags? flags,
   }) async* {
+    // Resolve the upstream id once: capability checks for thought signatures
+    // and multimodal functionResponse parts must agree, otherwise a logical
+    // alias could add image parts while skipping the required signature.
+    final upstreamModelId = _apiModelId(config, modelId);
     final bool _persistGeminiThoughtSigs = isGeminiThoughtSignatureModel(
-      modelId,
+      upstreamModelId,
     );
+    // Gemini 3+ accepts multimodal functionResponse parts; older generations
+    // stay text-only even if the planner produced images.
+    final bool gemini3 = isGemini3OrNewer(upstreamModelId);
     final String geminiScope = _geminiProviderScope(config, modelId: modelId);
     final builtIns = _builtInTools(config, modelId);
     final enableYoutube = builtIns.contains(BuiltInToolNames.youtube);
@@ -5894,6 +6049,7 @@ class ChatApiService {
         if (role0 == 'tool') {
           final name = (msg['name'] ?? '').toString();
           final content = (msg['content'] ?? '').toString();
+          final toolCallId = (msg['tool_call_id'] ?? '').toString();
           if (name.isNotEmpty) {
             Map<String, dynamic> response;
             try {
@@ -5901,12 +6057,37 @@ class ChatApiService {
             } catch (_) {
               response = {'result': content};
             }
+            final resolution = imagePlan?.byMessageIndex[i];
+            final attachedImages =
+                resolution?.images ?? const <ToolImagePayload>[];
+            final hasImages = attachedImages.isNotEmpty;
+            final cleanText = resolution?.cleanText ?? content;
+            final functionResponse = <String, dynamic>{
+              'name': name,
+              // Only the multimodal (image-bearing) response needs the call-id
+              // echo; keeping the text-only shape unchanged avoids provider
+              // drift for existing Gemini conversations.
+              if (gemini3 && hasImages && toolCallId.isNotEmpty)
+                'id': toolCallId,
+              'response': hasImages
+                  ? _geminiResponseWithImages(cleanText)
+                  : response,
+              if (hasImages)
+                'parts': <Map<String, dynamic>>[
+                  for (var k = 0; k < attachedImages.length; k++)
+                    {
+                      'inlineData': {
+                        'displayName': attachedImages[k].displayName,
+                        'mimeType': attachedImages[k].mime,
+                        'data': base64Encode(attachedImages[k].bytes),
+                      },
+                    },
+                ],
+            };
             contents.add({
               'role': 'user',
               'parts': [
-                {
-                  'functionResponse': {'name': name, 'response': response},
-                },
+                {'functionResponse': functionResponse},
               ],
             });
           }
@@ -6277,6 +6458,7 @@ class ChatApiService {
       if (role0 == 'tool') {
         final name = (msg['name'] ?? '').toString();
         final content = (msg['content'] ?? '').toString();
+        final toolCallId = (msg['tool_call_id'] ?? '').toString();
         if (name.isNotEmpty) {
           Map<String, dynamic> response;
           try {
@@ -6284,12 +6466,33 @@ class ChatApiService {
           } catch (_) {
             response = {'result': content};
           }
+          final resolution = imagePlan?.byMessageIndex[i];
+          final attachedImages =
+              resolution?.images ?? const <ToolImagePayload>[];
+          final hasImages = attachedImages.isNotEmpty;
+          final cleanText = resolution?.cleanText ?? content;
+          final functionResponse = <String, dynamic>{
+            'name': name,
+            if (gemini3 && hasImages && toolCallId.isNotEmpty) 'id': toolCallId,
+            'response': hasImages
+                ? _geminiResponseWithImages(cleanText)
+                : response,
+            if (hasImages)
+              'parts': <Map<String, dynamic>>[
+                for (var k = 0; k < attachedImages.length; k++)
+                  {
+                    'inlineData': {
+                      'displayName': attachedImages[k].displayName,
+                      'mimeType': attachedImages[k].mime,
+                      'data': base64Encode(attachedImages[k].bytes),
+                    },
+                  },
+              ],
+          };
           contents.add({
             'role': 'user',
             'parts': [
-              {
-                'functionResponse': {'name': name, 'response': response},
-              },
+              {'functionResponse': functionResponse},
             ],
           });
         }

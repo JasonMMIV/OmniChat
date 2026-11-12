@@ -205,11 +205,16 @@ class ChatTurnService {
               'type': 'function',
               'function': {'name': pair.toolName, 'arguments': argumentsJson},
             });
+            final imageSha256 = pair.event['imageSha256'];
             toolMessages.add({
               'role': 'tool',
               'name': pair.toolName,
               'tool_call_id': pair.toolCallId,
               'content': pair.content,
+              // Path trust never comes from persisted extras; only the
+              // in-memory ledger can grant an outside-workspace path.
+              if (imageSha256 is String && imageSha256.trim().isNotEmpty)
+                '_tool_image_sha256': imageSha256,
             });
           }
 

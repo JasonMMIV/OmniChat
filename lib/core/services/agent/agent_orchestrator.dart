@@ -46,6 +46,7 @@ import '../../providers/settings_provider.dart';
 import 'agent_loop.dart';
 import 'answer_review.dart';
 import '../api/chat_api_service.dart';
+import '../api/tool_result_images.dart';
 
 /// Loop driver: owns the kernel instance, the transport binding and the tool
 /// execution adapter. Stateless per run — a fresh [run] call drives a fresh
@@ -88,6 +89,7 @@ class AgentOrchestrator {
     required String requestId,
     String? sessionId,
     String? imageAspectRatio,
+    ToolImagePolicy? toolImagePolicy,
     AgentLoopOptions options = const AgentLoopOptions(),
     AgentLoopHooks hooks = const AgentLoopHooks(),
     AnswerReviewConfig answerReview = const AnswerReviewConfig.off(),
@@ -131,6 +133,7 @@ class AgentOrchestrator {
           requestId: requestId,
           sessionId: sessionId,
           imageAspectRatio: imageAspectRatio,
+          toolImagePolicy: toolImagePolicy,
         ));
 
     // Internal review transport binding (§10.3): text-only, the `_review`
@@ -162,6 +165,7 @@ class AgentOrchestrator {
         streamOutput: stream,
         requestId: '${requestId}_review',
         sessionId: sessionId,
+        toolImagePolicy: null,
       );
     }
 
@@ -191,6 +195,7 @@ class AgentOrchestrator {
         streamOutput: streamOutput,
         requestId: '${requestId}_review',
         sessionId: sessionId,
+        toolImagePolicy: toolImagePolicy,
       );
     }
 
@@ -742,6 +747,7 @@ class AgentOrchestrator {
     required String requestId,
     String? sessionId,
     String? imageAspectRatio,
+    ToolImagePolicy? toolImagePolicy,
   }) async {
     return ChatApiService.sendMessageStream(
       config: config,
@@ -760,6 +766,7 @@ class AgentOrchestrator {
       requestId: requestId,
       sessionId: sessionId,
       imageAspectRatio: imageAspectRatio,
+      toolImagePolicy: toolImagePolicy,
     );
   }
 }

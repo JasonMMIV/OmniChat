@@ -18,6 +18,7 @@ import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/dev/dev_preview_tools.dart';
 import '../../../core/services/dev/dev_server_service.dart';
 import '../../../core/services/file/file_tool_service.dart';
+import '../../../core/services/file/tool_image_access_ledger.dart';
 import '../../../core/services/file/unified_diff.dart';
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/file/session_outputs.dart';
@@ -793,6 +794,13 @@ class ToolHandlerService {
             text: capped,
             diff: result.diff,
           );
+          // Stage 2: remember an image the tool already validated (including
+          // an explicitly approved outside-workspace path) so the send-time
+          // planner can trust it without re-running the approval flow.
+          final viewedImagePath = result.viewedImagePath;
+          if (viewedImagePath != null && viewedImagePath.isNotEmpty) {
+            ToolImageAccessLedger.allow(viewedImagePath);
+          }
           // file_view_image Stage 1: persist the UI-only image preview path
           // (same extras pattern as the diff above).
           await _persistImagePreviewExtras(
@@ -802,6 +810,7 @@ class ToolHandlerService {
             args: args,
             content: capped,
             imagePath: result.viewedImagePath,
+            imageSha256: result.viewedImageSha256,
           );
           if (_workspaceMutatingFileTools.contains(name)) {
             DevServerService.instance.notifyWorkspaceChanged(
@@ -1016,7 +1025,10 @@ class ToolHandlerService {
               mimeType: image.mimeType,
               base64Data: image.base64,
             );
-            if (saved != null) savedPaths.add(saved);
+            if (saved != null) {
+              savedPaths.add(saved);
+              ToolImageAccessLedger.allow(saved);
+            }
           }
           if (savedPaths.isNotEmpty) {
             // Cap the text BEFORE appending markers: head/tail truncation
@@ -1102,6 +1114,7 @@ class ToolHandlerService {
     required Map<String, dynamic> args,
     required String content,
     required String? imagePath,
+    String? imageSha256,
   }) async {
     if (imagePath == null || messageId == null) return;
     final id = (toolCallId ?? '').trim();
@@ -1113,7 +1126,11 @@ class ToolHandlerService {
         name: name,
         arguments: args,
         content: content,
-        extras: <String, dynamic>{'imagePath': imagePath},
+        extras: <String, dynamic>{
+          'imagePath': imagePath,
+          if (imageSha256 != null && imageSha256.isNotEmpty)
+            'imageSha256': imageSha256,
+        },
       );
     } catch (_) {
       // UI-only metadata: never fail the tool result because of it.

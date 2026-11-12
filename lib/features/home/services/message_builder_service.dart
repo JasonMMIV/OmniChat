@@ -375,11 +375,18 @@ class MessageBuilderService {
               'type': 'function',
               'function': {'name': pair.toolName, 'arguments': argumentsJson},
             });
+            final imageSha256 = pair.event['imageSha256'];
             toolMessages.add({
               'role': 'tool',
               'name': pair.toolName,
               'tool_call_id': pair.toolCallId,
               'content': toolResultContentForModel(pair.content),
+              // Stage 2: snapshot hash persisted by the tool handler. The
+              // image path itself is NOT trusted from persisted extras (an
+              // imported backup could forge it); outside-workspace approvals
+              // travel through the live in-memory ledger instead.
+              if (imageSha256 is String && imageSha256.trim().isNotEmpty)
+                '_tool_image_sha256': imageSha256,
             });
           }
 

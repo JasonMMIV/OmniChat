@@ -20,6 +20,7 @@ import '../../models/workspace_config.dart';
 import '../agent/checkpoint/agent_run_checkpoint_store.dart';
 import '../logging/flutter_logger.dart';
 import '../file/session_outputs.dart';
+import '../file/tool_image_access_ledger.dart';
 import 'storage/chat_backup_restorer.dart';
 import 'storage/chat_database_files.dart';
 import 'storage/chat_repository.dart' show ChatStorageCounts;
@@ -2165,6 +2166,9 @@ class ChatService extends ChangeNotifier {
     _draftWorkspaceConfigs.clear();
     _currentConversationId = null;
     await _clearAllAgentRunCheckpoints();
+    // Approved outside-workspace image paths must not survive a reset or a
+    // backup restore into a different history.
+    ToolImageAccessLedger.clear();
     // Shell outputs are keyed by conversation id and are not part of a chat
     // backup. A reset or restore must remove them so old output_file paths
     // cannot reappear in a restored conversation.
