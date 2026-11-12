@@ -20,6 +20,41 @@ Future<File> _writeTempPng(String prefix) async {
 }
 
 void main() {
+  group('MarkdownMediaSanitizer.isNetworkShapedPath', () {
+    test('flags network locations', () {
+      const values = <String>[
+        '//host/share/a.png',
+        r'\\host\share\a.png',
+        r'\\?\UNC\host\share\a.png',
+        'file://host/share/a.png',
+      ];
+      for (final value in values) {
+        expect(
+          MarkdownMediaSanitizer.isNetworkShapedPath(value),
+          isTrue,
+          reason: value,
+        );
+      }
+    });
+
+    test('keeps local paths local', () {
+      const values = <String>[
+        r'C:\Users\me\a.png',
+        'C:/Users/me/a.png',
+        r'\\?\C:\Users\me\a.png',
+        'file:///C:/Users/me/a.png',
+        '/data/user/0/app/images/a.png',
+      ];
+      for (final value in values) {
+        expect(
+          MarkdownMediaSanitizer.isNetworkShapedPath(value),
+          isFalse,
+          reason: value,
+        );
+      }
+    });
+  });
+
   group('MarkdownMediaSanitizer.isLikelyLocalImagePath', () {
     test('rejects web and network locations', () {
       const urls = <String>[

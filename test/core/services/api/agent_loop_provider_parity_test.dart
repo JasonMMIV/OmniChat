@@ -313,6 +313,93 @@ void main() {
     );
   });
 
+  group('Gemini system image-marker guard', () {
+    late _CaptureServer fix;
+
+    setUp(() async {
+      final textResponse = jsonEncode({
+        'candidates': [
+          {
+            'content': {
+              'role': 'model',
+              'parts': [
+                {'text': 'done'},
+              ],
+            },
+            'finishReason': 'STOP',
+          },
+        ],
+        'usageMetadata': {
+          'promptTokenCount': 5,
+          'candidatesTokenCount': 5,
+          'totalTokenCount': 10,
+        },
+      });
+      fix = _CaptureServer(
+        toolResponse: textResponse,
+        textResponse: textResponse,
+      );
+      await fix.start();
+    });
+
+    tearDown(() async {
+      await fix.stop();
+    });
+
+    ProviderConfig googleConfig() => ProviderConfig(
+      id: 'google-test',
+      enabled: true,
+      name: 'google-test',
+      apiKey: 'test-key',
+      baseUrl: fix.baseUrl,
+      providerType: ProviderKind.google,
+      models: const ['gemini-3-test'],
+    );
+
+    test('system markers stay text and never become inline_data', () async {
+      const systemText =
+          '[File Workspace]\nfile_view_image returns [image:<absolute-path>]';
+
+      await ChatApiService.sendMessageStream(
+        config: googleConfig(),
+        modelId: 'gemini-3-test',
+        messages: const [
+          {'role': 'system', 'content': systemText},
+          {'role': 'user', 'content': 'hello'},
+        ],
+        stream: false,
+        requestId: 'gemini-system-marker',
+      ).toList();
+
+      expect(fix.bodies, hasLength(1));
+      final contents = (fix.bodies.single['contents'] as List)
+          .cast<Map>()
+          .map((m) => m.cast<String, dynamic>())
+          .toList();
+      final systemEntry = contents.firstWhere(
+        (m) =>
+            m['role'] == 'user' &&
+            (m['parts'] as List).any(
+              (p) =>
+                  p is Map &&
+                  (p['text'] ?? '').toString().contains('[File Workspace]'),
+            ),
+      );
+      expect(
+        (systemEntry['parts'] as List).single,
+        <String, dynamic>{'text': systemText},
+      );
+      expect(
+        contents.any(
+          (m) => (m['parts'] as List).any(
+            (p) => p is Map && p.containsKey('inline_data'),
+          ),
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('Responses output-item continuation parity', () {
     late _CaptureServer fix;
 

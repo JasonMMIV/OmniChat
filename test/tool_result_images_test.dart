@@ -44,6 +44,19 @@ void main() {
       );
       expect(markers.map((m) => m.path), ['C:/work/a.png', 'C:/work/c.jpg']);
     });
+
+    test('skips protocol-relative and UNC network paths', () {
+      final markers = extractMarkers(
+        <String>[
+          '[image://host/share/a.png]',
+          r'[image:\\host\share\b.png]',
+          '[image:file://host/share/c.png]',
+          '[image:C:/work/d.png]',
+        ].join('\n'),
+      );
+
+      expect(markers.map((m) => m.path), ['C:/work/d.png']);
+    });
   });
 
   group('tool image plan', () {
@@ -91,6 +104,27 @@ void main() {
         expect(resolution.cleanText, contains('Format: PNG'));
       },
     );
+
+    test('network-shaped markers stay text and produce no error', () async {
+      final plan = await ToolImagePlan.build(
+        messages: [
+          {'role': 'user', 'content': 'inspect this'},
+          {
+            'role': 'tool',
+            'name': 'file_view_image',
+            'tool_call_id': 'call_1',
+            'content': '[image://host/share/a.png]\nFormat: PNG',
+          },
+        ],
+        policy: policyFor(workspace),
+        target: ToolImageTarget.claude,
+        canImageInput: true,
+      );
+
+      expect(plan.totalImages, 0);
+      expect(plan.byMessageIndex, isEmpty);
+      expect(plan.errors, isEmpty);
+    });
 
     test('rejects an image outside the allowed roots', () async {
       final outside = await Directory.systemTemp.createTemp(

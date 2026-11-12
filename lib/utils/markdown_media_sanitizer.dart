@@ -98,6 +98,31 @@ class MarkdownMediaSanitizer {
     return sb.toString();
   }
 
+  /// Whether [value] names a network location rather than a local file.
+  ///
+  /// Protocol-relative (`//host/path`) and UNC (`\\host\share`) paths resolve
+  /// to SMB shares on Windows, where a filesystem probe (`existsSync()` and
+  /// even an awaited `stat`) can stall until the SMB timeout (measured 10-25s
+  /// per host). Remote `file://host/...` URIs are network locations too.
+  /// Windows extended-length local paths (`\\?\C:\...`) and local
+  /// `file:///C:/...` URIs stay local.
+  static bool isNetworkShapedPath(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return false;
+    if (trimmed.startsWith('//')) return true;
+    // Extended-length UNC (`\\?\UNC\server\share`) is still a network path.
+    if (trimmed.toUpperCase().startsWith(r'\\?\UNC\')) return true;
+    // Other extended-length Windows paths are local.
+    if (trimmed.startsWith(r'\\?\')) return false;
+    if (trimmed.startsWith(r'\\')) return true;
+    if (trimmed.startsWith('file://')) {
+      final uri = Uri.tryParse(trimmed);
+      // A non-empty host turns the URI into a UNC/remote path.
+      return uri != null && uri.host.isNotEmpty;
+    }
+    return false;
+  }
+
   /// Whether [url] should be treated as a local file path. Also used by the
   /// backup attachment preflight (plan §3 Phase 2) to pick filesystem
   /// references out of chat contents.
@@ -115,11 +140,10 @@ class MarkdownMediaSanitizer {
     if (value.startsWith('http://') || value.startsWith('https://')) {
       return false;
     }
-    if (value.startsWith('//') || value.startsWith(r'\\')) return false;
+    if (isNetworkShapedPath(value)) return false;
     if (value.startsWith('file://')) {
       final uri = Uri.tryParse(value);
-      // A non-empty host turns the URI into a UNC/remote path.
-      return uri != null && uri.host.isEmpty && uri.path.isNotEmpty;
+      return uri != null && uri.path.isNotEmpty;
     }
     if (_windowsDrivePathRe.hasMatch(value)) return true;
     // POSIX/Android/macOS absolute path. On Windows a leading `/` is not a

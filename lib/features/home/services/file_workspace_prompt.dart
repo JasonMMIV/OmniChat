@@ -93,7 +93,8 @@ String? buildFileWorkspacePrompt(
   if (enabled.contains('file_view_image')) {
     paragraphs.add(
       'file_view_image previews PNG, JPEG, GIF, WebP, or BMP images up to '
-      '$maxImageMb MB and returns an [image:<absolute-path>] marker.',
+      '$maxImageMb MB; the preview appears in the chat and the tool result '
+      'includes the image path.',
     );
   }
   if (enabled.contains('get_console_errors')) {

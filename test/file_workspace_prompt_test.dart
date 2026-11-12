@@ -74,6 +74,27 @@ void main() {
       expect(text, isNot(contains('exact text replacement')));
     });
 
+    test('does not teach a parseable inline image marker', () {
+      final prompt = buildFileWorkspacePrompt(workspace, <Map<String, dynamic>>[
+        _tool('file_read'),
+        _tool('file_edit'),
+        _tool('file_patch'),
+        _tool('file_grep'),
+        _tool('file_view_image'),
+        _tool('get_console_errors'),
+        _tool('shell_run'),
+        _tool('file_extract_text'),
+        _tool('file_extract_zip'),
+        _tool('file_create_pdf'),
+      ]);
+
+      expect(prompt, isNotNull);
+      final text = prompt!;
+      expect(text, contains('file_view_image'));
+      expect(text, isNot(contains('[image:')));
+      expect(text, isNot(contains('<absolute-path>')));
+    });
+
     test('describes tolerant edit matching and current zip validation', () {
       final prompt = buildFileWorkspacePrompt(workspace, <Map<String, dynamic>>[
         _tool('file_edit'),

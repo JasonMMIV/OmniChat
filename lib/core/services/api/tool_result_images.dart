@@ -18,6 +18,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../utils/markdown_media_sanitizer.dart';
 import 'tool_image_codec.dart';
 
 export 'tool_image_codec.dart' show ToolImageEncoded, ToolImageTarget;
@@ -231,7 +232,7 @@ class ToolImagePlan {
           break;
         }
         final rawPath = marker.path.trim();
-        final canonical = _canonicalExistingFile(rawPath);
+        final canonical = await _canonicalExistingFile(rawPath);
         if (canonical == null) {
           final error = ToolImageError(
             'image_not_found',
@@ -367,6 +368,10 @@ List<ToolImageMarker> extractMarkers(String text) {
     if (rawPath.startsWith('http://') || rawPath.startsWith('https://')) {
       continue;
     }
+    // Protocol-relative / UNC paths are network locations. Probing them
+    // (existsSync / stat) can stall for the SMB timeout on Windows, so the
+    // marker stays plain text and never becomes an eligible tool image.
+    if (MarkdownMediaSanitizer.isNetworkShapedPath(rawPath)) continue;
     if (rawPath.startsWith('<') && rawPath.endsWith('>')) continue;
     if (rawPath.contains('\u0000')) continue;
     markers.add(
@@ -398,12 +403,18 @@ String _toolContent(Map<String, dynamic> message) {
   return '';
 }
 
-String? _canonicalExistingFile(String rawPath) {
-  if (rawPath.isEmpty || rawPath.contains('\u0000')) return null;
+Future<String?> _canonicalExistingFile(String rawPath) async {
+  if (rawPath.isEmpty ||
+      rawPath.contains('\u0000') ||
+      MarkdownMediaSanitizer.isNetworkShapedPath(rawPath)) {
+    return null;
+  }
   try {
     final file = File(rawPath);
-    if (!file.existsSync()) return null;
-    return file.resolveSymbolicLinksSync();
+    // Async probes: a misclassified network path must never block the UI
+    // isolate (SMB timeouts measured 10-25s on Windows).
+    if (!await file.exists()) return null;
+    return await file.resolveSymbolicLinks();
   } catch (_) {
     return null;
   }

@@ -1260,10 +1260,19 @@ class ChatApiService {
           i = m1.end;
           continue;
         }
+        // Protocol-relative / UNC paths resolve to SMB shares on Windows;
+        // probing them blocks until the SMB timeout. Keep them as text and
+        // never touch the filesystem.
+        if (MarkdownMediaSanitizer.isNetworkShapedPath(url)) {
+          buf.write(full);
+          i = m1.end;
+          continue;
+        }
         try {
           final fixed = SandboxPathResolver.fix(url);
-          final file = File(fixed);
-          if (!file.existsSync()) {
+          // Async existence check: even a misclassified network path must
+          // never block the UI isolate.
+          if (!await File(fixed).exists()) {
             // Missing local file: do NOT treat as image; keep original markdown.
             buf.write(full);
             i = m1.end;
@@ -1281,8 +1290,67 @@ class ChatApiService {
         continue;
       }
       if (m2 != null) {
+        final full = raw.substring(m2.start, m2.end);
         final p = (m2.group(1) ?? '').trim();
-        if (p.isNotEmpty) images.add(_ImageRef('path', p));
+        if (p.isEmpty) {
+          // Empty marker: keep it as plain text.
+          buf.write(full);
+          i = m2.end;
+          continue;
+        }
+        // Inline data URLs: always treat as an image, but never touch the
+        // filesystem — the payload is the image itself.
+        if (p.startsWith('data:')) {
+          images.add(_ImageRef('data', p));
+          i = m2.end;
+          continue;
+        }
+        // Remote http(s) URLs: attach only when the target accepts remote
+        // images. Do not probe here: this parser re-runs on every replayed
+        // message, and a HEAD request per marker would add request latency
+        // (imported chats can carry many [image:https://...] markers).
+        if (p.startsWith('http://') || p.startsWith('https://')) {
+          if (!allowRemoteImages) {
+            buf.write(full);
+            i = m2.end;
+            continue;
+          }
+          images.add(_ImageRef('url', p));
+          i = m2.end;
+          continue;
+        }
+        // Local / relative path: only treat as an image when local images
+        // are allowed and the file actually exists. A malformed or missing
+        // path (including the literal `<absolute-path>` placeholder) must
+        // fall back to plain text instead of reaching File.readAsBytes().
+        if (!allowLocalImages) {
+          buf.write(full);
+          i = m2.end;
+          continue;
+        }
+        // Protocol-relative / UNC paths are network locations: a filesystem
+        // probe on Windows blocks until the SMB timeout, so keep the marker
+        // as text instead of resolving it as a local file.
+        if (MarkdownMediaSanitizer.isNetworkShapedPath(p)) {
+          buf.write(full);
+          i = m2.end;
+          continue;
+        }
+        try {
+          final fixed = SandboxPathResolver.fix(p);
+          // Async existence check: never block the UI isolate, even if a
+          // network-shaped path slips through the classifier.
+          if (!await File(fixed).exists()) {
+            buf.write(full);
+            i = m2.end;
+            continue;
+          }
+        } catch (_) {
+          buf.write(full);
+          i = m2.end;
+          continue;
+        }
+        images.add(_ImageRef('path', p));
         i = m2.end;
         continue;
       }
@@ -1290,6 +1358,30 @@ class ChatApiService {
       i++;
     }
     return _ParsedTextAndImages(buf.toString().trim(), images);
+  }
+
+  /// Test seam for [_parseTextAndImages]. Keeps the private `_ImageRef` type
+  /// out of tests while exercising the exact production parser.
+  @visibleForTesting
+  static Future<Map<String, dynamic>> parseTextAndImagesForTest(
+    String raw, {
+    required bool allowRemoteImages,
+    required bool allowLocalImages,
+    bool keepRemoteMarkdownText = true,
+  }) async {
+    final parsed = await _parseTextAndImages(
+      raw,
+      allowRemoteImages: allowRemoteImages,
+      allowLocalImages: allowLocalImages,
+      keepRemoteMarkdownText: keepRemoteMarkdownText,
+    );
+    return <String, dynamic>{
+      'text': parsed.text,
+      'images': <Map<String, String>>[
+        for (final ref in parsed.images)
+          <String, String>{'kind': ref.kind, 'src': ref.src},
+      ],
+    };
   }
 
   static Future<String> _encodeBase64File(
@@ -6127,6 +6219,21 @@ class ChatApiService {
           }
           continue;
         }
+        if (role0 == 'system') {
+          // Gemini has no system role in `contents`; keep injected system
+          // blocks as plain text so prompt content can never be interpreted
+          // as an inline image marker.
+          final systemText = (msg['content'] ?? '').toString();
+          if (systemText.isNotEmpty) {
+            contents.add({
+              'role': 'user',
+              'parts': [
+                {'text': systemText},
+              ],
+            });
+          }
+          continue;
+        }
         final role = role0 == 'assistant' ? 'model' : 'user';
         final isLast = i == messages.length - 1;
         final parts = <Map<String, dynamic>>[];
@@ -6529,6 +6636,21 @@ class ChatApiService {
         }
         if (parts.isNotEmpty) {
           contents.add({'role': 'model', 'parts': parts});
+        }
+        continue;
+      }
+      if (role0 == 'system') {
+        // Gemini has no system role in `contents`; keep injected system
+        // blocks as plain text so prompt content can never be interpreted
+        // as an inline image marker.
+        final systemText = (msg['content'] ?? '').toString();
+        if (systemText.isNotEmpty) {
+          contents.add({
+            'role': 'user',
+            'parts': [
+              {'text': systemText},
+            ],
+          });
         }
         continue;
       }
