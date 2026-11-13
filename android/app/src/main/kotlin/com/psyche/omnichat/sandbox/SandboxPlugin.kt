@@ -235,7 +235,9 @@ class SandboxPlugin(private val context: Context) {
         val runId = requiredString(args, "runId")
         val command = requiredString(args, "command")
         val guestCwd = ProotCommand.validateGuestCwd(requiredString(args, "cwd"))
-        val timeoutMs = number(args["timeoutMs"], 30_000L).coerceIn(1_000L, 120_000L)
+        val timeoutMs = normalizeTimeoutMs(
+            number(args["timeoutMs"], DEFAULT_TIMEOUT_MS),
+        )
         val binds = parseBinds(args["binds"])
         if (installer.installed() == null) {
             result.error("rootfs_not_installed", "Install Android Shell first.", null)

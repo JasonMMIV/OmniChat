@@ -7,12 +7,15 @@ import 'package:OmniChat/core/services/tools/tool_result_caps.dart';
 
 void main() {
   group('AndroidShellService', () {
-    test('timeout defaults to 30s and clamps to 1..120', () {
+    test('timeout defaults to 30s, clamps to 1..600, and -1 disables it', () {
       expect(AndroidShellService.parseTimeoutSeconds(null), 30);
       expect(AndroidShellService.parseTimeoutSeconds(''), 30);
       expect(AndroidShellService.parseTimeoutSeconds('15'), 15);
-      expect(AndroidShellService.parseTimeoutSeconds(0), 1);
-      expect(AndroidShellService.parseTimeoutSeconds(999), 120);
+      expect(AndroidShellService.parseTimeoutSeconds(0), 30);
+      expect(AndroidShellService.parseTimeoutSeconds(999), 600);
+      expect(AndroidShellService.parseTimeoutSeconds(-1), -1);
+      expect(AndroidShellService.parseTimeoutSeconds(-2), 30);
+      expect(AndroidShellService.parseTimeoutSeconds(double.nan), 30);
       expect(AndroidShellService.parseTimeoutSeconds(42.9), 42);
     });
 

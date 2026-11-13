@@ -1,10 +1,10 @@
 // P2-5: Android `shell_exec` (foreground PRoot command).
 //
 // Android deliberately exposes a different tool from the desktop `shell_run`:
-// one foreground command, fixed guest `/bin/sh`, 30 s default / 120 s hard
-// timeout, 24 KB stdout + 6 KB stderr (then the shared 68 KB tool cap). The
-// command is passed to PRoot as an independent argv entry, never spliced into
-// a host command line.
+// one foreground command, fixed guest `/bin/sh`, 30 s default / 600 s cap,
+// or -1 for no timeout, 24 KB stdout + 6 KB stderr (then the shared 68 KB
+// tool cap). The command is passed to PRoot as an independent argv entry,
+// never spliced into a host command line.
 library;
 
 import 'dart:convert';
@@ -80,8 +80,12 @@ class AndroidShellService {
             'timeout_seconds': {
               'type': 'integer',
               'description':
-                  'Optional timeout in seconds (default $defaultTimeoutSeconds, '
-                  'clamped to 1–$maxTimeoutSeconds).',
+                  'Optional timeout in seconds (default $defaultTimeoutSeconds; '
+                  'values above $maxTimeoutSeconds are clamped). '
+                  'Set -1 to wait indefinitely.',
+              'default': defaultTimeoutSeconds,
+              'minimum': -1,
+              'maximum': maxTimeoutSeconds,
             },
           },
           'required': ['command'],
@@ -310,7 +314,7 @@ class AndroidShellService {
         'hint':
             'The command was cancelled by the user and its process tree was '
             'terminated.'
-      else if (result.timedOut)
+      else if (result.timedOut && timeoutSeconds > 0)
         'hint':
             'The command exceeded ${timeoutSeconds}s and its process tree was '
             'terminated. Re-run with a larger timeout_seconds or a more focused command.',

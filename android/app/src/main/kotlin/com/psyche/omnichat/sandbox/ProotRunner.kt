@@ -20,7 +20,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  * block the child), capped in memory, and mirrored to Dart for the live tool
  * card. Timeout/cancel sends SIGQUIT first (PRoot's own reaper runs
  * `--kill-on-exit`), then sweeps the whole sandbox process tree — killing only
- * the tracer would orphan guest children.
+ * the tracer would orphan guest children. A negative timeout means no
+ * wall-clock deadline; cancellation still stops the process tree.
  */
 class ProotRunner(
     private val context: Context,
@@ -154,7 +155,7 @@ class ProotRunner(
         val stdoutThread = drain(process.inputStream, stdout, "stdout-$runId")
         val stderrThread = drain(process.errorStream, stderr, "stderr-$runId")
 
-        val finished = waitFor(process, timeoutMs.coerceAtLeast(1_000L))
+        val finished = waitFor(process, timeoutMs)
         if (!finished) {
             if (running.cancelled.get()) {
                 // cancel() already requested exit.
@@ -330,8 +331,12 @@ class ProotRunner(
             "procs_blocked 0\n"
 
     private fun waitFor(process: Process, timeoutMs: Long): Boolean {
-        val deadline = System.currentTimeMillis() + timeoutMs
-        while (System.currentTimeMillis() < deadline) {
+        val deadline = if (timeoutMs < 0L) {
+            null
+        } else {
+            System.currentTimeMillis() + timeoutMs.coerceAtLeast(1_000L)
+        }
+        while (deadline == null || System.currentTimeMillis() < deadline) {
             if (!isAlive(process)) return true
             try {
                 Thread.sleep(40)

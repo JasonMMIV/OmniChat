@@ -13,7 +13,7 @@ void main() {
 
   CliRunSpec spec(
     String command, {
-    Duration? timeout,
+    Duration? timeout = const Duration(seconds: 20),
     int stdoutCapBytes = 24 * 1024,
     Map<String, String>? environment,
   }) {
@@ -21,7 +21,7 @@ void main() {
       command: command,
       workingDirectory: Directory.current.path,
       dialect: dialect,
-      timeout: timeout ?? const Duration(seconds: 20),
+      timeout: timeout,
       environment: environment ?? ShellRunService.buildEnvironment(),
       includeParentEnvironment: false,
       stdoutCapBytes: stdoutCapBytes,
@@ -67,6 +67,22 @@ void main() {
     stopwatch.stop();
     expect(result.timedOut, isTrue);
     expect(stopwatch.elapsed, lessThan(const Duration(seconds: 4)));
+  });
+
+  test('a null timeout has no wall-clock deadline', () async {
+    final command = Platform.isWindows
+        ? 'ping -n 10 127.0.0.1 >nul'
+        : 'sleep 10';
+    final token = CliCancellationToken();
+    final future = CliProcessSupervisor.run(
+      spec(command, timeout: null),
+      cancellation: token,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    token.cancel();
+    final result = await future;
+    expect(result.cancelled, isTrue);
+    expect(result.timedOut, isFalse);
   });
 
   test('cancellation terminates the run and reports it', () async {

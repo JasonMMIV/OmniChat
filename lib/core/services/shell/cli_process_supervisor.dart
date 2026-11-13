@@ -6,9 +6,9 @@
 // - stdout/stderr listeners are attached BEFORE waiting for exit and keep
 //   draining after the byte cap (`truncated` is reported, the pipe never
 //   blocks).
-// - timeout / cancel terminates the whole process tree: Windows Job Object
-//   first, `taskkill /T` as fallback (Process.kill() only reaches the direct
-//   child); POSIX gets a best-effort child sweep.
+// - timeout (when set) / cancel terminates the whole process tree: Windows
+//   Job Object first, `taskkill /T` as fallback (Process.kill() only reaches
+//   the direct child); POSIX gets a best-effort child sweep.
 // - UTF-8 decoding with `allowMalformed: true` (cp950 console output must
 //   never throw or produce mojibake silently).
 library;
@@ -40,7 +40,7 @@ class CliRunSpec {
     required this.command,
     required this.workingDirectory,
     this.dialect,
-    this.timeout = const Duration(seconds: 900),
+    this.timeout = const Duration(seconds: 30),
     this.environment = const <String, String>{},
     this.includeParentEnvironment = false,
     this.stdoutCapBytes = 24 * 1024,
@@ -52,7 +52,9 @@ class CliRunSpec {
   final String command;
   final String workingDirectory;
   final CliShellDialect? dialect;
-  final Duration timeout;
+
+  /// `null` means no wall-clock deadline; cancellation still works.
+  final Duration? timeout;
   final Map<String, String> environment;
   final bool includeParentEnvironment;
   final int stdoutCapBytes;
@@ -143,9 +145,11 @@ class CliProcessSupervisor {
 
     final token = cancellation ?? CliCancellationToken();
     final timeoutCompleter = Completer<void>();
-    final timeoutTimer = Timer(spec.timeout, () {
-      if (!timeoutCompleter.isCompleted) timeoutCompleter.complete();
-    });
+    final timeoutTimer = spec.timeout == null
+        ? null
+        : Timer(spec.timeout!, () {
+            if (!timeoutCompleter.isCompleted) timeoutCompleter.complete();
+          });
     WindowsJobObject? job;
     try {
       if (Platform.isWindows) {
@@ -154,8 +158,9 @@ class CliProcessSupervisor {
 
       final outcome = await Future.any<Object>([
         process.exitCode.then<Object>((code) => _ExitOutcome(code)),
-        timeoutCompleter.future.then<Object>((_) => const _TimeoutOutcome()),
         token.whenCancelled.then<Object>((_) => const _CancelOutcome()),
+        if (timeoutTimer != null)
+          timeoutCompleter.future.then<Object>((_) => const _TimeoutOutcome()),
       ]);
 
       var exitCode = outcome is _ExitOutcome ? outcome.exitCode : null;
@@ -170,7 +175,7 @@ class CliProcessSupervisor {
         }
       }
 
-      timeoutTimer.cancel();
+      timeoutTimer?.cancel();
       // Wait for both pipe readers to observe EOF (bounded: a detached
       // grandchild could keep a pipe open after a failed tree kill).
       await Future.any<Object?>([
@@ -193,7 +198,7 @@ class CliProcessSupervisor {
         stderrTruncated: stderrCollector.truncated,
       );
     } finally {
-      timeoutTimer.cancel();
+      timeoutTimer?.cancel();
       job?.close();
     }
   }

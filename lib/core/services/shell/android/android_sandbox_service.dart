@@ -158,7 +158,8 @@ class AndroidSandboxService extends ChangeNotifier {
   static const String toolName = 'shell_exec';
   static const String channelName = 'omnichat/sandbox';
   static const int defaultTimeoutSeconds = 30;
-  static const int maxTimeoutSeconds = 120;
+  static const int maxTimeoutSeconds = 600;
+  static const int noTimeoutSeconds = -1;
 
   static bool get isPlatformSupported =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
@@ -188,10 +189,10 @@ class AndroidSandboxService extends ChangeNotifier {
   Stream<AndroidSandboxProgress> get progress => _progressController.stream;
 
   static int parseTimeoutSeconds(Object? raw) {
-    final value = raw is num
-        ? raw.toInt()
-        : int.tryParse(raw?.toString().trim() ?? '');
-    if (value == null) return defaultTimeoutSeconds;
+    final value = raw is num ? raw : int.tryParse(raw?.toString().trim() ?? '');
+    if (value == null || !value.isFinite) return defaultTimeoutSeconds;
+    if (value == noTimeoutSeconds) return noTimeoutSeconds;
+    if (value <= 0) return defaultTimeoutSeconds;
     return value.clamp(1, maxTimeoutSeconds).toInt();
   }
 
@@ -292,6 +293,7 @@ class AndroidSandboxService extends ChangeNotifier {
     final id = (runId == null || runId.trim().isEmpty)
         ? 'shell-${_uuid.v4()}'
         : runId;
+    final timeout = parseTimeoutSeconds(timeoutSeconds);
     if (onOutput != null) _outputListeners[id] = onOutput;
     try {
       final result = await _channel.invokeMethod<Object?>(
@@ -300,7 +302,7 @@ class AndroidSandboxService extends ChangeNotifier {
           'runId': id,
           'command': command,
           'cwd': cwd,
-          'timeoutMs': parseTimeoutSeconds(timeoutSeconds) * 1000,
+          'timeoutMs': timeout == noTimeoutSeconds ? -1 : timeout * 1000,
           'binds': binds,
         },
       );

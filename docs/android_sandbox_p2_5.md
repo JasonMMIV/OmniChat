@@ -46,7 +46,7 @@ AAPT2 special-cases `.gz` assets.
 | Path/mount table | `lib/core/services/shell/android/workspace_mount_table.dart` | host↔guest mapping; `/workspace`; `..`/NUL/escape rejection; bind list for PRoot |
 | Host probe | `lib/core/services/shell/android/workspace_path_probe.dart` | directory/list/read/write/delete probe; rejects `content://`; FUSE/noexec is not a failure |
 | Native channel | `lib/core/services/shell/android/android_sandbox_service.dart` | `probe`/`install`/`cancelInstall`/`remove`/`run`/`cancel`/`diskUsage`; progress and output events |
-| Tool backend | `lib/core/services/shell/android/android_shell_service.dart` | `shell_exec` schema, approval defense, 30/120 s timeout, output shaping/externalization, changed-file snapshot |
+| Tool backend | `lib/core/services/shell/android/android_shell_service.dart` | `shell_exec` schema, approval defense, 30 s default / 600 s cap / -1 unlimited, output shaping/externalization, changed-file snapshot |
 | Android plugin | `android/app/src/main/kotlin/com/psyche/omnichat/sandbox/SandboxPlugin.kt` | MethodChannel `omnichat/sandbox`; one install/run at a time |
 | Installer | `.../RootfsInstaller.kt` | five-stage install: stream+hash → extract → patch/validate → atomic rename → cleanup; marker `metadata.json` |
 | Extractor | `.../SafeTarExtractor.kt` | ustar/PAX/GNU-longname; traversal and symlink-escape rejection; no `java.nio.file` |
@@ -66,7 +66,7 @@ the prompt tells the model that `shell_exec` uses the guest `/workspace`.
 - **Shared-storage workspaces** are read/write but have no executable bit and
   no symlink support (FUSE/sdcardfs). The probe does not fail for this; the
   prompt and Settings page explain it.
-- **Timeout/output:** default 30 s, hard 120 s; stdout 24 KB + stderr 6 KB in
+- **Timeout/output:** default 30 s, hard 600 s; `-1` means unlimited; stdout 24 KB + stderr 6 KB in
   the model-facing payload, with the shared 68 KB tool-result cap. Larger
   output is externalized to the read-only session-outputs zone.
 - **Rootfs / ABI:** Ubuntu Base 24.04.4 arm64 only. `shell_exec` is not

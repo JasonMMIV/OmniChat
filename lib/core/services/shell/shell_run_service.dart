@@ -4,8 +4,8 @@
 // "shell commands: allow all / ask" switch); this service re-checks the
 // approved command and owns the execution contract:
 // - workspace-scoped cwd (`..` / absolute host paths rejected);
-// - timeout 1–3600 s (default 900) enforced by the process supervisor, which
-//   kills the whole process tree;
+// - timeout 1–600 s (default 30), or -1 for no timeout, enforced by the
+//   process supervisor, which kills the whole process tree on timeout/cancel;
 // - minimal environment allowlist + agent-friendly flags;
 // - structured payload (exit_code / duration / timed_out / cancelled /
 //   truncated / changed_files);
@@ -32,8 +32,9 @@ class ShellRunService {
   ShellRunService._();
 
   static const String toolName = 'shell_run';
-  static const int defaultTimeoutSeconds = 900;
-  static const int maxTimeoutSeconds = 3600;
+  static const int defaultTimeoutSeconds = 30;
+  static const int maxTimeoutSeconds = 600;
+  static const int noTimeoutSeconds = -1;
   // Capture caps must stay above [SessionOutputs.externalizeThresholdBytes],
   // otherwise a >64 KB output can never reach the externalization branch.
   // The serialized tool result is still capped by `ToolResultCaps` (68 KB),
@@ -60,8 +61,8 @@ class ShellRunService {
             'Commands start in the selected workspace. This is NOT a security '
             'sandbox: the command runs with your user permissions. The user may '
             'require approval for each command. Prefer non-interactive commands; '
-            'interactive prompts will hang until the timeout. Android does not '
-            'support this tool.',
+            'interactive prompts will hang until the timeout (or indefinitely '
+            'when timeout_seconds is -1). Android does not support this tool.',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -79,8 +80,12 @@ class ShellRunService {
             'timeout_seconds': {
               'type': 'integer',
               'description':
-                  'Optional timeout in seconds (default $defaultTimeoutSeconds, '
-                  'clamped to 1–$maxTimeoutSeconds).',
+                  'Optional timeout in seconds (default $defaultTimeoutSeconds; '
+                  'values above $maxTimeoutSeconds are clamped). '
+                  'Set -1 to wait indefinitely.',
+              'default': defaultTimeoutSeconds,
+              'minimum': -1,
+              'maximum': maxTimeoutSeconds,
             },
           },
           'required': ['command'],
@@ -170,7 +175,9 @@ class ShellRunService {
           dialect: Platform.isWindows
               ? CliShellDialect.cmd
               : CliShellDialect.posix,
-          timeout: Duration(seconds: timeoutSeconds),
+          timeout: timeoutSeconds == noTimeoutSeconds
+              ? null
+              : Duration(seconds: timeoutSeconds),
           environment: buildEnvironment(),
           includeParentEnvironment: false,
           stdoutCapBytes: maxStdoutBytes,
@@ -250,7 +257,7 @@ class ShellRunService {
       'changed_files': changed.paths,
       'deleted_files': changed.deleted,
       'changed_files_truncated': changed.truncated,
-      if (result.timedOut)
+      if (result.timedOut && timeoutSeconds > 0)
         'hint':
             'The command exceeded ${timeoutSeconds}s and its process tree was '
             'terminated. Re-run with a larger timeout_seconds or a more focused command.',
@@ -290,10 +297,10 @@ class ShellRunService {
   }
 
   static int parseTimeoutSeconds(Object? raw) {
-    final value = raw is num
-        ? raw.toInt()
-        : int.tryParse(raw?.toString().trim() ?? '');
-    if (value == null) return defaultTimeoutSeconds;
+    final value = raw is num ? raw : int.tryParse(raw?.toString().trim() ?? '');
+    if (value == null || !value.isFinite) return defaultTimeoutSeconds;
+    if (value == noTimeoutSeconds) return noTimeoutSeconds;
+    if (value <= 0) return defaultTimeoutSeconds;
     return value.clamp(1, maxTimeoutSeconds).toInt();
   }
 

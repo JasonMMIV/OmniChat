@@ -165,6 +165,13 @@ void main() {
     expect(stdout, isNot(contains('hunter2')));
   });
 
+  test('timeout -1 is accepted and completes normally', () async {
+    final payload = await run('echo unlimited', timeoutSeconds: -1);
+    expect(payload['exit_code'], 0);
+    expect(payload['timed_out'], isFalse);
+    expect(payload['stdout'].toString(), contains('unlimited'));
+  });
+
   test('cancellation terminates the command and is reported', () async {
     final command = Platform.isWindows
         ? 'ping -n 10 127.0.0.1 >nul'
@@ -185,8 +192,11 @@ void main() {
     expect(payload['timed_out'], isTrue);
     expect(payload['hint'], isNotNull);
 
-    expect(ShellRunService.parseTimeoutSeconds(null), 900);
-    expect(ShellRunService.parseTimeoutSeconds(0), 1);
-    expect(ShellRunService.parseTimeoutSeconds(99999), 3600);
+    expect(ShellRunService.parseTimeoutSeconds(null), 30);
+    expect(ShellRunService.parseTimeoutSeconds(0), 30);
+    expect(ShellRunService.parseTimeoutSeconds(99999), 600);
+    expect(ShellRunService.parseTimeoutSeconds(-1), -1);
+    expect(ShellRunService.parseTimeoutSeconds(-2), 30);
+    expect(ShellRunService.parseTimeoutSeconds(double.nan), 30);
   });
 }
