@@ -5,6 +5,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart' as lucide;
 class Lucide {
   static const IconData ListTree = lucide.LucideIcons.listTree;
   static const IconData ListChecks = lucide.LucideIcons.listChecks;
+
+  /// Queue (turn queue plan §3.3): [Queue] composer button.
+  static const IconData ListPlus = lucide.LucideIcons.listPlus;
   static const IconData Menu = lucide.LucideIcons.menu;
   static const IconData MessageCirclePlus = lucide.LucideIcons.messageCirclePlus;
   static const IconData Box = lucide.LucideIcons.box;

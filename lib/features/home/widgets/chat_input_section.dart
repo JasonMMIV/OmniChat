@@ -59,6 +59,9 @@ class ChatInputSection extends StatelessWidget {
     this.onOpenSearch,
     this.onConfigureReasoning,
     this.onSend,
+    this.onQueue,
+    this.onSendNow,
+    this.sendNowTeamBlocked = false,
     this.onStop,
     this.onQuickPhrase,
     this.onLongPressQuickPhrase,
@@ -108,6 +111,9 @@ class ChatInputSection extends StatelessWidget {
   final VoidCallback? onOpenSearch;
   final VoidCallback? onConfigureReasoning;
   final ValueChanged<ChatInputData>? onSend;
+  final ValueChanged<ChatInputData>? onQueue;
+  final ValueChanged<String>? onSendNow;
+  final bool sendNowTeamBlocked;
   final VoidCallback? onStop;
   final VoidCallback? onQuickPhrase;
   final VoidCallback? onLongPressQuickPhrase;
@@ -215,6 +221,9 @@ class ChatInputSection extends StatelessWidget {
           : false,
       onOpenSearch: onOpenSearch,
       onSend: onSend,
+      onQueue: onQueue,
+      onSendNow: onSendNow,
+      sendNowTeamBlocked: sendNowTeamBlocked,
       loading: isLoading,
       // Add-ons (MCP servers / built-in tools / advanced features) is always
       // shown; the highlight is on when anything inside the menu is enabled.

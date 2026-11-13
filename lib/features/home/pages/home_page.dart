@@ -56,6 +56,7 @@ import '../../model/widgets/model_select_sheet.dart';
 import '../../mcp/pages/mcp_page.dart';
 import '../../provider/pages/providers_page.dart';
 import '../widgets/addons_menu.dart';
+import '../widgets/message_queue_dock.dart';
 import '../../quick_phrase/pages/quick_phrases_page.dart';
 import '../../quick_phrase/widgets/quick_phrase_menu.dart';
 import '../widgets/chat_input_bar.dart';
@@ -799,6 +800,9 @@ class _HomePageState extends State<HomePage>
                 notifier: _controller.streamingContentNotifier,
                 onTap: _openTodoPlan,
               ),
+              // Turn queue dock (plan §4.2): only for the current conversation
+              // with queued items; the pause banner exposes Resume.
+              _buildMessageQueueDock(),
               // Input bar
               NotificationListener<SizeChangedLayoutNotification>(
                 onNotification: (n) {
@@ -912,6 +916,8 @@ class _HomePageState extends State<HomePage>
                 notifier: _controller.streamingContentNotifier,
                 onTap: _openTodoPlan,
               ),
+              // Turn queue dock (plan §4.2), same contract as the mobile layout.
+              _buildMessageQueueDock(),
               NotificationListener<SizeChangedLayoutNotification>(
                 onNotification: (n) {
                   WidgetsBinding.instance.addPostFrameCallback(
@@ -1135,6 +1141,29 @@ class _HomePageState extends State<HomePage>
     );
   }
 
+  /// Queue dock state + handlers for the current conversation
+  /// (docs/anybuff_queue_sendnow_import_plan.md §4.2). Renders nothing when
+  /// the conversation has no queued items.
+  Widget _buildMessageQueueDock() {
+    final cid = _controller.currentConversation?.id;
+    return MessageQueueDock(
+      items: _controller.queueItemsFor(cid),
+      paused: _controller.queuePausedFor(cid),
+      onRemove: (id) {
+        if (cid != null) _controller.removeQueuedMessage(cid, id);
+      },
+      onPromote: (id) {
+        if (cid != null) _controller.promoteQueuedMessage(cid, id);
+      },
+      onEdit: (id, text) {
+        if (cid != null) _controller.updateQueuedMessageText(cid, id, text);
+      },
+      onResume: () {
+        if (cid != null) unawaited(_controller.resumeQueue(cid));
+      },
+    );
+  }
+
   Widget _buildChatInputBar(BuildContext context, {required bool isTablet}) {
     return ChatInputSection(
       inputBarKey: _inputBarKey,
@@ -1204,6 +1233,29 @@ class _HomePageState extends State<HomePage>
           _inputFocus.requestFocus();
         }
       },
+      onQueue: (data) {
+        // Queue routes through the same sendMessage entry; the controller
+        // enqueues while the conversation is generating (F8).
+        _controller.sendMessage(data);
+        _inputController.clear();
+        if (PlatformUtils.isMobile) {
+          _controller.dismissKeyboard();
+        } else {
+          _inputFocus.requestFocus();
+        }
+      },
+      onSendNow: (text) {
+        _controller.sendNow(text);
+        _inputController.clear();
+        if (PlatformUtils.isMobile) {
+          _controller.dismissKeyboard();
+        } else {
+          _inputFocus.requestFocus();
+        }
+      },
+      sendNowTeamBlocked: _controller.isAiTeamRunActiveFor(
+        _controller.currentConversation?.id,
+      ),
       onStop: _controller.cancelStreaming,
       onQuickPhrase: _showQuickPhraseMenu,
       onLongPressQuickPhrase: () {

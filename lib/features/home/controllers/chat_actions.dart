@@ -36,6 +36,10 @@ import '../../../core/services/chat/storage/message_part_codec.dart';
 import '../../../core/services/chat/todo_models.dart';
 import '../../../core/services/chat/todo_projection.dart';
 import '../../../core/services/chat/todo_v1_migration.dart';
+import '../../../core/services/chat/turn_queue/dispatch_gate.dart';
+import '../../../core/services/chat/turn_queue/send_gate.dart';
+import '../../../core/services/chat/turn_queue/steering_mailbox.dart';
+import '../../../core/services/chat/turn_queue/turn_queue.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/assistant_regex.dart';
@@ -275,6 +279,9 @@ class ChatActions {
     final providerKey = modelConfig.providerKey!;
     final modelId = modelConfig.modelId!;
 
+    // Turn queue: a manual send unpauses the conversation's queue (§3.5).
+    _clearQueuePauseOnManualSend(conversation.id);
+
     // AI Team: if enabled and aggregator specified, override model (K2 fix)
     final aiTeam = contextProvider.read<AiTeamProvider>();
     final aiTeamConfig = aiTeam.config;
@@ -428,6 +435,28 @@ class ChatActions {
     final conv = _currentConversation;
     if (conv == null || conv.id != conversationId) return null;
     if (_loadingConversationIds.contains(conversationId)) return null;
+    // Turn queue (F2/R13): suppress dispatch for the resume transition.
+    _beginInternalTransition(conversationId);
+    try {
+      return await _resumeAfterAskUserAnswerUnlocked(
+        conv,
+        conversationId,
+        assistantMessageId,
+        toolCallId,
+        answerPayload,
+      );
+    } finally {
+      _endInternalTransition(conversationId);
+    }
+  }
+
+  Future<ChatMessage?> _resumeAfterAskUserAnswerUnlocked(
+    Conversation conv,
+    String conversationId,
+    String assistantMessageId,
+    String toolCallId,
+    Map<String, dynamic> answerPayload,
+  ) async {
     // The timeline preloads summaries only; this resume path reads the full
     // events (questions/answers), so load them first.
     await chatService.ensureToolEventsLoaded([assistantMessageId]);
@@ -598,6 +627,9 @@ class ChatActions {
       return null;
     }
 
+    // Turn queue (F2/R13): the approval-resume window is an internal
+    // transition; auto-dispatch must not interleave with it.
+    _beginInternalTransition(conversationId);
     try {
       return await _resolveApprovalUnlocked(
         conversationId,
@@ -620,6 +652,7 @@ class ChatActions {
         _setApprovalExecuting(assistantMessageId, toolCallId, false);
       }
       _approvalResolutionsInFlight.remove(decisionKey);
+      _endInternalTransition(conversationId);
     }
   }
 
@@ -1112,6 +1145,25 @@ class ChatActions {
     required Conversation conversation,
     bool assistantAsNewReply = false,
   }) async {
+    // Turn queue (F2/R13): suppress dispatch for the whole transition so the
+    // regenerate gap (loading false → true) can never be interleaved.
+    _beginInternalTransition(conversation.id);
+    try {
+      return await _regenerateAtMessageUnlocked(
+        message: message,
+        conversation: conversation,
+        assistantAsNewReply: assistantAsNewReply,
+      );
+    } finally {
+      _endInternalTransition(conversation.id);
+    }
+  }
+
+  Future<ChatActionResult> _regenerateAtMessageUnlocked({
+    required ChatMessage message,
+    required Conversation conversation,
+    bool assistantAsNewReply = false,
+  }) async {
     await cancelStreaming(conversation);
 
     final idx = _messages.indexWhere((m) => m.id == message.id);
@@ -1409,6 +1461,11 @@ class ChatActions {
     // terminate the process tree immediately, not wait for its timeout.
     generationController.cancelActiveShellRuns();
 
+    // Turn queue (§3.5 F3/F10): Stop always retracts steering echoes, puts
+    // their text back on the queue head, and pauses the queue whenever
+    // anything remains — a deliberate stop must never auto-restart a turn.
+    await _settleTurnMailbox(cid, pauseQueue: true);
+
     // AI Team: cancel proposer phase if active (I3 + R1: complete cancel completer before cancel)
     if (_aiTeamInProposalPhase) {
       _aiTeamCancelled = true;
@@ -1520,6 +1577,7 @@ class ChatActions {
       await _clearRunCheckpointBestEffort(cid);
       onRunCheckpointChanged?.call();
     }
+    notifyTurnEnded(cid);
   }
 
   // ============================================================================
@@ -1666,6 +1724,46 @@ class ChatActions {
           } catch (_) {
             // Compaction is a best-effort projection; never veto the run.
           }
+
+          // Duty 3 — mid-turn steering drain (turn-queue plan §3.5 A). Runs
+          // after mid-run compaction so injected text never enters the
+          // compactor's view (R4). The kernel passes `messages` by reference,
+          // so appending here reaches the next round verbatim. Step 0 never
+          // drains (the initial replay covers early pushes; the rest is
+          // settlement path B).
+          if (!isAiTeamRunActive(state.conversationId)) {
+            try {
+              final entries = steeringMailbox.drain(
+                state.conversationId,
+                assistantMessageId,
+              );
+              if (entries.isNotEmpty) {
+                final mergedText = entries.map((e) => e.text).join('\n\n');
+                final echoIds = entries
+                    .map((e) => e.echoMessageId)
+                    .whereType<String>()
+                    .toSet();
+                for (final echoId in echoIds) {
+                  await chatService.moveMessageBefore(
+                    conversationId: state.conversationId,
+                    messageId: echoId,
+                    beforeMessageId: assistantMessageId,
+                  );
+                  _reorderEchoInMemory(
+                    state.conversationId,
+                    echoId,
+                    assistantMessageId,
+                  );
+                }
+                messages.add(<String, dynamic>{
+                  'role': 'user',
+                  'content': mergedText,
+                });
+              }
+            } catch (_) {
+              // Steering injection is best-effort; never veto the run.
+            }
+          }
         }
         return true;
       },
@@ -1726,6 +1824,28 @@ class ChatActions {
   /// approval_lifecycle_test); the timeline card paths call [resolveApproval]
   /// and [resumeAfterAskUserAnswer] directly.
   Future<ChatMessage?> resumeRun(
+    String conversationId, {
+    String? assistantMessageId,
+    String? toolCallId,
+    bool approve = false,
+    Map<String, dynamic>? answerPayload,
+  }) async {
+    // Turn queue (F2/R13): suppress dispatch for the whole resume transition.
+    _beginInternalTransition(conversationId);
+    try {
+      return await _resumeRunUnlocked(
+        conversationId,
+        assistantMessageId: assistantMessageId,
+        toolCallId: toolCallId,
+        approve: approve,
+        answerPayload: answerPayload,
+      );
+    } finally {
+      _endInternalTransition(conversationId);
+    }
+  }
+
+  Future<ChatMessage?> _resumeRunUnlocked(
     String conversationId, {
     String? assistantMessageId,
     String? toolCallId,
@@ -1795,15 +1915,531 @@ class ChatActions {
   final Map<String, stream_ctrl.StreamingState> _activeStreamStates =
       <String, stream_ctrl.StreamingState>{};
 
+  // ============================================================================
+  // Turn Queue & Steering (docs/anybuff_queue_sendnow_import_plan.md)
+  // ============================================================================
+
+  /// In-memory per-conversation turn queue (v1: cleared on restart, R9).
+  final TurnQueueStore turnQueue = TurnQueueStore();
+
+  /// Per-conversation mid-turn steering mailbox (owner = run token, F5).
+  final SteeringMailbox steeringMailbox = SteeringMailbox();
+
+  /// Reference-counted internal transitions (regenerate / resume / approval
+  /// resolve) per conversation. Queue dispatch is suppressed while any
+  /// transition is in flight (F2/R13).
+  final Map<String, int> _internalTransitionCounts = <String, int>{};
+
+  /// Conversation id of the active AI Team run (proposer or aggregator), or
+  /// null. Steering and queue dispatch are disabled for it (F6/R18).
+  String? _aiTeamActiveConversationId;
+
+  /// One-shot retry timers for failed dispatches, keyed by conversation id.
+  final Map<String, Timer> _dispatchCooldownTimers = <String, Timer>{};
+
+  /// Called whenever queue state changes (items / pause) so the UI rebuilds.
+  VoidCallback? onQueueChanged;
+
+  /// Called when repeated dispatch failures pause the queue (R10) so the UI
+  /// can surface the localized `queueDockSendFailed` hint.
+  VoidCallback? onQueueDispatchFailed;
+
+  /// Formal dispatch entry point, wired by HomeViewModel to its sendMessage
+  /// (the full user-facing send pipeline: snackbars, title, review).
+  Future<bool> Function(ChatInputData input)? onDispatchSend;
+
+  /// Whether an AI Team run (proposer or aggregator) owns [conversationId].
+  bool isAiTeamRunActive(String conversationId) =>
+      _aiTeamActiveConversationId == conversationId;
+
+  bool _isInternalTransition(String conversationId) =>
+      (_internalTransitionCounts[conversationId] ?? 0) > 0;
+
+  void _beginInternalTransition(String conversationId) {
+    _internalTransitionCounts[conversationId] =
+        (_internalTransitionCounts[conversationId] ?? 0) + 1;
+  }
+
+  void _endInternalTransition(String conversationId) {
+    final next = (_internalTransitionCounts[conversationId] ?? 0) - 1;
+    if (next <= 0) {
+      _internalTransitionCounts.remove(conversationId);
+    } else {
+      _internalTransitionCounts[conversationId] = next;
+    }
+  }
+
+  /// Enqueues [input] for [conversationId] (queue-first composer).
+  Future<bool> enqueueMessage(
+    String conversationId,
+    ChatInputData input,
+  ) async {
+    final hasText = input.text.trim().isNotEmpty;
+    if (!hasText && input.imagePaths.isEmpty && input.documents.isEmpty) {
+      return false;
+    }
+    turnQueue.enqueue(
+      QueuedMessage(
+        id: turnQueue.nextId(),
+        conversationId: conversationId,
+        input: ChatInputData(
+          text: input.text,
+          imagePaths: List<String>.of(input.imagePaths),
+          documents: List<DocumentAttachment>.of(input.documents),
+        ),
+        createdAt: DateTime.now(),
+      ),
+    );
+    onQueueChanged?.call();
+    // Defensive wake: if the turn ended between the UI check and this call the
+    // item dispatches immediately instead of waiting for another trigger.
+    notifyTurnEnded(conversationId);
+    return true;
+  }
+
+  /// Pushes [text] into the active run (Send now). Returns false when no run
+  /// is active or the input is not steerable.
+  Future<bool> steerNow(String conversationId, String text) async {
+    final trimmed = text.trim();
+    if (!canSteerChatInput(
+      loading: _loadingConversationIds.contains(conversationId),
+      text: trimmed,
+    )) {
+      return false;
+    }
+    if (isAiTeamRunActive(conversationId)) return false;
+    if (steeringMailbox.ownerOf(conversationId) == null) return false;
+
+    final entry = steeringMailbox.push(conversationId, trimmed);
+    if (entry == null) return false;
+
+    final displayed = _currentConversation;
+    final isDisplayed = displayed != null && displayed.id == conversationId;
+    if (entry.echoMessageId != null) {
+      // Merge into the existing echo bubble (consecutive-user 400 guard, R2).
+      final echoId = entry.echoMessageId!;
+      final merged = entry.text;
+      try {
+        await chatService.updateMessage(echoId, content: merged);
+      } catch (_) {}
+      if (isDisplayed) {
+        final idx = _messages.indexWhere((m) => m.id == echoId);
+        if (idx != -1) {
+          _messages[idx] = _messages[idx].copyWith(content: merged);
+          onMessagesChanged?.call();
+        }
+      }
+      return true;
+    }
+    try {
+      // The echo must persist even when the run's conversation is not on
+      // screen; otherwise the injected turn would never exist in history.
+      final conv = isDisplayed
+          ? displayed
+          : chatService.getConversation(conversationId);
+      if (conv == null) return true;
+      final echo = await messageGenerationService.createUserMessage(
+        conversationId: conversationId,
+        input: ChatInputData(text: trimmed),
+        assistant: _assistantForConversation(conv),
+      );
+      entry.echoMessageId = echo.id;
+      if (isDisplayed) {
+        // Push-time position: after the streaming assistant bubble; the
+        // round-boundary drain moves it before the assistant (F15).
+        _messages.add(echo);
+        onMessagesChanged?.call();
+      }
+    } catch (_) {
+      // Echo persistence is best-effort; the injection still proceeds.
+    }
+    return true;
+  }
+
+  List<QueuedMessage> queueItemsFor(String conversationId) =>
+      turnQueue.queueFor(conversationId);
+
+  bool isQueuePaused(String conversationId) =>
+      turnQueue.isPaused(conversationId);
+
+  void removeQueuedMessage(String conversationId, String id) {
+    if (turnQueue.remove(conversationId, id) != null) onQueueChanged?.call();
+  }
+
+  void promoteQueuedMessage(String conversationId, String id) {
+    if (turnQueue.promote(conversationId, id)) onQueueChanged?.call();
+  }
+
+  /// Edits a queued item's text (attachments stay untouched per §9).
+  void updateQueuedMessageText(
+    String conversationId,
+    String id,
+    String text,
+  ) {
+    QueuedMessage? existing;
+    for (final item in turnQueue.queueFor(conversationId)) {
+      if (item.id == id) {
+        existing = item;
+        break;
+      }
+    }
+    if (existing == null) return;
+    final updated = ChatInputData(
+      text: text,
+      imagePaths: existing.input.imagePaths,
+      documents: existing.input.documents,
+    );
+    if (turnQueue.updateInput(conversationId, id, updated)) {
+      onQueueChanged?.call();
+    }
+  }
+
+  /// Dock「繼續」: clears the pause and dispatches immediately.
+  Future<void> resumeQueue(String conversationId) async {
+    turnQueue.resume(conversationId);
+    onQueueChanged?.call();
+    await dispatchIfIdle(conversationId);
+  }
+
+  /// Drops all queue / mailbox state for a conversation.
+  void clearTurnQueue(String conversationId) {
+    _dispatchCooldownTimers.remove(conversationId)?.cancel();
+    steeringMailbox.abandon(conversationId);
+    turnQueue.clearConversation(conversationId);
+    onQueueChanged?.call();
+  }
+
+  /// Schedules a microtask dispatch attempt (§3.4). Deliberately not wired to
+  /// generic loading events (F2): only turn terminals, conversation switches
+  /// and enqueue/resume call this.
+  void notifyTurnEnded(String conversationId) {
+    scheduleMicrotask(() async {
+      if (_loadingConversationIds.contains(conversationId)) return;
+      if (_isInternalTransition(conversationId)) return;
+      await dispatchIfIdle(conversationId);
+    });
+  }
+
+  /// Dispatches the queue head once every gate is clear (§3.4).
+  Future<void> dispatchIfIdle(String conversationId) async {
+    if (!turnQueue.tryBeginDispatch(conversationId)) return;
+    try {
+      // Defence in depth for direct callers (resume / enqueue wake): never
+      // dispatch while a run is live or a team run owns the turn.
+      if (_loadingConversationIds.contains(conversationId)) return;
+      if (isAiTeamRunActive(conversationId)) return;
+
+      final conversation = chatService.getConversation(conversationId);
+      if (conversation == null) {
+        // Conversation was deleted: drop the stale queue (the dock follows
+        // the on-screen conversation, so this only frees memory).
+        clearTurnQueue(conversationId);
+        return;
+      }
+
+      // Durable checkpoint gate (F1/R12): a paused run or a pending
+      // approval/ask_user card must never be hijacked by auto-dispatch. A
+      // failed read counts as blocked (fail-safe).
+      var checkpointPaused = false;
+      try {
+        final checkpoint = await _checkpointStore.load(conversationId);
+        checkpointPaused =
+            checkpoint != null &&
+            (checkpoint.phase == agentRunPhasePaused ||
+                checkpoint.hasPendingUserAction);
+      } catch (_) {
+        checkpointPaused = true;
+      }
+
+      final canDispatch = canDispatchTurn(
+        inFlight: false, // this call owns the slot
+        mailboxActive: steeringMailbox.isActive(conversationId),
+        queuePaused: turnQueue.isPaused(conversationId),
+        internalTransition: _isInternalTransition(conversationId),
+        checkpointPaused: checkpointPaused,
+        isCurrentConversation: _currentConversation?.id == conversationId,
+        cooldownActive: turnQueue.isCoolingDown(conversationId),
+        hasItems: turnQueue.hasItems(conversationId),
+      );
+      if (!canDispatch) return;
+
+      final head = turnQueue.queueFor(conversationId).first;
+      turnQueue.remove(conversationId, head.id);
+      onQueueChanged?.call();
+
+      var ok = false;
+      try {
+        final dispatch = onDispatchSend;
+        if (dispatch != null) {
+          ok = await dispatch(head.input);
+        } else {
+          ok = (await sendMessage(
+            input: head.input,
+            conversation: conversation,
+          )).success;
+        }
+      } catch (_) {
+        ok = false;
+      }
+
+      if (ok) {
+        turnQueue.resetFailure(conversationId);
+        onQueueChanged?.call();
+        // The started turn's terminal fires the next notifyTurnEnded; do not
+        // continue the loop here (single-flight owns one item per turn).
+        return;
+      }
+
+      turnQueue.requeueHead(conversationId, head);
+      final shouldPause = turnQueue.registerFailure(conversationId, head.id);
+      turnQueue.markCooldown(conversationId);
+      onQueueChanged?.call();
+      if (shouldPause) {
+        turnQueue.pause(conversationId);
+        onQueueChanged?.call();
+        onQueueDispatchFailed?.call();
+        return;
+      }
+      _scheduleDispatchRetry(conversationId);
+    } finally {
+      turnQueue.endDispatch(conversationId);
+    }
+  }
+
+  void _scheduleDispatchRetry(String conversationId) {
+    _dispatchCooldownTimers.remove(conversationId)?.cancel();
+    _dispatchCooldownTimers[conversationId] = Timer(
+      TurnQueueStore.failureCooldown,
+      () {
+        _dispatchCooldownTimers.remove(conversationId);
+        notifyTurnEnded(conversationId);
+      },
+    );
+  }
+
+  /// Retracts steering echoes and moves their text back to the queue head
+  /// (§3.5 F3). [pauseQueue] implements the Stop ruling (F10); error and
+  /// team-stop keep dispatching (R14).
+  Future<void> _settleTurnMailbox(
+    String conversationId, {
+    required bool pauseQueue,
+    String? expectedOwner,
+  }) async {
+    final owner = steeringMailbox.ownerOf(conversationId);
+    if (expectedOwner != null && owner != null && owner != expectedOwner) {
+      // A newer run owns the mailbox; a stale terminal must not touch it (F5).
+      return;
+    }
+    final entries = steeringMailbox.abandon(conversationId);
+    final echoIds = entries
+        .map((e) => e.echoMessageId)
+        .whereType<String>()
+        .toSet();
+    for (final echoId in echoIds) {
+      try {
+        await chatService.deleteMessage(echoId);
+      } catch (_) {}
+      final idx = _messages.indexWhere((m) => m.id == echoId);
+      if (idx >= 0) _messages.removeAt(idx);
+    }
+
+    final leftovers = <QueuedMessage>[];
+    for (final entry in entries) {
+      final text = entry.text.trim();
+      if (text.isEmpty) continue;
+      leftovers.add(
+        QueuedMessage(
+          id: turnQueue.nextId(),
+          conversationId: conversationId,
+          input: ChatInputData(text: text),
+          createdAt: DateTime.now(),
+        ),
+      );
+    }
+    turnQueue.prependAll(conversationId, leftovers);
+
+    if (pauseQueue &&
+        (leftovers.isNotEmpty || turnQueue.hasItems(conversationId))) {
+      turnQueue.pause(conversationId);
+    }
+    onQueueChanged?.call();
+    if (echoIds.isNotEmpty) onMessagesChanged?.call();
+  }
+
+  /// Continues the turn after a terminal segment that received steering input
+  /// during its final round (§3.5 B).
+  ///
+  /// Returns true when a continuation segment started (loading stays true).
+  /// Returns false when the turn must settle normally — the caller then clears
+  /// loading and wakes the queue (fail-open, never stuck loading).
+  Future<bool> _continueSteeringSegment(
+    stream_ctrl.StreamingState state,
+  ) async {
+    final conversationId = state.conversationId;
+    final oldToken = state.messageId;
+    final conv = _currentConversation;
+    if (conv == null || conv.id != conversationId) {
+      // The user switched away mid-turn: retract the echo back into the queue
+      // instead of generating into a conversation that is not on screen.
+      await _settleTurnMailbox(
+        conversationId,
+        pauseQueue: false,
+        expectedOwner: oldToken,
+      );
+      steeringMailbox.deactivate(conversationId, oldToken);
+      return false;
+    }
+
+    // Consume the leftover entries without appending: the echo user messages
+    // are already persisted and the replay covers them (F15).
+    final entries = steeringMailbox.drain(conversationId, oldToken);
+    if (entries.isEmpty) {
+      steeringMailbox.deactivate(conversationId, oldToken);
+      return false;
+    }
+
+    final ctx = state.ctx;
+    final assistant = ctx.assistant;
+    ChatMessage? placeholder;
+    try {
+      placeholder = await messageGenerationService.createAssistantPlaceholder(
+        conversationId: conversationId,
+        modelId: ctx.modelId,
+        providerKey: ctx.providerKey,
+      );
+      streamController.markStreamingStarted(placeholder.id);
+      _messages.add(placeholder);
+      onMessagesChanged?.call();
+
+      // Claim the mailbox for the new segment before prepare/stream so a push
+      // landing in the seam still targets the live run (F5).
+      steeringMailbox.deactivate(conversationId, oldToken);
+      steeringMailbox.activate(conversationId, placeholder.id);
+
+      await messageGenerationService.initializeReasoningState(
+        messageId: placeholder.id,
+        enableReasoning: ctx.enableReasoning,
+      );
+
+      final prepared = await messageGenerationService
+          .prepareApiMessagesWithInjections(
+            messages: _messages,
+            assistantMessageId: placeholder.id,
+            versionSelections: _versionSelections,
+            currentConversation: conv,
+            settings: ctx.settings,
+            assistant: assistant,
+            assistantId: assistant?.id,
+            providerKey: ctx.providerKey,
+            modelId: ctx.modelId,
+          );
+
+      final userImagePaths = messageGenerationService.buildUserImagePaths(
+        input: null,
+        lastUserImagePaths: prepared.lastUserImagePaths,
+        settings: ctx.settings,
+      );
+
+      final nextCtx = messageGenerationService.buildGenerationContext(
+        assistantMessage: placeholder,
+        prepared: prepared,
+        userImagePaths: userImagePaths,
+        providerKey: ctx.providerKey,
+        modelId: ctx.modelId,
+        assistant: assistant,
+        settings: ctx.settings,
+        supportsReasoning: ctx.supportsReasoning,
+        enableReasoning: ctx.enableReasoning,
+        generateTitleOnFinish: false, // R16
+      );
+
+      await _executeGeneration(nextCtx);
+      return true;
+    } catch (_) {
+      // Continuation could not start: fail-open so loading never sticks and
+      // no permanently "streaming" placeholder is left behind.
+      final created = placeholder;
+      if (created != null) {
+        try {
+          streamController.markStreamingEnded(created.id);
+          streamController.cleanupTimers(created.id);
+          await chatService.updateMessage(created.id, isStreaming: false);
+          final idx = _messages.indexWhere((m) => m.id == created.id);
+          if (idx != -1) {
+            _messages[idx] = _messages[idx].copyWith(isStreaming: false);
+          }
+        } catch (_) {}
+      }
+      await _settleTurnMailbox(conversationId, pauseQueue: false);
+      return false;
+    }
+  }
+
+  /// Moves a drained echo bubble before the streaming assistant in the live
+  /// message list (mirrors the storage-side `moveMessageBefore`, F15).
+  void _reorderEchoInMemory(
+    String conversationId,
+    String echoMessageId,
+    String beforeMessageId,
+  ) {
+    if (_currentConversation?.id != conversationId) return;
+    final from = _messages.indexWhere((m) => m.id == echoMessageId);
+    final to = _messages.indexWhere((m) => m.id == beforeMessageId);
+    if (from < 0 || to < 0 || from == to) return;
+    final message = _messages.removeAt(from);
+    _messages.insert(to > from ? to - 1 : to, message);
+    onMessagesChanged?.call();
+  }
+
+  /// A manual send unpauses the conversation's queue (§3.5).
+  void _clearQueuePauseOnManualSend(String conversationId) {
+    if (turnQueue.isPaused(conversationId)) {
+      turnQueue.resume(conversationId);
+      onQueueChanged?.call();
+    }
+  }
+
+  /// Drops queue/mailbox state for conversations that no longer exist
+  /// (conversation delete / clear all data). Cheap: only tracked ids are
+  /// checked, and getConversation is a synchronous cache lookup.
+  void pruneUnknownConversations() {
+    for (final conversationId in turnQueue.trackedConversationIds.toList()) {
+      if (chatService.getConversation(conversationId) == null) {
+        clearTurnQueue(conversationId);
+      }
+    }
+    for (final conversationId
+        in steeringMailbox.trackedConversationIds.toList()) {
+      if (chatService.getConversation(conversationId) == null) {
+        steeringMailbox.abandon(conversationId);
+      }
+    }
+  }
+
+  /// Cancels pending dispatch retry timers (app teardown).
+  void dispose() {
+    for (final timer in _dispatchCooldownTimers.values) {
+      timer.cancel();
+    }
+    _dispatchCooldownTimers.clear();
+  }
+
   /// Execute generation with the given context.
   Future<void> _executeGeneration(
     stream_ctrl.GenerationContext ctx, {
     // Answer Review v1 (docs/answer_review_plan.md): the AI Team aggregator
     // passes `false` — proposals must never be reviewed (§5.2 invariant 11).
     bool enableAnswerReview = true,
+    // Turn queue (docs/anybuff_queue_sendnow_import_plan.md): AI Team runs
+    // never steer (F6/R18), so the aggregator disables activation.
+    bool activateSteering = true,
   }) async {
     final state = stream_ctrl.StreamingState(ctx);
     _activeStreamStates[state.messageId] = state;
+    if (activateSteering) {
+      // Owner token = this segment's assistant message id (F5).
+      steeringMailbox.activate(state.conversationId, state.messageId);
+    }
     // Review is streaming-chat-only (§5.2 invariant 12): non-streaming runs
     // and the opt-out callers keep the off config.
     final answerReview = (enableAnswerReview && ctx.streamOutput)
@@ -1878,6 +2514,26 @@ class ChatActions {
 
   /// Execute AI Team generation: run proposers sequentially, then aggregate.
   Future<void> _executeAiTeamGeneration(
+    stream_ctrl.GenerationContext ctx,
+    AiTeamConfig aiTeamConfig,
+  ) async {
+    final conversationId = ctx.assistantMessage.conversationId;
+    // Turn queue: mark the whole team run (proposers + aggregator) so the
+    // steering drain and queue dispatch stay disabled until it settles (F6).
+    _aiTeamActiveConversationId = conversationId;
+    try {
+      await _runAiTeamGeneration(ctx, aiTeamConfig);
+    } finally {
+      if (_aiTeamActiveConversationId == conversationId) {
+        _aiTeamActiveConversationId = null;
+      }
+      // The terminal during the run was vetoed by the team gate; wake the
+      // queue now that the run is over.
+      notifyTurnEnded(conversationId);
+    }
+  }
+
+  Future<void> _runAiTeamGeneration(
     stream_ctrl.GenerationContext ctx,
     AiTeamConfig aiTeamConfig,
   ) async {
@@ -2125,7 +2781,11 @@ class ChatActions {
     );
 
     // Execute aggregator generation (standard flow, subscription registered in _conversationStreams per K1)
-    await _executeGeneration(aggCtx, enableAnswerReview: false);
+    await _executeGeneration(
+      aggCtx,
+      enableAnswerReview: false,
+      activateSteering: false,
+    );
   }
 
   /// Run a single proposer silently (no UI push), return map with content/reasoning/toolCalls.
@@ -2429,8 +3089,16 @@ class ChatActions {
       );
       onMessagesChanged?.call();
     }
+    // Turn queue: AI Team never steers (F6/R18); abandon defensively so a
+    // stale mailbox cannot leak into the next turn.
+    await _settleTurnMailbox(
+      assistantMessage.conversationId,
+      pauseQueue: false,
+      expectedOwner: assistantMessage.id,
+    );
     _setConversationLoading(assistantMessage.conversationId, false);
     onStreamFinished?.call();
+    notifyTurnEnded(assistantMessage.conversationId);
   }
 
   Future<void> _handleStreamData(
@@ -3185,11 +3853,18 @@ class ChatActions {
     }
     _activeStreamStates.remove(messageId);
 
-    await _finishStreaming(state);
-    await _finishRunJournal(state);
+    // Turn queue (§3.5 B): a steering entry that was never drained (input
+    // arrived during the final round / review window) is settled by keeping
+    // `loading` true and starting a continuation segment immediately.
+    final mailboxPending =
+        steeringMailbox.hasPending(conversationId) &&
+        steeringMailbox.ownerOf(conversationId) == messageId &&
+        !isAiTeamRunActive(conversationId);
+    final canContinue =
+        mailboxPending && _currentConversation?.id == conversationId;
 
-    // Notify for background notification if needed
-    onStreamFinished?.call();
+    await _finishStreaming(state, keepLoading: canContinue);
+    await _finishRunJournal(state);
 
     // Handle buffered reasoning for non-streaming mode
     if (!state.ctx.streamOutput && state.bufferedReasoning.isNotEmpty) {
@@ -3223,12 +3898,36 @@ class ChatActions {
         reasoningFinishedAt: r.finishedAt,
       );
     }
+
+    if (canContinue) {
+      final continued = await _continueSteeringSegment(state);
+      if (!continued) {
+        _setConversationLoading(conversationId, false);
+        notifyTurnEnded(conversationId);
+      }
+    } else {
+      if (mailboxPending) {
+        // Switched away mid-turn: retract the echo and requeue the text.
+        await _settleTurnMailbox(
+          conversationId,
+          pauseQueue: false,
+          expectedOwner: messageId,
+        );
+      }
+      steeringMailbox.deactivate(conversationId, messageId);
+      notifyTurnEnded(conversationId);
+    }
+
+    // Notify for background notification if needed (after the continuation
+    // decision so a steering continuation never reports an early finish).
+    onStreamFinished?.call();
   }
 
   /// Finish streaming and persist final state.
   Future<void> _finishStreaming(
     stream_ctrl.StreamingState state, {
     bool generateTitle = true,
+    bool keepLoading = false,
   }) async {
     final messageId = state.messageId;
     final conversationId = state.conversationId;
@@ -3307,7 +4006,11 @@ class ChatActions {
       );
       onMessagesChanged?.call();
     }
-    _setConversationLoading(conversationId, false);
+    // Turn queue (§3.5 B): a steering continuation keeps `loading` true across
+    // the segment seam so the queue dispatch never fires in between (R11).
+    if (!keepLoading) {
+      _setConversationLoading(conversationId, false);
+    }
 
     // Use unified reasoning completion method
     await streamController.finishReasoningAndPersist(
@@ -3466,6 +4169,16 @@ class ChatActions {
       );
       onMessagesChanged?.call();
     }
+
+    // Turn queue (§3.5 F3/R14): retract steering echoes and put the texts
+    // back on the queue head before loading clears; error does not pause the
+    // queue (cooldown + double-failure pause own the retry policy).
+    await _settleTurnMailbox(
+      conversationId,
+      pauseQueue: false,
+      expectedOwner: messageId,
+    );
+
     _setConversationLoading(conversationId, false);
 
     // Use unified reasoning completion method on error
@@ -3500,6 +4213,7 @@ class ChatActions {
     await _conversationStreams.remove(conversationId)?.cancel();
     onStreamError?.call(errorText);
     onStreamFinished?.call();
+    notifyTurnEnded(conversationId);
   }
 
   /// Classify the run's terminal state exactly once.
@@ -3532,10 +4246,23 @@ class ChatActions {
     streamController.markStreamingEnded(state.messageId);
 
     streamController.cleanupTimers(state.messageId);
+
+    // Turn queue: same mailbox decision as _handleStreamFinish; the
+    // `finishHandled` flag makes the already-finished path skip continuation.
+    final wasHandled = state.finishHandled;
+    final mailboxPending =
+        !wasHandled &&
+        steeringMailbox.hasPending(conversationId) &&
+        steeringMailbox.ownerOf(conversationId) == state.messageId &&
+        !isAiTeamRunActive(conversationId);
+    final canContinue =
+        mailboxPending && _currentConversation?.id == conversationId;
+
     if (_loadingConversationIds.contains(conversationId)) {
       await _finishStreaming(
         state,
         generateTitle: state.ctx.generateTitleOnFinish,
+        keepLoading: canContinue,
       );
     }
 
@@ -3544,8 +4271,33 @@ class ChatActions {
     // the journal is idempotent via its ended flag.
     await _finishRunJournal(state);
 
+    // Remove the finished subscription before a continuation registers its
+    // own (K1: one stream per conversation). When the terminal chunk already
+    // handled this state, the finish path removed its subscription — do not
+    // touch the map again or a live continuation could be cancelled.
+    if (!wasHandled) {
+      await _conversationStreams.remove(conversationId)?.cancel();
+    }
+
+    if (canContinue) {
+      final continued = await _continueSteeringSegment(state);
+      if (!continued) {
+        _setConversationLoading(conversationId, false);
+        notifyTurnEnded(conversationId);
+      }
+    } else if (!wasHandled) {
+      if (mailboxPending) {
+        await _settleTurnMailbox(
+          conversationId,
+          pauseQueue: false,
+          expectedOwner: state.messageId,
+        );
+      }
+      steeringMailbox.deactivate(conversationId, state.messageId);
+      notifyTurnEnded(conversationId);
+    }
+
     onStreamFinished?.call();
-    await _conversationStreams.remove(conversationId)?.cancel();
   }
 
   // ============================================================================

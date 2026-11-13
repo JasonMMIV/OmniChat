@@ -16,6 +16,7 @@ import 'dart:typed_data';
 
 import 'dart:io';
 import '../../../core/models/chat_input_data.dart';
+import '../../../core/services/chat/turn_queue/send_gate.dart';
 import '../../../utils/clipboard_images.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
@@ -104,6 +105,9 @@ class ChatInputBar extends StatefulWidget {
   const ChatInputBar({
     super.key,
     this.onSend,
+    this.onQueue,
+    this.onSendNow,
+    this.sendNowTeamBlocked = false,
     this.onStop,
     this.onSelectModel,
     this.onLongPressSelectModel,
@@ -157,6 +161,19 @@ class ChatInputBar extends StatefulWidget {
   });
 
   final ValueChanged<ChatInputData>? onSend;
+
+  /// Queue: enqueues the full composer input (text + attachments) for the
+  /// running turn. Shown while [loading] with queueable input (§3.2).
+  final ValueChanged<ChatInputData>? onQueue;
+
+  /// Send now: injects the composer text into the running turn (pure text
+  /// only; attachments and `/` commands fall back to the queue).
+  final ValueChanged<String>? onSendNow;
+
+  /// An AI Team run is active for the current conversation — Send now is
+  /// blocked with the team hint (§3.2/§6.2 #10).
+  final bool sendNowTeamBlocked;
+
   final VoidCallback? onStop;
   final VoidCallback? onSelectModel;
   final VoidCallback? onLongPressSelectModel;
@@ -388,25 +405,104 @@ class _ChatInputBarState extends State<ChatInputBar>
   }
 
   void _handleSend() {
+    // Queue-first (§3.2): during a run the primary Enter action queues the
+    // input instead of dropping it; the idle path is unchanged. Without a
+    // queue handler the bar must never swallow the input.
+    if (widget.loading && widget.onQueue != null) {
+      _handleQueueSubmit();
+      return;
+    }
+    _submitComposer(widget.onSend);
+  }
+
+  /// Queue: enqueue the full input (text + attachments) for the running turn.
+  void _handleQueueSubmit() {
+    _submitComposer(widget.onQueue);
+  }
+
+  /// Send now: inject pure text into the running turn. When the gate fails
+  /// (attachments / slash command / AI Team) the input falls back to the
+  /// queue so nothing is silently dropped (§3.2).
+  void _handleSendNow() {
+    // Idle Ctrl/Cmd+Enter is a normal send (§3.3).
+    if (!widget.loading) {
+      _handleSend();
+      return;
+    }
+    final reason = sendNowBlockReason(
+      loading: widget.loading,
+      text: _controller.text,
+      imageCount: _images.length,
+      documentCount: _docs.length,
+      teamActive: widget.sendNowTeamBlocked,
+    );
+    if (reason != SendNowBlockReason.none || widget.onSendNow == null) {
+      _handleQueueSubmit();
+      return;
+    }
+    widget.onSendNow?.call(_controller.text.trim());
+    _clearComposer();
+    setState(() {});
+    _refocusAfterSend();
+  }
+
+  void _submitComposer(ValueChanged<ChatInputData>? handler) {
     final text = _controller.text.trim();
     if (text.isEmpty && _images.isEmpty && _docs.isEmpty) return;
-    widget.onSend?.call(
+    // Never clear the composer without a receiver: a null handler must not
+    // silently discard the user's input.
+    if (handler == null) return;
+    handler(
       ChatInputData(
         text: text,
         imagePaths: List.of(_images),
         documents: List.of(_docs),
       ),
     );
+    _clearComposer();
+    setState(() {});
+    _refocusAfterSend();
+  }
+
+  void _clearComposer() {
     _controller.clear();
     _images.clear();
     _docs.clear();
-    setState(() {});
-    // Keep focus on desktop so user can continue typing
+  }
+
+  // Keep focus on desktop so user can continue typing.
+  void _refocusAfterSend() {
     try {
       if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
         widget.focusNode?.requestFocus();
       }
     } catch (_) {}
+  }
+
+  /// Send now button with the block-reason tooltip (disabled when the input
+  /// cannot be steered — §3.2).
+  Widget _buildSendNowButton(AppLocalizations l10n) {
+    final reason = sendNowBlockReason(
+      loading: widget.loading,
+      text: _controller.text,
+      imageCount: _images.length,
+      documentCount: _docs.length,
+      teamActive: widget.sendNowTeamBlocked,
+    );
+    final enabled =
+        reason == SendNowBlockReason.none && widget.onSendNow != null;
+    final tooltip = switch (reason) {
+      SendNowBlockReason.attachments => l10n.composerSendNowAttachmentsHint,
+      SendNowBlockReason.command => l10n.composerSendNowCommandHint,
+      SendNowBlockReason.team => l10n.composerSendNowTeamHint,
+      _ => l10n.composerSendNowTooltip,
+    };
+    return _CompactIconButton(
+      tooltip: tooltip,
+      icon: Lucide.Zap,
+      disabled: !enabled,
+      onTap: enabled ? _handleSendNow : null,
+    );
   }
 
   void _insertNewlineAtCursor() {
@@ -602,8 +698,17 @@ class _ChatInputBarState extends State<ChatInputBar>
       final shift =
           keys.contains(LogicalKeyboardKey.shiftLeft) ||
           keys.contains(LogicalKeyboardKey.shiftRight);
+      final control =
+          keys.contains(LogicalKeyboardKey.controlLeft) ||
+          keys.contains(LogicalKeyboardKey.controlRight);
+      final meta =
+          keys.contains(LogicalKeyboardKey.metaLeft) ||
+          keys.contains(LogicalKeyboardKey.metaRight);
       if (shift) {
         _insertNewlineAtCursor();
+      } else if (control || meta) {
+        // Ctrl/Cmd+Enter = Send now (gate failures fall back to the queue).
+        _handleSendNow();
       } else {
         _handleSend();
       }
@@ -1056,6 +1161,15 @@ class _ChatInputBarState extends State<ChatInputBar>
         (!widget.showMoreButton || widget.contextUsage != null);
     return LayoutBuilder(
       builder: (context, constraints) {
+        // Turn queue (§3.2/§3.3): Queue shows while a run is active and the
+        // composer holds queueable input; Send now additionally requires text
+        // (attachments-only shows Queue alone).
+        final showQueueButton =
+            widget.loading && (hasText || hasImages || hasDocs);
+        final showSendNowButton = widget.loading && hasText;
+        final queueButtonCount =
+            (showQueueButton ? 1 : 0) + (showSendNowButton ? 1 : 0);
+
         // Calculate right side width to determine available left space
         double rightSideWidth = 0;
         if (widget.isDictating) {
@@ -1065,6 +1179,10 @@ class _ChatInputBarState extends State<ChatInputBar>
           if (widget.showMoreButton)
             rightSideWidth += normalButtonW + spacing; // plus + spacing
           rightSideWidth += normalButtonW; // send
+          // Each queue button adds a leading spacing + its own width; the
+          // left catalog budget shrinks accordingly so it overflows into the
+          // existing "+" menu (no new mechanism, §3.3).
+          rightSideWidth += queueButtonCount * (normalButtonW + spacing);
         }
 
         final maxLeftW = constraints.maxWidth - rightSideWidth;
@@ -1715,6 +1833,39 @@ class _ChatInputBarState extends State<ChatInputBar>
                         ),
                         const SizedBox(width: 8),
                       ],
+                      // Turn queue buttons (plan §3.2/§3.3): [Queue][Send now]
+                      // sit left of the stop button while the turn is running;
+                      // idle renders nothing (AnimatedSwitcher avoids a jump).
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        transitionBuilder: (child, anim) => FadeTransition(
+                          opacity: anim,
+                          child: ScaleTransition(scale: anim, child: child),
+                        ),
+                        child: (showQueueButton || showSendNowButton)
+                            ? Row(
+                                key: const ValueKey('queue-cluster'),
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (showQueueButton) ...[
+                                    const SizedBox(width: 8),
+                                    _CompactIconButton(
+                                      tooltip:
+                                          '${l10n.composerQueueTooltip}\n${l10n.composerKeyboardHint}',
+                                      icon: Lucide.ListPlus,
+                                      onTap: _handleQueueSubmit,
+                                    ),
+                                  ],
+                                  if (showSendNowButton) ...[
+                                    const SizedBox(width: 8),
+                                    _buildSendNowButton(l10n),
+                                  ],
+                                ],
+                              )
+                            : const SizedBox.shrink(
+                                key: ValueKey('queue-cluster-empty'),
+                              ),
+                      ),
                       _CompactSendButton(
                         enabled:
                             (hasText || hasImages || hasDocs) &&
@@ -2673,6 +2824,7 @@ class _CompactIconButton extends StatelessWidget {
     this.onLongPress,
     this.tooltip,
     this.active = false,
+    this.disabled = false,
     this.child,
     this.childBuilder,
     this.modelIcon = false,
@@ -2683,6 +2835,10 @@ class _CompactIconButton extends StatelessWidget {
   final VoidCallback? onLongPress;
   final String? tooltip;
   final bool active;
+
+  /// Paints the glyph muted and ignores taps (Send now blocked reasons).
+  final bool disabled;
+
   final Widget? child;
   final Widget Function(Color color)? childBuilder;
   final bool modelIcon;
@@ -2691,7 +2847,9 @@ class _CompactIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final fgColor = active
+    final fgColor = disabled
+        ? theme.colorScheme.onSurface.withValues(alpha: 0.35)
+        : active
         ? theme.colorScheme.primary
         : (isDark ? Colors.white70 : Colors.black54);
     final bool isDesktop =

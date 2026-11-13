@@ -7215,4 +7215,57 @@ class AppLocalizationsEn extends AppLocalizations {
   String androidShellInstallFailed(String error) {
     return 'Android Shell installation failed: $error';
   }
+
+  @override
+  String get composerQueueTooltip =>
+      'Queue — sends after this turn finishes (attachments included)';
+
+  @override
+  String get composerSendNowTooltip =>
+      'Send now — insert into the running turn (text only)';
+
+  @override
+  String get composerSendNowAttachmentsHint =>
+      'Messages with attachments can\'t be inserted into the running turn; queue them instead';
+
+  @override
+  String get composerSendNowCommandHint =>
+      'Commands starting with / must be queued, not inserted into the turn';
+
+  @override
+  String get composerKeyboardHint =>
+      'While running: Enter queues, Ctrl/Cmd+Enter sends now (IME composition is never intercepted)';
+
+  @override
+  String get composerSendNowTeamHint =>
+      'Send now is unavailable during an AI Team run; queue the message instead';
+
+  @override
+  String queueDockTitle(int n) {
+    return '$n queued';
+  }
+
+  @override
+  String get queueDockHint =>
+      'Sends automatically once the conversation is idle';
+
+  @override
+  String get queueDockPausedHint =>
+      'Paused — a stopped turn doesn\'t auto-resume; tap Resume or send a message';
+
+  @override
+  String get queueDockResume => 'Resume';
+
+  @override
+  String get queueDockEdit => 'Edit text';
+
+  @override
+  String get queueDockRemove => 'Remove';
+
+  @override
+  String get queueDockPromote => 'Move to front';
+
+  @override
+  String get queueDockSendFailed =>
+      'Queued message failed to send; moved back to the front';
 }

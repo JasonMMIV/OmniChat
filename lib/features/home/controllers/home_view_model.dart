@@ -11,6 +11,7 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/chat/turn_queue/turn_queue.dart';
 import '../../chat/widgets/chat_message_widget.dart' show ToolUIPart;
 import '../services/message_builder_service.dart';
 import '../services/message_generation_service.dart';
@@ -103,6 +104,13 @@ class HomeViewModel extends ChangeNotifier {
     _chatActions.onMaybeGenerateTitle = _onMaybeGenerateTitle;
     _chatActions.onMaybeGenerateSummary = _onMaybeGenerateSummary;
     _chatActions.onStreamFinished = _onStreamFinished;
+    _chatActions.onQueueChanged = _onQueueChanged;
+    _chatActions.onDispatchSend = sendMessage;
+    // Queue/mailbox cleanup for deleted conversations (plan §3.6): prune on
+    // any ChatService change (delete / clear-all notify here).
+    _chatService.addListener(_onChatServiceChanged);
+    _chatActions.onQueueDispatchFailed = () =>
+        onWarning?.call('queue_send_failed');
   }
 
   // ============================================================================
@@ -175,6 +183,10 @@ class HomeViewModel extends ChangeNotifier {
   /// content updates go through StreamingContentNotifier and deliberately do
   /// NOT fire this (chat_actions.dart "Do NOT call onMessagesChanged").
   VoidCallback? onMessagesChanged;
+
+  /// Called when the turn queue changes (items / pause) so the UI rebuilds
+  /// (docs/anybuff_queue_sendnow_import_plan.md §4.2).
+  VoidCallback? onQueueChanged;
 
   // ============================================================================
   // State Getters (delegate to ChatController)
@@ -255,6 +267,22 @@ class HomeViewModel extends ChangeNotifier {
     onStreamFinished?.call();
   }
 
+  void _onQueueChanged() {
+    notifyListeners();
+    onQueueChanged?.call();
+  }
+
+  void _onChatServiceChanged() {
+    _chatActions.pruneUnknownConversations();
+  }
+
+  @override
+  void dispose() {
+    _chatService.removeListener(_onChatServiceChanged);
+    _chatActions.dispose();
+    super.dispose();
+  }
+
   // ============================================================================
   // Public Methods - Message Actions
   // ============================================================================
@@ -333,6 +361,59 @@ class HomeViewModel extends ChangeNotifier {
   Future<void> cancelStreaming() async {
     await _chatActions.cancelStreaming(currentConversation);
   }
+
+  // ============================================================================
+  // Turn Queue & Steering (docs/anybuff_queue_sendnow_import_plan.md)
+  // ============================================================================
+
+  /// Enqueues [input] for the current conversation (queue-first composer).
+  Future<bool> enqueueMessage(ChatInputData input) async {
+    final conversation = currentConversation;
+    if (conversation == null) return false;
+    return _chatActions.enqueueMessage(conversation.id, input);
+  }
+
+  /// Send now: pushes [text] into the running turn (pure text only).
+  Future<bool> steerNow(String text) async {
+    final conversation = currentConversation;
+    if (conversation == null) return false;
+    final ok = await _chatActions.steerNow(conversation.id, text);
+    if (ok) {
+      onHapticFeedback?.call();
+      onScrollToBottom?.call();
+    }
+    return ok;
+  }
+
+  List<QueuedMessage> queueItemsFor(String? conversationId) =>
+      conversationId == null
+      ? const <QueuedMessage>[]
+      : _chatActions.queueItemsFor(conversationId);
+
+  bool isQueuePausedFor(String? conversationId) =>
+      conversationId != null && _chatActions.isQueuePaused(conversationId);
+
+  void removeQueuedMessage(String conversationId, String itemId) =>
+      _chatActions.removeQueuedMessage(conversationId, itemId);
+
+  void promoteQueuedMessage(String conversationId, String itemId) =>
+      _chatActions.promoteQueuedMessage(conversationId, itemId);
+
+  void updateQueuedMessageText(
+    String conversationId,
+    String itemId,
+    String text,
+  ) => _chatActions.updateQueuedMessageText(conversationId, itemId, text);
+
+  Future<void> resumeQueue(String conversationId) =>
+      _chatActions.resumeQueue(conversationId);
+
+  bool isAiTeamRunActive(String conversationId) =>
+      _chatActions.isAiTeamRunActive(conversationId);
+
+  /// Wakes the queue after a conversation switch (F7).
+  void notifyTurnEndedForQueue(String conversationId) =>
+      _chatActions.notifyTurnEnded(conversationId);
 
   /// Delete a message and adjust version selections.
   ///

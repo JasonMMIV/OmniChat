@@ -320,6 +320,53 @@ class ChatRepository {
     await _insertMessage(message, ordinal);
   }
 
+  /// Moves [messageId] immediately before [beforeMessageId] in conversation
+  /// order (steering echo reflow, turn-queue plan F15).
+  ///
+  /// Rebuilds the ordinal sequence instead of swapping two values so the
+  /// operation is idempotent and correct even when other rows sit between the
+  /// two messages. `UNIQUE(conversation_id, ordinal)` is respected with the
+  /// same two-phase renumber trick as [_renumberMessages].
+  Future<bool> moveMessageBefore({
+    required String conversationId,
+    required String messageId,
+    required String beforeMessageId,
+  }) async {
+    if (messageId == beforeMessageId) return false;
+    return db.transaction(() async {
+      final rows = await (db.select(db.messageRows)
+            ..where((t) => t.conversationId.equals(conversationId))
+            ..orderBy([(t) => OrderingTerm.asc(t.ordinal)]))
+          .get();
+      final ids = <String>[for (final row in rows) row.id];
+      final from = ids.indexOf(messageId);
+      final to = ids.indexOf(beforeMessageId);
+      if (from < 0 || to < 0) return false;
+      if (from < to) return true; // already before the target — idempotent
+
+      ids.removeAt(from);
+      ids.insert(to, messageId);
+
+      // Park everything on negative ordinals first so the unique index can
+      // never collide mid-update, then assign the canonical 0..n-1 range.
+      for (var i = 0; i < ids.length; i++) {
+        await (db.update(
+          db.messageRows,
+        )..where((t) => t.id.equals(ids[i]))).write(
+          MessageRowsCompanion(ordinal: Value(-1 - i)),
+        );
+      }
+      for (var i = 0; i < ids.length; i++) {
+        await (db.update(
+          db.messageRows,
+        )..where((t) => t.id.equals(ids[i]))).write(
+          MessageRowsCompanion(ordinal: Value(i)),
+        );
+      }
+      return true;
+    });
+  }
+
   Future<void> updateMessage(
     String messageId, {
     String? content,

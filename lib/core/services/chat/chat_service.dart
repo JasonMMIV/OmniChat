@@ -921,6 +921,24 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Moves [messageId] immediately before [beforeMessageId] in storage order
+  /// (steering echo reflow, turn-queue plan F15). No schema change: SQLite
+  /// swaps ordinals in a transaction, Hive reorders its message id list.
+  Future<bool> moveMessageBefore({
+    required String conversationId,
+    required String messageId,
+    required String beforeMessageId,
+  }) async {
+    if (!_initialized) await init();
+    final moved = await _storage!.moveMessageBefore(
+      conversationId: conversationId,
+      messageId: messageId,
+      beforeMessageId: beforeMessageId,
+    );
+    if (moved) notifyListeners();
+    return moved;
+  }
+
   Future<Conversation?> toggleTruncateAtTail(
     String conversationId, {
     String? defaultTitle,

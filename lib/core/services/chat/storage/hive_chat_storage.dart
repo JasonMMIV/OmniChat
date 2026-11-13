@@ -473,6 +473,36 @@ class HiveChatStorage extends ChatStorage {
   }
 
   @override
+  Future<bool> moveMessageBefore({
+    required String conversationId,
+    required String messageId,
+    required String beforeMessageId,
+  }) async {
+    if (messageId == beforeMessageId) return false;
+    final conversation = _conversationsBox.get(conversationId);
+    if (conversation == null) return false;
+    final ids = conversation.messageIds;
+    if (!ids.contains(messageId) || !ids.contains(beforeMessageId)) {
+      return false;
+    }
+    ids.remove(messageId);
+    final target = ids.indexOf(beforeMessageId);
+    ids.insert(target, messageId);
+    await conversation.save();
+
+    final cached = _messagesCache[conversationId];
+    if (cached != null) {
+      final from = cached.indexWhere((m) => m.id == messageId);
+      final to = cached.indexWhere((m) => m.id == beforeMessageId);
+      if (from >= 0 && to >= 0 && from != to) {
+        final message = cached.removeAt(from);
+        cached.insert(to > from ? to - 1 : to, message);
+      }
+    }
+    return true;
+  }
+
+  @override
   Future<void> addMessageDirectly(
     String conversationId,
     ChatMessage message,

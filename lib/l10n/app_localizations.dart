@@ -13409,6 +13409,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Android Shell installation failed: {error}'**
   String androidShellInstallFailed(String error);
+
+  /// No description provided for @composerQueueTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue — sends after this turn finishes (attachments included)'**
+  String get composerQueueTooltip;
+
+  /// No description provided for @composerSendNowTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Send now — insert into the running turn (text only)'**
+  String get composerSendNowTooltip;
+
+  /// No description provided for @composerSendNowAttachmentsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Messages with attachments can\'t be inserted into the running turn; queue them instead'**
+  String get composerSendNowAttachmentsHint;
+
+  /// No description provided for @composerSendNowCommandHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Commands starting with / must be queued, not inserted into the turn'**
+  String get composerSendNowCommandHint;
+
+  /// No description provided for @composerKeyboardHint.
+  ///
+  /// In en, this message translates to:
+  /// **'While running: Enter queues, Ctrl/Cmd+Enter sends now (IME composition is never intercepted)'**
+  String get composerKeyboardHint;
+
+  /// No description provided for @composerSendNowTeamHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Send now is unavailable during an AI Team run; queue the message instead'**
+  String get composerSendNowTeamHint;
+
+  /// Queue dock header; n is the number of queued messages
+  ///
+  /// In en, this message translates to:
+  /// **'{n} queued'**
+  String queueDockTitle(int n);
+
+  /// No description provided for @queueDockHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Sends automatically once the conversation is idle'**
+  String get queueDockHint;
+
+  /// No description provided for @queueDockPausedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Paused — a stopped turn doesn\'t auto-resume; tap Resume or send a message'**
+  String get queueDockPausedHint;
+
+  /// No description provided for @queueDockResume.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume'**
+  String get queueDockResume;
+
+  /// No description provided for @queueDockEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit text'**
+  String get queueDockEdit;
+
+  /// No description provided for @queueDockRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get queueDockRemove;
+
+  /// No description provided for @queueDockPromote.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to front'**
+  String get queueDockPromote;
+
+  /// No description provided for @queueDockSendFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Queued message failed to send; moved back to the front'**
+  String get queueDockSendFailed;
 }
 
 class _AppLocalizationsDelegate

@@ -10,6 +10,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/models/answer_review.dart';
 import '../../../core/models/chat_input_data.dart';
+import '../../../core/services/chat/turn_queue/turn_queue.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/quick_phrase.dart';
@@ -796,6 +797,25 @@ class HomePageController extends ChangeNotifier {
   Map<String, StreamSubscription<dynamic>> get conversationStreams =>
       _chatController.conversationStreams;
 
+  // Turn queue (docs/anybuff_queue_sendnow_import_plan.md)
+  List<QueuedMessage> queueItemsFor(String? conversationId) =>
+      _viewModel.queueItemsFor(conversationId);
+  bool queuePausedFor(String? conversationId) =>
+      _viewModel.isQueuePausedFor(conversationId);
+  bool isAiTeamRunActiveFor(String? conversationId) =>
+      conversationId != null && _viewModel.isAiTeamRunActive(conversationId);
+  void removeQueuedMessage(String conversationId, String itemId) =>
+      _viewModel.removeQueuedMessage(conversationId, itemId);
+  void promoteQueuedMessage(String conversationId, String itemId) =>
+      _viewModel.promoteQueuedMessage(conversationId, itemId);
+  void updateQueuedMessageText(
+    String conversationId,
+    String itemId,
+    String text,
+  ) => _viewModel.updateQueuedMessageText(conversationId, itemId, text);
+  Future<void> resumeQueue(String conversationId) =>
+      _viewModel.resumeQueue(conversationId);
+
   // Delegate to StreamController
   Map<String, stream_ctrl.ReasoningData> get reasoning =>
       _streamController.reasoning;
@@ -965,6 +985,7 @@ class HomePageController extends ChangeNotifier {
 
   void _wireViewModelCallbacks() {
     _viewModel.onMessagesChanged = _scheduleContextUsageRefresh;
+    _viewModel.onQueueChanged = notifyListeners;
     _viewModel.onError = (error) {
       final l10n = AppLocalizations.of(_context)!;
       showAppSnackBar(
@@ -1003,6 +1024,12 @@ class HomePageController extends ChangeNotifier {
         showAppSnackBar(
           _context,
           message: l10n.homePagePleaseSelectModel,
+          type: NotificationType.warning,
+        );
+      } else if (warning == 'queue_send_failed') {
+        showAppSnackBar(
+          _context,
+          message: l10n.queueDockSendFailed,
           type: NotificationType.warning,
         );
       }
@@ -1249,10 +1276,48 @@ class HomePageController extends ChangeNotifier {
       return;
     if (currentConversation == null) await _createNewConversation();
 
+    // Queue-first composer (F8): while the conversation is generating, Enter
+    // and the Queue button enqueue the input instead of blocking the composer.
+    // Placed after the edit-message branch so editing keeps its own semantics.
+    final conversation = currentConversation;
+    if (conversation != null &&
+        loadingConversationIds.contains(conversation.id)) {
+      final queued = await _viewModel.enqueueMessage(input);
+      if (queued) notifyListeners();
+      return;
+    }
+
     final success = await _viewModel.sendMessage(input);
     if (success) {
       notifyListeners();
     }
+  }
+
+  /// Send now (mid-turn steering): pushes the composer text into the running
+  /// turn. The input bar clears the composer on its own.
+  ///
+  /// Fail-open: when the run ended (or an AI Team run owns the turn) between
+  /// the UI gate and the push, the text is queued instead of dropped; if even
+  /// that fails it is restored into the composer.
+  Future<void> sendNow(String text) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    final ok = await _viewModel.steerNow(trimmed);
+    if (ok) {
+      notifyListeners();
+      return;
+    }
+    final queued = await _viewModel.enqueueMessage(
+      ChatInputData(text: trimmed),
+    );
+    if (queued) {
+      notifyListeners();
+      return;
+    }
+    _inputController.text = trimmed;
+    _inputController.selection = TextSelection.collapsed(
+      offset: trimmed.length,
+    );
   }
 
   void startEditingMessage(ChatMessage message) {
@@ -1340,6 +1405,8 @@ class HomePageController extends ChangeNotifier {
 
     await _viewModel.switchConversation(id);
     notifyListeners();
+    // Turn queue (F7): switching back to a conversation wakes its queue.
+    _viewModel.notifyTurnEndedForQueue(id);
     try {
       await WidgetsBinding.instance.endOfFrame;
     } catch (_) {}

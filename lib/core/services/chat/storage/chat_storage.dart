@@ -223,6 +223,17 @@ abstract class ChatStorage {
 
   Future<void> insertMessageAt(ChatMessage message, int ordinal);
 
+  /// Moves [messageId] immediately before [beforeMessageId] in storage order
+  /// (steering echo reflow, turn-queue plan F15). This is the only order
+  /// operation outside append: SQLite swaps ordinals inside a transaction,
+  /// Hive reorders the conversation's message id list. Returns false when
+  /// either message is missing or the move is a no-op.
+  Future<bool> moveMessageBefore({
+    required String conversationId,
+    required String messageId,
+    required String beforeMessageId,
+  });
+
   Future<void> addMessageDirectly(String conversationId, ChatMessage message);
 
   Future<void> restoreConversation(

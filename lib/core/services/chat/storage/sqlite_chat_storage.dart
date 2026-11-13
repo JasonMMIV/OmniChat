@@ -573,6 +573,38 @@ class SqliteChatStorage extends ChatStorage {
   }
 
   @override
+  Future<bool> moveMessageBefore({
+    required String conversationId,
+    required String messageId,
+    required String beforeMessageId,
+  }) async {
+    final moved = await _repo.moveMessageBefore(
+      conversationId: conversationId,
+      messageId: messageId,
+      beforeMessageId: beforeMessageId,
+    );
+    if (!moved) return false;
+    final list = _messages[conversationId];
+    if (list != null) {
+      final from = list.indexWhere((m) => m.id == messageId);
+      final to = list.indexWhere((m) => m.id == beforeMessageId);
+      if (from >= 0 && to >= 0 && from != to) {
+        final message = list.removeAt(from);
+        list.insert(to > from ? to - 1 : to, message);
+      }
+    }
+    final conversation = _conversations[conversationId];
+    if (conversation != null && conversation.messageIds.contains(messageId)) {
+      final ids = List<String>.of(conversation.messageIds);
+      ids.remove(messageId);
+      final target = ids.indexOf(beforeMessageId);
+      ids.insert(target < 0 ? ids.length : target, messageId);
+      _conversations[conversationId] = conversation.copyWith(messageIds: ids);
+    }
+    return true;
+  }
+
+  @override
   Future<void> addMessageDirectly(
     String conversationId,
     ChatMessage message,
