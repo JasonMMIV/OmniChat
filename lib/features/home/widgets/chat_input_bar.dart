@@ -497,10 +497,10 @@ class _ChatInputBarState extends State<ChatInputBar>
       SendNowBlockReason.team => l10n.composerSendNowTeamHint,
       _ => l10n.composerSendNowTooltip,
     };
-    return _CompactIconButton(
+    return _ComposerSendNowButton(
+      key: const ValueKey('composer-send-now-button'),
       tooltip: tooltip,
-      icon: Lucide.Zap,
-      disabled: !enabled,
+      enabled: enabled,
       onTap: enabled ? _handleSendNow : null,
     );
   }
@@ -1849,10 +1849,12 @@ class _ChatInputBarState extends State<ChatInputBar>
                                 children: [
                                   if (showQueueButton) ...[
                                     const SizedBox(width: 8),
-                                    _CompactIconButton(
+                                    _ComposerQueueButton(
+                                      key: const ValueKey(
+                                        'composer-queue-button',
+                                      ),
                                       tooltip:
                                           '${l10n.composerQueueTooltip}\n${l10n.composerKeyboardHint}',
-                                      icon: Lucide.ListPlus,
                                       onTap: _handleQueueSubmit,
                                     ),
                                   ],
@@ -1875,6 +1877,8 @@ class _ChatInputBarState extends State<ChatInputBar>
                         onStop: widget.loading ? widget.onStop : null,
                         color: theme.colorScheme.primary,
                         icon: Lucide.ArrowUp,
+                        loadingColor: _composerStopColor(theme),
+                        loadingForeground: Colors.white,
                       ),
                     ],
             ),
@@ -2824,7 +2828,6 @@ class _CompactIconButton extends StatelessWidget {
     this.onLongPress,
     this.tooltip,
     this.active = false,
-    this.disabled = false,
     this.child,
     this.childBuilder,
     this.modelIcon = false,
@@ -2836,9 +2839,6 @@ class _CompactIconButton extends StatelessWidget {
   final String? tooltip;
   final bool active;
 
-  /// Paints the glyph muted and ignores taps (Send now blocked reasons).
-  final bool disabled;
-
   final Widget? child;
   final Widget Function(Color color)? childBuilder;
   final bool modelIcon;
@@ -2847,9 +2847,7 @@ class _CompactIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final fgColor = disabled
-        ? theme.colorScheme.onSurface.withValues(alpha: 0.35)
-        : active
+    final fgColor = active
         ? theme.colorScheme.primary
         : (isDark ? Colors.white70 : Colors.black54);
     final bool isDesktop =
@@ -2963,6 +2961,8 @@ class _CompactSendButton extends StatelessWidget {
     required this.icon,
     this.loading = false,
     this.onStop,
+    this.loadingColor,
+    this.loadingForeground,
   });
 
   final bool enabled;
@@ -2972,15 +2972,26 @@ class _CompactSendButton extends StatelessWidget {
   final Color color;
   final IconData icon;
 
+  /// Stop-state overrides. The running composer paints a red circle with a
+  /// white square so "abort" reads at a glance in both themes.
+  final Color? loadingColor;
+  final Color? loadingForeground;
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = (enabled || loading)
-        ? color
-        : (isDark ? Colors.white12 : Colors.grey.shade300.withOpacity(0.84));
-    final fg = (enabled || loading)
-        ? (isDark ? Colors.black : Colors.white)
-        : (isDark ? Colors.white70 : Colors.grey.shade600);
+    final Color bg;
+    final Color fg;
+    if (loading) {
+      bg = loadingColor ?? color;
+      fg = loadingForeground ?? (isDark ? Colors.black : Colors.white);
+    } else if (enabled) {
+      bg = color;
+      fg = isDark ? Colors.black : Colors.white;
+    } else {
+      bg = isDark ? Colors.white12 : Colors.grey.shade300.withOpacity(0.84);
+      fg = isDark ? Colors.white70 : Colors.grey.shade600;
+    }
 
     return Material(
       color: bg,
@@ -3008,6 +3019,112 @@ class _CompactSendButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Stop accent for the running composer. `colorScheme.error` is a pale pink
+/// in dark mode (#FFB4AB) and reads as disabled on a filled button, so the
+/// stop circle uses a dedicated danger red with a white glyph in both themes.
+Color _composerStopColor(ThemeData theme) =>
+    theme.brightness == Brightness.dark
+    ? const Color(0xFFE5484D)
+    : const Color(0xFFC62828);
+
+/// Queue action (turn queue plan §3.2/§3.3): a 32 px ringed circle — black in
+/// dark mode, white in light — with the theme primary driving both the ring
+/// and the plus. Visually subordinate to the filled Send now / Stop.
+class _ComposerQueueButton extends StatelessWidget {
+  const _ComposerQueueButton({
+    super.key,
+    required this.tooltip,
+    this.onTap,
+  });
+
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primary = theme.colorScheme.primary;
+
+    final button = Material(
+      color: isDark ? Colors.black : Colors.white,
+      shape: CircleBorder(side: BorderSide(color: primary, width: 2)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(5.5),
+          child: Icon(Lucide.Plus, size: 21, color: primary),
+        ),
+      ),
+    );
+
+    return Tooltip(
+      message: tooltip,
+      waitDuration: const Duration(milliseconds: 350),
+      child: Semantics(tooltip: tooltip, child: button),
+    );
+  }
+}
+
+/// Send now (turn queue plan §3.2): a filled primary circle carrying the
+/// return-arrow glyph (`assets/icons/send_now.svg`) — same 32 px footprint as
+/// the send / stop buttons, muted when the steer gate blocks it.
+class _ComposerSendNowButton extends StatelessWidget {
+  const _ComposerSendNowButton({
+    super.key,
+    required this.tooltip,
+    required this.enabled,
+    this.onTap,
+  });
+
+  final String tooltip;
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final onSurface = theme.colorScheme.onSurface;
+    final bg = enabled
+        ? theme.colorScheme.primary
+        : onSurface.withValues(alpha: 0.12);
+    // Match the send / stop glyph rule exactly (black on light primaries in
+    // dark mode, white otherwise) rather than `onPrimary`, whose dark values
+    // can be a navy tint rather than the black used by the send button.
+    final fg = enabled
+        ? (isDark ? Colors.black : Colors.white)
+        : onSurface.withValues(alpha: 0.35);
+
+    final button = Material(
+      color: bg,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: enabled ? onTap : null,
+        child: Padding(
+          padding: const EdgeInsets.all(3.5),
+          child: SvgPicture.asset(
+            'assets/icons/send_now.svg',
+            width: 25,
+            height: 25,
+            colorFilter: ColorFilter.mode(fg, BlendMode.srcIn),
+          ),
+        ),
+      ),
+    );
+
+    return Tooltip(
+      message: tooltip,
+      waitDuration: const Duration(milliseconds: 350),
+      child: Semantics(tooltip: tooltip, child: button),
     );
   }
 }

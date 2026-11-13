@@ -16,7 +16,6 @@ import 'package:OmniChat/core/models/chat_input_data.dart';
 import 'package:OmniChat/core/providers/assistant_provider.dart';
 import 'package:OmniChat/core/providers/settings_provider.dart';
 import 'package:OmniChat/features/home/widgets/chat_input_bar.dart';
-import 'package:OmniChat/icons/lucide_adapter.dart';
 import 'package:OmniChat/l10n/app_localizations.dart';
 
 void main() {
@@ -27,6 +26,8 @@ void main() {
   Future<void> pumpBar(
     WidgetTester tester, {
     required bool loading,
+    Brightness brightness = Brightness.light,
+    bool sendNowTeamBlocked = false,
     ValueChanged<ChatInputData>? onSend,
     ValueChanged<ChatInputData>? onQueue,
     ValueChanged<String>? onSendNow,
@@ -44,11 +45,13 @@ void main() {
         ],
         child: MaterialApp(
           locale: const Locale('en'),
+          theme: ThemeData(brightness: brightness),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: ChatInputBar(
               loading: loading,
+              sendNowTeamBlocked: sendNowTeamBlocked,
               onSend: onSend,
               onQueue: onQueue,
               onSendNow: onSendNow,
@@ -60,8 +63,9 @@ void main() {
     await tester.pump();
   }
 
-  Finder queueButton() => find.byIcon(Lucide.ListPlus);
-  Finder sendNowButton() => find.byIcon(Lucide.Zap);
+  Finder queueButton() => find.byKey(const ValueKey('composer-queue-button'));
+  Finder sendNowButton() =>
+      find.byKey(const ValueKey('composer-send-now-button'));
 
   testWidgets('idle composer shows neither queue nor send now', (tester) async {
     await pumpBar(tester, loading: false);
@@ -81,6 +85,60 @@ void main() {
 
     expect(queueButton(), findsOneWidget);
     expect(sendNowButton(), findsOneWidget);
+  });
+
+  testWidgets('composer action buttons keep the 32×32 footprint', (
+    tester,
+  ) async {
+    await pumpBar(tester, loading: true);
+    await tester.enterText(find.byType(TextField), 'hello');
+    await tester.pump();
+
+    expect(tester.getSize(queueButton()), const Size(32, 32));
+    expect(tester.getSize(sendNowButton()), const Size(32, 32));
+  });
+
+  for (final (brightness, expected) in <(Brightness, Color)>[
+    (Brightness.light, const Color(0xFFC62828)),
+    (Brightness.dark, const Color(0xFFE5484D)),
+  ]) {
+    testWidgets(
+      'running composer paints the stop button red (${brightness.name})',
+      (tester) async {
+        await pumpBar(tester, loading: true, brightness: brightness);
+        await tester.enterText(find.byType(TextField), 'hello');
+        await tester.pump();
+
+        final stopIcon = find.byKey(const ValueKey('stop'));
+        expect(stopIcon, findsOneWidget);
+        final material = tester.widget<Material>(
+          find
+              .ancestor(of: stopIcon, matching: find.byType(Material))
+              .first,
+        );
+        expect(material.color, expected);
+      },
+    );
+  }
+
+  testWidgets('send now is inert when the steer gate blocks it', (
+    tester,
+  ) async {
+    String? steered;
+    await pumpBar(
+      tester,
+      loading: true,
+      sendNowTeamBlocked: true,
+      onSendNow: (text) => steered = text,
+    );
+    await tester.enterText(find.byType(TextField), 'hello');
+    await tester.pump();
+
+    final inkWell = tester.widget<InkWell>(
+      find.descendant(of: sendNowButton(), matching: find.byType(InkWell)),
+    );
+    expect(inkWell.onTap, isNull);
+    expect(steered, isNull);
   });
 
   testWidgets('running composer with empty input shows neither', (
