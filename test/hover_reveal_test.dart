@@ -92,6 +92,49 @@ void main() {
     expect(_actionsOpacity(tester), 0);
   });
 
+  testWidgets('tapping outside hides a touch-revealed toolbar', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: HoverReveal(
+              child: SizedBox(
+                width: 240,
+                height: 120,
+                child: RevealableActions(
+                  key: ValueKey('actions'),
+                  child: Text('Actions'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final center = tester.getCenter(find.byType(HoverReveal));
+    await tester.tapAt(center);
+    await tester.pump();
+    expect(_actionsOpacity(tester), 1);
+
+    // Tapping inside the block keeps the reveal (and restarts the timer).
+    await tester.tapAt(center + const Offset(20, 0));
+    await tester.pump();
+    expect(_actionsOpacity(tester), 1);
+
+    // Tapping outside dismisses it immediately instead of waiting 3 seconds.
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pump();
+    expect(_actionsOpacity(tester), 0);
+
+    // The cancelled auto-hide timer must not fire again afterwards.
+    await tester.pump(const Duration(seconds: 4));
+    expect(_actionsOpacity(tester), 0);
+  });
+
   testWidgets('accessible navigation does not pin the actions open', (
     tester,
   ) async {

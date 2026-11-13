@@ -10,7 +10,8 @@ import 'package:flutter/material.dart';
 /// Touch devices have no hover state; the equivalent is a single tap that
 /// reveals the actions for [autoHideAfter] and then dismisses them again. A
 /// connected mouse or trackpad still takes the hover path because pointer
-/// events keep their [PointerDeviceKind].
+/// events keep their [PointerDeviceKind]. Tapping anywhere outside the block
+/// also dismisses a touch reveal immediately.
 ///
 /// Note that [MediaQueryData.accessibleNavigation] must not force the actions
 /// open: Android reports it as soon as *any* accessibility service is running
@@ -84,6 +85,17 @@ class _HoverRevealState extends State<HoverReveal> {
     _tapDownPosition = null;
   }
 
+  /// Dismisses a touch reveal when the user taps outside the block.
+  ///
+  /// Hover is left alone: an outside click on desktop does not mean the
+  /// pointer left the block, and `MouseRegion` already handles that.
+  void _hideForOutsideTap() {
+    if (!_touchRevealed) return;
+    _autoHideTimer?.cancel();
+    _autoHideTimer = null;
+    setState(() => _touchRevealed = false);
+  }
+
   void _revealForTouch() {
     _autoHideTimer?.cancel();
     if (!_touchRevealed) {
@@ -98,16 +110,19 @@ class _HoverRevealState extends State<HoverReveal> {
   @override
   Widget build(BuildContext context) {
     final revealed = _hovered || _touchRevealed;
-    return MouseRegion(
-      onEnter: (_) => _setHovered(true),
-      onExit: (_) => _setHovered(false),
-      child: Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: _handlePointerDown,
-        onPointerMove: _handlePointerMove,
-        onPointerUp: _handlePointerUp,
-        onPointerCancel: _handlePointerCancel,
-        child: HoverRevealScope(revealed: revealed, child: widget.child),
+    return TapRegion(
+      onTapOutside: (_) => _hideForOutsideTap(),
+      child: MouseRegion(
+        onEnter: (_) => _setHovered(true),
+        onExit: (_) => _setHovered(false),
+        child: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: _handlePointerDown,
+          onPointerMove: _handlePointerMove,
+          onPointerUp: _handlePointerUp,
+          onPointerCancel: _handlePointerCancel,
+          child: HoverRevealScope(revealed: revealed, child: widget.child),
+        ),
       ),
     );
   }

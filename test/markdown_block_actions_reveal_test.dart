@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:OmniChat/core/providers/settings_provider.dart';
 import 'package:OmniChat/l10n/app_localizations.dart';
+import 'package:OmniChat/shared/widgets/hover_reveal.dart';
 import 'package:OmniChat/shared/widgets/markdown_with_highlight.dart';
 import 'package:OmniChat/shared/widgets/mermaid_image_cache.dart';
 
@@ -123,6 +124,24 @@ void main() {
       expect(_actionsOpacity(tester, 'code-block-actions'), 1);
 
       await tester.pump(const Duration(seconds: 4));
+      expect(_actionsOpacity(tester, 'code-block-actions'), 0);
+    },
+  );
+
+  testWidgets(
+    'tapping outside the code block hides the actions immediately',
+    (tester) async {
+      final sp = await _loadedProvider();
+      await _pumpMd(tester, sp, _codeMd);
+
+      await tester.tap(find.byType(SelectableHighlightView));
+      await tester.pump();
+      expect(_actionsOpacity(tester, 'code-block-actions'), 1);
+
+      // Anywhere below the block is outside its TapRegion.
+      final block = tester.getRect(find.byType(HoverReveal));
+      await tester.tapAt(Offset(block.center.dx, block.bottom + 40));
+      await tester.pump();
       expect(_actionsOpacity(tester, 'code-block-actions'), 0);
     },
   );
