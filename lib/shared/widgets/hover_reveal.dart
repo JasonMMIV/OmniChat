@@ -11,6 +11,12 @@ import 'package:flutter/material.dart';
 /// reveals the actions for [autoHideAfter] and then dismisses them again. A
 /// connected mouse or trackpad still takes the hover path because pointer
 /// events keep their [PointerDeviceKind].
+///
+/// Note that [MediaQueryData.accessibleNavigation] must not force the actions
+/// open: Android reports it as soon as *any* accessibility service is running
+/// (screen readers, select-to-speak, password managers, gesture helpers, ...),
+/// which would leave every block toolbar permanently visible for users who are
+/// not using a screen reader at all.
 class HoverReveal extends StatefulWidget {
   const HoverReveal({
     super.key,
@@ -91,9 +97,7 @@ class _HoverRevealState extends State<HoverReveal> {
 
   @override
   Widget build(BuildContext context) {
-    final accessibleNavigation =
-        MediaQuery.maybeOf(context)?.accessibleNavigation ?? false;
-    final revealed = _hovered || _touchRevealed || accessibleNavigation;
+    final revealed = _hovered || _touchRevealed;
     return MouseRegion(
       onEnter: (_) => _setHovered(true),
       onExit: (_) => _setHovered(false),
@@ -165,6 +169,13 @@ class _RevealableActionsState extends State<RevealableActions> {
   Widget build(BuildContext context) {
     final revealed =
         widget.visible ?? (HoverRevealScope.of(context) || _focused);
+    // A screen reader cannot hover or tap to reveal the toolbar, so keep the
+    // buttons in the semantics tree while they are visually hidden. They stay
+    // activatable through their semantic actions (and keep the pre-hover
+    // behaviour of this toolbar for accessibility users), while sighted users
+    // still get the tap/hover reveal.
+    final accessibleNavigation =
+        MediaQuery.maybeOf(context)?.accessibleNavigation ?? false;
     return Focus(
       // The actions' container is not a tab stop itself, but focus moving
       // onto one of the buttons must reveal it.
@@ -176,11 +187,15 @@ class _RevealableActionsState extends State<RevealableActions> {
       child: IgnorePointer(
         ignoring: !revealed,
         child: ExcludeSemantics(
-          excluding: !revealed,
+          excluding: !revealed && !accessibleNavigation,
           child: AnimatedOpacity(
             opacity: revealed ? 1 : 0,
             duration: widget.duration,
             curve: Curves.easeOut,
+            // Opacity 0 otherwise drops the subtree from the semantics tree,
+            // which would hide the actions from screen readers. Visibility is
+            // controlled by the ExcludeSemantics above instead.
+            alwaysIncludeSemantics: true,
             child: widget.child,
           ),
         ),
