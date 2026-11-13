@@ -3076,12 +3076,11 @@
       }
     }
   },
-  "composerQueueTooltip": "Queue — sends after this turn finishes (attachments included)",
-  "composerSendNowTooltip": "Send now — insert into the running turn (text only)",
-  "composerSendNowAttachmentsHint": "Messages with attachments can't be inserted into the running turn; queue them instead",
-  "composerSendNowCommandHint": "Commands starting with / must be queued, not inserted into the turn",
-  "composerKeyboardHint": "While running: Enter queues, Ctrl/Cmd+Enter sends now (IME composition is never intercepted)",
-  "composerSendNowTeamHint": "Send now is unavailable during an AI Team run; queue the message instead",
+  "composerQueueTooltip": "Queue (Enter)",
+  "composerSendNowTooltip": "Send now (Ctrl/Cmd+Enter)",
+  "composerSendNowAttachmentsHint": "Attachments can only be queued",
+  "composerSendNowCommandHint": "Slash commands can only be queued",
+  "composerSendNowTeamHint": "Unavailable during AI Team",
   "queueDockTitle": "{n} queued",
   "@queueDockTitle": {
     "description": "Queue dock header; n is the number of queued messages",
@@ -3091,9 +3090,10 @@
       }
     }
   },
-  "queueDockHint": "Sends automatically once the conversation is idle",
   "queueDockPausedHint": "Paused — a stopped turn doesn't auto-resume; tap Resume or send a message",
   "queueDockResume": "Resume",
+  "queueDockSendNow": "Send now",
+  "queueDockSendNowIdle": "Only while a turn is running",
   "queueDockEdit": "Edit text",
   "queueDockRemove": "Remove",
   "queueDockPromote": "Move to front",

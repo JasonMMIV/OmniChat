@@ -35,8 +35,8 @@
 | 2 | Send now（mid-turn steering）round 邊界注入 | **導入**（kernel 表面已存在） | 經既有 `AgentLoopHooks.onRoundStart` 把注入文字 append 進 working 訊息 | 2–3 人日 |
 | 3 | Send now 結算續航（final-round／無工具 run 的殘留） | **導入**（結算路徑） | `_finishStreaming(keepLoading: true)`＋`_continueSteeringSegment`；loading 不落地 | 1.5 人日 |
 | 4 | Steering leftovers → 收回回顯＋回排隊伍頭＋Stop 即暫停 | **導入** | 四路結算（terminal／error／cancel／team-stop）；Stop 時有殘留或佇列非空即 pause | 1.5 人日 |
-| 5 | Queue dock（佇列面板） | **導入（簡化版）** | 輸入列上方可折疊 dock；操作只有**編輯（僅文字）／刪除／移到最前**；無逐項 send now | 1.5–2 人日 |
-| 6 | Queue 項目逐項「send now」 | **v1 暫緩** | 逐項插隊牽涉 edit 後 gate 重判與 mailbox 時序，留 v2 | — |
+| 5 | Queue dock（佇列面板） | **導入** | 輸入列上方可折疊 dock；操作＝**立即插入／編輯（僅文字）／刪除／移到最前**（逐項 Send now 於 2026-11-13 追加） | 1.5–2 人日 |
+| 6 | Queue 項目逐項「send now」 | **已提前實作（2026-11-13）** | 逐項「立即插入」＝把該則純文字 steer 進目前回合（gate 同 composer Send now；附件／斜線／AI Team／無 run 時停用）；edit 後 gate 以最新文字重判 | — |
 | 7 | 論壇級 dispatch（cwd/task 雙軌、跨 tab 目標路由、blocked-cwd 表） | **不導入** | OmniChat 無 tab 概念；佇列 per-conversation 即足夠 | — |
 | 8 | 佇列持久化（prefs／DB） | **不導入**（同 Anybuff：in-memory） | 程式重啟即清空；另案議 | — |
 
@@ -59,7 +59,7 @@
 > **桌面**：對話進行中在 **stop 按鈕左邊**直接加按鈕。  
 > **行動**：同樣在 stop 按鈕左邊加按鈕；因右側加寬而**被排擠**的左側輸入列按鈕，照既有機制**收進「+」選單**（`BottomToolsSheet`）。**不**在「+」選單加「排隊中」入口、**不**在「+」圖示加 dot（使用者裁示）。  
 > **鍵盤**：進行中 Enter＝排入佇列、Ctrl/Cmd+Enter＝立即送出（gate 不符時退回佇列；**IME composing 時交還 IME，與現行 Enter 分支同守衛**）。  
-> **Dock**：逐項操作只有「編輯（僅文字）／刪除／移到最前」；v1 無逐項 Send now（使用者裁示）。
+> **Dock**：逐項操作＝「立即插入（steer 該則純文字）／編輯（僅文字）／刪除／移到最前」；編輯後 gate 以最新文字重判。
 
 這與 Anybuff 不同（Anybuff 的兩鈕在進行中**常駐**、空草稿 disabled）——以使用者裁示為準，Anybuff 只供腳位與語義參考。
 
@@ -93,7 +93,7 @@
 | 結算點 | run settle（start-run.ts）＋steeredLeftovers | `_handleStreamDone` → `_handleStreamFinish` → `_finishStreaming`（loading=false 在 L3123）→ journal → `onStreamFinished` | 續航需 **`_finishStreaming(keepLoading: true)`**；在 journal 結束與 sub 取消（L3027）後才 `_continueSteeringSegment`（F4） |
 | Approval／ask_user pending | blocked 佇列項 | run 以 `stoppedByHook` **clean stop**、loading=false、checkpoint 留 `paused`（`agent_run_journal.dart` L127-136／L249-250） | dispatch 前讀 `checkpointStore.load(cid)`；`phase == paused || hasPendingUserAction` 一律不 dispatch（F1） |
 | 取消 | abort（run 由宿主任務管理） | `cancelStreaming`（`chat_actions.dart` L1238-1364）：L1323／L1355 設 loading=false＋checkpoint 清除 | Stop＝殘留收回＋佇列暫停；**mailbox 結算必須在 loading=false 之前**（F3） |
-| 佇列視圖 | 輸入列上方 dock | 無（新增 `message_queue_dock.dart`，仿 `TodoPlanLiveDock` 慣例） | 新增；編輯僅文字、無逐項 send now |
+| 佇列視圖 | 輸入列上方 dock | 無（新增 `message_queue_dock.dart`，仿 `TodoPlanLiveDock` 慣例） | 新增；編輯僅文字；逐項立即插入（2026-11-13） |
 | 輸入列 | Composer 主動區＝queue 鈕常駐 | `chat_input_bar.dart::_buildResponsiveBottomRow`（L941-1631）：左＝14 鍵 catalog 自應式布局（overflow→桌面左側 `+` popover／行動 `+`(Plus) 選單），右＝[+（僅行動）][send/stop]；`rightSideWidth` 預算（L956-965）逐鍵寬度計價 | Queue 掛在右側 send/stop 左邊（可見條件含附件-only）；Send now 純文字；行動側把按鈕寬度加進 `rightSideWidth`，被排擠左鍵由既有 overflow 進 `+` 選單；**不新增**選單入口／dot |
 | 插入 user 訊息常式 | `beginUserTurn` | `messageGenerationService.createUserMessage`（`chat_actions.dart` L322 呼叫例）＋ `chatService.appendMessage`（`max(ordinal)+1`，`chat_repository.dart` L302-309） | Echo 走同一常式；drain 時以新 `moveMessageBefore` 交換 ordinal，落回 assistant 之前（F15） |
 | 續派既有模板 | runPrompt | **`resumeAfterAskUserAnswer`**（L416-557）：新 assistant placeholder＋正常 replay/grading/串流接線；loading true 在 L507、`_executeGeneration` 在 L555 | 結算續航用同形管線；續航段 `generateTitleOnFinish: false` |

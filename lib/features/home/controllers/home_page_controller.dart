@@ -815,6 +815,8 @@ class HomePageController extends ChangeNotifier {
   ) => _viewModel.updateQueuedMessageText(conversationId, itemId, text);
   Future<void> resumeQueue(String conversationId) =>
       _viewModel.resumeQueue(conversationId);
+  Future<bool> steerQueuedMessage(String conversationId, String itemId) =>
+      _viewModel.steerQueuedMessage(conversationId, itemId);
 
   // Delegate to StreamController
   Map<String, stream_ctrl.ReasoningData> get reasoning =>

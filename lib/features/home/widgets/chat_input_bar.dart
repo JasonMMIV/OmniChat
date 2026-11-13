@@ -1183,6 +1183,11 @@ class _ChatInputBarState extends State<ChatInputBar>
           // left catalog budget shrinks accordingly so it overflows into the
           // existing "+" menu (no new mechanism, §3.3).
           rightSideWidth += queueButtonCount * (normalButtonW + spacing);
+          // The cluster's own leading gap replaces the `+`'s trailing gap on
+          // mobile; without a `+` the new gap before stop is extra.
+          if (!widget.showMoreButton && queueButtonCount > 0) {
+            rightSideWidth += spacing;
+          }
         }
 
         final maxLeftW = constraints.maxWidth - rightSideWidth;
@@ -1831,7 +1836,6 @@ class _ChatInputBarState extends State<ChatInputBar>
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
                       ],
                       // Turn queue buttons (plan §3.2/§3.3): [Queue][Send now]
                       // sit left of the stop button while the turn is running;
@@ -1853,8 +1857,7 @@ class _ChatInputBarState extends State<ChatInputBar>
                                       key: const ValueKey(
                                         'composer-queue-button',
                                       ),
-                                      tooltip:
-                                          '${l10n.composerQueueTooltip}\n${l10n.composerKeyboardHint}',
+                                      tooltip: l10n.composerQueueTooltip,
                                       onTap: _handleQueueSubmit,
                                     ),
                                   ],
@@ -1868,6 +1871,10 @@ class _ChatInputBarState extends State<ChatInputBar>
                                 key: ValueKey('queue-cluster-empty'),
                               ),
                       ),
+                      if (widget.showMoreButton ||
+                          showQueueButton ||
+                          showSendNowButton)
+                        const SizedBox(width: 8),
                       _CompactSendButton(
                         enabled:
                             (hasText || hasImages || hasDocs) &&
@@ -3058,8 +3065,8 @@ class _ComposerQueueButton extends StatelessWidget {
         customBorder: const CircleBorder(),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(5.5),
-          child: Icon(Lucide.Plus, size: 21, color: primary),
+          padding: const EdgeInsets.all(6.5),
+          child: Icon(Lucide.Plus, size: 19, color: primary),
         ),
       ),
     );
@@ -3110,11 +3117,11 @@ class _ComposerSendNowButton extends StatelessWidget {
         customBorder: const CircleBorder(),
         onTap: enabled ? onTap : null,
         child: Padding(
-          padding: const EdgeInsets.all(3.5),
+          padding: const EdgeInsets.all(6),
           child: SvgPicture.asset(
             'assets/icons/send_now.svg',
-            width: 25,
-            height: 25,
+            width: 20,
+            height: 20,
             colorFilter: ColorFilter.mode(fg, BlendMode.srcIn),
           ),
         ),

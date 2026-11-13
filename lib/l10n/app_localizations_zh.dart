@@ -7057,23 +7057,19 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get composerQueueTooltip => '排入队列——此回合结束后自动送出（含附件）';
+  String get composerQueueTooltip => '排入队列 (Enter)';
 
   @override
-  String get composerSendNowTooltip => '立即送出——插入进行中的回合（仅纯文字）';
+  String get composerSendNowTooltip => '立即插入 (Ctrl/Cmd+Enter)';
 
   @override
-  String get composerSendNowAttachmentsHint => '附件消息无法插入进行中的回合，仅能排入队列';
+  String get composerSendNowAttachmentsHint => '含附件，只能排入队列';
 
   @override
-  String get composerSendNowCommandHint => '以 / 开头的指令需排入队列，无法插入回合';
+  String get composerSendNowCommandHint => '斜线指令只能排入队列';
 
   @override
-  String get composerKeyboardHint =>
-      '进行中：Enter＝排入队列、Ctrl/Cmd+Enter＝立即送出（IME 输入中不拦截）';
-
-  @override
-  String get composerSendNowTeamHint => '多模型协作（AI Team）进行中不支持立即送出，可先排入队列';
+  String get composerSendNowTeamHint => 'AI Team 进行中无法插入';
 
   @override
   String queueDockTitle(int n) {
@@ -7081,13 +7077,16 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get queueDockHint => '对话闲置后依序自动送出';
-
-  @override
   String get queueDockPausedHint => '已暂停——停止后不自动续送，按「继续」或另行送出解除';
 
   @override
   String get queueDockResume => '继续';
+
+  @override
+  String get queueDockSendNow => '立即插入';
+
+  @override
+  String get queueDockSendNowIdle => '生成中才能插入';
 
   @override
   String get queueDockEdit => '编辑文字';
@@ -13943,23 +13942,19 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
-  String get composerQueueTooltip => '排入队列——此回合结束后自动送出（含附件）';
+  String get composerQueueTooltip => '排入队列 (Enter)';
 
   @override
-  String get composerSendNowTooltip => '立即送出——插入进行中的回合（仅纯文字）';
+  String get composerSendNowTooltip => '立即插入 (Ctrl/Cmd+Enter)';
 
   @override
-  String get composerSendNowAttachmentsHint => '附件消息无法插入进行中的回合，仅能排入队列';
+  String get composerSendNowAttachmentsHint => '含附件，只能排入队列';
 
   @override
-  String get composerSendNowCommandHint => '以 / 开头的指令需排入队列，无法插入回合';
+  String get composerSendNowCommandHint => '斜线指令只能排入队列';
 
   @override
-  String get composerKeyboardHint =>
-      '进行中：Enter＝排入队列、Ctrl/Cmd+Enter＝立即送出（IME 输入中不拦截）';
-
-  @override
-  String get composerSendNowTeamHint => '多模型协作（AI Team）进行中不支持立即送出，可先排入队列';
+  String get composerSendNowTeamHint => 'AI Team 进行中无法插入';
 
   @override
   String queueDockTitle(int n) {
@@ -13967,13 +13962,16 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
-  String get queueDockHint => '对话闲置后依序自动送出';
-
-  @override
   String get queueDockPausedHint => '已暂停——停止后不自动续送，按「继续」或另行送出解除';
 
   @override
   String get queueDockResume => '继续';
+
+  @override
+  String get queueDockSendNow => '立即插入';
+
+  @override
+  String get queueDockSendNowIdle => '生成中才能插入';
 
   @override
   String get queueDockEdit => '编辑文字';
@@ -20928,23 +20926,19 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get composerQueueTooltip => '排入佇列——此回合結束後自動送出（含附件）';
+  String get composerQueueTooltip => '排入佇列 (Enter)';
 
   @override
-  String get composerSendNowTooltip => '立即送出——插入進行中的回合（僅純文字）';
+  String get composerSendNowTooltip => '立即插入 (Ctrl/Cmd+Enter)';
 
   @override
-  String get composerSendNowAttachmentsHint => '附件訊息無法插入進行中的回合，僅能排入佇列';
+  String get composerSendNowAttachmentsHint => '含附件，只能排入佇列';
 
   @override
-  String get composerSendNowCommandHint => '以 / 開頭的指令需排入佇列，無法插入回合';
+  String get composerSendNowCommandHint => '斜線指令只能排入佇列';
 
   @override
-  String get composerKeyboardHint =>
-      '進行中：Enter＝排入佇列、Ctrl/Cmd+Enter＝立即送出（IME 輸入中不攔截）';
-
-  @override
-  String get composerSendNowTeamHint => '多模型協作（AI Team）進行中不支援立即送出，可先排入佇列';
+  String get composerSendNowTeamHint => 'AI Team 進行中無法插入';
 
   @override
   String queueDockTitle(int n) {
@@ -20952,13 +20946,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get queueDockHint => '對話閒置後依序自動送出';
-
-  @override
   String get queueDockPausedHint => '已暫停——停止後不自動續送，按「繼續」或另行送出解除';
 
   @override
   String get queueDockResume => '繼續';
+
+  @override
+  String get queueDockSendNow => '立即插入';
+
+  @override
+  String get queueDockSendNowIdle => '生成中才能插入';
 
   @override
   String get queueDockEdit => '編輯文字';

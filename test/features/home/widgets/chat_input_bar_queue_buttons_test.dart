@@ -87,6 +87,35 @@ void main() {
     expect(sendNowButton(), findsOneWidget);
   });
 
+  testWidgets('queue cluster keeps the 8 px gaps used by the bar', (
+    tester,
+  ) async {
+    await pumpBar(tester, loading: true);
+    await tester.enterText(find.byType(TextField), 'hello');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final cluster = tester.getRect(
+      find.byKey(const ValueKey('queue-cluster')),
+    );
+    final stop = tester.getRect(
+      find
+          .ancestor(
+            of: find.byKey(const ValueKey('stop')),
+            matching: find.byType(InkWell),
+          )
+          .first,
+    );
+
+    // Leading 8 px + 32 (queue) + 8 + 32 (send now).
+    expect(cluster.width, 80, reason: 'cluster=$cluster stop=$stop');
+    expect(
+      stop.left - cluster.right,
+      8,
+      reason: 'cluster=$cluster stop=$stop',
+    );
+  });
+
   testWidgets('composer action buttons keep the 32×32 footprint', (
     tester,
   ) async {

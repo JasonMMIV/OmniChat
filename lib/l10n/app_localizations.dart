@@ -13413,37 +13413,31 @@ abstract class AppLocalizations {
   /// No description provided for @composerQueueTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Queue — sends after this turn finishes (attachments included)'**
+  /// **'Queue (Enter)'**
   String get composerQueueTooltip;
 
   /// No description provided for @composerSendNowTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Send now — insert into the running turn (text only)'**
+  /// **'Send now (Ctrl/Cmd+Enter)'**
   String get composerSendNowTooltip;
 
   /// No description provided for @composerSendNowAttachmentsHint.
   ///
   /// In en, this message translates to:
-  /// **'Messages with attachments can\'t be inserted into the running turn; queue them instead'**
+  /// **'Attachments can only be queued'**
   String get composerSendNowAttachmentsHint;
 
   /// No description provided for @composerSendNowCommandHint.
   ///
   /// In en, this message translates to:
-  /// **'Commands starting with / must be queued, not inserted into the turn'**
+  /// **'Slash commands can only be queued'**
   String get composerSendNowCommandHint;
-
-  /// No description provided for @composerKeyboardHint.
-  ///
-  /// In en, this message translates to:
-  /// **'While running: Enter queues, Ctrl/Cmd+Enter sends now (IME composition is never intercepted)'**
-  String get composerKeyboardHint;
 
   /// No description provided for @composerSendNowTeamHint.
   ///
   /// In en, this message translates to:
-  /// **'Send now is unavailable during an AI Team run; queue the message instead'**
+  /// **'Unavailable during AI Team'**
   String get composerSendNowTeamHint;
 
   /// Queue dock header; n is the number of queued messages
@@ -13451,12 +13445,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{n} queued'**
   String queueDockTitle(int n);
-
-  /// No description provided for @queueDockHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Sends automatically once the conversation is idle'**
-  String get queueDockHint;
 
   /// No description provided for @queueDockPausedHint.
   ///
@@ -13469,6 +13457,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Resume'**
   String get queueDockResume;
+
+  /// No description provided for @queueDockSendNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Send now'**
+  String get queueDockSendNow;
+
+  /// No description provided for @queueDockSendNowIdle.
+  ///
+  /// In en, this message translates to:
+  /// **'Only while a turn is running'**
+  String get queueDockSendNowIdle;
 
   /// No description provided for @queueDockEdit.
   ///

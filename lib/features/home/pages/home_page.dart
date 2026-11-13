@@ -1149,6 +1149,11 @@ class _HomePageState extends State<HomePage>
     return MessageQueueDock(
       items: _controller.queueItemsFor(cid),
       paused: _controller.queuePausedFor(cid),
+      runActive: _controller.isCurrentConversationLoading,
+      teamActive: _controller.isAiTeamRunActiveFor(cid),
+      onSendNow: (id) {
+        if (cid != null) unawaited(_controller.steerQueuedMessage(cid, id));
+      },
       onRemove: (id) {
         if (cid != null) _controller.removeQueuedMessage(cid, id);
       },

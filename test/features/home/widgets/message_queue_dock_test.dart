@@ -54,7 +54,7 @@ void main() {
     expect(find.text('2 queued'), findsOneWidget);
     expect(
       find.text('Sends automatically once the conversation is idle'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.text('first message'), findsOneWidget);
     expect(find.text('second message'), findsOneWidget);
@@ -89,6 +89,97 @@ void main() {
     await tester.tap(find.byTooltip('Move to front').last);
     await tester.pump();
     expect(promoted, 'q2');
+  });
+
+  testWidgets('per-item send now steers the queued text', (tester) async {
+    String? sentId;
+    await pumpDock(
+      tester,
+      MessageQueueDock(
+        items: [item('q1', 'steer me')],
+        paused: false,
+        runActive: true,
+        onSendNow: (id) => sentId = id,
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('queue-send-now-q1')));
+    await tester.pump();
+    expect(sentId, 'q1');
+  });
+
+  testWidgets('per-item send now is disabled without a live run', (
+    tester,
+  ) async {
+    await pumpDock(
+      tester,
+      MessageQueueDock(
+        items: [item('q1', 'steer me')],
+        paused: false,
+        onSendNow: (_) {},
+      ),
+    );
+
+    final button = tester.widget<IconButton>(
+      find.byKey(const ValueKey('queue-send-now-q1')),
+    );
+    expect(button.onPressed, isNull);
+    expect(find.byTooltip('Only while a turn is running'), findsOneWidget);
+  });
+
+  testWidgets('attachments block per-item send now', (tester) async {
+    await pumpDock(
+      tester,
+      MessageQueueDock(
+        items: [item('q1', 'with image', images: 1)],
+        paused: false,
+        runActive: true,
+        onSendNow: (_) {},
+      ),
+    );
+
+    final button = tester.widget<IconButton>(
+      find.byKey(const ValueKey('queue-send-now-q1')),
+    );
+    expect(button.onPressed, isNull);
+    expect(find.byTooltip('Attachments can only be queued'), findsOneWidget);
+  });
+
+  testWidgets('slash commands block per-item send now', (tester) async {
+    await pumpDock(
+      tester,
+      MessageQueueDock(
+        items: [item('q1', '/skill foo')],
+        paused: false,
+        runActive: true,
+        onSendNow: (_) {},
+      ),
+    );
+
+    final button = tester.widget<IconButton>(
+      find.byKey(const ValueKey('queue-send-now-q1')),
+    );
+    expect(button.onPressed, isNull);
+    expect(find.byTooltip('Slash commands can only be queued'), findsOneWidget);
+  });
+
+  testWidgets('AI Team blocks per-item send now', (tester) async {
+    await pumpDock(
+      tester,
+      MessageQueueDock(
+        items: [item('q1', 'steer me')],
+        paused: false,
+        runActive: true,
+        teamActive: true,
+        onSendNow: (_) {},
+      ),
+    );
+
+    final button = tester.widget<IconButton>(
+      find.byKey(const ValueKey('queue-send-now-q1')),
+    );
+    expect(button.onPressed, isNull);
+    expect(find.byTooltip('Unavailable during AI Team'), findsOneWidget);
   });
 
   testWidgets('edit dialog updates the text but not attachments', (

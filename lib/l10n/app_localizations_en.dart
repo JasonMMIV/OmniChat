@@ -7217,28 +7217,19 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get composerQueueTooltip =>
-      'Queue — sends after this turn finishes (attachments included)';
+  String get composerQueueTooltip => 'Queue (Enter)';
 
   @override
-  String get composerSendNowTooltip =>
-      'Send now — insert into the running turn (text only)';
+  String get composerSendNowTooltip => 'Send now (Ctrl/Cmd+Enter)';
 
   @override
-  String get composerSendNowAttachmentsHint =>
-      'Messages with attachments can\'t be inserted into the running turn; queue them instead';
+  String get composerSendNowAttachmentsHint => 'Attachments can only be queued';
 
   @override
-  String get composerSendNowCommandHint =>
-      'Commands starting with / must be queued, not inserted into the turn';
+  String get composerSendNowCommandHint => 'Slash commands can only be queued';
 
   @override
-  String get composerKeyboardHint =>
-      'While running: Enter queues, Ctrl/Cmd+Enter sends now (IME composition is never intercepted)';
-
-  @override
-  String get composerSendNowTeamHint =>
-      'Send now is unavailable during an AI Team run; queue the message instead';
+  String get composerSendNowTeamHint => 'Unavailable during AI Team';
 
   @override
   String queueDockTitle(int n) {
@@ -7246,15 +7237,17 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get queueDockHint =>
-      'Sends automatically once the conversation is idle';
-
-  @override
   String get queueDockPausedHint =>
       'Paused — a stopped turn doesn\'t auto-resume; tap Resume or send a message';
 
   @override
   String get queueDockResume => 'Resume';
+
+  @override
+  String get queueDockSendNow => 'Send now';
+
+  @override
+  String get queueDockSendNowIdle => 'Only while a turn is running';
 
   @override
   String get queueDockEdit => 'Edit text';

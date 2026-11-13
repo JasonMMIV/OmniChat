@@ -1925,6 +1925,10 @@ class ChatActions {
   /// Per-conversation mid-turn steering mailbox (owner = run token, F5).
   final SteeringMailbox steeringMailbox = SteeringMailbox();
 
+  /// Queue item ids whose per-item Send now is awaiting the mailbox; a rapid
+  /// double-tap must not steer the same text twice.
+  final Set<String> _steeringQueueItemIds = <String>{};
+
   /// Reference-counted internal transitions (regenerate / resume / approval
   /// resolve) per conversation. Queue dispatch is suppressed while any
   /// transition is in flight (F2/R13).
@@ -2091,6 +2095,42 @@ class ChatActions {
     );
     if (turnQueue.updateInput(conversationId, id, updated)) {
       onQueueChanged?.call();
+    }
+  }
+
+  /// Dock per-item Send now: steers [id]'s text into the active run and only
+  /// then removes it from the queue. Mirrors the composer gate (attachments,
+  /// slash commands, AI Team, no active run) so UI and behaviour cannot drift.
+  Future<bool> steerQueuedMessage(String conversationId, String id) async {
+    QueuedMessage? target;
+    for (final item in turnQueue.queueFor(conversationId)) {
+      if (item.id == id) {
+        target = item;
+        break;
+      }
+    }
+    if (target == null) return false;
+    // Keep the item in place while awaiting the mailbox (removing first would
+    // reorder on failure); the in-flight set blocks a second tap instead.
+    if (!_steeringQueueItemIds.add(id)) return false;
+    try {
+      final reason = sendNowBlockReason(
+        loading: _loadingConversationIds.contains(conversationId),
+        text: target.input.text,
+        imageCount: target.input.imagePaths.length,
+        documentCount: target.input.documents.length,
+        teamActive: isAiTeamRunActive(conversationId),
+      );
+      if (reason != SendNowBlockReason.none) return false;
+
+      final steered = await steerNow(conversationId, target.input.text);
+      if (!steered) return false;
+      if (turnQueue.remove(conversationId, id) != null) {
+        onQueueChanged?.call();
+      }
+      return true;
+    } finally {
+      _steeringQueueItemIds.remove(id);
     }
   }
 

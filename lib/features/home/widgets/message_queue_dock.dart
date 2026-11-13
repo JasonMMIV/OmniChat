@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../../core/services/chat/turn_queue/send_gate.dart';
 import '../../../core/services/chat/turn_queue/turn_queue.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
@@ -9,10 +11,10 @@ import '../../../l10n/app_localizations.dart';
 ///
 /// Visibility contract:
 /// - rendered only for the current conversation while it has queued items;
-/// - expanded by default: the header shows the count + auto-send hint and
-///   tapping it collapses/expands the item list;
-/// - item actions are limited to the v1 ruling (§0.3/§9): edit text, remove,
-///   move to front — there is deliberately no per-item Send now;
+/// - expanded by default: the header shows the count and tapping it
+///   collapses/expands the item list;
+/// - item actions: Send now (steer this item into the live turn), edit text,
+///   remove, move to front;
 /// - when the queue is paused (Stop / repeated failures) the resume banner is
 ///   always visible, even while collapsed, so "繼續" stays reachable.
 class MessageQueueDock extends StatefulWidget {
@@ -20,17 +22,31 @@ class MessageQueueDock extends StatefulWidget {
     super.key,
     required this.items,
     required this.paused,
+    this.runActive = false,
+    this.teamActive = false,
     this.onRemove,
     this.onPromote,
     this.onEdit,
+    this.onSendNow,
     this.onResume,
   });
 
   final List<QueuedMessage> items;
   final bool paused;
+
+  /// Whether a turn is currently running (per-item Send now needs a live
+  /// steering mailbox).
+  final bool runActive;
+
+  /// AI Team never steers (F6/R18).
+  final bool teamActive;
+
   final ValueChanged<String>? onRemove;
   final ValueChanged<String>? onPromote;
   final void Function(String id, String text)? onEdit;
+
+  /// Per-item Send now: steer that item's pure text into the running turn.
+  final ValueChanged<String>? onSendNow;
   final VoidCallback? onResume;
 
   @override
@@ -85,34 +101,13 @@ class _MessageQueueDockState extends State<MessageQueueDock> {
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                l10n.queueDockTitle(widget.items.length),
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: cs.onSurface.withValues(alpha: 0.85),
-                                ),
-                              ),
-                              const SizedBox(height: 1),
-                              Text(
-                                widget.paused
-                                    ? l10n.queueDockPausedHint
-                                    : l10n.queueDockHint,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 10.5,
-                                  height: 1.3,
-                                  color: cs.onSurface.withValues(
-                                    alpha: widget.paused ? 0.6 : 0.5,
-                                  ),
-                                ),
-                              ),
-                            ],
+                          child: Text(
+                            l10n.queueDockTitle(widget.items.length),
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSurface.withValues(alpha: 0.85),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -172,9 +167,12 @@ class _MessageQueueDockState extends State<MessageQueueDock> {
                         final item = widget.items[index];
                         return _QueueDockItemRow(
                           item: item,
+                          runActive: widget.runActive,
+                          teamActive: widget.teamActive,
                           onRemove: widget.onRemove,
                           onPromote: widget.onPromote,
                           onEdit: widget.onEdit,
+                          onSendNow: widget.onSendNow,
                         );
                       },
                     ),
@@ -191,15 +189,21 @@ class _MessageQueueDockState extends State<MessageQueueDock> {
 class _QueueDockItemRow extends StatelessWidget {
   const _QueueDockItemRow({
     required this.item,
+    required this.runActive,
+    required this.teamActive,
     this.onRemove,
     this.onPromote,
     this.onEdit,
+    this.onSendNow,
   });
 
   final QueuedMessage item;
+  final bool runActive;
+  final bool teamActive;
   final ValueChanged<String>? onRemove;
   final ValueChanged<String>? onPromote;
   final void Function(String id, String text)? onEdit;
+  final ValueChanged<String>? onSendNow;
 
   @override
   Widget build(BuildContext context) {
@@ -208,6 +212,27 @@ class _QueueDockItemRow extends StatelessWidget {
     final text = item.input.text.trim();
     final attachmentCount =
         item.input.imagePaths.length + item.input.documents.length;
+
+    // Same gate as the composer: pure text, no slash command, live run, and
+    // no AI Team. Attachments take precedence in the reason order.
+    final reason = sendNowBlockReason(
+      loading: runActive,
+      text: text,
+      imageCount: item.input.imagePaths.length,
+      documentCount: item.input.documents.length,
+      teamActive: teamActive,
+    );
+    final canSendNow = reason == SendNowBlockReason.none && onSendNow != null;
+    final sendNowTooltip = switch (reason) {
+      SendNowBlockReason.attachments => l10n.composerSendNowAttachmentsHint,
+      SendNowBlockReason.command => l10n.composerSendNowCommandHint,
+      SendNowBlockReason.team => l10n.composerSendNowTeamHint,
+      SendNowBlockReason.inactive => l10n.queueDockSendNowIdle,
+      SendNowBlockReason.none => l10n.queueDockSendNow,
+    };
+    final sendNowColor = canSendNow
+        ? cs.primary
+        : cs.onSurface.withValues(alpha: 0.3);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 1),
@@ -245,6 +270,19 @@ class _QueueDockItemRow extends StatelessWidget {
                     ],
                   ),
           ),
+          if (onSendNow != null)
+            IconButton(
+              key: ValueKey('queue-send-now-${item.id}'),
+              tooltip: sendNowTooltip,
+              visualDensity: VisualDensity.compact,
+              onPressed: canSendNow ? () => onSendNow!(item.id) : null,
+              icon: SvgPicture.asset(
+                'assets/icons/send_now.svg',
+                width: 16,
+                height: 16,
+                colorFilter: ColorFilter.mode(sendNowColor, BlendMode.srcIn),
+              ),
+            ),
           IconButton(
             tooltip: l10n.queueDockPromote,
             visualDensity: VisualDensity.compact,

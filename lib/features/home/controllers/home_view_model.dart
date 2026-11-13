@@ -408,6 +408,10 @@ class HomeViewModel extends ChangeNotifier {
   Future<void> resumeQueue(String conversationId) =>
       _chatActions.resumeQueue(conversationId);
 
+  /// Per-item Send now from the queue dock (pure text only).
+  Future<bool> steerQueuedMessage(String conversationId, String itemId) =>
+      _chatActions.steerQueuedMessage(conversationId, itemId);
+
   bool isAiTeamRunActive(String conversationId) =>
       _chatActions.isAiTeamRunActive(conversationId);
 
