@@ -53,6 +53,7 @@ import 'dart:io' show File, Platform;
 String _workspaceSettingLabel(AppLocalizations l10n, WorkspaceConfig config) {
   return switch (config.mode) {
     WorkspaceMode.disabled => l10n.workspaceDoNotUse,
+    WorkspaceMode.appPrivate => l10n.workspaceUseAppPrivateDirectory,
     WorkspaceMode.useDefault => l10n.workspaceUseDefaultDirectory,
     WorkspaceMode.custom => config.path ?? l10n.workspaceChooseFolder,
     WorkspaceMode.inheritProject => l10n.workspaceUseProjectDirectory,
@@ -2391,13 +2392,6 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                               ),
                             ),
                           ),
-                          if (a.workspace.mode == WorkspaceMode.useDefault)
-                            IconButton(
-                              tooltip: l10n.workspaceDefaultDirectorySettings,
-                              icon: const Icon(Lucide.Settings2, size: 18),
-                              onPressed: () =>
-                                  showDefaultWorkspaceDirectoryDialog(context),
-                            ),
                           Icon(
                             Lucide.ChevronRight,
                             size: 16,
@@ -7093,13 +7087,6 @@ class _DesktopAssistantBasicPaneState
                                 ),
                               ),
                             ),
-                            if (a.workspace.mode == WorkspaceMode.useDefault)
-                              IconButton(
-                                tooltip: l10n.workspaceDefaultDirectorySettings,
-                                icon: const Icon(Lucide.Settings2, size: 18),
-                                onPressed: () =>
-                                    showDefaultWorkspaceDirectoryDialog(context),
-                              ),
                             Icon(
                               Lucide.ChevronRight,
                               size: 16,

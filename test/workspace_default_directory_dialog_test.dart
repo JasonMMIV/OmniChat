@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:OmniChat/core/models/workspace_config.dart';
 import 'package:OmniChat/core/providers/settings_provider.dart';
 import 'package:OmniChat/features/chat/widgets/workspace_settings_dialog.dart';
 import 'package:OmniChat/l10n/app_localizations.dart';
@@ -18,7 +19,10 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  Future<void> openDialog(WidgetTester tester, TargetPlatform platform) async {
+  Future<SettingsProvider> openDialog(
+    WidgetTester tester,
+    TargetPlatform platform,
+  ) async {
     debugDefaultTargetPlatformOverride = platform;
 
     final settings = SettingsProvider();
@@ -49,6 +53,7 @@ void main() {
     await tester.pumpAndSettle();
     // framework 的 invariant check 在 teardown 之前執行，必須在測試 body 內重置。
     debugDefaultTargetPlatformOverride = null;
+    return settings;
   }
 
   testWidgets('desktop dialog rounds all four corners uniformly', (
@@ -69,5 +74,17 @@ void main() {
 
     expect(find.byType(Dialog), findsNothing);
     expect(find.byType(BottomSheet), findsOneWidget);
+  });
+
+  testWidgets('app-private option stores the explicit app-private mode', (
+    tester,
+  ) async {
+    final settings = await openDialog(tester, TargetPlatform.android);
+    final l10n = await AppLocalizations.delegate.load(const Locale('en'));
+
+    await tester.tap(find.text(l10n.workspaceUseAppPrivateDirectory));
+    await tester.pumpAndSettle();
+
+    expect(settings.defaultWorkspaceConfig, const WorkspaceConfig.appPrivate());
   });
 }

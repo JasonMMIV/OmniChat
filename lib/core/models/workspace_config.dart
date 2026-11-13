@@ -1,11 +1,12 @@
 import 'package:flutter/foundation.dart';
 
-enum WorkspaceMode { inheritProject, disabled, useDefault, custom }
+enum WorkspaceMode { inheritProject, disabled, appPrivate, useDefault, custom }
 
 extension WorkspaceModeCodec on WorkspaceMode {
   String get value => switch (this) {
     WorkspaceMode.inheritProject => 'inherit_project',
     WorkspaceMode.disabled => 'disabled',
+    WorkspaceMode.appPrivate => 'app_private',
     WorkspaceMode.useDefault => 'use_default',
     WorkspaceMode.custom => 'custom',
   };
@@ -17,6 +18,7 @@ extension WorkspaceModeCodec on WorkspaceMode {
     return switch (value) {
       'inherit_project' => WorkspaceMode.inheritProject,
       'disabled' => WorkspaceMode.disabled,
+      'app_private' => WorkspaceMode.appPrivate,
       'use_default' => WorkspaceMode.useDefault,
       'custom' => WorkspaceMode.custom,
       _ => fallback,
@@ -34,6 +36,14 @@ class WorkspaceConfig {
       previous = null;
 
   const WorkspaceConfig.disabled() : mode = WorkspaceMode.disabled, path = null, previous = null;
+
+  /// Uses the platform-specific app-private workspace directory without
+  /// freezing its absolute path. The path is resolved on every read, so it
+  /// remains valid across Android work profiles and app-container changes.
+  const WorkspaceConfig.appPrivate()
+    : mode = WorkspaceMode.appPrivate,
+      path = null,
+      previous = null;
 
   const WorkspaceConfig.useDefault()
     : mode = WorkspaceMode.useDefault,

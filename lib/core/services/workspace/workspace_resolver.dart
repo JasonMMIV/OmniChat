@@ -57,6 +57,8 @@ class WorkspaceResolver {
           return _resolveDefault(defaultConfig, source: source);
         }
         return WorkspaceResolution(source: source, path: path);
+      case WorkspaceMode.appPrivate:
+        return _resolveAppPrivate(source);
       case WorkspaceMode.useDefault:
       case WorkspaceMode.inheritProject:
         return _resolveDefault(defaultConfig, source: source);
@@ -79,6 +81,7 @@ class WorkspaceResolver {
           return WorkspaceResolution(source: source, path: configured);
         }
         return _resolveAppPrivate(source);
+      case WorkspaceMode.appPrivate:
       case WorkspaceMode.useDefault:
       case WorkspaceMode.inheritProject:
       case null:

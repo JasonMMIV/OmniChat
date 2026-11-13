@@ -32,6 +32,7 @@ String workspaceDefaultDirectoryLabel(
 ) {
   return switch (config.mode) {
     WorkspaceMode.disabled => l10n.workspaceDoNotUse,
+    WorkspaceMode.appPrivate => l10n.workspaceDefaultDirectoryPrivate,
     WorkspaceMode.useDefault => l10n.workspaceDefaultDirectoryPrivate,
     WorkspaceMode.custom => config.path ?? l10n.workspaceChooseFolder,
     WorkspaceMode.inheritProject => l10n.workspaceDefaultDirectoryPrivate,
@@ -39,10 +40,12 @@ String workspaceDefaultDirectoryLabel(
 }
 
 /// Short label of a conversation-level workspace config for the workspace
-/// menu subtitle (custom path, default directory, or project inheritance).
+/// menu subtitle (app-private directory, custom path, default directory, or
+/// project inheritance).
 String workspaceModeLabel(AppLocalizations l10n, WorkspaceConfig? config) {
   return switch (config?.mode) {
     WorkspaceMode.custom => config?.path ?? l10n.workspaceChooseFolder,
+    WorkspaceMode.appPrivate => l10n.workspaceUseAppPrivateDirectory,
     WorkspaceMode.useDefault => l10n.workspaceUseDefaultDirectory,
     WorkspaceMode.disabled => l10n.workspaceDoNotUse,
     _ => l10n.workspaceUseProjectDirectory,
@@ -82,10 +85,10 @@ Future<void> showDefaultWorkspaceDirectoryDialog(BuildContext context) async {
 }
 
 /// Conversation-level workspace directory picker opened from the workspace
-/// menu's "Workspace directory" entry: choose the default directory, the
-/// project directory, or a custom folder. `disabled` is intentionally not
-/// offered here — the menu's enable toggle owns that state. The gear on
-/// the default-directory row opens the global default directory dialog.
+/// menu's "Workspace directory" entry: choose the app-private directory, the
+/// default directory, the project directory, or a custom folder. `disabled`
+/// is intentionally not offered here — the menu's enable toggle owns that
+/// state. The global default directory is configured from Settings.
 Future<WorkspaceConfig?> showConversationWorkspaceModeSheet(
   BuildContext context, {
   required WorkspaceConfig initial,
@@ -110,7 +113,6 @@ Future<WorkspaceConfig?> showConversationWorkspaceModeSheet(
             initial: initial,
             allowInherit: true,
             allowDisabled: false,
-            showGlobalDefaultSettings: true,
           ),
         ),
       ),
@@ -127,7 +129,6 @@ Future<WorkspaceConfig?> showConversationWorkspaceModeSheet(
       initial: initial,
       allowInherit: true,
       allowDisabled: false,
-      showGlobalDefaultSettings: true,
     ),
   );
 }
@@ -160,6 +161,12 @@ class _DefaultWorkspaceDirectorySheet extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final settings = context.watch<SettingsProvider>();
     final current = settings.defaultWorkspaceConfig;
+    // Legacy `use_default` at the global level also means the app-private
+    // directory. Treat both as the same selected option so existing installs
+    // still show a checkmark after the explicit app-private mode was added.
+    final appPrivateSelected =
+        current.mode == WorkspaceMode.appPrivate ||
+        current.mode == WorkspaceMode.useDefault;
     // Match the dialog scale used elsewhere in the app.
     const optionTitleStyle = TextStyle(
       fontSize: 14,
@@ -174,13 +181,14 @@ class _DefaultWorkspaceDirectorySheet extends StatelessWidget {
       required IconData icon,
       required String title,
       required WorkspaceConfig value,
+      bool? selected,
     }) {
-      final selected = current == value;
+      final isSelected = selected ?? current == value;
       return ListTile(
         contentPadding: EdgeInsets.zero,
         leading: Icon(icon, size: 20),
         title: Text(title, style: optionTitleStyle),
-        trailing: selected ? Icon(Lucide.Check, color: cs.primary) : null,
+        trailing: isSelected ? Icon(Lucide.Check, color: cs.primary) : null,
         onTap: () async {
           await context.read<SettingsProvider>().setDefaultWorkspaceConfig(
             value,
@@ -226,7 +234,8 @@ class _DefaultWorkspaceDirectorySheet extends StatelessWidget {
               option(
                 icon: Lucide.Folder,
                 title: l10n.workspaceUseAppPrivateDirectory,
-                value: const WorkspaceConfig.useDefault(),
+                value: const WorkspaceConfig.appPrivate(),
+                selected: appPrivateSelected,
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -280,7 +289,6 @@ class _WorkspaceModeSheet extends StatelessWidget {
     required this.initial,
     required this.allowInherit,
     this.allowDisabled = true,
-    this.showGlobalDefaultSettings = false,
   });
 
   /// Sheet heading ("Workspace directory" for the conversation flow,
@@ -296,10 +304,6 @@ class _WorkspaceModeSheet extends StatelessWidget {
   /// Whether the "do not use workspace" option is offered (project-level
   /// config only; the conversation flow owns disable via its toggle).
   final bool allowDisabled;
-
-  /// Whether the default-directory row shows the gear opening the global
-  /// default directory dialog (conversation flow only).
-  final bool showGlobalDefaultSettings;
 
   Future<void> _chooseCustom(BuildContext context) async {
     final selected = await _pickWorkspaceFolder(context);
@@ -325,20 +329,13 @@ class _WorkspaceModeSheet extends StatelessWidget {
       required IconData icon,
       required String label,
       required WorkspaceConfig value,
-      Widget? action,
     }) {
       final selected = initial == value;
       return ListTile(
         contentPadding: EdgeInsets.zero,
         leading: Icon(icon, size: 20),
         title: Text(label, style: optionTitleStyle),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (action != null) ...[action, const SizedBox(width: 4)],
-            if (selected) Icon(Lucide.Check, color: cs.primary),
-          ],
-        ),
+        trailing: selected ? Icon(Lucide.Check, color: cs.primary) : null,
         onTap: () => Navigator.of(context).pop(value),
       );
     }
@@ -369,16 +366,13 @@ class _WorkspaceModeSheet extends StatelessWidget {
                 ),
               option(
                 icon: Lucide.Folder,
+                label: l10n.workspaceUseAppPrivateDirectory,
+                value: const WorkspaceConfig.appPrivate(),
+              ),
+              option(
+                icon: Lucide.Folder,
                 label: l10n.workspaceUseDefaultDirectory,
                 value: const WorkspaceConfig.useDefault(),
-                action: showGlobalDefaultSettings
-                    ? IconButton(
-                        tooltip: l10n.workspaceDefaultDirectorySettings,
-                        icon: const Icon(Lucide.Settings2),
-                        onPressed: () =>
-                            showDefaultWorkspaceDirectoryDialog(context),
-                      )
-                    : null,
               ),
               if (allowInherit)
                 option(
