@@ -1440,6 +1440,31 @@
   "sttServicesPageSystemSttConfigureTooltip": "配置",
   "sttServicesPageNoNetworkServices": "第三方语音识别尚未开放",
   "sttServicesPageNotImplementedBadge": "尚未支持转录",
+  "sttServicesPageAddServiceTooltip": "添加服务",
+  "sttServicesFieldLanguageLabel": "语言",
+  "sttServicesFieldLanguageHint": "例如：zh-TW、en 或 auto",
+  "sttServicesFieldWorkspaceIdLabel": "业务空间 ID",
+  "sttServicesFieldRegionLabel": "地域",
+  "sttServicesFieldEndpointAuto": "自动",
+  "sttServicesEndpointInvalid": "请输入有效的 http(s) 网址。",
+  "sttServicesModeLabel": "识别模式",
+  "sttServicesModeRealtime": "实时",
+  "sttServicesModeRecorded": "录音转写",
+  "sttServicesWorkspaceIdHint": "例如：token-plan",
+  "sttServicesWorkspaceIdInvalid": "请输入业务空间 ID，不要填写网址。",
+  "sttServicesQwenTokenPlanHint": "使用 Token Plan 时，选择录音转写，业务空间 ID 填 token-plan，并选择与密钥对应的地域。",
+  "sttServicesRealtimeUnsupported": "尚未支持实时转写。",
+  "sttServicesTranscribing": "正在转写…",
+  "sttServicesTranscriptionFailed": "转写失败：{error}",
+  "@sttServicesTranscriptionFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "sttServicesNoSpeechDetected": "未检测到语音。",
+  "sttServicesMicrophonePermissionDenied": "未授予麦克风权限。",
   "sttSystemProviderName": "系统STT",
   "sttLanguageSettingsTitle": "语音识别语言",
   "sttLanguageAuto": "自动 (跟随 App 语言)",

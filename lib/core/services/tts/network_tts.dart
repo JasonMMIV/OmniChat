@@ -6,6 +6,8 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
+import '../audio/wav_codec.dart';
+
 enum NetworkTtsKind {
   openai,
   gemini,
@@ -927,31 +929,19 @@ Future<Uint8List> _readAzureResponseBytes(
 
 class _Cancelled implements Exception {}
 
-Uint8List _pcmToWav(Uint8List pcm, {required int sampleRate, int channels = 1, int bitsPerSample = 16}) {
-  final byteRate = sampleRate * channels * bitsPerSample ~/ 8;
-  final dataLength = pcm.lengthInBytes;
-  final totalLength = 36 + dataLength;
-  final out = BytesBuilder();
-  void writeString(String s) => out.add(utf8.encode(s));
-  void writeInt32LE(int v) => out.add(Uint8List(4)..buffer.asByteData().setUint32(0, v, Endian.little));
-  void writeInt16LE(int v) => out.add(Uint8List(2)..buffer.asByteData().setUint16(0, v, Endian.little));
-
-  writeString('RIFF');
-  writeInt32LE(totalLength);
-  writeString('WAVE');
-  writeString('fmt ');
-  writeInt32LE(16); // PCM chunk size
-  writeInt16LE(1); // audio format PCM
-  writeInt16LE(channels);
-  writeInt32LE(sampleRate);
-  writeInt32LE(byteRate);
-  writeInt16LE(channels * bitsPerSample ~/ 8);
-  writeInt16LE(bitsPerSample);
-  writeString('data');
-  writeInt32LE(dataLength);
-  out.add(pcm);
-  return out.toBytes();
-}
+/// PCM16 → WAV。實作已收斂到 `lib/core/services/audio/wav_codec.dart`，
+/// 避免 STT／TTS 各有一份 header 實作（plan §6.3）。
+Uint8List _pcmToWav(
+  Uint8List pcm, {
+  required int sampleRate,
+  int channels = 1,
+  int bitsPerSample = 16,
+}) => pcm16MonoToWav(
+  pcm,
+  sampleRate: sampleRate,
+  channels: channels,
+  bitsPerSample: bitsPerSample,
+);
 
 Uint8List _hexToBytes(String hex) {
   final clean = hex.replaceAll(RegExp(r'\s+'), '');

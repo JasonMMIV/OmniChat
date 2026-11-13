@@ -32,6 +32,9 @@ import '../../../core/services/agent/compaction/history_compactor.dart';
 import '../../../core/services/model_catalog/model_catalog.dart';
 import '../../../core/services/haptics.dart';
 import '../../../core/services/screen_wakelock.dart';
+import '../../../core/services/stt/network_dictation_session.dart';
+import '../../../core/services/stt/network_stt.dart';
+import '../../voice_chat/services/platform_audio_setup.dart';
 import '../../voice_chat/services/stt_locale_resolver.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
@@ -181,6 +184,8 @@ class HomePageController extends ChangeNotifier {
   // Inline Dictation State
   bool _isDictating = false;
   bool get isDictating => _isDictating;
+  // 權限請求／引擎初始化等 async gap 期間的重入鎖（連點麥克風不會建兩個 session）。
+  bool _dictationStarting = false;
   // 暫停狀態：系統語音引擎靜默結束聆聽（無新結果通知）時切為 true，
   // UI 顯示「播放」按鈕，按下後 resumeDictation() 重新開啟聆聽。
   bool _dictationPaused = false;
@@ -201,6 +206,24 @@ class HomePageController extends ChangeNotifier {
   // 停止引擎的 in-flight future（去重，供暫停恢復/每句話重啟共用）。
   Future<void>? _dictationStopFuture;
 
+  // 網路（批次）聽寫狀態。選定第三方服務時，文字由 final（+ partial）重算，
+  // 不在目前文字上 append。系統 STT 路徑完全不受影響。
+  bool _isTranscribing = false;
+  bool get isTranscribing => _isTranscribing;
+  bool _networkDictationPreferred = false;
+  NetworkDictationSession? _networkDictation;
+  StreamSubscription<NetworkDictationUpdate>? _networkDictationSub;
+  String _networkBaseText = '';
+  String _networkFinalText = '';
+  String _networkPartialText = '';
+  // 停止／暫停流程互斥（冪等），避免連點造成重複 teardown。
+  bool _networkStopping = false;
+  // 每次啟動遞增；停止流程 await 回來後若 epoch 已變（背景取消／新 session），
+  // 就不可以再把文字寫回輸入框。
+  int _networkDictationEpoch = 0;
+  // 本次 session 是否收過 provider 錯誤（區分「沒辨識到語音」與「轉錄失敗」）。
+  bool _networkHadError = false;
+
   // Input bar measurement
   double _inputBarHeight = 72;
 
@@ -214,20 +237,49 @@ class HomePageController extends ChangeNotifier {
   // ============================================================================
 
   Future<void> startDictation() async {
-    if (_isDictating) return;
+    if (_isDictating || _dictationStarting) return;
+    _dictationStarting = true;
+    try {
+      await _startDictationInternal();
+    } finally {
+      _dictationStarting = false;
+    }
+  }
 
+  Future<void> _startDictationInternal() async {
     var status = await Permission.microphone.status;
     if (!status.isGranted) {
       status = await Permission.microphone.request();
       if (!status.isGranted) {
         if (_context.mounted) {
           ScaffoldMessenger.of(_context).showSnackBar(
-            const SnackBar(content: Text('Microphone permission denied.')),
+            SnackBar(
+              content: Text(
+                _localizationsOrNull()?.sttServicesMicrophonePermissionDenied ??
+                    'Microphone permission was not granted.',
+              ),
+            ),
           );
         }
         return;
       }
     }
+
+    // 選定第三方服務 → 批次網路轉錄；未選定時系統 STT 路徑完全不變。
+    final sttService = _readSelectedSttService();
+    if (sttService != null) {
+      if (!isSttServiceAvailable(sttService)) {
+        // 舊資料若選到 Qwen realtime，不可默默送批次。
+        _showDictationMessage(
+          _localizationsOrNull()?.sttServicesRealtimeUnsupported,
+          type: NotificationType.warning,
+        );
+      } else {
+        await _startNetworkDictation(sttService);
+        return;
+      }
+    }
+    _networkDictationPreferred = false;
 
     // 使用專屬 SpeechToText 實例，而非 factory singleton：SpeechToText 的
     // initialize() 只在首次成功時註冊 onStatus/onError，語音對話與聽寫各自使用
@@ -398,6 +450,10 @@ class HomePageController extends ChangeNotifier {
   /// 暫停聽寫：停止收音（麥克風釋放），保留已辨識文字，UI 顯示「播放」。
   void pauseDictation() {
     if (!_isDictating || _dictationPaused) return;
+    if (_networkDictation != null) {
+      unawaited(_pauseNetworkDictation());
+      return;
+    }
     _cancelDictationWatchdog();
     // 捕捉目前文字作為 resume 後的接續基底，避免新語音覆蓋既有內容。
     _preDictationText = _inputController.text;
@@ -409,6 +465,10 @@ class HomePageController extends ChangeNotifier {
   /// 從暫停狀態重新開啟聆聽。
   void resumeDictation() {
     if (!_isDictating || !_dictationPaused) return;
+    if (_networkDictationPreferred) {
+      unawaited(_resumeNetworkDictation());
+      return;
+    }
     _resumeDictationAsync();
   }
 
@@ -437,11 +497,265 @@ class HomePageController extends ChangeNotifier {
 
   void stopDictation() {
     if (!_isDictating) return;
+    if (_networkDictation != null) {
+      unawaited(_stopNetworkDictation());
+      return;
+    }
+    _networkDictationPreferred = false;
     _cancelDictationWatchdog();
     _stopDictationEngine();
     _isDictating = false;
     _dictationPaused = false;
     notifyListeners();
+  }
+
+  // ===================== Network (batch) dictation =====================
+
+  SttServiceOptions? _readSelectedSttService() {
+    try {
+      return _context.read<SettingsProvider>().selectedSttService;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  AppLocalizations? _localizationsOrNull() {
+    try {
+      return AppLocalizations.of(_context);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _showDictationMessage(
+    String? message, {
+    NotificationType type = NotificationType.error,
+  }) {
+    if (message == null || message.isEmpty || _disposed) return;
+    if (!_context.mounted) return;
+    showAppSnackBar(_context, message: message, type: type);
+  }
+
+  Future<void> _startNetworkDictation(SttServiceOptions service) async {
+    _networkDictationEpoch++;
+    _networkStopping = false;
+    _networkHadError = false;
+    _networkDictationPreferred = true;
+    _networkBaseText = _inputController.text;
+    _networkFinalText = '';
+    _networkPartialText = '';
+    final session = NetworkDictationSession(service: service);
+    _networkDictation = session;
+    _networkDictationSub = session.updates.listen(_onNetworkDictationUpdate);
+    // 先翻成「聽寫中」再 await：session.start() 的 async gap 內第二次點擊
+    // 會被 startDictation 的 `_isDictating` 擋下，不會建第二個 session。
+    _isDictating = true;
+    _dictationPaused = false;
+    _isTranscribing = true;
+    notifyListeners();
+    try {
+      // 與 speech_to_text 互斥：先停掉系統引擎，不可同時持有麥克風。
+      await _stopDictationEngine();
+      await PlatformAudioSetup.beginDictationAudioSession();
+      await session.start();
+    } catch (e) {
+      await _teardownNetworkDictation(cancel: true);
+      _networkDictationPreferred = false;
+      _networkStopping = false;
+      _isDictating = false;
+      _isTranscribing = false;
+      if (_disposed) return;
+      notifyListeners();
+      _showDictationMessage(
+        e is SttMicrophonePermissionException
+            ? (_localizationsOrNull()?.sttServicesMicrophonePermissionDenied ??
+                  'Microphone permission was not granted.')
+            : (_localizationsOrNull()?.sttServicesTranscriptionFailed('$e') ??
+                  'Transcription failed: $e'),
+      );
+      return;
+    }
+    if (_disposed) {
+      unawaited(session.cancel());
+      return;
+    }
+    notifyListeners();
+  }
+
+  void _onNetworkDictationUpdate(NetworkDictationUpdate update) {
+    if (_disposed) return;
+    final error = update.error;
+    if (error != null) {
+      _networkHadError = true;
+      _showDictationMessage(
+        _localizationsOrNull()?.sttServicesTranscriptionFailed('$error') ??
+            'Transcription failed: $error',
+      );
+      // 錯誤不帶文字；不要覆蓋已定稿內容。
+      return;
+    }
+    _networkFinalText = update.finalText;
+    _networkPartialText = update.partialText;
+    _isTranscribing = update.isTranscribing || _isTranscribing;
+    // 停止流程中由 _stopNetworkDictation 統一寫回。若這裡先寫，使用者在等待
+    // 最後一段時按送出（輸入框被清空），final update 會把舊文字塞回輸入框。
+    if (_networkStopping) {
+      notifyListeners();
+      return;
+    }
+    if (!_isDictating || _networkDictation == null) {
+      notifyListeners();
+      return;
+    }
+    final text = composeNetworkDictationText(
+      base: _networkBaseText,
+      finalText: _networkFinalText,
+      partialText: _networkPartialText,
+    );
+    // 一律覆寫（不可 append）：每段 final 不會重複追加。
+    _inputController.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+    notifyListeners();
+  }
+
+  Future<void> _stopNetworkDictation() async {
+    if (_networkStopping) return;
+    _networkStopping = true;
+    final epoch = _networkDictationEpoch;
+    final session = _networkDictation;
+    _cancelDictationWatchdog();
+    // 停止後仍在等最後一段：保持「聽寫中」與「轉錄中」指示，避免使用者
+    // 以為已完成而提早送出（UI 的停止鈕重複點擊由 _networkStopping 擋下）。
+    _isTranscribing = true;
+    notifyListeners();
+    final entryText = _inputController.text;
+    var completed = _networkFinalText;
+    if (session != null) {
+      try {
+        completed = await session.finish();
+      } catch (_) {}
+    }
+    await _teardownNetworkDictation(cancel: false);
+    _networkStopping = false;
+    if (_disposed || epoch != _networkDictationEpoch) return;
+    _networkFinalText = completed;
+    // 等待期間輸入框被清空（最常見是按了送出）：不要把轉錄結果塞回去。
+    final clearedMeanwhile =
+        entryText.trim().isNotEmpty && _inputController.text.trim().isEmpty;
+    if (!clearedMeanwhile) {
+      final text = composeNetworkDictationText(
+        base: _networkBaseText,
+        finalText: _networkFinalText,
+        partialText: '',
+      );
+      _inputController.value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+      _networkBaseText = text;
+    }
+    if (!clearedMeanwhile && completed.trim().isEmpty && !_networkHadError) {
+      _showDictationMessage(
+        _localizationsOrNull()?.sttServicesNoSpeechDetected,
+        type: NotificationType.warning,
+      );
+    }
+    _networkFinalText = '';
+    _networkPartialText = '';
+    _networkDictationPreferred = false;
+    _isDictating = false;
+    _isTranscribing = false;
+    _dictationPaused = false;
+    notifyListeners();
+  }
+
+  Future<void> _pauseNetworkDictation() async {
+    if (_networkStopping) return;
+    _networkStopping = true;
+    final epoch = _networkDictationEpoch;
+    final session = _networkDictation;
+    _cancelDictationWatchdog();
+    _isDictating = false;
+    _isTranscribing = true;
+    _dictationPaused = true;
+    notifyListeners();
+    var completed = _networkFinalText;
+    if (session != null) {
+      try {
+        completed = await session.finish();
+      } catch (_) {}
+    }
+    await _teardownNetworkDictation(cancel: false);
+    _networkStopping = false;
+    if (_disposed || epoch != _networkDictationEpoch) return;
+    _networkFinalText = completed;
+    final text = composeNetworkDictationText(
+      base: _networkBaseText,
+      finalText: completed,
+      partialText: '',
+    );
+    _inputController.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+    _networkBaseText = text;
+    _networkFinalText = '';
+    _networkPartialText = '';
+    // 仍處於聽寫（暫停）狀態，UI 顯示播放鈕。
+    _isDictating = true;
+    _isTranscribing = false;
+    notifyListeners();
+  }
+
+  Future<void> _resumeNetworkDictation() async {
+    final service = _readSelectedSttService();
+    if (service == null || !isSttServiceAvailable(service)) {
+      _networkDictationPreferred = false;
+      _dictationPaused = false;
+      _isDictating = false;
+      notifyListeners();
+      return;
+    }
+    _dictationPaused = false;
+    _isDictating = false;
+    notifyListeners();
+    await _startNetworkDictation(service);
+  }
+
+  /// 背景／dispose：取消 session、丟棄半段，輸入框還原為進入聽寫前的文字。
+  void _cancelNetworkDictation() {
+    final base = _networkBaseText;
+    // 使任何 in-flight 的 finish() 回來後不再寫回輸入框。
+    _networkDictationEpoch++;
+    _networkStopping = false;
+    _isDictating = false;
+    _dictationPaused = false;
+    _isTranscribing = false;
+    _networkFinalText = '';
+    _networkPartialText = '';
+    _networkBaseText = '';
+    _networkDictationPreferred = false;
+    unawaited(_teardownNetworkDictation(cancel: true));
+    if (_disposed) return;
+    _inputController.value = TextEditingValue(
+      text: base,
+      selection: TextSelection.collapsed(offset: base.length),
+    );
+    notifyListeners();
+  }
+
+  Future<void> _teardownNetworkDictation({required bool cancel}) async {
+    final sub = _networkDictationSub;
+    _networkDictationSub = null;
+    await sub?.cancel();
+    final session = _networkDictation;
+    _networkDictation = null;
+    await PlatformAudioSetup.endDictationAudioSession();
+    if (session == null) return;
+    if (cancel) await session.cancel();
+    await session.dispose();
   }
 
   GlobalKey<ScaffoldState> get scaffoldKey => _scaffoldKey;
@@ -1991,6 +2305,16 @@ class HomePageController extends ChangeNotifier {
     _appInForeground = (state == AppLifecycleState.resumed);
     if (state == AppLifecycleState.resumed) {
       ScreenWakelock.reassert();
+      return;
+    }
+    // 背景時取消網路聽寫：不送半段、不把 partial 寫進輸入框。
+    // `inactive` 不取消（權限對話框／控制中心會短暫進入此狀態）。
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      if (_networkDictation != null) {
+        _cancelNetworkDictation();
+      }
     }
   }
 
@@ -2125,6 +2449,16 @@ class HomePageController extends ChangeNotifier {
     _cancelDictationWatchdog();
     // 若仍在聽寫（含暫停以外的聆聽中狀態），釋放麥克風。
     _stopDictationEngine();
+    _networkDictationSub?.cancel();
+    _networkDictationSub = null;
+    final networkSession = _networkDictation;
+    _networkDictation = null;
+    if (networkSession != null) {
+      // dispose 也要釋放 iOS/macOS 的 dictation audio session。
+      unawaited(PlatformAudioSetup.endDictationAudioSession());
+      unawaited(networkSession.cancel());
+      unawaited(networkSession.dispose());
+    }
     _convoFadeController.dispose();
     _mcpProvider?.removeListener(_onMcpChanged);
     _scrollCtrl.dispose();

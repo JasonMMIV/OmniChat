@@ -3868,6 +3868,63 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sttServicesPageNotImplementedBadge => '尚未支持转录';
 
   @override
+  String get sttServicesPageAddServiceTooltip => '添加服务';
+
+  @override
+  String get sttServicesFieldLanguageLabel => '语言';
+
+  @override
+  String get sttServicesFieldLanguageHint => '例如：zh-TW、en 或 auto';
+
+  @override
+  String get sttServicesFieldWorkspaceIdLabel => '业务空间 ID';
+
+  @override
+  String get sttServicesFieldRegionLabel => '地域';
+
+  @override
+  String get sttServicesFieldEndpointAuto => '自动';
+
+  @override
+  String get sttServicesEndpointInvalid => '请输入有效的 http(s) 网址。';
+
+  @override
+  String get sttServicesModeLabel => '识别模式';
+
+  @override
+  String get sttServicesModeRealtime => '实时';
+
+  @override
+  String get sttServicesModeRecorded => '录音转写';
+
+  @override
+  String get sttServicesWorkspaceIdHint => '例如：token-plan';
+
+  @override
+  String get sttServicesWorkspaceIdInvalid => '请输入业务空间 ID，不要填写网址。';
+
+  @override
+  String get sttServicesQwenTokenPlanHint =>
+      '使用 Token Plan 时，选择录音转写，业务空间 ID 填 token-plan，并选择与密钥对应的地域。';
+
+  @override
+  String get sttServicesRealtimeUnsupported => '尚未支持实时转写。';
+
+  @override
+  String get sttServicesTranscribing => '正在转写…';
+
+  @override
+  String sttServicesTranscriptionFailed(String error) {
+    return '转写失败：$error';
+  }
+
+  @override
+  String get sttServicesNoSpeechDetected => '未检测到语音。';
+
+  @override
+  String get sttServicesMicrophonePermissionDenied => '未授予麦克风权限。';
+
+  @override
   String get sttSystemProviderName => '系统STT';
 
   @override
@@ -10748,6 +10805,63 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get sttServicesPageNotImplementedBadge => '尚未支持转录';
 
   @override
+  String get sttServicesPageAddServiceTooltip => '添加服务';
+
+  @override
+  String get sttServicesFieldLanguageLabel => '语言';
+
+  @override
+  String get sttServicesFieldLanguageHint => '例如：zh-TW、en 或 auto';
+
+  @override
+  String get sttServicesFieldWorkspaceIdLabel => '业务空间 ID';
+
+  @override
+  String get sttServicesFieldRegionLabel => '地域';
+
+  @override
+  String get sttServicesFieldEndpointAuto => '自动';
+
+  @override
+  String get sttServicesEndpointInvalid => '请输入有效的 http(s) 网址。';
+
+  @override
+  String get sttServicesModeLabel => '识别模式';
+
+  @override
+  String get sttServicesModeRealtime => '实时';
+
+  @override
+  String get sttServicesModeRecorded => '录音转写';
+
+  @override
+  String get sttServicesWorkspaceIdHint => '例如：token-plan';
+
+  @override
+  String get sttServicesWorkspaceIdInvalid => '请输入业务空间 ID，不要填写网址。';
+
+  @override
+  String get sttServicesQwenTokenPlanHint =>
+      '使用 Token Plan 时，选择录音转写，业务空间 ID 填 token-plan，并选择与密钥对应的地域。';
+
+  @override
+  String get sttServicesRealtimeUnsupported => '尚未支持实时转写。';
+
+  @override
+  String get sttServicesTranscribing => '正在转写…';
+
+  @override
+  String sttServicesTranscriptionFailed(String error) {
+    return '转写失败：$error';
+  }
+
+  @override
+  String get sttServicesNoSpeechDetected => '未检测到语音。';
+
+  @override
+  String get sttServicesMicrophonePermissionDenied => '未授予麦克风权限。';
+
+  @override
   String get sttSystemProviderName => '系统STT';
 
   @override
@@ -17536,6 +17650,63 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get sttServicesPageNotImplementedBadge => '尚未支援轉錄';
+
+  @override
+  String get sttServicesPageAddServiceTooltip => '新增服務';
+
+  @override
+  String get sttServicesFieldLanguageLabel => '語言';
+
+  @override
+  String get sttServicesFieldLanguageHint => '例如：zh-TW、en 或 auto';
+
+  @override
+  String get sttServicesFieldWorkspaceIdLabel => '業務空間 ID';
+
+  @override
+  String get sttServicesFieldRegionLabel => '地域';
+
+  @override
+  String get sttServicesFieldEndpointAuto => '自動';
+
+  @override
+  String get sttServicesEndpointInvalid => '請輸入有效的 http(s) 網址。';
+
+  @override
+  String get sttServicesModeLabel => '辨識模式';
+
+  @override
+  String get sttServicesModeRealtime => '即時';
+
+  @override
+  String get sttServicesModeRecorded => '錄音轉寫';
+
+  @override
+  String get sttServicesWorkspaceIdHint => '例如：token-plan';
+
+  @override
+  String get sttServicesWorkspaceIdInvalid => '請輸入業務空間 ID，不要填寫網址。';
+
+  @override
+  String get sttServicesQwenTokenPlanHint =>
+      '使用 Token Plan 時，選擇錄音轉寫，業務空間 ID 填 token-plan，並選擇與金鑰對應的地域。';
+
+  @override
+  String get sttServicesRealtimeUnsupported => '尚未支援即時轉寫。';
+
+  @override
+  String get sttServicesTranscribing => '正在轉寫…';
+
+  @override
+  String sttServicesTranscriptionFailed(String error) {
+    return '轉寫失敗：$error';
+  }
+
+  @override
+  String get sttServicesNoSpeechDetected => '未偵測到語音。';
+
+  @override
+  String get sttServicesMicrophonePermissionDenied => '未授予麥克風權限。';
 
   @override
   String get sttSystemProviderName => '系統STT';

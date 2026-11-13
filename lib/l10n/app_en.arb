@@ -1743,6 +1743,31 @@
   "sttServicesPageSystemSttConfigureTooltip": "Configure",
   "sttServicesPageNoNetworkServices": "Third-party speech recognition is not available yet",
   "sttServicesPageNotImplementedBadge": "Transcription not yet supported",
+  "sttServicesPageAddServiceTooltip": "Add service",
+  "sttServicesFieldLanguageLabel": "Language",
+  "sttServicesFieldLanguageHint": "e.g. zh-TW, en, or auto",
+  "sttServicesFieldWorkspaceIdLabel": "Workspace ID",
+  "sttServicesFieldRegionLabel": "Region",
+  "sttServicesFieldEndpointAuto": "Automatic",
+  "sttServicesEndpointInvalid": "Enter a valid http(s) URL.",
+  "sttServicesModeLabel": "Recognition mode",
+  "sttServicesModeRealtime": "Real-time",
+  "sttServicesModeRecorded": "Recorded audio",
+  "sttServicesWorkspaceIdHint": "e.g. token-plan",
+  "sttServicesWorkspaceIdInvalid": "Enter a workspace ID, not a URL.",
+  "sttServicesQwenTokenPlanHint": "For Token Plan, choose Recorded audio, enter token-plan as the Workspace ID, and select the region for your key.",
+  "sttServicesRealtimeUnsupported": "Real-time transcription is not supported yet.",
+  "sttServicesTranscribing": "Transcribing…",
+  "sttServicesTranscriptionFailed": "Transcription failed: {error}",
+  "@sttServicesTranscriptionFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "sttServicesNoSpeechDetected": "No speech was detected.",
+  "sttServicesMicrophonePermissionDenied": "Microphone permission was not granted.",
   "sttSystemProviderName": "System STT",
   "sttLanguageSettingsTitle": "Speech Recognition Language",
   "sttLanguageAuto": "Auto (follow app language)",

@@ -146,6 +146,7 @@ class ChatInputBar extends StatefulWidget {
     this.onToggleOcr,
     this.isDictating = false,
     this.dictationPaused = false,
+    this.isTranscribing = false,
     this.onStartDictation,
     this.onStopDictation,
     this.onToggleDictationPause,
@@ -210,6 +211,9 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback? onToggleOcr;
   final bool isDictating;
   final bool dictationPaused;
+
+  /// 網路（批次）轉錄進行中：顯示轉寫狀態，停止鈕仍可結束並等最後一段。
+  final bool isTranscribing;
   final VoidCallback? onStartDictation;
   final VoidCallback? onStopDictation;
   final VoidCallback? onToggleDictationPause;
@@ -1627,6 +1631,18 @@ class _ChatInputBarState extends State<ChatInputBar>
             Row(
               children: widget.isDictating
                   ? [
+                      if (widget.isTranscribing) ...[
+                        Text(
+                          l10n.sttServicesTranscribing,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.7,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
                       _CompactIconButton(
                         tooltip: l10n.chatInputBarStopDictationTooltip,
                         icon: Lucide.Square,

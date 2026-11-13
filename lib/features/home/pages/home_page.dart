@@ -1228,6 +1228,7 @@ class _HomePageState extends State<HomePage>
       onRefreshContextUsage: _controller.refreshContextUsage,
       isDictating: _controller.isDictating,
       dictationPaused: _controller.dictationPaused,
+      isTranscribing: _controller.isTranscribing,
       onStartDictation: _controller.startDictation,
       onStopDictation: _controller.stopDictation,
       onToggleDictationPause: _controller.toggleDictationPause,

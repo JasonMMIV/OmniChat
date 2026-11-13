@@ -78,6 +78,7 @@ class ChatInputSection extends StatelessWidget {
     this.contextUsage,
     this.isDictating = false,
     this.dictationPaused = false,
+    this.isTranscribing = false,
     this.onStartDictation,
     this.onStopDictation,
     this.onToggleDictationPause,
@@ -134,6 +135,7 @@ class ChatInputSection extends StatelessWidget {
 
   final bool isDictating;
   final bool dictationPaused;
+  final bool isTranscribing;
   final VoidCallback? onStartDictation;
   final VoidCallback? onStopDictation;
   final VoidCallback? onToggleDictationPause;
@@ -230,6 +232,7 @@ class ChatInputSection extends StatelessWidget {
       onToggleOcr: onToggleOcr,
       isDictating: isDictating,
       dictationPaused: dictationPaused,
+      isTranscribing: isTranscribing,
       onStartDictation: onStartDictation,
       onStopDictation: onStopDictation,
       onToggleDictationPause: onToggleDictationPause,

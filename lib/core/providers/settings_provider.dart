@@ -342,6 +342,9 @@ class SettingsProvider extends ChangeNotifier {
   // STT services (network & settings)
   static const String _sttServicesKey = 'stt_services_v1';
   static const String _sttSelectedKey = 'stt_selected_v1';
+  // 選取以 id 為準（'stt_selected_v1' 只作為舊資料遷移來源與相容鏡像）：
+  // 未知 kind 被跳過後整數 index 會位移，選到別的服務（plan R2）。
+  static const String _sttSelectedIdKey = 'stt_selected_id_v1';
   static const String _sttSystemLocaleKey = 'stt_system_locale_v1';
   // Voice Call (Live API) settings — 直屬欄位，不寫入 ProviderConfig（與 TTS/STT 相同）。
   // API Key 不在此列：§5.8 起存於 flutter_secure_storage（見 LiveApiKeyStore），
@@ -375,6 +378,7 @@ class SettingsProvider extends ChangeNotifier {
   // ===== Network STT services =====
   List<SttServiceOptions> _sttServices = const <SttServiceOptions>[];
   int _sttServiceSelected = -1; // -1 => use System STT
+  String? _sttSelectedId;
   String? _sttSystemLocaleId; // null => auto (follow app locale)
 
   List<SttServiceOptions> get sttServices => _sttServices;
@@ -1297,26 +1301,61 @@ class SettingsProvider extends ChangeNotifier {
     );
 
     // load network STT services
-    try {
-      final sttStr = prefs.getString(_sttServicesKey) ?? '';
-      if (sttStr.isNotEmpty) {
-        final list = jsonDecode(sttStr) as List;
-        _sttServices = [
-          for (final e in list)
-            if (e is Map<String, dynamic>)
-              SttServiceOptions.fromJson(e)
-            else
-              SttServiceOptions.fromJson(Map<String, dynamic>.from(e as Map)),
-        ];
-      } else {
-        _sttServices = const <SttServiceOptions>[];
+    // 逐筆解析：單筆壞掉不得清空整份清單（plan R3）。
+    final rawSttOptions = <SttServiceOptions?>[];
+    final parsedSttOptions = <SttServiceOptions>[];
+    final sttStr = prefs.getString(_sttServicesKey) ?? '';
+    if (sttStr.isNotEmpty) {
+      try {
+        final list = jsonDecode(sttStr);
+        if (list is List) {
+          for (final entry in list) {
+            if (entry is! Map) {
+              rawSttOptions.add(null);
+              continue;
+            }
+            final option = SttServiceOptions.tryFromJson(
+              Map<String, dynamic>.from(entry),
+            );
+            rawSttOptions.add(option);
+            if (option != null) parsedSttOptions.add(option);
+          }
+        }
+      } catch (_) {
+        // 只有最外層 JSON decode 失敗才清空。
+        rawSttOptions.clear();
+        parsedSttOptions.clear();
       }
-    } catch (_) {
-      _sttServices = const <SttServiceOptions>[];
     }
-    _sttServiceSelected = prefs.getInt(_sttSelectedKey) ?? -1;
-    if (_sttServiceSelected >= _sttServices.length) {
-      _sttServiceSelected = _sttServices.isEmpty ? -1 : 0;
+    _sttServices = List.unmodifiable(parsedSttOptions);
+
+    // 選取以 id 優先；沒有 id key 時用舊 index（對照「含無效項的原始清單」，
+    // 避免跳過壞項後位移選到別的服務），並一次性寫回 id。
+    final storedId = (prefs.getString(_sttSelectedIdKey) ?? '').trim();
+    final legacyIndex = prefs.getInt(_sttSelectedKey) ?? -1;
+    SttServiceOptions? selectedStt;
+    if (storedId.isNotEmpty) {
+      for (final option in _sttServices) {
+        if (option.id == storedId) {
+          selectedStt = option;
+          break;
+        }
+      }
+    } else if (legacyIndex >= 0 && legacyIndex < rawSttOptions.length) {
+      selectedStt = rawSttOptions[legacyIndex];
+    }
+    _sttServiceSelected = selectedStt == null
+        ? -1
+        : _sttServices.indexOf(selectedStt);
+    _sttSelectedId = _sttServiceSelected < 0
+        ? null
+        : _sttServices[_sttServiceSelected].id;
+    if (sttStr.isNotEmpty) {
+      if (_sttSelectedId == null) {
+        await prefs.remove(_sttSelectedIdKey);
+      } else {
+        await prefs.setString(_sttSelectedIdKey, _sttSelectedId!);
+      }
       await prefs.setInt(_sttSelectedKey, _sttServiceSelected);
     }
     _sttSystemLocaleId = prefs.getString(_sttSystemLocaleKey);
@@ -1542,21 +1581,49 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> setSttServices(List<SttServiceOptions> v) async {
     _sttServices = List.unmodifiable(v);
+    // 選取中的服務被刪除 → 回到系統 STT；不可靜默切到別的服務
+    // （可能產生未預期的費用）。這是刻意的行為變更（plan §4.2.2）。
+    SttServiceOptions? stillSelected;
+    if (_sttSelectedId != null) {
+      for (final option in _sttServices) {
+        if (option.id == _sttSelectedId) {
+          stillSelected = option;
+          break;
+        }
+      }
+    }
+    _sttServiceSelected = stillSelected == null
+        ? -1
+        : _sttServices.indexOf(stillSelected);
+    _sttSelectedId = stillSelected?.id;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     final list = v.map((e) => e.toJson()).toList();
     await prefs.setString(_sttServicesKey, jsonEncode(list));
-    if (_sttServiceSelected >= _sttServices.length) {
-      _sttServiceSelected = _sttServices.isEmpty ? -1 : 0;
-      await prefs.setInt(_sttSelectedKey, _sttServiceSelected);
+    await prefs.setInt(_sttSelectedKey, _sttServiceSelected);
+    if (_sttSelectedId == null) {
+      await prefs.remove(_sttSelectedIdKey);
+    } else {
+      await prefs.setString(_sttSelectedIdKey, _sttSelectedId!);
     }
   }
 
   Future<void> setSttServiceSelected(int index) async {
-    _sttServiceSelected = index;
+    if (index < 0 || index >= _sttServices.length) {
+      _sttServiceSelected = -1;
+      _sttSelectedId = null;
+    } else {
+      _sttServiceSelected = index;
+      _sttSelectedId = _sttServices[index].id;
+    }
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_sttSelectedKey, _sttServiceSelected);
+    if (_sttSelectedId == null) {
+      await prefs.remove(_sttSelectedIdKey);
+    } else {
+      await prefs.setString(_sttSelectedIdKey, _sttSelectedId!);
+    }
   }
 
   Future<void> setSttSystemLocaleId(String? localeId) async {

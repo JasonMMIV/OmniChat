@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,22 +25,22 @@ Future<SettingsProvider> _loadedProvider() async {
 }
 
 OpenAiWhisperSttOptions _openAi({String? id}) => OpenAiWhisperSttOptions(
-      id: id,
-      enabled: true,
-      name: 'Whisper',
-      apiKey: 'sk-1',
-      baseUrl: 'https://api.openai.com/v1/audio/transcriptions',
-      model: 'whisper-1',
-    );
+  id: id,
+  enabled: true,
+  name: 'Whisper',
+  apiKey: 'sk-1',
+  baseUrl: 'https://api.openai.com/v1/audio/transcriptions',
+  model: 'whisper-1',
+);
 
 GroqWhisperSttOptions _groq({String? id}) => GroqWhisperSttOptions(
-      id: id,
-      enabled: true,
-      name: 'Groq',
-      apiKey: 'gsk-1',
-      baseUrl: 'https://api.groq.com/openai/v1/audio/transcriptions',
-      model: 'whisper-large-v3',
-    );
+  id: id,
+  enabled: true,
+  name: 'Groq',
+  apiKey: 'gsk-1',
+  baseUrl: 'https://api.groq.com/openai/v1/audio/transcriptions',
+  model: 'whisper-large-v3',
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -56,7 +57,6 @@ void main() {
     expect(sp.sttServices, isEmpty);
     await sp.setSttServices([_openAi(), _groq()]);
 
-    // Recreate the provider with the same prefs and verify round-trip.
     final sp2 = await _loadedProvider();
     expect(sp2.sttServices, hasLength(2));
     expect(sp2.sttServices[0], isA<OpenAiWhisperSttOptions>());
@@ -73,26 +73,121 @@ void main() {
     expect(sp2.sttServices, hasLength(2));
     expect(sp2.sttServiceSelected, 1);
     expect(sp2.usingSystemStt, isFalse);
+    expect(sp2.selectedSttService?.id, sp.sttServices[1].id);
   });
 
-  test('out-of-range selection converges when services are deleted', () async {
+  test('selection is id-based and written alongside the legacy index', () async {
+    final sp = await _loadedProvider();
+    await sp.setSttServices([_openAi(id: 'a'), _groq(id: 'b')]);
+    await sp.setSttServiceSelected(1);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getInt('stt_selected_v1'), 1);
+    expect(prefs.getString('stt_selected_id_v1'), 'b');
+
+    final sp2 = await _loadedProvider();
+    expect(sp2.selectedSttService?.id, 'b');
+  });
+
+  test('legacy index migrates to an id (once)', () async {
+    SharedPreferences.setMockInitialValues({
+      'stt_services_v1': jsonEncode([
+        _openAi(id: 'a').toJson(),
+        _groq(id: 'b').toJson(),
+      ]),
+      'stt_selected_v1': 1,
+    });
+    final sp = await _loadedProvider();
+    expect(sp.selectedSttService?.id, 'b');
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('stt_selected_id_v1'), 'b');
+
+    // 重啟後即使清單順序改變，仍以 id 指向同一服務。
+    final sp2 = await _loadedProvider();
+    await sp2.setSttServices([_groq(id: 'b'), _openAi(id: 'a')]);
+    expect(sp2.selectedSttService?.id, 'b');
+    expect(sp2.sttServiceSelected, 0);
+  });
+
+  test('deleting the selected service returns to System STT', () async {
     final sp = await _loadedProvider();
     final a = _openAi(id: 'a');
     final b = _groq(id: 'b');
     await sp.setSttServices([a, b]);
     await sp.setSttServiceSelected(1); // select Groq
 
-    // Delete the selected service (index 1)
-    final remaining = List<SttServiceOptions>.from(sp.sttServices)..removeAt(1);
+    final remaining = List<SttServiceOptions>.from(sp.sttServices)
+      ..removeAt(1);
     await sp.setSttServices(remaining);
 
     expect(sp.sttServices, hasLength(1));
-    // Selection out of range → converge to the last valid index.
-    expect(sp.sttServiceSelected, 0);
-    expect(sp.usingSystemStt, isFalse);
+    // 行為變更：不再收斂到第一個服務（可能產生未預期的費用）。
+    expect(sp.sttServiceSelected, -1);
+    expect(sp.usingSystemStt, isTrue);
 
-    // Deleting the last service returns to System STT.
     await sp.setSttServices(const []);
+    expect(sp.sttServiceSelected, -1);
+    expect(sp.usingSystemStt, isTrue);
+  });
+
+  test('deleting an earlier service keeps the same selection by id', () async {
+    final sp = await _loadedProvider();
+    await sp.setSttServices([
+      _openAi(id: 'a'),
+      _openAi(id: 'b'),
+      _groq(id: 'c'),
+    ]);
+    await sp.setSttServiceSelected(2);
+
+    await sp.setSttServices([_openAi(id: 'b'), _groq(id: 'c')]);
+    expect(sp.selectedSttService?.id, 'c');
+    expect(sp.sttServiceSelected, 1);
+  });
+
+  test('one bad entry does not wipe the whole list', () async {
+    SharedPreferences.setMockInitialValues({
+      'stt_services_v1': jsonEncode([
+        {'kind': 'mystery', 'enabled': true, 'name': 'Bad', 'apiKey': 'k'},
+        _openAi(id: 'a').toJson(),
+      ]),
+      'stt_selected_v1': 1,
+    });
+    final sp = await _loadedProvider();
+    expect(sp.sttServices, hasLength(1));
+    expect(sp.sttServices.single.id, 'a');
+    expect(sp.selectedSttService?.id, 'a');
+  });
+
+  test('legacy index pointing at a bad entry falls back to System STT', () async {
+    SharedPreferences.setMockInitialValues({
+      'stt_services_v1': jsonEncode([
+        {'kind': 'mystery', 'enabled': true, 'name': 'Bad', 'apiKey': 'k'},
+        _openAi(id: 'a').toJson(),
+      ]),
+      'stt_selected_v1': 0,
+    });
+    final sp = await _loadedProvider();
+    expect(sp.sttServices, hasLength(1));
+    // 不可因跳過壞項而位移選到 'a'。
+    expect(sp.sttServiceSelected, -1);
+    expect(sp.usingSystemStt, isTrue);
+  });
+
+  test('unknown id falls back to System STT', () async {
+    SharedPreferences.setMockInitialValues({
+      'stt_services_v1': jsonEncode([_openAi(id: 'a').toJson()]),
+      'stt_selected_id_v1': 'deleted',
+    });
+    final sp = await _loadedProvider();
+    expect(sp.selectedSttService, isNull);
+    expect(sp.usingSystemStt, isTrue);
+  });
+
+  test('out-of-range selection index resets to System STT', () async {
+    final sp = await _loadedProvider();
+    await sp.setSttServices([_openAi(id: 'a')]);
+    await sp.setSttServiceSelected(5);
     expect(sp.sttServiceSelected, -1);
     expect(sp.usingSystemStt, isTrue);
   });

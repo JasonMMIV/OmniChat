@@ -1460,6 +1460,31 @@
   "sttServicesPageSystemSttConfigureTooltip": "設定",
   "sttServicesPageNoNetworkServices": "第三方語音辨識尚未開放",
   "sttServicesPageNotImplementedBadge": "尚未支援轉錄",
+  "sttServicesPageAddServiceTooltip": "新增服務",
+  "sttServicesFieldLanguageLabel": "語言",
+  "sttServicesFieldLanguageHint": "例如：zh-TW、en 或 auto",
+  "sttServicesFieldWorkspaceIdLabel": "業務空間 ID",
+  "sttServicesFieldRegionLabel": "地域",
+  "sttServicesFieldEndpointAuto": "自動",
+  "sttServicesEndpointInvalid": "請輸入有效的 http(s) 網址。",
+  "sttServicesModeLabel": "辨識模式",
+  "sttServicesModeRealtime": "即時",
+  "sttServicesModeRecorded": "錄音轉寫",
+  "sttServicesWorkspaceIdHint": "例如：token-plan",
+  "sttServicesWorkspaceIdInvalid": "請輸入業務空間 ID，不要填寫網址。",
+  "sttServicesQwenTokenPlanHint": "使用 Token Plan 時，選擇錄音轉寫，業務空間 ID 填 token-plan，並選擇與金鑰對應的地域。",
+  "sttServicesRealtimeUnsupported": "尚未支援即時轉寫。",
+  "sttServicesTranscribing": "正在轉寫…",
+  "sttServicesTranscriptionFailed": "轉寫失敗：{error}",
+  "@sttServicesTranscriptionFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "sttServicesNoSpeechDetected": "未偵測到語音。",
+  "sttServicesMicrophonePermissionDenied": "未授予麥克風權限。",
   "sttSystemProviderName": "系統STT",
   "sttLanguageSettingsTitle": "語音辨識語言",
   "sttLanguageAuto": "自動 (跟隨 App 語言)",

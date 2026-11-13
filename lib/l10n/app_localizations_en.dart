@@ -3933,6 +3933,66 @@ class AppLocalizationsEn extends AppLocalizations {
       'Transcription not yet supported';
 
   @override
+  String get sttServicesPageAddServiceTooltip => 'Add service';
+
+  @override
+  String get sttServicesFieldLanguageLabel => 'Language';
+
+  @override
+  String get sttServicesFieldLanguageHint => 'e.g. zh-TW, en, or auto';
+
+  @override
+  String get sttServicesFieldWorkspaceIdLabel => 'Workspace ID';
+
+  @override
+  String get sttServicesFieldRegionLabel => 'Region';
+
+  @override
+  String get sttServicesFieldEndpointAuto => 'Automatic';
+
+  @override
+  String get sttServicesEndpointInvalid => 'Enter a valid http(s) URL.';
+
+  @override
+  String get sttServicesModeLabel => 'Recognition mode';
+
+  @override
+  String get sttServicesModeRealtime => 'Real-time';
+
+  @override
+  String get sttServicesModeRecorded => 'Recorded audio';
+
+  @override
+  String get sttServicesWorkspaceIdHint => 'e.g. token-plan';
+
+  @override
+  String get sttServicesWorkspaceIdInvalid =>
+      'Enter a workspace ID, not a URL.';
+
+  @override
+  String get sttServicesQwenTokenPlanHint =>
+      'For Token Plan, choose Recorded audio, enter token-plan as the Workspace ID, and select the region for your key.';
+
+  @override
+  String get sttServicesRealtimeUnsupported =>
+      'Real-time transcription is not supported yet.';
+
+  @override
+  String get sttServicesTranscribing => 'Transcribing…';
+
+  @override
+  String sttServicesTranscriptionFailed(String error) {
+    return 'Transcription failed: $error';
+  }
+
+  @override
+  String get sttServicesNoSpeechDetected => 'No speech was detected.';
+
+  @override
+  String get sttServicesMicrophonePermissionDenied =>
+      'Microphone permission was not granted.';
+
+  @override
   String get sttSystemProviderName => 'System STT';
 
   @override

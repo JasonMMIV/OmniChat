@@ -8,6 +8,8 @@ import '../../../core/services/stt/network_stt.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/services/haptics.dart';
+import '../../../shared/widgets/snackbar.dart';
+import '../../../theme/app_font_weights.dart';
 
 /// 行動版「語音辨識」服務管理頁面（仿照 `tts_services_page.dart` 結構）。
 ///
@@ -35,6 +37,25 @@ class SttServicesPage extends StatelessWidget {
           ),
         ),
         title: Text(l10n.sttServicesPageTitle),
+        actions: [
+          Tooltip(
+            message: l10n.sttServicesPageAddServiceTooltip,
+            child: _TactileIconButton(
+              icon: Lucide.Plus,
+              color: cs.onSurface,
+              size: 22,
+              onTap: () async {
+                final created = await _showNetworkSttSheet(context, null);
+                if (created == null || !context.mounted) return;
+                final sp = context.read<SettingsProvider>();
+                final list = List<SttServiceOptions>.from(sp.sttServices)
+                  ..add(created);
+                await sp.setSttServices(list);
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Consumer<SettingsProvider>(
         builder: (context, sp, _) {
@@ -448,11 +469,24 @@ class _NetworkSttRowMobileState extends State<_NetworkSttRowMobile> {
     final displayName = widget.service.name.trim().isEmpty
         ? networkSttKindDisplayName(widget.service.kind)
         : widget.service.name.trim();
+    final available = isSttServiceAvailable(widget.service);
     return _TactileRow(
       pressedScale: 0.98,
       haptics: false,
-      onTap: () async =>
-          context.read<SettingsProvider>().setSttServiceSelected(widget.index),
+      onTap: () async {
+        if (!available) {
+          // V1 未支援 Qwen 即時；點選不改變選取，也不默默送批次。
+          showAppSnackBar(
+            context,
+            message: l10n.sttServicesRealtimeUnsupported,
+            type: NotificationType.warning,
+          );
+          return;
+        }
+        await context.read<SettingsProvider>().setSttServiceSelected(
+          widget.index,
+        );
+      },
       builder: (pressed) {
         final base = cs.onSurface.withOpacity(0.9);
         return _AnimatedPressColor(
@@ -489,32 +523,33 @@ class _NetworkSttRowMobileState extends State<_NetworkSttRowMobile> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 3),
-                        // 尚未支援轉錄標示（下階段才實作網路轉錄）
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: cs.tertiary.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color: cs.tertiary.withOpacity(0.3),
-                              width: 0.6,
+                        if (!available) ...[
+                          const SizedBox(height: 3),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: cs.tertiary.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: cs.tertiary.withOpacity(0.3),
+                                width: 0.6,
+                              ),
+                            ),
+                            child: Text(
+                              l10n.sttServicesPageNotImplementedBadge,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                color: cs.tertiary,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                          child: Text(
-                            l10n.sttServicesPageNotImplementedBadge,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              color: cs.tertiary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
@@ -528,13 +563,18 @@ class _NetworkSttRowMobileState extends State<_NetworkSttRowMobile> {
                         widget.service,
                       );
                       if (updated != null) {
+                        final sp = context.read<SettingsProvider>();
                         final list = List<SttServiceOptions>.from(
-                          context.read<SettingsProvider>().sttServices,
+                          sp.sttServices,
                         );
-                        list[widget.index] = updated;
-                        await context.read<SettingsProvider>().setSttServices(
-                          list,
+                        // 以 id 定位：清單可能在 sheet 開啟期間變動，
+                        // 用 build 當下的 index 會改到別的服務。
+                        final index = list.indexWhere(
+                          (e) => e.id == widget.service.id,
                         );
+                        if (index < 0) return;
+                        list[index] = updated;
+                        await sp.setSttServices(list);
                       }
                     },
                   ),
@@ -545,13 +585,14 @@ class _NetworkSttRowMobileState extends State<_NetworkSttRowMobile> {
                     onTap: () async {
                       final sp = context.read<SettingsProvider>();
                       final list = List<SttServiceOptions>.from(sp.sttServices);
-                      list.removeAt(widget.index);
+                      final index = list.indexWhere(
+                        (e) => e.id == widget.service.id,
+                      );
+                      if (index < 0) return;
+                      list.removeAt(index);
+                      // 選取以 id 為準；刪到選取中的服務時 provider 會回到
+                      // 系統 STT（不再收斂到別家服務）。
                       await sp.setSttServices(list);
-                      var idx = sp.sttServiceSelected;
-                      if (idx >= list.length) {
-                        idx = list.isEmpty ? -1 : list.length - 1;
-                      }
-                      await sp.setSttServiceSelected(idx);
                     },
                   ),
                   const SizedBox(width: 8),
@@ -584,43 +625,197 @@ Future<SttServiceOptions?> _showEditNetworkSttSheet(
 Future<SttServiceOptions?> _showNetworkSttSheet(
   BuildContext context,
   SttServiceOptions? initial,
-) async {
-  final cs = Theme.of(context).colorScheme;
-  final l10n = AppLocalizations.of(context)!;
-  NetworkSttKind kind = initial?.kind ?? NetworkSttKind.openaiWhisper;
-  final nameCtl = TextEditingController(text: initial?.name ?? '');
-  final apiKeyCtl = TextEditingController(
-    text: (initial is OpenAiWhisperSttOptions)
-        ? initial.apiKey
-        : (initial is GroqWhisperSttOptions)
-        ? initial.apiKey
-        : '',
-  );
-  final baseCtl = TextEditingController(
-    text: (initial is OpenAiWhisperSttOptions)
-        ? initial.baseUrl
-        : (initial is GroqWhisperSttOptions)
-        ? initial.baseUrl
-        : '',
-  );
-  final modelCtl = TextEditingController(
-    text: (initial is OpenAiWhisperSttOptions)
-        ? initial.model
-        : (initial is GroqWhisperSttOptions)
-        ? initial.model
-        : '',
-  );
-
-  SttServiceOptions? result;
-  await showModalBottomSheet<void>(
+) {
+  return showModalBottomSheet<SttServiceOptions>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: cs.surface,
+    backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
-    builder: (ctx) {
-      return SafeArea(
+    builder: (_) => _SttEditSheet(initial: initial),
+  );
+}
+
+/// 編輯／新增第三方 STT 服務。
+///
+/// 只保留 provider 專屬欄位（Qwen 的 mode／workspace／region）；其餘一律走
+/// `SttServiceOptions` 的共同 getter，避免新增服務時漏欄位（plan R10）。
+class _SttEditSheet extends StatefulWidget {
+  const _SttEditSheet({this.initial});
+
+  final SttServiceOptions? initial;
+
+  @override
+  State<_SttEditSheet> createState() => _SttEditSheetState();
+}
+
+class _SttEditSheetState extends State<_SttEditSheet> {
+  late NetworkSttKind _kind;
+  late QwenSttMode _mode;
+  late String _region;
+  late final TextEditingController _nameCtl;
+  late final TextEditingController _apiKeyCtl;
+  late final TextEditingController _endpointCtl;
+  late final TextEditingController _modelCtl;
+  late final TextEditingController _languageCtl;
+  late final TextEditingController _workspaceCtl;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initial;
+    _kind = initial?.kind ?? NetworkSttKind.openaiWhisper;
+    _mode = initial is QwenAudioSttOptions
+        ? initial.mode
+        : QwenSttMode.recorded;
+    _region = initial is QwenAudioSttOptions
+        ? initial.region
+        : kDefaultQwenSttRegion;
+    _nameCtl = TextEditingController(text: initial?.name ?? '');
+    _apiKeyCtl = TextEditingController(text: initial?.apiKey ?? '');
+    _endpointCtl = TextEditingController(
+      text: initial == null
+          ? ''
+          : (initial is QwenAudioSttOptions
+                ? initial.endpoint
+                : initial.configuredEndpoint),
+    );
+    _modelCtl = TextEditingController(text: initial?.model ?? '');
+    _languageCtl = TextEditingController(text: initial?.language ?? '');
+    _workspaceCtl = TextEditingController(
+      text: initial is QwenAudioSttOptions ? initial.workspaceId : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameCtl.dispose();
+    _apiKeyCtl.dispose();
+    _endpointCtl.dispose();
+    _modelCtl.dispose();
+    _languageCtl.dispose();
+    _workspaceCtl.dispose();
+    super.dispose();
+  }
+
+  void _onKindChanged(NetworkSttKind next) {
+    if (next == _kind) return;
+    // 避免把上一種服務的預設 endpoint／model 存到新服務。
+    final oldEndpoint = defaultSttEndpoint(_kind);
+    final oldModel = defaultSttModel(_kind);
+    if (_endpointCtl.text.trim() == oldEndpoint) _endpointCtl.clear();
+    if (_modelCtl.text.trim() == oldModel) _modelCtl.clear();
+    setState(() {
+      _kind = next;
+      _error = null;
+    });
+  }
+
+  void _save() {
+    final l10n = AppLocalizations.of(context)!;
+    final name = _nameCtl.text.trim().isEmpty
+        ? networkSttKindDisplayName(_kind)
+        : _nameCtl.text.trim();
+    final apiKey = _apiKeyCtl.text.trim();
+    final endpoint = _endpointCtl.text.trim();
+    final model = _modelCtl.text.trim().isEmpty
+        ? defaultSttModel(_kind)
+        : _modelCtl.text.trim();
+    final language = _languageCtl.text.trim();
+    final workspace = _workspaceCtl.text.trim();
+
+    if (apiKey.isEmpty) {
+      Navigator.of(context).maybePop();
+      return;
+    }
+    if (endpoint.isNotEmpty && !isValidSttEndpointUrl(endpoint)) {
+      setState(() => _error = l10n.sttServicesEndpointInvalid);
+      return;
+    }
+    if (_kind == NetworkSttKind.qwenAudio &&
+        workspace.isNotEmpty &&
+        !isValidSttWorkspaceId(workspace)) {
+      setState(() => _error = l10n.sttServicesWorkspaceIdInvalid);
+      return;
+    }
+
+    final id = widget.initial?.id;
+    final SttServiceOptions result;
+    switch (_kind) {
+      case NetworkSttKind.openaiWhisper:
+        result = OpenAiWhisperSttOptions(
+          id: id,
+          enabled: widget.initial?.enabled ?? true,
+          name: name,
+          apiKey: apiKey,
+          baseUrl: endpoint.isEmpty ? kDefaultOpenAiSttEndpoint : endpoint,
+          model: model,
+          language: language,
+        );
+        break;
+      case NetworkSttKind.groqWhisper:
+        result = GroqWhisperSttOptions(
+          id: id,
+          enabled: widget.initial?.enabled ?? true,
+          name: name,
+          apiKey: apiKey,
+          baseUrl: endpoint.isEmpty ? kDefaultGroqSttEndpoint : endpoint,
+          model: model,
+          language: language,
+        );
+        break;
+      case NetworkSttKind.mistral:
+        result = MistralSttOptions(
+          id: id,
+          enabled: widget.initial?.enabled ?? true,
+          name: name,
+          apiKey: apiKey,
+          baseUrl: endpoint.isEmpty ? kDefaultMistralSttEndpoint : endpoint,
+          model: model,
+          language: language,
+        );
+        break;
+      case NetworkSttKind.elevenLabs:
+        result = ElevenLabsSttOptions(
+          id: id,
+          enabled: widget.initial?.enabled ?? true,
+          name: name,
+          apiKey: apiKey,
+          baseUrl: endpoint.isEmpty ? kDefaultElevenLabsSttEndpoint : endpoint,
+          model: model,
+          language: language,
+        );
+        break;
+      case NetworkSttKind.qwenAudio:
+        result = QwenAudioSttOptions(
+          id: id,
+          enabled: widget.initial?.enabled ?? true,
+          name: name,
+          apiKey: apiKey,
+          workspaceId: workspace,
+          region: _region,
+          endpoint: endpoint,
+          model: model,
+          mode: _mode,
+          language: language,
+        );
+        break;
+    }
+    Navigator.of(context).pop(result);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final isQwen = _kind == NetworkSttKind.qwenAudio;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -643,12 +838,12 @@ Future<SttServiceOptions?> _showNetworkSttSheet(
                     icon: Lucide.X,
                     color: cs.onSurface,
                     size: 20,
-                    onTap: () => Navigator.of(ctx).maybePop(),
+                    onTap: () => Navigator.of(context).maybePop(),
                   ),
                   Expanded(
                     child: Center(
                       child: Text(
-                        initial == null
+                        widget.initial == null
                             ? l10n.sttServicesDialogAddTitle
                             : l10n.sttServicesDialogEditTitle,
                         style: const TextStyle(
@@ -662,112 +857,152 @@ Future<SttServiceOptions?> _showNetworkSttSheet(
                     icon: Lucide.Check,
                     color: cs.onSurface,
                     size: 20,
-                    onTap: () {
-                      final name = (nameCtl.text.trim().isEmpty)
-                          ? networkSttKindDisplayName(kind)
-                          : nameCtl.text.trim();
-                      final apiKey = apiKeyCtl.text.trim();
-                      final base = baseCtl.text.trim().isEmpty
-                          ? _defaultBaseUrl(kind)
-                          : baseCtl.text.trim();
-                      final model = modelCtl.text.trim().isEmpty
-                          ? _defaultModel(kind)
-                          : modelCtl.text.trim();
-                      if (apiKey.isEmpty) {
-                        Navigator.of(ctx).maybePop();
-                        return;
-                      }
-                      if (kind == NetworkSttKind.openaiWhisper) {
-                        result = OpenAiWhisperSttOptions(
-                          enabled: true,
-                          name: name,
-                          apiKey: apiKey,
-                          baseUrl: base,
-                          model: model,
-                        );
-                      } else if (kind == NetworkSttKind.groqWhisper) {
-                        result = GroqWhisperSttOptions(
-                          enabled: true,
-                          name: name,
-                          apiKey: apiKey,
-                          baseUrl: base,
-                          model: model,
-                        );
-                      }
-                      Navigator.of(ctx).pop();
-                    },
+                    onTap: _save,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 6),
-            Padding(
-              padding: EdgeInsets.only(
-                left: 12,
-                right: 12,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 12,
-              ),
-              child: StatefulBuilder(
-                builder: (ctx2, setState) {
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _sheetSelectRow(
-                        ctx2,
-                        label: l10n.sttServicesDialogProviderType,
-                        value: networkSttKindDisplayName(kind),
-                        options: NetworkSttKind.values
-                            .map(networkSttKindDisplayName)
-                            .toList(),
-                        onSelected: (picked) async {
-                          for (final k in NetworkSttKind.values) {
-                            if (picked == networkSttKindDisplayName(k)) {
-                              kind = k;
-                              break;
-                            }
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _sheetSelectRow(
+                      context,
+                      label: l10n.sttServicesDialogProviderType,
+                      value: networkSttKindDisplayName(_kind),
+                      options: NetworkSttKind.values
+                          .map(networkSttKindDisplayName)
+                          .toList(),
+                      onSelected: (picked) async {
+                        for (final k in NetworkSttKind.values) {
+                          if (picked == networkSttKindDisplayName(k)) {
+                            _onKindChanged(k);
+                            break;
                           }
-                          (ctx as Element).markNeedsBuild();
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 6),
+                    _inputRowMobile(
+                      context,
+                      label: l10n.sttServicesFieldNameLabel,
+                      controller: _nameCtl,
+                      hint: networkSttKindDisplayName(_kind),
+                    ),
+                    const SizedBox(height: 6),
+                    _inputRowMobile(
+                      context,
+                      label: l10n.sttServicesFieldApiKeyLabel,
+                      controller: _apiKeyCtl,
+                      obscure: true,
+                    ),
+                    const SizedBox(height: 6),
+                    _inputRowMobile(
+                      context,
+                      label: l10n.sttServicesFieldBaseUrlLabel,
+                      controller: _endpointCtl,
+                      hint: isQwen
+                          ? l10n.sttServicesFieldEndpointAuto
+                          : defaultSttEndpoint(_kind),
+                    ),
+                    const SizedBox(height: 6),
+                    _inputRowMobile(
+                      context,
+                      label: l10n.sttServicesFieldModelLabel,
+                      controller: _modelCtl,
+                      hint: defaultSttModel(_kind),
+                    ),
+                    const SizedBox(height: 6),
+                    _inputRowMobile(
+                      context,
+                      label: l10n.sttServicesFieldLanguageLabel,
+                      controller: _languageCtl,
+                      hint: l10n.sttServicesFieldLanguageHint,
+                    ),
+                    if (isQwen) ...[
+                      const SizedBox(height: 6),
+                      _sheetSelectRow(
+                        context,
+                        label: l10n.sttServicesModeLabel,
+                        value: _mode == QwenSttMode.realtime
+                            ? l10n.sttServicesModeRealtime
+                            : l10n.sttServicesModeRecorded,
+                        options: [l10n.sttServicesModeRecorded],
+                        onSelected: (picked) async {
+                          setState(() {
+                            _mode = QwenSttMode.recorded;
+                            _error = null;
+                          });
                         },
                       ),
+                      if (_mode == QwenSttMode.realtime)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              l10n.sttServicesRealtimeUnsupported,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: cs.error,
+                              ),
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 6),
                       _inputRowMobile(
                         context,
-                        label: l10n.sttServicesFieldNameLabel,
-                        controller: nameCtl,
-                        hint: networkSttKindDisplayName(kind),
+                        label: l10n.sttServicesFieldWorkspaceIdLabel,
+                        controller: _workspaceCtl,
+                        hint: l10n.sttServicesWorkspaceIdHint,
                       ),
                       const SizedBox(height: 6),
-                      _inputRowMobile(
+                      _sheetSelectRow(
                         context,
-                        label: l10n.sttServicesFieldApiKeyLabel,
-                        controller: apiKeyCtl,
-                        obscure: true,
+                        label: l10n.sttServicesFieldRegionLabel,
+                        value: _region,
+                        options: kQwenSttRegions,
+                        onSelected: (picked) async {
+                          setState(() => _region = picked);
+                        },
                       ),
-                      const SizedBox(height: 6),
-                      _inputRowMobile(
-                        context,
-                        label: l10n.sttServicesFieldBaseUrlLabel,
-                        controller: baseCtl,
-                        hint: _defaultBaseUrl(kind),
-                      ),
-                      const SizedBox(height: 6),
-                      _inputRowMobile(
-                        context,
-                        label: l10n.sttServicesFieldModelLabel,
-                        controller: modelCtl,
-                        hint: _defaultModel(kind),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            l10n.sttServicesQwenTokenPlanHint,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: cs.onSurface.withOpacity(0.7),
+                            ),
+                          ),
+                        ),
                       ),
                     ],
-                  );
-                },
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            _error!,
+                            style: TextStyle(fontSize: 12, color: cs.error),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ],
         ),
-      );
-    },
-  );
-  return result;
+      ),
+    );
+  }
 }
 
 // --- 系統STT 語言選擇 ---
@@ -1133,6 +1368,15 @@ Widget _inputRowMobile(
   bool obscure = false,
 }) {
   final cs = Theme.of(context).colorScheme;
+  final theme = Theme.of(context);
+  // placeholder 要比已輸入值更淡、更細（plan §7.1）；字重走 AppFontWeights
+  // 讓 Android 的字重正規化一致。
+  final hintStyle = TextStyle(
+    color: theme.colorScheme.onSurface.withValues(
+      alpha: theme.brightness == Brightness.dark ? 0.42 : 0.46,
+    ),
+    fontWeight: AppFontWeights.regular,
+  );
   return Padding(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
     child: Column(
@@ -1148,6 +1392,7 @@ Widget _inputRowMobile(
           obscureText: obscure,
           decoration: InputDecoration(
             hintText: hint,
+            hintStyle: hintStyle,
             isDense: true,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           ),
@@ -1155,22 +1400,4 @@ Widget _inputRowMobile(
       ],
     ),
   );
-}
-
-String _defaultBaseUrl(NetworkSttKind k) {
-  switch (k) {
-    case NetworkSttKind.openaiWhisper:
-      return 'https://api.openai.com/v1/audio/transcriptions';
-    case NetworkSttKind.groqWhisper:
-      return 'https://api.groq.com/openai/v1/audio/transcriptions';
-  }
-}
-
-String _defaultModel(NetworkSttKind k) {
-  switch (k) {
-    case NetworkSttKind.openaiWhisper:
-      return 'whisper-1';
-    case NetworkSttKind.groqWhisper:
-      return 'whisper-large-v3';
-  }
 }

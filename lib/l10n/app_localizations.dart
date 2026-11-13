@@ -7359,6 +7359,114 @@ abstract class AppLocalizations {
   /// **'Transcription not yet supported'**
   String get sttServicesPageNotImplementedBadge;
 
+  /// No description provided for @sttServicesPageAddServiceTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Add service'**
+  String get sttServicesPageAddServiceTooltip;
+
+  /// No description provided for @sttServicesFieldLanguageLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get sttServicesFieldLanguageLabel;
+
+  /// No description provided for @sttServicesFieldLanguageHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. zh-TW, en, or auto'**
+  String get sttServicesFieldLanguageHint;
+
+  /// No description provided for @sttServicesFieldWorkspaceIdLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace ID'**
+  String get sttServicesFieldWorkspaceIdLabel;
+
+  /// No description provided for @sttServicesFieldRegionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Region'**
+  String get sttServicesFieldRegionLabel;
+
+  /// No description provided for @sttServicesFieldEndpointAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic'**
+  String get sttServicesFieldEndpointAuto;
+
+  /// No description provided for @sttServicesEndpointInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid http(s) URL.'**
+  String get sttServicesEndpointInvalid;
+
+  /// No description provided for @sttServicesModeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Recognition mode'**
+  String get sttServicesModeLabel;
+
+  /// No description provided for @sttServicesModeRealtime.
+  ///
+  /// In en, this message translates to:
+  /// **'Real-time'**
+  String get sttServicesModeRealtime;
+
+  /// No description provided for @sttServicesModeRecorded.
+  ///
+  /// In en, this message translates to:
+  /// **'Recorded audio'**
+  String get sttServicesModeRecorded;
+
+  /// No description provided for @sttServicesWorkspaceIdHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. token-plan'**
+  String get sttServicesWorkspaceIdHint;
+
+  /// No description provided for @sttServicesWorkspaceIdInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a workspace ID, not a URL.'**
+  String get sttServicesWorkspaceIdInvalid;
+
+  /// No description provided for @sttServicesQwenTokenPlanHint.
+  ///
+  /// In en, this message translates to:
+  /// **'For Token Plan, choose Recorded audio, enter token-plan as the Workspace ID, and select the region for your key.'**
+  String get sttServicesQwenTokenPlanHint;
+
+  /// No description provided for @sttServicesRealtimeUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Real-time transcription is not supported yet.'**
+  String get sttServicesRealtimeUnsupported;
+
+  /// No description provided for @sttServicesTranscribing.
+  ///
+  /// In en, this message translates to:
+  /// **'Transcribing…'**
+  String get sttServicesTranscribing;
+
+  /// No description provided for @sttServicesTranscriptionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Transcription failed: {error}'**
+  String sttServicesTranscriptionFailed(String error);
+
+  /// No description provided for @sttServicesNoSpeechDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'No speech was detected.'**
+  String get sttServicesNoSpeechDetected;
+
+  /// No description provided for @sttServicesMicrophonePermissionDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Microphone permission was not granted.'**
+  String get sttServicesMicrophonePermissionDenied;
+
   /// No description provided for @sttSystemProviderName.
   ///
   /// In en, this message translates to:

@@ -36,6 +36,53 @@ class PlatformAudioSetup {
     } catch (_) {}
   }
 
+  /// 聽寫（ASR）專用音訊 session（Mobile only）。
+  ///
+  /// 不重用 voice chat 的設定：`voiceChat` mode 會啟動通話用的 AGC／路由，
+  /// 對辨識反而有害。iOS 只設 `playAndRecord` + `measurement`；Android 完全
+  /// 不呼叫 `activateAudioSession()`——audio_session 的 focus 只有 gain 系列、
+  /// 會搶走使用者音樂的 focus，而 dictation 只收音不播放，靠
+  /// `RecordConfig.audioInterruption: none` 對 focus 變化免疫即可。
+  static Future<void> initAudioSessionForDictation() async {
+    if (!Platform.isIOS && !Platform.isMacOS) return;
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(
+        AudioSessionConfiguration(
+          avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+          avAudioSessionCategoryOptions:
+              AVAudioSessionCategoryOptions.mixWithOthers,
+          avAudioSessionMode: AVAudioSessionMode.measurement,
+          avAudioSessionRouteSharingPolicy:
+              AVAudioSessionRouteSharingPolicy.defaultPolicy,
+          androidAudioAttributes: const AndroidAudioAttributes(
+            contentType: AndroidAudioContentType.speech,
+            flags: AndroidAudioFlags.none,
+            usage: AndroidAudioUsage.voiceCommunication,
+          ),
+          androidAudioFocusGainType: AndroidAudioFocusGainType.gainTransientMayDuck,
+          androidWillPauseWhenDucked: true,
+        ),
+      );
+    } catch (_) {}
+  }
+
+  /// 聽寫開始：iOS／macOS 設定並啟用 ASR 專用 session。
+  ///
+  /// Android 完全不動作——`activateAudioSession()` 會以 gain 搶走使用者音訊
+  /// 的 focus，而 dictation 只收音不播放，不需要 focus（見手冊 §5.2.1）。
+  static Future<void> beginDictationAudioSession() async {
+    if (!Platform.isIOS && !Platform.isMacOS) return;
+    await initAudioSessionForDictation();
+    await activateAudioSession();
+  }
+
+  /// 聽寫結束（停止／取消／背景）時釋放 iOS／macOS session。
+  static Future<void> endDictationAudioSession() async {
+    if (!Platform.isIOS && !Platform.isMacOS) return;
+    await deactivateAudioSession();
+  }
+
   /// 開始聆聽前確保音訊 session 為 active（Mobile only）。
   static Future<void> activateAudioSession() async {
     try {
