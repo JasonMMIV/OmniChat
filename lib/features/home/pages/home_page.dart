@@ -1527,16 +1527,11 @@ class _HomePageState extends State<HomePage>
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (ctx) => BottomToolsSheet(
+        builder: (_) => BottomToolsSheet(
           overflowItems: overflowItems,
           onCamera: _controller.onPickCamera,
           onPhotos: _controller.onPickPhotos,
           onUpload: _controller.onPickFiles,
-          onClear: () async {
-            await Navigator.of(ctx).maybePop();
-            _showContextManagementSheet();
-          },
-          clearLabel: _controller.clearContextLabel(),
           assistantId: a?.id,
         ),
       );

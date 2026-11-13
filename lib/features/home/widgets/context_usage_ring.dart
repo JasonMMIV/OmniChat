@@ -136,7 +136,7 @@ class _ContextUsageRingState extends State<ContextUsageRing>
   }
 }
 
-/// Ring shown inside the compact context button.
+/// Ring shown inside the compact context button and overflow menu rows.
 ///
 /// The ring frame (empty track) is kept when [usage] is null or the window is
 /// unknown — the button must not fall back to the plain workflow icon, which
@@ -147,11 +147,18 @@ class ContextUsageButtonIcon extends StatelessWidget {
     required this.usage,
     required this.loading,
     required this.color,
+    this.size = 20,
+    this.strokeWidth = 2.6,
   });
 
   final ValueListenable<ContextUsageSnapshot?> usage;
   final bool loading;
   final Color color;
+
+  /// Ring diameter. The input button uses 20; menu rows pass 18 so the
+  /// indicator fits their leading-icon slot.
+  final double size;
+  final double strokeWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -161,8 +168,8 @@ class ContextUsageButtonIcon extends StatelessWidget {
         // The slot's tight 24px constraints would otherwise stretch the ring.
         child: ContextUsageRing(
           ratio: snapshot?.ratio ?? 0.0,
-          size: 20,
-          strokeWidth: 2.6,
+          size: size,
+          strokeWidth: strokeWidth,
           running: loading,
           trackColor: color.withValues(alpha: 0.12),
         ),

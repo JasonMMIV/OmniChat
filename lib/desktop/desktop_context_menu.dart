@@ -10,6 +10,14 @@ import '../core/services/haptics.dart';
 class DesktopContextMenuItem {
   final IconData? icon;
   final String? svgAsset;
+
+  /// Optional custom leading widget (e.g. the context usage ring). When set,
+  /// renderers prefer it over [icon]/[svgAsset] and pass in the row's
+  /// foreground color so stateful indicators keep their own palette.
+  ///
+  /// Opt-in renderers give it an 18px leading slot (anchored context menu,
+  /// bottom tools sheet), so keep the builder content within 18px.
+  final Widget Function(Color color)? iconBuilder;
   final String label;
   final VoidCallback? onTap;
   final bool danger;
@@ -17,6 +25,7 @@ class DesktopContextMenuItem {
   const DesktopContextMenuItem({
     this.icon,
     this.svgAsset,
+    this.iconBuilder,
     required this.label,
     this.onTap,
     this.danger = false,
@@ -115,6 +124,7 @@ Future<void> showDesktopContextMenuAt(
                                     _GlassMenuItem(
                                       icon: it.icon,
                                       svgAsset: it.svgAsset,
+                                      iconBuilder: it.iconBuilder,
                                       label: it.label,
                                       danger: it.danger,
                                       onTap: () {
@@ -167,7 +177,7 @@ double _estimateMenuWidth(
       textScaler: textScaler,
     )..layout(maxWidth: maxW);
     double width = 12 /*left*/ + tp.width + 12 /*right*/ + 4 /*slack*/;
-    if (it.icon != null || it.svgAsset != null) {
+    if (it.icon != null || it.svgAsset != null || it.iconBuilder != null) {
       width += 18 /*icon*/ + 10 /*gap*/;
     }
     if (width > maxText) maxText = width;
@@ -238,9 +248,10 @@ class _AnimatedFadeState extends State<_AnimatedFade> {
 }
 
 class _GlassMenuItem extends StatefulWidget {
-  const _GlassMenuItem({this.icon, this.svgAsset, required this.label, this.onTap, this.danger = false});
+  const _GlassMenuItem({this.icon, this.svgAsset, this.iconBuilder, required this.label, this.onTap, this.danger = false});
   final IconData? icon;
   final String? svgAsset;
+  final Widget Function(Color color)? iconBuilder;
   final String label;
   final VoidCallback? onTap;
   final bool danger;
@@ -276,7 +287,14 @@ class _GlassMenuItemState extends State<_GlassMenuItem> {
           decoration: BoxDecoration(color: bg),
           child: Row(
             children: [
-              if (widget.icon != null || widget.svgAsset != null) ...[
+              if (widget.iconBuilder != null) ...[
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: widget.iconBuilder!(ic),
+                ),
+                const SizedBox(width: 10),
+              ] else if (widget.icon != null || widget.svgAsset != null) ...[
                 if (widget.icon != null)
                   Icon(widget.icon, size: 18, color: ic)
                 else

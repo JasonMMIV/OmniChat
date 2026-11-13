@@ -5,7 +5,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../core/services/haptics.dart';
 import '../../../icons/lucide_adapter.dart';
-import '../../../core/services/instruction_injection_store.dart';
 import '../../../core/models/instruction_injection.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/providers/settings_provider.dart';
@@ -20,8 +19,6 @@ class BottomToolsSheet extends StatelessWidget {
     this.onCamera,
     this.onPhotos,
     this.onUpload,
-    this.onClear,
-    this.clearLabel,
     this.assistantId,
     this.overflowItems,
   });
@@ -29,8 +26,6 @@ class BottomToolsSheet extends StatelessWidget {
   final VoidCallback? onCamera;
   final VoidCallback? onPhotos;
   final VoidCallback? onUpload;
-  final VoidCallback? onClear;
-  final String? clearLabel;
   final String? assistantId;
   final List<DesktopContextMenuItem>? overflowItems;
 
@@ -113,8 +108,6 @@ class BottomToolsSheet extends StatelessWidget {
                     ..._buildActionRows(context, l10n, roundedAction),
                     const SizedBox(height: 12),
                     _LearningAndClearSection(
-                      clearLabel: clearLabel,
-                      onClear: onClear,
                       assistantId: assistantId,
                       overflowItems: overflowItems,
                     ),
@@ -155,9 +148,7 @@ class BottomToolsSheet extends StatelessWidget {
 }
 
 class _LearningAndClearSection extends StatefulWidget {
-  const _LearningAndClearSection({this.onClear, this.clearLabel, this.assistantId, this.overflowItems});
-  final VoidCallback? onClear;
-  final String? clearLabel;
+  const _LearningAndClearSection({this.assistantId, this.overflowItems});
   final String? assistantId;
   final List<DesktopContextMenuItem>? overflowItems;
 
@@ -169,11 +160,11 @@ class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
   Widget _row({
     String? svgAsset,
     IconData? icon,
+    Widget Function(Color color)? iconBuilder,
     required String label,
     bool selected = false,
     VoidCallback? onTap,
     VoidCallback? onLongPress,
-    Widget? trailing,
   }) {
     final cs = Theme.of(context).colorScheme;
     final onColor = selected ? cs.primary : cs.onSurface;
@@ -189,16 +180,21 @@ class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(
           children: [
-            if (svgAsset != null)
+            if (iconBuilder != null)
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: iconBuilder(onColor),
+              )
+            else if (svgAsset != null)
               SvgPicture.asset(svgAsset, width: 20, height: 20, colorFilter: ColorFilter.mode(onColor, BlendMode.srcIn))
             else
               Icon(icon ?? Lucide.Circle, size: 20, color: onColor),
             const SizedBox(width: 10),
             Expanded(child: Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: onColor), overflow: TextOverflow.ellipsis)),
-            trailing ??
-                (selected
-                    ? Icon(Lucide.Check, size: 18, color: cs.primary)
-                    : const SizedBox(width: 18)),
+            selected
+                ? Icon(Lucide.Check, size: 18, color: cs.primary)
+                : const SizedBox(width: 18),
           ],
         ),
       ),
@@ -222,11 +218,12 @@ class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
               child: _row(
                 icon: item.icon,
                 svgAsset: item.svgAsset,
+                iconBuilder: item.iconBuilder,
                 label: item.label,
-                onTap: () {
+                onTap: () async {
                   Haptics.light();
                   if (Navigator.of(context).canPop()) {
-                    Navigator.of(context).maybePop();
+                    await Navigator.of(context).maybePop();
                   }
                   item.onTap?.call();
                 },
@@ -278,20 +275,6 @@ class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
             onLongPress: () => showOcrPromptSheet(context),
           ),
         ],
-        const SizedBox(height: 8),
-        _row(
-          icon: Lucide.workflow,
-          label: l10n.contextManagement,
-          onTap: () {
-            Haptics.light();
-            widget.onClear?.call();
-          },
-          trailing: Icon(
-            Lucide.ChevronRight,
-            size: 18,
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
-          ),
-        ),
       ],
     );
   }

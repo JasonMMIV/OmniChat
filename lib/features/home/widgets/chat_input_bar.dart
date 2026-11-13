@@ -984,8 +984,8 @@ class _ChatInputBarState extends State<ChatInputBar>
             )
           : null,
       headerHeight: hasUsage ? 44 : 0,
-      // Wide enough for the ring, `used / max Token`, the ≈ badge and the
-      // percentage without ellipsizing the denominator.
+      // Wide enough for the ring, `used / max` and the percentage without
+      // ellipsizing the denominator.
       minMenuWidth: hasUsage ? 280 : null,
       items: [
         if (widget.onCompressContext != null)
@@ -1509,6 +1509,18 @@ class _ChatInputBarState extends State<ChatInputBar>
                 ),
                 menu: DesktopContextMenuItem(
                   icon: Lucide.workflow,
+                  // The overflow row has a compact leading slot; render the
+                  // same ring indicator there so the entry never falls back
+                  // to the plain workflow icon.
+                  iconBuilder: widget.contextUsage == null
+                      ? null
+                      : (c) => ContextUsageButtonIcon(
+                            usage: widget.contextUsage!,
+                            loading: widget.loading,
+                            color: c,
+                            size: 18,
+                            strokeWidth: 2.2,
+                          ),
                   label: l10n.contextManagement,
                   onTap: () => _handleContextActionTap(context),
                 ),

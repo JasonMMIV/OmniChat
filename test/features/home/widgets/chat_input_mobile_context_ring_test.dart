@@ -146,6 +146,8 @@ void main() {
     expect(find.byType(ContextUsageButtonIcon), findsNothing);
     await tester.tap(find.byIcon(Lucide.Plus));
     await tester.pumpAndSettle();
+    // The overflow row must keep the usage ring instead of the plain icon.
+    expect(find.byType(ContextUsageButtonIcon), findsOneWidget);
     await tester.tap(find.text('Context Management'));
     await tester.pumpAndSettle();
     // The wide layout keeps the anchored menu (now anchored to `+`) with the
