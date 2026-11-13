@@ -338,7 +338,7 @@ class ChatInputSection extends StatelessWidget {
 
   /// Add-ons highlight: at least one capability in the menu is on — an MCP
   /// server selected for the active assistant, a built-in tool (write_todos /
-  /// ask_user), or a Self-Review mode other than off.
+  /// ask_user), or an Advanced Features entry (Subagents / Self-Review).
   bool _isAddonsActive(
     BuildContext context,
     Assistant? a,
@@ -347,9 +347,10 @@ class ChatInputSection extends StatelessWidget {
     final builtInOn =
         (settings.planningEnabled &&
             settings.isWorkspaceToolEnabled(todoToolName)) ||
-        settings.isWorkspaceToolEnabled(askUserToolName) ||
-        settings.isWorkspaceToolEnabled(spawnSubagentToolName);
-    final advancedOn = settings.answerReviewMode != AnswerReviewMode.off;
+        settings.isWorkspaceToolEnabled(askUserToolName);
+    final advancedOn =
+        settings.isWorkspaceToolEnabled(spawnSubagentToolName) ||
+        settings.answerReviewMode != AnswerReviewMode.off;
     return _isMcpActive(context, a) || builtInOn || advancedOn;
   }
 

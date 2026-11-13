@@ -175,7 +175,7 @@ class ChatInputBar extends StatefulWidget {
   final bool supportsReasoning;
   /// Add-ons menu highlight: at least one capability in the menu is on — an
   /// MCP server selected for the active assistant, a built-in tool (write_todos
-  /// / ask_user), or a Self-Review mode other than off.
+  /// / ask_user), or an Advanced Features entry (Subagents / Self-Review).
   /// (2026-11-10: the MCP button grew into the Add-ons menu.)
   final bool addonsActive;
   final bool searchEnabled;

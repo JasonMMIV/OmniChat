@@ -3,8 +3,12 @@
 Status: implemented in the app (2026-11-12). Scope is the plan's Android
 subset: one **foreground** `shell_exec` command inside a pinned Ubuntu Base
 rootfs, plus the shared host↔guest mount table used by the shell and prompt.
-PTY sessions, background jobs, and the mobile in-app terminal are deliberately
-out of scope.
+The shell is **arm64-v8a only**; `armeabi-v7a` and `x86_64` can run the rest of
+the app, but the PRoot executables and `libandroid-shmem` are packaged only
+under `lib/arm64-v8a/`.
+The shared arm64 rootfs asset is present in every install but unusable because
+the native probe rejects non-arm64 processes. PTY sessions, background jobs,
+and the mobile in-app terminal are deliberately out of scope.
 
 ## What ships
 
@@ -65,9 +69,11 @@ the prompt tells the model that `shell_exec` uses the guest `/workspace`.
 - **Timeout/output:** default 30 s, hard 120 s; stdout 24 KB + stderr 6 KB in
   the model-facing payload, with the shared 68 KB tool-result cap. Larger
   output is externalized to the read-only session-outputs zone.
-- **Rootfs:** Ubuntu Base 24.04.4 arm64 only. The tool is not advertised on
-  non-arm64 processes, non-Android platforms, or before the rootfs probe is
-  ready.
+- **Rootfs / ABI:** Ubuntu Base 24.04.4 arm64 only. `shell_exec` is not
+  advertised on `armeabi-v7a`, `x86_64`, non-Android platforms, or before the
+  rootfs probe is ready. The universal APK still installs and runs the rest of
+  the app on `armeabi-v7a` and `x86_64`; the shared arm64 rootfs asset is
+  present but unusable there.
 - **No LLM-controlled rootfs source.** The rootfs URL/hash lives only in the
   build script; the runtime accepts only the packaged asset.
 

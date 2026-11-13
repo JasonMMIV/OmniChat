@@ -162,6 +162,16 @@ Enjoy a consistent experience across your devices:
 - **Windows**
 - **Android**
 
+### Android ABI support
+
+The universal APK includes Flutter builds for `arm64-v8a`, `armeabi-v7a`, and `x86_64`, so the chat app can run on all three. The Android PRoot shell (`shell_exec`) is **arm64-v8a only**. The PRoot native libraries (`libproot_exec.so`, `libproot_loader.so`, `libandroid-shmem.so`) are packaged only under `lib/arm64-v8a/`; `armeabi-v7a` (32-bit ARM) and `x86_64` (emulators/Chromebooks) still install the shared arm64 rootfs asset, but the native probe rejects those process ABIs, so `shell_exec` is not advertised and the asset is unusable. All other app features remain available. Settings → Android Shell stays visible and reports the shell as unsupported on those ABIs.
+
+| ABI | App | PRoot `shell_exec` |
+|:--|:--:|:--:|
+| `arm64-v8a` | ✅ | ✅ |
+| `armeabi-v7a` | ✅ | ❌ |
+| `x86_64` | ✅ | ❌ |
+
 ---
 
 ## 📄 License & Acknowledgements

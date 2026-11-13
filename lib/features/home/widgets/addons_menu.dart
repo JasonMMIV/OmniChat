@@ -19,8 +19,8 @@ import '../../../shared/widgets/ios_switch.dart';
 /// (desktop uses `showAddonsPopover` instead — no bottom sheets there).
 ///
 /// The menu gathers everything the model can use in one place: MCP servers,
-/// the built-in write_todos / ask_user tools and the Self-Review mode
-/// (2026-11-10 Add-ons reorganization).
+/// the built-in write_todos / ask_user tools and the advanced Subagents /
+/// Self-Review features (2026-11-10 Add-ons reorganization).
 Future<void> showAddonsSheet(
   BuildContext context, {
   required String? assistantId,
@@ -86,9 +86,11 @@ class _AddonsSheetBody extends StatelessWidget {
 }
 
 /// Shared Add-ons menu body: three collapsible groups (MCP servers / built-in
-/// tools / advanced features). Hosted by the mobile bottom sheet and the
-/// desktop popover alike. Kept compact so it reads like the other composer
-/// menus (2026-11-10 Windows feedback pass).
+/// tools / advanced features). Subagents live in Advanced Features because
+/// they start an isolated helper run rather than a single primitive tool call.
+/// Hosted by the mobile bottom sheet and the desktop popover alike. Kept
+/// compact so it reads like the other composer menus (2026-11-10 Windows
+/// feedback pass).
 class AddonsMenuContent extends StatefulWidget {
   const AddonsMenuContent({
     super.key,
@@ -135,6 +137,8 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
     final askUserOn = settings.isWorkspaceToolEnabled(askUserToolName);
     final subagentOn = settings.isWorkspaceToolEnabled(spawnSubagentToolName);
     final reviewMode = settings.answerReviewMode;
+    final advancedOnCount =
+        (subagentOn ? 1 : 0) + (reviewMode != AnswerReviewMode.off ? 1 : 0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -186,8 +190,7 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
           title: l10n.addonsBuiltInToolsTitle,
           expanded: _builtInExpanded,
           onToggle: (v) => setState(() => _builtInExpanded = v),
-          summary:
-              '${(writeTodosOn ? 1 : 0) + (askUserOn ? 1 : 0) + (subagentOn ? 1 : 0)}/3',
+          summary: '${(writeTodosOn ? 1 : 0) + (askUserOn ? 1 : 0)}/2',
           children: [
             _MenuRow(
               leading: Icon(Lucide.ListChecks, size: 16, color: cs.onSurface),
@@ -215,8 +218,22 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
                 onChanged: _setAskUser,
               ),
             ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _group(
+          title: l10n.addonsAdvancedFeaturesTitle,
+          expanded: _advancedExpanded,
+          onToggle: (v) => setState(() => _advancedExpanded = v),
+          summary:
+              '$advancedOnCount/2 · ${_selfReviewModeLabel(l10n, reviewMode)}',
+          children: [
             _MenuRow(
-              leading: Icon(Lucide.Bot, size: 16, color: cs.onSurface),
+              leading: Icon(
+                Lucide.UserRoundCheck,
+                size: 16,
+                color: cs.onSurface,
+              ),
               title: l10n.builtInToolSubagentName,
               subtitle: l10n.addonsSubagentSubtitle,
               onTap: () => _setSubagent(!subagentOn),
@@ -228,15 +245,6 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
                 onChanged: _setSubagent,
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        _group(
-          title: l10n.addonsAdvancedFeaturesTitle,
-          expanded: _advancedExpanded,
-          onToggle: (v) => setState(() => _advancedExpanded = v),
-          summary: _selfReviewModeLabel(l10n, reviewMode),
-          children: [
             _MenuRow(
               leading: Icon(
                 Lucide.ScanSearch,

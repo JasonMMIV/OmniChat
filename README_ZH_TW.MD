@@ -162,6 +162,16 @@ OmniChat 是一款現代化、功能豐富的 AI 聊天軟體，專為文字檔�
 - **Windows**
 - **Android**
 
+### Android ABI 支援
+
+目前的 universal APK 內含 `arm64-v8a`、`armeabi-v7a`、`x86_64` 三種 Flutter App，因此聊天功能可在這三種 ABI 執行。Android PRoot Shell（`shell_exec`）**僅支援 `arm64-v8a`**。PRoot native libraries（`libproot_exec.so`、`libproot_loader.so`、`libandroid-shmem.so`）只放在 `lib/arm64-v8a/`；`armeabi-v7a`（32-bit ARM）與 `x86_64`（模擬器／Chromebook）仍會安裝共用的 arm64 rootfs asset，但 native probe 會拒絕這些 process ABI，因此不會宣告 `shell_exec`，該 asset 也無法使用。其餘 App 功能不受影響。Settings → Android Shell 仍會顯示，並標示為不支援。
+
+| ABI | App | PRoot `shell_exec` |
+|:--|:--:|:--:|
+| `arm64-v8a` | ✅ | ✅ |
+| `armeabi-v7a` | ✅ | ❌ |
+| `x86_64` | ✅ | ❌ |
+
 ---
 
 ## 📄 授權與聲明 (License & Acknowledgements)
