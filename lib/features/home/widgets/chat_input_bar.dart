@@ -3030,8 +3030,9 @@ class _CompactSendButton extends StatelessWidget {
   final Color color;
   final IconData icon;
 
-  /// Stop-state overrides. The running composer paints a red circle with a
-  /// white square so "abort" reads at a glance in both themes.
+  /// Stop-state overrides. The running composer paints a muted red circle
+  /// with a white square so "abort" reads at a glance in both themes without
+  /// out-shouting the rest of the cluster.
   final Color? loadingColor;
   final Color? loadingForeground;
 
@@ -3083,14 +3084,52 @@ class _CompactSendButton extends StatelessWidget {
 
 /// Stop accent for the running composer. `colorScheme.error` is a pale pink
 /// in dark mode (#FFB4AB) and reads as disabled on a filled button, so the
-/// stop circle uses a dedicated danger red with a white glyph in both themes.
+/// stop circle uses a dedicated red with a white glyph in both themes. The
+/// red is deliberately muted (#A8454C / #B04A50) so abort stays identifiable
+/// without out-shouting the rest of the cluster; the light value is kept deep
+/// enough for the white square to stay legible (~5.3:1).
 Color _composerStopColor(ThemeData theme) => theme.brightness == Brightness.dark
-    ? const Color(0xFFE5484D)
-    : const Color(0xFFC62828);
+    ? const Color(0xFFA8454C)
+    : const Color(0xFFB04A50);
 
-/// Queue action (turn queue plan §3.2/§3.3): a 32 px ringed circle — black in
-/// dark mode, white in light — with the theme primary driving both the ring
-/// and the plus. Visually subordinate to the filled Send now / Stop.
+/// Shared shell for the composer's Send now / Queue buttons — the circle
+/// Material, ripple, tooltip and semantics live here once; the 32 px footprint
+/// comes from the caller's 19 px glyph plus the 6.5 padding. Stop keeps its own
+/// `_CompactSendButton` shell.
+class _ComposerCircleButton extends StatelessWidget {
+  const _ComposerCircleButton({
+    required this.tooltip,
+    required this.backgroundColor,
+    required this.child,
+    this.onTap,
+  });
+
+  final String tooltip;
+  final Color backgroundColor;
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final button = Material(
+      color: backgroundColor,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(padding: const EdgeInsets.all(6.5), child: child),
+      ),
+    );
+
+    return Tooltip(
+      message: tooltip,
+      waitDuration: const Duration(milliseconds: 350),
+      child: Semantics(tooltip: tooltip, child: button),
+    );
+  }
+}
+
 /// Queue (turn queue plan §3.2): the filled primary circle carrying the plus
 /// glyph — the default submit during a run (Enter) — same 32 px footprint as
 /// the send / stop buttons.
@@ -3110,32 +3149,20 @@ class _ComposerQueueButton extends StatelessWidget {
     // can be a navy tint rather than the black used by the send button.
     final fg = isDark ? Colors.black : Colors.white;
 
-    final button = Material(
-      color: primary,
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(6.5),
-          child: Icon(Lucide.Plus, size: 19, color: fg),
-        ),
-      ),
-    );
-
-    return Tooltip(
-      message: tooltip,
-      waitDuration: const Duration(milliseconds: 350),
-      child: Semantics(tooltip: tooltip, child: button),
+    return _ComposerCircleButton(
+      tooltip: tooltip,
+      backgroundColor: primary,
+      onTap: onTap,
+      child: Icon(Lucide.Plus, size: 19, color: fg),
     );
   }
 }
 
-/// Send now (turn queue plan §3.2): a hollow primary ring carrying the
+/// Send now (turn queue plan §3.2): a neutral gray disc carrying the
 /// return-arrow glyph (`assets/icons/send_now.svg`) — same 32 px footprint as
-/// the send / stop buttons, muted when the steer gate blocks it. The ring is
-/// the deliberate accelerator next to the filled Queue (the Enter default).
+/// the send / stop buttons, muted when the steer gate blocks it. The gray
+/// shell demotes the accelerator so the filled Queue (the Enter default)
+/// remains the cluster's only primary circle.
 class _ComposerSendNowButton extends StatelessWidget {
   const _ComposerSendNowButton({
     super.key,
@@ -3154,93 +3181,23 @@ class _ComposerSendNowButton extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final onSurface = theme.colorScheme.onSurface;
     final primary = theme.colorScheme.primary;
-    // Hollow ring reusing the old queue-button shell: black fill in dark
-    // mode, white in light, primary ring and glyph; muted when the steer
-    // gate blocks it.
-    final bg = isDark ? Colors.black : Colors.white;
-    final ringColor = enabled ? primary : onSurface.withValues(alpha: 0.4);
-    final fg = enabled ? primary : onSurface.withValues(alpha: 0.35);
+    // Neutral gray disc with a primary glyph — the approved matrix pick:
+    // send now is the demoted accelerator, queue keeps the filled primary
+    // circle, stop the muted red. Muted glyph when the steer gate blocks it.
+    final bg = isDark
+        ? Colors.white.withValues(alpha: 0.13)
+        : Colors.black.withValues(alpha: 0.07);
+    final fg = enabled ? primary : onSurface.withValues(alpha: 0.45);
 
-    final button = Material(
-      color: bg,
-      shape: CircleBorder(side: BorderSide(color: ringColor, width: 2)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: enabled ? onTap : null,
-        child: Padding(
-          padding: const EdgeInsets.all(6.5),
-          child: SvgPicture.asset(
-            'assets/icons/send_now.svg',
-            width: 19,
-            height: 19,
-            colorFilter: ColorFilter.mode(fg, BlendMode.srcIn),
-          ),
-        ),
-      ),
-    );
-
-    return Tooltip(
-      message: tooltip,
-      waitDuration: const Duration(milliseconds: 350),
-      child: Semantics(tooltip: tooltip, child: button),
-    );
-  }
-}
-
-// Keep original button for compatibility if needed elsewhere
-class _SendButton extends StatelessWidget {
-  const _SendButton({
-    required this.enabled,
-    required this.onSend,
-    required this.color,
-    required this.icon,
-    this.loading = false,
-    this.onStop,
-  });
-
-  final bool enabled;
-  final bool loading;
-  final VoidCallback onSend;
-  final VoidCallback? onStop;
-  final Color color;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = (enabled || loading)
-        ? color
-        : (isDark ? Colors.white12 : Colors.grey.shade300);
-    final fg = (enabled || loading)
-        ? (isDark ? Colors.black : Colors.white)
-        : (isDark ? Colors.white70 : Colors.grey.shade600);
-
-    return Material(
-      color: bg,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: loading ? onStop : (enabled ? onSend : null),
-        child: Padding(
-          padding: const EdgeInsets.all(9),
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            transitionBuilder: (child, anim) => ScaleTransition(
-              scale: anim,
-              child: FadeTransition(opacity: anim, child: child),
-            ),
-            child: loading
-                ? SvgPicture.asset(
-                    key: const ValueKey('stop'),
-                    'assets/icons/stop.svg',
-                    width: 22,
-                    height: 22,
-                    colorFilter: ColorFilter.mode(fg, BlendMode.srcIn),
-                  )
-                : Icon(icon, key: const ValueKey('send'), size: 22, color: fg),
-          ),
-        ),
+    return _ComposerCircleButton(
+      tooltip: tooltip,
+      backgroundColor: bg,
+      onTap: enabled ? onTap : null,
+      child: SvgPicture.asset(
+        'assets/icons/send_now.svg',
+        width: 19,
+        height: 19,
+        colorFilter: ColorFilter.mode(fg, BlendMode.srcIn),
       ),
     );
   }

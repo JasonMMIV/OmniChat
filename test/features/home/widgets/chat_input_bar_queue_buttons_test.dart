@@ -3,7 +3,8 @@
 // `chat_input_bar_queue_buttons_test.dart`).
 //
 // Pins: idle renders neither button; running + text renders [Send now][Queue]
-// (send now hollow ring, queue filled circle) with 8 px gaps; running + empty
+// (send now gray disc with primary glyph, queue filled circle) with 8 px gaps;
+// running + empty
 // renders neither; Enter queues while running (F8); Enter sends while idle;
 // Ctrl/Cmd+Enter steers pure text; slash commands fall back to queue.
 
@@ -131,7 +132,7 @@ void main() {
 
   for (final brightness in Brightness.values) {
     testWidgets(
-      'queue paints the filled circle, send now the ring (${brightness.name})',
+      'queue paints the filled circle, send now the gray disc (${brightness.name})',
       (tester) async {
         await pumpBar(
           tester,
@@ -144,6 +145,7 @@ void main() {
 
         final context = tester.element(find.byType(ChatInputBar));
         final primary = Theme.of(context).colorScheme.primary;
+        final isDark = brightness == Brightness.dark;
 
         final queueMaterial = tester.widget<Material>(
           find
@@ -159,21 +161,23 @@ void main() {
         );
         expect(
           sendMaterial.color,
-          brightness == Brightness.dark ? Colors.black : Colors.white,
+          isDark
+              ? Colors.white.withValues(alpha: 0.13)
+              : Colors.black.withValues(alpha: 0.07),
         );
+        // The accelerator no longer carries a ring.
         final side = (sendMaterial.shape as CircleBorder).side;
-        expect(side.color, primary);
-        expect(side.width, 2);
+        expect(side, BorderSide.none);
       },
     );
   }
 
   for (final (brightness, expected) in <(Brightness, Color)>[
-    (Brightness.light, const Color(0xFFC62828)),
-    (Brightness.dark, const Color(0xFFE5484D)),
+    (Brightness.light, const Color(0xFFB04A50)),
+    (Brightness.dark, const Color(0xFFA8454C)),
   ]) {
     testWidgets(
-      'running composer paints the stop button red (${brightness.name})',
+      'running composer paints the stop button muted red (${brightness.name})',
       (tester) async {
         await pumpBar(tester, loading: true, brightness: brightness);
         await tester.enterText(find.byType(TextField), 'hello');
@@ -207,6 +211,22 @@ void main() {
     );
     expect(inkWell.onTap, isNull);
     expect(steered, isNull);
+  });
+
+  testWidgets('send now keeps its gray disc when the gate blocks it', (
+    tester,
+  ) async {
+    await pumpBar(tester, loading: true, sendNowTeamBlocked: true);
+    await tester.enterText(find.byType(TextField), 'hello');
+    await tester.pump();
+
+    final sendMaterial = tester.widget<Material>(
+      find
+          .descendant(of: sendNowButton(), matching: find.byType(Material))
+          .first,
+    );
+    // Blocking mutes the glyph only; the disc itself stays unchanged.
+    expect(sendMaterial.color, Colors.black.withValues(alpha: 0.07));
   });
 
   testWidgets('running composer with empty input shows neither', (
