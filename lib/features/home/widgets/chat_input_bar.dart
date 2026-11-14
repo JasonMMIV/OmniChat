@@ -1,20 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+
 import 'dart:ui' as ui;
 import 'dart:math' as math;
+
 import '../../../theme/design_tokens.dart';
 import '../../../icons/lucide_adapter.dart';
+
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
+
 import '../../../l10n/app_localizations.dart';
+
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+
 import '../../../shared/responsive/breakpoints.dart';
+
 import 'dart:async';
 import 'dart:typed_data';
 
 import 'dart:io';
+
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/services/chat/turn_queue/send_gate.dart';
 import '../../../utils/clipboard_images.dart';
@@ -29,7 +37,9 @@ import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../utils/app_directories.dart';
+
 import 'package:super_clipboard/super_clipboard.dart';
+
 import '../../../desktop/desktop_context_menu.dart';
 import '../../../core/services/haptics.dart';
 import '../utils/chat_input_button_catalog.dart';
@@ -191,6 +201,7 @@ class ChatInputBar extends StatefulWidget {
   final bool loading;
   final bool reasoningActive;
   final bool supportsReasoning;
+
   /// Add-ons menu highlight: at least one capability in the menu is on — an
   /// MCP server selected for the active assistant, a built-in tool (write_todos
   /// / ask_user), or an Advanced Features entry (Subagents / Self-Review).
@@ -299,8 +310,7 @@ class _ChatInputBarState extends State<ChatInputBar>
       String name = 'paste_$ts.$fileExt';
       String destPath = p.join(dir.path, name);
       if (await File(destPath).exists()) {
-        name =
-            'paste_${ts}_${DateTime.now().microsecondsSinceEpoch}.$fileExt';
+        name = 'paste_${ts}_${DateTime.now().microsecondsSinceEpoch}.$fileExt';
         destPath = p.join(dir.path, name);
       }
       await File(destPath).writeAsBytes(bytes, flush: true);
@@ -1240,7 +1250,8 @@ class _ChatInputBarState extends State<ChatInputBar>
                 width: normalButtonW,
                 builder: () => _CompactIconButton(
                   key: _imageRatioAnchorKey,
-                  tooltip: '${l10n.chatInputBarImageRatioTooltip}: '
+                  tooltip:
+                      '${l10n.chatInputBarImageRatioTooltip}: '
                       '${_imageRatioDisplayLabel(l10n, imageRatio)}',
                   icon: Lucide.Ratio,
                   active: imageRatio != '1:1',
@@ -1336,17 +1347,9 @@ class _ChatInputBarState extends State<ChatInputBar>
                       final asset = brandAsset;
                       if (asset != null) {
                         if (asset.endsWith('.svg')) {
-                          return SvgPicture.asset(
-                            asset,
-                            width: 24,
-                            height: 24,
-                          );
+                          return SvgPicture.asset(asset, width: 24, height: 24);
                         } else {
-                          return Image.asset(
-                            asset,
-                            width: 24,
-                            height: 24,
-                          );
+                          return Image.asset(asset, width: 24, height: 24);
                         }
                       } else {
                         return Icon(Lucide.Globe, size: 24, color: c);
@@ -1624,10 +1627,10 @@ class _ChatInputBarState extends State<ChatInputBar>
                     childBuilder: widget.contextUsage == null
                         ? null
                         : (c) => ContextUsageButtonIcon(
-                              usage: widget.contextUsage!,
-                              loading: widget.loading,
-                              color: c,
-                            ),
+                            usage: widget.contextUsage!,
+                            loading: widget.loading,
+                            color: c,
+                          ),
                   ),
                 ),
                 menu: DesktopContextMenuItem(
@@ -1638,12 +1641,12 @@ class _ChatInputBarState extends State<ChatInputBar>
                   iconBuilder: widget.contextUsage == null
                       ? null
                       : (c) => ContextUsageButtonIcon(
-                            usage: widget.contextUsage!,
-                            loading: widget.loading,
-                            color: c,
-                            size: 18,
-                            strokeWidth: 2.2,
-                          ),
+                          usage: widget.contextUsage!,
+                          loading: widget.loading,
+                          color: c,
+                          size: 18,
+                          strokeWidth: 2.2,
+                        ),
                   label: l10n.contextManagement,
                   onTap: () => _handleContextActionTap(context),
                 ),
@@ -1675,8 +1678,9 @@ class _ChatInputBarState extends State<ChatInputBar>
         // Apply user-configured button order and visibility.
         actions.retainWhere((a) => !hiddenIds.contains(a.id));
         actions.sort(
-          (a, b) =>
-              effectiveOrder.indexOf(a.id).compareTo(effectiveOrder.indexOf(b.id)),
+          (a, b) => effectiveOrder
+              .indexOf(a.id)
+              .compareTo(effectiveOrder.indexOf(b.id)),
         );
 
         // Compute total width with spacing to see if overflow is needed
@@ -1807,9 +1811,8 @@ class _ChatInputBarState extends State<ChatInputBar>
                   : [
                       if (widget.showMoreButton) ...[
                         _CompactIconButton(
-                          tooltip: AppLocalizations.of(
-                            context,
-                          )!.chatInputBarMoreTooltip,
+                          tooltip: AppLocalizations.of(context)!
+                              .chatInputBarMoreTooltip,
                           icon: Lucide.Plus,
                           active: widget.moreOpen,
                           onTap: () {
@@ -1837,9 +1840,11 @@ class _ChatInputBarState extends State<ChatInputBar>
                           ),
                         ),
                       ],
-                      // Turn queue buttons (plan §3.2/§3.3): [Queue][Send now]
+                      // Turn queue buttons (plan §3.2/§3.3): [Send now][Queue]
                       // sit left of the stop button while the turn is running;
                       // idle renders nothing (AnimatedSwitcher avoids a jump).
+                      // Queue (recoverable) sits against stop to absorb panic
+                      // mis-taps; Send now stays at the cluster edge.
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 200),
                         transitionBuilder: (child, anim) => FadeTransition(
@@ -1851,6 +1856,10 @@ class _ChatInputBarState extends State<ChatInputBar>
                                 key: const ValueKey('queue-cluster'),
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  if (showSendNowButton) ...[
+                                    const SizedBox(width: 8),
+                                    _buildSendNowButton(l10n),
+                                  ],
                                   if (showQueueButton) ...[
                                     const SizedBox(width: 8),
                                     _ComposerQueueButton(
@@ -1860,10 +1869,6 @@ class _ChatInputBarState extends State<ChatInputBar>
                                       tooltip: l10n.composerQueueTooltip,
                                       onTap: _handleQueueSubmit,
                                     ),
-                                  ],
-                                  if (showSendNowButton) ...[
-                                    const SizedBox(width: 8),
-                                    _buildSendNowButton(l10n),
                                   ],
                                 ],
                               )
@@ -1908,10 +1913,8 @@ class _ChatInputBarState extends State<ChatInputBar>
       await showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
-        builder: (ctx) => _ImageRatioOptionsSheet(
-          current: current,
-          onSelected: onSelected,
-        ),
+        builder: (ctx) =>
+            _ImageRatioOptionsSheet(current: current, onSelected: onSelected),
       );
       return;
     }
@@ -2660,13 +2663,9 @@ class _ImageRatioOptionRow extends StatelessWidget {
             _ImageRatioPreviewBox(aspect: option.aspect),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                option.label,
-                style: const TextStyle(fontSize: 14),
-              ),
+              child: Text(option.label, style: const TextStyle(fontSize: 14)),
             ),
-            if (selected)
-              Icon(Lucide.Check, size: 18, color: cs.primary),
+            if (selected) Icon(Lucide.Check, size: 18, color: cs.primary),
           ],
         ),
       ),
@@ -3033,20 +3032,18 @@ class _CompactSendButton extends StatelessWidget {
 /// Stop accent for the running composer. `colorScheme.error` is a pale pink
 /// in dark mode (#FFB4AB) and reads as disabled on a filled button, so the
 /// stop circle uses a dedicated danger red with a white glyph in both themes.
-Color _composerStopColor(ThemeData theme) =>
-    theme.brightness == Brightness.dark
+Color _composerStopColor(ThemeData theme) => theme.brightness == Brightness.dark
     ? const Color(0xFFE5484D)
     : const Color(0xFFC62828);
 
 /// Queue action (turn queue plan §3.2/§3.3): a 32 px ringed circle — black in
 /// dark mode, white in light — with the theme primary driving both the ring
 /// and the plus. Visually subordinate to the filled Send now / Stop.
+/// Queue (turn queue plan §3.2): the filled primary circle carrying the plus
+/// glyph — the default submit during a run (Enter) — same 32 px footprint as
+/// the send / stop buttons.
 class _ComposerQueueButton extends StatelessWidget {
-  const _ComposerQueueButton({
-    super.key,
-    required this.tooltip,
-    this.onTap,
-  });
+  const _ComposerQueueButton({super.key, required this.tooltip, this.onTap});
 
   final String tooltip;
   final VoidCallback? onTap;
@@ -3056,17 +3053,21 @@ class _ComposerQueueButton extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.primary;
+    // Match the send / stop glyph rule exactly (black on light primaries in
+    // dark mode, white otherwise) rather than `onPrimary`, whose dark values
+    // can be a navy tint rather than the black used by the send button.
+    final fg = isDark ? Colors.black : Colors.white;
 
     final button = Material(
-      color: isDark ? Colors.black : Colors.white,
-      shape: CircleBorder(side: BorderSide(color: primary, width: 2)),
+      color: primary,
+      shape: const CircleBorder(),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(6.5),
-          child: Icon(Lucide.Plus, size: 19, color: primary),
+          child: Icon(Lucide.Plus, size: 19, color: fg),
         ),
       ),
     );
@@ -3079,9 +3080,10 @@ class _ComposerQueueButton extends StatelessWidget {
   }
 }
 
-/// Send now (turn queue plan §3.2): a filled primary circle carrying the
+/// Send now (turn queue plan §3.2): a hollow primary ring carrying the
 /// return-arrow glyph (`assets/icons/send_now.svg`) — same 32 px footprint as
-/// the send / stop buttons, muted when the steer gate blocks it.
+/// the send / stop buttons, muted when the steer gate blocks it. The ring is
+/// the deliberate accelerator next to the filled Queue (the Enter default).
 class _ComposerSendNowButton extends StatelessWidget {
   const _ComposerSendNowButton({
     super.key,
@@ -3099,29 +3101,27 @@ class _ComposerSendNowButton extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final onSurface = theme.colorScheme.onSurface;
-    final bg = enabled
-        ? theme.colorScheme.primary
-        : onSurface.withValues(alpha: 0.12);
-    // Match the send / stop glyph rule exactly (black on light primaries in
-    // dark mode, white otherwise) rather than `onPrimary`, whose dark values
-    // can be a navy tint rather than the black used by the send button.
-    final fg = enabled
-        ? (isDark ? Colors.black : Colors.white)
-        : onSurface.withValues(alpha: 0.35);
+    final primary = theme.colorScheme.primary;
+    // Hollow ring reusing the old queue-button shell: black fill in dark
+    // mode, white in light, primary ring and glyph; muted when the steer
+    // gate blocks it.
+    final bg = isDark ? Colors.black : Colors.white;
+    final ringColor = enabled ? primary : onSurface.withValues(alpha: 0.4);
+    final fg = enabled ? primary : onSurface.withValues(alpha: 0.35);
 
     final button = Material(
       color: bg,
-      shape: const CircleBorder(),
+      shape: CircleBorder(side: BorderSide(color: ringColor, width: 2)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: enabled ? onTap : null,
         child: Padding(
-          padding: const EdgeInsets.all(6),
+          padding: const EdgeInsets.all(6.5),
           child: SvgPicture.asset(
             'assets/icons/send_now.svg',
-            width: 20,
-            height: 20,
+            width: 19,
+            height: 19,
             colorFilter: ColorFilter.mode(fg, BlendMode.srcIn),
           ),
         ),

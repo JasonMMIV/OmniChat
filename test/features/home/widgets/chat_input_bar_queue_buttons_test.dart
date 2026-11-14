@@ -2,9 +2,10 @@
 // (docs/anybuff_queue_sendnow_import_plan.md §3.2 / §6.1
 // `chat_input_bar_queue_buttons_test.dart`).
 //
-// Pins: idle renders neither button; running + text renders both; running +
-// empty renders neither; Enter queues while running (F8); Enter sends while
-// idle; Ctrl/Cmd+Enter steers pure text; slash commands fall back to queue.
+// Pins: idle renders neither button; running + text renders [Send now][Queue]
+// (send now hollow ring, queue filled circle) with 8 px gaps; running + empty
+// renders neither; Enter queues while running (F8); Enter sends while idle;
+// Ctrl/Cmd+Enter steers pure text; slash commands fall back to queue.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -76,15 +77,22 @@ void main() {
     expect(sendNowButton(), findsNothing);
   });
 
-  testWidgets('running composer with text shows [Queue][Send now]', (
+  testWidgets('running composer with text shows [Send now][Queue]', (
     tester,
   ) async {
     await pumpBar(tester, loading: true);
     await tester.enterText(find.byType(TextField), 'hello');
     await tester.pump();
+    // Let the AnimatedSwitcher scale settle before measuring rects.
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(queueButton(), findsOneWidget);
     expect(sendNowButton(), findsOneWidget);
+
+    // Send now leads; queue sits against stop as the recoverable buffer.
+    final q = tester.getRect(queueButton());
+    final s = tester.getRect(sendNowButton());
+    expect(s.left, lessThan(q.left));
   });
 
   testWidgets('queue cluster keeps the 8 px gaps used by the bar', (
@@ -95,9 +103,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    final cluster = tester.getRect(
-      find.byKey(const ValueKey('queue-cluster')),
-    );
+    final cluster = tester.getRect(find.byKey(const ValueKey('queue-cluster')));
     final stop = tester.getRect(
       find
           .ancestor(
@@ -107,13 +113,9 @@ void main() {
           .first,
     );
 
-    // Leading 8 px + 32 (queue) + 8 + 32 (send now).
+    // Leading 8 px + 32 (send now) + 8 + 32 (queue).
     expect(cluster.width, 80, reason: 'cluster=$cluster stop=$stop');
-    expect(
-      stop.left - cluster.right,
-      8,
-      reason: 'cluster=$cluster stop=$stop',
-    );
+    expect(stop.left - cluster.right, 8, reason: 'cluster=$cluster stop=$stop');
   });
 
   testWidgets('composer action buttons keep the 32×32 footprint', (
@@ -126,6 +128,45 @@ void main() {
     expect(tester.getSize(queueButton()), const Size(32, 32));
     expect(tester.getSize(sendNowButton()), const Size(32, 32));
   });
+
+  for (final brightness in Brightness.values) {
+    testWidgets(
+      'queue paints the filled circle, send now the ring (${brightness.name})',
+      (tester) async {
+        await pumpBar(
+          tester,
+          loading: true,
+          brightness: brightness,
+          onSendNow: (_) {},
+        );
+        await tester.enterText(find.byType(TextField), 'hello');
+        await tester.pump();
+
+        final context = tester.element(find.byType(ChatInputBar));
+        final primary = Theme.of(context).colorScheme.primary;
+
+        final queueMaterial = tester.widget<Material>(
+          find
+              .descendant(of: queueButton(), matching: find.byType(Material))
+              .first,
+        );
+        expect(queueMaterial.color, primary);
+
+        final sendMaterial = tester.widget<Material>(
+          find
+              .descendant(of: sendNowButton(), matching: find.byType(Material))
+              .first,
+        );
+        expect(
+          sendMaterial.color,
+          brightness == Brightness.dark ? Colors.black : Colors.white,
+        );
+        final side = (sendMaterial.shape as CircleBorder).side;
+        expect(side.color, primary);
+        expect(side.width, 2);
+      },
+    );
+  }
 
   for (final (brightness, expected) in <(Brightness, Color)>[
     (Brightness.light, const Color(0xFFC62828)),
@@ -141,9 +182,7 @@ void main() {
         final stopIcon = find.byKey(const ValueKey('stop'));
         expect(stopIcon, findsOneWidget);
         final material = tester.widget<Material>(
-          find
-              .ancestor(of: stopIcon, matching: find.byType(Material))
-              .first,
+          find.ancestor(of: stopIcon, matching: find.byType(Material)).first,
         );
         expect(material.color, expected);
       },
