@@ -10881,7 +10881,7 @@ abstract class AppLocalizations {
   /// No description provided for @addonsSubagentSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Delegate self-contained subtasks to an isolated helper; only its summary returns'**
+  /// **'Delegate self-contained subtasks to an isolated helper; only the final result comes back'**
   String get addonsSubagentSubtitle;
 
   /// No description provided for @builtInToolWriteTodosName.

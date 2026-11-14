@@ -5786,7 +5786,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get addonsSubagentSubtitle =>
-      'Delegate self-contained subtasks to an isolated helper; only its summary returns';
+      'Delegate self-contained subtasks to an isolated helper; only the final result comes back';
 
   @override
   String get builtInToolWriteTodosName => 'Write Todos';

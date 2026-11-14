@@ -33,6 +33,7 @@ void main() {
       'subagentDelegatedEmpty',
       'toolNameDelegateSubagent',
       'addonsSubagentEnable',
+      'addonsSubagentSubtitle',
       'addonsSubagentProfileCount',
       'addonsSubagentPickHint',
       'composerSendNowDelegationHint',
@@ -52,5 +53,26 @@ void main() {
         );
       }
     }
+  });
+
+  test('Add-ons subagent subtitle describes returning the result', () {
+    Map<String, dynamic> load(String locale) =>
+        jsonDecode(File('lib/l10n/app_$locale.arb').readAsStringSync())
+            as Map<String, dynamic>;
+
+    final en = load('en')['addonsSubagentSubtitle'] as String;
+    expect(en.toLowerCase(), contains('result'));
+    expect(en.toLowerCase(), isNot(contains('summary')));
+
+    for (final locale in <String>['zh', 'zh_Hans']) {
+      final text = load(locale)['addonsSubagentSubtitle'] as String;
+      expect(text, contains('可独立完成'));
+      expect(text, contains('只收回结果'));
+      expect(text, isNot(contains('摘要')));
+    }
+    final zhHant = load('zh_Hant')['addonsSubagentSubtitle'] as String;
+    expect(zhHant, contains('可獨立完成'));
+    expect(zhHant, contains('只收回結果'));
+    expect(zhHant, isNot(contains('摘要')));
   });
 }

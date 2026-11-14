@@ -2508,7 +2508,7 @@
   "workspaceShellAllowAllSubtitle": "Ask before running shell commands. Turn on to allow all.",
   "addonsWriteTodosSubtitle": "Keep a todo list for multi-step tasks",
   "addonsAskUserSubtitle": "Let the assistant ask clarifying questions",
-  "addonsSubagentSubtitle": "Delegate self-contained subtasks to an isolated helper; only its summary returns",
+  "addonsSubagentSubtitle": "Delegate self-contained subtasks to an isolated helper; only the final result comes back",
   "builtInToolWriteTodosName": "Write Todos",
   "builtInToolAskUserName": "Ask User",
   "builtInToolSubagentName": "Subagents",

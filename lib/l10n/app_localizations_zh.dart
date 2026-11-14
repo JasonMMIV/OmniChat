@@ -5699,7 +5699,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get addonsAskUserSubtitle => '让助手在需要决策时向你提问';
 
   @override
-  String get addonsSubagentSubtitle => '把自成一体的子任务交给隔离的子代理，只收回摘要';
+  String get addonsSubagentSubtitle => '把可独立完成的子任务交给隔离的子代理，只收回结果';
 
   @override
   String get builtInToolWriteTodosName => '撰写待办';
@@ -12799,7 +12799,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get addonsAskUserSubtitle => '让助手在需要决策时向你提问';
 
   @override
-  String get addonsSubagentSubtitle => '把自成一体的子任务交给隔离的子代理，只收回摘要';
+  String get addonsSubagentSubtitle => '把可独立完成的子任务交给隔离的子代理，只收回结果';
 
   @override
   String get builtInToolWriteTodosName => '撰写待办';
@@ -19999,7 +19999,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get addonsAskUserSubtitle => '讓助理在需要決策時向你提問';
 
   @override
-  String get addonsSubagentSubtitle => '把自成一體的子任務交給隔離的子代理，只收回摘要';
+  String get addonsSubagentSubtitle => '把可獨立完成的子任務交給隔離的子代理，只收回結果';
 
   @override
   String get builtInToolWriteTodosName => '撰寫待辦';

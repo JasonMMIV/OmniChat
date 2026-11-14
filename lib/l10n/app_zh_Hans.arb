@@ -1949,7 +1949,7 @@
   "workspaceShellAllowAllSubtitle": "运行 Shell 命令前询问。开启后全部允许。",
   "addonsWriteTodosSubtitle": "为多步骤任务维护待办清单",
   "addonsAskUserSubtitle": "让助手在需要决策时向你提问",
-  "addonsSubagentSubtitle": "把自成一体的子任务交给隔离的子代理，只收回摘要",
+  "addonsSubagentSubtitle": "把可独立完成的子任务交给隔离的子代理，只收回结果",
   "builtInToolWriteTodosName": "撰写待办",
   "builtInToolAskUserName": "询问用户",
   "builtInToolSubagentName": "子代理",
