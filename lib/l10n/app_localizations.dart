@@ -13029,7 +13029,7 @@ abstract class AppLocalizations {
   /// No description provided for @toolNameShellRun.
   ///
   /// In en, this message translates to:
-  /// **'Run command'**
+  /// **'Run shell command'**
   String get toolNameShellRun;
 
   /// No description provided for @toolNameSearchWeb.
@@ -13221,7 +13221,7 @@ abstract class AppLocalizations {
   /// No description provided for @toolNameShellExec.
   ///
   /// In en, this message translates to:
-  /// **'Run command (sandbox)'**
+  /// **'Run shell command'**
   String get toolNameShellExec;
 
   /// No description provided for @settingsPageAndroidShell.
@@ -13476,6 +13476,12 @@ abstract class AppLocalizations {
   /// **'Edit text'**
   String get queueDockEdit;
 
+  /// No description provided for @queueDockEditSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get queueDockEditSave;
+
   /// No description provided for @queueDockRemove.
   ///
   /// In en, this message translates to:
@@ -13493,6 +13499,282 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Queued message failed to send; moved back to the front'**
   String get queueDockSendFailed;
+
+  /// No description provided for @subagentTraceStep.
+  ///
+  /// In en, this message translates to:
+  /// **'{tool} · {ms} ms · {chars} chars'**
+  String subagentTraceStep(String tool, String ms, String chars);
+
+  /// No description provided for @subagentTraceMore.
+  ///
+  /// In en, this message translates to:
+  /// **'(+{count} more)'**
+  String subagentTraceMore(String count);
+
+  /// Expandable per-tool trace of a subagent run.
+  ///
+  /// In en, this message translates to:
+  /// **'Helper trace'**
+  String get subagentTraceTitle;
+
+  /// No description provided for @subagentTraceSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} steps'**
+  String subagentTraceSteps(String count);
+
+  /// No description provided for @subagentTraceToolCalls.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} calls'**
+  String subagentTraceToolCalls(String count);
+
+  /// No description provided for @subagentTraceTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'{tokens} tokens'**
+  String subagentTraceTokens(String tokens);
+
+  /// No description provided for @subagentTraceEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No tool calls recorded.'**
+  String get subagentTraceEmpty;
+
+  /// Settings page listing named subagent profiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Subagent profiles'**
+  String get subagentProfilesTitle;
+
+  /// No description provided for @subagentProfilesDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Named helpers decide the tool set, permissions and model used by spawn_subagent.'**
+  String get subagentProfilesDescription;
+
+  /// No description provided for @subagentProfileNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New profile'**
+  String get subagentProfileNew;
+
+  /// No description provided for @subagentProfileEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit profile'**
+  String get subagentProfileEdit;
+
+  /// No description provided for @subagentProfileName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get subagentProfileName;
+
+  /// No description provided for @subagentProfileNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. Test runner'**
+  String get subagentProfileNameHint;
+
+  /// No description provided for @subagentProfileDescriptionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Description'**
+  String get subagentProfileDescriptionLabel;
+
+  /// No description provided for @subagentProfileInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Instructions'**
+  String get subagentProfileInstructions;
+
+  /// No description provided for @subagentProfileInstructionsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Extra guidance injected into the helper\'s system prompt.'**
+  String get subagentProfileInstructionsHint;
+
+  /// No description provided for @subagentProfileAllowedTools.
+  ///
+  /// In en, this message translates to:
+  /// **'Allowed tools'**
+  String get subagentProfileAllowedTools;
+
+  /// No description provided for @subagentProfileAllowedToolsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Empty = all child tools. Read-only profiles always refuse write and shell tools.'**
+  String get subagentProfileAllowedToolsHint;
+
+  /// No description provided for @subagentProfileReadOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Read-only'**
+  String get subagentProfileReadOnly;
+
+  /// No description provided for @subagentProfileReadOnlySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Refuse write and shell tools even if they are advertised.'**
+  String get subagentProfileReadOnlySubtitle;
+
+  /// No description provided for @subagentProfileModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Model'**
+  String get subagentProfileModel;
+
+  /// No description provided for @subagentProfileProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'Provider'**
+  String get subagentProfileProvider;
+
+  /// No description provided for @subagentProfileFollowConversation.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow conversation'**
+  String get subagentProfileFollowConversation;
+
+  /// No description provided for @subagentProfileMaxSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Max steps'**
+  String get subagentProfileMaxSteps;
+
+  /// No description provided for @subagentProfileTokenBudget.
+  ///
+  /// In en, this message translates to:
+  /// **'Token budget'**
+  String get subagentProfileTokenBudget;
+
+  /// No description provided for @subagentProfileDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get subagentProfileDelete;
+
+  /// No description provided for @subagentProfileDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this profile?'**
+  String get subagentProfileDeleteConfirm;
+
+  /// No description provided for @subagentProfileDuplicate.
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicate'**
+  String get subagentProfileDuplicate;
+
+  /// No description provided for @subagentProfileReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to default'**
+  String get subagentProfileReset;
+
+  /// No description provided for @subagentProfileSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get subagentProfileSave;
+
+  /// No description provided for @subagentProfileCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get subagentProfileCancel;
+
+  /// No description provided for @subagentProfileBuiltIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in'**
+  String get subagentProfileBuiltIn;
+
+  /// No description provided for @subagentProfileCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get subagentProfileCustom;
+
+  /// No description provided for @subagentProfileNameRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a name.'**
+  String get subagentProfileNameRequired;
+
+  /// No description provided for @subagentProfileIdInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'ID must be lowercase letters, numbers, - or _ (max 40).'**
+  String get subagentProfileIdInvalid;
+
+  /// No description provided for @subagentProfileModelPair.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose both a provider and a model, or follow the conversation.'**
+  String get subagentProfileModelPair;
+
+  /// No description provided for @subagentProfileCustomTools.
+  ///
+  /// In en, this message translates to:
+  /// **'Other tool names'**
+  String get subagentProfileCustomTools;
+
+  /// No description provided for @subagentProfileCustomToolsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Comma-separated; use this for MCP or memory tools.'**
+  String get subagentProfileCustomToolsHint;
+
+  /// No description provided for @subagentProfileWriteBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked by read-only.'**
+  String get subagentProfileWriteBlocked;
+
+  /// No description provided for @subagentProfileProviderMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'The selected provider no longer exists. Choose another one or follow the conversation.'**
+  String get subagentProfileProviderMissing;
+
+  /// No description provided for @subagentProfileMaxStepsRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Max steps must be between 1 and 40.'**
+  String get subagentProfileMaxStepsRange;
+
+  /// No description provided for @subagentProfileTokenBudgetRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Token budget must be a positive number.'**
+  String get subagentProfileTokenBudgetRange;
+
+  /// No description provided for @subagentProfileValueTooLong.
+  ///
+  /// In en, this message translates to:
+  /// **'This value is too long.'**
+  String get subagentProfileValueTooLong;
+
+  /// No description provided for @subagentProfileIdReserved.
+  ///
+  /// In en, this message translates to:
+  /// **'This id is reserved by a built-in profile.'**
+  String get subagentProfileIdReserved;
+
+  /// No description provided for @subagentProfileLimitReached.
+  ///
+  /// In en, this message translates to:
+  /// **'Limit reached (20 profiles).'**
+  String get subagentProfileLimitReached;
+
+  /// No description provided for @subagentProfileToolsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} tools'**
+  String subagentProfileToolsCount(String count);
 }
 
 class _AppLocalizationsDelegate

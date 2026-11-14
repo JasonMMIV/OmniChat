@@ -7000,7 +7000,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get toolNameConsoleErrors => 'Read console errors';
 
   @override
-  String get toolNameShellRun => 'Run command';
+  String get toolNameShellRun => 'Run shell command';
 
   @override
   String get toolNameSearchWeb => 'Web search';
@@ -7113,7 +7113,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'The per-request image limit was reached.';
 
   @override
-  String get toolNameShellExec => 'Run command (sandbox)';
+  String get toolNameShellExec => 'Run shell command';
 
   @override
   String get settingsPageAndroidShell => 'Android Shell';
@@ -7253,6 +7253,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get queueDockEdit => 'Edit text';
 
   @override
+  String get queueDockEditSave => 'Save';
+
+  @override
   String get queueDockRemove => 'Remove';
 
   @override
@@ -7261,4 +7264,165 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get queueDockSendFailed =>
       'Queued message failed to send; moved back to the front';
+
+  @override
+  String subagentTraceStep(String tool, String ms, String chars) {
+    return '$tool · $ms ms · $chars chars';
+  }
+
+  @override
+  String subagentTraceMore(String count) {
+    return '(+$count more)';
+  }
+
+  @override
+  String get subagentTraceTitle => 'Helper trace';
+
+  @override
+  String subagentTraceSteps(String count) {
+    return '$count steps';
+  }
+
+  @override
+  String subagentTraceToolCalls(String count) {
+    return '$count calls';
+  }
+
+  @override
+  String subagentTraceTokens(String tokens) {
+    return '$tokens tokens';
+  }
+
+  @override
+  String get subagentTraceEmpty => 'No tool calls recorded.';
+
+  @override
+  String get subagentProfilesTitle => 'Subagent profiles';
+
+  @override
+  String get subagentProfilesDescription =>
+      'Named helpers decide the tool set, permissions and model used by spawn_subagent.';
+
+  @override
+  String get subagentProfileNew => 'New profile';
+
+  @override
+  String get subagentProfileEdit => 'Edit profile';
+
+  @override
+  String get subagentProfileName => 'Name';
+
+  @override
+  String get subagentProfileNameHint => 'e.g. Test runner';
+
+  @override
+  String get subagentProfileDescriptionLabel => 'Description';
+
+  @override
+  String get subagentProfileInstructions => 'Instructions';
+
+  @override
+  String get subagentProfileInstructionsHint =>
+      'Extra guidance injected into the helper\'s system prompt.';
+
+  @override
+  String get subagentProfileAllowedTools => 'Allowed tools';
+
+  @override
+  String get subagentProfileAllowedToolsHint =>
+      'Empty = all child tools. Read-only profiles always refuse write and shell tools.';
+
+  @override
+  String get subagentProfileReadOnly => 'Read-only';
+
+  @override
+  String get subagentProfileReadOnlySubtitle =>
+      'Refuse write and shell tools even if they are advertised.';
+
+  @override
+  String get subagentProfileModel => 'Model';
+
+  @override
+  String get subagentProfileProvider => 'Provider';
+
+  @override
+  String get subagentProfileFollowConversation => 'Follow conversation';
+
+  @override
+  String get subagentProfileMaxSteps => 'Max steps';
+
+  @override
+  String get subagentProfileTokenBudget => 'Token budget';
+
+  @override
+  String get subagentProfileDelete => 'Delete';
+
+  @override
+  String get subagentProfileDeleteConfirm => 'Delete this profile?';
+
+  @override
+  String get subagentProfileDuplicate => 'Duplicate';
+
+  @override
+  String get subagentProfileReset => 'Reset to default';
+
+  @override
+  String get subagentProfileSave => 'Save';
+
+  @override
+  String get subagentProfileCancel => 'Cancel';
+
+  @override
+  String get subagentProfileBuiltIn => 'Built-in';
+
+  @override
+  String get subagentProfileCustom => 'Custom';
+
+  @override
+  String get subagentProfileNameRequired => 'Enter a name.';
+
+  @override
+  String get subagentProfileIdInvalid =>
+      'ID must be lowercase letters, numbers, - or _ (max 40).';
+
+  @override
+  String get subagentProfileModelPair =>
+      'Choose both a provider and a model, or follow the conversation.';
+
+  @override
+  String get subagentProfileCustomTools => 'Other tool names';
+
+  @override
+  String get subagentProfileCustomToolsHint =>
+      'Comma-separated; use this for MCP or memory tools.';
+
+  @override
+  String get subagentProfileWriteBlocked => 'Blocked by read-only.';
+
+  @override
+  String get subagentProfileProviderMissing =>
+      'The selected provider no longer exists. Choose another one or follow the conversation.';
+
+  @override
+  String get subagentProfileMaxStepsRange =>
+      'Max steps must be between 1 and 40.';
+
+  @override
+  String get subagentProfileTokenBudgetRange =>
+      'Token budget must be a positive number.';
+
+  @override
+  String get subagentProfileValueTooLong => 'This value is too long.';
+
+  @override
+  String get subagentProfileIdReserved =>
+      'This id is reserved by a built-in profile.';
+
+  @override
+  String get subagentProfileLimitReached => 'Limit reached (20 profiles).';
+
+  @override
+  String subagentProfileToolsCount(String count) {
+    return '$count tools';
+  }
 }

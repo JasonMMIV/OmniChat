@@ -1,11 +1,13 @@
 // Queue dock widget tests (docs/anybuff_queue_sendnow_import_plan.md §4.2 /
 // §6.1 `message_queue_dock_test.dart`).
 //
-// Pins: count title + hint, item text preview, edit (text only), remove,
-// promote, the paused banner's Resume action, attachment-only preview, and
-// the empty state rendering nothing.
+// Pins: count title + hint, item text preview, inline edit (tap the text or
+// pencil, keyboard done / check saves, Escape cancels, blank drafts are
+// ignored), remove, promote, the paused banner's Resume action,
+// attachment-only preview, and the empty state rendering nothing.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -19,16 +21,15 @@ void main() {
 
   setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
 
-  QueuedMessage item(String id, String text, {int images = 0}) =>
-      QueuedMessage(
-        id: id,
-        conversationId: 'c1',
-        input: ChatInputData(
-          text: text,
-          imagePaths: List<String>.generate(images, (i) => '/tmp/$i.png'),
-        ),
-        createdAt: DateTime(2026, 11, 13),
-      );
+  QueuedMessage item(String id, String text, {int images = 0}) => QueuedMessage(
+    id: id,
+    conversationId: 'c1',
+    input: ChatInputData(
+      text: text,
+      imagePaths: List<String>.generate(images, (i) => '/tmp/$i.png'),
+    ),
+    createdAt: DateTime(2026, 11, 13),
+  );
 
   Future<void> pumpDock(WidgetTester tester, MessageQueueDock dock) async {
     await tester.pumpWidget(
@@ -182,7 +183,7 @@ void main() {
     expect(find.byTooltip('Unavailable during AI Team'), findsOneWidget);
   });
 
-  testWidgets('edit dialog updates the text but not attachments', (
+  testWidgets('tapping the item text edits it inline without a dialog', (
     tester,
   ) async {
     String? editedId;
@@ -192,6 +193,8 @@ void main() {
       MessageQueueDock(
         items: [item('q1', 'old text', images: 2)],
         paused: false,
+        runActive: true,
+        onSendNow: (_) {},
         onEdit: (id, text) {
           editedId = id;
           editedText = text;
@@ -199,20 +202,203 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byTooltip('Edit text').first);
-    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('queue-item-text-q1')));
+    await tester.pump();
 
-    final dialogField = find.descendant(
-      of: find.byType(AlertDialog),
-      matching: find.byType(TextField),
-    );
-    expect(dialogField, findsOneWidget);
-    await tester.enterText(dialogField, 'new text');
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    final field = find.byKey(const ValueKey('queue-edit-field-q1'));
+    expect(field, findsOneWidget);
+    expect(find.byKey(const ValueKey('queue-send-now-q1')), findsNothing);
+
+    await tester.enterText(field, 'new text');
+    await tester.tap(find.byKey(const ValueKey('queue-edit-save-q1')));
+    await tester.pump();
 
     expect(editedId, 'q1');
     expect(editedText, 'new text');
+    expect(field, findsNothing);
+  });
+
+  testWidgets('the pencil opens the same inline editor, not a dialog', (
+    tester,
+  ) async {
+    await pumpDock(
+      tester,
+      MessageQueueDock(
+        items: [item('q1', 'old text')],
+        paused: false,
+        onEdit: (id, text) {},
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Edit text').first);
+    await tester.pump();
+
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byKey(const ValueKey('queue-edit-field-q1')), findsOneWidget);
+  });
+
+  testWidgets('the keyboard done action saves the inline edit', (tester) async {
+    String? editedText;
+    await pumpDock(
+      tester,
+      MessageQueueDock(
+        items: [item('q1', 'old text')],
+        paused: false,
+        onEdit: (id, text) => editedText = text,
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('queue-item-text-q1')));
+    await tester.pump();
+    final field = find.byKey(const ValueKey('queue-edit-field-q1'));
+    await tester.enterText(field, '  keyboard save  ');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+
+    expect(editedText, 'keyboard save');
+    expect(field, findsNothing);
+  });
+
+  testWidgets('Escape cancels the inline edit without saving', (tester) async {
+    var edits = 0;
+    await pumpDock(
+      tester,
+      MessageQueueDock(
+        items: [item('q1', 'old text')],
+        paused: false,
+        onEdit: (id, text) => edits++,
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('queue-item-text-q1')));
+    await tester.pump();
+    final field = find.byKey(const ValueKey('queue-edit-field-q1'));
+    await tester.enterText(field, 'discard me');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+
+    expect(edits, 0);
+    expect(field, findsNothing);
+    expect(find.text('old text'), findsOneWidget);
+  });
+
+  testWidgets('saving a blank draft keeps the original text', (tester) async {
+    var edits = 0;
+    await pumpDock(
+      tester,
+      MessageQueueDock(
+        items: [item('q1', 'old text')],
+        paused: false,
+        onEdit: (id, text) => edits++,
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('queue-item-text-q1')));
+    await tester.pump();
+    final field = find.byKey(const ValueKey('queue-edit-field-q1'));
+    await tester.enterText(field, '   ');
+    await tester.tap(find.byKey(const ValueKey('queue-edit-save-q1')));
+    await tester.pump();
+
+    expect(edits, 0);
+    expect(field, findsNothing);
+    expect(find.text('old text'), findsOneWidget);
+  });
+
+  testWidgets('the cancel button discards the draft', (tester) async {
+    var edits = 0;
+    await pumpDock(
+      tester,
+      MessageQueueDock(
+        items: [item('q1', 'old text')],
+        paused: false,
+        onEdit: (id, text) => edits++,
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('queue-item-text-q1')));
+    await tester.pump();
+    final field = find.byKey(const ValueKey('queue-edit-field-q1'));
+    await tester.enterText(field, 'discard me');
+    await tester.tap(find.byKey(const ValueKey('queue-edit-cancel-q1')));
+    await tester.pump();
+
+    expect(edits, 0);
+    expect(field, findsNothing);
+    expect(find.text('old text'), findsOneWidget);
+  });
+
+  testWidgets('hardware Enter saves the inline edit', (tester) async {
+    String? editedText;
+    await pumpDock(
+      tester,
+      MessageQueueDock(
+        items: [item('q1', 'old text')],
+        paused: false,
+        onEdit: (id, text) => editedText = text,
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('queue-item-text-q1')));
+    await tester.pump();
+    final field = find.byKey(const ValueKey('queue-edit-field-q1'));
+    await tester.enterText(field, 'enter save');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+
+    expect(editedText, 'enter save');
+    expect(field, findsNothing);
+  });
+
+  testWidgets('Shift+Enter inserts a newline instead of saving', (
+    tester,
+  ) async {
+    var edits = 0;
+    await pumpDock(
+      tester,
+      MessageQueueDock(
+        items: [item('q1', 'old text')],
+        paused: false,
+        onEdit: (id, text) => edits++,
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('queue-item-text-q1')));
+    await tester.pump();
+    final field = find.byKey(const ValueKey('queue-edit-field-q1'));
+    await tester.enterText(field, 'line one');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+
+    final textField = tester.widget<TextField>(field);
+    expect(textField.controller!.text, 'line one\n');
+    expect(edits, 0);
+    expect(field, findsOneWidget);
+  });
+
+  testWidgets('tapping outside saves the inline edit', (tester) async {
+    String? editedText;
+    await pumpDock(
+      tester,
+      MessageQueueDock(
+        items: [item('q1', 'old text')],
+        paused: false,
+        onEdit: (id, text) => editedText = text,
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('queue-item-text-q1')));
+    await tester.pump();
+    final field = find.byKey(const ValueKey('queue-edit-field-q1'));
+    await tester.enterText(field, 'tap outside');
+    await tester.tapAt(const Offset(400, 500));
+    await tester.pump();
+
+    expect(editedText, 'tap outside');
+    expect(field, findsNothing);
   });
 
   testWidgets('paused queue shows the resume banner and callback', (

@@ -6856,7 +6856,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get toolNameConsoleErrors => '读取控制台错误';
 
   @override
-  String get toolNameShellRun => '执行命令';
+  String get toolNameShellRun => '执行 Shell 命令';
 
   @override
   String get toolNameSearchWeb => '联网搜索';
@@ -6953,7 +6953,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatMessageWidgetToolImageNotSentLimit => '已达到单次请求的图片上限。';
 
   @override
-  String get toolNameShellExec => '执行命令（沙盒）';
+  String get toolNameShellExec => '执行 Shell 命令';
 
   @override
   String get settingsPageAndroidShell => 'Android Shell';
@@ -7092,6 +7092,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get queueDockEdit => '编辑文字';
 
   @override
+  String get queueDockEditSave => '保存';
+
+  @override
   String get queueDockRemove => '移除';
 
   @override
@@ -7099,6 +7102,158 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get queueDockSendFailed => '队列消息送出失败，已放回队首';
+
+  @override
+  String subagentTraceStep(String tool, String ms, String chars) {
+    return '$tool · $ms 毫秒 · $chars 字符';
+  }
+
+  @override
+  String subagentTraceMore(String count) {
+    return '（另有 $count 条）';
+  }
+
+  @override
+  String get subagentTraceTitle => '辅助代理轨迹';
+
+  @override
+  String subagentTraceSteps(String count) {
+    return '$count 步';
+  }
+
+  @override
+  String subagentTraceToolCalls(String count) {
+    return '$count 次调用';
+  }
+
+  @override
+  String subagentTraceTokens(String tokens) {
+    return '$tokens tokens';
+  }
+
+  @override
+  String get subagentTraceEmpty => '没有记录到工具调用。';
+
+  @override
+  String get subagentProfilesTitle => '子代理设定档';
+
+  @override
+  String get subagentProfilesDescription =>
+      '具名辅助代理决定 spawn_subagent 可用的工具、权限与模型。';
+
+  @override
+  String get subagentProfileNew => '新增设定档';
+
+  @override
+  String get subagentProfileEdit => '编辑设定档';
+
+  @override
+  String get subagentProfileName => '名称';
+
+  @override
+  String get subagentProfileNameHint => '例如：测试运行器';
+
+  @override
+  String get subagentProfileDescriptionLabel => '说明';
+
+  @override
+  String get subagentProfileInstructions => '指示';
+
+  @override
+  String get subagentProfileInstructionsHint => '附加到辅助代理系统提示词的指引。';
+
+  @override
+  String get subagentProfileAllowedTools => '允许的工具';
+
+  @override
+  String get subagentProfileAllowedToolsHint =>
+      '留空 = 全部子工具。只读设定档一律拒绝写入与 shell 工具。';
+
+  @override
+  String get subagentProfileReadOnly => '只读';
+
+  @override
+  String get subagentProfileReadOnlySubtitle => '即使被广告，也拒绝写入与 shell 工具。';
+
+  @override
+  String get subagentProfileModel => '模型';
+
+  @override
+  String get subagentProfileProvider => '供应商';
+
+  @override
+  String get subagentProfileFollowConversation => '跟随对话';
+
+  @override
+  String get subagentProfileMaxSteps => '最大步数';
+
+  @override
+  String get subagentProfileTokenBudget => 'Token 预算';
+
+  @override
+  String get subagentProfileDelete => '删除';
+
+  @override
+  String get subagentProfileDeleteConfirm => '删除这个设定档？';
+
+  @override
+  String get subagentProfileDuplicate => '复制';
+
+  @override
+  String get subagentProfileReset => '恢复预设';
+
+  @override
+  String get subagentProfileSave => '保存';
+
+  @override
+  String get subagentProfileCancel => '取消';
+
+  @override
+  String get subagentProfileBuiltIn => '内建';
+
+  @override
+  String get subagentProfileCustom => '自订';
+
+  @override
+  String get subagentProfileNameRequired => '请输入名称。';
+
+  @override
+  String get subagentProfileIdInvalid => 'ID 只能是小写字母、数字、- 或 _（最多 40 字）。';
+
+  @override
+  String get subagentProfileModelPair => '请同时选择供应商与模型，或选择跟随对话。';
+
+  @override
+  String get subagentProfileCustomTools => '其他工具名称';
+
+  @override
+  String get subagentProfileCustomToolsHint => '以逗号分隔；可加入 MCP 或记忆工具。';
+
+  @override
+  String get subagentProfileWriteBlocked => '只读模式会封锁此工具。';
+
+  @override
+  String get subagentProfileProviderMissing => '所选供应商已不存在，请改选其他供应商或跟随对话。';
+
+  @override
+  String get subagentProfileMaxStepsRange => '最大步数必须介于 1 到 40。';
+
+  @override
+  String get subagentProfileTokenBudgetRange => 'Token 预算必须是正整数。';
+
+  @override
+  String get subagentProfileValueTooLong => '此字段内容过长。';
+
+  @override
+  String get subagentProfileIdReserved => '此 ID 为内置 profile 保留。';
+
+  @override
+  String get subagentProfileLimitReached => '已达上限（20 个设定档）。';
+
+  @override
+  String subagentProfileToolsCount(String count) {
+    return '$count 个工具';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -13741,7 +13896,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get toolNameConsoleErrors => '读取控制台错误';
 
   @override
-  String get toolNameShellRun => '执行命令';
+  String get toolNameShellRun => '执行 Shell 命令';
 
   @override
   String get toolNameSearchWeb => '联网搜索';
@@ -13838,7 +13993,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatMessageWidgetToolImageNotSentLimit => '已达到单次请求的图片上限。';
 
   @override
-  String get toolNameShellExec => '执行命令（沙盒）';
+  String get toolNameShellExec => '执行 Shell 命令';
 
   @override
   String get settingsPageAndroidShell => 'Android Shell';
@@ -13977,6 +14132,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get queueDockEdit => '编辑文字';
 
   @override
+  String get queueDockEditSave => '保存';
+
+  @override
   String get queueDockRemove => '移除';
 
   @override
@@ -13984,6 +14142,158 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get queueDockSendFailed => '队列消息送出失败，已放回队首';
+
+  @override
+  String subagentTraceStep(String tool, String ms, String chars) {
+    return '$tool · $ms 毫秒 · $chars 字符';
+  }
+
+  @override
+  String subagentTraceMore(String count) {
+    return '（另有 $count 条）';
+  }
+
+  @override
+  String get subagentTraceTitle => '辅助代理轨迹';
+
+  @override
+  String subagentTraceSteps(String count) {
+    return '$count 步';
+  }
+
+  @override
+  String subagentTraceToolCalls(String count) {
+    return '$count 次调用';
+  }
+
+  @override
+  String subagentTraceTokens(String tokens) {
+    return '$tokens tokens';
+  }
+
+  @override
+  String get subagentTraceEmpty => '没有记录到工具调用。';
+
+  @override
+  String get subagentProfilesTitle => '子代理设定档';
+
+  @override
+  String get subagentProfilesDescription =>
+      '具名辅助代理决定 spawn_subagent 可用的工具、权限与模型。';
+
+  @override
+  String get subagentProfileNew => '新增设定档';
+
+  @override
+  String get subagentProfileEdit => '编辑设定档';
+
+  @override
+  String get subagentProfileName => '名称';
+
+  @override
+  String get subagentProfileNameHint => '例如：测试运行器';
+
+  @override
+  String get subagentProfileDescriptionLabel => '说明';
+
+  @override
+  String get subagentProfileInstructions => '指示';
+
+  @override
+  String get subagentProfileInstructionsHint => '附加到辅助代理系统提示词的指引。';
+
+  @override
+  String get subagentProfileAllowedTools => '允许的工具';
+
+  @override
+  String get subagentProfileAllowedToolsHint =>
+      '留空 = 全部子工具。只读设定档一律拒绝写入与 shell 工具。';
+
+  @override
+  String get subagentProfileReadOnly => '只读';
+
+  @override
+  String get subagentProfileReadOnlySubtitle => '即使被广告，也拒绝写入与 shell 工具。';
+
+  @override
+  String get subagentProfileModel => '模型';
+
+  @override
+  String get subagentProfileProvider => '供应商';
+
+  @override
+  String get subagentProfileFollowConversation => '跟随对话';
+
+  @override
+  String get subagentProfileMaxSteps => '最大步数';
+
+  @override
+  String get subagentProfileTokenBudget => 'Token 预算';
+
+  @override
+  String get subagentProfileDelete => '删除';
+
+  @override
+  String get subagentProfileDeleteConfirm => '删除这个设定档？';
+
+  @override
+  String get subagentProfileDuplicate => '复制';
+
+  @override
+  String get subagentProfileReset => '恢复预设';
+
+  @override
+  String get subagentProfileSave => '保存';
+
+  @override
+  String get subagentProfileCancel => '取消';
+
+  @override
+  String get subagentProfileBuiltIn => '内建';
+
+  @override
+  String get subagentProfileCustom => '自订';
+
+  @override
+  String get subagentProfileNameRequired => '请输入名称。';
+
+  @override
+  String get subagentProfileIdInvalid => 'ID 只能是小写字母、数字、- 或 _（最多 40 字）。';
+
+  @override
+  String get subagentProfileModelPair => '请同时选择供应商与模型，或选择跟随对话。';
+
+  @override
+  String get subagentProfileCustomTools => '其他工具名称';
+
+  @override
+  String get subagentProfileCustomToolsHint => '以逗号分隔；可加入 MCP 或记忆工具。';
+
+  @override
+  String get subagentProfileWriteBlocked => '只读模式会封锁此工具。';
+
+  @override
+  String get subagentProfileProviderMissing => '所选供应商已不存在，请改选其他供应商或跟随对话。';
+
+  @override
+  String get subagentProfileMaxStepsRange => '最大步数必须介于 1 到 40。';
+
+  @override
+  String get subagentProfileTokenBudgetRange => 'Token 预算必须是正整数。';
+
+  @override
+  String get subagentProfileValueTooLong => '此字段内容过长。';
+
+  @override
+  String get subagentProfileIdReserved => '此 ID 为内置 profile 保留。';
+
+  @override
+  String get subagentProfileLimitReached => '已达上限（20 个设定档）。';
+
+  @override
+  String subagentProfileToolsCount(String count) {
+    return '$count 个工具';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -20726,7 +21036,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get toolNameConsoleErrors => '讀取主控台錯誤';
 
   @override
-  String get toolNameShellRun => '執行命令';
+  String get toolNameShellRun => '執行 Shell 命令';
 
   @override
   String get toolNameSearchWeb => '聯網檢索';
@@ -20822,7 +21132,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatMessageWidgetToolImageNotSentLimit => '已達單次請求的圖片上限。';
 
   @override
-  String get toolNameShellExec => '執行命令（沙盒）';
+  String get toolNameShellExec => '執行 Shell 命令';
 
   @override
   String get settingsPageAndroidShell => 'Android Shell';
@@ -20961,6 +21271,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get queueDockEdit => '編輯文字';
 
   @override
+  String get queueDockEditSave => '儲存';
+
+  @override
   String get queueDockRemove => '移除';
 
   @override
@@ -20968,4 +21281,156 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get queueDockSendFailed => '佇列訊息送出失敗，已放回隊首';
+
+  @override
+  String subagentTraceStep(String tool, String ms, String chars) {
+    return '$tool · $ms 毫秒 · $chars 字元';
+  }
+
+  @override
+  String subagentTraceMore(String count) {
+    return '（另有 $count 筆）';
+  }
+
+  @override
+  String get subagentTraceTitle => '輔助代理軌跡';
+
+  @override
+  String subagentTraceSteps(String count) {
+    return '$count 步';
+  }
+
+  @override
+  String subagentTraceToolCalls(String count) {
+    return '$count 次呼叫';
+  }
+
+  @override
+  String subagentTraceTokens(String tokens) {
+    return '$tokens tokens';
+  }
+
+  @override
+  String get subagentTraceEmpty => '沒有記錄到工具呼叫。';
+
+  @override
+  String get subagentProfilesTitle => '子代理設定檔';
+
+  @override
+  String get subagentProfilesDescription =>
+      '具名輔助代理決定 spawn_subagent 可用的工具、權限與模型。';
+
+  @override
+  String get subagentProfileNew => '新增設定檔';
+
+  @override
+  String get subagentProfileEdit => '編輯設定檔';
+
+  @override
+  String get subagentProfileName => '名稱';
+
+  @override
+  String get subagentProfileNameHint => '例如：測試執行器';
+
+  @override
+  String get subagentProfileDescriptionLabel => '說明';
+
+  @override
+  String get subagentProfileInstructions => '指示';
+
+  @override
+  String get subagentProfileInstructionsHint => '附加到輔助代理系統提示詞的指引。';
+
+  @override
+  String get subagentProfileAllowedTools => '允許的工具';
+
+  @override
+  String get subagentProfileAllowedToolsHint =>
+      '留空 = 全部子工具。唯讀設定檔一律拒絕寫入與 shell 工具。';
+
+  @override
+  String get subagentProfileReadOnly => '唯讀';
+
+  @override
+  String get subagentProfileReadOnlySubtitle => '即使被廣告，也拒絕寫入與 shell 工具。';
+
+  @override
+  String get subagentProfileModel => '模型';
+
+  @override
+  String get subagentProfileProvider => '供應商';
+
+  @override
+  String get subagentProfileFollowConversation => '跟隨對話';
+
+  @override
+  String get subagentProfileMaxSteps => '最大步數';
+
+  @override
+  String get subagentProfileTokenBudget => 'Token 預算';
+
+  @override
+  String get subagentProfileDelete => '刪除';
+
+  @override
+  String get subagentProfileDeleteConfirm => '刪除這個設定檔？';
+
+  @override
+  String get subagentProfileDuplicate => '複製';
+
+  @override
+  String get subagentProfileReset => '回復預設';
+
+  @override
+  String get subagentProfileSave => '儲存';
+
+  @override
+  String get subagentProfileCancel => '取消';
+
+  @override
+  String get subagentProfileBuiltIn => '內建';
+
+  @override
+  String get subagentProfileCustom => '自訂';
+
+  @override
+  String get subagentProfileNameRequired => '請輸入名稱。';
+
+  @override
+  String get subagentProfileIdInvalid => 'ID 只能是小寫字母、數字、- 或 _（最多 40 字）。';
+
+  @override
+  String get subagentProfileModelPair => '請同時選擇供應商與模型，或選擇跟隨對話。';
+
+  @override
+  String get subagentProfileCustomTools => '其他工具名稱';
+
+  @override
+  String get subagentProfileCustomToolsHint => '以逗號分隔；可加入 MCP 或記憶工具。';
+
+  @override
+  String get subagentProfileWriteBlocked => '唯讀模式會封鎖此工具。';
+
+  @override
+  String get subagentProfileProviderMissing => '所選供應商已不存在，請改選其他供應商或跟隨對話。';
+
+  @override
+  String get subagentProfileMaxStepsRange => '最大步數必須介於 1 到 40。';
+
+  @override
+  String get subagentProfileTokenBudgetRange => 'Token 預算必須是正整數。';
+
+  @override
+  String get subagentProfileValueTooLong => '此欄位內容過長。';
+
+  @override
+  String get subagentProfileIdReserved => '此 ID 為內建 profile 保留。';
+
+  @override
+  String get subagentProfileLimitReached => '已達上限（20 個設定檔）。';
+
+  @override
+  String subagentProfileToolsCount(String count) {
+    return '$count 個工具';
+  }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../core/services/chat/turn_queue/send_gate.dart';
@@ -13,8 +14,8 @@ import '../../../l10n/app_localizations.dart';
 /// - rendered only for the current conversation while it has queued items;
 /// - expanded by default: the header shows the count and tapping it
 ///   collapses/expands the item list;
-/// - item actions: Send now (steer this item into the live turn), edit text,
-///   remove, move to front;
+/// - item actions: Send now (steer this item into the live turn), inline text
+///   edit (tap the preview or the pencil), remove, move to front;
 /// - when the queue is paused (Stop / repeated failures) the resume banner is
 ///   always visible, even while collapsed, so "繼續" stays reachable.
 class MessageQueueDock extends StatefulWidget {
@@ -144,9 +145,7 @@ class _MessageQueueDockState extends State<MessageQueueDock> {
                           onPressed: widget.onResume,
                           style: TextButton.styleFrom(
                             visualDensity: VisualDensity.compact,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
                           ),
                           child: Text(
                             l10n.queueDockResume,
@@ -166,6 +165,7 @@ class _MessageQueueDockState extends State<MessageQueueDock> {
                       itemBuilder: (context, index) {
                         final item = widget.items[index];
                         return _QueueDockItemRow(
+                          key: ValueKey(item.id),
                           item: item,
                           runActive: widget.runActive,
                           teamActive: widget.teamActive,
@@ -186,8 +186,9 @@ class _MessageQueueDockState extends State<MessageQueueDock> {
   }
 }
 
-class _QueueDockItemRow extends StatelessWidget {
+class _QueueDockItemRow extends StatefulWidget {
   const _QueueDockItemRow({
+    super.key,
     required this.item,
     required this.runActive,
     required this.teamActive,
@@ -206,9 +207,27 @@ class _QueueDockItemRow extends StatelessWidget {
   final ValueChanged<String>? onSendNow;
 
   @override
+  State<_QueueDockItemRow> createState() => _QueueDockItemRowState();
+}
+
+class _QueueDockItemRowState extends State<_QueueDockItemRow> {
+  final TextEditingController _controller = TextEditingController();
+  final FocusNode _editorFocus = FocusNode(debugLabel: 'queue-item-editor');
+  bool _editing = false;
+  bool _closing = false;
+
+  @override
+  void dispose() {
+    _editorFocus.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    final item = widget.item;
     final text = item.input.text.trim();
     final attachmentCount =
         item.input.imagePaths.length + item.input.documents.length;
@@ -216,13 +235,14 @@ class _QueueDockItemRow extends StatelessWidget {
     // Same gate as the composer: pure text, no slash command, live run, and
     // no AI Team. Attachments take precedence in the reason order.
     final reason = sendNowBlockReason(
-      loading: runActive,
+      loading: widget.runActive,
       text: text,
       imageCount: item.input.imagePaths.length,
       documentCount: item.input.documents.length,
-      teamActive: teamActive,
+      teamActive: widget.teamActive,
     );
-    final canSendNow = reason == SendNowBlockReason.none && onSendNow != null;
+    final canSendNow =
+        reason == SendNowBlockReason.none && widget.onSendNow != null;
     final sendNowTooltip = switch (reason) {
       SendNowBlockReason.attachments => l10n.composerSendNowAttachmentsHint,
       SendNowBlockReason.command => l10n.composerSendNowCommandHint,
@@ -234,13 +254,98 @@ class _QueueDockItemRow extends StatelessWidget {
         ? cs.primary
         : cs.onSurface.withValues(alpha: 0.3);
 
+    final row = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const SizedBox(width: 4),
+        Expanded(
+          child: _editing
+              ? _buildEditor(context)
+              : _buildPreview(cs, l10n, text, attachmentCount),
+        ),
+        if (_editing)
+          ..._buildEditorActions(context, l10n)
+        else ...[
+          if (widget.onSendNow != null)
+            IconButton(
+              key: ValueKey('queue-send-now-${item.id}'),
+              tooltip: sendNowTooltip,
+              visualDensity: VisualDensity.compact,
+              onPressed: canSendNow ? () => widget.onSendNow!(item.id) : null,
+              icon: SvgPicture.asset(
+                'assets/icons/send_now.svg',
+                width: 16,
+                height: 16,
+                colorFilter: ColorFilter.mode(sendNowColor, BlendMode.srcIn),
+              ),
+            ),
+          IconButton(
+            tooltip: l10n.queueDockPromote,
+            visualDensity: VisualDensity.compact,
+            iconSize: 16,
+            onPressed: widget.onPromote == null
+                ? null
+                : () => widget.onPromote!(item.id),
+            icon: Icon(
+              Icons.vertical_align_top,
+              color: cs.onSurface.withValues(alpha: 0.55),
+            ),
+          ),
+          IconButton(
+            tooltip: l10n.queueDockEdit,
+            visualDensity: VisualDensity.compact,
+            iconSize: 16,
+            onPressed: widget.onEdit == null ? null : _startEditing,
+            icon: Icon(
+              Icons.edit_outlined,
+              color: cs.onSurface.withValues(alpha: 0.55),
+            ),
+          ),
+          IconButton(
+            tooltip: l10n.queueDockRemove,
+            visualDensity: VisualDensity.compact,
+            iconSize: 16,
+            onPressed: widget.onRemove == null
+                ? null
+                : () => widget.onRemove!(item.id),
+            icon: Icon(
+              Icons.close,
+              color: cs.onSurface.withValues(alpha: 0.55),
+            ),
+          ),
+        ],
+      ],
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 1),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          const SizedBox(width: 4),
-          Expanded(
+      // While editing, keep taps on the save/cancel buttons inside the text
+      // field's tap region so they don't trigger an "outside" save.
+      child: _editing ? TextFieldTapRegion(child: row) : row,
+    );
+  }
+
+  Widget _buildPreview(
+    ColorScheme cs,
+    AppLocalizations l10n,
+    String text,
+    int attachmentCount,
+  ) {
+    final canEdit = widget.onEdit != null;
+    return ConstrainedBox(
+      // Keep the tap target comfortable even for a single short line.
+      constraints: const BoxConstraints(minHeight: 32),
+      child: Semantics(
+        button: canEdit ? true : null,
+        hint: canEdit ? l10n.queueDockEdit : null,
+        child: InkWell(
+          key: ValueKey('queue-item-text-${widget.item.id}'),
+          borderRadius: BorderRadius.circular(6),
+          mouseCursor: canEdit ? SystemMouseCursors.text : MouseCursor.defer,
+          onTap: canEdit ? _startEditing : null,
+          child: Container(
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
             child: text.isNotEmpty
                 ? Text(
                     text,
@@ -270,109 +375,181 @@ class _QueueDockItemRow extends StatelessWidget {
                     ],
                   ),
           ),
-          if (onSendNow != null)
-            IconButton(
-              key: ValueKey('queue-send-now-${item.id}'),
-              tooltip: sendNowTooltip,
-              visualDensity: VisualDensity.compact,
-              onPressed: canSendNow ? () => onSendNow!(item.id) : null,
-              icon: SvgPicture.asset(
-                'assets/icons/send_now.svg',
-                width: 16,
-                height: 16,
-                colorFilter: ColorFilter.mode(sendNowColor, BlendMode.srcIn),
-              ),
-            ),
-          IconButton(
-            tooltip: l10n.queueDockPromote,
-            visualDensity: VisualDensity.compact,
-            iconSize: 16,
-            onPressed: onPromote == null ? null : () => onPromote!(item.id),
-            icon: Icon(
-              Icons.vertical_align_top,
-              color: cs.onSurface.withValues(alpha: 0.55),
-            ),
-          ),
-          IconButton(
-            tooltip: l10n.queueDockEdit,
-            visualDensity: VisualDensity.compact,
-            iconSize: 16,
-            onPressed: onEdit == null ? null : () => _edit(context),
-            icon: Icon(
-              Icons.edit_outlined,
-              color: cs.onSurface.withValues(alpha: 0.55),
-            ),
-          ),
-          IconButton(
-            tooltip: l10n.queueDockRemove,
-            visualDensity: VisualDensity.compact,
-            iconSize: 16,
-            onPressed: onRemove == null ? null : () => onRemove!(item.id),
-            icon: Icon(
-              Icons.close,
-              color: cs.onSurface.withValues(alpha: 0.55),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Future<void> _edit(BuildContext context) async {
-    final save = await showDialog<String>(
-      context: context,
-      builder: (_) => _QueueItemEditDialog(initialText: item.input.text.trim()),
-    );
-    final trimmed = (save ?? '').trim();
-    if (trimmed.isEmpty) return;
-    onEdit?.call(item.id, trimmed);
-  }
-}
-
-/// Text-only edit dialog. Owns its controller so disposal follows the route
-/// lifecycle (an eagerly disposed controller breaks the exit animation).
-class _QueueItemEditDialog extends StatefulWidget {
-  const _QueueItemEditDialog({required this.initialText});
-
-  final String initialText;
-
-  @override
-  State<_QueueItemEditDialog> createState() => _QueueItemEditDialogState();
-}
-
-class _QueueItemEditDialogState extends State<_QueueItemEditDialog> {
-  late final TextEditingController _controller = TextEditingController(
-    text: widget.initialText,
-  );
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    return AlertDialog(
-      title: Text(l10n.queueDockEdit),
-      content: TextField(
+  Widget _buildEditor(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Focus(
+      onKeyEvent: _handleEditorKeyEvent,
+      child: TextField(
+        key: ValueKey('queue-edit-field-${widget.item.id}'),
         controller: _controller,
-        autofocus: true,
+        focusNode: _editorFocus,
         minLines: 1,
-        maxLines: 6,
-        decoration: const InputDecoration(border: OutlineInputBorder()),
+        maxLines: 4,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) {
+          final composing = _controller.value.composing;
+          if (composing.isValid && !composing.isCollapsed) return;
+          _commitEditing();
+        },
+        onTapOutside: (_) => _commitEditing(),
+        style: TextStyle(
+          fontSize: 12,
+          height: 1.3,
+          color: cs.onSurface.withValues(alpha: 0.9),
+        ),
+        cursorColor: cs.primary,
+        decoration: InputDecoration(
+          isDense: true,
+          filled: true,
+          fillColor: isDark
+              ? Colors.white.withValues(alpha: 0.05)
+              : Colors.black.withValues(alpha: 0.04),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 8,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: cs.outlineVariant.withValues(alpha: isDark ? 0.35 : 0.5),
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: cs.primary.withValues(alpha: 0.8),
+              width: 1.2,
+            ),
+          ),
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(_controller.text),
-          child: Text(MaterialLocalizations.of(context).okButtonLabel),
-        ),
-      ],
+    );
+  }
+
+  List<Widget> _buildEditorActions(
+    BuildContext context,
+    AppLocalizations l10n,
+  ) {
+    final cs = Theme.of(context).colorScheme;
+    return [
+      IconButton(
+        key: ValueKey('queue-edit-save-${widget.item.id}'),
+        tooltip: l10n.queueDockEditSave,
+        visualDensity: VisualDensity.compact,
+        iconSize: 18,
+        onPressed: _commitEditing,
+        icon: Icon(Icons.check, color: cs.primary),
+      ),
+      IconButton(
+        key: ValueKey('queue-edit-cancel-${widget.item.id}'),
+        tooltip: MaterialLocalizations.of(context).cancelButtonLabel,
+        visualDensity: VisualDensity.compact,
+        iconSize: 16,
+        onPressed: _cancelEditing,
+        icon: Icon(Icons.close, color: cs.onSurface.withValues(alpha: 0.55)),
+      ),
+    ];
+  }
+
+  void _startEditing() {
+    if (widget.onEdit == null) return;
+    if (_editing) {
+      _editorFocus.requestFocus();
+      return;
+    }
+    final current = widget.item.input.text.trim();
+    _controller.value = TextEditingValue(
+      text: current,
+      selection: TextSelection.collapsed(offset: current.length),
+    );
+    setState(() {
+      _editing = true;
+      _closing = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _editing) _editorFocus.requestFocus();
+    });
+  }
+
+  void _finishEditing() {
+    if (!_editing) return;
+    _closing = true;
+    setState(() => _editing = false);
+    _editorFocus.unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _closing = false;
+    });
+  }
+
+  void _commitEditing() {
+    if (!_editing || _closing) return;
+    final trimmed = _controller.text.trim();
+    final current = widget.item.input.text.trim();
+    _finishEditing();
+    if (trimmed.isEmpty || trimmed == current) return;
+    widget.onEdit?.call(widget.item.id, trimmed);
+  }
+
+  void _cancelEditing() {
+    if (!_editing || _closing) return;
+    _finishEditing();
+  }
+
+  KeyEventResult _handleEditorKeyEvent(FocusNode node, KeyEvent event) {
+    final composing = _controller.value.composing;
+    final composingActive = composing.isValid && !composing.isCollapsed;
+
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      if (event is KeyDownEvent) {
+        // Esc cancels the IME composition first when one is active.
+        if (composingActive) return KeyEventResult.ignored;
+        _cancelEditing();
+      }
+      return KeyEventResult.handled;
+    }
+
+    final isEnter =
+        event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter;
+    if (!isEnter) return KeyEventResult.ignored;
+    if (event is! KeyDownEvent) return KeyEventResult.handled;
+
+    // Let the IME own Enter while composing (Chinese/Japanese input).
+    if (composingActive) return KeyEventResult.ignored;
+    if (HardwareKeyboard.instance.isShiftPressed) {
+      _insertNewlineAtCursor();
+    } else {
+      _commitEditing();
+    }
+    return KeyEventResult.handled;
+  }
+
+  void _insertNewlineAtCursor() {
+    final value = _controller.value;
+    final selection = value.selection;
+    final text = value.text;
+    if (!selection.isValid) {
+      _controller.text = '$text\n';
+      _controller.selection = TextSelection.collapsed(
+        offset: _controller.text.length,
+      );
+      return;
+    }
+    final newText = text.replaceRange(selection.start, selection.end, '\n');
+    _controller.value = value.copyWith(
+      text: newText,
+      selection: TextSelection.collapsed(offset: selection.start + 1),
+      composing: TextRange.empty,
     );
   }
 }
