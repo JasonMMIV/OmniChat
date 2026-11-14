@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/dev/dev_preview_tools.dart';
 import '../../../core/services/file/file_tool_service.dart';
+import '../../../core/services/shell/android/android_sandbox_service.dart';
 import '../../../core/services/shell/android/android_shell_service.dart';
 import '../../../core/services/shell/shell_run_service.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -11,6 +12,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import '../tools/tool_presentation.dart';
 import '../widgets/workspace_disk_usage_card.dart';
+import 'android_shell_page.dart';
 
 /// One row of the workspace tools switchboard.
 class _WorkspaceToolEntry {
@@ -52,82 +54,234 @@ class WorkspaceToolsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Android Shell install/remove changes `shell_exec` availability. Listen
+    // to the process-wide sandbox service so returning from the install page
+    // shows the new status pill, shell permission row and shell tool row
+    // immediately (a popped route does not rebuild the page below it).
+    return ListenableBuilder(
+      listenable: AndroidSandboxService.instance,
+      builder: (context, _) {
+        final l10n = AppLocalizations.of(context)!;
+        final cs = Theme.of(context).colorScheme;
+        final settings = context.watch<SettingsProvider>();
+
+        final entries = <_WorkspaceToolEntry>[
+          // File tools in definition order — the definitions are the canonical
+          // name/description source, so the list can never drift from what the
+          // LLM is actually offered.
+          for (final def in FileToolService.getToolDefinitions())
+            _WorkspaceToolEntry.fromDefinition(def),
+          _WorkspaceToolEntry.fromDefinition(
+            DevPreviewTools.getConsoleErrorsDefinition(),
+          ),
+          if (ShellRunService.isPlatformSupported)
+            _WorkspaceToolEntry.fromDefinition(
+              ShellRunService.getToolDefinition(),
+            ),
+          if (AndroidShellService.isToolAvailable)
+            _WorkspaceToolEntry.fromDefinition(
+              AndroidShellService.getToolDefinition(),
+            ),
+        ];
+
+        return Scaffold(
+          appBar: AppBar(title: Text(l10n.workspaceToolsTitle)),
+          body: SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+              children: [
+                if (workspacePath != null &&
+                    workspacePath!.trim().isNotEmpty) ...[
+                  WorkspaceDiskUsageCard(workspacePath: workspacePath),
+                  const SizedBox(height: 12),
+                ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
+                  child: Text(
+                    l10n.workspaceToolsDescription,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: cs.onSurface.withValues(alpha: 0.62),
+                    ),
+                  ),
+                ),
+                // Android Shell used to live only in Settings, which made it
+                // undiscoverable: before installation there is no shell row
+                // anywhere on this page. Surface the install entry here, with
+                // live status, so the tool switchboard explains the missing
+                // shell instead of silently omitting it (2026-11-14).
+                if (AndroidShellService.isPlatformSupported) ...[
+                  _AndroidShellTile(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const AndroidShellPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                _sectionLabel(context, l10n.workspacePermissionsTitle),
+                _permissionRow(
+                  context,
+                  icon: Lucide.FolderOpen,
+                  title: l10n.workspaceFilesOutsideAllowAllTitle,
+                  subtitle: l10n.workspaceFilesOutsideAllowAllSubtitle,
+                  value: settings.fileOutsideWorkspaceAllowAllV1,
+                  onChanged: settings.setFileOutsideWorkspaceAllowAllV1,
+                ),
+                if (ShellRunService.isPlatformSupported ||
+                    AndroidShellService.isToolAvailable)
+                  _permissionRow(
+                    context,
+                    icon: Lucide.Terminal,
+                    title: l10n.workspaceShellAllowAllTitle,
+                    subtitle: l10n.workspaceShellAllowAllSubtitle,
+                    value: settings.shellAllowAllV1,
+                    onChanged: settings.setShellAllowAllV1,
+                  ),
+                for (final group in WorkspaceToolGroup.values)
+                  if (entries.any(
+                    (entry) => workspaceToolGroup(entry.name) == group,
+                  )) ...[
+                    _sectionHeader(
+                      context,
+                      workspaceToolGroupLabel(l10n, group),
+                      workspaceToolGroupDescription(l10n, group),
+                    ),
+                    for (final entry in entries.where(
+                      (entry) => workspaceToolGroup(entry.name) == group,
+                    ))
+                      _toolRow(context, l10n, settings, entry),
+                  ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Android PRoot shell install entry on the Tools page: always visible on
+/// Android (before installation too) with the current install state.
+class _AndroidShellTile extends StatelessWidget {
+  const _AndroidShellTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final settings = context.watch<SettingsProvider>();
+    final service = AndroidSandboxService.instance;
+    final status = service.status;
+    final installing = service.isInstalling;
 
-    final entries = <_WorkspaceToolEntry>[
-      // File tools in definition order — the definitions are the canonical
-      // name/description source, so the list can never drift from what the
-      // LLM is actually offered.
-      for (final def in FileToolService.getToolDefinitions())
-        _WorkspaceToolEntry.fromDefinition(def),
-      _WorkspaceToolEntry.fromDefinition(
-        DevPreviewTools.getConsoleErrorsDefinition(),
-      ),
-      if (ShellRunService.isPlatformSupported)
-        _WorkspaceToolEntry.fromDefinition(ShellRunService.getToolDefinition()),
-      if (AndroidShellService.isToolAvailable)
-        _WorkspaceToolEntry.fromDefinition(
-          AndroidShellService.getToolDefinition(),
-        ),
-    ];
+    // Fixed accents (instead of theme roles) so the 11px status text keeps
+    // enough contrast in both themes: #22C55E on a light tint does not.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final readyColor = isDark
+        ? const Color(0xFF22C55E)
+        : const Color(0xFF15803D);
+    final repairColor = isDark
+        ? const Color(0xFFFBBF24)
+        : const Color(0xFFB45309);
 
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.workspaceToolsTitle)),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-          children: [
-            if (workspacePath != null && workspacePath!.trim().isNotEmpty) ...[
-              WorkspaceDiskUsageCard(workspacePath: workspacePath),
-              const SizedBox(height: 12),
+    // Installed but not runnable (PRoot rejected, rootfs damaged) needs a
+    // repair, not a fresh install — the install page already offers Repair.
+    final needsRepair =
+        status.supported && status.rootfsInstalled && !status.ready;
+
+    final statusLabel = installing
+        ? l10n.androidShellStatusInstalling
+        : !status.supported
+        ? l10n.androidShellStatusUnsupported
+        : status.ready
+        ? l10n.androidShellStatusReady
+        : needsRepair
+        ? l10n.androidShellStatusNeedsRepair
+        : l10n.androidShellStatusNotInstalled;
+    final Color accent;
+    if (installing) {
+      accent = cs.primary;
+    } else if (!status.supported) {
+      accent = cs.error;
+    } else if (status.ready) {
+      accent = readyColor;
+    } else if (needsRepair) {
+      accent = repairColor;
+    } else {
+      accent = cs.primary;
+    }
+
+    return Material(
+      color: cs.surfaceContainerHighest.withValues(alpha: 0.35),
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+          child: Row(
+            children: [
+              Icon(Lucide.Terminal, size: 20, color: accent),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.androidShellTitle,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      l10n.androidShellEnvironmentSubtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.35,
+                        color: cs.onSurface.withValues(alpha: 0.55),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: accent.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: Text(
+                        statusLabel,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: accent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(
+                Lucide.ChevronRight,
+                size: 16,
+                color: cs.onSurface.withValues(alpha: 0.45),
+              ),
             ],
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
-              child: Text(
-                l10n.workspaceToolsDescription,
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.4,
-                  color: cs.onSurface.withValues(alpha: 0.62),
-                ),
-              ),
-            ),
-            _sectionLabel(context, l10n.workspacePermissionsTitle),
-            _permissionRow(
-              context,
-              icon: Lucide.FolderOpen,
-              title: l10n.workspaceFilesOutsideAllowAllTitle,
-              subtitle: l10n.workspaceFilesOutsideAllowAllSubtitle,
-              value: settings.fileOutsideWorkspaceAllowAllV1,
-              onChanged: settings.setFileOutsideWorkspaceAllowAllV1,
-            ),
-            if (ShellRunService.isPlatformSupported ||
-                AndroidShellService.isToolAvailable)
-              _permissionRow(
-                context,
-                icon: Lucide.Terminal,
-                title: l10n.workspaceShellAllowAllTitle,
-                subtitle: l10n.workspaceShellAllowAllSubtitle,
-                value: settings.shellAllowAllV1,
-                onChanged: settings.setShellAllowAllV1,
-              ),
-            for (final group in WorkspaceToolGroup.values)
-              if (entries.any(
-                (entry) => workspaceToolGroup(entry.name) == group,
-              )) ...[
-                _sectionHeader(
-                  context,
-                  workspaceToolGroupLabel(l10n, group),
-                  workspaceToolGroupDescription(l10n, group),
-                ),
-                for (final entry in entries.where(
-                  (entry) => workspaceToolGroup(entry.name) == group,
-                ))
-                  _toolRow(context, l10n, settings, entry),
-              ],
-          ],
+          ),
         ),
       ),
     );
@@ -151,6 +305,7 @@ Widget _toolRow(
   }
 
   return ListTile(
+    key: ValueKey('workspace-tool-${entry.name}'),
     contentPadding: EdgeInsets.zero,
     leading: Icon(toolIcon(entry.name), size: 20, color: cs.primary),
     title: Text(

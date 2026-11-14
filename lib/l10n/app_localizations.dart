@@ -13224,11 +13224,11 @@ abstract class AppLocalizations {
   /// **'Run shell command'**
   String get toolNameShellExec;
 
-  /// No description provided for @settingsPageAndroidShell.
+  /// No description provided for @androidShellTitle.
   ///
   /// In en, this message translates to:
   /// **'Android Shell'**
-  String get settingsPageAndroidShell;
+  String get androidShellTitle;
 
   /// No description provided for @androidShellPageTitle.
   ///
@@ -13242,17 +13242,35 @@ abstract class AppLocalizations {
   /// **'Not installed'**
   String get androidShellStatusNotInstalled;
 
+  /// No description provided for @androidShellStatusNeedsRepair.
+  ///
+  /// In en, this message translates to:
+  /// **'Repair needed'**
+  String get androidShellStatusNeedsRepair;
+
   /// No description provided for @androidShellStatusReady.
   ///
   /// In en, this message translates to:
   /// **'Ready'**
   String get androidShellStatusReady;
 
+  /// No description provided for @androidShellStatusInstalling.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing'**
+  String get androidShellStatusInstalling;
+
   /// No description provided for @androidShellStatusUnsupported.
   ///
   /// In en, this message translates to:
   /// **'Unsupported on this device'**
   String get androidShellStatusUnsupported;
+
+  /// No description provided for @androidShellEnvironmentSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'PRoot Ubuntu environment for workspace shell commands.'**
+  String get androidShellEnvironmentSubtitle;
 
   /// No description provided for @androidShellInstall.
   ///

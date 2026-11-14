@@ -6956,7 +6956,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get toolNameShellExec => '执行 Shell 命令';
 
   @override
-  String get settingsPageAndroidShell => 'Android Shell';
+  String get androidShellTitle => 'Android Shell';
 
   @override
   String get androidShellPageTitle => 'Android Shell（PRoot）';
@@ -6965,10 +6965,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get androidShellStatusNotInstalled => '尚未安装';
 
   @override
+  String get androidShellStatusNeedsRepair => '需要修复';
+
+  @override
   String get androidShellStatusReady => '就绪';
 
   @override
+  String get androidShellStatusInstalling => '安装中';
+
+  @override
   String get androidShellStatusUnsupported => '此设备不支持';
+
+  @override
+  String get androidShellEnvironmentSubtitle =>
+      '工作区 Shell 命令的 PRoot Ubuntu 环境。';
 
   @override
   String get androidShellInstall => '安装';
@@ -13999,7 +14009,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get toolNameShellExec => '执行 Shell 命令';
 
   @override
-  String get settingsPageAndroidShell => 'Android Shell';
+  String get androidShellTitle => 'Android Shell';
 
   @override
   String get androidShellPageTitle => 'Android Shell（PRoot）';
@@ -14008,10 +14018,20 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get androidShellStatusNotInstalled => '尚未安装';
 
   @override
+  String get androidShellStatusNeedsRepair => '需要修复';
+
+  @override
   String get androidShellStatusReady => '就绪';
 
   @override
+  String get androidShellStatusInstalling => '安装中';
+
+  @override
   String get androidShellStatusUnsupported => '此设备不支持';
+
+  @override
+  String get androidShellEnvironmentSubtitle =>
+      '工作区 Shell 命令的 PRoot Ubuntu 环境。';
 
   @override
   String get androidShellInstall => '安装';
@@ -21141,7 +21161,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get toolNameShellExec => '執行 Shell 命令';
 
   @override
-  String get settingsPageAndroidShell => 'Android Shell';
+  String get androidShellTitle => 'Android Shell';
 
   @override
   String get androidShellPageTitle => 'Android Shell（PRoot）';
@@ -21150,10 +21170,20 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get androidShellStatusNotInstalled => '尚未安裝';
 
   @override
+  String get androidShellStatusNeedsRepair => '需要修復';
+
+  @override
   String get androidShellStatusReady => '就緒';
 
   @override
+  String get androidShellStatusInstalling => '安裝中';
+
+  @override
   String get androidShellStatusUnsupported => '此裝置不支援';
+
+  @override
+  String get androidShellEnvironmentSubtitle =>
+      '工作區 Shell 命令的 PRoot Ubuntu 環境。';
 
   @override
   String get androidShellInstall => '安裝';

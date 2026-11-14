@@ -188,6 +188,13 @@ class AndroidSandboxService extends ChangeNotifier {
   String? get lastError => _lastError;
   Stream<AndroidSandboxProgress> get progress => _progressController.stream;
 
+  /// Test seam: render install states without a native probe/channel.
+  @visibleForTesting
+  void debugSetStatus(AndroidSandboxStatus status) {
+    _status = status;
+    notifyListeners();
+  }
+
   static int parseTimeoutSeconds(Object? raw) {
     final value = raw is num ? raw : int.tryParse(raw?.toString().trim() ?? '');
     if (value == null || !value.isFinite) return defaultTimeoutSeconds;

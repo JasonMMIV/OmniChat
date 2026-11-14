@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:OmniChat/core/models/workspace_config.dart';
 import 'package:OmniChat/core/providers/settings_provider.dart';
+import 'package:OmniChat/core/services/shell/android/android_sandbox_service.dart';
+import 'package:OmniChat/core/services/shell/android/android_shell_service.dart';
 import 'package:OmniChat/features/chat/pages/workspace_tools_page.dart';
 import 'package:OmniChat/features/home/services/tool_handler_service.dart';
 import 'package:OmniChat/icons/lucide_adapter.dart';
@@ -30,6 +32,44 @@ class _ToggleSettingsProvider extends ChangeNotifier
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// Pumps the workspace tools page with the shared test scaffolding: a phone
+/// sized viewport, mock storage and an English locale.
+Future<void> _pumpWorkspaceToolsPage(WidgetTester tester) async {
+  tester.view.physicalSize = const Size(420, 2600);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+
+  FlutterSecureStorage.setMockInitialValues({});
+  SharedPreferences.setMockInitialValues({});
+  final settings = SettingsProvider();
+  addTearDown(settings.dispose);
+  await tester.pumpAndSettle(const Duration(milliseconds: 50));
+
+  await tester.pumpWidget(
+    ChangeNotifierProvider<SettingsProvider>.value(
+      value: settings,
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('en'),
+        home: const WorkspaceToolsPage(),
+      ),
+    ),
+  );
+  await tester.pump();
+}
+
+/// Forces Android Shell on and restores the process-wide status afterwards.
+void _useAndroidShellStatus(AndroidSandboxStatus status) {
+  final originalStatus = AndroidSandboxService.instance.status;
+  AndroidShellService.debugPlatformSupported = true;
+  addTearDown(() {
+    AndroidShellService.debugPlatformSupported = null;
+    AndroidSandboxService.instance.debugSetStatus(originalStatus);
+  });
+  AndroidSandboxService.instance.debugSetStatus(status);
 }
 
 void main() {
@@ -241,28 +281,7 @@ void main() {
     testWidgets('shows localized names and group headers without raw ids', (
       tester,
     ) async {
-      tester.view.physicalSize = const Size(420, 2600);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      FlutterSecureStorage.setMockInitialValues({});
-      SharedPreferences.setMockInitialValues({});
-      final settings = SettingsProvider();
-      addTearDown(settings.dispose);
-      await tester.pumpAndSettle(const Duration(milliseconds: 50));
-
-      await tester.pumpWidget(
-        ChangeNotifierProvider<SettingsProvider>.value(
-          value: settings,
-          child: MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            locale: const Locale('en'),
-            home: const WorkspaceToolsPage(),
-          ),
-        ),
-      );
-      await tester.pump();
+      await _pumpWorkspaceToolsPage(tester);
 
       // Section labels are uppercased by the page.
       expect(find.text('READ & INSPECT'), findsOneWidget);
@@ -274,7 +293,7 @@ void main() {
       expect(find.text('Search contents'), findsOneWidget);
       expect(find.text('Apply patch'), findsOneWidget);
       expect(find.textContaining('file_patch'), findsNothing);
-      expect(find.text('Run command'), findsOneWidget);
+      expect(find.text('Run shell command'), findsOneWidget);
       expect(find.text('shell_run'), findsNothing);
 
       // Tool icons use the theme accent, matching the permission rows above
@@ -284,6 +303,129 @@ void main() {
           .primary;
       final icon = tester.widget<Icon>(find.byIcon(Lucide.FileText).first);
       expect(icon.color, primary);
+    });
+
+    testWidgets('Android Shell entry shows status before installation', (
+      tester,
+    ) async {
+      _useAndroidShellStatus(
+        const AndroidSandboxStatus(
+          supported: true,
+          ready: false,
+          rootfsInstalled: false,
+        ),
+      );
+
+      await _pumpWorkspaceToolsPage(tester);
+
+      expect(find.text('Android Shell'), findsOneWidget);
+      expect(find.text('Not installed'), findsOneWidget);
+
+      await tester.tap(find.text('Android Shell'));
+      await tester.pumpAndSettle();
+      expect(find.text('Android Shell (PRoot)'), findsOneWidget);
+    });
+
+    testWidgets(
+      'Android Shell entry shows Ready and shell rows when installed',
+      (tester) async {
+        _useAndroidShellStatus(
+          const AndroidSandboxStatus(
+            supported: true,
+            ready: true,
+            rootfsInstalled: true,
+          ),
+        );
+
+        await _pumpWorkspaceToolsPage(tester);
+
+        expect(find.text('Ready'), findsOneWidget);
+        expect(AndroidShellService.isToolAvailable, isTrue);
+        expect(
+          find.byKey(const ValueKey('workspace-tool-shell_exec')),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'Android Shell entry reports a broken install as repair needed',
+      (tester) async {
+        _useAndroidShellStatus(
+          const AndroidSandboxStatus(
+            supported: true,
+            ready: false,
+            rootfsInstalled: true,
+          ),
+        );
+
+        await _pumpWorkspaceToolsPage(tester);
+
+        expect(find.text('Repair needed'), findsOneWidget);
+        expect(find.text('Not installed'), findsNothing);
+        // Installed but not runnable: the shell tool stays hidden.
+        expect(AndroidShellService.isToolAvailable, isFalse);
+        expect(
+          find.byKey(const ValueKey('workspace-tool-shell_exec')),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets(
+      'Android Shell entry updates live when installation completes',
+      (tester) async {
+        _useAndroidShellStatus(
+          const AndroidSandboxStatus(
+            supported: true,
+            ready: false,
+            rootfsInstalled: false,
+          ),
+        );
+
+        await _pumpWorkspaceToolsPage(tester);
+
+        expect(find.text('Not installed'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('workspace-tool-shell_exec')),
+          findsNothing,
+        );
+        expect(AndroidShellService.isToolAvailable, isFalse);
+
+        // The install page runs on top of this page; completion only notifies
+        // the service, so the page below must rebuild from that notification.
+        AndroidSandboxService.instance.debugSetStatus(
+          const AndroidSandboxStatus(
+            supported: true,
+            ready: true,
+            rootfsInstalled: true,
+          ),
+        );
+        await tester.pump();
+
+        expect(find.text('Ready'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('workspace-tool-shell_exec')),
+          findsOneWidget,
+        );
+        expect(AndroidShellService.isToolAvailable, isTrue);
+      },
+    );
+
+    testWidgets('Android Shell entry reports unsupported devices', (
+      tester,
+    ) async {
+      _useAndroidShellStatus(
+        const AndroidSandboxStatus(
+          supported: false,
+          ready: false,
+          rootfsInstalled: false,
+        ),
+      );
+
+      await _pumpWorkspaceToolsPage(tester);
+
+      expect(find.text('Unsupported on this device'), findsOneWidget);
     });
   });
 }

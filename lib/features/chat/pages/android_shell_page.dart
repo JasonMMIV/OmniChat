@@ -207,7 +207,7 @@ class _AndroidShellPageState extends State<AndroidShellPage> {
             )
           else
             _ActionCard(
-              ready: status.ready,
+              installed: status.rootfsInstalled,
               installing: installing,
               onInstall: _install,
               onCancel: _cancelInstall,
@@ -272,18 +272,33 @@ class _StatusCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final ready = status.ready;
+    final needsRepair =
+        status.supported && status.rootfsInstalled && !status.ready;
     final title = installing
         ? l10n.androidShellInstalling
         : ready
         ? l10n.androidShellStatusReady
-        : status.supported
-        ? l10n.androidShellStatusNotInstalled
-        : l10n.androidShellStatusUnsupported;
-    final Color accent = ready
+        : !status.supported
+        ? l10n.androidShellStatusUnsupported
+        : needsRepair
+        ? l10n.androidShellStatusNeedsRepair
+        : l10n.androidShellStatusNotInstalled;
+    // Match the Tools-page tile: light-theme accents are darkened so the
+    // status color stays legible on light surfaces.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final readyColor = isDark
         ? const Color(0xFF22C55E)
-        : status.supported
-        ? cs.primary
-        : cs.error;
+        : const Color(0xFF15803D);
+    final repairColor = isDark
+        ? const Color(0xFFFBBF24)
+        : const Color(0xFFB45309);
+    final Color accent = ready
+        ? readyColor
+        : !status.supported
+        ? cs.error
+        : needsRepair
+        ? repairColor
+        : cs.primary;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -410,14 +425,14 @@ class _MetricRow extends StatelessWidget {
 
 class _ActionCard extends StatelessWidget {
   const _ActionCard({
-    required this.ready,
+    required this.installed,
     required this.installing,
     required this.onInstall,
     required this.onCancel,
     required this.onRemove,
   });
 
-  final bool ready;
+  final bool installed;
   final bool installing;
   final VoidCallback onInstall;
   final VoidCallback onCancel;
@@ -440,12 +455,15 @@ class _ActionCard extends StatelessWidget {
         else
           FilledButton.icon(
             onPressed: onInstall,
-            icon: Icon(ready ? Lucide.RefreshCw : Lucide.Download, size: 16),
+            icon: Icon(
+              installed ? Lucide.RefreshCw : Lucide.Download,
+              size: 16,
+            ),
             label: Text(
-              ready ? l10n.androidShellRepair : l10n.androidShellInstall,
+              installed ? l10n.androidShellRepair : l10n.androidShellInstall,
             ),
           ),
-        if (ready && !installing)
+        if (installed && !installing)
           OutlinedButton.icon(
             onPressed: onRemove,
             icon: const Icon(Lucide.Trash2, size: 16),

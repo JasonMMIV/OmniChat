@@ -7116,7 +7116,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get toolNameShellExec => 'Run shell command';
 
   @override
-  String get settingsPageAndroidShell => 'Android Shell';
+  String get androidShellTitle => 'Android Shell';
 
   @override
   String get androidShellPageTitle => 'Android Shell (PRoot)';
@@ -7125,10 +7125,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get androidShellStatusNotInstalled => 'Not installed';
 
   @override
+  String get androidShellStatusNeedsRepair => 'Repair needed';
+
+  @override
   String get androidShellStatusReady => 'Ready';
 
   @override
+  String get androidShellStatusInstalling => 'Installing';
+
+  @override
   String get androidShellStatusUnsupported => 'Unsupported on this device';
+
+  @override
+  String get androidShellEnvironmentSubtitle =>
+      'PRoot Ubuntu environment for workspace shell commands.';
 
   @override
   String get androidShellInstall => 'Install';
