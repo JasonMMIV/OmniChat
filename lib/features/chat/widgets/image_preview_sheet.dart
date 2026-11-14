@@ -13,6 +13,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../utils/clipboard_images.dart';
+import '../../../utils/platform_utils.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import 'dart:ui' as ui;
 
@@ -22,7 +23,7 @@ Future<void> showImagePreviewSheet(
   File? previewFile,
 }) async {
   // On desktop platforms, show a custom dialog instead of bottom sheet
-  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+  if (PlatformUtils.isDesktopTarget) {
     await showDialog<void>(
       context: context,
       barrierDismissible: true,
@@ -38,6 +39,10 @@ Future<void> showImagePreviewSheet(
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    // The preview handles its own vertical gestures (pinch/pan). The route's
+    // drag detector would otherwise steal single-finger pans from the
+    // InteractiveViewer. The sheet is still draggable via its handle.
+    enableDrag: false,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -424,13 +429,43 @@ class _DesktopIconButtonState extends State<_DesktopIconButton> {
 }
 
 class _ImagePreviewSheetState extends State<_ImagePreviewSheet> {
-  final DraggableScrollableController _ctrl = DraggableScrollableController();
+  final TransformationController _zoomCtrl = TransformationController();
   bool _saving = false;
+  double _dragDy = 0;
+  bool _draggingSheet = false;
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _zoomCtrl.dispose();
     super.dispose();
+  }
+
+  void _onHandleDragStart(DragStartDetails details) {
+    setState(() => _draggingSheet = true);
+  }
+
+  void _onHandleDragUpdate(DragUpdateDetails details) {
+    final next = _dragDy + details.delta.dy;
+    setState(() => _dragDy = next < 0 ? 0 : next);
+  }
+
+  void _onHandleDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (_dragDy > 80 || velocity > 700) {
+      Navigator.of(context).maybePop();
+      return;
+    }
+    setState(() {
+      _draggingSheet = false;
+      _dragDy = 0;
+    });
+  }
+
+  void _onHandleDragCancel() {
+    setState(() {
+      _draggingSheet = false;
+      _dragDy = 0;
+    });
   }
 
   Rect _shareAnchorRect(BuildContext context) {
@@ -516,144 +551,184 @@ class _ImagePreviewSheetState extends State<_ImagePreviewSheet> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    return DraggableScrollableSheet(
-      controller: _ctrl,
-      expand: false,
-      initialChildSize: 0.8,
-      maxChildSize: 0.8,
-      minChildSize: 0.4,
-      builder: (c, sc) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        child: Stack(
-          children: [
-            // Scrollable image preview
-            Positioned.fill(
-              child: Column(
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: cs.onSurface.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        return SingleChildScrollView(
-                          controller: sc,
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Card(
-                                  elevation: 0,
-                                  color: cs.surface,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                    side: BorderSide(color: cs.outline.withOpacity(0.08)),
-                                  ),
-                                  clipBehavior: Clip.antiAlias,
-                                  child: Image.file(
-                                    widget.previewFile ?? widget.file,
-                                    fit: BoxFit.contain,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Fixed 80%-height sheet. The visible height shrinks while the handle
+        // is dragged, while the content keeps its layout, so it reads as the
+        // sheet sliding down (and can be dismissed by dragging far enough).
+        final sheetHeight = constraints.maxHeight * 0.8;
+        final visibleHeight = (sheetHeight - _dragDy).clamp(0.0, sheetHeight);
+        return AnimatedContainer(
+          duration: _draggingSheet
+              ? Duration.zero
+              : const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          height: visibleHeight,
+          child: ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.topCenter,
+              minHeight: 0,
+              maxHeight: sheetHeight,
+              child: SizedBox(
+                height: sheetHeight,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: Stack(
+                    children: [
+                      // Zoomable image preview
+                      Positioned.fill(
+                        child: Column(
+                          children: [
+                            GestureDetector(
+                              key: const ValueKey('image-preview-sheet-handle'),
+                              behavior: HitTestBehavior.opaque,
+                              onVerticalDragStart: _onHandleDragStart,
+                              onVerticalDragUpdate: _onHandleDragUpdate,
+                              onVerticalDragEnd: _onHandleDragEnd,
+                              onVerticalDragCancel: _onHandleDragCancel,
+                              child: SizedBox(
+                                height: 24,
+                                child: Center(
+                                  child: Container(
+                                    width: 40,
+                                    height: 4,
+                                    decoration: BoxDecoration(
+                                      color: cs.onSurface.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
                                   ),
                                 ),
-                                const SizedBox(height: 80), // leave space for action bar overlap, outside the card
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Bottom action bar
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: SafeArea(
-                top: false,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: cs.surface,
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 16, offset: const Offset(0, -2)),
-                    ],
-                  ),
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                  child: Row(
-                    children: [
-                      // Left small square share button (no ripple)
-                      Builder(
-                        builder: (btnCtx) => SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: IosCardPress(
-                            onTap: () => _onShare(btnCtx),
-                            borderRadius: BorderRadius.circular(12),
-                            baseColor: cs.surface,
-                            pressedBlendStrength: Theme.of(context).brightness == Brightness.dark ? 0.14 : 0.10,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: cs.outline.withOpacity(0.25)),
-                              ),
-                              child: Center(
-                                child: Icon(Lucide.MoreVertical, color: cs.onSurface.withOpacity(0.9)),
                               ),
                             ),
-                          ),
+                            const SizedBox(height: 2),
+                            Expanded(
+                              child: Padding(
+                                // Keep the bottom action bar from covering the image.
+                                padding: const EdgeInsets.only(bottom: 80),
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final viewportWidth = constraints.maxWidth;
+                                    final viewportHeight = constraints.maxHeight;
+                                    return Card(
+                                      elevation: 0,
+                                      color: cs.surface,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        side: BorderSide(color: cs.outline.withOpacity(0.08)),
+                                      ),
+                                      clipBehavior: Clip.antiAlias,
+                                      child: InteractiveViewer(
+                                        transformationController: _zoomCtrl,
+                                        minScale: 1.0,
+                                        maxScale: 5.0,
+                                        constrained: false,
+                                        child: ConstrainedBox(
+                                          constraints: BoxConstraints(
+                                            minWidth: viewportWidth,
+                                            minHeight: viewportHeight,
+                                          ),
+                                          child: Center(
+                                            child: Image.file(
+                                              widget.previewFile ?? widget.file,
+                                              width: viewportWidth,
+                                              fit: BoxFit.fitWidth,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      // Right main save button (no ripple)
-                      Expanded(
-                        child: SizedBox(
-                          height: 48,
-                          child: IosCardPress(
-                            onTap: _saving ? null : _onSave,
-                            borderRadius: BorderRadius.circular(12),
-                            baseColor: cs.primary,
-                            pressedBlendStrength: Theme.of(context).brightness == Brightness.dark ? 0.14 : 0.12,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.transparent,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Center(
-                                child: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 180),
-                                  child: _saving
-                                      ? const SizedBox(
-                                          key: ValueKey('saving'),
-                                          width: 18,
-                                          height: 18,
-                                          child: CupertinoActivityIndicator(radius: 9),
-                                        )
-                                      : Row(
-                                          key: const ValueKey('ready'),
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(Lucide.Download, color: cs.onPrimary),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              l10n.imagePreviewSheetSaveImage,
-                                              style: TextStyle(color: cs.onPrimary, fontWeight: FontWeight.w600),
-                                            ),
-                                          ],
+
+                      // Bottom action bar
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: SafeArea(
+                          top: false,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: cs.surface,
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: [
+                                BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 16, offset: const Offset(0, -2)),
+                              ],
+                            ),
+                            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                            child: Row(
+                              children: [
+                                // Left small square share button (no ripple)
+                                Builder(
+                                  builder: (btnCtx) => SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: IosCardPress(
+                                      onTap: () => _onShare(btnCtx),
+                                      borderRadius: BorderRadius.circular(12),
+                                      baseColor: cs.surface,
+                                      pressedBlendStrength: Theme.of(context).brightness == Brightness.dark ? 0.14 : 0.10,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: cs.outline.withOpacity(0.25)),
                                         ),
+                                        child: Center(
+                                          child: Icon(Lucide.MoreVertical, color: cs.onSurface.withOpacity(0.9)),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(width: 12),
+                                // Right main save button (no ripple)
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 48,
+                                    child: IosCardPress(
+                                      onTap: _saving ? null : _onSave,
+                                      borderRadius: BorderRadius.circular(12),
+                                      baseColor: cs.primary,
+                                      pressedBlendStrength: Theme.of(context).brightness == Brightness.dark ? 0.14 : 0.12,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.transparent,
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Center(
+                                          child: AnimatedSwitcher(
+                                            duration: const Duration(milliseconds: 180),
+                                            child: _saving
+                                                ? const SizedBox(
+                                                    key: ValueKey('saving'),
+                                                    width: 18,
+                                                    height: 18,
+                                                    child: CupertinoActivityIndicator(radius: 9),
+                                                  )
+                                                : Row(
+                                                    key: const ValueKey('ready'),
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(Lucide.Download, color: cs.onPrimary),
+                                                      const SizedBox(width: 8),
+                                                      Text(
+                                                        l10n.imagePreviewSheetSaveImage,
+                                                        style: TextStyle(color: cs.onPrimary, fontWeight: FontWeight.w600),
+                                                      ),
+                                                    ],
+                                                  ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -663,9 +738,9 @@ class _ImagePreviewSheetState extends State<_ImagePreviewSheet> {
                 ),
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
