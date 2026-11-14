@@ -17,6 +17,10 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import '../../../shared/widgets/subagent_profile_icon.dart';
 
+/// Heuristic: let a sheet/popover pop animation clear before opening the next
+/// surface or handing focus back to the composer.
+const _menuCloseSettleDelay = Duration(milliseconds: 80);
+
 /// Mobile entry: the Add-ons bottom sheet behind the composer button
 /// (desktop uses `showAddonsPopover` instead — no bottom sheets there).
 ///
@@ -98,7 +102,8 @@ class _AddonsSheetBody extends StatelessWidget {
 /// they start an isolated helper run rather than a single primitive tool call.
 /// Hosted by the mobile bottom sheet and the desktop popover alike. Kept
 /// compact so it reads like the other composer menus (2026-11-10 Windows
-/// feedback pass).
+/// feedback pass). The Subagents row opens a separate picker (toggle +
+/// profiles) instead of expanding inline.
 class AddonsMenuContent extends StatefulWidget {
   const AddonsMenuContent({
     super.key,
@@ -112,7 +117,7 @@ class AddonsMenuContent extends StatefulWidget {
   final String? assistantId;
 
   /// Closes the hosting sheet/popover before the menu navigates elsewhere
-  /// (the Self-Review picker).
+  /// (the Self-Review or subagent picker).
   final Future<void> Function()? onRequestClose;
 
   /// Inserts `@<profileId>` into the composer after the menu closes.
@@ -126,7 +131,6 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
   bool _mcpExpanded = true;
   bool _builtInExpanded = true;
   bool _advancedExpanded = true;
-  bool _subagentExpanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -169,7 +173,7 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
               : '$selectedCount/${connected.length}',
           children: [
             if (connected.isEmpty)
-              _hintRow(l10n.assistantEditMcpNoServersMessage)
+              _hintRow(context, l10n.assistantEditMcpNoServersMessage)
             else
               for (final s in connected)
                 _MenuRow(
@@ -269,54 +273,13 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
                       : cs.onSurface.withOpacity(0.6),
                 ),
               ),
-              trailing: AnimatedRotation(
-                turns: _subagentExpanded ? 0.25 : 0,
-                duration: const Duration(milliseconds: 160),
-                child: Icon(
-                  Lucide.ChevronRight,
-                  size: 14,
-                  color: cs.onSurface.withOpacity(0.55),
-                ),
+              trailing: Icon(
+                Lucide.ChevronRight,
+                size: 14,
+                color: cs.onSurface.withOpacity(0.55),
               ),
-              onTap: () =>
-                  setState(() => _subagentExpanded = !_subagentExpanded),
+              onTap: _showSubagentMenu,
             ),
-            if (_subagentExpanded) ...[
-              _MenuRow(
-                leading: Icon(
-                  Lucide.toggleRight,
-                  size: 16,
-                  color: subagentOn ? cs.primary : cs.onSurface,
-                ),
-                title: l10n.addonsSubagentEnable,
-                onTap: () => _setSubagent(!subagentOn),
-                trailing: IosSwitch(
-                  value: subagentOn,
-                  width: 38,
-                  height: 22,
-                  hitTestSize: 44,
-                  onChanged: _setSubagent,
-                ),
-              ),
-              if (!subagentOn) _hintRow(l10n.addonsSubagentPickHint),
-              for (final profile in subagentProfiles)
-                _MenuRow(
-                  leading: SubagentProfileIcon(
-                    profile: profile,
-                    size: 16,
-                    color: cs.onSurface,
-                  ),
-                  title: profile.name,
-                  subtitle: _subagentProfileSubtitle(l10n, profile),
-                  trailing: Icon(
-                    Lucide.ChevronRight,
-                    size: 14,
-                    color: cs.onSurface.withOpacity(0.55),
-                  ),
-                  enabled: subagentOn,
-                  onTap: () => _pickSubagentProfile(profile.id),
-                ),
-            ],
             _MenuRow(
               leading: Icon(
                 Lucide.ScanSearch,
@@ -431,17 +394,6 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
     );
   }
 
-  Widget _hintRow(String text) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-      child: Text(
-        text,
-        style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.55)),
-      ),
-    );
-  }
-
   /// The original OmniChat MCP tools-count pill (formerly in the assistant
   /// MCP sheet): tinted primary fill + hairline border.
   Widget _toolsCountTag(String text) {
@@ -486,35 +438,25 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
     );
   }
 
-  Future<void> _setSubagent(bool v) {
-    return context.read<SettingsProvider>().setWorkspaceToolEnabled(
-      spawnSubagentToolName,
-      v,
-    );
-  }
-
-  String _subagentProfileSubtitle(
-    AppLocalizations l10n,
-    SubagentProfile profile,
-  ) {
-    final toolCount = profile.allowedTools?.length;
-    return [
-      profile.id,
-      if (profile.readOnly) l10n.subagentProfileReadOnly,
-      if (toolCount != null)
-        l10n.subagentProfileToolsCount(toolCount.toString()),
-      profile.followsConversationModel
-          ? l10n.subagentProfileFollowConversation
-          : '${profile.providerKey} / ${profile.modelId}',
-    ].join(' · ');
-  }
-
-  Future<void> _pickSubagentProfile(String profileId) async {
+  Future<void> _showSubagentMenu() async {
+    final isDesktop =
+        defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux;
+    // Close the hosting menu first: the desktop popover lives in an
+    // OverlayEntry above the navigator, so a dialog opened while it is still
+    // inserted would appear behind the panel (same pattern as Self-Review).
+    final navigator = Navigator.of(context);
+    final sp = context.read<SettingsProvider>();
+    final onDelegateProfile = widget.onDelegateProfile;
     await widget.onRequestClose?.call();
-    // Mobile sheets pop without awaiting the route animation; let it clear so
-    // the composer can take focus and the keyboard opens over it.
-    await Future<void>.delayed(const Duration(milliseconds: 80));
-    widget.onDelegateProfile?.call(profileId);
+    await Future<void>.delayed(_menuCloseSettleDelay);
+    if (!navigator.mounted) return;
+    if (isDesktop) {
+      await _showSubagentMenuDialog(navigator.context, sp, onDelegateProfile);
+    } else {
+      await _showSubagentMenuSheet(navigator.context, sp, onDelegateProfile);
+    }
   }
 
   Future<void> _toggleServer(String serverId, bool selected) async {
@@ -557,7 +499,7 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
     final navigator = Navigator.of(context);
     final sp = context.read<SettingsProvider>();
     await widget.onRequestClose?.call();
-    await Future<void>.delayed(const Duration(milliseconds: 80));
+    await Future<void>.delayed(_menuCloseSettleDelay);
     if (!navigator.mounted) return;
     if (isDesktop) {
       await _showSelfReviewModeDialog(navigator.context, sp);
@@ -780,6 +722,187 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
       color: cs.outlineVariant.withOpacity(0.18),
     );
   }
+}
+
+Widget _hintRow(BuildContext context, String text) {
+  final cs = Theme.of(context).colorScheme;
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+    child: Text(
+      text,
+      style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.55)),
+    ),
+  );
+}
+
+/// The subagent picker opened from the Add-ons row.
+///
+/// Kept separate from [AddonsMenuContent] so the Add-ons menu stays a compact
+/// list of features; the helper toggle and profile list live one level deeper,
+/// mirroring the Self-Review picker.
+class _SubagentMenuContent extends StatelessWidget {
+  const _SubagentMenuContent({
+    required this.settings,
+    required this.onPickProfile,
+  });
+
+  final SettingsProvider settings;
+  final ValueChanged<String> onPickProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    return ListenableBuilder(
+      listenable: settings,
+      builder: (context, _) {
+        final enabled = settings.isWorkspaceToolEnabled(spawnSubagentToolName);
+        final profiles = settings.subagentProfiles;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                child: Text(
+                  l10n.builtInToolSubagentName,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              _MenuRow(
+                leading: Icon(
+                  Lucide.toggleRight,
+                  size: 16,
+                  color: enabled ? cs.primary : cs.onSurface,
+                ),
+                title: l10n.addonsSubagentEnable,
+                onTap: () => settings.setWorkspaceToolEnabled(
+                  spawnSubagentToolName,
+                  !enabled,
+                ),
+                trailing: IosSwitch(
+                  value: enabled,
+                  width: 38,
+                  height: 22,
+                  hitTestSize: 44,
+                  onChanged: (v) => settings.setWorkspaceToolEnabled(
+                    spawnSubagentToolName,
+                    v,
+                  ),
+                ),
+              ),
+              if (!enabled) _hintRow(context, l10n.addonsSubagentPickHint),
+              for (final profile in profiles)
+                _MenuRow(
+                  leading: SubagentProfileIcon(
+                    profile: profile,
+                    size: 16,
+                    color: cs.onSurface,
+                  ),
+                  title: profile.name,
+                  subtitle: _subagentProfileSubtitle(l10n, profile),
+                  trailing: Icon(
+                    Lucide.ChevronRight,
+                    size: 14,
+                    color: cs.onSurface.withOpacity(0.55),
+                  ),
+                  enabled: enabled,
+                  onTap: () => onPickProfile(profile.id),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+String _subagentProfileSubtitle(
+  AppLocalizations l10n,
+  SubagentProfile profile,
+) {
+  final toolCount = profile.allowedTools?.length;
+  return [
+    profile.id,
+    if (profile.readOnly) l10n.subagentProfileReadOnly,
+    if (toolCount != null) l10n.subagentProfileToolsCount(toolCount.toString()),
+    profile.followsConversationModel
+        ? l10n.subagentProfileFollowConversation
+        : '${profile.providerKey} / ${profile.modelId}',
+  ].join(' · ');
+}
+
+Future<void> _showSubagentMenuSheet(
+  BuildContext context,
+  SettingsProvider sp,
+  ValueChanged<String>? onDelegateProfile,
+) async {
+  final cs = Theme.of(context).colorScheme;
+  final maxHeight = MediaQuery.of(context).size.height * 0.75;
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: cs.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (ctx) => SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: SingleChildScrollView(
+          child: _SubagentMenuContent(
+            settings: sp,
+            onPickProfile: (profileId) async {
+              Navigator.of(ctx).pop();
+              await Future<void>.delayed(_menuCloseSettleDelay);
+              onDelegateProfile?.call(profileId);
+            },
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+Future<void> _showSubagentMenuDialog(
+  BuildContext context,
+  SettingsProvider sp,
+  ValueChanged<String>? onDelegateProfile,
+) async {
+  final screen = MediaQuery.of(context).size;
+  final cs = Theme.of(context).colorScheme;
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) => Dialog(
+      backgroundColor: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 420,
+          maxHeight: screen.height * 0.7,
+        ),
+        child: Material(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(18),
+          clipBehavior: Clip.antiAlias,
+          child: SingleChildScrollView(
+            child: _SubagentMenuContent(
+              settings: sp,
+              onPickProfile: (profileId) async {
+                Navigator.of(ctx).pop();
+                await Future<void>.delayed(_menuCloseSettleDelay);
+                onDelegateProfile?.call(profileId);
+              },
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 /// One compact menu row: leading icon, title, optional subtitle, optional
