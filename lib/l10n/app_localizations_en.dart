@@ -3467,7 +3467,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get displaySettingsPageAnswerReviewDescription =>
-      'Self-review the draft before the final answer is sent and fix major issues once';
+      'Self-review and revise before the final answer is sent';
 
   @override
   String get displaySettingsPageAnswerReviewOptionOff => 'Off';

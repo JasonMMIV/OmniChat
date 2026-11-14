@@ -6516,7 +6516,7 @@ abstract class AppLocalizations {
   /// No description provided for @displaySettingsPageAnswerReviewDescription.
   ///
   /// In en, this message translates to:
-  /// **'Self-review the draft before the final answer is sent and fix major issues once'**
+  /// **'Self-review and revise before the final answer is sent'**
   String get displaySettingsPageAnswerReviewDescription;
 
   /// No description provided for @displaySettingsPageAnswerReviewOptionOff.

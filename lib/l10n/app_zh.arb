@@ -1253,7 +1253,7 @@
   "displaySettingsPageSendToolImagesTitle": "发送工具结果图片",
   "displaySettingsPageReplayToolResultsSubtitle": "将上一轮的工具调用与结果随历史一并发送给模型，让模型记住工具执行结果",
   "displaySettingsPageAnswerReviewTitle": "自我审查",
-  "displaySettingsPageAnswerReviewDescription": "在最终回答送出前自我审查草稿；发现重大问题时自动修正一次",
+  "displaySettingsPageAnswerReviewDescription": "在最终回答送出前自我审查并修正",
   "displaySettingsPageAnswerReviewOptionOff": "关闭",
   "displaySettingsPageAnswerReviewOptionSmart": "智能",
   "displaySettingsPageAnswerReviewOptionAlways": "每次",

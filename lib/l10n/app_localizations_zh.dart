@@ -3421,8 +3421,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get displaySettingsPageAnswerReviewTitle => '自我审查';
 
   @override
-  String get displaySettingsPageAnswerReviewDescription =>
-      '在最终回答送出前自我审查草稿；发现重大问题时自动修正一次';
+  String get displaySettingsPageAnswerReviewDescription => '在最终回答送出前自我审查并修正';
 
   @override
   String get displaySettingsPageAnswerReviewOptionOff => '关闭';
@@ -10570,8 +10569,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get displaySettingsPageAnswerReviewTitle => '自我审查';
 
   @override
-  String get displaySettingsPageAnswerReviewDescription =>
-      '在最终回答送出前自我审查草稿；发现重大问题时自动修正一次';
+  String get displaySettingsPageAnswerReviewDescription => '在最终回答送出前自我审查并修正';
 
   @override
   String get displaySettingsPageAnswerReviewOptionOff => '关闭';
@@ -17629,8 +17627,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get displaySettingsPageAnswerReviewTitle => '自我審查';
 
   @override
-  String get displaySettingsPageAnswerReviewDescription =>
-      '在最終回答送出前自我審查草稿；發現重大問題時自動修正一次';
+  String get displaySettingsPageAnswerReviewDescription => '在最終回答送出前自我審查並修正';
 
   @override
   String get displaySettingsPageAnswerReviewOptionOff => '關閉';
